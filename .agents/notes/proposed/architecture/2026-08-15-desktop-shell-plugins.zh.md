@@ -125,7 +125,7 @@ Electron Main 进程保持轻量宿主：
 
 - 把 `directory-picker-native` 行替换为 `desktop-directory-picker`。
 - 在 web runtime 之后插入 `desktop-shell`。
-- 保留 `dsh-web-app` 的 `surfaceContext` 和 `printUrl` 行为，但在打包应用中抑制打印的 URL（Electron 改向自己的调试通道记录）。
+- 保留 `dsh-web-app` 的 `surfaceContext` 和 `printUrl` 行为；`dsh web:` URL 就绪行仍是打包应用的就绪信号，直到 shell 桥接管。
 
 ### 生命周期与错误处理
 

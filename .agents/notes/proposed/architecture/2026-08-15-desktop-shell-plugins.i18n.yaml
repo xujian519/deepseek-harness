@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-15-desktop-shell-plugins.md
-2026-08-15-desktop-shell-plugins.md: 62111c9b8101a5eb6015e814ca72040beb88f0f1
-2026-08-15-desktop-shell-plugins.zh.md: 1e39ff4c828ca761debd4c368552da621f0805fd
+2026-08-15-desktop-shell-plugins.md: 5ca370059e57b1faf782593228fb8f2256bc0ef4
+2026-08-15-desktop-shell-plugins.zh.md: d43fbcaa9810f5d2563ea269d83b328cc32b9d0a

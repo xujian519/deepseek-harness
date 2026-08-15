@@ -125,7 +125,7 @@ No desktop business logic lives in the renderer. Menu clicks and global shortcut
 
 - Replace the `directory-picker-native` row with `desktop-directory-picker`.
 - Insert `desktop-shell` after the web runtime.
-- Keep `surfaceContext` and `printUrl` behaviors from `dsh-web-app`, but the printed URL is suppressed in the packaged app (Electron logs it to its own debug channel instead).
+- Keep `surfaceContext` and `printUrl` behaviors from `dsh-web-app`; the `dsh web:` URL line remains the packaged app's readiness signal until the shell bridge can own it.
 
 ### Lifecycle and error handling
 

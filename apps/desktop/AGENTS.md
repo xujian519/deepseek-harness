@@ -6,7 +6,7 @@ Rules for `apps/desktop/` and `packages/desktop/*` (the Electron shell around ds
 
 The desktop app is an Electron shell that runs the existing dsh Node.js backend as a child process and loads the existing browser UI in a renderer window. Almost all product behavior lives in the backend and the shared Web UI; the desktop layer owns only:
 
-- application lifecycle (startup, quit, crash recovery);
+- application lifecycle (startup, quit);
 - a minimal, allow-listed IPC bridge between the renderer and the OS;
 - OS chrome (menu bar, Dock/tray, global shortcuts, notifications, file dialogs, drag-and-drop);
 - packaging and release automation.
@@ -32,10 +32,7 @@ apps/desktop/
   src/
     main.ts              # Electron Main process: lifecycle + backend spawner
     preload.ts           # allow-listed IPC bridge exposed to renderer
-    renderer.ts          # thin shell over AppWebEntry; desktop-only hooks
-    server-manager.ts    # dsh child process control: start, port discovery, restart
-    ipc-schema.ts        # renderer↔main channel names + argument schemas
-    native/              # OS-specific helpers (menu, tray, shortcuts, dialogs)
+    server-manager.ts    # dsh child process control: start, readiness, dispose
   resources/             # assembled at package time; not checked in
     mac/                 # darwin packager host: backend deploy + node binary
       backend/
@@ -55,7 +52,7 @@ under the host aggregate and run on any packager host:
 - `scripts/desktop-package.ts`       # `pnpm deploy --prod` of the dsh CLI + deploy verification
 - `scripts/desktop-download-node.ts` # fetch + checksum-verify the platform Node binary
 
-packages/desktop/
+packages/desktop/         # planned: the desktop-shell plugin seams land here
   shell/                 # Cordis plugin that registers desktop host services
     src/
       index.ts           # apply(): expose desktop services to the dsh host
@@ -122,8 +119,8 @@ Desktop-only behavior must still go through Cordis seams where one exists:
 ### Backend child process
 
 - Use a separate, bundled Node.js binary; do not rely on Electron’s internal Node. This avoids ABI mismatches with native addons such as `landlock-run`.
-- Start dsh with `--profile desktop --port 0`, discover the bound port from stdout or a port file, then load the renderer URL.
-- Implement restart with exponential backoff. If the backend exits unexpectedly, surface a user-visible error and offer to reload; do not silently respawn forever.
+- Start dsh with `--profile desktop --port 0`, discover the bound URL from the `dsh web:` readiness line on stdout, then load the renderer URL.
+- On unexpected exit, surface a user-visible error dialog. Restart with exponential backoff and a reload offer are planned with the desktop-shell plugins.
 - Pass the user-data directory and log paths as environment variables; do not hardcode `~/.dsh` in the shell.
 
 ## Build and packaging
@@ -156,8 +153,8 @@ Keep the unpacked application under the 4 GB ceiling. If `node_modules` bloat ap
 
 ## Testing
 
-- Unit tests for `apps/desktop/src/` helpers (port discovery, restart backoff, IPC schema validation, native menu templates) live in `apps/desktop/tests/` and run under Vitest.
-- Integration tests launch the built Electron app, wait for the backend port, and assert that a blank session can be created. These require a display and are intended for CI runners with `xvfb` on Linux or native agents on macOS/Windows.
+- Unit tests for `apps/desktop/src/` (backend readiness/dispose in `server-manager.spec.ts`, the external-electron preload bundle in `preload-bundle.spec.ts`) live in `apps/desktop/tests/` and run under Vitest.
+- Integration tests that launch the built Electron app, wait for the backend port, and assert that a blank session can be created require a display; they are deferred until a display-capable runner is available.
 - UI behavior is covered by the existing `test:web` snapshot and e2e suite because the renderer runs the same `apps/web` code.
 - Do not add tests that exercise real model APIs in the desktop suite; rely on `dsh-llm-mock-server` or recorded fixtures.
 

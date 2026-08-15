@@ -22,11 +22,12 @@ const ROOT = resolve(import.meta.dirname, '..')
 
 /**
  * Resource directory name for a Node platform key: `darwin-*` lands in `mac`,
- * `win-*` in `win`, `linux-*` in `linux`.
+ * `win-x64` in `win`, `linux-*` in `linux`. Other win-* variants are rejected
+ * because the desktop runtime (embedded Node archive) does not ship them.
  */
 export function resourcesDirForPlatform(platform: string): string {
   if (platform.startsWith('darwin')) return 'mac'
-  if (platform.startsWith('win')) return 'win'
+  if (platform === 'win-x64') return 'win'
   if (platform.startsWith('linux')) return 'linux'
   throw new Error(`unsupported platform for desktop resources: ${platform}`)
 }
@@ -135,21 +136,54 @@ export function virtualStorePackages(nodeModulesDir: string): Map<string, string
 }
 
 /**
+ * Recursively copy `src` into `dest`, expanding every symlink to a real copy
+ * of its target. A target already present in `copied` is skipped instead of
+ * copied again, which both dedupes repeated references and breaks the
+ * vendored cosmokit/schemastery link cycle. The packaged app carries no
+ * directory links on Windows (junctions record the build machine's absolute
+ * paths and dangle after installation), so its deployed tree is built with
+ * real directories only.
+ */
+function copyTreeExpandingLinks(src: string, dest: string, copied: Map<string, string>): void {
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const srcPath = join(src, entry.name)
+    const destPath = join(dest, entry.name)
+    if (entry.isSymbolicLink()) {
+      const resolved = resolve(dirname(srcPath), readlinkSync(srcPath))
+      if (copied.has(resolved)) continue
+      copied.set(resolved, destPath)
+      copyTreeExpandingLinks(resolved, destPath, copied)
+    } else if (entry.isDirectory()) {
+      mkdirSync(destPath, { recursive: true })
+      copyTreeExpandingLinks(srcPath, destPath, copied)
+    } else {
+      cpSync(srcPath, destPath)
+    }
+  }
+}
+
+/**
  * Link every virtual-store package into the top-level node_modules when no
  * same-named package resolves there, mirroring pnpm's default hoisting. The
  * dsh launcher resolves Cordis plugin names from its own install directory,
  * and `pnpm deploy` links only direct dependencies at the top level.
+ * @param platform - the packager platform; 'win32' copies instead of linking.
  * @returns the created link paths.
  */
-export function hoistVirtualStore(nodeModulesDir: string): string[] {
+export function hoistVirtualStore(nodeModulesDir: string, platform: NodeJS.Platform = process.platform): string[] {
   const created: string[] = []
+  const copied = new Map<string, string>()
   const topLevel = topLevelPackageNames(nodeModulesDir)
   for (const [name, realDir] of virtualStorePackages(nodeModulesDir)) {
     if (topLevel.has(name)) continue
     const linkPath = join(nodeModulesDir, ...name.split('/'))
     mkdirSync(dirname(linkPath), { recursive: true })
-    // Relative so the packaged copy keeps resolving after installation.
-    symlinkSync(relative(dirname(linkPath), realDir), linkPath, process.platform === 'win32' ? 'junction' : 'dir')
+    if (platform === 'win32') {
+      copyTreeExpandingLinks(realDir, linkPath, copied)
+    } else {
+      // Relative so the packaged copy keeps resolving after installation.
+      symlinkSync(relative(dirname(linkPath), realDir), linkPath, 'dir')
+    }
     created.push(linkPath)
   }
   return created
@@ -170,34 +204,46 @@ function isWithin(dir: string, root: string): boolean {
  * targets become relative links, other external targets are copied (once per
  * distinct target, re-pointing later links at the in-tree copy), which also
  * breaks the cosmokit/schemastery link cycle. In-tree links (the .pnpm store
- * and hoisted entries) are kept.
+ * and hoisted entries) are kept. On Windows every link becomes a real copy
+ * instead (see {@link copyTreeExpandingLinks}); a further reference to an
+ * already-copied target is duplicated at the walk level (the first copy is
+ * complete there) and skipped inside a copy (that copy may still be in
+ * progress; resolution walks up to the hoisted top-level copy).
+ * @param platform - the packager platform; 'win32' replaces links with copies.
  * @returns the touched link paths.
  */
-export function materializeExternalLinks(nodeModulesDir: string): string[] {
+export function materializeExternalLinks(nodeModulesDir: string, platform: NodeJS.Platform = process.platform): string[] {
   const materialized: string[] = []
   const copies = new Map<string, string>()
-  const linkType = process.platform === 'win32' ? 'junction' : 'dir'
-  const copyExternal = (src: string, dest: string): void => {
+  const copyTree = (src: string, dest: string): void => {
     for (const entry of readdirSync(src, { withFileTypes: true })) {
       const srcPath = join(src, entry.name)
       const destPath = join(dest, entry.name)
       if (entry.isSymbolicLink()) {
         const resolved = resolve(dirname(srcPath), readlinkSync(srcPath))
         if (isWithin(resolved, nodeModulesDir)) {
-          symlinkSync(relative(dirname(destPath), resolved), destPath, linkType)
+          if (platform === 'win32') {
+            copyTree(resolved, destPath)
+          } else {
+            symlinkSync(relative(dirname(destPath), resolved), destPath, 'dir')
+          }
         } else {
           const existing = copies.get(resolved)
           if (existing !== undefined) {
-            symlinkSync(relative(dirname(destPath), existing), destPath, linkType)
+            // The first copy may still be in progress here, so do not copy it
+            // again; resolution walks up to the hoisted top-level copy.
+            if (platform !== 'win32') {
+              symlinkSync(relative(dirname(destPath), existing), destPath, 'dir')
+            }
           } else {
             copies.set(resolved, destPath)
-            copyExternal(resolved, destPath)
+            copyTree(resolved, destPath)
           }
         }
         materialized.push(destPath)
       } else if (entry.isDirectory()) {
         mkdirSync(destPath, { recursive: true })
-        copyExternal(srcPath, destPath)
+        copyTree(srcPath, destPath)
       } else {
         cpSync(srcPath, destPath)
       }
@@ -208,14 +254,27 @@ export function materializeExternalLinks(nodeModulesDir: string): string[] {
       const entryPath = join(dir, entry.name)
       if (entry.isSymbolicLink()) {
         const resolved = resolve(dirname(entryPath), readlinkSync(entryPath))
-        if (isWithin(resolved, nodeModulesDir)) continue
-        rmSync(entryPath)
+        if (isWithin(resolved, nodeModulesDir)) {
+          if (platform === 'win32') {
+            rmSync(entryPath, { recursive: true, force: true })
+            copyTree(resolved, entryPath)
+            materialized.push(entryPath)
+          }
+          continue
+        }
+        rmSync(entryPath, { recursive: true, force: true })
         const existing = copies.get(resolved)
         if (existing !== undefined) {
-          symlinkSync(relative(dirname(entryPath), existing), entryPath, linkType)
+          if (platform === 'win32') {
+            // Walk is linear, so the first copy is complete and can be
+            // duplicated for this further reference.
+            cpSync(existing, entryPath, { recursive: true })
+          } else {
+            symlinkSync(relative(dirname(entryPath), existing), entryPath, 'dir')
+          }
         } else {
           copies.set(resolved, entryPath)
-          copyExternal(resolved, entryPath)
+          copyTree(resolved, entryPath)
         }
         materialized.push(entryPath)
       } else if (entry.isDirectory()) {

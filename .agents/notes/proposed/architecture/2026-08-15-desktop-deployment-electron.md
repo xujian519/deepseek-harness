@@ -69,6 +69,7 @@ Because users do not have Node.js installed, the Electron application must ship 
    - `pnpm --filter @deepseek-ai/dsh deploy --legacy --prod` materializes the standalone backend. The deploy rewrites the workspace state with its production/filter context, so the script re-runs a plain `pnpm install` to restore the state every later pnpm command expects.
    - The script hoists every virtual-store package to the top-level `node_modules` (the launcher resolves Cordis plugin names from its own install directory, and the deploy layout links only direct dependencies). Hoisted links are relative so the packaged copy keeps resolving after installation.
    - `materializeExternalLinks` replaces every symlink that resolves outside the deploy tree (the vendored `cosmokit`/`schemastery` pnpm `link:` dependencies, which point back into the repository and dangle in a packaged app) with a real copy; cyclic vendor links are re-pointed at the in-tree copy.
+   - On Windows every link becomes a real copy instead of a relative link: junctions are normalized to the build machine's absolute paths and would dangle after installation. The copy expands links to real directories and breaks the vendor link cycle with a copied-target table; a further reference to an already-copied target is duplicated at the top-level walk (the first copy is complete there) and skipped inside a copy (resolution walks up to the hoisted top-level copy).
    - The script verifies the required plugin tree.
 3. `scripts/desktop-download-node.ts` downloads the checksum-verified Node binary (v24.19.0) into `apps/desktop/resources/<os>/node` (`bin/node` on darwin, `node.exe` on win32). The Node binary and the backend's native addons are OS-specific, so each packaging command runs on its target OS; `--platform win-x64` on a macOS host can cross-download the Node binary for build-link verification, but that package is not distributable.
 4. `electron-builder` (v26, `apps/desktop/electron-builder.yml`) packs each target's own resources directory as extraResources. Its copy filter drops a root-level `node_modules` dir, so the backend is copied in two passes (the `node_modules` subtree on its own, then the rest).
@@ -79,7 +80,7 @@ At runtime the Main process spawns:
 <resources>/node/bin/node <resources>/backend/lib/bin.js --profile desktop --port 0
 ```
 
-The child prints its bound port over stdout or writes it to a small port file in the app’s user-data directory. The Main process waits for the port, then loads the renderer URL.
+The child prints its bound URL on the `dsh web:` readiness line over stdout; the Main process waits for that line, then loads the renderer URL.
 
 Using a **separate standard Node.js binary** instead of Electron’s bundled Node avoids ABI mismatches with the `landlock-run` native addon and lets the backend run in an isolated process.
 
@@ -147,8 +148,10 @@ CI uses a GitHub Actions matrix with macOS and Windows runners, each building an
 
 - DMG and zip build cleanly on macOS; DMG requires network access to download `dmgbuild-bundle` (a local proxy or the npmmirror `electron-builder-binaries` mirror unblocks it).
 - The packaged backend is self-contained: every symlink is relative and resolves inside the tree (verified by scanning the packaged tree and by booting the backend from a copy of the `.app` moved outside the repository, which serves the UI over HTTP). The same prepare step that makes this true runs on any packager host.
+- Windows packaging replaces every link with a real directory copy (`materializeExternalLinks`/`hoistVirtualStore` on win32): junctions would record the build machine's absolute paths and dangle after installation. The win32 branch is unit-tested and must still be verified on a Windows host before the first release.
 - Windows installers are built on Windows (`pnpm run package:desktop:win`); the native addons in the deployed backend are host-specific, so the prepare step must run on the Windows host or CI runner.
 - The GUI window itself cannot be rendered in a headless sandbox; integration smoke tests require a machine with a display (CI native agents or manual acceptance).
+- Known limitations: on Windows, `child.kill('SIGTERM')` is `TerminateProcess`, which skips the backend's signal handler, so the final write-behind session-log batch can be lost on quit (a graceful channel is deferred to the desktop-shell bridge). The preload bundle keeps `electron` external (a sandboxed preload cannot load the inlined `electron` shim); the desktop shell typechecks in the host aggregate and runs its own Vitest config. The backend readiness wait has no timeout, navigation/window-open is not restricted to the backend origin and no CSP is set, the `dsh web:` readiness regex accepts any host, and the deploy tree carries node-pty prebuilds for all platforms (redundant but small); these harden with the desktop-shell plugins.
 
 ### Signing and notarization
 
@@ -157,9 +160,9 @@ CI uses a GitHub Actions matrix with macOS and Windows runners, each building an
 
 ### Testing strategy
 
-- Unit tests for Main-process helpers: port discovery, backend restart backoff, IPC schema validation.
+- Unit tests: `scripts/desktop-package.spec.ts` (deploy verification, hoisting, link materialization on POSIX and win32), `scripts/desktop-download-node.spec.ts` (download, checksum, cache), `apps/desktop/tests/server-manager.spec.ts` (readiness, dispose), `apps/desktop/tests/preload-bundle.spec.ts` (electron external).
 - Snapshot tests reuse existing web snapshots because the renderer UI is unchanged.
-- Integration tests launch the built Electron app and assert that it can start the backend, load the UI, and create a blank session.
+- Integration tests launch the built Electron app and assert that it can start the backend, load the UI, and create a blank session; they require a display and are deferred.
 - Manual acceptance on physical macOS and Windows machines before each release.
 
 ### Phased rollout
@@ -195,6 +198,6 @@ CI uses a GitHub Actions matrix with macOS and Windows runners, each building an
 
 - **Native addon ABI.** `landlock-run` must be compiled for the bundled standard Node binary, not for Electron’s internal Node. Using a separate Node process mitigates this.
 - **macOS notarization delays.** Notarization can fail or take time; CI must surface actionable logs.
-- **Process lifecycle.** The dsh backend can crash or refuse to start if the port is unavailable. Main process must implement restart with exponential backoff and clear user-facing diagnostics.
+- **Process lifecycle.** The dsh backend can crash or refuse to start if the port is unavailable. The shell surfaces an error dialog today; restart with exponential backoff and clearer user-facing diagnostics are planned with the desktop-shell plugins.
 - **Renderer vs. browser differences.** Drag-and-drop, deep links, and window focus behave differently in Electron than in a standalone browser; each requires explicit handling in Main/preload.
 - **Long build times.** Shipping a full Node runtime and `node_modules` makes CI builds slower; caching the downloaded Node binary and the deployed backend directory helps.

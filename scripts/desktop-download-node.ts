@@ -165,9 +165,10 @@ export async function downloadNode(options: DownloadNodeOptions): Promise<string
   return target
 }
 
-/** Default resources node directory relative to the repository root. */
-function defaultNodeResourcesDir(): string {
-  return resolve(import.meta.dirname, '..', 'apps', 'desktop', 'resources', 'node')
+/** Default resources node directory for a platform, relative to the repository root. */
+function defaultNodeResourcesDir(platform: string): string {
+  const osDir = platform.startsWith('darwin') ? 'mac' : platform.startsWith('win') ? 'win' : 'linux'
+  return resolve(import.meta.dirname, '..', 'apps', 'desktop', 'resources', osDir, 'node')
 }
 
 async function main(): Promise<void> {
@@ -175,12 +176,12 @@ async function main(): Promise<void> {
     options: {
       platform: { type: 'string' },
       version: { type: 'string', default: DEFAULT_NODE_VERSION },
-      dir: { type: 'string', default: defaultNodeResourcesDir() },
+      dir: { type: 'string' },
       force: { type: 'boolean', default: false },
     },
   })
   const spec = nodeDownloadSpec(values.platform ?? currentDesktopPlatform(), values.version)
-  const target = await downloadNode({ spec, targetDir: values.dir, force: values.force })
+  const target = await downloadNode({ spec, targetDir: values.dir ?? defaultNodeResourcesDir(spec.platform), force: values.force })
   console.log(`node ${spec.version} (${spec.platform}) -> ${target}`)
 }
 
