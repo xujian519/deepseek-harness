@@ -15,6 +15,7 @@
 - **bundle 依赖口径**：`knip.json` 给 `packages/bundle/desktop-app` 加上与 `bundle/web-app`、`bundle/base` 相同的 `ignoreDependencies: ["@deepseek-ai/.+"]`；bundle 依赖经 `cordis.patch.yml` 消费，而 knip 不解析 yml。
 - **消除克隆**：从 `desktop-package.spec.ts` 的 POSIX/win32 镜像 setup 块提取 fixture helper（`makeExternalLink`、`makeVendorCycle`、`makeInTreeStoreLink`、`expectPackageJson`），并从 `desktop-package.ts` 的两处 symlink 遍历骨架提取 `resolveLinkTarget`。
 - **生成文档**：重新运行 `pnpm run gen-module-graph`，使 `docs/module-graph.md` 包含 desktop 包。
+- **双语配对**：`docs/module-graph.md` 是配对文档；中文侧与 `module-graph.i18n.yaml` 的 hash 记录必须同步更新（`verify-translation-pairing`）；固定旧显式 `files` 列表与已退役 `dsh-windows-2025-16core` 自托管标签的打包/CI spec 断言，改为匹配 dist 目录 glob 与托管默认 `windows-2025`（`packaging-files.spec.ts`、`ci-workflow.spec.ts`）。
 
 ## 备选方案
 
