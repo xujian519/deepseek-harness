@@ -8,7 +8,7 @@
 
 ## 骨架范围
 
-当前 Phase 3 实现接通了桥接、Service Definition 和 Electron Main 桩处理程序。原生对话框（`showOpenDialog`、`showSaveDialog`）调用 Electron 的 `dialog` API；通知、菜单、全局快捷键、托盘和文件拖放仍为桩实现，将在后续阶段补齐。
+当前 Phase 3 实现接通了桥接、Service Definition 和 Electron Main 桩处理程序。原生对话框（`showOpenDialog`、`showSaveDialog`）调用 Electron 的 `dialog` API，Electron Main 显示一个静态托盘图标（显示/退出菜单、关闭时隐藏）。通知、菜单、全局快捷键、文件拖放以及可编程的 `setTray` 契约仍为桩实现，将在后续阶段补齐。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -28,16 +28,22 @@ Abstract desktop-integration service. Subclass, implement the methods, and load 
 /**
  * Show a native open-file / open-directory dialog.
  * @param options - dialog options.
+ * @param signal - caller/connection lifetime; abort rejects the call and
+ * discards the dialog result. The native dialog itself stays open until the
+ * operator acts because Electron exposes no programmatic close.
  * @returns selected paths, or undefined when the operator cancels.
  */
-abstract showOpenDialog(options: OpenDialogOptions): Promise<string[] | undefined>
+abstract showOpenDialog(options: OpenDialogOptions, signal?: AbortSignal): Promise<string[] | undefined>
 
 /**
  * Show a native save-file dialog.
  * @param options - dialog options.
+ * @param signal - caller/connection lifetime; abort rejects the call and
+ * discards the dialog result. The native dialog itself stays open until the
+ * operator acts because Electron exposes no programmatic close.
  * @returns the chosen absolute path, or undefined when the operator cancels.
  */
-abstract showSaveDialog(options: SaveDialogOptions): Promise<string | undefined>
+abstract showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promise<string | undefined>
 
 /**
  * Show a system notification.

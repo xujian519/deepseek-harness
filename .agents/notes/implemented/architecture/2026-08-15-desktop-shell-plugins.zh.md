@@ -53,7 +53,7 @@ dsh backend plugins / UI   (Consumers: ctx.desktop, ctx.directoryPicker, tools, 
   - 主进程 → 后端：通知（`desktop/menu-activated`、`desktop/shortcut-triggered`、`desktop/tray-clicked`、`desktop/file-dropped`、`desktop/notification-clicked`）。
 - 只有一个后端连接；socket 位于应用用户数据目录，文件系统权限仅允许当前用户。
 
-如果缺少 `DSH_DESKTOP_BRIDGE_PATH`，`@deepseek-ai/dsh-desktop-shell` 会记录警告并不注册 `ctx.desktop`。这样同一个包可以在无 Electron 的测试中启动，但桌面 profile 始终会设置该变量。
+如果缺少 `DSH_DESKTOP_BRIDGE_PATH`，`@deepseek-ai/dsh-desktop-shell` 会记录警告并注册 `ctx.desktop`，但所有方法都以 `DesktopError('bridge-disconnected')` 拒绝。这样同一个包可以在无 Electron 的测试中启动，但桌面 profile 始终会设置该变量。
 
 ### `ctx.desktop` Service Definition
 
@@ -129,7 +129,7 @@ Electron Main 进程保持轻量宿主：
 
 ### 生命周期与错误处理
 
-- 桥接断开时，`@deepseek-ai/dsh-desktop-shell` 发出 `desktop/bridge-lost` 并清除所有动态注册。Main 在后端退出时会重启它。
+- 桥接断开时，`@deepseek-ai/dsh-desktop-shell` 发出 `desktop/bridge-lost`。Main 在后端意外退出时弹出错误对话框，不会自动重启。
 - 桥接断开期间调用对话框，提供方以 `DesktopError('bridge-disconnected')` 拒绝。消费方将其视为暂时失败。
 - Main 对每一个传入的 JSON-RPC 方法名做白名单校验；未知方法返回 JSON-RPC 错误。
 
@@ -155,7 +155,7 @@ Electron Main 进程保持轻量宿主：
 - 单元测试覆盖 Service Definition、bridge client、shell provider 和 directory-picker provider。
 - Host 聚合 typecheck、oxlint 和 `build:lib:host` 均通过。
 
-已知剩余工作：通知、菜单、全局快捷键、托盘、文件拖放的实际 Electron API 集成，以及 Windows named pipe 验证。
+已知剩余工作：通知、菜单、全局快捷键、文件拖放的实际 Electron API 集成，以及 Windows named pipe 验证。
 
 已交付行为：
 
@@ -163,7 +163,7 @@ Electron Main 进程保持轻量宿主：
 - `@deepseek-ai/dsh-desktop-shell` 通过本地 socket 连接到 Electron Main 并注册 `ctx.desktop`。
 - `@deepseek-ai/dsh-desktop-directory-picker` 为 `ctx.directoryPicker` 提供 `electron` kind。
 - 桌面 bundle 能替换 `directory-picker-native` 并挂载 `desktop-shell`，无需改动核心包。
-- Main 已实现打开/保存对话框；通知、菜单、全局快捷键、托盘和文件拖放当前为桩实现。
+- Main 已实现打开/保存对话框和静态托盘图标；通知、菜单、全局快捷键和文件拖放当前为桩实现，可编程的 `setTray` 契约同样是桩实现。
 - 桥接断开可被处理并通过 `desktop/bridge-lost` 被观测到。
 
 剩余风险：

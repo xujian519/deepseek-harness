@@ -53,7 +53,7 @@ Use a Unix domain socket on macOS and a named pipe on Windows. The path is provi
   - Main → Backend: notifications (`desktop/menu-activated`, `desktop/shortcut-triggered`, `desktop/tray-clicked`, `desktop/file-dropped`, `desktop/notification-clicked`).
 - Only one backend connects; the socket lives in the app user-data directory with user-only filesystem permissions.
 
-If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a warning and does not register `ctx.desktop`. This lets the same bundle start in tests without Electron, but the desktop profile always sets the variable.
+If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a warning and registers `ctx.desktop` with every method rejecting `DesktopError('bridge-disconnected')`. This lets the same bundle start in tests without Electron, but the desktop profile always sets the variable.
 
 ### `ctx.desktop` Service Definition
 
@@ -129,7 +129,7 @@ No desktop business logic lives in the renderer. Menu clicks and global shortcut
 
 ### Lifecycle and error handling
 
-- If the bridge connection drops, `@deepseek-ai/dsh-desktop-shell` emits `desktop/bridge-lost` and clears all dynamic registrations. Main restarts the backend if it exits.
+- If the bridge connection drops, `@deepseek-ai/dsh-desktop-shell` emits `desktop/bridge-lost`. Main reports an unexpected backend exit with an error dialog and does not restart it automatically.
 - If a dialog call is made while the bridge is disconnected, the provider rejects with `DesktopError('bridge-disconnected')`. Consumers treat this as a transient failure.
 - Main validates every incoming JSON-RPC method name against an allow list; unknown methods return a JSON-RPC error.
 
@@ -155,7 +155,7 @@ Shipped the Phase 3 skeleton:
 - Unit tests cover the Service Definition, the bridge client, the shell provider, and the directory-picker provider.
 - Host aggregate typecheck, oxlint, and `build:lib:host` all pass.
 
-Known remaining work: actual Electron API integrations for notifications, menus, global shortcuts, tray, drag-and-drop, and Windows named-pipe verification.
+Known remaining work: actual Electron API integrations for notifications, menus, global shortcuts, drag-and-drop, and Windows named-pipe verification.
 
 Delivered behavior:
 
@@ -163,7 +163,7 @@ Delivered behavior:
 - `@deepseek-ai/dsh-desktop-shell` connects to Electron Main over a local socket and registers `ctx.desktop`.
 - `@deepseek-ai/dsh-desktop-directory-picker` provides the `electron` kind for `ctx.directoryPicker`.
 - The desktop bundle replaces `directory-picker-native` and mounts `desktop-shell` without touching core packages.
-- Main already implements open/save dialogs; notifications, menus, global shortcuts, tray, and drag-and-drop are currently stubs.
+- Main already implements open/save dialogs and a static tray icon; notifications, menus, global shortcuts, and drag-and-drop are currently stubs, and the programmable `setTray` contract is a stub too.
 - Bridge disconnection is handled and observable via `desktop/bridge-lost`.
 
 Remaining risks:

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import { startDshBackend, type DesktopBackend } from './server-manager.ts'
 import { BridgeServer, resolveBridgePath } from './bridge-server.ts'
+import { isWithinBackendOrigin } from './navigation.ts'
 import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
 
 /** Repository root from either layout (src/main.ts or dist/main.js: three hops up). */
@@ -81,11 +82,11 @@ function createWindow(): BrowserWindow {
   })
   mainWindow = window
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url.startsWith(backendOrigin)) void shell.openExternal(url)
+    if (!isWithinBackendOrigin(url, backendOrigin)) void shell.openExternal(url)
     return { action: 'deny' }
   })
   window.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(backendOrigin)) event.preventDefault()
+    if (!isWithinBackendOrigin(url, backendOrigin)) event.preventDefault()
   })
   window.on('close', (event) => {
     if (shouldHideOnClose(isQuitting, tray !== undefined)) {
@@ -130,7 +131,17 @@ void app.whenReady().then(async () => {
 
   bridge = new BridgeServer(window)
   const bridgePath = resolveBridgePath(app.getPath('userData'))
-  await bridge.start(bridgePath)
+  try {
+    await bridge.start(bridgePath)
+  } catch (error) {
+    console.error('failed to start the desktop bridge', error)
+    dialog.showErrorBox(
+      'DeepSeek Harness failed to start',
+      `Failed to start the desktop bridge: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    app.quit()
+    return
+  }
 
   const { entry, loaderArgs, cwd } = resolveBackend()
   backend = startDshBackend({

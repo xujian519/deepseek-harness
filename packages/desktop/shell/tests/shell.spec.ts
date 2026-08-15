@@ -32,8 +32,11 @@ describe('DesktopShell', () => {
           lastMethod = frame.method
           lastParams = frame.params
           if ('id' in frame && typeof frame.id === 'number') {
+            const params = frame.params as { title?: string } | undefined
             const response = frame.method === 'desktop/showOpenDialog'
-              ? { jsonrpc: '2.0', id: frame.id, result: { filePaths: ['/selected'] } }
+              ? params?.title === 'explode'
+                ? { jsonrpc: '2.0', id: frame.id, error: { code: -32000, message: 'boom' } }
+                : { jsonrpc: '2.0', id: frame.id, result: { filePaths: ['/selected'] } }
               : frame.method === 'desktop/showSaveDialog'
                 ? { jsonrpc: '2.0', id: frame.id, result: { filePath: '/saved.txt' } }
                 : { jsonrpc: '2.0', id: frame.id, result: undefined }
@@ -141,5 +144,78 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await expect(shell.showOpenDialog({})).rejects.toThrow('DSH_DESKTOP_BRIDGE_PATH is not set')
+  })
+
+  it('maps a server JSON-RPC error to DesktopError(dialog-failed)', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await expect(shell.showOpenDialog({ title: 'explode' })).rejects.toMatchObject({
+      name: 'DesktopError',
+      code: 'dialog-failed',
+    })
+  })
+
+  it('propagates an aborted signal as AbortError, not a DesktopError', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const controller = new AbortController()
+    controller.abort()
+    await expect(shell.showOpenDialog({}, controller.signal)).rejects.toThrow('aborted')
+  })
+
+  it('forwards desktop/menu-activated from the bridge to ctx listeners', async () => {
+    const ctx = new Context()
+    const received: string[] = []
+    ctx.on('desktop/menu-activated', ({ menuId }) => { received.push(menuId) })
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    serverSocket?.write(
+      JSON.stringify({ jsonrpc: '2.0', method: 'desktop/menu-activated', params: { menuId: 'open' } }) + '\n',
+    )
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(received).toEqual(['open'])
+  })
+
+  it('invokes the registered shortcut handler when triggered', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    let fired = 0
+    shell.registerGlobalShortcut('Cmd+K', () => { fired += 1 })
+    serverSocket?.write(
+      JSON.stringify({ jsonrpc: '2.0', method: 'desktop/shortcut-triggered', params: { accelerator: 'Cmd+K' } }) + '\n',
+    )
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(fired).toBe(1)
+  })
+
+  it('emits desktop/bridge-lost when the socket closes unexpectedly', async () => {
+    const ctx = new Context()
+    let lost = 0
+    ctx.on('desktop/bridge-lost', () => { lost += 1 })
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    serverSocket?.end()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(lost).toBe(1)
+  })
+
+  it('does not emit desktop/bridge-lost when the shell is disposed normally', async () => {
+    const ctx = new Context()
+    let lost = 0
+    ctx.on('desktop/bridge-lost', () => { lost += 1 })
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await ctx.fiber.dispose()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(lost).toBe(0)
   })
 })

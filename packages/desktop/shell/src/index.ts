@@ -15,7 +15,7 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions,
 } from '@deepseek-ai/dsh-desktop'
-import { BridgeClient, type JsonRpcNotification } from './bridge-client.ts'
+import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from './bridge-client.ts'
 
 /**
  * Cordis plugin that registers `ctx.desktop` backed by the Electron main bridge.
@@ -26,7 +26,7 @@ import { BridgeClient, type JsonRpcNotification } from './bridge-client.ts'
 export default class DesktopShell extends Desktop {
   private readonly bridge?: BridgeClient
   private readonly menuDisposers = new Map<string, () => void>()
-  private readonly shortcutDisposers = new Map<string, () => void>()
+  private readonly shortcutHandlers = new Map<string, () => void>()
 
   constructor(ctx: Context) {
     super(ctx)
@@ -45,15 +45,13 @@ export default class DesktopShell extends Desktop {
     })
   }
 
-  async showOpenDialog(options: OpenDialogOptions): Promise<string[] | undefined> {
-    const bridge = this.bridgeOrThrow()
-    const result = await bridge.call('desktop/showOpenDialog', options) as { filePaths: string[] } | undefined
+  async showOpenDialog(options: OpenDialogOptions, signal?: AbortSignal): Promise<string[] | undefined> {
+    const result = await this.callBridge('desktop/showOpenDialog', options, signal) as { filePaths: string[] } | undefined
     return result?.filePaths
   }
 
-  async showSaveDialog(options: SaveDialogOptions): Promise<string | undefined> {
-    const bridge = this.bridgeOrThrow()
-    const result = await bridge.call('desktop/showSaveDialog', options) as { filePath: string } | undefined
+  async showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promise<string | undefined> {
+    const result = await this.callBridge('desktop/showSaveDialog', options, signal) as { filePath: string } | undefined
     return result?.filePath
   }
 
@@ -78,10 +76,10 @@ export default class DesktopShell extends Desktop {
     const bridge = this.bridgeOrThrow()
     bridge.notify('desktop/registerGlobalShortcut', { accelerator })
     const dispose = (): void => {
-      this.shortcutDisposers.delete(accelerator)
+      this.shortcutHandlers.delete(accelerator)
       bridge.notify('desktop/unregisterGlobalShortcut', { accelerator })
     }
-    this.shortcutDisposers.set(accelerator, handler)
+    this.shortcutHandlers.set(accelerator, handler)
     return dispose
   }
 
@@ -90,6 +88,18 @@ export default class DesktopShell extends Desktop {
     bridge.notify('desktop/setTray', config)
     return (): void => {
       bridge.notify('desktop/clearTray', {})
+    }
+  }
+
+  private async callBridge<T>(method: string, params: unknown, signal?: AbortSignal): Promise<T> {
+    const bridge = this.bridgeOrThrow()
+    try {
+      return await bridge.call(method, params, signal) as T
+    } catch (error) {
+      if (error instanceof DesktopError) throw error
+      if (error instanceof BridgeRpcError) throw new DesktopError('dialog-failed', error.message)
+      if (error instanceof DOMException && error.name === 'AbortError') throw error
+      throw new DesktopError('bridge-disconnected', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -111,7 +121,7 @@ export default class DesktopShell extends Desktop {
       case 'desktop/shortcut-triggered': {
         const { accelerator } = notification.params as { accelerator: string }
         ctx.emit('desktop/shortcut-triggered', { accelerator })
-        this.shortcutDisposers.get(accelerator)?.()
+        this.shortcutHandlers.get(accelerator)?.()
         return
       }
       case 'desktop/tray-clicked':

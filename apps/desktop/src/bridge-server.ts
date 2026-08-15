@@ -53,10 +53,11 @@ const ALLOWED_METHODS = new Set([
  * Resolve a bridge socket path in the app user-data directory.
  * Windows uses a named pipe; POSIX uses a Unix domain socket file.
  * @param userData - Electron app.getPath('userData').
+ * @param platform - target platform, defaulting to the current one.
  * @returns the bridge path to pass to the backend as DSH_DESKTOP_BRIDGE_PATH.
  */
-export function resolveBridgePath(userData: string): string {
-  return process.platform === 'win32'
+export function resolveBridgePath(userData: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32'
     ? `\\\\?\\pipe\\dsh-desktop-bridge-${process.pid}`
     : join(userData, 'dsh-desktop-bridge.sock')
 }
@@ -82,6 +83,9 @@ export class BridgeServer {
     return new Promise((resolve, reject) => {
       this.server = createServer((socket) => {
         if (this.socket !== undefined) {
+          // Reject the extra backend connection. Its errors are expected
+          // (e.g. a reset during the FIN exchange) and must not crash Main.
+          socket.on('error', () => {})
           socket.end()
           return
         }
@@ -125,6 +129,8 @@ export class BridgeServer {
     try {
       request = JSON.parse(line) as JsonRpcRequest
     } catch {
+      // Ignore a malformed frame: the peer is our own backend process, and
+      // one bad line must not kill the bridge.
       return
     }
     const id = request.id
