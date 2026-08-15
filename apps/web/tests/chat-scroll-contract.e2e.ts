@@ -467,7 +467,12 @@ describe('web e2e: long Chat scroll contract', () => {
   it.skipIf(MODE === 'record')('preserves the reader anchor when history and streaming arrive concurrently', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-history-stream',
-      replay: [replayEntry(textStream(LIVE_TEXT_FIRST, LIVE_TEXT_DONE, 120))],
+      // The stream must still be flowing when the reader anchors (the +5
+      // growth poll below). At 24 ms per delta, 120 deltas finish in under
+      // 3 s, which the anchor steps can outlive on a loaded 4-core runner —
+      // then every chunk is already in `world.events` and +5 can never pass.
+      // 480 deltas (~11.5 s) keep the anchor measurement mid-stream.
+      replay: [replayEntry(textStream(LIVE_TEXT_FIRST, LIVE_TEXT_DONE, 480))],
       seeds: [{ fixture: HISTORY_FIXTURE, id: HISTORY_SESSION_ID }],
     }, async (world) => {
       await openSeed(
