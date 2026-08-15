@@ -158,6 +158,11 @@ export function virtualStorePackages(nodeModulesDir: string): Map<string, string
   return packages
 }
 
+/** Resolve a symlink's target during a tree walk. */
+function resolveLinkTarget(linkPath: string): string {
+  return resolve(dirname(linkPath), readlinkSync(linkPath))
+}
+
 /**
  * Recursively copy `src` into `dest`, expanding every symlink to a real copy
  * of its target. A target already present in `copied` is skipped instead of
@@ -172,7 +177,7 @@ function copyTreeExpandingLinks(src: string, dest: string, copied: Map<string, s
     const srcPath = join(src, entry.name)
     const destPath = join(dest, entry.name)
     if (entry.isSymbolicLink()) {
-      const resolved = resolve(dirname(srcPath), readlinkSync(srcPath))
+      const resolved = resolveLinkTarget(srcPath)
       if (copied.has(resolved)) continue
       copied.set(resolved, destPath)
       copyTreeExpandingLinks(resolved, destPath, copied)
@@ -243,7 +248,7 @@ export function materializeExternalLinks(nodeModulesDir: string, platform: NodeJ
       const srcPath = join(src, entry.name)
       const destPath = join(dest, entry.name)
       if (entry.isSymbolicLink()) {
-        const resolved = resolve(dirname(srcPath), readlinkSync(srcPath))
+        const resolved = resolveLinkTarget(srcPath)
         if (isWithin(resolved, nodeModulesDir)) {
           if (platform === 'win32') {
             copyTree(resolved, destPath)
