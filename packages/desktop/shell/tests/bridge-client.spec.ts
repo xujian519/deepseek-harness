@@ -10,9 +10,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from '../src/bridge-client.ts'
 
 // Windows cannot listen on a POSIX socket file; a named pipe is the native form.
-const socketPath = process.platform === 'win32'
-  ? `\\\\.\\pipe\\dsh-desktop-bridge-test-${process.pid}`
-  : join(tmpdir(), `dsh-desktop-bridge-test-${process.pid}.sock`)
+// The path is unique PER TEST: Windows pipe names linger briefly after the
+// owning server closes, so a fixed name collides with the previous test's
+// (EADDRINUSE) while the OS frees it.
+let socketPath: string
+let socketPathCounter = 0
+function nextSocketPath(): string {
+  socketPathCounter += 1
+  return process.platform === 'win32'
+    ? `\\\\.\\pipe\\dsh-desktop-bridge-test-${process.pid}-${socketPathCounter}`
+    : join(tmpdir(), `dsh-desktop-bridge-test-${process.pid}-${socketPathCounter}.sock`)
+}
 
 describe('BridgeClient', () => {
   let server: Server
@@ -25,6 +33,7 @@ describe('BridgeClient', () => {
     notifications = []
     closeCount = 0
     serverSocket = undefined
+    socketPath = nextSocketPath()
     server = createServer((socket) => {
       serverSocket = socket
       socket.setEncoding('utf8')

@@ -20,9 +20,17 @@ vi.mock('electron', () => ({
 
 const window = {} as BrowserWindow
 // Windows cannot listen on a POSIX socket file; a named pipe is the native form.
-const socketPath = process.platform === 'win32'
-  ? `\\\\.\\pipe\\dsh-desktop-bridge-server-test-${process.pid}`
-  : join(tmpdir(), `dsh-desktop-bridge-server-test-${process.pid}.sock`)
+// The path is unique PER TEST: Windows pipe names linger briefly after the
+// owning server closes, so a fixed name collides with the previous test's
+// (EADDRINUSE) while the OS frees it.
+let socketPath: string
+let socketPathCounter = 0
+function nextSocketPath(): string {
+  socketPathCounter += 1
+  return process.platform === 'win32'
+    ? `\\\\.\\pipe\\dsh-desktop-bridge-server-test-${process.pid}-${socketPathCounter}`
+    : join(tmpdir(), `dsh-desktop-bridge-server-test-${process.pid}-${socketPathCounter}.sock`)
+}
 
 describe('resolveBridgePath', () => {
   it('resolves a POSIX socket file under userData', () => {
@@ -42,6 +50,7 @@ describe('BridgeServer', () => {
 
   beforeEach(async () => {
     frames = []
+    socketPath = nextSocketPath()
     bridge = new BridgeServer(window)
     await bridge.start(socketPath)
     client = connect(socketPath)
