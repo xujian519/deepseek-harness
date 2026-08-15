@@ -15,6 +15,7 @@ Two defects surfaced after the desktop shell shipped. First, the packaged app cr
 - **Bundle dependency accounting**: `knip.json` gives `packages/bundle/desktop-app` the same `ignoreDependencies: ["@deepseek-ai/.+"]` as `bundle/web-app` and `bundle/base`; bundle dependencies are consumed through `cordis.patch.yml`, which knip does not parse.
 - **Clone removal**: extracted fixture helpers (`makeExternalLink`, `makeVendorCycle`, `makeInTreeStoreLink`, `expectPackageJson`) from the mirrored POSIX/win32 setup blocks in `desktop-package.spec.ts` and a `resolveLinkTarget` helper from the two symlink walk skeletons in `desktop-package.ts`.
 - **Generated doc**: re-ran `pnpm run gen-module-graph` so `docs/module-graph.md` includes the desktop packages.
+- **Bilingual pairing**: `docs/module-graph.md` is a paired doc; the zh side and `module-graph.i18n.yaml` hash record must move with it (`verify-translation-pairing`), and the packaging/CI spec assertions that pinned the old explicit `files` list and the retired `dsh-windows-2025-16core` self-hosted label now match the dist-directory glob and the hosted `windows-2025` default (`packaging-files.spec.ts`, `ci-workflow.spec.ts`).
 
 ## Alternatives considered
 
