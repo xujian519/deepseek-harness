@@ -16,6 +16,7 @@ directories:
 
 files:
   - dist/main.js
+  - dist/server-manager.js
   - dist/preload.cjs
   - package.json
 
