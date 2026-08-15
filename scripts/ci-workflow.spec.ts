@@ -83,8 +83,11 @@ describe('CI workflow', () => {
     expect(wineAptCache.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
     expect(wineAptCache['runs-on']).toBe('ubuntu-latest')
 
-    // serial-windows: master-only standby, self-hosted, non-blocking.
-    expect(serialWindows.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
+    // serial-windows: master-only standby, self-hosted, non-blocking. The
+    // upstream-repository guard keeps it from queueing forever on forks.
+    expect(serialWindows.if).toBe(
+      "github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'deepseek-harness/deepseek-harness'",
+    )
     expect(serialWindows['runs-on']).toEqual(['self-hosted', 'dsh-win-ci', 'windows'])
     expect(serialWindows.name).toBe('serial / windows (self-hosted standby)')
 
@@ -130,8 +133,12 @@ describe('CI workflow', () => {
       const job = workflow.jobs[name]
       if (!isRecord(job)) throw new TypeError(`${name} must be defined`)
       expect(job.concurrency).toBeUndefined()
-      // Both stay master-push-only; that is what makes the push carve-out safe.
-      expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/master'")
+      // Both stay master-push-only; that is what makes the push carve-out
+      // safe. The upstream-repository guard keeps them from queueing forever
+      // on forks, which have no self-hosted pool to satisfy them.
+      expect(job.if).toBe(
+        "github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'deepseek-harness/deepseek-harness'",
+      )
     }
 
     // What bounds the cost of exempting push: a master push may only carry the
