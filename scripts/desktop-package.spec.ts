@@ -24,6 +24,54 @@ function isRealDirectory(entryPath: string): boolean {
   return lstatSync(entryPath).isDirectory()
 }
 
+/** Fixture: `node_modules` with a vendored external package linked in. */
+function makeExternalLink(dir: string): { nm: string; external: string } {
+  const nm = join(dir, 'node_modules')
+  mkdirSync(nm, { recursive: true })
+  const external = join(dir, 'vendor-pkg')
+  mkdirSync(external, { recursive: true })
+  writeFileSync(join(external, 'package.json'), '{"name":"vendor-pkg"}')
+  createFixtureLink(external, join(nm, 'vendor-link'))
+  return { nm, external }
+}
+
+/** Fixture: `node_modules` plus a cyclic pair of external vendor packages. */
+function makeVendorCycle(dir: string): { nm: string } {
+  const nm = join(dir, 'node_modules')
+  mkdirSync(nm, { recursive: true })
+  const a = join(dir, 'vendor-a')
+  const b = join(dir, 'vendor-b')
+  mkdirSync(join(a, 'node_modules'), { recursive: true })
+  mkdirSync(join(b, 'node_modules'), { recursive: true })
+  writeFileSync(join(a, 'package.json'), '{"name":"a"}')
+  writeFileSync(join(b, 'package.json'), '{"name":"b"}')
+  createFixtureLink(b, join(a, 'node_modules', 'b'))
+  createFixtureLink(a, join(b, 'node_modules', 'a'))
+  createFixtureLink(a, join(nm, 'a-one'))
+  createFixtureLink(a, join(nm, 'a-two'))
+  return { nm }
+}
+
+/** Fixture: `node_modules` plus an external package holding an in-tree store link. */
+function makeInTreeStoreLink(dir: string): { nm: string; store: string; external: string } {
+  const nm = join(dir, 'node_modules')
+  mkdirSync(nm, { recursive: true })
+  const store = join(nm, '.pnpm', 'spec@1.0.0', 'node_modules', '@standard-schema', 'spec')
+  mkdirSync(store, { recursive: true })
+  writeFileSync(join(store, 'index.js'), 'spec')
+  const external = join(dir, 'vendor-pkg')
+  mkdirSync(join(external, 'node_modules', '@standard-schema'), { recursive: true })
+  writeFileSync(join(external, 'package.json'), '{"name":"vendor-pkg"}')
+  createFixtureLink(store, join(external, 'node_modules', '@standard-schema', 'spec'))
+  createFixtureLink(external, join(nm, 'vendor-pkg'))
+  return { nm, store, external }
+}
+
+/** Assert a package.json in the deployed tree contains the given fragment. */
+function expectPackageJson(nm: string, pkgPath: string, fragment: string): void {
+  expect(readFileSync(join(nm, pkgPath, 'package.json'), 'utf8')).toContain(fragment)
+}
+
 const REQUIRED = [
   'lib/bin.js',
   'node_modules/@deepseek-ai/cordis/package.json',
@@ -75,13 +123,7 @@ describe.skipIf(process.platform === 'win32')('materializeExternalLinks (POSIX l
   it('replaces out-of-tree links with real copies and keeps in-tree links', () => {
     const dir = mkdtempSync(join(tmpdir(), 'materialize-'))
     try {
-      const nm = join(dir, 'node_modules')
-      mkdirSync(nm, { recursive: true })
-      // A link that resolves outside the tree (pnpm `link:` dependency).
-      const external = join(dir, 'vendor-pkg')
-      mkdirSync(external, { recursive: true })
-      writeFileSync(join(external, 'package.json'), '{"name":"vendor-pkg"}')
-      createFixtureLink(external, join(nm, 'vendor-link'))
+      const { nm } = makeExternalLink(dir)
       // A link that resolves inside the tree (the pnpm store).
       mkdirSync(join(nm, '.pnpm', 'real@1.0.0', 'node_modules', 'real'), { recursive: true })
       writeFileSync(join(nm, '.pnpm', 'real@1.0.0', 'node_modules', 'real', 'index.js'), 'x')
@@ -102,31 +144,18 @@ describe.skipIf(process.platform === 'win32')('materializeExternalLinks (POSIX l
   it('copies each external target once and re-points cyclic links in-tree', () => {
     const dir = mkdtempSync(join(tmpdir(), 'materialize-'))
     try {
-      const nm = join(dir, 'node_modules')
-      mkdirSync(nm, { recursive: true })
-      // Two external packages that link to each other (cosmokit/schemastery).
-      const a = join(dir, 'vendor-a')
-      const b = join(dir, 'vendor-b')
-      mkdirSync(join(a, 'node_modules'), { recursive: true })
-      mkdirSync(join(b, 'node_modules'), { recursive: true })
-      writeFileSync(join(a, 'package.json'), '{"name":"a"}')
-      writeFileSync(join(b, 'package.json'), '{"name":"b"}')
-      createFixtureLink(b, join(a, 'node_modules', 'b'))
-      createFixtureLink(a, join(b, 'node_modules', 'a'))
-      // Three consumers link to `a`; the first is copied, the rest re-point.
-      createFixtureLink(a, join(nm, 'a-one'))
-      createFixtureLink(a, join(nm, 'a-two'))
+      const { nm } = makeVendorCycle(dir)
 
       const materialized = materializeExternalLinks(nm, POSIX)
 
       expect(materialized).toHaveLength(4)
       // Both external packages became real in-tree copies.
-      expect(readFileSync(join(nm, 'a-one', 'package.json'), 'utf8')).toContain('"name":"a"')
-      expect(readFileSync(join(nm, 'a-two', 'package.json'), 'utf8')).toContain('"name":"a"')
+      expectPackageJson(nm, 'a-one', '"name":"a"')
+      expectPackageJson(nm, 'a-two', '"name":"a"')
       // The cyclic dependency inside the copy resolves in-tree via a link to
       // the copied package, and its own cyclic dependency resolves back.
-      expect(readFileSync(join(nm, 'a-one', 'node_modules', 'b', 'package.json'), 'utf8')).toContain('"name":"b"')
-      expect(readFileSync(join(nm, 'a-one', 'node_modules', 'b', 'node_modules', 'a', 'package.json'), 'utf8')).toContain('"name":"a"')
+      expectPackageJson(nm, 'a-one/node_modules/b', '"name":"b"')
+      expectPackageJson(nm, 'a-one/node_modules/b/node_modules/a', '"name":"a"')
       // The second consumer is a relative link to the first copy.
       expect(resolve(dirname(join(nm, 'a-two')), readlinkSync(join(nm, 'a-two')))).toBe(join(nm, 'a-one'))
     } finally {
@@ -137,18 +166,7 @@ describe.skipIf(process.platform === 'win32')('materializeExternalLinks (POSIX l
   it('rewrites links inside external copies that point back into the tree', () => {
     const dir = mkdtempSync(join(tmpdir(), 'materialize-'))
     try {
-      const nm = join(dir, 'node_modules')
-      mkdirSync(nm, { recursive: true })
-      // An in-tree store entry the external package links to.
-      const store = join(nm, '.pnpm', 'spec@1.0.0', 'node_modules', '@standard-schema', 'spec')
-      mkdirSync(store, { recursive: true })
-      writeFileSync(join(store, 'index.js'), 'spec')
-      // The external package holds a relative link into the repo layout.
-      const external = join(dir, 'vendor-pkg')
-      mkdirSync(join(external, 'node_modules', '@standard-schema'), { recursive: true })
-      writeFileSync(join(external, 'package.json'), '{"name":"vendor-pkg"}')
-      createFixtureLink(join(dir, 'node_modules', '.pnpm', 'spec@1.0.0', 'node_modules', '@standard-schema', 'spec'), join(external, 'node_modules', '@standard-schema', 'spec'))
-      createFixtureLink(external, join(nm, 'vendor-pkg'))
+      const { nm, store } = makeInTreeStoreLink(dir)
 
       materializeExternalLinks(nm, POSIX)
 
@@ -166,12 +184,7 @@ describe('materializeExternalLinks (win32 real copies)', () => {
   it('replaces out-of-tree links with real copies and keeps in-tree links resolvable', () => {
     const dir = mkdtempSync(join(tmpdir(), 'materialize-'))
     try {
-      const nm = join(dir, 'node_modules')
-      mkdirSync(nm, { recursive: true })
-      const external = join(dir, 'vendor-pkg')
-      mkdirSync(external, { recursive: true })
-      writeFileSync(join(external, 'package.json'), '{"name":"vendor-pkg"}')
-      createFixtureLink(external, join(nm, 'vendor-link'))
+      const { nm } = makeExternalLink(dir)
       const store = join(nm, '.pnpm', 'real@1.0.0', 'node_modules', 'real')
       mkdirSync(store, { recursive: true })
       writeFileSync(join(store, 'index.js'), 'x')
@@ -194,18 +207,7 @@ describe('materializeExternalLinks (win32 real copies)', () => {
   it('copies a cyclic vendor pair once per consumer without following the cycle', () => {
     const dir = mkdtempSync(join(tmpdir(), 'materialize-'))
     try {
-      const nm = join(dir, 'node_modules')
-      mkdirSync(nm, { recursive: true })
-      const a = join(dir, 'vendor-a')
-      const b = join(dir, 'vendor-b')
-      mkdirSync(join(a, 'node_modules'), { recursive: true })
-      mkdirSync(join(b, 'node_modules'), { recursive: true })
-      writeFileSync(join(a, 'package.json'), '{"name":"a"}')
-      writeFileSync(join(b, 'package.json'), '{"name":"b"}')
-      createFixtureLink(b, join(a, 'node_modules', 'b'))
-      createFixtureLink(a, join(b, 'node_modules', 'a'))
-      createFixtureLink(a, join(nm, 'a-one'))
-      createFixtureLink(a, join(nm, 'a-two'))
+      const { nm } = makeVendorCycle(dir)
 
       const materialized = materializeExternalLinks(nm, WIN32)
 
@@ -213,12 +215,12 @@ describe('materializeExternalLinks (win32 real copies)', () => {
       expect(materialized).toHaveLength(4)
       expect(isRealDirectory(join(nm, 'a-one'))).toBe(true)
       expect(isRealDirectory(join(nm, 'a-two'))).toBe(true)
-      expect(readFileSync(join(nm, 'a-one', 'package.json'), 'utf8')).toContain('"name":"a"')
-      expect(readFileSync(join(nm, 'a-two', 'package.json'), 'utf8')).toContain('"name":"a"')
+      expectPackageJson(nm, 'a-one', '"name":"a"')
+      expectPackageJson(nm, 'a-two', '"name":"a"')
       // The second consumer duplicates the completed first copy, including its
       // copied dependency.
-      expect(readFileSync(join(nm, 'a-one', 'node_modules', 'b', 'package.json'), 'utf8')).toContain('"name":"b"')
-      expect(readFileSync(join(nm, 'a-two', 'node_modules', 'b', 'package.json'), 'utf8')).toContain('"name":"b"')
+      expectPackageJson(nm, 'a-one/node_modules/b', '"name":"b"')
+      expectPackageJson(nm, 'a-two/node_modules/b', '"name":"b"')
       // The cycle is not re-entered: inside a copy, a link back to a target
       // whose copy is still in progress is skipped (resolution walks up to the
       // hoisted top-level copy instead).
@@ -232,16 +234,7 @@ describe('materializeExternalLinks (win32 real copies)', () => {
   it('copies links inside external copies that point back into the tree', () => {
     const dir = mkdtempSync(join(tmpdir(), 'materialize-'))
     try {
-      const nm = join(dir, 'node_modules')
-      mkdirSync(nm, { recursive: true })
-      const store = join(nm, '.pnpm', 'spec@1.0.0', 'node_modules', '@standard-schema', 'spec')
-      mkdirSync(store, { recursive: true })
-      writeFileSync(join(store, 'index.js'), 'spec')
-      const external = join(dir, 'vendor-pkg')
-      mkdirSync(join(external, 'node_modules', '@standard-schema'), { recursive: true })
-      writeFileSync(join(external, 'package.json'), '{"name":"vendor-pkg"}')
-      createFixtureLink(join(dir, 'node_modules', '.pnpm', 'spec@1.0.0', 'node_modules', '@standard-schema', 'spec'), join(external, 'node_modules', '@standard-schema', 'spec'))
-      createFixtureLink(external, join(nm, 'vendor-pkg'))
+      const { nm } = makeInTreeStoreLink(dir)
 
       materializeExternalLinks(nm, WIN32)
 
