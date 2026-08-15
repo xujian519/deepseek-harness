@@ -15,9 +15,12 @@ directories:
   output: release
 
 files:
-  - dist/main.js
-  - dist/server-manager.js
-  - dist/preload.cjs
+  # The whole compiled dist (every module main.ts imports), minus source maps
+  # and declarations; an explicit per-file list missed modules twice.
+  - dist
+  - '!dist/**/*.map'
+  - '!dist/**/*.d.ts'
+  - '!dist/types/**'
   - package.json
   - assets/tray.png
   - assets/trayTemplate.png
