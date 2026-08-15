@@ -51,7 +51,9 @@ jobs:
   #
   # FAILOVER (Linux): each Linux enterprise job resolves its pool through the
   # DSH_CI_FAILOVER_LINUX repository variable. Unset (normal), the expressions
-  # pick the hosted enterprise pools below. Setting the variable to
+  # pick standard GitHub-hosted runners; the upstream organization's
+  # dsh-ubuntu-24-04-16core larger-runner pool does not exist on forks, which
+  # left these lanes queued indefinitely. Setting the variable to
   # 'selfhosted' (repo Settings → Actions → Variables; writer-manageable
   # repository state — not PR-editable, no merge required) retargets all
   # three onto the in-house
@@ -66,7 +68,7 @@ jobs:
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || 'ubuntu-24.04' }}
     name: node 24 / static
     env:
       DSH_GATE_CONCURRENCY: '8'
@@ -118,14 +120,14 @@ jobs:
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || 'ubuntu-24.04' }}
     name: node 24 / coverage
     env:
-      # The hosted 16-core runner uses six coverage workers. The failover pool
-      # shares one 64-core VM across six always-on runner instances, so each
-      # instance may use eight while keeping the worst case at 8 × 6 = 48
+      # The standard hosted runner uses two coverage workers; the failover
+      # pool shares one 64-core VM across six always-on runner instances, so
+      # each instance may use eight while keeping the worst case at 8 × 6 = 48
       # workers; process-bound suites remain isolated in forks.
-      DSH_COVERAGE_MAX_WORKERS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '6' }}
+      DSH_COVERAGE_MAX_WORKERS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '2' }}
       DSH_GATE_CONCURRENCY: '3'
     steps:
       - uses: actions/checkout@v6
@@ -181,15 +183,16 @@ jobs:
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+          || 'ubuntu-24.04' }}
     name: node 24 / snapshots and artifacts
     env:
       DSH_GATE_CONCURRENCY: '8'
       DSH_NODE_COMPAT_SKIP_TYPECHECK: '1'
       DSH_OXLINT_THREADS: '8'
       DSH_PUBLINT_CONCURRENCY: '8'
-      # Failover halves snapshot concurrency for the shared 64-core VM.
-      DSH_SNAPSHOT_MAX_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '12' || '32' }}
+      # Snapshot concurrency scales with the pool: eight on the standard
+      # 4-core hosted runner, twelve on the shared 64-core failover VM.
+      DSH_SNAPSHOT_MAX_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '12' || '8' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -437,7 +440,7 @@ jobs:
   # Every pull request also gets a real Windows-kernel signal. This job keeps
   # its own unmasked conclusion but is deliberately absent from
   # all-checks-passed.needs, so it never delays or changes that required
-  # verdict. Under normal operation it runs on the hosted larger runner; under
+  # verdict. Under normal operation it runs on a standard hosted runner; under
   # Windows failover (DSH_CI_FAILOVER_WINDOWS=selfhosted) it retargets onto the
   # in-house self-hosted Windows pool. Dependabot PRs are excluded from the
   # self-hosted pool and stay queued for the hosted runner — see the failover
@@ -450,9 +453,9 @@ jobs:
       ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+          || 'windows-2025' }}
     name: windows node 24 / native complete
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       DSH_COVERAGE_MAX_WORKERS: '2'
       DSH_GATE_CONCURRENCY: '2'
