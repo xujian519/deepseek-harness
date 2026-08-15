@@ -1302,6 +1302,16 @@ importers:
         version: link:../../runtime-diagnostics/invariants
 
   packages/bundle/desktop-app:
+    dependencies:
+      '@deepseek-ai/dsh-desktop':
+        specifier: workspace:^
+        version: link:../../desktop/desktop
+      '@deepseek-ai/dsh-desktop-directory-picker':
+        specifier: workspace:^
+        version: link:../../desktop/directory-picker
+      '@deepseek-ai/dsh-desktop-shell':
+        specifier: workspace:^
+        version: link:../../desktop/shell
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -3786,6 +3796,35 @@ importers:
       '@deepseek-ai/dsh-launch-environment':
         specifier: workspace:^
         version: link:../../util/launch-environment
+
+  packages/desktop/desktop:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/desktop/directory-picker:
+    dependencies:
+      '@deepseek-ai/dsh-desktop':
+        specifier: workspace:^
+        version: link:../desktop
+      '@deepseek-ai/dsh-host-directory-picker':
+        specifier: workspace:^
+        version: link:../../host/directory-picker
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/desktop/shell:
+    dependencies:
+      '@deepseek-ai/dsh-desktop':
+        specifier: workspace:^
+        version: link:../desktop
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
 
   packages/e2b/e2b:
     dependencies:

@@ -9,11 +9,13 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { startDshBackend, type DesktopBackend } from './server-manager.ts'
+import { BridgeServer, resolveBridgePath } from './bridge-server.ts'
 
 /** Repository root from either layout (src/main.ts or dist/main.js: three hops up). */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 
 let backend: DesktopBackend | undefined
+let bridge: BridgeServer | undefined
 /** Origin the renderer may navigate to: the backend's bound URL. */
 let backendOrigin = 'http://127.0.0.1'
 
@@ -75,6 +77,11 @@ function createWindow(): BrowserWindow {
 void app.whenReady().then(async () => {
   ipcMain.handle('desktop:ping', () => 'pong')
   const window = createWindow()
+
+  bridge = new BridgeServer(window)
+  const bridgePath = resolveBridgePath(app.getPath('userData'))
+  await bridge.start(bridgePath)
+
   const { entry, loaderArgs, cwd } = resolveBackend()
   backend = startDshBackend({
     nodeBin: resolveNodeBin(),
@@ -83,6 +90,10 @@ void app.whenReady().then(async () => {
     profile: 'desktop',
     args: ['--port', '0'],
     cwd,
+    env: {
+      ...process.env,
+      DSH_DESKTOP_BRIDGE_PATH: bridgePath,
+    },
   })
   backend.onExit((exit) => {
     console.error(`dsh backend exited (code ${String(exit.code)}, signal ${String(exit.signal)})`)
@@ -116,6 +127,9 @@ app.on('will-quit', (event) => {
   if (backend === undefined) return
   event.preventDefault()
   const closing = backend
+  const closingBridge = bridge
   backend = undefined
+  bridge = undefined
+  closingBridge?.dispose()
   void closing.dispose().finally(() => { app.exit(0) })
 })

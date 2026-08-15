@@ -22,6 +22,8 @@ export interface BackendSpawnOptions {
   args: readonly string[]
   /** Working directory for the backend process. */
   cwd: string
+  /** Extra environment variables merged into `process.env`. */
+  env?: Record<string, string | undefined>
   /** How long to wait for the readiness line before rejecting (default 30s). */
   readyTimeoutMs?: number
 }
@@ -78,7 +80,7 @@ export function startDshBackend(options: BackendSpawnOptions): DesktopBackend {
     [...options.loaderArgs, options.entry, '--profile', options.profile, ...options.args],
     {
       cwd: options.cwd,
-      env: process.env,
+      env: { ...process.env, ...options.env },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )
