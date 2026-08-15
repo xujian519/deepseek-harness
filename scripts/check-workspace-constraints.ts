@@ -58,7 +58,7 @@ const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-web-frontend': ['dist', '!dist/**/*.map'],
   // The desktop shell publishes its built main/preload plus the packaging
   // configuration; sources stay out of the payload per the publication policy.
-  '@deepseek-ai/dsh-desktop-electron': ['dist', 'build', 'electron-builder.yml'],
+  '@deepseek-ai/dsh-desktop-electron': ['dist', '!dist/**/*.map', 'build', 'electron-builder.yml'],
 }
 
 /** The subset of package.json fields this constraint check cares about. */
