@@ -90,6 +90,8 @@ interface ScrollWorldOptions {
   readonly failureShot: string
   readonly replay?: ReplayOverrideDoc
   readonly seeds: readonly { fixture: ChatScrollFixture; id: string }[]
+  /** Replay stream pacing in ms per chunk; defaults to {@link STREAM_PACE_MS}. */
+  readonly paceMs?: number
 }
 
 function textStream(first: string, done: string, deltaCount: number): StreamChunk[] {
@@ -154,7 +156,7 @@ async function launchScrollWorld(options: ScrollWorldOptions): Promise<ScrollWor
       scaffold = await launchWebScaffold({
         replayFixture: join(replayDir, 'override-only.jsonl'),
         replayOverride,
-        paceMs: STREAM_PACE_MS,
+        paceMs: options.paceMs ?? STREAM_PACE_MS,
         replayContextWindow: REPLAY_CONTEXT_WINDOW,
       })
     } else {
@@ -468,11 +470,13 @@ describe('web e2e: long Chat scroll contract', () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-history-stream',
       // The stream must still be flowing when the reader anchors (the +5
-      // growth poll below). At 24 ms per delta, 120 deltas finish in under
-      // 3 s, which the anchor steps can outlive on a loaded 4-core runner —
-      // then every chunk is already in `world.events` and +5 can never pass.
-      // 480 deltas (~11.5 s) keep the anchor measurement mid-stream.
-      replay: [replayEntry(textStream(LIVE_TEXT_FIRST, LIVE_TEXT_DONE, 480))],
+      // growth poll below). At 24 ms per delta the stream ends before the
+      // anchor steps (scroll-to-top over 88 turns) finish on a loaded 4-core
+      // runner, so every chunk is already recorded and +5 can never pass.
+      // 240 deltas at 120 ms keep the anchor mid-stream with a lighter DOM
+      // than a longer 24 ms stream.
+      paceMs: 120,
+      replay: [replayEntry(textStream(LIVE_TEXT_FIRST, LIVE_TEXT_DONE, 240))],
       seeds: [{ fixture: HISTORY_FIXTURE, id: HISTORY_SESSION_ID }],
     }, async (world) => {
       await openSeed(
