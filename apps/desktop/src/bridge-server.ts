@@ -2,7 +2,7 @@
  * JSON-RPC bridge server running in the Electron main process. The dsh backend
  * connects over a local socket and calls OS-level methods here; OS events are
  * pushed back to the backend through the same channel.
- * @module @deepseek-ai/dsh-desktop/bridge-server
+ * @module @deepseek-ai/dsh-desktop-electron/bridge-server
  */
 
 import { createServer, type Server, type Socket } from 'node:net'

@@ -1,23 +1,24 @@
 /**
- * Package-owned invariant companion for `@deepseek-ai/dsh-desktop`.
- * @module @deepseek-ai/dsh-desktop/invariant
+ * Package-owned invariant companion for `@deepseek-ai/dsh-desktop-shell`.
+ * @module @deepseek-ai/dsh-desktop-shell/invariant
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-desktop'
+const PACKAGE_NAME = '@deepseek-ai/dsh-desktop-shell'
 
 /** Cordis companion plugin name. */
-export const name = 'desktop-invariant'
+export const name = 'desktop-shell-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: the package declares the `ctx.desktop` Service
- * Definition as pure types plus a closed error vocabulary and owns no runtime
- * state to observe. Providers assert their own bridge state through typed
- * `DesktopError` failures at the call boundary.
+ * No runtime invariant: the provider deliberately loads without
+ * `DSH_DESKTOP_BRIDGE_PATH` so tests and headless boots can compose the same
+ * bundle, and a disconnected bridge is reported through typed
+ * `DesktopError('bridge-disconnected')` failures at the call boundary rather
+ * than an ambient invariant.
  */
 const install: InvariantInstaller = () => {}
 

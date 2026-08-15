@@ -79,7 +79,7 @@ pnpm run package:desktop:win      # on a Windows host: prepare win32 resources, 
 # Local checks
 pnpm run lint                     # repo-wide oxlint; desktop sources included
 pnpm run typecheck                # repo-wide TypeScript
-pnpm --filter @deepseek-ai/dsh-desktop run test
+pnpm --filter @deepseek-ai/dsh-desktop-electron run test
 ```
 
 ## Coding standards
@@ -176,7 +176,7 @@ Run the narrowest checks that cover your change:
 
 - [ ] `pnpm run typecheck`
 - [ ] `pnpm run lint`
-- [ ] `pnpm --filter @deepseek-ai/dsh-desktop run test`
+- [ ] `pnpm --filter @deepseek-ai/dsh-desktop-electron run test`
 - [ ] For UI-visible changes: `DSH_SNAPSHOT=replay pnpm run test:web`
 - [ ] Agent Note added or updated for non-trivial architecture/process changes
 

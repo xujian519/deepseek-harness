@@ -23,4 +23,10 @@ describe('electron-builder packaging manifest', () => {
       expect.arrayContaining(['dist/main.js', 'dist/server-manager.js', 'dist/preload.cjs', 'package.json']),
     )
   })
+
+  it('includes the tray icon assets the main process loads at runtime', () => {
+    expect(config.files).toEqual(
+      expect.arrayContaining(['assets/tray.png', 'assets/trayTemplate.png', 'assets/trayTemplate@2x.png']),
+    )
+  })
 })

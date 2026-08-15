@@ -3,7 +3,7 @@
  * Electron Main process. This file is bundled to a sandboxed CommonJS
  * script (`dist/preload.cjs`) by the package build; sandboxed preloads cannot
  * use ESM.
- * @module @deepseek-ai/dsh-desktop/preload
+ * @module @deepseek-ai/dsh-desktop-electron/preload
  */
 
 import { contextBridge, ipcRenderer } from 'electron'

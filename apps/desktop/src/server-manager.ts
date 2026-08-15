@@ -2,7 +2,7 @@
  * dsh backend child-process control for the desktop shell: spawn the backend,
  * discover the bound URL from its readiness line, report exits, and dispose
  * the child on app shutdown.
- * @module @deepseek-ai/dsh-desktop/server-manager
+ * @module @deepseek-ai/dsh-desktop-electron/server-manager
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
