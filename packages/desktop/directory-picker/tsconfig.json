@@ -18,6 +18,9 @@
       "path": "../../host/directory-picker"
     },
     {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
       "path": "../../../vendor/cordis"
     }
   ]

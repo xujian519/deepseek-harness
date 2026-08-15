@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { DesktopError } from '../src/invariant.ts'
+import { DesktopError } from '../src/index.ts'
 
 describe('DesktopError', () => {
   it('carries a closed business code', () => {
