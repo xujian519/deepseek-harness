@@ -1,0 +1,66 @@
+# electron-builder configuration for the DeepSeek Harness desktop shell.
+# The backend tree and the embedded Node binary are assembled first by
+# `pnpm run package:desktop:prepare` into resources/<os>/, then copied into
+# the app bundle as extraResources. The Node binary and the backend's native
+# addons are platform-specific, so each target copies only its own OS
+# directory; run prepare on the target OS (or cross-download with
+# `--platform` for build-link verification only). The renderer UI is served
+# by the dsh backend itself (dsh-host-frontend-static), so it is not
+# packaged here.
+
+appId: ai.deepseek.harness
+productName: DeepSeek Harness
+
+directories:
+  output: release
+
+files:
+  - dist/main.js
+  - dist/preload.cjs
+  - package.json
+
+asar: true
+npmRebuild: false
+
+mac:
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - dmg
+    - zip
+  extraResources:
+    # electron-builder's copy filter drops a root-level node_modules dir, so
+    # the backend tree is copied in two passes: node_modules on its own (from
+    # points into it) plus everything else. Symlinks inside node_modules are
+    # recreated relative, so the .pnpm store and the hoisted links stay valid.
+    - from: resources/mac/backend/node_modules
+      to: backend/node_modules
+    - from: resources/mac/backend
+      to: backend
+    - from: resources/mac/node
+      to: node
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+win:
+  target:
+    - nsis
+    - portable
+  extraResources:
+    - from: resources/win/backend/node_modules
+      to: backend/node_modules
+    - from: resources/win/backend
+      to: backend
+    - from: resources/win/node
+      to: node
+
+nsis:
+  artifactName: ${productName}-${version}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

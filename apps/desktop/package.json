@@ -1,0 +1,36 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "DeepSeek Harness desktop shell: Electron main/preload around the dsh backend and the web UI",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "apps/desktop"
+  },
+  "type": "module",
+  "main": "dist/main.js",
+  "files": [
+    "dist",
+    "build",
+    "electron-builder.yml"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && esbuild src/preload.ts --bundle --platform=node --format=cjs --outfile=dist/preload.cjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "npm run build && electron .",
+    "test": "vitest run",
+    "package": "electron-builder --config electron-builder.yml"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^39.0.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
