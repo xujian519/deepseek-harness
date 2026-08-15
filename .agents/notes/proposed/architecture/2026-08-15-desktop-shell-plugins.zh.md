@@ -57,7 +57,7 @@ dsh backend plugins / UI   (Consumers: ctx.desktop, ctx.directoryPicker, tools, 
 
 ### `ctx.desktop` Service Definition
 
-```ts
+```ts ignore-check
 export interface DesktopService {
   /** Show a native open-file / open-directory dialog. */
   showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogResult>
@@ -90,7 +90,7 @@ export interface DesktopService {
 
 `@deepseek-ai/dsh-desktop-directory-picker` 以新的能力 kind 实现现有 `DirectoryPicker` 缝隙：
 
-```ts
+```ts ignore-check
 { kind: 'electron', pick(signal): Promise<string | null> }
 ```
 

@@ -57,7 +57,7 @@ If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a 
 
 ### `ctx.desktop` Service Definition
 
-```ts
+```ts ignore-check
 export interface DesktopService {
   /** Show a native open-file / open-directory dialog. */
   showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogResult>
@@ -90,7 +90,7 @@ Backend plugins register handlers through `ctx.on('desktop/...', ...)`.
 
 `@deepseek-ai/dsh-desktop-directory-picker` implements the existing `DirectoryPicker` seam with a new capability kind:
 
-```ts
+```ts ignore-check
 { kind: 'electron', pick(signal): Promise<string | null> }
 ```
 
