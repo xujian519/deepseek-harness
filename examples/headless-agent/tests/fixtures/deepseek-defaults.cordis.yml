@@ -8,7 +8,12 @@
           baseURL: !!js process.env.DSH_SNAPSHOT_BASE_URL
           thinking: enabled
           reasoningEffort: low
-          streamIdleTimeoutMs: 150
+          # The snapshot server emits SSE keep-alive comments every 60 ms. On a
+          # loaded 4-core runner a parallel test can stall the event loop past
+          # a 150 ms idle window, aborting the stream and triggering an
+          # llm-retry (two requests), which this scenario pins to one. 600 ms
+          # keeps the keep-alive contract meaningful while tolerating load.
+          streamIdleTimeoutMs: 600
       - id: agent-spine
         config:
           agents:
