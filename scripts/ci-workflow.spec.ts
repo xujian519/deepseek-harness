@@ -392,6 +392,13 @@ describe('Issue lifecycle workflow', () => {
     expect(lifecycleJob.if).toBe(
       "${{ github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested') }}",
     )
+    const lifecycleSteps = lifecycleJob.steps as Array<Record<string, unknown>>
+    expect(lifecycleSteps.find(step => step.id === 'app-token')?.if).toBe(
+      "${{ vars.DSH_ISSUE_APP_CLIENT_ID != '' }}",
+    )
+    expect(lifecycleSteps.find(step => step.name === 'Handle repository event')?.if).toBe(
+      "${{ steps.app-token.outputs.token != '' }}",
+    )
     expect(policyPullRequest.types).toContain('ready_for_review')
   })
 })

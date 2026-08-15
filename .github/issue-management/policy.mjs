@@ -6,6 +6,18 @@ import { pathToFileURL } from 'node:url'
 
 import config from './config.json' with { type: 'json' }
 
+// GitHub Actions always sets GITHUB_REPOSITORY to the triggering repository;
+// the committed config names the organization the workflows were authored for,
+// which differs on forks. Derive the API target from the environment and keep
+// the config values as the fallback for local runs.
+const targetRepository = process.env.GITHUB_REPOSITORY ?? `${config.organization}/${config.repository}`
+const targetSeparator = targetRepository.indexOf('/')
+if (targetSeparator <= 0 || targetSeparator === targetRepository.length - 1) {
+  throw new Error(`GITHUB_REPOSITORY 格式无效：${targetRepository}`)
+}
+config.organization = targetRepository.slice(0, targetSeparator)
+config.repository = targetRepository.slice(targetSeparator + 1)
+
 const API_VERSION = '2026-03-10'
 const BODY_LIMIT = 50
 const AUDIT_MARKER = '<!-- dsh-issue-policy -->'
