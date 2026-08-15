@@ -103,7 +103,8 @@ pnpm --filter @deepseek-ai/dsh-desktop run test
 Treat the renderer as an untrusted browser page even though it loads a local service:
 
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`.
-- The preload script is the only bridge. It exposes a typed, closed set of channels declared in `ipc-schema.ts`.
+- Navigation and `window.open` are confined to the backend origin; external links open in the system browser.
+- The preload script is the only bridge. It exposes a typed, closed set of channels.
 - Every IPC handler in `main.ts` validates arguments against the schema before acting.
 - Never pass `ipcRenderer` itself to the renderer; expose only per-channel wrappers.
 - Never evaluate strings from the renderer as paths or shell commands. Paths returned by dialogs are read-only data; host plugins decide what to do with them.

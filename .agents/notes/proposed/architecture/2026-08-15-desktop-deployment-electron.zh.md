@@ -151,7 +151,7 @@ CI 使用 GitHub Actions 矩阵，在 macOS 与 Windows runner 上分别构建�
 - Windows 打包把所有链接替换为真实目录副本（win32 下的 `materializeExternalLinks`/`hoistVirtualStore`）：junction 会固化构建机的绝对路径，安装后悬空。该 win32 分支已有单元测试，首次发布前仍需在 Windows 主机上验证。
 - Windows 安装包在 Windows 上构建（`pnpm run package:desktop:win`）；部署后端的原生 addon 与主机相关，因此 prepare 必须在 Windows 主机或 CI runner 上运行。
 - GUI 窗口本身无法在无显示器的沙箱中渲染；集成冒烟测试需要带显示器的机器（CI 原生 agent 或人工验收）。
-- 已知限制：在 Windows 上 `child.kill('SIGTERM')` 是 `TerminateProcess`，会跳过后端的信号处理器，因此退出时可能丢失最后一批 write-behind 会话日志（优雅通道推迟到桌面 shell 桥实现）。preload bundle 保持 `electron` external（沙箱 preload 无法加载内联的 `electron` shim）；桌面 shell 已纳入 host typecheck 聚合，并使用独立的 Vitest 配置。后端就绪等待没有超时；窗口导航/弹窗未限制到后端 origin，也未设置 CSP；`dsh web:` 就绪行正则接受任意 host；部署树携带全平台 node-pty prebuilds（冗余但体积小）。这些加固随桌面 shell 插件一起落地。
+- 已知限制：在 Windows 上 `child.kill('SIGTERM')` 是 `TerminateProcess`，会跳过后端的信号处理器，因此退出时可能丢失最后一批 write-behind 会话日志（优雅通道推迟到桌面 shell 桥实现）。preload bundle 保持 `electron` external（沙箱 preload 无法加载内联的 `electron` shim）；桌面 shell 已纳入 host typecheck 聚合，并使用独立的 Vitest 配置。窗口导航与 window.open 已限制在后端 origin（外链由系统浏览器打开），`dsh web:` 就绪行正则只接受 loopback，就绪等待超时并给出诊断，部署树只保留目标平台的 node-pty prebuild。Web UI 本身未设置 CSP；该职责留在 web 前端。
 
 ### 签名与公证
 

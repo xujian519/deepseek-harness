@@ -56,4 +56,60 @@ describe('startDshBackend', () => {
     })
     await expect(backend.ready).rejects.toThrow(/exited before reporting a URL/)
   })
+
+  it('rejects ready when the backend cannot be spawned', async () => {
+    const backend = startDshBackend({
+      nodeBin: '/nonexistent/dsh-node',
+      entry: '/nonexistent/entry.js',
+      loaderArgs: [],
+      profile: 'test',
+      args: [],
+      cwd: tmpdir(),
+    })
+    await expect(backend.ready).rejects.toThrow(/failed to spawn dsh backend/)
+  })
+
+  it('assembles the readiness line across stdout chunks', async () => {
+    const entry = fixture("process.stdout.write('dsh web: http://127.0.0.')\nsetTimeout(() => { process.stdout.write('1:12345\\n') }, 50)\nsetInterval(() => {}, 1000)\n")
+    const backend = startDshBackend({
+      nodeBin: process.execPath,
+      entry,
+      loaderArgs: [],
+      profile: 'test',
+      args: [],
+      cwd: join(entry, '..'),
+    })
+    await expect(backend.ready).resolves.toBe('http://127.0.0.1:12345')
+    await backend.dispose()
+  })
+
+  it('ignores a readiness line for a non-loopback host', async () => {
+    const entry = fixture("console.log('dsh web: http://0.0.0.0:12345')\nsetInterval(() => {}, 1000)\n")
+    const backend = startDshBackend({
+      nodeBin: process.execPath,
+      entry,
+      loaderArgs: [],
+      profile: 'test',
+      args: [],
+      cwd: join(entry, '..'),
+      readyTimeoutMs: 200,
+    })
+    await expect(backend.ready).rejects.toThrow(/did not report a URL within 200ms/)
+    await backend.dispose()
+  })
+
+  it('rejects ready after the readiness timeout when no URL line appears', async () => {
+    const entry = fixture('setInterval(() => {}, 1000)\n')
+    const backend = startDshBackend({
+      nodeBin: process.execPath,
+      entry,
+      loaderArgs: [],
+      profile: 'test',
+      args: [],
+      cwd: join(entry, '..'),
+      readyTimeoutMs: 200,
+    })
+    await expect(backend.ready).rejects.toThrow(/did not report a URL within 200ms/)
+    await backend.dispose()
+  })
 })
