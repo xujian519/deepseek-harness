@@ -19,7 +19,10 @@ vi.mock('electron', () => ({
 }))
 
 const window = {} as BrowserWindow
-const socketPath = join(tmpdir(), `dsh-desktop-bridge-server-test-${process.pid}.sock`)
+// Windows cannot listen on a POSIX socket file; a named pipe is the native form.
+const socketPath = process.platform === 'win32'
+  ? `\\\\.\\pipe\\dsh-desktop-bridge-server-test-${process.pid}`
+  : join(tmpdir(), `dsh-desktop-bridge-server-test-${process.pid}.sock`)
 
 describe('resolveBridgePath', () => {
   it('resolves a POSIX socket file under userData', () => {

@@ -39,6 +39,17 @@ describe('ElectronDirectoryPicker', () => {
     expect(result).toBeNull()
   })
 
+  it('returns null when the dialog reports an empty selection list', async () => {
+    const ctx = new Context()
+    ctx.provide('desktop', {
+      showOpenDialog: async () => [],
+    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    const picker = new ElectronDirectoryPicker(ctx)
+    const capability = picker.capability() as DirectoryPickerElectronCapability
+    const result = await capability.pick(new AbortController().signal)
+    expect(result).toBeNull()
+  })
+
   it('declares the desktop service as a load-time dependency', () => {
     expect(ElectronDirectoryPicker.inject).toEqual(['desktop'])
   })

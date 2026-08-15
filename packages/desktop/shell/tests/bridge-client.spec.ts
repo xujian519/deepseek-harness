@@ -9,7 +9,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from '../src/bridge-client.ts'
 
-const socketPath = join(tmpdir(), `dsh-desktop-bridge-test-${process.pid}.sock`)
+// Windows cannot listen on a POSIX socket file; a named pipe is the native form.
+const socketPath = process.platform === 'win32'
+  ? `\\\\.\\pipe\\dsh-desktop-bridge-test-${process.pid}`
+  : join(tmpdir(), `dsh-desktop-bridge-test-${process.pid}.sock`)
 
 describe('BridgeClient', () => {
   let server: Server
@@ -136,5 +139,71 @@ describe('BridgeClient', () => {
 
   it('exports BridgeRpcError for provider mapping', () => {
     expect(new BridgeRpcError(-32000, 'boom').code).toBe(-32000)
+  })
+
+  it('drops notifications after disposal', () => {
+    client.dispose()
+    expect(() => {
+      client.notify('ping', {})
+    }).not.toThrow()
+  })
+
+  it('drops notifications while the socket is not connected', async () => {
+    serverSocket?.end()
+    await expect.poll(() => client.connected).toBe(false)
+    expect(() => {
+      client.notify('ping', {})
+    }).not.toThrow()
+  })
+
+  it('rejects calls after the server closes the socket', async () => {
+    serverSocket?.end()
+    await expect.poll(() => client.connected).toBe(false)
+    await expect(client.call('echo', {})).rejects.toThrow('bridge socket is not connected')
+  })
+
+  it('rejects pending calls and reports close when the connection is refused', async () => {
+    const deadPath = process.platform === 'win32'
+      ? `\\\\.\\pipe\\dsh-desktop-bridge-dead-${process.pid}`
+      : join(tmpdir(), `dsh-desktop-bridge-dead-${process.pid}.sock`)
+    const orphan = new BridgeClient({
+      path: deadPath,
+      onNotification: () => {},
+      onClose: () => { closeCount += 1 },
+    })
+    try {
+      // The connect fails: onError rejects nothing pending (there is none),
+      // then the close surfaces as a bridge loss.
+      await expect.poll(() => closeCount).toBe(1)
+      expect(orphan.connected).toBe(false)
+    } finally {
+      orphan.dispose()
+    }
+  })
+
+  it('skips empty lines in the frame stream', async () => {
+    serverSocket?.write(
+      '\n' + JSON.stringify({ jsonrpc: '2.0', method: 'desktop/tray-clicked', params: { button: 'right' } }) + '\n',
+    )
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(notifications).toHaveLength(1)
+  })
+
+  it('ignores a malformed frame', async () => {
+    serverSocket?.write('not-json\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(notifications).toEqual([])
+  })
+
+  it('ignores a response for an unknown id', async () => {
+    serverSocket?.write(JSON.stringify({ jsonrpc: '2.0', id: 999, result: {} }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(notifications).toEqual([])
+  })
+
+  it('ignores a frame without an id or method', async () => {
+    serverSocket?.write(JSON.stringify({ jsonrpc: '2.0' }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(notifications).toEqual([])
   })
 })

@@ -7,10 +7,14 @@ import { unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import DesktopShell from '../src/index.ts'
+import { DesktopError } from '@deepseek-ai/dsh-desktop'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import DesktopShell, { BridgeClient } from '../src/index.ts'
 
-const socketPath = join(tmpdir(), `dsh-desktop-shell-test-${process.pid}.sock`)
+// Windows cannot listen on a POSIX socket file; a named pipe is the native form.
+const socketPath = process.platform === 'win32'
+  ? `\\\\.\\pipe\\dsh-desktop-shell-test-${process.pid}`
+  : join(tmpdir(), `dsh-desktop-shell-test-${process.pid}.sock`)
 
 describe('DesktopShell', () => {
   let server: Server
@@ -50,6 +54,7 @@ describe('DesktopShell', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     for (const { ctx } of shells) {
       await ctx.fiber.dispose()
     }
@@ -217,5 +222,117 @@ describe('DesktopShell', () => {
     await ctx.fiber.dispose()
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lost).toBe(0)
+  })
+
+  it('rethrows a DesktopError from the bridge unchanged', async () => {
+    vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValue(
+      new DesktopError('bridge-disconnected', 'nested failure'),
+    )
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await expect(shell.showOpenDialog({})).rejects.toMatchObject({
+      name: 'DesktopError',
+      code: 'bridge-disconnected',
+      message: 'nested failure',
+    })
+  })
+
+  it('maps a generic bridge failure to DesktopError(bridge-disconnected)', async () => {
+    vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValue(new Error('socket exploded'))
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await expect(shell.showOpenDialog({})).rejects.toMatchObject({
+      name: 'DesktopError',
+      code: 'bridge-disconnected',
+      message: 'socket exploded',
+    })
+  })
+
+  it('maps a non-Error bridge rejection to DesktopError(bridge-disconnected)', async () => {
+    vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValue('plain rejection')
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await expect(shell.showOpenDialog({})).rejects.toMatchObject({
+      name: 'DesktopError',
+      code: 'bridge-disconnected',
+      message: 'plain rejection',
+    })
+  })
+
+  it('rejects calls while the bridge socket is not connected', async () => {
+    // A path with no listener: the connection attempt fails, so the bridge
+    // never reaches `open` and every method reports bridge-disconnected.
+    const orphanPath = process.platform === 'win32'
+      ? `\\\\.\\pipe\\dsh-desktop-shell-orphan-${process.pid}`
+      : join(tmpdir(), `dsh-desktop-shell-orphan-${process.pid}.sock`)
+    process.env.DSH_DESKTOP_BRIDGE_PATH = orphanPath
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await expect(shell.showOpenDialog({})).rejects.toThrow('desktop bridge socket is not connected')
+  })
+
+  it('forwards desktop/tray-clicked from the bridge to ctx listeners', async () => {
+    const ctx = new Context()
+    const received: string[] = []
+    ctx.on('desktop/tray-clicked', ({ button }) => { received.push(button) })
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    serverSocket?.write(
+      JSON.stringify({ jsonrpc: '2.0', method: 'desktop/tray-clicked', params: { button: 'left' } }) + '\n',
+    )
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(received).toEqual(['left'])
+  })
+
+  it('forwards desktop/file-dropped from the bridge to ctx listeners', async () => {
+    const ctx = new Context()
+    const received: string[][] = []
+    ctx.on('desktop/file-dropped', ({ paths }) => { received.push(paths) })
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    serverSocket?.write(
+      JSON.stringify({ jsonrpc: '2.0', method: 'desktop/file-dropped', params: { paths: ['/a', '/b'] } }) + '\n',
+    )
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(received).toEqual([['/a', '/b']])
+  })
+
+  it('forwards desktop/notification-clicked from the bridge to ctx listeners', async () => {
+    const ctx = new Context()
+    const received: string[] = []
+    ctx.on('desktop/notification-clicked', ({ notificationId }) => { received.push(notificationId) })
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    serverSocket?.write(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'desktop/notification-clicked',
+        params: { notificationId: 'n-1' },
+      }) + '\n',
+    )
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(received).toEqual(['n-1'])
+  })
+
+  it('warns and ignores an unknown bridge notification', async () => {
+    const ctx = new Context()
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    serverSocket?.write(JSON.stringify({ jsonrpc: '2.0', method: 'desktop/unknown-event' }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(warn).toHaveBeenCalledWith('unknown desktop bridge notification: desktop/unknown-event')
   })
 })

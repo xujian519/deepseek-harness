@@ -166,6 +166,7 @@ export class BridgeClient {
   private onData(chunk: string): void {
     this.buffer += chunk
     const lines = this.buffer.split('\n')
+    /* v8 ignore next -- split('\n') always yields at least one element, so pop() is never nullish */
     this.buffer = lines.pop() ?? ''
     for (const line of lines) {
       if (!line.trim()) continue
