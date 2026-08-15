@@ -1,6 +1,6 @@
 # Agent Note: Desktop Shell Plugins and Host Bridge
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-08-15-desktop-shell-plugins.zh.md)
 
@@ -14,7 +14,7 @@ The desktop application needs to expose OS-level capabilities (native dialogs, n
 
 This requires a dedicated capability seam for desktop integration and a private bridge between the dsh backend process and the Electron main process.
 
-## Proposal
+## Decision
 
 ### High-level shape
 
@@ -47,13 +47,13 @@ The `packages/bundle/desktop-app` Cordis bundle mounts `dsh-web-app` plus the th
 Use a Unix domain socket on macOS and a named pipe on Windows. The path is provided to the dsh backend through the environment variable `DSH_DESKTOP_BRIDGE_PATH`.
 
 - Electron Main creates the server before spawning the dsh child process.
-- `@deepseek-ai/dsh-desktop-shell` reads `DSH_DESKTOP_BRIDGE_PATH` in `apply()` and connects.
+- `@deepseek-ai/dsh-desktop-shell` reads `DSH_DESKTOP_BRIDGE_PATH` on construction and connects.
 - The protocol is JSON-RPC 2.0 with one bidirectional channel:
-  - Backend → Main: method calls (`dialog/showOpenDialog`, `notification/send`, `tray/set`, etc.).
-  - Main → Backend: notifications (`shortcut/triggered`, `file/dropped`, `tray/clicked`, `menu/activated`).
+  - Backend → Main: method calls (`desktop/showOpenDialog`, `desktop/showSaveDialog`, `desktop/sendNotification`, `desktop/registerMenuItem`, `desktop/unregisterMenuItem`, `desktop/registerGlobalShortcut`, `desktop/unregisterGlobalShortcut`, `desktop/setTray`, `desktop/clearTray`).
+  - Main → Backend: notifications (`desktop/menu-activated`, `desktop/shortcut-triggered`, `desktop/tray-clicked`, `desktop/file-dropped`, `desktop/notification-clicked`).
 - Only one backend connects; the socket lives in the app user-data directory with user-only filesystem permissions.
 
-If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a warning and does not register `ctx.desktop`. This lets the same bundle start in tests without Electron, but the desktop profile always sets the variable.
+If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a warning and registers `ctx.desktop` with every method rejecting `DesktopError('bridge-disconnected')`. This lets the same bundle start in tests without Electron, but the desktop profile always sets the variable.
 
 ### `ctx.desktop` Service Definition
 
@@ -129,7 +129,7 @@ No desktop business logic lives in the renderer. Menu clicks and global shortcut
 
 ### Lifecycle and error handling
 
-- If the bridge connection drops, `@deepseek-ai/dsh-desktop-shell` emits `desktop/bridge-lost` and clears all dynamic registrations. Main restarts the backend if it exits.
+- If the bridge connection drops, `@deepseek-ai/dsh-desktop-shell` emits `desktop/bridge-lost`. Main reports an unexpected backend exit with an error dialog and does not restart it automatically.
 - If a dialog call is made while the bridge is disconnected, the provider rejects with `DesktopError('bridge-disconnected')`. Consumers treat this as a transient failure.
 - Main validates every incoming JSON-RPC method name against an allow list; unknown methods return a JSON-RPC error.
 
@@ -143,16 +143,30 @@ No desktop business logic lives in the renderer. Menu clicks and global shortcut
 
 **Implement OS dialogs in the renderer using Electron remote or unsafe preload APIs.** This would break the security model (`contextIsolation`, `sandbox`) and allow renderer compromise to drive native dialogs. Rejected.
 
-## Acceptance criteria
+## Consequences
+
+Shipped the Phase 3 skeleton:
+
+- `packages/desktop/desktop` defines the `ctx.desktop` Service Definition with typed methods (`showOpenDialog`, `showSaveDialog`, `sendNotification`, `registerMenuItem`, `registerGlobalShortcut`, `setTray`) and Cordis events (`desktop/menu-activated`, `desktop/shortcut-triggered`, `desktop/tray-clicked`, `desktop/file-dropped`, `desktop/notification-clicked`, `desktop/bridge-lost`).
+- `packages/desktop/shell` provides `DesktopShell`, a Cordis Service Provider that reads `DSH_DESKTOP_BRIDGE_PATH`, connects to Electron Main over a local socket via `BridgeClient`, and registers `ctx.desktop`.
+- `packages/desktop/directory-picker` provides `ElectronDirectoryPicker`, an `electron` kind for `ctx.directoryPicker` that delegates directory selection to `ctx.desktop.showOpenDialog`.
+- `apps/desktop/src/bridge-server.ts` runs the JSON-RPC 2.0 server in Electron Main, wires it into `main.ts`, and passes `DSH_DESKTOP_BRIDGE_PATH` to the backend spawn.
+- `packages/bundle/desktop-app/cordis.patch.yml` mounts the new plugins over the web runtime.
+- Unit tests cover the Service Definition, the bridge client, the shell provider, and the directory-picker provider.
+- Host aggregate typecheck, oxlint, and `build:lib:host` all pass.
+
+Known remaining work: actual Electron API integrations for notifications, menus, global shortcuts, drag-and-drop, and Windows named-pipe verification.
+
+Delivered behavior:
 
 - `packages/desktop/desktop` defines `ctx.desktop` with typed methods and events.
 - `@deepseek-ai/dsh-desktop-shell` connects to Electron Main over a local socket and registers `ctx.desktop`.
-- `@deepseek-ai/dsh-desktop-directory-picker` provides an `electron` kind for `ctx.directoryPicker`.
-- The desktop bundle can replace `directory-picker-native` and mount `desktop-shell` without changing core packages.
-- Main can show a directory picker, send a notification, and receive a global-shortcut event from the backend.
-- Bridge disconnection is handled and observable.
+- `@deepseek-ai/dsh-desktop-directory-picker` provides the `electron` kind for `ctx.directoryPicker`.
+- The desktop bundle replaces `directory-picker-native` and mounts `desktop-shell` without touching core packages.
+- Main already implements open/save dialogs and a static tray icon; notifications, menus, global shortcuts, and drag-and-drop are currently stubs, and the programmable `setTray` contract is a stub too.
+- Bridge disconnection is handled and observable via `desktop/bridge-lost`.
 
-## Risks
+Remaining risks:
 
 - **Socket portability.** Named pipes on Windows behave slightly differently from Unix domain sockets; the bridge client must use Node.js `net.createConnection` with the correct path format.
 - **Process ordering.** Main must create the server before spawning dsh, and the backend plugin must find the path in its environment. Race conditions during startup need explicit logging.

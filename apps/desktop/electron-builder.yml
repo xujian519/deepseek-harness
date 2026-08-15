@@ -15,16 +15,23 @@ directories:
   output: release
 
 files:
-  - dist/main.js
-  - dist/server-manager.js
-  - dist/preload.cjs
+  # The whole compiled dist (every module main.ts imports), minus source maps
+  # and declarations; an explicit per-file list missed modules twice.
+  - dist
+  - '!dist/**/*.map'
+  - '!dist/**/*.d.ts'
+  - '!dist/types/**'
   - package.json
+  - assets/tray.png
+  - assets/trayTemplate.png
+  - assets/trayTemplate@2x.png
 
 asar: true
 npmRebuild: false
 
 mac:
   category: public.app-category.developer-tools
+  icon: assets/icon.icns
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
@@ -47,6 +54,7 @@ dmg:
   artifactName: ${productName}-${version}-${arch}.${ext}
 
 win:
+  icon: assets/icon.ico
   target:
     - nsis
     - portable
@@ -57,6 +65,9 @@ win:
       to: backend
     - from: resources/win/node
       to: node
+
+linux:
+  icon: assets/icon.png
 
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}

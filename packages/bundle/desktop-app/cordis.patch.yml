@@ -22,3 +22,9 @@
 - insert:
     - id: desktop-runtime
       name: '@deepseek-ai/dsh-desktop-app'
+    - id: desktop-shell
+      name: '@deepseek-ai/dsh-desktop-shell'
+
+# Replace the web runtime's directory picker with the Electron dialog provider.
+- id: directory-picker
+  name: '@deepseek-ai/dsh-desktop-directory-picker'
