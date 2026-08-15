@@ -537,15 +537,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Abstract desktop-integration service. Subclass, implement the methods, and load the subclass as a plugin — it registers as `ctx.desktop`.',
     methods: [
       {
-        signature: 'abstract showOpenDialog(options: OpenDialogOptions): Promise<string[] | undefined>',
+        signature: 'abstract showOpenDialog(options: OpenDialogOptions, signal?: AbortSignal): Promise<string[] | undefined>',
         description: 'Show a native open-file / open-directory dialog.',
-        parameters: [{ name: 'options', description: 'dialog options.' }],
+        parameters: [{ name: 'options', description: 'dialog options.' }, { name: 'signal', description: 'caller/connection lifetime; abort rejects the call and discards the dialog result. The native dialog itself stays open until the operator acts because Electron exposes no programmatic close.' }],
         returns: 'selected paths, or undefined when the operator cancels.',
       },
       {
-        signature: 'abstract showSaveDialog(options: SaveDialogOptions): Promise<string | undefined>',
+        signature: 'abstract showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promise<string | undefined>',
         description: 'Show a native save-file dialog.',
-        parameters: [{ name: 'options', description: 'dialog options.' }],
+        parameters: [{ name: 'options', description: 'dialog options.' }, { name: 'signal', description: 'caller/connection lifetime; abort rejects the call and discards the dialog result. The native dialog itself stays open until the operator acts because Electron exposes no programmatic close.' }],
         returns: 'the chosen absolute path, or undefined when the operator cancels.',
       },
       {

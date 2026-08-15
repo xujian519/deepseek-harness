@@ -33,6 +33,18 @@ export interface JsonRpcNotification {
   params?: unknown
 }
 
+/** The JSON-RPC server returned an error response. */
+export class BridgeRpcError extends Error {
+  /**
+   * @param code - JSON-RPC error code from the server.
+   * @param message - server-supplied error description.
+   */
+  constructor(readonly code: number, message: string) {
+    super(message)
+    this.name = 'BridgeRpcError'
+  }
+}
+
 /** Lifecycle callbacks for the bridge client. */
 export interface BridgeClientOptions {
   /** Local socket path (Unix) or pipe name (Windows). */
@@ -47,6 +59,10 @@ export interface BridgeClientOptions {
 interface PendingRequest {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
+  /** Caller signal the pending call waits on, when one was passed. */
+  signal?: AbortSignal
+  /** Abort listener bound to `signal`; removed when the request settles. */
+  onAbort?: () => void
 }
 
 /**
@@ -77,16 +93,34 @@ export class BridgeClient {
    * Call a method on the Electron main bridge and await its result.
    * @param method - JSON-RPC method name.
    * @param params - method parameters.
+   * @param signal - caller lifetime; abort rejects the pending call and
+   * discards any later server response.
    * @returns the method result.
-   * @throws {Error} when the socket is closed or the server returns an error.
+   * @throws {BridgeRpcError} when the server returns a JSON-RPC error.
+   * @throws {Error} when the socket is closed or disposed.
+   * @throws {DOMException} `AbortError` when `signal` aborts.
    */
-  call(method: string, params?: unknown): Promise<unknown> {
+  call(method: string, params?: unknown, signal?: AbortSignal): Promise<unknown> {
     if (this.disposed) return Promise.reject(new Error('bridge client is disposed'))
     if (!this.connected) return Promise.reject(new Error('bridge socket is not connected'))
     const id = this.nextId++
     const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params }
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      if (signal?.aborted) {
+        reject(new DOMException('aborted', 'AbortError'))
+        return
+      }
+      const pending: PendingRequest = { resolve, reject }
+      if (signal !== undefined) {
+        const onAbort = (): void => {
+          this.pending.delete(id)
+          reject(new DOMException('aborted', 'AbortError'))
+        }
+        pending.signal = signal
+        pending.onAbort = onAbort
+        signal.addEventListener('abort', onAbort, { once: true })
+      }
+      this.pending.set(id, pending)
       this.socket.write(JSON.stringify(request) + '\n')
     })
   }
@@ -107,11 +141,26 @@ export class BridgeClient {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    for (const pending of this.pending.values()) {
-      pending.reject(new Error('bridge client disposed'))
-    }
-    this.pending.clear()
+    this.rejectAllPending(new Error('bridge client disposed'))
     this.socket.end()
+  }
+
+  private settle(id: number, pending: PendingRequest, error: Error | null, result?: unknown): void {
+    this.pending.delete(id)
+    if (pending.signal !== undefined && pending.onAbort !== undefined) {
+      pending.signal.removeEventListener('abort', pending.onAbort)
+    }
+    if (error === null) {
+      pending.resolve(result)
+    } else {
+      pending.reject(error)
+    }
+  }
+
+  private rejectAllPending(error: Error): void {
+    for (const [id, pending] of this.pending) {
+      this.settle(id, pending, error)
+    }
   }
 
   private onData(chunk: string): void {
@@ -129,16 +178,17 @@ export class BridgeClient {
     try {
       frame = JSON.parse(line) as JsonRpcResponse | JsonRpcNotification
     } catch {
+      // Ignore a malformed frame: the peer is our own Main process, and one
+      // bad line must not kill the bridge.
       return
     }
     if ('id' in frame && typeof frame.id === 'number') {
       const pending = this.pending.get(frame.id)
       if (pending === undefined) return
-      this.pending.delete(frame.id)
       if (frame.error !== undefined) {
-        pending.reject(new Error(frame.error.message))
+        this.settle(frame.id, pending, new BridgeRpcError(frame.error.code, frame.error.message))
       } else {
-        pending.resolve(frame.result)
+        this.settle(frame.id, pending, null, frame.result)
       }
     } else if ('method' in frame) {
       this.options.onNotification(frame)
@@ -146,17 +196,14 @@ export class BridgeClient {
   }
 
   private onClose(): void {
-    for (const pending of this.pending.values()) {
-      pending.reject(new Error('bridge socket closed'))
-    }
-    this.pending.clear()
+    // Dispose closes the socket itself; that close must not surface as a
+    // bridge loss to listeners.
+    if (this.disposed) return
+    this.rejectAllPending(new Error('bridge socket closed'))
     this.options.onClose()
   }
 
   private onError(error: Error): void {
-    for (const pending of this.pending.values()) {
-      pending.reject(error)
-    }
-    this.pending.clear()
+    this.rejectAllPending(error)
   }
 }

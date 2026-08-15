@@ -18,7 +18,9 @@ export interface DirectoryPickerElectronCapability {
   kind: 'electron'
   /**
    * Open the chooser and wait for the operator.
-   * @param signal - caller/connection lifetime; abort terminates the chooser.
+   * @param signal - caller/connection lifetime; abort rejects the call and
+   * discards the dialog result. The native dialog itself stays open until the
+   * operator acts because Electron exposes no programmatic close.
    * @returns the chosen absolute path, or null when the operator cancels.
    */
   pick(signal: AbortSignal): Promise<string | null>
@@ -36,6 +38,11 @@ declare module '@deepseek-ai/dsh-host-directory-picker' {
  * `ctx.directoryPicker` with the `electron` capability.
  */
 export default class ElectronDirectoryPicker extends DirectoryPicker {
+  /** Requires the desktop seam; the Cordis loader keeps the plugin pending
+   * until a provider registers `ctx.desktop`, failing loud instead of a
+   * delayed TypeError on first pick. */
+  static inject = ['desktop']
+
   declare protected ctx: Context & { desktop: Desktop }
 
   private readonly electronCapability: DirectoryPickerCapability
@@ -52,8 +59,8 @@ export default class ElectronDirectoryPicker extends DirectoryPicker {
     return this.electronCapability
   }
 
-  private async pickDirectory(_signal: AbortSignal): Promise<string | null> {
-    const result = await this.ctx.desktop.showOpenDialog({ properties: ['openDirectory'] })
+  private async pickDirectory(signal: AbortSignal): Promise<string | null> {
+    const result = await this.ctx.desktop.showOpenDialog({ properties: ['openDirectory'] }, signal)
     if (result === undefined) return null
     return result[0] ?? null
   }

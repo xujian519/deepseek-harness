@@ -7,7 +7,7 @@ import { unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { BridgeClient, type JsonRpcNotification } from '../src/bridge-client.ts'
+import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from '../src/bridge-client.ts'
 
 const socketPath = join(tmpdir(), `dsh-desktop-bridge-test-${process.pid}.sock`)
 
@@ -16,9 +16,11 @@ describe('BridgeClient', () => {
   let serverSocket: Socket | undefined
   let client: BridgeClient
   let notifications: JsonRpcNotification[] = []
+  let closeCount = 0
 
   beforeEach(async () => {
     notifications = []
+    closeCount = 0
     serverSocket = undefined
     server = createServer((socket) => {
       serverSocket = socket
@@ -27,6 +29,7 @@ describe('BridgeClient', () => {
         for (const line of chunk.split('\n').filter(Boolean)) {
           const frame = JSON.parse(line) as { id: number; method: string; params?: unknown }
           if ('id' in frame) {
+            if (frame.method === 'never-answered') return
             const response = frame.method === 'echo'
               ? { jsonrpc: '2.0', id: frame.id, result: frame.params }
               : { jsonrpc: '2.0', id: frame.id, error: { code: -32601, message: `unknown: ${frame.method}` } }
@@ -39,7 +42,7 @@ describe('BridgeClient', () => {
     client = new BridgeClient({
       path: socketPath,
       onNotification: (notification) => { notifications.push(notification) },
-      onClose: () => {},
+      onClose: () => { closeCount += 1 },
     })
     await new Promise(resolve => setTimeout(resolve, 20))
   })
@@ -64,8 +67,12 @@ describe('BridgeClient', () => {
     expect(result).toEqual({ hello: 'world' })
   })
 
-  it('rejects when the server returns an error', async () => {
-    await expect(client.call('unknown', {})).rejects.toThrow('unknown: unknown')
+  it('rejects with a BridgeRpcError when the server returns an error', async () => {
+    await expect(client.call('unknown', {})).rejects.toMatchObject({
+      name: 'BridgeRpcError',
+      code: -32601,
+      message: 'unknown: unknown',
+    })
   })
 
   it('sends notifications without expecting a response', () => {
@@ -77,5 +84,57 @@ describe('BridgeClient', () => {
   it('reports disconnected after disposal', () => {
     client.dispose()
     expect(client.connected).toBe(false)
+  })
+
+  it('rejects a pending call with AbortError when the signal aborts', async () => {
+    const controller = new AbortController()
+    const promise = client.call('never-answered', {}, controller.signal)
+    controller.abort()
+    await expect(promise).rejects.toThrow('aborted')
+  })
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(client.call('echo', {}, controller.signal)).rejects.toThrow('aborted')
+  })
+
+  it('detaches the abort listener once the call settles', async () => {
+    const controller = new AbortController()
+    const result = await client.call('echo', { done: true }, controller.signal)
+    expect(result).toEqual({ done: true })
+    // Aborting after settlement must not surface an error on the settled call.
+    controller.abort()
+    expect(controller.signal.aborted).toBe(true)
+  })
+
+  it('rejects pending calls and reports close when the server ends the socket', async () => {
+    const promise = client.call('never-answered', {})
+    serverSocket?.end()
+    await expect(promise).rejects.toThrow('bridge socket closed')
+    expect(closeCount).toBe(1)
+  })
+
+  it('does not report a close after an explicit dispose', async () => {
+    client.dispose()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(closeCount).toBe(0)
+  })
+
+  it('rejects calls after disposal', async () => {
+    client.dispose()
+    await expect(client.call('echo', {})).rejects.toThrow('bridge client is disposed')
+  })
+
+  it('parses a server-pushed notification', async () => {
+    serverSocket?.write(JSON.stringify({ jsonrpc: '2.0', method: 'desktop/tray-clicked', params: { button: 'left' } }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(notifications).toEqual([
+      { jsonrpc: '2.0', method: 'desktop/tray-clicked', params: { button: 'left' } },
+    ])
+  })
+
+  it('exports BridgeRpcError for provider mapping', () => {
+    expect(new BridgeRpcError(-32000, 'boom').code).toBe(-32000)
   })
 })

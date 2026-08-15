@@ -8,7 +8,7 @@ Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop
 
 ## Skeleton scope
 
-The current Phase 3 implementation wires the bridge, the Service Definition, and a stub Electron Main handler. Native dialogs (`showOpenDialog`, `showSaveDialog`) call Electron's `dialog` API; notifications, menus, global shortcuts, tray, and drag-and-drop are stubbed and will be filled in by later phases.
+The current Phase 3 implementation wires the bridge, the Service Definition, and a stub Electron Main handler. Native dialogs (`showOpenDialog`, `showSaveDialog`) call Electron's `dialog` API, and Electron Main shows a static tray icon (Show/Quit menu, hide-on-close). Notifications, menus, global shortcuts, drag-and-drop, and the programmable `setTray` contract are stubbed and will be filled in by later phases.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -28,16 +28,22 @@ Abstract desktop-integration service. Subclass, implement the methods, and load 
 /**
  * Show a native open-file / open-directory dialog.
  * @param options - dialog options.
+ * @param signal - caller/connection lifetime; abort rejects the call and
+ * discards the dialog result. The native dialog itself stays open until the
+ * operator acts because Electron exposes no programmatic close.
  * @returns selected paths, or undefined when the operator cancels.
  */
-abstract showOpenDialog(options: OpenDialogOptions): Promise<string[] | undefined>
+abstract showOpenDialog(options: OpenDialogOptions, signal?: AbortSignal): Promise<string[] | undefined>
 
 /**
  * Show a native save-file dialog.
  * @param options - dialog options.
+ * @param signal - caller/connection lifetime; abort rejects the call and
+ * discards the dialog result. The native dialog itself stays open until the
+ * operator acts because Electron exposes no programmatic close.
  * @returns the chosen absolute path, or undefined when the operator cancels.
  */
-abstract showSaveDialog(options: SaveDialogOptions): Promise<string | undefined>
+abstract showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promise<string | undefined>
 
 /**
  * Show a system notification.

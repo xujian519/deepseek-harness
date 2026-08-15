@@ -123,16 +123,22 @@ export abstract class Desktop extends Service {
   /**
    * Show a native open-file / open-directory dialog.
    * @param options - dialog options.
+   * @param signal - caller/connection lifetime; abort rejects the call and
+   * discards the dialog result. The native dialog itself stays open until the
+   * operator acts because Electron exposes no programmatic close.
    * @returns selected paths, or undefined when the operator cancels.
    */
-  abstract showOpenDialog(options: OpenDialogOptions): Promise<string[] | undefined>
+  abstract showOpenDialog(options: OpenDialogOptions, signal?: AbortSignal): Promise<string[] | undefined>
 
   /**
    * Show a native save-file dialog.
    * @param options - dialog options.
+   * @param signal - caller/connection lifetime; abort rejects the call and
+   * discards the dialog result. The native dialog itself stays open until the
+   * operator acts because Electron exposes no programmatic close.
    * @returns the chosen absolute path, or undefined when the operator cancels.
    */
-  abstract showSaveDialog(options: SaveDialogOptions): Promise<string | undefined>
+  abstract showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promise<string | undefined>
 
   /**
    * Show a system notification.
