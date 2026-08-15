@@ -22,6 +22,8 @@ export interface BackendSpawnOptions {
   args: readonly string[]
   /** Working directory for the backend process. */
   cwd: string
+  /** How long to wait for the readiness line before rejecting (default 30s). */
+  readyTimeoutMs?: number
 }
 
 /** One backend process exit, as `child_process` reports it. */
@@ -40,14 +42,18 @@ export interface DesktopBackend {
   dispose(): Promise<void>
 }
 
+/** Default readiness wait; a hung backend should fail loud rather than leave a blank window. */
+const DEFAULT_READY_TIMEOUT_MS = 30_000
+
 /** The dsh web runtime's readiness line: `dsh web: http://127.0.0.1:PORT`. */
-const URL_LINE = /^dsh web: (https?:\/\/\S+)/
+const URL_LINE = /^dsh web: (https?:\/\/127\.0\.0\.1:\d+)/
 
 /**
  * Spawn a dsh backend and resolve once the readiness line names the bound
  * URL. stdout is echoed to the parent until the child exits; stderr is always
  * echoed. The readiness promise rejects when the process exits or fails to
- * spawn before a URL line appears.
+ * spawn before a URL line appears, or when the URL line does not appear
+ * within {@link BackendSpawnOptions.readyTimeoutMs}.
  * @param options - spawn inputs.
  * @returns the backend handle.
  */
@@ -61,6 +67,11 @@ export function startDshBackend(options: BackendSpawnOptions): DesktopBackend {
   const exitCallbacks = new Set<(exit: BackendExit) => void>()
   let exited = false
   let resolved = false
+  const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS
+  const readyTimer = setTimeout(() => {
+    if (exited || resolved) return
+    rejectReady(new Error(`dsh backend did not report a URL within ${readyTimeoutMs}ms`))
+  }, readyTimeoutMs)
 
   const child: ChildProcess = spawn(
     options.nodeBin,
@@ -84,6 +95,7 @@ export function startDshBackend(options: BackendSpawnOptions): DesktopBackend {
       const match = URL_LINE.exec(line)
       if (match === null) continue
       resolved = true
+      clearTimeout(readyTimer)
       resolveReady(match[1] ?? '')
       break
     }
@@ -94,13 +106,17 @@ export function startDshBackend(options: BackendSpawnOptions): DesktopBackend {
   const finish = (exit: BackendExit): void => {
     if (exited) return
     exited = true
+    clearTimeout(readyTimer)
     if (!resolved) rejectReady(new Error(`dsh backend exited before reporting a URL (code ${String(exit.code)}, signal ${String(exit.signal)})`))
     for (const callback of exitCallbacks) callback(exit)
   }
   child.on('exit', (code, signal) => { finish({ code, signal }) })
   child.on('error', (error) => {
-    if (!exited) finish({ code: null, signal: null })
-    else if (!resolved) rejectReady(new Error(`failed to spawn dsh backend: ${error.message}`))
+    if (exited) return
+    exited = true
+    clearTimeout(readyTimer)
+    if (!resolved) rejectReady(new Error(`failed to spawn dsh backend: ${error.message}`))
+    for (const callback of exitCallbacks) callback({ code: null, signal: null })
   })
 
   return {

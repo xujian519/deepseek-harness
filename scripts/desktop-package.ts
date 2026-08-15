@@ -76,6 +76,29 @@ export function verifyBackendDeploy(backendDir: string): string[] {
 }
 
 /**
+ * Delete the node-pty prebuilds that do not match the target platform; the
+ * deploy tree carries a prebuild for every OS but only the host's is loaded.
+ * @param backendDir - the deployed backend tree.
+ * @param platform - Node platform key (`darwin-arm64`, `win-x64`, ...).
+ * @returns the removed prebuild directory names.
+ */
+export function pruneNodePtyPrebuilds(backendDir: string, platform: string): string[] {
+  const prebuildsDir = join(backendDir, 'node_modules', 'node-pty', 'prebuilds')
+  if (!existsSync(prebuildsDir)) {
+    return []
+  }
+  // node-pty names its win32 prebuilds `win32-*` while the platform key is `win-*`.
+  const keep = platform.replace(/^win-/, 'win32-')
+  const removed: string[] = []
+  for (const entry of readdirSync(prebuildsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === keep) continue
+    rmSync(join(prebuildsDir, entry.name), { recursive: true, force: true })
+    removed.push(entry.name)
+  }
+  return removed
+}
+
+/**
  * Package names resolvable from the top level of a node_modules directory,
  * scoped names expanded to `@scope/name`. Broken or dangling entries are
  * ignored.
@@ -342,6 +365,10 @@ export async function prepareDesktopResources(options: PrepareResourcesOptions =
   const missing = verifyBackendDeploy(backendDir)
   if (missing.length > 0) {
     throw new Error(`backend deploy is missing required paths: ${missing.join(', ')}`)
+  }
+  const pruned = pruneNodePtyPrebuilds(backendDir, platform)
+  if (pruned.length > 0) {
+    console.log(`pruned node-pty prebuilds for other platforms: ${pruned.join(', ')}`)
   }
   if (!options.skipNode) {
     const spec = nodeDownloadSpec(platform, DEFAULT_NODE_VERSION)

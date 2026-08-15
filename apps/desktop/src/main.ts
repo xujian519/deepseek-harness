@@ -7,13 +7,15 @@
 
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { startDshBackend, type DesktopBackend } from './server-manager.ts'
 
 /** Repository root from either layout (src/main.ts or dist/main.js: three hops up). */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 
 let backend: DesktopBackend | undefined
+/** Origin the renderer may navigate to: the backend's bound URL. */
+let backendOrigin = 'http://127.0.0.1'
 
 /** The Node binary to run the dsh backend: packaged runtime, or dev PATH node. */
 function resolveNodeBin(): string {
@@ -43,12 +45,13 @@ function resolveBackend(): { entry: string; loaderArgs: string[]; cwd: string } 
 
 /**
  * Create the main window with the hardened renderer: no Node integration,
- * context isolation on, and the sandboxed preload bridge.
+ * context isolation on, and the sandboxed preload bridge. The window may only
+ * navigate within the backend origin; popups open in the system browser.
  * @returns the created window.
  */
 function createWindow(): BrowserWindow {
   const preloadPath = fileURLToPath(new URL('./preload.cjs', import.meta.url))
-  return new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1280,
     height: 800,
     title: 'DeepSeek Harness',
@@ -59,6 +62,14 @@ function createWindow(): BrowserWindow {
       sandbox: true,
     },
   })
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (!url.startsWith(backendOrigin)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(backendOrigin)) event.preventDefault()
+  })
+  return window
 }
 
 void app.whenReady().then(async () => {
@@ -85,6 +96,7 @@ void app.whenReady().then(async () => {
   })
   try {
     const url = await backend.ready
+    backendOrigin = new URL(url).origin
     await window.loadURL(url)
   } catch (error) {
     console.error('failed to start the dsh backend', error)

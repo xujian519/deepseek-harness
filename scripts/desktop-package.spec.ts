@@ -8,7 +8,7 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkS
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { hoistVirtualStore, materializeExternalLinks, resourcesDirForPlatform, topLevelPackageNames, verifyBackendDeploy, virtualStorePackages } from './desktop-package.ts'
+import { hoistVirtualStore, materializeExternalLinks, pruneNodePtyPrebuilds, resourcesDirForPlatform, topLevelPackageNames, verifyBackendDeploy, virtualStorePackages } from './desktop-package.ts'
 
 const POSIX: NodeJS.Platform = 'linux'
 const WIN32: NodeJS.Platform = 'win32'
@@ -248,6 +248,51 @@ describe('materializeExternalLinks (win32 real copies)', () => {
       const inner = join(nm, 'vendor-pkg', 'node_modules', '@standard-schema', 'spec')
       expect(isRealDirectory(inner)).toBe(true)
       expect(readFileSync(join(inner, 'index.js'), 'utf8')).toBe('spec')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('pruneNodePtyPrebuilds', () => {
+  it('keeps only the target platform prebuild directory', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'prebuilds-'))
+    try {
+      const prebuilds = join(dir, 'node_modules', 'node-pty', 'prebuilds')
+      for (const name of ['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64', 'linux-x64']) {
+        mkdirSync(join(prebuilds, name), { recursive: true })
+        writeFileSync(join(prebuilds, name, 'pty.node'), 'x')
+      }
+
+      const removed = pruneNodePtyPrebuilds(dir, 'darwin-arm64')
+
+      expect(removed.sort()).toEqual(['darwin-x64', 'linux-x64', 'win32-arm64', 'win32-x64'])
+      expect(readdirSync(prebuilds)).toEqual(['darwin-arm64'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('maps the win-x64 platform key to the win32 prebuild name', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'prebuilds-'))
+    try {
+      const prebuilds = join(dir, 'node_modules', 'node-pty', 'prebuilds')
+      mkdirSync(join(prebuilds, 'win32-x64'), { recursive: true })
+      mkdirSync(join(prebuilds, 'darwin-arm64'), { recursive: true })
+
+      const removed = pruneNodePtyPrebuilds(dir, 'win-x64')
+
+      expect(removed).toEqual(['darwin-arm64'])
+      expect(readdirSync(prebuilds)).toEqual(['win32-x64'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('ignores a missing node-pty prebuilds directory', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'prebuilds-'))
+    try {
+      expect(pruneNodePtyPrebuilds(dir, 'darwin-arm64')).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
