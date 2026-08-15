@@ -11,8 +11,10 @@ packages:
   # The desktop backend deploy target carries its own package.json and
   # node_modules but is NOT a workspace member: exclude it (and its per-OS
   # subdirectories) so pnpm's pre-command dependency check does not try to
-  # reinstall it.
+  # reinstall it. Packaged outputs under release/ contain the same backend
+  # tree and are excluded for the same reason.
   - '!apps/desktop/resources/**'
+  - '!apps/desktop/release/**'
   # The runnable demo leaves join as ONE workspace member: examples/package.json
   # declares the union of every leaf's cordis.yml plugins as workspace:*, so a
   # plain-node (`:lib`) boot of any leaf (examples/<leaf>/cordis.yml) resolves its

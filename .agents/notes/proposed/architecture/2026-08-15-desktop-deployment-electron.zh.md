@@ -69,6 +69,7 @@ packages/bundle/desktop-app/           # Cordis bundle: web-app + desktop plugin
    - `pnpm --filter @deepseek-ai/dsh deploy --legacy --prod` 物化独立后端。deploy 会把 workspace state 改写为 production/filter 上下文，因此脚本会再跑一次普通 `pnpm install`，恢复后续 pnpm 命令所期望的状态。
    - 脚本把虚拟存储中的每个包提升到顶层 `node_modules`（launcher 从自身安装目录解析 Cordis 插件名，而 deploy 布局只链接直接依赖）。提升的链接使用相对路径，打包副本在安装后仍能解析。
    - `materializeExternalLinks` 把每个解析到部署树之外的符号链接（vendored 的 `cosmokit`/`schemastery` pnpm `link:` 依赖，它们指回仓库、打包后会悬空）替换为真实副本；vendored 包之间的循环链接改指向树内副本。
+   - 在 Windows 上所有链接都替换为真实目录副本，而非相对链接：junction 会被归一化为构建机的绝对路径，安装后会悬空。复制把链接展开为真实目录，并用"已复制目标"表打破 vendored 包链接循环；对已复制目标的再次引用，在顶层遍历时复制首份副本（此时首份已复制完成），在副本内部则跳过（解析会向上找到提升后的顶层副本）。
    - 脚本校验所需插件树。
 3. `scripts/desktop-download-node.ts` 下载经校验和验证的 Node 二进制（v24.19.0）到 `apps/desktop/resources/<os>/node`（darwin 为 `bin/node`，win32 为 `node.exe`）。Node 二进制与后端的原生 addon 均与 OS 相关，因此每个打包命令在目标 OS 上运行；在 macOS 上可用 `--platform win-x64` 交叉下载 Node 二进制用于构建链路验证，但该包不可分发。
 4. `electron-builder`（v26，`apps/desktop/electron-builder.yml`）把每个目标各自的资源目录作为 extraResources 打包。其复制过滤器会丢弃根级 `node_modules` 目录，因此后端分两趟复制（`node_modules` 子树单独一趟，其余一趟）。
@@ -79,7 +80,7 @@ packages/bundle/desktop-app/           # Cordis bundle: web-app + desktop plugin
 <resources>/node/bin/node <resources>/backend/lib/bin.js --profile desktop --port 0
 ```
 
-子进程通过 stdout 或向应用用户数据目录写入小型端口文件来告知绑定的端口。Main 进程等待端口就绪后，再加载渲染进程 URL。
+子进程通过 stdout 的 `dsh web:` 就绪行告知绑定的 URL。Main 进程等待该行出现后，再加载渲染进程 URL。
 
 使用**独立的标准 Node.js 二进制**而不是 Electron 内置 Node，可以避免 `landlock-run` 原生插件的 ABI 不匹配，并让后端在独立进程中运行。
 
@@ -147,8 +148,10 @@ CI 使用 GitHub Actions 矩阵，在 macOS 与 Windows runner 上分别构建�
 
 - macOS 上可干净构建 DMG 与 zip；DMG 需要网络下载 `dmgbuild-bundle`（本地代理或 npmmirror 的 `electron-builder-binaries` 镜像可解除阻塞）。
 - 打包后的后端自包含：所有符号链接为相对且指向树内（通过扫描打包树、并把 `.app` 复制到仓库外启动后端验证，后端能通过 HTTP 提供 UI）。相同的 prepare 步骤在任何打包主机上都会产出同样结果。
+- Windows 打包把所有链接替换为真实目录副本（win32 下的 `materializeExternalLinks`/`hoistVirtualStore`）：junction 会固化构建机的绝对路径，安装后悬空。该 win32 分支已有单元测试，首次发布前仍需在 Windows 主机上验证。
 - Windows 安装包在 Windows 上构建（`pnpm run package:desktop:win`）；部署后端的原生 addon 与主机相关，因此 prepare 必须在 Windows 主机或 CI runner 上运行。
 - GUI 窗口本身无法在无显示器的沙箱中渲染；集成冒烟测试需要带显示器的机器（CI 原生 agent 或人工验收）。
+- 已知限制：在 Windows 上 `child.kill('SIGTERM')` 是 `TerminateProcess`，会跳过后端的信号处理器，因此退出时可能丢失最后一批 write-behind 会话日志（优雅通道推迟到桌面 shell 桥实现）。preload bundle 保持 `electron` external（沙箱 preload 无法加载内联的 `electron` shim）；桌面 shell 已纳入 host typecheck 聚合，并使用独立的 Vitest 配置。后端就绪等待没有超时；窗口导航/弹窗未限制到后端 origin，也未设置 CSP；`dsh web:` 就绪行正则接受任意 host；部署树携带全平台 node-pty prebuilds（冗余但体积小）。这些加固随桌面 shell 插件一起落地。
 
 ### 签名与公证
 
@@ -157,9 +160,9 @@ CI 使用 GitHub Actions 矩阵，在 macOS 与 Windows runner 上分别构建�
 
 ### 测试策略
 
-- Main 进程辅助函数单元测试：端口发现、后端重启退避、IPC schema 校验。
+- 单元测试：`scripts/desktop-package.spec.ts`（部署校验、提升、POSIX 与 win32 的链接实体化）、`scripts/desktop-download-node.spec.ts`（下载、校验和、缓存）、`apps/desktop/tests/server-manager.spec.ts`（就绪、释放）、`apps/desktop/tests/preload-bundle.spec.ts`（electron external）。
 - 快照测试复用现有 Web 快照，因为渲染进程 UI 未改变。
-- 集成测试启动构建后的 Electron 应用，验证它能启动后端、加载 UI、创建空白会话。
+- 集成测试启动构建后的 Electron 应用，验证它能启动后端、加载 UI、创建空白会话；需要显示器，推迟实施。
 - 每次发布前在实体 macOS 与 Windows 机器上做人工验收。
 
 ### 分阶段落地
@@ -195,6 +198,6 @@ CI 使用 GitHub Actions 矩阵，在 macOS 与 Windows runner 上分别构建�
 
 - **原生插件 ABI。** `landlock-run` 必须为所携带的标准 Node 二进制编译，而不是 Electron 内置 Node。使用独立 Node 子进程可缓解。
 - **macOS 公证延迟。** 公证可能失败或耗时；CI 必须输出可排查的日志。
-- **进程生命周期。** dsh 后端可能崩溃或因端口不可用拒绝启动。Main 进程必须实现指数退避重启，并提供清晰的用户可见诊断。
+- **进程生命周期。** dsh 后端可能崩溃或因端口不可用拒绝启动。当前 shell 会弹出错误对话框；指数退避重启与更清晰的用户可见诊断计划随桌面 shell 插件一起落地。
 - **渲染进程与浏览器差异。** 拖放、深链接、窗口聚焦等行为与独立浏览器不同，都需要在 Main/preload 中显式处理。
 - **构建时间长。** 携带完整 Node 运行时与 `node_modules` 会拖慢 CI 构建；缓存下载的 Node 二进制与部署后的后端目录可改善。

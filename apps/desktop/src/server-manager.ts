@@ -110,6 +110,10 @@ export function startDshBackend(options: BackendSpawnOptions): DesktopBackend {
     },
     async dispose() {
       if (exited) return
+      // SIGTERM runs the backend's own handler (dispose + session-log flush)
+      // on POSIX. Windows maps it to TerminateProcess, which skips JS signal
+      // handlers, so the final write-behind session batch can be lost there; a
+      // graceful Windows channel is deferred to the desktop-shell bridge.
       child.kill('SIGTERM')
       await Promise.race([once(child, 'exit'), new Promise(resolve => setTimeout(resolve, 5000))])
       if (child.exitCode === null) child.kill('SIGKILL')
