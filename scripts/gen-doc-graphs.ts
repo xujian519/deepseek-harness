@@ -506,6 +506,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Discriminated interaction capability: the native backend opens one OS chooser on the host display, the browse backend serves listing/creation primitives for the in-app browser; dual-face backends fill ui-workspace directory-flow slots from their browser halves (no wire advertisement).',
   },
   {
+    key: 'desktop',
+    pkg: 'desktop',
+    title: 'Desktop OS-integration seam',
+    mode: 'seam',
+    implementations: ['desktop-shell'],
+    consumers: ['desktop-directory-picker'],
+    note: 'Electron Main owns native dialogs, notifications, menus, global shortcuts, tray, and drag-and-drop; the shell provider bridges them to the backend over a local socket so the renderer stays sandboxed.',
+  },
+  {
     key: 'webServer',
     pkg: 'webserver',
     title: 'HTTP route registration',

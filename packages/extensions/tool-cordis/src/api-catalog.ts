@@ -532,6 +532,48 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'desktop',
+    summary: 'Abstract desktop-integration service.',
+    description: 'Abstract desktop-integration service. Subclass, implement the methods, and load the subclass as a plugin — it registers as `ctx.desktop`.',
+    methods: [
+      {
+        signature: 'abstract showOpenDialog(options: OpenDialogOptions): Promise<string[] | undefined>',
+        description: 'Show a native open-file / open-directory dialog.',
+        parameters: [{ name: 'options', description: 'dialog options.' }],
+        returns: 'selected paths, or undefined when the operator cancels.',
+      },
+      {
+        signature: 'abstract showSaveDialog(options: SaveDialogOptions): Promise<string | undefined>',
+        description: 'Show a native save-file dialog.',
+        parameters: [{ name: 'options', description: 'dialog options.' }],
+        returns: 'the chosen absolute path, or undefined when the operator cancels.',
+      },
+      {
+        signature: 'abstract sendNotification(notification: DesktopNotification): void',
+        description: 'Show a system notification.',
+        parameters: [{ name: 'notification', description: 'notification content.' }],
+      },
+      {
+        signature: 'abstract registerMenuItem(group: string, item: DesktopMenuItem): () => void',
+        description: 'Register a menu item under a named group.',
+        parameters: [{ name: 'group', description: 'named menu group (e.g., `file`, `view`).' }, { name: 'item', description: 'menu item to register.' }],
+        returns: 'a disposer that removes the item.',
+      },
+      {
+        signature: 'abstract registerGlobalShortcut(accelerator: string, handler: () => void): () => void',
+        description: 'Register a global keyboard shortcut.',
+        parameters: [{ name: 'accelerator', description: 'Electron accelerator string.' }, { name: 'handler', description: 'callback invoked when the shortcut fires.' }],
+        returns: 'a disposer that unregisters the shortcut.',
+      },
+      {
+        signature: 'abstract setTray(config: DesktopTrayConfig): () => void',
+        description: 'Configure the host tray icon.',
+        parameters: [{ name: 'config', description: 'tray configuration.' }],
+        returns: 'a disposer that removes the tray.',
+      },
+    ],
+  },
+  {
     key: 'directoryPicker',
     summary: 'Abstract directory-picking service.',
     description: 'Abstract directory-picking service. Subclass, implement `capability()`, and load the subclass as a plugin — it registers as `ctx.directoryPicker` (one implementation per context; loading a second throws, cordis\' standard duplicate-service behavior). The capability object must be stable for the service lifetime: consumers may capture it across calls.',
@@ -2348,6 +2390,54 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'ref', description: 'the reference whose stored value changed.' }],
   },
   {
+    name: 'desktop/bridge-lost',
+    mode: 'emit',
+    signature: '\'desktop/bridge-lost\'(): void',
+    summary: 'The bridge to Electron Main was lost.',
+    description: 'The bridge to Electron Main was lost.',
+    parameters: [],
+  },
+  {
+    name: 'desktop/file-dropped',
+    mode: 'emit',
+    signature: '\'desktop/file-dropped\'(payload: { paths: string[] }): void',
+    summary: 'Files were dropped on the renderer window.',
+    description: 'Files were dropped on the renderer window.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/menu-activated',
+    mode: 'emit',
+    signature: '\'desktop/menu-activated\'(payload: { menuId: string }): void',
+    summary: 'A registered menu item was activated.',
+    description: 'A registered menu item was activated.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/notification-clicked',
+    mode: 'emit',
+    signature: '\'desktop/notification-clicked\'(payload: { notificationId: string }): void',
+    summary: 'A notification was clicked.',
+    description: 'A notification was clicked.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/shortcut-triggered',
+    mode: 'emit',
+    signature: '\'desktop/shortcut-triggered\'(payload: { accelerator: string }): void',
+    summary: 'A registered global shortcut was pressed.',
+    description: 'A registered global shortcut was pressed.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/tray-clicked',
+    mode: 'emit',
+    signature: '\'desktop/tray-clicked\'(payload: { button: \'left\' | \'right\' }): void',
+    summary: 'The tray icon was clicked.',
+    description: 'The tray icon was clicked.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
     name: 'domain/changed',
     mode: 'emit',
     signature: '\'domain/changed\'(change: DomainChanged): void',
@@ -2928,6 +3018,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
   },
   {
+    name: 'DesktopMenuItem',
+    declaration: 'export interface DesktopMenuItem {\n    id: string;\n    label: string;\n    accelerator?: string;\n}',
+  },
+  {
+    name: 'DesktopNotification',
+    declaration: 'export interface DesktopNotification {\n    title: string;\n    body?: string;\n}',
+  },
+  {
+    name: 'DesktopTrayConfig',
+    declaration: 'export interface DesktopTrayConfig {\n    tooltip?: string;\n}',
+  },
+  {
     name: 'DiffCallView',
     declaration: 'export interface DiffCallView {\n    card: \'diff\';\n    title: string;\n    diffs: FileDiff[];\n    locations?: FileLocation[];\n}',
   },
@@ -3480,6 +3582,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OneShotSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n}',
   },
   {
+    name: 'OpenDialogOptions',
+    declaration: 'export interface OpenDialogOptions {\n    title?: string;\n    defaultPath?: string;\n    properties?: (\'openFile\' | \'openDirectory\' | \'multiSelections\')[];\n}',
+  },
+  {
     name: 'PermissionSelect',
     declaration: 'export interface PermissionSelect {\n    options: PresetOption[];\n    currentValue: string;\n}',
   },
@@ -3682,6 +3788,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SandboxPolicyRequest',
     declaration: 'export interface SandboxPolicyRequest {\n    session?: Session;\n    mode?: SandboxMode;\n}',
+  },
+  {
+    name: 'SaveDialogOptions',
+    declaration: 'export interface SaveDialogOptions {\n    title?: string;\n    defaultPath?: string;\n}',
   },
   {
     name: 'SaveImageAttachment',
