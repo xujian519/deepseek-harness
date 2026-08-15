@@ -46,13 +46,21 @@ jobs:
           persist-credentials: false
       - name: Create project token
         id: app-token
+        # The project-token GitHub App is upstream infrastructure; a fork
+        # without the credentials (the client-id variable is unset) skips the
+        # token and the lifecycle step instead of failing every run. The
+        # secrets context cannot appear in `if`, so the private-key secret is
+        # not guarded here: a var without its secret fails the token step
+        # loudly, which is the misconfiguration contract.
+        if: ${{ vars.DSH_ISSUE_APP_CLIENT_ID != '' }}
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
           client-id: ${{ vars.DSH_ISSUE_APP_CLIENT_ID }}
           private-key: ${{ secrets.DSH_ISSUE_APP_PRIVATE_KEY }}
-          owner: deepseek-harness
-          repositories: deepseek-harness
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
       - name: Handle repository event
+        if: ${{ steps.app-token.outputs.token != '' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: node .github/issue-management/policy.mjs lifecycle
