@@ -12,9 +12,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesktopShell, { BridgeClient } from '../src/index.ts'
 
 // Windows cannot listen on a POSIX socket file; a named pipe is the native form.
-const socketPath = process.platform === 'win32'
-  ? `\\\\.\\pipe\\dsh-desktop-shell-test-${process.pid}`
-  : join(tmpdir(), `dsh-desktop-shell-test-${process.pid}.sock`)
+// The path is unique PER TEST: Windows pipe names linger briefly after the
+// owning server closes, so a fixed name collides with the previous test's
+// (EADDRINUSE) while the OS frees it.
+let socketPath: string
+let socketPathCounter = 0
+function nextSocketPath(): string {
+  socketPathCounter += 1
+  return process.platform === 'win32'
+    ? `\\\\.\\pipe\\dsh-desktop-shell-test-${process.pid}-${socketPathCounter}`
+    : join(tmpdir(), `dsh-desktop-shell-test-${process.pid}-${socketPathCounter}.sock`)
+}
 
 describe('DesktopShell', () => {
   let server: Server
@@ -27,6 +35,7 @@ describe('DesktopShell', () => {
     lastMethod = undefined
     lastParams = undefined
     serverSocket = undefined
+    socketPath = nextSocketPath()
     server = createServer((socket) => {
       serverSocket = socket
       socket.setEncoding('utf8')
@@ -208,8 +217,8 @@ describe('DesktopShell', () => {
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 20))
     serverSocket?.end()
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(lost).toBe(1)
+    // The FIN round-trip is slower on Windows; poll instead of a fixed wait.
+    await expect.poll(() => lost, { timeout: 5_000 }).toBe(1)
   })
 
   it('does not emit desktop/bridge-lost when the shell is disposed normally', async () => {
