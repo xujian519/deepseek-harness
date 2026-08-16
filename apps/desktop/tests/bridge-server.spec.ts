@@ -90,14 +90,17 @@ describe('BridgeServer', () => {
 
   it('rejects start when the socket path is already taken', async () => {
     bridge.dispose()
-    await new Promise(resolve => setTimeout(resolve, 50))
+    // A FRESH path: the beforeEach bridge's name may still be held on Windows
+    // while its pipe tears down, which would make the blocker's own listen
+    // fail instead of the second BridgeServer's.
+    const occupied = nextSocketPath()
     const blocker = createServer()
     await new Promise<void>((resolve, reject) => {
       blocker.on('error', reject)
-      blocker.listen(socketPath, resolve)
+      blocker.listen(occupied, resolve)
     })
     const other = new BridgeServer(window)
-    await expect(other.start(socketPath)).rejects.toThrow()
+    await expect(other.start(occupied)).rejects.toThrow()
     other.dispose()
     await new Promise<void>((resolve, reject) => {
       blocker.close((error) => {
