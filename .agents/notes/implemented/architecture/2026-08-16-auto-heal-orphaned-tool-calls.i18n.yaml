@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-16-auto-heal-orphaned-tool-calls.md
+2026-08-16-auto-heal-orphaned-tool-calls.md: 038d78a395e7f8defe2b4e82f87c4d9e06605ffe
+2026-08-16-auto-heal-orphaned-tool-calls.zh.md: 7019af6fa01678d87292c95ea2ff4da56498a5f7

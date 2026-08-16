@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
-import { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '../src/index.ts'
+import { interruptedTurnClosers, orphanedToolCallReplacements, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '../src/index.ts'
 import type { SessionEvent, SurfaceEvent } from '../src/index.ts'
+import { foldSurface } from '../src/index.ts'
 
 /**
  * Unit coverage for the crash-recovery closer synthesis. The persistence
@@ -271,5 +272,114 @@ describe('interruptedTurnClosers', () => {
     const closers = interruptedTurnClosers(events)
     // No pending calls → no synthetic tool/result, just step/end + turn/end.
     expect(closers.map(e => e.type)).toEqual(['step/end', 'turn/end'])
+  })
+})
+
+const assistantToolCallMessage = (seq: number, turn: number, callId: string): SessionEvent =>
+  ({ type: 'assistant/message', seq, time: seq, surfaceOp: 'append', data: {
+    turn, step: 1,
+    message: createMessage({
+      role: 'assistant',
+      content: [
+        { type: 'tool-call', id: CallId(callId), name: 'bash', arguments: '{}' },
+      ],
+      source: { kind: 'model', ...{ provider: 'mock', model: 'mock' } },
+    }),
+  } })
+
+const toolResultEvent = (seq: number, turn: number, callId: string): SessionEvent =>
+  ({ type: 'tool/result', seq, time: seq, surfaceOp: 'append', data: {
+    turn, step: 1,
+    message: createToolResultMessage({
+      callId: CallId(callId),
+      content: [{ type: 'text', text: 'ok' }],
+      isError: false,
+    }),
+  } })
+
+describe('orphanedToolCallReplacements', () => {
+  it('returns nothing for an empty or balanced log', () => {
+    expect(orphanedToolCallReplacements([])).toEqual([])
+    const balanced: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      assistantToolCallMessage(2, 1, 'call-1'),
+      toolResultEvent(3, 1, 'call-1'),
+      { type: 'step/end', seq: 4, time: 4, data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: 5, time: 5, data: { turn: 1, reason: { kind: 'completed' } } },
+    ]
+    expect(orphanedToolCallReplacements(balanced)).toEqual([])
+  })
+
+  it('shadows a closed-turn assistant tool_calls message whose call was never answered', () => {
+    const events: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      assistantToolCallMessage(2, 1, 'call-1'),
+      { type: 'tool/call', seq: 3, time: 3, data: { turn: 1, step: 1, callId: CallId('call-1'), name: 'bash', arguments: '{}' } },
+      { type: 'step/end', seq: 4, time: 4, data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: 5, time: 5, data: { turn: 1, reason: { kind: 'error', error: { message: 'boom', code: 'UNKNOWN' } } } },
+    ]
+    const replacements = orphanedToolCallReplacements(events)
+    expect(replacements).toHaveLength(1)
+    const replacement = replacements[0] as SurfaceEvent
+    expect(replacement.type).toBe('user/message')
+    expect(replacement.seq).toBe(6)
+    expect(replacement.surfaceOp).toEqual({ op: 'replace', start: 2, end: 2 })
+    expect(replacement.sourceEventSeqs).toEqual([2])
+    const message = (replacement as unknown as { data: { content: { type: string; text?: string }[] } }).data
+    expect(message.content[0]?.type).toBe('text')
+    expect(message.content[0]?.text).toContain('never executed')
+  })
+
+  it('shadows the message and its answered results together when only some calls were answered', () => {
+    const events: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      { type: 'assistant/message', seq: 2, time: 2, surfaceOp: 'append', data: {
+        turn: 1, step: 1,
+        message: createMessage({
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', id: CallId('call-1'), name: 'bash', arguments: '{}' },
+            { type: 'tool-call', id: CallId('call-2'), name: 'bash', arguments: '{}' },
+          ],
+          source: { kind: 'model', ...{ provider: 'mock', model: 'mock' } },
+        }),
+      } },
+      toolResultEvent(3, 1, 'call-1'),
+      { type: 'step/end', seq: 4, time: 4, data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: 5, time: 5, data: { turn: 1, reason: { kind: 'error', error: { message: 'boom', code: 'UNKNOWN' } } } },
+    ]
+    const replacements = orphanedToolCallReplacements(events)
+    expect(replacements).toHaveLength(1)
+    const replacement = replacements[0] as SurfaceEvent
+    // The answered call-1 result is shadowed with the message: once the
+    // assistant message is gone, a standalone tool result would itself dangle.
+    expect(replacement.surfaceOp).toEqual({ op: 'replace', start: 2, end: 3 })
+    expect(replacement.sourceEventSeqs).toEqual([2, 3])
+  })
+
+  it('replaces the full transcript into a provider-valid shape and is idempotent', () => {
+    const events: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      assistantToolCallMessage(2, 1, 'call-1'),
+      { type: 'tool/call', seq: 3, time: 3, data: { turn: 1, step: 1, callId: CallId('call-1'), name: 'bash', arguments: '{}' } },
+      { type: 'step/end', seq: 4, time: 4, data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: 5, time: 5, data: { turn: 1, reason: { kind: 'error', error: { message: 'boom', code: 'UNKNOWN' } } } },
+    ]
+    const healed = [...events, ...orphanedToolCallReplacements(events)]
+    // The orphaned assistant message is shadowed by a text-only user-role
+    // message: no tool calls remain dangling on the surface.
+    const { nodes } = foldSurface(healed)
+    const bySeq = new Map(healed.map(event => [event.seq, event] as const))
+    const surfaceMessages = nodes.map(seq => bySeq.get(seq))
+    expect(surfaceMessages.map(event => event!.type)).toEqual(['user/message'])
+    const note = surfaceMessages[0]!
+    if (note.type !== 'user/message') throw new Error('expected the healed user message')
+    expect(note.data.content.some((block: { type: string }) => block.type === 'tool-call')).toBe(false)
+    // A second scan of the healed log produces nothing: the repair is idempotent.
+    expect(orphanedToolCallReplacements(healed)).toEqual([])
   })
 })

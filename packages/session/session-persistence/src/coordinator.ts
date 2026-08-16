@@ -9,6 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 import {
   adoptSessionEvent,
   interruptedTurnClosers,
+  orphanedToolCallReplacements,
   KNOWN_SESSION_EVENT_TYPES,
   SESSION_FORMAT_VERSION,
   SessionPreparation,
@@ -899,9 +900,14 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       const storedEvents = adoptStoredEvents(events, id)
       this.assertEventsSupported(meta, storedEvents)
 
-      // Preserve complete interrupted events and synthesize only missing closers.
+      // Preserve complete interrupted events and synthesize only missing
+      // closers; also shadow any closed-turn assistant `tool_calls` message
+      // whose calls were never answered — the dangling message would make
+      // every later request provider-invalid. Tail closers are applied first
+      // so an open turn's synthesized results count as answers.
       const closers = interruptedTurnClosers(storedEvents).map(adoptSessionEvent)
-      const balanced = [...storedEvents, ...closers]
+      const healEvents = orphanedToolCallReplacements([...storedEvents, ...closers]).map(adoptSessionEvent)
+      const balanced = [...storedEvents, ...closers, ...healEvents]
       const session = this.ctx.sessions.prepare(id, {
         seed: balanced,
         meta,
@@ -917,7 +923,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         revision,
         sessionLength: session.events.length,
         tornMarker,
-        closers,
+        closers: [...closers, ...healEvents],
       }
     } catch (error: unknown) {
       // An unsupported format is a refusal over an intact log, not damage —
