@@ -41,6 +41,10 @@ Setup is complete when `pnpm run typecheck` exits successfully.
 
 ## Contributor reference
 
+### Plugin authoring
+
+The [plugin authoring reference](plugin-authoring.md) is the lookup table of contracts and cautions a plugin author must hold; concepts, tutorials, and procedures link to their owning documents.
+
 ### TypeScript project layout
 
 The repository uses isolated Host and Client aggregates. An ordinary package is registered in exactly one aggregate: Host packages in `tsconfig.host.json` and Client packages in `tsconfig.client.json`.

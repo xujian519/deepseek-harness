@@ -41,6 +41,10 @@ pnpm run typecheck
 
 ## 贡献者参考
 
+### 插件开发
+
+[插件开发参考](plugin-authoring.md)是插件作者必须掌握的约定与注意事项查阅表；概念、教程与流程都链接到各自的归属文档。
+
 ### TypeScript 项目布局
 
 仓库使用相互隔离的 Host 与 Client aggregate。普通包只登记进其中一个 aggregate；Host 包进入 `tsconfig.host.json`，Client 包进入 `tsconfig.client.json`。
