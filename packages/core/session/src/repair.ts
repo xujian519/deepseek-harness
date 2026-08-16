@@ -5,9 +5,10 @@
  * @module @deepseek-ai/dsh-session/repair
  */
 
-import { MessageId, freezeMessage, type CallId } from '@deepseek-ai/dsh-llm'
+import { MessageId, freezeMessage, type CallId, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import type { ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from './types.ts'
+import { foldSurface } from './surface.ts'
 
 /** Recovery code for an assistant tool request that never reached a recorded call start. */
 export const TOOL_NOT_STARTED = 'TOOL_NOT_STARTED'
@@ -130,4 +131,80 @@ export function interruptedTurnClosers(events: readonly SessionEvent[]): Session
   }
   closers.push({ type: 'turn/end', seq: seq++, time, data: { turn: openTurn, reason: { kind: 'interrupted' } } })
   return closers
+}
+
+/**
+ * Return deterministic surface-replacement events that shadow assistant
+ * `tool_calls` messages whose calls were never answered, replacing each with a
+ * plain-text user-role message (the harness carries producer-injected context
+ * in user role). A turn that closed with an error after recording its tool
+ * calls but before their results leaves a dangling message that makes every
+ * later request provider-invalid; the shadow keeps the transcript valid.
+ * Partial answers are shadowed together with the message — their results
+ * belong to the failed batch and would themselves dangle once the assistant
+ * message is gone. Idempotent: a healed message carries no tool calls. The
+ * caller passes the log WITH any tail closers already applied, so an open
+ * turn's synthesized results count as answers.
+ * @param events - the log to scan, tail closers included.
+ * @returns the replacement events to append after `events`, in order.
+ */
+export function orphanedToolCallReplacements(events: readonly SessionEvent[]): SessionEvent[] {
+  const answered = new Set<CallId>()
+  for (const event of events) {
+    if (event.type === 'tool/result') answered.add(event.data.message.source.callId)
+  }
+  // Shadow only messages still on the model-visible surface: a message a prior
+  // replacement removed is not an orphan.
+  const { nodes } = foldSurface(events)
+  const bySeq = new Map(events.map(event => [event.seq, event] as const))
+  const last = events.at(-1)
+  if (last === undefined) return []
+  let seq = last.seq + 1
+  const time = last.time
+  const replacements: SessionEvent[] = []
+  for (let i = 0; i < nodes.length;) {
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
+    const event = bySeq.get(nodes[i]!)
+    if (event?.type !== 'assistant/message') {
+      i++
+      continue
+    }
+    const toolCalls = event.data.message.content.filter((block): block is ToolCallBlock => block.type === 'tool-call')
+    if (toolCalls.length === 0 || toolCalls.every(call => answered.has(call.id))) {
+      i++
+      continue
+    }
+    // Consume the message and any contiguous following results as one range.
+    const shadowed = [event.seq]
+    let end = event.seq
+    let j = i + 1
+    while (j < nodes.length) {
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the while condition
+      const next = bySeq.get(nodes[j]!)
+      if (next?.type !== 'tool/result') break
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the while condition
+      end = nodes[j]!
+      shadowed.push(end)
+      j++
+    }
+    const healedSeq = seq++
+    replacements.push({
+      type: 'user/message',
+      seq: healedSeq,
+      time,
+      data: freezeMessage({
+        id: MessageId(`healed-tool-calls-${healedSeq}`),
+        role: 'user',
+        source: { kind: 'plugin', plugin: 'dsh-session' },
+        content: [{
+          type: 'text',
+          text: 'The previous assistant message contained tool calls that were never executed and produced no results, so it was removed to keep the conversation valid. Restate the request if the work is still needed.',
+        }],
+      }),
+      surfaceOp: { op: 'replace', start: event.seq, end },
+      sourceEventSeqs: shadowed,
+    })
+    i = j
+  }
+  return replacements
 }
