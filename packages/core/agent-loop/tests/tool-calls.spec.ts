@@ -688,6 +688,43 @@ describe('tool-call scheduler: failure quiescence', () => {
       data: { reason: { kind: 'error', error: { message: schedulerError.message, code: 'UNKNOWN' } } },
     })
   })
+
+  it('balances the transcript with synthetic error results when the scheduler fails mid-group', async () => {
+    const adapter = new MockAdapter([
+      multiCall([
+        { id: 'c1', name: 'p', args: { id: '1' } },
+        { id: 'c2', name: 'p', args: { id: '2' } },
+        { id: 'c3', name: 'p', args: { id: '3' } },
+      ]),
+    ])
+    const ctx = await harness(adapter, 3)
+    const gated = gatedParallelTool('p')
+    ctx.tools.register(gated.tool)
+    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
+    const schedulerError = new Error('scheduler exploded before dispatch')
+    scheduler.prepare = () => { throw schedulerError }
+    const agent = ctx.agentLoop.create(SessionId('scheduler-prepare-failure'), { provider: 'mock', model: 'mock' })
+    const idlePromise = waitForIdle(ctx, agent)
+
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await idlePromise
+
+    // The turn errors with the scheduler failure...
+    expect(events(agent).findLast(event => event.type === 'turn/end')).toMatchObject({
+      data: { reason: { kind: 'error', error: { message: schedulerError.message, code: 'UNKNOWN' } } },
+    })
+    // ...but the transcript is provider-valid: every tool-call block in the
+    // assistant message carries a synthetic error result, so the next request
+    // is accepted and the model sees the failure instead of the provider
+    // rejecting the dangling tool_calls before the model can run.
+    const messages = agent.session.deriveMessages()
+    const assistantCallIds = messages.flatMap(message =>
+      message.content.filter(block => block.type === 'tool-call').map(block => String(block.id)))
+    const toolResults = messages.flatMap(message =>
+      message.content.filter(block => block.type === 'tool-result').map(block => ({ id: String(block.toolCallId), isError: block.isError })))
+    expect(toolResults.map(result => result.id).sort()).toEqual([...assistantCallIds].sort())
+    expect(toolResults.every(result => result.isError === true)).toBe(true)
+  })
 })
 
 describe('code-mode native-tool denial through the agent loop', () => {
