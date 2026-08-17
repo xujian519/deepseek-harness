@@ -42,7 +42,10 @@ export class MethodologyRegistry {
     for (const component of components) this.register(component)
   }
 
-  /** Register one component; a duplicate name throws. */
+  /**
+   * Register one component; a duplicate name throws.
+   * @param component - the component to register.
+   */
   register(component: MethodologyComponent): void {
     if (this.components.has(component.name)) {
       throw new Error('Methodology "' + component.name + '" is already registered')
@@ -74,12 +77,19 @@ export class MethodologyRegistry {
     return scored.slice(0, topK)
   }
 
-  /** Whether a component with the given name is registered. */
+  /**
+   * Whether a component with the given name is registered.
+   * @param name - the component name to look up.
+   * @returns true when the component is registered.
+   */
   has(name: string): boolean {
     return this.components.has(name)
   }
 
-  /** All registered components in registration order. */
+  /**
+   * All registered components in registration order.
+   * @returns the registered components.
+   */
   list(): MethodologyComponent[] {
     return [...this.components.values()]
   }

@@ -12,6 +12,7 @@ import { fromInverted, raw, snippet } from '../shared/text.ts'
 const BASE = 'https://api.openalex.org/works'
 const DEFAULT_MAILTO = 'sati@users.noreply.github.com'
 
+/** 创建 OpenAlex 连接器的选项（polite pool 邮箱等）。 */
 export interface CreateOpenAlexConnectorOptions {
   /** polite pool 标识邮箱；默认回退 OPENALEX_MAILTO 环境变量。 */
   mailto?: string
@@ -67,6 +68,11 @@ function toHit(w: Work): ConnectorHit {
   }
 }
 
+/**
+ * 创建 OpenAlex 开放学术图谱连接器。
+ * @param options - 连接器选项（polite pool 邮箱、fetch 注入）。
+ * @returns OpenAlex 连接器。
+ */
 export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions = {}): Connector {
   const polite = (): string => {
     const email = options.mailto?.trim() || process.env.OPENALEX_MAILTO?.trim() || DEFAULT_MAILTO

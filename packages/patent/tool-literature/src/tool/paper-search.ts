@@ -12,6 +12,7 @@ import type { ConnectorHit } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 import { LiteratureToolError } from '../error.ts'
 
+/** Input for the paper_search tool. */
 export type PaperSearchInput = {
   /** Database id (from paper_list_sources, e.g. "arxiv", "openalex"). */
   db: string
@@ -21,6 +22,7 @@ export type PaperSearchInput = {
   limit?: number
 }
 
+/** Output of the paper_search tool. */
 export type PaperSearchOutput = {
   db: string
   query: string

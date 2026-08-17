@@ -14,6 +14,12 @@ export const DEGRADATION_SUFFIX = '__degradation'
 /**
  * 标记降级：把 fallback 写入 valueKey，降级说明写入 `<valueKey>__degradation`。
  * 供节点内部使用（delta 是节点即将返回的增量片段）。
+ * @param delta - 节点即将返回的增量片段。
+ * @param valueKey - 被降级的值键。
+ * @param fallback - 降级时的兜底值。
+ * @param reason - 降级原因。
+ * @param message - 降级说明。
+ * @param severity - 严重程度（缺省 warning）。
  */
 export function markDegraded(
   delta: StateDelta,
@@ -27,12 +33,20 @@ export function markDegraded(
   delta[`${valueKey}${DEGRADATION_SUFFIX}`] = { reason, message, severity } satisfies DegradationMark
 }
 
-/** 查询某 key 是否被降级。 */
+/** 查询某 key 是否被降级。
+ * @param state - 图状态。
+ * @param valueKey - 被查询的值键。
+ * @returns 为 true 表示该 key 存在降级标记。
+ */
 export function isDegraded(state: GraphState, valueKey: string): boolean {
   return state[`${valueKey}${DEGRADATION_SUFFIX}`] !== undefined
 }
 
-/** 读取某 key 的降级标记（无则 undefined）。 */
+/** 读取某 key 的降级标记（无则 undefined）。
+ * @param state - 图状态。
+ * @param valueKey - 被查询的值键。
+ * @returns 该 key 的降级标记；无则 undefined。
+ */
 export function getDegradationMark(state: GraphState, valueKey: string): DegradationMark | undefined {
   const mark = state[`${valueKey}${DEGRADATION_SUFFIX}`]
   if (
@@ -46,7 +60,10 @@ export function getDegradationMark(state: GraphState, valueKey: string): Degrada
   return undefined
 }
 
-/** 全图降级标记汇总（按 key 字典序，确定性输出）。 */
+/** 全图降级标记汇总（按 key 字典序，确定性输出）。
+ * @param state - 图状态。
+ * @returns 全图降级标记列表。
+ */
 export function degradationSummary(state: GraphState): DegradationMark[] {
   const marks: DegradationMark[] = []
   for (const key of Object.keys(state).sort()) {

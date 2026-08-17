@@ -17,7 +17,11 @@ const ENTITIES: Record<string, string> = {
   '&nbsp;': ' ',
 }
 
-/** Decode the few XML/HTML entities that appear in academic metadata (incl. numeric/hex refs). */
+/**
+ * Decode the few XML/HTML entities that appear in academic metadata (incl. numeric/hex refs).
+ * @param input - the text with entities.
+ * @returns the entity-decoded text.
+ */
 export function decodeEntities(input: string): string {
   return input
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h: string) => safeCodePoint(parseInt(h, 16)))
@@ -34,7 +38,11 @@ function safeCodePoint(code: number): string {
   }
 }
 
-/** Strip XML/HTML tags (e.g. JATS `<jats:p>` abstracts) and collapse whitespace. */
+/**
+ * Strip XML/HTML tags (e.g. JATS `<jats:p>` abstracts) and collapse whitespace.
+ * @param input - the tagged text (optional).
+ * @returns the tag-stripped text, or undefined when empty or absent.
+ */
 export function stripTags(input?: string): string | undefined {
   if (!input) return undefined
   const text = decodeEntities(input.replace(/<[^>]+>/g, ' '))
@@ -43,7 +51,12 @@ export function stripTags(input?: string): string | undefined {
   return text.length ? text : undefined
 }
 
-/** Truncate to a readable length without hard-splitting words. */
+/**
+ * Truncate to a readable length without hard-splitting words.
+ * @param input - the text to truncate (optional).
+ * @param max - maximum length (default 600).
+ * @returns the truncated text, or undefined when empty or absent.
+ */
 export function snippet(input?: string, max = 600): string | undefined {
   const text = stripTags(input)
   if (!text) return undefined
@@ -51,12 +64,20 @@ export function snippet(input?: string, max = 600): string | undefined {
   return text.slice(0, max).replace(/\s+\S*$/, '') + '…'
 }
 
-/** Pass through a source API record verbatim as an opaque `extra` payload. */
+/**
+ * Pass through a source API record verbatim as an opaque `extra` payload.
+ * @param value - the source API record.
+ * @returns the record as an opaque object.
+ */
 export function raw(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-/** Rebuild plain-text abstract from OpenAlex's `abstract_inverted_index` (word → positions). */
+/**
+ * Rebuild plain-text abstract from OpenAlex's `abstract_inverted_index` (word → positions).
+ * @param index - the inverted index (word → positions), optional.
+ * @returns the rebuilt abstract text, or undefined when empty or absent.
+ */
 export function fromInverted(index?: Record<string, number[]> | null): string | undefined {
   if (!index) return undefined
   const words: string[] = []

@@ -12,6 +12,7 @@ export type { IpcClassification } from './types.ts'
  */
 
 const MIN_CONFIDENCE_FOR_KEYWORD = 0.5
+/** 高置信度阈值：confidence >= 0.8 视为高置信度。 */
 export const HIGH_CONFIDENCE_THRESHOLD = 0.8
 /** 置信度饱和函数参数 K（命中 K 词时达到 (1-1/e) ≈ 0.632 的归一化增量）。 */
 const CONFIDENCE_SATURATION_K = 3
@@ -20,6 +21,7 @@ export const IPC_DETAIL_MIN_CONFIDENCE = 0.7
 /** 多重分类门槛：confidence >= 该值（与部级命中 ≥2 词等价：2 词=0.743，1 词=0.642）的部参与并行注入。 */
 export const MULTI_CLASSIFY_MIN_CONFIDENCE = 0.7
 
+/** IPC 部（A-H）的领域元数据：部号、名称、关键词与审查要点。 */
 export type IpcDomainMeta = {
   section: string
   name: string
@@ -440,6 +442,7 @@ export const IPC_DOMAINS: IpcDomainMeta[] = [
 
 /** 无匹配时的默认分类（与 Mady 一致：B 部，置信度 0.15）。 */
 export const DEFAULT_IPC_SECTION = 'B'
+/** 无匹配时的默认置信度（与 Mady 一致：0.15）。 */
 export const DEFAULT_IPC_CONFIDENCE = 0.15
 
 /** 高频大类的关键词子表（两级分类第二级；对齐 ipc-standards.yaml 的 ipcDetail）。 */
@@ -711,7 +714,11 @@ export const IPC_DETAIL_DOMAINS: IpcDetailDomainMeta[] = [
   },
 ]
 
-/** 返回所有 IPC 大类的关键词匹配结果（含未命中部按置信度排序；命中部附两级 detail）。 */
+/**
+ * 返回所有 IPC 大类的关键词匹配结果（含未命中部按置信度排序；命中部附两级 detail）。
+ * @param text - 待分类的专利文本。
+ * @returns 按置信度降序排列的 IPC 分类结果列表。
+ */
 export function classifyIpc(text: string): IpcClassification[] {
   const results: IpcClassification[] = []
   const lowered = text.toLowerCase()
@@ -753,19 +760,31 @@ function ipcConfidence(hits: number): number {
   return Math.min(MIN_CONFIDENCE_FOR_KEYWORD + 0.5 * (1 - Math.exp(-hits / CONFIDENCE_SATURATION_K)), 1.0)
 }
 
-/** 返回单个最佳分类（与 Mady Classify 一致）。 */
+/**
+ * 返回单个最佳分类（与 Mady Classify 一致）。
+ * @param text - 待分类的专利文本。
+ * @returns 置信度最高的 IPC 分类。
+ */
 export function classifyIpcTop(text: string): IpcClassification {
   const [top] = classifyIpc(text)
   // classifyIpc 恒返回至少一个分类（无匹配时默认 B）；缺省分支仅为满足 TS 收窄。
   return top ?? { section: DEFAULT_IPC_SECTION, confidence: DEFAULT_IPC_CONFIDENCE, matchedKeywords: [] }
 }
 
-/** 判断置信度是否为高（>= 0.80）。 */
+/**
+ * 判断置信度是否为高（>= 0.80）。
+ * @param confidence - 待判断的置信度。
+ * @returns 是否为高置信度。
+ */
 export function isHighConfidence(confidence: number): boolean {
   return confidence >= HIGH_CONFIDENCE_THRESHOLD
 }
 
-/** 获取某个 IPC 部的领域元数据。 */
+/**
+ * 获取某个 IPC 部的领域元数据。
+ * @param section - IPC 部号（A-H，大小写不敏感）。
+ * @returns 对应的领域元数据，未找到返回 undefined。
+ */
 export function getIpcDomain(section: string): IpcDomainMeta | undefined {
   return IPC_DOMAINS.find(d => d.section === section.toUpperCase())
 }

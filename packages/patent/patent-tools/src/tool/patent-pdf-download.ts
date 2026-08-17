@@ -37,6 +37,7 @@ const MIN_PDF_BYTES = 500
 /** 断点续传 MANIFEST 文件名（<outputDir>/.MANIFEST.jsonl，append 追加式）。 */
 const MANIFEST_FILE = '.MANIFEST.jsonl'
 
+/** Input for the patent_pdf_download tool. */
 export type PatentPdfDownloadInput = {
   /** 专利公开号/授权公告号列表（CN/US/EP/WO…），1-50 篇。 */
   patents: string[]
@@ -54,6 +55,7 @@ export type PatentPdfDownloadInput = {
   force?: boolean
 }
 
+/** One patent PDF download result. */
 export type PatentDownloadItem = {
   patent: string
   status: 'ok' | 'failed'
@@ -69,6 +71,7 @@ export type PatentDownloadItem = {
   durationMs?: number
 }
 
+/** Output of the patent_pdf_download tool. */
 export type PatentPdfDownloadOutput = {
   results: PatentDownloadItem[]
   summary: { total: number; ok: number; failed: number }

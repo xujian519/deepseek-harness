@@ -9,6 +9,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['pdca', '改进', '优化', '流程', '质量', '循环', '持续改善', '迭代']
 
+/** PDCA (plan-do-check-act) continuous-improvement cycle component. */
 export const pdca: MethodologyComponent = {
   name: 'pdca',
   description: '用计划-执行-检查-处理的循环推进持续改进',

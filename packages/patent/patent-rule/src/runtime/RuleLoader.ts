@@ -32,12 +32,20 @@ const CHECK_TYPES: readonly RuleCheckType[] = [
   'synonym_match',
 ]
 
-/** 类型守卫：值是否为合法 RuleAction（与 ACTIONS 单一事实源一致）。 */
+/**
+ * 类型守卫：值是否为合法 RuleAction（与 ACTIONS 单一事实源一致）。
+ * @param value - 待判断的值。
+ * @returns 值是否为合法 RuleAction。
+ */
 export function isRuleAction(value: unknown): value is RuleAction {
   return typeof value === 'string' && ACTIONS.includes(value as RuleAction)
 }
 
-/** 把任意值规整为纯对象（yaml Document.toJS 产物），非对象返回 null。 */
+/**
+ * 把任意值规整为纯对象（yaml Document.toJS 产物），非对象返回 null。
+ * @param value - 待规整的值。
+ * @returns 纯对象，非对象为 null。
+ */
 export function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -264,6 +272,9 @@ function parseRule(raw: unknown, issues: RuleSetValidationIssue[]): Constitution
 /**
  * 校验规则集：id 唯一性 + 整体结构。
  * 返回问题列表（空 = 通过）。规则级问题在 parseRule 阶段已收集。
+ * @param ruleSet - 待校验的规则集。
+ * @param source - 规则集来源（用于问题定位）。
+ * @returns 校验问题列表（空 = 通过）。
  */
 export function validateRuleSet(ruleSet: RuleSet, source?: string): RuleSetValidationIssue[] {
   const issues: RuleSetValidationIssue[] = []
@@ -280,6 +291,9 @@ export function validateRuleSet(ruleSet: RuleSet, source?: string): RuleSetValid
 /**
  * 从 YAML 文本解析规则集。支持 rules 数组与映射两种形态。
  * 返回 null 表示整体解析失败（非规则级错误）。
+ * @param yamlText - YAML 文本。
+ * @param source - 来源标签（用于问题定位）。
+ * @returns 解析出的规则集与校验问题列表。
  */
 export function parseRuleSetFromYaml(
   yamlText: string,
@@ -320,7 +334,11 @@ export function parseRuleSetFromYaml(
   return { ruleSet, issues }
 }
 
-/** 从文件加载规则集；解析失败抛 RuleSetLoadError。 */
+/**
+ * 从文件加载规则集；解析失败抛 RuleSetLoadError。
+ * @param path - 规则文件路径。
+ * @returns 加载结果（规则集、来源、警告）。
+ */
 export function loadRuleSetFromFile(path: string): LoadedRuleSet {
   const yamlText = readFileSync(path, 'utf8')
   const { ruleSet, issues } = parseRuleSetFromYaml(yamlText, path)
@@ -333,7 +351,11 @@ export function loadRuleSetFromFile(path: string): LoadedRuleSet {
   return { ruleSet, source: path, warnings: issues }
 }
 
-/** 从目录加载全部规则文件（.yaml/.yml）；单文件失败跳过并告警。 */
+/**
+ * 从目录加载全部规则文件（.yaml/.yml）；单文件失败跳过并告警。
+ * @param dir - 规则目录路径。
+ * @returns 加载的规则集、来源与警告。
+ */
 export function loadRuleSetDir(dir: string): {
   ruleSets: RuleSet[]
   sources: string[]
@@ -366,7 +388,11 @@ export function loadRuleSetDir(dir: string): {
   return { ruleSets, sources, warnings }
 }
 
-/** 合并多个规则集（后出现的规则按 id 覆盖先前的，便于分层覆盖）。 */
+/**
+ * 合并多个规则集（后出现的规则按 id 覆盖先前的，便于分层覆盖）。
+ * @param ruleSets - 待合并的规则集列表。
+ * @returns 合并后的规则集。
+ */
 export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
   const byId = new Map<string, ConstitutionalRule>()
   for (const ruleSet of ruleSets) {
@@ -382,6 +408,9 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
  * 与 mergeRuleSets（整条覆盖）互补：用于「评审补丁」场景——只改 action 而不重写
  * 整条规则（避免复制 name/check 等字段漂移）。overrides 中未命中 id 的规则原样保留，
  * overrides 中引用不存在 id 的条目被忽略（由调用方决定是否告警）。
+ * @param ruleSet - 基础规则集。
+ * @param overrides - id → 字段级覆盖映射。
+ * @returns 应用覆盖后的规则集。
  */
 export function applyRuleOverrides(
   ruleSet: RuleSet,

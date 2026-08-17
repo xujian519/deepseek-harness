@@ -7,6 +7,7 @@
 
 import type { LawRecord, LawSearchResult } from './types.ts'
 
+/** 法规数据库行（law 与 category 联查结果）。 */
 export type LawRow = {
   id: string
   level: string
@@ -23,7 +24,11 @@ export type LawRow = {
   fts_rank?: number | null | undefined
 }
 
-/** 行 → LawRecord（null 列映射为 undefined）。 */
+/**
+ * 行 → LawRecord（null 列映射为 undefined）。
+ * @param row 数据库行。
+ * @returns 映射后的法规记录。
+ */
 export function toRecord(row: LawRow): LawRecord {
   return {
     id: row.id,
@@ -40,7 +45,11 @@ export function toRecord(row: LawRow): LawRecord {
   }
 }
 
-/** 行 → LawSearchResult（score = fts_rank ?? 0）。 */
+/**
+ * 行 → LawSearchResult（score = fts_rank ?? 0）。
+ * @param row 数据库行。
+ * @returns 映射后的检索结果（含 score）。
+ */
 export function toSearchResult(row: LawRow): LawSearchResult {
   return { ...toRecord(row), score: row.fts_rank ?? 0 }
 }

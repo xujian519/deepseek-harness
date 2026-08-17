@@ -11,6 +11,7 @@ import { raw, snippet } from '../shared/text.ts'
 const BASE = 'https://api.crossref.org/works'
 const MAILTO = 'mailto=sati@users.noreply.github.com'
 
+/** 创建 Crossref 连接器的选项。 */
 export interface CreateCrossrefConnectorOptions {
   fetchImpl?: typeof fetch
 }
@@ -66,6 +67,11 @@ function toHit(w: Work): ConnectorHit {
   }
 }
 
+/**
+ * 创建 Crossref DOI 元数据连接器。
+ * @param options - 连接器选项。
+ * @returns Crossref 连接器。
+ */
 export function createCrossrefConnector(options: CreateCrossrefConnectorOptions = {}): Connector {
   return {
     id: 'crossref',

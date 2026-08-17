@@ -156,7 +156,10 @@ export class EgoBrowserSession {
     return null
   }
 
-  /** Ensure an output directory exists (before downloads/screen captures). */
+  /**
+   * Ensure an output directory exists (before downloads/screen captures).
+   * @param dir - the directory path to create (recursively).
+   */
   ensureDir(dir: string): void {
     mkdirSync(dir, { recursive: true })
   }

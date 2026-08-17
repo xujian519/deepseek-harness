@@ -17,8 +17,10 @@ export const PATENT_WIKI_DIRS = {
   figures: '专利实务/附图',
 } as const
 
+/** Drafting-related wiki directory key. */
 export type PatentWikiDir = keyof typeof PATENT_WIKI_DIRS
 
+/** Input for the patent_wiki_search tool. */
 export type PatentWikiSearchInput = {
   /** Search keyword (title/concept/domain substring; empty = list by directory). */
   query: string
@@ -30,6 +32,7 @@ export type PatentWikiSearchInput = {
   include_body?: boolean
 }
 
+/** Output of the patent_wiki_search tool. */
 export type PatentWikiSearchOutput = {
   total: number
   results: Array<{

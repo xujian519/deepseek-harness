@@ -9,56 +9,102 @@
 // 术语常量（规则定义引用；与 Mady rule_engine.go term* 常量对应）
 // =============================================================================
 
+/** 术语：新颖性。 */
 export const TERM_NOVELTY = '新颖性'
+/** 术语：创造性。 */
 export const TERM_INVENTIVENESS = '创造性'
+/** 术语：对比文件。 */
 export const TERM_PRIOR_ART_DOC = '对比文件'
+/** 术语：现有技术。 */
 export const TERM_PRIOR_ART = '现有技术'
+/** 术语：技术特征。 */
 export const TERM_TECH_FEATURE = '技术特征'
+/** 术语：最接近的现有技术。 */
 export const TERM_CLOSEST_PRIOR_ART_FULL = '最接近的现有技术'
+/** 术语：最接近对比文件。 */
 export const TERM_CLOSEST_PRIOR_ART = '最接近对比文件'
+/** 术语：区别技术特征。 */
 export const TERM_DISTINGUISHING_FEATURES = '区别技术特征'
+/** 术语：区别特征。 */
 export const TERM_DIFF_FEATURES = '区别特征'
+/** 术语：技术启示。 */
 export const TERM_TECH_HINT = '技术启示'
+/** 术语：组合动机。 */
 export const TERM_COMBINATION_MOTIVATION = '组合动机'
+/** 术语：结合启示。 */
 export const TERM_COMBINATION_HINT = '结合启示'
+/** 术语：充分公开。 */
 export const TERM_SUFFICIENT_DISCLOSURE = '充分公开'
+/** 术语：能够实现。 */
 export const TERM_ENABLE = '能够实现'
+/** 术语：enablement。 */
 export const TERM_ENABLEMENT = 'enablement'
+/** 术语：能够使用。 */
 export const TERM_CAN_USE = '能够使用'
+/** 术语：技术效果。 */
 export const TERM_TECH_EFFECT = '技术效果'
+/** 术语：技术方案。 */
 export const TERM_TECH_SOLUTION = '技术方案'
+/** 术语：外观设计。 */
 export const TERM_DESIGN_PATENT = '外观设计'
+/** 术语：优先权日。 */
 export const TERM_PRIORITY_DATE = '优先权日'
+/** 术语：优先权。 */
 export const TERM_PRIORITY = '优先权'
+/** 术语：申请日。 */
 export const TERM_FILING_DATE = '申请日'
+/** 术语：科学发现。 */
 export const TERM_SCI_DISCOVERY = '科学发现'
+/** 术语：公知常识。 */
 export const TERM_COMMON_KNOWLEDGE = '公知常识'
+/** 术语：显而易见。 */
 export const TERM_OBVIOUS = '显而易见'
+/** 术语：用途限定。 */
 export const TERM_USE_LIMIT = '用途限定'
+/** 术语：自然规律。 */
 export const TERM_NATURAL_LAW = '自然规律'
+/** 术语：智力活动规则。 */
 export const TERM_MENTAL_ACTIVITY = '智力活动规则'
+/** 术语：整体视觉效果。 */
 export const TERM_OVERALL_VISUAL = '整体视觉效果'
+/** 术语：产品种类。 */
 export const TERM_PRODUCT_CATEGORY = '产品种类'
+/** 术语：实验数据。 */
 export const TERM_EXP_DATA = '实验数据'
+/** 术语：功能性限定。 */
 export const TERM_FUNCTIONAL_LIMIT = '功能性限定'
+/** 术语：本领域技术人员。 */
 export const TERM_PERSON_SKILLED = '本领域技术人员'
+/** 术语：互联网公开。 */
 export const TERM_INTERNET_DISCLOSURE = '互联网公开'
+/** 术语：保护范围。 */
 export const TERM_PROTECTION_SCOPE = '保护范围'
 
 // =============================================================================
 // 域常量（规则适用域过滤）
 // =============================================================================
 
+/** 域常量：创造性规则适用域。 */
 export const DOMAIN_INVENTIVENESS = 'patent_inventiveness'
+/** 域常量：新颖性规则适用域。 */
 export const DOMAIN_NOVELTY = 'patent_novelty'
+/** 域常量：侵权规则适用域。 */
 export const DOMAIN_INFRINGEMENT = 'patent_infringement'
+/** 域常量：充分公开规则适用域。 */
 export const DOMAIN_DISCLOSURE = 'patent_disclosure'
+/** 域常量：权利要求规则适用域。 */
 export const DOMAIN_CLAIMS = 'patent_claims'
+/** 域常量：实质审查规则适用域。 */
 export const DOMAIN_EXAMINATION = 'patent_examination'
+/** 域常量：外观设计规则适用域。 */
 export const DOMAIN_DESIGN = 'patent_design'
+/** 域常量：无效宣告规则适用域。 */
 export const DOMAIN_INVALIDATION = 'patent_invalidation'
+/** 域常量：修改规则适用域。 */
 export const DOMAIN_AMENDMENT = 'patent_amendment'
+/** 域常量：复审规则适用域。 */
 export const DOMAIN_REEXAMINATION = 'patent_reexamination'
+/** 域常量：说明书撰写规则适用域。 */
 export const DOMAIN_SPEC = 'patent_spec'
 
 // =============================================================================
@@ -94,9 +140,13 @@ export const SPEC_SCOPE_BAN_PHRASES = ['超出原申请', '超出原始', '超�
 // 权利要求分析维度
 // =============================================================================
 
+/** 权利要求分析维度：清楚性。 */
 export const DIM_CLARITY = 'clarity'
+/** 权利要求分析维度：说明书支持。 */
 export const DIM_SUPPORT = 'support'
+/** 权利要求分析维度：必要技术特征。 */
 export const DIM_ESSENTIAL = 'essential_features'
+/** 权利要求分析维度：一致性。 */
 export const DIM_CONSISTENCY = 'consistency'
 
 /** 权利要求分析维度 → 关键词集（至少命中其一）。 */
@@ -111,6 +161,7 @@ export const claimDimensionPatterns: Record<string, string[]> = {
 // 同义词扩展表（移植 Mady synonymMap）
 // =============================================================================
 
+/** 同义词扩展表：术语到可命中扩展同义词的映射。 */
 export const synonymMap: Record<string, string[]> = {
   [TERM_NOVELTY]: ['新创性', '未公开', '不属于现有技术', '未被披露'],
   [TERM_INVENTIVENESS]: ['非显而易见', '发明高度', '创造性步骤', 'inventive step'],
@@ -172,6 +223,7 @@ export const synonymMap: Record<string, string[]> = {
 // 否定模式（命中前 60 字符窗口内出现任一模式 → 该命中视为否定表述，不采信）
 // =============================================================================
 
+/** 否定模式：命中前 NEGATION_WINDOW 字符窗口内出现任一模式即视为否定表述。 */
 export const negationPatterns: readonly RegExp[] = [
   /不具有/,
   /不构成/,

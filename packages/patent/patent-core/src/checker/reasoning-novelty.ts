@@ -20,7 +20,10 @@ import {
   DOMAIN_NOVELTY,
 } from './constants.ts'
 
-/** 新颖性推理模式规则（6 条）。 */
+/**
+ * 新颖性推理模式规则（6 条）。
+ * @returns 新颖性推理模式检查规则集。
+ */
 export function noveltyReasoningRules(): CheckRule[] {
   return [
     {

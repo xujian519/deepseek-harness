@@ -63,6 +63,11 @@ export { compileSignal, signalFor, signalMatches } from './workflow/signal.ts'
  * - 声明 atom 的阶段经 StageHandler 执行，输出合并进 PipelineState
  * - 未声明 atom 的阶段回退调用方 executor（输出为空时标记 degraded 而非中断）
  * - 审批门等中断（InterruptStageError）：暂停执行并返回 interrupted（不执行后续阶段）
+ * @param manifest - 工作流清单。
+ * @param ctx - 工作流上下文。
+ * @param executor - 可选调用方阶段执行器（未声明 atom 的阶段回退使用）。
+ * @param options - 可选执行配置（handlers/atoms/provider/approvalGrants/persist/runId）。
+ * @returns 工作流执行结果。
  */
 export async function runWorkflow(
   manifest: WorkflowManifest,

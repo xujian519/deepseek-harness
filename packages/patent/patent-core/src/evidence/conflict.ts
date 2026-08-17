@@ -12,6 +12,7 @@
 
 import type { EvidenceSpan } from './span.ts'
 
+/** 证据冲突：同一结论/同一来源同时存在支持与矛盾证据。 */
 export type EvidenceConflict = {
   type: 'claim' | 'source'
   /** claim 冲突：结论 id；source 冲突：来源 URI */
@@ -21,12 +22,12 @@ export type EvidenceConflict = {
   description: string
 }
 
+/** 冲突检测器：检测给定结论集合内的 claim 冲突与 source 冲突。 */
 export class ConflictDetector {
   /**
    * 检测给定结论集合内的证据冲突。
-   * @param claimIds 全部结论 id
-   * @param spansByClaim claimId → 该结论的证据列表
-   * @param spansById spanId → 证据实体（解析方向）
+   * @param input - 结论 id 集合、claimId → 证据列表映射与 spanId → 证据实体映射。
+   * @returns 检测到的证据冲突列表。
    */
   detect(input: {
     claimIds: Iterable<string>

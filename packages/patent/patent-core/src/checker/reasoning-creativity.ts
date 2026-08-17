@@ -21,7 +21,10 @@ import {
   DOMAIN_INVENTIVENESS,
 } from './constants.ts'
 
-/** 创造性推理模式规则（7 条）。 */
+/**
+ * 创造性推理模式规则（7 条）。
+ * @returns 创造性推理模式检查规则集。
+ */
 export function creativityReasoningRules(): CheckRule[] {
   return [
     {

@@ -60,6 +60,7 @@ type CaseLawRow = {
 }
 
 
+/** 判例全文检索引擎（knowledge.db docs_fts/chunks/documents，FTS5 优先，LIKE 降级）。 */
 export class CaseLawSearchEngine {
   private readonly db: DatabaseSync
   private readonly hasFts: boolean
@@ -168,7 +169,12 @@ export class CaseLawSearchEngine {
     return this.hasFts && !this.ftsDegraded
   }
 
-  /** 判例全文搜索：FTS5 BM25 优先，短查询/无 FTS 时降级 LIKE；结果按文档去重（一文档一行）。 */
+  /**
+   * 判例全文搜索：FTS5 BM25 优先，短查询/无 FTS 时降级 LIKE；结果按文档去重（一文档一行）。
+   * @param keyword 检索关键词。
+   * @param options 检索选项（docType/court/excludeSource/limit 过滤与数量）。
+   * @returns 匹配的判例命中列表（按文档去重，一文档一行）。
+   */
   search(keyword: string, options: CaseLawSearchOptions = {}): CaseLawHit[] {
     const limit = Math.min(Math.max(options.limit ?? 5, 1), MAX_LIMIT)
     const trimmed = keyword.trim()
@@ -203,7 +209,11 @@ export class CaseLawSearchEngine {
     return hits
   }
 
-  /** 按 documents.id 取判例全文分块（供"查看全文"场景；不经过检索，无 via/ftsRank 语义）。 */
+  /**
+   * 按 documents.id 取判例全文分块（供"查看全文"场景；不经过检索，无 via/ftsRank 语义）。
+   * @param documentId 判例文档 id。
+   * @returns 该判例的全文分块列表（按 chunk_index 排序）。
+   */
   getById(documentId: string): CaseLawChunk[] {
     const rows = this.stmtGetById.all(documentId) as CaseLawRow[]
     return rows.map(row => ({
@@ -213,12 +223,16 @@ export class CaseLawSearchEngine {
     }))
   }
 
-  /** 统计判例文档总数（诊断用）。 */
+  /**
+   * 统计判例文档总数（诊断用）。
+   * @returns documents 表行数。
+   */
   count(): number {
     const row = this.stmtCount.get() as { c: number }
     return row.c
   }
 
+  /** 关闭底层数据库连接。 */
   close(): void {
     this.db.close()
   }

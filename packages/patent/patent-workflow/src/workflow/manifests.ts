@@ -234,6 +234,7 @@ export type BuiltinPatentManifest = {
   checkDomains: readonly string[]
 }
 
+/** 内置 patent workflow manifest 实例清单。 */
 export const builtinPatentManifests: readonly BuiltinPatentManifest[] = [
   { manifest: patentNoveltyManifest, checkDomains: ['patent_novelty'] },
   { manifest: patentDisclosureManifest, checkDomains: ['patent_disclosure', 'patent_claims'] },

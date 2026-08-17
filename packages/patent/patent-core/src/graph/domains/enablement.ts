@@ -13,6 +13,7 @@ import { getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
+/** 构建充分公开分析子图的选项。 */
 export type BuildEnablementGraphOptions = {
   handlers?: StageHandlerRegistry
   /** 规则门收口（缺省 true）。 */
@@ -66,7 +67,10 @@ const DOMAIN_KEYWORDS: Record<string, { name: string; keywords: string[]; requir
   },
 }
 
-/** 检测技术领域（首个命中领域；无命中返回 generic）。 */
+/** 检测技术领域（首个命中领域；无命中返回 generic）。
+ * @param text - 要检测的说明书/技术方案文本。
+ * @returns 领域标识、名称与领域特殊要求。
+ */
 export function detectTechnicalDomain(text: string): { domain: string; name: string; requirements: string[] } {
   for (const [domain, def] of Object.entries(DOMAIN_KEYWORDS)) {
     if (def.keywords.some(k => text.includes(k))) {
@@ -145,7 +149,10 @@ const CONCLUDE_SCHEMA = {
 // 子图构建
 // ---------------------------------------------------------------------------
 
-/** 构建充分公开分析子图（A26.3）。 */
+/** 构建充分公开分析子图（A26.3）。
+ * @param options - 子图构建选项。
+ * @returns 未编译的图构建器。
+ */
 export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}): GraphBuilder {
   const handlers = options.handlers ?? globalStageHandlerRegistry
   const builder = new GraphBuilder()
@@ -278,7 +285,10 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
   return builder
 }
 
-/** 从图运行结果提取 A26.3 结论（供调用方/评测读取）。 */
+/** 从图运行结果提取 A26.3 结论（供调用方/评测读取）。
+ * @param state - 图运行结果状态。
+ * @returns 解析出的充分公开结论字段。
+ */
 export function extractEnablementResult(state: GraphState): {
   sufficientlyDisclosed?: boolean
   confidence?: string

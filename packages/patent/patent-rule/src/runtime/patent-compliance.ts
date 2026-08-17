@@ -33,6 +33,7 @@ const NUO_RULE_FILES = [
   'nuo-patent-practice-rules.yaml',
 ] as const
 
+/** 专利合规规则集加载结果（规则集、来源、警告）。 */
 export type PatentComplianceLoadResult = {
   ruleSet: RuleSet
   source: string | null
@@ -58,7 +59,11 @@ function loadFirstExistingRuleSet(fileName: string, rulesDir?: string): PatentCo
   return { ruleSet: { rules: [] }, source: null, warnings }
 }
 
-/** 加载内置专利合规规则集；找不到资产时返回空规则集并附警告。 */
+/**
+ * 加载内置专利合规规则集；找不到资产时返回空规则集并附警告。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 加载结果（规则集、来源、警告）。
+ */
 export function loadPatentComplianceRuleSet(rulesDir?: string): PatentComplianceLoadResult {
   const result = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)
   if (result.source === null) {
@@ -70,6 +75,8 @@ export function loadPatentComplianceRuleSet(rulesDir?: string): PatentCompliance
 /**
  * 加载电学案件增强规则集（compliance.yaml + electrical-section-h.yaml 合并）。
  * 用于 H 部电学案件的额外审查/撰写约束；找不到电学增强资产时回退到通用合规规则。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 加载结果（规则集、来源、警告）。
  */
 export function loadPatentElectricalRuleSet(rulesDir?: string): PatentComplianceLoadResult {
   const base = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)
@@ -101,6 +108,8 @@ export type ActivationOverrides = {
  * 轻量补丁格式：`overrides: { <id>: { action, reason } }`（非标准 RuleSet 形态，
  * 由本函数专门解析）。action 非法时跳过该条并告警（fail-safe：不应用非法覆盖）。
  * 文件不存在时返回空补丁 + 警告（不阻塞专利全量规则加载）。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 激活覆盖（byId 映射、来源、警告）。
  */
 export function loadActivationOverrides(rulesDir?: string): ActivationOverrides {
   const warnings: string[] = []
@@ -146,6 +155,8 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
  *
  * 结果 = nuo 的 keyword_blocklist 规则（占位符/商业宣传/公序良俗/清楚性/事后诸葛亮/
  * 编造对比文件等），即 B 链规则门禁的「新增」能力。
+ * @param ruleSet - 待筛选的规则集。
+ * @returns 门禁规则子集。
  */
 export function selectGateRules(ruleSet: RuleSet): RuleSet {
   return {
@@ -159,6 +170,8 @@ export function selectGateRules(ruleSet: RuleSet): RuleSet {
  * 供 rule_check scope=patent-full 与规则驱动输出门禁（B 链）使用。
  * 任一 nuo 文件缺失/损坏均跳过并告警（不拖垮整个规则集）；compliance 缺失时
  * 沿用既有「门禁降级为放行」语义。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 加载结果（规则集、来源、警告）。
  */
 export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadResult {
   const base = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)

@@ -56,7 +56,10 @@ export class ConfirmedRuleSet {
     public readonly confirmedAt: string,
   ) {}
 
-  /** 下游阶段只消费 confirmed/modified 条目（modified 用编辑版）。 */
+  /**
+   * 下游阶段只消费 confirmed/modified 条目（modified 用编辑版）。
+   * @returns 生效的规则约束列表（rejected 条目被隔离不返回）。
+   */
   activeConstraints(): RuleConstraint[] {
     const out: RuleConstraint[] = []
     for (const entry of this.entries) {
@@ -85,6 +88,7 @@ export type ReasoningChainNode = {
   factRefs: string[]
 }
 
+/** 推理链：节点序列 + 结论 + 置信度。 */
 export type ReasoningChain = {
   id: string
   nodes: ReasoningChainNode[]
@@ -92,6 +96,7 @@ export type ReasoningChain = {
   confidence: number
 }
 
+/** 事实黑板构造选项。 */
 export type FactBlackboardOptions = {
   caseId: string
   caseType: string
@@ -104,11 +109,17 @@ export type FactBlackboardOptions = {
  * 事实黑板。所有变更方法在 Lock 后抛错（防误用，对齐 Mady checkNotLocked）。
  */
 export class FactBlackboard {
+  /** 案例标识。 */
   readonly caseId: string
+  /** 案例类型。 */
   readonly caseType: string
+  /** 技术领域（可为空字符串）。 */
   readonly technicalField: string
+  /** 创建时间。 */
   readonly createdAt: string
+  /** 最近变更时间。 */
   updatedAt: string
+  /** 是否已锁定（锁定后任何修改抛错）。 */
   locked = false
 
   private readonly facts: FactEntry[] = []
@@ -136,11 +147,16 @@ export class FactBlackboard {
     if (this.locked) throw new Error('factBlackboard: attempt to mutate a locked blackboard')
   }
 
+  /** 锁定黑板：之后任何变更方法抛错（防误用）。 */
   lock(): void {
     this.locked = true
     this.touch()
   }
 
+  /**
+   * 查询锁定状态。
+   * @returns 黑板是否已锁定。
+   */
   isLocked(): boolean {
     return this.locked
   }
@@ -149,27 +165,46 @@ export class FactBlackboard {
   // Facts
   // -------------------------------------------------------------------------
 
+  /**
+   * 全部事实（含已丢弃）的深拷贝。
+   * @returns 全部事实列表。
+   */
   allFacts(): FactEntry[] {
     return structuredClone(this.facts)
   }
 
-  /** 仅未丢弃的事实（深拷贝：外部修改不得绕过 Lock 防护）。 */
+  /**
+   * 仅未丢弃的事实（深拷贝：外部修改不得绕过 Lock 防护）。
+   * @returns 未丢弃的事实列表。
+   */
   activeFacts(): FactEntry[] {
     return structuredClone(this.facts.filter(f => f.discardedAt === undefined))
   }
 
+  /**
+   * 添加一条事实（深拷贝后入列）。
+   * @param fact - 待添加的事实条目。
+   */
   addFact(fact: FactEntry): void {
     this.checkNotLocked()
     this.facts.push(structuredClone(fact))
     this.touch()
   }
 
+  /**
+   * 按 id 查询事实（深拷贝）。
+   * @param id - 事实标识。
+   * @returns 匹配的事实条目；不存在时为 undefined。
+   */
   getFact(id: string): FactEntry | undefined {
     const fact = this.facts.find(f => f.id === id)
     return fact !== undefined ? structuredClone(fact) : undefined
   }
 
-  /** 软丢弃（回溯时保留历史，IsDiscarded 语义）。 */
+  /**
+   * 软丢弃（回溯时保留历史，IsDiscarded 语义）。
+   * @param id - 待丢弃的事实标识。
+   */
   discardFact(id: string): void {
     this.checkNotLocked()
     const fact = this.facts.find(f => f.id === id)
@@ -183,16 +218,25 @@ export class FactBlackboard {
   // Reasoning chains
   // -------------------------------------------------------------------------
 
+  /**
+   * 全部推理链的深拷贝。
+   * @returns 全部推理链列表。
+   */
   chains(): ReasoningChain[] {
     return structuredClone(this.reasoningChains)
   }
 
+  /**
+   * 添加一条推理链。
+   * @param chain - 待添加的推理链。
+   */
   addReasoningChain(chain: ReasoningChain): void {
     this.checkNotLocked()
     this.reasoningChains.push(chain)
     this.touch()
   }
 
+  /** 清空全部推理链。 */
   clearReasoningChains(): void {
     this.checkNotLocked()
     this.reasoningChains.length = 0
@@ -203,16 +247,28 @@ export class FactBlackboard {
   // Rule constraints & confirmed set
   // -------------------------------------------------------------------------
 
+  /**
+   * 全部规则约束的深拷贝。
+   * @returns 全部规则约束列表。
+   */
   constraints(): RuleConstraint[] {
     return structuredClone(this.ruleConstraints)
   }
 
+  /**
+   * 添加一条规则约束。
+   * @param constraint - 待添加的规则约束。
+   */
   addRuleConstraint(constraint: RuleConstraint): void {
     this.checkNotLocked()
     this.ruleConstraints.push(constraint)
     this.touch()
   }
 
+  /**
+   * 整体替换规则约束列表。
+   * @param constraints - 新的规则约束列表。
+   */
   setRuleConstraints(constraints: RuleConstraint[]): void {
     this.checkNotLocked()
     this.ruleConstraints.length = 0
@@ -220,18 +276,28 @@ export class FactBlackboard {
     this.touch()
   }
 
-  /** 人工确认的规则集（Stage ② 后）；未确认时为 undefined。 */
+  /**
+   * 人工确认的规则集（Stage ② 后）；未确认时为 undefined。
+   * @returns 人工确认规则集；未确认时为 undefined。
+   */
   getConfirmedRules(): ConfirmedRuleSet | undefined {
     return this.confirmedRules
   }
 
+  /**
+   * 设置人工确认的规则集。
+   * @param ruleSet - 待设置的确认规则集。
+   */
   setConfirmedRules(ruleSet: ConfirmedRuleSet): void {
     this.checkNotLocked()
     this.confirmedRules = ruleSet
     this.touch()
   }
 
-  /** 下游阶段消费的规则约束：确认后只用 active 条目，未确认时回退原始约束。 */
+  /**
+   * 下游阶段消费的规则约束：确认后只用 active 条目，未确认时回退原始约束。
+   * @returns 当前生效的规则约束列表。
+   */
   confirmedRuleConstraints(): RuleConstraint[] {
     return this.confirmedRules !== undefined ? this.confirmedRules.activeConstraints() : [...this.ruleConstraints]
   }
@@ -240,16 +306,29 @@ export class FactBlackboard {
   // Article judgments
   // -------------------------------------------------------------------------
 
+  /**
+   * 全部法条判定。
+   * @returns articleId → ArticleJudgment 的映射副本。
+   */
   allArticleJudgments(): Map<string, ArticleJudgment> {
     return new Map(this.articleJudgments)
   }
 
+  /**
+   * 写入（覆盖）一条法条判定。
+   * @param judgment - 待写入的法条判定。
+   */
   setArticleJudgment(judgment: ArticleJudgment): void {
     this.checkNotLocked()
     this.articleJudgments.set(judgment.articleId, judgment)
     this.touch()
   }
 
+  /**
+   * 按法条 ID 查询判定。
+   * @param articleId - 法条标识。
+   * @returns 匹配的法条判定；不存在时为 undefined。
+   */
   getArticleJudgment(articleId: string): ArticleJudgment | undefined {
     return this.articleJudgments.get(articleId)
   }
@@ -258,6 +337,10 @@ export class FactBlackboard {
   // 序列化（JSON 可持久化，供检查点/恢复）
   // -------------------------------------------------------------------------
 
+  /**
+   * 序列化为 JSON 文本（供检查点/恢复）。
+   * @returns 黑板状态的 JSON 字符串。
+   */
   toJSON(): string {
     return JSON.stringify({
       caseId: this.caseId,
@@ -277,7 +360,12 @@ export class FactBlackboard {
     })
   }
 
-  /** 反序列化（now 可选：注入自定义时钟保持时间确定性，缺省用真实时钟）。 */
+  /**
+   * 反序列化（now 可选：注入自定义时钟保持时间确定性，缺省用真实时钟）。
+   * @param text - 待解析的 JSON 文本。
+   * @param now - 可选时钟注入；缺省用真实时钟。
+   * @returns 反序列化得到的黑板实例。
+   */
   static fromJSON(text: string, now?: () => string): FactBlackboard {
     const data = JSON.parse(text) as {
       caseId: string

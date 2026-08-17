@@ -40,6 +40,7 @@ const NEGATION_COMPOUNDS = ['无可避免', '不可避免']
  */
 const SENTENCE_BOUNDARIES = ['。', '；', ';', '！', '？', '?', '!', '\n', '…', '—']
 
+/** 否定语境检查选项：窗口大小与否定词表。 */
 export type NegationContextOptions = {
   /** 否定语境检查窗口（默认 DEFAULT_NEGATION_WINDOW）。 */
   window?: number
@@ -47,7 +48,13 @@ export type NegationContextOptions = {
   negationWords?: readonly string[]
 }
 
-/** 在命中位置前查找否定语境：窗口内出现否定词且无句界分隔。 */
+/**
+ * 在命中位置前查找否定语境：窗口内出现否定词且无句界分隔。
+ * @param text - 待检查文本。
+ * @param matchStart - 命中位置（字符索引）。
+ * @param options - 可选检查选项。
+ * @returns 命中位置前是否存在否定语境。
+ */
 export function hasNegationContext(text: string, matchStart: number, options?: NegationContextOptions): boolean {
   const windowSize = options?.window ?? DEFAULT_NEGATION_WINDOW
   const words = options?.negationWords ?? DEFAULT_NEGATION_WORDS
@@ -100,6 +107,8 @@ const CN_UNITS: Record<string, number> = {
  * 中文数字 → 阿拉伯数字。支持十/百/千位组合与零占位（"第一百零二条" → 102，
  * "一千二百三十四" → 1234）；"十"开头按 10 计（"第十条" → 10）。
  * 阿拉伯数字直接返回；含非法字符返回 null。
+ * @param raw - 待解析的中文数字字符串。
+ * @returns 解析出的阿拉伯数字，非法输入返回 null。
  */
 export function parseCnNumber(raw: string): number | null {
   const trimmed = raw.trim()

@@ -48,7 +48,11 @@ export class GraphBuilder {
   private readonly nodePolicies = new Map<string, NodePolicy>()
   private schema: MergeSchema = {}
 
-  /** 注册节点（GRAPH_END 为保留哨兵，不可注册）。 */
+  /** 注册节点（GRAPH_END 为保留哨兵，不可注册）。
+   * @param name - 节点名。
+   * @param node - 节点实现。
+   * @returns this（链式调用）。
+   */
   addNode(name: string, node: GraphNode): this {
     if (name === GRAPH_END) throw new GraphEngineError(`"${GRAPH_END}" 为保留哨兵，不可注册为节点`)
     if (!name.trim()) throw new GraphEngineError('节点名不能为空')
@@ -56,7 +60,11 @@ export class GraphBuilder {
     return this
   }
 
-  /** 静态边：from → to（to 可为 GRAPH_END）。 */
+  /** 静态边：from → to（to 可为 GRAPH_END）。
+   * @param from - 源节点名。
+   * @param to - 目标节点名（可为 GRAPH_END）。
+   * @returns this（链式调用）。
+   */
   addEdge(from: string, to: string): this {
     this.assertNode(from)
     const targets = this.edges.get(from) ?? []
@@ -65,27 +73,42 @@ export class GraphBuilder {
     return this
   }
 
-  /** 条件边：运行时 router 决定目标节点列表（与静态边叠加；实践上二选一）。 */
+  /** 条件边：运行时 router 决定目标节点列表（与静态边叠加；实践上二选一）。
+   * @param from - 源节点名。
+   * @param router - 运行时决定下一超步目标的边路由器。
+   * @returns this（链式调用）。
+   */
   setConditionalEdge(from: string, router: EdgeRouter): this {
     this.assertNode(from)
     this.conditionalEdges.set(from, router)
     return this
   }
 
-  /** 节点策略（重试/超时/副作用）；编译时快照。 */
+  /** 节点策略（重试/超时/副作用）；编译时快照。
+   * @param name - 节点名。
+   * @param policy - 节点策略。
+   * @returns this（链式调用）。
+   */
   setNodePolicy(name: string, policy: NodePolicy): this {
     this.assertNode(name)
     this.nodePolicies.set(name, { ...policy })
     return this
   }
 
-  /** 合并 schema：key → Reducer（多次调用叠加）。 */
+  /** 合并 schema：key → Reducer（多次调用叠加）。
+   * @param entries - 要叠加的 key → Reducer 映射。
+   * @returns this（链式调用）。
+   */
   setSchema(entries: Record<string, Reducer>): this {
     this.schema = { ...this.schema, ...entries }
     return this
   }
 
-  /** 编译为不可变可执行图。 */
+  /** 编译为不可变可执行图。
+   * @param entry - 入口节点名。
+   * @param maxSteps - 最大超步数（默认 100，防死循环）。
+   * @returns 编译后的可执行图。
+   */
   compile(entry: string, maxSteps = 100): CompiledGraph {
     this.assertNode(entry)
     if (!Number.isInteger(maxSteps) || maxSteps <= 0) {
@@ -119,12 +142,20 @@ export class GraphBuilder {
 export class CompiledGraph {
   constructor(private readonly def: CompiledGraphDef) {}
 
-  /** 从入口节点运行。 */
+  /** 从入口节点运行。
+   * @param initial - 初始图状态。
+   * @param opts - 运行选项。
+   * @returns 图运行结果。
+   */
   run(initial: GraphState, opts: RunOptions = {}): Promise<GraphRunResult> {
     return runSuperSteps(this.def, initial, opts)
   }
 
-  /** 从检查点恢复（从 checkpoint.activeNodes 继续，超步序号续接）。 */
+  /** 从检查点恢复（从 checkpoint.activeNodes 继续，超步序号续接）。
+   * @param checkpoint - 要恢复的检查点。
+   * @param opts - 运行选项。
+   * @returns 图运行结果。
+   */
   resume(checkpoint: GraphCheckpoint, opts: RunOptions = {}): Promise<GraphRunResult> {
     return runSuperSteps(this.def, {}, opts, {
       state: checkpoint.state,
@@ -133,7 +164,9 @@ export class CompiledGraph {
     })
   }
 
-  /** 图元数据（诊断/可视化用）。 */
+  /** 图元数据（诊断/可视化用）。
+   * @returns 入口/最大超步数/节点列表/静态边列表。
+   */
   describe(): { entry: string; maxSteps: number; nodes: string[]; edges: [string, string[]][] } {
     return {
       entry: this.def.entry,

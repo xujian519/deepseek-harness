@@ -9,7 +9,13 @@ const PRIOR_ART_ONLY = new Set(['anticipation', 'obviousness-combination'])
 const COVERED_MAPPINGS = new Set(['literal', 'anticipation', 'literal-construction-dependent'])
 const DISTINGUISHING_MAPPINGS = new Set(['not-found', 'needs-evidence'])
 
-/** 行级合法性：返回违规描述列表（空 = 合法）。 */
+/**
+ * 行级合法性：返回违规描述列表（空 = 合法）。
+ * @param row - 待校验的映射行。
+ * @param target - 行指向的目标（可能未定义）。
+ * @param mode - 图表分析模式。
+ * @returns 违规描述列表（空表示合法）。
+ */
 export function validateRowMapping(row: ChartRow, target: ChartTarget | undefined, mode: ChartMode): string[] {
   const errors: string[] = []
   if (PRIOR_ART_ONLY.has(row.mapping) && target?.kind !== 'prior-art') {
@@ -21,7 +27,13 @@ export function validateRowMapping(row: ChartRow, target: ChartTarget | undefine
   return errors
 }
 
-/** 新颖性（单独对比）：目标上每个要素须 mapped（单篇全覆盖，专利法 A22.2）。 */
+/**
+ * 新颖性（单独对比）：目标上每个要素须 mapped（单篇全覆盖，专利法 A22.2）。
+ * @param rows - 映射行列表。
+ * @param targetId - 目标 id。
+ * @param elements - 权利要求要素列表。
+ * @returns 覆盖结果：covered 是否全覆盖，missing 为未覆盖要素 id 列表。
+ */
 export function deriveNoveltyCoverage(
   rows: ChartRow[],
   targetId: string,
@@ -34,7 +46,13 @@ export function deriveNoveltyCoverage(
   return { covered: missing.length === 0, missing }
 }
 
-/** 区别特征 = 主目标（D1）上未找到的要素（供三步法第二步与 draft-claims 规避布局）。 */
+/**
+ * 区别特征 = 主目标（D1）上未找到的要素（供三步法第二步与 draft-claims 规避布局）。
+ * @param rows - 映射行列表。
+ * @param primaryTargetId - 主目标（D1）id。
+ * @param elements - 权利要求要素列表。
+ * @returns 区别特征要素 id 列表。
+ */
 export function deriveDistinguishingFeatures(
   rows: ChartRow[],
   primaryTargetId: string,

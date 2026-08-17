@@ -8,7 +8,11 @@
 import type { Citation, PatentData } from '@deepseek-ai/nuo-patent'
 import type { StructuredPatentData } from './types.ts'
 
-/** Leniently parse a JSON-array string; empty or invalid input yields []. */
+/**
+ * Leniently parse a JSON-array string; empty or invalid input yields [].
+ * @param raw - the JSON-array string to parse.
+ * @returns the parsed array, or [] on empty or invalid input.
+ */
 export function parseJsonArray<T>(raw: string): T[] {
   if (!raw) return []
   try {

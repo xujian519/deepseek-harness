@@ -28,23 +28,41 @@ export function assetRulesRoot(rulesDir?: string): string {
   return rulesDir !== undefined && rulesDir.trim() !== '' ? resolve(rulesDir) : fileURLToPath(ASSETS_RULES_URL)
 }
 
-/** 平铺专利规则资产目录（compliance.yaml / synonyms.yaml / evidence-rules.yaml 等所在目录）。 */
+/**
+ * 平铺专利规则资产目录（compliance.yaml / synonyms.yaml / evidence-rules.yaml 等所在目录）。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 专利规则资产目录绝对路径。
+ */
 export function patentAssetDir(rulesDir?: string): string {
   return join(assetRulesRoot(rulesDir), 'patent')
 }
 
-/** 平铺规则资产候选目录（最具体到最通用；当前仅打包/覆盖的 patent 目录）。 */
+/**
+ * 平铺规则资产候选目录（最具体到最通用；当前仅打包/覆盖的 patent 目录）。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 候选目录路径列表。
+ */
 export function candidateRuleDirs(rulesDir?: string): string[] {
   return [patentAssetDir(rulesDir)]
 }
 
-/** 内置规则包候选目录：<root>/<name> 与 <root>/domains/<name>。 */
+/**
+ * 内置规则包候选目录：<root>/<name> 与 <root>/domains/<name>。
+ * @param name - 规则包名。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 候选包目录路径列表。
+ */
 export function candidatePackDirs(name: string, rulesDir?: string): string[] {
   const root = assetRulesRoot(rulesDir)
   return [join(root, name), join(root, 'domains', name)]
 }
 
-/** 在候选规则目录中定位指定资产文件；未找到返回 null。 */
+/**
+ * 在候选规则目录中定位指定资产文件；未找到返回 null。
+ * @param fileName - 要定位的资产文件名。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 命中的资产文件绝对路径，未找到为 null。
+ */
 export function resolveRuleAsset(fileName: string, rulesDir?: string): string | null {
   for (const dir of candidateRuleDirs(rulesDir)) {
     const path = join(dir, fileName)

@@ -15,6 +15,7 @@ import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
+/** 构建新颖性分析子图的选项。 */
 export type BuildNoveltyGraphOptions = {
   handlers?: StageHandlerRegistry
   /** 规则门收口（缺省 true）。 */
@@ -33,7 +34,10 @@ const NOVELTY_SCOPE = '单独对比原则（新颖性，专利法 A22.2）'
 const NUMERIC_RANGE_PATTERN =
   /\d+(?:\.\d+)?\s*(?:[-~～—]|至|到)\s*\d+(?:\.\d+)?|(?:≥|≤|>|<)\s*\d+(?:\.\d+)?|(?:大于|小于|超过|低于|至少|不超过|不低于|不高于|多于|少于)\s*\d+(?:\.\d+)?/g
 
-/** 从文本提取数值范围表述片段（去重）。 */
+/** 从文本提取数值范围表述片段（去重）。
+ * @param text - 要检测的文本。
+ * @returns 去重后的数值范围表述片段列表。
+ */
 export function extractNumericRanges(text: string): string[] {
   if (!text) return []
   const matches = text.match(NUMERIC_RANGE_PATTERN) ?? []
@@ -122,7 +126,10 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
 // 子图构建
 // ---------------------------------------------------------------------------
 
-/** 构建新颖性分析子图（A22.2）。 */
+/** 构建新颖性分析子图（A22.2）。
+ * @param options - 子图构建选项。
+ * @returns 未编译的图构建器。
+ */
 export function buildNoveltyGraph(options: BuildNoveltyGraphOptions = {}): GraphBuilder {
   const handlers = options.handlers ?? globalStageHandlerRegistry
   const builder = new GraphBuilder()

@@ -12,6 +12,7 @@ import {
 } from '../../handler.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
 
+/** draft-claims 原子：基于 PFE 与新颖性结果直出权利要求草稿。 */
 export const draftClaimsAtom: Atom = {
   name: 'draft-claims',
   description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）',
@@ -29,11 +30,18 @@ const DRAFT_CLAIMS_SCHEMA = {
   required: ['claims'],
 } as const
 
+/** draft-claims 执行器：撰写权利要求草稿。 */
 export class DraftClaimsHandler implements StageHandler {
   readonly name = 'draft-claims'
   readonly category = 'extract' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 draft-claims 阶段，返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     const missing = requireLlm(provider, 'draft-claims')
     if (missing) return missing
     const mergeResult = getStateString(state, 'merge_result')

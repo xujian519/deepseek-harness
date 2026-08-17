@@ -28,6 +28,9 @@ const SPLIT_WORDS = [
 /**
  * 把长查询切分为 ≥3 字的关键词片段（trigram tokenizer 要求 3+ 字符）。
  * 例："专利侵权的赔偿标准是什么" → ["专利侵权", "赔偿标准"]
+ * @param query 待切分的查询文本。
+ * @param max 返回关键词数量上限。
+ * @returns 切分后的关键词片段列表。
  */
 export function extractLawKeywords(query: string, max = 4): string[] {
   let rest = query

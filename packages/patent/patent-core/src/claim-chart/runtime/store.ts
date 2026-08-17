@@ -10,12 +10,24 @@ import { atomicWriteJson, assertSafeId } from '../../persist-utils.ts'
 import { caseOutputsDir } from '../../paths.ts'
 import type { ClaimChart } from '../protocol/types.ts'
 
+/**
+ * 计算 chart 文件路径基名（防御路径注入：chartId 仅允许安全字符集）。
+ * @param caseId - 案例 id。
+ * @param chartId - chart id。
+ * @returns 不含扩展名的文件路径基名。
+ */
 export function chartFileBase(caseId: string, chartId: string): string {
   // 防御路径注入：chartId 直接拼入文件名，仅允许安全字符集（对齐 persist-utils 惯例）。
   assertSafeId(chartId, 'chartId')
   return join(caseOutputsDir(caseId), `claim-chart-${chartId}`)
 }
 
+/**
+ * 持久化 claim chart（原子写 JSON + Markdown 交付物）。
+ * @param chart - 待保存的 ClaimChart。
+ * @param caseId - 案例 id。
+ * @returns 写入的 JSON 与 Markdown 文件路径。
+ */
 export async function saveClaimChart(chart: ClaimChart, caseId: string): Promise<{ jsonPath: string; mdPath: string }> {
   const base = chartFileBase(caseId, chart.chartId)
   mkdirSync(caseOutputsDir(caseId), { recursive: true })
@@ -27,6 +39,12 @@ export async function saveClaimChart(chart: ClaimChart, caseId: string): Promise
   return { jsonPath, mdPath }
 }
 
+/**
+ * 从磁盘加载 claim chart（损坏/人工编辑文件返回 null）。
+ * @param caseId - 案例 id。
+ * @param chartId - chart id。
+ * @returns 加载的 ClaimChart，文件缺失或损坏时返回 null。
+ */
 export function loadClaimChart(caseId: string, chartId: string): ClaimChart | null {
   const p = `${chartFileBase(caseId, chartId)}.json`
   if (!existsSync(p)) return null
@@ -44,6 +62,11 @@ function escapeCell(text: string): string {
   return text.replace(/\|/g, '\\|').replace(/\n/g, ' ')
 }
 
+/**
+ * 渲染 claim chart 的 Markdown 交付物（gap list + 免责声明 + 逐要素映射表）。
+ * @param chart - 待渲染的 ClaimChart。
+ * @returns Markdown 文本。
+ */
 export function renderChartMarkdown(chart: ClaimChart): string {
   const byId = new Map(chart.elements.map(el => [el.id, el]))
   const lines: string[] = []

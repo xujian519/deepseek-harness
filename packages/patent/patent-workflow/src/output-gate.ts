@@ -30,6 +30,7 @@ export type PendingPatentMessage = {
   createdAt: number
 }
 
+/** 输出门禁选项（风险词/审批词/绝对化表述、免责声明、引用核验、规则门禁、挂起容量与 TTL、回调、审计存储、时钟）。 */
 export type PatentOutputGateOptions = {
   riskKeywords?: string[]
   approvalKeywords?: string[]
@@ -57,6 +58,7 @@ export type PatentOutputGateOptions = {
   now?: () => number
 }
 
+/** 单条消息门禁处理结果（写库消息、是否需审批、挂起索引、门禁判定）。 */
 export type ProcessedMessageResult = {
   /** 写库用的消息（可能已追加免责声明/存疑提示） */
   message: GateMessage
@@ -68,6 +70,7 @@ export type ProcessedMessageResult = {
   info: QualityGateResult
 }
 
+/** 把质量门禁接入 Agent 输出流：风险词追加免责声明、审批词挂起等待人工审批、规则门禁串接。 */
 export class PatentOutputGate {
   private readonly pending = new Map<number, PendingPatentMessage>()
   private readonly unflushed = new Set<number>()
@@ -82,6 +85,12 @@ export class PatentOutputGate {
     return this.options.now?.() ?? Date.now()
   }
 
+  /**
+   * 处理单条消息：非 assistant 或含 tool_call 的消息直接放行，否则跑关键词门禁与规则门禁。
+   * @param message - 待处理消息。
+   * @param context - 可选上下文（会话/轮次/是否跳过审批挂起）。
+   * @returns 处理结果（写库消息 + 是否需审批 + 门禁判定）。
+   */
   processMessage(
     message: GateMessage,
     context?: { sessionId?: string; turnId?: string; skipApproval?: boolean },
@@ -134,20 +143,31 @@ export class PatentOutputGate {
     return { message: processed, needsApproval: false, info: mergedInfo }
   }
 
-  /** 转录写入成功后调用：触发 onPending。 */
+  /**
+   * 转录写入成功后调用：触发 onPending。
+   * @param index - 挂起消息索引。
+   */
   flushPending(index: number): void {
     if (!this.unflushed.delete(index)) return
     const pending = this.pending.get(index)
     if (pending) this.safeInvoke(this.options.onPending, pending)
   }
 
-  /** 转录写入失败时调用：撤销挂起条目。 */
+  /**
+   * 转录写入失败时调用：撤销挂起条目。
+   * @param index - 挂起消息索引。
+   */
   cancelPending(index: number): void {
     if (!this.unflushed.delete(index)) return
     this.pending.delete(index)
   }
 
-  /** 审批通过：取出并移除挂起消息（触发 onApproved 由 notifyCommitted 完成）。 */
+  /**
+   * 审批通过：取出并移除挂起消息（触发 onApproved 由 notifyCommitted 完成）。
+   * @param index - 挂起消息索引。
+   * @param sessionId - 可选会话标识（与挂起消息的 sessionId 不一致时拒绝）。
+   * @returns 已通过的挂起消息；不存在、会话不匹配或已过期时为 undefined。
+   */
   approve(index: number, sessionId?: string): PendingPatentMessage | undefined {
     const pending = this.pending.get(index)
     if (!pending) return undefined
@@ -166,12 +186,21 @@ export class PatentOutputGate {
     return pending
   }
 
-  /** 审批通过且写库成功：触发 onApproved。 */
+  /**
+   * 审批通过且写库成功：触发 onApproved。
+   * @param pending - 已通过且已入库的挂起消息。
+   */
   notifyCommitted(pending: PendingPatentMessage): void {
     this.safeInvoke(this.options.onApproved, pending)
   }
 
-  /** 审批拒绝：丢弃挂起消息。 */
+  /**
+   * 审批拒绝：丢弃挂起消息。
+   * @param index - 挂起消息索引。
+   * @param sessionId - 可选会话标识（与挂起消息的 sessionId 不一致时拒绝）。
+   * @param feedback - 可选人工反馈理由。
+   * @returns 是否成功拒绝（不存在、会话不匹配或已过期时为 false）。
+   */
   reject(index: number, sessionId?: string, feedback?: string): boolean {
     const pending = this.pending.get(index)
     if (!pending) return false
@@ -217,7 +246,10 @@ export class PatentOutputGate {
     }
   }
 
-  /** 宿主会话恢复钩子：重新注册挂起条目。 */
+  /**
+   * 宿主会话恢复钩子：重新注册挂起条目。
+   * @param pending - 待恢复的挂起消息。
+   */
   restore(pending: PendingPatentMessage): void {
     if (!this.pending.has(pending.index)) {
       this.pending.set(pending.index, pending)
@@ -225,10 +257,18 @@ export class PatentOutputGate {
     }
   }
 
+  /**
+   * 返回当前挂起消息数量。
+   * @returns 挂起消息数量。
+   */
   pendingCount(): number {
     return this.pending.size
   }
 
+  /**
+   * 返回全部挂起消息。
+   * @returns 挂起消息列表。
+   */
   pendingItems(): PendingPatentMessage[] {
     return [...this.pending.values()]
   }
@@ -277,7 +317,11 @@ export class PatentOutputGate {
   }
 }
 
-/** 提取消息的纯文本（text 块拼接，跳过 thinking/图片等）。 */
+/**
+ * 提取消息的纯文本（text 块拼接，跳过 thinking/图片等）。
+ * @param message - 门禁消息。
+ * @returns text 块拼接的纯文本。
+ */
 export function extractMessageText(message: GateMessage): string {
   return message.content
     .filter((block): block is Extract<GateContentBlock, { type: 'text' }> => block.type === 'text')

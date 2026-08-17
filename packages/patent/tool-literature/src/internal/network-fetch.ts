@@ -1,3 +1,4 @@
+/** 网络层错误码（DNS/超时/连接/TLS/代理/限速/中止等）。 */
 export type NetworkErrorCode =
   | 'network_timeout'
   | 'network_dns_error'
@@ -10,6 +11,7 @@ export type NetworkErrorCode =
   | 'network_abort'
   | 'network_fetch_failed'
 
+/** 网络层错误：携带稳定机器可读错误码的 Error 子类。 */
 export class NetworkFetchError extends Error {
   readonly name = 'NetworkFetchError'
 
@@ -22,6 +24,7 @@ export class NetworkFetchError extends Error {
   }
 }
 
+/** 重试配置（次数、退避间隔、可重试状态码等）。 */
 export type NetworkRetryOptions = {
   maxRetries?: number
   baseDelayMs?: number
@@ -30,6 +33,7 @@ export type NetworkRetryOptions = {
   retryStatuses?: readonly number[]
 }
 
+/** networkFetch 单次请求选项（超时、取消、重试、fetch 注入）。 */
 export type NetworkFetchOptions = {
   timeoutMs?: number
   signal?: AbortSignal
@@ -37,6 +41,7 @@ export type NetworkFetchOptions = {
   fetchImpl?: typeof fetch
 }
 
+/** networkFetchJson 请求选项（附加期望状态码）。 */
 export type NetworkJsonOptions = NetworkFetchOptions & {
   expectedStatuses?: readonly number[]
 }
@@ -46,6 +51,13 @@ const DEFAULT_MAX_DELAY_MS = 30_000
 const DEFAULT_RETRY_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
+/**
+ * 带超时/重试/退避的 fetch 包装；不可重试错误抛 NetworkFetchError。
+ * @param input - 请求 URL/Request。
+ * @param init - 请求初始化参数（方法、头、body、signal 等）。
+ * @param options - 超时、重试与 fetch 注入选项。
+ * @returns fetch 响应。
+ */
 export async function networkFetch(
   input: string | URL | Request,
   init: RequestInit = {},
@@ -108,6 +120,13 @@ export async function networkFetch(
   throw normalizeNetworkError(lastError)
 }
 
+/**
+ * fetch 并解析 JSON；非期望状态码或非法 JSON 抛 NetworkFetchError。
+ * @param input - 请求 URL/Request。
+ * @param init - 请求初始化参数。
+ * @param options - 请求选项（含期望状态码）。
+ * @returns 响应、解析出的 JSON 与原始文本。
+ */
 export async function networkFetchJson<T = unknown>(
   input: string | URL | Request,
   init: RequestInit = {},
@@ -138,6 +157,14 @@ export async function networkFetchJson<T = unknown>(
   }
 }
 
+/**
+ * 以 JSON body POST 并解析响应（POST 可重试）。
+ * @param input - 请求 URL/Request。
+ * @param body - 序列化为 JSON body 的负载。
+ * @param init - 请求初始化参数。
+ * @param options - 请求选项（含期望状态码）。
+ * @returns 响应、解析出的 JSON 与原始文本。
+ */
 export function networkPostJson<T = unknown>(
   input: string | URL | Request,
   body: unknown,
@@ -159,6 +186,13 @@ export function networkPostJson<T = unknown>(
   )
 }
 
+/**
+ * 把任意错误规整为 NetworkFetchError（按中止/超时/系统错误码分类）。
+ * @param error - 原始错误。
+ * @param localSignal - 本次请求的 AbortSignal（超时中止）。
+ * @param parentSignal - 外部传入的 AbortSignal（调用方取消）。
+ * @returns 规整后的 NetworkFetchError。
+ */
 export function normalizeNetworkError(
   error: unknown,
   localSignal?: AbortSignal,
@@ -203,10 +237,22 @@ export function normalizeNetworkError(
   return new NetworkFetchError('network_fetch_failed', message, error)
 }
 
+/**
+ * 错误码是否可重试（中止与 TLS 错误不可重试）。
+ * @param code - 网络错误码。
+ * @returns 可重试为 true。
+ */
 export function isRetryableNetworkCode(code: NetworkErrorCode): boolean {
   return code !== 'network_abort' && code !== 'network_tls_error'
 }
 
+/**
+ * 计算第 attempt 次重试的退避延迟（尊重 Retry-After）。
+ * @param attempt - 当前重试次数（从 0 起）。
+ * @param retry - 重试配置。
+ * @param retryAfterHeader - 响应 Retry-After 头（可选）。
+ * @returns 延迟毫秒数。
+ */
 export function jitteredBackoff(
   attempt: number,
   retry: NetworkRetryOptions = {},

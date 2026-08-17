@@ -35,7 +35,9 @@ export type PatentToolErrorCode =
  * context (tool name, patent number, error code from an upstream source, etc.).
  */
 export class PatentToolError extends Error {
+  /** Stable programmatic error code (Sati tool-protocol taxonomy). */
   readonly code: PatentToolErrorCode
+  /** Structured error context (tool name, patent number, upstream code, etc.). */
   readonly details: Record<string, unknown> | undefined
 
   constructor(code: PatentToolErrorCode, message: string, details?: Record<string, unknown>) {

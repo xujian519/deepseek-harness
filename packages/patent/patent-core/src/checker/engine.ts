@@ -39,6 +39,9 @@ const REVERSE_NEGATION_PREFIXES = ['并非', '并不', '不能说', '不能认�
  * 命中位置前 NEGATION_WINDOW 字符内出现否定模式视为否定表述，不算命中。
  * 窗口含命中词本身（slice 到 idx+candidate.length），使"缺乏创造性"这类
  * "否定词+目标词"组合模式可命中（窗口只到 idx 时仅含"缺乏"）。
+ * @param text - 待检查的文本。
+ * @param keyword - 目标关键词（及其同义词）须被肯定提及。
+ * @returns 是否被肯定提及。
  */
 export function matchKeyword(text: string, keyword: string): boolean {
   const candidates = [keyword, ...(synonymMap[keyword] ?? [])]
@@ -53,12 +56,22 @@ export function matchKeyword(text: string, keyword: string): boolean {
   return false
 }
 
-/** 全部关键词须被肯定提及。 */
+/**
+ * 全部关键词须被肯定提及。
+ * @param text - 待检查的文本。
+ * @param keywords - 全部须命中的关键词列表。
+ * @returns 是否全部关键词均被肯定提及。
+ */
 export function matchKeywordsAll(text: string, keywords: readonly string[]): boolean {
   return keywords.every(keyword => matchKeyword(text, keyword))
 }
 
-/** 至少一个关键词被肯定提及。 */
+/**
+ * 至少一个关键词被肯定提及。
+ * @param text - 待检查的文本。
+ * @param keywords - 至少一个须命中的关键词列表。
+ * @returns 是否至少一个关键词被肯定提及。
+ */
 export function matchKeywordsAny(text: string, keywords: readonly string[]): boolean {
   return keywords.some(keyword => matchKeyword(text, keyword))
 }
@@ -252,25 +265,47 @@ function normalizeDomains(rawDomain: string | readonly string[] | undefined): st
   return typeof rawDomain === 'string' ? [rawDomain] : [...rawDomain]
 }
 
+/** 确定性规则引擎：注册、移除、查询规则，并按域过滤评估文本。 */
 export class RuleEngine {
   private readonly rulesById = new Map<string, CheckRule>()
 
+  /**
+   * 注册单条规则，以 rule.id 为键。
+   * @param rule - 待注册的检查规则。
+   */
   register(rule: CheckRule): void {
     this.rulesById.set(rule.id, rule)
   }
 
+  /**
+   * 批量注册规则。
+   * @param rules - 待注册的检查规则列表。
+   */
   registerMany(rules: readonly CheckRule[]): void {
     for (const rule of rules) this.register(rule)
   }
 
+  /**
+   * 按 id 移除规则。
+   * @param id - 待移除规则的 id。
+   */
   remove(id: string): void {
     this.rulesById.delete(id)
   }
 
+  /**
+   * 按 id 查询规则。
+   * @param id - 待查询规则的 id。
+   * @returns 匹配的规则，不存在时为 undefined。
+   */
   get(id: string): CheckRule | undefined {
     return this.rulesById.get(id)
   }
 
+  /**
+   * 返回全部已注册规则。
+   * @returns 全部已注册规则的数组。
+   */
   all(): CheckRule[] {
     return [...this.rulesById.values()]
   }
@@ -278,6 +313,9 @@ export class RuleEngine {
   /**
    * 评估：按域过滤规则集，逐条执行检查，返回全部失败结果（空数组 = 全部通过）。
    * 未显式传 rules 时使用注册的全部规则。domain 支持单域或多域（任一匹配即评估）。
+   * @param text - 待评估的文本。
+   * @param options - 评估选项（可选规则集与域过滤）。
+   * @returns 全部失败规则的结果（空数组表示全部通过）。
    */
   evaluate(text: string, options: RuleEngineOptions = {}): RuleCheckResult[] {
     const rules = options.rules ?? this.all()
@@ -310,6 +348,8 @@ export class RuleEngine {
  * - 任一 Level-0 (Must) 或 Level-1 (Should) 失败 → blocked。
  * - 3 条及以上 Level-2 (Quality) 失败 → needs_revision。
  * - 否则 → pass。
+ * @param results - 全部规则评估结果。
+ * @returns 聚合后的判定结论。
  */
 export function aggregate(results: readonly RuleCheckResult[]): Verdict {
   let level2Failures = 0
@@ -352,7 +392,12 @@ function severityLabel(severity: Severity): string {
   }
 }
 
-/** 渲染规则检查结果为 Markdown 报告片段。 */
+/**
+ * 渲染规则检查结果为 Markdown 报告片段。
+ * @param results - 全部失败规则结果。
+ * @param verdict - 聚合判定结论。
+ * @returns Markdown 报告文本。
+ */
 export function formatRuleResults(results: readonly RuleCheckResult[], verdict: Verdict): string {
   const verdictLabel = verdict === 'pass' ? '✅ 通过' : verdict === 'needs_revision' ? '⚠️ 需修改' : '⛔ 阻断'
   const lines: string[] = ['## 规则引擎检查', '', `检查结论: ${verdictLabel}`, '', '']

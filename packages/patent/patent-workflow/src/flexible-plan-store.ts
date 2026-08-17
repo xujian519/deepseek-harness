@@ -9,6 +9,7 @@
 import { JsonFileStore } from '@deepseek-ai/dsh-patent-core'
 import { fromJSON, type FlexiblePlanState } from './flexible-plan.ts'
 
+/** FlexiblePlan 持久化后端接口（save/load/list 三接口）。 */
 export interface FlexiblePlanStore {
   savePlan(state: FlexiblePlanState): Promise<void>
   loadPlan(caseId: string): Promise<FlexiblePlanState | undefined>

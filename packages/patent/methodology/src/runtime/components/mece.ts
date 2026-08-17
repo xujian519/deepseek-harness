@@ -9,6 +9,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['分类', '分解', '拆解', '结构', '分类分析', 'mece', '维度', '分层']
 
+/** MECE (mutually exclusive, collectively exhaustive) decomposition component. */
 export const mece: MethodologyComponent = {
   name: 'mece',
   description: '用「相互独立、完全穷尽」的原则对问题做结构化分解',

@@ -10,6 +10,8 @@ import { WorkflowError, type WorkflowManifest } from './types.ts'
 /**
  * Manifest 校验（轻量守卫，替代 zod）：非法即抛错。
  * options.atomNames 提供时，额外校验已声明 atom 均存在（fail-fast）。
+ * @param manifest - 待校验的工作流 manifest。
+ * @param options - 可选校验配置（atomNames 提供时校验 atom 均存在）。
  */
 export function validateWorkflowManifest(
   manifest: WorkflowManifest,

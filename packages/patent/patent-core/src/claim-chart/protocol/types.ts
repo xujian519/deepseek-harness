@@ -7,6 +7,7 @@
 
 export type ElementKind = 'preamble' | 'transitional' | 'limitation' | 'means-plus-function' | 'markush-member'
 
+/** 单个权利要求要素：从权利要求原文连续子串拆出的最小映射单元。 */
 export interface ClaimElement {
   /** 稳定编号（表脊），如 "1a"/"1b"/"2a"；格式：数字+小写字母。 */
   id: string
@@ -19,10 +20,13 @@ export interface ClaimElement {
   disputedTerm?: string
 }
 
+/** 图表分析模式：侵权/无效/OA 答复/复审/可专利性。 */
 export type ChartMode = 'infringement' | 'invalidity' | 'oa-response' | 'reexamination' | 'patentability'
 
+/** 映射目标类型：对比文件或涉嫌侵权产品。 */
 export type TargetKind = 'prior-art' | 'accused-product'
 
+/** 映射目标（对比文件/产品证据）：id、类型与可选源文路径。 */
 export interface ChartTarget {
   /** "D1"/"D2"/"产品A"。 */
   id: string
@@ -32,6 +36,7 @@ export interface ChartTarget {
   title?: string
 }
 
+/** 行级映射结论（mapping 状态机的取值全集）。 */
 export type Mapping =
   | 'literal'
   | 'literal-construction-dependent'
@@ -43,8 +48,10 @@ export type Mapping =
   | 'needs-evidence'
   | 'construction-dependent'
 
+/** 行状态：与 Mapping 同值，承载行的当前映射结论。 */
 export type RowState = Mapping
 
+/** 单行映射：要素 id + 目标 id + verbatim 引用 + pin-cite + 映射结论。 */
 export interface ChartRow {
   elementId: string
   targetId: string
@@ -59,6 +66,7 @@ export interface ChartRow {
   note?: string
 }
 
+/** 缺口条目：证据薄弱的要素/目标组合，附原因与建议动作。 */
 export interface GapEntry {
   elementId: string
   targetId: string
@@ -69,9 +77,11 @@ export interface GapEntry {
   suggestion: string
 }
 
+/** 草稿免责声明：随交付物顶部与表格上方输出。 */
 export const DRAFT_NOTICE =
   '本表为分析草稿，供代理人与律师核验使用，不构成正式法律意见或诉讼主张。每一行映射均须对照源文件人工复核。'
 
+/** 权利要求对照表（Claim Chart）整体数据契约。 */
 export interface ClaimChart {
   chartId: string
   mode: ChartMode

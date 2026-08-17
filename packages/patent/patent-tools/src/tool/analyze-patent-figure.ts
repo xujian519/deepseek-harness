@@ -41,6 +41,7 @@ export const FIGURE_TYPES = [
   'unknown',
 ] as const
 
+/** Figure type (structure / flowchart / circuit / block diagram / ... / unknown). */
 export type FigureType = (typeof FIGURE_TYPES)[number]
 
 /** 附图类型中文名（附图说明模板用）。 */
@@ -67,11 +68,13 @@ export const FIGURE_COMPONENT_KINDS = [
   'unknown',
 ] as const
 
+/** Component kind (mechanical / electrical / software / ... / unknown). */
 export type FigureComponentKind = (typeof FIGURE_COMPONENT_KINDS)[number]
 
 /** 组件连接关系类型。 */
 export const FIGURE_CONNECTION_KINDS = ['electrical', 'mechanical', 'data_flow', 'unknown'] as const
 
+/** Connection kind (electrical / mechanical / data_flow / unknown). */
 export type FigureConnectionKind = (typeof FIGURE_CONNECTION_KINDS)[number]
 
 /** 附图中的技术组件（对应附图标记号）。 */
@@ -129,6 +132,7 @@ export type FigureAnalysisResult = {
   modelUsed: string
 }
 
+/** Input for the analyze_patent_figure tool. */
 export type AnalyzePatentFigureInput = {
   /** 附图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp）。 */
   image_path: string

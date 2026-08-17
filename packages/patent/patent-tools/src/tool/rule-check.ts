@@ -23,6 +23,7 @@ import type { RuleSet } from '@deepseek-ai/dsh-patent-core'
 import type { SynonymMap } from '@deepseek-ai/dsh-patent-rule'
 import { PatentToolError } from '../error.ts'
 
+/** Input for the rule_check tool. */
 export type RuleCheckInput = {
   /** The text to check. */
   text: string
@@ -30,6 +31,7 @@ export type RuleCheckInput = {
   scope?: string
 }
 
+/** One rule violation rendered for the tool output. */
 export type RuleViolationView = {
   ruleId: string
   ruleName: string
@@ -40,6 +42,7 @@ export type RuleViolationView = {
   evidence: string[]
 }
 
+/** Output of the rule_check tool. */
 export type RuleCheckOutput = {
   scope: string
   violations: RuleViolationView[]

@@ -15,6 +15,7 @@
  */
 import { networkFetch, type NetworkRetryOptions } from '../internal/network-fetch.ts'
 
+/** per-host 礼貌限速（最小间隔与最大并发）。 */
 export interface LiteratureRateLimit {
   /** 同一 host 两次请求开始之间的最小间隔（ms）。 */
   minIntervalMs?: number
@@ -22,6 +23,7 @@ export interface LiteratureRateLimit {
   maxConcurrent?: number
 }
 
+/** literatureFetch 请求选项（超时、缓存、限速、重试等）。 */
 export interface LiteratureFetchOptions {
   /** 请求超时（默认 30s）。 */
   timeoutMs?: number
@@ -46,6 +48,7 @@ export interface LiteratureFetchOptions {
   fetchImpl?: typeof fetch
 }
 
+/** 文献 HTTP 响应（ok、状态码、body）。 */
 export interface LiteratureResponse {
   ok: boolean
   status: number
@@ -164,6 +167,9 @@ function cacheSet(key: string, value: { expires: number; body: string }): void {
  * 重试不再过闸（重试间隔由退避/Retry-After 决定，可能短于 minIntervalMs）。
  * 因此 pace 保证的是外部调用方的请求节奏，不覆盖单次请求内部的重试风暴——
  * 源返回 429 时 networkFetch 尊重 Retry-After，无该头时按退避间隔重试。
+ * @param url - 请求 URL。
+ * @param opts - 请求选项（超时、取消、缓存、限速、重试等）。
+ * @returns 响应结果（ok、状态码、body）。
  */
 export async function literatureFetch(url: string, opts: LiteratureFetchOptions = {}): Promise<LiteratureResponse> {
   const ttl = opts.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
@@ -209,7 +215,12 @@ export async function literatureFetch(url: string, opts: LiteratureFetchOptions 
   }
 }
 
-/** GET + 文本。非 2xx 抛 `LiteratureHttpError`。 */
+/**
+ * GET + 文本。非 2xx 抛 `LiteratureHttpError`。
+ * @param url - 请求 URL。
+ * @param opts - 可选请求选项。
+ * @returns 响应文本。
+ */
 export async function getText(url: string, opts?: LiteratureFetchOptions): Promise<string> {
   const res = await literatureFetch(url, opts)
   if (!res.ok) {
@@ -218,7 +229,12 @@ export async function getText(url: string, opts?: LiteratureFetchOptions): Promi
   return res.body
 }
 
-/** GET + JSON（默认 Accept: application/json）。 */
+/**
+ * GET + JSON（默认 Accept: application/json）。
+ * @param url - 请求 URL。
+ * @param opts - 可选请求选项。
+ * @returns 解析出的 JSON 值。
+ */
 export async function getJSON<T = unknown>(url: string, opts?: LiteratureFetchOptions): Promise<T> {
   const res = await literatureFetch(url, { ...opts, accept: opts?.accept ?? 'application/json' })
   if (!res.ok) {

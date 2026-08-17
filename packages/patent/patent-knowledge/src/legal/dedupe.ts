@@ -5,7 +5,12 @@
  * 按发布倒序取回后保留最新版本，消除 searchFts / searchFtsKeywords 的重复实现。
  */
 
-/** 按 name 去重，保留首次出现（调用方已按 publish DESC 排序 → 最新版）；到达 limit 即停。 */
+/**
+ * 按 name 去重，保留首次出现（调用方已按 publish DESC 排序 → 最新版）；到达 limit 即停。
+ * @param rows 待去重行（调用方已按发布时间倒序排列）。
+ * @param limit 返回数量上限。
+ * @returns 去重后的前 limit 行。
+ */
 export function dedupeByLawName<T extends { name: string }>(rows: readonly T[], limit: number): T[] {
   const seen = new Set<string>()
   const deduped: T[] = []

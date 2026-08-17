@@ -24,7 +24,10 @@ import {
   DOMAIN_EXAMINATION,
 } from './constants.ts'
 
-/** 其他推理模式规则（6 条）。 */
+/**
+ * 其他推理模式规则（6 条）。
+ * @returns 其他推理模式检查规则集。
+ */
 export function otherReasoningRules(): CheckRule[] {
   return [
     {

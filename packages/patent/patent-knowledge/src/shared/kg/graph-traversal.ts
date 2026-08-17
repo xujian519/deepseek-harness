@@ -9,6 +9,7 @@
 import type { StatementSync } from 'node:sqlite'
 import type { KgNode } from '../../patent/types.ts'
 
+/** 图谱邻居（目标节点 id + 关系类型）。 */
 export type KgNeighbor = {
   /** 邻居节点 id */
   targetId: string
@@ -16,12 +17,14 @@ export type KgNeighbor = {
   relation: string
 }
 
+/** 图谱路径边。 */
 export type KgPathEdge = {
   source: string
   target: string
   relation: string
 }
 
+/** 图谱遍历（邻居/最短路径/按类型列表等图操作）。 */
 export class GraphTraversal {
   constructor(
     private readonly stmts: {
@@ -32,7 +35,13 @@ export class GraphTraversal {
     private readonly getNode: (id: string) => KgNode | undefined,
   ) {}
 
-  /** 查询节点的出向邻居（按 relation 过滤可选）。 */
+  /**
+   * 查询节点的出向邻居（按 relation 过滤可选）。
+   * @param nodeId 节点 id。
+   * @param relation 关系类型过滤，省略时不限关系。
+   * @param limit 返回邻居数量上限。
+   * @returns 邻居节点列表。
+   */
   getNeighbors(nodeId: string, relation?: string, limit = 20): KgNeighbor[] {
     const rows = relation
       ? (this.stmts.stmtNeighborsByRelation.all(nodeId, relation, limit) as Array<{
@@ -43,7 +52,13 @@ export class GraphTraversal {
     return rows.map(r => ({ targetId: r.target, relation: r.relation }))
   }
 
-  /** BFS 最短路径（有向图，沿出边遍历）。找不到返回 null。 */
+  /**
+   * BFS 最短路径（有向图，沿出边遍历）。找不到返回 null。
+   * @param fromId 起始节点 id。
+   * @param toId 目标节点 id。
+   * @param maxDepth 最大搜索深度。
+   * @returns 最短路径边序列，不可达时 null。
+   */
   bfsPath(fromId: string, toId: string, maxDepth = 5): KgPathEdge[] | null {
     if (fromId === toId) return []
     const visited = new Set<string>([fromId])
@@ -66,13 +81,25 @@ export class GraphTraversal {
     return null
   }
 
-  /** 按类型列出节点（用于图谱浏览/过滤）。 */
+  /**
+   * 按类型列出节点（用于图谱浏览/过滤）。
+   * @param nodeType 节点类型。
+   * @param limit 返回数量上限。
+   * @returns 该类型的节点列表。
+   */
   listByType(nodeType: string, limit = 50): KgNode[] {
     const rows = this.stmts.stmtListByType.all(nodeType, limit) as Array<{ id: string }>
     return rows.map(r => this.getNode(r.id)).filter((n): n is KgNode => n !== undefined)
   }
 
-  /** 展开某个节点的邻居（去重后），附带节点详情。 */
+  /**
+   * 展开某个节点的邻居（去重后），附带节点详情。
+   * @param nodeId 节点 id。
+   * @param relation 关系类型过滤，省略时不限关系。
+   * @param depth 展开深度。
+   * @param limit 每层返回数量上限。
+   * @returns 展开得到的邻居节点及其关系列表。
+   */
   expandNeighbors(nodeId: string, relation?: string, depth = 2, limit = 20): Array<{ node: KgNode; relation: string }> {
     const seen = new Set<string>([nodeId])
     const result: Array<{ node: KgNode; relation: string }> = []

@@ -14,6 +14,7 @@ import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
+/** 构建创造性分析子图的选项。 */
 export type BuildInventivenessGraphOptions = {
   handlers?: StageHandlerRegistry
   /** 规则门收口（缺省 true）。 */
@@ -94,7 +95,10 @@ const CONCLUDE_SCHEMA = {
 // 子图构建
 // ---------------------------------------------------------------------------
 
-/** 构建创造性分析子图（A22.3 三步法）。 */
+/** 构建创造性分析子图（A22.3 三步法）。
+ * @param options - 子图构建选项。
+ * @returns 未编译的图构建器。
+ */
 export function buildInventivenessGraph(options: BuildInventivenessGraphOptions = {}): GraphBuilder {
   const handlers = options.handlers ?? globalStageHandlerRegistry
   const builder = new GraphBuilder()
@@ -302,7 +306,10 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
   return builder
 }
 
-/** 从图运行结果提取创造性结论（供调用方/评测读取）。 */
+/** 从图运行结果提取创造性结论（供调用方/评测读取）。
+ * @param state - 图运行结果状态。
+ * @returns 解析出的创造性结论字段。
+ */
 export function extractInventivenessResult(state: GraphState): {
   inventive?: boolean
   confidence?: string

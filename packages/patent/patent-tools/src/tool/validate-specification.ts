@@ -129,7 +129,11 @@ function normalizeUnit(unit: string): string {
   return ['℃', '°C', '°'].includes(unit) ? '°' : unit
 }
 
-/** Extract numeric ranges from the text (kept only when min < max). */
+/**
+ * Extract numeric ranges from the text (kept only when min < max).
+ * @param text - the text to scan.
+ * @returns the numeric ranges found.
+ */
 export function extractNumericRanges(text: string): NumericRange[] {
   const ranges: NumericRange[] = []
   let m: RegExpExecArray | null
@@ -144,7 +148,11 @@ export function extractNumericRanges(text: string): NumericRange[] {
   return ranges
 }
 
-/** Extract single values with units (range expressions removed first). */
+/**
+ * Extract single values with units (range expressions removed first).
+ * @param text - the text to scan.
+ * @returns the numeric values with normalized units.
+ */
 export function extractNumericValues(text: string): Array<{ value: number; unit: string }> {
   const body = text.replace(RANGE_PATTERN, ' ')
   const values: Array<{ value: number; unit: string }> = []
@@ -157,7 +165,11 @@ export function extractNumericValues(text: string): Array<{ value: number; unit:
   return values
 }
 
-/** Range endpoint + midpoint example detection: returns (missing-endpoint, missing-midpoint). */
+/**
+ * Range endpoint + midpoint example detection: returns (missing-endpoint, missing-midpoint).
+ * @param text - the text to scan.
+ * @returns ranges missing an endpoint example and ranges missing a midpoint example.
+ */
 export function checkNumericRangeCoverage(text: string): {
   endpointMissing: NumericRange[]
   midpointMissing: NumericRange[]
@@ -180,7 +192,11 @@ function formatRange(range: NumericRange): string {
   return `${range.min}-${range.max}${range.unit === '°' ? '℃' : range.unit}`
 }
 
-/** Return "effect boilerplate" sentences lacking any number / percentage (truncated to 40 chars). */
+/**
+ * Return "effect boilerplate" sentences lacking any number / percentage (truncated to 40 chars).
+ * @param text - the text to scan.
+ * @returns the effect sentences lacking quantitative data.
+ */
 export function checkEffectQuantification(text: string): string[] {
   const hits: string[] = []
   for (const raw of text.split(/[。；\n]/)) {
@@ -193,7 +209,11 @@ export function checkEffectQuantification(text: string): string[] {
   return hits
 }
 
-/** Chemical domain: return the fully-missing characterization terms. */
+/**
+ * Chemical domain: return the fully-missing characterization terms.
+ * @param text - the text to scan.
+ * @returns the characterization terms absent from the text.
+ */
 export function checkChemicalCharacterization(text: string): string[] {
   return CHEM_CHARACTERIZATION_TERMS.filter(term => !text.includes(term))
 }
@@ -214,7 +234,11 @@ export function checkSmilesValidity(_text: string, isRdkitAvailable: () => boole
   return []
 }
 
-/** Score: each error deducts 0.25, each warning 0.1, floor 0; passed depends only on errors. */
+/**
+ * Score: each error deducts 0.25, each warning 0.1, floor 0; passed depends only on errors.
+ * @param violations - the violations to score.
+ * @returns whether the specification passed and the computed score.
+ */
 export function computeSpecScore(violations: SpecViolation[]): { passed: boolean; score: number } {
   const errors = violations.filter(v => v.severity === 'error').length
   const warnings = violations.filter(v => v.severity === 'warning').length
@@ -222,7 +246,11 @@ export function computeSpecScore(violations: SpecViolation[]): { passed: boolean
   return { passed: errors === 0, score: Math.round(score * 100) / 100 }
 }
 
-/** Extract technical-feature candidates from claims ("所述X" nouns + number-unit values). */
+/**
+ * Extract technical-feature candidates from claims ("所述X" nouns + number-unit values).
+ * @param claims - the claims text.
+ * @returns the extracted feature candidates.
+ */
 export function extractClaimFeatures(claims: string): string[] {
   const features = new Set<string>()
   let m: RegExpExecArray | null
@@ -238,7 +266,12 @@ export function extractClaimFeatures(claims: string): string[] {
   return [...features]
 }
 
-/** Feature-coverage comparison: returns features not recorded in the specification. */
+/**
+ * Feature-coverage comparison: returns features not recorded in the specification.
+ * @param claims - the claims text.
+ * @param text - the specification text.
+ * @returns the missing features and the total feature count.
+ */
 export function checkClaimCoverage(claims: string, text: string): { missing: string[]; total: number } {
   const features = extractClaimFeatures(claims)
   const missing = features.filter(feature => !text.includes(feature))
@@ -250,6 +283,9 @@ export function checkClaimCoverage(claims: string, text: string): { missing: str
  * Unusable figures are skipped per-figure (no all-or-nothing); a mark present in
  * the figure but absent from the drawing description is a warning (漏标), and a
  * mark listed in the description but absent from the figure is an error (悬空).
+ * @param text - the specification text (drawing-description section).
+ * @param figureAnalysis - the figure-analysis results.
+ * @returns the consistency violations found.
  */
 export function checkFigureMarkConsistency(text: string, figureAnalysis: FigureAnalysisResult[]): SpecViolation[] {
   if (figureAnalysis.length === 0) return []
@@ -317,7 +353,11 @@ export function checkFigureMarkConsistency(text: string, figureAnalysis: FigureA
   return violations
 }
 
-/** Pure entry point: validate the specification against the rule set. */
+/**
+ * Pure entry point: validate the specification against the rule set.
+ * @param input - the specification fields to validate.
+ * @returns the validation result (passed, score, violations).
+ */
 export function validateSpecification(input: ValidateSpecificationInput): ValidateSpecificationOutput {
   const violations: SpecViolation[] = []
   const text = input.text ?? ''
@@ -513,7 +553,11 @@ function countInDrawingSection(text: string): number {
   return (getDrawingSection(text).match(/图\s*[一二三四五六七八九十\d]+/g) ?? []).length
 }
 
-/** Render the canonical validation result into model-facing prose. */
+/**
+ * Render the canonical validation result into model-facing prose.
+ * @param value - the validation result.
+ * @returns the rendered Markdown text.
+ */
 export function renderSpecification(value: ValidateSpecificationOutput): string {
   const errors = value.violations.filter(v => v.severity === 'error')
   const warnings = value.violations.filter(v => v.severity === 'warning')

@@ -23,6 +23,7 @@ export type SatiEvidenceReceipt = {
   resultText?: string
 }
 
+/** 工具执行证据观测接口：每次工具执行后接收一条收据。 */
 export type SatiEvidenceCollector = {
   recordReceipt(receipt: SatiEvidenceReceipt): void
 }
@@ -68,6 +69,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * - path：从常见路径字段提取（可定位证据来源）
  * - write：按写工具白名单/写入意图判定
  * - resultText：结果摘录（截断至 2000 字符）
+ * @param input - 工具执行上下文（调用 id、turn、工具名、入参、成败、时间戳、结果摘录）。
+ * @returns 构造出的证据收据。
  */
 export function receiptFromToolExecution(input: {
   toolCallId: string

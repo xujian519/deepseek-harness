@@ -16,6 +16,7 @@ import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from '.
 // extract —— 结构化抽取（JSON Schema 约束）
 // ---------------------------------------------------------------------------
 
+/** extract 原子：从文本结构化抽取特征/问题/效果。 */
 export const extractAtom: Atom = {
   name: 'extract',
   description: '从文本中结构化抽取特征/问题/效果（JSON Schema 约束 LLM 输出）',
@@ -34,11 +35,18 @@ const EXTRACT_SCHEMA = {
   required: ['features'],
 } as const
 
+/** extract 执行器：结构化抽取（JSON Schema 约束）。 */
 export class ExtractHandler implements StageHandler {
   readonly name = 'extract'
   readonly category = 'extract' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 extract 阶段（PFE 抽取），返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     const missing = requireLlm(provider, 'extract')
     if (missing) return missing
     const text = resolveInputText(state, ['text', 'extraction_input'], '')
@@ -89,6 +97,7 @@ export class ExtractHandler implements StageHandler {
 // 确定性实现（无 LLM）：读 extract 三路分键产出的 problems/features/effects，
 // 按索引配对为 PFE 三元组（问题为锚点），多余特征/效果并入末组；全部为空时降级。
 
+/** merge 原子：融合 PFE 三路提取结果为三元组。 */
 export const mergeAtom: Atom = {
   name: 'merge',
   description: '融合 PFE 三路提取结果（问题↔特征↔效果交叉引用），产出 PFE 三元组',
@@ -97,6 +106,7 @@ export const mergeAtom: Atom = {
   outputSchema: ['pfe_triples', 'merge_result'],
 }
 
+/** PFE 三元组：一个问题与对应的特征/效果列表。 */
 export type PFETriple = {
   id: string
   problem: string
@@ -104,11 +114,18 @@ export type PFETriple = {
   effects: string[]
 }
 
+/** merge 执行器：按索引配对三路提取结果为 PFE 三元组。 */
 export class MergeHandler implements StageHandler {
   readonly name = 'merge'
   readonly category = 'extract' as const
 
-  async execute({ state }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 merge 阶段（三路结果配对为 PFE 三元组），返回下一管线状态。
+   * @param input - 阶段执行输入（state）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(input: StageExecuteInput): Promise<PipelineState> {
+    const { state } = input
     const features = getStateArray(state, 'features').map(String).filter(Boolean)
     const problems = getStateArray(state, 'problems').map(String).filter(Boolean)
     const effects = getStateArray(state, 'effects').map(String).filter(Boolean)

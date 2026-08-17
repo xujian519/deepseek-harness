@@ -37,6 +37,13 @@ function tableExists(db: DatabaseSync, name: string): boolean {
   return row !== undefined
 }
 
+/**
+ * 探测图谱 schema（unified/legacy）并组装全部 prepared statements。
+ * 表缺失时抛错（fail-closed）；FTS prepare 失败降级 null。
+ * @param db 目标数据库连接。
+ * @param dbPath 数据库文件路径（诊断信息用）。
+ * @returns 探测结果（schema + FTS 表 + statements）。
+ */
 export function introspectKgStore(db: DatabaseSync, dbPath: string): KgStoreIntrospection {
   // 表结构探测：knowledge.db 统一 schema（kg_nodes/kg_edges/kg_nodes_fts，trigram）
   // 优先；patent_kg.db 旧 schema（nodes/edges/nodes_fts*）兼容保留。

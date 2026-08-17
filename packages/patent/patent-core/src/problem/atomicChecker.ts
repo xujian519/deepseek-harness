@@ -102,7 +102,11 @@ function checkMeansReversible(text: string): boolean {
   return REVERSIBILITY_ANCHORS.some(anchor => text.includes(anchor))
 }
 
-/** 对单个技术问题文本执行四检验。 */
+/**
+ * 对单个技术问题文本执行四检验。
+ * @param problem - 待校验的"实际解决的技术问题"文本。
+ * @returns 四检验结果（pass 由不绑方案 + 单一因果决定）。
+ */
 export function checkAtomic(problem: string): AtomicCheckResult {
   const checks: AtomicChecks = {
     singleCausality: checkSingleCausality(problem),
@@ -135,6 +139,8 @@ export function checkAtomic(problem: string): AtomicCheckResult {
  * - Graph 形态：collectStateText 拼入的 inventiveness_diff JSON（"actual_technical_problem" 字段）；
  * - 文本形态：收口工具 / 主代理产出文本中的"实际解决的技术问题：/为/是 ..."句。
  * 提取不到返回 undefined。
+ * @param text - 待提取的评估文本。
+ * @returns 提取出的技术问题片段；提取不到时为 undefined。
  */
 export function extractTechnicalProblem(text: string): string | undefined {
   const json = /"actual_technical_problem"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text)
@@ -155,6 +161,9 @@ export function extractTechnicalProblem(text: string): string | undefined {
 /**
  * 规则 customCheck 工厂：提取技术问题 → 跑四检验 → 按 selector 判定。
  * 提取不到返回通过（技术问题缺失由 INVENTIVENESS-THREE-STEP 规则处理，避免双重惩罚）。
+ * @param check - 依据 AtomicCheckResult 判定是否通过的谓词。
+ * @param failDetail - 未通过时返回的 detail 文案。
+ * @returns 接收评估文本、返回 { passed, detail } 的 customCheck 函数。
  */
 export function technicalProblemCheck(
   check: (result: AtomicCheckResult) => boolean,

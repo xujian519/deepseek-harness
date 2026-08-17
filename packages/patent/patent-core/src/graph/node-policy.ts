@@ -19,6 +19,10 @@ const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(r
 /**
  * 按策略执行节点（含重试/超时/panic 捕获）。
  * 返回 { ok: true, delta } 或 { ok: false, error }；不抛错（中断错误除外，由 engine 另行处理）。
+ * @param node - 要执行的图节点。
+ * @param policy - 节点策略（可缺省）。
+ * @param ctx - 节点执行上下文。
+ * @returns 执行结果（成功携带增量，失败携带错误）。
  */
 export async function runNodeWithPolicy(
   node: GraphNode,

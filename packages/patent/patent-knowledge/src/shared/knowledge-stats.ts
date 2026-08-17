@@ -19,6 +19,7 @@ export type KgFtsMode = 'trigram' | 'unicode61' | 'like' | 'unknown'
 /** wiki 卡语义索引（运行时 JSONL）生命周期状态。 */
 export type WikiSemanticIndexState = 'disabled' | 'warming' | 'ready' | 'failed'
 
+/** 知识库运行时统计快照。 */
 export type KnowledgeRuntimeStatsSnapshot = {
   /** 检索结果缓存命中/未命中次数（同 query 60s TTL 复用）。 */
   cacheHits: number
@@ -49,6 +50,7 @@ export type KnowledgeRuntimeStatsSnapshot = {
   likeFallbacks: number
 }
 
+/** 知识库运行时状态聚合（可观测性出口的数据源）。 */
 export class KnowledgeRuntimeStats {
   private cacheHits = 0
   private cacheMisses = 0
@@ -66,10 +68,12 @@ export class KnowledgeRuntimeStats {
   private caseLawFtsDegraded = false
   private likeFallbacks = 0
 
+  /** 缓存命中 +1。 */
   recordCacheHit(): void {
     this.cacheHits += 1
   }
 
+  /** 缓存未命中 +1。 */
   recordCacheMiss(): void {
     this.cacheMisses += 1
   }
@@ -79,52 +83,82 @@ export class KnowledgeRuntimeStats {
     this.semanticCalls += 1
   }
 
+  /** 语义召回失败 +1。 */
   recordSemanticFailure(): void {
     this.semanticFailures += 1
   }
 
+  /** 重排发起 +1。 */
   recordRerankCall(): void {
     this.rerankCalls += 1
   }
 
+  /** 重排失败 +1。 */
   recordRerankFailure(): void {
     this.rerankFailures += 1
   }
 
-  /** 注册熔断器（同名后注册覆盖，供 runtime 重建场景）。 */
+  /**
+   * 注册熔断器（同名后注册覆盖，供 runtime 重建场景）。
+   * @param name 熔断器名称。
+   * @param breaker 熔断器实例。
+   */
   registerBreaker(name: string, breaker: CircuitBreaker): void {
     this.breakers.set(name, breaker)
   }
 
+  /**
+   * 记录 KG FTS tokenizer 模式。
+   * @param mode 生效的 FTS 模式。
+   */
   setKgFtsMode(mode: KgFtsMode): void {
     this.kgFtsMode = mode
   }
 
+  /**
+   * 记录 wiki 卡语义索引状态。
+   * @param state 语义索引生命周期状态。
+   */
   setWikiSemanticIndexState(state: WikiSemanticIndexState): void {
     this.wikiSemanticIndex = state
   }
 
-  /** 判例自动注入可用性（CaseLawMemoryProvider 构造时打点）。 */
+  /**
+   * 判例自动注入可用性（CaseLawMemoryProvider 构造时打点）。
+   * @param available 是否可用。
+   */
   setCaseLawAvailable(available: boolean): void {
     this.caseLawAvailable = available
   }
 
-  /** 判例自动注入一次（记录注入条数，供诊断观察注入强度）。 */
+  /**
+   * 判例自动注入一次（记录注入条数，供诊断观察注入强度）。
+   * @param count 本次注入条数。
+   */
   recordCaseLawInject(count: number): void {
     this.caseLawInjects += count
   }
 
-  /** 记录 embedding 一致性自检结果（不达标时语义召回已降级，此处仅留痕）。 */
+  /**
+   * 记录 embedding 一致性自检结果（不达标时语义召回已降级，此处仅留痕）。
+   * @param result 自检结果（是否达标与平均余弦相似度）。
+   */
   setEmbeddingConsistency(result: { ok: boolean; meanCosine: number }): void {
     this.embeddingConsistency = result
   }
 
-  /** 法规全文引擎 FTS5 粘性降级（引擎查询期异常后打点一次）。 */
+  /**
+   * 法规全文引擎 FTS5 粘性降级（引擎查询期异常后打点一次）。
+   * @param degraded 是否已降级。
+   */
   setLegalFtsDegraded(degraded: boolean): void {
     this.legalFtsDegraded = degraded
   }
 
-  /** 判例全文引擎 FTS5 粘性降级（同上）。 */
+  /**
+   * 判例全文引擎 FTS5 粘性降级（同上）。
+   * @param degraded 是否已降级。
+   */
   setCaseLawFtsDegraded(degraded: boolean): void {
     this.caseLawFtsDegraded = degraded
   }
@@ -134,7 +168,10 @@ export class KnowledgeRuntimeStats {
     this.likeFallbacks += 1
   }
 
-  /** 只读快照（每次新建对象，消费方可安全序列化）。 */
+  /**
+   * 只读快照（每次新建对象，消费方可安全序列化）。
+   * @returns 运行时统计快照。
+   */
   snapshot(): KnowledgeRuntimeStatsSnapshot {
     return {
       cacheHits: this.cacheHits,

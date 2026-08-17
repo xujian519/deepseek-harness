@@ -11,8 +11,10 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { ABSOLUTE_PHRASES } from '@deepseek-ai/dsh-patent-workflow'
 import { analyzeSlop } from '../internal/slop-engine.ts'
 
+/** Evaluation mode for the patent_eval tool. */
 export type PatentEvalMode = 'report' | 'retrieval' | 'workflow' | 'citations' | 'comprehensive'
 
+/** Input for the patent_eval tool. */
 export type PatentEvalInput = {
   /** Evaluation mode: report / retrieval / workflow / citations / comprehensive. */
   mode: PatentEvalMode
@@ -22,12 +24,14 @@ export type PatentEvalInput = {
   required_citations?: string[]
 }
 
+/** One scored evaluation dimension. */
 export type PatentEvalDimension = {
   score: number
   passed: boolean
   details?: string
 }
 
+/** Output of the patent_eval tool. */
 export type PatentEvalOutput = {
   mode: PatentEvalMode
   score: number

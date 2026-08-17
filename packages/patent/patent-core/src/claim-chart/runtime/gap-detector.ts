@@ -14,6 +14,11 @@ const SUGGESTIONS: Record<string, string> = {
   partial: '补充公开部分的精确定位（pin-cite）',
 }
 
+/**
+ * 聚合证据薄弱的行，产出 gap list（第一优先输出）。
+ * @param rows - 映射行列表。
+ * @returns 按优先级排序的缺口条目列表。
+ */
 export function detectGaps(rows: ChartRow[]): GapEntry[] {
   const gaps: GapEntry[] = []
   for (const row of rows) {

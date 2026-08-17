@@ -11,6 +11,7 @@ import type { PatentSearchHit, PatentSearchResult } from '@deepseek-ai/nuo-paten
 import { cachedSearchPatents } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
 
+/** Input for the patent_search tool. */
 export type PatentSearchInput = {
   /** Google Patents native search syntax (keywords/boolean/assignee:/date range). */
   query: string
@@ -18,6 +19,7 @@ export type PatentSearchInput = {
   limit?: number
 }
 
+/** One normalized search hit. */
 export type PatentSearchHitItem = {
   patent: string
   title: string
@@ -28,6 +30,7 @@ export type PatentSearchHitItem = {
   url: string
 }
 
+/** Output of the patent_search tool. */
 export type PatentSearchOutput = {
   query: string
   total: number
@@ -53,7 +56,11 @@ function toItem(h: PatentSearchHit): PatentSearchHitItem {
   }
 }
 
-/** Extract the base number of a patent (strip kind code): `CN115690481A`→`CN115690481`. */
+/**
+ * Extract the base number of a patent (strip kind code): `CN115690481A`→`CN115690481`.
+ * @param patent - the patent number to extract from.
+ * @returns the base number, or undefined when the format does not match.
+ */
 export function baseNumber(patent: string): string | undefined {
   const match = /^([A-Z]{2}\d+)[A-Z]\d?$/.exec(patent)
   return match?.[1]

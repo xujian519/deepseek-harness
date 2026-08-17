@@ -14,6 +14,7 @@ const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
 const FIELDS = 'title,abstract,url,year,venue,citationCount,externalIds,authors.name'
 const RATE_LIMIT = { minIntervalMs: 1000 }
 
+/** 创建 Semantic Scholar 连接器的选项（提额 key、限速、重试）。 */
 export interface CreateSemanticScholarConnectorOptions {
   /** 可选提额 key；默认回退 SEMANTIC_SCHOLAR_API_KEY 环境变量。 */
   apiKey?: string
@@ -63,6 +64,11 @@ function toHit(p: Paper): ConnectorHit {
   }
 }
 
+/**
+ * 创建 Semantic Scholar 学术图谱连接器。
+ * @param options - 连接器选项（提额 key、限速、重试）。
+ * @returns Semantic Scholar 连接器。
+ */
 export function createSemanticScholarConnector(options: CreateSemanticScholarConnectorOptions = {}): Connector {
   const apiHeaders = (): Record<string, string> | undefined => {
     const key = options.apiKey?.trim() || process.env.SEMANTIC_SCHOLAR_API_KEY?.trim()

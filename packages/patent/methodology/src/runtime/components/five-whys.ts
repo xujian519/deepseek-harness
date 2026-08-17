@@ -9,6 +9,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['为什么', '原因', '根因', 'why', 'root cause', '失败', '错误', 'bug', '问题']
 
+/** Five Whys methodology component for root-cause analysis by iterated "why" questions. */
 export const fiveWhys: MethodologyComponent = {
   name: 'five-whys',
   description: '通过连续追问「为什么」追溯问题的根本原因',

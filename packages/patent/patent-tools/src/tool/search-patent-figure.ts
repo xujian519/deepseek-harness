@@ -16,6 +16,7 @@ import { PatentToolError } from '../error.ts'
 import { FIGURE_TYPE_NAMES } from './analyze-patent-figure.ts'
 import type { FigureAnalysisResult, FigureComponent, FigureType } from './analyze-patent-figure.ts'
 
+/** Input for the search_patent_figure tool. */
 export type SearchPatentFigureInput = {
   /** 检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）。 */
   query: string
@@ -40,6 +41,7 @@ export type LoadFigureIndexResult = {
   warning?: string
 }
 
+/** One analyzed-figure search result. */
 export type SearchPatentFigureResultItem = {
   figureNumber: number
   figureType: FigureType
@@ -54,6 +56,7 @@ export type SearchPatentFigureResultItem = {
   warnings: string[]
 }
 
+/** Output of the search_patent_figure tool. */
 export type SearchPatentFigureOutput = {
   query: string
   /** 返回条数。 */

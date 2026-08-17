@@ -21,7 +21,10 @@ import {
   DIM_SUPPORT,
 } from './constants.ts'
 
-/** 权利要求/说明书推理模式规则（5 条）。 */
+/**
+ * 权利要求/说明书推理模式规则（5 条）。
+ * @returns 权利要求/说明书推理模式检查规则集。
+ */
 export function claimsReasoningRules(): CheckRule[] {
   return [
     {

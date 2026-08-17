@@ -15,6 +15,7 @@ export type RelevantHit = {
   relation?: string
 }
 
+/** 专利知识图谱关键词搜索选项。 */
 export type PatentKgSearchOptions = {
   /** 关键词搜索返回数（默认 5）。 */
   keywordLimit?: number
@@ -37,7 +38,11 @@ const NODE_TYPE_ALIASES: Record<string, string[]> = {
   Concept: ['Concept', 'ConceptDetail', '一级概念', '二级概念', '三级概念'],
 }
 
-/** 解析 node_type（别名展开；未命中别名时按数据库实际类型透传）。 */
+/**
+ * 解析 node_type（别名展开；未命中别名时按数据库实际类型透传）。
+ * @param raw 数据库 node_type 原始值。
+ * @returns 展开后的类型列表。
+ */
 export function resolveNodeTypes(raw: string): string[] {
   const trimmed = raw.trim()
   if (!trimmed) return []
@@ -50,15 +55,25 @@ export function resolveNodeTypes(raw: string): string[] {
   return [trimmed]
 }
 
+/** 专利知识图谱适配器（封装 KgStore，提供专利语义查询）。 */
 export class PatentKgAdapter {
   constructor(private readonly store: KgStore) {}
 
-  /** 按 id 取节点（语义召回命中后回查详情）。 */
+  /**
+   * 按 id 取节点（语义召回命中后回查详情）。
+   * @param id 节点 id。
+   * @returns 匹配的图谱节点，不存在时 undefined。
+   */
   getNode(id: string): KgNode | undefined {
     return this.store.getNode(id)
   }
 
-  /** 关键词搜索 + 关系扩展。 */
+  /**
+   * 关键词搜索 + 关系扩展。
+   * @param query 关键词查询。
+   * @param options 检索与扩展选项。
+   * @returns 带命中方式的上下文节点列表。
+   */
   searchRelevant(query: string, options: PatentKgSearchOptions = {}): RelevantHit[] {
     const keywordLimit = options.keywordLimit ?? 5
     const expandLimit = options.expandLimit ?? 6
@@ -97,12 +112,22 @@ export class PatentKgAdapter {
     return results
   }
 
-  /** 两个节点间的引用链路径（BFS，最长 5 跳）。 */
+  /**
+   * 两个节点间的引用链路径（BFS，最长 5 跳）。
+   * @param fromId 起始节点 id。
+   * @param toId 目标节点 id。
+   * @returns 引用链边序列，不可达时 null。
+   */
   getCitationChain(fromId: string, toId: string): Array<{ source: string; target: string; relation: string }> | null {
     return this.store.bfsPath(fromId, toId, 5)
   }
 
-  /** 展开某节点的相似/相关邻居。 */
+  /**
+   * 展开某节点的相似/相关邻居。
+   * @param nodeId 节点 id。
+   * @param limit 返回邻居数量上限。
+   * @returns 邻居节点及其关系列表。
+   */
   getSimilarNodes(nodeId: string, limit = 10): Array<{ node: KgNode; relation: string }> {
     const results: Array<{ node: KgNode; relation: string }> = []
     const seen = new Set<string>([nodeId])
@@ -118,21 +143,36 @@ export class PatentKgAdapter {
     return results
   }
 
-  /** 按类型列出节点（如 "IPC"、"GuidelineRule"、"WikiCard"）。 */
+  /**
+   * 按类型列出节点（如 "IPC"、"GuidelineRule"、"WikiCard"）。
+   * @param nodeType 节点类型。
+   * @param limit 返回数量上限。
+   * @returns 该类型的节点列表。
+   */
   listByType(nodeType: string, limit = 50): KgNode[] {
     return this.store.listByType(nodeType, limit)
   }
 
-  /** 查询节点的出向邻居（relation 过滤可选）。 */
+  /**
+   * 查询节点的出向邻居（relation 过滤可选）。
+   * @param nodeId 节点 id。
+   * @param relation 关系类型过滤，省略时不限关系。
+   * @param limit 返回邻居数量上限。
+   * @returns 邻居节点列表。
+   */
   getNeighbors(nodeId: string, relation?: string, limit = 20): KgNeighbor[] {
     return this.store.getNeighbors(nodeId, relation, limit)
   }
 
-  /** KG FTS tokenizer 实际生效模式（诊断用：trigram/unicode61/none）。 */
+  /**
+   * KG FTS tokenizer 实际生效模式（诊断用：trigram/unicode61/none）。
+   * @returns 生效的 FTS 模式。
+   */
   ftsMode(): 'trigram' | 'unicode61' | 'none' {
     return this.store.ftsMode()
   }
 
+  /** 关闭底层 KgStore（释放数据库连接）。 */
   close(): void {
     this.store.close()
   }

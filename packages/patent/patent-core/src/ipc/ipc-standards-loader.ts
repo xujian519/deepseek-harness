@@ -26,6 +26,7 @@ function resolveStandardsPath(overridePath?: string): string {
   throw new Error('ipc-standards.yaml not found in the shipped asset locations')
 }
 
+/** IPC 标准索引：全量卡片、按部与按法条的分组映射。 */
 export type IpcStandardsIndex = {
   /** 全量卡片列表。 */
   all: IpcStandardCard[]
@@ -56,7 +57,11 @@ function parseStandards(yamlText: string): IpcStandardCard[] {
   })
 }
 
-/** 加载 IPC 标准索引（惰性，进程内单例）。 */
+/**
+ * 加载 IPC 标准索引（惰性，进程内单例）。
+ * @param overridePath - 可选：覆盖默认 YAML 资产路径。
+ * @returns 加载并缓存的 IPC 标准索引。
+ */
 export function loadIpcStandards(overridePath?: string): IpcStandardsIndex {
   if (cachedIndex) return cachedIndex
   const path = resolveStandardsPath(overridePath)
@@ -81,23 +86,40 @@ export function loadIpcStandards(overridePath?: string): IpcStandardsIndex {
   return cachedIndex
 }
 
-/** 按 IPC 部查询审查标准卡片（如 "G"）。 */
+/**
+ * 按 IPC 部查询审查标准卡片（如 "G"）。
+ * @param section - IPC 部号（A-H，大小写不敏感）。
+ * @returns 该部的审查标准卡片列表。
+ */
 export function queryIpcStandards(section: string): IpcStandardCard[] {
   return loadIpcStandards().bySection.get(section.toUpperCase()) ?? []
 }
 
-/** 按 IPC 明细查询（如 "G06"）。 */
+/**
+ * 按 IPC 明细查询（如 "G06"）。
+ * @param detail - IPC 明细号（大小写不敏感）。
+ * @returns 匹配明细号的审查标准卡片列表。
+ */
 export function queryIpcDetail(detail: string): IpcStandardCard[] {
   const target = detail.toUpperCase()
   return loadIpcStandards().all.filter(card => card.ipcDetail?.toUpperCase() === target)
 }
 
-/** 按法条查询（如 "patent-law-a22.3"）。 */
+/**
+ * 按法条查询（如 "patent-law-a22.3"）。
+ * @param article - 法条标识。
+ * @returns 该法条对应的审查标准卡片列表。
+ */
 export function queryByArticle(article: string): IpcStandardCard[] {
   return loadIpcStandards().byArticle.get(article) ?? []
 }
 
-/** 按名称/要点/提示关键词搜索卡片。 */
+/**
+ * 按名称/要点/提示关键词搜索卡片。
+ * @param keyword - 搜索关键词。
+ * @param limit - 最大返回条数（默认 10）。
+ * @returns 匹配的审查标准卡片列表。
+ */
 export function searchStandards(keyword: string, limit = 10): IpcStandardCard[] {
   const kw = keyword.trim().toLowerCase()
   if (!kw) return []
@@ -113,7 +135,11 @@ export function searchStandards(keyword: string, limit = 10): IpcStandardCard[] 
     .slice(0, limit)
 }
 
-/** 将卡片格式化为上下文文本（供 <memory-context> 注入）。 */
+/**
+ * 将卡片格式化为上下文文本（供 <memory-context> 注入）。
+ * @param cards - 待格式化的审查标准卡片列表。
+ * @returns 格式化的上下文文本。
+ */
 export function formatStandardsAsContext(cards: IpcStandardCard[]): string {
   if (cards.length === 0) return ''
   return cards

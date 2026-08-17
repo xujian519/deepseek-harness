@@ -16,6 +16,7 @@ import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
 // reasoning —— 自由推理
 // ---------------------------------------------------------------------------
 
+/** reasoning 原子：基于状态中的既有结果自由推理。 */
 export const reasoningAtom: Atom = {
   name: 'reasoning',
   description: '基于状态中的既有结果进行自由推理，产出结论（附置信度提示）',
@@ -24,11 +25,18 @@ export const reasoningAtom: Atom = {
   outputSchema: ['reasoning_output', 'conclusion'],
 }
 
+/** reasoning 执行器：自由推理产出结论。 */
 export class ReasoningHandler implements StageHandler {
   readonly name = 'reasoning'
   readonly category = 'reason' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 reason 阶段（结构化推理），返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     const missing = requireLlm(provider, 'reasoning')
     if (missing) return missing
     const explicitPrompt = getStateString(state, 'reasoning_prompt').trim()
@@ -69,6 +77,7 @@ function formatStateForReasoning(state: PipelineState): string {
 // 是否有坚实依据（0-1 分数）。低分特征（< 0.6）汇总为反馈供下游修订。
 // LLM 调用失败 fail-open（返回 skipped 标记，不阻塞管线）。
 
+/** groundedness 原子：批量评估特征在原文中的依据分数。 */
 export const groundednessAtom: Atom = {
   name: 'groundedness',
   description: '批量评估提取特征在原始交底书中的原文依据（0-1 分数，低分特征反馈）',
@@ -100,11 +109,18 @@ const GROUNDEDNESS_SCHEMA = {
 /** 低依据阈值（对齐 Mady：分数 < 0.6 视为依据不足）。 */
 export const GROUNDEDNESS_THRESHOLD = 0.6
 
+/** groundedness 执行器：评估特征原文依据并反馈低分特征。 */
 export class GroundednessHandler implements StageHandler {
   readonly name = 'groundedness'
   readonly category = 'reason' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行阶段逻辑（groundedness 特征过滤），返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     const features = getStateArray(state, 'features')
     if (features.length === 0) {
       // 无特征可过滤，跳过（对齐 Mady GroundednessResult.Skipped）。

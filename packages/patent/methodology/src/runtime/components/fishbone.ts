@@ -10,6 +10,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['鱼骨图', '因果', '原因分析', '影响因素', '多因素', 'ishikawa', 'fishbone']
 
+/** Fishbone (Ishikawa) methodology component for multi-factor root-cause analysis. */
 export const fishbone: MethodologyComponent = {
   name: 'fishbone',
   description: '用鱼骨图从多个类别维度系统排查问题的潜在原因',

@@ -99,6 +99,9 @@ export type CheckpointedRunResult = {
  * 返回更新后的检查点。调用方用返回值 resume——
  * 审批门节点重放时 handler 检测到标记即放行（不再中断），后续节点继续执行。
  * 幂等：重复批准同一检查点无副作用。检查点不存在时返回 undefined。
+ * @param store - 检查点存储。
+ * @param checkpointId - 要批准的检查点 id。
+ * @returns 更新后的检查点；检查点不存在时返回 undefined。
  */
 export async function grantApproval(
   store: CheckpointStore,
@@ -115,6 +118,10 @@ export async function grantApproval(
  * 带检查点的图运行：每超步开始前保存 checkpoint。
  * resumeFrom 提供时从该检查点继续（等价"断点续跑"）。
  * 返回最后一个 checkpoint id 供中断后 resume。
+ * @param graph - 支持 run/resume 的图。
+ * @param initial - 初始图状态。
+ * @param opts - 带检查点的运行选项。
+ * @returns 图运行结果与最后一个检查点 id。
  */
 export async function runGraphWithCheckpoints(
   graph: {

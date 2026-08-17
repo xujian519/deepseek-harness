@@ -11,10 +11,13 @@
 
 import { CASE_ROOT_REL, caseOutputsDir } from '@deepseek-ai/dsh-patent-core'
 
+/** Worker 分层：work 工序 / provision 条款 / reasoning 推理 / domain 领域 / checker 复核。 */
 export type WorkerTier = 'work' | 'provision' | 'reasoning' | 'domain' | 'checker'
 
+/** 契约严格度：hard 必须满足 / soft 可协商 / structured 结构化格式。 */
 export type ContractLevel = 'hard' | 'soft' | 'structured'
 
+/** Worker 输入契约（路径/内容模式/质量检查/可选性）。 */
 export type WorkerInputContract = {
   /** 期望输入（路径或描述，可含 {caseId} 占位） */
   path: string
@@ -27,6 +30,7 @@ export type WorkerInputContract = {
   description?: string
 }
 
+/** Worker 输出契约（路径/格式/必需字段/严格度）。 */
 export type WorkerOutputContract = {
   /** 期望输出路径（可含 {caseId} 占位） */
   path: string
@@ -38,6 +42,7 @@ export type WorkerOutputContract = {
   contractLevel?: ContractLevel
 }
 
+/** 声明式 Worker 契约（名称、分层、描述、输入输出契约、工具与委派、HITL、注册时机）。 */
 export type WorkerContract = {
   name: string
   tier: WorkerTier
@@ -56,6 +61,7 @@ export type WorkerContract = {
   preRegister?: boolean
 }
 
+/** Worker 输出校验结果（硬/软缺失字段、是否降级及原因）。 */
 export type WorkerOutputValidation = {
   workerName: string
   valid: boolean
@@ -68,6 +74,7 @@ export type WorkerOutputValidation = {
   degradationReason?: string | undefined
 }
 
+/** Worker 单次执行记录（输入输出有效性、是否降级、起止与耗时）。 */
 export type WorkerExecutionRecord = {
   workerName: string
   inputValid: boolean
@@ -78,6 +85,7 @@ export type WorkerExecutionRecord = {
   note?: string
 }
 
+/** Worker 分层的展示标签（中文）。 */
 export const TIER_LABELS: Record<WorkerTier, string> = {
   work: '工序',
   provision: '条款',
@@ -86,6 +94,7 @@ export const TIER_LABELS: Record<WorkerTier, string> = {
   checker: '复核',
 }
 
+/** Worker 注册表错误（重复注册 / 缺失字段）。 */
 export class WorkerRegistryError extends Error {
   constructor(message: string) {
     super(message)
@@ -98,6 +107,10 @@ export class WorkerRegistry {
   private readonly workers = new Map<string, WorkerContract>()
   private readonly active = new Set<string>()
 
+  /**
+   * 注册 worker（重复注册或缺失 name/tier/description 时抛错；preRegister 默认激活）。
+   * @param definition - worker 契约。
+   */
   register(definition: WorkerContract): void {
     if (this.workers.has(definition.name)) {
       throw new WorkerRegistryError(`Worker "${definition.name}" already registered`)
@@ -111,30 +124,56 @@ export class WorkerRegistry {
     }
   }
 
+  /**
+   * 按名称查询 worker。
+   * @param name - worker 名称。
+   * @returns worker 契约；未注册时为 undefined。
+   */
   get(name: string): WorkerContract | undefined {
     return this.workers.get(name)
   }
 
-  /** 懒激活：首次使用时注册（未预注册的 worker）。 */
+  /**
+   * 懒激活：首次使用时注册（未预注册的 worker）。
+   * @param name - worker 名称。
+   * @returns 对应 worker 契约，未注册时为 undefined。
+   */
   activate(name: string): WorkerContract | undefined {
     const def = this.workers.get(name)
     if (def) this.active.add(name)
     return def
   }
 
+  /**
+   * 判断 worker 是否已激活。
+   * @param name - worker 名称。
+   * @returns 是否已激活。
+   */
   isActive(name: string): boolean {
     return this.active.has(name)
   }
 
+  /**
+   * 按分层列出 worker。
+   * @param tier - worker 分层。
+   * @returns 该分层下的 worker 契约列表。
+   */
   listByTier(tier: WorkerTier): WorkerContract[] {
     return [...this.workers.values()].filter(w => w.tier === tier)
   }
 
+  /**
+   * 列出全部已注册 worker。
+   * @returns worker 契约列表。
+   */
   list(): WorkerContract[] {
     return [...this.workers.values()]
   }
 
-  /** 注册完备性校验：返回所有 worker 的契约缺陷（不抛出）。 */
+  /**
+   * 注册完备性校验：返回所有 worker 的契约缺陷（不抛出）。
+   * @returns 契约缺陷清单（outputs 缺失或 hard 输出缺 requiredFields）。
+   */
   verify(): string[] {
     const issues: string[] = []
     for (const w of this.workers.values()) {
@@ -155,6 +194,10 @@ export class WorkerRegistry {
 /**
  * 校验 worker 输出：按契约检查 requiredFields 是否以子串形式出现在输出文本中。
  * 硬性缺失 → 降级标记（degraded），不抛错不中断。
+ * @param worker - worker 契约。
+ * @param outputText - 输出文本。
+ * @param outputPath - 可选输出路径（用于降级原因描述）。
+ * @returns 输出校验结果。
  */
 export function validateWorkerOutput(
   worker: WorkerContract,
@@ -191,11 +234,18 @@ export function validateWorkerOutput(
 export class WorkerMonitor {
   private readonly records: WorkerExecutionRecord[] = []
 
+  /**
+   * 记录一次 worker 执行。
+   * @param record - 执行记录。
+   */
   record(record: WorkerExecutionRecord): void {
     this.records.push(record)
   }
 
-  /** 按 worker 聚合统计（成功率 / 违约计数 / P99 时延）。 */
+  /**
+   * 按 worker 聚合统计（成功率 / 违约计数 / P99 时延）。
+   * @returns worker 名称 → 聚合统计（运行次数、成功率、降级次数、P99 时延）。
+   */
   stats(): Record<string, { runs: number; successRate: number; degradedCount: number; p99Ms: number }> {
     const byWorker = new Map<string, WorkerExecutionRecord[]>()
     for (const r of this.records) {
@@ -215,6 +265,10 @@ export class WorkerMonitor {
     return result
   }
 
+  /**
+   * 汇总统计为可读文本。
+   * @returns 执行监控汇总文本。
+   */
   summary(): string {
     const st = this.stats()
     const lines = Object.entries(st).map(
@@ -238,7 +292,10 @@ export const WORKER_ROLE_MAP: ReadonlyArray<{ worker: string; role?: string | un
   { worker: 'patent-oa-writer', role: undefined, note: '无对应 type: role 角色（OA 答复为技能）' },
 ]
 
-/** 内置专利 worker 目录（移植 Mady DefaultWorkers 的专利相关条目，工具名适配 Sati）。 */
+/**
+ * 内置专利 worker 目录（移植 Mady DefaultWorkers 的专利相关条目，工具名适配 Sati）。
+ * @returns 内置专利 worker 契约列表。
+ */
 export function defaultPatentWorkers(): WorkerContract[] {
   return [
     {

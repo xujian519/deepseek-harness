@@ -20,6 +20,7 @@ const RATE_LIMIT = { minIntervalMs: 3000 }
 /** arXiv 认识的查询字段前缀；命中即视为已 fielded，透传不包裹。 */
 const FIELDED = /^(ti|au|abs|co|jr|cat|rn|id|all):/i
 
+/** 创建 arXiv 连接器的选项（fetch/限速/重试注入）。 */
 export interface CreateArxivConnectorOptions {
   fetchImpl?: typeof fetch
   /** 覆盖默认 3s per-host 限速（测试注入小值/0）。 */
@@ -111,6 +112,11 @@ function toHit(e: Entry): ConnectorHit {
   }
 }
 
+/**
+ * 创建 arXiv Atom 查询连接器。
+ * @param options - 连接器选项（fetch/限速/重试注入）。
+ * @returns arXiv 连接器。
+ */
 export function createArxivConnector(options: CreateArxivConnectorOptions = {}): Connector {
   const http: LiteratureFetchOptions = {
     fetchImpl: options.fetchImpl,

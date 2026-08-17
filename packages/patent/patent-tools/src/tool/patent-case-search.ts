@@ -12,6 +12,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { CaseLawDocType, CaseLawHit, CaseLawSearchOptions } from '@deepseek-ai/dsh-patent-knowledge'
 import { PatentToolError } from '../error.ts'
 
+/** Input for the patent_case_search tool. */
 export type PatentCaseSearchInput = {
   /** Search keywords (e.g. 创造性 三步法, 技术启示, 区别特征 预料不到的效果). */
   query: string
@@ -25,6 +26,7 @@ export type PatentCaseSearchInput = {
   include_content?: boolean
 }
 
+/** Output of the patent_case_search tool. */
 export type PatentCaseSearchOutput = {
   total: number
   results: Array<{

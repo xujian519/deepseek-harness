@@ -8,7 +8,10 @@
 
 import type { GraphState } from './types.ts'
 
-/** 深拷贝图状态（BSP 快照）。structuredClone 失败时降级 JSON 往返。 */
+/** 深拷贝图状态（BSP 快照）。structuredClone 失败时降级 JSON 往返。
+ * @param state - 要拷贝的图状态。
+ * @returns 深拷贝后的图状态。
+ */
 export function cloneState(state: GraphState): GraphState {
   try {
     return structuredClone(state) as GraphState
@@ -18,19 +21,32 @@ export function cloneState(state: GraphState): GraphState {
   }
 }
 
-/** 类型安全读取字符串键（键不存在或非字符串返回缺省）。 */
+/** 类型安全读取字符串键（键不存在或非字符串返回缺省）。
+ * @param state - 图状态。
+ * @param key - 要读取的键。
+ * @param fallback - 键不存在或非字符串时的缺省值。
+ * @returns 字符串值或缺省值。
+ */
 export function getStateString(state: GraphState, key: string, fallback = ''): string {
   const value = state[key]
   return typeof value === 'string' ? value : fallback
 }
 
-/** 类型安全读取数组键（非数组返回空数组）。 */
+/** 类型安全读取数组键（非数组返回空数组）。
+ * @param state - 图状态。
+ * @param key - 要读取的键。
+ * @returns 数组值或空数组。
+ */
 export function getStateArray(state: GraphState, key: string): unknown[] {
   const value = state[key]
   return Array.isArray(value) ? value : []
 }
 
-/** 类型安全读取对象键（非对象返回空对象）。 */
+/** 类型安全读取对象键（非对象返回空对象）。
+ * @param state - 图状态。
+ * @param key - 要读取的键。
+ * @returns 对象值或空对象。
+ */
 export function getStateObject(state: GraphState, key: string): Record<string, unknown> {
   const value = state[key]
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {}

@@ -32,6 +32,7 @@ export type KnowledgeLawSearchEngineOptions = {
   stats?: KnowledgeRuntimeStats
 }
 
+/** 法规全文搜索选项。 */
 export type KnowledgeLawSearchOptions = {
   /** 返回条数上限（默认 10）。 */
   limit?: number
@@ -56,6 +57,7 @@ type DocChunkRow = {
 
 const FETCH_MULTIPLIER = 3
 
+/** knowledge.db 法规全文搜索引擎（law_article 文档，FTS5 优先，LIKE 降级）。 */
 export class KnowledgeLawSearch implements LegalSearchSource {
   private readonly db: DatabaseSync
   private readonly hasFts: boolean

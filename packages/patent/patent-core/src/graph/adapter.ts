@@ -27,6 +27,10 @@ import { getStateString } from './state.ts'
  * 执行 StageHandler 并统一中断转换（供 handlerNode / makeStageNode 复用）：
  * - InterruptStageError（审批门）→ GraphInterruptError（引擎暂停）；
  * - 普通错误重新抛出（引擎经节点策略转为节点级降级标记，不中断全图）。
+ * @param handler - 要执行的 StageHandler。
+ * @param state - 传入 handler 的图状态。
+ * @param provider - 注入 handler 的 StageProvider（可选，缺省由 handler 内部 provider 兜底）。
+ * @returns handler 执行产生的状态增量片段。
  */
 export async function runStageHandler(
   handler: StageHandler,
@@ -47,6 +51,7 @@ export async function runStageHandler(
 // manifestToGraph
 // ---------------------------------------------------------------------------
 
+/** manifestToGraph 的依赖注入（缺省全局注册表，测试可替换）。 */
 export type ManifestToGraphDeps = {
   /** 缺省 globalStageHandlerRegistry。 */
   handlers?: StageHandlerRegistry
@@ -64,6 +69,9 @@ export type ManifestToGraphDeps = {
  * - retry 信号回退：条件边 router 判定输出文本（含否定窗口），命中且未超限 →
  *   回退 rewindTo（删除被回退阶段 state 键）；超限 → fail-open 继续；
  * - approval-gate 阶段抛 GraphInterruptError → 引擎暂停。
+ * @param manifest - 要转换的工作流清单。
+ * @param deps - 依赖注入（handlers/atoms/executor/provider）。
+ * @returns 编译后的可执行图。
  */
 export function manifestToGraph(manifest: WorkflowManifest, deps: ManifestToGraphDeps = {}): CompiledGraph {
   // 校验对齐 runWorkflow：先 validateWorkflowManifest，再 fail-fast atom 契约存在性。

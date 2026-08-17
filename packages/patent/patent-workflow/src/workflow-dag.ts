@@ -24,6 +24,8 @@ function nodeTypeFor(stage: { strategy: WorkflowStrategy; atom?: string }): Flow
 /**
  * 用 FlowGraph 构建 manifest 的执行链图：仅顺序边（依赖边），回退边不入图。
  * 返回的图是严格 DAG，可安全用于 topologicalLevels / validate。
+ * @param manifest - 工作流清单。
+ * @returns 顺序执行链的 FlowGraph。
  */
 export function manifestToFlowGraph(manifest: WorkflowManifest): FlowGraph {
   const graph = new FlowGraph()
@@ -42,6 +44,8 @@ export function manifestToFlowGraph(manifest: WorkflowManifest): FlowGraph {
 /**
  * 用 FlowGraph 静态校验 manifest 顺序链图（环 / 孤儿节点）。
  * 顺序链是严格 DAG，正常返回空数组；返回问题列表 = 图不合法。
+ * @param manifest - 工作流清单。
+ * @returns 图问题列表（环 / 孤儿节点），合法时为空数组。
  */
 export function validateWorkflowManifestDag(manifest: WorkflowManifest): string[] {
   return manifestToFlowGraph(manifest).validate()
@@ -55,6 +59,8 @@ function escapeName(name: string): string {
 /**
  * Mermaid 可视化：顺序边实线 -->，retry 回退边虚线 -.-&gt;。
  * 格式对齐 FlowGraph.formatMermaid（flowchart TD）。
+ * @param manifest - 工作流清单。
+ * @returns flowchart TD 格式的 Mermaid 源码。
  */
 export function workflowManifestToMermaid(manifest: WorkflowManifest): string {
   const lines = ['flowchart TD']

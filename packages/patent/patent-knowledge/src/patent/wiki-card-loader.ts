@@ -24,6 +24,7 @@ export type WikiCardMeta = {
   relatedConcepts?: string[] | undefined
 }
 
+/** 卡片正文与元数据。 */
 export type WikiCardContent = {
   meta: WikiCardMeta
   /** Markdown 正文全文 */
@@ -66,11 +67,13 @@ type ScanCache = {
   dirs: ScanDirSummary[]
 }
 
+/** WikiCardLoader 构造选项。 */
 export type WikiCardLoaderOptions = {
   /** 降级日志（可选；不传则静默降级，保持向后兼容）。 */
   logger?: { warn?: (...args: unknown[]) => void }
 }
 
+/** Wiki 卡片加载器（扫描 wiki 目录，惰性读取正文）。 */
 export class WikiCardLoader {
   private readonly wikiPath: string
   private readonly logger?: { warn?: (...args: unknown[]) => void } | undefined
@@ -183,25 +186,41 @@ export class WikiCardLoader {
     this.cards.push(...this.byId.values())
   }
 
-  /** 卡片总数。 */
+  /**
+   * 卡片总数。
+   * @returns 已扫描卡片数量。
+   */
   count(): number {
     this.ensureLoaded()
     return this.cards.length
   }
 
-  /** 全部卡片元数据。 */
+  /**
+   * 全部卡片元数据。
+   * @param limit 返回数量上限。
+   * @returns 卡片元数据列表。
+   */
   list(limit = 100): WikiCardMeta[] {
     this.ensureLoaded()
     return this.cards.slice(0, limit)
   }
 
-  /** 按 id（相对路径）获取卡片。 */
+  /**
+   * 按 id（相对路径）获取卡片。
+   * @param id 卡片唯一标识（相对路径，不含 .md）。
+   * @returns 卡片元数据，不存在时 undefined。
+   */
   getById(id: string): WikiCardMeta | undefined {
     this.ensureLoaded()
     return this.byId.get(id)
   }
 
-  /** 按 title 搜索卡片（标题包含关键词，不区分大小写）。 */
+  /**
+   * 按 title 搜索卡片（标题包含关键词，不区分大小写）。
+   * @param keyword 搜索关键词。
+   * @param limit 返回数量上限。
+   * @returns 匹配的卡片元数据列表。
+   */
   search(keyword: string, limit = 10): WikiCardMeta[] {
     this.ensureLoaded()
     const kw = keyword.trim().toLowerCase()
@@ -219,6 +238,10 @@ export class WikiCardLoader {
   /**
    * 按目录前缀检索（prefix 为相对 wiki 根的路径前缀，如 "专利实务/说明书"；空串 = 全部）。
    * keyword 为空时按目录列出全部卡片（供清单核对/浏览）。
+   * @param prefix 目录前缀（相对 wiki 根）。
+   * @param keyword 搜索关键词，空串时按目录列出全部。
+   * @param limit 返回数量上限。
+   * @returns 匹配的卡片元数据列表。
    */
   searchIn(prefix: string, keyword: string, limit = 10): WikiCardMeta[] {
     this.ensureLoaded()
@@ -239,25 +262,44 @@ export class WikiCardLoader {
       .slice(0, limit)
   }
 
-  /** 列出目录前缀下的全部卡片（keyword 为空时按目录浏览）。 */
+  /**
+   * 列出目录前缀下的全部卡片（keyword 为空时按目录浏览）。
+   * @param prefix 目录前缀（相对 wiki 根）。
+   * @param limit 返回数量上限。
+   * @returns 该目录下的卡片元数据列表。
+   */
   listDir(prefix: string, limit = 20): WikiCardMeta[] {
     return this.searchIn(prefix, '', limit)
   }
 
-  /** 按 concept 精确匹配（card-index 概念，如 "Bolar例外"）。 */
+  /**
+   * 按 concept 精确匹配（card-index 概念，如 "Bolar例外"）。
+   * @param concept 概念名。
+   * @param limit 返回数量上限。
+   * @returns 匹配的卡片元数据列表。
+   */
   byConcept(concept: string, limit = 10): WikiCardMeta[] {
     this.ensureLoaded()
     return this.cards.filter(card => card.concept?.toLowerCase() === concept.trim().toLowerCase()).slice(0, limit)
   }
 
-  /** 按 domain 匹配（card-index 领域，如 "侵权抗辩"）。 */
+  /**
+   * 按 domain 匹配（card-index 领域，如 "侵权抗辩"）。
+   * @param domain 领域名。
+   * @param limit 返回数量上限。
+   * @returns 匹配的卡片元数据列表。
+   */
   byDomain(domain: string, limit = 10): WikiCardMeta[] {
     this.ensureLoaded()
     const d = domain.trim().toLowerCase()
     return this.cards.filter(card => card.domain?.toLowerCase() === d).slice(0, limit)
   }
 
-  /** 读取卡片正文（含元数据解析；内容缓存上限 64 条）。 */
+  /**
+   * 读取卡片正文（含元数据解析；内容缓存上限 64 条）。
+   * @param id 卡片唯一标识。
+   * @returns 卡片正文与元数据，不存在时 null。
+   */
   readCard(id: string): WikiCardContent | null {
     this.ensureLoaded()
     const meta = this.byId.get(id)
@@ -279,7 +321,12 @@ export class WikiCardLoader {
     return { meta, content, metadata }
   }
 
-  /** 截断正文（供上下文注入）。 */
+  /**
+   * 截断正文（供上下文注入）。
+   * @param id 卡片唯一标识。
+   * @param maxChars 正文最大字符数。
+   * @returns 格式化后的上下文文本。
+   */
   formatAsContext(id: string, maxChars = 1200): string {
     const card = this.readCard(id)
     if (!card) return ''

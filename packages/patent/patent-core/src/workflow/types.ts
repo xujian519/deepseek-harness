@@ -9,8 +9,10 @@
 import type { AtomRegistry, StageHandlerRegistry } from '../atoms/index.ts'
 import type { StageProvider } from '../types.ts'
 
+/** 阶段执行策略：chain / react / sub_agent。 */
 export type WorkflowStrategy = 'chain' | 'react' | 'sub_agent'
 
+/** 单个工作流阶段：id、策略、描述与可选原子/参数/重试配置。 */
 export type WorkflowStage = {
   id: string
   strategy: WorkflowStrategy
@@ -40,6 +42,7 @@ export type WorkflowStage = {
   }
 }
 
+/** 声明式工作流 manifest：id、名称、案例类型、阶段列表与可选校验配置。 */
 export type WorkflowManifest = {
   id: string
   name: string
@@ -52,6 +55,7 @@ export type WorkflowManifest = {
   }
 }
 
+/** 工作流运行上下文：案例 id、输入与可扩展的附加键值。 */
 export type WorkflowContext = {
   /** 案例目录或案例 ID，用于输入输出路径（可含 {caseId} 占位） */
   caseId?: string
@@ -60,8 +64,10 @@ export type WorkflowContext = {
   [key: string]: unknown
 }
 
+/** 阶段执行器：消费阶段与上下文，产出阶段输出。 */
 export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>
 
+/** 工作流运行选项：处理器/原子注册表、提供方、审批授权、持久化与运行 id。 */
 export type WorkflowRunOptions = {
   /** 阶段处理器注册表（缺省全局注册表）。传空注册表可禁用原子执行（收口语义）。 */
   handlers?: StageHandlerRegistry
@@ -84,6 +90,7 @@ export type WorkflowRunOptions = {
   runId?: string
 }
 
+/** 单个阶段执行结果：阶段 id、策略、输出、降级标记、重试次数与原子名。 */
 export type WorkflowStageResult = {
   stageId: string
   strategy: WorkflowStrategy
@@ -95,12 +102,14 @@ export type WorkflowStageResult = {
   atom?: string
 }
 
+/** 工作流中断信息（如审批门）：阶段 id、消息与附加数据。 */
 export type WorkflowInterrupt = {
   stageId: string
   message: string
   data: Record<string, unknown>
 }
 
+/** 一次工作流运行结果：完成状态、各阶段结果、降级步骤、摘要与可选中断/告警。 */
 export type WorkflowRunResult = {
   manifestId: string
   caseType: string
@@ -126,6 +135,7 @@ export interface WorkflowRunStore {
   listRuns(): Promise<string[]>
 }
 
+/** 工作流错误：非法 manifest 或运行失败时抛出的领域错误。 */
 export class WorkflowError extends Error {
   constructor(message: string) {
     super(message)

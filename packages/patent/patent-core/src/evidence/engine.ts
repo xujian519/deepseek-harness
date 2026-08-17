@@ -114,6 +114,7 @@ function evaluateCondition(name: string, ctx: ConditionContext): boolean | undef
 
 /** 证明标准标识。 */
 export const STANDARD_PREPONDERANCE = 'preponderance'
+/** 高度盖然性（清晰且令人信服）证明标准标识。 */
 export const STANDARD_CLEAR_CONVINCING = 'clear_and_convincing'
 
 const DEFAULT_WEIGHTS = { relevance: 0.35, legality: 0.3, authenticity: 0.35 }
@@ -201,7 +202,11 @@ function evaluateLegality(span: EvidenceSpan): DimensionJudgment {
 // 类型特定判定（对齐 Mady evaluateTypeSpecific + 使用公开辅助函数）
 // ---------------------------------------------------------------------------
 
-/** 从证据特征推断证据类型；显式类型优先，否则按 URI scheme/内容启发式。 */
+/**
+ * 从证据特征推断证据类型；显式类型优先，否则按 URI scheme/内容启发式。
+ * @param span - 证据实体。
+ * @returns 推断出的证据类型。
+ */
 export function inferEvidenceType(span: EvidenceSpan): EvidenceType {
   const uri = span.sourceUri ?? ''
   if (uri.startsWith('web_pub:') || uri.startsWith('http_archive:')) return 'internet_publication'
@@ -325,7 +330,11 @@ function containsAny(snippet: string, keywords: readonly string[]): boolean {
   return keywords.some(kw => lower.includes(kw.toLowerCase()))
 }
 
-/** 使用公开四要件检查（时间/地点/方式/公众可获取性，对齐 Mady evaluateFourElements）。 */
+/**
+ * 使用公开四要件检查（时间/地点/方式/公众可获取性，对齐 Mady evaluateFourElements）。
+ * @param span - 证据实体。
+ * @returns 四要件检查结果。
+ */
 export function evaluateFourElements(span: EvidenceSpan): FourElementsResult {
   const timeElement = evaluatePublicUseTime(span)
   const placeElement = evaluatePublicUsePlace(span)
@@ -569,6 +578,10 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
     this.rules = ruleSet.rules
   }
 
+  /**
+   * 规则加载期间累积的警告。
+   * @returns 警告字符串数组副本。
+   */
   getWarnings(): string[] {
     return [...this.warnings]
   }
