@@ -241,7 +241,7 @@ export class ClaimChartHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(input: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = input
+    const { state, provider, signal } = input
     const missing = requireLlm(provider, 'claim-chart')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
@@ -301,7 +301,7 @@ export class ClaimChartHandler implements StageHandler {
 
     let prompt = basePrompt
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-      const res = await callLlm(provider, 'claim-chart', prompt, { schema: CHART_SCHEMA, temperature: 0.1 })
+      const res = await callLlm(provider, 'claim-chart', prompt, { schema: CHART_SCHEMA, temperature: 0.1 }, signal)
       if (!res.ok) return res.error
       const parsed = parseLlmJson(
         res.raw,

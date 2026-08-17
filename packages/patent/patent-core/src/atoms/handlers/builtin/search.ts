@@ -98,7 +98,7 @@ export class KeywordsHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
     const missing = requireLlm(provider, 'keywords')
     if (missing) return missing
     const input = getStateString(state, 'extraction_result') || getStateString(state, 'source_text')
@@ -121,7 +121,7 @@ export class KeywordsHandler implements StageHandler {
       '',
       '请严格输出 JSON：{ "keywords": ["关键词1", "关键词2", ...] }',
     ].join('\n')
-    const res = await callLlm(provider, 'keywords', prompt, { schema: KEYWORDS_SCHEMA, temperature: 0 })
+    const res = await callLlm(provider, 'keywords', prompt, { schema: KEYWORDS_SCHEMA, temperature: 0 }, signal)
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,

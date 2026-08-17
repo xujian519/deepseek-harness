@@ -41,7 +41,7 @@ export class DraftClaimsHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
     const missing = requireLlm(provider, 'draft-claims')
     if (missing) return missing
     const mergeResult = getStateString(state, 'merge_result')
@@ -70,7 +70,7 @@ export class DraftClaimsHandler implements StageHandler {
       '',
       '请严格输出 JSON：claims 为权利要求逐条文本数组（第 1 条为独立权利要求），notes 为撰写说明。',
     ].join('\n')
-    const res = await callLlm(provider, 'draft-claims', prompt, { schema: DRAFT_CLAIMS_SCHEMA, temperature: 0.2 })
+    const res = await callLlm(provider, 'draft-claims', prompt, { schema: DRAFT_CLAIMS_SCHEMA, temperature: 0.2 }, signal)
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,

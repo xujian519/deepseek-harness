@@ -12,7 +12,7 @@
 import { existsSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { createLlmModelPort } from '@deepseek-ai/dsh-patent-core'
+import { createLlmModelPort, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
 import type { PatentKnowledge } from '@deepseek-ai/dsh-patent-knowledge'
@@ -134,35 +134,46 @@ export const Config: z<Config> = z.object({
   maxTokens: z.number(),
 })
 
+/** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
+function resolveModelRoute(ctx: Context, config: Config): { provider: string; model: string } | undefined {
+  if (config.provider !== undefined && config.model !== undefined) {
+    return { provider: config.provider, model: config.model }
+  }
+  const defaults = ctx.get('agentDefaultModel') as { currentSelection: () => { provider: string; model: string } } | undefined
+  const selection = defaults?.currentSelection()
+  if (selection !== undefined && selection.provider !== '' && selection.model !== '') {
+    return { provider: selection.provider, model: selection.model }
+  }
+  return undefined
+}
+
 /** Build a ModelPort from Config + ctx.llm, or a fail-loud stub when not configured. */
 function buildModelPort(ctx: Context, config: Config): PatentModelPort {
-  if (config.provider !== undefined && config.model !== undefined) {
+  const route = resolveModelRoute(ctx, config)
+  if (route !== undefined) {
     const llm = ctx.get('llm') as { stream: (o: GenerateOptions) => AsyncIterable<StreamChunk> } | undefined
     if (llm !== undefined) {
       return createLlmModelPort(o => llm.stream(o), {
-        provider: config.provider,
-        model: config.model,
+        provider: route.provider,
+        model: route.model,
         ...(config.maxTokens !== undefined ? { maxTokens: config.maxTokens } : {}),
       })
     }
   }
   return {
     stream: async function* () {
-      throw new PatentToolError('setup_required', '未配置 LLM provider/model（Config.provider/model 未设置），无法执行 LLM 工具。', {})
+      throw new PatentToolError('setup_required', '未配置 LLM provider/model（Config.provider/model 或部署默认路由不可用），无法执行 LLM 工具。', {})
     },
   }
 }
 
-/** Resolve the Config figure-model route for the image gate: imageModel override, else provider/model. */
-function figureRoute(config: Config): { provider: string; model: string } | undefined {
+/** Resolve the Config figure-model route for the image gate: imageModel override, else provider/model, else the deployment default. */
+function figureRoute(ctx: Context, config: Config): { provider: string; model: string } | undefined {
   const imageModel = config.imageModel
   if (imageModel !== undefined && imageModel.provider !== undefined && imageModel.model !== undefined) {
     return { provider: imageModel.provider, model: imageModel.model }
   }
-  if (config.provider !== undefined && config.model !== undefined) {
-    return { provider: config.provider, model: config.model }
-  }
-  return undefined
+  return resolveModelRoute(ctx, config)
 }
 
 /** Build the image-gate capability resolver from ctx.llm (undefined when no capability source). */
@@ -180,8 +191,11 @@ function buildImageGateResolver(
  * @param config - validated {@link Config}.
  */
 export function apply(ctx: Context, config: Config): void {
+  // 内置原子（契约 + 运行时）注册进全局注册表；幂等。不注册则 atom-bearing
+  // manifest 在 runWorkflow 的 fail-fast 处抛错，工作流工具全部不可用。
+  registerBuiltinAtoms()
   const model = buildModelPort(ctx, config)
-  const gateModel = figureRoute(config)
+  const gateModel = figureRoute(ctx, config)
   const resolveImageInputModalitiesFor = buildImageGateResolver(ctx)
   const knowledge = ctx.get('patentKnowledge') as PatentKnowledge | undefined
 

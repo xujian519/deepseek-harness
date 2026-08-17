@@ -7,7 +7,11 @@ import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
+import { registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import PatentWorkflow, { patentNoveltyManifest } from '@deepseek-ai/dsh-patent-workflow'
+
+// 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom 阶段才能通过 fail-fast。
+registerBuiltinAtoms()
 
 function makeAgent(id: string): { session: Session } {
   const session = Session.create(SessionId(id))
@@ -87,13 +91,31 @@ describe('PatentWorkflow service', () => {
     await ctx.plugin(PatentWorkflow)
     try {
       const agent = makeAgent('workflow-run')
-      const result = await ctx.patentWorkflow.runWorkflow(patentNoveltyManifest, { input: '一种装置' }, okExecutor, undefined, agent)
+      const result = await ctx.patentWorkflow.runWorkflow(patentNoveltyManifest, { input: '一种装置' }, okExecutor, { approvalGrants: ['approval'] }, agent)
 
       expect(result.completed).toBe(true)
       const events = agent.session.events.filter(e => e.type === 'patent/workflow-run')
       expect(events).toHaveLength(1)
       expect(events[0]!.data.manifestId).toBe('patent_novelty_v1')
       expect(events[0]!.data.summary).toContain('专利新颖性分析')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('runPlantask cleans up the pending entry when approval.request throws (caseId stays retryable)', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    // 抛错的 approval 服务：runPlantask 必须先落 pending 再请求，抛错后必须清掉。
+    ctx.provide('approval', { request: async () => { throw new Error('approval unavailable') } })
+    try {
+      const agent = makeAgent('plantask-throw')
+      await expect(ctx.patentWorkflow.runPlantask(agent, 'case-throw', ['解析交底书']))
+        .rejects.toThrow('approval unavailable')
+      // pending 已清理：同 caseId 可再次发起（不会被"已有挂起 plantask"锁死）。
+      const again = await ctx.patentWorkflow.runPlantask(agent, 'case-throw', ['解析交底书'], { autoApprove: false })
+      expect(again.state).toBe('awaiting_approval')
+      expect(again.caseId).toBe('case-throw')
     } finally {
       await ctx.fiber.dispose()
     }

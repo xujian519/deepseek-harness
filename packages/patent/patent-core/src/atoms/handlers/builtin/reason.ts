@@ -36,7 +36,7 @@ export class ReasoningHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
     const missing = requireLlm(provider, 'reasoning')
     if (missing) return missing
     const explicitPrompt = getStateString(state, 'reasoning_prompt').trim()
@@ -49,7 +49,7 @@ export class ReasoningHandler implements StageHandler {
       input.slice(0, 8000),
       '```',
     ].join('\n')
-    const res = await callLlm(provider, 'reasoning', prompt, { temperature: 0.2 })
+    const res = await callLlm(provider, 'reasoning', prompt, { temperature: 0.2 }, signal)
     if (!res.ok) return res.error
     return { reasoning_output: res.raw, conclusion: res.raw }
   }
@@ -120,7 +120,7 @@ export class GroundednessHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
     const features = getStateArray(state, 'features')
     if (features.length === 0) {
       // 无特征可过滤，跳过（对齐 Mady GroundednessResult.Skipped）。
@@ -151,7 +151,7 @@ export class GroundednessHandler implements StageHandler {
       '请严格输出 JSON：scores 为每个特征的 { feature, score, reason } 列表（feature 与输入一致），',
       'feedback 为整体反馈与低分特征（score < 0.6）的修改建议。',
     ].join('\n')
-    const res = await callLlm(provider, 'groundedness', prompt, { schema: GROUNDEDNESS_SCHEMA, temperature: 0.1 })
+    const res = await callLlm(provider, 'groundedness', prompt, { schema: GROUNDEDNESS_SCHEMA, temperature: 0.1 }, signal)
     if (!res.ok) {
       // fail-open：LLM 失败不阻塞管线（对齐 Mady）。
       return {

@@ -63,3 +63,16 @@ describe('installKnowledgeDb', () => {
     expect(log.some(l => l.includes('VACUUM'))).toBe(true)
   })
 })
+
+it('rejects an output path that aliases the source (symlink/./ forms) before touching it', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-alias-'))
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }))
+  const input = makeSourceDb(dir)
+  // 文本不相等但真实路径相同：必须先于任何删除被守卫拦下。
+  const aliased = join(dir, '.', 'knowledge.db')
+  await expect(installKnowledgeDb({ sourceDbPath: input, output: aliased, skipVerify: true }))
+    .rejects.toThrow(/指向同一文件/)
+    // 源库完好。
+  const check = new DatabaseSync(input, { readOnly: true })
+  check.close()
+})

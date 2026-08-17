@@ -217,6 +217,7 @@ async function runSuperSteps(
           const outcome = await runNodeWithPolicy(node, policy, {
             state: snapshot,
             ...(opts.provider !== undefined ? { provider: opts.provider } : {}),
+            ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
           })
           return outcome.ok
             ? ({ name, delta: outcome.delta } as NamedOutcome)
@@ -291,5 +292,7 @@ async function runSuperSteps(
   if (!completed && active.length > 0) {
     return { state, completed: false, steps, degraded: degradationSummary(state) }
   }
+  // 最后超步期间的取消必须上报为取消，而不是吞成 completed=true。
+  if (opts.signal?.aborted === true) throw new GraphEngineError('图执行已取消')
   return { state, completed, steps, degraded: degradationSummary(state) }
 }

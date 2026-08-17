@@ -161,6 +161,7 @@ function validateClaims(claims: DraftedClaim[]): ClaimViolation[] {
 export function draftClaims(input: DraftClaimsInput): DraftClaimsOutput {
   const name = input.invention_name.trim()
   const domain = resolveDomain(input.tech_domain, name, input.technical_features)
+  const patentType = input.patent_type ?? 'invention'
   const essential = input.technical_features.map(f => f.trim()).filter(Boolean)
   const optional = (input.optional_features ?? []).map(f => f.trim()).filter(Boolean)
   const warnings: string[] = []
@@ -174,6 +175,15 @@ export function draftClaims(input: DraftClaimsInput): DraftClaimsOutput {
   })
   const claims: DraftedClaim[] = [{ number: 1, type: 'independent', text: independentText }, ...dependents]
   const violations = validateClaims(claims)
+  // 实用新型（utility_model）权利要求上限 10 条（专利法实施细则 A23）：超限即报错。
+  if (patentType === 'utility_model' && claims.length > 10) {
+    violations.push({
+      rule: 'claim_limit',
+      severity: 'error',
+      message: `实用新型权利要求共 ${claims.length} 条，超过 10 条上限（细则 A23）`,
+      suggestion: '合并附加技术特征，将权利要求压缩到 10 条以内',
+    })
+  }
   return { invention_name: name, tech_domain: domain, claims, violations, warnings }
 }
 
@@ -211,7 +221,7 @@ export function createDraftClaimsTool(): ToolDefinition {
     parameters: {
       invention_name: { type: 'string', required: true, description: '发明名称' },
       tech_domain: { type: 'string', enum: ['mechanical', 'electrical', 'chemical', 'software', 'general'], description: '技术领域（为空时自动识别）' },
-      patent_type: { type: 'string', enum: ['invention', 'utility_model'], description: '专利类型：发明或实用新型（默认 invention）' },
+      patent_type: { type: 'string', enum: ['invention', 'utility_model'], description: '专利类型：发明或实用新型（默认 invention）。实用新型按细则 A23 校验 10 条上限。' },
       technical_features: { type: 'array', required: true, items: { type: 'string' }, description: '必要技术特征列表（用于独立权利要求）' },
       optional_features: { type: 'array', items: { type: 'string' }, description: '附加/可选技术特征列表（用于从属权利要求）' },
       prior_art: { type: 'string', description: '最接近现有技术描述（可选，用于前序部分）' },

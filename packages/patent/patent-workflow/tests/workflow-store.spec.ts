@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
+import type { WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
 import {
   InMemoryWorkflowRunStore,
   JsonFileWorkflowRunStore,
@@ -12,6 +14,9 @@ import {
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-workflow'
 
+// 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom 阶段才能通过 fail-fast。
+registerBuiltinAtoms()
+
 function okExecutor(stage: WorkflowStage, ctx: WorkflowContext): Promise<string> {
   return Promise.resolve('[' + stage.id + '] 完成。输入: ' + (ctx.input ?? ''))
 }
@@ -19,7 +24,7 @@ function okExecutor(stage: WorkflowStage, ctx: WorkflowContext): Promise<string>
 describe('workflow-run stores', () => {
   it('runWorkflow with InMemoryWorkflowRunStore persists the result', async () => {
     const store = new InMemoryWorkflowRunStore()
-    const result = await runWorkflow(patentNoveltyManifest, { input: '一种自动化分拣装置' }, okExecutor, { persist: store })
+    const result = await runWorkflow(patentNoveltyManifest, { input: '一种自动化分拣装置' }, okExecutor, { persist: store, approvalGrants: ['approval'] })
     const loaded = await store.loadRun('patent_novelty_v1')
     expect(loaded).toBeDefined()
     expect(loaded).toEqual(result)
@@ -28,7 +33,7 @@ describe('workflow-run stores', () => {
 
   it('InMemoryWorkflowRunStore honors a custom runId', async () => {
     const store = new InMemoryWorkflowRunStore()
-    await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: store, runId: 'case-001' })
+    await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: store, runId: 'case-001', approvalGrants: ['approval'] })
     expect((await store.loadRun('case-001'))?.manifestId).toBe('patent_novelty_v1')
     expect(await store.loadRun('patent_novelty_v1')).toBeUndefined()
   })
@@ -37,7 +42,7 @@ describe('workflow-run stores', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-wf-'))
     try {
       const store = new JsonFileWorkflowRunStore(dir)
-      const result = await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: store })
+      const result = await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: store, approvalGrants: ['approval'] })
       const loaded = await store.loadRun('patent_novelty_v1')
       expect(loaded).toBeDefined()
       expect(loaded).toEqual(result)
@@ -86,9 +91,23 @@ describe('workflow-run stores', () => {
       loadRun: async () => undefined,
       listRuns: async () => [],
     }
-    const result = await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: failingStore })
+    const result = await runWorkflow(patentNoveltyManifest, {}, okExecutor, { persist: failingStore, approvalGrants: ['approval'] })
     expect(result.completed).toBe(true)
     expect(result.persistWarning ?? '').toMatch(/持久化失败/)
     expect(result.persistWarning ?? '').toMatch(/disk full/)
   })
+})
+
+it('interrupted run reports incomplete even with requireAllSteps=false', async () => {
+  const manifest: WorkflowManifest = {
+    id: 'gated_optional',
+    name: '审批门',
+    caseType: 'x',
+    stages: [{ id: 'approval', strategy: 'chain', description: '人工确认', atom: 'approval-gate' }],
+    validation: { requireAllSteps: false, maxRetries: 0 },
+  }
+  const result = await runWorkflow(manifest, {}, okExecutor)
+  expect(result.interrupted).toBeDefined()
+  expect(result.interrupted!.stageId).toBe('approval')
+  expect(result.completed).toBe(false)
 })

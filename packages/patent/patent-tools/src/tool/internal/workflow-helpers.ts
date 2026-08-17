@@ -18,6 +18,7 @@ import {
   caseWorkflowRunsDir,
   collectPortText,
   type PatentModelPort,
+  type StageExecutor,
   type StageProvider,
   type WorkflowContext,
   type WorkflowManifest,
@@ -26,6 +27,7 @@ import {
 } from '@deepseek-ai/dsh-patent-core'
 import { workflowManifestToMermaid } from '@deepseek-ai/dsh-patent-workflow'
 import { createNuoSearchProvider } from '@deepseek-ai/dsh-patent-data'
+import { PatentToolError } from '../../error.ts'
 
 /**
  * Resolve the workflow-runs directory for a case id, mirroring Sati's
@@ -211,10 +213,43 @@ export function buildWorkflowProvider(
   // llm feeds the atoms' builtin/llm bridge (which also prefers callLLM).
   const search: StageProvider['search'] = deps.search ?? createNuoSearchProvider().search
   return {
-    callLLM: async prompt => collectPortText(model, prompt),
+    callLLM: async (prompt, opts, signal) =>
+      collectPortText(model, prompt, signal, {
+        ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
+        ...(opts?.jsonSchema !== undefined ? { schema: opts.jsonSchema } : {}),
+      }),
     llm: model,
     ...(search === undefined ? {} : { search }),
     caseId: context.caseId ?? '',
+  }
+}
+
+/**
+ * Build a chain-stage executor for atom-less (收口) stages: calls the provider
+ * LLM with the stage description as the instruction and the workflow input as
+ * the material. Without a usable call seam it fails loud — an echo stub would
+ * silently "complete" every stage with the input text.
+ * @param provider - the assembled StageProvider (must exist — callers check first).
+ * @param toolLabel - tool name for the setup_required diagnostic.
+ * @returns a StageExecutor for atom-less stages.
+ */
+export function createChainStageExecutor(
+  provider: StageProvider,
+  toolLabel: string,
+): StageExecutor {
+  const call = provider.callLLM
+  return async (stage, ctx) => {
+    if (!call) {
+      throw new PatentToolError('setup_required', `${toolLabel}: 模型端口不可用，无法执行收口阶段。`, {})
+    }
+    const prompt = [
+      '你是资深专利代理师。请完成当前工作流阶段，输出阶段成果文本：',
+      stage.description,
+      '```',
+      (ctx.input ?? '').slice(0, 12000),
+      '```',
+    ].join('\n')
+    return (await call(prompt, { temperature: 0.3 })) ?? ''
   }
 }
 

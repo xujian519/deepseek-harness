@@ -136,4 +136,33 @@ describe('runStageOnce', () => {
     expect(outcome.interrupted!.stageId).toBe('s1')
     expect(outcome.output).toBe('')
   })
+
+  it('a granted gate never leaks the grant marker: a later ungranted gate still interrupts', async () => {
+    const { handlers, atoms } = makeRegistry({
+      name: 'approval-gate',
+      category: 'gate',
+      execute: async (input) => {
+        if (input.state[APPROVAL_GRANTED_KEY]) return {}
+        throw new InterruptStageError(typeof input.state.stageId === 'string' ? input.state.stageId : 'unknown', '等待人工确认', {})
+      },
+    })
+    const state: Record<string, unknown> = {}
+    // First gate is granted and has NO params — the grant marker must stay on a
+    // per-handler copy and not pollute the shared state.
+    const granted = await runStageOnce(
+      stage({ id: 's1', atom: 'approval-gate' }),
+      state,
+      { ...emptyOptions, handlers, atoms, approvalGrants: ['s1'] },
+    )
+    expect(granted.output).toBe('APPROVED')
+    expect(state[APPROVAL_GRANTED_KEY]).toBeUndefined()
+    // Second gate is NOT granted: without the leak it must interrupt.
+    const blocked = await runStageOnce(
+      stage({ id: 's2', atom: 'approval-gate' }),
+      state,
+      { ...emptyOptions, handlers, atoms },
+    )
+    expect(blocked.interrupted).toBeDefined()
+    expect(blocked.interrupted!.stageId).toBe('s2')
+  })
 })

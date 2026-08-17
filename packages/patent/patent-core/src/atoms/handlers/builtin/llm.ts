@@ -66,11 +66,18 @@ export function formatPriorArt(state: PipelineState): string {
 /** 有效 LLM 调用函数：优先 provider.callLLM（测试注入/字符串接缝），否则经 provider.llm（ModelPort）桥接。 */
 function resolveLlmCall(
   provider: StageProvider | undefined,
+  signal?: AbortSignal,
 ): ((prompt: string, opts?: { jsonSchema?: unknown; temperature?: number }) => Promise<string>) | undefined {
   if (provider?.callLLM) return provider.callLLM
   if (provider?.llm) {
     const port = provider.llm
-    return async (prompt: string) => collectPortText(port, prompt)
+    // 端口桥接：逐调用 temperature/schema 经 PatentModelRequest 传递，
+    // 取消信号透传到 port.stream（GenerateOptions.signal）。
+    return async (prompt, opts) =>
+      collectPortText(port, prompt, signal, {
+        ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
+        ...(opts?.jsonSchema !== undefined ? { schema: opts.jsonSchema } : {}),
+      })
   }
   return undefined
 }
@@ -94,6 +101,7 @@ export type LlmCallResult = { ok: true; raw: string } | { ok: false; error: Pipe
  * @param atom - 原子名称（用于降级标记）。
  * @param prompt - 提示词。
  * @param opts - 可选 schema 与 temperature。
+ * @param signal - 调用方取消信号（透传给端口流）。
  * @returns LLM 调用结果。
  */
 export async function callLlm(
@@ -101,8 +109,9 @@ export async function callLlm(
   atom: string,
   prompt: string,
   opts: { schema?: unknown; temperature?: number } = {},
+  signal?: AbortSignal,
 ): Promise<LlmCallResult> {
-  const call = resolveLlmCall(provider)
+  const call = resolveLlmCall(provider, signal)
   if (!call) {
     return { ok: false, error: degraded(atom, '未配置 LLM（provider.callLLM / provider.llm 缺失）'), message: '未配置 LLM' }
   }

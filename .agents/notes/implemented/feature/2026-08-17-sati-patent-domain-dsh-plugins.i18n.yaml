@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-17-sati-patent-domain-dsh-plugins.md
-2026-08-17-sati-patent-domain-dsh-plugins.md: 0d3fb53439f6ee8bf2ce5b991d2ee97c8d12919a
-2026-08-17-sati-patent-domain-dsh-plugins.zh.md: 76e7265838dd3afe28eeb9deadb1d497399e7b12
+2026-08-17-sati-patent-domain-dsh-plugins.md: 798bb54d27e216a195a24c2a1b98e9563b909310
+2026-08-17-sati-patent-domain-dsh-plugins.zh.md: f3e5c88bffa8f47247409ad8eb24bf085e28f84a

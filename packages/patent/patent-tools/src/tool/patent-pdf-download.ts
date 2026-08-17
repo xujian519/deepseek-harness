@@ -466,6 +466,8 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
         if (exec.signal.aborted) {
           throw new PatentToolError('tool_aborted', 'patent_pdf_download aborted', { tool: 'patent_pdf_download' })
         }
+        // 配置类失败（未接线的 fail-loud 桩）保留 setup_required 码，供按码路由的调用方判别。
+        if (error instanceof PatentToolError && error.code === 'setup_required') throw error
         throw new PatentToolError(
           'tool_execution_failed',
           `patent_pdf_download failed: ${error instanceof Error ? error.message : String(error)}`,

@@ -81,7 +81,7 @@ export type PatentKgQueryDeps = {
   dbPath?: string
 }
 
-const INSTALL_GUIDANCE = '知识图谱不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge:install 准备本地 knowledge.db，或配置知识库目录。'
+const INSTALL_GUIDANCE = '知识图谱不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge-install 准备本地 knowledge.db，或配置知识库目录。'
 
 /** Truncate an over-long node content fragment. */
 function truncateContent(content: string | undefined, maxChars = 600): string | undefined {

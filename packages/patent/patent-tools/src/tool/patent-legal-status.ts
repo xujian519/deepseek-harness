@@ -37,6 +37,8 @@ export type PatentLegalStatusItem = {
 /** Output of the patent_legal_status tool. */
 export type PatentLegalStatusOutput = {
   results: PatentLegalStatusItem[]
+  /** Number of patent numbers silently dropped over the 20-item cap. */
+  truncatedCount?: number
 }
 
 /** Injected checker (tests override; production uses the nuo LegalStatusChecker). */
@@ -63,7 +65,10 @@ function renderLegalStatus(value: PatentLegalStatusOutput): string {
     const exp = item.estimatedExpiration ? ` · expires ${item.estimatedExpiration}` : ''
     return `- ${flag} ${item.patentNumber}: ${item.title || item.error || '未知状态'} (${item.status || 'UNKNOWN'})${exp}`
   })
-  return [`patent_legal_status: ${value.results.length} result(s)`, '', lines.join('\n')].join('\n')
+  const truncation = value.truncatedCount !== undefined && value.truncatedCount > 0
+    ? `\n⚠️ ${value.truncatedCount} 个专利号超出 20 条上限被截断，未查询。`
+    : ''
+  return [`patent_legal_status: ${value.results.length} result(s)`, '', lines.join('\n') + truncation].join('\n')
 }
 
 const EVENT_SCHEMA = {
@@ -117,11 +122,13 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
               },
             },
           },
+          truncatedCount: { type: 'number', description: '超出 20 条上限被截断未查询的专利号数量' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderLegalStatus(value as unknown as PatentLegalStatusOutput) }],
     },
     async execute(args, exec) {
+      const dropped = args.patents.length - Math.min(args.patents.length, MAX_PATENTS)
       const patents = args.patents.slice(0, MAX_PATENTS)
       const results = await checker.checkBatch(patents, {
         signal: exec.signal,
@@ -150,7 +157,7 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
           ...(r.error !== undefined ? { error: r.error } : {}),
         }
       })
-      return { results: items }
+      return { results: items, ...(dropped > 0 ? { truncatedCount: dropped } : {}) }
     },
   })
 }

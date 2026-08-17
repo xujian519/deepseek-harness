@@ -38,6 +38,7 @@ import { PatentToolError } from '../error.ts'
 import {
   buildWorkflowProvider,
   buildWorkflowRunContext,
+  createChainStageExecutor,
   renderWorkflowResultText,
   renderWorkflowStageLines,
   resolveRunPersistTarget,
@@ -415,7 +416,7 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
               input: sourceText,
               ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
             })
-            const executor = async (): Promise<string> => sourceText
+            const executor = createChainStageExecutor(provider, 'flexible_plan')
             const persistTarget = resolveRunPersistTarget(input.caseId, manifest.id, cwd)
             const result = await runWorkflow(manifest, workflowCtx, executor, {
               handlers: deps.handlers ?? globalStageHandlerRegistry,

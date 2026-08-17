@@ -49,8 +49,9 @@ export function evi011GuardConditionFields(ruleDirs: readonly string[] = []): Re
 /** 域外证据类型（需公证 + 认证）。 */
 const OVERSEAS_EVIDENCE_TYPES = new Set(['overseas'])
 
-/** 外文证据类型（需附中文译本）。 */
-const FOREIGN_LANGUAGE_TYPES = new Set(['foreign_language', 'overseas'])
+/** 外文证据类型（需附中文译本）。域外（overseas）是来源地分类而非语言分类——
+ * 中文原件不要求译本，误拒会阻断合法证据；语言属性由 foreign_language 表达。 */
+const FOREIGN_LANGUAGE_TYPES = new Set(['foreign_language'])
 
 /** evaluate_evidence 输入的结构视图（字段改名时守卫读取仍稳定）。 */
 interface EvaluateEvidenceInput {

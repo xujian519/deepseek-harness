@@ -274,6 +274,8 @@ export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): Tool
       try {
         loaded = await deps.loadIndex()
       } catch (error) {
+        // 配置类失败（未接线的 fail-loud 桩）保留 setup_required 码，供按码路由的调用方判别。
+        if (error instanceof PatentToolError && error.code === 'setup_required') throw error
         throw new PatentToolError(
           'tool_execution_failed',
           `读取附图索引失败：${error instanceof Error ? error.message : String(error)}`,

@@ -17,6 +17,24 @@ const DEFAULT_RETRY_DELAY_MS = 100
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
+ * 硬上界：ms 内未 settle 则以超时错误拒绝。底层 promise 无法取消（节点可能
+ * 仍在跑），但调用方不再等待——超时语义是总时长截止后不再采信结果。
+ * @param promise - 待竞速的节点调用。
+ * @param ms - 硬上界毫秒；<=0 直接返回原 promise。
+ * @returns 节点结果或超时错误。
+ */
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  if (ms <= 0) return promise
+  let timer: NodeJS.Timeout | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('节点执行超时（硬上界）')), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer)
+  })
+}
+
+/**
  * 按策略执行节点（含重试/超时/panic 捕获）。
  * 返回 { ok: true, delta } 或 { ok: false, error }；不抛错（中断错误除外，由 engine 另行处理）。
  * @param node - 要执行的图节点。
@@ -41,12 +59,20 @@ export async function runNodeWithPolicy(
     }
     const controller = new AbortController()
     const remaining = deadline !== null ? Math.max(0, deadline - Date.now()) : 0
-    const timer = deadline !== null ? setTimeout(() => controller.abort(), remaining) : null
+    let timedOut = false
+    const timer = deadline !== null
+      ? setTimeout(() => { timedOut = true; controller.abort() }, remaining)
+      : null
+    // 调用方取消（引擎 opts.signal）联动节点 abort：不区分来源，节点尽早退出。
+    const onCallerAbort = (): void => { controller.abort() }
+    ctx.signal?.addEventListener('abort', onCallerAbort, { once: true })
+    if (ctx.signal?.aborted === true) controller.abort()
     try {
-      const delta = await node({ ...ctx, signal: controller.signal })
+      // 硬上界：节点不听 signal 而挂起时，race 在 remaining 后拒绝，超步不会无限等待。
+      const delta = await withDeadline(node({ ...ctx, signal: controller.signal }), remaining)
       // 超时后完成的节点视为失败（超时语义：总时长截止后不再采信结果）。
       if (controller.signal.aborted) {
-        return { ok: false, error: new Error('节点执行超时（结果在超时后返回）') }
+        return { ok: false, error: new Error(timedOut ? '节点执行超时（结果在超时后返回）' : '节点执行已取消') }
       }
       // sideEffect 节点：delta 不合并（返回空片段，由调用方忽略）。
       return policy?.sideEffect === true ? { ok: true, delta: {} } : { ok: true, delta }
@@ -55,14 +81,15 @@ export async function runNodeWithPolicy(
       if (isGraphInterruptError(err)) throw err
       lastError = err
       if (controller.signal.aborted) {
-        // 超时：中止重试（对齐 Mady 超时跨重试截断）。
-        return { ok: false, error: err }
+        // 超时/取消：中止重试（对齐 Mady 超时跨重试截断）。
+        return { ok: false, error: timedOut ? err : new Error('节点执行已取消') }
       }
       if (attempt < maxRetries) {
         await sleep(retryDelayMs * 2 ** attempt)
       }
     } finally {
       if (timer !== null) clearTimeout(timer)
+      ctx.signal?.removeEventListener('abort', onCallerAbort)
     }
   }
   return { ok: false, error: lastError ?? new Error('节点执行失败') }

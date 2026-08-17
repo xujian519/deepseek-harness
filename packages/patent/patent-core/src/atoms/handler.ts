@@ -38,10 +38,12 @@ export function getStateArray(state: PipelineState, key: string): unknown[] {
   return Array.isArray(v) ? v : []
 }
 
-/** 阶段执行输入：当前状态与可选的能力提供者。 */
+/** 阶段执行输入：当前状态、可选的能力提供者与取消信号。 */
 export type StageExecuteInput = {
   state: PipelineState
   provider?: StageProvider
+  /** 调用方取消信号；透传给 LLM 端口调用（collectPortText/port.stream）。 */
+  signal?: AbortSignal
 }
 
 /** 阶段执行器契约：声明 name/category 元数据并实现 execute。 */

@@ -33,39 +33,38 @@ describe('resolveGateRoute', () => {
 })
 
 describe('analyze_patent_figure image gate', () => {
-  it('denies when the figure model does not declare image input', async () => {
+  it('does not deny a text-only model: the build never sends image bytes, so the text path proceeds', async () => {
     const tool = createAnalyzePatentFigureTool({
       model: stubModel,
       gateModel: { provider: 'p', model: 'text-only' },
       resolveImageInputModalities: async () => ['text'],
     })
+    // 文本态最小路径：模态门禁不执行（见 execute 注释），直接走到文件访问。
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
       name: 'PatentToolError',
-      code: 'model_cannot_accept_image',
+      code: 'file_not_found',
     })
-    await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toThrow('p/text-only')
-    await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toThrow('image')
   })
 
-  it('denies when the model discloses no modalities (unknown defaults to text-only)', async () => {
+  it('does not deny when the model discloses no modalities (unknown defaults to text-only)', async () => {
     const tool = createAnalyzePatentFigureTool({
       model: stubModel,
       gateModel: { provider: 'p', model: 'm' },
       resolveImageInputModalities: async () => undefined,
     })
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
-      code: 'model_cannot_accept_image',
+      code: 'file_not_found',
     })
   })
 
-  it('denies an empty modality list', async () => {
+  it('does not deny an empty modality list', async () => {
     const tool = createAnalyzePatentFigureTool({
       model: stubModel,
       gateModel: { provider: 'p', model: 'm' },
       resolveImageInputModalities: async () => [],
     })
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
-      code: 'model_cannot_accept_image',
+      code: 'file_not_found',
     })
   })
 

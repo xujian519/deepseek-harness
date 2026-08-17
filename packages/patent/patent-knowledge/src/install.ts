@@ -13,8 +13,8 @@
  */
 
 import { DatabaseSync } from 'node:sqlite'
-import { existsSync, rmSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { compressChunk, shouldCompress } from './shared/chunk-compression.ts'
 import { KgStore } from './shared/kg-store.ts'
 import { KnowledgeLawSearch } from './legal/knowledge-law-search.ts'
@@ -64,6 +64,21 @@ function gb(bytes: number): string {
  * @param options - input/output paths, trimming toggles, and a log sink.
  * @returns the run summary (paths, sizes, dropped tables, compressed count).
  */
+/**
+ * 路径的真实形态：父目录 realpath 后拼接 basename。输出文件可能尚不存在，
+ * 无法对其本身 realpath，故对父目录解析——同文件别名（./、symlink）归一为同一值。
+ * @param path - 待归一化的文件路径。
+ * @returns 归一化后的绝对路径。
+ */
+function realPathOf(path: string): string {
+  return join(realpathSync(dirname(resolve(path))), basename(resolve(path)))
+}
+
+/**
+ * patent-knowledge:install 的入口。
+ * @param options - source/输出路径与裁剪开关。
+ * @returns 安装结果（输出路径、去表清单与压缩统计）。
+ */
 export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}): Promise<InstallResult> {
   const log = options.log ?? console.log
   const knowledgeDir = options.knowledgeDir ?? DEFAULT_KNOWLEDGE_DIR
@@ -85,26 +100,34 @@ export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}
   if (!existsSync(input)) {
     throw new Error(`输入库不存在（${input}）。请用 --from 指定 knowledge.db 路径。`)
   }
-  if (input === output) {
-    throw new Error('--output 与 --input 相同路径会破坏源库，请指定不同输出路径。')
+  // 同文件守卫用真实路径比较：文本相等会漏掉 /x/./k.db、symlink 别名等写法，
+  // 一旦误判为不同路径，先删后建会把源库不可逆删除。
+  if (realPathOf(input) === realPathOf(output)) {
+    throw new Error('--output 与 --input 指向同一文件（含路径别名），会破坏源库，请指定不同输出路径。')
   }
 
   const sourceBytes = statSync(input).size
 
-  // 1. VACUUM INTO: an atomic compact copy (merges WAL, reclaims free pages).
-  if (existsSync(output)) {
-    log(`输出已存在，覆盖: ${output}`)
-    rmSync(output)
-  }
+  // 1. VACUUM INTO 生成紧凑副本：先写临时文件，成功后原子替换输出——
+  // VACUUM INTO 要求目标不存在，直接 rmSync(output) 会在 VACUUM 失败时
+  // 丢掉上一份可用产物。
+  mkdirSync(dirname(resolve(output)), { recursive: true })
+  const tmpOutput = resolve(output) + `.tmp-${process.pid}`
+  if (existsSync(tmpOutput)) rmSync(tmpOutput)
   log('[1/3] VACUUM INTO 生成紧凑副本…')
   {
     const db = new DatabaseSync(input, { readOnly: true })
     try {
-      db.exec(`VACUUM INTO '${sqlQuote(output)}'`)
+      db.exec(`VACUUM INTO '${sqlQuote(tmpOutput)}'`)
     } finally {
       db.close()
     }
   }
+  if (existsSync(output)) {
+    log(`输出已存在，覆盖: ${output}`)
+    rmSync(output)
+  }
+  renameSync(tmpOutput, output)
 
   // 2. Compress chunks, drop tables, then vacuum again.
   let compressedChunks = 0

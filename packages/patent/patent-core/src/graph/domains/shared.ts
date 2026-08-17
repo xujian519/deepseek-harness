@@ -20,9 +20,9 @@ import type { RuleCheckResult } from '../../checker/types.ts'
  * @returns 包装后的图节点。
  */
 export function handlerNode(handler: StageHandler, params?: Record<string, unknown>): GraphNode {
-  return async ({ state, provider }) => {
+  return async ({ state, provider, signal }) => {
     const execState = params !== undefined ? { ...state, ...params } : state
-    return runStageHandler(handler, execState, provider)
+    return runStageHandler(handler, execState, provider, signal)
   }
 }
 
@@ -40,7 +40,7 @@ export type LlmNodeOptions = {
  */
 export function llmNode(input: LlmNodeOptions): GraphNode {
   const { outputKey, buildPrompt, schema, temperature = 0.2 } = input
-  return async ({ state, provider }) => {
+  return async ({ state, provider, signal }) => {
     if (!provider?.callLLM) {
       const delta: StateDelta = {}
       markDegraded(delta, outputKey, '', 'llm_unavailable', `${outputKey} 需要 LLM（provider.callLLM 缺失）`)
@@ -51,7 +51,7 @@ export function llmNode(input: LlmNodeOptions): GraphNode {
       const raw = await provider.callLLM(prompt, {
         ...(schema !== undefined ? { jsonSchema: schema } : {}),
         temperature,
-      })
+      }, signal)
       return { [outputKey]: raw }
     } catch (err) {
       const delta: StateDelta = {}

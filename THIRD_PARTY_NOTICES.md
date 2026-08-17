@@ -24,7 +24,7 @@ The Cordis framework and its foundation libraries are source-vendored into this 
 | `@deepseek-ai/cordis-plugin-timer` | `@cordisjs/plugin-timer` | [github.com/deepseek-harness/cordis](https://github.com/deepseek-harness/cordis) | MIT |
 | `@deepseek-ai/cordis-plugin-hmr` | `@cordisjs/plugin-hmr` | [github.com/deepseek-harness/cordis](https://github.com/deepseek-harness/cordis) | MIT |
 | `@deepseek-ai/cordis-plugin-logger-console` | `@cordisjs/plugin-logger-console` | [github.com/deepseek-harness/cordis](https://github.com/deepseek-harness/cordis) | MIT |
-| `@deepseek-ai/nuo-patent` | `nuo-patent` | [github.com/xujian/nuo-patent](https://github.com/xujian/nuo-patent) | MIT |
+| `@deepseek-ai/nuo-patent` | `nuo-patent` | [github.com/xujian519/nuo-patent](https://github.com/xujian519/nuo-patent) | MIT |
 
 ## Runtime npm dependencies
 

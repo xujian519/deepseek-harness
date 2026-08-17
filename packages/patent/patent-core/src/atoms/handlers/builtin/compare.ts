@@ -57,7 +57,7 @@ export class CompareHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
     const missing = requireLlm(provider, 'compare')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
@@ -78,7 +78,7 @@ export class CompareHandler implements StageHandler {
       '```',
       '请逐项对比，严格输出 JSON（claim_chart 每项含 feature/prior_art_match/identical/note，diff_features 为区别特征）。',
     ].join('\n')
-    const res = await callLlm(provider, 'compare', prompt, { schema: COMPARE_SCHEMA, temperature: 0 })
+    const res = await callLlm(provider, 'compare', prompt, { schema: COMPARE_SCHEMA, temperature: 0 }, signal)
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,
@@ -154,7 +154,7 @@ export class NoveltyHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(input: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = input
+    const { state, provider, signal } = input
     const features = getStateArray(state, 'features')
     if (features.length === 0) {
       return degraded('novelty', '无特征可评估（state.features 为空）')
@@ -181,7 +181,7 @@ export class NoveltyHandler implements StageHandler {
       '请严格输出 JSON：assessments 为每个特征的 { feature, prior_art, disclosed, reasoning } 列表，',
       'conclusion 为整体新颖性结论（附置信度）。',
     ].join('\n')
-    const res = await callLlm(provider, 'novelty', prompt, { schema: NOVELTY_SCHEMA, temperature: 0.1 })
+    const res = await callLlm(provider, 'novelty', prompt, { schema: NOVELTY_SCHEMA, temperature: 0.1 }, signal)
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,

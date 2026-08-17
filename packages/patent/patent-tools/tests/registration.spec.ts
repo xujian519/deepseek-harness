@@ -71,3 +71,37 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     expect(names).not.toContain('render_patent_document')
   })
 })
+
+describe('model route fallback (B4)', () => {
+  it('builds a real port from the deployment default route when Config omits provider/model', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.provide('agentDefaultModel', { currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }) })
+    let streamed = false
+    ctx.provide('llm', {
+      stream: async function* () {
+        streamed = true
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      },
+    })
+    await ctx.plugin(tool, {})
+    // claim_chart_build needs a model port: with the default route fallback it
+    // must reach the llm stream instead of throwing setup_required.
+    const def = ctx.tools.get('claim_chart_build')
+    expect(def).toBeDefined()
+    // 空 LLM 响应会让 claim-chart 降级抛 tool_execution_failed——这正是真实
+    // 端口被使用的证据；关键是绝不能抛 setup_required（那是 fail-loud 桩）。
+    try {
+      await def!.execute({
+        claim_text: '1. 一种装置',
+        targets: [],
+        mode: 'patentability',
+      } as never, {} as never)
+    } catch (error) {
+      const code = (error as { code?: string }).code
+      expect(code).not.toBe('setup_required')
+    }
+    expect(streamed).toBe(true)
+  })
+})

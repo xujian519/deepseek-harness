@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import {
   createPatentWorkflowTool,
   renderPatentWorkflow,
   type PatentWorkflowOutput,
 } from '../src/tool/patent-workflow.ts'
+
+// 镜像生产装配（B1）：内置原子注册进全局注册表，novelty 等 manifest 的 atom
+// 阶段才能通过 runWorkflow 的 fail-fast。
+registerBuiltinAtoms()
 
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 

@@ -17,21 +17,26 @@ import { cloneState } from './state.ts'
 export class InMemoryCheckpointStore implements CheckpointStore {
   private readonly checkpoints = new Map<string, GraphCheckpoint>()
 
+  /** 返回克隆：调用方（resume/loadLatest）不应能通过引用改坏存储内状态。 */
+  private cloneCheckpoint(cp: GraphCheckpoint): GraphCheckpoint {
+    return { ...cp, state: cloneState(cp.state), activeNodes: [...cp.activeNodes] }
+  }
+
   async save(checkpoint: GraphCheckpoint): Promise<void> {
-    this.checkpoints.set(checkpoint.id, { ...checkpoint, state: cloneState(checkpoint.state) })
+    this.checkpoints.set(checkpoint.id, this.cloneCheckpoint(checkpoint))
   }
 
   async load(id: string): Promise<GraphCheckpoint | undefined> {
     const cp = this.checkpoints.get(id)
-    // 返回克隆：调用方（resume）不应能通过引用改坏存储内状态。
-    return cp === undefined ? undefined : { ...cp, state: cloneState(cp.state), activeNodes: [...cp.activeNodes] }
+    return cp === undefined ? undefined : this.cloneCheckpoint(cp)
   }
 
   async loadLatest(graphId: string): Promise<GraphCheckpoint | undefined> {
     const candidates = [...this.checkpoints.values()]
       .filter(cp => cp.graphId === graphId)
       .sort((a, b) => a.stepIndex - b.stepIndex || a.createdAt - b.createdAt)
-    return candidates.at(-1)
+    const cp = candidates.at(-1)
+    return cp === undefined ? undefined : this.cloneCheckpoint(cp)
   }
 
   async list(graphId: string): Promise<string[]> {
