@@ -26,6 +26,7 @@ import { JsonFileWorkflowRunStore, builtinPatentManifests, runWorkflow } from '@
 import {
   renderWorkflowResultText,
   resolveRunPersistTarget,
+  stageFlagAndPreview,
   writeRunArtifacts,
 } from './internal/workflow-helpers.ts'
 
@@ -94,8 +95,7 @@ const DESCRIPTION = [
  */
 function recapStageLines(value: PatentWorkflowOutput): string[] {
   return value.stages.map((s) => {
-    const flag = s.degraded ? '⚠️ 降级' : '✅'
-    const preview = s.output.length > 0 ? `${s.output.slice(0, 80)}${s.output.length > 80 ? '…' : ''}` : '(无输出)'
+    const { flag, preview } = stageFlagAndPreview(s)
     return `- ${flag} ${s.stageId} (${s.strategy}): ${preview}`
   })
 }

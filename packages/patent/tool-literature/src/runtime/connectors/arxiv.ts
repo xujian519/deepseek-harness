@@ -11,7 +11,7 @@
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
 import { getText, type LiteratureFetchOptions, type LiteratureRateLimit } from '../http.ts'
 import type { NetworkRetryOptions } from '../../internal/network-fetch.ts'
-import { raw, snippet } from '../shared/text.ts'
+import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 import { xmlAttr, xmlBlocks, xmlSelfClosing, xmlText } from '../shared/xml.ts'
 
 const BASE = 'https://export.arxiv.org/api/query'
@@ -100,12 +100,12 @@ async function feed(url: string, http: LiteratureFetchOptions): Promise<Entry[]>
 
 function toHit(e: Entry): ConnectorHit {
   const id = bareId(e.id)
-  const who = e.authors.length > 4 ? `${e.authors.slice(0, 4).join(', ')} et al.` : e.authors.join(', ')
+  const who = formatAuthors(e.authors)
   const meta = [who, e.primaryCategory, e.published?.slice(0, 10)].filter(Boolean).join('. ')
   return {
     id,
     title: snippet(e.title, 300) ?? id,
-    summary: snippet(e.summary) ?? (meta.length ? meta : undefined),
+    summary: snippet(e.summary) ?? nonEmpty(meta),
     url: e.id || `https://arxiv.org/abs/${id}`,
     // Entry.pdf（自闭合 link 解析结果）随 raw(e) 原样进入 extra，工具层读 extra.pdf。
     extra: raw(e),
@@ -130,7 +130,7 @@ export function createArxivConnector(options: CreateArxivConnectorOptions = {}):
     description: 'Open-access preprints in physics, math, CS, quantitative biology, and more.',
     homepage: 'https://arxiv.org',
     async search(query, opts) {
-      const max = Math.min(Math.max(opts?.limit ?? 10, 1), 50)
+      const max = clampLimit(opts?.limit)
       const url = `${BASE}?search_query=${encodeURIComponent(searchExpr(query))}&start=0&max_results=${max}&sortBy=relevance`
       const entries = await feed(url, { ...http, signal: opts?.signal })
       return entries.map(toHit)

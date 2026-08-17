@@ -12,13 +12,25 @@
  */
 
 import { FlowGraph, type FlowNodeType } from './flow-graph.ts'
-import type { WorkflowManifest, WorkflowStrategy } from '@deepseek-ai/dsh-patent-core'
+import type { WorkflowManifest, WorkflowStage, WorkflowStrategy } from '@deepseek-ai/dsh-patent-core'
 
 /** 阶段 → FlowNodeType 映射：审批门为 human-approval，声明 atom 的为 tool，其余为 agent。 */
 function nodeTypeFor(stage: { strategy: WorkflowStrategy; atom?: string }): FlowNodeType {
   if (stage.atom === 'approval-gate') return 'human-approval'
   if (stage.atom !== undefined) return 'tool'
   return 'agent'
+}
+
+/** 返回相邻阶段对（顺序边）；跳过 noUncheckedIndexedAccess 下可能为 undefined 的元素。 */
+function sequentialEdges(stages: readonly WorkflowStage[]): Array<{ from: WorkflowStage; to: WorkflowStage }> {
+  const edges: Array<{ from: WorkflowStage; to: WorkflowStage }> = []
+  for (let i = 0; i + 1 < stages.length; i += 1) {
+    const from = stages[i]
+    const to = stages[i + 1]
+    if (from === undefined || to === undefined) continue
+    edges.push({ from, to })
+  }
+  return edges
 }
 
 /**
@@ -32,10 +44,7 @@ export function manifestToFlowGraph(manifest: WorkflowManifest): FlowGraph {
   for (const stage of manifest.stages) {
     graph.addNode({ id: stage.id, type: nodeTypeFor(stage), name: stage.description })
   }
-  for (let i = 0; i + 1 < manifest.stages.length; i += 1) {
-    const from = manifest.stages[i]
-    const to = manifest.stages[i + 1]
-    if (from === undefined || to === undefined) continue
+  for (const { from, to } of sequentialEdges(manifest.stages)) {
     graph.addEdge({ from: from.id, to: to.id })
   }
   return graph
@@ -67,10 +76,7 @@ export function workflowManifestToMermaid(manifest: WorkflowManifest): string {
   for (const stage of manifest.stages) {
     lines.push(`  ${stage.id}["${escapeName(stage.description)}"]`)
   }
-  for (let i = 0; i + 1 < manifest.stages.length; i += 1) {
-    const from = manifest.stages[i]
-    const to = manifest.stages[i + 1]
-    if (from === undefined || to === undefined) continue
+  for (const { from, to } of sequentialEdges(manifest.stages)) {
     lines.push(`  ${from.id} --> ${to.id}`)
   }
   const stageIds = new Set(manifest.stages.map(s => s.id))

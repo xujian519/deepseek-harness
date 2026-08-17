@@ -253,17 +253,6 @@ export class KgStore {
   }
 
   /**
-   * BFS 最短路径（有向图，沿出边遍历）。找不到返回 null。
-   * @param fromId 起始节点 id。
-   * @param toId 目标节点 id。
-   * @param maxDepth 最大搜索深度。
-   * @returns 最短路径边序列，不可达时 null。
-   */
-  bfsPath(fromId: string, toId: string, maxDepth = 5): KgPathEdge[] | null {
-    return this.graphTraversal.bfsPath(fromId, toId, maxDepth)
-  }
-
-  /**
    * 按类型列出节点（用于图谱浏览/过滤）。
    * @param nodeType 节点类型。
    * @param limit 返回数量上限。

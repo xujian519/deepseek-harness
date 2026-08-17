@@ -16,16 +16,28 @@ import type { TrizPrinciple, TrizParameter } from './types.ts'
 const MATRIX_URL = new URL('../assets/triz-matrix.json', import.meta.url)
 const PRINCIPLES_URL = new URL('../assets/triz-principles.json', import.meta.url)
 
-let matrixCache: number[][][] | null = null
+/**
+ * Load and memoize a shipped JSON asset resolved relative to this module.
+ * @param url - the asset URL resolved relative to import.meta.url.
+ * @param cache - the memoization slot holding the parsed value.
+ * @returns the parsed JSON value.
+ */
+function loadJsonAsset<T>(url: URL, cache: { current: T | null }): T {
+  const cached = cache.current
+  if (cached !== null) return cached
+  const parsed = JSON.parse(readFileSync(fileURLToPath(url), 'utf8')) as T
+  cache.current = parsed
+  return parsed
+}
+
+const matrixCache: { current: number[][][] | null } = { current: null }
 
 /**
  * Load the 39x39 contradiction matrix, indexed [worsening-1][improving-1].
  * @returns the full matrix of recommended principle numbers.
  */
 export function loadMatrix(): number[][][] {
-  if (matrixCache !== null) return matrixCache
-  matrixCache = JSON.parse(readFileSync(fileURLToPath(MATRIX_URL), 'utf8')) as number[][][]
-  return matrixCache
+  return loadJsonAsset(MATRIX_URL, matrixCache)
 }
 
 /**
@@ -40,16 +52,28 @@ export function lookupMatrixCell(paramImproving: number, paramWorsening: number)
   return row[paramImproving - 1] ?? []
 }
 
-let principlesCache: TrizPrinciple[] | null = null
+const principlesCache: { current: TrizPrinciple[] | null } = { current: null }
 
 /**
  * Load the 40 inventive principles from the shipped asset.
  * @returns the principles in number order.
  */
 export function loadPrinciples(): TrizPrinciple[] {
-  if (principlesCache !== null) return principlesCache
-  principlesCache = JSON.parse(readFileSync(fileURLToPath(PRINCIPLES_URL), 'utf8')) as TrizPrinciple[]
-  return principlesCache
+  return loadJsonAsset(PRINCIPLES_URL, principlesCache)
+}
+
+let principlesByIdCache: Map<number, TrizPrinciple> | null = null
+
+/**
+ * Resolve an inventive principle number to its full principle entry.
+ * @param no - inventive principle number, 1-40.
+ * @returns the principle, or undefined when the number is unknown.
+ */
+export function principleById(no: number): TrizPrinciple | undefined {
+  if (principlesByIdCache === null) {
+    principlesByIdCache = new Map(loadPrinciples().map(principle => [principle.no, principle]))
+  }
+  return principlesByIdCache.get(no)
 }
 
 /**
@@ -129,9 +153,8 @@ export function paramLabel(no: number): string {
  * @returns a comma-joined, ordered list.
  */
 export function principleNames(ids: readonly number[]): string {
-  const byNo = new Map(loadPrinciples().map(principle => [principle.no, principle]))
   return ids.map((id) => {
-    const name = byNo.get(id)?.name ?? ''
+    const name = principleById(id)?.name ?? ''
     return (id + ' ' + name).trim()
   }).join(', ')
 }

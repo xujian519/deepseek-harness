@@ -38,27 +38,17 @@ export interface RenderPatentDocumentOptions {
 }
 
 /**
- * 校验输出文件名主干。
- * @param name - 待校验文件名。
- * @returns 通过校验的文件名。
+ * 校验输入字符串匹配安全模式，否则抛出 DocumentRenderError。
+ * @param value - 待校验字符串。
+ * @param pattern - 安全模式。
+ * @param label - 错误消息中的字段名（输出文件名 / 案卷号）。
+ * @returns 通过校验的字符串。
  */
-function sanitizeOutputName(name: string): string {
-  if (!SAFE_NAME_PATTERN.test(name)) {
-    throw new DocumentRenderError(`非法输出文件名: ${JSON.stringify(name)}`)
+function assertSafe(value: string, pattern: RegExp, label: string): string {
+  if (!pattern.test(value)) {
+    throw new DocumentRenderError(`非法${label}: ${JSON.stringify(value)}`)
   }
-  return name
-}
-
-/**
- * 校验案卷号。
- * @param caseId - 待校验案卷号。
- * @returns 通过校验的案卷号。
- */
-function sanitizeCaseId(caseId: string): string {
-  if (!SAFE_CASE_ID_PATTERN.test(caseId)) {
-    throw new DocumentRenderError(`非法案卷号: ${JSON.stringify(caseId)}`)
-  }
-  return caseId
+  return value
 }
 
 /**
@@ -73,7 +63,7 @@ function resolveOutputDir(input: DocumentRenderInput, cwd: string, defaultOutput
     return isAbsolute(input.outputDir) ? input.outputDir : resolve(cwd, input.outputDir)
   }
   if (input.caseId !== undefined) {
-    return resolve(cwd, caseOutputsDir(sanitizeCaseId(input.caseId)))
+    return resolve(cwd, caseOutputsDir(assertSafe(input.caseId, SAFE_CASE_ID_PATTERN, '案卷号')))
   }
   return resolve(cwd, defaultOutputDir)
 }
@@ -82,13 +72,11 @@ function resolveOutputDir(input: DocumentRenderInput, cwd: string, defaultOutput
  * 解析品牌配置路径；本包不随包分发默认 theme.json。
  * @param input - 渲染输入。
  * @param cwd - 相对路径基准目录。
- * @returns 品牌配置路径与是否显式提供。
+ * @returns 品牌配置绝对路径，未提供时 undefined。
  */
-function resolveBrandPath(input: DocumentRenderInput, cwd: string): { path: string | undefined; explicit: boolean } {
-  if (input.brandPath !== undefined) {
-    return { path: isAbsolute(input.brandPath) ? input.brandPath : resolve(cwd, input.brandPath), explicit: true }
-  }
-  return { path: undefined, explicit: false }
+function resolveBrandPath(input: DocumentRenderInput, cwd: string): string | undefined {
+  if (input.brandPath === undefined) return undefined
+  return isAbsolute(input.brandPath) ? input.brandPath : resolve(cwd, input.brandPath)
 }
 
 /**
@@ -213,15 +201,15 @@ export async function renderPatentDocument(
   const outputDir = resolveOutputDir(input, cwd, options.defaultOutputDir ?? DEFAULT_OUTPUT_DIR)
   await mkdir(outputDir, { recursive: true })
 
-  const name = sanitizeOutputName(input.outputName)
+  const name = assertSafe(input.outputName, SAFE_NAME_PATTERN, '输出文件名')
   const htmlPath = join(outputDir, `${name}.html`)
   const pdfPath = join(outputDir, `${name}.pdf`)
 
   const brandPath = resolveBrandPath(input, cwd)
-  if (brandPath.explicit && brandPath.path !== undefined && !existsSync(brandPath.path)) {
-    warnings.push(`品牌配置文件不存在，已回退默认: ${brandPath.path}`)
+  if (brandPath !== undefined && !existsSync(brandPath)) {
+    warnings.push(`品牌配置文件不存在，已回退默认: ${brandPath}`)
   }
-  const fromConfig = loadBrandFromPath(brandPath.path)
+  const fromConfig = loadBrandFromPath(brandPath)
   const brand = mergeBrand(input.brand, fromConfig)
 
   let html = readTemplateHtml(input.template)

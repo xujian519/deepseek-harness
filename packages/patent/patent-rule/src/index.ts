@@ -86,12 +86,6 @@ export {
   type RuleOutputGateOptions,
 } from './runtime/output-gate.ts'
 export {
-  rulesToPolicyDenyRules,
-  type PolicyDenyRule,
-  type RulesToPolicyOptions,
-  type RulesToPolicyResult,
-} from './runtime/policy-bridge.ts'
-export {
   assetRulesRoot,
   candidatePackDirs,
   candidateRuleDirs,

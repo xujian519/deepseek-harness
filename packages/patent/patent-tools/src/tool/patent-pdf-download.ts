@@ -180,6 +180,20 @@ function validatePatents(patents: string[]): string[] {
   return unique
 }
 
+/**
+ * Reject a defined integer value outside [min, max], throwing an
+ * invalid_tool_input error for the patent_pdf_download tool.
+ * @param value - the candidate value (undefined passes through).
+ * @param min - inclusive lower bound.
+ * @param max - inclusive upper bound.
+ * @param message - the error message when the value is out of range.
+ */
+function requireIntRange(value: number | undefined, min: number, max: number, message: string): void {
+  if (value !== undefined && (!Number.isInteger(value) || value < min || value > max)) {
+    throw new PatentToolError('invalid_tool_input', message, { tool: 'patent_pdf_download' })
+  }
+}
+
 /** 磁盘文件大小与 MANIFEST 记录一致才算命中续传。 */
 async function fileSizeMatches(path: string, expectedSize: number): Promise<boolean> {
   try {
@@ -397,26 +411,11 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
       const patents = validatePatents(args.patents)
 
       const pageTimeoutSec = args.pageTimeoutSec
-      if (pageTimeoutSec !== undefined && (!Number.isInteger(pageTimeoutSec) || pageTimeoutSec < 5 || pageTimeoutSec > 60)) {
-        throw new PatentToolError('invalid_tool_input', 'pageTimeoutSec must be an integer between 5 and 60', {
-          tool: 'patent_pdf_download',
-        })
-      }
+      requireIntRange(pageTimeoutSec, 5, 60, 'pageTimeoutSec must be an integer between 5 and 60')
       const downloadTimeoutMs = args.downloadTimeoutMs
-      if (
-        downloadTimeoutMs !== undefined &&
-        (!Number.isInteger(downloadTimeoutMs) || downloadTimeoutMs < 5_000 || downloadTimeoutMs > 300_000)
-      ) {
-        throw new PatentToolError('invalid_tool_input', 'downloadTimeoutMs must be between 5000 and 300000', {
-          tool: 'patent_pdf_download',
-        })
-      }
+      requireIntRange(downloadTimeoutMs, 5_000, 300_000, 'downloadTimeoutMs must be between 5000 and 300000')
       const timeoutMs = args.timeoutMs
-      if (timeoutMs !== undefined && (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000)) {
-        throw new PatentToolError('invalid_tool_input', 'timeoutMs must be between 1 and 300000', {
-          tool: 'patent_pdf_download',
-        })
-      }
+      requireIntRange(timeoutMs, 1, 300_000, 'timeoutMs must be between 1 and 300000')
 
       const cwd = deps.cwd ?? process.cwd()
       const outputDir = resolveDir(args.outputDir, cwd)

@@ -53,8 +53,8 @@ export function decompressChunk(data: string | Uint8Array | null): string {
     try {
       return gunzipSync(Buffer.from(data.subarray(MAGIC.length))).toString('utf8')
     } catch {
-      // 魔数匹配但非有效 gzip：按 utf8 原样返回（避免整条 SQL 查询抛错）。
-      return Buffer.from(data).toString('utf8')
+      // 魔数匹配但非有效 gzip（截断写入 / 巧合 'SC' 开头）：吞掉 gunzip 异常，
+      // 落到下方统一的 utf8 兜底（避免整条 SQL 查询抛错）。
     }
   }
   return Buffer.from(data).toString('utf8')
@@ -79,9 +79,10 @@ export function shouldCompress(text: string): boolean {
  */
 export function registerChunkUncompress(db: DatabaseSync): void {
   db.function('sati_uncompress', { deterministic: true }, (value: unknown) => {
-    if (value === null || value === undefined) return ''
-    if (typeof value === 'string') return value
-    if (value instanceof Uint8Array) return decompressChunk(value)
+    if (value === undefined) return ''
+    if (value === null || typeof value === 'string' || value instanceof Uint8Array) {
+      return decompressChunk(value)
+    }
     return String(value)
   })
 }

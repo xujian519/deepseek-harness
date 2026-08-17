@@ -6,7 +6,7 @@
  * 纯函数，无外部依赖。
  */
 
-import type { DateDetermination, DateReliability, DateSourceType } from './types.ts'
+import type { DateDetermination } from './types.ts'
 
 /** 支持的日期格式（对齐 Go dateFormats）。
  * 英文月份名（Jan 2, 2023 / September 2, 2023）由 parseDateFlexible 的
@@ -64,10 +64,6 @@ function formatToRegex(format: string): RegExp {
       return /^(\d{4})年(\d{2})月(\d{2})日$/
     case 'yyyy年M月':
       return /^(\d{4})年(\d{1,2})月$/
-    case 'MMM d, yyyy':
-      return /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/
-    case 'MMMM d, yyyy':
-      return /^([A-Za-z]{3,9}) (\d{1,2}), (\d{4})$/
     default:
       return /$a/ // 永不匹配
   }
@@ -117,7 +113,7 @@ export function parseDateFlexible(text: string): Date | null {
   if (m) {
     const monthName = m[1]
     if (monthName !== undefined) {
-      const month = MONTHS[monthName.toLowerCase()] ?? MONTHS[monthName.toLowerCase().slice(0, 3)] ?? MONTHS[shortMonth(monthName)]
+      const month = MONTHS[monthName.toLowerCase()] ?? MONTHS[monthName.toLowerCase().slice(0, 3)]
       const day = Number(m[2])
       const year = Number(m[3])
       if (month !== undefined && day >= 1 && day <= 31 && year >= 1) {
@@ -127,12 +123,6 @@ export function parseDateFlexible(text: string): Date | null {
     }
   }
   return null
-}
-
-/** 英文月份名 → 月号（含 Sept 变体与全称前 3 字母）。 */
-function shortMonth(name: string): string {
-  const n = name.toLowerCase()
-  return n.length >= 3 ? n.slice(0, 3) : n
 }
 
 /**
@@ -321,23 +311,3 @@ export function extractDateFromText(text: string): string {
   }
   return ''
 }
-
-/**
- * 可靠性等级 → 人读说明。
- * @param reliability - 日期可靠度等级（可空）。
- * @returns 人读说明。
- */
-export function dateReliabilityLabel(reliability?: DateReliability): string {
-  switch (reliability) {
-    case 'high':
-      return '高（页面精确标注）'
-    case 'medium':
-      return '中（月级推定/存档记录）'
-    case 'low':
-      return '低（主张/推断）'
-    default:
-      return '未知'
-  }
-}
-
-export type { DateReliability, DateSourceType }

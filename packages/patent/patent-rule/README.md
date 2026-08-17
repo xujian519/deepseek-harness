@@ -14,7 +14,7 @@ On the result of each delivery tool named in `gateToolNames` (`render_patent_doc
 
 ## Rule engine (library API)
 
-The package re-exports the ported rule engine: `evaluateText`, `evaluateRule`, `groupByAction`, `parseRuleSetFromYaml`, `loadRuleSetFromFile`, `loadRuleSetDir`, `mergeRuleSets`, `applyRuleOverrides`, `loadPatentComplianceRuleSet`, `loadPatentElectricalRuleSet`, `loadPatentFullRuleSet`, `loadActivationOverrides`, `selectGateRules`, `loadRulePack`, `loadSynonymsAsset`, `RuleOutputGate`, and `rulesToPolicyDenyRules`.
+The package re-exports the ported rule engine: `evaluateText`, `evaluateRule`, `groupByAction`, `parseRuleSetFromYaml`, `loadRuleSetFromFile`, `loadRuleSetDir`, `mergeRuleSets`, `applyRuleOverrides`, `loadPatentComplianceRuleSet`, `loadPatentElectricalRuleSet`, `loadPatentFullRuleSet`, `loadActivationOverrides`, `selectGateRules`, `loadRulePack`, `loadSynonymsAsset`, `RuleOutputGate`.
 
 ## Configuration
 
@@ -38,5 +38,4 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 
 - **Asset location differs from Sati** — rules resolve from the packaged `assets/rules/` via `import.meta.url` (with an optional `rulesDir` override); the `SATI_RULES_DIR` environment variable, cwd/workspace-root walking, and the project `.sati/rules.yaml` auto-discovery are dropped. `loadRulePack` accepts only an explicit `manifestPath`.
 - **Layered pack default is base only** — `loadRulePack` without a manifest loads only the packaged base pack; domain and override layers require an explicit manifest.
-- **`rulesToPolicyDenyRules` is not wired** — the policy bridge is exported as a pure function for parity, but dsh tool interception goes through `ctx.tools.guard` and `tools/post-execute` instead of a permission-rules context.
 - **Rule-set loading is fail-soft** — a missing or damaged asset degrades to an empty rule set (the gate passes through) rather than failing the deployment.

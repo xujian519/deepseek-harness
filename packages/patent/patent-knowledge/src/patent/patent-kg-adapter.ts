@@ -113,16 +113,6 @@ export class PatentKgAdapter {
   }
 
   /**
-   * 两个节点间的引用链路径（BFS，最长 5 跳）。
-   * @param fromId 起始节点 id。
-   * @param toId 目标节点 id。
-   * @returns 引用链边序列，不可达时 null。
-   */
-  getCitationChain(fromId: string, toId: string): Array<{ source: string; target: string; relation: string }> | null {
-    return this.store.bfsPath(fromId, toId, 5)
-  }
-
-  /**
    * 展开某节点的相似/相关邻居。
    * @param nodeId 节点 id。
    * @param limit 返回邻居数量上限。

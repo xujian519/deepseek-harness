@@ -7,7 +7,7 @@
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
 import { getJSON } from '../http.ts'
-import { fromInverted, raw, snippet } from '../shared/text.ts'
+import { clampLimit, formatAuthors, fromInverted, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.openalex.org/works'
 const DEFAULT_MAILTO = 'sati@users.noreply.github.com'
@@ -51,9 +51,9 @@ function shortId(id?: string): string {
 }
 
 function authors(w: Work): string | undefined {
-  const names = (w.authorships ?? []).map(a => a.author?.display_name).filter((n): n is string => !!n)
-  if (names.length === 0) return undefined
-  return names.length > 4 ? `${names.slice(0, 4).join(', ')} et al.` : names.join(', ')
+  return formatAuthors((w.authorships ?? []).map(a => a.author?.display_name))
+
+
 }
 
 function toHit(w: Work): ConnectorHit {
@@ -61,7 +61,7 @@ function toHit(w: Work): ConnectorHit {
   return {
     id: shortId(w.id) || (w.doi ?? ''),
     title: snippet(w.display_name ?? w.title, 300) ?? (shortId(w.id) || 'Untitled'),
-    summary: snippet(fromInverted(w.abstract_inverted_index)) ?? (meta.length ? meta : undefined),
+    summary: snippet(fromInverted(w.abstract_inverted_index)) ?? nonEmpty(meta),
     url: w.id ?? w.primary_location?.landing_page_url ?? w.doi ?? undefined,
     score: typeof w.relevance_score === 'number' ? w.relevance_score : w.cited_by_count,
     extra: raw(w),
@@ -85,7 +85,7 @@ export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions 
     description: 'Open scholarly graph of works, authors, venues, and concepts (successor to MAG).',
     homepage: 'https://openalex.org',
     async search(query, opts) {
-      const per = Math.min(Math.max(opts?.limit ?? 10, 1), 50)
+      const per = clampLimit(opts?.limit)
       const data = await getJSON<SearchResponse>(
         `${BASE}?search=${encodeURIComponent(query)}&per-page=${per}&${polite()}`,
         { signal: opts?.signal, fetchImpl: options.fetchImpl },

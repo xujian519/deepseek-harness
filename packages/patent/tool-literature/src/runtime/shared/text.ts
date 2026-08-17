@@ -65,6 +65,36 @@ export function snippet(input?: string, max = 600): string | undefined {
 }
 
 /**
+ * Format an author list for display, truncating past four names with "et al.".
+ * @param names - author names (falsy entries dropped).
+ * @returns the joined names, or undefined when no name remains.
+ */
+export function formatAuthors(names: Array<string | undefined>): string | undefined {
+  const present = names.filter((n): n is string => !!n)
+  if (present.length === 0) return undefined
+  return present.length > 4 ? `${present.slice(0, 4).join(', ')} et al.` : present.join(', ')
+}
+
+/**
+ * Clamp a requested result limit to the 1-50 range (default 10).
+ * @param limit - requested result limit (optional).
+ * @returns the clamped limit.
+ */
+export function clampLimit(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? 10, 1), 50)
+}
+
+/**
+ * Normalize an empty string to undefined (empty metadata fallbacks mean absent).
+ * @param value - the string to normalize.
+ * @returns the string, or undefined when empty.
+ */
+export function nonEmpty(value: string): string | undefined {
+  return value.length > 0 ? value : undefined
+}
+
+
+/**
  * Pass through a source API record verbatim as an opaque `extra` payload.
  * @param value - the source API record.
  * @returns the record as an opaque object.

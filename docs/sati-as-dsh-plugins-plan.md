@@ -525,7 +525,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 
 ### 12.4 P4.1 + P4.2 完成：dsh-patent-rule（规则引擎 + 守卫 + 输出门禁）
 
-- 引擎 runtime 全量移植（src/runtime/）：RuleEngine / RuleLoader / synonym-engine / patent-compliance（loadPatentComplianceRuleSet 等）/ rule-pack / output-gate（RuleOutputGate 类）/ policy-bridge（rulesToPolicyDenyRules 纯函数，注明 dsh 接线走 guard/post-execute）。协议类型 + text-utils 自 core 导入（P2.1 单归属）。
+- 引擎 runtime 全量移植（src/runtime/）：RuleEngine / RuleLoader / synonym-engine / patent-compliance（loadPatentComplianceRuleSet 等）/ rule-pack / output-gate（RuleOutputGate 类）/ policy-bridge（rulesToPolicyDenyRules 纯函数，注明 dsh 接线走 guard/post-execute）。协议类型 + text-utils 自 core 导入（P2.1 单归属）。policy-bridge（rulesToPolicyDenyRules）未接线生产路径，已在移植后简化评审中移除。
 - RuleOutputGate + RuleOutputGateResult 协议类型落 core（src/rule/types.ts 单归属），patent-workflow 改为从 core re-export（删除本地副本，公开 API 不变）。
 - 资产随包：assets/rules/ 完整镜像 Sati rules/（patent/base/domains + pack.schema.json，23 文件）；asset-location 改 new URL 包内解析 + Config rulesDir 覆盖（弃 SATI_RULES_DIR / cwd 走查，README Known Limitations 记录）。
 - 守卫（P4.2）：src/guard/evidenceComplianceGuards.ts 移植为 dsh ToolGuard（execution → string deny，单调不可被 allow 覆盖），经 ctx.tools.guard() 注册；EVI-011 条件字段自 loadEvidenceRulesEngine（接线包内 assets 真源）派生，资产缺失回退硬编码集合。

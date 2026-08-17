@@ -42,6 +42,19 @@ export function isDegraded(state: GraphState, valueKey: string): boolean {
   return state[`${valueKey}${DEGRADATION_SUFFIX}`] !== undefined
 }
 
+/** 类型守卫：判断值是否为合法降级标记（reason 与 message 均为字符串）。
+ * @param value - 待判断的值。
+ * @returns 为 true 表示 value 是 DegradationMark。
+ */
+function isDegradationMark(value: unknown): value is DegradationMark {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { reason?: unknown }).reason === 'string' &&
+    typeof (value as { message?: unknown }).message === 'string'
+  )
+}
+
 /** 读取某 key 的降级标记（无则 undefined）。
  * @param state - 图状态。
  * @param valueKey - 被查询的值键。
@@ -49,15 +62,7 @@ export function isDegraded(state: GraphState, valueKey: string): boolean {
  */
 export function getDegradationMark(state: GraphState, valueKey: string): DegradationMark | undefined {
   const mark = state[`${valueKey}${DEGRADATION_SUFFIX}`]
-  if (
-    typeof mark === 'object' &&
-    mark !== null &&
-    typeof (mark as { reason?: unknown }).reason === 'string' &&
-    typeof (mark as { message?: unknown }).message === 'string'
-  ) {
-    return mark as DegradationMark
-  }
-  return undefined
+  return isDegradationMark(mark) ? mark : undefined
 }
 
 /** 全图降级标记汇总（按 key 字典序，确定性输出）。
@@ -69,13 +74,8 @@ export function degradationSummary(state: GraphState): DegradationMark[] {
   for (const key of Object.keys(state).sort()) {
     if (!key.endsWith(DEGRADATION_SUFFIX)) continue
     const mark = state[key]
-    if (
-      typeof mark === 'object' &&
-      mark !== null &&
-      typeof (mark as { reason?: unknown }).reason === 'string' &&
-      typeof (mark as { message?: unknown }).message === 'string'
-    ) {
-      marks.push(mark as DegradationMark)
+    if (isDegradationMark(mark)) {
+      marks.push(mark)
     }
   }
   return marks

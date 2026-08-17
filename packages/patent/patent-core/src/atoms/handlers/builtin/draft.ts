@@ -48,7 +48,8 @@ export class DraftClaimsHandler implements StageHandler {
     const pfeTriples = getStateArray(state, 'pfe_triples')
     const novelty = getStateString(state, 'novelty_conclusion')
     const source = getStateString(state, 'source_text')
-    const input = mergeResult || (pfeTriples.length > 0 ? JSON.stringify(pfeTriples, null, 2) : '') || source
+    const pfeJson = pfeTriples.length > 0 ? JSON.stringify(pfeTriples, null, 2) : ''
+    const input = mergeResult || pfeJson || source
     if (input.trim().length === 0) {
       return degraded('draft-claims', '输入为空（state.merge_result / pfe_triples / source_text）')
     }

@@ -120,12 +120,12 @@ function parseTargets(raw: string): TargetsParseResult {
         const id = typeof t.id === 'string' ? JSON.stringify(t.id) : '(未命名)'
         return { targets: [], error: `目标 ${id} 的 kind 非法（仅支持 prior-art/product）: ${JSON.stringify(t.kind)}` }
       }
-      const sourcePath =
-        typeof t.sourcePath === 'string'
-          ? t.sourcePath
-          : typeof t.source_path === 'string'
-            ? t.source_path
-            : undefined
+      let sourcePath: string | undefined
+      if (typeof t.sourcePath === 'string') {
+        sourcePath = t.sourcePath
+      } else if (typeof t.source_path === 'string') {
+        sourcePath = t.source_path
+      }
       targets.push({
         id: typeof t.id === 'string' ? t.id : '',
         kind: rawKind,

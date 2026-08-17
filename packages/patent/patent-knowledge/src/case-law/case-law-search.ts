@@ -16,10 +16,11 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { openKnowledgeDb } from '../shared/db-version.ts'
 import { KNOWLEDGE_DB } from '../shared/schema-versions.ts'
-import { escapeFtsPhrase, FTS_MIN_RUNES, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
+import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
 import { decompressChunk, registerChunkUncompress } from '../shared/chunk-compression.ts'
 import type { KnowledgeRuntimeStats } from '../shared/knowledge-stats.ts'
-import { extractLawKeywords } from '../legal/keywords.ts'
+import { runFtsSearch } from '../shared/fts-search.ts'
+import { errorMessage } from '../shared/errors.ts'
 import type { CaseLawChunk, CaseLawHit, CaseLawSearchOptions } from './types.ts'
 
 /** 引擎构造选项（全部可选；不传时行为与旧签名完全一致）。 */
@@ -149,7 +150,7 @@ export class CaseLawSearchEngine {
       ORDER BY bm25(docs_fts) LIMIT ?
     `)
       } catch (error) {
-        this.degradeFts(error instanceof Error ? error.message : String(error))
+        this.degradeFts(errorMessage(error))
         this.stmtSearchFts = null
       }
     }
@@ -180,33 +181,15 @@ export class CaseLawSearchEngine {
     const trimmed = keyword.trim()
     if (!trimmed) return []
 
-    const runes = Array.from(trimmed)
-    let hits: CaseLawHit[]
-    if (!this.hasFts || this.ftsDegraded || runes.length < FTS_MIN_RUNES) {
-      hits = this.searchLike(trimmed, options, limit)
-    } else {
-      try {
-        // 1. 整句 phrase（短查询命中率高）
-        hits = this.searchFts(trimmed, options, limit)
-        // 2. 整句无命中时切词 OR 查询（长句/自然语言查询）
-        if (hits.length === 0) {
-          const keywords = extractLawKeywords(trimmed)
-          if (keywords.length > 0 && keywords[0] !== trimmed) {
-            hits = this.searchFtsKeywords(keywords, options, limit)
-          }
-        }
-        // 3. FTS 仍无命中时降级 LIKE
-        if (hits.length === 0) {
-          hits = this.searchLike(trimmed, options, limit)
-        }
-      } catch (error) {
-        // FTS5 模块缺失或查询异常（如运行时 SQLite 未编译 FTS5，MATCH 抛
-        // "no such module: fts5"）：整体降级 LIKE，避免工具执行崩溃。
-        this.degradeFts(error instanceof Error ? error.message : String(error))
-        hits = this.searchLike(trimmed, options, limit)
-      }
-    }
-    return hits
+    return runFtsSearch(
+      trimmed,
+      this.hasFts,
+      this.ftsDegraded,
+      kw => this.searchFts(kw, options, limit),
+      keywords => this.searchFtsKeywords(keywords, options, limit),
+      kw => this.searchLike(kw, options, limit),
+      (reason) => { this.degradeFts(reason) },
+    )
   }
 
   /**
@@ -238,7 +221,7 @@ export class CaseLawSearchEngine {
   }
 
   /** 构建 FTS 查询（固定投影 + 可选过滤；带过滤时拼接动态 SQL）。 */
-  private buildFtsQuery(options: CaseLawSearchOptions): { sql: string; filterParams: Array<string | null> } {
+  private buildFtsQuery(options: CaseLawSearchOptions): { sql: string; filterParams: Array<string | number | null> } {
     let sql = `
       SELECT d.id AS document_id, d.doc_type, d.title, d.decision_number, d.case_number,
              d.court, d.source, d.module, d.char_count,
@@ -248,21 +231,38 @@ export class CaseLawSearchEngine {
       JOIN documents d ON d.id = c.document_id
       WHERE docs_fts MATCH ?
     `
-    const filterParams: Array<string | null> = []
-    if (options.docType) {
-      sql += ' AND d.doc_type = ?'
-      filterParams.push(options.docType)
-    }
-    if (options.court) {
-      sql += ' AND d.court LIKE ?'
-      filterParams.push(`%${options.court.replace(/[%_\\]/g, m => `\\${m}`)}%`)
-    }
-    if (options.excludeSource) {
-      sql += ' AND d.source != ?'
-      filterParams.push(options.excludeSource)
-    }
+    const filterParams: Array<string | number | null> = []
+    sql = this.appendCaseLawFilters(sql, options, filterParams)
     sql += ' ORDER BY bm25(docs_fts) LIMIT ?'
     return { sql, filterParams }
+  }
+
+  /**
+   * 追加 docType/court/excludeSource 三个过滤子句（buildFtsQuery 与 searchLike 共用）。
+   * @param sql 已构建的查询前缀。
+   * @param options 检索选项（过滤字段）。
+   * @param params 占位符参数数组（就地追加过滤参数）。
+   * @returns 追加过滤子句后的 SQL 文本。
+   */
+  private appendCaseLawFilters(
+    sql: string,
+    options: CaseLawSearchOptions,
+    params: Array<string | number | null>,
+  ): string {
+    let result = sql
+    if (options.docType) {
+      result += ' AND d.doc_type = ?'
+      params.push(options.docType)
+    }
+    if (options.court) {
+      result += ' AND d.court LIKE ?'
+      params.push(`%${options.court.replace(/[%_\\]/g, m => `\\${m}`)}%`)
+    }
+    if (options.excludeSource) {
+      result += ' AND d.source != ?'
+      params.push(options.excludeSource)
+    }
+    return result
   }
 
   private searchFts(keyword: string, options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
@@ -317,18 +317,7 @@ export class CaseLawSearchEngine {
         WHERE (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
       `
       const params: Array<string | number | null> = [pattern, pattern]
-      if (options.docType) {
-        sql += ' AND d.doc_type = ?'
-        params.push(options.docType)
-      }
-      if (options.court) {
-        sql += ' AND d.court LIKE ?'
-        params.push(`%${options.court.replace(/[%_\\]/g, m => `\\${m}`)}%`)
-      }
-      if (options.excludeSource) {
-        sql += ' AND d.source != ?'
-        params.push(options.excludeSource)
-      }
+      sql = this.appendCaseLawFilters(sql, options, params)
       sql += ' LIMIT ?'
       params.push(limit)
       rows = this.db.prepare(sql).all(...params) as CaseLawRow[]

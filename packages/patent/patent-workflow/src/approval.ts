@@ -34,31 +34,6 @@ export type ApprovalStore = {
   listRecords(): ApprovalRecord[]
 }
 
-/** 内存审批审计存储：追加审计记录并按决定时间升序列出。 */
-export class InMemoryApprovalStore implements ApprovalStore {
-  private readonly records: ApprovalRecord[] = []
-
-  saveRecord(record: ApprovalRecord): void {
-    this.records.push(record)
-  }
-
-  listRecords(): ApprovalRecord[] {
-    return [...this.records]
-  }
-
-  /**
-   * 按结论统计（AdoptionRate = adopted / total；供指标与 Golden Benchmark）。
-   * @returns 结论计数与采纳率（adoptionRate = adopted / total，无记录时为 0）。
-   */
-  stats(): { total: number; adopted: number; modified: number; rejected: number; adoptionRate: number } {
-    const total = this.records.length
-    const adopted = this.records.filter(r => r.verdict === 'adopted').length
-    const modified = this.records.filter(r => r.verdict === 'modified').length
-    const rejected = this.records.filter(r => r.verdict === 'rejected').length
-    return { total, adopted, modified, rejected, adoptionRate: total > 0 ? adopted / total : 0 }
-  }
-}
-
 /**
  * 构造审计记录（供 PatentOutputGate approve/reject 调用）。now 为可注入时钟（默认系统时钟）。
  * @param input - 审计记录字段（含可注入时钟 now，默认系统时钟）。

@@ -102,6 +102,10 @@ function buildUsage(inputTokens: number | undefined, outputTokens: number | unde
 async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<PatentModelEvent> {
   let inputTokens: number | undefined
   let outputTokens: number | undefined
+  const doneEvent = (): PatentModelEvent => {
+    const usage = buildUsage(inputTokens, outputTokens)
+    return { type: 'done', ...(usage === undefined ? {} : { usage }) }
+  }
   for await (const chunk of chunks) {
     switch (chunk.type) {
       case 'text-delta':
@@ -116,8 +120,7 @@ async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<Pa
         if (reason.kind === 'error' || reason.kind === 'aborted') {
           throw new Error(reason.failure.message)
         }
-        const usage = buildUsage(inputTokens, outputTokens)
-        yield { type: 'done', ...(usage === undefined ? {} : { usage }) }
+        yield doneEvent()
         return
       }
       default:
@@ -128,8 +131,7 @@ async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<Pa
   }
   // A well-formed adapter stream ends with a finish chunk; emit done defensively
   // if the stream ended without one.
-  const usage = buildUsage(inputTokens, outputTokens)
-  yield { type: 'done', ...(usage === undefined ? {} : { usage }) }
+  yield doneEvent()
 }
 
 /**

@@ -88,27 +88,9 @@ export function RegisterAtom(atom: Atom): void {
 }
 
 /**
- * 按 name 查询全局注册表中的 Atom。
- * @param name - Atom 名称。
- * @returns 匹配的 Atom，未注册时返回 undefined。
- */
-export function LookupAtom(name: string): Atom | undefined {
-  return globalAtomRegistry.lookup(name)
-}
-
-/**
  * 列出全局注册表中的全部 Atom。
  * @returns 已注册 Atom 数组。
  */
 export function ListAtoms(): Atom[] {
   return globalAtomRegistry.list()
-}
-
-/**
- * 列出全局注册表中指定分类的 Atom。
- * @param category - Atom 分类。
- * @returns 该分类下的 Atom 数组。
- */
-export function ListAtomsByCategory(category: AtomCategory): Atom[] {
-  return globalAtomRegistry.listByCategory(category)
 }

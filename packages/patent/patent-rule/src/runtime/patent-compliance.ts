@@ -60,16 +60,25 @@ function loadFirstExistingRuleSet(fileName: string, rulesDir?: string): PatentCo
 }
 
 /**
- * 加载内置专利合规规则集；找不到资产时返回空规则集并附警告。
+ * 加载基础合规规则集，并在资产缺失时追加"门禁降级为放行"警告。
  * @param rulesDir - 可选的规则根目录覆盖。
  * @returns 加载结果（规则集、来源、警告）。
  */
-export function loadPatentComplianceRuleSet(rulesDir?: string): PatentComplianceLoadResult {
+function loadBaseCompliance(rulesDir?: string): PatentComplianceLoadResult {
   const result = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)
   if (result.source === null) {
     result.warnings.push('未找到专利合规规则资产（assets/rules/patent/compliance.yaml），门禁降级为放行')
   }
   return result
+}
+
+/**
+ * 加载内置专利合规规则集；找不到资产时返回空规则集并附警告。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 加载结果（规则集、来源、警告）。
+ */
+export function loadPatentComplianceRuleSet(rulesDir?: string): PatentComplianceLoadResult {
+  return loadBaseCompliance(rulesDir)
 }
 
 /**
@@ -79,9 +88,8 @@ export function loadPatentComplianceRuleSet(rulesDir?: string): PatentCompliance
  * @returns 加载结果（规则集、来源、警告）。
  */
 export function loadPatentElectricalRuleSet(rulesDir?: string): PatentComplianceLoadResult {
-  const base = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)
+  const base = loadBaseCompliance(rulesDir)
   if (base.source === null) {
-    base.warnings.push('未找到专利合规规则资产（assets/rules/patent/compliance.yaml），门禁降级为放行')
     return base
   }
   const extra = loadFirstExistingRuleSet(ELECTRICAL_FILE, rulesDir)
@@ -174,9 +182,8 @@ export function selectGateRules(ruleSet: RuleSet): RuleSet {
  * @returns 加载结果（规则集、来源、警告）。
  */
 export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadResult {
-  const base = loadFirstExistingRuleSet(COMPLIANCE_FILE, rulesDir)
+  const base = loadBaseCompliance(rulesDir)
   if (base.source === null) {
-    base.warnings.push('未找到专利合规规则资产（assets/rules/patent/compliance.yaml），门禁降级为放行')
     return base
   }
   const nuoRuleSets: RuleSet[] = []

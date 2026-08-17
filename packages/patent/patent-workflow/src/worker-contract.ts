@@ -85,15 +85,6 @@ export type WorkerExecutionRecord = {
   note?: string
 }
 
-/** Worker 分层的展示标签（中文）。 */
-export const TIER_LABELS: Record<WorkerTier, string> = {
-  work: '工序',
-  provision: '条款',
-  reasoning: '推理',
-  domain: '领域',
-  checker: '复核',
-}
-
 /** Worker 注册表错误（重复注册 / 缺失字段）。 */
 export class WorkerRegistryError extends Error {
   constructor(message: string) {
@@ -229,68 +220,6 @@ export function validateWorkerOutput(
       : undefined,
   }
 }
-
-/** Worker 执行监控：记录执行记录并聚合统计。 */
-export class WorkerMonitor {
-  private readonly records: WorkerExecutionRecord[] = []
-
-  /**
-   * 记录一次 worker 执行。
-   * @param record - 执行记录。
-   */
-  record(record: WorkerExecutionRecord): void {
-    this.records.push(record)
-  }
-
-  /**
-   * 按 worker 聚合统计（成功率 / 违约计数 / P99 时延）。
-   * @returns worker 名称 → 聚合统计（运行次数、成功率、降级次数、P99 时延）。
-   */
-  stats(): Record<string, { runs: number; successRate: number; degradedCount: number; p99Ms: number }> {
-    const byWorker = new Map<string, WorkerExecutionRecord[]>()
-    for (const r of this.records) {
-      const list = byWorker.get(r.workerName) ?? []
-      list.push(r)
-      byWorker.set(r.workerName, list)
-    }
-    const result: Record<string, { runs: number; successRate: number; degradedCount: number; p99Ms: number }> = {}
-    for (const [name, list] of byWorker) {
-      const runs = list.length
-      const ok = list.filter(r => r.outputValid).length
-      const degraded = list.filter(r => r.degraded).length
-      const sorted = list.map(r => r.durationMs).sort((a, b) => a - b)
-      const p99 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] ?? 0
-      result[name] = { runs, successRate: ok / runs, degradedCount: degraded, p99Ms: p99 }
-    }
-    return result
-  }
-
-  /**
-   * 汇总统计为可读文本。
-   * @returns 执行监控汇总文本。
-   */
-  summary(): string {
-    const st = this.stats()
-    const lines = Object.entries(st).map(
-      ([name, s]) =>
-        `  ${name}: ${s.runs} 次, 成功率 ${Math.round(s.successRate * 100)}%, 降级 ${s.degradedCount} 次, P99 ${s.p99Ms}ms`,
-    )
-    return `Worker 执行监控 (${this.records.length} 条记录):
-${lines.join('\n')}`
-  }
-}
-
-/**
- * Worker → 角色映射表（审计用）。
- */
-export const WORKER_ROLE_MAP: ReadonlyArray<{ worker: string; role?: string | undefined; note?: string | undefined }> = [
-  { worker: 'patent-technical-analyzer', role: 'patent-analyzer', note: 'PFE 三要素提取' },
-  { worker: 'patent-search-commander', role: 'patent-retriever', note: '检索策略与执行' },
-  { worker: 'patent-novelty-analyzer', role: 'patent-novelty-checker', note: 'A22.2 新颖性' },
-  { worker: 'patent-inventiveness-analyzer', role: 'patent-creativity-checker', note: 'A22.3 三步法' },
-  { worker: 'quality_checker', role: 'patent-quality-checker', note: '质量复核' },
-  { worker: 'patent-oa-writer', role: undefined, note: '无对应 type: role 角色（OA 答复为技能）' },
-]
 
 /**
  * 内置专利 worker 目录（移植 Mady DefaultWorkers 的专利相关条目，工具名适配 Sati）。

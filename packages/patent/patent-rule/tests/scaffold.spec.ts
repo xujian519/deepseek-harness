@@ -16,7 +16,6 @@ describe('@deepseek-ai/dsh-patent-rule', () => {
     expect(typeof Pkg.loadPatentFullRuleSet).toBe('function')
     expect(typeof Pkg.loadRulePack).toBe('function')
     expect(typeof Pkg.RuleOutputGate).toBe('function')
-    expect(typeof Pkg.rulesToPolicyDenyRules).toBe('function')
     expect(typeof Pkg.createEvidenceComplianceGuards).toBe('function')
   })
 })

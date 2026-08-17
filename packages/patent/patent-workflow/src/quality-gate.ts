@@ -69,65 +69,6 @@ export type QualityGateResult = {
   citationReport: CitationReport
 }
 
-/** 暂存队列：审批通过 Commit / 拒绝 Discard（未人工复核不入库）。 */
-export class DeferredPersistQueue<T> {
-  private readonly messages = new Map<number, T>()
-  private nextIndex = 0
-
-  /**
-   * 暂存消息，返回索引。
-   * @param message - 待暂存的消息。
-   * @returns 暂存索引。
-   */
-  store(message: T): number {
-    const index = this.nextIndex
-    this.nextIndex += 1
-    this.messages.set(index, message)
-    return index
-  }
-
-  /**
-   * 提交：取出并移除暂存消息。
-   * @param index - 暂存索引。
-   * @returns 被提交的消息；索引不存在时为 undefined。
-   */
-  commit(index: number): T | undefined {
-    const msg = this.messages.get(index)
-    if (msg !== undefined) this.messages.delete(index)
-    return msg
-  }
-
-  /**
-   * 丢弃暂存消息。
-   * @param index - 暂存索引。
-   */
-  discard(index: number): void {
-    this.messages.delete(index)
-  }
-
-  /**
-   * 返回全部暂存索引。
-   * @returns 暂存索引列表。
-   */
-  pending(): number[] {
-    return [...this.messages.keys()]
-  }
-
-  /**
-   * 判断索引是否存在暂存消息。
-   * @param index - 暂存索引。
-   * @returns 是否存在。
-   */
-  has(index: number): boolean {
-    return this.messages.has(index)
-  }
-
-  /** 暂存消息数量。 */
-  get size(): number {
-    return this.messages.size
-  }
-}
-
 // ---------------------------------------------------------------------------
 // CitationGate（法条引用核验）
 // ---------------------------------------------------------------------------
@@ -464,7 +405,7 @@ export type PatentQualityGateOptions = {
 
 /**
  * 处理 Agent 输出：注入免责声明 / 标记审批挂起 / 法条核验。
- * 纯函数，不触碰存储——挂起消息由调用方存入 DeferredPersistQueue。
+ * 纯函数，不触碰存储——挂起消息由调用方管理。
  * @param text - Agent 输出文本。
  * @param options - 可选门禁配置（风险词/审批词/绝对化表述/免责声明/引用核验开关）。
  * @returns 门禁判定结果（含处理后文本与命中信息）。

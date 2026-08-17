@@ -135,6 +135,19 @@ function checkCitationAnalysis(
   return evidence
 }
 
+/**
+ * 构造置信度不足的违规消息；达到阈值时返回 null（不违规）。
+ * @param noun - 要素类别名词（"结构" / "同义"）。
+ * @param confidence - 实际置信度（0..1）。
+ * @param missing - 缺失要素清单。
+ * @param minConfidence - 置信度阈值。
+ * @returns 违规消息；达到阈值时为 null。
+ */
+function confidenceViolation(noun: string, confidence: number, missing: string[], minConfidence: number): string | null {
+  if (confidence >= minConfidence) return null
+  return `${noun}要素不完整：缺失 ${missing.join('、')}（置信度 ${(confidence * 100).toFixed(0)}% < ${(minConfidence * 100).toFixed(0)}%）`
+}
+
 /** evaluateText 可选评估选项。 */
 export type EvaluateTextOptions = {
   /**
@@ -196,9 +209,9 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
     }
     case 'structural_analysis': {
       const { confidence, missing } = checkStructuralAnalysis(check, text)
-      const minConfidence = check.minConfidence ?? 1
-      if (confidence >= minConfidence) return null
-      message = `结构要素不完整：缺失 ${missing.join('、')}（置信度 ${(confidence * 100).toFixed(0)}% < ${(minConfidence * 100).toFixed(0)}%）`
+      const violation = confidenceViolation('结构', confidence, missing, check.minConfidence ?? 1)
+      if (violation === null) return null
+      message = violation
       break
     }
     case 'citation_analysis': {
@@ -209,9 +222,9 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
     }
     case 'synonym_match': {
       const { confidence, missing } = checkSynonymRequirements(text, check.requirements, synonyms ?? new Map())
-      const minConfidence = check.minConfidence ?? 1
-      if (confidence >= minConfidence) return null
-      message = `同义要素不完整：缺失 ${missing.join('、')}（置信度 ${(confidence * 100).toFixed(0)}% < ${(minConfidence * 100).toFixed(0)}%）`
+      const violation = confidenceViolation('同义', confidence, missing, check.minConfidence ?? 1)
+      if (violation === null) return null
+      message = violation
       break
     }
   }

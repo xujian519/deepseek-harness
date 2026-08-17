@@ -76,8 +76,16 @@ function averageScores(dims: PatentEvalDimension[]): number {
   return dims.reduce((sum, d) => sum + d.score, 0) / dims.length
 }
 
-function summarize(mode: PatentEvalMode, score: number): string {
-  const label = mode === 'report' ? '报告质量' : mode === 'retrieval' ? '检索覆盖度' : mode === 'workflow' ? '流程完整性' : '引用合规性'
+/** Non-comprehensive mode → summary-line label. */
+const MODE_LABELS: Record<Exclude<PatentEvalMode, 'comprehensive'>, string> = {
+  report: '报告质量',
+  retrieval: '检索覆盖度',
+  workflow: '流程完整性',
+  citations: '引用合规性',
+}
+
+function summarize(mode: Exclude<PatentEvalMode, 'comprehensive'>, score: number): string {
+  const label = MODE_LABELS[mode]
   return `${label}评分: ${score.toFixed(2)}/1.0 (${score >= PASS_LINE ? '通过' : '需修订'})`
 }
 

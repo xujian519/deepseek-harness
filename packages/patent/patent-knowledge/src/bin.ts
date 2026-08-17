@@ -8,6 +8,7 @@
 
 import { parseArgs } from 'node:util'
 import { installKnowledgeDb } from './install.ts'
+import { errorMessage } from './shared/errors.ts'
 
 const { values } = parseArgs({
   options: {
@@ -49,6 +50,6 @@ try {
     skipVerify: values['skip-verify'],
   })
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error))
+  console.error(errorMessage(error))
   process.exit(1)
 }

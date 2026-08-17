@@ -18,11 +18,12 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { openKnowledgeDb } from '../shared/db-version.ts'
 import { KNOWLEDGE_DB } from '../shared/schema-versions.ts'
-import { escapeFtsPhrase, FTS_MIN_RUNES, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
+import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
 import { decompressChunk, registerChunkUncompress } from '../shared/chunk-compression.ts'
 import type { KnowledgeRuntimeStats } from '../shared/knowledge-stats.ts'
+import { runFtsSearch } from '../shared/fts-search.ts'
+import { errorMessage } from '../shared/errors.ts'
 import type { LawCategory, LawRecord, LawSearchResult, LegalSearchSource } from './types.ts'
-import { extractLawKeywords } from './keywords.ts'
 
 /** Engine constructor options (all optional). */
 export type KnowledgeLawSearchEngineOptions = {
@@ -117,7 +118,7 @@ export class KnowledgeLawSearch implements LegalSearchSource {
           ORDER BY bm25(docs_fts) LIMIT ?
         `)
       } catch (error) {
-        this.degradeFts(error instanceof Error ? error.message : String(error))
+        this.degradeFts(errorMessage(error))
         this.stmtSearchFts = null
       }
     }
@@ -167,31 +168,15 @@ export class KnowledgeLawSearch implements LegalSearchSource {
     const trimmed = keyword.trim()
     if (!trimmed) return []
 
-    const runes = Array.from(trimmed)
-    let rows: DocChunkRow[]
-    if (!this.hasFts || this.ftsDegraded || runes.length < FTS_MIN_RUNES) {
-      rows = this.searchLike(trimmed, options, limit)
-    } else {
-      try {
-        // 1. 整句 phrase（短查询命中率高）
-        rows = this.searchFts(trimmed, options, limit)
-        // 2. 整句无命中时切词 OR 查询（长句/自然语言查询）
-        if (rows.length === 0) {
-          const keywords = extractLawKeywords(trimmed)
-          if (keywords.length > 0 && keywords[0] !== trimmed) {
-            rows = this.searchFtsKeywords(keywords, options, limit)
-          }
-        }
-        // 3. FTS 仍无命中时降级 LIKE
-        if (rows.length === 0) {
-          rows = this.searchLike(trimmed, options, limit)
-        }
-      } catch (error) {
-        this.degradeFts(error instanceof Error ? error.message : String(error))
-        rows = this.searchLike(trimmed, options, limit)
-      }
-    }
-
+    const rows = runFtsSearch(
+      trimmed,
+      this.hasFts,
+      this.ftsDegraded,
+      kw => this.searchFts(kw, options, limit),
+      keywords => this.searchFtsKeywords(keywords, options, limit),
+      kw => this.searchLike(kw, options, limit),
+      (reason) => { this.degradeFts(reason) },
+    )
     return rows.map(row => this.toSearchResult(row))
   }
 

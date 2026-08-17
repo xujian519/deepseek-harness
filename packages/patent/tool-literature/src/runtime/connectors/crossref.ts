@@ -6,7 +6,7 @@
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
 import { getJSON } from '../http.ts'
-import { raw, snippet } from '../shared/text.ts'
+import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.crossref.org/works'
 const MAILTO = 'mailto=sati@users.noreply.github.com'
@@ -50,9 +50,9 @@ function year(w: Work): number | undefined {
 }
 
 function authors(w: Work): string | undefined {
-  const names = (w.author ?? []).map(a => a.name ?? [a.given, a.family].filter(Boolean).join(' ')).filter(Boolean)
-  if (names.length === 0) return undefined
-  return names.length > 4 ? `${names.slice(0, 4).join(', ')} et al.` : names.join(', ')
+  return formatAuthors((w.author ?? []).map(a => a.name ?? [a.given, a.family].filter(Boolean).join(' ')))
+
+
 }
 
 function toHit(w: Work): ConnectorHit {
@@ -60,7 +60,7 @@ function toHit(w: Work): ConnectorHit {
   return {
     id: w.DOI ?? '',
     title: snippet([w.title?.[0], w.subtitle?.[0]].filter(Boolean).join(': '), 300) ?? w.DOI ?? 'Untitled',
-    summary: snippet(w.abstract) ?? (meta.length ? meta : undefined),
+    summary: snippet(w.abstract) ?? nonEmpty(meta),
     url: w.URL ?? (w.DOI ? `https://doi.org/${w.DOI}` : undefined),
     score: typeof w.score === 'number' ? w.score : undefined,
     extra: raw(w),
@@ -80,7 +80,7 @@ export function createCrossrefConnector(options: CreateCrossrefConnectorOptions 
     description: 'Cross-publisher DOI metadata: titles, authors, venues, references, and citations.',
     homepage: 'https://www.crossref.org',
     async search(query, opts) {
-      const rows = Math.min(Math.max(opts?.limit ?? 10, 1), 50)
+      const rows = clampLimit(opts?.limit)
       const data = await getJSON<SearchResponse>(
         `${BASE}?query=${encodeURIComponent(query)}&rows=${rows}&select=DOI,title,subtitle,abstract,author,container-title,publisher,type,URL,score,is-referenced-by-count,issued&${MAILTO}`,
         { signal: opts?.signal, fetchImpl: options.fetchImpl },

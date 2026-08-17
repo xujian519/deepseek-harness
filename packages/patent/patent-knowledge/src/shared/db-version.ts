@@ -57,9 +57,7 @@ export type OpenKnowledgeDbOptions = {
 }
 
 /** 打开结果：数据库连接 + 是否需要重建标记。 */
-export type OpenKnowledgeDbResult =
-  | { db: DatabaseSync; needsRebuild: false; version: number }
-  | { db: DatabaseSync; needsRebuild: true; version: number }
+export type OpenKnowledgeDbResult = { db: DatabaseSync; needsRebuild: boolean; version: number }
 
 /**
  * 打开知识库并校验/写入版本戳。

@@ -46,17 +46,12 @@ export class AsyncResultCache<T> {
       this.map.delete(key)
     }
 
-    const promise = loader().then(
-      (value) => {
-        if (shouldCache === undefined || shouldCache(value)) {
-          this.set(key, value)
-        }
-        return value
-      },
-      (error) => {
-        throw error
-      },
-    )
+    const promise = loader().then((value) => {
+      if (shouldCache === undefined || shouldCache(value)) {
+        this.set(key, value)
+      }
+      return value
+    })
     this.inflight.set(key, promise)
     try {
       return await promise
@@ -96,8 +91,7 @@ export class AsyncResultCache<T> {
  * @returns true when the result carries no failure-class warning.
  */
 export function isSearchResultCacheable(result: PatentSearchResult): boolean {
-  const failure = result.warnings.find(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
-  return !failure
+  return !result.warnings.some(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
 }
 
 /**
