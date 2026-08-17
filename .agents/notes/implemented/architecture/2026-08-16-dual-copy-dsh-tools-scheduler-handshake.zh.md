@@ -14,6 +14,8 @@ Web/桌面会话中每次工具调用都以 `Cannot read properties of undefined
 
 将 `TOOL_RUNTIME_SCHEDULER` 从模块内私有 `unique symbol` 改为带命名空间的字符串常量（`'@deepseek-ai/dsh-tools:runtime-scheduler'`）。字符串字面量在多个模块副本间按值共享，无论实例由哪份副本创建，agent loop 都能在 `ToolRuntime` 实例上取到调度器。键保持命名空间化且 `@internal`，仍不出现在生成的具名服务 API 中。
 
+当派发时键仍然缺席——由字符串键之前的副本构造了 `ToolRuntime`，这是任何键形态都无法弥合的版本错配——loop 会抛出可操作的握手诊断错误，而非裸的 `Cannot read properties of undefined (reading 'prepare')`。放宽类型的检查位于 `runGroup` 调度器 try 块开头，因此既有失败路径仍会记录保持转录 provider 有效的「未派发」合成结果。
+
 ## 备选方案
 
 **保留 symbol 并对齐版本（重建应用至 rc.6）。** 插件生态的发布领先于本 checkout，版本错位是移动目标；且不同路径下的两份相同版本副本仍会铸造不同 symbol——仅对齐版本不能修复机制。不采纳。
@@ -26,10 +28,11 @@ Web/桌面会话中每次工具调用都以 `Cannot read properties of undefined
 
 - `TOOL_RUNTIME_SCHEDULER` 现为字符串字面量；`ToolRuntime` 调度器字段、`tool-calls.ts`、`code-mode.ts` 无需其他改动。
 - `packages/core/tools/tests/tools.spec.ts` 新增回归测试，钉住键的字符串性及通过键可达调度器。
+- `packages/core/agent-loop/tests/tool-calls.spec.ts` 新增回归测试：移除调度器键后，钉住握手诊断错误与保持平衡的「未派发」合成结果。
 - 针对复现环境做了端到端验证：两份副本同时在位且都携带修复后的 lib（打包后端的副本是 workspace 链接）时，先前失败的 prompt 完成 22 次工具调用，调度器零报错。
 - 已发布应用（无需重建）的即时环境修复：从 profile 的 `node_modules` 移除被提升的副本，使 `tools` 行解析到应用捆绑副本；在未改动的捆绑代码下验证可用。
 
 ## 剩余风险
 
-- 本修复之前构建的 dsh-tools 副本仍只暴露 symbol；生态发布修复版副本前，profile 提升旧副本会使修复后的应用再次失效。届时请保持 profile 中该副本缺席（或固定为修复版）。
+- 本修复之前构建的 dsh-tools 副本仍只暴露 symbol，任何键形态都无法弥合该版本错配；生态发布修复版副本前，profile 提升旧副本会使修复后的应用再次失效。该失败现在会在派发时被响亮诊断，而非以裸 TypeError 形式出现。届时请保持 profile 中该副本缺席（或固定为修复版）。
 - Loader 在 profile 的 `node_modules` 遮蔽应用闭包时仍会从 profile 解析 bundle 行；未来任何被插件提升的核心行都可能以同样方式被遮蔽。本次修复已使当前握手健壮；Loader 解析加固仍是候选后续项。

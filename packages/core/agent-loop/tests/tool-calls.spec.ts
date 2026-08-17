@@ -725,6 +725,41 @@ describe('tool-call scheduler: failure quiescence', () => {
     expect(toolResults.map(result => result.id).sort()).toEqual([...assistantCallIds].sort())
     expect(toolResults.every(result => result.isError === true)).toBe(true)
   })
+
+  it('fails loud with a handshake diagnosis when the scheduler key is absent', async () => {
+    const adapter = new MockAdapter([
+      multiCall([
+        { id: 'c1', name: 'p', args: { id: '1' } },
+      ]),
+    ])
+    const ctx = await harness(adapter, 1)
+    const gated = gatedParallelTool('p')
+    ctx.tools.register(gated.tool)
+    // Simulate a stale dsh-tools copy building the ToolRuntime: the instance
+    // exposes the scheduler under the pre-string-key symbol, which the loop's
+    // string-key lookup cannot reach.
+    Reflect.deleteProperty(ctx.tools, TOOL_RUNTIME_SCHEDULER)
+    const agent = ctx.agentLoop.create(SessionId('missing-scheduler-key'), { provider: 'mock', model: 'mock' })
+    const idlePromise = waitForIdle(ctx, agent)
+
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await idlePromise
+
+    // The turn errors with an actionable handshake diagnosis instead of the
+    // bare `Cannot read properties of undefined (reading 'prepare')`.
+    const turnEnd = events(agent).findLast(event => event.type === 'turn/end')
+    expect(turnEnd).toMatchObject({ data: { reason: { kind: 'error', error: { code: 'UNKNOWN' } } } })
+    if (turnEnd?.type !== 'turn/end' || turnEnd.data.reason.kind !== 'error') throw new Error('expected an errored turn')
+    expect(turnEnd.data.reason.error.message).toContain('scheduler handshake')
+    // The call never started, so it carries the not-dispatched synthetic
+    // result and the transcript stays provider-valid.
+    const messages = agent.session.deriveMessages()
+    const toolResults = messages.flatMap(message =>
+      message.content.filter(block => block.type === 'tool-result').map(block => ({ text: block.content[0]?.type === 'text' ? block.content[0].text : '', isError: block.isError })))
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0]).toMatchObject({ isError: true })
+    expect(toolResults[0]?.text).toContain('before this call was dispatched')
+  })
 })
 
 describe('code-mode native-tool denial through the agent loop', () => {

@@ -14,6 +14,8 @@ Root cause: the desktop profile's own `node_modules` (`$DSH_HOME/profiles/deskto
 
 Change `TOOL_RUNTIME_SCHEDULER` from a module-local `unique symbol` to a namespaced string constant (`'@deepseek-ai/dsh-tools:runtime-scheduler'`). A string literal is shared by value across module copies, so the agent loop reaches the scheduler on the `ToolRuntime` instance regardless of which copy created it. The key stays namespaced and `@internal`, so it remains outside the generated named service API.
 
+When the key is still absent at dispatch time — a pre-string-key copy built the `ToolRuntime`, a version mismatch no key form can bridge — the loop fails loud with an actionable handshake diagnosis instead of the bare `Cannot read properties of undefined (reading 'prepare')`. The widened check lives at the top of `runGroup`'s scheduler try block, so the existing failure path still records the synthetic not-dispatched results that keep the transcript provider-valid.
+
 ## Alternatives considered
 
 **Keep the symbol and align versions (rebuild the app to rc.6).** Version skew is a moving target while the plugin ecosystem publishes ahead of this checkout, and two identical-version copies at different paths still mint distinct symbols — alignment alone does not fix the mechanism. Rejected.
@@ -26,10 +28,11 @@ Change `TOOL_RUNTIME_SCHEDULER` from a module-local `unique symbol` to a namespa
 
 - `TOOL_RUNTIME_SCHEDULER` is a string literal; the `ToolRuntime` scheduler field, `tool-calls.ts`, and `code-mode.ts` need no other change.
 - Regression test in `packages/core/tools/tests/tools.spec.ts` pins the string-ness of the key and reachability of the scheduler through it.
+- Regression test in `packages/core/agent-loop/tests/tool-calls.spec.ts` removes the scheduler key and pins the handshake diagnosis plus the balanced not-dispatched synthetic results.
 - Verified end to end against the reproducing environment: with both copies present and both carrying the fixed lib (the packaged backend's copy is a workspace link), the previously failing prompt completed 22 tool calls with zero scheduler errors.
 - Immediate environment fix for the shipped app (no rebuild): remove the hoisted copy from the profile's `node_modules` so the `tools` row resolves the app's bundled copy; verified working with the unmodified bundled code.
 
 ## Remaining risks
 
-- A dsh-tools copy built before this change still exposes only the symbol; until the ecosystem ships fixed copies, a profile that hoists one re-breaks a fixed app. Keep the hoisted copy absent from the profile (or pinned to a fixed copy) until then.
+- A dsh-tools copy built before this change still exposes only the symbol, and no key form can bridge that version mismatch; until the ecosystem ships fixed copies, a profile that hoists one re-breaks a fixed app. The failure is now diagnosed loudly at dispatch instead of surfacing as a bare TypeError. Keep the hoisted copy absent from the profile (or pinned to a fixed copy) until then.
 - The Loader still resolves bundle rows from a profile's `node_modules` when it shadows the app's closure; any future core row hoisted by plugins can shadow the same way. The scheduler fix makes the current handshake robust; loader-resolution hardening remains a candidate follow-up.
