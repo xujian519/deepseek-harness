@@ -1,0 +1,54 @@
+# Patent agent preset
+
+English | [中文](README.zh.md)
+
+The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, seven preset skills, and a patent-specific persona and plan-mode discipline, assembled per patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md.
+
+## What it mounts
+
+Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts seven patent-domain plugins:
+
+- `@deepseek-ai/dsh-patent-knowledge` — the knowledge.db query service (ctx.patentKnowledge: caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify).
+- `@deepseek-ai/dsh-patent-workflow` — the execution-pipeline service (ctx.patentWorkflow: runWorkflow / runPlantask / approve / reject).
+- `@deepseek-ai/dsh-patent-tools` — 23 model-facing tools: search, metadata, legal status, case/wiki/kg queries, drafting, claim chart, workflow recap, figure analysis, PDF download, knowledge notes.
+- `@deepseek-ai/dsh-patent-rule` — the rule engine, the output gate on tools/post-execute, and the EVI-011 evidence guards.
+- `@deepseek-ai/dsh-patent-document` — render_patent_document.
+- `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources.
+- `@deepseek-ai/dsh-methodology` — the triz tool.
+
+The patent services sit behind an isolate realm (patentKnowledge / patentWorkflow) shared with patent-tools, so its ctx.get('patentKnowledge') resolves this preset's instance rather than the host's. tool-ralph is omitted (a patent case uses goal / todo / workflow, not fresh-agent iteration), and tool-web is configured with fetch: true for the verify-before-cite rule.
+
+## Skills
+
+Seven skills ship in skills/:
+
+- patent-disclosure-understanding
+- patent-prior-art-search
+- patent-novelty-inventiveness
+- patent-infringement
+- patent-invalidity
+- patent-quality-gate
+- patent-workspace-layout
+
+The novelty/inventiveness, infringement, and invalidity skills are rewritten from the Sati skills patent-novelty-analysis, patent-inventiveness-analysis, patent-infringement-checker, and patent-invalidity-checker. Sati tool references (patent_kg_query / patent_case_search / law_search) are replaced by the dsh patent tools, the <memory-context> auto-injection is replaced by explicit must-check lists, and Sati-internal file paths are replaced by workspace-relative paths.
+
+## Knowledge-base strategy
+
+Per plan P4.4, system knowledge reads dsh-patent-knowledge: case law, wiki cards, and the knowledge graph through patent_case_search / patent_wiki_search / patent_kg_query, with law text verified through patent_case_search plus web_fetch on authoritative sources. The workspace `99-知识库/` directory stays project-level accumulation, recalled with fs-search / grep before going online.
+
+This revises patent-mode-design.md §9, which described a no-engine file library. `99-知识库/` remains project accumulation; the change is that system knowledge now has an engine.
+
+## Prerequisites
+
+The knowledge tools require a knowledge.db. Install one with the patent-knowledge-install bin, or point Config.sourceDbPath at an existing knowledge.db; see packages/patent/patent-knowledge/README.md. Without a database the knowledge tools fail loud at execute time.
+
+## Model Experience
+
+The model sees the Chinese patent-agent persona (professional identity, seven work disciplines, the standard workflow, and the output discipline with its mandatory disclaimer), the patent plan-mode section, the seven preset skills, and the patent tools plus the standard coding tools. The persona requires verify-before-cite (web_fetch on every fact), separate comparison, per-feature comparison with citations, and a mandatory disclaimer on every analysis output.
+
+## Known Limitations and Deferred Work
+
+- Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified through patent_case_search plus web_fetch and the `99-知识库/` baseline.
+- patent_pdf_download and knowledge_note_save are fail-loud stubs in patent-tools (the ego-browser runner and the storage writer are not wired); the patent-data service (ctx.patentData) is not mounted by this preset.
+- The 4 rewritten analysis skills inherit Sati's methodology but have not yet been reviewed against current Chinese patent practice; cross-check their checklists against the user's patent-legal baseline before relying on them.
+- The design doc's `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` is a Sati user-level asset not shipped here; law text is verified at use time instead.

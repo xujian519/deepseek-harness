@@ -1,0 +1,36 @@
+{
+  "name": "@deepseek-ai/nuo-patent",
+  "version": "2.3.1",
+  "description": "Patent data engine (search/metadata/legal status/PDF parsing) - vendored prebuilt artifact from github:xujian519/nuo-patent#v2.3.1 (MIT)",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "vendor/nuo-patent"
+  },
+  "author": "Xiaonuo Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "domhandler": "^6.0.1",
+    "undici": "^8.4.1"
+  }
+}

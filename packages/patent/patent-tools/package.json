@@ -1,0 +1,65 @@
+{
+  "name": "@deepseek-ai/dsh-patent-tools",
+  "description": "Model-facing patent tool set for the DeepSeek Harness: search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart, drafting, evidence judgment, rule check, and the workflow/plan tools, ported from Sati",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/patent/patent-tools"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/nuo-patent": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^",
+    "@deepseek-ai/dsh-patent-core": "workspace:^",
+    "@deepseek-ai/dsh-patent-data": "workspace:^",
+    "@deepseek-ai/dsh-patent-knowledge": "workspace:^",
+    "@deepseek-ai/dsh-patent-workflow": "workspace:^",
+    "@deepseek-ai/dsh-patent-rule": "workspace:^",
+    "@deepseek-ai/dsh-patent-document": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/cordis-plugin-include": "workspace:^",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^",
+    "@deepseek-ai/dsh-patent-core": "workspace:^",
+    "@deepseek-ai/dsh-patent-data": "workspace:^",
+    "@deepseek-ai/dsh-patent-knowledge": "workspace:^",
+    "@deepseek-ai/dsh-patent-workflow": "workspace:^",
+    "@deepseek-ai/dsh-patent-rule": "workspace:^",
+    "@deepseek-ai/dsh-patent-document": "workspace:^"
+  }
+}
