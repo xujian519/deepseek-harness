@@ -1293,6 +1293,115 @@ export interface Config {
 
 Source: [`packages/feedback/message-feedback/src/index.ts:49`](../packages/feedback/message-feedback/src/index.ts)
 
+<a id="deepseek-aidsh-methodology"></a>
+
+## `@deepseek-ai/dsh-methodology`
+
+Requires: `tools` · `systemPrompt`
+
+```ts config-catalog
+/** Model-facing TRIZ plugin configuration. */
+export interface Config {
+  /** Register the always-on tool:triz system-prompt section. Defaults to true. */
+  registerSection?: boolean
+}
+```
+
+Source: [`packages/patent/methodology/src/index.ts:52`](../packages/patent/methodology/src/index.ts)
+
+<a id="deepseek-aidsh-patent-document"></a>
+
+## `@deepseek-ai/dsh-patent-document`
+
+Requires: `tools` · `subprocess`
+
+```ts config-catalog
+/** Model-facing patent-document plugin configuration. */
+export interface Config {
+  /** Absolute Chrome executable used for PDF; overrides DSH_CHROME_PATH/CHROME_PATH discovery. */
+  chromePath?: string
+  /** Default output directory (relative to the process working directory) when neither outputDir nor caseId is given. */
+  outputRoot?: string
+}
+```
+
+Source: [`packages/patent/patent-document/src/index.ts:24`](../packages/patent/patent-document/src/index.ts)
+
+<a id="deepseek-aidsh-patent-knowledge"></a>
+
+## `@deepseek-ai/dsh-patent-knowledge`
+
+```ts config-catalog
+/** Deployment-varying knowledge configuration. */
+export interface Config {
+  /**
+   * Data directory for the trimmed query database and wiki cards. Defaults to
+   * ~/.dsh/knowledge.
+   */
+  knowledgeDir?: string
+  /**
+   * Path to the source knowledge.db for the install command (and the read-only
+   * direct-use fallback). Defaults to ~/.sati/knowledge/knowledge.db.
+   */
+  sourceDbPath?: string
+}
+```
+
+Source: [`packages/patent/patent-knowledge/src/types.ts:9`](../packages/patent/patent-knowledge/src/types.ts)
+
+<a id="deepseek-aidsh-patent-rule"></a>
+
+## `@deepseek-ai/dsh-patent-rule`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Plugin config. */
+export interface Config {
+  /**
+   * Rule-asset root override, mirroring the packaged assets/rules/ layout
+   * (patent/, base/, domains/). Omitted uses the packaged assets.
+   */
+  rulesDir?: string
+  /** Tool names whose results run through the output gate. Defaults to the delivery tools. */
+  gateToolNames?: string[]
+  /** When true, review-level violations block without an approval round-trip (unattended fail-closed). */
+  approvalDisabled?: boolean
+}
+```
+
+Source: [`packages/patent/patent-rule/src/index.ts:118`](../packages/patent/patent-rule/src/index.ts)
+
+<a id="deepseek-aidsh-patent-tools"></a>
+
+## `@deepseek-ai/dsh-patent-tools`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Model-facing patent-tools plugin configuration. */
+export interface Config {
+  /** LLM provider route for the LLM-consuming tools (claim_chart_build / workflow run / figure analysis). */
+  provider?: string
+  /** LLM model id for the LLM-consuming tools. */
+  model?: string
+  /** Dedicated figure/image model route whose input modalities gate analyze_patent_figure. */
+  imageModel?: ImageModelConfig
+  /** Max output tokens for the LLM-consuming tools. */
+  maxTokens?: number
+}
+
+/** Figure/image model route used by the figure-analysis tool. */
+export interface ImageModelConfig {
+  /** LLM provider route for figure/image analysis. */
+  provider?: string
+  /** LLM model id for figure/image analysis. */
+  model?: string
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts:110`](../packages/patent/patent-tools/src/index.ts)
+
 <a id="deepseek-aidsh-permission-presets"></a>
 
 ## `@deepseek-ai/dsh-permission-presets`
@@ -2479,6 +2588,32 @@ export type CompletionDelivery = 'quiet' | 'wakeup'
 
 Source: [`packages/jobs/tool-jobs/src/index.ts:32`](../packages/jobs/tool-jobs/src/index.ts)
 
+<a id="deepseek-aidsh-tool-literature"></a>
+
+## `@deepseek-ai/dsh-tool-literature`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Model-facing literature tool configuration. */
+export interface Config {
+  /** Register the arXiv connector. Defaults to true. */
+  arxiv?: boolean
+  /** Register the OpenAlex connector. Defaults to true. */
+  openalex?: boolean
+  /** Register the Semantic Scholar connector. Defaults to true. */
+  semanticScholar?: boolean
+  /** Register the Crossref connector. Defaults to true. */
+  crossref?: boolean
+  /** OpenAlex polite-pool email (optional; falls back to OPENALEX_MAILTO then a default). */
+  openalexMailto?: string
+  /** Semantic Scholar API key for a higher rate tier (optional). */
+  semanticScholarApiKey?: string
+}
+```
+
+Source: [`packages/patent/tool-literature/src/index.ts:38`](../packages/patent/tool-literature/src/index.ts)
+
 <a id="deepseek-aidsh-tool-lsp"></a>
 
 ## `@deepseek-ai/dsh-tool-lsp`
@@ -3076,6 +3211,8 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-host-plugin-inventory` — requires `loader` ([`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts))
 - `@deepseek-ai/dsh-llm` ([`packages/llm/llm/src/index.ts`](../packages/llm/llm/src/index.ts))
 - `@deepseek-ai/dsh-lsp` ([`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts))
+- `@deepseek-ai/dsh-patent-data` — requires `subprocess` ([`packages/patent/patent-data/src/index.ts`](../packages/patent/patent-data/src/index.ts))
+- `@deepseek-ai/dsh-patent-workflow` ([`packages/patent/patent-workflow/src/index.ts`](../packages/patent/patent-workflow/src/index.ts))
 - `@deepseek-ai/dsh-schedule` — requires `agents` · `sessions` · `tools` · `sessionPersistence` ([`packages/schedule/schedule/src/index.ts`](../packages/schedule/schedule/src/index.ts))
 - `@deepseek-ai/dsh-session` ([`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts))
 - `@deepseek-ai/dsh-session-checkpoint-policy` — requires `llm` · `sessionPersistence` · `sessions` · `tools` ([`packages/session/session-checkpoint-policy/src/index.ts`](../packages/session/session-checkpoint-policy/src/index.ts))
@@ -3090,6 +3227,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-tool-ask-user` — requires `tools` · `userQuestions` ([`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts))
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — requires `tools` ([`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts))
 - `@deepseek-ai/dsh-tool-cordis` — requires `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect` ([`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts))
+- `@deepseek-ai/dsh-tool-self-evolve` — requires `tools` · `systemPrompt` · `selfEvolve` · `agents` ([`packages/self-evolve/tool-self-evolve/src/index.ts`](../packages/self-evolve/tool-self-evolve/src/index.ts))
 - `@deepseek-ai/dsh-tool-subagent-control` — requires `tools` · `subagents` ([`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts))
 - `@deepseek-ai/dsh-user-questions` ([`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts))
 - `@deepseek-ai/dsh-workspace` — requires `storageDomain` · `sessionPersistence` ([`packages/workspace/workspace/src/index.ts`](../packages/workspace/workspace/src/index.ts))
@@ -3141,11 +3279,14 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-loader-smoke` ([`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts))
 - `@deepseek-ai/dsh-native-command` ([`packages/util/native-command/src/index.ts`](../packages/util/native-command/src/index.ts))
 - `@deepseek-ai/dsh-output-retention` ([`packages/util/output-retention/src/index.ts`](../packages/util/output-retention/src/index.ts))
+- `@deepseek-ai/dsh-patent-core` ([`packages/patent/patent-core/src/index.ts`](../packages/patent/patent-core/src/index.ts))
 - `@deepseek-ai/dsh-sandbox-windows-acl` ([`packages/sandbox/sandbox-windows-acl/src/index.ts`](../packages/sandbox/sandbox-windows-acl/src/index.ts))
 - `@deepseek-ai/dsh-scope` ([`packages/core/scope/src/index.ts`](../packages/core/scope/src/index.ts))
 - `@deepseek-ai/dsh-sdk-client` ([`packages/sdk/client/src/index.ts`](../packages/sdk/client/src/index.ts))
 - `@deepseek-ai/dsh-sdk-jsonrpc-demo` ([`packages/examples/jsonrpc-demo/src/index.ts`](../packages/examples/jsonrpc-demo/src/index.ts))
 - `@deepseek-ai/dsh-sdk-protocol` ([`packages/sdk/protocol/src/index.ts`](../packages/sdk/protocol/src/index.ts))
+- `@deepseek-ai/dsh-self-evolve` ([`packages/self-evolve/self-evolve/src/index.ts`](../packages/self-evolve/self-evolve/src/index.ts))
+- `@deepseek-ai/dsh-self-evolve-basic` ([`packages/self-evolve/self-evolve-basic/src/index.ts`](../packages/self-evolve/self-evolve-basic/src/index.ts))
 - `@deepseek-ai/dsh-session-telemetry` ([`packages/session/session-telemetry/src/index.ts`](../packages/session/session-telemetry/src/index.ts))
 - `@deepseek-ai/dsh-session-title-llm` ([`packages/session/session-title-llm/src/index.ts`](../packages/session/session-title-llm/src/index.ts))
 - `@deepseek-ai/dsh-subagent-in-process-driver` ([`packages/subagent/subagent-in-process-driver/src/index.ts`](../packages/subagent/subagent-in-process-driver/src/index.ts))

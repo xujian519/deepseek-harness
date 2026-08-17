@@ -41,7 +41,11 @@ export class RuleOutputGate implements RuleOutputGateInterface {
     this.synonyms = options?.synonyms ?? new Map()
   }
 
-  /** 评估并处理输出文本（纯函数）。 */
+  /**
+   * 评估并处理输出文本（纯函数）。
+   * @param text 待评估的输出文本。
+   * @returns 处理结果（text、violations、needsApproval 及警告/复核/拦截命中组）。
+   */
   process(text: string): RuleOutputGateResult {
     const evaluation = evaluateText(text, this.ruleSet, this.synonyms)
     const grouped = groupByAction(evaluation)

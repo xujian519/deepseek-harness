@@ -18,15 +18,18 @@ import type { WorkflowRunResult, WorkflowRunStore } from '@deepseek-ai/dsh-paten
 export class InMemoryWorkflowRunStore implements WorkflowRunStore {
   private readonly runs = new Map<string, WorkflowRunResult>()
 
+  /** 保存一次运行结果；runId 缺省为 manifestId（同 runId 重跑覆盖上次记录）。 */
   async saveRun(result: WorkflowRunResult, runId?: string): Promise<void> {
     this.runs.set(runId ?? result.manifestId, structuredClone(result))
   }
 
+  /** 按 runId 加载运行结果。@returns 运行结果；不存在时为 undefined。 */
   async loadRun(runId: string): Promise<WorkflowRunResult | undefined> {
     const run = this.runs.get(runId)
     return run ? structuredClone(run) : undefined
   }
 
+  /** 列出全部已保存的运行 ID。@returns 运行 ID 列表。 */
   async listRuns(): Promise<string[]> {
     return [...this.runs.keys()]
   }
@@ -40,14 +43,17 @@ export class JsonFileWorkflowRunStore implements WorkflowRunStore {
     this.store = new JsonFileStore(dir, raw => JSON.parse(raw) as WorkflowRunResult, 'runId')
   }
 
+  /** 保存一次运行结果；runId 缺省为 manifestId（同 runId 重跑覆盖上次记录）。 */
   async saveRun(result: WorkflowRunResult, runId?: string): Promise<void> {
     await this.store.save(runId ?? result.manifestId, result)
   }
 
+  /** 按 runId 加载运行结果。@returns 运行结果；不存在时为 undefined。 */
   async loadRun(runId: string): Promise<WorkflowRunResult | undefined> {
     return this.store.load(runId)
   }
 
+  /** 列出全部已保存的运行 ID。@returns 运行 ID 列表。 */
   async listRuns(): Promise<string[]> {
     return this.store.listIds()
   }
