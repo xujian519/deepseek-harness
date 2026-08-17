@@ -11,6 +11,13 @@ import SessionStore, {
 } from '@deepseek-ai/dsh-session'
 import type { CreateSessionOptions, SessionEventType, SessionHeader, SessionSurface, TodoItem } from '@deepseek-ai/dsh-session'
 
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** Out-of-repo plugin telemetry: purely informational, safe to skip when unknown. */
+    'plugin/telemetry': { note: string }
+  }
+}
+
 describe('Session', () => {
   it('exposes one stable readonly surface view', () => {
     const session = Session.create(SessionId('surface-view'))
@@ -80,6 +87,37 @@ describe('Session', () => {
     const turnEnd = replayed.events.findLast(event => event.type === 'turn/end')
     expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason)
       .toEqual({ kind: 'aborted', reason: { kind: 'user' } })
+  })
+
+  it('stamps the ignorable marker when a non-surface event opts in', () => {
+    const session = Session.create(SessionId('ignorable'))
+    session.append('turn/start', { turn: 1 })
+    const event = session.append('plugin/telemetry', { note: 'switch' }, { ignorable: true })
+    expect(event).toMatchObject({ type: 'plugin/telemetry', ignorable: true })
+    expect(session.events.at(-1)).toMatchObject({ type: 'plugin/telemetry', ignorable: true })
+    // The marker is an ordinary envelope field: survives serialization and replay.
+    const replayed = Session.create(SessionId('ignorable-replay'), structuredClone(session.events))
+    expect(replayed.events.find(e => e.type === 'plugin/telemetry'))
+      .toMatchObject({ type: 'plugin/telemetry', ignorable: true })
+  })
+
+  it('leaves the ignorable marker absent when a non-surface event does not opt in', () => {
+    const session = Session.create(SessionId('required'))
+    session.append('turn/start', { turn: 1 })
+    expect(session.events[0]).not.toHaveProperty('ignorable')
+  })
+
+  it('rejects append options on surface events at compile time', () => {
+    // esbuild strips @ts-expect-error during vitest, so the negative sample
+    // stays declared, never invoked — only the type system sees it.
+    const negativeSample = (session: Session): void => {
+      const data = createUserMessage({
+        content: [{ type: 'text', text: 'hi' }], source: { kind: 'user' },
+      })
+      // @ts-expect-error surface events take SurfaceIntent, never AppendOptions
+      session.append('user/message', data, { ignorable: true })
+    }
+    void negativeSample
   })
 
   it('renders injected-context and user messages as plain user content', () => {
