@@ -16,7 +16,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { assertNever, createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import { TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN, type Session, type UserMessage } from '@deepseek-ai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext, type ToolRuntimeScheduler } from '@deepseek-ai/dsh-tools'
 
 /** One tool call after argument parsing, ready to schedule. */
 interface PlannedCall {
@@ -219,6 +219,11 @@ async function runGroup(
   // failure stops new dispatches and reaches the turn boundary after every
   // already-started dispatch settles.
   try {
+    // The declared readonly property is absent at runtime when a stale
+    // dsh-tools copy built the ToolRuntime under its pre-string-key symbol;
+    // the widened type makes that dual-copy failure observable.
+    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER] as ToolRuntimeScheduler | undefined
+    if (scheduler === undefined) throw missingSchedulerError()
     await fillPool()
     while (inFlight.size > 0) {
       const settledIndex = await Promise.race(inFlight.values())
@@ -257,6 +262,21 @@ async function runGroup(
   /* v8 ignore next -- unreachable: a non-aborted group commits every started call */
   if (committed !== started) throw new Error('tool-call scheduler: uncommitted settled calls')
   return { consumed: started, aborted: false, concluded }
+}
+
+/**
+ * Diagnostic for a scheduler handshake broken by a stale dual `dsh-tools`
+ * copy. The string key reaches the scheduler only when the `ToolRuntime`
+ * instance was built by a copy that ships the key; a profile `node_modules`
+ * copy published before the key existed exposes the scheduler under its
+ * module-local symbol instead, which no other copy can address.
+ */
+function missingSchedulerError(): Error {
+  return new Error(
+    'tool scheduler handshake failed: the tools service exposes no runtime scheduler under its string key. '
+    + 'The profile node_modules likely carries a stale @deepseek-ai/dsh-tools copy built before the string key shipped; '
+    + 'remove that copy (or upgrade it to a release that ships the string key) and restart the app.',
+  )
 }
 
 /** Append the durable call/result pair for a model call skipped after cancellation. */

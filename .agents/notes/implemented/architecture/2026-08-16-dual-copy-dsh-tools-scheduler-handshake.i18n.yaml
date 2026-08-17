@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md
-2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md: c0c53a24a73db5fda8085fce32d056566866ec6c
-2026-08-16-dual-copy-dsh-tools-scheduler-handshake.zh.md: 22f0a8e020c8ba261158aca4f728f1ac7f4698e8
+2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md: cadac08eb6f0ae2394f1d016d59e7403d66dcf57
+2026-08-16-dual-copy-dsh-tools-scheduler-handshake.zh.md: 12a341c217ad22f493b3866edd9ae5b428d7c48f
