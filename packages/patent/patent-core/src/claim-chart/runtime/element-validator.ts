@@ -38,16 +38,19 @@ const ELEMENT_ID_RE = /^(\d+)([a-z]+)$/
 export function splitClaimSegments(claimText: string): Map<number, string> {
   const segments = new Map<number, string>()
   let current: { no: number; lines: string[] } | null = null
+  const flush = () => {
+    if (current) segments.set(current.no, current.lines.join('\n'))
+  }
   for (const line of claimText.split(/\n/)) {
     const m = /^\s*(\d+)[.、．]\s*/.exec(line)
     if (m) {
-      if (current) segments.set(current.no, current.lines.join('\n'))
+      flush()
       current = { no: Number(m[1]), lines: [line] }
     } else if (current) {
       current.lines.push(line)
     }
   }
-  if (current) segments.set(current.no, current.lines.join('\n'))
+  flush()
   return segments
 }
 

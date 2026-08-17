@@ -7,7 +7,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { ENGINEERING_PARAMS, loadPrinciples, lookupMatrixCell, paramLabel } from '../data.ts'
+import { ENGINEERING_PARAMS, loadPrinciples, lookupMatrixCell, paramLabel, principleById } from '../data.ts'
 import type { TrizPrinciple } from '../types.ts'
 
 /** Tool input: an optional improving/worsening parameter pair (both or neither). */
@@ -110,7 +110,19 @@ function renderLookup(value: { improving: TrizParameterView; worsening: TrizPara
 
 /** Render the canonical value into model-facing Markdown. */
 function renderTriz(value: TrizOutput): string {
-  return value.mode === 'catalog' ? renderCatalog(value) : renderLookup(value)
+  switch (value.mode) {
+    case 'catalog':
+      return renderCatalog(value)
+    case 'lookup':
+      return renderLookup(value)
+    default:
+      return exhaustiveMode(value)
+  }
+}
+
+/** 穷尽性收尾：封闭联合的默认分支不可达（未来新增 mode 时此处编译失败）。 */
+function exhaustiveMode(value: never): never {
+  throw new Error(`未知 TrizOutput mode: ${String((value as { mode: unknown }).mode)}`)
 }
 
 /**
@@ -147,16 +159,14 @@ export function createTrizTool(): ToolDefinition {
       render: (_args, value) => [{ type: 'text', text: renderTriz(value as unknown as TrizOutput) }],
     },
     async execute(args) {
-      const hasImproving = args.improving !== undefined
-      const hasWorsening = args.worsening !== undefined
-      if (hasImproving !== hasWorsening) {
-        throw new Error('triz requires both improving and worsening, or neither (for the full catalog)')
-      }
-      if (!hasImproving) {
+      if (args.improving === undefined && args.worsening === undefined) {
         return { mode: 'catalog', parameters: allParameters(), principles: allPrinciples() } as const
       }
-      const improving = args.improving as number
-      const worsening = args.worsening as number
+      if (args.improving === undefined || args.worsening === undefined) {
+        throw new Error('triz requires both improving and worsening, or neither (for the full catalog)')
+      }
+      const improving = args.improving
+      const worsening = args.worsening
       if (!Number.isInteger(improving) || improving < 1 || improving > 39) {
         throw new Error('triz improving must be an integer 1-39')
       }
@@ -164,13 +174,12 @@ export function createTrizTool(): ToolDefinition {
         throw new Error('triz worsening must be an integer 1-39')
       }
       const ids = lookupMatrixCell(improving, worsening)
-      const byNo = new Map(loadPrinciples().map(principle => [principle.no, principle]))
       return {
         mode: 'lookup',
         improving: parameterView(improving),
         worsening: parameterView(worsening),
         recommended: ids.flatMap((id) => {
-          const principle = byNo.get(id)
+          const principle = principleById(id)
           return principle === undefined ? [] : [principleView(principle)]
         }),
       } as const

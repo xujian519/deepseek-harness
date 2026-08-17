@@ -12,7 +12,7 @@
 import { GraphBuilder, type GraphState } from '../index.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
-import { handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
+import { formatPriorArtLines, handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
 /** 构建创造性分析子图的选项。 */
 export type BuildInventivenessGraphOptions = {
@@ -165,9 +165,7 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
       buildPrompt: (state) => {
         const parse = getStateString(state, 'inventiveness_parse')
         const priorArt = getStateArray(state, 'prior_art')
-        const priorArtText = priorArt
-          .map(d => (typeof d === 'object' && d !== null ? JSON.stringify(d) : String(d)))
-          .join('\n')
+        const priorArtText = formatPriorArtLines(priorArt)
         return [
           '三步法第一步：确定最接近的现有技术（D1）。',
           '选择标准：技术领域相同/相近 → 技术问题最接近 → 公开技术特征最多。',

@@ -124,14 +124,8 @@ export function searchStandards(keyword: string, limit = 10): IpcStandardCard[] 
   const kw = keyword.trim().toLowerCase()
   if (!kw) return []
   return loadIpcStandards()
-    .all.filter((card) => {
-      if (card.name.toLowerCase().includes(kw)) return true
-      if (card.id.toLowerCase().includes(kw)) return true
-      if (card.article.toLowerCase().includes(kw)) return true
-      if (card.keyPoints.some(k => k.toLowerCase().includes(kw))) return true
-      if (card.tips.some(t => t.toLowerCase().includes(kw))) return true
-      return false
-    })
+    .all.filter(card => [card.name, card.id, card.article, ...card.keyPoints, ...card.tips]
+      .some(field => field.toLowerCase().includes(kw)))
     .slice(0, limit)
 }
 

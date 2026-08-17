@@ -52,18 +52,11 @@ export type { KgFtsMode, KnowledgeRuntimeStatsSnapshot, WikiSemanticIndexState }
 // Case-law surface.
 export { CaseLawSearchEngine } from './case-law/case-law-search.ts'
 export type { CaseLawSearchEngineOptions } from './case-law/case-law-search.ts'
-export { fuseCaseLawHits, reciprocalRankFusion } from './case-law/rrf.ts'
-export type { RrfRankedItem } from './case-law/rrf.ts'
 export type { CaseLawChunk, CaseLawDocType, CaseLawHit, CaseLawRecord, CaseLawSearchOptions } from './case-law/types.ts'
 
 // Legal surface.
-export { LegalSearchEngine } from './legal/legal-search.ts'
-export type { LegalSearchOptions } from './legal/legal-search.ts'
 export { KnowledgeLawSearch } from './legal/knowledge-law-search.ts'
 export type { KnowledgeLawSearchEngineOptions, KnowledgeLawSearchOptions } from './legal/knowledge-law-search.ts'
-export { buildLawSearchSql, LAW_SEARCH_COLUMNS, LAW_SEARCH_COLUMNS_FTS } from './legal/sql.ts'
-export type { LawSearchFilter } from './legal/sql.ts'
-export { dedupeByLawName } from './legal/dedupe.ts'
 export { extractLawKeywords } from './legal/keywords.ts'
 export { toRecord, toSearchResult } from './legal/row-mapper.ts'
 export type { LawRow } from './legal/row-mapper.ts'

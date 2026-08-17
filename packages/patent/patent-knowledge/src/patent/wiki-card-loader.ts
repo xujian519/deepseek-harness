@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { parseDocument } from 'yaml'
+import { errorMessage } from '../shared/errors.ts'
 
 /**
  * Wiki 卡片加载器（数据源：src/knowledge/patent/wiki/，对齐 Mady WikiLoader + CardIndex）。
@@ -108,7 +109,7 @@ export class WikiCardLoader {
       }
     } catch (error) {
       this.logger?.warn?.(
-        `[wiki-card-loader] 扫描缓存校验失败: ${error instanceof Error ? error.message : String(error)}`,
+        `[wiki-card-loader] 扫描缓存校验失败: ${errorMessage(error)}`,
       )
     }
     if (!fromCache) {
@@ -117,7 +118,7 @@ export class WikiCardLoader {
         files = this.scanMarkdownFiles(this.wikiPath)
       } catch (error) {
         this.logger?.warn?.(
-          `[wiki-card-loader] 扫描 wiki 目录失败: ${error instanceof Error ? error.message : String(error)}`,
+          `[wiki-card-loader] 扫描 wiki 目录失败: ${errorMessage(error)}`,
         )
         this.loaded = false
         return
@@ -142,7 +143,7 @@ export class WikiCardLoader {
           } catch (error) {
             // 读取失败仅保留文件名标题
             this.logger?.warn?.(
-              `[wiki-card-loader] 读取卡片头部元数据失败 ${file}: ${error instanceof Error ? error.message : String(error)}`,
+              `[wiki-card-loader] 读取卡片头部元数据失败 ${file}: ${errorMessage(error)}`,
             )
           }
         }
@@ -178,7 +179,7 @@ export class WikiCardLoader {
       } catch (error) {
         // card-index.json 损坏时仅用文件扫描结果
         this.logger?.warn?.(
-          `[wiki-card-loader] card-index.json 解析失败（仅用文件扫描结果）: ${error instanceof Error ? error.message : String(error)}`,
+          `[wiki-card-loader] card-index.json 解析失败（仅用文件扫描结果）: ${errorMessage(error)}`,
         )
       }
     }
@@ -433,7 +434,7 @@ export class WikiCardLoader {
       writeFileSync(join(this.wikiPath, SCAN_CACHE_NAME), JSON.stringify(cache))
     } catch (error) {
       this.logger?.warn?.(
-        `[wiki-card-loader] 写入扫描缓存失败（不影响加载）: ${error instanceof Error ? error.message : String(error)}`,
+        `[wiki-card-loader] 写入扫描缓存失败（不影响加载）: ${errorMessage(error)}`,
       )
     }
   }

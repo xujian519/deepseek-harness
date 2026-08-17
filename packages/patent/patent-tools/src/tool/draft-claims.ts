@@ -108,8 +108,7 @@ function buildIndependentClaim(name: string, domain: TechDomain, features: strin
     return `${struct.head(name)}${struct.priorConnector}${normalized}；${struct.withPriorConnector}${featurePart}。`
   }
   if (domain === 'software') {
-    const steps = features.map((f, i) => `${f}${i < features.length - 1 ? '；' : ''}`).join('')
-    return `${struct.head(name)}${struct.connector}${steps}。`
+    return `${struct.head(name)}${struct.connector}${features.join('；')}。`
   }
   return `${struct.head(name)}${struct.connector}${featurePart}。`
 }

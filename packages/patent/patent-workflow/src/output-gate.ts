@@ -169,19 +169,8 @@ export class PatentOutputGate {
    * @returns 已通过的挂起消息；不存在、会话不匹配或已过期时为 undefined。
    */
   approve(index: number, sessionId?: string): PendingPatentMessage | undefined {
-    const pending = this.pending.get(index)
+    const pending = this.takePending(index, sessionId)
     if (!pending) return undefined
-    if (pending.sessionId !== undefined && sessionId !== pending.sessionId) {
-      return undefined
-    }
-    if (this.isExpired(pending)) {
-      this.pending.delete(index)
-      this.unflushed.delete(index)
-      console.warn(`[PatentOutputGate] 挂起消息 ${index} 超过 TTL 未审批，拒绝审批`)
-      return undefined
-    }
-    this.pending.delete(index)
-    this.unflushed.delete(index)
     this.recordApproval(pending, { verdict: 'adopted' })
     return pending
   }
@@ -202,22 +191,34 @@ export class PatentOutputGate {
    * @returns 是否成功拒绝（不存在、会话不匹配或已过期时为 false）。
    */
   reject(index: number, sessionId?: string, feedback?: string): boolean {
-    const pending = this.pending.get(index)
+    const pending = this.takePending(index, sessionId)
     if (!pending) return false
+    this.recordApproval(pending, { verdict: 'rejected', feedback })
+    this.safeInvoke(this.options.onRejected, pending)
+    return true
+  }
+
+  /**
+   * 取出并移除指定挂起消息：不存在、会话不匹配或已过期时返回 undefined（过期顺带清理并告警）。
+   * @param index - 挂起消息索引。
+   * @param sessionId - 可选会话标识（与挂起消息的 sessionId 不一致时返回 undefined）。
+   * @returns 已取出的挂起消息；不存在、会话不匹配或已过期时为 undefined。
+   */
+  private takePending(index: number, sessionId?: string): PendingPatentMessage | undefined {
+    const pending = this.pending.get(index)
+    if (!pending) return undefined
     if (pending.sessionId !== undefined && sessionId !== pending.sessionId) {
-      return false
+      return undefined
     }
     if (this.isExpired(pending)) {
       this.pending.delete(index)
       this.unflushed.delete(index)
       console.warn(`[PatentOutputGate] 挂起消息 ${index} 超过 TTL 未审批，拒绝审批`)
-      return false
+      return undefined
     }
     this.pending.delete(index)
     this.unflushed.delete(index)
-    this.recordApproval(pending, { verdict: 'rejected', feedback })
-    this.safeInvoke(this.options.onRejected, pending)
-    return true
+    return pending
   }
 
   /** 审计留痕（approve/reject 时调用；store 未配置时零开销）。 */
@@ -238,12 +239,7 @@ export class PatentOutputGate {
       ...(decision.feedback !== undefined ? { feedback: decision.feedback } : {}),
       now: this.options.now !== undefined ? () => new Date(this.now()) : undefined,
     })
-    const result = store.saveRecord(record)
-    if (result && typeof (result as Promise<void>).catch === 'function') {
-      (result as Promise<void>).catch((err) => {
-        console.error('[PatentOutputGate] 审批审计写入失败:', err)
-      })
-    }
+    this.reportRejection(store.saveRecord(record), '审批审计写入失败')
   }
 
   /**
@@ -305,14 +301,22 @@ export class PatentOutputGate {
   ): void {
     if (!callback) return
     try {
-      const result = callback(pending)
-      if (result && typeof (result as Promise<void>).catch === 'function') {
-        (result as Promise<void>).catch((err) => {
-          console.error('[PatentOutputGate] callback failed:', err)
-        })
-      }
+      this.reportRejection(callback(pending), 'callback failed')
     } catch (err) {
       console.error('[PatentOutputGate] callback failed:', err)
+    }
+  }
+
+  /**
+   * 结果可能为 Promise 时挂接 catch，记录拒绝错误（label 拼接到 "[PatentOutputGate] " 之后）。
+   * @param result - 可能为 Promise 的调用结果。
+   * @param label - 错误日志前缀。
+   */
+  private reportRejection(result: void | Promise<void>, label: string): void {
+    if (result !== undefined) {
+      result.catch((err: unknown) => {
+        console.error(`[PatentOutputGate] ${label}:`, err)
+      })
     }
   }
 }

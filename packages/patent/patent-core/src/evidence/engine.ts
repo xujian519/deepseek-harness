@@ -26,7 +26,6 @@ import type {
   AssessmentType,
   BurdenDetermination,
   ContentIntegrityStatus,
-  CredibilityLevel,
   DateDetermination,
   DimensionJudgment,
   ElementResult,
@@ -459,6 +458,20 @@ function asStringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string')
 }
 
+/** 解析规则集维度的分级列表；非数组或非法条目被过滤，返回同构分级数组。 */
+function parseLevels(raw: unknown): AssessmentDimension['levels'] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(lv => asRecord(lv))
+    .filter((lv): lv is Record<string, unknown> => lv !== null)
+    .map(lv => ({
+      value: typeof lv.value === 'string' ? lv.value : '',
+      score: typeof lv.score === 'number' ? lv.score : 0,
+      ...(typeof lv.description === 'string' ? { description: lv.description } : {}),
+    }))
+    .filter(lv => lv.value !== '')
+}
+
 /** 解析规则集的评估维度与权重；单个坏规则跳过不阻塞整体加载。 */
 function parseRuleSet(yamlText: string, source: string): { ruleSet: EvidenceRuleSet | null; warnings: string[] } {
   const warnings: string[] = []
@@ -499,17 +512,7 @@ function parseRuleSet(yamlText: string, source: string): { ruleSet: EvidenceRule
         for (const dimRaw of assessment.dimensions) {
           const dim = asRecord(dimRaw)
           if (dim === null || typeof dim.name !== 'string' || typeof dim.weight !== 'number') continue
-          const levels = Array.isArray(dim.levels)
-            ? dim.levels
-              .map(lv => asRecord(lv))
-              .filter((lv): lv is Record<string, unknown> => lv !== null)
-              .map(lv => ({
-                value: typeof lv.value === 'string' ? lv.value : '',
-                score: typeof lv.score === 'number' ? lv.score : 0,
-                ...(typeof lv.description === 'string' ? { description: lv.description } : {}),
-              }))
-              .filter(lv => lv.value !== '')
-            : []
+          const levels = parseLevels(dim.levels)
           dimensions.push({ name: dim.name, weight: dim.weight, levels })
         }
       }
@@ -858,5 +861,3 @@ export class EvidenceEngine implements EvidenceJudgmentEngine {
     return parts.length === 0 ? '未执行评估' : parts.join('; ')
   }
 }
-
-export type { CredibilityLevel }

@@ -45,9 +45,11 @@ export class RuleOutputGate implements RuleOutputGateInterface {
   process(text: string): RuleOutputGateResult {
     const evaluation = evaluateText(text, this.ruleSet, this.synonyms)
     const grouped = groupByAction(evaluation)
-    const warnHits = (grouped.warn ?? []).map(v => v.ruleId)
+    const warnGroup = grouped.warn ?? []
+    const blockGroup = grouped.block ?? []
+    const warnHits = warnGroup.map(v => v.ruleId)
     const reviewHits = (grouped.review ?? []).map(v => v.ruleId)
-    const blockHits = (grouped.block ?? []).map(v => v.ruleId)
+    const blockHits = blockGroup.map(v => v.ruleId)
     const needsApproval = reviewHits.length > 0 || blockHits.length > 0
 
     let output = text
@@ -56,11 +58,11 @@ export class RuleOutputGate implements RuleOutputGateInterface {
     }
 
     if (warnHits.length > 0) {
-      const lines = (grouped.warn ?? []).map(formatViolation)
+      const lines = warnGroup.map(formatViolation)
       append(`⚠️ ${escapeXml(this.warnTitle)}：\n${lines.join('\n')}`)
     }
     if (blockHits.length > 0) {
-      const lines = (grouped.block ?? []).map(formatViolation)
+      const lines = blockGroup.map(formatViolation)
       append(`🚫 ${escapeXml(this.blockMessage)}\n${lines.join('\n')}`)
     }
 

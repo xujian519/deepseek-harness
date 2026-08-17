@@ -105,20 +105,24 @@ function isAggregator(hostname: string): boolean {
   return AGGREGATOR_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))
 }
 
+/** 解析证据来源 URI 的主机名并小写；URI 空或解析失败返回 undefined。 */
+function parseHostname(uri: string | undefined): string | undefined {
+  if (uri === undefined || uri === '') return undefined
+  try {
+    return new URL(cleanEvidenceURI(uri)).hostname.toLowerCase()
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * 根据来源 URI 判定平台可信度等级；URI 空/解析失败回退 low。
  * @param uri - 证据来源 URI（可空）。
  * @returns 平台可信度等级。
  */
 export function platformCredibility(uri: string | undefined): CredibilityLevel {
-  if (uri === undefined || uri === '') return 'low'
-  let parsed: URL
-  try {
-    parsed = new URL(cleanEvidenceURI(uri))
-  } catch {
-    return 'low'
-  }
-  const hostname = parsed.hostname.toLowerCase()
+  const hostname = parseHostname(uri)
+  if (hostname === undefined) return 'low'
   if (isGovernmentDomain(hostname) || isAcademicDomain(hostname)) return 'high'
   if (isAuthorityDomain(hostname) || isContentPlatform(hostname)) return 'medium_high'
   if (isNewsMedia(hostname) || isAggregator(hostname)) return 'medium'
@@ -140,8 +144,6 @@ export function credibilityToScore(level: CredibilityLevel): number {
       return 0.55
     case 'low':
       return 0.25
-    default:
-      return 0.25
   }
 }
 
@@ -151,13 +153,8 @@ export function credibilityToScore(level: CredibilityLevel): number {
  * @returns 平台分类标签。
  */
 export function platformCategory(uri: string | undefined): string {
-  if (uri === undefined || uri === '') return 'unknown'
-  let hostname: string
-  try {
-    hostname = new URL(cleanEvidenceURI(uri)).hostname.toLowerCase()
-  } catch {
-    return 'unknown'
-  }
+  const hostname = parseHostname(uri)
+  if (hostname === undefined) return 'unknown'
   if (isGovernmentDomain(hostname)) return '政府/法院/专利局官方'
   if (isAcademicDomain(hostname)) return '学术数据库'
   if (isAuthorityDomain(hostname)) return '行业权威平台'
@@ -173,13 +170,8 @@ export function platformCategory(uri: string | undefined): string {
  * @returns 'public' 或 'restricted'。
  */
 export function evaluatePublicIntent(uri: string | undefined): 'public' | 'restricted' {
-  if (uri === undefined || uri === '') return 'public'
-  let hostname: string
-  try {
-    hostname = new URL(cleanEvidenceURI(uri)).hostname.toLowerCase()
-  } catch {
-    return 'public'
-  }
+  const hostname = parseHostname(uri)
+  if (hostname === undefined) return 'public'
   const restrictedDomains = ['wsj.com', 'ft.com', 'nikkei.com', 'springer.com', 'elsevier.com']
   if (restrictedDomains.some(d => hostname === d || hostname.endsWith(`.${d}`))) return 'restricted'
   return 'public'

@@ -22,14 +22,3 @@ export function keywordScore(context: MethodologyContext, triggers: readonly str
   }
   return matched / triggers.length
 }
-
-/**
- * True when any trigger phrase appears in the goal.
- * @param context - the task context holding the goal text.
- * @param triggers - the trigger phrases to test.
- * @returns whether at least one trigger is present.
- */
-export function hasAnyKeyword(context: MethodologyContext, triggers: readonly string[]): boolean {
-  const haystack = context.goal.toLowerCase()
-  return triggers.some(trigger => haystack.includes(trigger.toLowerCase()))
-}

@@ -28,16 +28,6 @@ export function getStateString(state: PipelineState, key: string, fallback = '')
 }
 
 /**
- * 类型安全写入字符串到状态容器。
- * @param state - 状态容器。
- * @param key - 要写入的键。
- * @param value - 写入的字符串值。
- */
-export function setStateString(state: PipelineState, key: string, value: string): void {
-  state[key] = value
-}
-
-/**
  * 类型安全读取数组：非数组时返回空数组。
  * @param state - 状态容器。
  * @param key - 要读取的键。
@@ -146,14 +136,6 @@ export class StageHandlerRegistryError extends Error {
 
 /** 全局注册表（内置 handler 经 registerBuiltinAtoms 注册于此）。 */
 export const globalStageHandlerRegistry = new StageHandlerRegistry()
-
-/**
- * 向全局注册表登记一个 StageHandler（同名覆盖）。
- * @param handler - 待注册的 StageHandler。
- */
-export function RegisterStageHandler(handler: StageHandler): void {
-  globalStageHandlerRegistry.register(handler)
-}
 
 /**
  * 按 name 查询全局注册表中的 StageHandler。

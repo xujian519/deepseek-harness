@@ -8,7 +8,7 @@
  * - 关键词匹配：同义词扩展 + 命中前 60 字符窗口否定检测（"不具有/未发现/…"不误报）。
  */
 
-import type { CheckRule, CheckType, RuleCheckResult, RuleEngineOptions, Severity, Verdict } from './types.ts'
+import type { CheckRule, CheckType, RuleCheckResult, RuleEngineOptions, Verdict } from './types.ts'
 import { LevelMust, LevelQuality, LevelShould } from './types.ts'
 import {
   NEGATION_WINDOW,
@@ -80,6 +80,21 @@ export function matchKeywordsAny(text: string, keywords: readonly string[]): boo
 // CheckType 分派检查器（返回 (passed, detail)；detail 非空时优先于 rule.message）
 // =============================================================================
 
+/**
+ * 全部须命中关键词检查的通用实现：任一未命中即失败并返回 detail。
+ * @param text - 待检查的文本。
+ * @param elements - 全部须命中的关键词列表（可空）。
+ * @param detail - 失败时返回的提示信息。
+ * @returns 通过返回 [true, '']，失败返回 [false, detail]。
+ */
+function checkRequiredAll(
+  text: string,
+  elements: readonly string[] | undefined,
+  detail: string,
+): [boolean, string] {
+  return matchKeywordsAll(text, elements ?? []) ? [true, ''] : [false, detail]
+}
+
 function checkNovelty(text: string, rule: CheckRule): [boolean, string] {
   if (!matchKeywordsAll(text, rule.requiredElements ?? [])) {
     return [false, '新颖性分析缺少必要要素（如单独对比、现有技术认定）']
@@ -106,17 +121,11 @@ function checkInventiveness(text: string, rule: CheckRule): [boolean, string] {
 }
 
 function checkInfringement(text: string, rule: CheckRule): [boolean, string] {
-  if (!matchKeywordsAll(text, rule.requiredElements ?? [])) {
-    return [false, '侵权分析缺少必要对比要素（如全面覆盖、技术特征比对）']
-  }
-  return [true, '']
+  return checkRequiredAll(text, rule.requiredElements, '侵权分析缺少必要对比要素（如全面覆盖、技术特征比对）')
 }
 
 function checkDisclosure(text: string, rule: CheckRule): [boolean, string] {
-  if (!matchKeywordsAll(text, rule.requiredAspects ?? [])) {
-    return [false, '充分公开分析缺少必要审查维度（如能够实现、技术效果）']
-  }
-  return [true, '']
+  return checkRequiredAll(text, rule.requiredAspects, '充分公开分析缺少必要审查维度（如能够实现、技术效果）')
 }
 
 function checkClaimAnalysis(text: string, rule: CheckRule): [boolean, string] {
@@ -131,31 +140,19 @@ function checkClaimAnalysis(text: string, rule: CheckRule): [boolean, string] {
 }
 
 function checkDesignComparison(text: string, rule: CheckRule): [boolean, string] {
-  if (!matchKeywordsAll(text, rule.requiredElements ?? [])) {
-    return [false, '外观设计对比分析缺少必要要素（如整体视觉效果、产品种类认定）']
-  }
-  return [true, '']
+  return checkRequiredAll(text, rule.requiredElements, '外观设计对比分析缺少必要要素（如整体视觉效果、产品种类认定）')
 }
 
 function checkPublicAccess(text: string, rule: CheckRule): [boolean, string] {
-  if (!matchKeywordsAll(text, rule.requiredElements ?? [])) {
-    return [false, '公开方式判断缺少必要要素（如公开方式认定、公开日核实）']
-  }
-  return [true, '']
+  return checkRequiredAll(text, rule.requiredElements, '公开方式判断缺少必要要素（如公开方式认定、公开日核实）')
 }
 
 function checkAmendmentScope(text: string, rule: CheckRule): [boolean, string] {
-  if (!matchKeywordsAll(text, rule.requiredElements ?? [])) {
-    return [false, '修改超范围分析缺少必要要素（如原申请文件范围、直接且毫无疑义的确定）']
-  }
-  return [true, '']
+  return checkRequiredAll(text, rule.requiredElements, '修改超范围分析缺少必要要素（如原申请文件范围、直接且毫无疑义的确定）')
 }
 
 function checkSubjectMatter(text: string, rule: CheckRule): [boolean, string] {
-  if (!matchKeywordsAll(text, rule.requiredElements ?? [])) {
-    return [false, '保护客体分析缺少必要要素（如技术方案认定、排除客体分析）']
-  }
-  return [true, '']
+  return checkRequiredAll(text, rule.requiredElements, '保护客体分析缺少必要要素（如技术方案认定、排除客体分析）')
 }
 
 /** 禁语否定前缀检测：命中位置前 8 字符内出现否定词且紧邻（≤4 个非标点字符）视为否定语境。 */
@@ -379,17 +376,11 @@ function levelLabel(level: RuleCheckResult['level']): string {
   }
 }
 
-function severityLabel(severity: Severity): string {
-  switch (severity) {
-    case 'critical':
-      return 'critical'
-    case 'major':
-      return 'major'
-    case 'minor':
-      return 'minor'
-    default:
-      return 'unknown'
-  }
+/** 聚合判级结论 → 报告展示标签。 */
+const VERDICT_LABELS: Record<Verdict, string> = {
+  pass: '✅ 通过',
+  needs_revision: '⚠️ 需修改',
+  blocked: '⛔ 阻断',
 }
 
 /**
@@ -399,7 +390,7 @@ function severityLabel(severity: Severity): string {
  * @returns Markdown 报告文本。
  */
 export function formatRuleResults(results: readonly RuleCheckResult[], verdict: Verdict): string {
-  const verdictLabel = verdict === 'pass' ? '✅ 通过' : verdict === 'needs_revision' ? '⚠️ 需修改' : '⛔ 阻断'
+  const verdictLabel = VERDICT_LABELS[verdict]
   const lines: string[] = ['## 规则引擎检查', '', `检查结论: ${verdictLabel}`, '', '']
   if (results.length === 0) {
     lines.push('所有规则检查均通过。', '')
@@ -408,7 +399,8 @@ export function formatRuleResults(results: readonly RuleCheckResult[], verdict: 
   lines.push('| 规则 | 级别 | 严重度 | 问题 | 修改建议 |', '|------|------|--------|------|----------|')
   for (const result of results) {
     lines.push(
-      `| ${result.ruleName} | ${levelLabel(result.level)} | ${severityLabel(result.severity)} | ${result.message} | ${result.fixSuggestion} |`,
+      `| ${result.ruleName} | ${levelLabel(result.level)} | ${result.severity} | ${result.message} | ` +
+        `${result.fixSuggestion} |`,
     )
   }
   lines.push('')

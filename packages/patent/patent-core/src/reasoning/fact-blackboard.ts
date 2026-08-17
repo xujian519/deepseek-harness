@@ -236,13 +236,6 @@ export class FactBlackboard {
     this.touch()
   }
 
-  /** 清空全部推理链。 */
-  clearReasoningChains(): void {
-    this.checkNotLocked()
-    this.reasoningChains.length = 0
-    this.touch()
-  }
-
   // -------------------------------------------------------------------------
   // Rule constraints & confirmed set
   // -------------------------------------------------------------------------
@@ -305,14 +298,6 @@ export class FactBlackboard {
   // -------------------------------------------------------------------------
   // Article judgments
   // -------------------------------------------------------------------------
-
-  /**
-   * 全部法条判定。
-   * @returns articleId → ArticleJudgment 的映射副本。
-   */
-  allArticleJudgments(): Map<string, ArticleJudgment> {
-    return new Map(this.articleJudgments)
-  }
 
   /**
    * 写入（覆盖）一条法条判定。

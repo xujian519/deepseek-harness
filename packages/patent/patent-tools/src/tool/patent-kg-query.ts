@@ -102,6 +102,17 @@ function toHit(node: KgNode, via: RelevantHit['via'] | undefined, relation: stri
   }
 }
 
+/** Build one neighbor object from a node plus its relation. */
+function toNeighbor(n: KgNode, relation: string): PatentKgNeighbor {
+  return {
+    id: n.id,
+    nodeType: n.nodeType,
+    ...(n.name !== undefined ? { name: n.name } : {}),
+    ...(n.title !== undefined ? { title: n.title } : {}),
+    relation,
+  }
+}
+
 /** id mode: node detail + similar/cite neighbors. */
 function queryById(adapter: KgAdapter, id: string, limit: number, includeContent: boolean): PatentKgQueryOutput {
   const node = adapter.getNode(id)
@@ -111,13 +122,7 @@ function queryById(adapter: KgAdapter, id: string, limit: number, includeContent
   for (const { node: n, relation } of adapter.getSimilarNodes(id, limit)) {
     if (seen.has(n.id)) continue
     seen.add(n.id)
-    neighbors.push({
-      id: n.id,
-      nodeType: n.nodeType,
-      ...(n.name !== undefined ? { name: n.name } : {}),
-      ...(n.title !== undefined ? { title: n.title } : {}),
-      relation,
-    })
+    neighbors.push(toNeighbor(n, relation))
   }
   for (const relation of CITE_RELATIONS) {
     for (const neighbor of adapter.getNeighbors(id, relation, limit)) {
@@ -125,13 +130,7 @@ function queryById(adapter: KgAdapter, id: string, limit: number, includeContent
       const n = adapter.getNode(neighbor.targetId)
       if (!n) continue
       seen.add(n.id)
-      neighbors.push({
-        id: n.id,
-        nodeType: n.nodeType,
-        ...(n.name !== undefined ? { name: n.name } : {}),
-        ...(n.title !== undefined ? { title: n.title } : {}),
-        relation: neighbor.relation,
-      })
+      neighbors.push(toNeighbor(n, neighbor.relation))
     }
   }
   return {

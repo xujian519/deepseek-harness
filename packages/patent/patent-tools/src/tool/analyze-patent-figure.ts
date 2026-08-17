@@ -57,7 +57,7 @@ export const FIGURE_TYPE_NAMES: Record<FigureType, string> = {
 }
 
 /** 组件类型（PatentVision ComponentType 对齐）。 */
-export const FIGURE_COMPONENT_KINDS = [
+const FIGURE_COMPONENT_KINDS = [
   'mechanical',
   'electrical',
   'software',
@@ -72,7 +72,7 @@ export const FIGURE_COMPONENT_KINDS = [
 export type FigureComponentKind = (typeof FIGURE_COMPONENT_KINDS)[number]
 
 /** 组件连接关系类型。 */
-export const FIGURE_CONNECTION_KINDS = ['electrical', 'mechanical', 'data_flow', 'unknown'] as const
+const FIGURE_CONNECTION_KINDS = ['electrical', 'mechanical', 'data_flow', 'unknown'] as const
 
 /** Connection kind (electrical / mechanical / data_flow / unknown). */
 export type FigureConnectionKind = (typeof FIGURE_CONNECTION_KINDS)[number]
@@ -199,23 +199,15 @@ function makeNormalizer<T extends string>(values: readonly T[], fallback: T): (v
 }
 
 /** 附图类型枚举值校验：非合法值返回 "unknown"。 */
-export const normalizeFigureType = makeNormalizer(FIGURE_TYPES, 'unknown')
+const normalizeFigureType = makeNormalizer(FIGURE_TYPES, 'unknown')
 
 /** 组件类型枚举值校验：非合法值返回 "unknown"。 */
-export const normalizeComponentKind = makeNormalizer(FIGURE_COMPONENT_KINDS, 'unknown')
+const normalizeComponentKind = makeNormalizer(FIGURE_COMPONENT_KINDS, 'unknown')
 
 /** 连接类型枚举值校验：非合法值返回 "unknown"。 */
-export const normalizeConnectionKind = makeNormalizer(FIGURE_CONNECTION_KINDS, 'unknown')
+const normalizeConnectionKind = makeNormalizer(FIGURE_CONNECTION_KINDS, 'unknown')
 
-/**
- * 附图说明兜底模板（模型未生成时确定性生成）。
- * @param figureNumber - 附图编号。
- * @param figureType - 附图类型。
- * @param inventionName - 发明名称（未知时用「装置」）。
- * @param components - 识别出的组件列表。
- * @returns 专利格式的附图说明文字。
- */
-export function buildFigureDescription(
+function buildFigureDescription(
   figureNumber: number,
   figureType: FigureType,
   inventionName: string | undefined,
@@ -233,12 +225,7 @@ export function buildFigureDescription(
   return lines.join('\n')
 }
 
-/**
- * 检查标号连续性/异常，返回警告。
- * @param components - 识别出的组件列表。
- * @returns 标号不连续等警告（无则空数组）。
- */
-export function checkReferenceNumbers(components: FigureComponent[]): string[] {
+function checkReferenceNumbers(components: FigureComponent[]): string[] {
   const warnings: string[] = []
   const numbers = components
     .map(c => c.refNumber)

@@ -13,7 +13,7 @@ import { GraphBuilder, type GraphNode } from '../index.ts'
 import { markDegraded } from '../degradation.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
-import { handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
+import { formatPriorArtLines, handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
 /** 构建新颖性分析子图的选项。 */
 export type BuildNoveltyGraphOptions = {
@@ -73,22 +73,20 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
   if (ranges.length === 0) {
     return { numeric_range_result: '未检测到数值范围表述，无需专项分析', numeric_ranges: [] }
   }
-  if (!provider?.callLLM) {
+  const degradedRanges = (fallback: string, message: string): Record<string, unknown> => {
     const delta: Record<string, unknown> = {}
-    markDegraded(
-      delta,
-      'numeric_range_result',
-      `检测到数值范围 ${ranges.length} 处，需 LLM 专项判定（provider 缺失）`,
-      'llm_unavailable',
-      '数值范围专项判定需要 LLM',
-    )
+    markDegraded(delta, 'numeric_range_result', fallback, 'llm_unavailable', message)
     delta.numeric_ranges = ranges
     return delta
   }
+  if (!provider?.callLLM) {
+    return degradedRanges(
+      `检测到数值范围 ${ranges.length} 处，需 LLM 专项判定（provider 缺失）`,
+      '数值范围专项判定需要 LLM',
+    )
+  }
   const priorArt = getStateArray(state, 'prior_art')
-  const priorArtText = priorArt
-    .map(d => (typeof d === 'object' && d !== null ? JSON.stringify(d) : String(d)))
-    .join('\n')
+  const priorArtText = formatPriorArtLines(priorArt)
   const prompt = [
     `你是专利新颖性分析专家。对比范围：${NOVELTY_SCOPE}`,
     '对以下数值范围表述做专项新颖性判定（审查指南第二部分第三章：数值范围/端点值/上下位概念规则）：',
@@ -109,16 +107,10 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
     const raw = await provider.callLLM(prompt, { jsonSchema: NUMERIC_RANGE_SCHEMA, temperature: 0.1 })
     return { numeric_range_result: raw, numeric_ranges: ranges }
   } catch (err) {
-    const delta: Record<string, unknown> = {}
-    markDegraded(
-      delta,
-      'numeric_range_result',
+    return degradedRanges(
       '数值范围专项判定失败（LLM 错误）',
-      'llm_unavailable',
       `numeric_range LLM 调用失败: ${err instanceof Error ? err.message : String(err)}`,
     )
-    delta.numeric_ranges = ranges
-    return delta
   }
 }
 

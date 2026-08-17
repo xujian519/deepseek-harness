@@ -71,8 +71,16 @@ function renderDraftSpecification(value: DraftSpecificationOutput): string {
   return lines.join('\n')
 }
 
+/** Technical-domain label for the 技术领域 section (general renders empty). */
+const DOMAIN_LABELS: Partial<Record<TechDomain, string>> = {
+  mechanical: '机械',
+  electrical: '电学',
+  chemical: '化学',
+  software: '软件',
+}
+
 function buildTechField(title: string, domain: TechDomain): SpecificationSection {
-  const domainLabel = domain === 'mechanical' ? '机械' : domain === 'electrical' ? '电学' : domain === 'chemical' ? '化学' : domain === 'software' ? '软件' : ''
+  const domainLabel = DOMAIN_LABELS[domain] ?? ''
   return { name: '技术领域', content: `本发明涉及${domainLabel}技术领域，尤其涉及一种${title}。`, placeholder: false }
 }
 

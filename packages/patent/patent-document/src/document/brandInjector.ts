@@ -52,6 +52,7 @@ export function loadBrandFromPath(path?: string): DocumentBrand {
     const parsed = JSON.parse(raw) as { documents?: { patent?: DocumentBrand } }
     return parsed.documents?.patent ?? {}
   } catch {
+    // 吞掉品牌文件的读取或 JSON 解析错误：损坏或不可读时回退到默认品牌。
     return {}
   }
 }

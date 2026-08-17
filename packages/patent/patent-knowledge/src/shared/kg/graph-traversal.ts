@@ -1,8 +1,8 @@
 /**
  * src/knowledge/shared/kg — 图谱遍历（图算法独立模块）。
  *
- * 从 kg-store.ts 拆出（A4 轮次 3）：getNeighbors / bfsPath / listByType /
- * expandNeighbors 四个图操作独立成类，经构造注入 prepared statements 与
+ * 从 kg-store.ts 拆出（A4 轮次 3）：getNeighbors / listByType /
+ * expandNeighbors 三个图操作独立成类，经构造注入 prepared statements 与
  * getNode 回读钩子（无 DB 生命周期责任，可独立单测）。
  */
 
@@ -50,35 +50,6 @@ export class GraphTraversal {
       }>)
       : (this.stmts.stmtNeighbors.all(nodeId, limit) as Array<{ target: string; relation: string }>)
     return rows.map(r => ({ targetId: r.target, relation: r.relation }))
-  }
-
-  /**
-   * BFS 最短路径（有向图，沿出边遍历）。找不到返回 null。
-   * @param fromId 起始节点 id。
-   * @param toId 目标节点 id。
-   * @param maxDepth 最大搜索深度。
-   * @returns 最短路径边序列，不可达时 null。
-   */
-  bfsPath(fromId: string, toId: string, maxDepth = 5): KgPathEdge[] | null {
-    if (fromId === toId) return []
-    const visited = new Set<string>([fromId])
-    const queue: Array<{ id: string; path: KgPathEdge[] }> = [{ id: fromId, path: [] }]
-
-    while (queue.length > 0) {
-      const entry = queue.shift()
-      if (entry === undefined) continue
-      const { id, path } = entry
-      if (path.length >= maxDepth) continue
-      const neighbors = this.getNeighbors(id, undefined, 100)
-      for (const n of neighbors) {
-        if (visited.has(n.targetId)) continue
-        const nextPath = [...path, { source: id, target: n.targetId, relation: n.relation }]
-        if (n.targetId === toId) return nextPath
-        visited.add(n.targetId)
-        queue.push({ id: n.targetId, path: nextPath })
-      }
-    }
-    return null
   }
 
   /**

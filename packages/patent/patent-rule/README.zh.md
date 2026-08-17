@@ -14,7 +14,7 @@
 
 ## 规则引擎（库 API）
 
-包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate` 与 `rulesToPolicyDenyRules`。
+包再导出移植的规则引擎：`evaluateText`、`evaluateRule`、`groupByAction`、`parseRuleSetFromYaml`、`loadRuleSetFromFile`、`loadRuleSetDir`、`mergeRuleSets`、`applyRuleOverrides`、`loadPatentComplianceRuleSet`、`loadPatentElectricalRuleSet`、`loadPatentFullRuleSet`、`loadActivationOverrides`、`selectGateRules`、`loadRulePack`、`loadSynonymsAsset`、`RuleOutputGate`。
 
 ## 配置
 
@@ -38,5 +38,4 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 
 - **资产定位与 Sati 不同** — 规则经 `import.meta.url` 从随包 `assets/rules/` 解析（可选 `rulesDir` 覆盖）；丢弃 `SATI_RULES_DIR` 环境变量、cwd/工作区根向上 walk 与项目 `.sati/rules.yaml` 自动发现。`loadRulePack` 仅接受显式 `manifestPath`。
 - **分层包默认仅 base** — 无清单时 `loadRulePack` 只加载随包的 base 包；domain 与 override 层需显式清单。
-- **`rulesToPolicyDenyRules` 未接线** — policy bridge 作为纯函数导出以保持对等，但 dsh 的工具拦截经 `ctx.tools.guard` 与 `tools/post-execute`，而非权限规则上下文。
 - **规则集加载 fail-soft** — 资产缺失或损坏时降级为空规则集（门禁放行），而非使部署失败。

@@ -148,9 +148,7 @@ export function extractTechnicalProblem(text: string): string | undefined {
     try {
       return JSON.parse(`"${json[1]}"`) as string
     } catch {
-      const raw = json[1]
-      if (raw === undefined) return undefined
-      return raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+      return (json[1] as string).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
     }
   }
   const flat = /实际解决的技术问题[是为：:]+([^。\n]{4,120})/.exec(text)

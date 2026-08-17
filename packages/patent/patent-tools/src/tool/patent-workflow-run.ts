@@ -340,11 +340,12 @@ async function executeGraphRun(
   }
   store ??= new InMemoryCheckpointStore()
 
-  const resumeSpec = input.approveCheckpointId !== undefined
-    ? { checkpointId: input.approveCheckpointId, grant: true }
-    : input.resumeCheckpointId !== undefined
-      ? { checkpointId: input.resumeCheckpointId, grant: false }
-      : undefined
+  let resumeSpec: { checkpointId: string; grant: boolean } | undefined = undefined
+  if (input.approveCheckpointId !== undefined) {
+    resumeSpec = { checkpointId: input.approveCheckpointId, grant: true }
+  } else if (input.resumeCheckpointId !== undefined) {
+    resumeSpec = { checkpointId: input.resumeCheckpointId, grant: false }
+  }
   let resumeFrom: GraphCheckpoint | undefined
   if (resumeSpec !== undefined) {
     resumeFrom = resumeSpec.grant

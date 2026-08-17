@@ -148,12 +148,7 @@ export function extractNumericRanges(text: string): NumericRange[] {
   return ranges
 }
 
-/**
- * Extract single values with units (range expressions removed first).
- * @param text - the text to scan.
- * @returns the numeric values with normalized units.
- */
-export function extractNumericValues(text: string): Array<{ value: number; unit: string }> {
+function extractNumericValues(text: string): Array<{ value: number; unit: string }> {
   const body = text.replace(RANGE_PATTERN, ' ')
   const values: Array<{ value: number; unit: string }> = []
   let m: RegExpExecArray | null
@@ -266,13 +261,7 @@ export function extractClaimFeatures(claims: string): string[] {
   return [...features]
 }
 
-/**
- * Feature-coverage comparison: returns features not recorded in the specification.
- * @param claims - the claims text.
- * @param text - the specification text.
- * @returns the missing features and the total feature count.
- */
-export function checkClaimCoverage(claims: string, text: string): { missing: string[]; total: number } {
+function checkClaimCoverage(claims: string, text: string): { missing: string[]; total: number } {
   const features = extractClaimFeatures(claims)
   const missing = features.filter(feature => !text.includes(feature))
   return { missing, total: features.length }

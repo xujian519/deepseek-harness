@@ -8,7 +8,7 @@
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
 import { getJSON, type LiteratureRateLimit } from '../http.ts'
 import type { NetworkRetryOptions } from '../../internal/network-fetch.ts'
-import { raw, snippet } from '../shared/text.ts'
+import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
 const FIELDS = 'title,abstract,url,year,venue,citationCount,externalIds,authors.name'
@@ -47,9 +47,9 @@ interface SearchResponse {
 }
 
 function authors(p: Paper): string | undefined {
-  const names = (p.authors ?? []).map(a => a.name).filter((n): n is string => !!n)
-  if (names.length === 0) return undefined
-  return names.length > 4 ? `${names.slice(0, 4).join(', ')} et al.` : names.join(', ')
+  return formatAuthors((p.authors ?? []).map(a => a.name))
+
+
 }
 
 function toHit(p: Paper): ConnectorHit {
@@ -57,7 +57,7 @@ function toHit(p: Paper): ConnectorHit {
   return {
     id: p.paperId ?? '',
     title: snippet(p.title, 300) ?? p.paperId ?? 'Untitled',
-    summary: snippet(p.abstract) ?? (meta.length ? meta : undefined),
+    summary: snippet(p.abstract) ?? nonEmpty(meta),
     url: p.url ?? (p.paperId ? `https://www.semanticscholar.org/paper/${p.paperId}` : undefined),
     score: typeof p.citationCount === 'number' ? p.citationCount : undefined,
     extra: raw(p),
@@ -81,7 +81,7 @@ export function createSemanticScholarConnector(options: CreateSemanticScholarCon
     description: 'AI-powered academic graph: abstracts, citations, references, and influence.',
     homepage: 'https://www.semanticscholar.org',
     async search(query, opts) {
-      const limit = Math.min(Math.max(opts?.limit ?? 10, 1), 50)
+      const limit = clampLimit(opts?.limit)
       const data = await getJSON<SearchResponse>(
         `${BASE}/search?query=${encodeURIComponent(query)}&limit=${limit}&fields=${FIELDS}`,
         {

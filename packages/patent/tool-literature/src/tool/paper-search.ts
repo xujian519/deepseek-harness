@@ -11,6 +11,7 @@ import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ConnectorHit } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 import { LiteratureToolError } from '../error.ts'
+import { clampLimit } from '../runtime/shared/text.ts'
 
 /** Input for the paper_search tool. */
 export type PaperSearchInput = {
@@ -106,7 +107,7 @@ export function createPaperSearchTool(registry: ConnectorRegistry): ToolDefiniti
         )
       }
 
-      const limit = Math.min(Math.max(args.limit ?? 10, 1), 50)
+      const limit = clampLimit(args.limit)
       let hits: ConnectorHit[]
       try {
         hits = await connector.search(args.query, { limit, signal: exec.signal })

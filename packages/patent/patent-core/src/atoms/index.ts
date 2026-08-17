@@ -17,9 +17,7 @@ export {
   AtomRegistryError,
   globalAtomRegistry,
   RegisterAtom,
-  LookupAtom,
   ListAtoms,
-  ListAtomsByCategory,
 } from './atom.ts'
 
 export {
@@ -30,11 +28,9 @@ export {
   InterruptStageError,
   isInterruptStageError,
   getStateString,
-  setStateString,
   getStateArray,
   StageHandlerRegistry,
   globalStageHandlerRegistry,
-  RegisterStageHandler,
   LookupStageHandler,
 } from './handler.ts'
 

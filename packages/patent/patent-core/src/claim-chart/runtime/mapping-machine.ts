@@ -9,6 +9,11 @@ const PRIOR_ART_ONLY = new Set(['anticipation', 'obviousness-combination'])
 const COVERED_MAPPINGS = new Set(['literal', 'anticipation', 'literal-construction-dependent'])
 const DISTINGUISHING_MAPPINGS = new Set(['not-found', 'needs-evidence'])
 
+/** 过滤 targetId + mapping 集合命中的行，返回要素 id 列表。 */
+function mappedElementIds(rows: ChartRow[], targetId: string, mappings: Set<string>): string[] {
+  return rows.filter(r => r.targetId === targetId && mappings.has(r.mapping)).map(r => r.elementId)
+}
+
 /**
  * 行级合法性：返回违规描述列表（空 = 合法）。
  * @param row - 待校验的映射行。
@@ -39,9 +44,7 @@ export function deriveNoveltyCoverage(
   targetId: string,
   elements: ClaimElement[],
 ): { covered: boolean; missing: string[] } {
-  const coveredIds = new Set(
-    rows.filter(r => r.targetId === targetId && COVERED_MAPPINGS.has(r.mapping)).map(r => r.elementId),
-  )
+  const coveredIds = new Set(mappedElementIds(rows, targetId, COVERED_MAPPINGS))
   const missing = elements.filter(el => !coveredIds.has(el.id)).map(el => el.id)
   return { covered: missing.length === 0, missing }
 }
@@ -58,8 +61,6 @@ export function deriveDistinguishingFeatures(
   primaryTargetId: string,
   elements: ClaimElement[],
 ): string[] {
-  const missing = new Set(
-    rows.filter(r => r.targetId === primaryTargetId && DISTINGUISHING_MAPPINGS.has(r.mapping)).map(r => r.elementId),
-  )
+  const missing = new Set(mappedElementIds(rows, primaryTargetId, DISTINGUISHING_MAPPINGS))
   return elements.filter(el => missing.has(el.id)).map(el => el.id)
 }

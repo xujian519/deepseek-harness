@@ -124,3 +124,11 @@ export function resolveInput(state: GraphState, keys: string[]): string {
   }
   return ''
 }
+
+/** 将现有技术证据条目数组格式化为逐行文本（对象 JSON 序列化，其余转字符串）。
+ * @param priorArt - 现有技术证据条目数组。
+ * @returns 逐行拼接后的现有技术文本。
+ */
+export function formatPriorArtLines(priorArt: unknown[]): string {
+  return priorArt.map(d => (typeof d === 'object' && d !== null ? JSON.stringify(d) : String(d))).join('\n')
+}

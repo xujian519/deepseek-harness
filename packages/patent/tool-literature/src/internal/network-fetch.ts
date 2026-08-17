@@ -41,11 +41,6 @@ export type NetworkFetchOptions = {
   fetchImpl?: typeof fetch
 }
 
-/** networkFetchJson 请求选项（附加期望状态码）。 */
-export type NetworkJsonOptions = NetworkFetchOptions & {
-  expectedStatuses?: readonly number[]
-}
-
 const DEFAULT_BASE_DELAY_MS = 1000
 const DEFAULT_MAX_DELAY_MS = 30_000
 const DEFAULT_RETRY_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
@@ -121,72 +116,6 @@ export async function networkFetch(
 }
 
 /**
- * fetch 并解析 JSON；非期望状态码或非法 JSON 抛 NetworkFetchError。
- * @param input - 请求 URL/Request。
- * @param init - 请求初始化参数。
- * @param options - 请求选项（含期望状态码）。
- * @returns 响应、解析出的 JSON 与原始文本。
- */
-export async function networkFetchJson<T = unknown>(
-  input: string | URL | Request,
-  init: RequestInit = {},
-  options: NetworkJsonOptions = {},
-): Promise<{ response: Response; json: T; text: string }> {
-  const response = await networkFetch(input, init, options)
-  const text = await response.text()
-  const okStatus = options.expectedStatuses?.includes(response.status) ?? response.ok
-  if (!okStatus) {
-    throw new NetworkFetchError(
-      response.status === 429
-        ? 'network_rate_limited'
-        : response.status >= 500
-          ? 'network_server_error'
-          : 'network_fetch_failed',
-      `HTTP ${response.status} ${response.statusText}: ${text.slice(0, 500)}`,
-      { status: response.status, statusText: response.statusText, body: text },
-    )
-  }
-  try {
-    return { response, json: JSON.parse(text) as T, text }
-  } catch (error) {
-    throw new NetworkFetchError(
-      'network_fetch_failed',
-      `Non-JSON response from ${String(input)}: ${text.slice(0, 500)}`,
-      error,
-    )
-  }
-}
-
-/**
- * 以 JSON body POST 并解析响应（POST 可重试）。
- * @param input - 请求 URL/Request。
- * @param body - 序列化为 JSON body 的负载。
- * @param init - 请求初始化参数。
- * @param options - 请求选项（含期望状态码）。
- * @returns 响应、解析出的 JSON 与原始文本。
- */
-export function networkPostJson<T = unknown>(
-  input: string | URL | Request,
-  body: unknown,
-  init: RequestInit = {},
-  options: NetworkJsonOptions = {},
-): Promise<{ response: Response; json: T; text: string }> {
-  return networkFetchJson<T>(
-    input,
-    {
-      ...init,
-      method: 'POST',
-      headers: withJsonContentType(init.headers),
-      body: JSON.stringify(body),
-    },
-    {
-      ...options,
-      retry: { retryOnPost: true, ...options.retry },
-    },
-  )
-}
-
-/**
  * 把任意错误规整为 NetworkFetchError（按中止/超时/系统错误码分类）。
  * @param error - 原始错误。
  * @param localSignal - 本次请求的 AbortSignal（超时中止）。
@@ -244,21 +173,6 @@ export function normalizeNetworkError(
  */
 export function isRetryableNetworkCode(code: NetworkErrorCode): boolean {
   return code !== 'network_abort' && code !== 'network_tls_error'
-}
-
-/**
- * 计算第 attempt 次重试的退避延迟（尊重 Retry-After）。
- * @param attempt - 当前重试次数（从 0 起）。
- * @param retry - 重试配置。
- * @param retryAfterHeader - 响应 Retry-After 头（可选）。
- * @returns 延迟毫秒数。
- */
-export function jitteredBackoff(
-  attempt: number,
-  retry: NetworkRetryOptions = {},
-  retryAfterHeader?: string | null,
-): number {
-  return resolveRetryDelay(attempt, retry, retryAfterHeader)
 }
 
 async function performFetch(
@@ -347,12 +261,4 @@ function readErrorCode(error: unknown): string | undefined {
     if (typeof causeCode === 'string') return causeCode
   }
   return undefined
-}
-
-function withJsonContentType(headersInit: HeadersInit | undefined): Headers {
-  const headers = new Headers(headersInit)
-  if (!headers.has('content-type')) {
-    headers.set('content-type', 'application/json')
-  }
-  return headers
 }

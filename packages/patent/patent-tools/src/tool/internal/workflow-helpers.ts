@@ -22,6 +22,7 @@ import {
   type WorkflowContext,
   type WorkflowManifest,
   type WorkflowRunResult,
+  type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { workflowManifestToMermaid } from '@deepseek-ai/dsh-patent-workflow'
 import { createNuoSearchProvider } from '@deepseek-ai/dsh-patent-data'
@@ -42,13 +43,7 @@ export function resolveWorkflowRunsDir(caseId: string, cwd: string): string {
   return join(cwd, caseWorkflowRunsDir(caseId))
 }
 
-/**
- * Reduce a case id to a filesystem-safe run key: path forms collapse to their
- * basename so separators never leak into a JSON file name.
- * @param caseId - the case identity.
- * @returns the basename for path forms, the id unchanged otherwise.
- */
-export function caseKeyOf(caseId: string): string {
+function caseKeyOf(caseId: string): string {
   if (isAbsolute(caseId) || caseId.includes('/') || caseId.includes('\\')) {
     return basename(caseId)
   }
@@ -224,6 +219,18 @@ export function buildWorkflowProvider(
 }
 
 /**
+ * Compute a stage's recap flag and output preview. Shared by the recap and run
+ * tools so the two renderers cannot drift.
+ * @param stage - the stage result.
+ * @returns the degraded flag and the truncated output preview.
+ */
+export function stageFlagAndPreview(stage: WorkflowStageResult): { flag: string; preview: string } {
+  const flag = stage.degraded ? '⚠️ 降级' : '✅'
+  const preview = stage.output.length > 0 ? `${stage.output.slice(0, 80)}${stage.output.length > 80 ? '…' : ''}` : '(无输出)'
+  return { flag, preview }
+}
+
+/**
  * Format a run's stage results into the shared per-stage lines (flag + stage id
  * + atom note + output preview). Shared by patent_workflow_run and
  * flexible_plan(run).
@@ -232,8 +239,7 @@ export function buildWorkflowProvider(
  */
 export function renderWorkflowStageLines(result: WorkflowRunResult): string[] {
   return result.stages.map((s) => {
-    const flag = s.degraded ? '⚠️ 降级' : '✅'
-    const preview = s.output.length > 0 ? `${s.output.slice(0, 80)}${s.output.length > 80 ? '…' : ''}` : '(无输出)'
+    const { flag, preview } = stageFlagAndPreview(s)
     return `- ${flag} ${s.stageId}${s.atom !== undefined ? ` [atom:${s.atom}]` : ''}: ${preview}`
   })
 }

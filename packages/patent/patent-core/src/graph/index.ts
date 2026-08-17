@@ -8,7 +8,7 @@
  */
 
 export * from './types.ts'
-export { cloneState, getStateString, getStateArray, getStateObject } from './state.ts'
+export { cloneState, getStateString, getStateArray } from './state.ts'
 export {
   DEGRADATION_SUFFIX,
   markDegraded,

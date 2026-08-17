@@ -11,13 +11,18 @@ export type PinCiteCheckResult = { ok: true } | { ok: false; reason: string }
 /** "[D1 段[0032] 图3]" / "[D1 段[0032]]"。 */
 const PIN_CITE_RE = /^\[(\S+)\s+段\[(\d+)\](?:\s+图(\d+))?\]$/
 
+/** 解析 pin-cite 字符串，格式不匹配时返回 null。 */
+function parsePinCite(pinCite: string): RegExpExecArray | null {
+  return PIN_CITE_RE.exec(pinCite.trim())
+}
+
 /**
  * 纯格式校验（不依赖源文，无条件执行）："[D1 段[0032] 图3]" / "[D1 段[0032]]"。
  * @param pinCite - 待校验的 pin-cite 字符串。
  * @returns 格式校验结果。
  */
 export function validatePinCiteFormat(pinCite: string): PinCiteCheckResult {
-  if (!PIN_CITE_RE.exec(pinCite.trim())) {
+  if (!parsePinCite(pinCite)) {
     return { ok: false, reason: `pin-cite 格式非法（应为 [文档 段[xxxx] 图n]）: ${pinCite}` }
   }
   return { ok: true }
@@ -30,7 +35,7 @@ export function validatePinCiteFormat(pinCite: string): PinCiteCheckResult {
  * @returns 校验结果。
  */
 export function validatePinCite(pinCite: string, sourceText: string): PinCiteCheckResult {
-  const m = PIN_CITE_RE.exec(pinCite.trim())
+  const m = parsePinCite(pinCite)
   const paragraph = m?.[2]
   if (paragraph === undefined) {
     return { ok: false, reason: `pin-cite 格式非法（应为 [文档 段[xxxx] 图n]）: ${pinCite}` }
@@ -51,5 +56,5 @@ export function verifyQuoteInSource(quote: string, sourceText: string): { ok: bo
   const q = stripWhitespace(quote)
   if (q.length === 0) return { ok: true, reason: '' }
   const ok = stripWhitespace(sourceText).includes(q)
-  return ok ? { ok: true, reason: '' } : { ok: false, reason: `引用文本在源文中不存在: "${q.slice(0, 50)}…"` }
+  return { ok, reason: ok ? '' : `引用文本在源文中不存在: "${q.slice(0, 50)}…"` }
 }
