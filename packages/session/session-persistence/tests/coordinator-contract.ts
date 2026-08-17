@@ -17,6 +17,13 @@ import SessionStore, { SESSION_FORMAT_VERSION, Session, SessionId } from '@deeps
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { meta, oneTurnLog, appendLog } from './contract.ts'
 
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** Out-of-repo plugin telemetry: purely informational, safe to skip when unknown. */
+    'plugin/telemetry': { note: string }
+  }
+}
+
 /**
  * The backend-specific capabilities the orchestration suite needs beyond the
  * public service API. A fresh fixture is created per test (isolated storage);
@@ -236,6 +243,25 @@ export function runCoordinatorContract(name: string, makeFixture: () => Promise<
         const loaded = await ctx.sessionPersistence.load(SessionId('live'))
         expect(loaded.events).toHaveLength(6)
         expect(loaded.meta.cwd).toBe(WORK)
+      } finally {
+        await fiber.dispose()
+        await fix.cleanup()
+      }
+    })
+
+    it('round-trips an ignorable out-of-repo event through append, flush, and reload', async () => {
+      const fix = await makeFixture()
+      const { ctx, fiber } = await freshCtx(fix)
+      try {
+        const session = ctx.sessions.create(SessionId('ignorable-live'), { meta: { cwd: WORK } })
+        session.append('turn/start', { turn: 1 })
+        session.append('plugin/telemetry', { note: 'switch' }, { ignorable: true })
+        session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+        await ctx.sessions.flush(session)
+
+        const loaded = await ctx.sessionPersistence.load(SessionId('ignorable-live'))
+        expect(loaded.events.find(event => event.type === 'plugin/telemetry'))
+          .toMatchObject({ type: 'plugin/telemetry', ignorable: true })
       } finally {
         await fiber.dispose()
         await fix.cleanup()
