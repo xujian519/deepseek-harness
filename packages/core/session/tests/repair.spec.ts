@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { CallId , createMessage, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { interruptedTurnClosers, orphanedToolCallReplacements, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '../src/index.ts'
 import type { SessionEvent, SurfaceEvent } from '../src/index.ts'
 import { foldSurface } from '../src/index.ts'
@@ -27,6 +27,20 @@ describe('interruptedTurnClosers', () => {
 
   it('returns nothing for an empty log', () => {
     expect(interruptedTurnClosers([])).toEqual([])
+  })
+
+  it('ignores event types that do not move the boundary cursor', () => {
+    // A user/message falls through the switch's default branch; the balanced
+    // turn still produces no closers.
+    const events: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'user/message', seq: 1, time: 1, data: createUserMessage({
+        content: [{ type: 'text', text: 'hello' }],
+        source: { kind: 'user' },
+      }) },
+      { type: 'turn/end', seq: 2, time: 2, data: { turn: 1, reason: { kind: 'completed' } } },
+    ]
+    expect(interruptedTurnClosers(events)).toEqual([])
   })
 
   it('closes an open turn with no open step (turn/end {interrupted} only)', () => {
@@ -330,6 +344,31 @@ describe('orphanedToolCallReplacements', () => {
     const message = (replacement as unknown as { data: { content: { type: string; text?: string }[] } }).data
     expect(message.content[0]?.type).toBe('text')
     expect(message.content[0]?.text).toContain('never executed')
+  })
+
+  it('stops the shadowed range at the first non-result surface node', () => {
+    // A plain-text assistant message following the orphaned tool-call message
+    // ends the consumed range: the replacement must not swallow it.
+    const events: SessionEvent[] = [
+      userTurnStart(1, 0),
+      { type: 'step/start', seq: 1, time: 1, data: { turn: 1, step: 1 } },
+      assistantToolCallMessage(2, 1, 'call-1'),
+      { type: 'assistant/message', seq: 3, time: 3, surfaceOp: 'append', data: {
+        turn: 1, step: 1,
+        message: createMessage({
+          role: 'assistant',
+          content: [{ type: 'text', text: 'follow-up note' }],
+          source: { kind: 'model', ...{ provider: 'mock', model: 'mock' } },
+        }),
+      } },
+      { type: 'step/end', seq: 4, time: 4, data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: 5, time: 5, data: { turn: 1, reason: { kind: 'error', error: { message: 'boom', code: 'UNKNOWN' } } } },
+    ]
+    const replacements = orphanedToolCallReplacements(events)
+    expect(replacements).toHaveLength(1)
+    const replacement = replacements[0] as SurfaceEvent
+    expect(replacement.surfaceOp).toEqual({ op: 'replace', start: 2, end: 2 })
+    expect(replacement.sourceEventSeqs).toEqual([2])
   })
 
   it('shadows the message and its answered results together when only some calls were answered', () => {
