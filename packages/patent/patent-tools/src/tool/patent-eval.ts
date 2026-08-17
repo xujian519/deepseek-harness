@@ -1,0 +1,259 @@
+/**
+ * `patent_eval` tool: deterministic patent-work-product quality evaluation
+ * (report / retrieval / workflow / citations / comprehensive). Ported from Sati's
+ * patentEval.ts; the slop-engine "表达质量" dimension is ported into
+ * internal/slop-engine.ts.
+ * @module @deepseek-ai/dsh-patent-tools/tool/patent-eval
+ */
+
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { ABSOLUTE_PHRASES } from '@deepseek-ai/dsh-patent-workflow'
+import { analyzeSlop } from '../internal/slop-engine.ts'
+
+export type PatentEvalMode = 'report' | 'retrieval' | 'workflow' | 'citations' | 'comprehensive'
+
+export type PatentEvalInput = {
+  /** Evaluation mode: report / retrieval / workflow / citations / comprehensive. */
+  mode: PatentEvalMode
+  /** Content to evaluate (report body / keyword list / workflow steps / citation list). */
+  content?: string
+  /** Statute citations that must be present (e.g. ["第二十二条第二款", "第二十二条第三款"]). */
+  required_citations?: string[]
+}
+
+export type PatentEvalDimension = {
+  score: number
+  passed: boolean
+  details?: string
+}
+
+export type PatentEvalOutput = {
+  mode: PatentEvalMode
+  score: number
+  passed: boolean
+  details: Record<string, PatentEvalDimension>
+  summary: string
+}
+
+/** Report structure section patterns (aligns Mady reportSectionPatterns). */
+const REPORT_SECTIONS: Array<{ name: string; pattern: RegExp }> = [
+  { name: '技术领域', pattern: /^#{1,3}\s*技术领域/m },
+  { name: '背景技术', pattern: /^#{1,3}\s*背景技术/m },
+  { name: '发明内容', pattern: /^#{1,3}\s*发明内容/m },
+  { name: '技术方案', pattern: /^#{1,3}\s*技术方案/m },
+  { name: '有益效果', pattern: /^#{1,3}\s*有益效果/m },
+  { name: '附图说明', pattern: /^#{1,3}\s*附图说明/m },
+  { name: '具体实施方式', pattern: /^#{1,3}\s*具体实施方式/m },
+  { name: '法律依据', pattern: /^#{1,3}\s*法律依据/m },
+  { name: '分析结论', pattern: /^#{1,3}\s*(分析结论|结论)/m },
+  { name: '权利要求', pattern: /^#{1,3}\s*权利要求/m },
+]
+
+const PASS_LINE = 0.7
+
+const DESCRIPTION = '评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。'
+
+/** Render the canonical evaluation value into model-facing prose. */
+function renderEval(value: PatentEvalOutput): string {
+  const parts = [value.summary]
+  for (const [key, dim] of Object.entries(value.details)) {
+    parts.push(`  ${dim.passed ? '✅' : '❌'} ${key}: ${dim.score.toFixed(2)}${dim.details ? `（${dim.details}）` : ''}`)
+  }
+  return parts.join('\n')
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+function averageScores(dims: PatentEvalDimension[]): number {
+  if (dims.length === 0) return 0
+  return dims.reduce((sum, d) => sum + d.score, 0) / dims.length
+}
+
+function summarize(mode: PatentEvalMode, score: number): string {
+  const label = mode === 'report' ? '报告质量' : mode === 'retrieval' ? '检索覆盖度' : mode === 'workflow' ? '流程完整性' : '引用合规性'
+  return `${label}评分: ${score.toFixed(2)}/1.0 (${score >= PASS_LINE ? '通过' : '需修订'})`
+}
+
+function scoreSectionCoverage(text: string): number {
+  const trimmed = text.trim()
+  if (trimmed.length === 0) return 0
+  let found = 0
+  for (const sp of REPORT_SECTIONS) {
+    if (sp.pattern.test(trimmed)) found += 1
+  }
+  return found / REPORT_SECTIONS.length
+}
+
+function sectionCoverageDetail(text: string): string {
+  const present: string[] = []
+  const missing: string[] = []
+  for (const sp of REPORT_SECTIONS) {
+    if (sp.pattern.test(text)) present.push(sp.name)
+    else missing.push(sp.name)
+  }
+  const parts = [`已覆盖 ${present.length}/${REPORT_SECTIONS.length} 个章节。`]
+  if (missing.length > 0) parts.push(`缺失: ${missing.join('、')}`)
+  return parts.join('')
+}
+
+function countAbsolutePhrases(text: string): number {
+  return ABSOLUTE_PHRASES.filter(p => text.includes(p)).length
+}
+
+function scoreFromSlopAnalysis(analysis: ReturnType<typeof analyzeSlop>, text: string): number {
+  const base = analysis.score.total / 43
+  const penalty = Math.min(0.25, analysis.issues.length * 0.05) + Math.min(0.25, countAbsolutePhrases(text) * 0.05)
+  return Math.max(0, Math.min(1, base - penalty))
+}
+
+function scoreContentSufficiency(text: string): number {
+  const trimmed = text.trim()
+  if (trimmed.length === 0) return 0
+  const chars = [...trimmed].length
+  if (chars < 50) return 0.1
+  if (chars < 200) return 0.3
+  if (chars < 500) return 0.5
+  if (chars < 1000) return 0.7
+  const paras = trimmed.split(/\n\s*\n/).length
+  if (paras < 3) return 0.6
+  return 1.0
+}
+
+function evaluateReport(text: string): Record<string, PatentEvalDimension> {
+  const dims: Record<string, PatentEvalDimension> = {}
+  const sectionScore = scoreSectionCoverage(text)
+  dims['结构完整性'] = { score: round2(sectionScore), passed: sectionScore >= 0.6, details: sectionCoverageDetail(text) }
+  const slopAnalysis = analyzeSlop(text)
+  const slopScore = scoreFromSlopAnalysis(slopAnalysis, text)
+  dims['表达质量'] = {
+    score: round2(slopScore),
+    passed: slopScore >= 0.6,
+    details: `${slopAnalysis.changes.length} 处短语套话、${slopAnalysis.issues.length} 处结构缺陷、${countAbsolutePhrases(text)} 处绝对化表述（43 分制 ${slopAnalysis.score.total}/43）`,
+  }
+  const sufficient = scoreContentSufficiency(text)
+  dims['内容充分性'] = { score: round2(sufficient), passed: sufficient >= 0.5 }
+  return dims
+}
+
+function evaluateRetrieval(text: string): Record<string, PatentEvalDimension> {
+  const trimmed = text.trim()
+  const keywords = trimmed.split(/\s+/).filter(Boolean)
+  let keywordScore = 0
+  if (keywords.length >= 3) keywordScore = 1.0
+  else if (keywords.length >= 1) keywordScore = 0.5
+  return { 关键词覆盖: { score: keywordScore, passed: keywordScore >= 0.5, details: `检索式含 ${keywords.length} 个关键词/分类号` } }
+}
+
+function evaluateWorkflow(text: string): Record<string, PatentEvalDimension> {
+  const stepPattern = /^\s*(步骤|Step|阶段|Phase)\s*\d*/gm
+  const steps = text.match(stepPattern) ?? []
+  let stepScore = 0
+  if (steps.length >= 5) stepScore = 1.0
+  else if (steps.length >= 3) stepScore = 0.6
+  else if (steps.length >= 1) stepScore = 0.3
+  return { 流程完整性: { score: stepScore, passed: stepScore >= 0.6, details: `检出 ${steps.length} 个工作流步骤` } }
+}
+
+function evaluateCitations(text: string, required: string[]): Record<string, PatentEvalDimension> {
+  const dims: Record<string, PatentEvalDimension> = {}
+  let citationScore = 0
+  if (required.length > 0) {
+    const covered = required.filter(r => text.includes(r)).length
+    citationScore = covered / required.length
+  } else {
+    citationScore = text.includes('第') && /第[零一二三四五六七八九十百千\d]+条/.test(text) ? 1.0 : 0.3
+  }
+  dims['引用合规性'] = { score: round2(citationScore), passed: citationScore >= 0.7, details: `要求 ${required.length} 条引用，覆盖度 ${Math.round(citationScore * 100)}%` }
+  const formatPattern = /第[零一二三四五六七八九十百千\d]+条/g
+  const formatMatches = text.match(formatPattern) ?? []
+  const formatScore = formatMatches.length > 0 ? 1.0 : 0.3
+  dims['引用格式'] = { score: formatScore, passed: formatScore >= 0.5, details: `检出 ${formatMatches.length} 处法条引用格式` }
+  return dims
+}
+
+function runComprehensiveEval(text: string, required: string[]): PatentEvalOutput {
+  const allDims: Record<string, PatentEvalDimension> = {
+    ...evaluateReport(text),
+    ...evaluateRetrieval(text),
+    ...evaluateWorkflow(text),
+    ...evaluateCitations(text, required),
+  }
+  const weights: Record<string, number> = {
+    结构完整性: 0.15, 表达质量: 0.1, 内容充分性: 0.15, 关键词覆盖: 0.2,
+    流程完整性: 0.15, 引用合规性: 0.15, 引用格式: 0.1,
+  }
+  let weightedSum = 0
+  let totalWeight = 0
+  for (const [key, dim] of Object.entries(allDims)) {
+    const w = weights[key] ?? 0.1
+    weightedSum += dim.score * w
+    totalWeight += w
+  }
+  const composite = totalWeight > 0 ? weightedSum / totalWeight : 0
+  const parts = [`综合质量评分: ${composite.toFixed(2)}/1.0`]
+  for (const [key, dim] of Object.entries(allDims)) {
+    parts.push(`  ${dim.passed ? '✅' : '❌'} ${key}: ${dim.score.toFixed(2)}`)
+  }
+  return { mode: 'comprehensive', score: round2(composite), passed: composite >= PASS_LINE, details: allDims, summary: parts.join('\n') }
+}
+
+function evaluateMode(mode: PatentEvalMode, text: string, required: string[]): Record<string, PatentEvalDimension> {
+  switch (mode) {
+    case 'report': return evaluateReport(text)
+    case 'retrieval': return evaluateRetrieval(text)
+    case 'workflow': return evaluateWorkflow(text)
+    case 'citations': return evaluateCitations(text, required)
+    default: return {}
+  }
+}
+
+/**
+ * Pure entry point: evaluate patent work product by mode.
+ * @param mode - evaluation mode.
+ * @param content - content to evaluate.
+ * @param requiredCitations - statute citations that must be present.
+ * @returns the structured score.
+ */
+export function evaluatePatentContent(mode: PatentEvalMode, content: string, requiredCitations: string[]): PatentEvalOutput {
+  const text = content ?? ''
+  if (mode === 'comprehensive') return runComprehensiveEval(text, requiredCitations)
+  const dims = evaluateMode(mode, text, requiredCitations)
+  const overall = averageScores(Object.values(dims))
+  return { mode, score: round2(overall), passed: overall >= PASS_LINE, details: dims, summary: summarize(mode, overall) }
+}
+
+/**
+ * Build the `patent_eval` tool (pure, no dependencies).
+ * @returns a registry-ready tool definition.
+ */
+export function createPatentEvalTool(): ToolDefinition {
+  return defineTool({
+    name: 'patent_eval',
+    description: DESCRIPTION,
+    parameters: {
+      mode: { type: 'string', required: true, enum: ['report', 'retrieval', 'workflow', 'citations', 'comprehensive'], description: '评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)' },
+      content: { type: 'string', description: '待评估的内容文本（报告正文/检索关键词列表/工作流步骤/引文列表等）' },
+      required_citations: { type: 'array', items: { type: 'string' }, description: '要求必须包含的法条引用列表（如 ["第二十二条第二款", "第二十二条第三款"]）' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          mode: { type: 'string', required: true },
+          score: { type: 'number', required: true },
+          passed: { type: 'boolean', required: true },
+          details: { type: 'json', required: true },
+          summary: { type: 'string', required: true },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: renderEval(value as unknown as PatentEvalOutput) }],
+    },
+    async execute(args) {
+      return evaluatePatentContent(args.mode, args.content ?? '', args.required_citations ?? [])
+    },
+  })
+}

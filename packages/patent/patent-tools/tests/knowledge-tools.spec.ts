@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { CallId } from '@deepseek-ai/dsh-llm'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { createPatentCaseSearchTool } from '../src/tool/patent-case-search.ts'
+import { createPatentWikiSearchTool, PATENT_WIKI_DIRS } from '../src/tool/patent-wiki-search.ts'
+import { createPatentKgQueryTool } from '../src/tool/patent-kg-query.ts'
+
+const signal = new AbortController().signal
+
+async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  for (const t of tools) ctx.tools.register(t)
+  return ctx
+}
+
+function execute(ctx: Context, name: string, args: unknown, label: string) {
+  return ctx.tools.execute({ signal, callId: CallId(label), name, arguments: args })
+}
+
+function text(result: { content: { type: string; text?: string }[] }): string {
+  return result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
+}
+
+describe('patent_case_search', () => {
+  const hit = {
+    documentId: 'd1', docType: 'case', title: 'T', decisionNumber: '566693', caseNumber: undefined,
+    court: undefined, source: undefined, module: undefined, charCount: 10, chunkIndex: 0,
+    snippet: 'snippet', ftsRank: -1.5, via: 'fts' as const,
+  }
+
+  it('searches and renders hits', async () => {
+    const tool = createPatentCaseSearchTool({ search: () => [hit] })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_case_search', { query: '创造性' }, 'c-1')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('d1')
+    expect(text(result)).toContain('snippet')
+  })
+
+  it('fails loud when the db is absent', async () => {
+    const tool = createPatentCaseSearchTool({ search: () => [hit], dbPath: '/nonexistent/knowledge.db' })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_case_search', { query: 'x' }, 'c-2')
+    expect(result.isError).toBe(true)
+  })
+})
+
+describe('patent_wiki_search', () => {
+  it('maps the four drafting directories', () => {
+    expect(PATENT_WIKI_DIRS.claims).toBe('专利实务/权利要求')
+    expect(PATENT_WIKI_DIRS.specification).toBe('专利实务/说明书')
+  })
+
+  it('searches with a directory prefix', async () => {
+    const meta = { id: '专利实务/权利要求/x', title: 'X', relativePath: '专利实务/权利要求/x.md', concept: 'c', domain: undefined }
+    const tool = createPatentWikiSearchTool({ searchIn: () => [meta], formatAsContext: () => 'body' })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_wiki_search', { query: 'x', dir: 'claims', include_body: true }, 'w-1')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('X')
+  })
+})
+
+describe('patent_kg_query', () => {
+  const node = { id: 'CASE_1', nodeType: 'Case', name: 'n', title: 'T' }
+  const adapter = {
+    getNode: (id: string) => (id === 'CASE_1' ? node : undefined),
+    searchRelevant: () => [{ node, via: 'keyword' as const }],
+    getSimilarNodes: () => [],
+    getNeighbors: () => [],
+    listByType: () => [node],
+  }
+
+  it('queries by keyword', async () => {
+    const tool = createPatentKgQueryTool({ adapter })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_kg_query', { query: '创造性' }, 'k-1')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('CASE_1')
+  })
+
+  it('queries by id with neighbor expansion', async () => {
+    const tool = createPatentKgQueryTool({ adapter })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_kg_query', { id: 'CASE_1' }, 'k-2')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('CASE_1')
+  })
+
+  it('throws when neither query/id/node_type is given', async () => {
+    const tool = createPatentKgQueryTool({ adapter })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_kg_query', {}, 'k-3')
+    expect(result.isError).toBe(true)
+  })
+})
