@@ -77,6 +77,16 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
     expect(STATE_ZOD.safeParse(json).success).toBe(true)
   })
 
+  it('definition schema parses the view output (wire payload excludes fold-internal toolCalls)', () => {
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
+    let state = failurePatternsProjectionDefinition.init()
+    for (const event of session.events) state = failurePatternsProjectionDefinition.apply(state, event)
+    const view = failurePatternsProjectionDefinition.view(state)
+    expect(view).not.toHaveProperty('toolCalls')
+    expect(failurePatternsProjectionDefinition.schema.safeParse(view).success).toBe(true)
+  })
+
   it('FailurePattern zod strict: extra fields reject, missing required fields reject', () => {
     const base = {
       patternId: 'L1-skill:abc12345',

@@ -41,6 +41,13 @@ const failurePatternsStateSchema = z.object({
   toolCalls: z.record(z.string(), z.object({ name: z.string(), seq: z.number().int().nonnegative() })),
 }).strict()
 
+/** Wire-payload schema for the read-side projection (`view` output); `toolCalls` is fold-internal state. */
+const failurePatternsViewSchema = z.object({
+  patterns: z.record(z.string(), failurePatternSchema),
+  discoveryOrder: z.array(z.string()),
+  lastMinedSeq: z.number().int().nonnegative(),
+}).strict()
+
 /** Durable folded state — one copy per session, projected incrementally. */
 export type FailurePatternsState = z.infer<typeof failurePatternsStateSchema>
 
@@ -362,7 +369,7 @@ function foldReflection(state: FailurePatternsState, event: SessionEvent): Failu
  */
 export const failurePatternsProjectionDefinition: ProjectionDefinition<typeof FAILURE_PATTERNS_PROJECTION_KEY, FailurePatternsState> = {
   key: FAILURE_PATTERNS_PROJECTION_KEY,
-  schema: failurePatternsStateSchema,
+  schema: failurePatternsViewSchema,
   init: () => ({ patterns: {}, discoveryOrder: [], lastMinedSeq: 0, toolCalls: {} }),
   apply: (state, event) => foldEvent(state, event),
   view: state => ({
