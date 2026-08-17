@@ -118,6 +118,11 @@ export class PatentWorkflow extends Service {
   ): Promise<PlantaskRunResult> {
     const machine = new PlanTaskStateMachine()
     const { tasks, toRun } = syncPlanToTasks(planSteps)
+    if (this.pending.has(caseId)) {
+      throw new Error(
+        `patentWorkflow: caseId "${caseId}" 已有挂起的 plantask，拒绝覆盖（先 approve/reject 或等待其完成）`,
+      )
+    }
     machine.transition('awaiting_approval')
     this.appendPlantask(agent, caseId, machine.state, tasks)
     this.pending.set(caseId, { agent, caseId, machine, tasks, toRun })
@@ -135,6 +140,8 @@ export class PatentWorkflow extends Service {
 
   /**
    * Decision entry: approve a pending plantask (resume to executing).
+   * Single-session single-case semantics: one pending plantask per caseId;
+   * concurrent runs of the same caseId are rejected by runPlantask.
    * @param caseId - the case keying the parked plantask.
    * @returns the final plantask state, tasks, and approval outcome.
    */

@@ -18,12 +18,14 @@ declare module '@deepseek-ai/dsh-session/types' {
      * per task, plus the current PlanTaskState) is reconstructable from the
      * log alone; replaying the log IS the plan state. Log-only — never derived
      * model history.
+     * @param event - the plantask state snapshot appended to the session log.
      */
     'patent/plantask': PatentPlantaskEvent
     /**
      * A workflow run finished (completed, degraded, or interrupted). Carries
      * the per-stage results and summary the run reports to the model, so a
      * model-visible run is reconstructable from the log. Log-only.
+     * @param event - the workflow run result appended to the session log.
      */
     'patent/workflow-run': PatentWorkflowRunEvent
   }

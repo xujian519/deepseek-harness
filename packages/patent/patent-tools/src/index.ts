@@ -227,7 +227,13 @@ export function apply(ctx: Context, config: Config): void {
   // Evidence + rule-asset + recap + figure-index + notes.
   ctx.tools.register(createEvaluateEvidenceTool({ ruleDirs: candidateRuleDirs() }))
   ctx.tools.register(createPatentWorkflowTool({}))
-  ctx.tools.register(createSearchPatentFigureTool({ loadIndex: async () => ({ entries: [] }) }))
+  // Search figure index: analyze_patent_figure does not persist an index in
+  // this port, so the tool fails loud until an integrator wires a real loader.
+  ctx.tools.register(createSearchPatentFigureTool({
+    loadIndex: async () => {
+      throw new PatentToolError('setup_required', 'search_patent_figure 需要附图索引加载器（analyze_patent_figure 当前不落盘索引）；未接线。', { tool: 'search_patent_figure' })
+    },
+  }))
 
   // PDF download: the ego-browser runner adapter is a deferred integration point;
   // the tool fails loud until a real runEgo is wired.

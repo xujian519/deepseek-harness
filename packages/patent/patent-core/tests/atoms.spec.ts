@@ -222,6 +222,18 @@ describe('groundedness / keywords / novelty', () => {
     expect(String(failOpen.groundedness_feedback)).toMatch(/LLM 调用失败/)
   })
 
+  it('GroundednessHandler：setup_required 配置错误向上传播（fail loud，不降级）', async () => {
+    const h = LookupStageHandler('groundedness')!
+    const failing: StageProvider = {
+      callLLM: async () => {
+        throw Object.assign(new Error('未配置 LLM provider/model（Config.provider/model 未设置）'), { code: 'setup_required' })
+      },
+    }
+    await expect(
+      h.execute({ state: { features: ['F1'], source_text: 'x' }, provider: failing }),
+    ).rejects.toThrow(/未配置 LLM/)
+  })
+
   it('KeywordsHandler：生成检索关键词写入 keywords 键', async () => {
     const h = LookupStageHandler('keywords')!
     const out = await h.execute({ state: { extraction_result: '散热鳍片结构' }, provider: groundednessProvider })

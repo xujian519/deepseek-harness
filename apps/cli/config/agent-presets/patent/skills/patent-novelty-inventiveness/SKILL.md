@@ -35,7 +35,7 @@ description: 专利新颖性（单独对比）与创造性（三步法）分析�
 
 ## 收口校验
 
-分析完成后调用 patent_workflow（manifestId 为 patent_novelty_v1 或 patent_inventiveness_v1）按阶段收口；确定性规则门（rule_check，patent_novelty / patent_inventiveness 域）通过方可交付。
+分析完成后调用 patent_workflow（manifestId 为 patent_novelty_v1 或 patent_inventiveness_v1）按阶段收口；确定性规则门（rule_check，默认 patent 域）通过方可交付。
 
 ## 关键原则
 

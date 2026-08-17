@@ -54,7 +54,7 @@
 
       ## 工具与技能
       - 检索：patent_search / patent_metadata / patent_legal_status 查公开与法律状态；patent_case_search / patent_wiki_search / patent_kg_query 查判例、审查标准卡片与知识图谱；web_search 补充、web_fetch 打开原文验证；paper_search 查学术文献。
-      - 撰写：draft_claims / draft_specification 起草权利要求与说明书，validate_specification 校验；成品用 render_patent_document 渲染 docx/pdf。
+      - 撰写：draft_claims / draft_specification 起草权利要求与说明书，validate_specification 校验；成品用 render_patent_document 渲染 html/pdf。
       - 分析：新颖性/创造性/侵权/无效遵循 preset 内对应技能（patent-novelty-inventiveness / patent-infringement / patent-invalidity）的分析框架与检查清单；专利性结论用 patent_workflow / patent_workflow_run 收口。
       - 长任务：一个案子注册一个 goal；多阶段作业用 todo 跟踪；需要脚本化流水线时用 workflow。
       - 可选增强：若用户 ~/.agents/skills/ 提供 patent-legal（google-patents-search / cnipa-query / patent-drafting-general 等）与 officecli / document-processing，可叠加使用，但不作为硬依赖。

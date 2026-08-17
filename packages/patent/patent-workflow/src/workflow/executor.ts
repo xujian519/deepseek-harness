@@ -89,6 +89,8 @@ export async function runStageOnce(
       if (isInterruptStageError(err)) {
         return { output: '', retries, interrupted: { stageId: stage.id, message: err.message, data: err.data } }
       }
+      // 配置类错误（fail-loud LLM stub 的 setup_required）向上传播，不重试不降级。
+      if (err instanceof Error && (err as { code?: unknown }).code === 'setup_required') throw err
       lastError = err
       retries += 1
       if (attempt >= options.maxRetries) {

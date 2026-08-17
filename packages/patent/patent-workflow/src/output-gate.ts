@@ -56,6 +56,8 @@ export type PatentOutputGateOptions = {
   approvalStore?: ApprovalStore
   /** 可注入时钟（毫秒时间戳；默认 Date.now）。 */
   now?: () => number
+  /** 可注入日志器（缺省 console；宿主可传 ctx.logger）。 */
+  logger?: { warn: (message: string, ...args: unknown[]) => void; error: (message: string, ...args: unknown[]) => void }
 }
 
 /** 单条消息门禁处理结果（写库消息、是否需审批、挂起索引、门禁判定）。 */
@@ -83,6 +85,10 @@ export class PatentOutputGate {
 
   private now(): number {
     return this.options.now?.() ?? Date.now()
+  }
+
+  private log(): { warn: (message: string, ...args: unknown[]) => void; error: (message: string, ...args: unknown[]) => void } {
+    return this.options.logger ?? console
   }
 
   /**
@@ -120,7 +126,7 @@ export class PatentOutputGate {
     if (needsApproval && this.options.onPending && context?.skipApproval !== true) {
       const maxPending = this.options.maxPending ?? 100
       if (this.pending.size >= maxPending) {
-        console.warn(`[PatentOutputGate] 挂起队列已满（${maxPending}），审批词消息直接入库`)
+        this.log().warn(`[PatentOutputGate] 挂起队列已满（${maxPending}），审批词消息直接入库`)
         return { message: processed, needsApproval: false, info: mergedInfo }
       }
       const index = this.nextIndex
@@ -213,7 +219,7 @@ export class PatentOutputGate {
     if (this.isExpired(pending)) {
       this.pending.delete(index)
       this.unflushed.delete(index)
-      console.warn(`[PatentOutputGate] 挂起消息 ${index} 超过 TTL 未审批，拒绝审批`)
+      this.log().warn(`[PatentOutputGate] 挂起消息 ${index} 超过 TTL 未审批，拒绝审批`)
       return undefined
     }
     this.pending.delete(index)
@@ -276,7 +282,7 @@ export class PatentOutputGate {
       if (this.isExpired(pending)) {
         this.pending.delete(index)
         this.unflushed.delete(index)
-        console.warn(`[PatentOutputGate] 挂起消息 ${index} 超过 TTL（${ttl}ms）未审批，已清理`)
+        this.log().warn(`[PatentOutputGate] 挂起消息 ${index} 超过 TTL（${ttl}ms）未审批，已清理`)
       }
     }
   }
@@ -303,7 +309,7 @@ export class PatentOutputGate {
     try {
       this.reportRejection(callback(pending), 'callback failed')
     } catch (err) {
-      console.error('[PatentOutputGate] callback failed:', err)
+      this.log().error('[PatentOutputGate] callback failed:', err)
     }
   }
 
@@ -315,7 +321,7 @@ export class PatentOutputGate {
   private reportRejection(result: void | Promise<void>, label: string): void {
     if (result !== undefined) {
       result.catch((err: unknown) => {
-        console.error(`[PatentOutputGate] ${label}:`, err)
+        this.log().error(`[PatentOutputGate] ${label}:`, err)
       })
     }
   }

@@ -81,6 +81,11 @@ export async function runWorkflow(
   const handlers = options.handlers ?? globalStageHandlerRegistry
   const atoms = options.atoms ?? globalAtomRegistry
 
+  // 调用方取消：阶段边界检查，中止时中止执行（stage 内部的长调用由调用方另行取消）。
+  const assertNotAborted = (): void => {
+    if (options.signal?.aborted === true) throw new WorkflowError('工作流执行已取消')
+  }
+
   // 原子契约存在性 fail-fast：声明了未知 atom（连契约都没有）直接抛错；
   // 已知 atom 但 handler 未注册时回退 executor（atom 是契约，handler 是实现，可延迟注册）。
   for (const stage of manifest.stages) {
@@ -118,9 +123,10 @@ export async function runWorkflow(
     })
   }
 
-  const MAX_PARALLEL_STAGES = 4
+  const MAX_PARALLEL_STAGES = options.maxParallelStages ?? 4
 
   for (let index = 0; index < manifest.stages.length; ) {
+    assertNotAborted()
     // 计算可并行窗口（从当前 stage 起，连续且无 retry、同 atom 的阶段）。
     let window = 1
     const current = manifest.stages[index]

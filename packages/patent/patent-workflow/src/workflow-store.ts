@@ -4,7 +4,11 @@
  *
  * - InMemoryWorkflowRunStore：内存 Map，适合测试与单次运行上下文
  * - JsonFileWorkflowRunStore：每 run 一个 JSON 文件（<dir>/<runId>.json），
- *   runId 缺省用 manifestId；底层复用 JsonFileStore
+ *   底层复用 JsonFileStore
+ *
+ * runId 缺省用 manifestId（中断后同 runId 重跑即覆盖上次记录，是恢复路径的
+ * 有意语义）；同一 manifest 的多次独立运行请显式传不同 runId，否则后写覆盖
+ * 前写。
  */
 
 import { JsonFileStore } from '@deepseek-ai/dsh-patent-core'

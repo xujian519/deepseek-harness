@@ -38,7 +38,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     expect(typeof tool.apply).toBe('function')
   })
 
-  it('registers all 23 tools through the Loader composition', async () => {
+  it('registers all 23 tools via ctx.plugin (direct mount)', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
@@ -46,6 +46,19 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     const names = ctx.tools.schemas().map(s => s.name)
     for (const expected of EXPECTED_TOOLS) {
       expect(names).toContain(expected)
+    }
+  })
+
+  it('unregisters every registered tool when its contributing fiber is disposed (HMR-safety)', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    const fiber = await ctx.plugin(tool, {})
+    expect(ctx.tools.schemas().map(s => s.name)).toEqual(expect.arrayContaining(EXPECTED_TOOLS))
+    await fiber.dispose()
+    const names = ctx.tools.schemas().map(s => s.name)
+    for (const expected of EXPECTED_TOOLS) {
+      expect(names).not.toContain(expected)
     }
   })
 

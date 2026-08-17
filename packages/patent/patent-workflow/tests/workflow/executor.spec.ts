@@ -95,6 +95,19 @@ describe('runStageOnce', () => {
     expect(outcome.output).toMatch(/始终失败/)
   })
 
+  it('setup_required configuration errors propagate (fail loud, not retried or degraded)', async () => {
+    const { handlers, atoms } = makeRegistry({
+      name: 'extract',
+      category: 'extract',
+      execute: async () => {
+        throw Object.assign(new Error('未配置 LLM provider/model'), { code: 'setup_required' })
+      },
+    })
+    await expect(
+      runStageOnce(stage({ atom: 'extract' }), {}, { ...emptyOptions, handlers, atoms }),
+    ).rejects.toThrow(/未配置 LLM/)
+  })
+
   it('an approved gate injects the grant marker and placeholds APPROVED output', async () => {
     const { handlers, atoms } = makeRegistry({
       name: 'approval-gate',

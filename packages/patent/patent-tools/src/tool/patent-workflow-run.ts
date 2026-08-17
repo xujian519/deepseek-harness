@@ -225,10 +225,10 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       },
       render: (_args, value) => [{ type: 'text', text: renderWorkflowRun(value as unknown as PatentWorkflowRunOutput) }],
     },
-    async execute(args) {
+    async execute(args, exec) {
       const input = args as unknown as PatentWorkflowRunInput
       if (input.graph !== undefined) {
-        return executeGraphRun(input, deps, cwd)
+        return executeGraphRun(input, deps, cwd, exec.signal)
       }
 
       const manifestId = input.manifestId ?? 'patent_disclosure_v1'
@@ -274,6 +274,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
         handlers: deps.handlers ?? globalStageHandlerRegistry,
         atoms: globalAtomRegistry,
         provider,
+        signal: exec.signal,
         ...(persistTarget !== undefined ? { persist: new JsonFileWorkflowRunStore(persistTarget.runsDir) } : {}),
         ...(persistTarget?.runId !== undefined ? { runId: persistTarget.runId } : {}),
         ...(input.approveStageIds !== undefined && input.approveStageIds.length > 0
@@ -309,6 +310,7 @@ async function executeGraphRun(
   input: PatentWorkflowRunInput,
   deps: PatentWorkflowRunDeps,
   cwd: string,
+  signal?: AbortSignal,
 ): Promise<PatentWorkflowRunOutput> {
   const graphName = input.graph as DomainGraphName
   const def = DOMAIN_GRAPHS[graphName]
@@ -366,6 +368,7 @@ async function executeGraphRun(
     store,
     graphId,
     provider,
+    ...(signal !== undefined ? { signal } : {}),
     ...(resumeFrom !== undefined ? { resumeFrom } : {}),
   })
 

@@ -113,6 +113,8 @@ export async function callLlm(
     })
     return { ok: true, raw }
   } catch (err) {
+    // 配置类错误（fail-loud LLM stub 的 setup_required）向上传播，不得降级为阶段错误。
+    if (err instanceof Error && (err as { code?: unknown }).code === 'setup_required') throw err
     const message = err instanceof Error ? err.message : String(err)
     return { ok: false, error: degraded(atom, `LLM 调用失败: ${message}`), message }
   }

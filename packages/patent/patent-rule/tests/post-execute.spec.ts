@@ -108,4 +108,16 @@ describe('tools/post-execute output gate', () => {
     expect(result.isError).toBe(false)
     expect(downstreamCalled).toBe(true)
   })
+
+  it('unregisters the output gate when its contributing fiber is disposed (HMR-safety)', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    const fiber = await ctx.plugin(PatentRule, { rulesDir: makeRulesFixture() })
+    ctx.tools.register(deliveryTool('render_patent_document', '包含 BLOCKWORD 的文档'))
+    expect((await ctx.tools.execute(exec('render_patent_document'))).isError).toBe(true)
+    await fiber.dispose()
+    const after = await ctx.tools.execute(exec('render_patent_document'))
+    expect(after.isError).toBe(false)
+  })
 })

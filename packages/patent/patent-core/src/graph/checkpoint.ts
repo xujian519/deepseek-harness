@@ -136,6 +136,7 @@ export async function runGraphWithCheckpoints(
   const checkpointingOpts: RunOptions = {
     ...(opts.provider !== undefined ? { provider: opts.provider } : {}),
     ...(opts.failFast !== undefined ? { failFast: opts.failFast } : {}),
+    ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
     onSuperStepStart: async (step, activeNodes, state) => {
       await opts.onSuperStepStart?.(step, activeNodes, state)
       const checkpoint: GraphCheckpoint = {

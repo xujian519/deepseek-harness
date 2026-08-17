@@ -10,7 +10,7 @@ Sati 已把完整专利域（检索、判例/wiki/知识图谱查询、权利要
 
 ## 决策
 
-**按 Route A（原生移植，零 Sati 进程，无 MCP 桥接）把 Sati 专利域移植为工作区包**，执行 docs/sati-as-dsh-plugins-plan.md P0–P4。packages/patent/ 下落地 10 个包（patent-data、patent-knowledge、patent-core、patent-workflow、patent-tools、patent-rule、patent-document、tool-literature、methodology；patent-core 为纯库）加 vendor/nuo-patent（Sati 专利检索引擎预构建版，MIT）与 apps/cli/config/agent-presets/patent/ 的 agent preset。引擎逐字移植，仅在 dsh 严格性/接缝处适配；约 3.5 GB 的 knowledge.db 永不入库——patent-knowledge:install 裁剪本地源副本。系统知识读 dsh-patent-knowledge，99-知识库/ 保持项目级沉淀（计划 P4.4 覆盖 patent-mode-design.md §9）。
+**按 Route A（原生移植，零 Sati 进程，无 MCP 桥接）把 Sati 专利域移植为工作区包**，执行 docs/sati-as-dsh-plugins-plan.md P0–P4。packages/patent/ 下落地 9 个包（patent-data、patent-knowledge、patent-core、patent-workflow、patent-tools、patent-rule、patent-document、tool-literature、methodology；patent-core 为纯库）加 vendor/nuo-patent（Sati 专利检索引擎预构建版，MIT）与 apps/cli/config/agent-presets/patent/ 的 agent preset。引擎逐字移植，仅在 dsh 严格性/接缝处适配；约 3.5 GB 的 knowledge.db 永不入库——patent-knowledge:install 裁剪本地源副本。系统知识读 dsh-patent-knowledge，99-知识库/ 保持项目级沉淀（计划 P4.4 覆盖 patent-mode-design.md §9）。
 
 ## 备选方案
 
