@@ -26,6 +26,7 @@ import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-sett
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-commands'
 import type { PermissionSelect, PresetOption } from './types.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 // The `permissions` projection-key declaration lives in src/types.ts (its one
 // home); this re-export projects the type face onto the package root AND

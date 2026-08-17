@@ -14,6 +14,7 @@ import { SESSION_SEARCH_RESULT_LIMIT } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { HostObservable, SessionMaybeProvideInfo, SessionProvideInfo } from '@deepseek-ai/dsh-client-ui-slots'
 import { conversationSnapshot } from './fixtures.ts'
 import type { SessionFixture, Stabilizer } from './fixtures.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 /**
  * The fixture-backed session face: conversation reads delegate to the

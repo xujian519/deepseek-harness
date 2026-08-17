@@ -1079,6 +1079,12 @@ importers:
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:^
         version: link:../../sandbox/sandbox-policy
+      '@deepseek-ai/dsh-self-evolve':
+        specifier: workspace:^
+        version: link:../../self-evolve/self-evolve
+      '@deepseek-ai/dsh-self-evolve-basic':
+        specifier: workspace:^
+        version: link:../../self-evolve/self-evolve-basic
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
@@ -1166,6 +1172,9 @@ importers:
       '@deepseek-ai/dsh-tool-ralph':
         specifier: workspace:^
         version: link:../../workflow/tool-ralph
+      '@deepseek-ai/dsh-tool-self-evolve':
+        specifier: workspace:^
+        version: link:../../self-evolve/tool-self-evolve
       '@deepseek-ai/dsh-tool-skill':
         specifier: workspace:^
         version: link:../../skill/tool-skill

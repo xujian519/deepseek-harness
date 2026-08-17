@@ -5,7 +5,8 @@
  * @module @deepseek-ai/dsh-desktop-electron/bridge-server
  */
 
-import { createServer, type Server, type Socket } from 'node:net'
+import { connect, createServer, type Server, type Socket } from 'node:net'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { type BrowserWindow, dialog } from 'electron'
 
@@ -95,8 +96,29 @@ export class BridgeServer {
         socket.on('close', () => { this.socket = undefined })
         socket.on('error', (error) => { console.error('desktop bridge socket error', error) })
       })
+      let staleRetried = false
+      this.server.on('error', (error) => {
+        // A POSIX socket file survives its listener: a crashed or killed app
+        // leaves `path` behind, and a fresh bind then fails with EADDRINUSE
+        // even though nothing listens. Probe the path — a live listener keeps
+        // the error; a dead file is unlinked and the bind retried once.
+        if (error instanceof Error && 'code' in error && error.code === 'EADDRINUSE' && path.startsWith('/') && !staleRetried) {
+          staleRetried = true
+          const probe = connect(path)
+          probe.once('connect', () => {
+            probe.destroy()
+            reject(error)
+          })
+          probe.once('error', () => {
+            probe.destroy()
+            rmSync(path, { force: true })
+            this.server?.listen(path)
+          })
+          return
+        }
+        reject(error)
+      })
       this.server.listen(path, () => { resolve() })
-      this.server.on('error', reject)
     })
   }
 

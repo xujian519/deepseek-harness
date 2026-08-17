@@ -49,6 +49,7 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 
 export type { BasicSelfEvolveConfig, ResolvedBasicSelfEvolveConfig } from './types.ts'
 import type { BasicSelfEvolveConfig, ResolvedBasicSelfEvolveConfig, TriggerPolicy } from './types.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 const DEFAULT_LEVELS: EvolveLevel[] = ['L1-skill', 'L2-context']
 const DEFAULT_TRIGGERS: TriggerPolicy = {

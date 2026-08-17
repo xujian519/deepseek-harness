@@ -5,6 +5,7 @@ import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-inva
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { applyGoalEvent, emptyGoalFoldState } from './fold.ts'
 import type { GoalFoldState } from './fold.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-goal'
 

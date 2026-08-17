@@ -35,10 +35,6 @@ export { canonicalHeader, foldRequestHeader, headerEquals } from './request-head
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
 
 declare module '@deepseek-ai/cordis' {
-  interface Context {
-    sessions: SessionStore
-  }
-
   interface Events {
     /**
      * Creation announcement during session publication. A synchronous throw vetoes and rolls

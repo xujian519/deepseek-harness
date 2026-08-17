@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import { SANDBOX_MODES } from './session-mode.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-sandbox-policy'
 

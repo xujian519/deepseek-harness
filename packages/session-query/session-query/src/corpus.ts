@@ -6,6 +6,7 @@ import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
 import type { SessionRecord } from './types.ts'
 import { SessionQueryError } from './config.ts'
 import { assertSessionHeadersCompatible } from './sources.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 /** Detached source selected for one exact read. */
 export interface LogicalSession {

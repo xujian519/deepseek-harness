@@ -113,6 +113,25 @@ describe('BridgeServer', () => {
     })
   })
 
+  it('recovers from a stale socket file with no live listener', async () => {
+    bridge.dispose()
+    if (process.platform === 'win32') return // named pipes leave no file behind
+    await new Promise<void>((resolve, reject) => {
+      const stale = createServer()
+      stale.on('error', reject)
+      stale.listen(socketPath, () => {
+        stale.close(() => {
+          // POSIX keeps the socket file after close: a stale file with no
+          // listener is exactly the crashed-app residue a restart must clear.
+          resolve()
+        })
+      })
+    })
+    const other = new BridgeServer(window)
+    await other.start(socketPath)
+    other.dispose()
+  })
+
   it('disposes without failing when never started', () => {
     const fresh = new BridgeServer(window)
     fresh.dispose()

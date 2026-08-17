@@ -51,6 +51,7 @@
       "@deepseek-ai/dsh-typert-protocol/types": ["./packages/typert/protocol/src/types.ts"],
       "@deepseek-ai/dsh-typert-loader": ["./packages/typert/loader/src/index.ts"],
       "@deepseek-ai/dsh-session/invariant": ["./packages/core/session/src/invariant.ts"],
+      "@deepseek-ai/dsh-session/context": ["./packages/core/session/src/context.ts"],
       "@deepseek-ai/dsh-typert-registry/types": ["./packages/typert/registry/src/types.ts"],
       "@deepseek-ai/dsh-typert-generator": ["./packages/typert/generator/src/index.ts"],
       "@deepseek-ai/dsh-session/types": ["./packages/core/session/src/types.ts"],

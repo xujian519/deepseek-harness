@@ -8,6 +8,7 @@ import {
   renderBrowserTimeZoneContext,
 } from './request-zone.ts'
 import { createTimestampFormatter, formatTimestamp } from './timestamp.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-time-context'
 const SOURCE_NAME = 'time-context'

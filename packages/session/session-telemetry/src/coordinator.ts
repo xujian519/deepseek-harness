@@ -18,6 +18,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionTelemetrySink, SessionTelemetryRecord, SessionTelemetrySeverity } from './index.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 /** Whether capture follows live events or reads the canonical log only when requested. */
 export type SessionTelemetryCapture = 'live' | 'on-demand'

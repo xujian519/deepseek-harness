@@ -23,6 +23,7 @@ import type { SessionPersistenceRevision } from './revision.ts'
 import { observeQueuedAbort, SessionPreparations } from './preparations.ts'
 import type { SessionPreparationReservation } from './preparations.ts'
 import { SessionWriteBehind } from './write-behind.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 /** Default number of detached session preparations retained by a coordinator. */
 export const DEFAULT_PREPARED_SESSION_CACHE_SIZE = 5

@@ -43,6 +43,7 @@ export {
   messageFeedbackSessionIdentitySchema,
   messageFeedbackVersionSchema,
 } from './spec.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 export type { MessageFeedbackRow, MessageFeedbackSessionIdentity } from './spec.ts'
 
 /** Required deployment policy for optional notes. */

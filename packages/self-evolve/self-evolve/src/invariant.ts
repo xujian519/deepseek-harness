@@ -14,6 +14,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type { SelfEvolveRunId } from './brand.ts'
 import type {} from './types.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-self-evolve'
 

@@ -21,6 +21,7 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 // declarations still receive the SessionProjectionMap merge.
 export type * from './types.ts'
 import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'
 

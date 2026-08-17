@@ -23,6 +23,7 @@ import type { ProjectionCheckpoint, ProjectionSnapshot } from '@deepseek-ai/dsh-
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { projectionCacheDomainSpec } from './spec.ts'
 import type { CheckpointIdentity, CheckpointRecord } from './spec.ts'
+import type {} from '@deepseek-ai/dsh-session/context'
 
 export { checkpointIdentity, checkpointRecord, checkpointRow, projectionCacheDomainSpec } from './spec.ts'
 export type { CheckpointIdentity, CheckpointRecord } from './spec.ts'

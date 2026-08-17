@@ -41,3 +41,6 @@ apps/desktop/resources/
 worktrees/
 .agents/worktrees/
 .typert-*/
+
+# Local tool output (repowiki etc.)
+.qoder/
