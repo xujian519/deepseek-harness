@@ -3,7 +3,9 @@
  * @module @deepseek-ai/dsh-cordis-host-runner/types
  */
 
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { JsonValue, SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** Stable identity of one dynamic plugin instance. */
@@ -357,6 +359,20 @@ export type DynamicCordisInvokeResult =
   | { ok: true; value: JsonValue }
   | ({ ok: false; code: 'plugin-not-running' | 'stale-run' | 'method-not-found' | 'handler-error' } & CordisErrorDetails)
 
+/** Pending Client-bearing activation facts consulted before arming approval. */
+export interface DynamicCordisApprovalInfo {
+  /** Correlating request identity; armed immediately after this waterfall settles. */
+  requestId: ApprovalRequestId
+  agentId: SessionId
+  pluginId: CordisDynamicPluginId
+  packageId: CordisDynamicPackageId
+  mode: CordisDynamicRunMode
+  name: string
+  purpose: string
+  /** Base requirement computed from grants; listeners may force it `true`. */
+  requiresApproval: boolean
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
@@ -365,6 +381,22 @@ declare module '@deepseek-ai/cordis' {
      * @mode emit
      */
     'cordis/request-run'(request: DynamicCordisRunRequest): void
+    /**
+     * Waterfall consulted before a Client-bearing activation request is armed.
+     * Listeners receive the pending request facts and the base approval
+     * requirement; they MUST call `next()` and may return `true` to force
+     * re-approval even when the base requirement is `false` (e.g. a stale
+     * `approveFutureVersions` grant). The runner treats the outermost result
+     * as the effective requirement.
+     * @param info - the pending activation request facts and base requirement.
+     * @param next - delegate to the remaining listeners; resolves with their effective requirement.
+     * @mode waterfall
+     */
+    'cordis/before-approval'(
+      this: Scoped<Agent>,
+      info: DynamicCordisApprovalInfo,
+      next: () => Promise<boolean>,
+    ): Promise<boolean>
     /**
      * A pending Client activation request left the answerable state.
      * @param resolved - request identity and outcome.

@@ -1929,6 +1929,11 @@
       "doc": "docs/subsystems/feedback.md",
       "symbol": "MessageFeedbackDeleteResult",
       "source": "packages/feedback/message-feedback/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/patent.md",
+      "symbol": "PatentModelPort",
+      "source": "packages/patent/patent-core/src/types.ts"
     }
   ]
 }

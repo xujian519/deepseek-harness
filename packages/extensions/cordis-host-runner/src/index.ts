@@ -277,16 +277,32 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     const requestId = ApprovalRequestId(this.registry.mintApprovalRequestId())
     const requiresApproval = !plan.plugin.clientVersionUpdatesApproved
       && !plan.plugin.approvedClientPackages.has(packageId)
+    // The before-approval waterfall lets policy listeners (e.g. self-evolve's
+    // re-approval guard) force approval even when grants would auto-approve.
+    const effectiveRequiresApproval = await this.ctx.events.waterfall(
+      'cordis/before-approval',
+      {
+        requestId,
+        agentId: agent.id,
+        pluginId,
+        packageId,
+        mode,
+        name: plan.definition.name,
+        purpose: plan.definition.purpose,
+        requiresApproval,
+      },
+      () => Promise.resolve(requiresApproval),
+    )
     attempt.approvalRequestId = requestId
-    attempt.requiresApproval = requiresApproval
-    attempt.status = requiresApproval ? 'awaiting-approval' : 'starting-host'
+    attempt.requiresApproval = effectiveRequiresApproval
+    attempt.status = effectiveRequiresApproval ? 'awaiting-approval' : 'starting-host'
     this.registry.armRequest(requestId, {
       agentId: agent.id,
       pluginId,
       packageId,
       pluginRunId: attempt.pluginRunId,
       mode,
-      requiresApproval,
+      requiresApproval: effectiveRequiresApproval,
     })
     this.ctx.emit('cordis/request-run', {
       requestId,
@@ -296,11 +312,11 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
       mode,
       name: plan.definition.name,
       purpose: plan.definition.purpose,
-      requiresApproval,
+      requiresApproval: effectiveRequiresApproval,
     })
     return {
       ok: true,
-      status: requiresApproval ? 'awaiting-approval' : 'starting',
+      status: effectiveRequiresApproval ? 'awaiting-approval' : 'starting',
       pluginId,
       packageId,
       pluginRunId: attempt.pluginRunId,

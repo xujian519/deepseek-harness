@@ -164,6 +164,10 @@ flowchart LR
   cfg --> plugin_dsh_base_fs_sandbox
   plugin_dsh_base_llm_deepseek["llm-deepseek<br/>@deepseek-ai/dsh-llm-deepseek"]
   cfg --> plugin_dsh_base_llm_deepseek
+  plugin_dsh_base_self_evolve_basic["self-evolve-basic<br/>@deepseek-ai/dsh-self-evolve-basic"]
+  cfg --> plugin_dsh_base_self_evolve_basic
+  plugin_dsh_base_tool_self_evolve["tool-self-evolve<br/>@deepseek-ai/dsh-tool-self-evolve"]
+  cfg --> plugin_dsh_base_tool_self_evolve
 ```
 
 | Plugin id | Package / module |
@@ -246,6 +250,8 @@ flowchart LR
 | `agent-loop` | `@deepseek-ai/dsh-agent-loop` |
 | `fs-sandbox` | `@deepseek-ai/dsh-fs-sandbox` |
 | `llm-deepseek` | `@deepseek-ai/dsh-llm-deepseek` |
+| `self-evolve-basic` | `@deepseek-ai/dsh-self-evolve-basic` |
+| `tool-self-evolve` | `@deepseek-ai/dsh-tool-self-evolve` |
 
 Source config: [`packages/bundle/base/cordis.patch.yml`](../../packages/bundle/base/cordis.patch.yml).
 
