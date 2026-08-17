@@ -114,3 +114,30 @@ describe('collectPortText', () => {
     expect(await collectPortText(port, '问题')).toBe('结论是')
   })
 })
+
+describe('mapChunks failure code preservation', () => {
+  it('rethrows error finish with the failure.code attached', async () => {
+    const port = createLlmModelPort(
+      streamOf([
+        { type: 'finish', reason: { kind: 'error', failure: { message: 'stub', code: 'setup_required' } } },
+      ]),
+      { provider: 'deepseek', model: 'deepseek-chat' },
+    )
+    await expect(collectPortText(port, '问题')).rejects.toMatchObject({ message: 'stub', code: 'setup_required' })
+  })
+})
+
+describe('per-call temperature', () => {
+  it('passes request.temperature into GenerateOptions, overriding the fixed default', async () => {
+    let capturedOptions: unknown
+    const port = createLlmModelPort(
+      async function* (options) {
+        capturedOptions = options
+        yield { type: 'finish', reason: { kind: 'stop' } } as StreamChunk
+      },
+      { provider: 'deepseek', model: 'deepseek-chat', temperature: 0.7 },
+    )
+    await collectPortText(port, '问题', undefined, { temperature: 0 })
+    expect((capturedOptions as { temperature?: number }).temperature).toBe(0)
+  })
+})

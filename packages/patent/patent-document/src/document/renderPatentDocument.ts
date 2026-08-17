@@ -81,14 +81,20 @@ function resolveBrandPath(input: DocumentRenderInput, cwd: string): string | und
 
 /**
  * 原子写文件（先 tmp 再 rename；Windows 上 rename 不覆盖已存在文件，先清理目标）。
+ * 任一步失败都清理 tmp，避免遗留垃圾文件。
  * @param file - 目标文件路径。
  * @param content - 文件文本内容。
  */
 async function atomicWriteFile(file: string, content: string): Promise<void> {
   const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-  await writeFile(tmp, content, 'utf8')
-  await rm(file, { force: true })
-  await rename(tmp, file)
+  try {
+    await writeFile(tmp, content, 'utf8')
+    await rm(file, { force: true })
+    await rename(tmp, file)
+  } catch (error) {
+    await rm(tmp, { force: true }).catch(() => {})
+    throw error
+  }
 }
 
 /**

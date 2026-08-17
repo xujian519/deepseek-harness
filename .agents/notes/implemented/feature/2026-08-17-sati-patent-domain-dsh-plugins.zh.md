@@ -20,6 +20,7 @@ Sati 已把完整专利域（检索、判例/wiki/知识图谱查询、权利要
 
 ## 后果
 
-- 851 个单元测试 / 110 文件（10 个 Sati spec 搬运 + 服务/组合/HMR 安全测试）；9 个专利包 tsc -b 全绿；本工作可归因门禁全绿（verify-md-links、verify-md-wrap、verify-package-paths、verify-translation-pairing tool-catalog 对、verify-type-equiv 385、verify-dsh-package-licenses、verify-package-invariants）。
+- 855 个单元测试 / 111 文件（10 个 Sati spec 搬运 + 服务/组合/HMR 安全测试）；9 个专利包 tsc -b 全绿；本工作可归因门禁全绿（verify-md-links、verify-md-wrap、verify-package-paths、verify-translation-pairing tool-catalog 对、verify-type-equiv 385、verify-dsh-package-licenses、verify-package-invariants、patent 会话事件进入生成词汇表后的 verify-persistence-catalog）。
+- 审查修复（2026-08-18）：`registerBuiltinAtoms()` 在 patent-tools 的 apply 与 patent-workflow 服务构造中执行，atom-bearing manifest 不再 fail-fast；6 个内置 manifest 的审批阶段声明 `atom: "approval-gate"`（HITL 真实生效），工作流工具用真实 LLM 链式执行器驱动无 atom 阶段（不再回显输入）；审批放行标记只写本次 handler 的状态副本，不会泄漏给后续未授权审批门；LLM 路由在 Config 未配 provider/model 时回退部署默认（`agentDefaultModel`）；`runPlantask` 在审批抛错时清理 pending；图节点对超时施加硬上界并把取消信号与逐调用 temperature/schema 透传到模型端口；消息级输出门禁、`setup_required` 错误码与 EVI-011 域外证据译本范围与接线对齐。
 - 已知偏差：tool-catalog 生成器在 packages/self-evolve 未登记前无法运行（外部并发工作）——专利行/章节按生成器 render 格式手工补齐，patent-document 清单条目挂载 LocalSubprocessRuntime（不挂载则收割 0 工具，assertToolsHarvested 必抛）；RuleOutputGate/RuleOutputGateResult 落在 patent-core/src/rule/types.ts（单归属，patent-workflow re-export）；§7 实机带 key 运行与 patent keyless 快照在本环境未执行（无 DEEPSEEK_API_KEY）——以单元覆盖 + Sati spec 搬运替代，已在计划记录中说明。
 - 其余仓库级红项全部来自外部 self-evolve 未完成（缺 README、self-evolve-loop/* 事件 JSDoc 违规、cordis.patch.yml 引用、tsconfig.host.json 引用损坏），由另一窗口负责。

@@ -36,9 +36,14 @@ export async function runStageHandler(
   handler: StageHandler,
   state: GraphState,
   provider?: StageProvider,
+  signal?: AbortSignal,
 ): Promise<StateDelta> {
   try {
-    return await handler.execute({ state, ...(provider !== undefined ? { provider } : {}) })
+    return await handler.execute({
+      state,
+      ...(provider !== undefined ? { provider } : {}),
+      ...(signal !== undefined ? { signal } : {}),
+    })
   } catch (err) {
     if (isInterruptStageError(err)) {
       throw new GraphInterruptError(err.message, err.data)
@@ -125,12 +130,12 @@ function makeStageNode(
 ): GraphNode {
   const handler = stage.atom !== undefined ? deps.handlers.lookup(stage.atom) : undefined
   const mainKey = stage.atom !== undefined ? deps.atoms.lookup(stage.atom)?.outputSchema?.[0] : undefined
-  return async ({ state, provider }) => {
+  return async ({ state, provider, signal }) => {
     const execState = stage.params !== undefined ? { ...state, ...stage.params } : state
     const delta: StateDelta = {}
     let output = ''
     if (handler !== undefined) {
-      const segment = await runStageHandler(handler, execState, deps.provider ?? provider)
+      const segment = await runStageHandler(handler, execState, deps.provider ?? provider, signal)
       Object.assign(delta, segment)
       const raw = mainKey !== undefined ? segment[mainKey] : undefined
       if (typeof raw === 'string') output = raw

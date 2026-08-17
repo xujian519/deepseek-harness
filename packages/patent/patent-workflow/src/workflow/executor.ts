@@ -25,7 +25,7 @@ import type {
   WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
 
-/** 单阶段执行选项（handlers/atoms/provider/executor/maxRetries/approvalGrants/ctx）。 */
+/** 单阶段执行选项（handlers/atoms/provider/executor/maxRetries/approvalGrants/ctx/signal）。 */
 export type RunStageOnceOptions = {
   handlers: StageHandlerRegistry
   atoms: AtomRegistry
@@ -34,6 +34,8 @@ export type RunStageOnceOptions = {
   maxRetries: number
   approvalGrants?: string[] | undefined
   ctx: WorkflowContext
+  /** 调用方取消信号；透传给 handler（LLM 端口流）。 */
+  signal?: AbortSignal
 }
 
 /**
@@ -58,16 +60,20 @@ export async function runStageOnce(
     try {
       if (handler) {
         // 已人工批准的审批门：把放行标记注入 handler 执行态，由 ApprovalGateHandler
-        // 统一判定放行（与图路径同一契约）；此处不跳过执行。
+        // 统一判定放行（与图路径同一契约）；此处不跳过执行。标记只写本次 handler
+        // 可见的副本——绝不写入共享 state，否则后续未授权审批门会读到泄漏的标记被静默放行。
         const approvedGate = isApprovalGateHandler(handler) && options.approvalGrants?.includes(stage.id)
         // 阶段静态参数合并进执行态（不污染共享 state，仅本次 handler 可见）。
-        const execState = stage.params !== undefined ? { ...state, ...stage.params } : state
+        const execState = stage.params !== undefined || approvedGate
+          ? { ...state, ...stage.params }
+          : state
         if (approvedGate) {
           execState[APPROVAL_GRANTED_KEY] = true
         }
         const segment = await handler.execute({
           state: execState,
           ...(options.provider !== undefined ? { provider: options.provider } : {}),
+          ...(options.signal !== undefined ? { signal: options.signal } : {}),
         })
         Object.assign(state, segment)
         // 主输出键 = atom.outputSchema[0]（对齐 Mady 约定，文本/JSON 均可）；兜底按 stage.id 引用。

@@ -155,3 +155,17 @@ it('runGraphWithCheckpoints: 完成路径亦保存最终态检查点', async () 
   const cp = await store.load(checkpointId!)
   expect(cp?.activeNodes[0]).toBe('a')
 })
+
+it('InMemoryCheckpointStore.loadLatest 返回克隆：外部修改不污染存储', async () => {
+  const store = new InMemoryCheckpointStore()
+  await store.save({ id: 'c1', graphId: 'g', stepIndex: 1, state: { a: 1 }, activeNodes: ['x'], createdAt: 1 })
+  const latest = await store.loadLatest('g')
+  expect(latest).toBeDefined()
+  if (latest !== undefined) {
+    latest.state['a'] = 999
+    latest.activeNodes.push('polluted')
+  }
+  const again = await store.loadLatest('g')
+  expect(again?.state).toEqual({ a: 1 })
+  expect(again?.activeNodes).toEqual(['x'])
+})

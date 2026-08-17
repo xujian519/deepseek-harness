@@ -54,6 +54,8 @@ describe('EVI-011 evidence-compliance guards', () => {
     const [, translationGuard] = createEvidenceComplianceGuards([])
     expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'foreign_language', translated: false }))).toMatch(/EVI-011-translation/)
     expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'foreign_language', translated: true }))).toBeUndefined()
+    // 域外（overseas）是来源地分类而非语言分类：中文原件不再被误要求译本。
+    expect(translationGuard!(exec(EVIDENCE_COMPLIANCE_TOOL, { evidenceType: 'overseas', translated: false }))).toBeUndefined()
   })
 
   it('is monotonic deny: a pre-execute allow cannot override it', async () => {

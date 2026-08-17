@@ -52,7 +52,7 @@ export type PatentCaseSearchDeps = {
   dbPath?: string
 }
 
-const INSTALL_GUIDANCE = '判例库不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge:install 准备本地 knowledge.db，或配置知识库目录。'
+const INSTALL_GUIDANCE = '判例库不可用：knowledge.db 缺失或版本不符。请先运行 patent-knowledge-install 准备本地 knowledge.db，或配置知识库目录。'
 
 /** Truncate an over-long hit snippet (avoid oversized context). */
 function truncateSnippet(content: string, maxChars = 800): string {

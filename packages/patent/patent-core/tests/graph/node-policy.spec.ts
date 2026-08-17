@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { runNodeWithPolicy, type GraphNode } from '@deepseek-ai/dsh-patent-core'
+import { runNodeWithPolicy, type GraphNode, type StateDelta } from '@deepseek-ai/dsh-patent-core'
 
 const okNode =
   (value: unknown): GraphNode =>
@@ -77,4 +77,29 @@ it('runNodeWithPolicy: 节点同步抛错被捕获', async () => {
   }
   const outcome = await runNodeWithPolicy(syncThrow, undefined, { state: {} })
   expect(outcome.ok).toBe(false)
+})
+
+it('runNodeWithPolicy: 硬上界——不听 signal 的挂起节点也会在 deadline 后被判超时', async () => {
+  // 节点完全不响应 signal 且永不 settle：without withDeadline 整个超步会无限等待。
+  const hung: GraphNode = () => new Promise<StateDelta>(() => {})
+  const startedAt = Date.now()
+  const outcome = await runNodeWithPolicy(hung, { timeoutMs: 30 }, { state: {} })
+  expect(outcome.ok).toBe(false)
+  expect(Date.now() - startedAt).toBeLessThan(2000)
+})
+
+it('runNodeWithPolicy: 调用方取消 signal 联动节点 abort 并报取消而非超时', async () => {
+  const controller = new AbortController()
+  const abortAware: GraphNode = async ({ signal }) => {
+    await new Promise<void>((resolve) => {
+      signal?.addEventListener('abort', () => resolve())
+      setTimeout(resolve, 200)
+    })
+    throw new Error('caller aborted')
+  }
+  const run = runNodeWithPolicy(abortAware, { timeoutMs: 5000 }, { state: {}, signal: controller.signal })
+  setTimeout(() => controller.abort(), 20)
+  const outcome = await run
+  expect(outcome.ok).toBe(false)
+  if (!outcome.ok) expect((outcome.error as Error).message).toContain('取消')
 })

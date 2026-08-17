@@ -46,7 +46,7 @@ export class ExtractHandler implements StageHandler {
    * @returns 下一管线状态（可能带降级标记）。
    */
   async execute(execInput: StageExecuteInput): Promise<PipelineState> {
-    const { state, provider } = execInput
+    const { state, provider, signal } = execInput
     const missing = requireLlm(provider, 'extract')
     if (missing) return missing
     const text = resolveInputText(state, ['text', 'extraction_input'], '')
@@ -65,7 +65,7 @@ export class ExtractHandler implements StageHandler {
       text.slice(0, 8000),
       '```',
     ].join('\n')
-    const res = await callLlm(provider, 'extract', prompt, { schema: EXTRACT_SCHEMA, temperature: 0 })
+    const res = await callLlm(provider, 'extract', prompt, { schema: EXTRACT_SCHEMA, temperature: 0 }, signal)
     if (!res.ok) return res.error
     return parseLlmJson(
       res.raw,

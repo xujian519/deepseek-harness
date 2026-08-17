@@ -110,6 +110,7 @@ export async function runWorkflow(
     maxRetries,
     approvalGrants: options.approvalGrants,
     ctx,
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
   }
 
   const pushResult = (stage: WorkflowStage, outcome: { output: string; retries: number }): void => {
@@ -209,7 +210,10 @@ export async function runWorkflow(
   }
 
   const degradedSteps = results.filter(r => r.degraded).map(r => r.stageId)
-  const completed = !requireAll || (degradedSteps.length === 0 && interrupted === undefined)
+  // 中断（审批门暂停）≠ 完成：即使 requireAllSteps=false（容忍降级），暂停中的
+  // 运行也必须报告 incomplete，否则"未确认"会被误读为"已完成"。
+  const completed = interrupted === undefined
+    && (requireAll ? degradedSteps.length === 0 : true)
   const okCount = results.filter(r => !r.degraded).length
 
   let summary: string

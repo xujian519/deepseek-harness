@@ -98,3 +98,28 @@ describe('draft_specification', () => {
     expect(text(result)).toContain('说明书草案')
   })
 })
+
+describe('draft_claims patent_type', () => {
+  it('flags a utility-model draft over the 10-claim cap (细则 A23)', () => {
+    const out = draftClaims({
+      invention_name: '一种装置',
+      patent_type: 'utility_model',
+      technical_features: ['特征A'],
+      optional_features: Array.from({ length: 11 }, (_, i) => `附加特征${i + 1}`),
+    })
+    expect(out.claims).toHaveLength(12)
+    const limit = out.violations.find(v => v.rule === 'claim_limit')
+    expect(limit).toBeDefined()
+    expect(limit!.severity).toBe('error')
+  })
+
+  it('does not flag an invention draft for the same claim count', () => {
+    const out = draftClaims({
+      invention_name: '一种装置',
+      patent_type: 'invention',
+      technical_features: ['特征A'],
+      optional_features: Array.from({ length: 11 }, (_, i) => `附加特征${i + 1}`),
+    })
+    expect(out.violations.find(v => v.rule === 'claim_limit')).toBeUndefined()
+  })
+})

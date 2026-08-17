@@ -182,16 +182,18 @@ export function apply(ctx: Context, config: Config): void {
         feedback: [{ type: 'text', text: '专利输出门禁拦截 ' + exec.name + '：命中强制规则 ' + hitSummary(gateResult) }],
       }
     }
+    // warn/log 原样放行（post-execute 无法改写已生成的结果文本）；
+    // warn 命中记日志，避免"计算后丢弃"的静默。
+    if (gateResult.warnHits.length > 0) {
+      ctx.logger.warn('patent-rule: ' + exec.name + ' 命中 warn 级规则 ' + gateResult.warnHits.join(', '))
+    }
     if (gateResult.reviewHits.length === 0) return next()
 
     const reason = '专利输出门禁请求审批 ' + exec.name + '：命中待审规则 ' + hitSummary(gateResult)
-    const denied = '（无审批通道，按拦截处理）'
-    if (approvalDisabled || exec.agent === undefined) {
-      return { kind: 'block', feedback: [{ type: 'text', text: reason + denied }] }
-    }
     const approval = ctx.get('approval')
-    if (approval === undefined) {
-      return { kind: 'block', feedback: [{ type: 'text', text: reason + denied }] }
+    // fail-closed：无审批通道（未配/无 agent/approvalDisabled）时按拦截处理。
+    if (approvalDisabled || exec.agent === undefined || approval === undefined) {
+      return { kind: 'block', feedback: [{ type: 'text', text: reason + '（无审批通道，按拦截处理）' }] }
     }
     const outcome = await approval.request({
       agent: exec.agent,

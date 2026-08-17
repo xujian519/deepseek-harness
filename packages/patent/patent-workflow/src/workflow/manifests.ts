@@ -18,7 +18,13 @@ export const patentNoveltyManifest: WorkflowManifest = {
     { id: 'search', strategy: 'react', description: '检索现有技术文献' },
     { id: 'compare', strategy: 'chain', description: '逐项对比技术特征与现有技术（单独对比原则）' },
     { id: 'conclude', strategy: 'chain', description: '生成新颖性分析结论（附置信度）' },
-    { id: 'approval', strategy: 'chain', description: '人工确认分析结论' },
+    {
+      id: 'approval',
+      strategy: 'chain',
+      description: '人工确认分析结论',
+      atom: 'approval-gate',
+      params: { review_context: '新颖性分析结论需人工确认后方可交付' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
@@ -131,7 +137,13 @@ export const patentInventivenessManifest: WorkflowManifest = {
       description: '辅助判断因素复核（预料不到的技术效果/长期渴望难题/克服技术偏见/商业成功）',
     },
     { id: 'conclude', strategy: 'chain', description: '生成创造性结论（高/中/低/无，附置信度）+ 反事后诸葛亮自检' },
-    { id: 'approval', strategy: 'chain', description: '人工确认分析结论（HITL）' },
+    {
+      id: 'approval',
+      strategy: 'chain',
+      description: '人工确认分析结论（HITL）',
+      atom: 'approval-gate',
+      params: { review_context: '创造性分析结论需人工确认后方可交付' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
@@ -153,7 +165,13 @@ export const patentPatentabilityManifest: WorkflowManifest = {
       params: { chart_mode: 'patentability' },
     },
     { id: 'draft', strategy: 'chain', description: '基于区别特征布局权利要求（规避 D1）（原子路径不支持，收口模式）' },
-    { id: 'approval', strategy: 'chain', description: '人工确认权利要求布局' },
+    {
+      id: 'approval',
+      strategy: 'chain',
+      description: '人工确认权利要求布局',
+      atom: 'approval-gate',
+      params: { review_context: '权利要求布局需人工确认后方可交付' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
@@ -175,7 +193,13 @@ export const patentOaResponseManifest: WorkflowManifest = {
       params: { chart_mode: 'oa-response' },
     },
     { id: 'draft', strategy: 'chain', description: '撰写意见陈述书（新颖性陈述 + 三步法，消费 claim-chart）' },
-    { id: 'approval', strategy: 'chain', description: '人工确认答复书' },
+    {
+      id: 'approval',
+      strategy: 'chain',
+      description: '人工确认答复书',
+      atom: 'approval-gate',
+      params: { review_context: '答复书需人工确认后方可交付' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
@@ -198,7 +222,13 @@ export const patentInvalidationManifest: WorkflowManifest = {
     },
     { id: 'novelty', strategy: 'chain', description: '新颖性单独对比（单篇全覆盖）（原子路径不支持，收口模式）' },
     { id: 'inventiveness', strategy: 'chain', description: '三步法创造性分析（原子路径不支持，收口模式）' },
-    { id: 'approval', strategy: 'chain', description: '人工确认分析结论' },
+    {
+      id: 'approval',
+      strategy: 'chain',
+      description: '人工确认分析结论',
+      atom: 'approval-gate',
+      params: { review_context: '无效/复审分析结论需人工确认后方可交付' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
@@ -220,7 +250,13 @@ export const patentInfringementManifest: WorkflowManifest = {
       params: { chart_mode: 'infringement' },
     },
     { id: 'report', strategy: 'chain', description: '生成侵权比对报告（全面覆盖 + 等同 + 现有技术抗辩）' },
-    { id: 'approval', strategy: 'chain', description: '人工确认比对结论' },
+    {
+      id: 'approval',
+      strategy: 'chain',
+      description: '人工确认比对结论',
+      atom: 'approval-gate',
+      params: { review_context: '侵权比对结论需人工确认后方可交付' },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }

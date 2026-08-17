@@ -15,6 +15,7 @@ import type {
   WorkflowRunOptions,
   WorkflowRunResult,
 } from '@deepseek-ai/dsh-patent-core'
+import { registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import { runWorkflow as runWorkflowPipeline } from './workflow.ts'
 import { PlanTaskStateMachine, syncPlanToTasks, type PlanTask, type PlanTaskState } from './plantask.ts'
 import type {
@@ -72,6 +73,9 @@ export class PatentWorkflow extends Service {
 
   constructor(ctx: Context) {
     super(ctx, 'patentWorkflow')
+    // 内置原子注册进全局注册表（幂等）：服务路径的 runWorkflow 与工具路径共用，
+    // 不注册则 atom-bearing manifest 在 fail-fast 处抛错。
+    registerBuiltinAtoms()
   }
 
   /**
@@ -131,11 +135,18 @@ export class PatentWorkflow extends Service {
       return { caseId, state: machine.state, tasks, toRun }
     }
 
-    const approval = this.ctx.get('approval') as PatentApprovalSeam | undefined
-    const outcome: PatentApprovalOutcome = approval !== undefined
-      ? await approval.request({ agent, toolName: 'patent_plantask', reason: options?.approvalReason })
-      : 'unavailable'
-    return this.applyDecision(caseId, outcome)
+    try {
+      const approval = this.ctx.get('approval') as PatentApprovalSeam | undefined
+      const outcome: PatentApprovalOutcome = approval !== undefined
+        ? await approval.request({ agent, toolName: 'patent_plantask', reason: options?.approvalReason })
+        : 'unavailable'
+      return this.applyDecision(caseId, outcome)
+    } catch (error) {
+      // 审批请求或决策迁移抛错时不留僵尸 pending：caseId 必须可重试，
+      // 否则该 case 会被"已有挂起 plantask"永久锁死到进程重启。
+      this.pending.delete(caseId)
+      throw error
+    }
   }
 
   /**

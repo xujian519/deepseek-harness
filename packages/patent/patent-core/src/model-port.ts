@@ -38,12 +38,14 @@ export function createLlmModelPort(
   return {
     stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent> {
       const { messages, system } = translateRequest(request, options)
+      // 逐调用 temperature 覆盖端口固定默认（extract 等原子按调用传 0）。
+      const temperature = request.temperature ?? options.temperature
       const generate: GenerateOptions = {
         provider: options.provider,
         model: options.model,
         messages,
         ...(system === undefined ? {} : { system }),
-        ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+        ...(temperature === undefined ? {} : { temperature }),
         ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
         ...(signal === undefined ? {} : { signal }),
       }
@@ -118,7 +120,11 @@ async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<Pa
       case 'finish': {
         const reason = chunk.reason
         if (reason.kind === 'error' || reason.kind === 'aborted') {
-          throw new Error(reason.failure.message)
+          // 保留 failure.code：callLlm 依赖 code==='setup_required' 的 fail-loud
+          // 特判，取消/配置类终态在 mapChunks 丢 code 会被误降级。
+          const error = new Error(reason.failure.message) as Error & { code?: string }
+          if (reason.failure.code !== undefined) error.code = reason.failure.code
+          throw error
         }
         yield doneEvent()
         return
@@ -141,11 +147,21 @@ async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<Pa
  * @param port - the patent-domain port to consume.
  * @param prompt - the user prompt text.
  * @param signal - optional cancellation.
+ * @param options - optional per-call temperature and advisory schema.
  * @returns the concatenated visible text.
  */
-export async function collectPortText(port: PatentModelPort, prompt: string, signal?: AbortSignal): Promise<string> {
+export async function collectPortText(
+  port: PatentModelPort,
+  prompt: string,
+  signal?: AbortSignal,
+  options: { temperature?: number; schema?: unknown } = {},
+): Promise<string> {
   let text = ''
-  for await (const event of port.stream({ messages: [{ role: 'user', content: prompt }] }, signal)) {
+  for await (const event of port.stream({
+    messages: [{ role: 'user', content: prompt }],
+    ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    ...(options.schema === undefined ? {} : { schema: options.schema }),
+  }, signal)) {
     if (event.type === 'delta') text += event.text
   }
   return text

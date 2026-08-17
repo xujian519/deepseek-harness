@@ -38,6 +38,7 @@ import { PatentToolError } from '../error.ts'
 import {
   buildWorkflowProvider,
   buildWorkflowRunContext,
+  createChainStageExecutor,
   renderWorkflowResultText,
   renderWorkflowStageLines,
   resolveRunPersistTarget,
@@ -268,7 +269,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
         ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
         ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
       })
-      const executor = async (): Promise<string> => input.input
+      const executor = createChainStageExecutor(provider, 'patent_workflow_run')
       const persistTarget = resolveRunPersistTarget(input.caseId, manifest.id, cwd)
       const result = await runWorkflow(manifest, workflowCtx, executor, {
         handlers: deps.handlers ?? globalStageHandlerRegistry,

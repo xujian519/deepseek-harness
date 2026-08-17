@@ -9,6 +9,20 @@
 export interface PatentModelRequest {
   /** The message list to send, in patent-domain canonical form. */
   messages: PatentModelMessage[]
+  /**
+   * Per-call temperature override; the port maps it into the harness
+   * GenerateOptions. Absent leaves the route's default (or the port's fixed
+   * option) in force.
+   */
+  temperature?: number
+  /**
+   * Requested JSON-schema shape for the model output. The harness LLM
+   * vocabulary has no structured-output wire field today, so ports treat it
+   * as advisory: enforcement is prompt-level and post-parse validation by the
+   * consuming atom. Declared so a port can detect and surface the limitation
+   * instead of silently claiming wire enforcement.
+   */
+  schema?: unknown
 }
 
 /** One patent-domain canonical message. */
@@ -50,9 +64,14 @@ export interface StageProvider {
   caseId?: string
   /**
    * String-based LLM call. When provided it takes precedence over the streaming
-   * port (test injection and the simple string seam).
+   * port (test injection and the simple string seam). The optional signal
+   * propagates cancellation to the underlying call when the seam honors it.
    */
-  callLLM?: (prompt: string, opts?: { jsonSchema?: unknown; temperature?: number }) => Promise<string>
+  callLLM?: (
+    prompt: string,
+    opts?: { jsonSchema?: unknown; temperature?: number },
+    signal?: AbortSignal,
+  ) => Promise<string>
   /**
    * Streaming patent-domain model port. The atoms builtin/llm.ts bridges this
    * into the string call used by the LLM-dependent handlers when callLLM is absent.

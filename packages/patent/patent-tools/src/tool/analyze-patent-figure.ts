@@ -13,9 +13,11 @@
  * The image-modal capability gate (P3.3) preflights the resolved figure-model
  * route's declared input modalities before the file is read: a model without
  * 'image' input is denied (PatentToolError code model_cannot_accept_image).
- * The PatentModelPort remains text-only, so image bytes are NOT sent to the
- * model in this build; execute runs a text-only figure-analysis prompt from
- * the figure number, claim context, and invention name.
+ * The PatentModelPort is text-only in this build, so image bytes are NOT sent
+ * to the model and execute runs a text-only figure-analysis prompt from the
+ * figure number, claim context, and invention name — the modality gate is
+ * therefore not enforced here (it would deny the usable text-only path); the
+ * gate helpers stay exported for the future image-sending build.
  * @module @deepseek-ai/dsh-patent-tools/tool/analyze-patent-figure
  */
 
@@ -26,7 +28,6 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { collectPortText, tryParseJson } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import type { ModelModality } from '@deepseek-ai/dsh-llm'
-import { checkImageCapability } from '../figure/image-capability.ts'
 import { PatentToolError } from '../error.ts'
 
 /** 附图类型（PatentVision 分类 + 专利实务常见图型）。 */
@@ -502,17 +503,10 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
       render: (_args, value) => [{ type: 'text', text: renderFigureAnalysis(value as unknown as FigureAnalysisResult) }],
     },
     async execute(args, exec) {
-      const route = resolveGateRoute(exec.agent?.options, deps.gateModel)
-      if (route !== undefined && deps.resolveImageInputModalities !== undefined) {
-        const inputModalities = await deps.resolveImageInputModalities(route.provider, route.model)
-        const decision = checkImageCapability(inputModalities, `${route.provider}/${route.model}`)
-        if (!decision.allowed) {
-          throw new PatentToolError('model_cannot_accept_image', decision.reason, {
-            tool: 'analyze_patent_figure',
-            model: `${route.provider}/${route.model}`,
-          })
-        }
-      }
+      // 本构建的 PatentModelPort 是纯文本接缝，从不发送图片字节；execute 走
+      // 文本态最小路径（图号+权利要求+发明名称）。模态门禁预留给未来真正
+      // 发送图片字节的构建——当前对文本模型拒绝会拦掉本来可用的文本态路径，
+      // 因此不执行。resolveGateRoute/checkImageCapability 仍导出供该构建接线。
       const cwd = deps.cwd ?? process.cwd()
       const absPath = resolve(cwd, args.image_path)
       try {
