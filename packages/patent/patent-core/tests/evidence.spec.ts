@@ -162,19 +162,19 @@ it('EvidenceExtension：Receipt 入账 → 提升证据 → 绑定 → 无证据
     toolCallId: 'call-1',
     turnId: 'turn-1',
     toolName: 'read_file',
-    args: { path: '/docs/a.md' },
+    args: { path: '/tmp/a.md' },
     success: true,
     startedAt: '2026-01-01T00:00:00.000Z',
     resultText: '对比文件 D1 公开了特征 X',
     write: false,
-    path: '/docs/a.md',
+    path: '/tmp/a.md',
   })
   expect(ext.ledger.size()).toBe(1)
 
   // Receipt 提升为证据（sourceUri/contentHash 自动生成）
   const receipt = ext.ledger.list()[0]!
   const span = ext.spanFromReceipt(receipt, 'supporting', 'D1 公开了特征 X')
-  expect(span.sourceUri).toBe('file:///docs/a.md')
+  expect(span.sourceUri).toBe('file:///tmp/a.md')
   expect(span.contentHash).toBeTruthy()
   expect(ext.getSpan(span.id)).toBe(span)
 

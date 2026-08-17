@@ -113,9 +113,17 @@ export interface Config {
   /** LLM model id for the LLM-consuming tools. */
   model?: string
   /** Dedicated figure/image model route whose input modalities gate analyze_patent_figure. */
-  imageModel?: { provider?: string; model?: string }
+  imageModel?: ImageModelConfig
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
+}
+
+/** Figure/image model route used by the figure-analysis tool. */
+export interface ImageModelConfig {
+  /** LLM provider route for figure/image analysis. */
+  provider?: string
+  /** LLM model id for figure/image analysis. */
+  model?: string
 }
 
 /** Schemastery configuration: optional LLM route/model for the LLM-consuming tools. */
