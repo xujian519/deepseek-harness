@@ -248,7 +248,7 @@ const RESULT_ITEM_SCHEMA = {
 export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): ToolDefinition {
   return defineTool({
     name: 'search_patent_figure',
-    description: '检索已分析的专利附图（索引由 analyze_patent_figure 分析时写入 .sati/figures-index.json）：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引为空时返回提示，需先调用 analyze_patent_figure 分析附图。当前仅关键词检索（向量/语义检索未接入）。',
+    description: '检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由集成器注入（当前装配未接线，调用将报 setup_required）。当前仅关键词检索（向量/语义检索未接入）。',
     parameters: {
       query: { type: 'string', required: true, description: '检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）' },
       limit: { type: 'number', description: '返回条数上限（默认 5，最大 10）' },
@@ -302,7 +302,7 @@ export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): Tool
       if (loaded.warning !== undefined) {
         hint = loaded.warning
       } else if (loaded.entries.length === 0) {
-        hint = '附图索引为空：请先调用 analyze_patent_figure 分析附图（分析结果自动写入 .sati/figures-index.json），再检索。'
+        hint = '附图索引为空：当前装配未提供附图索引内容，无法检索。'
       } else if (results.length === 0 && query.trim() !== '') {
         hint = '未检索到匹配附图，可尝试更换关键词，或先分析更多附图。'
       }

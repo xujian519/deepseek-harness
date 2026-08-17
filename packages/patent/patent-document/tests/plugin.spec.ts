@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as Pkg from '@deepseek-ai/dsh-patent-document'
+import { fakeSubprocess, successHandle } from './helpers.ts'
 
 describe('@deepseek-ai/dsh-patent-document plugin surface', () => {
   it('exports the function-plugin surface', () => {
@@ -20,5 +24,16 @@ describe('@deepseek-ai/dsh-patent-document plugin surface', () => {
     expect(typeof Pkg.createRenderPatentDocumentTool).toBe('function')
     expect(typeof Pkg.renderDocumentResult).toBe('function')
     expect(Pkg.DEFAULT_OUTPUT_DIR).toBe('.dsh/documents')
+  })
+
+  it('registers render_patent_document through the plugin and unregisters it on dispose (HMR-safety)', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.provide('subprocess', fakeSubprocess(() => successHandle()).runtime)
+    const fiber = await ctx.plugin(Pkg, {})
+    expect(ctx.tools.schemas().some(s => s.name === 'render_patent_document')).toBe(true)
+    await fiber.dispose()
+    expect(ctx.tools.schemas().some(s => s.name === 'render_patent_document')).toBe(false)
   })
 })

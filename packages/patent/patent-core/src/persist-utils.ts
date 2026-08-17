@@ -7,7 +7,7 @@
  *   save/load/list 三接口 + ENOENT 映射，parse 回调注入反序列化/校验
  */
 
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises'
 
 /** 安全 id 字符集：字母/数字/点/下划线/连字符，且不允许以点开头。 */
 export const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
@@ -26,14 +26,24 @@ export function assertSafeId(id: string, what: string): void {
 }
 
 /**
- * 原子写 JSON：先写同目录临时文件再 rename（目录由调用方确保已存在）。
+ * 原子写 JSON：先写同目录临时文件、fsync 落盘后 rename；失败时清理临时文件。
  * @param file - 目标文件路径。
  * @param content - 待写入的文本内容。
  */
 export async function atomicWriteJson(file: string, content: string): Promise<void> {
   const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-  await writeFile(tmp, content, 'utf8')
-  await rename(tmp, file)
+  let handle
+  try {
+    handle = await open(tmp, 'w')
+    await handle.writeFile(content, 'utf8')
+    await handle.sync()
+    await handle.close()
+    await rename(tmp, file)
+  } catch (error) {
+    await handle?.close().catch(() => {})
+    await rm(tmp, { force: true }).catch(() => {})
+    throw error
+  }
 }
 
 /**

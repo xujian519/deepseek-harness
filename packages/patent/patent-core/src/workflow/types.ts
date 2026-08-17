@@ -88,6 +88,10 @@ export type WorkflowRunOptions = {
   persist?: WorkflowRunStore
   /** 持久化键（runId），用于区分同一 manifest 的多次执行；缺省 manifestId。 */
   runId?: string
+  /** 并行窗口上限（连续、同 atom、无 retry 的阶段并行数）；缺省 4。 */
+  maxParallelStages?: number
+  /** 调用方取消信号：阶段边界检查，中止时中止执行。 */
+  signal?: AbortSignal
 }
 
 /** 单个阶段执行结果：阶段 id、策略、输出、降级标记、重试次数与原子名。 */

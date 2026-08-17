@@ -27,9 +27,9 @@ template:
 
 渲染前必须已具备（缺任一项先补齐再渲染，禁止用占位符凑数）：
 
-1. 技术方案解析：特征分解表（PFE 三元组，见 `assets/prompts/patent/cap02-technical-analysis.md`）
-2. 检索结果与对比文件清单（每篇含公开号/标题/公开日/来源/相关度/可引用段落，见 `assets/workflows/patent/` 检索阶段产出）
-3. 逐特征比对结论（含 pin-cite 定位与 verified 状态，见 `src/patent/claim-chart/` 产物）
+1. 技术方案解析：特征分解表（PFE 三元组）
+2. 检索结果与对比文件清单（每篇含公开号/标题/公开日/来源/相关度/可引用段落）
+3. 逐特征比对结论（含 pin-cite 定位与 verified 状态）
 4. 各项授权要件结论 + 置信度
 5. 免责声明与密级（模板已内置，不可删除）
 
@@ -51,9 +51,9 @@ template:
      patentability-opinion.md（源稿，供留档/二次编辑）
 ```
 
-HTML 中 `:root` 变量由 `assets/templates/patent/tokens.css` 中的 `--sati-doc-*` 变量回退注入。品牌覆盖走 `products/<标识>/brand/theme.json` 或渲染管线参数，**agent 不直接修改 CSS**。
+HTML 中 `:root` 变量由模板自带的 `--sati-doc-*` 变量回退注入。品牌覆盖走渲染参数（`brand`/`brandPath`）或模板默认，**agent 不直接修改 CSS**。
 
 ## 相关
 
 - 版本历史与各版本 diff：随文书版本行记录；本模板是 v1 骨架。
-- 铺开计划：确认本模板风格后，扩展到 `search-report`（检索报告）、`oa-response`（意见陈述书）、`claims-spec`（权利要求书/说明书）等模板。
+- 随包分发的同类模板：`search-report`（检索报告）、`oa-response`（意见陈述书）、`claims-spec`（权利要求书/说明书）、`invalidation-opinion`（无效意见书）。

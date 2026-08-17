@@ -197,6 +197,7 @@ async function runSuperSteps(
   let interrupted: GraphRunResult['interrupted']
 
   for (let step = steps; step < def.maxSteps; step += 1) {
+    if (opts.signal?.aborted === true) throw new GraphEngineError('图执行已取消')
     steps = step
     if (active.length === 0) {
       completed = true

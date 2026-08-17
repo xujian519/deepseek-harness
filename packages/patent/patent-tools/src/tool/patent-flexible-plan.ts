@@ -364,7 +364,7 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
         { type: 'text', text: renderFlexiblePlan(args as unknown as FlexiblePlanToolInput, value as unknown as FlexiblePlanOutput) },
       ],
     },
-    async execute(args) {
+    async execute(args, exec) {
       const input = args as unknown as FlexiblePlanToolInput
       if (input.caseId === undefined || input.caseId.trim() === '') {
         throw new PatentToolError('invalid_tool_input', 'flexible_plan: caseId 不能为空（计划按 caseId 持久化，跨调用状态）')
@@ -421,6 +421,7 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
               handlers: deps.handlers ?? globalStageHandlerRegistry,
               atoms: globalAtomRegistry,
               provider,
+              signal: exec.signal,
               ...(persistTarget !== undefined
                 ? { persist: new JsonFileWorkflowRunStore(persistTarget.runsDir), runId: persistTarget.runId }
                 : {}),

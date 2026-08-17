@@ -10,7 +10,7 @@ Sati shipped a complete patent domain (search, case-law/wiki/knowledge-graph que
 
 ## Decision
 
-**Port the Sati patent domain as workspace packages (Route A: native port, zero Sati process, no MCP bridge)**, executing docs/sati-as-dsh-plugins-plan.md P0–P4. Ten packages land under packages/patent/ (patent-data, patent-knowledge, patent-core, patent-workflow, patent-tools, patent-rule, patent-document, tool-literature, methodology; patent-core is a pure library) plus vendor/nuo-patent (prebuilt Sati patent search engine, MIT) and an agent preset at apps/cli/config/agent-presets/patent/. Engines are ported verbatim and adapted only where dsh strictness or seams require; the knowledge.db (~3.5 GB) is never committed — patent-knowledge:install trims a local source copy. System knowledge reads dsh-patent-knowledge while 99-知识库/ stays project-level accumulation (plan P4.4 over patent-mode-design.md §9).
+**Port the Sati patent domain as workspace packages (Route A: native port, zero Sati process, no MCP bridge)**, executing docs/sati-as-dsh-plugins-plan.md P0–P4. Nine packages land under packages/patent/ (patent-data, patent-knowledge, patent-core, patent-workflow, patent-tools, patent-rule, patent-document, tool-literature, methodology; patent-core is a pure library) plus vendor/nuo-patent (prebuilt Sati patent search engine, MIT) and an agent preset at apps/cli/config/agent-presets/patent/. Engines are ported verbatim and adapted only where dsh strictness or seams require; the knowledge.db (~3.5 GB) is never committed — patent-knowledge:install trims a local source copy. System knowledge reads dsh-patent-knowledge while 99-知识库/ stays project-level accumulation (plan P4.4 over patent-mode-design.md §9).
 
 ## Alternatives considered
 
