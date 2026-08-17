@@ -9,6 +9,7 @@
 
 import { hasNegationContext, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
 
+/** 默认免责声明：命中风险词时追加（AI 辅助生成、不构成正式法律意见）。 */
 export const PATENT_DISCLAIMER =
   '本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。'
 
@@ -50,6 +51,7 @@ function filterNegatedHits(keywords: string[], text: string): string[] {
   })
 }
 
+/** 质量门禁判定结果（处理后文本 + 各类命中清单 + 是否挂起审批 + 引用核验报告）。 */
 export type QualityGateResult = {
   /** 处理后的文本（可能已追加免责声明 / 存疑提示） */
   text: string
@@ -72,6 +74,11 @@ export class DeferredPersistQueue<T> {
   private readonly messages = new Map<number, T>()
   private nextIndex = 0
 
+  /**
+   * 暂存消息，返回索引。
+   * @param message - 待暂存的消息。
+   * @returns 暂存索引。
+   */
   store(message: T): number {
     const index = this.nextIndex
     this.nextIndex += 1
@@ -79,24 +86,43 @@ export class DeferredPersistQueue<T> {
     return index
   }
 
+  /**
+   * 提交：取出并移除暂存消息。
+   * @param index - 暂存索引。
+   * @returns 被提交的消息；索引不存在时为 undefined。
+   */
   commit(index: number): T | undefined {
     const msg = this.messages.get(index)
     if (msg !== undefined) this.messages.delete(index)
     return msg
   }
 
+  /**
+   * 丢弃暂存消息。
+   * @param index - 暂存索引。
+   */
   discard(index: number): void {
     this.messages.delete(index)
   }
 
+  /**
+   * 返回全部暂存索引。
+   * @returns 暂存索引列表。
+   */
   pending(): number[] {
     return [...this.messages.keys()]
   }
 
+  /**
+   * 判断索引是否存在暂存消息。
+   * @param index - 暂存索引。
+   * @returns 是否存在。
+   */
   has(index: number): boolean {
     return this.messages.has(index)
   }
 
+  /** 暂存消息数量。 */
   get size(): number {
     return this.messages.size
   }
@@ -106,8 +132,10 @@ export class DeferredPersistQueue<T> {
 // CitationGate（法条引用核验）
 // ---------------------------------------------------------------------------
 
+/** 引用核验结论：valid / unknown / unverifiable / suspect / invalid。 */
 export type CitationVerdict = 'valid' | 'unknown' | 'unverifiable' | 'suspect' | 'invalid'
 
+/** 被标记的问题引用（suspect / invalid）。 */
 export type FlaggedCitation = {
   raw: string
   statute: string
@@ -116,6 +144,7 @@ export type FlaggedCitation = {
   reason: string
 }
 
+/** 引用核验报告（各结论计数与问题引用清单）。 */
 export type CitationReport = {
   total: number
   valid: number
@@ -245,6 +274,9 @@ const CROSS_MATCH_NOISE = new Set([
 /**
  * 核验文本中的法条引用（R1 存在性 + R2 语境相关性）。
  * Unknown（表未覆盖）与 Unverifiable（无用途声明）一律放行。
+ * @param text - 待核验文本。
+ * @param source - 可选引用主题知识源（默认内嵌静态表）。
+ * @returns 引用核验报告。
  */
 export function verifyCitations(text: string, source?: CitationSource): CitationReport {
   const citations = extractCitations(text)
@@ -405,6 +437,11 @@ function purposeEmpty(purpose: string): boolean {
   return !/[\u4e00-\u9fff]/.test(s)
 }
 
+/**
+ * 把问题引用格式化为核验提示文本（无问题时返回空串）。
+ * @param report - 引用核验报告。
+ * @returns 核验提示 Markdown 文本；无问题引用时为空串。
+ */
 export function formatCitationWarnings(report: CitationReport): string {
   if (report.flagged.length === 0) return ''
   const lines = report.flagged.map(f => `- 「${f.raw}」：${f.reason}`)
@@ -415,6 +452,7 @@ export function formatCitationWarnings(report: CitationReport): string {
 // PatentQualityGate（输出门禁主入口）
 // ---------------------------------------------------------------------------
 
+/** 输出门禁选项（风险词/审批词/绝对化表述/免责声明/引用核验开关）。 */
 export type PatentQualityGateOptions = {
   riskKeywords?: string[] | undefined
   approvalKeywords?: string[] | undefined
@@ -427,6 +465,9 @@ export type PatentQualityGateOptions = {
 /**
  * 处理 Agent 输出：注入免责声明 / 标记审批挂起 / 法条核验。
  * 纯函数，不触碰存储——挂起消息由调用方存入 DeferredPersistQueue。
+ * @param text - Agent 输出文本。
+ * @param options - 可选门禁配置（风险词/审批词/绝对化表述/免责声明/引用核验开关）。
+ * @returns 门禁判定结果（含处理后文本与命中信息）。
  */
 export function processPatentOutput(text: string, options?: PatentQualityGateOptions): QualityGateResult {
   const riskKeywords = options?.riskKeywords ?? PATENT_RISK_KEYWORDS

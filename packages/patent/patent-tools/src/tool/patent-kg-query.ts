@@ -18,6 +18,7 @@ const CITE_RELATIONS = ['CITES', 'CITES_LAW', 'FREQUENTLY_CITES', 'REFERENCES'] 
 /** Hit-path ordering (keyword → similar → cites). */
 const VIA_ORDER: Record<RelevantHit['via'], number> = { keyword: 0, similar: 1, cites: 2 }
 
+/** Input for the patent_kg_query tool. */
 export type PatentKgQueryInput = {
   /** Keyword search (FTS5; short words degrade to LIKE); mutually exclusive with id. */
   query?: string
@@ -33,6 +34,7 @@ export type PatentKgQueryInput = {
   limit?: number
 }
 
+/** One graph neighbor of a knowledge-graph node. */
 export type PatentKgNeighbor = {
   id: string
   nodeType: string
@@ -41,6 +43,7 @@ export type PatentKgNeighbor = {
   relation: string
 }
 
+/** One knowledge-graph hit. */
 export type PatentKgHit = {
   id: string
   nodeType: string
@@ -55,6 +58,7 @@ export type PatentKgHit = {
   neighbors?: PatentKgNeighbor[]
 }
 
+/** Output of the patent_kg_query tool. */
 export type PatentKgQueryOutput = {
   total: number
   hits: PatentKgHit[]

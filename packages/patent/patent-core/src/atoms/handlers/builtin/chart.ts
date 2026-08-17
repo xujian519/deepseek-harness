@@ -29,6 +29,7 @@ import {
 import { loadClaimChart, saveClaimChart } from '../../../claim-chart/runtime/store.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 
+/** claim-chart 原子：权利要求要素级证据网格构建。 */
 export const claimChartAtom: Atom = {
   name: 'claim-chart',
   description: '权利要求要素级证据网格：要素编号 + 逐要素映射 + pin-cite + gap 检测',
@@ -229,11 +230,18 @@ function validateChart(
   return errors
 }
 
+/** claim-chart 执行器：构建权利要求要素级证据网格。 */
 export class ClaimChartHandler implements StageHandler {
   readonly name = 'claim-chart'
   readonly category = 'compare' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 claim-chart 阶段，返回下一管线状态。
+   * @param input - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(input: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = input
     const missing = requireLlm(provider, 'claim-chart')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')

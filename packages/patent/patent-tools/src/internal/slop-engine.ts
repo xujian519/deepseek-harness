@@ -9,13 +9,17 @@
 export type SlopGroup =
   | 'filler' | 'qualifier' | 'passive' | 'meta' | 'advisory' | 'search' | 'intimacy' | 'subjectless'
 
+/** One phrase-cleanup change (original → replacement, with its rule group). */
 export type SlopChange = { original: string; replacement: string; group: string }
 
+/** Structure-issue category detected by the anti-slop engine. */
 export type StructureIssueType =
   | 'empty_three_step' | 'fake_comparison' | 'binary_turn' | 'reason_pile' | 'passive_voice' | 'oa_formula'
 
+/** One detected structure issue with its location, text, and fix suggestion. */
 export type StructureIssue = { type: StructureIssueType; line: number; text: string; suggestion: string }
 
+/** Five-dimension 43-point anti-slop score. */
 export type SlopScore = {
   directness: number
   evidence: number
@@ -26,8 +30,10 @@ export type SlopScore = {
   passed: boolean
 }
 
+/** One anti-slop checklist question with its pass state and detail. */
 export type ChecklistItem = { question: string; passed: boolean; detail: string }
 
+/** Full anti-slop analysis (cleaned text, changes, issues, score, checklist). */
 export type SlopAnalysis = {
   cleaned: string
   changes: SlopChange[]

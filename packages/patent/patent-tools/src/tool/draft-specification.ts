@@ -16,6 +16,7 @@ export type FigureAnalysisResult = {
   electrical?: { components: Array<{ ref: string; name: string; value?: string }> }
 }
 
+/** Input for the draft_specification tool. */
 export type DraftSpecificationInput = {
   /** Invention title (max 25 chars). */
   title: string
@@ -41,6 +42,7 @@ export type DraftSpecificationInput = {
   has_drawings?: boolean
 }
 
+/** One specification section (name, content, and placeholder flag). */
 export type SpecificationSection = {
   name: string
   content: string
@@ -48,6 +50,7 @@ export type SpecificationSection = {
   placeholder: boolean
 }
 
+/** Output of the draft_specification tool. */
 export type DraftSpecificationOutput = {
   title: string
   tech_domain: TechDomain

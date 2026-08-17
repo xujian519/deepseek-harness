@@ -19,6 +19,7 @@ import {
 import type { EvidenceDirection, EvidenceType } from '@deepseek-ai/dsh-patent-core'
 import { EvidenceEngine } from '@deepseek-ai/dsh-patent-core'
 
+/** Input for the evaluate_evidence tool (triple-attribute evidence judgment). */
 export type EvaluateEvidenceInput = {
   /** Evidence description (verbatim excerpt; public-use four-elements identification). */
   snippet: string
@@ -66,6 +67,7 @@ export type EvaluateEvidenceInput = {
   integrityVerified?: boolean
 }
 
+/** Output of the evaluate_evidence tool (judgment, burden, matched/pending rules). */
 export type EvaluateEvidenceOutput = {
   judgment: {
     spanId: string

@@ -17,6 +17,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 
+/** Input for the knowledge_note_save tool. */
 export type KnowledgeNoteSaveInput = {
   /** 笔记标题（≤200 字符；作为检索索引词）。 */
   title: string
@@ -26,6 +27,7 @@ export type KnowledgeNoteSaveInput = {
   project?: string
 }
 
+/** Output of the knowledge_note_save tool. */
 export type KnowledgeNoteSaveOutput = {
   /** 是否已写入（duplicate/skipped 时为 false）。 */
   saved: boolean
@@ -60,6 +62,7 @@ export type KnowledgeNoteSaveDeps = {
 
 /** 内容/标题上限（防单条笔记撑爆检索与上下文）。 */
 export const MAX_TITLE_CHARS = 200
+/** 笔记正文字符上限。 */
 export const MAX_CONTENT_CHARS = 20_000
 
 /**

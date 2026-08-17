@@ -53,6 +53,9 @@ function mergeMap(existing: unknown, value: unknown): unknown {
 /**
  * 合并节点增量到共享 state（原地修改）。
  * results 按节点名字典序排序后逐 key 应用 Reducer。
+ * @param state - 要原地更新的共享状态。
+ * @param results - 本超步各节点的增量结果。
+ * @param schema - key → Reducer 合并策略（缺省 last_write_wins）。
  */
 export function mergeWithSchema(state: GraphState, results: NodeResult[], schema: MergeSchema = {}): void {
   const sorted = [...results].sort((a, b) => a.node.localeCompare(b.node))

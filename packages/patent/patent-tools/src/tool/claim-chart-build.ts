@@ -11,6 +11,7 @@ import { ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
 import type { ChartMode, ChartTarget, ClaimChart, PatentModelPort, StageProvider } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
 
+/** One claim-chart mapping target (prior art or accused product). */
 export type ClaimChartTargetInput = {
   id: string
   kind: 'prior-art' | 'accused-product'
@@ -18,6 +19,7 @@ export type ClaimChartTargetInput = {
   source_path?: string
 }
 
+/** Input for the claim_chart_build tool. */
 export type ClaimChartInput = {
   mode: ChartMode
   claim_text: string
@@ -25,6 +27,7 @@ export type ClaimChartInput = {
   case_id?: string
 }
 
+/** Output of the claim_chart_build tool. */
 export type ClaimChartOutput = {
   chart: ClaimChart
   json_path?: string

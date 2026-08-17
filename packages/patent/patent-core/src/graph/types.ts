@@ -106,6 +106,7 @@ export type DegradationReason =
 /** 节点抛出的中断信号（审批门等需要人工介入的场景）；引擎捕获后暂停执行。 */
 export class GraphInterruptError extends Error {
   override readonly message: string
+  /** 中断附带的数据（审批门等场景携带给调用方）。 */
   readonly data: Record<string, unknown>
 
   constructor(message: string, data: Record<string, unknown> = {}) {
@@ -116,6 +117,10 @@ export class GraphInterruptError extends Error {
   }
 }
 
+/** 判断错误是否为 GraphInterruptError（类型守卫）。
+ * @param err - 待判断的错误。
+ * @returns 为 true 表示 err 是 GraphInterruptError。
+ */
 export function isGraphInterruptError(err: unknown): err is GraphInterruptError {
   return err instanceof GraphInterruptError
 }

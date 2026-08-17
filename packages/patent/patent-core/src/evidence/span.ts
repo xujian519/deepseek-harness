@@ -14,6 +14,7 @@
 
 export type EvidenceDirection = 'supporting' | 'contradicting' | 'neutral'
 
+/** 证据实体：可定位、可校验、带方向性的原文切片。 */
 export type EvidenceSpan = {
   /** 全局唯一 id */
   id: string
@@ -40,11 +41,17 @@ export type EvidenceSpan = {
   claimRefs?: string[]
 }
 
+/** 创建证据的入参：EvidenceSpan 去掉 id（id 可缺省生成）。 */
 export type CreateSpanInput = Omit<EvidenceSpan, 'id'> & {
   id?: string
 }
 
-/** 工厂：缺省生成 id（简短随机）。四元组定位信息至少保留一项（可校验）。 */
+/**
+ * 工厂：缺省生成 id（简短随机）。四元组定位信息至少保留一项（可校验）。
+ * @param input - 创建证据的入参（id 可缺省）。
+ * @param uuid - id 生成函数（缺省为简短随机）。
+ * @returns 构造出的证据实体。
+ */
 export function createSpan(input: CreateSpanInput, uuid: () => string = defaultUuid): EvidenceSpan {
   return {
     ...input,
@@ -56,7 +63,11 @@ function defaultUuid(): string {
   return `span-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/** 证据是否具备可定位信息（四元组任一即可，否则视为"不可定位证据"）。 */
+/**
+ * 证据是否具备可定位信息（四元组任一即可，否则视为"不可定位证据"）。
+ * @param span - 证据实体。
+ * @returns 是否具备可定位信息。
+ */
 export function isLocatable(span: EvidenceSpan): boolean {
   return Boolean(span.docVersion || span.pageRange || span.charRange || span.contentHash || span.sourceUri)
 }

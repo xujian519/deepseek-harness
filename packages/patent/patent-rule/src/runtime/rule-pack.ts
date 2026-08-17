@@ -45,7 +45,11 @@ export type RulePackLoadResult = {
 /** 包清单（pack.yaml）校验问题。 */
 export type PackManifestIssue = { field: string; message: string }
 
-/** 定位项目清单：显式路径存在即返回，否则 null（无 cwd/仓库根自动发现）。 */
+/**
+ * 定位项目清单：显式路径存在即返回，否则 null（无 cwd/仓库根自动发现）。
+ * @param explicitPath - 显式清单路径。
+ * @returns 命中的清单路径，未找到为 null。
+ */
 export function resolveRulePackManifestPath(explicitPath?: string): string | null {
   if (explicitPath) {
     const p = resolve(explicitPath)
@@ -54,7 +58,11 @@ export function resolveRulePackManifestPath(explicitPath?: string): string | nul
   return null
 }
 
-/** 解析项目清单；结构非法抛错（由调用方记 warning 降级）。 */
+/**
+ * 解析项目清单；结构非法抛错（由调用方记 warning 降级）。
+ * @param yamlText - 清单 YAML 文本。
+ * @returns 解析出的清单。
+ */
 export function parseRulePackManifest(yamlText: string): RulePackManifest {
   const doc = parseDocument(yamlText)
   if (doc.errors.length > 0) {
@@ -82,6 +90,9 @@ export function parseRulePackManifest(yamlText: string): RulePackManifest {
 /**
  * 校验包清单（pack.yaml）；与 assets/rules/pack.schema.json 保持同步。
  * 返回问题列表（空 = 通过）。
+ * @param raw - 待校验的清单对象。
+ * @param opts - 可选校验选项（requireDomain 要求领域包声明 domain）。
+ * @returns 校验问题列表（空 = 通过）。
  */
 export function validatePackManifest(raw: unknown, opts: { requireDomain?: boolean } = {}): PackManifestIssue[] {
   const issues: PackManifestIssue[] = []
@@ -112,7 +123,12 @@ export function validatePackManifest(raw: unknown, opts: { requireDomain?: boole
   return issues
 }
 
-/** 定位内置包目录；未找到返回 null。绝对路径引用直接返回（若存在）。 */
+/**
+ * 定位内置包目录；未找到返回 null。绝对路径引用直接返回（若存在）。
+ * @param nameOrPath - 内置包名或绝对路径。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 命中的包目录路径，未找到为 null。
+ */
 export function resolvePackDir(nameOrPath: string, rulesDir?: string): string | null {
   if (isAbsolute(nameOrPath)) {
     return existsSync(nameOrPath) ? nameOrPath : null
@@ -150,6 +166,7 @@ function checkPackManifest(dir: string, layerName: string, warnings: string[]): 
 /**
  * 加载分层规则包。
  * @param options - 显式清单路径与可选规则根目录覆盖；缺省按打包 base 包加载。
+ * @returns 分层规则包加载结果。
  */
 export function loadRulePack(options: { manifestPath?: string; rulesDir?: string } = {}): RulePackLoadResult {
   const warnings: string[] = []
@@ -222,7 +239,11 @@ export function loadRulePack(options: { manifestPath?: string; rulesDir?: string
   }
 }
 
-/** layers 摘要（如 "base 8 + domain:mechanical 1 + overrides 1"），供工具输出。 */
+/**
+ * layers 摘要（如 "base 8 + domain:mechanical 1 + overrides 1"），供工具输出。
+ * @param layers - ruleId → 层名 映射。
+ * @returns 层摘要字符串。
+ */
 export function summarizeRulePackLayers(layers: Map<string, string>): string {
   const counts = new Map<string, number>()
   for (const layer of layers.values()) {

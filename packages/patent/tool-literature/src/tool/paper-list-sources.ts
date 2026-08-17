@@ -10,11 +10,13 @@ import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { CatalogEntry } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 
+/** Input for the paper_list_sources tool. */
 export type PaperListSourcesInput = {
   /** Optional domain filter (currently only "literature"). */
   domain?: string
 }
 
+/** Output of the paper_list_sources tool. */
 export type PaperListSourcesOutput = {
   sources: CatalogEntry[]
   domains: string[]

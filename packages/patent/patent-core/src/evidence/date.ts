@@ -100,7 +100,11 @@ const MONTHS: Record<string, number> = {
   december: 12,
 }
 
-/** 多格式日期解析；失败返回 null。 */
+/**
+ * 多格式日期解析；失败返回 null。
+ * @param text - 待解析的日期字符串。
+ * @returns 解析出的 Date，失败返回 null。
+ */
 export function parseDateFlexible(text: string): Date | null {
   const trimmed = text.trim()
   if (trimmed === '') return null
@@ -131,7 +135,11 @@ function shortMonth(name: string): string {
   return n.length >= 3 ? n.slice(0, 3) : n
 }
 
-/** 是否精确到日（含英文月份格式："Jan 15, 2023" 是精确日期，不得截为年-月）。 */
+/**
+ * 是否精确到日（含英文月份格式："Jan 15, 2023" 是精确日期，不得截为年-月）。
+ * @param dateStr - 日期字符串。
+ * @returns 是否精确到日。
+ */
 export function isPreciseDate(dateStr: string): boolean {
   const trimmed = dateStr.trim()
   return (
@@ -141,12 +149,20 @@ export function isPreciseDate(dateStr: string): boolean {
   )
 }
 
-/** 是否仅到年月。 */
+/**
+ * 是否仅到年月。
+ * @param dateStr - 日期字符串。
+ * @returns 是否仅到年月。
+ */
 export function isMonthOnlyDate(dateStr: string): boolean {
   return ['yyyy-MM', 'yyyy/MM', 'yyyy年M月'].some(format => parseWithFormat(dateStr.trim(), format) !== null)
 }
 
-/** 月级日期推定到当月最后一天（专利实践惯例，保守推定）。 */
+/**
+ * 月级日期推定到当月最后一天（专利实践惯例，保守推定）。
+ * @param date - 月级日期（或其当月初日）。
+ * @returns ISO 格式的当月最后一天（yyyy-MM-dd）。
+ */
 export function inferredMonthEnd(date: Date): string {
   const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0))
   return formatIsoDate(lastDay)
@@ -163,7 +179,11 @@ function formatYearMonth(d: Date): string {
   return `${d.getUTCFullYear()}-${`${d.getUTCMonth() + 1}`.padStart(2, '0')}`
 }
 
-/** 清理证据 URI 的自定义 scheme 前缀（web_pub: / http_archive: / patent: 等）。 */
+/**
+ * 清理证据 URI 的自定义 scheme 前缀（web_pub: / http_archive: / patent: 等）。
+ * @param uri - 原始证据 URI。
+ * @returns 去掉自定义 scheme 前缀后的 URI。
+ */
 export function cleanEvidenceURI(uri: string): string {
   const prefixes = [
     'web_pub:',
@@ -181,7 +201,11 @@ export function cleanEvidenceURI(uri: string): string {
   return uri
 }
 
-/** 从 Wayback Machine URL 提取存档日期（/web/YYYYMMDDhhmmss/... 含 id_ 后缀变体）。 */
+/**
+ * 从 Wayback Machine URL 提取存档日期（/web/YYYYMMDDhhmmss/... 含 id_ 后缀变体）。
+ * @param rawURL - 原始 URL。
+ * @returns ISO 格式存档日期（yyyy-MM-dd），失败返回空串。
+ */
 export function extractWaybackMachineDate(rawURL: string): string {
   let parsed: URL
   try {
@@ -207,6 +231,10 @@ export function extractWaybackMachineDate(rawURL: string): string {
 /**
  * 确定证据的公开日期（页面标注日期 > Wayback Machine 存档日期）。
  * 月级日期推定到月末，可靠度分级。返回 DateDetermination。
+ * @param claimedDate - 页面标注的日期（可空）。
+ * @param urlStr - 证据 URL（可空，供 Wayback Machine 存档日期提取）。
+ * @param filingDate - 申请日（可选，用于判断是否构成现有技术）。
+ * @returns 日期认定结果。
  */
 export function determinePublicationDate(
   claimedDate: string | undefined,
@@ -253,7 +281,12 @@ export function determinePublicationDate(
   return result
 }
 
-/** 判断公开日是否早于申请日（无法解析时返回 false）。 */
+/**
+ * 判断公开日是否早于申请日（无法解析时返回 false）。
+ * @param pubDate - 公开日期字符串。
+ * @param filingDate - 申请日期字符串。
+ * @returns 公开日是否早于申请日。
+ */
 export function isBeforeFilingDate(pubDate: string | undefined, filingDate: string | undefined): boolean {
   if (pubDate === undefined || pubDate === '' || filingDate === undefined || filingDate === '') return false
   const pub = parseDateFlexible(pubDate)
@@ -265,6 +298,8 @@ export function isBeforeFilingDate(pubDate: string | undefined, filingDate: stri
 /**
  * 从描述文本中提取日期（策略：完整中文日期 > 月级中文日期 > YYYY-MM-DD 模式）。
  * 返回最精确的日期表达；未找到返回空串。
+ * @param text - 待提取日期的描述文本。
+ * @returns 提取到的最精确日期表达，未找到返回空串。
  */
 export function extractDateFromText(text: string): string {
   if (text === '') return ''
@@ -287,7 +322,11 @@ export function extractDateFromText(text: string): string {
   return ''
 }
 
-/** 可靠性等级 → 人读说明。 */
+/**
+ * 可靠性等级 → 人读说明。
+ * @param reliability - 日期可靠度等级（可空）。
+ * @returns 人读说明。
+ */
 export function dateReliabilityLabel(reliability?: DateReliability): string {
   switch (reliability) {
     case 'high':

@@ -25,11 +25,16 @@ export const APPROVAL_GRANTED_KEY = '__approval_granted__'
 /** 已批准审批门在 manifest 路径的占位输出（图路径无输出概念，不需要）。 */
 export const APPROVAL_GRANTED_OUTPUT = 'APPROVED'
 
-/** 判断 handler 是否为审批门（按 name 契约，供 runWorkflow 注入放行标记）。 */
+/**
+ * 判断 handler 是否为审批门（按 name 契约，供 runWorkflow 注入放行标记）。
+ * @param handler - 待判断的 StageHandler。
+ * @returns 是否为审批门 handler。
+ */
 export function isApprovalGateHandler(handler: StageHandler): boolean {
   return handler.name === 'approval-gate'
 }
 
+/** approval-gate 原子：人机审批门。 */
 export const approvalGateAtom: Atom = {
   name: 'approval-gate',
   description: '人机审批门：挂起等待人工确认（返回中断错误，由上层恢复后继续；已批准时放行）',
@@ -38,11 +43,18 @@ export const approvalGateAtom: Atom = {
   outputSchema: [],
 }
 
+/** approval-gate 执行器：挂起等待人工确认。 */
 export class ApprovalGateHandler implements StageHandler {
   readonly name = 'approval-gate'
   readonly category = 'gate' as const
 
-  async execute({ state }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 approval-gate 阶段（挂起等待人工确认），返回下一管线状态。
+   * @param input - 阶段执行输入（state）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(input: StageExecuteInput): Promise<PipelineState> {
+    const { state } = input
     // 已批准（grantApproval 写入检查点 state 后 resume，或重跑时注入）：放行不中断。
     if (state[APPROVAL_GRANTED_KEY]) {
       return {}

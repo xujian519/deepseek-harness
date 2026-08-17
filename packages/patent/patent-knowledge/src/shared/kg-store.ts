@@ -34,6 +34,7 @@ export type KgSearchOptions = {
   mode?: 'phrase' | 'or'
 }
 
+/** 知识图谱只读存储（双 schema 兼容，按需 SQL + 轻量节点缓存）。 */
 export class KgStore {
   private readonly db: DatabaseSync
   private readonly nodeCache = new Map<string, KgNode | undefined>()
@@ -69,12 +70,18 @@ export class KgStore {
     )
   }
 
-  /** 当前生效的 schema（诊断用）。 */
+  /**
+   * 当前生效的 schema（诊断用）。
+   * @returns 生效的 schema 标识。
+   */
   schemaKind(): KgSchema {
     return this.schema
   }
 
-  /** 当前生效的 FTS 模式（诊断用）：trigram 表 / unicode61 旧表 / 无 FTS（LIKE 降级）。 */
+  /**
+   * 当前生效的 FTS 模式（诊断用）：trigram 表 / unicode61 旧表 / 无 FTS（LIKE 降级）。
+   * @returns 生效的 FTS 模式。
+   */
   ftsMode(): 'trigram' | 'unicode61' | 'none' {
     if (this.stmtFtsSearch === null) return 'none'
     // unified schema（kg_nodes_fts）恒为 trigram。
@@ -82,7 +89,11 @@ export class KgStore {
     return this.ftsTable === 'nodes_fts_trigram' ? 'trigram' : 'unicode61'
   }
 
-  /** 按 id 查询节点（带缓存）。 */
+  /**
+   * 按 id 查询节点（带缓存）。
+   * @param id 节点 id。
+   * @returns 匹配节点，不存在时 undefined。
+   */
   getNode(id: string): KgNode | undefined {
     if (this.nodeCache.has(id)) return this.nodeCache.get(id)
     const row = this.stmtGetNode.get(id) as NodeRow | undefined
@@ -91,7 +102,13 @@ export class KgStore {
     return node
   }
 
-  /** 按关键词搜索节点（FTS5 MATCH；短查询或缺失 FTS 时降级 LIKE）。 */
+  /**
+   * 按关键词搜索节点（FTS5 MATCH；短查询或缺失 FTS 时降级 LIKE）。
+   * @param keyword 搜索关键词。
+   * @param limit 返回数量上限。
+   * @param options 关键词搜索选项（phrase/or 模式）。
+   * @returns 匹配的节点列表。
+   */
   searchByKeyword(keyword: string, limit = 10, options: KgSearchOptions = {}): KgNode[] {
     const trimmed = keyword.trim()
     if (!trimmed) return []
@@ -224,26 +241,51 @@ export class KgStore {
     return ordered.map(id => this.getNode(id)).filter((n): n is KgNode => n !== undefined)
   }
 
-  /** 查询节点的出向邻居（按 relation 过滤可选）。 */
+  /**
+   * 查询节点的出向邻居（按 relation 过滤可选）。
+   * @param nodeId 节点 id。
+   * @param relation 关系类型过滤，省略时不限关系。
+   * @param limit 返回邻居数量上限。
+   * @returns 邻居节点列表。
+   */
   getNeighbors(nodeId: string, relation?: string, limit = 20): KgNeighbor[] {
     return this.graphTraversal.getNeighbors(nodeId, relation, limit)
   }
 
-  /** BFS 最短路径（有向图，沿出边遍历）。找不到返回 null。 */
+  /**
+   * BFS 最短路径（有向图，沿出边遍历）。找不到返回 null。
+   * @param fromId 起始节点 id。
+   * @param toId 目标节点 id。
+   * @param maxDepth 最大搜索深度。
+   * @returns 最短路径边序列，不可达时 null。
+   */
   bfsPath(fromId: string, toId: string, maxDepth = 5): KgPathEdge[] | null {
     return this.graphTraversal.bfsPath(fromId, toId, maxDepth)
   }
 
-  /** 按类型列出节点（用于图谱浏览/过滤）。 */
+  /**
+   * 按类型列出节点（用于图谱浏览/过滤）。
+   * @param nodeType 节点类型。
+   * @param limit 返回数量上限。
+   * @returns 该类型的节点列表。
+   */
   listByType(nodeType: string, limit = 50): KgNode[] {
     return this.graphTraversal.listByType(nodeType, limit)
   }
 
-  /** 展开某个节点的邻居（去重后），附带节点详情。 */
+  /**
+   * 展开某个节点的邻居（去重后），附带节点详情。
+   * @param nodeId 节点 id。
+   * @param relation 关系类型过滤，省略时不限关系。
+   * @param depth 展开深度。
+   * @param limit 每层返回数量上限。
+   * @returns 展开得到的邻居节点及其关系列表。
+   */
   expandNeighbors(nodeId: string, relation?: string, depth = 2, limit = 20): Array<{ node: KgNode; relation: string }> {
     return this.graphTraversal.expandNeighbors(nodeId, relation, depth, limit)
   }
 
+  /** 关闭数据库连接并清空节点缓存。 */
   close(): void {
     this.nodeCache.clear()
     this.db.close()

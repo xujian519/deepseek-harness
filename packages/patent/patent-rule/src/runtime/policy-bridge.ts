@@ -29,6 +29,7 @@ export type PolicyDenyRule = {
 /** 与 matchPermissionRule 的 TEXT_PATTERN_PREFIX 保持一致。 */
 const TEXT_PREFIX = 'text:'
 
+/** 规则→policy deny 编译选项（工具名通配、参与 action、否定语境、关键词上限）。 */
 export type RulesToPolicyOptions = {
   /** 规则生效的工具名通配（默认 "*" 匹配全部工具）。 */
   toolNamePattern?: string
@@ -40,6 +41,7 @@ export type RulesToPolicyOptions = {
   maxKeywordsPerRule?: number
 }
 
+/** 编译出的 policy deny 规则与未编译规则审计清单。 */
 export type RulesToPolicyResult = {
   /** 编译出的 policy deny 规则。 */
   rules: PolicyDenyRule[]
@@ -62,7 +64,12 @@ function flattenKeywords(keywords: string[]): string[] {
   return out
 }
 
-/** 把规则集的 block 级 keyword_blocklist 规则编译为 policy deny 规则。 */
+/**
+ * 把规则集的 block 级 keyword_blocklist 规则编译为 policy deny 规则。
+ * @param ruleSet - 待编译的规则集。
+ * @param options - 可选编译选项（工具名通配、参与 action、否定语境、关键词上限）。
+ * @returns 编译出的 deny 规则与未编译规则清单。
+ */
 export function rulesToPolicyDenyRules(ruleSet: RuleSet, options?: RulesToPolicyOptions): RulesToPolicyResult {
   const toolNamePattern = options?.toolNamePattern ?? '*'
   const includeActions = options?.includeActions ?? ['block']

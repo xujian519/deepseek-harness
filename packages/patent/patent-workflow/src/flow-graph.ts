@@ -9,12 +9,14 @@
 
 export type FlowNodeType = 'agent' | 'tool' | 'quality-check' | 'human-approval' | 'code' | 'sub-workflow'
 
+/** 有向图节点。 */
 export type FlowNode = {
   id: string
   type: FlowNodeType
   name: string
 }
 
+/** 有向图边（from → to）。 */
 export type FlowEdge = {
   from: string
   to: string
@@ -25,10 +27,18 @@ export class FlowGraph {
   private readonly nodes = new Map<string, FlowNode>()
   private readonly edges: FlowEdge[] = []
 
+  /**
+   * 添加或覆盖节点。
+   * @param node - 待添加的节点。
+   */
   addNode(node: FlowNode): void {
     this.nodes.set(node.id, node)
   }
 
+  /**
+   * 添加边（两端节点须已存在，否则抛错）。
+   * @param edge - 待添加的边。
+   */
   addEdge(edge: FlowEdge): void {
     if (!this.nodes.has(edge.from) || !this.nodes.has(edge.to)) {
       throw new Error(`FlowGraph: edge ${edge.from} -> ${edge.to} references an unknown node`)
@@ -36,19 +46,37 @@ export class FlowGraph {
     this.edges.push(edge)
   }
 
+  /**
+   * 判断节点是否存在。
+   * @param id - 节点 id。
+   * @returns 节点是否存在。
+   */
   hasNode(id: string): boolean {
     return this.nodes.has(id)
   }
 
+  /**
+   * 返回从指定节点出发的边。
+   * @param nodeId - 节点 id。
+   * @returns 以该节点为起点的边列表。
+   */
   outgoing(nodeId: string): FlowEdge[] {
     return this.edges.filter(edge => edge.from === nodeId)
   }
 
+  /**
+   * 返回指向指定节点的边。
+   * @param nodeId - 节点 id。
+   * @returns 以该节点为终点的边列表。
+   */
   incoming(nodeId: string): FlowEdge[] {
     return this.edges.filter(edge => edge.to === nodeId)
   }
 
-  /** 存在环时返回环路径（ids），否则 null。 */
+  /**
+   * 存在环时返回环路径（ids），否则 null。
+   * @returns 环路径（节点 id 序列），无环时为 null。
+   */
   detectCycle(): string[] | null {
     const visiting = new Set<string>()
     const visited = new Set<string>()
@@ -77,7 +105,10 @@ export class FlowGraph {
     return null
   }
 
-  /** Kahn 算法——按拓扑层返回节点 id 分组。 */
+  /**
+   * Kahn 算法——按拓扑层返回节点 id 分组。
+   * @returns 按拓扑层分组的节点 id 列表。
+   */
   topologicalLevels(): string[][] {
     const indegree = new Map<string, number>()
     const outgoing = new Map<string, string[]>()
@@ -110,7 +141,10 @@ export class FlowGraph {
     return levels
   }
 
-  /** 环 + 孤儿检查；合法时返回空数组。 */
+  /**
+   * 环 + 孤儿检查；合法时返回空数组。
+   * @returns 问题列表（环路径与孤儿节点），合法时为空数组。
+   */
   validate(): string[] {
     const problems: string[] = []
     const cycle = this.detectCycle()
@@ -125,6 +159,10 @@ export class FlowGraph {
     return problems
   }
 
+  /**
+   * 生成 flowchart TD 格式的 Mermaid 源码。
+   * @returns flowchart TD 格式的 Mermaid 源码。
+   */
   formatMermaid(): string {
     const lines = ['flowchart TD']
     for (const node of this.nodes.values()) {

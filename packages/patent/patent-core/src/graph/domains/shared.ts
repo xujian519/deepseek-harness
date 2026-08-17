@@ -14,7 +14,11 @@ import type { StageHandler } from '../../atoms/index.ts'
 import { RuleEngine, aggregate, defaultPatentRules, type Verdict } from '../../checker/index.ts'
 import type { RuleCheckResult } from '../../checker/types.ts'
 
-/** 现有 StageHandler → 图节点（注入固定 params，合并进执行态，不污染共享 state）。 */
+/** 现有 StageHandler → 图节点（注入固定 params，合并进执行态，不污染共享 state）。
+ * @param handler - 要包装为图节点的 StageHandler。
+ * @param params - 注入 handler 的固定参数（可选）。
+ * @returns 包装后的图节点。
+ */
 export function handlerNode(handler: StageHandler, params?: Record<string, unknown>): GraphNode {
   return async ({ state, provider }) => {
     const execState = params !== undefined ? { ...state, ...params } : state
@@ -30,7 +34,12 @@ export type LlmNodeOptions = {
   temperature?: number
 }
 
-export function llmNode({ outputKey, buildPrompt, schema, temperature = 0.2 }: LlmNodeOptions): GraphNode {
+/** 基于 LlmNodeOptions 构造 LLM 图节点：调用 provider.callLLM，缺失/失败时写降级标记。
+ * @param input - LlmNodeOptions。
+ * @returns 图节点。
+ */
+export function llmNode(input: LlmNodeOptions): GraphNode {
+  const { outputKey, buildPrompt, schema, temperature = 0.2 } = input
   return async ({ state, provider }) => {
     if (!provider?.callLLM) {
       const delta: StateDelta = {}
@@ -58,7 +67,10 @@ export function llmNode({ outputKey, buildPrompt, schema, temperature = 0.2 }: L
   }
 }
 
-/** 规则门收口节点：汇总 state 文本 → checker RuleEngine 按域评估 → verdict 写入 state。 */
+/** 规则门收口节点：汇总 state 文本 → checker RuleEngine 按域评估 → verdict 写入 state。
+ * @param domains - 规则门评估的领域列表。
+ * @returns 规则门图节点。
+ */
 export function ruleGateNode(domains: readonly string[]): GraphNode {
   return async ({ state }) => {
     const text = collectStateText(state)
@@ -75,12 +87,16 @@ export function ruleGateNode(domains: readonly string[]): GraphNode {
   }
 }
 
+/** 规则门写入 state 的结果结构。 */
 export type RuleGateState = {
   verdict: Verdict
   failures: RuleCheckResult[]
 }
 
-/** 汇总 state 中的业务文本（跳过元数据键：_ 前缀 / __degradation 后缀 / 内部键）。 */
+/** 汇总 state 中的业务文本（跳过元数据键：_ 前缀 / __degradation 后缀 / 内部键）。
+ * @param state - 图状态。
+ * @returns 汇总后的业务文本块。
+ */
 export function collectStateText(state: GraphState): string {
   const blocks: string[] = []
   for (const [key, value] of Object.entries(state)) {
@@ -96,7 +112,11 @@ export function collectStateText(state: GraphState): string {
   return blocks.join('\n\n')
 }
 
-/** 通用：从 state 读取输入文本（对齐 workflowCtx 映射的多键回退）。 */
+/** 通用：从 state 读取输入文本（对齐 workflowCtx 映射的多键回退）。
+ * @param state - 图状态。
+ * @param keys - 按优先级回退的候选键。
+ * @returns 首个非空字符串值；均无返回空字符串。
+ */
 export function resolveInput(state: GraphState, keys: string[]): string {
   for (const key of keys) {
     const value = state[key]

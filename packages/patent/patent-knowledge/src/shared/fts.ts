@@ -14,7 +14,11 @@ import type { DatabaseSync } from 'node:sqlite'
 /** trigram tokenizer 要求 3+ 字符才能 MATCH。 */
 export const FTS_MIN_RUNES = 3
 
-/** 当前运行时的 SQLite 是否编译了 FTS5（编译选项探测；探测失败按未编译处理）。 */
+/**
+ * 当前运行时的 SQLite 是否编译了 FTS5（编译选项探测；探测失败按未编译处理）。
+ * @param db 数据库连接。
+ * @returns 编译了 FTS5 时 true。
+ */
 export function sqliteHasFts5(db: DatabaseSync): boolean {
   try {
     const row = db.prepare("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS v").get() as { v: number }
@@ -24,12 +28,20 @@ export function sqliteHasFts5(db: DatabaseSync): boolean {
   }
 }
 
-/** 转义 FTS5 phrase 中的双引号，并包裹成双引号 phrase。 */
+/**
+ * 转义 FTS5 phrase 中的双引号，并包裹成双引号 phrase。
+ * @param phrase 待转义的短语。
+ * @returns 包裹后的 FTS5 phrase。
+ */
 export function escapeFtsPhrase(phrase: string): string {
   return `"${phrase.replace(/"/g, '""')}"`
 }
 
-/** 把多个词条构建为 FTS5 OR 查询表达式。 */
+/**
+ * 把多个词条构建为 FTS5 OR 查询表达式。
+ * @param terms 词条列表。
+ * @returns FTS5 OR 查询表达式。
+ */
 export function joinFtsOrTerms(terms: string[]): string {
   return terms.map(escapeFtsPhrase).join(' OR ')
 }

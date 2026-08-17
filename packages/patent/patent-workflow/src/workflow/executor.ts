@@ -25,6 +25,7 @@ import type {
   WorkflowStage,
 } from '@deepseek-ai/dsh-patent-core'
 
+/** 单阶段执行选项（handlers/atoms/provider/executor/maxRetries/approvalGrants/ctx）。 */
 export type RunStageOnceOptions = {
   handlers: StageHandlerRegistry
   atoms: AtomRegistry
@@ -38,6 +39,10 @@ export type RunStageOnceOptions = {
 /**
  * 执行单个 stage（含重试循环与 degraded 输出构造），不处理信号回退。
  * 供 runWorkflow 串行路径与并行组共用；state 为调用方持有的共享对象（原地合并）。
+ * @param stage - 待执行阶段。
+ * @param state - 调用方持有的共享执行态（原地合并）。
+ * @param options - 执行配置（handlers/atoms/provider/executor/maxRetries 等）。
+ * @returns 阶段输出、重试次数与可选中断信号。
  */
 export async function runStageOnce(
   stage: WorkflowStage,

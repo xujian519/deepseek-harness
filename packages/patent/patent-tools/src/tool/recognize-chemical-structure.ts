@@ -19,10 +19,13 @@ import { PatentToolError } from '../error.ts'
 /** 化学实体识别类型。 */
 export const CHEMICAL_KINDS = ['formula', 'structure', 'markush'] as const
 
+/** Chemical entity kind (formula / structure / Markush). */
 export type ChemicalKind = (typeof CHEMICAL_KINDS)[number]
 
+/** Recognition mode (image / text / auto). */
 export type RecognizeChemicalStructureMode = 'image' | 'text' | 'auto'
 
+/** Input for the recognize_chemical_structure tool. */
 export type RecognizeChemicalStructureInput = {
   /** 化学结构图图片路径（工作区相对或绝对路径；PDF 页请先经附件解析导出图片）。 */
   image_path?: string

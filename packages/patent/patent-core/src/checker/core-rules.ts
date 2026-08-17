@@ -48,7 +48,10 @@ import {
   DIM_SUPPORT,
 } from './constants.ts'
 
-/** 新颖性规则（专利法 A22.2）。 */
+/**
+ * 新颖性规则（专利法 A22.2）。
+ * @returns 新颖性检查规则集。
+ */
 export function noveltyRules(): CheckRule[] {
   return [
     {
@@ -79,7 +82,10 @@ export function noveltyRules(): CheckRule[] {
   ]
 }
 
-/** 创造性规则（专利法 A22.3，三步法）。 */
+/**
+ * 创造性规则（专利法 A22.3，三步法）。
+ * @returns 创造性检查规则集。
+ */
 export function inventivenessRules(): CheckRule[] {
   return [
     {
@@ -158,7 +164,10 @@ export function inventivenessRules(): CheckRule[] {
   ]
 }
 
-/** 充分公开 + 权利要求分析规则（专利法 A26.3）。 */
+/**
+ * 充分公开 + 权利要求分析规则（专利法 A26.3）。
+ * @returns 充分公开与权利要求分析检查规则集。
+ */
 export function disclosureRules(): CheckRule[] {
   return [
     {
@@ -200,7 +209,10 @@ export function disclosureRules(): CheckRule[] {
   ]
 }
 
-/** 说明书撰写规则（spec-checklist 规则化；结构/三段式/实施例/禁语/效果/附图/摘要）。 */
+/**
+ * 说明书撰写规则（spec-checklist 规则化；结构/三段式/实施例/禁语/效果/附图/摘要）。
+ * @returns 说明书撰写检查规则集。
+ */
 export function specRules(): CheckRule[] {
   return [
     {
@@ -303,7 +315,10 @@ export function specRules(): CheckRule[] {
   ]
 }
 
-/** 侵权规则（全面覆盖/等同/禁止反悔/捐献）。 */
+/**
+ * 侵权规则（全面覆盖/等同/禁止反悔/捐献）。
+ * @returns 侵权检查规则集。
+ */
 export function infringementRules(): CheckRule[] {
   return [
     {
@@ -357,7 +372,10 @@ export function infringementRules(): CheckRule[] {
   ]
 }
 
-/** 无效宣告规则（单独对比/组合动机/公开日核实）。 */
+/**
+ * 无效宣告规则（单独对比/组合动机/公开日核实）。
+ * @returns 无效宣告检查规则集。
+ */
 export function invalidationRules(): CheckRule[] {
   return [
     {
@@ -404,7 +422,10 @@ export function invalidationRules(): CheckRule[] {
   ]
 }
 
-/** 复审请求规则（理由范围/新证据关联性）。 */
+/**
+ * 复审请求规则（理由范围/新证据关联性）。
+ * @returns 复审请求检查规则集。
+ */
 export function reexaminationRules(): CheckRule[] {
   return [
     {
@@ -434,7 +455,10 @@ export function reexaminationRules(): CheckRule[] {
   ]
 }
 
-/** 外观设计对比规则（整体视觉效果/产品种类/设计特征/直接模仿/多设计）。 */
+/**
+ * 外观设计对比规则（整体视觉效果/产品种类/设计特征/直接模仿/多设计）。
+ * @returns 外观设计对比检查规则集。
+ */
 export function designRules(): CheckRule[] {
   return [
     {
@@ -500,7 +524,10 @@ export function designRules(): CheckRule[] {
   ]
 }
 
-/** 优先权规则（优先权日认定/转让/有效性/时间基准/部分优先权）。 */
+/**
+ * 优先权规则（优先权日认定/转让/有效性/时间基准/部分优先权）。
+ * @returns 优先权检查规则集。
+ */
 export function priorityRules(): CheckRule[] {
   return [
     {
@@ -566,7 +593,10 @@ export function priorityRules(): CheckRule[] {
   ]
 }
 
-/** 公开方式认定规则（出版物/使用/互联网/公开日/保密义务）。 */
+/**
+ * 公开方式认定规则（出版物/使用/互联网/公开日/保密义务）。
+ * @returns 公开方式认定检查规则集。
+ */
 export function publicAccessRules(): CheckRule[] {
   return [
     {
@@ -632,7 +662,10 @@ export function publicAccessRules(): CheckRule[] {
   ]
 }
 
-/** 保护客体规则（专利法 A2：技术方案/排除客体/技术效果）。 */
+/**
+ * 保护客体规则（专利法 A2：技术方案/排除客体/技术效果）。
+ * @returns 保护客体检查规则集。
+ */
 export function subjectMatterRules(): CheckRule[] {
   return [
     {

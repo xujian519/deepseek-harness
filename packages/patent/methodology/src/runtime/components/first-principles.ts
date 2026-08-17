@@ -10,6 +10,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['第一性原理', '本质', '基本事实', '假设', '重构', 'first principles', '颠覆']
 
+/** First Principles methodology component (decompose to fundamental truths, then rebuild). */
 export const firstPrinciples: MethodologyComponent = {
   name: 'first-principles',
   description: '回到基本事实与原理，重建对问题的理解与方案',

@@ -21,7 +21,10 @@ import {
 } from './core-rules.ts'
 import { reasoningPatternRules } from './reasoning-rules.ts'
 
-/** 全部默认规则（聚合 11 组场景规则 + 24 条推理模式规则）。 */
+/**
+ * 全部默认规则（聚合 11 组场景规则 + 24 条推理模式规则）。
+ * @returns 全部默认检查规则集。
+ */
 export function defaultPatentRules(): CheckRule[] {
   return [
     ...noveltyRules(),

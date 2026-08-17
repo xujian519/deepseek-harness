@@ -15,12 +15,20 @@ export const CASE_OUTPUTS_REL = 'outputs'
 /** 工作流运行记录子目录名。 */
 export const CASE_WORKFLOW_RUNS_REL = 'workflow-runs'
 
-/** `<root>/data/cases/<caseId>/outputs`（worker 输出目录约定，caseId 可含 {caseId} 占位）。 */
+/**
+ * `<root>/data/cases/<caseId>/outputs`（worker 输出目录约定，caseId 可含 {caseId} 占位）。
+ * @param caseId - 案例标识。
+ * @returns 该案例的 worker 输出目录路径。
+ */
 export function caseOutputsDir(caseId: string): string {
   return `${CASE_ROOT_REL}/${caseId}/${CASE_OUTPUTS_REL}`
 }
 
-/** `<root>/data/cases/<caseId>/workflow-runs`（工作流运行记录目录约定）。 */
+/**
+ * `<root>/data/cases/<caseId>/workflow-runs`（工作流运行记录目录约定）。
+ * @param caseId - 案例标识。
+ * @returns 该案例的工作流运行记录目录路径。
+ */
 export function caseWorkflowRunsDir(caseId: string): string {
   return `${CASE_ROOT_REL}/${caseId}/${CASE_WORKFLOW_RUNS_REL}`
 }

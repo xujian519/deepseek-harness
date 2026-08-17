@@ -105,7 +105,11 @@ function isAggregator(hostname: string): boolean {
   return AGGREGATOR_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))
 }
 
-/** 根据来源 URI 判定平台可信度等级；URI 空/解析失败回退 low。 */
+/**
+ * 根据来源 URI 判定平台可信度等级；URI 空/解析失败回退 low。
+ * @param uri - 证据来源 URI（可空）。
+ * @returns 平台可信度等级。
+ */
 export function platformCredibility(uri: string | undefined): CredibilityLevel {
   if (uri === undefined || uri === '') return 'low'
   let parsed: URL
@@ -121,7 +125,11 @@ export function platformCredibility(uri: string | undefined): CredibilityLevel {
   return 'low'
 }
 
-/** 可信度等级 → 0-1 分数（对齐 Mady CredibilityToScore）。 */
+/**
+ * 可信度等级 → 0-1 分数（对齐 Mady CredibilityToScore）。
+ * @param level - 平台可信度等级。
+ * @returns 0-1 之间的可信度分数。
+ */
 export function credibilityToScore(level: CredibilityLevel): number {
   switch (level) {
     case 'high':
@@ -137,7 +145,11 @@ export function credibilityToScore(level: CredibilityLevel): number {
   }
 }
 
-/** 平台分类标签（人读）。 */
+/**
+ * 平台分类标签（人读）。
+ * @param uri - 证据来源 URI（可空）。
+ * @returns 平台分类标签。
+ */
 export function platformCategory(uri: string | undefined): string {
   if (uri === undefined || uri === '') return 'unknown'
   let hostname: string
@@ -155,7 +167,11 @@ export function platformCategory(uri: string | undefined): string {
   return '社交/自媒体/未知'
 }
 
-/** 互联网公开意图：注册/付费墙平台标记为受限，其余推定对公众开放。 */
+/**
+ * 互联网公开意图：注册/付费墙平台标记为受限，其余推定对公众开放。
+ * @param uri - 证据来源 URI（可空）。
+ * @returns 'public' 或 'restricted'。
+ */
 export function evaluatePublicIntent(uri: string | undefined): 'public' | 'restricted' {
   if (uri === undefined || uri === '') return 'public'
   let hostname: string

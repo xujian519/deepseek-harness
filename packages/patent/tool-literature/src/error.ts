@@ -15,7 +15,9 @@ export type LiteratureToolErrorCode =
  * stable programmatic discriminator.
  */
 export class LiteratureToolError extends Error {
+  /** Stable programmatic error code. */
   readonly code: LiteratureToolErrorCode
+  /** Structured error context. */
   readonly details?: Record<string, unknown>
 
   constructor(code: LiteratureToolErrorCode, message: string, details?: Record<string, unknown>) {

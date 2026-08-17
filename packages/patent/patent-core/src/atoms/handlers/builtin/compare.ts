@@ -16,6 +16,7 @@ import { callLlm, degraded, formatPriorArt, parseLlmJson, requireLlm, resolveInp
 // compare —— 特征对比（claim chart）
 // ---------------------------------------------------------------------------
 
+/** compare 原子：逐项对比权利要求特征与现有技术。 */
 export const compareAtom: Atom = {
   name: 'compare',
   description: '逐项对比权利要求特征与现有技术，输出结构化对比表（claim chart）',
@@ -45,11 +46,18 @@ const COMPARE_SCHEMA = {
   required: ['claim_chart'],
 } as const
 
+/** compare 执行器：逐项对比权利要求特征与现有技术。 */
 export class CompareHandler implements StageHandler {
   readonly name = 'compare'
   readonly category = 'compare' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 compare 阶段（权利要求与对比文件比对），返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     const missing = requireLlm(provider, 'compare')
     if (missing) return missing
     const claim = resolveInputText(state, ['claim', 'claim_text'], '')
@@ -94,6 +102,7 @@ export class CompareHandler implements StageHandler {
 // 按单独对比原则（专利法 A22.2）逐特征判定是否被现有技术公开。
 // evidence_coverage 对齐 Mady：无证据 → none（提示不可靠），1-2 条 → partial，≥3 → full。
 
+/** novelty 原子：逐特征新颖性初判。 */
 export const noveltyAtom: Atom = {
   name: 'novelty',
   description: '逐特征新颖性初判：结合现有技术证据（prior_art）按单独对比原则判定',
@@ -123,18 +132,29 @@ const NOVELTY_SCHEMA = {
   required: ['assessments'],
 } as const
 
-/** 证据覆盖分级：≥3 条 full；1-2 条 partial；0 条 none。 */
+/**
+ * 证据覆盖分级：≥3 条 full；1-2 条 partial；0 条 none。
+ * @param count - 现有技术证据条数。
+ * @returns 覆盖分级（full/partial/none）。
+ */
 export function evidenceCoverage(count: number): 'full' | 'partial' | 'none' {
   if (count >= 3) return 'full'
   if (count >= 1) return 'partial'
   return 'none'
 }
 
+/** novelty 执行器：逐特征新颖性初判。 */
 export class NoveltyHandler implements StageHandler {
   readonly name = 'novelty'
   readonly category = 'compare' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 novelty 阶段（逐特征新颖性判定），返回下一管线状态。
+   * @param input - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(input: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = input
     const features = getStateArray(state, 'features')
     if (features.length === 0) {
       return degraded('novelty', '无特征可评估（state.features 为空）')

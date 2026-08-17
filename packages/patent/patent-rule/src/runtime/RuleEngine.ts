@@ -144,7 +144,14 @@ export type EvaluateTextOptions = {
   domain?: string
 }
 
-/** 评估一段文本，返回全部违规（synonyms 为同义词表，供 synonym_match 检查；缺省空表）。 */
+/**
+ * 评估一段文本，返回全部违规（synonyms 为同义词表，供 synonym_match 检查；缺省空表）。
+ * @param text - 待评估文本。
+ * @param ruleSet - 规则集。
+ * @param synonyms - 同义词表（缺省空表）。
+ * @param options - 可选评估选项（领域过滤）。
+ * @returns 评估结果（含全部违规）。
+ */
 export function evaluateText(
   text: string,
   ruleSet: RuleSet,
@@ -160,7 +167,13 @@ export function evaluateText(
   return { violations }
 }
 
-/** 评估单条规则；无违规返回 null。 */
+/**
+ * 评估单条规则；无违规返回 null。
+ * @param rule - 待评估规则。
+ * @param text - 待评估文本。
+ * @param synonyms - 同义词表（synonym_match 检查用）。
+ * @returns 违规对象，无违规为 null。
+ */
 export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: SynonymMap): RuleViolation | null {
   const check = rule.check
   let evidence: string[] = []
@@ -214,7 +227,11 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
   }
 }
 
-/** 便捷入口：按 action 分组违规（block / review / warn / log）。 */
+/**
+ * 便捷入口：按 action 分组违规（block / review / warn / log）。
+ * @param evaluation - 评估结果。
+ * @returns 按 action 分组的违规映射。
+ */
 export function groupByAction(evaluation: RuleEvaluation): Record<string, RuleViolation[]> {
   const grouped: Record<string, RuleViolation[]> = { block: [], review: [], warn: [], log: [] }
   for (const violation of evaluation.violations) {

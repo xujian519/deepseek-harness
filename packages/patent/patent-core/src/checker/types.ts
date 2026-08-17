@@ -28,8 +28,11 @@ export type CheckType =
  */
 export type RuleLevel = 0 | 1 | 2
 
+/** 规则级别常量：Must（失败即 blocked）。 */
 export const LevelMust: RuleLevel = 0
+/** 规则级别常量：Should（失败即 blocked）。 */
 export const LevelShould: RuleLevel = 1
+/** 规则级别常量：Quality（3 条及以上失败才 needs_revision）。 */
 export const LevelQuality: RuleLevel = 2
 
 /** 严重度（报告展示用；判级只看 Level）。 */

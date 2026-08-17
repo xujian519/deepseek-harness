@@ -12,6 +12,7 @@ export const LAW_SEARCH_COLUMNS = 'l.id, l.level, l.name, l.filename, l.publish,
 /** FTS 路径列（追加 bm25 分数）。 */
 export const LAW_SEARCH_COLUMNS_FTS = `${LAW_SEARCH_COLUMNS}, bm25(law_fts) AS fts_rank`
 
+/** 法律检索过滤条件（level/category）。 */
 export type LawSearchFilter = { level?: string; category?: string }
 
 function buildFilterClauses(filter: LawSearchFilter): { sql: string; params: string[] } {
@@ -36,6 +37,9 @@ function buildFilterClauses(filter: LawSearchFilter): { sql: string; params: str
  *   `[matchExpr, ...params, limit]`）；
  * - like：name/content 两个 ? 在最前，过滤条件随后，LIMIT ? 在最后（调用方传
  *   `[pattern, pattern, ...params, limit]`）。
+ * @param kind 检索路径：fts（全文检索）或 like（LIKE 降级）。
+ * @param filter level/category 过滤条件。
+ * @returns 检索 SQL 文本与占位符参数（调用方按约定顺序传参）。
  */
 export function buildLawSearchSql(kind: 'fts' | 'like', filter: LawSearchFilter): { sql: string; params: string[] } {
   const { sql: filterSql, params: filterParams } = buildFilterClauses(filter)

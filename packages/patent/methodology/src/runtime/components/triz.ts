@@ -48,6 +48,7 @@ function buildLookupLines(paramNos: number[]): string[] {
   return lines
 }
 
+/** TRIZ contradiction-matrix + 40-principles ideation component. */
 export const triz: MethodologyComponent = {
   name: 'triz',
   description: 'TRIZ 矛盾矩阵 + 40 发明原理：定义技术矛盾 → 查矩阵 → 原理启发构思',

@@ -8,6 +8,7 @@
 
 export type ApprovalVerdict = 'adopted' | 'modified' | 'rejected'
 
+/** 审批审计记录（谁、哪个关键词触发、AI 原文摘录、人工如何决策、何时）。 */
 export type ApprovalRecord = {
   /** 挂起索引（对应 PatentOutputGate 的 pending index） */
   pendingIndex: number
@@ -25,6 +26,7 @@ export type ApprovalRecord = {
   decidedAt: string
 }
 
+/** 审批审计存储接口：只增审计记录并可列出。 */
 export type ApprovalStore = {
   /** 追加一条审计记录（只增）。可返回 Promise（异步落盘实现）。 */
   saveRecord(record: ApprovalRecord): void | Promise<void>
@@ -32,6 +34,7 @@ export type ApprovalStore = {
   listRecords(): ApprovalRecord[]
 }
 
+/** 内存审批审计存储：追加审计记录并按决定时间升序列出。 */
 export class InMemoryApprovalStore implements ApprovalStore {
   private readonly records: ApprovalRecord[] = []
 
@@ -43,7 +46,10 @@ export class InMemoryApprovalStore implements ApprovalStore {
     return [...this.records]
   }
 
-  /** 按结论统计（AdoptionRate = adopted / total；供指标与 Golden Benchmark）。 */
+  /**
+   * 按结论统计（AdoptionRate = adopted / total；供指标与 Golden Benchmark）。
+   * @returns 结论计数与采纳率（adoptionRate = adopted / total，无记录时为 0）。
+   */
   stats(): { total: number; adopted: number; modified: number; rejected: number; adoptionRate: number } {
     const total = this.records.length
     const adopted = this.records.filter(r => r.verdict === 'adopted').length
@@ -53,7 +59,11 @@ export class InMemoryApprovalStore implements ApprovalStore {
   }
 }
 
-/** 构造审计记录（供 PatentOutputGate approve/reject 调用）。now 为可注入时钟（默认系统时钟）。 */
+/**
+ * 构造审计记录（供 PatentOutputGate approve/reject 调用）。now 为可注入时钟（默认系统时钟）。
+ * @param input - 审计记录字段（含可注入时钟 now，默认系统时钟）。
+ * @returns 审计记录（originalOutputPreview 截断至 500 字符，decidedAt 为 ISO 时间戳）。
+ */
 export function createApprovalRecord(input: {
   pendingIndex: number
   sessionId?: string | undefined

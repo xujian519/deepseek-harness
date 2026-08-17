@@ -25,6 +25,7 @@ export type EvidenceType =
   | 'public_use'
   | 'design_comparison'
 
+/** 全部证据类型（对齐 Mady EvidenceType 枚举）。 */
 export const EVIDENCE_TYPES: readonly EvidenceType[] = [
   'general',
   'foreign_language',

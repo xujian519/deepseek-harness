@@ -25,6 +25,7 @@ export const TRANSITIONS: Record<PlanTaskState, PlanTaskState[]> = {
   finished: [],
 }
 
+/** 非法状态迁移错误（白名单之外的迁移）。 */
 export class PlanTaskStateError extends Error {
   constructor(from: PlanTaskState, to: PlanTaskState) {
     super(`非法状态迁移: ${from} → ${to}`)
@@ -67,14 +68,26 @@ export class PlanTaskStateMachine {
     this.current = initial
   }
 
+  /** 当前计划状态。 */
   get state(): PlanTaskState {
     return this.current
   }
 
+  /**
+   * 判断目标状态是否在白名单迁移内。
+   * @param to - 目标状态。
+   * @returns 是否允许迁移。
+   */
   canTransition(to: PlanTaskState): boolean {
     return TRANSITIONS[this.current].includes(to)
   }
 
+  /**
+   * 执行状态迁移：白名单校验 + 语义前置条件守卫（fail-closed）。
+   * @param to - 目标状态。
+   * @param context - 迁移语义上下文（tasks/feedback）。
+   * @returns 迁移后的当前状态。
+   */
   transition(to: PlanTaskState, context: PlanTaskTransitionContext = {}): PlanTaskState {
     if (!this.canTransition(to)) {
       throw new PlanTaskStateError(this.current, to)
@@ -90,8 +103,10 @@ export class PlanTaskStateMachine {
   }
 }
 
+/** 任务状态：pending 待执行 / in_progress 执行中 / completed 已完成。 */
 export type PlanTaskStatus = 'pending' | 'in_progress' | 'completed'
 
+/** 计划任务（id、描述、内容哈希、状态、顺序依赖）。 */
 export type PlanTask = {
   id: string
   description: string
@@ -102,6 +117,7 @@ export type PlanTask = {
   blockedBy?: string[] | undefined
 }
 
+/** 计划↔任务同步结果（任务列表、重规划保留的已完成步骤、需执行步骤）。 */
 export type PlanTaskSyncResult = {
   tasks: PlanTask[]
   /** 重规划时已完成的步骤（哈希匹配） */
@@ -110,7 +126,11 @@ export type PlanTaskSyncResult = {
   toRun: string[]
 }
 
-/** 简单内容哈希（FNV-1a 32 位，十六进制）。 */
+/**
+ * 简单内容哈希（FNV-1a 32 位，十六进制）。
+ * @param step - 计划步骤内容。
+ * @returns 十六进制哈希字符串。
+ */
 export function hashStep(step: string): string {
   let hash = 0x811c9dc5
   for (let i = 0; i < step.length; i += 1) {
@@ -123,6 +143,8 @@ export function hashStep(step: string): string {
 /**
  * 把计划步骤同步为任务列表：每步一个任务，按顺序建立 blockedBy 依赖。
  * 同一会话内哈希不变，重规划时可据此识别未变化的已完成步骤（增量续跑）。
+ * @param planSteps - 计划步骤内容列表。
+ * @returns 任务同步结果（preserved 为空、toRun 为全部任务）。
  */
 export function syncPlanToTasks(planSteps: string[]): PlanTaskSyncResult {
   const tasks: PlanTask[] = planSteps.map((step, idx) => ({
@@ -142,6 +164,9 @@ export function syncPlanToTasks(planSteps: string[]): PlanTaskSyncResult {
 /**
  * 重规划：对比新旧计划，哈希相同的步骤视为已完成（preserved），
  * 其余标记为 toRun；新任务继承旧任务的完成状态。
+ * @param previous - 旧计划任务列表。
+ * @param newPlanSteps - 新计划步骤内容列表。
+ * @returns 重规划后的任务同步结果。
  */
 export function replanTasks(previous: PlanTask[], newPlanSteps: string[]): PlanTaskSyncResult {
   const prevByHash = new Map(previous.map(t => [t.hash, t]))

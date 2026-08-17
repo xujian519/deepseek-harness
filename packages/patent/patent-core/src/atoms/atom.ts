@@ -13,6 +13,7 @@
 
 export type AtomCategory = 'search' | 'extract' | 'compare' | 'reason' | 'gate'
 
+/** Atom 声明式契约：描述原子操作的元数据（名称/描述/分类/输入输出键）。 */
 export type Atom = {
   /** 全局唯一标识（与 StageHandler.name 一致） */
   name: string
@@ -26,29 +27,48 @@ export type Atom = {
   outputSchema: string[]
 }
 
+/** Atom 注册表：按 name 登记、查询原子，并支持按分类列出。 */
 export class AtomRegistry {
   private readonly atoms = new Map<string, Atom>()
 
-  /** 同名注册覆盖先前定义（对齐 Mady 覆盖语义，便于测试与扩展）。 */
+  /**
+   * 同名注册覆盖先前定义（对齐 Mady 覆盖语义，便于测试与扩展）。
+   * @param atom - 待注册的 Atom。
+   */
   register(atom: Atom): void {
     if (!atom.name.trim()) throw new AtomRegistryError('Atom 缺少 name')
     if (!atom.description.trim()) throw new AtomRegistryError(`Atom "${atom.name}" 缺少 description`)
     this.atoms.set(atom.name, atom)
   }
 
+  /**
+   * 按 name 查询已注册的 Atom。
+   * @param name - Atom 名称。
+   * @returns 匹配的 Atom，未注册时返回 undefined。
+   */
   lookup(name: string): Atom | undefined {
     return this.atoms.get(name)
   }
 
+  /**
+   * 列出全部已注册的 Atom。
+   * @returns 已注册 Atom 数组。
+   */
   list(): Atom[] {
     return [...this.atoms.values()]
   }
 
+  /**
+   * 列出指定分类下的 Atom。
+   * @param category - Atom 分类。
+   * @returns 该分类下的 Atom 数组。
+   */
   listByCategory(category: AtomCategory): Atom[] {
     return this.list().filter(a => a.category === category)
   }
 }
 
+/** Atom 注册表错误：用于注册校验失败（如缺少 name/description）。 */
 export class AtomRegistryError extends Error {
   constructor(message: string) {
     super(message)
@@ -59,18 +79,36 @@ export class AtomRegistryError extends Error {
 /** 全局注册表（内置原子经 registerBuiltinAtoms 注册于此）。 */
 export const globalAtomRegistry = new AtomRegistry()
 
+/**
+ * 向全局注册表登记一个 Atom（同名覆盖）。
+ * @param atom - 待注册的 Atom。
+ */
 export function RegisterAtom(atom: Atom): void {
   globalAtomRegistry.register(atom)
 }
 
+/**
+ * 按 name 查询全局注册表中的 Atom。
+ * @param name - Atom 名称。
+ * @returns 匹配的 Atom，未注册时返回 undefined。
+ */
 export function LookupAtom(name: string): Atom | undefined {
   return globalAtomRegistry.lookup(name)
 }
 
+/**
+ * 列出全局注册表中的全部 Atom。
+ * @returns 已注册 Atom 数组。
+ */
 export function ListAtoms(): Atom[] {
   return globalAtomRegistry.list()
 }
 
+/**
+ * 列出全局注册表中指定分类的 Atom。
+ * @param category - Atom 分类。
+ * @returns 该分类下的 Atom 数组。
+ */
 export function ListAtomsByCategory(category: AtomCategory): Atom[] {
   return globalAtomRegistry.listByCategory(category)
 }

@@ -34,6 +34,7 @@ export type LegalSearchOptions = {
   category?: string
 }
 
+/** 法律全文搜索引擎（laws-full 库，FTS5 优先，LIKE 降级）。 */
 export class LegalSearchEngine implements LegalSearchSource {
   private readonly db: DatabaseSync
   private readonly hasFts: boolean

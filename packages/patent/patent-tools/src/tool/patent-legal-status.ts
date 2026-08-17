@@ -8,6 +8,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { LegalStatusChecker } from '@deepseek-ai/nuo-patent'
 
+/** Input for the patent_legal_status tool. */
 export type PatentLegalStatusInput = {
   /** Patent numbers (1-20), e.g. ["US11452699B2", "US2668287A"]. */
   patents: string[]
@@ -15,6 +16,7 @@ export type PatentLegalStatusInput = {
   maxConcurrency?: number
 }
 
+/** One patent's legal-status result. */
 export type PatentLegalStatusItem = {
   patentNumber: string
   title: string
@@ -32,6 +34,7 @@ export type PatentLegalStatusItem = {
   error?: string
 }
 
+/** Output of the patent_legal_status tool. */
 export type PatentLegalStatusOutput = {
   results: PatentLegalStatusItem[]
 }

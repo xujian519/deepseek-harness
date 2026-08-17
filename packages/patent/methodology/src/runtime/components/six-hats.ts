@@ -9,6 +9,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['六顶帽', '六顶思考帽', '多角度', '全面评估', 'six hats', '决策审查', '评审']
 
+/** Six Thinking Hats component for parallel thinking across six perspectives. */
 export const sixHats: MethodologyComponent = {
   name: 'six-hats',
   description: '从六个思考角度平行审视问题，避免立场混战',

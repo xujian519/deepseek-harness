@@ -13,6 +13,7 @@
 
 export type CircuitBreakerState = 'closed' | 'open' | 'half-open'
 
+/** 熔断器构造选项。 */
 export type CircuitBreakerOptions = {
   /** 连续失败多少次后打开（默认 3）。 */
   failureThreshold?: number
@@ -26,6 +27,7 @@ export type CircuitBreakerOptions = {
 /** 内部状态：probing = half-open 试探已放行、在途。 */
 type InternalState = 'closed' | 'open' | 'probing'
 
+/** 熔断器（语义增强路径的故障保护）。 */
 export class CircuitBreaker {
   private readonly failureThreshold: number
   private readonly cooldownMs: number
@@ -50,7 +52,10 @@ export class CircuitBreaker {
     return this.now() - this.openedAt >= this.cooldownMs ? 'half-open' : 'open'
   }
 
-  /** 是否允许发起一次调用。打开且冷却期内 → false（短路）；否则 true。 */
+  /**
+   * 是否允许发起一次调用。打开且冷却期内 → false（短路）；否则 true。
+   * @returns 允许发起调用时 true。
+   */
   allow(): boolean {
     if (this.phase === 'closed') return true
     if (this.phase === 'probing') return false
@@ -90,6 +95,11 @@ export class CircuitBreaker {
  * 受熔断保护的调用：短路或失败时返回 fallback，成功推进熔断状态。
  * 集中"allow → 调用 → success / failure"模板，调用方只需提供
  * 业务闭包、降级值与失败日志。
+ * @param breaker 熔断器实例。
+ * @param fallback 短路或失败时的降级返回值。
+ * @param fn 受保护的业务闭包。
+ * @param onError 失败时的日志/回调（可选）。
+ * @returns 业务结果或降级值。
  */
 export async function guarded<T>(
   breaker: CircuitBreaker,

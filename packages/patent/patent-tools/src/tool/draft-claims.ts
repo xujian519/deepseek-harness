@@ -8,9 +8,12 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 
+/** Patent technical domain (mechanical / electrical / chemical / software / general). */
 export type TechDomain = 'mechanical' | 'electrical' | 'chemical' | 'software' | 'general'
+/** Patent type (invention or utility model). */
 export type PatentType = 'invention' | 'utility_model'
 
+/** Input for the draft_claims tool. */
 export type DraftClaimsInput = {
   /** Invention title. */
   invention_name: string
@@ -26,6 +29,7 @@ export type DraftClaimsInput = {
   prior_art?: string
 }
 
+/** One drafted claim (independent or dependent). */
 export type DraftedClaim = {
   number: number
   type: 'independent' | 'dependent'
@@ -33,6 +37,7 @@ export type DraftedClaim = {
   refersTo?: number
 }
 
+/** One formal-validity violation found in drafted claims. */
 export type ClaimViolation = {
   rule: string
   severity: 'error' | 'warning'
@@ -41,6 +46,7 @@ export type ClaimViolation = {
   suggestion?: string
 }
 
+/** Output of the draft_claims tool. */
 export type DraftClaimsOutput = {
   invention_name: string
   tech_domain: TechDomain

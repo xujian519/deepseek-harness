@@ -13,6 +13,7 @@ import { createOpenAlexConnector } from './connectors/openalex.ts'
 import { createSemanticScholarConnector } from './connectors/semantic-scholar.ts'
 import { createCrossrefConnector } from './connectors/crossref.ts'
 
+/** 默认文献注册表装配选项（各源开关与可选凭据）。 */
 export type CreateLiteratureRegistryOptions = {
   /** arXiv 开关（默认 true）。 */
   arxiv?: boolean
@@ -30,6 +31,11 @@ export type CreateLiteratureRegistryOptions = {
   fetchImpl?: typeof fetch
 }
 
+/**
+ * 装配默认文献 Connector 注册表（arXiv / OpenAlex / Semantic Scholar / Crossref）。
+ * @param options - 各源开关与可选凭据。
+ * @returns 已装配的注册表。
+ */
 export function createLiteratureRegistry(options: CreateLiteratureRegistryOptions = {}): ConnectorRegistry {
   const registry = new ConnectorRegistry()
   if (options.arxiv !== false) {

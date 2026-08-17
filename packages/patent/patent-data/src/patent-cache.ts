@@ -84,28 +84,47 @@ export class AsyncResultCache<T> {
     this.inflight.clear()
   }
 
+  /** Number of live entries in the cache. */
   get size(): number {
     return this.map.size
   }
 }
 
-/** A search result is cacheable when it carries no failure-class warning. */
+/**
+ * A search result is cacheable when it carries no failure-class warning.
+ * @param result - the search result to check.
+ * @returns true when the result carries no failure-class warning.
+ */
 export function isSearchResultCacheable(result: PatentSearchResult): boolean {
   const failure = result.warnings.find(w => /^(查询条件为空|检索超时|检索失败)/.test(w))
   return !failure
 }
 
-/** A scrape result is cacheable only on success. */
+/**
+ * A scrape result is cacheable only on success.
+ * @param result - the scrape result to check.
+ * @returns true when the scrape succeeded.
+ */
 export function isScrapeResultCacheable(result: ScrapeResult): boolean {
   return result.success === true
 }
 
-/** Build the search cache key (query + limit). */
+/**
+ * Build the search cache key (query + limit).
+ * @param query - the search query.
+ * @param limit - the max-hits limit.
+ * @returns the cache key.
+ */
 export function searchCacheKey(query: string, limit: number): string {
   return `search\u0000${query}\u0000${limit}`
 }
 
-/** Build the scrape cache key (patent + content toggles). */
+/**
+ * Build the scrape cache key (patent + content toggles).
+ * @param patent - the patent number.
+ * @param opts - the content toggles (abstract and legal status).
+ * @returns the cache key.
+ */
 export function scrapeCacheKey(patent: string, opts: { returnAbstract: boolean; returnLegal: boolean }): string {
   return `scrape\u0000${patent}\u0000${opts.returnAbstract ? 1 : 0}${opts.returnLegal ? 1 : 0}`
 }

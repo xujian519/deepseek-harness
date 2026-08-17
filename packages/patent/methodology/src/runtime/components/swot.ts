@@ -9,6 +9,7 @@ import { keywordScore } from '../keywordMatch.ts'
 
 const TRIGGERS = ['swot', '优势', '劣势', '机会', '威胁', '态势', '竞争力', '布局策略']
 
+/** SWOT (strengths/weaknesses/opportunities/threats) analysis component. */
 export const swot: MethodologyComponent = {
   name: 'swot',
   description: '从优势、劣势、机会、威胁四个维度做态势分析',

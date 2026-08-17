@@ -57,6 +57,7 @@ export type StructuralElement = {
   patterns: string[]
 }
 
+/** structural_analysis 检查：requiresAll 中每个要素须命中其 patterns 之一。 */
 export type StructuralAnalysisCheck = {
   type: 'structural_analysis'
   requiresAll: StructuralElement[]
@@ -94,6 +95,7 @@ export type SynonymRequirement = {
   keywords: string[]
 }
 
+/** 全部检查类型的判别联合（tagged enum）。 */
 export type RuleCheck =
   | KeywordBlocklistCheck
   | PatternAnalysisCheck

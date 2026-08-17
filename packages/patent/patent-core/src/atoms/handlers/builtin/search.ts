@@ -16,6 +16,7 @@ import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from '.
 // search —— 检索现有技术
 // ---------------------------------------------------------------------------
 
+/** search 原子：检索现有技术文献。 */
 export const searchAtom: Atom = {
   name: 'search',
   description: '按查询条件检索现有技术文献，产出文档列表与摘要',
@@ -25,11 +26,18 @@ export const searchAtom: Atom = {
   outputSchema: ['search_summary', 'prior_art'],
 }
 
+/** search 执行器：检索现有技术并产出文档列表与摘要。 */
 export class SearchHandler implements StageHandler {
   readonly name = 'search'
   readonly category = 'search' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 search 阶段（在先技术检索），返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     // 查询词：显式 query/search_query 优先；其次 keywords 键——KeywordsHandler
     // 产出的是字符串数组，需 join 为查询串（此前 getStateString 对数组返回空，
     // 导致 disclosure 管线的 search 阶段在原子执行下恒降级）。
@@ -62,6 +70,7 @@ export class SearchHandler implements StageHandler {
 // keywords —— 检索关键词生成（移植 Mady disclosure/keywords.go）
 // ---------------------------------------------------------------------------
 
+/** keywords 原子：生成专利检索关键词。 */
 export const keywordsAtom: Atom = {
   name: 'keywords',
   description: '基于技术交底书分析摘要生成专利检索关键词（5-15 个，含上下位与同义词）',
@@ -78,11 +87,18 @@ const KEYWORDS_SCHEMA = {
   required: ['keywords'],
 } as const
 
+/** keywords 执行器：生成检索关键词列表。 */
 export class KeywordsHandler implements StageHandler {
   readonly name = 'keywords'
   readonly category = 'search' as const
 
-  async execute({ state, provider }: StageExecuteInput): Promise<PipelineState> {
+  /**
+   * 执行 keywords 阶段（关键词抽取），返回下一管线状态。
+   * @param execInput - 阶段执行输入（state 与 LLM provider）。
+   * @returns 下一管线状态（可能带降级标记）。
+   */
+  async execute(execInput: StageExecuteInput): Promise<PipelineState> {
+    const { state, provider } = execInput
     const missing = requireLlm(provider, 'keywords')
     if (missing) return missing
     const input = getStateString(state, 'extraction_result') || getStateString(state, 'source_text')

@@ -32,7 +32,11 @@ export type NodeRow = {
   version?: string | null
 }
 
-/** 行 → KgNode 映射（unified: law_refs JSON 解析；legacy: law_refs_count + version）。 */
+/**
+ * 行 → KgNode 映射（unified: law_refs JSON 解析；legacy: law_refs_count + version）。
+ * @param row 节点数据库行。
+ * @returns 映射后的图谱节点。
+ */
 export function toNode(row: NodeRow): KgNode {
   return {
     id: row.id,
@@ -49,7 +53,11 @@ export function toNode(row: NodeRow): KgNode {
   }
 }
 
-/** knowledge.db kg_nodes.law_refs 为 TEXT JSON 数组；解析失败返回 undefined。 */
+/**
+ * knowledge.db kg_nodes.law_refs 为 TEXT JSON 数组；解析失败返回 undefined。
+ * @param lawRefs law_refs JSON 文本（可为 null）。
+ * @returns 引用数量，非数组或解析失败时 undefined。
+ */
 export function parseLawRefsCount(lawRefs: string | null): number | undefined {
   if (!lawRefs) return undefined
   try {

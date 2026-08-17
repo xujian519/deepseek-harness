@@ -12,7 +12,11 @@ export class ClaimBinding {
   private readonly claimToSpans = new Map<string, Set<string>>()
   private readonly spanToClaims = new Map<string, Set<string>>()
 
-  /** 绑定一个证据到结论（幂等）。 */
+  /**
+   * 绑定一个证据到结论（幂等）。
+   * @param claimId - 结论 id。
+   * @param spanId - 证据 id。
+   */
   bind(claimId: string, spanId: string): void {
     let spans = this.claimToSpans.get(claimId)
     if (!spans) {
@@ -29,18 +33,30 @@ export class ClaimBinding {
     claims.add(claimId)
   }
 
-  /** 解绑（重规划/纠错时用）。 */
+  /**
+   * 解绑一个证据与结论（重规划/纠错时用）。
+   * @param claimId - 结论 id。
+   * @param spanId - 证据 id。
+   */
   unbind(claimId: string, spanId: string): void {
     this.claimToSpans.get(claimId)?.delete(spanId)
     this.spanToClaims.get(spanId)?.delete(claimId)
   }
 
-  /** 给定结论的全部证据 id（无则空数组）。 */
+  /**
+   * 给定结论的全部证据 id（无则空数组）。
+   * @param claimId - 结论 id。
+   * @returns 该结论绑定的证据 id 数组。
+   */
   spansForClaim(claimId: string): string[] {
     return [...(this.claimToSpans.get(claimId) ?? [])]
   }
 
-  /** 给定证据支持的结论 id。 */
+  /**
+   * 给定证据支持的结论 id。
+   * @param spanId - 证据 id。
+   * @returns 该证据支持的结论 id 数组。
+   */
   claimsForSpan(spanId: string): string[] {
     return [...(this.spanToClaims.get(spanId) ?? [])]
   }
@@ -48,6 +64,8 @@ export class ClaimBinding {
   /**
    * 列出无证据支持的结论：claimIds 为全部已登记结论，
    * 返回其中没有任何绑定证据的部分。
+   * @param claimIds - 全部已登记结论 id。
+   * @returns 没有任何绑定证据的结论 id 数组。
    */
   unbackedClaims(claimIds: Iterable<string>): string[] {
     const result: string[] = []
@@ -60,6 +78,7 @@ export class ClaimBinding {
     return result
   }
 
+  /** 清空全部结论-证据双向绑定映射。 */
   clear(): void {
     this.claimToSpans.clear()
     this.spanToClaims.clear()

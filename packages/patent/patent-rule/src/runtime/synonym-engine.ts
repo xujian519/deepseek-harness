@@ -44,6 +44,9 @@ const NEGATION_WINDOW = 60
 /**
  * 在命中位置前查找否定语境：窗口内出现否定短语/否定词且无句界分隔。
  * 复用共享实现（core text-utils），窗口与词表按本引擎语义传入。
+ * @param text - 待检查文本。
+ * @param matchStart - 命中位置起始下标。
+ * @returns 命中位置前是否存在否定语境。
  */
 export function hasNegationContext(text: string, matchStart: number): boolean {
   return sharedHasNegationContext(text, matchStart, {
@@ -59,6 +62,10 @@ export function hasNegationContext(text: string, matchStart: number): boolean {
  * 遍历全部出现位置：首个命中处于否定语境时不阻断——同词后续的肯定出现
  * （"不具有新颖性，但…方案具有新颖性"）仍算命中（对齐 quality-gate 的
  * filterNegatedHits 循环语义）。同义词表 key 统一小写存储/查找。
+ * @param text - 待匹配文本。
+ * @param keyword - 关键词。
+ * @param synonyms - 同义词表。
+ * @returns 命中的词（原词或同义词），未命中为 null。
  */
 export function matchKeyword(text: string, keyword: string, synonyms: SynonymMap): string | null {
   const candidates = [keyword, ...(synonyms.get(keyword.toLowerCase()) ?? [])]
@@ -78,6 +85,7 @@ export function matchKeyword(text: string, keyword: string, synonyms: SynonymMap
   return null
 }
 
+/** 同义词要求检查结果（置信度、缺失要素、命中词）。 */
 export type SynonymCheckResult = {
   /** 命中要素数 / 总要素数。 */
   confidence: number
@@ -90,6 +98,10 @@ export type SynonymCheckResult = {
 /**
  * 检查一段文本是否包含全部要求要素（同义词展开 + 否定豁免）。
  * 返回置信度与缺失要素。
+ * @param text - 待检查文本。
+ * @param requirements - 要求要素列表。
+ * @param synonyms - 同义词表。
+ * @returns 检查结果（置信度、缺失要素、命中词）。
  */
 export function checkSynonymRequirements(
   text: string,
@@ -121,7 +133,12 @@ export function checkSynonymRequirements(
   }
 }
 
-/** 从 YAML 文本解析同义词表；返回空表（不抛错）与警告。 */
+/**
+ * 从 YAML 文本解析同义词表；返回空表（不抛错）与警告。
+ * @param yamlText - 同义词 YAML 文本。
+ * @param source - 来源标签（用于警告定位）。
+ * @returns 解析出的同义词表与警告列表。
+ */
 export function parseSynonyms(yamlText: string, source = '<inline>'): { synonyms: SynonymMap; warnings: string[] } {
   const warnings: string[] = []
   const synonyms: SynonymMap = new Map()
@@ -153,13 +170,18 @@ export function parseSynonyms(yamlText: string, source = '<inline>'): { synonyms
 
 const SYNONYMS_FILE = 'synonyms.yaml'
 
+/** 同义词资产加载结果（同义词表、来源、警告）。 */
 export type SynonymsLoadResult = {
   synonyms: SynonymMap
   source: string | null
   warnings: string[]
 }
 
-/** 加载内置同义词资产；找不到资产时返回空表 + 警告（降级为纯关键词匹配）。 */
+/**
+ * 加载内置同义词资产；找不到资产时返回空表 + 警告（降级为纯关键词匹配）。
+ * @param rulesDir - 可选的规则根目录覆盖。
+ * @returns 加载结果（同义词表、来源、警告）。
+ */
 export function loadSynonymsAsset(rulesDir?: string): SynonymsLoadResult {
   const warnings: string[] = []
   for (const dir of candidateRuleDirs(rulesDir)) {

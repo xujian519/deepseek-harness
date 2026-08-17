@@ -16,6 +16,7 @@ import type { RuleOutputGate as RuleOutputGateInterface, RuleOutputGateResult } 
 import { evaluateText, groupByAction } from './RuleEngine.ts'
 import type { SynonymMap } from './synonym-engine.ts'
 
+/** 输出门禁选项（warn/block 文案覆盖与同义词表）。 */
 export type RuleOutputGateOptions = {
   /** warn 违规提示区块标题（默认 "合规提示"）。 */
   warnTitle?: string

@@ -48,6 +48,7 @@ export type FlexibleStage = {
   articleJudgments: string[]
 }
 
+/** 计划生命周期状态：active 进行中 / completed 已完成 / abandoned 已放弃。 */
 export type FlexiblePlanStatus = 'active' | 'completed' | 'abandoned'
 
 /** 灵活计划状态快照（纯数据，可 JSON 持久化）。 */
@@ -68,6 +69,7 @@ export type FlexiblePlanState = {
   updatedAt: string
 }
 
+/** 灵活计划守卫错误：非法操作（fail-closed）时抛出。 */
 export class FlexiblePlanError extends Error {
   constructor(message: string) {
     super(message)
@@ -77,6 +79,7 @@ export class FlexiblePlanError extends Error {
 
 const now = (): string => new Date().toISOString()
 
+/** 创建灵活计划的选项（技术领域、输入文本、IPC 分类器、初始阶段、时钟）。 */
 export type CreateFlexiblePlanOptions = {
   technicalField?: string
   /** 案件原始输入文本（如技术交底书摘要、权利要求主题）。 */
@@ -89,7 +92,13 @@ export type CreateFlexiblePlanOptions = {
   now?: () => string
 }
 
-/** 创建新计划：所有传入阶段强制 pending，currentStageId 指向首个阶段。 */
+/**
+ * 创建新计划：所有传入阶段强制 pending，currentStageId 指向首个阶段。
+ * @param caseId - 案件标识（须匹配 SAFE_ID_PATTERN）。
+ * @param caseType - 编排类型（invalidation / infringement / drafting …）。
+ * @param options - 可选配置（技术领域、输入文本、IPC 分类器、初始阶段、时钟）。
+ * @returns 新计划状态快照（status=active）。
+ */
 export function createFlexiblePlan(
   caseId: string,
   caseType: string,
@@ -130,7 +139,11 @@ export function createFlexiblePlan(
   }
 }
 
-/** 把 IPC 分类结果格式化为 technicalField（例：H:电学 / H01:基本电气元件）。 */
+/**
+ * 把 IPC 分类结果格式化为 technicalField（例：H:电学 / H01:基本电气元件）。
+ * @param classification - IPC 分类结果。
+ * @returns 格式化后的技术领域字符串（"code:label"）。
+ */
 export function formatTechnicalField(classification: IpcClassification): string {
   const sectionName = getIpcDomain(classification.section)?.name ?? classification.section
   const detail = classification.detail
@@ -142,6 +155,9 @@ export function formatTechnicalField(classification: IpcClassification): string 
 /**
  * 根据案件输入文本推断技术领域。
  * 置信度低于高置信阈值时返回 undefined（避免低质量注入）。
+ * @param inputText - 案件输入文本。
+ * @param classifier - 可注入的 IPC 分类器（默认 classifyIpcTop）。
+ * @returns 技术领域字符串；置信度低于阈值或输入为空时为 undefined。
  */
 export function inferTechnicalField(
   inputText: string,
@@ -153,18 +169,31 @@ export function inferTechnicalField(
   return formatTechnicalField(top)
 }
 
-/** 判断 IPC 分类是否属于电学（H 部）。 */
+/**
+ * 判断 IPC 分类是否属于电学（H 部）。
+ * @param classification - IPC 分类结果。
+ * @returns 是否属于电学（H 部）。
+ */
 export function isElectricalIpc(classification: IpcClassification): boolean {
   return classification.section.toUpperCase() === 'H'
 }
 
-/** 判断案件输入是否被识别为电学领域（H 部）。 */
+/**
+ * 判断案件输入是否被识别为电学领域（H 部）。
+ * @param inputText - 案件输入文本。
+ * @returns 是否被识别为电学领域。
+ */
 export function isElectricalCase(inputText: string): boolean {
   if (!inputText.trim()) return false
   return isElectricalIpc(classifyIpcTop(inputText))
 }
 
-/** 追加阶段：新阶段置 pending；计划无当前阶段时指向新阶段。 */
+/**
+ * 追加阶段：新阶段置 pending；计划无当前阶段时指向新阶段。
+ * @param state - 当前计划状态（须为 active）。
+ * @param stage - 待追加的阶段。
+ * @returns 追加后的新计划状态。
+ */
 export function addStage(state: FlexiblePlanState, stage: FlexibleStage): FlexiblePlanState {
   assertActive(state)
   if (stage.id.trim() === '') throw new FlexiblePlanError('stage.id 不能为空')
@@ -180,7 +209,12 @@ export function addStage(state: FlexiblePlanState, stage: FlexibleStage): Flexib
   }
 }
 
-/** 删除阶段：currentStageId 若指向被删阶段则回落到首个未确认阶段。 */
+/**
+ * 删除阶段：currentStageId 若指向被删阶段则回落到首个未确认阶段。
+ * @param state - 当前计划状态（须为 active）。
+ * @param stageId - 待删除的阶段 id。
+ * @returns 删除后的新计划状态。
+ */
 export function removeStage(state: FlexiblePlanState, stageId: string): FlexiblePlanState {
   assertActive(state)
   const idx = findStageIndex(state, stageId)
@@ -189,7 +223,12 @@ export function removeStage(state: FlexiblePlanState, stageId: string): Flexible
   return { ...state, stages, currentStageId, updatedAt: now() }
 }
 
-/** 重排阶段：stageIds 必须包含全部阶段且无重复（fail-closed）。 */
+/**
+ * 重排阶段：stageIds 必须包含全部阶段且无重复（fail-closed）。
+ * @param state - 当前计划状态（须为 active）。
+ * @param stageIds - 新阶段顺序（须包含全部阶段 id 且无重复）。
+ * @returns 重排后的新计划状态。
+ */
 export function reorderStages(state: FlexiblePlanState, stageIds: string[]): FlexiblePlanState {
   assertActive(state)
   if (stageIds.length !== state.stages.length) {
@@ -213,7 +252,12 @@ export function reorderStages(state: FlexiblePlanState, stageIds: string[]): Fle
   return { ...state, stages, currentStageId, updatedAt: now() }
 }
 
-/** 确认阶段：置 confirmed，currentStageId 指向首个未确认阶段。 */
+/**
+ * 确认阶段：置 confirmed，currentStageId 指向首个未确认阶段。
+ * @param state - 当前计划状态（须为 active）。
+ * @param stageId - 待确认的阶段 id。
+ * @returns 确认后的新计划状态。
+ */
 export function confirmStage(state: FlexiblePlanState, stageId: string): FlexiblePlanState {
   assertActive(state)
   const idx = findStageIndex(state, stageId)
@@ -225,6 +269,9 @@ export function confirmStage(state: FlexiblePlanState, stageId: string): Flexibl
 /**
  * 回退重做：目标阶段及其后已确认阶段置 rolled_back（审计保留），目标之前已确认保留，
  * pending 保持；currentStageId 回到目标阶段。
+ * @param state - 当前计划状态（须为 active）。
+ * @param stageId - 回退目标阶段 id。
+ * @returns 回退后的新计划状态（currentStageId 指向目标阶段）。
  */
 export function rollbackStage(state: FlexiblePlanState, stageId: string): FlexiblePlanState {
   assertActive(state)
@@ -237,6 +284,11 @@ export function rollbackStage(state: FlexiblePlanState, stageId: string): Flexib
 
 /**
  * 挂接法条判定：写入 FactBlackboard（locked 时抛错，fail-closed），并在阶段上记录引用。
+ * @param state - 当前计划状态（须为 active）。
+ * @param stageId - 目标阶段 id。
+ * @param judgment - 法条判定。
+ * @param blackboard - 与计划同 caseId/caseType 的事实黑板。
+ * @returns 记录引用后的新计划状态。
  */
 export function attachArticleJudgment(
   state: FlexiblePlanState,
@@ -273,6 +325,8 @@ export function attachArticleJudgment(
 /**
  * 生成 WorkflowManifest 交 runWorkflow 执行：只发射未完成阶段
  * （pending 待执行 + rolled_back 回退后待重做），confirmed 已确认不重复执行。
+ * @param state - 当前计划状态（须为 active）。
+ * @returns 仅含未完成阶段的工作流清单。
  */
 export function toManifest(state: FlexiblePlanState): WorkflowManifest {
   assertActive(state)
@@ -298,19 +352,31 @@ export function toManifest(state: FlexiblePlanState): WorkflowManifest {
 
 /**
  * 灵活计划 → 可执行图（toManifest + manifestToGraph 一步到位）。
+ * @param state - 当前计划状态（须为 active）。
+ * @param deps - 构图依赖（默认空）。
+ * @returns 编译后的可执行图。
  */
 export function toCompiledGraph(state: FlexiblePlanState, deps: ManifestToGraphDeps = {}): CompiledGraph {
   return manifestToGraph(toManifest(state), deps)
 }
 
-/** 完成计划：全部 pending 置 confirmed（已确认/已回退保留），status → completed。 */
+/**
+ * 完成计划：全部 pending 置 confirmed（已确认/已回退保留），status → completed。
+ * @param state - 当前计划状态（须为 active）。
+ * @returns 完成后的新计划状态。
+ */
 export function complete(state: FlexiblePlanState): FlexiblePlanState {
   assertActive(state)
   const stages = state.stages.map(s => (s.status === 'pending' ? { ...s, status: 'confirmed' as const } : s))
   return { ...state, status: 'completed', stages, currentStageId: undefined, updatedAt: now() }
 }
 
-/** 放弃计划：pending 置 rolled_back（已确认保留审计），status → abandoned，记录原因。 */
+/**
+ * 放弃计划：pending 置 rolled_back（已确认保留审计），status → abandoned，记录原因。
+ * @param state - 当前计划状态（须为 active）。
+ * @param reason - 放弃原因（非空）。
+ * @returns 放弃后的新计划状态。
+ */
 export function abandon(state: FlexiblePlanState, reason: string): FlexiblePlanState {
   assertActive(state)
   if (reason.trim() === '') {
@@ -327,12 +393,20 @@ export function abandon(state: FlexiblePlanState, reason: string): FlexiblePlanS
   }
 }
 
-/** 序列化（检查点持久化）。 */
+/**
+ * 序列化（检查点持久化）。
+ * @param state - 计划状态快照。
+ * @returns 缩进 JSON 字符串。
+ */
 export function toJSON(state: FlexiblePlanState): string {
   return JSON.stringify(state, null, 2)
 }
 
-/** 反序列化（轻量守卫，非法快照抛错）。 */
+/**
+ * 反序列化（轻量守卫，非法快照抛错）。
+ * @param text - 计划状态快照的 JSON 字符串。
+ * @returns 校验通过的计划状态快照。
+ */
 export function fromJSON(text: string): FlexiblePlanState {
   const data = JSON.parse(text) as FlexiblePlanState
   if (typeof data.caseId !== 'string' || data.caseId.trim() === '') {

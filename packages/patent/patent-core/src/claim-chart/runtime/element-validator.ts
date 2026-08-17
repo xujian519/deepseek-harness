@@ -6,12 +6,23 @@
 
 import type { ClaimElement } from '../protocol/types.ts'
 
+/** 要素校验结果：成功时返回元素列表，失败时返回错误列表。 */
 export type ElementValidationResult = { ok: true; elements: ClaimElement[] } | { ok: false; errors: string[] }
 
+/**
+ * 将连续空白折叠为单个空格并去除首尾空白。
+ * @param text - 输入文本。
+ * @returns 规范化后的文本。
+ */
 export function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * 剥离全部空白字符。
+ * @param text - 输入文本。
+ * @returns 不含空白的文本。
+ */
 export function stripWhitespace(text: string): string {
   return text.replace(/\s+/g, '')
 }
@@ -21,6 +32,8 @@ const ELEMENT_ID_RE = /^(\d+)([a-z]+)$/
 /**
  * 按行首 "N. / N、 / N．" 切分权利要求文本为 { claimNo → 段落文本 }。
  * 无编号（单条 claim）或非行首编号时返回空 Map，调用方回退全文校验。
+ * @param claimText - 权利要求原文（可含多行与编号前缀）。
+ * @returns claimNo 到段落文本的映射。
  */
 export function splitClaimSegments(claimText: string): Map<number, string> {
   const segments = new Map<number, string>()
@@ -38,6 +51,12 @@ export function splitClaimSegments(claimText: string): Map<number, string> {
   return segments
 }
 
+/**
+ * 校验拆分要素与权利要求原文的一致性（编号唯一连续、原文连续子串）。
+ * @param elements - 待校验的要素列表。
+ * @param claimText - 权利要求原文。
+ * @returns 校验结果：成功时返回元素，失败时返回错误列表。
+ */
 export function validateElements(elements: ClaimElement[], claimText: string): ElementValidationResult {
   const errors: string[] = []
   const segments = splitClaimSegments(claimText)

@@ -15,6 +15,7 @@ import { otherReasoningRules } from './reasoning-other.ts'
 /**
  * 推理模式规则（24 条）。推理模式编码复审/无效实务中的规范推理模板，
  * 规则用 PathElements 校验推理路径步骤完整性（每步至少命中其一）。
+ * @returns 全部推理模式检查规则集。
  */
 export function reasoningPatternRules(): CheckRule[] {
   return [

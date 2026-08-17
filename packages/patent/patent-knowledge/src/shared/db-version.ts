@@ -35,6 +35,7 @@ export class KnowledgeDbVersionError extends Error {
 /** 数据库角色：真源（不可重建）或派生索引（可从真源重灌）。 */
 export type KnowledgeDbKind = 'source' | 'derived'
 
+/** 知识库打开规格（版本号/角色/魔数）。 */
 export type OpenKnowledgeDbSpec = {
   /** 当前版本号（schema-versions.ts 集中声明）。 */
   version: number
@@ -44,6 +45,7 @@ export type OpenKnowledgeDbSpec = {
   applicationId?: number
 }
 
+/** 知识库打开选项。 */
 export type OpenKnowledgeDbOptions = {
   /** 只读打开（默认 false）。读路径对存量库打不了版本戳，宽容放行。 */
   readOnly?: boolean
@@ -54,6 +56,7 @@ export type OpenKnowledgeDbOptions = {
   treatZeroAsStale?: boolean
 }
 
+/** 打开结果：数据库连接 + 是否需要重建标记。 */
 export type OpenKnowledgeDbResult =
   | { db: DatabaseSync; needsRebuild: false; version: number }
   | { db: DatabaseSync; needsRebuild: true; version: number }
@@ -67,6 +70,10 @@ export type OpenKnowledgeDbResult =
  * - user_version < expectedVersion：source → 抛错；derived → needsRebuild。
  * - user_version > expectedVersion：一律抛错（来自未来版本，宁拒绝不残缺）。
  * - application_id 已设置且不等于 spec.applicationId：抛错（打开的是别的库）。
+ * @param dbPath 数据库文件路径。
+ * @param spec 打开规格（版本号/角色/魔数）。
+ * @param options 打开选项（只读/派生库 version=0 语义）。
+ * @returns 打开的数据库连接与是否需要重建标记。
  */
 export function openKnowledgeDb(
   dbPath: string,

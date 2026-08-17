@@ -12,6 +12,7 @@ import { cachedScrapePatent, mapPatentData } from '@deepseek-ai/dsh-patent-data'
 import type { StructuredPatentData } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../error.ts'
 
+/** Input for the patent_metadata tool. */
 export type PatentMetadataInput = {
   /** Patent number, e.g. "US11452699B2" (validated and normalized). */
   patent: string
@@ -23,6 +24,7 @@ export type PatentMetadataInput = {
   returnLegal?: boolean
 }
 
+/** Output of the patent_metadata tool. */
 export type PatentMetadataOutput = {
   success: boolean
   patent: string
