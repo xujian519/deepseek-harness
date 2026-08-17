@@ -97,6 +97,9 @@ export function isQuotaExceededError(detail: string): boolean {
     || /\bexceed(?:ed|s)?[\s_-]+(?:(?:your|the)[\s_-]+)?(?:current[\s_-]+)?quota\b/i.test(detail)
     || /\b(?:balance|credits?)[\s_-]+(?:exhausted|depleted)\b/i.test(detail)
     || /\bout[\s_-]+of[\s_-]+(?:credits?|budget)\b/i.test(detail)
+    // Verb-first wording ("reached your usage limit") — providers phrase the
+    // same terminal condition with the action before the noun phrase.
+    || /\b(?:reached|exceeded|exhausted)[\s_-]+(?:(?:your|the)[\s_-]+)?(?:usage[\s_-]+limit|quota)\b/i.test(detail)
 }
 
 /**

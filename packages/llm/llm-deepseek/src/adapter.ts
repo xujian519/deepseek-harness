@@ -138,8 +138,13 @@ function requestId(headers: Headers): ReturnType<typeof ProviderRequestId> | und
  * @returns the normalized harness error code.
  */
 export function httpErrorCode(status: number, error?: WireError['error']): string {
-  if (status === 401 || status === 403) return 'AUTH'
   const detail = [error?.code, error?.type, error?.message].filter(Boolean).join(' ')
+  // A 403 with quota wording is an account-limit condition, not a credential
+  // failure: classify it as QUOTA so the real reason surfaces instead of the
+  // AUTH mask. Non-quota 401/403 stay AUTH — the display masks AUTH messages
+  // defensively because provider auth errors may echo a credential.
+  if (status === 403 && isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
+  if (status === 401 || status === 403) return 'AUTH'
   if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
   if (status === 429) return 'RATE_LIMIT'
   if (status === 400) {

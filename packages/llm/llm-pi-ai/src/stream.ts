@@ -37,6 +37,9 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
+  // A 403 with quota wording is an account-limit condition, not a credential
+  // failure (see llm-deepseek httpErrorCode for the same ordering).
+  if (/\b403\b/.test(message) && isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
   if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
   if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
   if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'

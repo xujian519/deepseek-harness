@@ -395,6 +395,16 @@ describe('DeepSeekAdapter against a mock server', () => {
     expect(httpErrorCode(429, { message: 'request rate limit exceeded' })).toBe('RATE_LIMIT')
   })
 
+  it('classifies a 403 usage-limit body as quota, not auth', () => {
+    expect(httpErrorCode(403, {
+      type: 'permission_error',
+      message: "You've reached your usage limit for this billing cycle. Your quota will be refreshed in the next cycle.",
+    })).toBe(QUOTA_EXCEEDED_CODE)
+    // Non-quota 401/403 stay AUTH: the display masks auth messages defensively.
+    expect(httpErrorCode(403, { type: 'permission_error', message: 'no access to this model' })).toBe('AUTH')
+    expect(httpErrorCode(401, { type: 'authentication_error', message: 'invalid api key' })).toBe('AUTH')
+  })
+
   it('keeps the status-line message for JSON error bodies without a message', async () => {
     const server = await mockServer([{ kind: 'http-error', status: 500, body: '{"error":{"type":"x"}}' }])
     const ctx = await harness(server.url)
