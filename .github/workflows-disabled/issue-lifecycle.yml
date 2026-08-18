@@ -35,7 +35,6 @@ concurrency:
 
 jobs:
   lifecycle:
-    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Issue lifecycle
     # secrets 上下文不能在 job-level if 中使用；App private key 在步骤级判断。
     if: |

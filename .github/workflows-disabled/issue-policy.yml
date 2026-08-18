@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   policy:
-    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Issue policy
     # secrets 上下文不能在 job-level if 中使用；用 vars 判断 issue-management 是否已配置。
     if: vars.DSH_ISSUE_APP_CLIENT_ID != ''
