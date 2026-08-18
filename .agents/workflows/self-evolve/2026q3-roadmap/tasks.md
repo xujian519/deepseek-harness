@@ -178,7 +178,7 @@ P0.1 → P0.2 → P0.3 → P0.4 → [Gate P0]
 
 ---
 
-## Phase 2：L3 Workflow + L4 Harness 审批（5 任务，原编号 P3 整体前置，对齐报告递进链）
+## Phase 2：L3 Workflow + L4 Harness 审批 —— 已完成（P2-1~P2-4 ☑，P2-5 snapshot 待 key）
 
 > 原则：**工作流（ADAS/AFlow 层）比 harness 主循环改动风险低，必须先跑通**。
 
@@ -216,7 +216,7 @@ P0.1 → P0.2 → P0.3 → P0.4 → [Gate P0]
 
 ---
 
-## Phase 3：Step-Reflection + CSR（5 任务，原编号 P2 整体后置，Meta-Harness 层）
+## Phase 3：Step-Reflection + CSR —— 已完成（P3-1~P3-7 ☑，P3-8 snapshot 待 key）
 
 ### TASK-P3.1：agent/pre-step reflection hook
 - **时长**：2 h
@@ -255,7 +255,7 @@ P0.1 → P0.2 → P0.3 → P0.4 → [Gate P0]
 
 ---
 
-## Phase 4：Global Pattern KB（3 任务）
+## Phase 4：Global Pattern KB —— 已完成（P4-1~P4-3 ☑，P4-4 snapshot 待 key）
 
 ### TASK-P4.1：append 写入 global-patterns.jsonl
 - **时长**：1 h

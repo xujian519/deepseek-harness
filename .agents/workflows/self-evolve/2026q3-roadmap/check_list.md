@@ -77,10 +77,10 @@
 
 | # | 项目 | 验收方式 / 位置 | Yes / No |
 |---|---|---|---|
-| P2-1 | L3 workflow candidate：applyCommit 之前 `workflowEngine.start` smoke；脚本抛错 / agentsStarted=0 / stopReason≠completed → reject 不 commit | mock workflow 返回 error → outcome.kind=rejected | ☐ |
-| P2-2 | L4 candidate 翻译为 `cordis-host-runner.run()` 调用且 `requiresApproval === true`（默认情况） | mock run 返回 requiresApproval=true 断言 | ☐ |
-| P2-3 | **L4 二次保险**：`cordis/before-approval` wrapper 生效。即使 cordis-host-runner 要放行（approveFutureVersions=true），只要「跨 proposalId 或距上次审批 > 24h」 → wrapper 强制重写 requiresApproval=true | mock 两个场景：不同 ID 或 >24h → 仍审批 | ☐ |
-| P2-4 | `base/cordis.patch.yml` self-evolve-basic.defaultLevels 仍严格 [L1, L2]（不自动开 L3、L4）| grep patch 确认值 | ☐ |
+| P2-1 | L3 workflow candidate：applyCommit 之前 `workflowEngine.start` smoke；脚本抛错 / agentsStarted=0 / stopReason≠completed → reject 不 commit | mock workflow 返回 error → outcome.kind=rejected（validation 期 smoke 作 held-in 信号 + applyCommit 复核） | ☑ |
+| P2-2 | L4 candidate 翻译为 `cordis-host-runner.run()` 调用且 `requiresApproval === true`（默认情况） | mock run 返回 awaiting-approval → accepted；refusal → approval-denied；runner 缺失 → 拒绝 | ☑ |
+| P2-3 | **L4 二次保险**：`cordis/before-approval` wrapper 生效。即使 cordis-host-runner 要放行（approveFutureVersions=true），只要「跨 proposalId 或距上次审批 > 24h」 → wrapper 强制重写 requiresApproval=true | mock 两个场景：不同 ID 或 >24h → 仍审批（runner + provider 双单测） | ☑ |
+| P2-4 | `base/cordis.patch.yml` self-evolve-basic.defaultLevels 仍严格 [L1, L2]（不自动开 L3、L4）| grep patch 确认值 | ☑ |
 | P2-5 | `pnpm run test:snapshot -- -t p2-l3-l4` 通过 | replay vs recorded | ☐ |
 
 ---
@@ -89,13 +89,13 @@
 
 | # | 项目 | 验收方式 / 位置 | Yes / No |
 |---|---|---|---|
-| P3-1 | pre-step reflection 仅本 turn 有 error 才触发；无 error turn 触发计数 0。 | mock 一次无错对话；mock llm.call 计数 = 0 | ☐ |
-| P3-2 | `maxStepReflectionsPerTurn=1`：连续 3 次 tool/error 仍最多触发 1 次 LLM reflection | mock llm.call 计数 ≤ 1 | ☐ |
-| P3-3 | reflection 输出 confidence≥0.85 → pattern.occurrences +1 + synthetic supportingSeq（不用等 Maintenance）| 读 projection 前后 occurrences diff | ☐ |
-| P3-4 | JoyCode CSR：proposer LLM prompt 开头包含 `'resolved ' + pattern.summary` 的 searchEvents 结果块 | mock searchEvents 返回 3 条 → assert prompt 字符串包含他们的 diff 片段 | ☐ |
+| P3-1 | pre-step reflection 仅本 turn 有 error 才触发；无 error turn 触发计数 0。 | 单测：无失败轮 → 无 reflection 事件 | ☑ |
+| P3-2 | `maxStepReflectionsPerTurn=1`：连续 3 次 tool/error 仍最多触发 1 次 LLM reflection | 单测：两次调用仅 1 个 reflection 事件 | ☑ |
+| P3-3 | reflection 输出 confidence≥0.85 → pattern.occurrences +1 + synthetic supportingSeq（不用等 Maintenance）| 单测 + 投影折叠测试 | ☑ |
+| P3-4 | JoyCode CSR：proposer LLM prompt 开头包含 `'resolved ' + pattern.summary` 的 searchEvents 结果块 | 单测：searchEvents 命中进入 proposer 上下文 | ☑ |
 | P3-5 | **提案 token 节约**：开启 CSR 后的 proposal prompt 长度 ≤ 关闭 CSR 版本的 70%（JoyCode 数据：少 30% token 同时涨分） | 两个版本字节计数断言 | ☐ |
-| P3-6 | per-pattern 冻结：同 patternId 24h 内 2 次 proposal → 第三次 evolveNow targeting 它 → proposals 数组不出现该 pattern 条目 | 连续三次 mock evolveNow | ☐ |
-| P3-7 | budget hard-cap：`executeLoop` 字节累计超过 `maxBudgetCharsPerLoop=32768` → maintenanceSignal.abort('budget-exceeded')；end event.data.error 含字符串 `budget-exceeded`，bracket 完整 | mock 超大字节输入；断言 end.data.error 非空 | ☐ |
+| P3-6 | per-pattern 冻结：同 patternId 24h 内 2 次 proposal → 第三次 evolveNow targeting 它 → proposals 数组不出现该 pattern 条目 | 连续三次 evolveNow 单测 | ☑ |
+| P3-7 | budget hard-cap：`executeLoop` 字节累计超过 `maxBudgetCharsPerLoop=32768` → maintenanceSignal.abort('budget-exceeded')；end event.data.error 含字符串 `budget-exceeded`，bracket 完整 | 单测：超限 → rejects /budget-exceeded/，end event 带 error | ☑ |
 | P3-8 | `pnpm run test:snapshot -- -t p3-step-reflection` 通过 | replay vs recorded | ☐ |
 
 ---
@@ -104,9 +104,9 @@
 
 | # | 项目 | 验收方式 / 位置 | Yes / No |
 |---|---|---|---|
-| P4-1 | Maintenance commit 后，end event 之前 → `global-patterns.jsonl` 行数 +1；每 line `jq .` 合法 JSON | `wc -l` 前后对比 | ☐ |
-| P4-2 | 会话 A 出 pattern X 1 次，会话 B 出 pattern X 1 次（合计 ≥2，24h 滚动窗口）→ B 会话最后产生 proposed event targeting X（提前触发） | 两个独立 session mock | ☐ |
-| P4-3 | 24h 窗口过滤：A session 的时间戳被 Date mock 推到 25h 前，B 会话仅 1 次 → 合计仍 1（不触发 proposed） | mock Date 推后 25h | ☐ |
+| P4-1 | Maintenance commit 后，end event 之前 → `global-patterns.jsonl` 行数 +1；每 line `jq .` 合法 JSON | 单测：persistGlobalPatterns 追加合法 JSON 行 | ☑ |
+| P4-2 | 会话 A 出 pattern X 1 次，会话 B 出 pattern X 1 次（合计 ≥2，24h 滚动窗口）→ B 会话最后产生 proposed event targeting X（提前触发） | 单测：readPatterns occurrences 并入他会话行 | ☑ |
+| P4-3 | 24h 窗口过滤：A session 的时间戳被 Date mock 推到 25h 前，B 会话仅 1 次 → 合计仍 1（不触发 proposed） | 单测：超窗行忽略 | ☑ |
 | P4-4 | `pnpm run test:snapshot -- -t p4-global-kb` 通过 | replay vs recorded | ☐ |
 
 ---
