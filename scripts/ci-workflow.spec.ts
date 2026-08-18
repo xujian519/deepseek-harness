@@ -383,6 +383,7 @@ describe('Issue lifecycle workflow', () => {
     const lifecycleJob = workflowJob(lifecycle, 'lifecycle')
     const policy = loadWorkflow('.github/workflows/issue-policy.yml')
     const policyPullRequest = workflowEvent(policy, 'pull_request')
+    const policyJob = workflowJob(policy, 'policy')
 
     expect(lifecyclePullRequest.types).not.toContain('ready_for_review')
     expect(lifecyclePullRequest.types).toContain('review_requested')
@@ -395,6 +396,12 @@ describe('Issue lifecycle workflow', () => {
 }}\n`,
     )
     expect(policyPullRequest.types).toContain('ready_for_review')
+    expect(policyJob.if).toBe(
+      `\${{
+  vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
+  secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''
+}}\n`,
+    )
   })
 })
 
