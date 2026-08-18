@@ -247,6 +247,11 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
   }
 }
 
+/** Copy the state with the given fields overridden; everything else (incl. `toolCalls`) carries over. */
+function nextState(state: FailurePatternsState, overrides: Partial<FailurePatternsState>): FailurePatternsState {
+  return { ...state, ...overrides }
+}
+
 function foldEventSync(state: FailurePatternsState, id: string, signal: ClassifiedFailure, seq: number): FailurePatternsState {
   const existing = state.patterns[id]
   if (existing === undefined) {
@@ -260,12 +265,11 @@ function foldEventSync(state: FailurePatternsState, id: string, signal: Classifi
       occurrences: 1,
       verifierMeta: signal.verifierMeta,
     }
-    return {
+    return nextState(state, {
       patterns: { ...state.patterns, [id]: pattern },
       discoveryOrder: [...state.discoveryOrder, id],
       lastMinedSeq: seq,
-      toolCalls: state.toolCalls,
-    }
+    })
   }
   const supportingSeqs = existing.supportingSeqs.includes(seq)
     ? existing.supportingSeqs
@@ -277,12 +281,10 @@ function foldEventSync(state: FailurePatternsState, id: string, signal: Classifi
     verifierMeta:
       signal.verifierMeta !== undefined ? { ...existing.verifierMeta, ...signal.verifierMeta } : existing.verifierMeta,
   }
-  return {
+  return nextState(state, {
     patterns: { ...state.patterns, [id]: merged },
-    discoveryOrder: state.discoveryOrder,
     lastMinedSeq: seq,
-    toolCalls: state.toolCalls,
-  }
+  })
 }
 
 /** Record one `tool/call` identity so its `tool/result` can be named. */
@@ -353,12 +355,9 @@ function foldReflection(state: FailurePatternsState, event: SessionEvent): Failu
   const supportingSeqs = existing.supportingSeqs.includes(event.seq)
     ? existing.supportingSeqs
     : [...existing.supportingSeqs, event.seq].slice(-8)
-  return {
+  return nextState(state, {
     patterns: { ...state.patterns, [patternId]: { ...existing, supportingSeqs, occurrences: existing.occurrences + 1 } },
-    discoveryOrder: state.discoveryOrder,
-    lastMinedSeq: state.lastMinedSeq,
-    toolCalls: state.toolCalls,
-  }
+  })
 }
 
 /**

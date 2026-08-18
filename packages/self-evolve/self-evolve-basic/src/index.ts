@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import {
   EvolveProposalId,
@@ -138,81 +139,87 @@ function hasShellFailureMarkers(text: string): boolean {
     || /(?:^|\n)\[killed by signal: [A-Z0-9]+\]$/.test(text)
 }
 
-/** Parse one step-reflection JSON output (P3.1); null when unparseable. */
-function parseReflection(text: string): { confidence: number; patternId: string; suggestion: string } | null {
-  const match = /\{[\s\S]*\}/.exec(text)
+/** Extract and parse the first JSON value matching `pattern`; null when unparseable. */
+function parseJsonValue(text: string, pattern: RegExp): unknown | null {
+  const match = pattern.exec(text)
   if (match === null) return null
   try {
-    const raw = JSON.parse(match[0]) as Record<string, unknown>
-    const confidence = typeof raw.confidence === 'number' && Number.isFinite(raw.confidence)
-      ? Math.min(1, Math.max(0, raw.confidence))
-      : undefined
-    const patternId = typeof raw.patternId === 'string' && raw.patternId.length > 0 ? raw.patternId : undefined
-    const suggestion = typeof raw.suggestion === 'string' ? raw.suggestion : ''
-    if (confidence === undefined || patternId === undefined) return null
-    return { confidence, patternId, suggestion }
+    return JSON.parse(match[0]) as unknown
   } catch {
-    // swallow a malformed reflection response: low-cost reflection degrades silently
     return null
   }
 }
 
+/** Stream one model call and return its assembled plain text. */
+async function streamText(stream: AsyncIterable<StreamChunk>): Promise<string> {
+  const assembler = new BlockAssembler()
+  for await (const chunk of stream) assembler.push(chunk)
+  return assembler.blocks().map(blockText).filter((text): text is string => text !== null).join('\n')
+}
+
+/** Parse one step-reflection JSON output (P3.1); null when unparseable. */
+function parseReflection(text: string): { confidence: number; patternId: string; suggestion: string } | null {
+  const raw = parseJsonValue(text, /\{[\s\S]*\}/)
+  if (raw === null || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  const confidence = typeof item.confidence === 'number' && Number.isFinite(item.confidence)
+    ? Math.min(1, Math.max(0, item.confidence))
+    : undefined
+  const patternId = typeof item.patternId === 'string' && item.patternId.length > 0 ? item.patternId : undefined
+  const suggestion = typeof item.suggestion === 'string' ? item.suggestion : ''
+  if (confidence === undefined || patternId === undefined) return null
+  return { confidence, patternId, suggestion }
+}
+
 /** Parse the LLM proposer's JSON proposal array (P3.2); malformed entries drop out. */
 function parseLlmProposals(text: string): EvolveProposal[] {
-  const match = /\[[\s\S]*\]/.exec(text)
-  if (match === null) return []
-  try {
-    const raw = JSON.parse(match[0]) as unknown
-    if (!Array.isArray(raw)) return []
-    const proposals: EvolveProposal[] = []
-    for (const entry of raw) {
-      const item = entry as Record<string, unknown>
-      const candidate = item.candidate as Record<string, unknown> | undefined
-      const name = typeof item.name === 'string' ? item.name : ''
-      const purpose = typeof item.purpose === 'string' ? item.purpose : ''
-      const addresses = Array.isArray(item.addressesPatternIds)
-        ? item.addressesPatternIds.filter((id): id is string => typeof id === 'string')
-        : []
-      if (name.length === 0 || purpose.length === 0 || candidate === undefined) continue
-      if (candidate.kind === 'L1-skill' && typeof candidate.skillName === 'string' && typeof candidate.content === 'string') {
-        proposals.push({
-          proposalId: String(proposalIdSeq()),
-          runId: SelfEvolveRunId('pending'),
-          level: 'L1-skill',
-          name,
-          purpose,
-          addressesPatternIds: addresses,
-          candidate: {
-            kind: 'L1-skill',
-            skillName: candidate.skillName,
-            content: candidate.content,
-            ...(typeof candidate.whenToUse === 'string' ? { whenToUse: candidate.whenToUse } : {}),
-          },
-        })
-      } else if (candidate.kind === 'L2-context' && typeof candidate.sectionName === 'string' && typeof candidate.sectionText === 'string') {
-        const sectionText = candidate.sectionText
-        proposals.push({
-          proposalId: String(proposalIdSeq()),
-          runId: SelfEvolveRunId('pending'),
-          level: 'L2-context',
-          name,
-          purpose,
-          addressesPatternIds: addresses,
-          candidate: {
-            kind: 'L2-context',
-            sectionName: candidate.sectionName,
-            sectionText,
-            order: typeof candidate.order === 'number' ? candidate.order : SECTION_ORDER_PATCH,
-            estimatedBytes: sectionText.length,
-          },
-        })
-      }
+  const raw = parseJsonValue(text, /\[[\s\S]*\]/)
+  if (!Array.isArray(raw)) return []
+  const proposals: EvolveProposal[] = []
+  for (const entry of raw) {
+    const item = entry as Record<string, unknown>
+    const candidate = item.candidate as Record<string, unknown> | undefined
+    const name = typeof item.name === 'string' ? item.name : ''
+    const purpose = typeof item.purpose === 'string' ? item.purpose : ''
+    const addresses = Array.isArray(item.addressesPatternIds)
+      ? item.addressesPatternIds.filter((id): id is string => typeof id === 'string')
+      : []
+    if (name.length === 0 || purpose.length === 0 || candidate === undefined) continue
+    if (candidate.kind === 'L1-skill' && typeof candidate.skillName === 'string' && typeof candidate.content === 'string') {
+      proposals.push({
+        proposalId: String(proposalIdSeq()),
+        runId: SelfEvolveRunId('pending'),
+        level: 'L1-skill',
+        name,
+        purpose,
+        addressesPatternIds: addresses,
+        candidate: {
+          kind: 'L1-skill',
+          skillName: candidate.skillName,
+          content: candidate.content,
+          ...(typeof candidate.whenToUse === 'string' ? { whenToUse: candidate.whenToUse } : {}),
+        },
+      })
+    } else if (candidate.kind === 'L2-context' && typeof candidate.sectionName === 'string' && typeof candidate.sectionText === 'string') {
+      const sectionText = candidate.sectionText
+      proposals.push({
+        proposalId: String(proposalIdSeq()),
+        runId: SelfEvolveRunId('pending'),
+        level: 'L2-context',
+        name,
+        purpose,
+        addressesPatternIds: addresses,
+        candidate: {
+          kind: 'L2-context',
+          sectionName: candidate.sectionName,
+          sectionText,
+          order: typeof candidate.order === 'number' ? candidate.order : SECTION_ORDER_PATCH,
+          estimatedBytes: sectionText.length,
+        },
+      })
     }
-    return proposals
-  } catch {
-    // swallow a malformed proposer response: the loop degrades to zero proposals
-    return []
   }
+  return proposals
 }
 
 /**
@@ -221,25 +228,20 @@ function parseLlmProposals(text: string): EvolveProposal[] {
  * caller degrades to structural scores.
  */
 function parseJudgeScores(text: string): ValidationScores | null {
-  const match = /\{[\s\S]*\}/.exec(text)
-  if (match === null) return null
-  try {
-    const raw = JSON.parse(match[0]) as Record<string, unknown>
-    const score = (value: unknown): number | undefined => (
-      typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : undefined
-    )
-    const activatesWhenCorrect = score(raw.activatesWhenCorrect)
-    const clarity = score(raw.clarity)
-    const noRegressionIntroduced = score(raw.noRegressionIntroduced)
-    const safety = score(raw.safety)
-    if (activatesWhenCorrect === undefined || clarity === undefined || noRegressionIntroduced === undefined || safety === undefined) {
-      return null
-    }
-    return { activatesWhenCorrect, clarity, noRegressionIntroduced, safety }
-  } catch {
-    // swallow a malformed judge response: unparseable output degrades to structural scores
+  const raw = parseJsonValue(text, /\{[\s\S]*\}/)
+  if (raw === null || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  const score = (value: unknown): number | undefined => (
+    typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : undefined
+  )
+  const activatesWhenCorrect = score(item.activatesWhenCorrect)
+  const clarity = score(item.clarity)
+  const noRegressionIntroduced = score(item.noRegressionIntroduced)
+  const safety = score(item.safety)
+  if (activatesWhenCorrect === undefined || clarity === undefined || noRegressionIntroduced === undefined || safety === undefined) {
     return null
   }
+  return { activatesWhenCorrect, clarity, noRegressionIntroduced, safety }
 }
 
 function makeIdSeq<T>(prefix: string, brand: (id: string) => T): () => T {
@@ -303,6 +305,18 @@ export interface ChampionArchiveRow {
   candidate: EvolveProposal['candidate']
 }
 
+/** Whether a configured LLM target is complete; a partial target fails load. */
+function requireCompleteTarget(
+  target: { provider?: string; model?: string } | undefined,
+  label: string,
+): target is { provider: string; model: string } {
+  if (target === undefined || Object.keys(target).length === 0) return false
+  if (target.provider === undefined || target.model === undefined) {
+    throw new Error(`self-evolve: ${label} must include both provider and model`)
+  }
+  return true
+}
+
 /** Resolve and validate public configuration; throw at load time. */
 function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveConfig {
   const triggers: TriggerPolicy = { ...DEFAULT_TRIGGERS }
@@ -328,18 +342,8 @@ function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveCo
     patternFreezeHours: config.patternFreezeHours ?? 24,
     maxBudgetCharsPerLoop: config.maxBudgetCharsPerLoop ?? 32_768,
   }
-  if (config.proposerTarget !== undefined && Object.keys(config.proposerTarget).length > 0) {
-    if (config.proposerTarget.provider === undefined || config.proposerTarget.model === undefined) {
-      throw new Error('self-evolve: proposerTarget must include both provider and model')
-    }
-    resolved.proposerTarget = config.proposerTarget
-  }
-  if (config.validatorTarget !== undefined && Object.keys(config.validatorTarget).length > 0) {
-    if (config.validatorTarget.provider === undefined || config.validatorTarget.model === undefined) {
-      throw new Error('self-evolve: validatorTarget must include both provider and model')
-    }
-    resolved.validatorTarget = config.validatorTarget
-  }
+  if (requireCompleteTarget(config.proposerTarget, 'proposerTarget')) resolved.proposerTarget = config.proposerTarget
+  if (requireCompleteTarget(config.validatorTarget, 'validatorTarget')) resolved.validatorTarget = config.validatorTarget
   if (
     resolved.proposerTarget !== undefined
     && resolved.validatorTarget !== undefined
@@ -573,8 +577,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     sessionId?: string,
   ): Promise<EvolveProposal[]> {
     if (sessionId !== undefined) {
-      const llm = await this.proposeWithLlm(patterns, levels, signal, sessionId)
-      if (llm.length > 0) return llm
+      const llmProposals = await this.proposeWithLlm(patterns, levels, signal, sessionId)
+      if (llmProposals.length > 0) return llmProposals
     }
     return this.proposeTemplate(patterns, levels)
   }
@@ -780,8 +784,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       + '"noRegressionIntroduced": 未引入已观察到的回归, "safety": 不包含破坏性或过宽编辑}'
     const payload = JSON.stringify({ proposal: candidateText(proposal), evidence })
     this.chargeBudget(payload.length + system.length)
-    const assembler = new BlockAssembler()
-    const stream = llm.stream({
+    const text = await streamText(llm.stream({
       provider: target.provider,
       model: target.model,
       messages: [createUserMessage({
@@ -792,9 +795,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       temperature: 0,
       maxTokens: 200,
       signal,
-    })
-    for await (const chunk of stream) assembler.push(chunk)
-    return parseJudgeScores(assembler.blocks().map(blockText).filter((text): text is string => text !== null).join('\n'))
+    }))
+    return parseJudgeScores(text)
   }
 
   /**
@@ -887,10 +889,11 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const confidence = Math.min(scores.activatesWhenCorrect, scores.clarity, scores.noRegressionIntroduced, scores.safety)
       * (heldInRate ?? 1)
       * heldOutRate
+    const heldInPassed = heldInRate === 1 ? 1 : 0
     if (confidence >= this.config.minAcceptConfidence) {
       return {
         kind: 'accepted',
-        heldInPassed: heldInRate === 1 ? 1 : 0,
+        heldInPassed,
         heldOutPassed,
         regressions: [],
         deconstructedScores: scores,
@@ -902,7 +905,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     return {
       kind: 'rejected',
       reason: 'low-confidence',
-      heldInPassed: heldInRate === 1 ? 1 : 0,
+      heldInPassed,
       heldOutPassed,
       regressions: [],
       deconstructedScores: scores,
@@ -1079,31 +1082,11 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     await this.archiveChampion(proposal)
     switch (candidate.kind) {
       case 'L1-skill':
-        this.ctx.effect(() => this.ctx.skills.register({
-          name: candidate.skillName,
-          description: proposal.purpose,
-          whenToUse: candidate.whenToUse ?? '',
-          source: 'runtime-evolve',
-          content: candidate.content,
-        }))
+        this.registerL1Skill(candidate, proposal.purpose, 'runtime-evolve')
         await this.persistSkillFile(agent, proposal)
         break
       case 'L2-context':
-        this.ctx.effect(() => {
-          const disposer = this.ctx.systemPrompt.section({
-            name: candidate.sectionName,
-            order: candidate.order,
-            text: candidate.sectionText,
-          })
-          const previous = this.liveSections.get(candidate.sectionName)
-          if (previous !== undefined) previous.dispose()
-          this.liveSections.set(candidate.sectionName, {
-            text: candidate.sectionText,
-            registeredAt: Date.now(),
-            dispose: disposer,
-          })
-          return disposer
-        })
+        this.registerL2Section(candidate)
         break
       case 'L3-workflow': {
         // The validation smoke already gated the candidate; the commit-time
@@ -1192,34 +1175,48 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const candidate = row.candidate
     switch (candidate.kind) {
       case 'L1-skill':
-        this.ctx.effect(() => this.ctx.skills.register({
-          name: candidate.skillName,
-          description: row.name,
-          whenToUse: candidate.whenToUse ?? '',
-          source: 'runtime-evolve-rollback',
-          content: candidate.content,
-        }))
+        this.registerL1Skill(candidate, row.name, 'runtime-evolve-rollback')
         break
       case 'L2-context':
-        this.ctx.effect(() => {
-          const disposer = this.ctx.systemPrompt.section({
-            name: candidate.sectionName,
-            order: candidate.order,
-            text: candidate.sectionText,
-          })
-          const previous = this.liveSections.get(candidate.sectionName)
-          if (previous !== undefined) previous.dispose()
-          this.liveSections.set(candidate.sectionName, {
-            text: candidate.sectionText,
-            registeredAt: Date.now(),
-            dispose: disposer,
-          })
-          return disposer
-        })
+        this.registerL2Section(candidate)
         break
       default:
         return
     }
+  }
+
+  /** Register one runtime skill; the registration unwinds with the provider fiber. */
+  private registerL1Skill(
+    candidate: Extract<EvolveProposal['candidate'], { kind: 'L1-skill' }>,
+    description: string,
+    source: string,
+  ): void {
+    this.ctx.effect(() => this.ctx.skills.register({
+      name: candidate.skillName,
+      description,
+      whenToUse: candidate.whenToUse ?? '',
+      source,
+      content: candidate.content,
+    }))
+  }
+
+  /** Register one runtime prompt section and track it for inflation pruning (P1.9). */
+  private registerL2Section(candidate: Extract<EvolveProposal['candidate'], { kind: 'L2-context' }>): void {
+    this.ctx.effect(() => {
+      const disposer = this.ctx.systemPrompt.section({
+        name: candidate.sectionName,
+        order: candidate.order,
+        text: candidate.sectionText,
+      })
+      const previous = this.liveSections.get(candidate.sectionName)
+      if (previous !== undefined) previous.dispose()
+      this.liveSections.set(candidate.sectionName, {
+        text: candidate.sectionText,
+        registeredAt: Date.now(),
+        dispose: disposer,
+      })
+      return disposer
+    })
   }
 
   /**
@@ -1303,22 +1300,20 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     if (!this.turnHasFailure(session, turn)) return
     const patterns = await this.readPatterns(agent.session.id)
     if (patterns.length === 0) return
-    this.reflectionCounts.set(agent.session.id, { turn, count: (state?.turn === turn ? state.count : 0) + 1 })
+    const prior = state !== undefined && state.turn === turn ? state.count : 0
+    this.reflectionCounts.set(agent.session.id, { turn, count: prior + 1 })
     const prompt = '你正在为一次失败的 agent 步骤做低成本反思。从以下现有失败模式中选一个最匹配的（只输出 JSON：'
       + '{"confidence": 0到1, "patternId": 精确的模式id, "suggestion": 一句修复建议}）：\n'
       + patterns.map(p => `${p.patternId}: ${p.summary}`).join('\n')
-    const trimmed = prompt.slice(0, REFLECTION_MAX_INPUT_CHARS)
-    const assembler = new BlockAssembler()
-    const stream = llm.stream({
+    const text = await streamText(llm.stream({
       provider: agent.options.provider,
       model: agent.options.model,
-      messages: [createUserMessage({ content: [{ type: 'text', text: trimmed }], source: { kind: 'plugin', plugin: 'dsh-self-evolve-basic' } })],
+      messages: [createUserMessage({ content: [{ type: 'text', text: prompt.slice(0, REFLECTION_MAX_INPUT_CHARS) }], source: { kind: 'plugin', plugin: 'dsh-self-evolve-basic' } })],
       temperature: 0,
       maxTokens: REFLECTION_MAX_OUTPUT_TOKENS,
       signal,
-    })
-    for await (const chunk of stream) assembler.push(chunk)
-    const reflection = parseReflection(assembler.blocks().map(blockText).filter((text): text is string => text !== null).join('\n'))
+    }))
+    const reflection = parseReflection(text)
     if (reflection === null || reflection.confidence < this.config.reflectionMinConfidence) return
     if (!patterns.some(p => p.patternId === reflection.patternId)) return
     session.append('self-evolve/reflection', {
@@ -1353,17 +1348,14 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       + '只输出 JSON 数组：[{"name","purpose","addressesPatternIds":["patternId"],"candidate":{"kind":"L1-skill","skillName","content","whenToUse"?} 或 {"kind":"L2-context","sectionName","sectionText","order":260}}]。'
       + '\n\n' + section
     this.chargeBudget(prompt.length)
-    const assembler = new BlockAssembler()
-    const stream = llm.stream({
+    const text = await streamText(llm.stream({
       provider: target.provider,
       model: target.model,
       messages: [createUserMessage({ content: [{ type: 'text', text: prompt }], source: { kind: 'plugin', plugin: 'dsh-self-evolve-basic' } })],
       temperature: 0.4,
       maxTokens: 1024,
       signal,
-    })
-    for await (const chunk of stream) assembler.push(chunk)
-    const text = assembler.blocks().map(blockText).filter((text): text is string => text !== null).join('\n')
+    }))
     return parseLlmProposals(text).slice(0, this.config.maxProposalsPerLoop)
   }
 
@@ -1395,7 +1387,6 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     return sections.join('\n\n')
   }
 
-  /** One parsed step-reflection output (P3.1). */
   /**
    * Per-session per-pattern freeze (P3.3): count proposals per pattern and
    * freeze a pattern for `patternFreezeHours` once it has been proposed
