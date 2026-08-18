@@ -8,7 +8,7 @@ base bundle 刻意不携带这两行：`tool-self-evolve` 在挂载上下文注�
 
 ## Model Experience
 
-该 bundle 会为所有由挂载它的 profile 组合出的 agent 增加 `tool:self-evolve` 提示片段与 `self_evolve_inspect_patterns` / `self_evolve_now` 工具。面向模型的契约见 [`@deepseek-ai/dsh-tool-self-evolve`](../../self-evolve/tool-self-evolve/README.md)。
+Indirectly, through the mounted consumer: this bundle inserts the `tool-self-evolve` row, whose prompt section and `self_evolve_*` tools are the only model-visible surface; the bundle's own glue plugin contributes no prompt text, tool schema, or result of its own. See [`@deepseek-ai/dsh-tool-self-evolve`](../../self-evolve/tool-self-evolve/README.md) for the consumer contract.
 
 #### KV Cache 效果
 
