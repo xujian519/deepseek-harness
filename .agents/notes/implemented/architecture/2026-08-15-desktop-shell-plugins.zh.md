@@ -57,21 +57,16 @@ dsh backend plugins / UI   (Consumers: ctx.desktop, ctx.directoryPicker, tools, 
 
 ### `ctx.desktop` Service Definition
 
-```ts ignore-check
-export interface DesktopService {
-  /** Show a native open-file / open-directory dialog. */
-  showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogResult>
-  /** Show a native save-file dialog. */
-  showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogResult>
-  /** Show a system notification. */
-  sendNotification(notification: DesktopNotification): void
-  /** Register a menu item under a named group. Returns a disposer. */
-  registerMenuItem(group: string, item: DesktopMenuItem): Disposer
-  /** Register a global shortcut. Returns a disposer. */
-  registerGlobalShortcut(accelerator: string, handler: () => void): Disposer
-  /** Configure the tray icon and its context menu. Returns a disposer. */
-  setTray(config: TrayConfig): Disposer
-}
+```ts
+import type { Desktop } from '@deepseek-ai/dsh-desktop'
+
+declare const desktop: Desktop
+void desktop.showOpenDialog({ properties: ['openDirectory'] })
+void desktop.showSaveDialog({ defaultPath: 'draft.md' })
+desktop.sendNotification({ title: 'done', body: 'task complete' })
+void desktop.registerMenuItem('file', { id: 'open-workspace', label: 'Open…' })
+void desktop.registerGlobalShortcut('CmdOrCtrl+Shift+P', () => {})
+void desktop.setTray({ tooltip: 'dsh' })
 ```
 
 事件采用有类型的 Cordis 事件：
@@ -90,8 +85,8 @@ export interface DesktopService {
 
 `@deepseek-ai/dsh-desktop-directory-picker` 以新的能力 kind 实现现有 `DirectoryPicker` 缝隙：
 
-```ts ignore-check
-{ kind: 'electron', pick(signal): Promise<string | null> }
+```ts
+type DirectoryPickerSeam = { kind: 'electron'; pick(signal: AbortSignal): Promise<string | null> }
 ```
 
 它委托给 `ctx.desktop.showOpenDialog({ properties: ['openDirectory'] })`，返回第一个选中的路径或取消时返回 `null`。浏览器 half 复用 `packages/client/ui-directory-picker-native`，因为用户交互形状相同：都是代表操作者打开原生 OS 选择器。

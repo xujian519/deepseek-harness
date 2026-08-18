@@ -57,21 +57,16 @@ If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a 
 
 ### `ctx.desktop` Service Definition
 
-```ts ignore-check
-export interface DesktopService {
-  /** Show a native open-file / open-directory dialog. */
-  showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogResult>
-  /** Show a native save-file dialog. */
-  showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogResult>
-  /** Show a system notification. */
-  sendNotification(notification: DesktopNotification): void
-  /** Register a menu item under a named group. Returns a disposer. */
-  registerMenuItem(group: string, item: DesktopMenuItem): Disposer
-  /** Register a global shortcut. Returns a disposer. */
-  registerGlobalShortcut(accelerator: string, handler: () => void): Disposer
-  /** Configure the tray icon and its context menu. Returns a disposer. */
-  setTray(config: TrayConfig): Disposer
-}
+```ts
+import type { Desktop } from '@deepseek-ai/dsh-desktop'
+
+declare const desktop: Desktop
+void desktop.showOpenDialog({ properties: ['openDirectory'] })
+void desktop.showSaveDialog({ defaultPath: 'draft.md' })
+desktop.sendNotification({ title: 'done', body: 'task complete' })
+void desktop.registerMenuItem('file', { id: 'open-workspace', label: 'Open…' })
+void desktop.registerGlobalShortcut('CmdOrCtrl+Shift+P', () => {})
+void desktop.setTray({ tooltip: 'dsh' })
 ```
 
 Events are typed Cordis events:
@@ -90,8 +85,8 @@ Backend plugins register handlers through `ctx.on('desktop/...', ...)`.
 
 `@deepseek-ai/dsh-desktop-directory-picker` implements the existing `DirectoryPicker` seam with a new capability kind:
 
-```ts ignore-check
-{ kind: 'electron', pick(signal): Promise<string | null> }
+```ts
+type DirectoryPickerSeam = { kind: 'electron'; pick(signal: AbortSignal): Promise<string | null> }
 ```
 
 It delegates to `ctx.desktop.showOpenDialog({ properties: ['openDirectory'] })` and returns the first selected path or `null` on cancel. The browser half reuses `packages/client/ui-directory-picker-native` because the user interaction shape is identical: a native OS chooser opened on behalf of the operator.
