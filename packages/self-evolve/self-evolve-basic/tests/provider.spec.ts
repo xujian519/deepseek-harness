@@ -505,7 +505,9 @@ describe('agent/request-error producer (G1)', () => {
     expect(nextCalled).toBe(true)
     const event = session.events.find(e => e.type === 'agent/request-error')
     expect(event).toBeDefined()
-    const data = event?.data as { provider?: unknown; statusCode?: unknown; error?: { code?: unknown } }
+    const data = event?.data as { turn?: unknown; step?: unknown; provider?: unknown; statusCode?: unknown; error?: { code?: unknown } }
+    expect(data.turn).toBe(1)
+    expect(data.step).toBe(1)
     expect(data.provider).toBe('deepseek')
     expect(data.statusCode).toBe(429)
     expect(data.error?.code).toBe('rate_limit_exceeded')
@@ -657,7 +659,7 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
     }
   })
 
-  it('rollbackPattern restores the latest archived champion through the owning seam (P1.8)', async () => {
+  it('rollbackPattern restores the candidate the last commit replaced (P1.8)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-'))
     vi.stubEnv('DSH_HOME', dir)
     try {
@@ -672,12 +674,45 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
       }
       provideServices(ctx, session, undefined, systemPrompt)
       const engine = new ProbeEngine(ctx, baseConfig())
+      // Commit 1 archives a null previous (first commit); commit 2 archives
+      // commit 1 as the champion, so a rollback restores commit 1's text.
       await engine.archive(proposal({
-        proposalId: 'champ-1',
+        proposalId: 'c1',
         candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'champion text', order: 260, estimatedBytes: 13 },
+      }))
+      await engine.archive(proposal({
+        proposalId: 'c2',
+        candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'regressing text', order: 260, estimatedBytes: 15 },
       }))
       await engine.rollback('L1-skill:abc')
       expect(sections.some(section => section.name === 'sec' && section.text === 'champion text')).toBe(true)
+      expect(sections.some(section => section.text === 'regressing text')).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('rollbackPattern is a no-op when the pattern has no previous commit (P1.8)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-rollback-first-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      const sections: { name: string; text: string }[] = []
+      const systemPrompt = {
+        section: (section: { name: string; text: string }) => {
+          sections.push(section)
+          return () => {}
+        },
+      }
+      provideServices(ctx, session, undefined, systemPrompt)
+      const engine = new ProbeEngine(ctx, baseConfig())
+      await engine.archive(proposal({
+        proposalId: 'c1',
+        candidate: { kind: 'L2-context', sectionName: 'sec', sectionText: 'first text', order: 260, estimatedBytes: 10 },
+      }))
+      await engine.rollback('L1-skill:abc')
+      expect(sections).toHaveLength(0)
     } finally {
       vi.unstubAllEnvs()
     }
@@ -842,18 +877,19 @@ describe('Phase 2 L3/L4 (workflow smoke + dynamic runner approval)', () => {
   })
 })
 
-describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () => {
-  function fakeLlm(ctx: Context, text: string): void {
-    ctx.provide('llm', {
-      stream: async function* () {
-        yield { type: 'text-delta', index: 0, text }
-      },
-    } as never)
-  }
+function fakeLlm(ctx: Context, text: string): void {
+  ctx.provide('llm', {
+    stream: async function* () {
+      yield { type: 'text-delta', index: 0, text }
+    },
+  } as never)
+}
 
-  function reflectAgent(session: Session): Agent {
-    return { session, options: { provider: 'deepseek', model: 'chat' } } as unknown as Agent
-  }
+function reflectAgent(session: Session): Agent {
+  return { session, options: { provider: 'deepseek', model: 'chat' } } as unknown as Agent
+}
+
+describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () => {
 
   it('a high-confidence reflection reinforces an existing pattern (P3.1)', async () => {
     const ctx = new Context()
@@ -1018,5 +1054,71 @@ describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () =
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+})
+
+describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
+  it('a request-error recorded with its turn triggers the reflection path (M1)', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    // The producer records the failing turn; turnHasFailure must match it.
+    session.append('agent/request-error', {
+      turn: 1,
+      step: 2,
+      provider: 'deepseek',
+      statusCode: 429,
+      error: { code: 'rate_limit_exceeded', name: 'LlmFailure', message: 'rate limited' },
+    })
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'retry later' }))
+    await engine.reflect(reflectAgent(session), 1, 3, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+  })
+
+  it('an L4 run refusal undefines the orphaned plugin definition (M3)', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session } as never)
+    const undefinedIds: string[] = []
+    ctx.provide('dynamicCordisRunner', {
+      define: () => ({ pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }),
+      run: async () => ({ ok: false, reason: 'approval-denied', message: 'user declined' }),
+      undefine: async (_agent: unknown, pluginId: string) => { undefinedIds.push(pluginId) },
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const outcome = await engine.validateL4(
+      agentFor(session),
+      proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn' } }),
+      new AbortController().signal,
+    )
+    expect(outcome.kind).toBe('rejected')
+    expect(undefinedIds).toEqual(['dyn-1'])
+  })
+
+  it('an async approval refusal drops the definition via request-run-resolved (M3)', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session } as never)
+    const undefinedIds: string[] = []
+    ctx.provide('dynamicCordisRunner', {
+      define: () => ({ pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }),
+      run: async () => ({ ok: true, status: 'awaiting-approval', pluginId: 'dyn-1', packageId: 'pkg-1', pluginRunId: 'run-1', waitingFor: [] }),
+      undefine: async (_agent: unknown, pluginId: string) => { undefinedIds.push(pluginId) },
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.validateL4(
+      agentFor(session),
+      proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn' } }),
+      new AbortController().signal,
+    )
+    ctx.emit('cordis/request-run', {
+      requestId: 'req-1', agentId: session.id, pluginId: 'dyn-1', packageId: 'pkg-1',
+      mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
+    } as never)
+    ctx.emit('cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
+    await vi.waitFor(() => expect(undefinedIds).toEqual(['dyn-1']))
   })
 })
