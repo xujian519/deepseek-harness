@@ -13,23 +13,15 @@
  * MATCH 查询也会抛 "no such module: fts5"——此时整体降级 LIKE，避免工具执行崩溃。
  */
 
-import { DatabaseSync, type StatementSync } from 'node:sqlite'
-import { openKnowledgeDb } from '../shared/db-version.ts'
-import { KNOWLEDGE_DB } from '../shared/schema-versions.ts'
-import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
-import { decompressChunk, registerChunkUncompress } from '../shared/chunk-compression.ts'
-import type { KnowledgeRuntimeStats } from '../shared/knowledge-stats.ts'
-import { runFtsSearch } from '../shared/fts-search.ts'
+import { type StatementSync } from 'node:sqlite'
+import { KnowledgeFtsSearchBase, type KnowledgeSearchEngineOptions } from '../shared/knowledge-fts.ts'
+import { escapeFtsPhrase, joinFtsOrTerms } from '../shared/fts.ts'
+import { decompressChunk } from '../shared/chunk-compression.ts'
 import { errorMessage } from '../shared/errors.ts'
 import type { CaseLawChunk, CaseLawHit, CaseLawSearchOptions } from './types.ts'
 
 /** 引擎构造选项（全部可选；不传时行为与旧签名完全一致）。 */
-export type CaseLawSearchEngineOptions = {
-  /** 降级/异常日志出口（不传时静默，与旧行为一致）。 */
-  logger?: { warn: (message: string) => void }
-  /** 运行时状态聚合（可观测性出口；降级时打点）。 */
-  stats?: KnowledgeRuntimeStats
-}
+export type CaseLawSearchEngineOptions = KnowledgeSearchEngineOptions
 
 /**
  * 每文档多 chunk 命中时的放大取数系数（供 JS 层按文档去重）。
@@ -62,14 +54,7 @@ type CaseLawRow = {
 
 
 /** 判例全文检索引擎（knowledge.db docs_fts/chunks/documents，FTS5 优先，LIKE 降级）。 */
-export class CaseLawSearchEngine {
-  private readonly db: DatabaseSync
-  private readonly hasFts: boolean
-  /** FTS5 查询曾抛异常（模块缺失等）后置 true，后续查询直接走 LIKE。 */
-  private ftsDegraded = false
-  private readonly logger?: { warn: (message: string) => void } | undefined
-  private readonly stats?: KnowledgeRuntimeStats | undefined
-
+export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOptions, CaseLawHit> {
   // 热路径 prepared statements（固定 SQL；带过滤的查询走动态 SQL）
   private readonly stmtSearchLike: StatementSync
   private readonly stmtSearchFts: StatementSync | null
@@ -79,17 +64,7 @@ export class CaseLawSearchEngine {
   private readonly stmtCount: StatementSync
 
   constructor(dbPath: string, options: CaseLawSearchEngineOptions = {}) {
-    this.logger = options.logger
-    this.stats = options.stats
-    const opened = openKnowledgeDb(dbPath, KNOWLEDGE_DB, { readOnly: true })
-    this.db = opened.db
-    // chunk 压缩解压函数（--compress-chunks 产物 BLOB；明文原样返回）。
-    registerChunkUncompress(this.db)
-    const row = this.db
-      .prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='docs_fts'")
-      .get() as { c: number }
-    // 双重条件才启用 FTS：docs_fts 表存在 + 运行时 SQLite 编译了 FTS5。
-    this.hasFts = row.c > 0 && sqliteHasFts5(this.db)
+    super(dbPath, options)
 
     // LIKE 降级：documents.title 或 每文档最长 chunk 的 content（压缩 chunk 先
     // 解压再匹配）；子查询取最长 chunk 作片段。
@@ -158,16 +133,9 @@ export class CaseLawSearchEngine {
     this.stmtCount = this.db.prepare('SELECT COUNT(*) AS c FROM documents')
   }
 
-  /** FTS5 粘性降级打点（构造期 prepare 捕获与查询期异常共用）。 */
-  private degradeFts(reason: string): void {
-    this.ftsDegraded = true
-    this.logger?.warn(`[sati] case-law FTS5 不可用，已降级 LIKE: ${reason}`)
+  protected readonly degradeLabel = 'case-law'
+  protected markFtsDegraded(): void {
     this.stats?.setCaseLawFtsDegraded(true)
-  }
-
-  /** FTS5 是否实际可用（表存在 + 运行时支持 + 未被降级）。 */
-  get ftsAvailable(): boolean {
-    return this.hasFts && !this.ftsDegraded
   }
 
   /**
@@ -178,18 +146,7 @@ export class CaseLawSearchEngine {
    */
   search(keyword: string, options: CaseLawSearchOptions = {}): CaseLawHit[] {
     const limit = Math.min(Math.max(options.limit ?? 5, 1), MAX_LIMIT)
-    const trimmed = keyword.trim()
-    if (!trimmed) return []
-
-    return runFtsSearch(
-      trimmed,
-      this.hasFts,
-      this.ftsDegraded,
-      kw => this.searchFts(kw, options, limit),
-      keywords => this.searchFtsKeywords(keywords, options, limit),
-      kw => this.searchLike(kw, options, limit),
-      (reason) => { this.degradeFts(reason) },
-    )
+    return this.runSearch(keyword, options, limit)
   }
 
   /**
@@ -213,11 +170,6 @@ export class CaseLawSearchEngine {
   count(): number {
     const row = this.stmtCount.get() as { c: number }
     return row.c
-  }
-
-  /** 关闭底层数据库连接。 */
-  close(): void {
-    this.db.close()
   }
 
   /** 构建 FTS 查询（固定投影 + 可选过滤；带过滤时拼接动态 SQL）。 */
@@ -265,13 +217,13 @@ export class CaseLawSearchEngine {
     return result
   }
 
-  private searchFts(keyword: string, options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
+  protected searchFts(keyword: string, options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
     // trigram 分词对引号敏感：整体作为 phrase 查询（与 law_fts 同策略）。
     return this.searchFtsWithQuery(escapeFtsPhrase(keyword), options, limit)
   }
 
   /** 多个关键词 OR 组合的 FTS 查询（用于长查询切词降级）。 */
-  private searchFtsKeywords(keywords: string[], options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
+  protected searchFtsKeywords(keywords: string[], options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
     return this.searchFtsWithQuery(joinFtsOrTerms(keywords), options, limit)
   }
 
@@ -299,7 +251,7 @@ export class CaseLawSearchEngine {
     })
   }
 
-  private searchLike(keyword: string, options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
+  protected searchLike(keyword: string, options: CaseLawSearchOptions, limit: number): CaseLawHit[] {
     // LIKE 回退计数（设计内降级路径：短词/未命中/FTS 降级；不 warn 避免噪音）。
     this.stats?.recordLikeFallback()
     const pattern = `%${keyword.replace(/[%_\\]/g, m => `\\${m}`)}%`

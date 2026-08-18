@@ -51,6 +51,7 @@ export {
   DEFAULT_NEGATION_WORDS,
   hasNegationContext,
   parseCnNumber,
+  runeSlice,
 } from './rule/text-utils.ts'
 export type { NegationContextOptions } from './rule/text-utils.ts'
 
@@ -119,6 +120,7 @@ export { getStateString, getStateArray } from './atoms/handler.ts'
 // has no dependency on the P3.1 workflow executor. The runWorkflow executor and
 // builtin manifests land in dsh-patent-workflow and re-import these from here.
 export { validateWorkflowManifest } from './workflow/manifest.ts'
+export { compileSignal, signalMatches } from './workflow/signal.ts'
 export { WorkflowError } from './workflow/types.ts'
 export type {
   StageExecutor,

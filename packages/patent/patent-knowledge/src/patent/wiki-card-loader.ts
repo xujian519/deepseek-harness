@@ -227,12 +227,7 @@ export class WikiCardLoader {
     const kw = keyword.trim().toLowerCase()
     if (!kw) return []
     return this.cards
-      .filter((card) => {
-        if (card.title.toLowerCase().includes(kw)) return true
-        if (card.concept?.toLowerCase().includes(kw)) return true
-        if (card.domain?.toLowerCase().includes(kw)) return true
-        return false
-      })
+      .filter(card => this.matchesKeyword(card, kw))
       .slice(0, limit)
   }
 
@@ -254,12 +249,7 @@ export class WikiCardLoader {
     const kw = keyword.trim().toLowerCase()
     if (!kw) return candidates.slice(0, limit)
     return candidates
-      .filter((card) => {
-        if (card.title.toLowerCase().includes(kw)) return true
-        if (card.concept?.toLowerCase().includes(kw)) return true
-        if (card.domain?.toLowerCase().includes(kw)) return true
-        return false
-      })
+      .filter(card => this.matchesKeyword(card, kw))
       .slice(0, limit)
   }
 
@@ -334,6 +324,14 @@ export class WikiCardLoader {
     const title = card.meta.title
     const body = card.content.length > maxChars ? `${card.content.slice(0, maxChars)}…（截断）` : card.content
     return `### ${title}\n${body}`
+  }
+
+  /** 卡片是否命中关键词（title/concept/domain 任一包含，不区分大小写；kw 已小写化）。 */
+  private matchesKeyword(card: WikiCardMeta, kw: string): boolean {
+    if (card.title.toLowerCase().includes(kw)) return true
+    if (card.concept?.toLowerCase().includes(kw)) return true
+    if (card.domain?.toLowerCase().includes(kw)) return true
+    return false
   }
 
   /** 递归扫描 .md 文件（跳过 .gitignore 类隐藏文件）。 */

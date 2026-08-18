@@ -8,11 +8,14 @@
  */
 
 import type { GraphNode, GraphState, StateDelta } from '../types.ts'
-import { markDegraded } from '../degradation.ts'
+import { markDegraded, DEGRADATION_SUFFIX } from '../degradation.ts'
 import { runStageHandler } from '../adapter.ts'
 import type { StageHandler } from '../../atoms/index.ts'
+import { collectStateText } from '../../atoms/handler.ts'
 import { RuleEngine, aggregate, defaultPatentRules, type Verdict } from '../../checker/index.ts'
 import type { RuleCheckResult } from '../../checker/types.ts'
+
+export { collectStateText }
 
 /** 现有 StageHandler → 图节点（注入固定 params，合并进执行态，不污染共享 state）。
  * @param handler - 要包装为图节点的 StageHandler。
@@ -74,7 +77,14 @@ export function llmNode(input: LlmNodeOptions): GraphNode {
 export function ruleGateNode(domains: readonly string[]): GraphNode {
   // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
   return async ({ state }) => {
-    const text = collectStateText(state)
+    const text = collectStateText(state, {
+      // 规则门自身的写入键与降级标记不属于业务文本。
+      skipKey: key =>
+        key.endsWith(DEGRADATION_SUFFIX) ||
+        key === 'rule_gate_verdict' ||
+        key === 'rule_gate_domains' ||
+        key === 'rule_gate_failures',
+    })
     const engine = new RuleEngine()
     engine.registerMany(defaultPatentRules())
     const failures = engine.evaluate(text, { domain: domains })
@@ -92,25 +102,6 @@ export function ruleGateNode(domains: readonly string[]): GraphNode {
 export type RuleGateState = {
   verdict: Verdict
   failures: RuleCheckResult[]
-}
-
-/** 汇总 state 中的业务文本（跳过元数据键：_ 前缀 / __degradation 后缀 / 内部键）。
- * @param state - 图状态。
- * @returns 汇总后的业务文本块。
- */
-export function collectStateText(state: GraphState): string {
-  const blocks: string[] = []
-  for (const [key, value] of Object.entries(state)) {
-    if (key.startsWith('_')) continue
-    if (key.endsWith('__degradation')) continue
-    if (key === 'rule_gate_verdict' || key === 'rule_gate_domains' || key === 'rule_gate_failures') continue
-    if (typeof value === 'string' && value.trim().length > 0) {
-      blocks.push(`## ${key}\n${value}`)
-    } else if (Array.isArray(value) && value.length > 0) {
-      blocks.push(`## ${key}\n${JSON.stringify(value, null, 2)}`)
-    }
-  }
-  return blocks.join('\n\n')
 }
 
 /** 通用：从 state 读取输入文本（对齐 workflowCtx 映射的多键回退）。

@@ -38,6 +38,35 @@ export function getStateArray(state: PipelineState, key: string): unknown[] {
   return Array.isArray(v) ? v : []
 }
 
+/** collectStateText 选项：追加跳过键与空结果兜底。 */
+export type CollectStateTextOptions = {
+  /** 额外跳过键谓词（在 _ 前缀过滤之后执行）。 */
+  skipKey?: (key: string) => boolean
+  /** 无文本块时的兜底文本（缺省空字符串）。 */
+  fallback?: string
+}
+
+/**
+ * 汇总状态为文本块：跳过 _ 前缀元数据键，字符串（trim 非空）与非空数组
+ * 各自格式化为 `## key` 块，块间空行分隔。graph 规则门与 reasoning 兜底共用。
+ * @param state - 状态容器。
+ * @param options - 可选过滤/兜底配置。
+ * @returns 拼接后的文本块；无块时返回兜底文本。
+ */
+export function collectStateText(state: PipelineState, options: CollectStateTextOptions = {}): string {
+  const blocks: string[] = []
+  for (const [key, value] of Object.entries(state)) {
+    if (key.startsWith('_')) continue
+    if (options.skipKey !== undefined && options.skipKey(key)) continue
+    if (typeof value === 'string' && value.trim().length > 0) {
+      blocks.push(`## ${key}\n${value}`)
+    } else if (Array.isArray(value) && value.length > 0) {
+      blocks.push(`## ${key}\n${JSON.stringify(value, null, 2)}`)
+    }
+  }
+  return blocks.join('\n\n') || (options.fallback ?? '')
+}
+
 /** 阶段执行输入：当前状态、可选的能力提供者与取消信号。 */
 export type StageExecuteInput = {
   state: PipelineState

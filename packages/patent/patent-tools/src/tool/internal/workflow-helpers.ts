@@ -17,15 +17,17 @@ import { basename, isAbsolute, join } from 'node:path'
 import {
   caseWorkflowRunsDir,
   collectPortText,
+  type AtomRegistry,
   type PatentModelPort,
   type StageExecutor,
+  type StageHandlerRegistry,
   type StageProvider,
   type WorkflowContext,
   type WorkflowManifest,
   type WorkflowRunResult,
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
-import { workflowManifestToMermaid } from '@deepseek-ai/dsh-patent-workflow'
+import { JsonFileWorkflowRunStore, runWorkflow, workflowManifestToMermaid } from '@deepseek-ai/dsh-patent-workflow'
 import { createNuoSearchProvider } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../../error.ts'
 
@@ -112,6 +114,63 @@ export async function writeRunArtifacts(
   } catch (err) {
     return `持久化失败: ${err instanceof Error ? err.message : String(err)}`
   }
+}
+
+/** Options for executing a manifest via runWorkflow with optional persistence. */
+export interface RunWorkflowWithPersistOptions {
+  /** Stage-handler registry (default: the global registry). */
+  handlers: StageHandlerRegistry
+  /** Atom registry resolving atom.outputSchema[0] (default: the global registry). */
+  atoms: AtomRegistry
+  /** The assembled StageProvider. */
+  provider: StageProvider
+  /** Cancellation signal propagated to stage boundaries. */
+  signal?: AbortSignal
+  /** Case identity keying the run persistence; undefined disables persistence. */
+  caseId: string | undefined
+  /** Working directory the relative run paths resolve against. */
+  cwd: string
+  /** Already-approved approval-gate stage ids (skipped on rerun). */
+  approvalGrants?: string[]
+}
+
+/** Result of a persisted workflow run (the persist target feeds the artifact writes). */
+export type PersistedWorkflowRun = {
+  result: WorkflowRunResult
+  /** Resolved persistence target; undefined when caseId is absent. */
+  persistTarget: WorkflowRunPersistTarget | undefined
+}
+
+/**
+ * Execute a manifest with the shared option wiring (handlers/atoms/provider/
+ * signal + optional JsonFileWorkflowRunStore persistence). Shared by
+ * patent_workflow_run and flexible_plan(run) so the two do not drift.
+ * @param manifest - the manifest to run.
+ * @param ctx - the workflow context.
+ * @param executor - the chain-stage executor for atom-less stages.
+ * @param opts - the run options.
+ * @returns the run result plus the resolved persistence target.
+ */
+export async function runWorkflowWithPersist(
+  manifest: WorkflowManifest,
+  ctx: WorkflowContext,
+  executor: StageExecutor,
+  opts: RunWorkflowWithPersistOptions,
+): Promise<PersistedWorkflowRun> {
+  const persistTarget = resolveRunPersistTarget(opts.caseId, manifest.id, opts.cwd)
+  const result = await runWorkflow(manifest, ctx, executor, {
+    handlers: opts.handlers,
+    atoms: opts.atoms,
+    provider: opts.provider,
+    ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
+    ...(persistTarget !== undefined
+      ? { persist: new JsonFileWorkflowRunStore(persistTarget.runsDir), runId: persistTarget.runId }
+      : {}),
+    ...(opts.approvalGrants !== undefined && opts.approvalGrants.length > 0
+      ? { approvalGrants: opts.approvalGrants }
+      : {}),
+  })
+  return { result, persistTarget }
 }
 
 /** Options for assembling the tail text of a workflow-run result. */

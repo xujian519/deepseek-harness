@@ -132,3 +132,21 @@ export function parseCnNumber(raw: string): number | null {
   }
   return total + digit
 }
+
+// ---------------------------------------------------------------------------
+// runeSlice
+// ---------------------------------------------------------------------------
+
+/**
+ * 按 Unicode 码点截断（对齐 Go runeSlice 语义；码点而非 UTF-16 单元），
+ * 超长时可选追加省略号。patent quality-gate 与 anti-slop 引擎共用。
+ * @param s - 待截断文本。
+ * @param n - 最大码点数。
+ * @param ellipsis - 超长时是否追加省略号。
+ * @returns 截断后的文本（未超长时原样返回）。
+ */
+export function runeSlice(s: string, n: number, ellipsis = false): string {
+  const runes = Array.from(s)
+  if (runes.length <= n) return s
+  return `${runes.slice(0, n).join('')}${ellipsis ? '…' : ''}`
+}

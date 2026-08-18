@@ -6,6 +6,8 @@
  * @module @deepseek-ai/dsh-patent-tools/internal/slop-engine
  */
 
+import { runeSlice } from '@deepseek-ai/dsh-patent-core'
+
 export type SlopGroup =
   | 'filler' | 'qualifier' | 'passive' | 'meta' | 'advisory' | 'search' | 'intimacy' | 'subjectless'
 
@@ -110,13 +112,6 @@ const RE_SEARCH_TERMS = /(去重|命中|数据库)/
 /** Length in Unicode code points (aligns Go rune semantics). */
 function runeLen(s: string): number {
   return Array.from(s).length
-}
-
-/** Truncate by Unicode code point, with optional trailing ellipsis. */
-function runeSlice(s: string, n: number, ellipsis = false): string {
-  const runes = Array.from(s)
-  if (runes.length <= n) return s
-  return `${runes.slice(0, n).join('')}${ellipsis ? '…' : ''}`
 }
 
 /** Structure-issue detection (line scan + whole-text reason count). */

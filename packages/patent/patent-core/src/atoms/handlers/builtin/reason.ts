@@ -7,6 +7,7 @@ import {
   type PipelineState,
   type StageExecuteInput,
   type StageHandler,
+  collectStateText,
   getStateArray,
   getStateString,
 } from '../../handler.ts'
@@ -42,7 +43,7 @@ export class ReasoningHandler implements StageHandler {
     const explicitPrompt = getStateString(state, 'reasoning_prompt').trim()
     const explicitInput = getStateString(state, 'reasoning_input').trim()
     const defaultPrompt = '基于以下工作流上下文，给出专业分析结论（如涉及法律判断，请附置信度与依据）：'
-    const input = explicitInput.length > 0 ? explicitInput : formatStateForReasoning(state)
+    const input = explicitInput.length > 0 ? explicitInput : collectStateText(state, { fallback: '(无可用上下文)' })
     const prompt = [
       explicitPrompt.length > 0 ? explicitPrompt : defaultPrompt,
       '```',
@@ -53,20 +54,6 @@ export class ReasoningHandler implements StageHandler {
     if (!res.ok) return res.error
     return { reasoning_output: res.raw, conclusion: res.raw }
   }
-}
-
-/** 拼接非元数据状态为文本块（reasoning 无显式输入时的兜底）。 */
-function formatStateForReasoning(state: PipelineState): string {
-  const blocks: string[] = []
-  for (const [key, value] of Object.entries(state)) {
-    if (key.startsWith('_')) continue // 跳过 _error 等元数据
-    if (typeof value === 'string' && value.trim().length > 0) {
-      blocks.push(`## ${key}\n${value}`)
-    } else if (Array.isArray(value) && value.length > 0) {
-      blocks.push(`## ${key}\n${JSON.stringify(value, null, 2)}`)
-    }
-  }
-  return blocks.join('\n\n') || '(无可用上下文)'
 }
 
 // ---------------------------------------------------------------------------

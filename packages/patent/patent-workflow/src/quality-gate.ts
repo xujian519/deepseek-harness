@@ -7,7 +7,7 @@
  *   - 法条引用核验（CitationGate）：R1 存在性 + R2 语境相关性，误报防线：Unknown/Unverifiable 一律放行
  */
 
-import { hasNegationContext, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
+import { hasNegationContext, parseCnNumber, runeSlice } from '@deepseek-ai/dsh-patent-core'
 
 /** 默认免责声明：命中风险词时追加（AI 辅助生成、不构成正式法律意见）。 */
 export const PATENT_DISCLAIMER =
@@ -30,13 +30,6 @@ export const PATENT_APPROVAL_KEYWORDS = ['专利结论', '侵权判断', '有效
 
 /** 绝对化表述（P-A07 条款：回避绝对化表述）。 */
 export const ABSOLUTE_PHRASES = ['绝对', '一定', '百分百', '毫无疑问', '必然']
-
-/** 按 Unicode 码点截断（对齐 Go runeSlice）；ellipsis 为 true 时超长追加省略号。 */
-function runeSlice(s: string, n: number, ellipsis = false): string {
-  const runes = Array.from(s)
-  if (runes.length <= n) return s
-  return `${runes.slice(0, n).join('')}${ellipsis ? '…' : ''}`
-}
 
 /** 过滤否定语境中的命中：关键词至少一处非否定命中才报告。 */
 function filterNegatedHits(keywords: string[], text: string): string[] {

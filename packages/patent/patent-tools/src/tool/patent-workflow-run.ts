@@ -30,10 +30,11 @@ import {
   type GraphCheckpoint,
   type GraphState,
   type StageHandlerRegistry,
+  type WorkflowContext,
   type WorkflowManifest,
   type WorkflowRunResult,
 } from '@deepseek-ai/dsh-patent-core'
-import { JsonFileWorkflowRunStore, builtinPatentManifests, runWorkflow } from '@deepseek-ai/dsh-patent-workflow'
+import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 import { PatentToolError } from '../error.ts'
 import {
   buildWorkflowProvider,
@@ -42,6 +43,7 @@ import {
   renderWorkflowResultText,
   renderWorkflowStageLines,
   resolveRunPersistTarget,
+  runWorkflowWithPersist,
   writeRunArtifacts,
   type WorkflowProviderDeps,
 } from './internal/workflow-helpers.ts'
@@ -263,21 +265,15 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
         )
       }
 
-      const workflowCtx = buildWorkflowRunContext({
-        ...(input.caseId !== undefined ? { caseId: input.caseId } : {}),
-        input: input.input,
-        ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
-        ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
-      })
+      const workflowCtx = buildRunContext(input)
       const executor = createChainStageExecutor(provider, 'patent_workflow_run')
-      const persistTarget = resolveRunPersistTarget(input.caseId, manifest.id, cwd)
-      const result = await runWorkflow(manifest, workflowCtx, executor, {
+      const { result, persistTarget } = await runWorkflowWithPersist(manifest, workflowCtx, executor, {
         handlers: deps.handlers ?? globalStageHandlerRegistry,
         atoms: globalAtomRegistry,
         provider,
         signal: exec.signal,
-        ...(persistTarget !== undefined ? { persist: new JsonFileWorkflowRunStore(persistTarget.runsDir) } : {}),
-        ...(persistTarget?.runId !== undefined ? { runId: persistTarget.runId } : {}),
+        caseId: input.caseId,
+        cwd,
         ...(input.approveStageIds !== undefined && input.approveStageIds.length > 0
           ? { approvalGrants: input.approveStageIds }
           : {}),
@@ -306,6 +302,16 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
   })
 }
 
+/** 装配工作流上下文（manifest 与 graph 两条路径共用同一输入映射）。 */
+function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
+  return buildWorkflowRunContext({
+    ...(input.caseId !== undefined ? { caseId: input.caseId } : {}),
+    input: input.input,
+    ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
+    ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
+  })
+}
+
 /** Graph-mode execution: build the subgraph, assemble the provider, run with checkpoints. */
 async function executeGraphRun(
   input: PatentWorkflowRunInput,
@@ -323,12 +329,7 @@ async function executeGraphRun(
     )
   }
 
-  const workflowCtx = buildWorkflowRunContext({
-    ...(input.caseId !== undefined ? { caseId: input.caseId } : {}),
-    input: input.input,
-    ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
-    ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
-  })
+  const workflowCtx = buildRunContext(input)
 
   const graph = def.build({ handlers: deps.handlers ?? globalStageHandlerRegistry }).compile(def.entry)
   const graphId = `patent_${graphName}`

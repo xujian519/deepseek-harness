@@ -1,42 +1,15 @@
 /**
  * src/patent/workflow — 一致性回退信号判定（纯函数）。
  *
- * 信号正则编译/缓存 + 触发判定，独立可单测（否定词窗口、句界排除、
- * g-flag lastIndex 重置语义锁定）。
+ * signalMatches/compileSignal 实现前置到 dsh-patent-core（graph adapter 与
+ * workflow 执行器共用）；本模块保留 signalFor（按阶段 id 缓存编译正则）并
+ * re-export 共享实现，保持本包消费面不变。
  */
 
 import type { WorkflowStage } from '@deepseek-ai/dsh-patent-core'
+import { compileSignal, signalMatches } from '@deepseek-ai/dsh-patent-core'
 
-/**
- * 信号触发判定：匹配位置前窗口内出现否定词（不/未/无/没，无句界分隔）
- * 时视为否定性表述（"未发现不一致""不缺少任何特征"），不触发回退。
- * @param text - 待判定文本。
- * @param signal - 已编译的信号正则。
- * @returns 是否触发回退（命中且非否定语境）。
- */
-export function signalMatches(text: string, signal: RegExp): boolean {
-  let match: RegExpExecArray | null
-  const RE = /[不未无没]/
-  signal.lastIndex = 0 // 带 g 标志的正则跨调用保留 lastIndex：回退重入前必须重置，否则 exec 直接返回 null
-  while ((match = signal.exec(text)) !== null) {
-    const start = Math.max(0, match.index - 12)
-    const before = text.slice(start, match.index)
-    if (!before.includes('。') && !before.includes('；') && !before.includes(';') && !RE.test(before)) {
-      return true
-    }
-    if (match[0].length === 0) signal.lastIndex += 1
-  }
-  return false
-}
-
-/**
- * 编译信号正则（g 标志必需：signalMatches 用 exec 遍历全部匹配位置，无 g 时 exec 每次从头匹配 → 死循环）。
- * @param pattern - 信号正则模式。
- * @returns 带 gi 标志的编译正则。
- */
-export function compileSignal(pattern: string): RegExp {
-  return new RegExp(pattern, 'gi')
-}
+export { compileSignal, signalMatches }
 
 /**
  * 带缓存的信号获取（按阶段 id 缓存，避免每次执行/回退重新编译）。

@@ -10,6 +10,7 @@
  */
 
 import { validateWorkflowManifest } from '../workflow/manifest.ts'
+import { signalMatches } from '../workflow/signal.ts'
 import type { WorkflowContext, WorkflowManifest, WorkflowStage } from '../workflow/types.ts'
 import type { AtomRegistry, StageHandler, StageHandlerRegistry } from '../atoms/index.ts'
 import type { StageProvider } from '../types.ts'
@@ -156,25 +157,8 @@ function makeStageNode(
 }
 
 // ---------------------------------------------------------------------------
-// retry 信号回退（与 workflow.ts signalMatches 语义对齐）
+// retry 信号回退（signalMatches 实现在 ../workflow/signal.ts，graph 与执行器共用）
 // ---------------------------------------------------------------------------
-
-/** 否定词窗口：命中位置前 12 字符内出现 [不未无没] 且无句界分隔 → 否定表述，不触发回退。 */
-function signalMatches(text: string, signal: RegExp): boolean {
-  const RE = /[不未无没]/
-  signal.lastIndex = 0
-  let match: RegExpExecArray | null
-  while ((match = signal.exec(text)) !== null) {
-    const start = Math.max(0, match.index - 12)
-    const before = text.slice(start, match.index)
-    if (!before.includes('。') && !before.includes('；') && !before.includes(';') && !RE.test(before)) {
-      return true
-    }
-    const fullMatch = match[0]
-    if (fullMatch.length === 0) signal.lastIndex += 1
-  }
-  return false
-}
 
 /** 重试计数/超限标记 key（state 内部键，带 __ 前缀防污染业务数据）。 */
 const rewindCountKey = (stageId: string): string => `_rewind_count_${stageId}`

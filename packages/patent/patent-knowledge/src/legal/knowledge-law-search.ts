@@ -15,23 +15,15 @@
  *   content= 该文档最长 chunk（法规章节片段，注入上下文时截断）
  */
 
-import { DatabaseSync, type StatementSync } from 'node:sqlite'
-import { openKnowledgeDb } from '../shared/db-version.ts'
-import { KNOWLEDGE_DB } from '../shared/schema-versions.ts'
-import { escapeFtsPhrase, joinFtsOrTerms, sqliteHasFts5 } from '../shared/fts.ts'
-import { decompressChunk, registerChunkUncompress } from '../shared/chunk-compression.ts'
-import type { KnowledgeRuntimeStats } from '../shared/knowledge-stats.ts'
-import { runFtsSearch } from '../shared/fts-search.ts'
+import { type StatementSync } from 'node:sqlite'
+import { KnowledgeFtsSearchBase, type KnowledgeSearchEngineOptions } from '../shared/knowledge-fts.ts'
+import { escapeFtsPhrase, joinFtsOrTerms } from '../shared/fts.ts'
+import { decompressChunk } from '../shared/chunk-compression.ts'
 import { errorMessage } from '../shared/errors.ts'
 import type { LawCategory, LawRecord, LawSearchResult, LegalSearchSource } from './types.ts'
 
 /** Engine constructor options (all optional). */
-export type KnowledgeLawSearchEngineOptions = {
-  /** Degradation/error log sink. */
-  logger?: { warn: (message: string) => void }
-  /** Runtime stats aggregator (observability; records degradation). */
-  stats?: KnowledgeRuntimeStats
-}
+export type KnowledgeLawSearchEngineOptions = KnowledgeSearchEngineOptions
 
 /** 法规全文搜索选项。 */
 export type KnowledgeLawSearchOptions = {
@@ -59,14 +51,8 @@ type DocChunkRow = {
 const FETCH_MULTIPLIER = 3
 
 /** knowledge.db 法规全文搜索引擎（law_article 文档，FTS5 优先，LIKE 降级）。 */
-export class KnowledgeLawSearch implements LegalSearchSource {
-  private readonly db: DatabaseSync
-  private readonly hasFts: boolean
-  /** FTS5 查询曾抛异常（模块缺失等）后置 true，后续查询直接走 LIKE。 */
-  private ftsDegraded = false
-  private readonly logger?: { warn: (message: string) => void } | undefined
-  private readonly stats?: KnowledgeRuntimeStats | undefined
-
+export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearchOptions, DocChunkRow>
+  implements LegalSearchSource {
   private readonly stmtSearchLike: StatementSync
   private readonly stmtSearchFts: StatementSync | null
   private readonly stmtFindByName: StatementSync
@@ -76,16 +62,7 @@ export class KnowledgeLawSearch implements LegalSearchSource {
   private readonly stmtCount: StatementSync
 
   constructor(dbPath: string, options: KnowledgeLawSearchEngineOptions = {}) {
-    this.logger = options.logger
-    this.stats = options.stats
-    const opened = openKnowledgeDb(dbPath, KNOWLEDGE_DB, { readOnly: true })
-    this.db = opened.db
-    // chunk 压缩解压函数（--compress-chunks 产物 BLOB；明文原样返回）。
-    registerChunkUncompress(this.db)
-    const row = this.db
-      .prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='docs_fts'")
-      .get() as { c: number }
-    this.hasFts = row.c > 0 && sqliteHasFts5(this.db)
+    super(dbPath, options)
 
     // LIKE 降级：documents.title 或每文档最长 chunk 的 content（压缩 chunk 先
     // 解压再匹配）；子查询取最长 chunk 作片段。content 取原始存储（TEXT 明文 /
@@ -150,33 +127,15 @@ export class KnowledgeLawSearch implements LegalSearchSource {
     this.stmtCount = this.db.prepare("SELECT COUNT(*) AS c FROM documents WHERE doc_type = 'law_article'")
   }
 
-  /** FTS5 粘性降级打点（构造期 prepare 捕获与查询期异常共用）。 */
-  private degradeFts(reason: string): void {
-    this.ftsDegraded = true
-    this.logger?.warn(`[sati] 法规 FTS5 不可用，已降级 LIKE: ${reason}`)
+  protected readonly degradeLabel = '法规'
+  protected markFtsDegraded(): void {
     this.stats?.setLegalFtsDegraded(true)
-  }
-
-  /** FTS5 是否实际可用（表存在 + 运行时支持 + 未被降级）。 */
-  get ftsAvailable(): boolean {
-    return this.hasFts && !this.ftsDegraded
   }
 
   /** 法规全文搜索：FTS5 BM25 优先，短查询/无 FTS 时降级 LIKE；按文档去重。 */
   search(keyword: string, options: KnowledgeLawSearchOptions = {}): LawSearchResult[] {
     const limit = options.limit ?? 10
-    const trimmed = keyword.trim()
-    if (!trimmed) return []
-
-    const rows = runFtsSearch(
-      trimmed,
-      this.hasFts,
-      this.ftsDegraded,
-      kw => this.searchFts(kw, options, limit),
-      keywords => this.searchFtsKeywords(keywords, options, limit),
-      kw => this.searchLike(kw, options, limit),
-      (reason) => { this.degradeFts(reason) },
-    )
+    const rows = this.runSearch(keyword, options, limit)
     return rows.map(row => this.toSearchResult(row))
   }
 
@@ -231,15 +190,11 @@ export class KnowledgeLawSearch implements LegalSearchSource {
     return row.c
   }
 
-  close(): void {
-    this.db.close()
-  }
-
-  private searchFts(keyword: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
+  protected searchFts(keyword: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
     return this.searchFtsWithQuery(escapeFtsPhrase(keyword), options, limit)
   }
 
-  private searchFtsKeywords(keywords: string[], options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
+  protected searchFtsKeywords(keywords: string[], options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
     return this.searchFtsWithQuery(joinFtsOrTerms(keywords), options, limit)
   }
 
@@ -283,7 +238,7 @@ export class KnowledgeLawSearch implements LegalSearchSource {
     return this.db.prepare(sql).all(match, options.level, limit) as DocChunkRow[]
   }
 
-  private searchLike(keyword: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
+  protected searchLike(keyword: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
     // LIKE 回退计数（设计内降级路径：短词/未命中/FTS 降级；不 warn 避免噪音）。
     this.stats?.recordLikeFallback()
     const pattern = `%${keyword.replace(/[%_\\]/g, m => `\\${m}`)}%`

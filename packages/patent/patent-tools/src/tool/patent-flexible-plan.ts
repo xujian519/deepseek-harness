@@ -19,7 +19,6 @@ import {
 import {
   FlexiblePlanError,
   JsonFileFlexiblePlanStore,
-  JsonFileWorkflowRunStore,
   abandon,
   addStage,
   complete,
@@ -28,7 +27,6 @@ import {
   removeStage,
   reorderStages,
   rollbackStage,
-  runWorkflow,
   toManifest,
   type FlexiblePlanState,
   type FlexiblePlanStore,
@@ -41,8 +39,8 @@ import {
   createChainStageExecutor,
   renderWorkflowResultText,
   renderWorkflowStageLines,
-  resolveRunPersistTarget,
   resolveWorkflowRunsDir,
+  runWorkflowWithPersist,
   writeRunArtifacts,
   type WorkflowProviderDeps,
 } from './internal/workflow-helpers.ts'
@@ -417,15 +415,13 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
               ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
             })
             const executor = createChainStageExecutor(provider, 'flexible_plan')
-            const persistTarget = resolveRunPersistTarget(input.caseId, manifest.id, cwd)
-            const result = await runWorkflow(manifest, workflowCtx, executor, {
+            const { result, persistTarget } = await runWorkflowWithPersist(manifest, workflowCtx, executor, {
               handlers: deps.handlers ?? globalStageHandlerRegistry,
               atoms: globalAtomRegistry,
               provider,
               signal: exec.signal,
-              ...(persistTarget !== undefined
-                ? { persist: new JsonFileWorkflowRunStore(persistTarget.runsDir), runId: persistTarget.runId }
-                : {}),
+              caseId: input.caseId,
+              cwd,
             })
 
             let updated = plan
