@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { CallId } from '@deepseek-ai/dsh-llm'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import {
   createPatentWorkerValidateTool,
@@ -67,5 +71,36 @@ describe('patent_worker_validate', () => {
     })
     expect(unknown).toContain('未知 worker "w"')
     expect(unknown).toContain('a, b')
+  })
+
+  it('renders fallbacks for missing catalog and degradation reason', () => {
+    const bareUnknown = renderWorkerValidate({ workerName: 'w', found: false, valid: false, missingHardFields: [], missingSoftFields: [] })
+    expect(bareUnknown).toContain('可用: ')
+    const bareDegraded = renderWorkerValidate({
+      workerName: 'w',
+      found: true,
+      valid: false,
+      missingHardFields: ['技术特征'],
+      missingSoftFields: [],
+    })
+    expect(bareDegraded).toContain('硬性字段缺失')
+  })
+
+  it('renders through the registered tool', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.tools.register(createPatentWorkerValidateTool())
+    const signal = new AbortController().signal
+    const result = await ctx.tools.execute({
+      signal,
+      callId: CallId('wv-1'),
+      name: 'patent_worker_validate',
+      arguments: { workerName: 'patent-technical-analyzer', outputText: '技术问题' },
+    })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const text = result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
+    expect(text).toContain('patent_worker_validate(patent-technical-analyzer)')
   })
 })

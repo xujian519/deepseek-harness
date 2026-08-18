@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromInverted, decodeEntities, snippet, stripTags } from '../../../src/runtime/shared/text.ts'
+import { fromInverted, decodeEntities, snippet, stripTags, formatAuthors, nonEmpty } from '../../../src/runtime/shared/text.ts'
 
 describe('text helpers', () => {
   it('decodeEntities decodes named, hex, and decimal entities', () => {
@@ -7,6 +7,11 @@ describe('text helpers', () => {
     expect(decodeEntities('&#x41;&#66;&#67;')).toBe('ABC')
     expect(decodeEntities('&#65;&#98;')).toBe('Ab')
     expect(decodeEntities('&nbsp;')).toBe(' ')
+  })
+
+  it('decodeEntities drops out-of-range code points', () => {
+    expect(decodeEntities('&#1114112;')).toBe('')
+    expect(decodeEntities('&#x110000;')).toBe('')
   })
 
   it('decodeEntities leaves unknown entities untouched', () => {
@@ -48,5 +53,22 @@ describe('text helpers', () => {
     expect(fromInverted(undefined)).toBeUndefined()
     expect(fromInverted(null)).toBeUndefined()
     expect(fromInverted({})).toBeUndefined()
+  })
+
+  it('fromInverted skips nullish word entries and non-integer positions', () => {
+    expect(fromInverted({ a: null as unknown as number[], b: [0] })).toBe('b')
+    expect(fromInverted({ a: [1.5] })).toBeUndefined()
+    expect(fromInverted({ a: [-1] })).toBeUndefined()
+  })
+
+  it('formatAuthors returns undefined for no names and truncates past four', () => {
+    expect(formatAuthors([])).toBeUndefined()
+    expect(formatAuthors([undefined, 'x'])).toBe('x')
+    expect(formatAuthors(['a', 'b', 'c', 'd', 'e'])).toBe('a, b, c, d et al.')
+  })
+
+  it('nonEmpty normalizes empty strings to undefined', () => {
+    expect(nonEmpty('')).toBeUndefined()
+    expect(nonEmpty('text')).toBe('text')
   })
 })

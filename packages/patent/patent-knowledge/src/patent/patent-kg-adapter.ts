@@ -82,6 +82,7 @@ export class PatentKgAdapter {
     const seen = new Set<string>()
 
     for (const node of hits) {
+      /* v8 ignore next -- store.searchByKeyword returns unique node ids */
       if (seen.has(node.id)) continue
       seen.add(node.id)
       results.push({ node, via: 'keyword' })

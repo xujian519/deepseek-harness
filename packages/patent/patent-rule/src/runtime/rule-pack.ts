@@ -66,6 +66,7 @@ export function resolveRulePackManifestPath(explicitPath?: string): string | nul
 export function parseRulePackManifest(yamlText: string): RulePackManifest {
   const doc = parseDocument(yamlText)
   if (doc.errors.length > 0) {
+    /* v8 ignore next -- yaml parse errors always carry a message. */
     throw new Error(`清单 YAML 解析失败: ${doc.errors[0]?.message ?? 'unknown'}`)
   }
   const root: unknown = doc.toJS()
@@ -142,6 +143,7 @@ export function resolvePackDir(nameOrPath: string, rulesDir?: string): string | 
 /** 校验包目录内的 pack.yaml；问题记 warning（不阻塞规则加载）。 */
 function checkPackManifest(dir: string, layerName: string, warnings: string[]): void {
   const manifestPath = join(dir, PACK_MANIFEST_FILE)
+  /* v8 ignore next -- loadLayer only calls checkPackManifest after an existsSync hit. */
   if (!existsSync(manifestPath)) {
     warnings.push(`规则包 ${layerName} 缺少 pack.yaml 清单（${manifestPath}）`)
     return
@@ -149,6 +151,7 @@ function checkPackManifest(dir: string, layerName: string, warnings: string[]): 
   try {
     const doc = parseDocument(readFileSync(manifestPath, 'utf8'))
     if (doc.errors.length > 0) {
+      /* v8 ignore next -- yaml parse errors always carry a message. */
       warnings.push(`规则包 ${layerName} 清单解析失败: ${doc.errors[0]?.message ?? 'unknown'}`)
       return
     }

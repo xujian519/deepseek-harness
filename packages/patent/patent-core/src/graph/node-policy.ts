@@ -30,6 +30,7 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
     timer = setTimeout(() => { reject(new Error('节点执行超时（硬上界）')) }, ms)
   })
   return Promise.race([promise, timeout]).finally(() => {
+    /* v8 ignore next -- the timeout promise's executor always assigns the timer before the race settles */
     if (timer !== undefined) clearTimeout(timer)
   })
 }
@@ -55,6 +56,7 @@ export async function runNodeWithPolicy(
   let lastError: unknown
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     if (deadline !== null && Date.now() >= deadline) {
+      /* v8 ignore next -- the first attempt cannot start past its own deadline, so lastError is always set here */
       return { ok: false, error: lastError ?? new Error(`节点执行超时（${timeoutMs}ms，含 ${maxRetries} 次重试）`) }
     }
     const controller = new AbortController()

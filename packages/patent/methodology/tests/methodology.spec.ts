@@ -10,7 +10,10 @@ import {
   injectMethodology,
 } from '../src/index.ts'
 import { triz } from '../src/index.ts'
+import { firstPrinciples, fishbone, pdca, sixHats } from '../src/index.ts'
+import { createTrizTool, paramLabel, principleNames } from '../src/index.ts'
 import { loadMatrix, loadPrinciples, lookupMatrixCell } from '../src/index.ts'
+import { keywordScore } from '../src/runtime/keywordMatch.ts'
 
 const testToolSignal = new AbortController().signal
 
@@ -87,6 +90,89 @@ describe('methodology registry and components', () => {
     const result = injectMethodology(registry, goal)
     expect(result.applied).toBe(true)
     expect(result.prompt!).toContain(goal)
+  })
+
+  it('match defaults topK and minScore when options are omitted', () => {
+    const registry = new MethodologyRegistry()
+    const matches = registry.match(ctx('分析失败原因'))
+    expect(matches).toHaveLength(1)
+    expect(matches[0]!.component.name).toBe('five-whys')
+  })
+
+  it('match applies explicit topK and minScore', () => {
+    const registry = new MethodologyRegistry()
+    const goal = ctx('分析失败原因，做 MECE 拆解')
+    // mece scores 2/8 (mece, 拆解), five-whys 2/9 (失败, 原因)
+    expect(registry.match(goal, { minScore: 0.24 }).map(m => m.component.name)).toEqual(['mece'])
+    expect(registry.match(goal, { topK: 1 })).toHaveLength(1)
+  })
+
+  it('match sorts multiple scored components by descending score', () => {
+    const registry = new MethodologyRegistry()
+    const matches = registry.match(ctx('分析失败原因，做 MECE 拆解'), { topK: 5 })
+    expect(matches.map(m => m.component.name)).toEqual(['mece', 'five-whys'])
+    expect(matches[0]!.score).toBeGreaterThan(matches[1]!.score)
+  })
+
+  it('match domain filter skips components outside the domain', () => {
+    const registry = new MethodologyRegistry()
+    const goal = ctx('用 SWOT 分析专利布局策略，并做规避设计')
+    expect(registry.match(goal, { topK: 8 }).map(m => m.component.name)).toEqual(['swot', 'triz'])
+    expect(registry.match(goal, { domain: 'coding' })).toEqual([])
+  })
+
+  it('extractMethodologyKeywords handles goals without word characters', () => {
+    expect(extractMethodologyKeywords('!!!')).toEqual([])
+  })
+})
+
+describe('keyword scoring and data access edge cases', () => {
+  it('keywordScore returns 0 when no triggers are configured', () => {
+    expect(keywordScore(ctx('任何目标'), [])).toBe(0)
+  })
+
+  it('lookupMatrixCell returns [] for out-of-range parameters', () => {
+    expect(lookupMatrixCell(14, 0)).toEqual([])
+    expect(lookupMatrixCell(0, 14)).toEqual([])
+  })
+
+  it('paramLabel falls back to the number for unknown parameters', () => {
+    expect(paramLabel(99)).toBe('99')
+  })
+
+  it('principleNames renders unknown ids without a name', () => {
+    expect(principleNames([999])).toBe('999')
+    expect(principleNames([1, 999])).toBe('1 分割, 999')
+  })
+})
+
+describe('component execute prompts', () => {
+  it('firstPrinciples execute renders the decomposition prompt', () => {
+    const goal = '如何颠覆现有电池技术'
+    const prompt = firstPrinciples.execute(ctx(goal)).prompt
+    expect(prompt).toContain('第一性原理')
+    expect(prompt).toContain(goal)
+  })
+
+  it('fishbone execute renders the cause-and-effect prompt', () => {
+    const goal = '排查产线不良率高的原因'
+    const prompt = fishbone.execute(ctx(goal)).prompt
+    expect(prompt).toContain('鱼骨图')
+    expect(prompt).toContain(goal)
+  })
+
+  it('pdca execute renders the improvement-cycle prompt', () => {
+    const goal = '优化专利申请流程'
+    const prompt = pdca.execute(ctx(goal)).prompt
+    expect(prompt).toContain('PDCA')
+    expect(prompt).toContain(goal)
+  })
+
+  it('sixHats execute renders the parallel-thinking prompt', () => {
+    const goal = '全面评估收购方案'
+    const prompt = sixHats.execute(ctx(goal)).prompt
+    expect(prompt).toContain('六顶思考帽')
+    expect(prompt).toContain(goal)
   })
 })
 
@@ -222,6 +308,36 @@ describe('dsh-methodology plugin-registered triz tool', () => {
     const result = await execute(host, 'triz', { improving: 14 }, 'half-pair')
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('both improving and worsening')
+  })
+
+  it('renders the empty recommendation text for a diagonal cell', async () => {
+    const host = await setupPlugin()
+    const result = await execute(host, 'triz', { improving: 5, worsening: 5 }, 'diagonal')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected triz success')
+    const value = result.value as { mode: string; recommended: unknown[] }
+    expect(value.mode).toBe('lookup')
+    expect(value.recommended).toEqual([])
+    expect(text(result)).toContain('Recommended principles: none.')
+  })
+
+  it('rejects an improving parameter outside 1-39', async () => {
+    const host = await setupPlugin()
+    const result = await execute(host, 'triz', { improving: 40, worsening: 1 }, 'bad-improving')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('improving must be an integer 1-39')
+  })
+
+  it('rejects a worsening parameter outside 1-39', async () => {
+    const host = await setupPlugin()
+    const result = await execute(host, 'triz', { improving: 14, worsening: 0 }, 'bad-worsening')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('worsening must be an integer 1-39')
+  })
+
+  it('render throws for an unknown mode (exhaustive default)', () => {
+    const tool = createTrizTool()
+    expect(() => tool.output.render({}, { mode: 'bogus' })).toThrow(/未知 TrizOutput mode/)
   })
 
   it('unregisters the tool when its contributing fiber is disposed (HMR-safety)', async () => {

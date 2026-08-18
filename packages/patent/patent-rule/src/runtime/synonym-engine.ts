@@ -144,6 +144,7 @@ export function parseSynonyms(yamlText: string, source = '<inline>'): { synonyms
   const synonyms: SynonymMap = new Map()
   const doc = parseDocument(yamlText)
   if (doc.errors.length > 0) {
+    /* v8 ignore next -- yaml parse errors always carry a message. */
     warnings.push(`同义词 YAML 解析失败 ${source}: ${doc.errors[0]?.message ?? 'unknown'}`)
     return { synonyms, warnings }
   }

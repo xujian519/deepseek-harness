@@ -32,7 +32,7 @@ const RESULT_SCHEMA = {
     htmlPath: { type: 'string', required: true },
     pdfPath: { type: 'string' },
     pdfError: { type: 'string' },
-    warnings: { type: 'array', items: { type: 'string' } },
+    warnings: { type: 'array', items: { type: 'string' }, required: true },
   },
 } as const
 
@@ -45,7 +45,7 @@ export function renderDocumentResult(value: DocumentRenderResult): string {
   const lines: string[] = [`HTML written: ${value.htmlPath}`]
   if (value.pdfPath !== undefined) lines.push(`PDF written: ${value.pdfPath}`)
   if (value.pdfError !== undefined) lines.push(`PDF not written: ${value.pdfError} (the HTML file is still available)`)
-  for (const warning of value.warnings ?? []) lines.push(`Warning: ${warning}`)
+  for (const warning of value.warnings) lines.push(`Warning: ${warning}`)
   return lines.join('\n')
 }
 
@@ -154,7 +154,7 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
       )
       const out: { htmlPath: string; pdfPath?: string; pdfError?: string; warnings: string[] } = {
         htmlPath: result.htmlPath,
-        warnings: result.warnings ?? [],
+        warnings: result.warnings,
       }
       if (result.pdfPath !== undefined) out.pdfPath = result.pdfPath
       if (result.pdfError !== undefined) out.pdfError = result.pdfError

@@ -70,4 +70,28 @@ describe('chunk-compression', () => {
     const blob = compressChunk(text)
     expect(decompressChunk(decompressChunk(blob))).toBe(text)
   })
+
+  it('sati_uncompress stringifies non-text storage classes (integer)', () => {
+    const db = new DatabaseSync(':memory:')
+    registerChunkUncompress(db)
+    db.exec('CREATE TABLE t (v)')
+    db.prepare('INSERT INTO t VALUES (?)').run(42)
+    const row = db.prepare('SELECT sati_uncompress(v) AS c FROM t').get() as { c: string }
+    expect(row.c).toBe('42')
+    db.close()
+  })
+
+  it('sati_uncompress maps an undefined value to the empty string', () => {
+    let callback: ((value: unknown) => string) | undefined
+    const stub = {
+      function: (_name: string, _options: unknown, fn: (value: unknown) => string) => {
+        callback = fn
+      },
+    } as unknown as DatabaseSync
+    registerChunkUncompress(stub)
+    expect(callback).toBeDefined()
+    expect(callback!(undefined)).toBe('')
+    expect(callback!(null)).toBe('')
+    expect(callback!('明文')).toBe('明文')
+  })
 })

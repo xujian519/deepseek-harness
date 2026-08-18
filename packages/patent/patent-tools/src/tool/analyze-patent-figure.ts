@@ -419,7 +419,7 @@ function normalizeFigureAnalysis(
 }
 
 /** Render the canonical figure analysis into model-facing Markdown. */
-function renderFigureAnalysis(value: FigureAnalysisResult): string {
+export function renderFigureAnalysis(value: FigureAnalysisResult): string {
   const lines = [
     `附图分析（图${value.figureNumber} · ${FIGURE_TYPE_NAMES[value.figureType]} · 置信度 ${value.confidence.toFixed(2)}${value.usable ? '' : ' · 需人工确认'}）`,
     '',

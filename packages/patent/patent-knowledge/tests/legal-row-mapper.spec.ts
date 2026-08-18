@@ -40,4 +40,26 @@ describe('legal row-mapper', () => {
     const r = toSearchResult({ ...row, fts_rank: undefined })
     expect(r.score).toBe(0)
   })
+
+  it('maps every null column to undefined', () => {
+    const r = toRecord({
+      id: 'id',
+      level: '法律',
+      name: 'name',
+      filename: null,
+      publish: null,
+      expired: 0,
+      category_id: 0,
+      subtitle: null,
+      valid_from: null,
+      content: null,
+      category_name: null,
+    })
+    expect(r.filename).toBeUndefined()
+    expect(r.publish).toBeUndefined()
+    expect(r.subtitle).toBeUndefined()
+    expect(r.validFrom).toBeUndefined()
+    expect(r.content).toBeUndefined()
+    expect(r.categoryName).toBeUndefined()
+  })
 })

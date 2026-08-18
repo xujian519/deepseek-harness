@@ -8,6 +8,7 @@ import {
   cachedSearchPatents,
   isScrapeResultCacheable,
   isSearchResultCacheable,
+  scrapeCacheKey,
 } from '@deepseek-ai/dsh-patent-data'
 
 function makeSearchResult(overrides: Partial<PatentSearchResult> = {}): PatentSearchResult {
@@ -148,6 +149,41 @@ describe('AsyncResultCache', () => {
     expect(await cache.getOrLoad('k', loader, () => false)).toBe('transient')
     expect(calls).toBe(2)
   })
+
+  it('reports live entries and clears both cached and in-flight state', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const cache = new AsyncResultCache<string>({ ttlMs: 60_000 })
+    const loading = cache.getOrLoad('k', async () => {
+      await gate
+      return 'v1'
+    })
+    expect(cache.size).toBe(0)
+    release()
+    expect(await loading).toBe('v1')
+    expect(cache.size).toBe(1)
+    cache.clear()
+    expect(cache.size).toBe(0)
+    expect(await cache.getOrLoad('k', async () => 'v2')).toBe('v2')
+  })
+
+  it('lets a same-key store settle before the outer store when the loader re-enters', async () => {
+    const cache = new AsyncResultCache<string>({ ttlMs: 60_000 })
+    const outer = cache.getOrLoad('k', async () => {
+      // The nested call runs before the outer loader's value is stored, so the
+      // outer store must replace an entry that is already present.
+      void cache.getOrLoad('k', async () => 'nested')
+      return 'outer'
+    })
+    expect(await outer).toBe('outer')
+    expect(await cache.getOrLoad('k', async () => 'again')).toBe('outer')
+  })
+
+  it('stops evicting when the cache holds no entries (zero-capacity config)', async () => {
+    const cache = new AsyncResultCache<string>({ maxEntries: 0, ttlMs: 60_000 })
+    expect(await cache.getOrLoad('k', async () => 'v')).toBe('v')
+    expect(cache.size).toBe(1)
+  })
 })
 
 describe('isSearchResultCacheable / isScrapeResultCacheable', () => {
@@ -234,5 +270,10 @@ describe('cachedSearchPatents / cachedScrapePatent', () => {
     await wrapped('US11452699B2')
     await wrapped('US11452699B2')
     expect(calls).toBe(1)
+  })
+
+  it('encodes the abstract/legal toggles in scrape cache keys', () => {
+    expect(scrapeCacheKey('US11452699B2', { returnAbstract: false, returnLegal: true })).toBe('scrape\u0000US11452699B2\u000001')
+    expect(scrapeCacheKey('US11452699B2', { returnAbstract: true, returnLegal: false })).toBe('scrape\u0000US11452699B2\u000010')
   })
 })

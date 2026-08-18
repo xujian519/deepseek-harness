@@ -75,4 +75,36 @@ describe('workflow manifest DAG bridge', () => {
     expect(mermaid).toContain('  b["含\\n换行"]')
     expect(mermaid.split('\n')).toHaveLength(4)
   })
+
+  it('sparse stage arrays skip the missing slots when building edges (no crash)', () => {
+    // 数组按索引读取时含空洞，但迭代器只给出合法阶段：sequentialEdges 遇到
+    // from/to 为 undefined 的相邻对时跳过，图与 Mermaid 都只包含真实阶段。
+    const stageA: WorkflowManifest['stages'][number] = { id: 'a', strategy: 'chain', description: 'A' }
+    const stageB: WorkflowManifest['stages'][number] = { id: 'b', strategy: 'chain', description: 'B' }
+    const sparse = new Array<WorkflowManifest['stages'][number]>(3)
+    sparse[0] = stageA
+    sparse[2] = stageB
+    Object.defineProperty(sparse, Symbol.iterator, {
+      value: function* (): Generator<WorkflowManifest['stages'][number]> {
+        yield stageA
+        yield stageB
+      },
+    })
+    const manifestSparse: WorkflowManifest = {
+      id: 'sparse_v1',
+      name: '稀疏',
+      caseType: 'test',
+      stages: sparse,
+    }
+    const graph = manifestToFlowGraph(manifestSparse)
+    expect(graph.outgoing('a')).toEqual([])
+    // 无顺序边 → 两个节点都是孤儿（这正是 hole 被跳过的可观测结果）。
+    expect(validateWorkflowManifestDag(manifestSparse)).toEqual(['Orphan node: a', 'Orphan node: b'])
+
+    const mermaid = workflowManifestToMermaid(manifestSparse)
+    expect(mermaid).toContain('  a["A"]')
+    expect(mermaid).toContain('  b["B"]')
+    expect(mermaid).not.toContain('-->')
+    expect(mermaid.split('\n')).toHaveLength(3)
+  })
 })

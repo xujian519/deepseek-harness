@@ -21,6 +21,13 @@ describe('flexible-plan IPC technical-field inference', () => {
     expect(formatTechnicalField(c)).toBe('A:人类生活必需')
   })
 
+  it('formatTechnicalField: an unknown section falls back to the raw section code', () => {
+    const c: IpcClassification = { section: 'X', confidence: 0.8, matchedKeywords: [], detail: 'X01' }
+    expect(formatTechnicalField(c)).toBe('X X01:X-X01')
+    const bare: IpcClassification = { section: 'Z', confidence: 0.8, matchedKeywords: [] }
+    expect(formatTechnicalField(bare)).toBe('Z:Z')
+  })
+
   it('inferTechnicalField: electrical text infers section H', () => {
     const field = inferTechnicalField('本发明涉及一种集成电路芯片和半导体电路，用于无线通信系统中的射频信号放大与调制解调。')
     expect(field).toBeTruthy()

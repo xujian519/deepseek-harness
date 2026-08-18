@@ -105,6 +105,7 @@ export function manifestToGraph(manifest: WorkflowManifest, deps: ManifestToGrap
 
   for (let i = 0; i < manifest.stages.length; i += 1) {
     const stage = manifest.stages[i]
+    /* v8 ignore next -- sparse stages arrays crash validateWorkflowManifest first */
     if (stage === undefined) break
     const nextId = manifest.stages[i + 1]?.id ?? GRAPH_END
     if (stage.retry !== undefined) {
@@ -115,6 +116,7 @@ export function manifestToGraph(manifest: WorkflowManifest, deps: ManifestToGrap
   }
 
   const first = manifest.stages[0]
+  /* v8 ignore next -- validateWorkflowManifest rejects empty stages before this point */
   if (first === undefined) throw new GraphEngineError('manifest 无阶段，无法编译图')
   return builder.compile(first.id)
 }
@@ -167,6 +169,7 @@ const retryExhaustedKey = (stageId: string): string => `${stageId}__retry_exhaus
 /** retry 阶段 → 条件边 router：命中信号回退 rewindTo，否则继续 nextId。 */
 function makeRetryRouter(stage: WorkflowStage, stages: WorkflowStage[], nextId: string): EdgeRouter {
   const retry = stage.retry
+  /* v8 ignore next -- callers only reach here when stage.retry is defined */
   if (retry === undefined) throw new GraphEngineError(`阶段 ${stage.id} 缺少 retry 配置`)
 
   const rewindTo = retry.rewindTo ?? stage.id
@@ -175,6 +178,7 @@ function makeRetryRouter(stage: WorkflowStage, stages: WorkflowStage[], nextId: 
   // 被回退阶段集合（rewindTo .. 当前阶段），回退时删除其 state 键防陈旧复用。
   const rewindIndex = stages.findIndex(s => s.id === rewindTo)
   const currentIndex = stages.findIndex(s => s.id === stage.id)
+  /* v8 ignore next -- validateWorkflowManifest rejects unknown rewindTo targets */
   const rewindedIds =
     rewindIndex === -1 || currentIndex === -1 ? [stage.id] : stages.slice(rewindIndex, currentIndex + 1).map(s => s.id)
 

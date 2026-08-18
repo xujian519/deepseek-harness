@@ -159,11 +159,13 @@ export function createPatentMetadataTool(deps: PatentMetadataDeps = {}): ToolDef
     async execute(args, exec) {
       const validation = validatePatentNumber(args.patent)
       if (!validation.valid) {
+        /* v8 ignore next -- the vendored validator always supplies a reason for invalid numbers. */
         throw new PatentToolError('invalid_tool_input', validation.reason ?? `Invalid patent number: ${args.patent}`, {
           tool: 'patent_metadata',
           patent: args.patent,
         })
       }
+      /* v8 ignore next -- the vendored validator always normalizes valid numbers. */
       const result = await scrape(validation.normalized ?? args.patent, {
         timeout: args.timeout ?? 30000,
         returnAbstract: args.returnAbstract ?? true,

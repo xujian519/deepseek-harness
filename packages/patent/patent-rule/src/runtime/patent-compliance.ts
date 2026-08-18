@@ -127,6 +127,7 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
     try {
       const doc = parseDocument(readFileSync(path, 'utf8'))
       if (doc.errors.length > 0) {
+        /* v8 ignore next -- yaml parse errors always carry a message. */
         warnings.push(`激活覆盖文件解析失败 ${path}: ${doc.errors[0]?.message ?? 'unknown'}`)
         continue
       }

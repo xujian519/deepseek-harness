@@ -151,8 +151,9 @@ function cacheSet(key: string, value: { expires: number; body: string }): void {
   cache.delete(key)
   cache.set(key, value)
   if (cache.size > MAX_CACHE_ENTRIES) {
-    const oldest = cache.keys().next()
-    if (!oldest.done) cache.delete(oldest.value)
+    // size > MAX_CACHE_ENTRIES 时 map 非空，迭代器必然产出首个键。
+    const oldest = cache.keys().next() as IteratorYieldResult<string>
+    cache.delete(oldest.value)
   }
 }
 

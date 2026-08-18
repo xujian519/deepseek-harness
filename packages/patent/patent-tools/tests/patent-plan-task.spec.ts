@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { CallId } from '@deepseek-ai/dsh-llm'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { hashStep } from '@deepseek-ai/dsh-patent-workflow'
 import { PatentToolError } from '../src/error.ts'
@@ -87,4 +91,89 @@ describe('patent_plan_task', () => {
     const error = renderPlanTask({ ok: false, action: 'sync', error: 'sync 需要 planSteps 非空' })
     expect(error).toContain('patent_plan_task: sync 需要 planSteps 非空')
   })
+
+  it('renders dependent tasks, replan prose, and fallbacks', () => {
+    const blocked = renderPlanTask({
+      ok: true,
+      action: 'sync',
+      tasks: [{ id: 'task-2', description: 'b', hash: 'h', status: 'pending', blockedBy: ['task-1'] }],
+      preserved: [],
+      toRun: [],
+    })
+    expect(blocked).toContain('（依赖 task-1）')
+    expect(blocked).toContain('待执行: ')
+
+    const bareSync = renderPlanTask({ ok: true, action: 'sync', preserved: [] })
+    expect(bareSync).toContain('同步 0 个任务')
+    expect(bareSync).toContain('待执行: ')
+
+    const replan = renderPlanTask({
+      ok: true,
+      action: 'replan',
+      tasks: [{ id: 'task-1', description: 'a', hash: 'h', status: 'completed' }],
+      preserved: ['task-1'],
+      toRun: [],
+    })
+    expect(replan).toContain('保留已完成: task-1')
+    expect(replan).toContain('（全部已完成）')
+
+    const noPreserved = renderPlanTask({ ok: true, action: 'replan', tasks: [], preserved: [], toRun: ['t1'] })
+    expect(noPreserved).toContain('无保留步骤')
+    expect(noPreserved).toContain('需执行: t1')
+
+    const bareReplan = renderPlanTask({ ok: true, action: 'replan' })
+    expect(bareReplan).toContain('无保留步骤')
+    expect(bareReplan).toContain('（全部已完成）')
+
+    const bareError = renderPlanTask({ ok: false, action: 'sync' })
+    expect(bareError).toContain('失败')
+  })
+
+  it('transitions with tasks and feedback through the tool render', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.tools.register(createPatentPlanTaskTool())
+    const signal = new AbortController().signal
+    const executing = await ctx.tools.execute({
+      signal,
+      callId: CallId('pt-1'),
+      name: 'patent_plan_task',
+      arguments: { action: 'transition', currentState: 'awaiting_approval', to: 'executing', tasks: [{ id: 'task-1' }] },
+    })
+    expect(executing.isError).toBe(false)
+    if (executing.isError) throw new Error('expected success')
+    expect(text(executing)).toContain('awaiting_approval → executing')
+
+    const replanning = await ctx.tools.execute({
+      signal,
+      callId: CallId('pt-2'),
+      name: 'patent_plan_task',
+      arguments: { action: 'transition', currentState: 'awaiting_feedback', to: 'replanning', feedback: '补充检索' },
+    })
+    expect(replanning.isError).toBe(false)
+    if (replanning.isError) throw new Error('expected success')
+    expect(text(replanning)).toContain('awaiting_feedback → replanning')
+
+    const defaultFrom = await ctx.tools.execute({
+      signal,
+      callId: CallId('pt-3'),
+      name: 'patent_plan_task',
+      arguments: { action: 'transition', to: 'awaiting_approval' },
+    })
+    expect(defaultFrom.isError).toBe(false)
+  })
+
+  it('replans without previous tasks and rejects empty sync/replan steps', async () => {
+    const tool = createPatentPlanTaskTool()
+    const value = (await tool.execute({ action: 'replan', planSteps: ['a'] }, exec)) as PatentPlanTaskOutput
+    expect(value.ok).toBe(true)
+    expect(value.tasks).toHaveLength(1)
+    await expect(tool.execute({ action: 'replan' }, exec)).rejects.toThrow('replan 需要 planSteps 非空')
+    await expect(tool.execute({ action: 'sync' }, exec)).rejects.toThrow('sync 需要 planSteps 非空')
+  })
 })
+
+function text(result: { content: { type: string; text?: string }[] }): string {
+  return result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
+}

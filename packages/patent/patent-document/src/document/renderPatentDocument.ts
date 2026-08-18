@@ -146,8 +146,8 @@ function findMatchingCloseTag(html: string, openEnd: number): number | undefined
   while ((match = tagRe.exec(html)) !== null) {
     const token = match[0]
     const isClose = token.startsWith('</')
-    const nameMatch = token.match(/^<\/?([A-Za-z][A-Za-z0-9]*)/)
-    const name = (nameMatch?.[1] ?? '').toLowerCase()
+    // tagRe 保证 token 以字母开头的标签名开始；用捕获组提取标签名。
+    const name = token.replace(/^<\/?([A-Za-z][A-Za-z0-9]*).*/, '$1').toLowerCase()
     if (isClose) {
       depth -= 1
       if (depth === 0) return match.index

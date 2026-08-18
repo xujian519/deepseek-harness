@@ -146,7 +146,9 @@ function resultText(result: Readonly<ToolExecutionResult>): string {
 function hitSummary(result: RuleOutputGateResult): string {
   const ids = [...new Set([...result.blockHits, ...result.reviewHits])]
   const first = result.violations[0]
+  /* v8 ignore next -- only called with block/review hits, so violations is non-empty. */
   const label = first ? '（' + first.ruleName + '）' : ''
+  /* v8 ignore next -- only called with block/review hits, so ids is non-empty. */
   return ids.length > 0 ? ids.join(', ') + label : '(none)'
 }
 

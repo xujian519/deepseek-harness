@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ import {
   mergeRuleSets,
   parseRulePackManifest,
   resolvePackDir,
+  resolveRulePackManifestPath,
   summarizeRulePackLayers,
   validatePackManifest,
 } from '@deepseek-ai/dsh-patent-rule'
@@ -250,5 +251,74 @@ describe('rule pack', () => {
       expect(() => readFileSync(manifest, 'utf8')).not.toThrow()
     }
     expect(() => readFileSync(join(root, 'base', 'pack.yaml'), 'utf8')).not.toThrow()
+  })
+
+  it('resolveRulePackManifestPath returns null for an explicit missing path', () => {
+    expect(resolveRulePackManifestPath(join(tmpdir(), 'no-manifest-xyz.yaml'))).toBeNull()
+    expect(resolveRulePackManifestPath()).toBeNull()
+  })
+
+  it('parseRulePackManifest rejects a non-object document', () => {
+    expect(() => parseRulePackManifest('- a\n- b')).toThrow(/顶层必须是对象/)
+    expect(() => parseRulePackManifest('42')).toThrow(/顶层必须是对象/)
+  })
+
+  it('validatePackManifest rejects non-object raw values and bad domain fields', () => {
+    expect(validatePackManifest('oops').some(i => i.field === '(root)')).toBe(true)
+    expect(validatePackManifest(['id']).some(i => i.field === '(root)')).toBe(true)
+    const badDomain = validatePackManifest({ id: 'sati-rules-x', version: '0.1.0', description: 'ok', domain: 42 })
+    expect(badDomain.some(i => i.field === 'domain')).toBe(true)
+  })
+
+  it('loadRulePack warns on a missing builtin pack, a broken manifest, and a missing builtin domain', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sati-rule-pack-missing-base-'))
+    const manifestPath = join(root, 'rules.yaml')
+
+    writeFileSync(manifestPath, 'base: definitely-missing-pack\n', 'utf8')
+    const missingBase = loadRulePack({ manifestPath })
+    expect(missingBase.warnings.some(w => w.includes('规则包 base 未找到'))).toBe(true)
+    expect(missingBase.ruleSet.rules.length).toBe(0)
+
+    writeFileSync(manifestPath, 'base: [unclosed\n', 'utf8')
+    const broken = loadRulePack({ manifestPath })
+    expect(broken.warnings.some(w => w.includes('规则包清单加载失败'))).toBe(true)
+    expect(broken.ruleSet.rules.length).toBeGreaterThan(0)
+
+    writeFileSync(manifestPath, 'base: base\ndomains:\n  - missing-domain-pack\n', 'utf8')
+    const missingDomain = loadRulePack({ manifestPath })
+    expect(missingDomain.warnings.some(w => w.includes('规则包 domain:missing-domain-pack 未找到'))).toBe(true)
+    expect(missingDomain.ruleSet.rules.length).toBeGreaterThan(0)
+  })
+
+  it('loadRulePack warns on unparsable, invalid, or unreadable pack.yaml manifests', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sati-rule-pack-bad-manifest-'))
+    const base = join(root, 'base-pack')
+    mkdirSync(base)
+    writeFileSync(
+      join(base, 'rules.yaml'),
+      'rules:\n  - id: B1\n    name: b\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+      'utf8',
+    )
+    const manifestPath = join(root, 'rules.yaml')
+    writeFileSync(manifestPath, `base: ${base}\n`, 'utf8')
+
+    writeFileSync(join(base, 'pack.yaml'), 'pack: [', 'utf8')
+    const unparsable = loadRulePack({ manifestPath })
+    expect(unparsable.warnings.some(w => w.includes('清单解析失败'))).toBe(true)
+    expect(unparsable.ruleSet.rules.length).toBe(1)
+
+    writeFileSync(join(base, 'pack.yaml'), 'id: wrong\n', 'utf8')
+    const invalid = loadRulePack({ manifestPath })
+    expect(invalid.warnings.some(w => w.includes('清单非法'))).toBe(true)
+
+    rmSync(join(base, 'pack.yaml'))
+    mkdirSync(join(base, 'pack.yaml'))
+    try {
+      const unreadable = loadRulePack({ manifestPath })
+      expect(unreadable.warnings.some(w => w.includes('清单读取失败'))).toBe(true)
+      expect(unreadable.ruleSet.rules.length).toBe(1)
+    } finally {
+      rmSync(join(base, 'pack.yaml'), { recursive: true, force: true })
+    }
   })
 })

@@ -158,11 +158,13 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
     if (unique.length === 0) return []
     if (unique.length === 1) {
       const single = unique[0]
+      /* v8 ignore start -- ids.filter(id => id.length > 0) can never yield an undefined element */
       if (single !== undefined) {
         const record = this.getById(single)
         return record ? [record] : []
       }
       return []
+      /* v8 ignore stop */
     }
     const placeholders = unique.map(() => '?').join(', ')
     const rows = this.db
@@ -255,6 +257,8 @@ export class KnowledgeLawSearch extends KnowledgeFtsSearchBase<KnowledgeLawSearc
         AND (d.title LIKE ? ESCAPE '\\' OR sati_uncompress(c.content) LIKE ? ESCAPE '\\')
     `
     const params: Array<string | number> = [pattern, pattern]
+    // The !options.level early return above guarantees level is set here.
+    /* v8 ignore next -- defensive re-check after the early return */
     if (options.level) {
       sql += ' AND d.level = ?'
       params.push(options.level)

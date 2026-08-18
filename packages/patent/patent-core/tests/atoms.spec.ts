@@ -6,6 +6,7 @@ import {
   InterruptStageError,
   ListAtoms,
   LookupStageHandler,
+  RegisterAtom,
   StageHandlerRegistry,
   evidenceCoverage,
   globalAtomRegistry,
@@ -394,4 +395,11 @@ describe('ModelPort bridge', () => {
     const out = await h.execute({ state: { reasoning_prompt: '分析' }, provider: {} })
     expect(String(out._error)).toMatch(/未配置 LLM/)
   })
+})
+
+it('RegisterAtom：登记到全局注册表（同名覆盖语义）', () => {
+  const atom = { name: 'search', description: '覆盖版注册', category: 'search' as const, inputSchema: [], outputSchema: [] }
+  RegisterAtom(atom)
+  expect(ListAtoms().map(a => a.name)).toContain('search')
+  expect(globalAtomRegistry.lookup('search')).toBe(atom)
 })

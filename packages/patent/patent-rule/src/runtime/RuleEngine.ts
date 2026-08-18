@@ -122,6 +122,7 @@ function checkCitationAnalysis(
   while ((match = CITATION_RE.exec(text)) !== null) {
     const fullMatch = match[0]
     const articleText = match[2]
+    /* v8 ignore next -- the citation regex always captures a non-empty article group. */
     if (articleText === undefined) break
     const statuteName = match[1] === '专利法实施细则' ? '专利法实施细则' : '专利法'
     const article = parseCnNumber(articleText)

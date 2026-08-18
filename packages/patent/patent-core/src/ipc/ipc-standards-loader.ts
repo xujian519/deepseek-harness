@@ -21,8 +21,10 @@ function resolveStandardsPath(overridePath?: string): string {
   ]
   for (const url of candidates) {
     const path = fileURLToPath(url)
+    /* v8 ignore next -- the first candidate always exists in the shipped package layout */
     if (existsSync(path)) return path
   }
+  /* v8 ignore next -- all three candidates resolve inside the shipped package */
   throw new Error('ipc-standards.yaml not found in the shipped asset locations')
 }
 

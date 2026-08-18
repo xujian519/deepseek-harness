@@ -86,4 +86,58 @@ describe('openalex connector', () => {
     expect((record as { id?: string }).id?.includes('W2741809807')).toBe(true)
     expect(url.includes('/works/doi:10.48550/arXiv.1706.03762?')).toBe(true)
   })
+
+  it('normalizes sparse works defensively', async () => {
+    const connector = createOpenAlexConnector({
+      fetchImpl: async () => jsonResponse({
+        results: [
+          { id: 'https://openalex.org/W1', display_name: 'T' },
+          { doi: 'https://doi.org/10.1/x' },
+          { primary_location: { landing_page_url: 'https://landing.test/w3' } },
+          {},
+        ],
+      }),
+    })
+    const hits = await connector.search('edge')
+    const [w1, w2, w3, w4] = hits
+    expect(w1!.id).toBe('W1')
+    expect(w1!.title).toBe('T')
+    expect(w1!.summary).toBeUndefined()
+    expect(w1!.url).toBe('https://openalex.org/W1')
+    expect(w2!.id).toBe('https://doi.org/10.1/x')
+    expect(w2!.title).toBe('Untitled')
+    expect(w2!.url).toBe('https://doi.org/10.1/x')
+    expect(w2!.score).toBeUndefined()
+    expect(w3!.id).toBe('')
+    expect(w3!.url).toBe('https://landing.test/w3')
+    expect(w4!.id).toBe('')
+    expect(w4!.title).toBe('Untitled')
+    expect(w4!.url).toBeUndefined()
+  })
+
+  it('returns [] when results are absent', async () => {
+    const connector = createOpenAlexConnector({ fetchImpl: async () => jsonResponse({}) })
+    await expect(connector.search('none')).resolves.toEqual([])
+  })
+
+  it('fetch resolves bare work ids, empty ids, and null records', async () => {
+    let url = ''
+    let calls = 0
+    const connector = createOpenAlexConnector({
+      fetchImpl: async (input: RequestInfo | URL) => {
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        calls += 1
+        return jsonResponse(calls === 1 ? { id: 'https://openalex.org/W2741809807' } : null)
+      },
+    })
+
+    const work = await connector.fetch!('W2741809807')
+    expect((work as { id: string }).id).toBe('https://openalex.org/W2741809807')
+    expect(url.includes('/works/W2741809807?mailto=')).toBe(true)
+
+    await connector.fetch!('')
+    expect(url.includes('/works/?mailto=')).toBe(true)
+
+    await expect(connector.fetch!('W999999')).resolves.toBeNull()
+  })
 })

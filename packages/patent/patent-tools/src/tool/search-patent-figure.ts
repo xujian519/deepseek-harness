@@ -92,10 +92,12 @@ export function tokenizeFigureText(text: string): string[] {
   const chars = text.match(CJK_CHAR_RE) ?? []
   for (let i = 0; i < chars.length; i++) {
     const ch = chars[i]
+    /* v8 ignore next -- match() returns a dense array; chars[i] is always defined. */
     if (ch === undefined) continue
     tokens.push(ch)
     if (i + 1 < chars.length) {
       const next = chars[i + 1]
+      /* v8 ignore next -- guarded by i + 1 < chars.length, so next is always defined. */
       if (next !== undefined) tokens.push(ch + next)
     }
   }
@@ -196,15 +198,16 @@ export function retrieveFiguresKeyword(
   const idf = computeIdf(docTokens)
   const queryVector = termVector(queryTokens, idf)
   const scores = docTokens.map(tokens => sparseCosine(queryVector, termVector(tokens, idf)))
-  return entries
-    .map((entry, index) => ({ entry, score: scores[index] ?? 0 }))
+  /* v8 ignore next -- scores is 1:1 with entries (both derive from documents), so the nullish fallback never fires. */
+  const scored = entries.map((entry, index) => ({ entry, score: scores[index] ?? 0 }))
+  return scored
     .filter(hit => hit.score > 0)
     .sort((a, b) => b.score - a.score || a.entry.analysis.figureNumber - b.entry.analysis.figureNumber)
     .slice(0, limit)
 }
 
 /** Render the canonical search value into model-facing Markdown. */
-function renderSearchFigure(value: SearchPatentFigureOutput): string {
+export function renderSearchFigure(value: SearchPatentFigureOutput): string {
   if (value.results.length === 0) {
     return `search_patent_figure: 0 张附图命中。${value.hint ? `\n\n提示：${value.hint}` : ''}`
   }

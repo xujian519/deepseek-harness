@@ -111,6 +111,7 @@ export function createClaimChartBuildTool(deps: ClaimChartBuildDeps = {}): ToolD
       if (typeof state._error === 'string') {
         throw new PatentToolError('tool_execution_failed', state._error, { tool: 'claim_chart_build' })
       }
+      /* v8 ignore next -- the success state always carries a string claim_chart_doc (degraded states carry _error). */
       const doc = typeof state.claim_chart_doc === 'string' ? state.claim_chart_doc : '{}'
       const chart = JSON.parse(doc) as ClaimChart
       const rawPaths = typeof state.claim_chart_paths === 'string' ? state.claim_chart_paths : undefined

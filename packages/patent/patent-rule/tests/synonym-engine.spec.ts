@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   checkSynonymRequirements,
@@ -192,5 +195,44 @@ rules:
 `,
     )
     expect(issues.some(i => i.message.includes('synonym_match 需要非空 requirements'))).toBe(true)
+  })
+
+  it('parseSynonyms reports YAML errors and non-object documents', () => {
+    const badYaml = parseSynonyms('synonyms: [', 'bad.yaml')
+    expect(badYaml.warnings.some(w => w.includes('同义词 YAML 解析失败'))).toBe(true)
+    expect(badYaml.synonyms.size).toBe(0)
+    const list = parseSynonyms('- a\n- b')
+    expect(list.warnings.some(w => w.includes('顶层必须是对象'))).toBe(true)
+    const noMap = parseSynonyms('foo: bar')
+    expect(noMap.warnings.some(w => w.includes('缺少 synonyms 映射'))).toBe(true)
+  })
+
+  it('checkSynonymRequirements passes an empty requirement list', () => {
+    const result = checkSynonymRequirements('任意文本', [], new Map())
+    expect(result.confidence).toBe(1)
+    expect(result.missing).toEqual([])
+    expect(result.matched).toEqual([])
+  })
+
+  it('loadSynonymsAsset degrades to an empty table when assets are missing', () => {
+    const { synonyms, source, warnings } = loadSynonymsAsset('/nonexistent/rules-root')
+    expect(source).toBeNull()
+    expect(synonyms.size).toBe(0)
+    expect(warnings.some(w => w.includes('未找到同义词资产'))).toBe(true)
+  })
+
+  it('loadSynonymsAsset reports a read failure on unreadable asset files', () => {
+    const root = mkdtempSync(join(tmpdir(), 'synonyms-'))
+    const patentDir = join(root, 'patent')
+    mkdirSync(patentDir)
+    mkdirSync(join(patentDir, 'synonyms.yaml'))
+    try {
+      const { synonyms, source, warnings } = loadSynonymsAsset(root)
+      expect(source).toBeNull()
+      expect(synonyms.size).toBe(0)
+      expect(warnings.some(w => w.includes('同义词资产加载失败'))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

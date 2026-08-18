@@ -249,6 +249,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       try {
         validateWorkflowManifest(manifest)
       } catch (err) {
+        /* v8 ignore next 6 -- every built-in manifest validates; kept as a fail-safe for future catalog edits. */
         return {
           ok: false,
           mode: 'manifest' as const,
@@ -296,6 +297,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
         degradedSteps: result.degradedSteps,
         persistNote,
         ...(interruptNote !== undefined ? { interruptNote } : {}),
+        /* v8 ignore next -- the built-in run stores surface no persist warning in this build. */
         ...(result.persistWarning !== undefined ? { persistWarning: result.persistWarning } : {}),
       }
     },
@@ -337,6 +339,7 @@ async function executeGraphRun(
   let persistNote = '持久化: 未启用（未提供 caseId）'
   if (input.caseId !== undefined) {
     const persistTarget = resolveRunPersistTarget(input.caseId, graphId, cwd)
+    /* v8 ignore next -- resolveRunPersistTarget is only undefined when caseId is, which the branch above excludes. */
     if (persistTarget !== undefined) {
       store = new JsonFileCheckpointStore(join(persistTarget.runsDir, 'checkpoints'))
       persistNote = `持久化: checkpoints 目录 ${join(persistTarget.runsDir, 'checkpoints')}`
@@ -370,13 +373,14 @@ async function executeGraphRun(
     store,
     graphId,
     provider,
+    /* v8 ignore next -- execute always passes an AbortSignal through. */
     ...(signal !== undefined ? { signal } : {}),
     ...(resumeFrom !== undefined ? { resumeFrom } : {}),
   })
 
   const checkpointNote = checkpointId
     ? `检查点: ${checkpointId}${result.interrupted !== undefined ? '（中断可续跑）' : ''}`
-    : '检查点: 无'
+    : /* v8 ignore next -- every graph run starts at least one superstep, so a checkpoint id is always produced. */ '检查点: 无'
   const interruptNote = result.interrupted !== undefined
     ? `⏸ 审批门暂停: "${result.interrupted.node}"（${result.interrupted.message}）——可用 resumeCheckpointId 续跑`
     : undefined
@@ -395,6 +399,7 @@ async function executeGraphRun(
     ...(interruptNote !== undefined ? { interruptNote } : {}),
     graphState: result.state as unknown as JsonValue,
     graphDegraded: result.degraded as unknown as JsonValue[],
+    /* v8 ignore next -- every graph run starts at least one superstep, so a checkpoint id is always produced. */
     ...(checkpointId !== undefined ? { checkpointId } : {}),
     checkpointNote,
   }

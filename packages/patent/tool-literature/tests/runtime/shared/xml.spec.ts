@@ -31,6 +31,7 @@ describe('xml helpers', () => {
     expect(xmlText(FEED, 'title')).toBe('Attention Is All You Need')
     expect(xmlText(FEED, 'summary')).toBe('The dominant sequence transduction models & are based on complex recurrent networks.')
     expect(xmlText(FEED, 'missing')).toBeUndefined()
+    expect(xmlText('<title>   </title>', 'title')).toBeUndefined()
   })
 
   it('xmlAttr reads attribute on namespaced self-closing tag', () => {

@@ -75,6 +75,7 @@ function resolveLlmCall(
     // 取消信号透传到 port.stream（GenerateOptions.signal）。
     return async (prompt, opts) =>
       collectPortText(port, prompt, signal, {
+        /* v8 ignore next -- every builtin handler passes temperature explicitly */
         ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
         ...(opts?.jsonSchema !== undefined ? { schema: opts.jsonSchema } : {}),
       })
@@ -112,12 +113,14 @@ export async function callLlm(
   signal?: AbortSignal,
 ): Promise<LlmCallResult> {
   const call = resolveLlmCall(provider, signal)
+  /* v8 ignore next 2 -- requireLlm front-loads the identical resolveLlmCall check */
   if (!call) {
     return { ok: false, error: degraded(atom, '未配置 LLM（provider.callLLM / provider.llm 缺失）'), message: '未配置 LLM' }
   }
   try {
     const raw = await call(prompt, {
       ...(opts.schema !== undefined ? { jsonSchema: opts.schema } : {}),
+      /* v8 ignore next -- every builtin handler passes temperature explicitly */
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
     })
     return { ok: true, raw }

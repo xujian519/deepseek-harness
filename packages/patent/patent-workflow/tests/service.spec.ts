@@ -103,6 +103,115 @@ describe('PatentWorkflow service', () => {
     }
   })
 
+  it('runWorkflow without an agent records no session event; runId travels with the event', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const noAgent = await ctx.patentWorkflow.runWorkflow(
+        patentNoveltyManifest, { input: '一种装置' }, okExecutor, { approvalGrants: ['approval'] },
+      )
+      expect(noAgent.completed).toBe(true)
+
+      const agent = makeAgent('workflow-run-id')
+      const withRunId = await ctx.patentWorkflow.runWorkflow(
+        patentNoveltyManifest, { input: '一种装置' }, okExecutor,
+        { runId: 'run-42', approvalGrants: ['approval'] }, agent,
+      )
+      expect(withRunId.completed).toBe(true)
+      const events = agent.session.events.filter(e => e.type === 'patent/workflow-run')
+      expect(events).toHaveLength(1)
+      expect(events[0]!.data.runId).toBe('run-42')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('runPlantask rejects a duplicate pending caseId (no overwrite)', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const agent = makeAgent('plantask-duplicate')
+      await ctx.patentWorkflow.runPlantask(agent, 'case-dup', ['步骤A'], { autoApprove: false })
+      await expect(ctx.patentWorkflow.runPlantask(agent, 'case-dup', ['步骤B'], { autoApprove: false }))
+        .rejects.toThrow(/已有挂起的 plantask/)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('fails closed to replanning when no approval service is composed at all', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const agent = makeAgent('plantask-no-service')
+      const result = await ctx.patentWorkflow.runPlantask(agent, 'case-none', ['步骤A'])
+      expect(result.state).toBe('replanning')
+      expect(result.approvalOutcome).toBe('unavailable')
+      // 拒绝反馈未显式传入 → 结果不含 feedback 字段（驱动迁移的默认文案不进结果）。
+      expect(result.feedback).toBeUndefined()
+      const states = agent.session.events
+        .filter(e => e.type === 'patent/plantask')
+        .map(e => e.data.state)
+      expect(states).toEqual(['awaiting_approval', 'replanning'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('a cancelled approval decision replans with the cancellation feedback', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      ctx.provide('approval', { request: async () => 'cancelled' as const })
+      const agent = makeAgent('plantask-cancelled')
+      const result = await ctx.patentWorkflow.runPlantask(agent, 'case-cancel', ['步骤A'])
+      expect(result.state).toBe('replanning')
+      expect(result.approvalOutcome).toBe('cancelled')
+      expect(result.feedback).toBeUndefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('reject with and without feedback drives the replanning transition', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      const agent = makeAgent('plantask-reject')
+      await ctx.patentWorkflow.runPlantask(agent, 'case-reject', ['步骤A'], { autoApprove: false })
+
+      const blank = ctx.patentWorkflow.reject('case-reject', '   ')
+      expect(blank.state).toBe('replanning')
+      expect(blank.approvalOutcome).toBe('rejected')
+      // 空白反馈原样透传（驱动迁移的反馈由 rejectionFeedback 兜底为默认文案）。
+      expect(blank.feedback).toBe('   ')
+
+      await ctx.patentWorkflow.runPlantask(agent, 'case-reject-2', ['步骤A'], { autoApprove: false })
+      const withFeedback = ctx.patentWorkflow.reject('case-reject-2', '对比文件不足')
+      expect(withFeedback.state).toBe('replanning')
+      expect(withFeedback.feedback).toBe('对比文件不足')
+
+      await ctx.patentWorkflow.runPlantask(agent, 'case-reject-3', ['步骤A'], { autoApprove: false })
+      const silent = ctx.patentWorkflow.reject('case-reject-3')
+      expect(silent.state).toBe('replanning')
+      expect(silent.feedback).toBeUndefined()
+      expect(silent.approvalOutcome).toBe('rejected')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('approve/reject on a case without a pending plantask throw', async () => {
+    const ctx = new Context()
+    await ctx.plugin(PatentWorkflow)
+    try {
+      expect(() => ctx.patentWorkflow.approve('ghost-case')).toThrow(/no pending plantask/)
+      expect(() => ctx.patentWorkflow.reject('ghost-case')).toThrow(/no pending plantask/)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('runPlantask cleans up the pending entry when approval.request throws (caseId stays retryable)', async () => {
     const ctx = new Context()
     await ctx.plugin(PatentWorkflow)

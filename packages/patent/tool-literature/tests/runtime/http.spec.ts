@@ -109,6 +109,82 @@ describe('literatureFetch', () => {
     ])
     expect(peak).toBeLessThanOrEqual(2)
   })
+
+  it('tolerates malformed URLs (no per-host limiter slot)', async () => {
+    const fetchImpl: typeof fetch = async () => jsonResponse({ ok: 1 })
+    const res = await literatureFetch(':::not-a-url:::', { fetchImpl, retry: { maxRetries: 0 } as const })
+    expect(res.ok).toBe(true)
+  })
+
+  it('releases a slot when rate-limit state is reset mid-flight', async () => {
+    resetRateLimits()
+    let release!: () => void
+    const gate = new Promise<void>((r) => { release = r })
+    const fetchImpl: typeof fetch = async () => {
+      await gate
+      return jsonResponse({})
+    }
+    const pending = literatureFetch('https://reset.test/a', {
+      fetchImpl,
+      rateLimit: { maxConcurrent: 1 },
+      retry: { maxRetries: 0 } as const,
+    })
+    // acquire has run synchronously; clearing hostActive forces the release
+    // fallback (the map is keyed per host and otherwise never missing).
+    resetRateLimits()
+    release()
+    const res = await pending
+    expect(res.ok).toBe(true)
+  })
+
+  it('disables the GET cache with cacheTtlMs 0', async () => {
+    clearCache()
+    let calls = 0
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1
+      return jsonResponse({})
+    }
+    const url = 'https://no-cache.test/api'
+    const opts = { fetchImpl, cacheTtlMs: 0, retry: { maxRetries: 0 } as const }
+    await literatureFetch(url, opts)
+    await literatureFetch(url, opts)
+    expect(calls).toBe(2)
+  })
+
+  it('refetches when the cached entry has expired', async () => {
+    clearCache()
+    let calls = 0
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1
+      return jsonResponse({})
+    }
+    const url = 'https://expire.test/api'
+    const opts = { fetchImpl, cacheTtlMs: 1, retry: { maxRetries: 0 } as const }
+    await literatureFetch(url, opts)
+    await new Promise(r => setTimeout(r, 10))
+    await literatureFetch(url, opts)
+    expect(calls).toBe(2)
+  })
+
+  it('evicts the oldest entry once the cache exceeds its entry cap', async () => {
+    clearCache()
+    let calls = 0
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1
+      return jsonResponse({})
+    }
+    const url = (i: number) => `https://lru.test/works?i=${i}`
+    for (let i = 0; i < 501; i += 1) {
+      await literatureFetch(url(i), { fetchImpl, retry: { maxRetries: 0 } as const })
+    }
+    expect(calls).toBe(501)
+    // The oldest entry was evicted: refetching it hits the network again.
+    await literatureFetch(url(0), { fetchImpl, retry: { maxRetries: 0 } as const })
+    expect(calls).toBe(502)
+    // The newest entry is still cached.
+    await literatureFetch(url(500), { fetchImpl, retry: { maxRetries: 0 } as const })
+    expect(calls).toBe(502)
+  })
 })
 
 describe('getJSON / getText', () => {
@@ -144,5 +220,11 @@ describe('getJSON / getText', () => {
     }
     await getJSON('https://accept.test/api', { fetchImpl, retry: { maxRetries: 0 } as const })
     expect(accept).toBe('application/json')
+  })
+
+  it('getJSON wraps non-JSON bodies with a descriptive error', async () => {
+    const fetchImpl: typeof fetch = async () => new Response('<html>oops</html>', { status: 200 })
+    await expect(getJSON('https://json.test/html', { fetchImpl, retry: { maxRetries: 0 } as const }))
+      .rejects.toThrow(/Non-JSON response from/)
   })
 })

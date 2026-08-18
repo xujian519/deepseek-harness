@@ -30,12 +30,10 @@ export function decodeEntities(input: string): string {
 }
 
 function safeCodePoint(code: number): string {
-  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return ''
-  try {
-    return String.fromCodePoint(code)
-  } catch {
-    return ''
-  }
+  // The entity regexes only yield integers; rejecting non-integers here keeps
+  // the guard total for fromCodePoint (which throws otherwise), so no try/catch.
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return ''
+  return String.fromCodePoint(code)
 }
 
 /**

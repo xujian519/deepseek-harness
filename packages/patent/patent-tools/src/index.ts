@@ -177,7 +177,7 @@ function figureRoute(ctx: Context, config: Config): { provider: string; model: s
 }
 
 /** Build the image-gate capability resolver from ctx.llm (undefined when no capability source). */
-function buildImageGateResolver(
+export function buildImageGateResolver(
   ctx: Context,
 ): ((provider: string, model: string) => Promise<readonly ModelModality[] | undefined>) | undefined {
   const llm = ctx.get('llm') as { resolveModelInfo: (provider: string, model: string) => Promise<LlmResolvedModelInfo> } | undefined

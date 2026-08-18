@@ -304,6 +304,7 @@ export function parseRuleSetFromYaml(
   if (doc.errors.length > 0) {
     return {
       ruleSet: { rules: [] },
+      /* v8 ignore next -- yaml parse errors always carry a message. */
       issues: [{ source, message: `YAML 解析失败: ${doc.errors[0]?.message ?? 'unknown'}` }],
     }
   }

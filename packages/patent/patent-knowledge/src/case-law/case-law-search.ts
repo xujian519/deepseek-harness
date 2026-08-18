@@ -207,7 +207,7 @@ export class CaseLawSearchEngine extends KnowledgeFtsSearchBase<CaseLawSearchOpt
       params.push(options.docType)
     }
     if (options.court) {
-      result += ' AND d.court LIKE ?'
+      result += " AND d.court LIKE ? ESCAPE '\\'"
       params.push(`%${options.court.replace(/[%_\\]/g, m => `\\${m}`)}%`)
     }
     if (options.excludeSource) {

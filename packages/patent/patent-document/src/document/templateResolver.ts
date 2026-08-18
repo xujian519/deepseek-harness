@@ -23,12 +23,13 @@ export function getTemplateRoot(): string {
   const candidates = [
     new URL('../../assets/templates/patent', import.meta.url),
     new URL('../assets/templates/patent', import.meta.url),
-  ]
+  ] as const
   for (const candidate of candidates) {
     const resolved = fileURLToPath(candidate)
     if (existsSync(join(resolved, 'manifest.json'))) return resolved
   }
-  return fileURLToPath(candidates[0] ?? new URL('../assets/templates/patent', import.meta.url))
+  // 数组字面量恒有两个候选，缺省取第一个。
+  return fileURLToPath(candidates[0])
 }
 
 /** manifest.json 结构。 */

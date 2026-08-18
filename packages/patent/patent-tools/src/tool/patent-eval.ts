@@ -200,10 +200,12 @@ function runComprehensiveEval(text: string, required: string[]): PatentEvalOutpu
   let weightedSum = 0
   let totalWeight = 0
   for (const [key, dim] of Object.entries(allDims)) {
+    /* v8 ignore next -- every dim produced by the four sub-evaluations has a weight entry. */
     const w = weights[key] ?? 0.1
     weightedSum += dim.score * w
     totalWeight += w
   }
+  /* v8 ignore next -- the four sub-evaluations always produce at least one weighted dim. */
   const composite = totalWeight > 0 ? weightedSum / totalWeight : 0
   const parts = [`综合质量评分: ${composite.toFixed(2)}/1.0`]
   for (const [key, dim] of Object.entries(allDims)) {

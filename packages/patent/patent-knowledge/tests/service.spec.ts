@@ -92,6 +92,16 @@ describe('PatentKnowledge service', () => {
       const classified = ctx.patentKnowledge.ipcClassify('一种无线通信电路，包含集成电路芯片和天线')
       expect(classified[0]!.section).toBe('H')
 
+      // IPC examination-standard lookups run off the shipped asset, no db needed.
+      const sectionCards = ctx.patentKnowledge.ipcStandards('A')
+      expect(Array.isArray(sectionCards)).toBe(true)
+      const articleCards = ctx.patentKnowledge.ipcStandardsByArticle('patent-law-a22.3')
+      expect(Array.isArray(articleCards)).toBe(true)
+      const searched = ctx.patentKnowledge.ipcStandardsSearch('新颖性')
+      expect(Array.isArray(searched)).toBe(true)
+      const searchedDefault = ctx.patentKnowledge.ipcStandardsSearch('A')
+      expect(Array.isArray(searchedDefault)).toBe(true)
+
       // wiki dir is absent in the fixture: keyword lookup degrades to empty.
       expect(ctx.patentKnowledge.wikiCards('创造性')).toEqual([])
     } finally {

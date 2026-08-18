@@ -81,7 +81,7 @@ export const DOMAIN_KEYWORDS: Array<{ domain: TechDomain; keywords: string[] }> 
 const DESCRIPTION = '根据技术交底书或技术方案撰写权利要求书草案（机械/电学/化学/软件四领域）。当用户要求撰写权利要求、写权利要求书时使用，避免自行手写权利要求文本。输出独立权利要求 + 从属权利要求 + 形式校验报告。'
 
 /** Render the canonical draft into model-facing Markdown. */
-function renderDraftClaims(value: DraftClaimsOutput): string {
+export function renderDraftClaims(value: DraftClaimsOutput): string {
   const lines = [
     `# 权利要求书草案（${value.invention_name}）`,
     `技术领域: ${value.tech_domain}`,
@@ -128,7 +128,7 @@ function resolveDomain(hint: TechDomain | undefined, name: string, features: str
 }
 
 /** Formal validation: numbering / trailing period / vague terms / illustration refs / circular refs. */
-function validateClaims(claims: DraftedClaim[]): ClaimViolation[] {
+export function validateClaims(claims: DraftedClaim[]): ClaimViolation[] {
   const violations: ClaimViolation[] = []
   claims.forEach((c, i) => {
     if (c.number !== i + 1) {

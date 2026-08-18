@@ -353,6 +353,7 @@ function replaceLastTextBlock(message: GateMessage, fullText: string): GateMessa
       content.push(block)
     }
   }
+  /* v8 ignore next 2 -- shouldProcess guarantees at least one text block before rewriting */
   if (!inserted) {
     content.push({ type: 'text', text: fullText })
   }

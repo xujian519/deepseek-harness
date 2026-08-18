@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createSemanticScholarConnector } from '../../../src/runtime/connectors/semantic-scholar.ts'
+import { clearCache, resetRateLimits } from '../../../src/runtime/http.ts'
 import type { Connector } from '../../../src/protocol/types.ts'
 
 /** Test injection: skip the keyless 1s per-host rate limit to keep the suite fast. */
@@ -64,5 +65,62 @@ describe('semantic scholar connector', () => {
 
     await connector.search('transformer')
     expect(headers?.['x-api-key']).toBe('s2-test-key')
+  })
+
+  it('normalizes sparse papers defensively', async () => {
+    const connector = makeConnector(async () => jsonResponse({
+      total: 2,
+      data: [
+        { paperId: 'abc123' },
+        {},
+      ],
+    }))
+    const hits = await connector.search('edge')
+    const [idOnly, bare] = hits
+    expect(idOnly!.id).toBe('abc123')
+    expect(idOnly!.title).toBe('abc123')
+    expect(idOnly!.url).toBe('https://www.semanticscholar.org/paper/abc123')
+    expect(idOnly!.score).toBeUndefined()
+    expect(idOnly!.summary).toBeUndefined()
+    expect(bare!.id).toBe('')
+    expect(bare!.title).toBe('Untitled')
+    expect(bare!.url).toBeUndefined()
+    expect(bare!.summary).toBeUndefined()
+  })
+
+  it('returns [] when data is absent', async () => {
+    const connector = makeConnector(async () => jsonResponse({ total: 0 }))
+    await expect(connector.search('none')).resolves.toEqual([])
+  })
+
+  it('fetch resolves papers and null records, preserving external id segments', async () => {
+    let url = ''
+    let calls = 0
+    const connector = makeConnector(async (input: RequestInfo | URL) => {
+      url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      calls += 1
+      return jsonResponse(calls === 1 ? { paperId: 'p1', title: 'T' } : null)
+    })
+
+    const paper = await connector.fetch!('DOI:10.1111/test')
+    expect((paper as { paperId: string }).paperId).toBe('p1')
+    expect(url.includes('/paper/DOI:10.1111/test?fields=')).toBe(true)
+
+    await expect(connector.fetch!('ARXIV:1706.03762')).resolves.toBeNull()
+  })
+
+  it('applies the default keyless rate limit when none configured', async () => {
+    clearCache()
+    resetRateLimits()
+    let calls = 0
+    const connector = createSemanticScholarConnector({
+      fetchImpl: async () => {
+        calls += 1
+        return jsonResponse(calls === 1 ? { data: [] } : null)
+      },
+    })
+    await connector.search('default rate limit probe')
+    resetRateLimits()
+    await expect(connector.fetch!('abc')).resolves.toBeNull()
   })
 })

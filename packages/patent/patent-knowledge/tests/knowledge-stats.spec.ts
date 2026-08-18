@@ -78,4 +78,18 @@ describe('KnowledgeRuntimeStats', () => {
     expect(a).not.toBe(b)
     expect(a.breakers).not.toBe(b.breakers)
   })
+
+  it('tracks case-law availability, injects, and embedding consistency', () => {
+    const stats = new KnowledgeRuntimeStats()
+    expect(stats.snapshot().caseLawAvailable).toBe(false)
+    expect(stats.snapshot().caseLawInjects).toBe(0)
+    expect(stats.snapshot().embeddingConsistency).toBeUndefined()
+    stats.setCaseLawAvailable(true)
+    stats.recordCaseLawInject(3)
+    stats.setEmbeddingConsistency({ ok: true, meanCosine: 0.92 })
+    const snap = stats.snapshot()
+    expect(snap.caseLawAvailable).toBe(true)
+    expect(snap.caseLawInjects).toBe(3)
+    expect(snap.embeddingConsistency).toEqual({ ok: true, meanCosine: 0.92 })
+  })
 })

@@ -248,4 +248,99 @@ describe('createValidateSpecificationTool', () => {
     await tool.execute({ text: VALID_SPEC }, {} as never)
     expect(called).toBe(true)
   })
+
+  it('validates without a text field', () => {
+    const out = validateSpecification({ title: '一种装置' })
+    const v = out.violations.find(x => x.rule === 'sections')
+    expect(v?.message).toContain('text 为空')
+  })
+})
+
+describe('numeric range edge cases', () => {
+  it('drops reversed ranges and keeps non-temperature units in the endpoint report', () => {
+    const ranges = extractNumericRanges('温度90-20℃，压力为0.1-2MPa。')
+    expect(ranges).toEqual([{ min: 0.1, max: 2, unit: 'MPa' }])
+    const out = validateSpecification({ text: VALID_SPEC + '\n温度90-20℃，压力为0.1-2MPa。' })
+    const v = out.violations.find(x => x.rule === 'numeric_range_endpoints')
+    expect(v?.message).toContain('0.1-2MPa')
+    expect(v?.message).not.toContain('20-90')
+  })
+
+  it('treats an overflowing number as not finite', () => {
+    const coverage = checkNumericRangeCoverage('9'.repeat(400) + '℃')
+    expect(coverage.endpointMissing).toEqual([])
+  })
+
+  it('evaluates both endpoint operands when values miss the range min', () => {
+    const covered = checkNumericRangeCoverage('温度为20-90℃，优选30℃、50℃。')
+    expect(covered.endpointMissing).toHaveLength(1)
+    expect(covered.midpointMissing).toEqual([])
+    const both = checkNumericRangeCoverage('温度为20-90℃，优选20℃、60℃、90℃。')
+    expect(both.endpointMissing).toEqual([])
+  })
+})
+
+describe('figure mark consistency edge cases', () => {
+  const NO_DRAWING_SPEC = '## 技术领域\n本发明涉及一种装置。\n## 背景技术\n背景。\n## 发明内容\n内容。\n## 具体实施方式\n实施例1：装置。'
+
+  it('accepts an empty figure analysis list', () => {
+    expect(checkFigureMarkConsistency(VALID_SPEC, [])).toEqual([])
+  })
+
+  it('warns when the spec lacks a drawing section', () => {
+    const figures = [{ usable: true, components: [{ refNumber: '1' }] }]
+    const out = checkFigureMarkConsistency(NO_DRAWING_SPEC, figures)
+    expect(out[0]?.message).toContain('缺少附图说明章节')
+  })
+
+  it('skips non-numeric marks and reports no missing or dangling marks', () => {
+    const figures = [{ usable: true, components: [{ refNumber: '1' }, { refNumber: '2' }, { refNumber: 'U1' }] }]
+    const out = checkFigureMarkConsistency('## 附图说明\n图中：1-壳体；2-缓冲层；', figures)
+    expect(out).toEqual([])
+  })
+
+  it('flags a non-numeric mark in an unusable figure analysis', () => {
+    const figures = [{ usable: false, components: [{ refNumber: 'x' }] }]
+    const out = checkFigureMarkConsistency('## 附图说明\n图中：1-壳体；', figures)
+    expect(out[0]?.severity).toBe('warning')
+  })
+})
+
+describe('abstract and claim coverage edge cases', () => {
+  it('accepts an abstract naming the summary figure', () => {
+    const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。摘要附图为图1。关键词：检测。' })
+    expect(out.violations.find(x => x.rule === 'abstract_drawing')).toBeUndefined()
+  })
+
+  it('warns at 50% claim coverage and passes when fully covered', () => {
+    const half = validateSpecification({
+      text: VALID_SPEC + '\n壳体、支架。',
+      claims: '一种装置，其特征在于，包括所述壳体、所述支架、所述电路、所述传感器。',
+    })
+    const coverage = half.violations.find(x => x.rule === 'claim_coverage')
+    expect(coverage?.severity).toBe('warning')
+    expect(coverage?.message).toContain('2/4')
+
+    const full = validateSpecification({
+      text: VALID_SPEC + '\n壳体、支架、电路、传感器。',
+      claims: '一种装置，其特征在于，包括所述壳体、所述支架、所述电路、所述传感器。',
+    })
+    expect(full.violations.find(x => x.rule === 'claim_coverage')).toBeUndefined()
+  })
+})
+
+describe('renderSpecification with section and no suggestion', () => {
+  it('renders section markers and bare lines', () => {
+    const out = renderSpecification({
+      passed: false,
+      score: 0.9,
+      violations: [
+        { rule: 'sections', severity: 'error' as const, section: '摘要', message: '摘要过长', suggestion: '压缩' },
+        { rule: 'clarity', severity: 'warning' as const, message: '模糊表述' },
+      ],
+    })
+    expect(out).toContain('（摘要）')
+    expect(out).toContain('压缩')
+    expect(out).not.toContain('模糊表述（')
+  })
 })

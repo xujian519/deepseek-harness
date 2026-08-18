@@ -48,4 +48,23 @@ describe('brandInjector', () => {
     expect(loadBrandFromPath('/no/such/theme.json')).toEqual({})
     expect(loadBrandFromPath(undefined)).toEqual({})
   })
+
+  it('falls back to an empty brand for a corrupt theme.json or a missing documents.patent namespace', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-brand-'))
+    try {
+      const corrupt = join(dir, 'corrupt.json')
+      writeFileSync(corrupt, '{not json')
+      expect(loadBrandFromPath(corrupt)).toEqual({})
+
+      const noPatent = join(dir, 'no-patent.json')
+      writeFileSync(noPatent, JSON.stringify({ documents: { other: { firm: 'x' } } }))
+      expect(loadBrandFromPath(noPatent)).toEqual({})
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('merges an explicit brand with no config source', () => {
+    expect(mergeBrand({ firm: 'Explicit' })).toEqual({ firm: 'Explicit' })
+  })
 })

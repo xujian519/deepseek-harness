@@ -259,6 +259,7 @@ function extractCitations(text: string): ExtractedCitation[] {
       else if (before.includes('专利法')) statute = '专利法'
       else continue
     }
+    /* v8 ignore next -- CITATION_PATTERN's capture group 1 is mandatory; a match always yields a non-empty m[1] */
     const article = parseCnNumber(m[1] ?? '')
     if (article === null) continue
     if (seen.has(raw)) continue

@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  applyRuleOverrides,
+  asRecord,
   loadRuleSetDir,
   loadRuleSetFromFile,
   mergeRuleSets,
@@ -268,5 +270,236 @@ rules:
     ).ruleSet
     const issues = validateRuleSet(set, 'dup.yaml')
     expect(issues.some(i => i.message.includes('重复的规则 id'))).toBe(true)
+  })
+
+  it('asRecord returns null for non-object values', () => {
+    expect(asRecord('str')).toBeNull()
+    expect(asRecord([1, 2])).toBeNull()
+    expect(asRecord(null)).toBeNull()
+    expect(asRecord(undefined)).toBeNull()
+    expect(asRecord({ a: 1 })).toEqual({ a: 1 })
+  })
+
+  it('parseRuleSetFromYaml rejects a non-object top level', () => {
+    const { issues } = parseRuleSetFromYaml('- just\n- a list')
+    expect(issues.some(i => i.message.includes('顶层必须是对象'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml rejects a document without a rules field', () => {
+    const { issues } = parseRuleSetFromYaml('version: "1.0"\n')
+    expect(issues.some(i => i.message.includes('缺少 rules 字段'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml skips non-object rule entries', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml('rules:\n  - 42\n  - id: OK\n    name: ok\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n')
+    expect(ruleSet.rules.length).toBe(1)
+    expect(ruleSet.rules[0]?.id).toBe('OK')
+    expect(issues.length).toBe(0)
+  })
+
+  it('parseRuleSetFromYaml rejects rules missing a name', () => {
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: NO-NAME\n    severity: major\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+    )
+    expect(issues.some(i => i.message.includes('缺少 name'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml defaults a missing action to warn and rejects invalid actions', () => {
+    const { ruleSet } = parseRuleSetFromYaml(
+      'rules:\n  - id: NO-ACTION\n    name: n\n    severity: minor\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+    )
+    expect(ruleSet.rules[0]?.action).toBe('warn')
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: BAD-ACTION\n    name: n\n    severity: minor\n    action: detonate\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+    )
+    expect(issues.some(i => i.message.includes('action 必须是'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml rejects a non-object check', () => {
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: C1\n    name: n\n    severity: minor\n    action: warn\n    check: 42\n',
+    )
+    expect(issues.some(i => i.message.includes('check 必须是对象'))).toBe(true)
+  })
+
+  it('parseRuleSetFromYaml rejects unknown check types', () => {
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: C2\n    name: n\n    severity: minor\n    action: warn\n    check: { type: telepathy }\n',
+    )
+    expect(issues.some(i => i.message.includes('未知检查类型'))).toBe(true)
+  })
+
+  it('keyword_blocklist rejects non-array, non-string, and empty keywords', () => {
+    const nonArray = parseRuleSetFromYaml(
+      'rules:\n  - id: K1\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: "x" }\n',
+    )
+    expect(nonArray.issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+    const mixed = parseRuleSetFromYaml(
+      'rules:\n  - id: K2\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x", 42] }\n',
+    )
+    expect(mixed.issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+    const empty = parseRuleSetFromYaml(
+      'rules:\n  - id: K3\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: [] }\n',
+    )
+    expect(empty.issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+  })
+
+  it('keyword_blocklist keeps a valid severityIfFound override', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: SIF\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"], severityIfFound: "critical" }\n',
+    )
+    expect(issues.length).toBe(0)
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('keyword_blocklist')
+    if (rule?.check.type === 'keyword_blocklist') {
+      expect(rule.check.severityIfFound).toBe('critical')
+      expect(rule.check.negationContext).toBe(false)
+    }
+  })
+
+  it('pattern_analysis accepts numeric minMatches through the loader', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: PM\n    name: n\n    severity: minor\n    action: warn\n    check: { type: pattern_analysis, patterns: ["实施例"], minMatches: 2 }\n',
+    )
+    expect(issues.length).toBe(0)
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('pattern_analysis')
+    if (rule?.check.type === 'pattern_analysis') {
+      expect(rule.check.patterns).toEqual(['实施例'])
+      expect(rule.check.minMatches).toBe(2)
+    }
+  })
+
+  it('pattern_analysis defaults minMatches to 1 through the loader', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: PM-DEF\n    name: n\n    severity: minor\n    action: warn\n    check: { type: pattern_analysis, patterns: ["实施例"] }\n',
+    )
+    expect(issues.length).toBe(0)
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('pattern_analysis')
+    if (rule?.check.type === 'pattern_analysis') {
+      expect(rule.check.minMatches).toBe(1)
+    }
+  })
+
+  it('pattern_analysis rejects non-array patterns', () => {
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: PN\n    name: n\n    severity: minor\n    action: warn\n    check: { type: pattern_analysis, patterns: "abc" }\n',
+    )
+    expect(issues.some(i => i.message.includes('需要非空 patterns'))).toBe(true)
+  })
+
+  it('structural_analysis rejects missing or empty requiresAll', () => {
+    const { issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: SA\n    name: n\n    severity: minor\n    action: warn\n    check: { type: structural_analysis, requiresAll: [] }\n',
+    )
+    expect(issues.some(i => i.message.includes('需要非空 requiresAll'))).toBe(true)
+  })
+
+  it('structural_analysis rejects non-object and malformed requiresAll elements', () => {
+    const nonObject = parseRuleSetFromYaml(
+      'rules:\n  - id: S1\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: structural_analysis\n      requiresAll:\n        - just-a-string\n',
+    )
+    expect(nonObject.issues.some(i => i.message.includes('requiresAll 元素需要 element'))).toBe(true)
+    const badElement = parseRuleSetFromYaml(
+      'rules:\n  - id: S2\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: structural_analysis\n      requiresAll:\n        - element: 42\n          patterns: ["x"]\n',
+    )
+    expect(badElement.issues.some(i => i.message.includes('requiresAll 元素需要 element'))).toBe(true)
+  })
+
+  it('citation_analysis rejects missing statutes and bad statute definitions', () => {
+    const missing = parseRuleSetFromYaml(
+      'rules:\n  - id: CA1\n    name: n\n    severity: minor\n    action: warn\n    check: { type: citation_analysis }\n',
+    )
+    expect(missing.issues.some(i => i.message.includes('需要非空 statutes'))).toBe(true)
+    const badDef = parseRuleSetFromYaml(
+      'rules:\n  - id: CA2\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法: { max: "78" }\n',
+    )
+    expect(badDef.issues.some(i => i.message.includes('需要 max 数字'))).toBe(true)
+  })
+
+  it('citation_analysis parses numeric topic keys and validates topics shape', () => {
+    const ok = parseRuleSetFromYaml(
+      'rules:\n  - id: CT1\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics:\n            "2": [新颖性, 创造性]\n            "not-a-number": [其他]\n',
+    )
+    expect(ok.issues.length).toBe(0)
+    const rule = ok.ruleSet.rules[0]
+    if (rule?.check.type === 'citation_analysis') {
+      expect(rule.check.statutes['专利法']?.max).toBe(78)
+      expect(rule.check.statutes['专利法']?.topics?.[2]).toEqual(['新颖性', '创造性'])
+      // 非数字条号被跳过，仅保留可解析的键
+      expect(Object.keys(rule.check.statutes['专利法']?.topics ?? {})).toEqual(['2'])
+    }
+    const bad = parseRuleSetFromYaml(
+      'rules:\n  - id: CT2\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics:\n            "2": 不是数组\n',
+    )
+    expect(bad.issues.some(i => i.message.includes('topics 需为 条号→词数组'))).toBe(true)
+    const nonObject = parseRuleSetFromYaml(
+      'rules:\n  - id: CT3\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: citation_analysis\n      statutes:\n        专利法:\n          max: 78\n          topics: just-a-string\n',
+    )
+    expect(nonObject.issues.some(i => i.message.includes('topics 需为 条号→词数组'))).toBe(true)
+  })
+
+  it('synonym_match rejects malformed requirement entries', () => {
+    const nonObject = parseRuleSetFromYaml(
+      'rules:\n  - id: Y2\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: synonym_match\n      requirements:\n        - just-a-string\n',
+    )
+    expect(nonObject.issues.some(i => i.message.includes('requirements 元素需要 element'))).toBe(true)
+    const badElement = parseRuleSetFromYaml(
+      'rules:\n  - id: Y3\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: synonym_match\n      requirements:\n        - element: 42\n          keywords: ["x"]\n',
+    )
+    expect(badElement.issues.some(i => i.message.includes('requirements 元素需要 element'))).toBe(true)
+  })
+
+  it('synonym_match accepts requirements without minConfidence', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  - id: YN\n    name: n\n    severity: minor\n    action: warn\n    check:\n      type: synonym_match\n      requirements:\n        - element: novelty\n          keywords: [新颖性]\n',
+    )
+    expect(issues.length).toBe(0)
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('synonym_match')
+    if (rule?.check.type === 'synonym_match') {
+      expect(rule.check.requirements[0]?.element).toBe('novelty')
+      expect(rule.check.minConfidence).toBe(1)
+    }
+  })
+
+  it('map-form rule sets skip invalid rules and keep valid ones', () => {
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      'rules:\n  good:\n    id: G1\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n  bad:\n    id: B1\n    name: n\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: 42 }\n',
+    )
+    expect(ruleSet.rules.length).toBe(1)
+    expect(ruleSet.rules[0]?.id).toBe('G1')
+    expect(issues.some(i => i.message.includes('需要非空 keywords'))).toBe(true)
+  })
+
+  it('validateRuleSet reports duplicates without a source', () => {
+    const set = parseRuleSetFromYaml(
+      `
+rules:
+  - id: D1
+    name: a
+    severity: major
+    action: warn
+    check: { type: keyword_blocklist, keywords: ["x"] }
+  - id: D1
+    name: b
+    severity: major
+    action: warn
+    check: { type: keyword_blocklist, keywords: ["y"] }
+`,
+    ).ruleSet
+    const issues = validateRuleSet(set)
+    expect(issues.some(i => i.message.includes('重复的规则 id'))).toBe(true)
+    expect(issues[0]?.source).toBeUndefined()
+  })
+
+  it('applyRuleOverrides preserves the rule-set version when present', () => {
+    const base = parseRuleSetFromYaml(
+      'version: "2.0"\nrules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"] }\n',
+    ).ruleSet
+    const merged = applyRuleOverrides(base, new Map([['A1', { action: 'log' }]]))
+    expect(merged.version).toBe('2.0')
+    expect(merged.rules[0]?.action).toBe('log')
   })
 })

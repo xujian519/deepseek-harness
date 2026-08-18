@@ -178,4 +178,116 @@ describe('paper_search over an injected-fetchImpl registry', () => {
     await execute(ctx, 'paper_search', { db: 'arxiv', query: 'attention', limit: 999 }, 'clamp')
     expect(url.includes('max_results=50')).toBe(true)
   })
+
+  it('renders hits with and without optional score/url/summary fields', async () => {
+    const registry = new ConnectorRegistry()
+    registry.register({
+      id: 'stub',
+      name: 'Stub',
+      domain: 'literature',
+      description: 'stub source',
+      search: async () => [
+        { id: 'h1', title: 'Scored Hit', score: 0.9, summary: 'summary text' },
+        { id: 'h2', title: 'Bare Hit' },
+      ],
+    })
+    const ctx = await setupRegistry(registry)
+    const result = await execute(ctx, 'paper_search', { db: 'stub', query: 'q' }, 'stub')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected paper_search success')
+    const t = text(result)
+    expect(t).toContain('## Scored Hit')
+    expect(t).toContain('· score: 0.9')
+    expect(t).toContain('## Bare Hit')
+    expect(t).not.toContain('**url**')
+    expect(t).not.toContain('**pdf**')
+  })
+
+  it('surfaces non-rate-limited source errors with the raw message', async () => {
+    const registry = new ConnectorRegistry()
+    registry.register({
+      id: 'stub',
+      name: 'Stub',
+      domain: 'literature',
+      description: 'stub source',
+      search: async () => {
+        throw 'boom-string'
+      },
+    })
+    const ctx = await setupRegistry(registry)
+    const result = await execute(ctx, 'paper_search', { db: 'stub', query: 'q' }, 'non-rate')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('Stub returned an error: boom-string')
+  })
+
+  it('detects rate limiting by message on non-arxiv sources', async () => {
+    const registry = new ConnectorRegistry()
+    registry.register({
+      id: 'stub',
+      name: 'Stub',
+      domain: 'literature',
+      description: 'stub source',
+      search: async () => {
+        throw new Error('rate limit exceeded')
+      },
+    })
+    const ctx = await setupRegistry(registry)
+    const result = await execute(ctx, 'paper_search', { db: 'stub', query: 'q' }, 'rate-msg')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('Stub is rate limiting requests')
+    expect(text(result)).not.toContain('arXiv')
+  })
+
+  it('propagates the original error when the caller signal aborts mid-search', async () => {
+    const controller = new AbortController()
+    const registry = new ConnectorRegistry()
+    registry.register({
+      id: 'stub',
+      name: 'Stub',
+      domain: 'literature',
+      description: 'stub source',
+      search: async () => {
+        controller.abort()
+        throw new Error('request aborted')
+      },
+    })
+    const ctx = await setupRegistry(registry)
+    const result = await ctx.tools.execute({
+      signal: controller.signal,
+      callId: CallId('abort'),
+      name: 'paper_search',
+      arguments: { db: 'stub', query: 'q' },
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('request aborted')
+    expect(text(result)).not.toContain('returned an error')
+  })
+
+  it('names the fallback when an unknown db is queried on an empty registry', async () => {
+    const ctx = await setupRegistry(new ConnectorRegistry())
+    const result = await execute(ctx, 'paper_search', { db: 'nope', query: 'x' }, 'empty-unknown')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('Available: (none registered)')
+  })
+
+  it('paper_list_sources filters by domain and renders empty registries', async () => {
+    const registry = makeRegistry(async () => new Response('', { status: 200 }))
+    const ctx = await setupRegistry(registry)
+
+    const filtered = await execute(ctx, 'paper_list_sources', { domain: 'literature' }, 'list-domain')
+    expect(filtered.isError).toBe(false)
+    if (filtered.isError) throw new Error('expected paper_list_sources success')
+    expect((filtered.value as { sources: unknown[] }).sources.length).toBe(4)
+
+    const none = await execute(ctx, 'paper_list_sources', { domain: 'chemistry' }, 'list-domain-none')
+    expect(none.isError).toBe(false)
+    if (none.isError) throw new Error('expected paper_list_sources success')
+    expect(text(none)).toContain('No literature sources registered for domain "chemistry".')
+
+    const emptyCtx = await setupRegistry(new ConnectorRegistry())
+    const empty = await execute(emptyCtx, 'paper_list_sources', {}, 'list-empty')
+    expect(empty.isError).toBe(false)
+    if (empty.isError) throw new Error('expected paper_list_sources success')
+    expect(text(empty)).toContain('No literature sources are registered.')
+  })
 })

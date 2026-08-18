@@ -85,6 +85,15 @@ describe('mapPatentData', () => {
     expect(mapped.backwardCites).toEqual([])
   })
 
+  it('drops non-string name entries', () => {
+    const data = makePatentData()
+    data.inventor_name = JSON.stringify([{ inventor_name: 42 }, { inventor_name: 'Alice Zhang' }])
+    data.assignee_name_orig = JSON.stringify([{ assignee_name: null }])
+    const mapped = mapPatentData(data, 'US11452699B2', 'url')
+    expect(mapped.inventors).toEqual(['Alice Zhang'])
+    expect(mapped.assigneesOriginal).toEqual([])
+  })
+
   it('uses explicit patent/url params and tolerates extra keys', () => {
     const data = makePatentData()
     const withExtras = data as PatentData & { url?: string; patent?: string }

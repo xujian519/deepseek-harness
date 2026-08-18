@@ -28,6 +28,7 @@ function parseWithFormat(text: string, format: string): Date | null {
   const match = formatToRegex(format).exec(text)
   if (match === null) return null
   const [, year, month, day] = match
+  /* v8 ignore next -- every declared format provides year and month groups on match */
   if (year === undefined || month === undefined) return null
   const y = Number(year)
   const mo = Number(month)
@@ -64,6 +65,7 @@ function formatToRegex(format: string): RegExp {
       return /^(\d{4})年(\d{2})月(\d{2})日$/
     case 'yyyy年M月':
       return /^(\d{4})年(\d{1,2})月$/
+    /* v8 ignore next 2 -- callers only pass the declared DATE_FORMATS */
     default:
       return /$a/ // 永不匹配
   }
@@ -112,6 +114,7 @@ export function parseDateFlexible(text: string): Date | null {
   const m = trimmed.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),\s+(\d{4})$/)
   if (m) {
     const monthName = m[1]
+    /* v8 ignore next -- the English-date regex always captures group 1 */
     if (monthName !== undefined) {
       const month = MONTHS[monthName.toLowerCase()] ?? MONTHS[monthName.toLowerCase().slice(0, 3)]
       const day = Number(m[2])
@@ -165,6 +168,7 @@ function formatIsoDate(d: Date): string {
   return `${y}-${mo}-${day}`
 }
 
+/* v8 ignore next 2 -- reachable only from the dead else arm of determinePublicationDate */
 function formatYearMonth(d: Date): string {
   return `${d.getUTCFullYear()}-${`${d.getUTCMonth() + 1}`.padStart(2, '0')}`
 }
@@ -210,6 +214,7 @@ export function extractWaybackMachineDate(rawURL: string): string {
     return ''
   }
   const parts = parsed.pathname.replace(/^\/web\//, '').split('/')
+  /* v8 ignore next -- split always yields at least one element */
   const timestamp = (parts[0] ?? '').replace(/\D.*$/, '') // 剥离 "20230615093000id_" 的 id_ 后缀
   if (timestamp.length >= 8) {
     const formatted = `${timestamp.slice(0, 4)}-${timestamp.slice(4, 6)}-${timestamp.slice(6, 8)}`
@@ -254,6 +259,7 @@ export function determinePublicationDate(
 
   const parsed = parseDateFlexible(claimedDate)
   if (parsed === null) return result
+  /* v8 ignore else -- every parseDateFlexible-parseable string is precise or month-only, so the else-if chain's else arm is dead */
   if (isPreciseDate(claimedDate)) {
     result.determined = formatIsoDate(parsed)
     result.reliability = 'high'

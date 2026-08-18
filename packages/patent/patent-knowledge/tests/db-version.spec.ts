@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -178,6 +178,34 @@ describe('openKnowledgeDb', () => {
     for (const id of ids) {
       expect(id).toBeGreaterThan(0)
       expect(Number.isInteger(id)).toBe(true)
+    }
+  })
+
+  it('wraps an unopenable database path in KnowledgeDbVersionError with a cause', () => {
+    const dir = makeTempDir('dbv-missing-')
+    try {
+      // A directory cannot be opened as a SQLite database (and unlike a missing
+      // file, opening it cannot silently create it).
+      const notADb = join(dir, 'subdir')
+      mkdirSync(notADb)
+      expect(() => openKnowledgeDb(notADb, KNOWLEDGE_DB)).toThrow(KnowledgeDbVersionError)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('stamps only the version when the spec carries no application_id', () => {
+    const dir = makeTempDir('dbv-no-appid-')
+    try {
+      const dbPath = join(dir, 'test.db')
+      new DatabaseSync(dbPath).close()
+      const opened = openKnowledgeDb(dbPath, { version: 3, kind: 'source' })
+      opened.db.close()
+      const stamp = readVersion(dbPath)
+      expect(stamp.version).toBe(3)
+      expect(stamp.applicationId).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })

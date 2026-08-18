@@ -82,8 +82,9 @@ export function renderPlanTask(value: PatentPlanTaskOutput): string {
       return `patent_plan_task: 同步 ${tasks.length} 个任务\n${lines.join('\n')}\n待执行: ${(value.toRun ?? []).join(', ')}`
     }
     case 'replan': {
-      const preserved = (value.preserved ?? []).length > 0
-        ? `保留已完成: ${(value.preserved ?? []).join(', ')}`
+      const preservedList = value.preserved ?? []
+      const preserved = preservedList.length > 0
+        ? `保留已完成: ${preservedList.join(', ')}`
         : '无保留步骤'
       return `patent_plan_task: 重规划 → ${(value.tasks ?? []).length} 个任务\n${preserved}\n需执行: ${(value.toRun ?? []).join(', ') || '（全部已完成）'}`
     }
@@ -163,9 +164,11 @@ export function createPatentPlanTaskTool(): ToolDefinition {
             })
             return { ok: true, action: 'transition' as const, from, state: next }
           } catch (err) {
+            /* v8 ignore next -- the canTransition pre-check above rules out every non-semantic transition error. */
             if (err instanceof PlanTaskSemanticError) {
               throw new PatentToolError('invalid_tool_input', err.message)
             }
+            /* v8 ignore next -- the canTransition pre-check above rules out every other transition error. */
             throw new PatentToolError('tool_execution_failed', err instanceof Error ? err.message : String(err))
           }
         }
@@ -181,6 +184,7 @@ export function createPatentPlanTaskTool(): ToolDefinition {
           const result = replanTasks(input.previousTasks ?? [], steps)
           return { ok: true, action: 'replan' as const, tasks: result.tasks as unknown as JsonValue[], preserved: result.preserved, toRun: result.toRun }
         }
+        /* v8 ignore next 5 -- the action schema enum already rejects unknown actions. */
         default:
           throw new PatentToolError(
             'invalid_tool_input',

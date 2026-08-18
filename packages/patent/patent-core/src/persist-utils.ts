@@ -40,7 +40,9 @@ export async function atomicWriteJson(file: string, content: string): Promise<vo
     await handle.close()
     await rename(tmp, file)
   } catch (error) {
+    /* v8 ignore next -- best-effort close can settle without rejecting on an already-closed handle */
     await handle?.close().catch(() => {})
+    /* v8 ignore next -- rm with force swallows missing files, so this rejection cannot be forced */
     await rm(tmp, { force: true }).catch(() => {})
     throw error
   }

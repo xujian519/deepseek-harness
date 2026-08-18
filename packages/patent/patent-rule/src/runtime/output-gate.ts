@@ -56,9 +56,12 @@ export class RuleOutputGate implements RuleOutputGateInterface {
   process(text: string): RuleOutputGateResult {
     const evaluation = evaluateText(text, this.ruleSet, this.synonyms)
     const grouped = groupByAction(evaluation)
+    /* v8 ignore next -- groupByAction always sets the block/review/warn/log keys. */
     const warnGroup = grouped.warn ?? []
+    /* v8 ignore next -- groupByAction always sets the block/review/warn/log keys. */
     const blockGroup = grouped.block ?? []
     const warnHits = warnGroup.map(v => v.ruleId)
+    /* v8 ignore next -- groupByAction always sets the block/review/warn/log keys. */
     const reviewHits = (grouped.review ?? []).map(v => v.ruleId)
     const blockHits = blockGroup.map(v => v.ruleId)
     const needsApproval = reviewHits.length > 0 || blockHits.length > 0

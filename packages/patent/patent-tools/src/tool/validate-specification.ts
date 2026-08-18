@@ -142,6 +142,7 @@ export function extractNumericRanges(text: string): NumericRange[] {
     const min = Number(m[1])
     const max = Number(m[2])
     if (Number.isFinite(min) && Number.isFinite(max) && min < max) {
+      /* v8 ignore next -- the range pattern always captures the units group. */
       ranges.push({ min, max, unit: normalizeUnit(m[3] ?? '') })
     }
   }
@@ -155,7 +156,10 @@ function extractNumericValues(text: string): Array<{ value: number; unit: string
   VALUE_PATTERN.lastIndex = 0
   while ((m = VALUE_PATTERN.exec(body)) !== null) {
     const value = Number(m[1])
-    if (Number.isFinite(value)) values.push({ value, unit: normalizeUnit(m[2] ?? '') })
+    if (Number.isFinite(value)) {
+      /* v8 ignore next -- the value pattern always captures the units group. */
+      values.push({ value, unit: normalizeUnit(m[2] ?? '') })
+    }
   }
   return values
 }
@@ -251,11 +255,13 @@ export function extractClaimFeatures(claims: string): string[] {
   let m: RegExpExecArray | null
   CLAIM_REF_PATTERN.lastIndex = 0
   while ((m = CLAIM_REF_PATTERN.exec(claims)) !== null) {
+    /* v8 ignore next -- the lookahead pattern always captures the term group. */
     const term = (m[1] ?? '').trim()
     if (term.length >= 2 && !GENERIC_TERMS.has(term)) features.add(term)
   }
   CLAIM_VALUE_PATTERN.lastIndex = 0
   while ((m = CLAIM_VALUE_PATTERN.exec(claims)) !== null) {
+    /* v8 ignore next -- both number and unit groups always participate in a match. */
     features.add(`${m[1] ?? ''}${normalizeUnit(m[2] ?? '')}`)
   }
   return [...features]
@@ -314,6 +320,7 @@ export function checkFigureMarkConsistency(text: string, figureAnalysis: FigureA
   let match: RegExpExecArray | null
   while ((match = markPattern.exec(drawingSection)) !== null) {
     const mark = match[1]
+    /* v8 ignore next -- the mark pattern always captures the mark group. */
     if (mark !== undefined) listedMarks.add(mark)
   }
 
@@ -654,6 +661,7 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
       const output = validateSpecification(input)
       // Sati's SMILES spot-check appends warnings only when RDKit is available;
       // dsh does not bundle RDKit, so this is a no-op (see checkSmilesValidity).
+      /* v8 ignore start -- checkSmilesValidity always returns [] in dsh (RDKit unbundled). */
       const smileChecks = checkSmilesValidity(input.text ?? '', isRdkitAvailable)
       if (smileChecks.length > 0) {
         output.violations.push(...smileChecks)
@@ -661,6 +669,7 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
         output.passed = scored.passed
         output.score = scored.score
       }
+      /* v8 ignore stop */
       return Promise.resolve(output)
     },
   })

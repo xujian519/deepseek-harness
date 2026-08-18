@@ -114,6 +114,13 @@ describe('addStage / removeStage / reorderStages', () => {
     expect(() => removeStage(done, 's1')).toThrow(FlexiblePlanError)
   })
 
+  it('removeStage of a non-current stage keeps the currentStageId', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2')] })
+    const next = removeStage(plan, 's2')
+    expect(next.stages.map(s => s.id)).toEqual(['s1'])
+    expect(next.currentStageId).toBe('s1')
+  })
+
   it('reorderStages reorders stages', () => {
     const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2'), stage('s3')] })
     const next = reorderStages(plan, ['s3', 's1', 's2'])
@@ -125,6 +132,13 @@ describe('addStage / removeStage / reorderStages', () => {
     expect(() => reorderStages(plan, ['s1'])).toThrow(FlexiblePlanError)
     expect(() => reorderStages(plan, ['s1', 's1'])).toThrow(FlexiblePlanError)
     expect(() => reorderStages(plan, ['s1', 'nope'])).toThrow(FlexiblePlanError)
+  })
+
+  it('reorderStages on an empty plan falls back to firstUnconfirmed (undefined)', () => {
+    const plan = createFlexiblePlan('c', 'invalidation')
+    const next = reorderStages(plan, [])
+    expect(next.stages).toEqual([])
+    expect(next.currentStageId).toBeUndefined()
   })
 })
 
@@ -232,6 +246,39 @@ describe('attachArticleJudgment', () => {
     expect(() => attachArticleJudgment(plan, 'nope', judgment(), bb)).toThrow(FlexiblePlanError)
   })
 
+  it('a multi-stage plan leaves untouched stages as-is (i !== idx return)', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2')] })
+    const bb = new FactBlackboard({ caseId: 'c', caseType: 'invalidation' })
+    const next = attachArticleJudgment(plan, 's2', judgment('A22.3'), bb)
+    expect(next.stages[0]!.articleJudgments).toEqual([])
+    expect(next.stages[1]!.articleJudgments).toEqual(['A22.3'])
+  })
+
+  it('a blackboard sharing the caseId but not the caseType is rejected', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1')] })
+    const mismatchedBb = new FactBlackboard({ caseId: 'c', caseType: 'infringement' })
+    expect(() => attachArticleJudgment(plan, 's1', judgment(), mismatchedBb)).toThrow(FlexiblePlanError)
+  })
+
+  it('a vanished target stage between lookup and access fails closed', () => {
+    // findStageIndex 找到 s1 之后、按索引取阶段之前，阶段槽位消失（内部状态被破坏）。
+    // Proxy 模拟：第一次索引读取返回阶段，第二次返回 undefined。
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1')] })
+    const bb = new FactBlackboard({ caseId: 'c', caseType: 'invalidation' })
+    let reads = 0
+    const vanishing = new Proxy([stage('s1')], {
+      get(target, prop, receiver) {
+        if (prop === '0') {
+          reads += 1
+          return reads === 1 ? target[0] : undefined
+        }
+        return Reflect.get(target, prop, receiver) as unknown
+      },
+    })
+    const weird = { ...plan, stages: vanishing }
+    expect(() => attachArticleJudgment(weird, 's1', judgment(), bb)).toThrow(FlexiblePlanError)
+  })
+
   it('throws when the blackboard belongs to another case', () => {
     const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1')] })
     const foreignBb = new FactBlackboard({ caseId: 'other-case', caseType: 'infringement' })
@@ -311,6 +358,20 @@ describe('toJSON / fromJSON', () => {
     expect(() => fromJSON(JSON.stringify({ ...base, currentStageId: 'ghost' }))).toThrow(FlexiblePlanError)
     expect(() => fromJSON(JSON.stringify({ ...base, caseId: '../evil' }))).toThrow(FlexiblePlanError)
   })
+
+  it('fromJSON rejects header-level type errors beyond the existing cases', () => {
+    const base = { caseId: 'c', caseType: 'invalidation', status: 'active', stages: [stage('s1')] }
+    expect(() => fromJSON(JSON.stringify({ ...base, caseType: 42 }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, caseType: '' }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: 'nope' }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [null] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [42] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), id: 42 }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), id: ' ' }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), name: 42 }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), constraintIds: 'x' }] }))).toThrow(FlexiblePlanError)
+    expect(() => fromJSON(JSON.stringify({ ...base, stages: [{ ...stage('s1'), articleJudgments: 'x' }] }))).toThrow(FlexiblePlanError)
+  })
 })
 
 describe('complete / abandon / terminal guards', () => {
@@ -320,6 +381,14 @@ describe('complete / abandon / terminal guards', () => {
     expect(done.status).toBe('completed')
     expect(done.stages.every(s => s.status === 'confirmed')).toBe(true)
     expect(done.currentStageId).toBeUndefined()
+  })
+
+  it('complete keeps already-confirmed stages confirmed (no-op on them)', () => {
+    const plan = createFlexiblePlan('c', 'invalidation', { stages: [stage('s1'), stage('s2'), stage('s3')] })
+    const confirmed = confirmStage(plan, 's1')
+    const done = complete(confirmed)
+    expect(done.status).toBe('completed')
+    expect(done.stages.map(s => s.status)).toEqual(['confirmed', 'confirmed', 'confirmed'])
   })
 
   it('abandon rolls back pending, keeps confirmed for audit, records reason', () => {

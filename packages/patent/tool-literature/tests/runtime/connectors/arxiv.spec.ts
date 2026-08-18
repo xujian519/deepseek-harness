@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createArxivConnector } from '../../../src/runtime/connectors/arxiv.ts'
+import { clearCache } from '../../../src/runtime/http.ts'
 import type { Connector } from '../../../src/protocol/types.ts'
 
 /** Test injection: skip arXiv's 3s per-host rate limit to keep the suite fast. */
@@ -122,5 +123,56 @@ describe('arxiv connector', () => {
     const record = await connector.fetch!('1706.03762')
     expect((record as { id: string }).id.includes('1706.03762')).toBe(true)
     expect(url.includes('id_list=1706.03762&max_results=1')).toBe(true)
+  })
+
+  it('returns null when fetch finds no entry', async () => {
+    const connector = makeConnector(async () => atomResponse(EMPTY_FEED))
+    await expect(connector.fetch!('2002.99999')).resolves.toBeNull()
+  })
+
+  it('normalizes entries missing id or title defensively', async () => {
+    const MINIMAL_FEED = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>No Id Paper</title>
+    <summary>Has a title but no id.</summary>
+    <author><name>Jane Doe</name></author>
+    <link href="http://arxiv.org/abs/noid" rel="alternate" type="text/html"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2002.00001v1</id>
+    <summary>No title, id only.</summary>
+  </entry>
+</feed>`
+    const connector = makeConnector(async () => atomResponse(MINIMAL_FEED))
+    const hits = await connector.search('test')
+    const [noId, noTitle] = hits
+    expect(noId!.id).toBe('')
+    expect(noId!.title).toBe('No Id Paper')
+    expect(noId!.url).toBe('https://arxiv.org/abs/')
+    expect(noId!.extra?.pdf).toBeUndefined()
+    expect(noTitle!.title).toBe('2002.00001v1')
+  })
+
+  it('falls back to title or a fixed message for error entries without a summary', async () => {
+    clearCache()
+    const NO_SUMMARY_FEED = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/api/errors#q</id>
+    <title>Error</title>
+  </entry>
+</feed>`
+    const connector = makeConnector(async () => atomResponse(NO_SUMMARY_FEED))
+    await expect(connector.search('bad query')).rejects.toThrow(/arXiv rejected the query: Error/)
+
+    const BARE_ERROR_FEED = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/api/errors#q</id>
+  </entry>
+</feed>`
+    const bare = makeConnector(async () => atomResponse(BARE_ERROR_FEED))
+    await expect(bare.search('other bad query')).rejects.toThrow(/arXiv rejected the query: malformed request/)
   })
 })

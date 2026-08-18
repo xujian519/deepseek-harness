@@ -1,7 +1,7 @@
 // Port of Sati tests/patent/data/nuo/egoSession.spec.ts: availability checks,
 // argv+stdin script runs with PATH injection, output truncation, tagged-JSON
 // extraction, task-space naming, the connection probe, and patent normalization.
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -53,6 +53,18 @@ describe('EgoBrowserSession.checkAvailability', () => {
       expect(result.reason).toMatch(/lite\.ego\.app/)
     }
   })
+
+  it('defaults the platform to the host process', () => {
+    const session = new EgoBrowserSession({ homeDir: '/tmp' })
+    expect(session.extractTaggedJson('EGO_PING:{"ok":1}', 'PING')).toEqual({ ok: 1 })
+    expect(session.taskSpaceName('probe')).toBe('sati-probe')
+  })
+
+  it('is ok for a PATH-less env probe when the CLI sits in ~/.local/bin', () => {
+    const { homeDir } = makeFakeHomeDir()
+    const session = new EgoBrowserSession({ homeDir, platform: 'darwin' })
+    expect(session.checkAvailability({})).toEqual({ ok: true })
+  })
 })
 
 describe('EgoBrowserSession.runScript', () => {
@@ -85,6 +97,35 @@ describe('EgoBrowserSession.runScript', () => {
   it('fails loudly when no runner is configured', async () => {
     const session = new EgoBrowserSession({ platform: 'darwin' })
     await expect(session.runScript("cliLog('x')", { cwd: '/tmp' })).rejects.toThrow(/runner not configured/)
+  })
+
+  it('forwards a caller signal and a PATH-less env to the spawn', async () => {
+    const runner = new FakeRunner()
+    runner.result = { exitCode: 0, stdout: '', stderr: '', timedOut: false, durationMs: 5 }
+    const session = new EgoBrowserSession({ runner, homeDir: '/Users/tester', platform: 'darwin' })
+    const signal = new AbortController().signal
+
+    const result = await session.runScript("cliLog('x')", { cwd: '/tmp', env: {}, signal })
+
+    expect(runner.calls[0]?.signal).toBe(signal)
+    expect(runner.calls[0]?.env?.PATH).toBe('/Users/tester/.local/bin')
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('wraps non-Error spawn failures in a start error', async () => {
+    const throwingRunner: EgoSpawnRunner = { async spawn() { throw 'ego-browser missing' } }
+    const session = new EgoBrowserSession({ runner: throwingRunner, platform: 'darwin' })
+    await expect(session.runScript("cliLog('x')", { cwd: '/tmp' })).rejects.toThrow(
+      'ego-browser failed to start: ego-browser missing',
+    )
+  })
+
+  it('creates nested output directories on demand', () => {
+    const base = mkdtempSync(join(tmpdir(), 'dsh-ego-session-out-'))
+    const session = new EgoBrowserSession({ platform: 'darwin' })
+    const dir = join(base, 'nested', 'downloads')
+    session.ensureDir(dir)
+    expect(existsSync(dir)).toBe(true)
   })
 })
 
@@ -131,6 +172,20 @@ describe('EgoBrowserSession.runConnectionProbe', () => {
     timeoutRunner.result = { exitCode: null, stdout: '', stderr: '', timedOut: true, durationMs: 8_000 }
     const timeoutSession = new EgoBrowserSession({ runner: timeoutRunner, platform: 'darwin' })
     expect(await timeoutSession.runConnectionProbe(5_000)).toBe(false)
+  })
+
+  it('uses the default probe timeout when none is passed', async () => {
+    const runner = new FakeRunner()
+    runner.result = { exitCode: 0, stdout: 'EGO_DOCTOR_OK\n', stderr: '', timedOut: false, durationMs: 10 }
+    const session = new EgoBrowserSession({ runner, platform: 'darwin' })
+    expect(await session.runConnectionProbe()).toBe(true)
+    expect(runner.calls[0]?.timeoutMs).toBe(8_000)
+  })
+
+  it('returns false when the probe spawn fails', async () => {
+    const throwingRunner: EgoSpawnRunner = { async spawn() { throw new Error('spawn failed') } }
+    const session = new EgoBrowserSession({ runner: throwingRunner, platform: 'darwin' })
+    expect(await session.runConnectionProbe()).toBe(false)
   })
 })
 

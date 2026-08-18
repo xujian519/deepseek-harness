@@ -52,4 +52,53 @@ describe('crossref connector', () => {
     expect(url.includes('mailto=sati@users.noreply.github.com')).toBe(true)
     expect(url.includes('select=DOI,title')).toBe(true)
   })
+
+  it('normalizes sparse works defensively', async () => {
+    const connector = createCrossrefConnector({
+      fetchImpl: async () => jsonResponse({
+        message: {
+          items: [
+            { DOI: '10.1111/doi-only' },
+            {},
+          ],
+        },
+      }),
+    })
+    const hits = await connector.search('edge')
+    const [doiOnly, bare] = hits
+    expect(doiOnly!.id).toBe('10.1111/doi-only')
+    expect(doiOnly!.title).toBe('10.1111/doi-only')
+    expect(doiOnly!.url).toBe('https://doi.org/10.1111/doi-only')
+    expect(doiOnly!.score).toBeUndefined()
+    expect(doiOnly!.summary).toBeUndefined()
+    expect(bare!.id).toBe('')
+    expect(bare!.title).toBe('Untitled')
+    expect(bare!.url).toBeUndefined()
+    expect(bare!.score).toBeUndefined()
+    expect(bare!.summary).toBeUndefined()
+  })
+
+  it('returns [] when the search message has no items', async () => {
+    const connector = createCrossrefConnector({ fetchImpl: async () => jsonResponse({ message: {} }) })
+    await expect(connector.search('empty')).resolves.toEqual([])
+  })
+
+  it('fetch resolves DOI metadata and strips doi.org prefixes', async () => {
+    let url = ''
+    const connector = createCrossrefConnector({
+      fetchImpl: async (input: RequestInfo | URL) => {
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        return jsonResponse({ message: { DOI: '10.1111/test', title: ['T'] } })
+      },
+    })
+
+    const work = await connector.fetch!('https://dx.doi.org/10.1111/test')
+    expect((work as { DOI: string }).DOI).toBe('10.1111/test')
+    expect(url.includes('/works/10.1111%2Ftest?mailto=')).toBe(true)
+  })
+
+  it('fetch returns null when the record is missing', async () => {
+    const connector = createCrossrefConnector({ fetchImpl: async () => jsonResponse({}) })
+    await expect(connector.fetch!('10.2222/none')).resolves.toBeNull()
+  })
 })

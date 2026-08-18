@@ -165,4 +165,97 @@ describe('runStageOnce', () => {
     expect(blocked.interrupted).toBeDefined()
     expect(blocked.interrupted!.stageId).toBe('s2')
   })
+
+  it('passes the provider and the caller signal through to the handler', async () => {
+    const seen: Array<{ provider: unknown; signal: unknown }> = []
+    const { handlers, atoms } = makeRegistry({
+      name: 'extract',
+      category: 'extract',
+      execute: async (input) => {
+        seen.push({ provider: input.provider, signal: input.signal })
+        return { result: '透传完成' }
+      },
+    })
+    const provider = { callLLM: async (): Promise<string> => '' }
+    const signal = new AbortController().signal
+    const outcome = await runStageOnce(stage({ atom: 'extract' }), {}, {
+      ...emptyOptions,
+      handlers,
+      atoms,
+      provider,
+      signal,
+    })
+    expect(outcome.output).toBe('透传完成')
+    expect(seen).toEqual([{ provider, signal }])
+  })
+
+  it('a vanished atom between lookup and output-key derivation falls back silently', async () => {
+    const { handlers, atoms } = makeRegistry({
+      name: 'extract',
+      category: 'extract',
+      execute: async () => ({ result: 'x' }),
+    })
+    const stageObj = stage({ atom: 'extract' })
+    let reads = 0
+    // 前两次读取（line 54 的条件与 lookup 参数）得到 atom；第三次起（line 80 主输出键）
+    // 返回 undefined：mainKey 走 else 分支，输出为空且不降级。
+    Object.defineProperty(stageObj, 'atom', {
+      get() {
+        reads += 1
+        return reads <= 2 ? 'extract' : undefined
+      },
+      configurable: true,
+    })
+    const outcome = await runStageOnce(stageObj, {}, { ...emptyOptions, handlers, atoms })
+    expect(outcome.output).toBe('')
+  })
+
+  it('a non-string raw output is JSON-serialized as the main output', async () => {
+    const { handlers, atoms } = makeRegistry({
+      name: 'extract',
+      category: 'extract',
+      execute: async () => ({ result: { nested: { key: 'v' } } }),
+    })
+    const outcome = await runStageOnce(stage({ atom: 'extract' }), {}, { ...emptyOptions, handlers, atoms })
+    expect(outcome.output).toContain('"nested"')
+    expect(outcome.output).toContain('"key"')
+  })
+
+  it('an object fallback on the stage key is JSON-serialized', async () => {
+    const { handlers, atoms } = makeRegistry({
+      name: 'extract',
+      category: 'extract',
+      execute: async () => ({ other: 1 }),
+    })
+    const state: Record<string, unknown> = { s1: { legacy: 'structure' } }
+    const outcome = await runStageOnce(stage({ atom: 'extract' }), state, { ...emptyOptions, handlers, atoms })
+    expect(outcome.output).toContain('"legacy"')
+  })
+
+  it('no handler and no executor produce an empty output without a degradation reason', async () => {
+    const outcome = await runStageOnce(stage(), {}, emptyOptions)
+    expect(outcome.output).toBe('')
+    expect(outcome.retries).toBe(3)
+    expect(outcome.interrupted).toBeUndefined()
+  })
+
+  it('a string error from the executor is preserved in the degraded prefix', async () => {
+    const outcome = await runStageOnce(
+      stage(),
+      {},
+      { ...emptyOptions, executor: async () => { throw '纯文本错误' } },
+    )
+    expect(outcome.output).toBe('[WORKFLOW_DEGRADED] s1: 纯文本错误')
+  })
+
+  it('an object error from the executor is JSON-serialized into the degraded prefix', async () => {
+    const outcome = await runStageOnce(
+      stage(),
+      {},
+      { ...emptyOptions, executor: async () => { throw { code: 7, detail: '对象错误' } } },
+    )
+    expect(outcome.output).toContain('[WORKFLOW_DEGRADED] s1:')
+    expect(outcome.output).toContain('"code":7')
+    expect(outcome.output).toContain('"detail":"对象错误"')
+  })
 })

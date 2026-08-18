@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as PatentRule from '@deepseek-ai/dsh-patent-rule'
-import { loadPatentComplianceRuleSet } from '@deepseek-ai/dsh-patent-rule'
+import { loadPatentComplianceRuleSet, resolveRuleAsset } from '@deepseek-ai/dsh-patent-rule'
 
 async function mount(config: PatentRule.Config): Promise<Context> {
   const ctx = new Context()
@@ -25,6 +25,13 @@ describe('asset loading', () => {
     expect(loaded.source).toBeNull()
     expect(loaded.ruleSet.rules.length).toBe(0)
     expect(loaded.warnings.length).toBeGreaterThan(0)
+  })
+
+  it('resolveRuleAsset locates a packaged asset and returns null on a miss', () => {
+    const hit = resolveRuleAsset('compliance.yaml')
+    expect(hit).not.toBeNull()
+    expect(hit).toMatch(/compliance\.yaml$/)
+    expect(resolveRuleAsset('no-such-asset-file.yaml')).toBeNull()
   })
 })
 

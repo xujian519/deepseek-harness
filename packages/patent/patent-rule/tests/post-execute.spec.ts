@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
@@ -26,7 +26,7 @@ function deliveryTool(name: string, text: string) {
   })
 }
 
-/** A rulesDir fixture with one block rule and one review rule (both keyword_blocklist, non-PAT). */
+/** A rulesDir fixture with one block rule, one review rule, and one warn rule (all keyword_blocklist, non-PAT). */
 function makeRulesFixture(): string {
   const root = mkdtempSync(join(tmpdir(), 'patent-rule-'))
   const patentDir = join(root, 'patent')
@@ -45,6 +45,11 @@ function makeRulesFixture(): string {
       '    severity: major',
       '    action: review',
       '    check: { type: keyword_blocklist, keywords: ["REVIEWWORD"] }',
+      '  - id: TEST-WARN',
+      '    name: 测试提示',
+      '    severity: minor',
+      '    action: warn',
+      '    check: { type: keyword_blocklist, keywords: ["WARNWORD"] }',
     ].join('\n'),
     'utf8',
   )
@@ -119,5 +124,73 @@ describe('tools/post-execute output gate', () => {
     await fiber.dispose()
     const after = await ctx.tools.execute(exec('render_patent_document'))
     expect(after.isError).toBe(false)
+  })
+
+  it('delegates via next() when a result carries no text blocks', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    let downstreamCalled = false
+    ctx.on('tools/post-execute', async (_exec, _result, next) => {
+      downstreamCalled = true
+      return next()
+    })
+    ctx.tools.register(
+      defineContentToolFixture({
+        name: 'render_patent_document',
+        description: 'render',
+        parameters: {},
+        async execute(): Promise<Array<{ type: 'reasoning'; text: string }>> {
+          return [{ type: 'reasoning', text: '推理过程' }]
+        },
+      }),
+    )
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(false)
+    expect(downstreamCalled).toBe(true)
+  })
+
+  it('delegates via next() for whitespace-only results', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    let downstreamCalled = false
+    ctx.on('tools/post-execute', async (_exec, _result, next) => {
+      downstreamCalled = true
+      return next()
+    })
+    ctx.tools.register(deliveryTool('render_patent_document', '   '))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(false)
+    expect(downstreamCalled).toBe(true)
+  })
+
+  it('logs warn-level hits and passes the result through', async () => {
+    const ctx = await mount({ rulesDir: makeRulesFixture() })
+    const warnSpy = vi.spyOn(ctx.logger, 'warn')
+    let downstreamCalled = false
+    ctx.on('tools/post-execute', async (_exec, _result, next) => {
+      downstreamCalled = true
+      return next()
+    })
+    ctx.tools.register(deliveryTool('render_patent_document', '包含 WARNWORD 的文档'))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(false)
+    expect(downstreamCalled).toBe(true)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('命中 warn 级规则 TEST-WARN'))
+    warnSpy.mockRestore()
+  })
+
+  it('apply without gateToolNames falls back to the default delivery tools', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin({
+      name: 'patent-rule-raw-apply',
+      inject: ['tools'],
+      apply(fiber: Context, config: { rulesDir?: string }): void {
+        PatentRule.apply(fiber, config)
+      },
+    }, { rulesDir: makeRulesFixture() })
+    ctx.tools.register(deliveryTool('render_patent_document', '包含 BLOCKWORD 的文档'))
+    const result = await ctx.tools.execute(exec('render_patent_document'))
+    expect(result.isError).toBe(true)
+    expect(result.error?.message).toMatch(/TEST-BLOCK/)
   })
 })

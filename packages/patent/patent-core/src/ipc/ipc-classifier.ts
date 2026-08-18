@@ -768,6 +768,7 @@ function ipcConfidence(hits: number): number {
 export function classifyIpcTop(text: string): IpcClassification {
   const [top] = classifyIpc(text)
   // classifyIpc 恒返回至少一个分类（无匹配时默认 B）；缺省分支仅为满足 TS 收窄。
+  /* v8 ignore next -- classifyIpc always returns at least the default section */
   return top ?? { section: DEFAULT_IPC_SECTION, confidence: DEFAULT_IPC_CONFIDENCE, matchedKeywords: [] }
 }
 

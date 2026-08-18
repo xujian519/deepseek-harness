@@ -36,4 +36,13 @@ describe('@deepseek-ai/dsh-patent-document plugin surface', () => {
     await fiber.dispose()
     expect(ctx.tools.schemas().some(s => s.name === 'render_patent_document')).toBe(false)
   })
+
+  it('applies an explicit chromePath while outputRoot stays unset', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.provide('subprocess', fakeSubprocess(() => successHandle()).runtime)
+    Pkg.apply(ctx, { chromePath: '/usr/bin/chrome' })
+    expect(ctx.tools.schemas().some(s => s.name === 'render_patent_document')).toBe(true)
+  })
 })

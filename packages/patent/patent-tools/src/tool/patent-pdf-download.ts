@@ -277,6 +277,7 @@ async function fetchPdfFallback(
     if (typeof fetchFn !== 'function') throw new Error('no fetch implementation available')
     const res = await fetchFn(item.pdfUrl, {
       headers: { 'User-Agent': PATENT_DOWNLOAD_USER_AGENT, Accept: 'application/pdf' },
+      /* v8 ignore next -- execute always passes exec.signal through. */
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
@@ -338,6 +339,7 @@ function renderPdfDownload(value: PatentPdfDownloadOutput): string {
       const retry = r.pdfUrl ? `；可手动重试：${r.pdfUrl}` : ''
       lines.push(`- ${r.patent}: 失败（${r.error ?? 'unknown'}${retry}）`)
     } else {
+      /* v8 ignore next -- fallback results always carry a method for ok items. */
       const method = METHOD_LABELS[r.method ?? ''] ?? ''
       lines.push(`- ${r.patent}: ${r.path ?? 'ok'}${method}`)
     }

@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId } from '@deepseek-ai/dsh-llm'
@@ -35,6 +38,33 @@ describe('EVI-011 evidence-compliance guards', () => {
   it('falls back to the hardcoded condition fields when assets are missing', () => {
     const conditions = evi011GuardConditionFields([])
     expect([...conditions].sort()).toEqual(['legalized', 'notarized', 'translated'])
+  })
+
+  it('ignores EVI-011 conditions outside the guard field mapping', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'evidence-rule-'))
+    const patentDir = join(dir, 'patent')
+    mkdirSync(patentDir)
+    writeFileSync(
+      join(patentDir, 'evidence-rules.yaml'),
+      [
+        'rules:',
+        '  - ruleId: EVI-011',
+        '    name: 域外证据审查规则',
+        '    evidenceType: overseas',
+        '    check:',
+        '      type: overseas',
+        '      conditions:',
+        '        - evidence_notarized',
+        '        - evidence_custom_unknown',
+      ].join('\n'),
+      'utf8',
+    )
+    try {
+      const conditions = evi011GuardConditionFields([patentDir])
+      expect([...conditions]).toEqual(['notarized'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('abstains on non-matching tools and non-object arguments', () => {

@@ -166,6 +166,7 @@ export class WikiCardLoader {
           const target = candidatePaths.find(p => this.byId.has(p))
           if (!target) continue
           const existing = this.byId.get(target)
+          /* v8 ignore next -- target comes from candidatePaths.find(this.byId.has), so the entry always exists */
           if (existing === undefined) continue
           this.byId.set(target, {
             ...existing,
@@ -303,6 +304,7 @@ export class WikiCardLoader {
       content = readFileSync(path, 'utf8')
       if (this.contentCache.size >= MAX_CACHE_ENTRIES) {
         const first = this.contentCache.keys().next().value
+        /* v8 ignore next -- a cache at MAX_CACHE_ENTRIES is never empty */
         if (first !== undefined) this.contentCache.delete(first)
       }
       this.contentCache.set(id, content)
