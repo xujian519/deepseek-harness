@@ -15,7 +15,6 @@ on:
   pull_request:
     types: [labeled]
 
-if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
 
@@ -27,6 +26,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Build four wheels
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'python-release-dry-run'
     uses: ./.github/workflows/build-exe-for-python-sdk.yml
@@ -35,6 +35,7 @@ jobs:
       release: true
 
   python-compat:
+    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Python ${{ matrix.python }} / installed SDK
     needs: build
     runs-on: ubuntu-latest
@@ -75,6 +76,7 @@ jobs:
           python scripts/smoke-python-runtime.py --scenario sdk-default
 
   validate:
+    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Validate release candidate
     needs: [build, python-compat]
     runs-on: ubuntu-latest
@@ -180,6 +182,7 @@ jobs:
           retention-days: 7
 
   publish-runtime:
+    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Publish runtime wheels to public PyPI
     if: github.event_name == 'workflow_dispatch' && inputs.publish
     needs: validate
@@ -215,6 +218,7 @@ jobs:
   # runtime files arrive, "re-run failed jobs" resumes here without attempting
   # to overwrite the runtime release.
   publish-sdk:
+    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Publish SDK wheel to public PyPI
     if: github.event_name == 'workflow_dispatch' && inputs.publish
     needs: [validate, publish-runtime]

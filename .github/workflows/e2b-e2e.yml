@@ -5,7 +5,6 @@ name: E2E (E2B sandbox)
 on:
   workflow_dispatch:
 
-if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
 
@@ -16,6 +15,7 @@ env:
 
 jobs:
   e2b:
+    if: github.repository == 'deepseek-ai/deepseek-harness'
     runs-on: ubuntu-latest
     name: E2B live Loader composition
     timeout-minutes: 30

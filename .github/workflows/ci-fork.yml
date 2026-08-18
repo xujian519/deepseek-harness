@@ -6,7 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-if: github.repository == 'xujian519/deepseek-harness'
 permissions:
   contents: read
 
@@ -16,6 +15,7 @@ env:
 
 jobs:
   node-checks:
+    if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
     name: node 24 / lint + typecheck + test
     steps:
@@ -43,6 +43,7 @@ jobs:
         run: pnpm run test
 
   python-checks:
+    if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
     name: python 3.10 / keyless SDK
     steps:
