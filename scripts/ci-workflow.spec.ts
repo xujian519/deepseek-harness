@@ -402,6 +402,13 @@ describe('Issue lifecycle workflow', () => {
   secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''
 }}\n`,
     )
+
+    const tokenStep = workflowStep(lifecycleJob, 'Create project token')
+    if (!isRecord(tokenStep.with)) {
+      throw new TypeError('Create project token step must define with')
+    }
+    expect(tokenStep.with.owner).toBe('${{ github.repository_owner }}')
+    expect(tokenStep.with.repositories).toBe('${{ github.event.repository.name }}')
   })
 })
 
@@ -441,6 +448,14 @@ function workflowJob(workflow: Record<string, unknown>, job: string): Record<str
     throw new TypeError(`workflow must define the ${job} job`)
   }
   return workflow.jobs[job]
+}
+
+function workflowStep(job: Record<string, unknown>, name: string): Record<string, unknown> {
+  const steps = job.steps
+  if (!Array.isArray(steps)) throw new TypeError('job must define steps')
+  const step: unknown = steps.find((candidate: unknown) => isRecord(candidate) && candidate.name === name)
+  if (!isRecord(step)) throw new TypeError(`job must define the ${name} step`)
+  return step
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
