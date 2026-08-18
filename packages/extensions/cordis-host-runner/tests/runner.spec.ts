@@ -607,7 +607,7 @@ describe('cordis/before-approval waterfall', () => {
     // later Packages of the same Plugin, making the base requirement false.
     const first = await runner.run(AGENT_A, pluginId, packageId, 'run')
     expect(first).toMatchObject({ ok: true, status: 'awaiting-approval' })
-    const requestEvent = gateway.events.find(([name]) => name === 'cordis/request-run')
+    const requestEvent = gateway.events.find(([name]) => name === '@deepseek-ai/cordis/request-run')
     const requestId = (requestEvent?.[1] as { requestId: string }).requestId
     await runner.runHostHalf(AGENT_A, pluginId, packageId, 'run', requestId as never, true)
     await gateway.answering

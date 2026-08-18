@@ -1164,11 +1164,11 @@ describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
       proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn' } }),
       new AbortController().signal,
     )
-    ctx.emit('cordis/request-run', {
+    ctx.emit('@deepseek-ai/cordis/request-run', {
       requestId: 'req-1', agentId: session.id, pluginId: 'dyn-1', packageId: 'pkg-1',
       mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
     } as never)
-    ctx.emit('cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
+    ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
     await vi.waitFor(() => { expect(undefinedIds).toEqual(['dyn-1']) })
   })
 })

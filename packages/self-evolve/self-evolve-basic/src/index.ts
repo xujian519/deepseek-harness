@@ -517,14 +517,14 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       }
       return next()
     }))
-    ctx.effect(() => ctx.on('cordis/request-run', (request) => {
+    ctx.effect(() => ctx.on('@deepseek-ai/cordis/request-run', (request) => {
       // Correlate the runner's approval request with an L4 plugin this
       // provider drove, so a later refusal can drop the definition (P2.2).
       if (this.l4Pending.has(request.pluginId)) {
         this.l4RequestByRun.set(String(request.requestId), { pluginId: request.pluginId, agentId: request.agentId })
       }
     }))
-    ctx.effect(() => ctx.on('cordis/request-run-resolved', (resolved) => {
+    ctx.effect(() => ctx.on('@deepseek-ai/cordis/request-run-resolved', (resolved) => {
       const owner = this.l4RequestByRun.get(String(resolved.requestId))
       if (owner === undefined) return
       this.l4RequestByRun.delete(String(resolved.requestId))
