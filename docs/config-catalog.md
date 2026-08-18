@@ -1400,7 +1400,7 @@ export interface ImageModelConfig {
 }
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:110`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:109`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 

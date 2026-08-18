@@ -108,6 +108,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   patentData: 'patent.md',
   patentKnowledge: 'patent.md',
   patentWorkflow: 'patent.md',
+  selfEvolve: 'self-evolve.md',
   workspaceRegistry: 'workspace.md',
 }
 
@@ -171,6 +172,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'agent-preset': 'core.md',
   'approval': 'approval.md',
   'commands': 'commands.md',
+  'cordis': 'extensions.md',
   '@deepseek-ai': 'extensions.md',
   'credentials': 'credentials.md',
   'domain': 'storage.md',
@@ -183,6 +185,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'subagent': 'subagent.md',
   'system-prompt': 'system-prompt.md',
   'session-telemetry': 'session-telemetry.md',
+  'self-evolve-loop': 'self-evolve.md',
   'tools': 'tools.md',
   'workflow': 'workflow.md',
 }
@@ -577,6 +580,12 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   RpcReceipt: 'carrier-layer receipt is owned by packages/host/apiproxy/src/api/rpc.ts',
   Sandbox: 'external E2B SDK handle is owned by packages/e2b/e2b/README.md',
   SessionForkSource: 'service-local fork input is owned by packages/core/session/src/index.ts',
+  SelfEvolveRunId: 'self-evolve run identity is owned by packages/self-evolve/self-evolve/src/brand.ts',
+  EvolveTrigger: 'self-evolve trigger vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
+  EvolveLevel: 'self-evolve edit-surface vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
+  SelfEvolveAgentContext: 'self-evolve service input is owned by packages/self-evolve/self-evolve/src/types.ts',
+  SelfEvolveResult: 'self-evolve service result is owned by packages/self-evolve/self-evolve/src/types.ts',
+  FailurePattern: 'self-evolve pattern vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
   SubagentRunEndInfo: 'event payload contract is owned by packages/subagent/subagent/src/types.ts',
   SubagentRunInfo: 'event payload contract is owned by packages/subagent/subagent/src/types.ts',
   WorkflowAgentEndInfo: 'event-local snapshot is owned by packages/workflow/workflow/src/index.ts',
