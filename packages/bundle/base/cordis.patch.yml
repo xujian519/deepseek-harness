@@ -449,3 +449,18 @@
     # choice.
     - id: llm-deepseek
       name: '@deepseek-ai/dsh-llm-deepseek'
+
+    # Self-evolve capability seam: projection-driven failure mining, provider-backed
+    # proposals, approval-gated commits. The basic provider skips the L3/L4 hooks so
+    # downstream overlays swap in advanced backends without re-bracketing this row.
+    - id: self-evolve-basic
+      name: '@deepseek-ai/dsh-self-evolve-basic'
+      config:
+        defaultLevels:
+          - L1-skill
+          - L2-context
+        minPatternOccurrences: 2
+        requireDualVerification: true
+
+    - id: tool-self-evolve
+      name: '@deepseek-ai/dsh-tool-self-evolve'

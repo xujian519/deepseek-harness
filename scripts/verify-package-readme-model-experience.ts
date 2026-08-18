@@ -163,6 +163,12 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/web/web-fetch-http': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-tool-web.' },
   'packages/web/web-search-exa': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-tool-web.' },
   'packages/workflow/workflow': { kind: 'indirect', reason: 'The service delegates parent and child model rendering to its consumer and engine.' },
+  'packages/self-evolve/self-evolve': { kind: 'none', reason: 'The Service Definition only declares the abstract lifecycle and durable event vocabulary; providers and tool consumers own every model-facing effect.' },
+  'packages/patent/patent-data': { kind: 'none', reason: 'The data seam resolves and serves patent data to the tool layer; dsh-patent-tools owns every model-facing schema and result.' },
+  'packages/patent/patent-knowledge': { kind: 'none', reason: 'The knowledge seam answers read-only queries for the tool layer; dsh-patent-tools owns every model-facing schema and result.' },
+  'packages/patent/patent-core': { kind: 'none', reason: 'The library is pure computation for the workflow and tool layer; every model-facing schema and result is owned by its consumers.' },
+  'packages/patent/patent-workflow': { kind: 'none', reason: 'The pipeline executes work for the tool layer; tool schemas, results, and approval prompts are owned by dsh-patent-tools and the interaction seam.' },
+  'packages/patent/patent-rule': { kind: 'none', reason: 'The rule engine registers no tool schema, prompt section, or result projection; its EVI-011 guards and post-execute gate deny or block existing tool calls, and dsh-tools renders the denial and block feedback as ordinary error results.' },
 }
 
 interface Failure {

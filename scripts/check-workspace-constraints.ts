@@ -30,6 +30,7 @@ const vendoredPackages = new Set([
   '@deepseek-ai/cordis-plugin-timer',
   '@deepseek-ai/cordis-plugin-hmr',
   '@deepseek-ai/cordis-plugin-logger-console',
+  '@deepseek-ai/nuo-patent',
 ])
 const publicLandlockPackages = new Set([
   '@deepseek-ai/node-addon-landlock-run',
@@ -143,7 +144,17 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // sandbox-local resolves it through the package's ./runner export. tsdown
   // also shares its generated FFI code through a hashed runtime chunk.
   '@deepseek-ai/dsh-sandbox-windows-acl': ['lib/runner.js', 'lib/types-*.js'],
+  // TRIZ data ships as package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-methodology': ['assets'],
   '@deepseek-ai/dsh-skill-badge': ['assets'],
+  // ipc-standards.yaml ships as a package-root asset resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-core': ['assets'],
+  // The Sati rule packs (base/domains/patent YAML + pack.schema.json) ship as
+  // package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-rule': ['assets'],
+  // The Sati patent document templates (5 template dirs + manifest + tokens.css)
+  // ship as package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-document': ['assets'],
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
 }
 
