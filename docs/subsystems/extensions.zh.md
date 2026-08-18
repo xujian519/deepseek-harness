@@ -260,6 +260,31 @@ Source: [`packages/extensions/cordis-host-runner/src/index.ts:124`](../../packag
 
 ### `cordis/*` events
 
+<a id="cordisbefore-approval--waterfall"></a>
+
+#### `cordis/before-approval` — waterfall
+
+Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement.
+
+```ts cordis-catalog
+/**
+ * Waterfall consulted before a Client-bearing activation request is armed.
+ * Listeners receive the pending request facts and the base approval
+ * requirement; they MUST call `next()` and may return `true` to force
+ * re-approval even when the base requirement is `false` (e.g. a stale
+ * `approveFutureVersions` grant). The runner treats the outermost result
+ * as the effective requirement.
+ * @param info - the pending activation request facts and base requirement.
+ * @param next - delegate to the remaining listeners; resolves with their effective requirement.
+ * @mode waterfall
+ */
+'cordis/before-approval'( this: Scoped<Agent>, info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>
+```
+
+Types: [Agent](core.md) · [Scoped](scope.md)
+
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:395`](../../packages/extensions/cordis-host-runner/src/types.ts)
+
 <a id="cordisdynamic-package--emit"></a>
 
 #### `cordis/dynamic-package` — emit
@@ -275,7 +300,7 @@ One exact Plugin/Package activation is now live in the Host.
 'cordis/dynamic-package'(pkg: DynamicCordisPackage): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:379`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:411`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisdynamic-retract--emit"></a>
 
@@ -292,7 +317,7 @@ One exact activation was withdrawn.
 'cordis/dynamic-retract'(retracted: DynamicCordisRetracted): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:385`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:417`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisinspect-query--emit"></a>
 
@@ -309,7 +334,7 @@ Request a live read-only query from the Client inspect registry.
 'cordis/inspect-query'(request: CordisInspectQueryRequest): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:391`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:423`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisinspect-query-resolved--emit"></a>
 
@@ -326,7 +351,7 @@ Notify every Client that an inspect query has settled or been cancelled.
 'cordis/inspect-query-resolved'(resolved: CordisInspectQueryResolved): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:397`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:429`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisrequest-run--emit"></a>
 
@@ -343,7 +368,7 @@ A Client-bearing activation needs a browser page, and may require a user decisio
 'cordis/request-run'(request: DynamicCordisRunRequest): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:367`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:383`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisrequest-run-resolved--emit"></a>
 
@@ -360,5 +385,5 @@ A pending Client activation request left the answerable state.
 'cordis/request-run-resolved'(resolved: DynamicCordisRequestResolved): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:373`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:405`](../../packages/extensions/cordis-host-runner/src/types.ts)
 <!-- END GENERATED cordis-surface -->

@@ -53,5 +53,6 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [session-telemetry.md](session-telemetry.md) | the outbound session-reporting capability seam: `SessionTelemetryRecord`/`SessionTelemetrySeverity`, the `SessionTelemetrySink` contract, and the `session-telemetry/record` redact waterfall |
 | [desktop.md](desktop.md) | desktop OS-integration seam: native dialogs, notifications, menus, shortcuts, tray, and the Electron main bridge |
 | [patent.md](patent.md) | the patent subsystem: the `ctx.patentData`/`ctx.patentKnowledge`/`ctx.patentWorkflow` service seams and the pure-library ModelPort contract |
+| [self-evolve.md](self-evolve.md) | the self-evolve subsystem: the `ctx.selfEvolve` service seam, the `self-evolve-loop/*` events, and the provider/consumer packages |
 
 > Type declarations and their JSDoc on these pages are source-equivalent and drift-checked by `pnpm run verify-type-equiv` (see [development.md](../development.md#documenting-types-verbatim-ts-type-equiv)). Ordinary blocks preserve complete declarations; `public-api` blocks preserve body-stripped public class declarations. Cordis services and events use each page's generated **Cordis API** section.

@@ -955,6 +955,128 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'patentData',
+    summary: 'PatentData service: the patent data seam (ctx.patentData).',
+    description: 'PatentData service: the patent data seam (ctx.patentData). It exposes the nuo search provider factory and the ego-browser session runner over the injected subprocess service.',
+    methods: [
+      {
+        signature: 'createSearchProvider(options?: CreateNuoSearchProviderOptions): StageProvider',
+        description: 'Build a nuo-backed search provider (default: LRU-cached nuo searchPatents).',
+        parameters: [{ name: 'options', description: 'optional search-function injection.' }],
+        returns: 'the StageProvider for the workflow atoms\' search stage.',
+      },
+      {
+        signature: 'createEgoSession(options?: EgoSessionOptions): EgoBrowserSession',
+        description: 'Build an ego-browser session runner backed by the injected subprocess service.',
+        parameters: [{ name: 'options', description: 'session options; runner overrides the subprocess-backed default.' }],
+        returns: 'the ego-browser session.',
+      },
+    ],
+  },
+  {
+    key: 'patentKnowledge',
+    summary: 'PatentKnowledge service: the knowledge.db query seam (ctx.patentKnowledge).',
+    description: 'PatentKnowledge service: the knowledge.db query seam (ctx.patentKnowledge). It lazily opens the resolved knowledge.db read-only and delegates to the ported engines; the engines close when the owning fiber unloads.',
+    methods: [
+      {
+        signature: 'readonly paths: KnowledgePaths',
+        description: 'Resolved on-disk paths (query db, wiki dir, install source).',
+        parameters: [],
+      },
+      {
+        signature: 'caseLawSearch(query: string, options?: CaseLawSearchOptions): CaseLawHit[]',
+        description: 'Case-law full-text search over documents/chunks/docs_fts (FTS5 BM25 first, LIKE fallback for short queries or a missing FTS index).',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and doc_type/court/excludeSource filters.' }],
+        returns: 'the de-duplicated hits in rank order.',
+      },
+      {
+        signature: 'legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]',
+        description: 'Legal full-text search over the law_article documents of knowledge.db.',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and level filter.' }],
+        returns: 'the de-duplicated hits in rank order.',
+      },
+      {
+        signature: 'wikiCards(query: string, limit: number = 10): WikiCardMeta[]',
+        description: 'Keyword lookup over the wiki-card directory (title/concept/domain).',
+        parameters: [{ name: 'query', description: 'the keyword.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'matching card metadata.',
+      },
+      {
+        signature: 'ipcClassify(text: string): IpcClassification[]',
+        description: 'IPC classification of a patent-domain text.',
+        parameters: [{ name: 'text', description: 'the patent-domain text to classify.' }],
+        returns: 'classification results in confidence order.',
+      },
+      {
+        signature: 'kgSearch(query: string, options?: PatentKgSearchOptions): RelevantHit[]',
+        description: 'Knowledge-graph keyword search with relation expansion.',
+        parameters: [{ name: 'query', description: 'the keyword.' }, { name: 'options', description: 'keyword/expand limits and phrase-or-OR match mode.' }],
+        returns: 'keyword hits plus expanded neighbors.',
+      },
+      {
+        signature: 'kgGetNode(id: string): KgNode | undefined',
+        description: 'Knowledge-graph node lookup by id.',
+        parameters: [{ name: 'id', description: 'the node id.' }],
+        returns: 'the node, or undefined when absent.',
+      },
+      {
+        signature: 'kgListByType(nodeType: string, limit: number = 50): KgNode[]',
+        description: 'Knowledge-graph nodes by type.',
+        parameters: [{ name: 'nodeType', description: 'the node type to list.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'the matching nodes.',
+      },
+      {
+        signature: 'ipcStandards(section: string): IpcStandardCard[]',
+        description: 'IPC examination-standard cards for one section.',
+        parameters: [{ name: 'section', description: 'the IPC section (A-H).' }],
+        returns: 'the matching cards.',
+      },
+      {
+        signature: 'ipcStandardsByArticle(article: string): IpcStandardCard[]',
+        description: 'IPC examination-standard cards for one law article.',
+        parameters: [{ name: 'article', description: 'the law article id (e.g. patent-law-a22.3).' }],
+        returns: 'the matching cards.',
+      },
+      {
+        signature: 'ipcStandardsSearch(keyword: string, limit: number = 10): IpcStandardCard[]',
+        description: 'Keyword search over the shipped IPC examination-standard cards.',
+        parameters: [{ name: 'keyword', description: 'the search keyword.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'the matching cards.',
+      },
+    ],
+  },
+  {
+    key: 'patentWorkflow',
+    summary: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow).',
+    description: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow). Approval is an optional seam read via ctx.get(\'approval\'); storage-backed file products are caller-provided stores (see the package README).',
+    methods: [
+      {
+        signature: 'async runWorkflow( manifest: WorkflowManifest, wctx: WorkflowContext, executor?: StageExecutor, options?: WorkflowRunOptions, agent?: PatentAgent, ): Promise<WorkflowRunResult>',
+        description: 'Run a workflow manifest via the ported executor. When an agent is given, the run result is appended to its session as a patent/workflow-run event.',
+        parameters: [{ name: 'manifest', description: 'the workflow to run.' }, { name: 'wctx', description: 'the workflow context (caseId/input + stage state).' }, { name: 'executor', description: 'fallback stage executor for stages without an atom.' }, { name: 'options', description: 'handlers/atoms/provider/persist/approvalGrants/runId.' }, { name: 'agent', description: 'optional agent whose session records the run.' }],
+        returns: 'the run result (also persisted via options.persist when given).',
+      },
+      {
+        signature: 'async runPlantask( agent: PatentAgent, caseId: string, planSteps: string[], options?: PlantaskRunOptions, ): Promise<PlantaskRunResult>',
+        description: 'Drive a plantask plan through planning → awaiting_approval → executing. The awaiting_approval gate resolves through ctx.get(\'approval\'); without an approval service the plan fails closed (replanning with a feedback) rather than auto-approving. Set options.autoApprove to false to leave the plan pending for an out-of-band approve/reject.',
+        parameters: [{ name: 'agent', description: 'the agent whose session records the patent/plantask events.' }, { name: 'caseId', description: 'case identity keying the tracked pending plantask.' }, { name: 'planSteps', description: 'the ordered plan steps to sync into tasks.' }, { name: 'options', description: 'autoApprove and approvalReason.' }],
+        returns: 'the final plantask state plus tasks and the approval outcome.',
+      },
+      {
+        signature: 'approve(caseId: string): PlantaskRunResult',
+        description: 'Decision entry: approve a pending plantask (resume to executing). Single-session single-case semantics: one pending plantask per caseId; concurrent runs of the same caseId are rejected by runPlantask.',
+        parameters: [{ name: 'caseId', description: 'the case keying the parked plantask.' }],
+        returns: 'the final plantask state, tasks, and approval outcome.',
+      },
+      {
+        signature: 'reject(caseId: string, feedback?: string): PlantaskRunResult',
+        description: 'Decision entry: reject a pending plantask and roll back to replanning.',
+        parameters: [{ name: 'caseId', description: 'the case keying the parked plantask.' }, { name: 'feedback', description: 'optional rejection feedback driving the replanning transition.' }],
+        returns: 'the final plantask state, tasks, and approval outcome.',
+      },
+    ],
+  },
+  {
     key: 'permissionPresets',
     summary: 'Owns the deployment\'s permission presets and their write path.',
     description: 'Owns the deployment\'s permission presets and their write path. Requires a confining `ctx.shell` executor and `ctx.approval`; unmatched knob values are reported as CUSTOM_PRESET, not an error.',
@@ -1050,6 +1172,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read the session override without applying the deployment default.',
         parameters: [{ name: 'session', description: 'session whose log supplies the override.' }],
         returns: 'the last logged mode, or `undefined` without one.',
+      },
+    ],
+  },
+  {
+    key: 'selfEvolve',
+    summary: 'Abstract self-evolve service.',
+    description: 'Abstract self-evolve service. Implementations own trigger policy, rate limiting, verifier grounding, the proposal model route, and held-in/held-out regression execution. A successful run commits its proposals through the target seam for each level (skill register, systemPrompt.section, workflow engine, dynamicCordisRunner).\n\nLoad exactly one implementation per context; later providers shadow earlier ones so the base provider can be swapped for L4 harness-safe variants.',
+    methods: [
+      {
+        signature: 'abstract evolveIfNeeded( agent: SelfEvolveAgentContext, trigger: EvolveTrigger, signal: AbortSignal, levels?: EvolveLevel[], ): Promise<SelfEvolveResult | null>',
+        description: 'Consider running an evolution loop for an explicit trigger. Idle and pressure triggers are rate-limited by the implementation; `user-command` always initiates a loop (subject to approval defaults). Return `null` when the policy decides no run is needed. `runMaintenance` on the agent owns idle-gating; callers do not double-check it.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner; also supplies the routed provider/model target so proposals use the same route.' }, { name: 'trigger', description: 'Why this call is asking for a run.' }, { name: 'signal', description: 'Cancels the loop as early as possible; cancellation records a `self-evolve/end` error rather than leaving the log open.' }, { name: 'levels', description: 'Restrict the edit surfaces this loop may propose against. Defaults to `[\'L1-skill\', \'L2-context\']` for safety.' }],
+        returns: 'the loop result, or `null` when policy decides no run is needed.',
+      },
+      {
+        signature: 'abstract evolveNow( agent: SelfEvolveAgentContext, signal: AbortSignal, levels?: EvolveLevel[], ): Promise<SelfEvolveResult>',
+        description: 'Explicitly run an evolution loop now, regardless of pressure policy. Enforces the same approval and validation gates as an idle loop.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner.' }, { name: 'signal', description: 'Cancels the loop as early as possible.' }, { name: 'levels', description: 'Restrict the edit surfaces this loop may propose against.' }],
+        returns: 'the loop result.',
+      },
+      {
+        signature: 'abstract readPatterns(sessionId: string): Promise<FailurePattern[]>',
+        description: 'Read the latest projected failure-pattern state for a session, or the empty state if the projection has not folded yet. Implementations may return a stale view; callers do not rely on synchronous freshness.',
+        parameters: [{ name: 'sessionId', description: 'opaque session identity.' }],
+        returns: 'ranked failure patterns for the session.',
       },
     ],
   },
@@ -2334,6 +2481,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
+    name: 'cordis/before-approval',
+    mode: 'waterfall',
+    signature: '\'cordis/before-approval\'( this: Scoped<Agent>, info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>',
+    summary: 'Waterfall consulted before a Client-bearing activation request is armed.',
+    description: 'Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement.',
+    parameters: [{ name: 'info', description: 'the pending activation request facts and base requirement.' }, { name: 'next', description: 'delegate to the remaining listeners; resolves with their effective requirement.' }],
+  },
+  {
     name: 'cordis/dynamic-package',
     mode: 'emit',
     signature: '\'cordis/dynamic-package\'(pkg: DynamicCordisPackage): void',
@@ -2492,6 +2647,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Waterfall around every streaming model call (retry, replay, routing).',
     description: 'Waterfall around every streaming model call (retry, replay, routing). Bound to the LlmRuntime; call `next()` to reach the resolved adapter\'s stream, or yield your own chunks to short-circuit.',
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; their messages already obey the immutable creation contract.' }],
+  },
+  {
+    name: 'self-evolve-loop/end',
+    mode: 'emit',
+    signature: '\'self-evolve-loop/end\'(info: { runId: SelfEvolveRunId; error?: string }): void',
+    summary: 'An evolution loop settled.',
+    description: 'An evolution loop settled. Every `start` event emits exactly one end event, including cancelled runs and rejected proposals.',
+    parameters: [{ name: 'info', description: 'run identity and the loop error, when the loop failed.' }],
+  },
+  {
+    name: 'self-evolve-loop/start',
+    mode: 'emit',
+    signature: '\'self-evolve-loop/start\'(info: { runId: SelfEvolveRunId; trigger: EvolveTrigger }): void',
+    summary: 'An evolution loop started.',
+    description: 'An evolution loop started. Paired with `self-evolve-loop/end`.',
+    parameters: [{ name: 'info', description: 'run identity and the trigger that initiated the loop.' }],
   },
   {
     name: 'session-telemetry/record',
@@ -2806,6 +2977,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AssistantProvenance {\n    provider: string;\n    model: string;\n    replayState?: unknown;\n}',
   },
   {
+    name: 'Atom',
+    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n};',
+  },
+  {
+    name: 'AtomCategory',
+    declaration: 'export type AtomCategory = \'search\' | \'extract\' | \'compare\' | \'reason\' | \'gate\';',
+  },
+  {
+    name: 'AtomRegistry',
+    declaration: 'export class AtomRegistry {\n    register(atom: Atom): void;\n    lookup(name: string): Atom | undefined;\n    list(): Atom[];\n    listByCategory(category: AtomCategory): Atom[];\n}',
+  },
+  {
     name: 'AttachmentId',
     declaration: 'export type AttachmentId = Branded<\'AttachmentId\'>;',
   },
@@ -2832,6 +3015,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CancelOptions',
     declaration: 'export interface CancelOptions {\n    keepInbox?: boolean | undefined;\n}',
+  },
+  {
+    name: 'CaseLawDocType',
+    declaration: 'export type CaseLawDocType = \'case\' | \'judgment\';',
+  },
+  {
+    name: 'CaseLawHit',
+    declaration: 'export type CaseLawHit = CaseLawRecord & {\n    chunkIndex: number;\n    snippet: string;\n    ftsRank?: number | null;\n    via: \'fts\' | \'like\';\n};',
+  },
+  {
+    name: 'CaseLawRecord',
+    declaration: 'export type CaseLawRecord = {\n    documentId: string;\n    docType: string;\n    title: string;\n    decisionNumber?: string | undefined;\n    caseNumber?: string | undefined;\n    court?: string | undefined;\n    source?: string | undefined;\n    module?: string | undefined;\n    charCount: number;\n};',
+  },
+  {
+    name: 'CaseLawSearchOptions',
+    declaration: 'export type CaseLawSearchOptions = {\n    limit?: number;\n    docType?: CaseLawDocType;\n    court?: string;\n    excludeSource?: string;\n};',
   },
   {
     name: 'ClientResponse',
@@ -3006,6 +3205,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CreateGoalResult {\n    readonly ref: GoalRef;\n}',
   },
   {
+    name: 'CreateNuoSearchProviderOptions',
+    declaration: 'export interface CreateNuoSearchProviderOptions {\n    search?: (query: string, options?: {\n        limit?: number;\n    }) => Promise<PatentSearchResult>;\n}',
+  },
+  {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
   },
@@ -3114,6 +3317,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`;',
   },
   {
+    name: 'DynamicCordisApprovalInfo',
+    declaration: 'export interface DynamicCordisApprovalInfo {\n    requestId: ApprovalRequestId;\n    agentId: SessionId;\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    mode: CordisDynamicRunMode;\n    name: string;\n    purpose: string;\n    requiresApproval: boolean;\n}',
+  },
+  {
     name: 'DynamicCordisPackage',
     declaration: 'export interface DynamicCordisPackage {\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    pluginRunId: CordisDynamicPluginRunId;\n    name: string;\n}',
   },
@@ -3134,8 +3341,60 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EditGoalRequest {\n    readonly objective?: string;\n    readonly maxGoalRounds?: number;\n}',
   },
   {
+    name: 'EgoAvailability',
+    declaration: 'export type EgoAvailability = {\n    ok: true;\n} | {\n    ok: false;\n    code: \'unavailable\' | \'setup_required\';\n    reason: string;\n};',
+  },
+  {
+    name: 'EgoBrowserSession',
+    declaration: 'export class EgoBrowserSession {\n    constructor(options: EgoSessionOptions = {});\n    checkAvailability(env?: NodeJS.ProcessEnv): EgoAvailability;\n    async runConnectionProbe(timeoutMs?: number): Promise<boolean>;\n    taskSpaceName(domain: string, sessionId?: string): string;\n    async runScript(script: string, options: EgoRunOptions): Promise<EgoScriptResult>;\n    extractTaggedJson<T>(output: string, tag: string): T | null;\n    ensureDir(dir: string): void;\n}',
+  },
+  {
+    name: 'EgoRunOptions',
+    declaration: 'export interface EgoRunOptions {\n    cwd: string;\n    timeoutMs?: number;\n    env?: NodeJS.ProcessEnv;\n    signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'EgoScriptResult',
+    declaration: 'export interface EgoScriptResult {\n    output: string;\n    stdout: string;\n    stderr: string;\n    exitCode: number | null;\n    timedOut: boolean;\n    durationMs: number;\n}',
+  },
+  {
+    name: 'EgoSessionOptions',
+    declaration: 'export interface EgoSessionOptions {\n    commandName?: string;\n    defaultTimeoutMs?: number;\n    maxTimeoutMs?: number;\n    homeDir?: string;\n    pathEntries?: string[];\n    maxOutputBytes?: number;\n    platform?: NodeJS.Platform;\n    env?: NodeJS.ProcessEnv;\n    runner?: EgoSpawnRunner;\n}',
+  },
+  {
+    name: 'EgoSpawnResult',
+    declaration: 'export interface EgoSpawnResult {\n    exitCode: number | null;\n    stdout: string;\n    stderr: string;\n    timedOut: boolean;\n    durationMs: number;\n}',
+  },
+  {
+    name: 'EgoSpawnRunner',
+    declaration: 'export interface EgoSpawnRunner {\n    spawn(spec: EgoSpawnSpec): Promise<EgoSpawnResult>;\n}',
+  },
+  {
+    name: 'EgoSpawnSpec',
+    declaration: 'export interface EgoSpawnSpec {\n    argv: readonly string[];\n    stdinData?: string;\n    cwd: string;\n    env?: NodeJS.ProcessEnv;\n    timeoutMs: number;\n    signal?: AbortSignal;\n}',
+  },
+  {
     name: 'EpochHeader',
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
+  },
+  {
+    name: 'EvolveCommit',
+    declaration: 'export interface EvolveCommit {\n    proposal: EvolveProposal;\n    validation: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    commitSeq: number;\n}',
+  },
+  {
+    name: 'EvolveLevel',
+    declaration: 'export type EvolveLevel = \'L1-skill\' | \'L2-context\' | \'L3-workflow\' | \'L4-harness\';',
+  },
+  {
+    name: 'EvolveProposal',
+    declaration: 'export interface EvolveProposal {\n    proposalId: string;\n    runId: SelfEvolveRunId;\n    level: EvolveLevel;\n    name: string;\n    purpose: string;\n    addressesPatternIds: string[];\n    preliminaryValidation?: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    candidate: {\n        kind: \'L1-skill\';\n        skillName: string;\n        content: string;\n        whenToUse?: string;\n    } | {\n        kind: \'L2-context\';\n        sectionName: string;\n        sectionText: string;\n        order: number;\n        estimatedBytes: number;\n    } | {\n        kind: \'L3-workflow\';\n        scriptName: string;\n        scriptBody: string;\n    } | {\n        kind: \'L4-harness\';\n        pluginIdPrefix: string;\n        hostCode?: string;\n        clientCode?: string;\n    };\n}',
+  },
+  {
+    name: 'EvolveTrigger',
+    declaration: 'export type EvolveTrigger = \'idle-maintenance\' | \'pressure\' | \'user-command\' | \'validation-retry\';',
+  },
+  {
+    name: 'FailurePattern',
+    declaration: 'export interface FailurePattern {\n    patternId: string;\n    verifierTier: \'tool-runtime\' | \'subprocess-exit\' | \'llm-provider\' | \'agent-loop\';\n    causalSignature: string;\n    level: EvolveLevel;\n    summary: string;\n    supportingSeqs: number[];\n    occurrences: number;\n    verifierMeta: Record<string, unknown>;\n}',
   },
   {
     name: 'FileDiff',
@@ -3290,6 +3549,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface InvokeRemoteRequest {\n    readonly namespace: string;\n    readonly method: string;\n    readonly args: Readonly<Record<string, unknown>>;\n    readonly signal?: AbortSignal;\n}',
   },
   {
+    name: 'IpcClassification',
+    declaration: 'export type IpcClassification = {\n    section: string;\n    confidence: number;\n    matchedKeywords: string[];\n    detail?: string;\n    detailConfidence?: number;\n};',
+  },
+  {
+    name: 'IpcStandardCard',
+    declaration: 'export type IpcStandardCard = {\n    id: string;\n    article: string;\n    ipcSection: string;\n    ipcDetail?: string | undefined;\n    name: string;\n    keyPoints: string[];\n    tips: string[];\n    source: string;\n};',
+  },
+  {
     name: 'JobDoneListener',
     declaration: 'export type JobDoneListener = (snapshot: JobSnapshot, owner: Agent | undefined) => void | PromiseLike<void>;',
   },
@@ -3350,8 +3617,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type JsonValue = null | boolean | number | string | JsonValue[] | {\n    [key: string]: JsonValue;\n};',
   },
   {
+    name: 'KgNode',
+    declaration: 'export type KgNode = {\n    id: string;\n    nodeType: string;\n    name?: string | undefined;\n    title?: string | undefined;\n    content?: string | undefined;\n    lawRefsCount?: number | undefined;\n    source?: string | undefined;\n    fullRef?: string | undefined;\n    chapter?: string | undefined;\n    articleNumber?: string | undefined;\n    version?: string | undefined;\n};',
+  },
+  {
     name: 'KnobState',
     declaration: 'export interface KnobState {\n    preset: string | null;\n    sandbox: SandboxMode | null;\n    approval: ApprovalPolicy | null;\n}',
+  },
+  {
+    name: 'KnowledgeLawSearchOptions',
+    declaration: 'export type KnowledgeLawSearchOptions = {\n    limit?: number;\n    level?: string;\n    category?: string;\n};',
+  },
+  {
+    name: 'KnowledgePaths',
+    declaration: 'export interface KnowledgePaths {\n    dataDir: string;\n    queryDbPath: string;\n    wikiDir: string;\n    sourceDbPath: string;\n}',
   },
   {
     name: 'KvFacet',
@@ -3368,6 +3647,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KvUnitDescriptor',
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n}',
+  },
+  {
+    name: 'LawRecord',
+    declaration: 'export type LawRecord = {\n    id: string;\n    level: string;\n    name: string;\n    filename?: string | undefined;\n    publish?: string | undefined;\n    expired: number;\n    categoryId: number;\n    subtitle?: string | undefined;\n    validFrom?: string | undefined;\n    content?: string | undefined;\n    categoryName?: string | undefined;\n};',
+  },
+  {
+    name: 'LawSearchResult',
+    declaration: 'export type LawSearchResult = LawRecord & {\n    score: number;\n    snippet?: string;\n};',
   },
   {
     name: 'LlmAdapter',
@@ -3586,8 +3873,60 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OpenDialogOptions {\n    title?: string;\n    defaultPath?: string;\n    properties?: (\'openFile\' | \'openDirectory\' | \'multiSelections\')[];\n}',
   },
   {
+    name: 'PatentAgent',
+    declaration: 'export interface PatentAgent {\n    session: Session;\n}',
+  },
+  {
+    name: 'PatentApprovalOutcome',
+    declaration: 'export type PatentApprovalOutcome = \'allowed-once\' | \'rejected\' | \'cancelled\' | \'unavailable\';',
+  },
+  {
+    name: 'PatentKgSearchOptions',
+    declaration: 'export type PatentKgSearchOptions = {\n    keywordLimit?: number;\n    expandLimit?: number;\n    mode?: \'phrase\' | \'or\';\n};',
+  },
+  {
+    name: 'PatentModelEvent',
+    declaration: 'export type PatentModelEvent = {\n    type: \'delta\';\n    text: string;\n} | {\n    type: \'done\';\n    usage?: {\n        inputTokens?: number;\n        outputTokens?: number;\n    };\n};',
+  },
+  {
+    name: 'PatentModelMessage',
+    declaration: 'export interface PatentModelMessage {\n    role: \'system\' | \'user\' | \'assistant\';\n    content: string;\n}',
+  },
+  {
+    name: 'PatentModelPort',
+    declaration: 'export interface PatentModelPort {\n    stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>;\n}',
+  },
+  {
+    name: 'PatentModelRequest',
+    declaration: 'export interface PatentModelRequest {\n    messages: PatentModelMessage[];\n    temperature?: number;\n    schema?: unknown;\n}',
+  },
+  {
     name: 'PermissionSelect',
     declaration: 'export interface PermissionSelect {\n    options: PresetOption[];\n    currentValue: string;\n}',
+  },
+  {
+    name: 'PipelineState',
+    declaration: 'export type PipelineState = Record<string, unknown>;',
+  },
+  {
+    name: 'PlanTask',
+    declaration: 'export type PlanTask = {\n    id: string;\n    description: string;\n    hash: string;\n    status: PlanTaskStatus;\n    blockedBy?: string[] | undefined;\n};',
+  },
+  {
+    name: 'PlantaskRunOptions',
+    declaration: 'export interface PlantaskRunOptions {\n    autoApprove?: boolean;\n    approvalReason?: string;\n}',
+  },
+  {
+    name: 'PlantaskRunResult',
+    declaration: 'export interface PlantaskRunResult {\n    caseId: string;\n    state: PlanTaskState;\n    tasks: PlanTask[];\n    toRun: string[];\n    approvalOutcome?: PatentApprovalOutcome;\n    feedback?: string;\n}',
+  },
+  {
+    name: 'PlanTaskState',
+    declaration: 'export type PlanTaskState = \'planning\' | \'awaiting_approval\' | \'executing\' | \'awaiting_feedback\' | \'replanning\' | \'finished\';',
+  },
+  {
+    name: 'PlanTaskStatus',
+    declaration: 'export type PlanTaskStatus = \'pending\' | \'in_progress\' | \'completed\';',
   },
   {
     name: 'PostToolDecision',
@@ -3658,6 +3997,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n}',
   },
   {
+    name: 'ProposalValidationOutcome',
+    declaration: 'export type ProposalValidationOutcome = {\n    kind: \'accepted\';\n    heldInPassed: number;\n    heldOutPassed: number;\n    regressions: [\n    ];\n    deconstructedScores: ValidationScores;\n    confidence: number;\n    replayEvidence: ReplayEvidence[];\n    nextRoundSuggestion: string;\n} | {\n    kind: \'rejected\';\n    reason: \'held-in-failed\' | \'held-out-regression\' | \'apply-failed\' | \'approval-denied\' | \'rate-limited\' | \'low-confidence\';\n    heldInPassed?: number;\n    heldOutPassed?: number;\n    regressions: string[];\n    diagnostic: string;\n    deconstructedScores?: Partial<ValidationScores>;\n    confidence?: number;\n    replayEvidence?: ReplayEvidence[];\n    nextRoundSuggestion: string;\n};',
+  },
+  {
     name: 'ProviderRequestId',
     declaration: 'export type ProviderRequestId = Branded<\'ProviderRequestId\'>;',
   },
@@ -3690,8 +4033,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RedactedSecret {\n    path: string[];\n    set: boolean;\n}',
   },
   {
+    name: 'RelevantHit',
+    declaration: 'export type RelevantHit = {\n    node: KgNode;\n    via: \'keyword\' | \'similar\' | \'cites\';\n    relation?: string;\n};',
+  },
+  {
     name: 'ReplayEnvelope',
     declaration: 'export interface ReplayEnvelope {\n    response: unknown;\n    blocks?: readonly unknown[];\n}',
+  },
+  {
+    name: 'ReplayEvidence',
+    declaration: 'export interface ReplayEvidence {\n    kind: \'held-in\' | \'held-out\';\n    coversPatternIds: string[];\n    passed: boolean;\n    verifierSignal?: string;\n    note?: string;\n}',
   },
   {
     name: 'RequestContext',
@@ -3836,6 +4187,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SearchResultView',
     declaration: 'export type SearchResultView = SearchMatchesResultView | SearchPathsResultView;',
+  },
+  {
+    name: 'SelfEvolveAgentContext',
+    declaration: 'export interface SelfEvolveAgentContext {\n    sessionId: SessionId;\n    options: {\n        provider?: string;\n        model?: string;\n    };\n    runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;\n}',
+  },
+  {
+    name: 'SelfEvolveResult',
+    declaration: 'export interface SelfEvolveResult {\n    runId: SelfEvolveRunId;\n    trigger: EvolveTrigger;\n    patterns: FailurePattern[];\n    proposals: EvolveProposal[];\n    commits: EvolveCommit[];\n    startSeq: number;\n    endSeq: number;\n}',
+  },
+  {
+    name: 'SelfEvolveRunId',
+    declaration: 'export type SelfEvolveRunId = Branded<\'SelfEvolveRunId\'>;',
   },
   {
     name: 'ServerResponse',
@@ -4196,6 +4559,30 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SpillSource',
     declaration: 'export interface SpillSource {\n    toolName: string;\n    callId: CallId;\n    label: string;\n}',
+  },
+  {
+    name: 'StageExecuteInput',
+    declaration: 'export type StageExecuteInput = {\n    state: PipelineState;\n    provider?: StageProvider;\n    signal?: AbortSignal;\n};',
+  },
+  {
+    name: 'StageExecutor',
+    declaration: 'export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>;',
+  },
+  {
+    name: 'StageHandler',
+    declaration: 'export interface StageHandler {\n    name: string;\n    category: AtomCategory;\n    execute(input: StageExecuteInput): Promise<PipelineState>;\n}',
+  },
+  {
+    name: 'StageHandlerRegistry',
+    declaration: 'export class StageHandlerRegistry {\n    register(handler: StageHandler): void;\n    lookup(name: string): StageHandler | undefined;\n    list(): StageHandler[];\n}',
+  },
+  {
+    name: 'StageProvider',
+    declaration: 'export interface StageProvider {\n    caseId?: string;\n    callLLM?: (prompt: string, opts?: {\n        jsonSchema?: unknown;\n        temperature?: number;\n    }, signal?: AbortSignal) => Promise<string>;\n    llm?: PatentModelPort;\n    search?: (query: string, opts?: {\n        maxResults?: number;\n    }) => Promise<StageSearchHit[]>;\n}',
+  },
+  {
+    name: 'StageSearchHit',
+    declaration: 'export interface StageSearchHit {\n    title: string;\n    snippet?: string;\n    url?: string;\n}',
   },
   {
     name: 'StorageBackend',
@@ -4650,6 +5037,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface UserQuestionProvider {\n    ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer>;\n}',
   },
   {
+    name: 'ValidationScores',
+    declaration: 'export interface ValidationScores {\n    activatesWhenCorrect: number;\n    clarity: number;\n    noRegressionIntroduced: number;\n    safety: number;\n}',
+  },
+  {
     name: 'WebBootEntry',
     declaration: 'export interface WebBootEntry {\n    id: string;\n    url: string;\n    rev: string;\n    inject?: string[];\n    immediately?: boolean;\n}',
   },
@@ -4718,6 +5109,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WebUpgradeRoute {\n    path: string;\n    handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>;\n}',
   },
   {
+    name: 'WikiCardMeta',
+    declaration: 'export type WikiCardMeta = {\n    id: string;\n    title: string;\n    relativePath: string;\n    concept?: string | undefined;\n    domain?: string | undefined;\n    quality?: number | undefined;\n    relatedConcepts?: string[] | undefined;\n};',
+  },
+  {
     name: 'WorkflowAgentEndInfo',
     declaration: 'export interface WorkflowAgentEndInfo extends WorkflowAgentInfo {\n    outcome: WorkflowAgentOutcome;\n}',
   },
@@ -4728,6 +5123,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkflowAgentOutcome',
     declaration: 'export type WorkflowAgentOutcome = \'completed\' | \'failed\' | \'cancelled\';',
+  },
+  {
+    name: 'WorkflowContext',
+    declaration: 'export type WorkflowContext = {\n    caseId?: string;\n    input?: string;\n    [key: string]: unknown;\n};',
+  },
+  {
+    name: 'WorkflowInterrupt',
+    declaration: 'export type WorkflowInterrupt = {\n    stageId: string;\n    message: string;\n    data: Record<string, unknown>;\n};',
+  },
+  {
+    name: 'WorkflowManifest',
+    declaration: 'export type WorkflowManifest = {\n    id: string;\n    name: string;\n    caseType: string;\n    stages: WorkflowStage[];\n    validation?: {\n        requireAllSteps?: boolean;\n        maxRetries?: number;\n    };\n};',
   },
   {
     name: 'WorkflowMeta',
@@ -4758,12 +5165,36 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WorkflowRunInfo {\n    id: WorkflowRunId;\n    meta: WorkflowMeta;\n}',
   },
   {
+    name: 'WorkflowRunOptions',
+    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    signal?: AbortSignal;\n};',
+  },
+  {
+    name: 'WorkflowRunResult',
+    declaration: 'export type WorkflowRunResult = {\n    manifestId: string;\n    caseType: string;\n    completed: boolean;\n    stages: WorkflowStageResult[];\n    degradedSteps: string[];\n    summary: string;\n    interrupted?: WorkflowInterrupt;\n    persistWarning?: string;\n};',
+  },
+  {
+    name: 'WorkflowRunStore',
+    declaration: 'export interface WorkflowRunStore {\n    saveRun(result: WorkflowRunResult, runId?: string): Promise<void>;\n    loadRun(runId: string): Promise<WorkflowRunResult | undefined>;\n    listRuns(): Promise<string[]>;\n}',
+  },
+  {
+    name: 'WorkflowStage',
+    declaration: 'export type WorkflowStage = {\n    id: string;\n    strategy: WorkflowStrategy;\n    description: string;\n    atom?: string;\n    params?: Record<string, unknown>;\n    retry?: {\n        whenOutputMatches: string;\n        rewindTo?: string;\n        maxRetries?: number;\n    };\n};',
+  },
+  {
+    name: 'WorkflowStageResult',
+    declaration: 'export type WorkflowStageResult = {\n    stageId: string;\n    strategy: WorkflowStrategy;\n    output: string;\n    degraded: boolean;\n    retries: number;\n    atom?: string;\n};',
+  },
+  {
     name: 'WorkflowStartRequest',
     declaration: 'export interface WorkflowStartRequest {\n    script: string;\n    meta: WorkflowMeta;\n    args?: unknown;\n    subagentProvider?: string;\n    maxTotalAgents?: number;\n    parent: Agent;\n    signal?: AbortSignal;\n}',
   },
   {
     name: 'WorkflowStopReason',
     declaration: 'export type WorkflowStopReason = \'completed\' | \'cancelled\' | \'error\';',
+  },
+  {
+    name: 'WorkflowStrategy',
+    declaration: 'export type WorkflowStrategy = \'chain\' | \'react\' | \'sub_agent\';',
   },
 ]
 

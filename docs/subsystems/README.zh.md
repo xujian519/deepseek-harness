@@ -53,5 +53,6 @@
 | [session-telemetry.md](session-telemetry.md) | 对外会话上报能力 seam：`SessionTelemetryRecord`/`SessionTelemetrySeverity`、`SessionTelemetrySink` 约定和 `session-telemetry/record` 脱敏 waterfall |
 | [desktop.md](desktop.md) | desktop OS 集成 seam：原生对话框、通知、菜单、快捷键、托盘，以及 Electron 主进程桥接 |
 | [patent.md](patent.md) | 专利子系统：`ctx.patentData`/`ctx.patentKnowledge`/`ctx.patentWorkflow` 服务接缝与纯库 ModelPort 契约 |
+| [self-evolve.md](self-evolve.md) | 自进化子系统：`ctx.selfEvolve` 服务接缝、`self-evolve-loop/*` 事件，以及 provider/consumer 包 |
 
 > 这些页面上的类型声明及其 JSDoc 与源码等价，并由 `pnpm run verify-type-equiv` 检查漂移（见 [development.md](../development.md#documenting-types-verbatim-ts-type-equiv)）。普通块保留完整声明；`public-api` 块保留去除实现体的公开 class 声明。Cordis 服务与事件使用每页生成的 **Cordis API** 小节。

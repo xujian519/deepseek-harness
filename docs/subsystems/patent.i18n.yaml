@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/patent.md
-patent.md: 517cf5d0a875196cb4d50cbee63fc0cc41f1de61
-patent.zh.md: 349ee46562daf4de0931ada4f9eafaa05461f232
+patent.md: 772a8ae56b2e5bcc4dee754d1a57cdd246f40001
+patent.zh.md: f70731bd078e247803045db2b1dce66b1c400354
