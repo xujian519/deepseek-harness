@@ -104,6 +104,20 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   // GROUP_ORDER holds `packages/<group>/` directory names, not package names.
   { file: 'scripts/gen-module-graph.ts', upstream: ['cordis'] },
   { file: 'scripts/gen-doc-graphs.ts', upstream: ['cordis'] },
+  // `cordis` inside the Cordis UI is the locale namespace, slot/tool keys,
+  // data attributes, and input-trigger id — product identifiers, not the
+  // package name. The remote-event names are the only package-like references
+  // and are rewritten by EXACT_EDITS below.
+  { file: 'packages/extensions/ui-cordis/src/client/index.ts', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/inventory.ts', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/locales.ts', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/CordisActionRow.tsx', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/CordisDefineRow.tsx', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/CordisPanel.tsx', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/CordisRunRow.tsx', upstream: ['cordis'] },
+  // The plugin-inventory UI uses `cordis` as a locale key and as a plugin-id
+  // prefix strip pattern, not as a package-name token.
+  { file: 'packages/client/ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.tsx', upstream: ['cordis'] },
 ]
 
 /** A string that must appear exactly `count` times once the rescope has run. */
@@ -458,6 +472,44 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
     replace: `| \`${rename.directory}/\` | \`${rename.scoped}\` | \`${rename.upstream}\` | `,
     expect: 1,
   })),
+  // The Cordis UI files are skipped by the generic pass because most of their
+  // `cordis` tokens are locale/keys/ids. Only the forwarded remote-event names
+  // and the slash-input source id are package-like and need rescoping.
+  {
+    id: 'ui-cordis-remote-event-listeners',
+    file: 'packages/extensions/ui-cordis/src/client/index.ts',
+    find: `  ctx.remote.$on('cordis/dynamic-package', () => { inventory.refresh() })
+  ctx.remote.$on('cordis/dynamic-retract', () => { inventory.refresh() })
+  ctx.remote.$on('cordis/request-run', (request) => {
+    if (!inventory.getSnapshot().rows.some(row => row.pluginId === request.pluginId)) inventory.refresh()
+  })
+  ctx.remote.$on('cordis/request-run-resolved', () => { inventory.refresh() })`,
+    replace: `  ctx.remote.$on('@deepseek-ai/cordis/dynamic-package', () => { inventory.refresh() })
+  ctx.remote.$on('@deepseek-ai/cordis/dynamic-retract', () => { inventory.refresh() })
+  ctx.remote.$on('@deepseek-ai/cordis/request-run', (request) => {
+    if (!inventory.getSnapshot().rows.some(row => row.pluginId === request.pluginId)) inventory.refresh()
+  })
+  ctx.remote.$on('@deepseek-ai/cordis/request-run-resolved', () => { inventory.refresh() })`,
+    expect: 1,
+  },
+  {
+    id: 'ui-cordis-slash-source-id',
+    file: 'packages/extensions/ui-cordis/src/client/index.ts',
+    find: `  const source: InputTriggerSource = {
+    trigger: '@',
+    name: 'cordis',`,
+    replace: `  const source: InputTriggerSource = {
+    trigger: '@',
+    name: '@deepseek-ai/cordis',`,
+    expect: 1,
+  },
+  {
+    id: 'ui-cordis-inventory-comment',
+    file: 'packages/extensions/ui-cordis/src/client/inventory.ts',
+    find: ' * (`cordis/dynamic-package` / `/retract`) carry no labels and a definition',
+    replace: ' * (`@deepseek-ai/cordis/dynamic-package` / `/retract`) carry no labels and a definition',
+    expect: 1,
+  },
 ]
 
 /** Files the rescope must never rewrite. */
