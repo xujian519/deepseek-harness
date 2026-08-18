@@ -1012,6 +1012,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'selfEvolve',
+    summary: 'Abstract self-evolve service.',
+    description: 'Abstract self-evolve service. Implementations own trigger policy, rate limiting, verifier grounding, the proposal model route, and held-in/held-out regression execution. A successful run commits its proposals through the target seam for each level (skill register, systemPrompt.section, workflow engine, dynamicCordisRunner).\n\nLoad exactly one implementation per context; later providers shadow earlier ones so the base provider can be swapped for L4 harness-safe variants.',
+    methods: [
+      {
+        signature: 'abstract evolveIfNeeded( agent: SelfEvolveAgentContext, trigger: EvolveTrigger, signal: AbortSignal, levels?: EvolveLevel[], ): Promise<SelfEvolveResult | null>',
+        description: 'Consider running an evolution loop for an explicit trigger. Idle and pressure triggers are rate-limited by the implementation; `user-command` always initiates a loop (subject to approval defaults). Return `null` when the policy decides no run is needed. `runMaintenance` on the agent owns idle-gating; callers do not double-check it.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner; also supplies the routed provider/model target so proposals use the same route.' }, { name: 'trigger', description: 'Why this call is asking for a run.' }, { name: 'signal', description: 'Cancels the loop as early as possible; cancellation records a `self-evolve/end` error rather than leaving the log open.' }, { name: 'levels', description: 'Restrict the edit surfaces this loop may propose against. Defaults to `[\'L1-skill\', \'L2-context\']` for safety.' }],
+        returns: 'the loop result, or `null` when policy decides no run is needed.',
+      },
+      {
+        signature: 'abstract evolveNow( agent: SelfEvolveAgentContext, signal: AbortSignal, levels?: EvolveLevel[], ): Promise<SelfEvolveResult>',
+        description: 'Explicitly run an evolution loop now, regardless of pressure policy. Enforces the same approval and validation gates as an idle loop.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner.' }, { name: 'signal', description: 'Cancels the loop as early as possible.' }, { name: 'levels', description: 'Restrict the edit surfaces this loop may propose against.' }],
+        returns: 'the loop result.',
+      },
+      {
+        signature: 'abstract readPatterns(sessionId: string): Promise<FailurePattern[]>',
+        description: 'Read the latest projected failure-pattern state for a session, or the empty state if the projection has not folded yet. Implementations may return a stale view; callers do not rely on synchronous freshness.',
+        parameters: [{ name: 'sessionId', description: 'opaque session identity.' }],
+        returns: 'ranked failure patterns for the session.',
+      },
+    ],
+  },
+  {
     key: 'sessionPersistence',
     summary: 'Durable append-only session storage.',
     description: 'Durable append-only session storage. Implementations preserve contiguous, losslessly JSON-serializable events; append resolves only after durability, and load balances a complete interrupted tail without rewriting committed events.',
@@ -2340,6 +2365,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
+    name: 'cordis/before-approval',
+    mode: 'waterfall',
+    signature: '\'cordis/before-approval\'( info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>',
+    summary: 'Waterfall consulted before a Client-bearing activation request is armed.',
+    description: 'Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement. Emitted on the runner\'s context without scope routing; the payload carries the owning `agentId` for listeners that need agent isolation.',
+    parameters: [{ name: 'info', description: 'the pending activation request facts and base requirement.' }, { name: 'next', description: 'delegate to the remaining listeners; resolves with their effective requirement.' }],
+  },
+  {
     name: 'credentials/updated',
     mode: 'emit',
     signature: '\'credentials/updated\'(ref: CredentialRef): void',
@@ -2402,6 +2435,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Waterfall around every streaming model call (retry, replay, routing).',
     description: 'Waterfall around every streaming model call (retry, replay, routing). Bound to the LlmRuntime; call `next()` to reach the resolved adapter\'s stream, or yield your own chunks to short-circuit.',
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; their messages already obey the immutable creation contract.' }],
+  },
+  {
+    name: 'self-evolve-loop/end',
+    mode: 'emit',
+    signature: '\'self-evolve-loop/end\'(info: { runId: SelfEvolveRunId; error?: string }): void',
+    summary: 'An evolution loop settled.',
+    description: 'An evolution loop settled. Every `start` event emits exactly one end event, including cancelled runs and rejected proposals.',
+    parameters: [{ name: 'info', description: 'run identity and the loop error, when the loop failed.' }],
+  },
+  {
+    name: 'self-evolve-loop/start',
+    mode: 'emit',
+    signature: '\'self-evolve-loop/start\'(info: { runId: SelfEvolveRunId; trigger: EvolveTrigger }): void',
+    summary: 'An evolution loop started.',
+    description: 'An evolution loop started. Paired with `self-evolve-loop/end`.',
+    parameters: [{ name: 'info', description: 'run identity and the trigger that initiated the loop.' }],
   },
   {
     name: 'session-telemetry/record',
@@ -3012,6 +3061,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`;',
   },
   {
+    name: 'DynamicCordisApprovalInfo',
+    declaration: 'export interface DynamicCordisApprovalInfo {\n    requestId: ApprovalRequestId;\n    agentId: SessionId;\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    mode: CordisDynamicRunMode;\n    name: string;\n    purpose: string;\n    requiresApproval: boolean;\n}',
+  },
+  {
     name: 'DynamicCordisPackage',
     declaration: 'export interface DynamicCordisPackage {\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    pluginRunId: CordisDynamicPluginRunId;\n    name: string;\n}',
   },
@@ -3034,6 +3087,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'EpochHeader',
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
+  },
+  {
+    name: 'EvolveCommit',
+    declaration: 'export interface EvolveCommit {\n    proposal: EvolveProposal;\n    validation: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    commitSeq?: number;\n}',
+  },
+  {
+    name: 'EvolveLevel',
+    declaration: 'export type EvolveLevel = \'L1-skill\' | \'L2-context\' | \'L3-workflow\' | \'L4-harness\';',
+  },
+  {
+    name: 'EvolveProposal',
+    declaration: 'export interface EvolveProposal {\n    proposalId: string;\n    runId: SelfEvolveRunId;\n    level: EvolveLevel;\n    name: string;\n    purpose: string;\n    addressesPatternIds: string[];\n    preliminaryValidation?: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    candidate: {\n        kind: \'L1-skill\';\n        skillName: string;\n        content: string;\n        whenToUse?: string;\n    } | {\n        kind: \'L2-context\';\n        sectionName: string;\n        sectionText: string;\n        order: number;\n        estimatedBytes: number;\n    } | {\n        kind: \'L3-workflow\';\n        scriptName: string;\n        scriptBody: string;\n    } | {\n        kind: \'L4-harness\';\n        pluginIdPrefix: string;\n        hostCode?: string;\n        clientCode?: string;\n    };\n}',
+  },
+  {
+    name: 'EvolveTrigger',
+    declaration: 'export type EvolveTrigger = \'idle-maintenance\' | \'pressure\' | \'user-command\' | \'validation-retry\';',
+  },
+  {
+    name: 'FailurePattern',
+    declaration: 'export interface FailurePattern {\n    patternId: string;\n    verifierTier: \'tool-runtime\' | \'subprocess-exit\' | \'llm-provider\' | \'agent-loop\';\n    causalSignature: string;\n    level: EvolveLevel;\n    summary: string;\n    supportingSeqs: number[];\n    occurrences: number;\n    verifierMeta: Record<string, unknown>;\n}',
   },
   {
     name: 'FileDiff',
@@ -3552,6 +3625,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n}',
   },
   {
+    name: 'ProposalValidationOutcome',
+    declaration: 'export type ProposalValidationOutcome = {\n    kind: \'accepted\';\n    heldInPassed: number;\n    heldOutPassed: number;\n    regressions: [\n    ];\n    deconstructedScores: ValidationScores;\n    confidence: number;\n    replayEvidence: ReplayEvidence[];\n    nextRoundSuggestion: string;\n} | {\n    kind: \'rejected\';\n    reason: \'held-in-failed\' | \'held-out-regression\' | \'apply-failed\' | \'approval-denied\' | \'rate-limited\' | \'low-confidence\';\n    heldInPassed?: number;\n    heldOutPassed?: number;\n    regressions: string[];\n    diagnostic: string;\n    deconstructedScores?: Partial<ValidationScores>;\n    confidence?: number;\n    replayEvidence?: ReplayEvidence[];\n    nextRoundSuggestion: string;\n};',
+  },
+  {
     name: 'ProviderRequestId',
     declaration: 'export type ProviderRequestId = Branded<\'ProviderRequestId\'>;',
   },
@@ -3586,6 +3663,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ReplayEnvelope',
     declaration: 'export interface ReplayEnvelope {\n    response: unknown;\n    blocks?: readonly unknown[];\n}',
+  },
+  {
+    name: 'ReplayEvidence',
+    declaration: 'export interface ReplayEvidence {\n    kind: \'held-in\' | \'held-out\';\n    coversPatternIds: string[];\n    passed: boolean;\n    verifierSignal?: string;\n    note?: string;\n}',
   },
   {
     name: 'RequestContext',
@@ -3726,6 +3807,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SearchResultView',
     declaration: 'export type SearchResultView = SearchMatchesResultView | SearchPathsResultView;',
+  },
+  {
+    name: 'SelfEvolveAgentContext',
+    declaration: 'export interface SelfEvolveAgentContext {\n    sessionId: SessionId;\n    options: {\n        provider?: string;\n        model?: string;\n    };\n    runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;\n}',
+  },
+  {
+    name: 'SelfEvolveResult',
+    declaration: 'export interface SelfEvolveResult {\n    runId: SelfEvolveRunId;\n    trigger: EvolveTrigger;\n    patterns: FailurePattern[];\n    proposals: EvolveProposal[];\n    commits: EvolveCommit[];\n    startSeq: number;\n    endSeq: number;\n}',
+  },
+  {
+    name: 'SelfEvolveRunId',
+    declaration: 'export type SelfEvolveRunId = Branded<\'SelfEvolveRunId\'>;',
   },
   {
     name: 'ServerResponse',
@@ -4538,6 +4631,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'UserQuestionProvider',
     declaration: 'export interface UserQuestionProvider {\n    ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer>;\n}',
+  },
+  {
+    name: 'ValidationScores',
+    declaration: 'export interface ValidationScores {\n    activatesWhenCorrect: number;\n    clarity: number;\n    noRegressionIntroduced: number;\n    safety: number;\n}',
   },
   {
     name: 'WebBootEntry',

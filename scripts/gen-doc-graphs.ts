@@ -479,6 +479,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Producers (background bash, PTY sends, and subagent delegations) register running work; tool-jobs is the model-facing controller that reads, lists, and kills it; jobs-local is the process-local registry.',
   },
   {
+    key: 'selfEvolve',
+    pkg: 'self-evolve',
+    title: 'Self-evolve evolution loop',
+    mode: 'seam',
+    implementations: ['self-evolve-basic'],
+    consumers: ['tool-self-evolve'],
+    note: 'The provider owns trigger policy, verifier-grounded failure mining, validation (fork replay, held-out search, LLM judge), and reversible L1/L2 commits; tool-self-evolve is the model-facing controller that inspects patterns and starts explicit loops.',
+  },
+  {
     key: 'web',
     pkg: 'web',
     title: 'Web access provider registry',
@@ -935,6 +944,11 @@ export class EventRelationCollector {
               for (const event of this.eventNamesFromArgumentList(argumentList, new Set())) {
                 this.addDispatcher(event, source.pkg, 'events.dispatch')
               }
+            }
+          } else if (receiverKind === 'events-service' && (method === 'emit' || method === 'parallel' || method === 'serial' || method === 'waterfall')) {
+            // EventsService methods take the event name as their first argument.
+            for (const event of this.eventNamesFromCall(node, 'context')) {
+              this.addDispatcher(event, source.pkg, method)
             }
           } else if (receiverKind === 'context' || receiverKind === 'agent-dispatch') {
             const eventNames = this.eventNamesFromCall(node, receiverKind)

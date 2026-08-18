@@ -275,7 +275,7 @@ One exact Plugin/Package activation is now live in the Host.
 '@deepseek-ai/cordis/dynamic-package'(pkg: DynamicCordisPackage): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:379`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:410`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="deepseek-aicordisdynamic-retract--emit"></a>
 
@@ -292,7 +292,7 @@ One exact activation was withdrawn.
 '@deepseek-ai/cordis/dynamic-retract'(retracted: DynamicCordisRetracted): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:385`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:416`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="deepseek-aicordisinspect-query--emit"></a>
 
@@ -309,7 +309,7 @@ Request a live read-only query from the Client inspect registry.
 '@deepseek-ai/cordis/inspect-query'(request: CordisInspectQueryRequest): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:391`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:422`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="deepseek-aicordisinspect-query-resolved--emit"></a>
 
@@ -326,7 +326,7 @@ Notify every Client that an inspect query has settled or been cancelled.
 '@deepseek-ai/cordis/inspect-query-resolved'(resolved: CordisInspectQueryResolved): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:397`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:428`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="deepseek-aicordisrequest-run--emit"></a>
 
@@ -343,7 +343,7 @@ A Client-bearing activation needs a browser page, and may require a user decisio
 '@deepseek-ai/cordis/request-run'(request: DynamicCordisRunRequest): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:367`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:381`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="deepseek-aicordisrequest-run-resolved--emit"></a>
 
@@ -360,5 +360,34 @@ A pending Client activation request left the answerable state.
 '@deepseek-ai/cordis/request-run-resolved'(resolved: DynamicCordisRequestResolved): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:373`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:404`](../../packages/extensions/cordis-host-runner/src/types.ts)
+
+<a id="cordis-events"></a>
+
+### `cordis/*` events
+
+<a id="cordisbefore-approval--waterfall"></a>
+
+#### `cordis/before-approval` — waterfall
+
+Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement. Emitted on the runner's context without scope routing; the payload carries the owning `agentId` for listeners that need agent isolation.
+
+```ts cordis-catalog
+/**
+ * Waterfall consulted before a Client-bearing activation request is armed.
+ * Listeners receive the pending request facts and the base approval
+ * requirement; they MUST call `next()` and may return `true` to force
+ * re-approval even when the base requirement is `false` (e.g. a stale
+ * `approveFutureVersions` grant). The runner treats the outermost result
+ * as the effective requirement.
+ * Emitted on the runner's context without scope routing; the payload
+ * carries the owning `agentId` for listeners that need agent isolation.
+ * @param info - the pending activation request facts and base requirement.
+ * @param next - delegate to the remaining listeners; resolves with their effective requirement.
+ * @mode waterfall
+ */
+'cordis/before-approval'( info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>
+```
+
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:395`](../../packages/extensions/cordis-host-runner/src/types.ts)
 <!-- END GENERATED cordis-surface -->

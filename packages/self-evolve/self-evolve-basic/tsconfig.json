@@ -1,0 +1,69 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../test-support/agent-loop-testkit"
+    },
+    {
+      "path": "../../subagent/subagent"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../session-query/session-query"
+    },
+    {
+      "path": "../../workflow/workflow"
+    },
+    {
+      "path": "../../extensions/cordis-host-runner"
+    },
+    {
+      "path": "../../fs/fs"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../self-evolve/self-evolve"
+    },
+    {
+      "path": "../../util/home-paths"
+    },
+    {
+      "path": "../../skill/skill"
+    },
+    {
+      "path": "../../core/system-prompt"
+    },
+    {
+      "path": "../../llm/token-meter"
+    },
+    {
+      "path": "../../core/scope"
+    },
+    {
+      "path": "../../core/tools"
+    }
+  ]
+}
