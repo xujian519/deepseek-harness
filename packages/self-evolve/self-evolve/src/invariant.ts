@@ -20,7 +20,7 @@ const PACKAGE_NAME = '@deepseek-ai/dsh-self-evolve'
 /** Cordis companion plugin name. */
 export const name = 'self-evolve-invariant'
 /** Service required before the companion can reserve package ownership. */
-export const inject = ['invariants', 'sessions']
+export const inject = ['invariants']
 
 interface OpenRun {
   runId: SelfEvolveRunId
