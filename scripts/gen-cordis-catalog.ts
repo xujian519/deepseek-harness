@@ -108,6 +108,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   patentData: 'patent.md',
   patentKnowledge: 'patent.md',
   patentWorkflow: 'patent.md',
+  selfEvolve: 'self-evolve.md',
   workspaceRegistry: 'workspace.md',
 }
 
@@ -183,6 +184,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'subagent': 'subagent.md',
   'system-prompt': 'system-prompt.md',
   'session-telemetry': 'session-telemetry.md',
+  'self-evolve-loop': 'self-evolve.md',
   'tools': 'tools.md',
   'workflow': 'workflow.md',
 }
