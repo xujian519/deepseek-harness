@@ -55,6 +55,12 @@ export interface BasicSelfEvolveConfig {
    */
   maxHeldOutCases?: number
   /**
+   * Held-out pass-rate threshold (P1.3): a proposal whose similar-history
+   * replays pass at or above this ratio counts as held-out-passed; below it
+   * the evidence note marks the surface as failing.
+   */
+  minHeldOutPassRate?: number
+  /**
    * Long-horizon prompt-inflation budget (翁荔挑战 7, P1.9): when the total
    * bytes of live self-evolve-generated L2 sections exceeds this, the pruning
    * job archives the oldest sections (to `$DSH_HOME/self-evolve/l2-archive/`)

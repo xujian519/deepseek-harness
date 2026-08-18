@@ -170,8 +170,12 @@ export interface EvolveCommit {
   proposal: EvolveProposal
   /** Validation outcome; always `accepted` for a commit. */
   validation: Extract<ProposalValidationOutcome, { kind: 'accepted' }>
-  /** Session-level surface seq or durable event seq produced by the commit. */
-  commitSeq: number
+  /**
+   * Durable seq of the `self-evolve/commit` event. Omitted in the event's own
+   * payload — an event cannot reference its own seq — and filled by the loop
+   * into `SelfEvolveResult.commits` from the append result.
+   */
+  commitSeq?: number
 }
 
 declare module '@deepseek-ai/dsh-session/types' {

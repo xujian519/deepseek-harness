@@ -26,6 +26,7 @@
 | `requireDualVerification` | `true` | Held-in 双验证器门（翁荔挑战 1）：当两个验证器信号都可用时，重放与工作区检查必须同时通过才放行；单边通过视为不确定并直接拒绝，不计入 regression。信号缺失时按弱路径 0.3 计，而不是伪造验收。 |
 | `minAcceptConfidence` | `0.5` | 验收门：`min(deconstructedScores) × heldInRate × heldOutRate` 必须达到该值。无法验证的提案（弱路径 0.3）以 `low-confidence` 拒绝。 |
 | `maxHeldOutCases` | `5` | 每个提案作为 held-out 案例搜索并重放的相似历史事件数（P1.3）。 |
+| `minHeldOutPassRate` | `0.6` | held-out 通过率阈值（P1.3）：相似历史重放达到或超过该比例才计为 held-out 通过。 |
 | `proposerTarget` | 无 | 提案 LLM 调用可选的 `{ provider, model }` 路由。 |
 | `validatorTarget` | 无 | 验证 LLM judge（P1.4）可选的 `{ provider, model }` 路由；与 `proposerTarget` 相同时加载失败。 |
 | `maxDirtyLinesAddedPerCommit` | `2` | held-in 工作区验证器允许的脏行容差；在子类提供工作区信号（P1.3）前不生效。 |
@@ -65,4 +66,5 @@ L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全�
 ## Known Limitations and Deferred Work
 
 - **仅 L1/L2** — provider 面向技能（L1）与提示词段落（L2）提案；L3-workflow 与 L4-harness 请求暂不产生提案。
+- **基础 bundle 中不会发生提交** — held-in 双 verifier 需要 workspace 信号，而基础提供方未实现该信号（P1.3）；每个缺失维度都按弱路径 0.3 计后，`minAcceptConfidence` 无法达到，因此基础提案总是被拒绝，只有子类提供 workspace 信号（或 L3/L4 路径）才可能提交。这是刻意的保守策略而非缺陷：未经验证的改动不得上线。
 - **无 keyed 端到端验证** — 提案效果是可逆提交，由单元测试覆盖；实机 `dsh --profile` 循环运行需要 keyed 环境。

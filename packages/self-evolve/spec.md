@@ -70,6 +70,8 @@
 
 ### P1：Validator（Phase 1 完成）
 
+> **提交可达性（诚实声明）**：基座 provider 的 `collectWorkspaceSignal` 未实现（P1.3b），held-in 恒走弱路径 0.3；`minAcceptConfidence` 默认 0.5 在弱路径下不可达，因此基座 bundle 中每轮循环"挖掘→提案→保守拒绝"，**不会产生任何 commit**（L3/L4 路径基座亦不产提案）。这是刻意保守，但意味着 P0 的 "bracket smoke 提交" 已不存在；只有当 workspace verifier 或子类实现落地后，提交路径才可达。
+
 - [x] Held-In 双 verifier 决策接线（`requireDualVerification` 默认 true；fork 重放收集器 P1.2；workspace 信号为基础钩子待 P1.3b）。
 - [x] Held-Out 相似历史重放（P1.3，`sessionQuery.searchEvents` + fork 重放，弱路径 0.3）。
 - [x] LLM judge（P1.4，`validatorTarget` 路由，4 维度评分；与 proposerTarget 同路由拒绝加载）。

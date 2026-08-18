@@ -87,15 +87,18 @@ function sha1Base32(input: string): string {
     bits += 8
     while (bits >= 5) {
       bits -= 5
-      out += B32_CHARS[(buffer >>> bits) & 31]
+      out += B32_CHARS.charAt((buffer >>> bits) & 31)
     }
   }
-  if (bits > 0) out += B32_CHARS[(buffer << (5 - bits)) & 31]
+  if (bits > 0) out += B32_CHARS.charAt((buffer << (5 - bits)) & 31)
   return out
 }
 
-/** Join the text blocks of a content list into one plain-text surface. */
-function extractText(content: unknown): string {
+/** Join the text blocks of a content list into one plain-text surface.
+ * @param content - the tool-result content list to render.
+ * @returns the concatenated text blocks; empty when the content is not a list.
+ */
+export function extractText(content: unknown): string {
   if (!Array.isArray(content)) return ''
   const parts: string[] = []
   for (const block of content) {
@@ -110,8 +113,14 @@ function extractText(content: unknown): string {
   return parts.join('\n')
 }
 
+/** The error's name prefix — text up to the first colon, or the whole text when it has none. */
+function errorNamePrefix(text: string): string {
+  const index = text.indexOf(':')
+  return index >= 0 ? text.slice(0, index).trim() : text.trim()
+}
+
 /** One verifier-grounded shell failure parsed from rendered tool-result text. */
-type ShellFailureMark =
+export type ShellFailureMark =
   | { kind: 'exit'; exitCode: number; signature: string; stderrPrefix: string }
   | { kind: 'signal'; signal: string; signature: string; stderrPrefix: string }
 
@@ -126,8 +135,11 @@ function shellSignature(text: string, markerIndex: number, detail: string): { si
  * Parse the shell renderer's failure markers from a tool-result text. Only
  * markers that end the rendered text count, matching the renderer's own
  * layout; an `[exit code: 0]` marker is a successful exit, not a failure.
+ *
+ * @param text - the rendered tool-result text to scan.
+ * @returns the parsed failure mark, or null when the text ends cleanly.
  */
-function parseShellMarkers(text: string): ShellFailureMark | null {
+export function parseShellMarkers(text: string): ShellFailureMark | null {
   const exit = /(?:^|\n)\[exit code: (\d+)\]$/.exec(text)
   if (exit !== null && Number(exit[1]) !== 0) {
     return { kind: 'exit', exitCode: Number(exit[1]), ...shellSignature(text, exit.index, `exit=${exit[1]}`) }
@@ -214,14 +226,13 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
       }
     }
     case 'compaction/end': {
-      const data = event.data as { error?: unknown }
+      const data = event.data as { error?: string }
       const error = data.error
       if (error === undefined) return null
-      const errName = (error as { name?: unknown } | undefined)?.name
       return {
         level: 'L2-context',
         verifierTier: 'tool-runtime',
-        causalSignature: typeof errName === 'string' && errName.length > 0 ? errName : 'compaction-error',
+        causalSignature: errorNamePrefix(error) || 'compaction-error',
         summary: 'compaction did not finish cleanly',
         verifierMeta: { error },
       }
@@ -229,11 +240,10 @@ function classifyFailure(event: SessionEvent, toolName?: string): ClassifiedFail
     case 'self-evolve/end': {
       const raw = (event.data as { error?: unknown }).error
       if (raw === undefined || raw === null || raw === '') return null
-      const errName = (raw as { name?: unknown } | undefined)?.name
       const text = typeof raw === 'string' ? raw : undefined
-      const causalSignature = typeof errName === 'string' && errName.length > 0
-        ? errName
-        : (text?.slice(0, text.indexOf(':')) || text || 'self-evolve-error')
+      const causalSignature = text !== undefined
+        ? (errorNamePrefix(text) || 'self-evolve-error')
+        : 'self-evolve-error'
       return {
         level: 'L4-harness',
         verifierTier: 'agent-loop',
@@ -278,8 +288,7 @@ function foldEventSync(state: FailurePatternsState, id: string, signal: Classifi
     ...existing,
     supportingSeqs,
     occurrences: existing.occurrences + 1,
-    verifierMeta:
-      signal.verifierMeta !== undefined ? { ...existing.verifierMeta, ...signal.verifierMeta } : existing.verifierMeta,
+    verifierMeta: { ...existing.verifierMeta, ...signal.verifierMeta },
   }
   return nextState(state, {
     patterns: { ...state.patterns, [id]: merged },

@@ -12,17 +12,20 @@
  * @module @deepseek-ai/dsh-self-evolve-basic
  */
 
-import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
+import { readJsonlRows, readLatestJsonRow } from './jsonl.ts'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import z from '@deepseek-ai/schemastery'
 import {
   EvolveProposalId,
+  extractText,
   failurePatternsProjectionDefinition,
   FAILURE_PATTERNS_PROJECTION_KEY,
+  parseShellMarkers,
   SelfEvolveEngine,
   SelfEvolveRunId,
 } from '@deepseek-ai/dsh-self-evolve'
@@ -120,31 +123,17 @@ function blockText(block: { type: string; text?: unknown }): string | null {
   return block.type === 'text' && typeof block.text === 'string' ? block.text : null
 }
 
-/** Join the text blocks of a content list into one plain-text surface. */
-function extractContentText(content: unknown): string {
-  if (!Array.isArray(content)) return ''
-  return content
-    .filter((block): block is { type: 'text'; text: string } => (
-      typeof block === 'object' && block !== null
-      && (block as { type?: unknown }).type === 'text'
-      && typeof (block as { text?: unknown }).text === 'string'
-    ))
-    .map(block => block.text)
-    .join('\n')
-}
-
 /** Whether rendered tool text carries a shell failure marker (P3.1 trigger). */
 function hasShellFailureMarkers(text: string): boolean {
-  return /(?:^|\n)\[exit code: ([1-9]\d*)\]$/.test(text)
-    || /(?:^|\n)\[killed by signal: [A-Z0-9]+\]$/.test(text)
+  return parseShellMarkers(text) !== null
 }
 
 /** Extract and parse the first JSON value matching `pattern`; null when unparseable. */
-function parseJsonValue(text: string, pattern: RegExp): unknown | null {
+function parseJsonValue(text: string, pattern: RegExp): unknown {
   const match = pattern.exec(text)
   if (match === null) return null
   try {
-    return JSON.parse(match[0]) as unknown
+    return JSON.parse(match[0])
   } catch {
     return null
   }
@@ -187,7 +176,7 @@ function parseLlmProposals(text: string): EvolveProposal[] {
     if (name.length === 0 || purpose.length === 0 || candidate === undefined) continue
     if (candidate.kind === 'L1-skill' && typeof candidate.skillName === 'string' && typeof candidate.content === 'string') {
       proposals.push({
-        proposalId: String(proposalIdSeq()),
+        proposalId: proposalIdSeq(),
         runId: SelfEvolveRunId('pending'),
         level: 'L1-skill',
         name,
@@ -203,7 +192,7 @@ function parseLlmProposals(text: string): EvolveProposal[] {
     } else if (candidate.kind === 'L2-context' && typeof candidate.sectionName === 'string' && typeof candidate.sectionText === 'string') {
       const sectionText = candidate.sectionText
       proposals.push({
-        proposalId: String(proposalIdSeq()),
+        proposalId: proposalIdSeq(),
         runId: SelfEvolveRunId('pending'),
         level: 'L2-context',
         name,
@@ -350,6 +339,7 @@ function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveCo
     requireDualVerification: config.requireDualVerification ?? true,
     minAcceptConfidence: config.minAcceptConfidence ?? 0.5,
     maxHeldOutCases: config.maxHeldOutCases ?? 5,
+    minHeldOutPassRate: config.minHeldOutPassRate ?? 0.6,
     maxPromptInflationBytesPerWeek: config.maxPromptInflationBytesPerWeek ?? 2048,
     l4ReapprovalHours: config.l4ReapprovalHours ?? 24,
     maxStepReflectionsPerTurn: config.maxStepReflectionsPerTurn ?? 1,
@@ -412,6 +402,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     requireDualVerification: z.boolean().default(true),
     minAcceptConfidence: z.number().step(0.01).min(0).max(1).default(0.5),
     maxHeldOutCases: z.number().step(1).min(0).max(10).default(5),
+    minHeldOutPassRate: z.number().step(0.01).min(0).max(1).default(0.6),
     maxPromptInflationBytesPerWeek: z.number().step(1).min(0).default(2048),
     l4ReapprovalHours: z.number().step(0.5).min(0).default(24),
     maxStepReflectionsPerTurn: z.number().step(1).min(0).max(10).default(1),
@@ -567,8 +558,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     if (!this.config.triggers[trigger].enabled) return null
     const state = this.rateState(agent.sessionId)
     const now = Date.now()
-    const triggerKey = String(trigger)
-    const lastStart = state.lastStartByTrigger[triggerKey] ?? 0
+    const lastStart = state.lastStartByTrigger[trigger] ?? 0
     if (now - lastStart < this.config.triggers[trigger].minIntervalMs) return null
     // The 24-hour autonomous-loop cap bounds how much of the session budget an
     // unattended loop sequence can consume; explicit user commands bypass it.
@@ -654,7 +644,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         : ''
       const sectionText = `当你遇到以下工具错误模式时：${pattern.summary}。${failurePrefix}请先检查 ${contextHint}，不要立即重复同样的调用顺序；外部进程错误先诊断 exitCode 和 stderr 再修复。`
       const proposal: EvolveProposal = {
-        proposalId: String(proposalIdSeq()),
+        proposalId: proposalIdSeq(),
         runId: SelfEvolveRunId('pending'),
         level: 'L2-context',
         name: sectionName,
@@ -776,8 +766,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
    * diff --stat` + build health). The base provider has no workspace verifier
    * (P1.3), so it reports the signal unavailable; subclasses override.
    */
-  protected async collectWorkspaceSignal(_proposal: EvolveProposal): Promise<{ dirtyLines: number; noDirtyFallback: boolean } | null> {
-    return null
+  protected collectWorkspaceSignal(_proposal: EvolveProposal): Promise<{ dirtyLines: number; noDirtyFallback: boolean } | null> {
+    return Promise.resolve(null)
   }
 
   /**
@@ -921,9 +911,9 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         evidence.push({
           kind: 'held-out',
           coversPatternIds: proposal.addressesPatternIds,
-          passed: heldOutRate >= 0.6,
+          passed: heldOutRate >= this.config.minHeldOutPassRate,
           verifierSignal: `held-out ${heldOut.passed}/${heldOut.cases}`,
-          note: heldOutRate >= 0.6 ? 'held-out 通过率达标。' : 'held-out 通过率不足，保守拒绝。',
+          note: heldOutRate >= this.config.minHeldOutPassRate ? 'held-out 通过率达标。' : 'held-out 通过率不足，保守拒绝。',
         })
       }
     }
@@ -998,7 +988,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       throw new Error('validateL4Proposal: expected an L4-harness candidate')
     }
     const receipt = runner.define({
-      sessionId: agent.sessionId as never,
+      sessionId: agent.sessionId,
       plugin: { kind: 'new', idPrefix: candidate.pluginIdPrefix },
       name: proposal.name,
       purpose: proposal.purpose,
@@ -1018,7 +1008,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         kind: 'rejected',
         reason: 'approval-denied',
         regressions: [],
-        diagnostic: `L4 run refused (${response.reason}): ${response.message ?? ''}`,
+        diagnostic: `L4 run refused (${response.reason}): ${response.message}`,
         nextRoundSuggestion: '修复 L4 候选定义或审批路径后重新提案。',
       }
     }
@@ -1106,24 +1096,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /** All durable negative-result rows, one file read (P1.7b). */
   protected async readAllNegativeResults(): Promise<NegativeResultRow[]> {
-    let raw: string
-    try {
-      raw = await readFile(this.negativeResultsFile(), 'utf8')
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-      throw error
-    }
-    const rows: NegativeResultRow[] = []
-    for (const line of raw.split('\n')) {
-      if (line.trim().length === 0) continue
-      try {
-        rows.push(JSON.parse(line) as NegativeResultRow)
-      } catch {
-        // swallow a malformed line: the log is append-only diagnostics and a
-        // corrupt row must not block mining
-      }
-    }
-    return rows
+    return readJsonlRows(this.negativeResultsFile(), raw => raw as NegativeResultRow)
   }
 
   /** Commit one accepted proposal. Base handles L1 skill and L2 prompt sections.
@@ -1172,7 +1145,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       default:
         throw new Error('applyCommit: unsupported candidate kind')
     }
-    const commitEvent = session.append('self-evolve/commit', { runId: proposal.runId, commit: { proposal, validation, commitSeq: 0 } })
+    const commitEvent = session.append('self-evolve/commit', { runId: proposal.runId, commit: { proposal, validation } })
     return { commitSeq: commitEvent.seq }
   }
 
@@ -1222,19 +1195,11 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /** The last committed candidate for a pattern, or null when it has none. */
   private async latestArchivedCandidate(patternId: string): Promise<EvolveProposal['candidate'] | null> {
-    const archiveDir = dshHomePath('self-evolve', 'archive', patternId)
-    let files: string[]
-    try {
-      files = (await readdir(archiveDir)).filter(file => file.endsWith('.json'))
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-      throw error
-    }
-    files.sort()
-    const latest = files[files.length - 1]
-    if (latest === undefined) return null
-    const row = JSON.parse(await readFile(join(archiveDir, latest), 'utf8')) as ChampionArchiveRow
-    return row.candidate
+    const row = await readLatestJsonRow(
+      dshHomePath('self-evolve', 'archive', patternId),
+      raw => raw as ChampionArchiveRow,
+    )
+    return row?.candidate ?? null
   }
 
   /**
@@ -1245,20 +1210,12 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
    * commit) or the candidate kind has no base-provider apply path.
    */
   protected async rollbackPattern(patternId: string): Promise<void> {
-    const archiveDir = dshHomePath('self-evolve', 'archive', patternId)
-    let files: string[]
-    try {
-      files = (await readdir(archiveDir)).filter(file => file.endsWith('.json'))
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-      throw error
-    }
-    files.sort()
-    const latest = files[files.length - 1]
-    if (latest === undefined) return
-    const row = JSON.parse(await readFile(join(archiveDir, latest), 'utf8')) as ChampionArchiveRow
+    const row = await readLatestJsonRow(
+      dshHomePath('self-evolve', 'archive', patternId),
+      raw => raw as ChampionArchiveRow,
+    )
+    if (row === null || row.previousCandidate === null) return
     const champion = row.previousCandidate
-    if (champion === null) return
     switch (champion.kind) {
       case 'L1-skill':
         this.registerL1Skill(champion, row.name, 'runtime-evolve-rollback')
@@ -1362,7 +1319,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       if (event.type === 'agent/request-error') return true
       if (event.type === 'tool/result') {
         if (data.error !== undefined) return true
-        if (hasShellFailureMarkers(extractContentText(data.message?.content))) return true
+        if (hasShellFailureMarkers(extractText(data.message?.content))) return true
       }
     }
     return false
@@ -1505,26 +1462,15 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /** Cross-session occurrences for a session's patterns within the 24h window (P4.2). */
   protected async readGlobalPatternOccurrences(sessionId: string): Promise<Map<string, number>> {
-    const file = dshHomePath('self-evolve', 'global-patterns.jsonl')
-    let raw: string
-    try {
-      raw = await readFile(file, 'utf8')
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Map()
-      throw error
-    }
+    const rows = await readJsonlRows(
+      dshHomePath('self-evolve', 'global-patterns.jsonl'),
+      raw => raw as { ts: number; sessionId: string; patternId: string; occurrences: number },
+    )
     const cutoff = Date.now() - GLOBAL_PATTERN_WINDOW_MS
     const merged = new Map<string, number>()
-    for (const line of raw.split('\n')) {
-      if (line.trim().length === 0) continue
-      try {
-        const row = JSON.parse(line) as { ts: number; sessionId: string; patternId: string; occurrences: number }
-        if (row.ts < cutoff || row.sessionId === sessionId) continue
-        merged.set(row.patternId, (merged.get(row.patternId) ?? 0) + row.occurrences)
-      } catch {
-        // swallow a malformed row: the log is append-only diagnostics and a
-        // corrupt row must not block mining
-      }
+    for (const row of rows) {
+      if (row.ts < cutoff || row.sessionId === sessionId) continue
+      merged.set(row.patternId, (merged.get(row.patternId) ?? 0) + row.occurrences)
     }
     return merged
   }
@@ -1566,10 +1512,12 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     signal: AbortSignal,
   ): Promise<SelfEvolveResult> {
     const state = this.rateState(agent.sessionId)
-    state.loopStarts.push(Date.now())
-    state.lastStartByTrigger[String(trigger)] = Date.now()
     const runId = runIdSeq()
     return agent.runMaintenance(async (maintenanceSignal) => {
+      // Rate-limit accounting only counts runs the maintenance phase actually
+      // accepted; a rejected start (busy agent) must not consume the daily cap.
+      state.loopStarts.push(Date.now())
+      state.lastStartByTrigger[trigger] = Date.now()
       const combined = AbortSignal.any([signal, maintenanceSignal])
       return this.executeLoop(runId, agent, trigger, patterns, levels.slice(), combined)
     })
@@ -1635,7 +1583,6 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         }
         this.resetRegressions(proposal.addressesPatternIds[0] ?? '')
         const result = await this.applyCommit(agent, proposal, outcome)
-        session.append('self-evolve/commit', { runId, commit: { proposal, validation: outcome, commitSeq: result.commitSeq } })
         committed.push({ proposal, validation: outcome, commitSeq: result.commitSeq })
       }
       // Cross-session global pattern log (P4.1): recorded before the end event

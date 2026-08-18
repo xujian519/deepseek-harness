@@ -26,6 +26,7 @@ The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It 
 | `requireDualVerification` | `true` | Held-in dual-verifier gate (翁荔 challenge 1): when both verifier signals are available, a proposal passes only if replay AND workspace checks pass; single-sided pass is rejected without counting a regression. Missing signals degrade to the weak rate 0.3 instead of faking acceptance. |
 | `minAcceptConfidence` | `0.5` | Acceptance gate: `min(deconstructedScores) × heldInRate × heldOutRate` must reach this value. Unverifiable proposals (weak rates 0.3) are rejected as `low-confidence`. |
 | `maxHeldOutCases` | `5` | Similar-history events searched and replayed as held-out cases per proposal (P1.3). |
+| `minHeldOutPassRate` | `0.6` | Held-out pass-rate threshold (P1.3): similar-history replays passing at or above this ratio count as held-out-passed. |
 | `proposerTarget` | none | Optional `{ provider, model }` routed for the proposer LLM call. |
 | `validatorTarget` | none | Optional `{ provider, model }` routed for the validation LLM judge (P1.4). Must differ from `proposerTarget` or load fails. |
 | `maxDirtyLinesAddedPerCommit` | `2` | Dirty-line tolerance for the held-in workspace verifier; unused until a subclass supplies workspace signals (P1.3). |
@@ -65,4 +66,5 @@ The stable tool-self-evolve prompt section is present on every request while the
 ## Known Limitations and Deferred Work
 
 - **L1/L2 only** — the provider targets skill (L1) and prompt-section (L2) proposals; L3-workflow and L4-harness requests produce no proposals yet.
+- **No commits in the base bundle** — the held-in dual verifier needs the workspace signal, which the base provider does not implement (P1.3); with the weak rate applied to every missing dimension, `minAcceptConfidence` is unreachable, so base proposals are always rejected and only a subclass-supplied workspace signal (or an L3/L4 route) makes commits possible. This is deliberate conservatism, not a bug: an unverifiable edit must not go live.
 - **No keyed end-to-end verification** — proposal effects are reversible commits covered by unit tests; a live `dsh --profile` loop run requires a keyed environment.
