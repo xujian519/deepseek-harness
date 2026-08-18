@@ -58,6 +58,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/typert/loader': { kind: 'none', reason: 'Loader integration only registers generated artifacts; consumers own any model-visible projection.' },
   'packages/e2b/e2b': { kind: 'none', reason: 'The shared remote-runtime owner registers no model context; provider adapters and consumers own rendered effects.' },
   'packages/bundle/desktop-app': { kind: 'none', reason: 'The glue plugin holds a composition seat without contributing prompt text, tool schemas, or results; the web surface is owned by dsh-web-app.' },
+  'packages/bundle/self-evolve-app': { kind: 'indirect', reason: 'The glue plugin holds the composition seat; the patch mounts dsh-tool-self-evolve, which owns the model-facing prompt section and tools.' },
   'packages/client/hmr': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },
   'packages/client/modules': { kind: 'none', reason: 'Browser-side module-loading kernel machinery; registers nothing model-facing.' },
   'packages/test-support/client-runtime': { kind: 'none', reason: 'Browser-side test infrastructure (jsdom bench); registers nothing model-facing.' },
