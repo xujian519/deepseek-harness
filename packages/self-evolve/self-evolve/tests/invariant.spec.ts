@@ -82,7 +82,7 @@ describe('self-evolve invariant brackets', () => {
   it('accepts a complete start → mined → proposed → validated → commit → end bracket', async () => {
     const ctx = await setup()
     const session = ctx.sessions.create()
-    expect(() => fullBracket(session, runId('ok'))).not.toThrow()
+    expect(() => { fullBracket(session, runId('ok')) }).not.toThrow()
   })
 
   it('accepts a bracket that ends without commits', async () => {
@@ -105,7 +105,7 @@ describe('self-evolve invariant brackets', () => {
   it('rejects end without a matching start', async () => {
     const ctx = await setup()
     const session = ctx.sessions.create()
-    expect(() => end(session, runId('ghost'), [])).toThrow(/without matching start/)
+    expect(() => { end(session, runId('ghost'), []) }).toThrow(/without matching start/)
   })
 
   it('rejects commit of a proposal that was never validated as accepted', async () => {
@@ -113,7 +113,7 @@ describe('self-evolve invariant brackets', () => {
     const session = ctx.sessions.create()
     start(session, runId('skip'))
     propose(session, runId('skip'), 'p1')
-    expect(() => commit(session, runId('skip'), 'p1')).toThrow(/was not validated as accepted/)
+    expect(() => { commit(session, runId('skip'), 'p1') }).toThrow(/was not validated as accepted/)
   })
 
   it('rejects validating the same proposal twice', async () => {
@@ -122,7 +122,7 @@ describe('self-evolve invariant brackets', () => {
     start(session, runId('dup'))
     propose(session, runId('dup'), 'p1')
     validate(session, runId('dup'), 'p1')
-    expect(() => validate(session, runId('dup'), 'p1')).toThrow(/already validated/)
+    expect(() => { validate(session, runId('dup'), 'p1') }).toThrow(/already validated/)
   })
 
   it('rejects end listing a proposal that was never committed', async () => {
@@ -131,14 +131,14 @@ describe('self-evolve invariant brackets', () => {
     start(session, runId('lie'))
     propose(session, runId('lie'), 'p1')
     validate(session, runId('lie'), 'p1')
-    expect(() => end(session, runId('lie'), ['p1'])).toThrow(/lists uncommitted proposalId/)
+    expect(() => { end(session, runId('lie'), ['p1']) }).toThrow(/lists uncommitted proposalId/)
   })
 
   it('rejects a duplicate start for an open run', async () => {
     const ctx = await setup()
     const session = ctx.sessions.create()
     start(session, runId('twice'))
-    expect(() => start(session, runId('twice'))).toThrow(/already open/)
+    expect(() => { start(session, runId('twice')) }).toThrow(/already open/)
   })
 
   it('fails setup when a seeded session carries an unterminated bracket', async () => {

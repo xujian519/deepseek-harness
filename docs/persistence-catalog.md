@@ -139,7 +139,7 @@ Source: [`packages/core/agent/src/types.ts:19`](../packages/core/agent/src/types
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:186`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:190`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `agent-preset/*`
 
@@ -678,7 +678,7 @@ Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/sch
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:247`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:251`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveend--log-only"></a>
 
@@ -697,7 +697,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:247`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:270`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvemined--log-only"></a>
 
@@ -720,7 +720,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:270`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveproposed--log-only"></a>
 
@@ -738,7 +738,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:228`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:232`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvereflection--log-only"></a>
 
@@ -762,7 +762,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:228`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:257`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:261`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvestart--log-only"></a>
 
@@ -786,7 +786,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:257`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:199`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvevalidated--log-only"></a>
 
@@ -805,7 +805,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:199`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:237`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `session/*`
 

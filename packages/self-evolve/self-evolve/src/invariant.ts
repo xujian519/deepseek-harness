@@ -47,13 +47,13 @@ function validateStart(trace: Map<string, OpenRun>, event: SessionEvent, fail: I
   const data = event.data as { runId: SelfEvolveRunId }
   const runId = data.runId
   validateId(runId, 'self-evolve/start runId', fail)
-  if (trace.has(String(runId))) fail(`self-evolve/start runId ${String(runId)} already open at seq ${event.seq}`)
+  if (trace.has(runId)) fail(`self-evolve/start runId ${runId} already open at seq ${event.seq}`)
   return { kind: 'start', runId, seq: event.seq }
 }
 
 function requireOpen(trace: Map<string, OpenRun>, runId: unknown, eventType: string, seq: number, fail: InvariantFailure): OpenRun {
   validateId(runId, `${eventType} runId`, fail)
-  const open = trace.get(String(runId))
+  const open = trace.get(runId)
   if (open === undefined) fail(`${eventType} without matching start at seq ${seq}`)
   return open
 }
@@ -72,16 +72,16 @@ function validateEvent(trace: Map<string, OpenRun>, event: SessionEvent, fail: I
       const data = event.data as { runId: SelfEvolveRunId; proposal: { proposalId: string } }
       const runId = data.runId
       const open = requireOpen(trace, runId, 'self-evolve/proposed', event.seq, fail)
-      const proposalId = String(data.proposal.proposalId)
+      const proposalId = data.proposal.proposalId
       validateId(proposalId, 'self-evolve/proposed proposalId', fail)
-      if (open.proposed.has(proposalId)) fail(`self-evolve/proposed proposal ${proposalId} already proposed in run ${String(runId)}`)
+      if (open.proposed.has(proposalId)) fail(`self-evolve/proposed proposal ${proposalId} already proposed in run ${runId}`)
       return { kind: 'proposed', runId, seq: event.seq, proposalId }
     }
     case 'self-evolve/validated': {
       const data = event.data as { runId: SelfEvolveRunId; proposalId: string }
       const runId = data.runId
       const open = requireOpen(trace, runId, 'self-evolve/validated', event.seq, fail)
-      const proposalId = String(data.proposalId)
+      const proposalId = data.proposalId
       validateId(proposalId, 'self-evolve/validated proposalId', fail)
       if (!open.proposed.has(proposalId)) fail(`self-evolve/validated proposal ${proposalId} was never proposed`)
       if (open.validated.has(proposalId)) fail(`self-evolve/validated proposal ${proposalId} already validated`)
@@ -91,7 +91,7 @@ function validateEvent(trace: Map<string, OpenRun>, event: SessionEvent, fail: I
       const data = event.data as { runId: SelfEvolveRunId; commit: { proposal: { proposalId: string } } }
       const runId = data.runId
       const open = requireOpen(trace, runId, 'self-evolve/commit', event.seq, fail)
-      const proposalId = String(data.commit.proposal.proposalId)
+      const proposalId = data.commit.proposal.proposalId
       validateId(proposalId, 'self-evolve/commit proposalId', fail)
       if (!open.validated.has(proposalId)) fail(`self-evolve/commit proposal ${proposalId} was not validated as accepted`)
       if (open.committed.has(proposalId)) fail(`self-evolve/commit proposal ${proposalId} already committed`)
@@ -115,7 +115,7 @@ function validateEvent(trace: Map<string, OpenRun>, event: SessionEvent, fail: I
 }
 
 function applyTransition(trace: Map<string, OpenRun>, transition: RunTransition): void {
-  const runId = String(transition.runId)
+  const runId = transition.runId
   switch (transition.kind) {
     case 'start':
       trace.set(runId, {
@@ -125,6 +125,8 @@ function applyTransition(trace: Map<string, OpenRun>, transition: RunTransition)
         validated: new Set(),
         committed: new Set(),
       })
+      break
+    case 'mined':
       break
     case 'proposed':
     case 'validated':
@@ -166,7 +168,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     }
     if (trace.size > 0) {
       const first = trace.values().next().value as OpenRun
-      fail(`self-evolve run ${String(first.runId)} started at seq ${first.startSeq} has no matching end`)
+      fail(`self-evolve run ${first.runId} started at seq ${first.startSeq} has no matching end`)
     }
     traces.set(session, trace)
     return trace
@@ -190,7 +192,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
   ctx.on('internal/dispatch', (_mode: unknown, eventName: string, args: unknown[]) => {
     if (eventName !== 'session/event') return
     const [session, event] = args as [Session, SessionEvent]
-    if (!String(event.type).startsWith('self-evolve/')) return
+    if (!event.type.startsWith('self-evolve/')) return
     const trace = traceFor(session)
     const transition = validateEvent(trace, event, fail)
     if (transition !== undefined) staged.set(event, { session, transition })

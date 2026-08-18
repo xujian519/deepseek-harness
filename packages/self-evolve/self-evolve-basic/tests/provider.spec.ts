@@ -314,7 +314,7 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
     const ctx = new Context()
     const session = sessionFactory()
     provideServices(ctx, session)
-    const validated = BasicSelfEvolveEngine.Config(baseConfig()) as unknown as BasicSelfEvolveConfig
+    const validated = BasicSelfEvolveEngine.Config(baseConfig())
     expect(validated.proposerTarget).toEqual({})
     expect(validated.validatorTarget).toEqual({})
     expect(() => new BasicSelfEvolveEngine(ctx, validated)).not.toThrow()
@@ -322,6 +322,17 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
 })
 
 describe('maxDailyLoopsPerSession enforcement', () => {
+  let dir: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'self-evolve-rate-'))
+    vi.stubEnv('DSH_HOME', dir)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('blocks a second autonomous loop inside the 24h window', async () => {
     const ctx = new Context()
     const session = sessionFactory()
@@ -330,10 +341,10 @@ describe('maxDailyLoopsPerSession enforcement', () => {
     provideServices(ctx, session)
     const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ maxDailyLoopsPerSession: 1 }))
     let maintenanceCalls = 0
-    const agent = agentFor(session, (async () => {
+    const agent = agentFor(session, async (task) => {
       maintenanceCalls += 1
-      return { runId: 'r' } as never
-    }) as never)
+      return task(new AbortController().signal)
+    })
 
     const first = await engine.evolveIfNeeded(agent, 'idle-maintenance', new AbortController().signal)
     expect(first).not.toBeNull()
@@ -358,10 +369,10 @@ describe('maxDailyLoopsPerSession enforcement', () => {
       },
     }))
     let maintenanceCalls = 0
-    const agent = agentFor(session, (async () => {
+    const agent = agentFor(session, async (task) => {
       maintenanceCalls += 1
-      return { runId: 'r' } as never
-    }) as never)
+      return task(new AbortController().signal)
+    })
 
     await engine.evolveIfNeeded(agent, 'idle-maintenance', new AbortController().signal)
     // A second idle attempt inside the 60s window is gated before mining.
@@ -378,14 +389,54 @@ describe('maxDailyLoopsPerSession enforcement', () => {
     provideServices(ctx, session)
     const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ maxDailyLoopsPerSession: 1 }))
     let maintenanceCalls = 0
-    const agent = agentFor(session, (async () => {
+    const agent = agentFor(session, async (task) => {
       maintenanceCalls += 1
-      return { runId: 'r' } as never
-    }) as never)
+      return task(new AbortController().signal)
+    })
 
     await engine.evolveNow(agent, new AbortController().signal)
     await engine.evolveNow(agent, new AbortController().signal)
     expect(maintenanceCalls).toBe(2)
+  })
+})
+
+describe('commit bracket integrity', () => {
+  /** Engine that accepts every proposal, for the full-loop commit path. */
+  class AcceptingEngine extends BasicSelfEvolveEngine {
+    protected override async validateProposal(): Promise<ProposalValidationOutcome> {
+      return {
+        kind: 'accepted',
+        heldInPassed: 1,
+        heldOutPassed: 1,
+        regressions: [],
+        deconstructedScores: { activatesWhenCorrect: 1, clarity: 1, noRegressionIntroduced: 1, safety: 1 },
+        confidence: 1,
+        replayEvidence: [],
+        nextRoundSuggestion: '',
+      }
+    }
+  }
+
+  it('a full loop records exactly one commit event and reports its durable seq', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-commit-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      const engine = new AcceptingEngine(ctx, baseConfig())
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+
+      const commitEvents = session.events.filter(e => e.type === 'self-evolve/commit')
+      expect(commitEvents).toHaveLength(1)
+      const commitData = commitEvents[0]?.data as { commit: { proposal: { proposalId: string }; commitSeq?: number } }
+      expect(commitData.commit.proposal.proposalId).toBe(result.commits[0]?.proposal.proposalId)
+      expect(result.commits[0]?.commitSeq).toBe(commitEvents[0]?.seq)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
 
@@ -489,7 +540,7 @@ describe('agent/request-error producer (G1)', () => {
     void engine
 
     let nextCalled = false
-    const result = await ctx.emit('agent/request-error', {
+    ctx.emit('agent/request-error', {
       agent: { session },
       turn: 1,
       step: 1,
@@ -501,7 +552,6 @@ describe('agent/request-error producer (G1)', () => {
       nextCalled = true
       return undefined
     })
-    expect(result).toBeUndefined()
     expect(nextCalled).toBe(true)
     const event = session.events.find(e => e.type === 'agent/request-error')
     expect(event).toBeDefined()
@@ -540,7 +590,7 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
   it('replayCase forks a child and folds only its own events after the end-seed (P1.2)', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     forkSubagents(ctx, childSession())
     const engine = new ProbeEngine(ctx, baseConfig())
     const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
@@ -563,7 +613,7 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     // Replays succeed when the fork child completes without new failures.
     forkSubagents(ctx, Session.create(SessionId('child-clean'), []))
     ctx.provide('sessionQuery', {
@@ -587,7 +637,7 @@ describe('Phase 1 replay, judge, and long-horizon guards', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     const engine = new ProbeEngine(ctx, baseConfig())
     const [pattern] = await engine.readPatterns(session.id)
     expect(await engine.heldOut(agentFor(session), proposal(), pattern!, new AbortController().signal)).toBeNull()
@@ -757,7 +807,7 @@ describe('Phase 2 L3/L4 (workflow smoke + dynamic runner approval)', () => {
   it('L3 candidates validate through the workflow smoke run (P2.1)', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     ctx.provide('workflowEngine', {
       start: () => ({
         result: Promise.resolve({ value: null, stopReason: 'completed', agentsStarted: 2 }),
@@ -773,7 +823,7 @@ describe('Phase 2 L3/L4 (workflow smoke + dynamic runner approval)', () => {
   it('a failing L3 smoke run rejects the proposal through held-in verification', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     ctx.provide('workflowEngine', {
       start: () => ({
         result: Promise.resolve({ value: null, stopReason: 'error', error: 'script threw', agentsStarted: 0 }),
@@ -798,7 +848,7 @@ describe('Phase 2 L3/L4 (workflow smoke + dynamic runner approval)', () => {
   it('L4 candidates define and run through the dynamic runner, entering approval (P2.2)', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     const runs: string[] = []
     ctx.provide('dynamicCordisRunner', {
       define: () => ({
@@ -822,7 +872,7 @@ describe('Phase 2 L3/L4 (workflow smoke + dynamic runner approval)', () => {
   it('an L4 run refusal rejects the proposal as approval-denied', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     ctx.provide('dynamicCordisRunner', {
       define: () => ({ pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }),
       run: async () => ({ ok: false, reason: 'approval-denied', message: 'user declined' }),
@@ -939,7 +989,7 @@ describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () =
     const session = sessionFactory()
     appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
     appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     ctx.provide('sessionQuery', {
       searchEvents: async () => ({ items: [{ seq: 3, snippet: 'resolved by checking cwd', type: 'tool/result' }] }),
     } as never)
@@ -1081,7 +1131,7 @@ describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
   it('an L4 run refusal undefines the orphaned plugin definition (M3)', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     const undefinedIds: string[] = []
     ctx.provide('dynamicCordisRunner', {
       define: () => ({ pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }),
@@ -1101,7 +1151,7 @@ describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
   it('an async approval refusal drops the definition via request-run-resolved (M3)', async () => {
     const ctx = new Context()
     const session = sessionFactory()
-    provideServices(ctx, session, { session } as never)
+    provideServices(ctx, session, { session })
     const undefinedIds: string[] = []
     ctx.provide('dynamicCordisRunner', {
       define: () => ({ pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }),
@@ -1119,6 +1169,6 @@ describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
       mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
     } as never)
     ctx.emit('cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
-    await vi.waitFor(() => expect(undefinedIds).toEqual(['dyn-1']))
+    await vi.waitFor(() => { expect(undefinedIds).toEqual(['dyn-1']) })
   })
 })

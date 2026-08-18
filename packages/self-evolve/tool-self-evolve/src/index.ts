@@ -9,9 +9,10 @@
  *
  * The base provider targets L1-skill and L2-context only; L3-workflow and
  * L4-harness requests are accepted by the tool but produce no proposals until
- * the advanced providers land. Proposal validation is a P0 bracket smoke in
- * the base provider (dual verifier and human approval arrive with P1/P3), so
- * the prompt section states that honestly instead of over-promising.
+ * the advanced providers land. Proposal validation requires the held-in dual
+ * verifier, and the base provider's workspace verifier is not implemented, so
+ * base proposals are conservatively rejected and no commits occur in the base
+ * bundle; the prompt section states that honestly instead of over-promising.
  *
  * @module @deepseek-ai/dsh-tool-self-evolve
  */
@@ -30,7 +31,7 @@ const PROMPT_SECTION_TEXT
 - Call self_evolve_inspect_patterns to read failure patterns observed for this session.
 - Call self_evolve_now with an explicit level list to start one loop.
 - The base provider targets L1-skill and L2-context only; requesting L3-workflow or L4-harness produces no proposals yet.
-- Proposal validation is a P0 bracket smoke in the base provider: the dual verifier (P1) and L4 human approval (P3) are not active yet, so treat commits as experimental.
+- Proposal validation requires the held-in dual verifier; the base provider's workspace verifier is not implemented, so its proposals are conservatively rejected and no commits occur in the base bundle — treat any commit from an advanced provider as experimental.
 - Do not fabricate failure patterns or proposals. The projection-driven pattern view is the authoritative source; inspect it before making any proposal-level claims.`
 
 export const name = 'tool-self-evolve'
@@ -135,7 +136,7 @@ export function apply(ctx: Context): void {
           proposalId: c.proposal.proposalId,
           regressions: c.validation.regressions.length,
         })),
-      } as unknown as JsonValue
+      }
     },
   }))
 }

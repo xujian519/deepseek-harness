@@ -25,7 +25,7 @@
 
 #### 模型看到什么
 
-一个提示片段解释 self-evolve 能力处于实验状态，指示模型在调用 `self_evolve_now` 之前先调用 `self_evolve_inspect_patterns`，说明基础提供方只实现 L1/L2 且验证目前是 P0 bracket smoke，并警告不要编造模式。当组合加载本包时，这两个工具会出现在工具列表中。
+一个提示片段解释 self-evolve 能力处于实验状态，指示模型在调用 `self_evolve_now` 之前先调用 `self_evolve_inspect_patterns`，说明基础提供方只实现 L1/L2，且提案验证依赖 held-in 双 verifier（基础提供方未实现其中的 workspace 信号，因此基础提案被保守拒绝，基础 bundle 中不会发生提交），并警告不要编造模式。当组合加载本包时，这两个工具会出现在工具列表中。
 
 #### Token 效果
 

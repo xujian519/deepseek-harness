@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionEventMap } from '@deepseek-ai/dsh-session'
 import {
   FAILURE_PATTERNS_PROJECTION_KEY,
   failurePatternsProjectionDefinition,
@@ -73,7 +72,7 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
     expect(state.discoveryOrder).toHaveLength(1)
     const parsed = STATE_ZOD.safeParse(state)
     expect(parsed.success).toBe(true)
-    const json = JSON.parse(JSON.stringify(state))
+    const json: unknown = JSON.parse(JSON.stringify(state))
     expect(STATE_ZOD.safeParse(json).success).toBe(true)
   })
 
@@ -193,14 +192,14 @@ describe('SIG-2 classifyFailure → patternId stability', () => {
   })
 
   it('compaction/end with an error classifies as L2-context tool-runtime; clean compaction folds nothing', () => {
-    // compaction/end is declared in @deepseek-ai/dsh-compaction, outside this
-    // package's type graph, so the append data is cast.
+    // compaction/end's CompactionId brand lives in @deepseek-ai/dsh-compaction,
+    // outside this package's dependency graph, so the id is cast.
     const clean = sessionFactory()
-    clean.append('compaction/end' as keyof SessionEventMap, { compactionId: 'x', turn: 1 } as never)
+    clean.append('compaction/end', { compactionId: 'x' as never, turn: 1 })
     expect(patternsOf(folded(clean))).toHaveLength(0)
 
     const failed = sessionFactory()
-    failed.append('compaction/end' as keyof SessionEventMap, { compactionId: 'x', turn: 1, error: { name: 'OverflowError', message: 'boom' } } as never)
+    failed.append('compaction/end', { compactionId: 'x' as never, turn: 1, error: 'OverflowError: boom' })
     const pattern = patternsOf(folded(failed))[0]
     expect(pattern?.verifierTier).toBe('tool-runtime')
     expect(pattern?.level).toBe('L2-context')
