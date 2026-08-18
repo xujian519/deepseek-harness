@@ -105,9 +105,6 @@ export const SERVICE_PAGE: Record<string, string> = {
   userQuestions: 'user-questions.md',
   web: 'web.md',
   workflowEngine: 'workflow.md',
-  patentData: 'patent.md',
-  patentKnowledge: 'patent.md',
-  patentWorkflow: 'patent.md',
   selfEvolve: 'self-evolve.md',
   workspaceRegistry: 'workspace.md',
 }
