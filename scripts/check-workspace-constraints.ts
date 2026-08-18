@@ -147,8 +147,6 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // TRIZ data ships as package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-methodology': ['assets'],
   '@deepseek-ai/dsh-skill-badge': ['assets'],
-  '@deepseek-ai/dsh-patent-document': ['assets'],
-  '@deepseek-ai/dsh-patent-rule': ['assets'],
   // ipc-standards.yaml ships as a package-root asset resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-core': ['assets'],
   // The Sati rule packs (base/domains/patent YAML + pack.schema.json) ship as
