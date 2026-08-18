@@ -39,3 +39,4 @@ apps/desktop/
 worktrees/
 .agents/worktrees/
 .typert-*/
+.qoder/

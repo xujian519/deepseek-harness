@@ -67,6 +67,8 @@ import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
+import * as ToolSelfEvolve from '@deepseek-ai/dsh-tool-self-evolve'
+import type { SelfEvolveEngine } from '@deepseek-ai/dsh-self-evolve'
 import { githubSlug } from './verify-md-links.ts'
 
 /** Attachment seam marker that makes the attachments-conditional `read_image` schema harvestable. */
@@ -424,6 +426,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
       await ctx.plugin(ToolSkill)
     },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-self-evolve',
+    dir: 'tool-self-evolve',
+    source: 'packages/self-evolve/tool-self-evolve/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.selfEvolve', 'ctx.agents'],
+    writes: ['tool/call', 'tool/result', 'self-evolve/start|end brackets when a loop runs'],
+    async mount(ctx) {
+      await ctx.plugin(AgentRegistry)
+      ctx.provide('selfEvolve', {} as unknown as SelfEvolveEngine)
+      await ctx.plugin(ToolSelfEvolve)
+    },
+    note:
+      'Two tools drive the self-evolve seam: `self_evolve_inspect_patterns` reads the session\u2019s projected failure patterns, and `self_evolve_now` starts one explicit loop. The base provider targets L1-skill and L2-context; L3-workflow and L4-harness requests produce no proposals yet.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-session-query',

@@ -1,0 +1,26 @@
+# The dsh-self-evolve-app bundle patch: the self-evolve capability seam as an
+# opt-in profile layer. Applied on top of dsh-base; rows here add the provider
+# and the model-facing tools to the agent surface the profile composes.
+#
+# The base bundle intentionally does NOT carry these rows: tool-self-evolve
+# registers its tools on the mount context, and a base-level row would leak
+# them into the host plane and every agent (the minimal preset's two-tool
+# contract and the "host plane holds no tools" invariant both depend on that).
+# A profile that wants the seam mounts this bundle; the standard and minimal
+# presets stay unchanged.
+
+- insert:
+    # Self-evolve capability seam: projection-driven failure mining, provider-backed
+    # proposals, approval-gated commits. The basic provider skips the L3/L4 hooks so
+    # downstream overlays swap in advanced backends without re-bracketing this row.
+    - id: self-evolve-basic
+      name: '@deepseek-ai/dsh-self-evolve-basic'
+      config:
+        defaultLevels:
+          - L1-skill
+          - L2-context
+        minPatternOccurrences: 2
+        requireDualVerification: true
+
+    - id: tool-self-evolve
+      name: '@deepseek-ai/dsh-tool-self-evolve'

@@ -576,3 +576,50 @@ describe('render failure reports', () => {
     expect(runner.snapshot(AGENT_A)[0]?.activeRun?.renderFailure).toBeUndefined()
   })
 })
+
+describe('cordis/before-approval waterfall', () => {
+  it('consults the waterfall before arming a Client-bearing request', async () => {
+    const { ctx, runner, gateway } = await setup()
+    gateway.answer = 'approve'
+    const { pluginId, packageId } = define(runner, {
+      sessionId: AGENT_A.id, name: 'both', purpose: 'p', host: HOST_CODE, client: CLIENT_CODE,
+    })
+    const seen: Array<{ pluginId: string; packageId: string; requiresApproval: boolean }> = []
+    ctx.on('cordis/before-approval', async (info, next) => {
+      seen.push({ pluginId: info.pluginId, packageId: info.packageId, requiresApproval: info.requiresApproval })
+      return next()
+    })
+
+    const receipt = await runner.run(AGENT_A, pluginId, packageId, 'run')
+
+    expect(receipt).toMatchObject({ ok: true, status: 'awaiting-approval' })
+    expect(seen).toEqual([{ pluginId, packageId, requiresApproval: true }])
+  })
+
+  it('lets a listener force approval over a future-versions grant', async () => {
+    const { ctx, runner, gateway } = await setup()
+    gateway.answer = 'approve'
+    const { pluginId, packageId } = define(runner, {
+      sessionId: AGENT_A.id, name: 'both', purpose: 'p', host: HOST_CODE, client: CLIENT_CODE,
+    })
+
+    // First approval grants the package; approveFutureVersions then covers
+    // later Packages of the same Plugin, making the base requirement false.
+    const first = await runner.run(AGENT_A, pluginId, packageId, 'run')
+    expect(first).toMatchObject({ ok: true, status: 'awaiting-approval' })
+    const requestEvent = gateway.events.find(([name]) => name === '@deepseek-ai/cordis/request-run')
+    const requestId = (requestEvent?.[1] as { requestId: string }).requestId
+    await runner.runHostHalf(AGENT_A, pluginId, packageId, 'run', requestId as never, true)
+    await gateway.answering
+
+    const baseSeen: boolean[] = []
+    ctx.on('cordis/before-approval', async (_info, next) => {
+      const base = await next()
+      baseSeen.push(base)
+      return true
+    })
+    const forced = await runner.run(AGENT_A, pluginId, packageId, 'run')
+    expect(baseSeen).toEqual([false])
+    expect(forced).toMatchObject({ ok: true, status: 'awaiting-approval' })
+  })
+})

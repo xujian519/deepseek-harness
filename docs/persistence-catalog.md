@@ -117,6 +117,30 @@ Sources: [`packages/core/session/src/types.ts:336`](../packages/core/session/src
 
 Source: [`packages/core/agent/src/types.ts:19`](../packages/core/agent/src/types.ts)
 
+<a id="agentrequest-error--log-only"></a>
+
+#### `agent/request-error` — log-only
+
+```ts persistence-catalog
+/**
+ * Emitted when the agent loop records a failed model request. The
+ * `error.code` drives the `llm-provider` tier's causal signature (Gate
+ * SIG-4); `statusCode` is the provider's HTTP status when available.
+ * `turn`/`step` pin the failing step so turn-scoped consumers (step
+ * reflection) can match the event to its turn.
+ */
+'agent/request-error': {
+  turn?: number
+  step?: number
+  provider?: unknown
+  model?: unknown
+  statusCode?: unknown
+  error?: unknown
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:190`](../packages/self-evolve/self-evolve/src/types.ts)
+
 ### `agent-preset/*`
 
 <a id="agent-presetselected--log-only"></a>
@@ -635,6 +659,153 @@ Source: [`packages/sandbox/sandbox-policy/src/session-mode.ts:33`](../packages/s
 Types: [ScheduleChange](subsystems/schedule.md)
 
 Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/schedule/src/types.ts)
+
+### `self-evolve/*`
+
+<a id="self-evolvecommit--log-only"></a>
+
+#### `self-evolve/commit` — log-only
+
+```ts persistence-catalog
+/**
+ * Records a successful proposal commit: the proposal's effect has been
+ * applied to the runtime through its owning seam, and the validation
+ * outcome was `accepted`.
+ */
+'self-evolve/commit': {
+  runId: SelfEvolveRunId
+  commit: EvolveCommit
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:251`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolveend--log-only"></a>
+
+#### `self-evolve/end` — log-only
+
+```ts persistence-catalog
+/**
+ * Marks the end of a self-evolve loop — the maintenance phase releases the
+ * agent. `error` records an unsuccessful loop; absent on clean termination.
+ */
+'self-evolve/end': {
+  runId: SelfEvolveRunId
+  committedProposalIds: string[]
+  error?: string
+  endedAt: number
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvemined--log-only"></a>
+
+#### `self-evolve/mined` — log-only
+
+```ts persistence-catalog
+/**
+ * Records the folded failure-pattern set produced by weakness mining for
+ * this run. The snapshot is reconstructable from the projection unit plus
+ * preceding session events; this event pins its durable identity.
+ * `occurrences` may include the cross-session 24h merge from
+ * `$DSH_HOME/self-evolve/global-patterns.jsonl` (P4.2), which the session
+ * log alone cannot reconstruct.
+ */
+'self-evolve/mined': {
+  runId: SelfEvolveRunId
+  patterns: FailurePattern[]
+  /** Pattern ids that this run will attempt to address, in priority order. */
+  targeting: string[]
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolveproposed--log-only"></a>
+
+#### `self-evolve/proposed` — log-only
+
+```ts persistence-catalog
+/**
+ * Records an immutable proposal definition produced by the harness-proposal
+ * stage. Defined proposals are candidates; only a `self-evolve/commit`
+ * event changes runtime behavior.
+ */
+'self-evolve/proposed': {
+  runId: SelfEvolveRunId
+  proposal: EvolveProposal
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:232`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvereflection--log-only"></a>
+
+#### `self-evolve/reflection` — log-only
+
+```ts persistence-catalog
+/**
+ * A low-budget step reflection (Phase 3, P3.1) reinforced an existing
+ * failure pattern with high confidence: the projection folds it as extra
+ * evidence (occurrences +1, supporting seq added). The pattern must
+ * already exist — reflections never mint verifier-ungrounded patterns.
+ */
+'self-evolve/reflection': {
+  turn: number
+  step: number
+  patternId: string
+  /** Model-reported confidence in the attribution, 0–1. */
+  confidence: number
+  /** One-sentence repair suggestion from the reflection. */
+  suggestion: string
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:261`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvestart--log-only"></a>
+
+#### `self-evolve/start` — log-only
+
+```ts persistence-catalog
+/**
+ * Marks the start of a single self-evolve loop — weakness mining, proposal,
+ * validation, and optional commit. Log-only; the agent's maintenance phase
+ * serializes concurrent loops until `self-evolve/end`.
+ */
+'self-evolve/start': {
+  runId: SelfEvolveRunId
+  sessionId: SessionId
+  trigger: EvolveTrigger
+  startedAt: number
+  /** Levels this loop is allowed to target. */
+  levels: EvolveLevel[]
+  /** Pattern ids this loop will attempt to address; pinned for replay. */
+  targeting: string[]
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvevalidated--log-only"></a>
+
+#### `self-evolve/validated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records the validation outcome for one proposal. Rejected proposals do
+ * not produce a matching commit event; the diagnostic here is the durable
+ * record of why.
+ */
+'self-evolve/validated': {
+  runId: SelfEvolveRunId
+  proposalId: string
+  outcome: ProposalValidationOutcome
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `session/*`
 
