@@ -271,6 +271,9 @@ importers:
       '@deepseek-ai/dsh-scope':
         specifier: workspace:^
         version: link:../../packages/core/scope
+      '@deepseek-ai/dsh-self-evolve-app':
+        specifier: workspace:^
+        version: link:../../packages/bundle/self-evolve-app
       '@deepseek-ai/dsh-session-projection':
         specifier: workspace:^
         version: link:../../packages/session/session-projection
@@ -1182,12 +1185,6 @@ importers:
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:^
         version: link:../../sandbox/sandbox-policy
-      '@deepseek-ai/dsh-self-evolve':
-        specifier: workspace:^
-        version: link:../../self-evolve/self-evolve
-      '@deepseek-ai/dsh-self-evolve-basic':
-        specifier: workspace:^
-        version: link:../../self-evolve/self-evolve-basic
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
@@ -1275,9 +1272,6 @@ importers:
       '@deepseek-ai/dsh-tool-ralph':
         specifier: workspace:^
         version: link:../../workflow/tool-ralph
-      '@deepseek-ai/dsh-tool-self-evolve':
-        specifier: workspace:^
-        version: link:../../self-evolve/tool-self-evolve
       '@deepseek-ai/dsh-tool-skill':
         specifier: workspace:^
         version: link:../../skill/tool-skill
@@ -1389,6 +1383,25 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
+
+  packages/bundle/self-evolve-app:
+    dependencies:
+      '@deepseek-ai/dsh-self-evolve':
+        specifier: workspace:^
+        version: link:../../self-evolve/self-evolve
+      '@deepseek-ai/dsh-self-evolve-basic':
+        specifier: workspace:^
+        version: link:../../self-evolve/self-evolve-basic
+      '@deepseek-ai/dsh-tool-self-evolve':
+        specifier: workspace:^
+        version: link:../../self-evolve/tool-self-evolve
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
 
   packages/bundle/web-app:
     dependencies:

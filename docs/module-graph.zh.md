@@ -118,6 +118,7 @@ flowchart TD
     pkg_base["base"]
     pkg_desktop_app["desktop-app"]
     pkg_headless["headless"]
+    pkg_self_evolve_app["self-evolve-app"]
     pkg_web_app["web-app"]
   end
   subgraph group_client["packages/client"]
@@ -359,6 +360,7 @@ flowchart TD
   pkg_cmdline --> pkg_invariants
   pkg_base --> pkg_invariants
   pkg_desktop_app --> pkg_invariants
+  pkg_self_evolve_app --> pkg_invariants
   pkg_client_modules --> pkg_invariants
   pkg_client_schema_form --> pkg_invariants
   pkg_client_ui_attachment --> pkg_invariants
@@ -1520,6 +1522,7 @@ flowchart TD
 | [`cmdline`](../packages/boot/cmdline) | `boot` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`base`](../packages/bundle/base) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`desktop-app`](../packages/bundle/desktop-app) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`self-evolve-app`](../packages/bundle/self-evolve-app) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-modules`](../packages/client/modules) | `client` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-schema-form`](../packages/client/schema-form) | `client` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-ui-attachment`](../packages/client/ui-attachment) | `client` | [`invariants`](../packages/runtime-diagnostics/invariants) |
