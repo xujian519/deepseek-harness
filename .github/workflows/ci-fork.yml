@@ -15,8 +15,9 @@ env:
 
 jobs:
   node-checks:
+    if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
-    name: node ${{ env.PRIMARY_NODE_VERSION }} / lint + typecheck + test
+    name: node 24 / lint + typecheck + test
     steps:
       - uses: actions/checkout@v6
         with:
@@ -42,6 +43,7 @@ jobs:
         run: pnpm run test
 
   python-checks:
+    if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
     name: python 3.10 / keyless SDK
     steps:

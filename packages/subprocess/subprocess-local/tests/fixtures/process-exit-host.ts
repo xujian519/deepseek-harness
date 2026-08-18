@@ -28,6 +28,27 @@ async function waitForFile(path: string): Promise<void> {
   }
 }
 
+interface PublishedTreeState { root: number; descendant: number }
+
+// The managed tree publishes atomically, but re-validate the parsed content
+// anyway: a partial read must keep polling, never crash the host and strand
+// the managed tree for the test.
+async function waitForTreeState(): Promise<void> {
+  for (;;) {
+    try {
+      const published = JSON.parse(await readFile(treeState, 'utf8')) as Partial<PublishedTreeState>
+      if (Number.isSafeInteger(published.root) && Number.isSafeInteger(published.descendant)
+        && (published.root ?? 0) > 0 && (published.descendant ?? 0) > 0
+        && published.root !== published.descendant) {
+        return
+      }
+    } catch (_notReady) {
+      // Empty or partial tree.json; keep polling.
+    }
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
+
 const listenersBefore = process.listenerCount('exit')
 const ctx = new Context()
 const fiber = await ctx.plugin(LocalSubprocessRuntime)
@@ -53,11 +74,7 @@ if (kind === 'ordinary') {
   })
 }
 
-await waitForFile(treeState)
-const published = JSON.parse(await readFile(treeState, 'utf8')) as { root?: unknown; descendant?: unknown }
-if (!Number.isSafeInteger(published.root) || !Number.isSafeInteger(published.descendant)) {
-  throw new Error('managed tree published invalid process ids')
-}
+await waitForTreeState()
 await writeFile(ready, 'ready')
 await waitForFile(proceed)
 
