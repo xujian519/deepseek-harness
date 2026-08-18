@@ -388,7 +388,11 @@ describe('Issue lifecycle workflow', () => {
     expect(lifecyclePullRequest.types).toContain('review_requested')
     expect(lifecycleReview.types).toEqual(['submitted'])
     expect(lifecycleJob.if).toBe(
-      "${{ github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested') }}",
+      `\${{
+  vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
+  secrets.DSH_ISSUE_APP_PRIVATE_KEY != '' &&
+  (github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested'))
+}}\n`,
     )
     expect(policyPullRequest.types).toContain('ready_for_review')
   })
