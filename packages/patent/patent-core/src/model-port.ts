@@ -123,6 +123,7 @@ async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<Pa
           // 保留 failure.code：callLlm 依赖 code==='setup_required' 的 fail-loud
           // 特判，取消/配置类终态在 mapChunks 丢 code 会被误降级。
           const error = new Error(reason.failure.message) as Error & { code?: string }
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- stream value; its declared code is not a runtime guarantee
           if (reason.failure.code !== undefined) error.code = reason.failure.code
           throw error
         }

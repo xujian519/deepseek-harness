@@ -214,8 +214,9 @@ export function createDraftSpecificationTool(): ToolDefinition {
           warnings: { type: 'array', required: true, items: { type: 'string' } },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderDraftSpecification(value as unknown as DraftSpecificationOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderDraftSpecification(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       return draftSpecification(args as unknown as DraftSpecificationInput)
     },

@@ -22,15 +22,18 @@ export class InMemoryCheckpointStore implements CheckpointStore {
     return { ...cp, state: cloneState(cp.state), activeNodes: [...cp.activeNodes] }
   }
 
+  // oxlint-disable-next-line typescript/require-await -- CheckpointStore contract requires Promise methods
   async save(checkpoint: GraphCheckpoint): Promise<void> {
     this.checkpoints.set(checkpoint.id, this.cloneCheckpoint(checkpoint))
   }
 
+  // oxlint-disable-next-line typescript/require-await -- CheckpointStore contract requires Promise methods
   async load(id: string): Promise<GraphCheckpoint | undefined> {
     const cp = this.checkpoints.get(id)
     return cp === undefined ? undefined : this.cloneCheckpoint(cp)
   }
 
+  // oxlint-disable-next-line typescript/require-await -- CheckpointStore contract requires Promise methods
   async loadLatest(graphId: string): Promise<GraphCheckpoint | undefined> {
     const candidates = [...this.checkpoints.values()]
       .filter(cp => cp.graphId === graphId)
@@ -39,6 +42,7 @@ export class InMemoryCheckpointStore implements CheckpointStore {
     return cp === undefined ? undefined : this.cloneCheckpoint(cp)
   }
 
+  // oxlint-disable-next-line typescript/require-await -- CheckpointStore contract requires Promise methods
   async list(graphId: string): Promise<string[]> {
     return [...this.checkpoints.values()]
       .filter(cp => cp.graphId === graphId)

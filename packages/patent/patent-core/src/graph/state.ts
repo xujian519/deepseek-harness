@@ -14,7 +14,7 @@ import type { GraphState } from './types.ts'
  */
 export function cloneState(state: GraphState): GraphState {
   try {
-    return structuredClone(state) as GraphState
+    return structuredClone(state)
   } catch {
     // 兜底：含不可克隆值（函数/类实例）时 JSON 往返（仅拷贝可序列化键）。
     return JSON.parse(JSON.stringify(state)) as GraphState

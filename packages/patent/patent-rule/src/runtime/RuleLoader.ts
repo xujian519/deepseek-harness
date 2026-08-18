@@ -249,7 +249,8 @@ function parseRule(raw: unknown, issues: RuleSetValidationIssue[]): Constitution
     issues.push({ ruleId: id, message: `rule ${id}: severity 必须是 ${SEVERITIES.join('/')}` })
     return null
   }
-  const action = (record.action as RuleAction) ?? 'warn'
+  // action 来自 YAML，可能缺省；收紧可空类型以保留缺省回退
+  const action = (record.action as RuleAction | undefined) ?? 'warn'
   if (!ACTIONS.includes(action)) {
     issues.push({ ruleId: id, message: `rule ${id}: action 必须是 ${ACTIONS.join('/')}` })
     return null

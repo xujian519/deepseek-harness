@@ -97,7 +97,7 @@ describe('model route fallback (B4)', () => {
         claim_text: '1. 一种装置',
         targets: [],
         mode: 'patentability',
-      } as never, {} as never)
+      }, {} as never)
     } catch (error) {
       const code = (error as { code?: string }).code
       expect(code).not.toBe('setup_required')

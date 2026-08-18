@@ -10,7 +10,7 @@ import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { DocumentRenderError } from '../document/errors.ts'
 import { renderPatentDocument } from '../document/renderPatentDocument.ts'
-import type { DocumentRenderResult, DocumentTemplateId, RenderFormat } from '../document/types.ts'
+import type { DocumentRenderResult } from '../document/types.ts'
 
 /** 五个随包分发的模板 id，与 manifest.json 的 templates 列表一致。 */
 const TEMPLATE_IDS = [
@@ -128,18 +128,18 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
     },
     output: {
       schema: RESULT_SCHEMA,
-      render: (_args, value) => [{ type: 'text', text: renderDocumentResult(value as unknown as DocumentRenderResult) }],
+      render: (_args, value) => [{ type: 'text', text: renderDocumentResult(value) }],
     },
     async execute(args, exec) {
       const sections = coerceStringRecord(args.sections, 'sections')
       const brand = args.brand === undefined ? undefined : coerceStringRecord(args.brand, 'brand')
       const result = await renderPatentDocument(
         {
-          template: args.template as DocumentTemplateId,
+          template: args.template,
           outputName: args.outputName,
           ...(args.caseId !== undefined ? { caseId: args.caseId } : {}),
           ...(args.outputDir !== undefined ? { outputDir: args.outputDir } : {}),
-          ...(args.format !== undefined ? { format: args.format as RenderFormat } : {}),
+          ...(args.format !== undefined ? { format: args.format } : {}),
           sections,
           ...(brand !== undefined ? { brand } : {}),
           ...(args.brandPath !== undefined ? { brandPath: args.brandPath } : {}),

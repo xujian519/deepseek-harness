@@ -141,6 +141,7 @@ export class EgoBrowserSession {
    * @param tag - the tag name (the payload prefix is EGO_<tag>:).
    * @returns the parsed payload, or null when absent or unparseable.
    */
+  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- 调用方以显式类型实参标注返回类型（tests/ego-session.spec.ts），T 无法从参数推断
   extractTaggedJson<T>(output: string, tag: string): T | null {
     const prefix = `EGO_${tag}:`
     for (const line of output.split('\n')) {

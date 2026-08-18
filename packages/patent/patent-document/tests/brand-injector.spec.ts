@@ -28,7 +28,7 @@ describe('brandInjector', () => {
   })
 
   it('skips unknown keys and blank values', () => {
-    const css = buildBrandStyle({ notAKey: 'x', firm: '   ' } as Record<string, string>)
+    const css = buildBrandStyle({ notAKey: 'x', firm: '   ' })
     expect(css).not.toContain('notAKey')
     expect(css).not.toContain('--sati-doc-firm:')
   })

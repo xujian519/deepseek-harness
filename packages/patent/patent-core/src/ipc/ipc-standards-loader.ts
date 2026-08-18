@@ -40,7 +40,7 @@ let cachedIndex: IpcStandardsIndex | null = null
 
 function parseStandards(yamlText: string): IpcStandardCard[] {
   const doc = parseDocument(yamlText)
-  const root = doc.toJS() as { standards?: unknown[] }
+  const root = doc.toJS() as { standards?: unknown[] } | null
   const standards = root?.standards ?? []
   return standards.map((raw, i) => {
     const card = (raw ?? {}) as Record<string, unknown>

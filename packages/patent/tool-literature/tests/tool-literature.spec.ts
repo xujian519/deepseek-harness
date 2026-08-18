@@ -171,7 +171,7 @@ describe('paper_search over an injected-fetchImpl registry', () => {
   it('clamps limit to 50', async () => {
     let url = ''
     const registry = makeRegistry(async (input: RequestInfo | URL) => {
-      url = String(input)
+      url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       return new Response(ATOM_FEED, { status: 200 })
     })
     const ctx = await setupRegistry(registry)

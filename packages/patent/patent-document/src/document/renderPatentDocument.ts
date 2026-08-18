@@ -144,7 +144,7 @@ function findMatchingCloseTag(html: string, openEnd: number): number | undefined
   let depth = 1
   let match: RegExpExecArray | null
   while ((match = tagRe.exec(html)) !== null) {
-    const token = match[0] ?? ''
+    const token = match[0]
     const isClose = token.startsWith('</')
     const nameMatch = token.match(/^<\/?([A-Za-z][A-Za-z0-9]*)/)
     const name = (nameMatch?.[1] ?? '').toLowerCase()
@@ -179,7 +179,7 @@ function injectSections(html: string, sections: Record<string, string>): { html:
       skippedIds.push(id)
       continue
     }
-    const openTag = openMatch[0] ?? ''
+    const openTag = openMatch[0]
     const closeStart = findMatchingCloseTag(result, openMatch.index + openTag.length)
     if (closeStart === undefined) {
       skippedIds.push(id)
@@ -220,7 +220,7 @@ export async function renderPatentDocument(
 
   let html = readTemplateHtml(input.template)
   html = injectBrandCss(html, buildBrandStyle(brand))
-  const injected = injectSections(html, input.sections ?? {})
+  const injected = injectSections(html, input.sections)
   html = injected.html
   if (injected.skippedIds.length > 0) {
     warnings.push(`以下 section id 未命中模板，内容已忽略: ${injected.skippedIds.join(', ')}`)

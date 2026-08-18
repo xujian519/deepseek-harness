@@ -197,7 +197,7 @@ describe('rule pack', () => {
 
   it('validatePackManifest accepts bundled pack manifests and rejects invalid ones', () => {
     const root = assetRulesRoot()
-    const parse = (p: string) => parseDocument(readFileSync(p, 'utf8')).toJS()
+    const parse = (p: string): unknown => parseDocument(readFileSync(p, 'utf8')).toJS()
     expect(validatePackManifest(parse(join(root, 'base', 'pack.yaml')))).toEqual([])
     expect(validatePackManifest(parse(join(root, 'domains', 'mechanical', 'pack.yaml')), { requireDomain: true })).toEqual([])
     expect(validatePackManifest(parse(join(root, 'domains', 'medical', 'pack.yaml')), { requireDomain: true })).toEqual([])

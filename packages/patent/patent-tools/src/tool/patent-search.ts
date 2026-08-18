@@ -90,7 +90,7 @@ export function dedupeByFamily(
       kept.add(hit.patent)
       continue
     }
-    if ((hit.publication_date ?? '') > (current.publication_date ?? '')) {
+    if (hit.publication_date > current.publication_date) {
       bestByBase.set(base, hit)
       kept.delete(current.patent)
       kept.add(hit.patent)
@@ -176,7 +176,7 @@ export function createPatentSearchTool(deps: PatentSearchDeps = {}): ToolDefinit
           warnings: { type: 'array', required: true, items: { type: 'string' } },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderSearch(value as unknown as PatentSearchOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderSearch(value) }],
     },
     async execute(args, exec) {
       const query = args.query.trim()

@@ -121,7 +121,7 @@ export function createKnowledgeNoteSaveTool(deps: KnowledgeNoteSaveDeps): ToolDe
           path: { type: 'string' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderKnowledgeNoteSave(value as unknown as KnowledgeNoteSaveOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderKnowledgeNoteSave(value) }],
     },
     async execute(args) {
       const title = args.title.trim()

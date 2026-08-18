@@ -27,7 +27,7 @@ describe('literatureFetch', () => {
     expect(first.ok).toBe(true)
     expect(second.ok).toBe(true)
     expect(calls).toBe(1) // second call hits cache
-    expect(JSON.parse(second.body).ok).toBe(1)
+    expect((JSON.parse(second.body) as { ok: number }).ok).toBe(1)
   })
 
   it('never caches empty bodies', async () => {

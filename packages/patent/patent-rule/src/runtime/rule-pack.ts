@@ -68,7 +68,7 @@ export function parseRulePackManifest(yamlText: string): RulePackManifest {
   if (doc.errors.length > 0) {
     throw new Error(`清单 YAML 解析失败: ${doc.errors[0]?.message ?? 'unknown'}`)
   }
-  const root = doc.toJS()
+  const root: unknown = doc.toJS()
   if (typeof root !== 'object' || root === null || Array.isArray(root)) {
     throw new Error('清单顶层必须是对象')
   }

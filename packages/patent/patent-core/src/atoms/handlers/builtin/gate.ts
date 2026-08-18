@@ -53,6 +53,7 @@ export class ApprovalGateHandler implements StageHandler {
    * @param input - 阶段执行输入（state）。
    * @returns 下一管线状态（可能带降级标记）。
    */
+  // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state } = input
     // 已批准（grantApproval 写入检查点 state 后 resume，或重跑时注入）：放行不中断。

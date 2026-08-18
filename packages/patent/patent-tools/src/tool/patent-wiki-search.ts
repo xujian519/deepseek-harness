@@ -126,8 +126,9 @@ export function createPatentWikiSearchTool(deps: PatentWikiSearchDeps): ToolDefi
           wikiDir: { type: 'string' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderWikiSearch(value as unknown as PatentWikiSearchOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderWikiSearch(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       if (deps.searchIn === undefined || deps.formatAsContext === undefined) {
         throw new PatentToolError('setup_required', 'wiki 卡片目录不可用：请先运行 patent-knowledge:install 准备本地知识数据。', { tool: 'patent_wiki_search' })
@@ -136,7 +137,7 @@ export function createPatentWikiSearchTool(deps: PatentWikiSearchDeps): ToolDefi
       const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
       const includeBody = args.include_body === true
       const formatAsContext = deps.formatAsContext
-      const metas = deps.searchIn(prefix, args.query ?? '', limit)
+      const metas = deps.searchIn(prefix, args.query, limit)
       return {
         total: metas.length,
         results: metas.map(meta => toResult(meta, formatAsContext, includeBody)),

@@ -19,17 +19,20 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
   private readonly runs = new Map<string, WorkflowRunResult>()
 
   /** 保存一次运行结果；runId 缺省为 manifestId（同 runId 重跑覆盖上次记录）。 */
+  // oxlint-disable-next-line typescript/require-await -- WorkflowRunStore 契约与调用方 await 约定要求 Promise 返回，实现为同步 Map 写入
   async saveRun(result: WorkflowRunResult, runId?: string): Promise<void> {
     this.runs.set(runId ?? result.manifestId, structuredClone(result))
   }
 
   /** 按 runId 加载运行结果。@returns 运行结果；不存在时为 undefined。 */
+  // oxlint-disable-next-line typescript/require-await -- WorkflowRunStore 契约与调用方 await 约定要求 Promise 返回，实现为同步 Map 读取
   async loadRun(runId: string): Promise<WorkflowRunResult | undefined> {
     const run = this.runs.get(runId)
     return run ? structuredClone(run) : undefined
   }
 
   /** 列出全部已保存的运行 ID。@returns 运行 ID 列表。 */
+  // oxlint-disable-next-line typescript/require-await -- WorkflowRunStore 契约与调用方 await 约定要求 Promise 返回，实现为同步 Map 键枚举
   async listRuns(): Promise<string[]> {
     return [...this.runs.keys()]
   }

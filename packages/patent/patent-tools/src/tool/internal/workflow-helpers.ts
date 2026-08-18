@@ -249,7 +249,7 @@ export function createChainStageExecutor(
       (ctx.input ?? '').slice(0, 12000),
       '```',
     ].join('\n')
-    return (await call(prompt, { temperature: 0.3 })) ?? ''
+    return await call(prompt, { temperature: 0.3 })
   }
 }
 

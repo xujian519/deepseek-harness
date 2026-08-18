@@ -74,10 +74,10 @@ export async function networkFetch(
     const timeout =
       options.timeoutMs && options.timeoutMs > 0
         ? setTimeout(
-          () =>
+          () => {
             controller.abort(
               new NetworkFetchError('network_timeout', `Network request timed out after ${options.timeoutMs}ms.`),
-            ),
+            ) },
           options.timeoutMs,
         )
         : undefined
@@ -133,12 +133,14 @@ export function normalizeNetworkError(
     return new NetworkFetchError('network_abort', 'Network request aborted by parent signal.', parentSignal.reason)
   }
   if (localSignal?.aborted) {
-    const reason = localSignal.reason
+    const reason: unknown = localSignal.reason
     if (reason instanceof NetworkFetchError) return reason
     return new NetworkFetchError('network_timeout', 'Network request timed out.', reason)
   }
 
-  const message = error instanceof Error ? error.message : String(error ?? 'Network request failed.')
+  const message = error instanceof Error
+    ? error.message
+    : String(error as string | number | boolean | bigint | symbol | null | undefined ?? 'Network request failed.')
   const code = readErrorCode(error)
   const combined = `${code ?? ''} ${message}`.toLowerCase()
 
@@ -181,7 +183,7 @@ async function performFetch(
   fetchImpl?: typeof fetch,
 ): Promise<Response> {
   if (fetchImpl) {
-    return fetchImpl(input as Parameters<typeof fetch>[0], init)
+    return fetchImpl(input, init)
   }
   // Node's built-in fetch (Node 22+, the harness engine range) replaces Sati's
   // lazy undici import; there is no per-request dispatcher to bypass here.
@@ -241,9 +243,9 @@ function forwardAbort(source: AbortSignal, target: AbortController): () => void 
     target.abort(source.reason)
     return () => {}
   }
-  const onAbort = () => target.abort(source.reason)
+  const onAbort = () => { target.abort(source.reason) }
   source.addEventListener('abort', onAbort, { once: true })
-  return () => source.removeEventListener('abort', onAbort)
+  return () => { source.removeEventListener('abort', onAbort) }
 }
 
 function resolveMethod(input: string | URL | Request, init: RequestInit): string {

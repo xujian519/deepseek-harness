@@ -92,13 +92,13 @@ it('runNodeWithPolicy: 调用方取消 signal 联动节点 abort 并报取消而
   const controller = new AbortController()
   const abortAware: GraphNode = async ({ signal }) => {
     await new Promise<void>((resolve) => {
-      signal?.addEventListener('abort', () => resolve())
+      signal?.addEventListener('abort', () => { resolve() })
       setTimeout(resolve, 200)
     })
     throw new Error('caller aborted')
   }
   const run = runNodeWithPolicy(abortAware, { timeoutMs: 5000 }, { state: {}, signal: controller.signal })
-  setTimeout(() => controller.abort(), 20)
+  setTimeout(() => { controller.abort() }, 20)
   const outcome = await run
   expect(outcome.ok).toBe(false)
   if (!outcome.ok) expect((outcome.error as Error).message).toContain('取消')

@@ -100,7 +100,7 @@ export function isSearchResultCacheable(result: PatentSearchResult): boolean {
  * @returns true when the scrape succeeded.
  */
 export function isScrapeResultCacheable(result: ScrapeResult): boolean {
-  return result.success === true
+  return  result.success
 }
 
 /**

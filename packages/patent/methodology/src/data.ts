@@ -155,6 +155,6 @@ export function paramLabel(no: number): string {
 export function principleNames(ids: readonly number[]): string {
   return ids.map((id) => {
     const name = principleById(id)?.name ?? ''
-    return (id + ' ' + name).trim()
+    return `${id} ${name}`.trim()
   }).join(', ')
 }

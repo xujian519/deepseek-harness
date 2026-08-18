@@ -96,7 +96,7 @@ export function createSemanticScholarConnector(options: CreateSemanticScholarCon
     },
     async fetch(id, opts) {
       // 外部 id 的冒号/斜杠必须原样保留在路径段中（"DOI:10.x/y"、"ARXIV:…"）。
-      const data = await getJSON<Paper>(`${BASE}/${id.trim()}?fields=${FIELDS},references.title,citations.title`, {
+      const data = await getJSON<Paper | null>(`${BASE}/${id.trim()}?fields=${FIELDS},references.title,citations.title`, {
         signal: opts?.signal,
         fetchImpl: options.fetchImpl,
         rateLimit: options.rateLimit ?? RATE_LIMIT,

@@ -172,6 +172,7 @@ export function createEvaluateEvidenceTool(deps: EvaluateEvidenceDeps = {}): Too
       },
       render: (_args, value) => [{ type: 'text', text: renderEvidence(value as unknown as EvaluateEvidenceOutput) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       const engine = resolveEngine()
       const span = createSpan({

@@ -108,7 +108,7 @@ type TargetsParseResult = { targets: ChartTarget[]; error: string | null }
 function parseTargets(raw: string): TargetsParseResult {
   if (raw.trim().length === 0) return { targets: [], error: null }
   try {
-    const parsed = JSON.parse(raw)
+    const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return { targets: [], error: '输入 chart_targets 不是数组' }
     const targets: ChartTarget[] = []
     for (const entry of parsed) {

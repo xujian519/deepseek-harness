@@ -107,8 +107,9 @@ export function createPatentWorkerValidateTool(): ToolDefinition {
           availableWorkers: { type: 'array', items: { type: 'string' } },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderWorkerValidate(value as unknown as PatentWorkerValidateOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderWorkerValidate(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       const worker: WorkerContract | undefined = registry.get(args.workerName)
       if (!worker) {

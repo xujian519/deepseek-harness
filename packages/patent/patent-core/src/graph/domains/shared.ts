@@ -72,6 +72,7 @@ export function llmNode(input: LlmNodeOptions): GraphNode {
  * @returns 规则门图节点。
  */
 export function ruleGateNode(domains: readonly string[]): GraphNode {
+  // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
   return async ({ state }) => {
     const text = collectStateText(state)
     const engine = new RuleEngine()

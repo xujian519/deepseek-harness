@@ -78,7 +78,7 @@ export function shouldCompress(text: string): boolean {
  * @param db 目标数据库连接。
  */
 export function registerChunkUncompress(db: DatabaseSync): void {
-  db.function('sati_uncompress', { deterministic: true }, (value: unknown) => {
+  db.function('sati_uncompress', { deterministic: true }, (value: string | Uint8Array | number | bigint | null | undefined) => {
     if (value === undefined) return ''
     if (value === null || typeof value === 'string' || value instanceof Uint8Array) {
       return decompressChunk(value)

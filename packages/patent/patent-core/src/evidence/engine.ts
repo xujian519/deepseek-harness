@@ -502,7 +502,7 @@ function parseRuleSet(yamlText: string, source: string): { ruleSet: EvidenceRule
       }
       const evidenceType = record.evidenceType as EvidenceType
       if (!EVIDENCE_TYPES.includes(evidenceType)) {
-        warnings.push(`证据规则 ${record.ruleId} 未知证据类型 "${record.evidenceType}"，跳过`)
+        warnings.push(`证据规则 ${record.ruleId} 未知证据类型 "${String(record.evidenceType)}"，跳过`)
         continue
       }
       const assessment = asRecord(record.evidenceAssessment)

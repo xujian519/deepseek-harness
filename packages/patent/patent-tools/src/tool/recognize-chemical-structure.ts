@@ -162,8 +162,9 @@ export function createRecognizeChemicalStructureTool(): ToolDefinition {
           modelUsed: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderChemicalStructure(value as unknown as ChemicalStructureResult) }],
+      render: (_args, value) => [{ type: 'text', text: renderChemicalStructure(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       const mode: RecognizeChemicalStructureMode = args.mode ?? (args.image_path ? 'image' : 'text')
       if (mode === 'image' && !args.image_path) {

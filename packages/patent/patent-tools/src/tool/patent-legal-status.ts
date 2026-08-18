@@ -125,7 +125,7 @@ export function createPatentLegalStatusTool(deps: PatentLegalStatusDeps = {}): T
           truncatedCount: { type: 'number', description: '超出 20 条上限被截断未查询的专利号数量' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderLegalStatus(value as unknown as PatentLegalStatusOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderLegalStatus(value) }],
     },
     async execute(args, exec) {
       const dropped = args.patents.length - Math.min(args.patents.length, MAX_PATENTS)

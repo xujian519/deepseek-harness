@@ -166,8 +166,9 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
           packWarnings: { type: 'array', items: { type: 'string' } },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderRuleCheck(value as unknown as RuleCheckOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderRuleCheck(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       const scope = args.scope ?? 'patent'
       const { ruleSet, pack } = resolve(scope)

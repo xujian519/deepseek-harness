@@ -85,7 +85,7 @@ function renderCaseSearch(value: PatentCaseSearchOutput): string {
   }
   const rows = value.results.map((r) => {
     const lines = [`## ${r.title}`]
-    lines.push(`**documentId**: ${r.documentId} · ${r.docType}${r.via ? ` · via ${r.via}` : ''}`)
+    lines.push(`**documentId**: ${r.documentId} · ${r.docType} · via ${r.via}`)
     if (r.decisionNumber) lines.push(`**decision**: ${r.decisionNumber}`)
     if (r.caseNumber) lines.push(`**case**: ${r.caseNumber}`)
     if (r.court) lines.push(`**court**: ${r.court}`)
@@ -140,8 +140,9 @@ export function createPatentCaseSearchTool(deps: PatentCaseSearchDeps): ToolDefi
           dbPath: { type: 'string' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderCaseSearch(value as unknown as PatentCaseSearchOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderCaseSearch(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       if (deps.search === undefined) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, { tool: 'patent_case_search' })

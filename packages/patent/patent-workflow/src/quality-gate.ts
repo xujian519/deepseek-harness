@@ -33,7 +33,7 @@ export const ABSOLUTE_PHRASES = ['绝对', '一定', '百分百', '毫无疑问'
 
 /** 按 Unicode 码点截断（对齐 Go runeSlice）；ellipsis 为 true 时超长追加省略号。 */
 function runeSlice(s: string, n: number, ellipsis = false): string {
-  const runes = [...s]
+  const runes = Array.from(s)
   if (runes.length <= n) return s
   return `${runes.slice(0, n).join('')}${ellipsis ? '…' : ''}`
 }
@@ -254,8 +254,8 @@ function extractCitations(text: string): ExtractedCitation[] {
     } else if (raw.includes('专利法')) {
       statute = '专利法'
     } else {
-      const start = Math.max(0, (m.index ?? 0) - 100)
-      const beforeWindow = text.slice(start, m.index ?? 0)
+      const start = Math.max(0, m.index - 100)
+      const beforeWindow = text.slice(start, m.index)
       const lastBoundary = Math.max(
         beforeWindow.lastIndexOf('。'),
         beforeWindow.lastIndexOf('；'),

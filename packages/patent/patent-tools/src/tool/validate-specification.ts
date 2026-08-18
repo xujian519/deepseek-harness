@@ -383,12 +383,12 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
     })
   }
 
-  if (input.abstract && [...input.abstract.trim()].length > 300) {
+  if (input.abstract && Array.from(input.abstract.trim()).length > 300) {
     violations.push({
       rule: 'abstract_length',
       severity: 'error',
       section: '摘要',
-      message: `摘要超过 300 字限制（${[...input.abstract.trim()].length} 字）`,
+      message: `摘要超过 300 字限制（${Array.from(input.abstract.trim()).length} 字）`,
       suggestion: '请压缩至 300 字以内',
     })
   }
@@ -647,7 +647,7 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
           },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderSpecification(value as unknown as ValidateSpecificationOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderSpecification(value) }],
     },
     execute: (args) => {
       const input = args as unknown as ValidateSpecificationInput

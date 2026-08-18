@@ -149,6 +149,7 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
   if (search !== undefined) {
     builder.addNode('search', handlerNode(search))
     // prepare_query：把 build_query 的策略文本映射为 search handler 的 query 键。
+    // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
     builder.addNode('prepare_query', async ({ state }) => ({
       query: getStateString(state, 'inventiveness_query') || getStateString(state, 'inventiveness_parse').slice(0, 200),
     }))

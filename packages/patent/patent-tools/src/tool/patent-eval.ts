@@ -124,7 +124,7 @@ function scoreFromSlopAnalysis(analysis: ReturnType<typeof analyzeSlop>, text: s
 function scoreContentSufficiency(text: string): number {
   const trimmed = text.trim()
   if (trimmed.length === 0) return 0
-  const chars = [...trimmed].length
+  const chars = Array.from(trimmed).length
   if (chars < 50) return 0.1
   if (chars < 200) return 0.3
   if (chars < 500) return 0.5
@@ -230,7 +230,7 @@ function evaluateMode(mode: PatentEvalMode, text: string, required: string[]): R
  * @returns the structured score.
  */
 export function evaluatePatentContent(mode: PatentEvalMode, content: string, requiredCitations: string[]): PatentEvalOutput {
-  const text = content ?? ''
+  const text = content
   if (mode === 'comprehensive') return runComprehensiveEval(text, requiredCitations)
   const dims = evaluateMode(mode, text, requiredCitations)
   const overall = averageScores(Object.values(dims))
@@ -264,6 +264,7 @@ export function createPatentEvalTool(): ToolDefinition {
       },
       render: (_args, value) => [{ type: 'text', text: renderEval(value as unknown as PatentEvalOutput) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       return evaluatePatentContent(args.mode, args.content ?? '', args.required_citations ?? [])
     },

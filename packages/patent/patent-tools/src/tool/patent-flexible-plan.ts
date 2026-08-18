@@ -449,7 +449,7 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
           default:
             throw new PatentToolError(
               'invalid_tool_input',
-              `flexible_plan: 未知操作 "${String(input.action)}"（可选: ${ACTIONS_LABEL}）`,
+              `flexible_plan: 未知操作 "${input.action}"（可选: ${ACTIONS_LABEL}）`,
             )
         }
       } catch (err) {

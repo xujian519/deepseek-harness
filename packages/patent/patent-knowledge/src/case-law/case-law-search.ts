@@ -161,7 +161,7 @@ export class CaseLawSearchEngine {
   /** FTS5 粘性降级打点（构造期 prepare 捕获与查询期异常共用）。 */
   private degradeFts(reason: string): void {
     this.ftsDegraded = true
-    this.logger?.warn?.(`[sati] case-law FTS5 不可用，已降级 LIKE: ${reason}`)
+    this.logger?.warn(`[sati] case-law FTS5 不可用，已降级 LIKE: ${reason}`)
     this.stats?.setCaseLawFtsDegraded(true)
   }
 

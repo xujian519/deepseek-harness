@@ -14,9 +14,9 @@ describe('assertSafeId', () => {
   it('rejects path injection and hidden files, allows the safe character set', () => {
     expect(SAFE_ID_PATTERN.test('case-123_a.b')).toBe(true)
     for (const bad of ['../etc', 'a/b', 'a\b', '.hidden', '', 'a b', 'a:b']) {
-      expect(() => assertSafeId(bad, 'id')).toThrow(RangeError)
+      expect(() => { assertSafeId(bad, 'id') }).toThrow(RangeError)
     }
-    expect(() => assertSafeId('case-123', 'id')).not.toThrow()
+    expect(() => { assertSafeId('case-123', 'id') }).not.toThrow()
   })
 })
 

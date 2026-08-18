@@ -26,7 +26,7 @@ export function tryParseJson(raw: string): Record<string, unknown> | undefined {
   const candidates = [raw, stripCodeFence(raw)]
   for (const candidate of candidates) {
     try {
-      const value = JSON.parse(candidate)
+      const value: unknown = JSON.parse(candidate)
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         return value as Record<string, unknown>
       }

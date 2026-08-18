@@ -124,6 +124,7 @@ export class MergeHandler implements StageHandler {
    * @param input - 阶段执行输入（state）。
    * @returns 下一管线状态（可能带降级标记）。
    */
+  // oxlint-disable-next-line typescript/require-await -- StageHandler contract requires async execute
   async execute(input: StageExecuteInput): Promise<PipelineState> {
     const { state } = input
     const features = getStateArray(state, 'features').map(String).filter(Boolean)

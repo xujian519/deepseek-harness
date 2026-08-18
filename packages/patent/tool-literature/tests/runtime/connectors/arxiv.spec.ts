@@ -54,7 +54,7 @@ describe('arxiv connector', () => {
   it('parses Atom feed into normalized hits with pdf links', async () => {
     let url = ''
     const connector = makeConnector(async (input: RequestInfo | URL) => {
-      url = String(input)
+      url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       return atomResponse(ATOM_FEED)
     })
 
@@ -74,7 +74,7 @@ describe('arxiv connector', () => {
   it('wraps bare queries in all: but passes fielded queries through', async () => {
     const urls: string[] = []
     const connector = makeConnector(async (input: RequestInfo | URL) => {
-      urls.push(String(input))
+      urls.push(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
       return atomResponse(EMPTY_FEED)
     })
 
@@ -89,7 +89,7 @@ describe('arxiv connector', () => {
   it('clamps limit to 50', async () => {
     let url = ''
     const connector = makeConnector(async (input: RequestInfo | URL) => {
-      url = String(input)
+      url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       return atomResponse(EMPTY_FEED)
     })
 
@@ -116,7 +116,7 @@ describe('arxiv connector', () => {
   it('fetch resolves a bare id via id_list', async () => {
     let url = ''
     const connector = makeConnector(async (input: RequestInfo | URL) => {
-      url = String(input)
+      url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       return atomResponse(ATOM_FEED)
     })
     const record = await connector.fetch!('1706.03762')

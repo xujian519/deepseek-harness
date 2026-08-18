@@ -44,7 +44,7 @@ describe('openalex connector', () => {
     const connector = createOpenAlexConnector({
       mailto: 'researcher@example.com',
       fetchImpl: async (input: RequestInfo | URL) => {
-        url = String(input)
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
         return jsonResponse({ results: [] })
       },
     })
@@ -61,7 +61,7 @@ describe('openalex connector', () => {
       let url = ''
       const connector = createOpenAlexConnector({
         fetchImpl: async (input: RequestInfo | URL) => {
-          url = String(input)
+          url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
           return jsonResponse({ results: [] })
         },
       })
@@ -77,7 +77,7 @@ describe('openalex connector', () => {
     let url = ''
     const connector = createOpenAlexConnector({
       fetchImpl: async (input: RequestInfo | URL) => {
-        url = String(input)
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
         return jsonResponse((SEARCH_RESPONSE as { results: unknown[] }).results[0])
       },
     })

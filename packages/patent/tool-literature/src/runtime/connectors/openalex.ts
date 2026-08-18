@@ -96,7 +96,7 @@ export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions 
       // OpenAlex 接受裸 work id（W…）或 DOI 原样路径段（"works/doi:10.x/y"）；
       // DOI 的斜杠/冒号不能编码。
       const path = /^10\.\d/.test(id) ? `doi:${id}` : encodeURIComponent(shortId(id) || id)
-      const data = await getJSON<Work>(`${BASE}/${path}?${polite()}`, {
+      const data = await getJSON<Work | null>(`${BASE}/${path}?${polite()}`, {
         signal: opts?.signal,
         fetchImpl: options.fetchImpl,
       })

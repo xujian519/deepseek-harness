@@ -79,6 +79,7 @@ function realPathOf(path: string): string {
  * @param options - source/输出路径与裁剪开关。
  * @returns 安装结果（输出路径、去表清单与压缩统计）。
  */
+// oxlint-disable-next-line typescript/require-await -- public export contract returns Promise<InstallResult>; callers await it
 export async function installKnowledgeDb(options: InstallKnowledgeDbOptions = {}): Promise<InstallResult> {
   const log = options.log ?? console.log
   const knowledgeDir = options.knowledgeDir ?? DEFAULT_KNOWLEDGE_DIR

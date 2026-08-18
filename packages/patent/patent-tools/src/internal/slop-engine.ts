@@ -109,12 +109,12 @@ const RE_SEARCH_TERMS = /(去重|命中|数据库)/
 
 /** Length in Unicode code points (aligns Go rune semantics). */
 function runeLen(s: string): number {
-  return [...s].length
+  return Array.from(s).length
 }
 
 /** Truncate by Unicode code point, with optional trailing ellipsis. */
 function runeSlice(s: string, n: number, ellipsis = false): string {
-  const runes = [...s]
+  const runes = Array.from(s)
   if (runes.length <= n) return s
   return `${runes.slice(0, n).join('')}${ellipsis ? '…' : ''}`
 }

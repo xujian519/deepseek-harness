@@ -31,7 +31,7 @@ function appendValue(existing: unknown, value: unknown): unknown[] {
 function unionValues(existing: unknown, value: unknown): unknown[] {
   const seen = new Set<string>()
   const result: unknown[] = []
-  for (const item of [...asArray(existing), ...(Array.isArray(value) ? value : [value])]) {
+  for (const item of [...asArray(existing), ...(Array.isArray(value) ? (value as unknown[]) : [value])]) {
     const key = unionKey(item)
     if (seen.has(key)) continue
     seen.add(key)

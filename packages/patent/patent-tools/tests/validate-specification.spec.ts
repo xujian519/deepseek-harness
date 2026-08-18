@@ -237,7 +237,9 @@ describe('createValidateSpecificationTool', () => {
   it('renders model-facing text', () => {
     const tool = createValidateSpecificationTool()
     const blocks = tool.output.render({}, { passed: true, score: 1, violations: [] })
-    expect(blocks).toEqual([{ type: 'text', text: expect.stringContaining('通过') }])
+    // vitest asymmetric matcher is typed any; the literal text field holds the matcher object
+    const textMatcher = expect.stringContaining('通过') as string
+    expect(blocks).toEqual([{ type: 'text', text: textMatcher }])
   })
 
   it('wires the injectable isRdkitAvailable dependency', async () => {

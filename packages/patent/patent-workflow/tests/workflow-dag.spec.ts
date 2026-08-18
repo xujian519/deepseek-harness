@@ -24,13 +24,13 @@ const rewindForward: WorkflowManifest = {
 
 describe('workflow manifest DAG bridge', () => {
   it('validateWorkflowManifest enforces rewindTo must point to an earlier stage', () => {
-    expect(() => validateWorkflowManifest(rewindForward)).toThrow(WorkflowError)
-    expect(() => validateWorkflowManifest(rewindForward)).toThrow(/rewindTo 指向不存在的阶段/)
+    expect(() => { validateWorkflowManifest(rewindForward) }).toThrow(WorkflowError)
+    expect(() => { validateWorkflowManifest(rewindForward) }).toThrow(/rewindTo 指向不存在的阶段/)
   })
 
   it('validateWorkflowManifest accepts acyclic rewinds (builtin manifests)', () => {
-    expect(() => validateWorkflowManifest(patentNoveltyManifest)).not.toThrow()
-    expect(() => validateWorkflowManifest(patentDisclosureManifest)).not.toThrow()
+    expect(() => { validateWorkflowManifest(patentNoveltyManifest) }).not.toThrow()
+    expect(() => { validateWorkflowManifest(patentDisclosureManifest) }).not.toThrow()
   })
 
   it('validateWorkflowManifestDag reports no problems for builtin manifests', () => {

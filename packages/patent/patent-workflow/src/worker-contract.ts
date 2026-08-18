@@ -106,8 +106,8 @@ export class WorkerRegistry {
     if (this.workers.has(definition.name)) {
       throw new WorkerRegistryError(`Worker "${definition.name}" already registered`)
     }
-    if (!definition.name.trim() || !definition.tier || !definition.description.trim()) {
-      throw new WorkerRegistryError(`Worker "${definition.name ?? '(unnamed)'}" missing name/tier/description`)
+    if (!definition.name.trim() || !definition.description.trim()) {
+      throw new WorkerRegistryError(`Worker "${definition.name}" missing name/tier/description`)
     }
     this.workers.set(definition.name, definition)
     if (definition.preRegister !== false) {

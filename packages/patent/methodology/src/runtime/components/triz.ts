@@ -41,7 +41,7 @@ function buildLookupLines(paramNos: number[]): string[] {
       const ids = lookupMatrixCell(improving, worsening)
       if (ids.length === 0) continue
       lines.push(
-        '- 改善 ' + paramLabel(improving) + '(' + improving + ') → 恶化 ' + paramLabel(worsening) + '(' + worsening + ')：原理 [' + principleNames(ids) + ']',
+        `- 改善 ${paramLabel(improving)}(${improving}) → 恶化 ${paramLabel(worsening)}(${worsening})：原理 [${principleNames(ids)}]`,
       )
     }
   }
@@ -63,7 +63,7 @@ export const triz: MethodologyComponent = {
     const detected = detectParamNumbers(context.goal)
     const lookupLines = buildLookupLines(detected)
     const lookupSection = lookupLines.length > 0
-      ? '\n【确定性查表结果】从问题中自动识别到工程参数 ' + detected.map(n => paramLabel(n) + '(' + n + ')').join('、') + '，以下为经典矛盾矩阵（39×39）查得结果：\n' + lookupLines.join('\n') + '\n（若与你的技术矛盾方向不符，请忽略并按方法 2 自行查表）\n'
+      ? `\n【确定性查表结果】从问题中自动识别到工程参数 ${detected.map(n => `${paramLabel(n)}(${n})`).join('、')}，以下为经典矛盾矩阵（39×39）查得结果：\n${lookupLines.join('\n')}\n（若与你的技术矛盾方向不符，请忽略并按方法 2 自行查表）\n`
       : ''
     const prompt = `使用 **TRIZ（发明问题解决理论）** 分析以下问题：
 

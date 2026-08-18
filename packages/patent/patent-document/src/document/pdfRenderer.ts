@@ -97,7 +97,7 @@ export async function renderPdf(
   // Chrome 在 Windows 上返回的是 chrome.exe 而非目录，dirname 可能为空。
   const cwd = dirname(chrome) || process.cwd()
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), PDF_TIMEOUT_MS)
+  const timer = setTimeout(() => { controller.abort() }, PDF_TIMEOUT_MS)
   timer.unref()
   const onCallerAbort = (): void => { controller.abort() }
   options.signal?.addEventListener('abort', onCallerAbort, { once: true })

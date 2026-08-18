@@ -27,7 +27,7 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
   if (ms <= 0) return promise
   let timer: NodeJS.Timeout | undefined
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('节点执行超时（硬上界）')), ms)
+    timer = setTimeout(() => { reject(new Error('节点执行超时（硬上界）')) }, ms)
   })
   return Promise.race([promise, timeout]).finally(() => {
     if (timer !== undefined) clearTimeout(timer)
@@ -72,6 +72,7 @@ export async function runNodeWithPolicy(
       const delta = await withDeadline(node({ ...ctx, signal: controller.signal }), remaining)
       // 超时后完成的节点视为失败（超时语义：总时长截止后不再采信结果）。
       if (controller.signal.aborted) {
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- timedOut is set by the deadline timer's callback
         return { ok: false, error: new Error(timedOut ? '节点执行超时（结果在超时后返回）' : '节点执行已取消') }
       }
       // sideEffect 节点：delta 不合并（返回空片段，由调用方忽略）。
@@ -82,6 +83,7 @@ export async function runNodeWithPolicy(
       lastError = err
       if (controller.signal.aborted) {
         // 超时/取消：中止重试（对齐 Mady 超时跨重试截断）。
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- timedOut is set by the deadline timer's callback
         return { ok: false, error: timedOut ? err : new Error('节点执行已取消') }
       }
       if (attempt < maxRetries) {

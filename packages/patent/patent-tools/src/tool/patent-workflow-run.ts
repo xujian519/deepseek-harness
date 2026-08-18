@@ -224,10 +224,10 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
           available: { type: 'array', items: { type: 'string' } },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderWorkflowRun(value as unknown as PatentWorkflowRunOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderWorkflowRun(value) }],
     },
     async execute(args, exec) {
-      const input = args as unknown as PatentWorkflowRunInput
+      const input = args
       if (input.graph !== undefined) {
         return executeGraphRun(input, deps, cwd, exec.signal)
       }

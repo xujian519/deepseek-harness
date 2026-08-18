@@ -16,7 +16,7 @@ export function successHandle(): SubprocessHandle {
     done: Promise.resolve({ exitCode: 0, signal: null }),
     terminate() {},
     waitForExit: () => Promise.resolve(true),
-  } as unknown as SubprocessHandle
+  }
 }
 
 /** A subprocess runtime whose spawn delegates to onSpawn and records every spec. */

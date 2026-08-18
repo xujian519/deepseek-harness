@@ -7,7 +7,7 @@ const provider: StageProvider = {
 }
 
 function stage(id: string, name: string, goal: string, extra: Partial<{ atom: string; strategy: 'chain' | 'react' | 'sub_agent'; params: Record<string, unknown> }> = {}) {
-  return { id, name, goal, strategy: (extra.strategy ?? 'sub_agent') as 'chain' | 'react' | 'sub_agent', status: 'pending' as const, artifacts: [], constraintIds: [], articleJudgments: [], ...extra }
+  return { id, name, goal, strategy: (extra.strategy ?? 'sub_agent'), status: 'pending' as const, artifacts: [], constraintIds: [], articleJudgments: [], ...extra }
 }
 
 describe('flexible-plan → toManifest → runWorkflow (atomic execution)', () => {

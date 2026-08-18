@@ -21,12 +21,12 @@ import { loadEvidenceRulesEngine } from '@deepseek-ai/dsh-patent-core'
 /** 适用工具名（与 evaluate_evidence 工具注册名一致）。 */
 export const EVIDENCE_COMPLIANCE_TOOL = 'evaluate_evidence'
 
-/** YAML 条件名 → guard 输入字段名（EVI-011 契约映射）。 */
-const EVI_011_CONDITION_FIELDS = {
+/** YAML 条件名 → guard 输入字段名（EVI-011 契约映射；未知条件名索引为 undefined）。 */
+const EVI_011_CONDITION_FIELDS: Record<string, string | undefined> = {
   evidence_notarized: 'notarized',
   evidence_legalized: 'legalized',
   evidence_translated: 'translated',
-} as const
+}
 
 /**
  * 从 rule-loader 同一数据源派生 EVI-011 的强制条件字段；资产缺失时回退到
@@ -40,7 +40,7 @@ export function evi011GuardConditionFields(ruleDirs: readonly string[] = []): Re
     .find(r => r.ruleId === 'EVI-011')
   const derived: string[] = []
   for (const condition of rule?.check?.conditions ?? []) {
-    const field = EVI_011_CONDITION_FIELDS[condition as keyof typeof EVI_011_CONDITION_FIELDS]
+    const field = EVI_011_CONDITION_FIELDS[condition]
     if (field !== undefined) derived.push(field)
   }
   return new Set(derived.length > 0 ? derived : ['notarized', 'legalized', 'translated'])
@@ -63,7 +63,7 @@ interface EvaluateEvidenceInput {
 
 function readEvidenceInput(input: unknown): EvaluateEvidenceInput | undefined {
   if (typeof input !== 'object' || input === null) return undefined
-  return input as EvaluateEvidenceInput
+  return input
 }
 
 function isTrue(value: unknown): boolean {

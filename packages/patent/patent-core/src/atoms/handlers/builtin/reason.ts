@@ -165,7 +165,7 @@ export class GroundednessHandler implements StageHandler {
         const scores = toScores(parsed.scores)
         if (scores === null) return null
         const low = scores.filter(s => typeof s.score === 'number' && s.score < GROUNDEDNESS_THRESHOLD)
-        const lowNames = low.map(s => String(s.feature ?? '')).filter(Boolean)
+        const lowNames = low.map(s => s.feature ?? '').filter(Boolean)
         return {
           groundedness_result: JSON.stringify(parsed),
           low_confidence_features: lowNames,
@@ -183,7 +183,7 @@ export class GroundednessHandler implements StageHandler {
 }
 
 /** 单个 groundedness 打分项（LLM JSON 输出形状，经类型守卫收窄）。 */
-type GroundednessScore = { feature?: unknown; score?: unknown; reason?: unknown }
+type GroundednessScore = { feature?: string; score?: unknown; reason?: unknown }
 
 /**
  * 收窄 parsed.scores 为打分项数组（集中 LLM 输出形状的 cast 边界）：

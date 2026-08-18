@@ -77,7 +77,7 @@ export class EvidenceExtension implements SatiEvidenceCollector {
 
   /** SatiEvidenceCollector 实现：ToolRuntime 每次工具执行后调用。 */
   recordReceipt(receipt: SatiEvidenceReceipt): void {
-    this.ledger.record(receipt as Receipt)
+    this.ledger.record(receipt)
   }
 
   /**

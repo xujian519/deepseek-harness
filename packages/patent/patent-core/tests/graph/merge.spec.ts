@@ -57,7 +57,7 @@ it('mergeWithSchema merge_map: map 浅合并', () => {
 
 it('mergeWithSchema fail_on_conflict: 同 key 重复写入抛错', () => {
   const state: GraphState = { k: 1 }
-  expect(() => mergeWithSchema(state, results([['n1', { k: 2 }]]), { k: 'fail_on_conflict' })).toThrow(GraphMergeError)
+  expect(() => { mergeWithSchema(state, results([['n1', { k: 2 }]]), { k: 'fail_on_conflict' }) }).toThrow(GraphMergeError)
 })
 
 it('mergeWithSchema fail_on_conflict: 首次写入不冲突', () => {
@@ -68,5 +68,5 @@ it('mergeWithSchema fail_on_conflict: 首次写入不冲突', () => {
 
 it('mergeWithSchema: 未知 reducer 抛错', () => {
   const state: GraphState = {}
-  expect(() => mergeWithSchema(state, results([['n1', { k: 1 }]]), { k: 'bogus' as never })).toThrow(/未知 Reducer/)
+  expect(() => { mergeWithSchema(state, results([['n1', { k: 1 }]]), { k: 'bogus' as never }) }).toThrow(/未知 Reducer/)
 })

@@ -110,7 +110,7 @@ export function raw(value: unknown): Record<string, unknown> {
  */
 export function fromInverted(index?: Record<string, number[]> | null): string | undefined {
   if (!index) return undefined
-  const words: string[] = []
+  const words: (string | undefined)[] = []
   for (const word of Object.keys(index)) {
     for (const pos of index[word] ?? []) {
       if (Number.isInteger(pos) && pos >= 0) words[pos] = word

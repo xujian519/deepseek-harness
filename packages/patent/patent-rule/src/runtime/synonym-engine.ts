@@ -147,7 +147,7 @@ export function parseSynonyms(yamlText: string, source = '<inline>'): { synonyms
     warnings.push(`同义词 YAML 解析失败 ${source}: ${doc.errors[0]?.message ?? 'unknown'}`)
     return { synonyms, warnings }
   }
-  const root = doc.toJS()
+  const root: unknown = doc.toJS()
   if (typeof root !== 'object' || root === null || Array.isArray(root)) {
     warnings.push(`同义词文件顶层必须是对象 ${source}`)
     return { synonyms, warnings }
@@ -163,7 +163,7 @@ export function parseSynonyms(yamlText: string, source = '<inline>'): { synonyms
       continue
     }
     // key 统一小写存储，与 matchKeyword 的小写查找一致（拉丁词如 "US"/"inventive step"）
-    synonyms.set(keyword.toLowerCase(), value as string[])
+    synonyms.set(keyword.toLowerCase(), value)
   }
   return { synonyms, warnings }
 }

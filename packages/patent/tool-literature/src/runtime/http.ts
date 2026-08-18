@@ -123,7 +123,7 @@ function acquire(host: string, maxConcurrent: number): Promise<void> {
 /** 释放一个在途槽位，直接转交给下一个等待者（如有）。 */
 function release(host: string): void {
   const next = hostWaiters.get(host)?.shift()
-  if (next) return next()
+  if (next) {  next(); return }
   const active = hostActive.get(host) ?? 1
   hostActive.set(host, Math.max(0, active - 1))
 }
@@ -135,7 +135,7 @@ async function throttle(url: string, limit?: LiteratureRateLimit): Promise<() =>
   if (limit.minIntervalMs && limit.minIntervalMs > 0) await pace(host, limit.minIntervalMs)
   if (limit.maxConcurrent && limit.maxConcurrent > 0) {
     await acquire(host, limit.maxConcurrent)
-    return () => release(host)
+    return () => { release(host) }
   }
   return () => {}
 }

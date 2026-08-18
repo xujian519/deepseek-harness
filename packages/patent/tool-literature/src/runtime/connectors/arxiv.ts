@@ -68,7 +68,7 @@ function parse(xml: string): Entry[] {
       .filter((n): n is string => !!n)
     // arXiv 的 PDF 链接是自闭合的 `<link title="pdf" href="…" …/>`，没有
     // `</link>` 配对标签，配对的 block helper 看不见它——用 xmlSelfClosing。
-    const pdf = xmlSelfClosing(block, 'link').find(l => (l.attrs.title ?? '').toLowerCase() === 'pdf')?.attrs.href
+    const pdf = xmlSelfClosing(block, 'link').find(l => (l.attrs.title || '').toLowerCase() === 'pdf')?.attrs.href
     return {
       id,
       title: xmlText(block, 'title'),

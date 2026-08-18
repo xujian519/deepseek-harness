@@ -66,6 +66,7 @@ export function createPaperListSourcesTool(registry: ConnectorRegistry): ToolDef
       },
       render: (args, value) => [{ type: 'text', text: renderSources(args, value as unknown as PaperListSourcesOutput) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- ToolDefinition.execute must return Promise<unknown>
     execute: async (args) => {
       const entries = registry.catalog().filter(e => !args.domain || e.domain === args.domain)
       const domains = [...new Set(entries.map(e => e.domain))]

@@ -19,7 +19,6 @@ import {
   validateWorkflowManifest,
   type WorkflowInterrupt,
   type WorkflowManifest,
-  type WorkflowRunResult,
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { JsonFileWorkflowRunStore, builtinPatentManifests, runWorkflow } from '@deepseek-ai/dsh-patent-workflow'
@@ -114,7 +113,7 @@ export function renderPatentWorkflow(value: PatentWorkflowOutput): string {
   }
   return renderWorkflowResultText({
     toolName: 'patent_workflow',
-    result: value as unknown as WorkflowRunResult,
+    result: value,
     stageLines: recapStageLines(value),
     persistNote: value.persistNote,
     checkSection: '',
@@ -214,6 +213,7 @@ export function createPatentWorkflowTool(deps: PatentWorkflowToolDeps = {}): Too
       const result = await runWorkflow(
         manifest,
         { ...(args.caseId !== undefined ? { caseId: args.caseId } : {}) },
+        // oxlint-disable-next-line typescript/require-await -- StageExecutor contract returns Promise<string>
         async stage => byId.get(stage.id) ?? '',
         {
           handlers: new StageHandlerRegistry(),

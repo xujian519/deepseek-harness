@@ -80,6 +80,7 @@ export function detectTechnicalDomain(text: string): { domain: string; name: str
   return { domain: 'generic', name: '通用', requirements: [] }
 }
 
+// oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
 const domainRulesNode = async (ctx: { state: GraphState }): Promise<Record<string, unknown>> => {
   const text = resolveInput(ctx.state, ['text', 'source_text', 'spec', 'input'])
   const detected = detectTechnicalDomain(text)
@@ -159,6 +160,7 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
   const approval = handlers.lookup('approval-gate')
 
   // load：确定性节点，读取说明书并做结构统计。
+  // oxlint-disable-next-line typescript/require-await -- GraphNode contract requires Promise<StateDelta>
   builder.addNode('load', async ({ state }) => {
     const text = resolveInput(state, ['text', 'source_text', 'spec', 'input'])
     const sections = checkSections(text)

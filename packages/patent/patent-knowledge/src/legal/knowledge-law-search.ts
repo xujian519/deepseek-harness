@@ -153,7 +153,7 @@ export class KnowledgeLawSearch implements LegalSearchSource {
   /** FTS5 粘性降级打点（构造期 prepare 捕获与查询期异常共用）。 */
   private degradeFts(reason: string): void {
     this.ftsDegraded = true
-    this.logger?.warn?.(`[sati] 法规 FTS5 不可用，已降级 LIKE: ${reason}`)
+    this.logger?.warn(`[sati] 法规 FTS5 不可用，已降级 LIKE: ${reason}`)
     this.stats?.setLegalFtsDegraded(true)
   }
 
@@ -244,7 +244,7 @@ export class KnowledgeLawSearch implements LegalSearchSource {
   }
 
   private searchFtsWithQuery(query: string, options: KnowledgeLawSearchOptions, limit: number): DocChunkRow[] {
-    const rows = this.withLevelFilter(query, options, limit * FETCH_MULTIPLIER) as DocChunkRow[]
+    const rows = this.withLevelFilter(query, options, limit * FETCH_MULTIPLIER)
     return this.backfillContent(this.dedupeByDocument(rows, limit))
   }
 

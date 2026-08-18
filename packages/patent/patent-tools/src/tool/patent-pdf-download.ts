@@ -222,7 +222,7 @@ async function loadManifest(outputDir: string): Promise<Map<string, PatentManife
     const trimmed = line.trim()
     if (!trimmed) continue
     try {
-      const entry = JSON.parse(trimmed) as PatentManifestEntry
+      const entry = JSON.parse(trimmed) as PatentManifestEntry | null
       if (entry && typeof entry.patent === 'string' && entry.status === 'ok') {
         byPatent.set(entry.patent, entry)
       }
@@ -405,7 +405,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
           recorded: { type: 'string' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderPdfDownload(value as unknown as PatentPdfDownloadOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderPdfDownload(value) }],
     },
     async execute(args, exec) {
       const patents = validatePatents(args.patents)

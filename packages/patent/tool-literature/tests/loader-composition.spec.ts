@@ -97,7 +97,7 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
   it('paper_search returns hits with globalThis.fetch stubbed', async () => {
     const ctx = await boot([])
     const original = globalThis.fetch
-    globalThis.fetch = (async () => new Response(ATOM_FEED, { status: 200 })) as typeof fetch
+    globalThis.fetch = (async () => new Response(ATOM_FEED, { status: 200 }))
     try {
       const result = await ctx.tools.execute({
         signal: new AbortController().signal,

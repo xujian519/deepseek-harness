@@ -33,7 +33,7 @@ describe('registry', () => {
     expect(reg.lookup('search')?.description).toBe('覆盖版')
 
     // 缺少 name 抛错
-    expect(() => reg.register({ name: '', description: 'x', category: 'search', inputSchema: [], outputSchema: [] }))
+    expect(() => { reg.register({ name: '', description: 'x', category: 'search', inputSchema: [], outputSchema: [] }) })
       .toThrow(AtomRegistryError)
   })
 

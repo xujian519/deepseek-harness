@@ -71,7 +71,7 @@ describe('methodology registry and components', () => {
 
   it('registry rejects duplicate registrations', () => {
     const registry = new MethodologyRegistry()
-    expect(() => registry.register(registry.list()[0] as never)).toThrow(/already registered/)
+    expect(() => { registry.register(registry.list()[0] as never) }).toThrow(/already registered/)
   })
 
   it('extractMethodologyKeywords lowercases and dedupes', () => {

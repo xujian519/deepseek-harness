@@ -133,7 +133,7 @@ describe('per-call temperature', () => {
     const port = createLlmModelPort(
       async function* (options) {
         capturedOptions = options
-        yield { type: 'finish', reason: { kind: 'stop' } } as StreamChunk
+        yield { type: 'finish', reason: { kind: 'stop' } }
       },
       { provider: 'deepseek', model: 'deepseek-chat', temperature: 0.7 },
     )

@@ -23,7 +23,7 @@ import type {
   RunOptions,
   StateDelta,
 } from './types.ts'
-import { GRAPH_END, GraphEngineError, GraphInterruptError, isGraphInterruptError } from './types.ts'
+import { GRAPH_END, GraphEngineError, isGraphInterruptError } from './types.ts'
 import { cloneState } from './state.ts'
 import { DEGRADATION_SUFFIX, degradationSummary } from './degradation.ts'
 import { mergeWithSchema, type MergeSchema } from './merge.ts'
@@ -177,9 +177,6 @@ export class CompiledGraph {
   }
 }
 
-/** 单节点执行结果打包（含节点名）。 */
-type NamedOutcome = { name: string; delta: StateDelta } | { name: string; error: unknown }
-
 /** 恢复起点（resume 用）：state + active + 超步序号。 */
 export type ResumePoint = { state: GraphState; active: string[]; stepIndex: number }
 
@@ -210,7 +207,7 @@ async function runSuperSteps(
       active.map(async (name) => {
         const node = def.nodes.get(name)
         if (node === undefined) {
-          return { name, error: new GraphEngineError(`节点 "${name}" 未注册（图定义不一致）`) } as NamedOutcome
+          return { name, error: new GraphEngineError(`节点 "${name}" 未注册（图定义不一致）`) }
         }
         const policy = def.nodePolicies.get(name)
         try {
@@ -220,11 +217,11 @@ async function runSuperSteps(
             ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
           })
           return outcome.ok
-            ? ({ name, delta: outcome.delta } as NamedOutcome)
-            : ({ name, error: outcome.error } as NamedOutcome)
+            ? ({ name, delta: outcome.delta })
+            : ({ name, error: outcome.error })
         } catch (err) {
           // runNodeWithPolicy 不抛普通错误；中断错误穿透至此。
-          return { name, error: err } as NamedOutcome
+          return { name, error: err }
         }
       }),
     )
@@ -233,7 +230,7 @@ async function runSuperSteps(
     // 中断（审批门等）：立即暂停，不执行后续超步。
     for (const outcome of outcomes) {
       if ('error' in outcome && isGraphInterruptError(outcome.error)) {
-        const interrupt = outcome.error as GraphInterruptError
+        const interrupt = outcome.error
         interrupted = { node: outcome.name, message: interrupt.message, data: interrupt.data }
         return { state, completed: false, steps, degraded: degradationSummary(state), interrupted }
       }

@@ -84,17 +84,17 @@ function renderCatalog(value: { parameters: TrizParameterView[]; principles: Tri
     'TRIZ: 39 engineering parameters and 40 inventive principles.',
     '',
     '## Engineering parameters',
-    ...value.parameters.map(param => '- ' + param.number + '. ' + param.label),
+    ...value.parameters.map(param => `- ${param.number}. ${param.label}`),
     '',
     '## Inventive principles',
-    ...value.principles.map(principle => '- ' + principle.number + '. ' + principle.name + ' — ' + principle.description),
+    ...value.principles.map(principle => `- ${principle.number}. ${principle.name} — ${principle.description}`),
   ]
   return lines.join('\n')
 }
 
 /** Render one matrix-cell lookup as Markdown. */
 function renderLookup(value: { improving: TrizParameterView; worsening: TrizParameterView; recommended: TrizPrincipleView[] }): string {
-  const header = 'Contradiction matrix: improving ' + value.improving.label + ' (' + value.improving.number + ') → worsening ' + value.worsening.label + ' (' + value.worsening.number + ')'
+  const header = `Contradiction matrix: improving ${value.improving.label} (${value.improving.number}) → worsening ${value.worsening.label} (${value.worsening.number})`
   if (value.recommended.length === 0) {
     return header + '\n\nRecommended principles: none. A diagonal cell names a physical contradiction (improving equals worsening), which classical TRIZ resolves by separation rather than a matrix entry.'
   }
@@ -103,7 +103,7 @@ function renderLookup(value: { improving: TrizParameterView; worsening: TrizPara
     '',
     'Recommended principles: ' + value.recommended.map(principle => principle.number).join(', '),
     '',
-    ...value.recommended.map(principle => '- ' + principle.number + '. ' + principle.name + ' — ' + principle.description),
+    ...value.recommended.map(principle => `- ${principle.number}. ${principle.name} — ${principle.description}`),
   ]
   return lines.join('\n')
 }
@@ -158,6 +158,7 @@ export function createTrizTool(): ToolDefinition {
       },
       render: (_args, value) => [{ type: 'text', text: renderTriz(value as unknown as TrizOutput) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       if (args.improving === undefined && args.worsening === undefined) {
         return { mode: 'catalog', parameters: allParameters(), principles: allPrinciples() } as const

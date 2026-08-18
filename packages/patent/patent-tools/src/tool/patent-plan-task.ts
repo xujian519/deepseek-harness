@@ -138,6 +138,7 @@ export function createPatentPlanTaskTool(): ToolDefinition {
       },
       render: (_args, value) => [{ type: 'text', text: renderPlanTask(value as unknown as PatentPlanTaskOutput) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       const input = args as unknown as PatentPlanTaskInput
       switch (input.action) {
@@ -157,7 +158,7 @@ export function createPatentPlanTaskTool(): ToolDefinition {
           }
           try {
             const next = machine.transition(to, {
-              ...(input.tasks !== undefined ? { tasks: input.tasks as unknown as PlanTask[] } : {}),
+              ...(input.tasks !== undefined ? { tasks: input.tasks } : {}),
               ...(input.feedback !== undefined ? { feedback: input.feedback } : {}),
             })
             return { ok: true, action: 'transition' as const, from, state: next }

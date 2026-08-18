@@ -129,7 +129,7 @@ function makeStageNode(
   },
 ): GraphNode {
   const handler = stage.atom !== undefined ? deps.handlers.lookup(stage.atom) : undefined
-  const mainKey = stage.atom !== undefined ? deps.atoms.lookup(stage.atom)?.outputSchema?.[0] : undefined
+  const mainKey = stage.atom !== undefined ? deps.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
   return async ({ state, provider, signal }) => {
     const execState = stage.params !== undefined ? { ...state, ...stage.params } : state
     const delta: StateDelta = {}
@@ -140,9 +140,11 @@ function makeStageNode(
       const raw = mainKey !== undefined ? segment[mainKey] : undefined
       if (typeof raw === 'string') output = raw
       else if (raw !== undefined) output = JSON.stringify(raw, null, 2)
-      if (output.trim().length === 0) output = String(execState[stage.id] ?? '')
+      // 既有阶段输出兜底：本层写入 stage.id 恒为字符串。
+      const existingOutput = execState[stage.id] as string | undefined
+      if (output.trim().length === 0) output = existingOutput ?? ''
     } else if (deps.executor !== undefined) {
-      output = (await deps.executor(stage, execState as WorkflowContext)) ?? ''
+      output = await deps.executor(stage, execState)
     }
     delta[stage.id] = output
     if (output.trim().length === 0 && handler === undefined && deps.executor === undefined) {
@@ -169,7 +171,7 @@ function signalMatches(text: string, signal: RegExp): boolean {
       return true
     }
     const fullMatch = match[0]
-    if (fullMatch !== undefined && fullMatch.length === 0) signal.lastIndex += 1
+    if (fullMatch.length === 0) signal.lastIndex += 1
   }
   return false
 }
@@ -192,13 +194,13 @@ function makeRetryRouter(stage: WorkflowStage, stages: WorkflowStage[], nextId: 
   const rewindedIds =
     rewindIndex === -1 || currentIndex === -1 ? [stage.id] : stages.slice(rewindIndex, currentIndex + 1).map(s => s.id)
 
-  return async (state) => {
+  return (state) => {
     const text = getStateString(state, stage.id, '')
     if (text.length === 0 || !signalMatches(text, signal)) {
       return [nextId]
     }
     const countKey = rewindCountKey(stage.id)
-    const count = typeof state[countKey] === 'number' ? (state[countKey] as number) : 0
+    const count = typeof state[countKey] === 'number' ? (state[countKey]) : 0
     if (count >= maxRetries) {
       // 超限：fail-open 继续（对齐 runWorkflow 的 WORKFLOW_RETRY_EXHAUSTED 降级）。
       state[retryExhaustedKey(stage.id)] = true

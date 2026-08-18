@@ -407,8 +407,26 @@ export function toJSON(state: FlexiblePlanState): string {
  * @param text - 计划状态快照的 JSON 字符串。
  * @returns 校验通过的计划状态快照。
  */
+/** fromJSON 解析目标的宽松形态：校验字段保持未收窄类型，校验通过后再收窄为 FlexiblePlanState。 */
+type LoosePlanState = {
+  caseId: string
+  caseType: string
+  status: string | undefined
+  stages: Array<{
+    id: string
+    name: string
+    goal: string
+    strategy: string | undefined
+    status: string | undefined
+    artifacts: unknown
+    constraintIds: unknown
+    articleJudgments: unknown
+  } | null>
+  currentStageId: string | undefined
+}
+
 export function fromJSON(text: string): FlexiblePlanState {
-  const data = JSON.parse(text) as FlexiblePlanState
+  const data = JSON.parse(text) as LoosePlanState
   if (typeof data.caseId !== 'string' || data.caseId.trim() === '') {
     throw new FlexiblePlanError('fromJSON: 非法计划快照（caseId 缺失）')
   }
@@ -461,9 +479,9 @@ export function fromJSON(text: string): FlexiblePlanState {
     }
   }
   if (data.currentStageId !== undefined && !ids.has(data.currentStageId)) {
-    throw new FlexiblePlanError(`fromJSON: currentStageId "${String(data.currentStageId)}" 不属于任何阶段`)
+    throw new FlexiblePlanError(`fromJSON: currentStageId "${data.currentStageId}" 不属于任何阶段`)
   }
-  return data
+  return data as FlexiblePlanState
 }
 
 // ---------------------------------------------------------------------------

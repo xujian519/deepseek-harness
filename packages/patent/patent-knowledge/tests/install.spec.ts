@@ -30,7 +30,7 @@ function makeSourceDb(dir: string): string {
 describe('installKnowledgeDb', () => {
   it('trims a source db by compressing long chunks and dropping embeddings', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-'))
-    cleanups.push(() => rmSync(dir, { recursive: true, force: true }))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
     const input = makeSourceDb(dir)
     const output = join(dir, 'knowledge-lite.db')
     const log: string[] = []
@@ -66,7 +66,7 @@ describe('installKnowledgeDb', () => {
 
 it('rejects an output path that aliases the source (symlink/./ forms) before touching it', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-alias-'))
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }))
+  cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
   const input = makeSourceDb(dir)
   // 文本不相等但真实路径相同：必须先于任何删除被守卫拦下。
   const aliased = join(dir, '.', 'knowledge.db')

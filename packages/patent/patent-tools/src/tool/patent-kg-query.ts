@@ -238,8 +238,9 @@ export function createPatentKgQueryTool(deps: PatentKgQueryDeps): ToolDefinition
           dbPath: { type: 'string' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderKgQuery(value as unknown as PatentKgQueryOutput) }],
+      render: (_args, value) => [{ type: 'text', text: renderKgQuery(value) }],
     },
+    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       if (deps.adapter === undefined) {
         throw new PatentToolError('setup_required', INSTALL_GUIDANCE, { tool: 'patent_kg_query' })

@@ -6,7 +6,6 @@ import {
   GraphInterruptError,
   isDegraded,
   type GraphNode,
-  type GraphState,
 } from '@deepseek-ai/dsh-patent-core'
 
 const node =
@@ -195,7 +194,7 @@ it('engine: sideEffect 节点 delta 不合并', async () => {
 
 it('engine: 节点访问深拷贝快照（并行不互相污染）', async () => {
   const builder = new GraphBuilder()
-  const reader: GraphNode = async ({ state }) => ({ saw: (state as GraphState).injected })
+  const reader: GraphNode = async ({ state }) => ({ saw: (state).injected })
   builder
     .addNode('inject', node('injected', 'seed'))
     .addNode('read1', reader)

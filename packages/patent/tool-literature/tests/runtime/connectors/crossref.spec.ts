@@ -42,7 +42,7 @@ describe('crossref connector', () => {
     let url = ''
     const connector = createCrossrefConnector({
       fetchImpl: async (input: RequestInfo | URL) => {
-        url = String(input)
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
         return jsonResponse({ message: { items: [] } })
       },
     })

@@ -188,7 +188,7 @@ export function retrieveFiguresKeyword(
   limit: number,
 ): Array<{ entry: FigureIndexEntry; score: number }> {
   if (entries.length === 0) return []
-  const trimmed = (query ?? '').trim()
+  const trimmed = query.trim()
   const documents = entries.map(buildFigureDocumentText)
   const queryTokens = tokenizeFigureText(trimmed)
   if (queryTokens.length === 0) return listHits(entries, limit)
@@ -283,7 +283,7 @@ export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): Tool
         )
       }
       const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
-      const query = args.query ?? ''
+      const query = args.query
       const hits = retrieveFiguresKeyword(loaded.entries, query, limit)
       const results: SearchPatentFigureResultItem[] = hits.map((hit) => {
         const analysis = hit.entry.analysis

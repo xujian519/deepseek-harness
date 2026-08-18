@@ -77,17 +77,20 @@ export async function runStageOnce(
         })
         Object.assign(state, segment)
         // 主输出键 = atom.outputSchema[0]（对齐 Mady 约定，文本/JSON 均可）；兜底按 stage.id 引用。
-        const mainKey = stage.atom !== undefined ? options.atoms.lookup(stage.atom)?.outputSchema?.[0] : undefined
+        const mainKey = stage.atom !== undefined ? options.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
         const raw = mainKey !== undefined ? segment[mainKey] : undefined
         output = typeof raw === 'string' ? raw : raw === undefined ? '' : JSON.stringify(raw, null, 2)
-        if (output.trim().length === 0) output = String(state[stage.id] ?? '')
+        if (output.trim().length === 0) {
+          const fallback = state[stage.id]
+          output = typeof fallback === 'string' ? fallback : fallback === undefined ? '' : JSON.stringify(fallback, null, 2)
+        }
         // 已批准审批门放行后无实质输出：占位避免被标记 degraded（语义 = 已人工批准）。
         if (approvedGate && output.trim().length === 0) {
           output = APPROVAL_GRANTED_OUTPUT
         }
         state[stage.id] = output
       } else if (options.executor) {
-        output = (await options.executor(stage, options.ctx)) ?? ''
+        output = await options.executor(stage, options.ctx)
       }
       if (output.trim().length > 0) break
       lastError = new Error('阶段执行未产生输出')
@@ -113,7 +116,8 @@ export async function runStageOnce(
     !(lastError instanceof Error && lastError.message === '阶段执行未产生输出')
   ) {
     // 保留错误信息到输出，便于诊断；仍标记 degraded。
-    output = `[WORKFLOW_DEGRADED] ${stage.id}: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+    const detail = lastError instanceof Error ? lastError.message : typeof lastError === 'string' ? lastError : JSON.stringify(lastError)
+    output = `[WORKFLOW_DEGRADED] ${stage.id}: ${detail}`
   }
   return { output, retries }
 }

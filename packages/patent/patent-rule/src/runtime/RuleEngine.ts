@@ -71,7 +71,6 @@ function checkPatternAnalysis(check: PatternAnalysisCheck, text: string): string
       let match: RegExpExecArray | null
       while ((match = regex.exec(text)) !== null) {
         const fullMatch = match[0]
-        if (fullMatch === undefined) break
         count += 1
         if (matches.length < 4) matches.push(fullMatch)
         if (fullMatch.length === 0) regex.lastIndex += 1
@@ -123,7 +122,7 @@ function checkCitationAnalysis(
   while ((match = CITATION_RE.exec(text)) !== null) {
     const fullMatch = match[0]
     const articleText = match[2]
-    if (fullMatch === undefined || articleText === undefined) break
+    if (articleText === undefined) break
     const statuteName = match[1] === '专利法实施细则' ? '专利法实施细则' : '专利法'
     const article = parseCnNumber(articleText)
     if (article === null) continue

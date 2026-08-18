@@ -10,35 +10,35 @@ import { globalAtomRegistry, registerBuiltinAtoms } from '@deepseek-ai/dsh-paten
 
 describe('workflow retry validation', () => {
   it('validate: empty or invalid retry.whenOutputMatches is rejected', () => {
-    expect(() =>
+    expect(() => {
       validateWorkflowManifest({
         id: 't', name: 't', caseType: 't',
         stages: [{ id: 'a', strategy: 'chain', description: 'a', retry: { whenOutputMatches: '  ' } }],
-      }),
+      }) },
     ).toThrow(/whenOutputMatches 不能为空/)
-    expect(() =>
+    expect(() => {
       validateWorkflowManifest({
         id: 't', name: 't', caseType: 't',
         stages: [{ id: 'a', strategy: 'chain', description: 'a', retry: { whenOutputMatches: '(' } }],
-      }),
+      }) },
     ).toThrow(/非法正则/)
   })
 
   it('validate: rewindTo pointing to missing or self stages is rejected', () => {
-    expect(() =>
+    expect(() => {
       validateWorkflowManifest({
         id: 't', name: 't', caseType: 't',
         stages: [
           { id: 'a', strategy: 'chain', description: 'a' },
           { id: 'b', strategy: 'chain', description: 'b', retry: { whenOutputMatches: 'x', rewindTo: 'nope' } },
         ],
-      }),
+      }) },
     ).toThrow(/rewindTo 指向不存在的阶段/)
-    expect(() =>
+    expect(() => {
       validateWorkflowManifest({
         id: 't', name: 't', caseType: 't',
         stages: [{ id: 'a', strategy: 'chain', description: 'a', retry: { whenOutputMatches: 'x', rewindTo: 'a' } }],
-      }),
+      }) },
     ).toThrow(/不能指向自身/)
   })
 
@@ -186,7 +186,7 @@ describe('workflow retry validation', () => {
   })
 
   it('validate: rewindTo pointing to a later stage is rejected', () => {
-    expect(() =>
+    expect(() => {
       validateWorkflowManifest({
         id: 't', name: 't', caseType: 't',
         stages: [
@@ -194,12 +194,12 @@ describe('workflow retry validation', () => {
           { id: 'b', strategy: 'chain', description: 'b', retry: { whenOutputMatches: 'x', rewindTo: 'c' } },
           { id: 'c', strategy: 'chain', description: 'c' },
         ],
-      }),
+      }) },
     ).toThrow(/rewindTo 指向不存在的阶段/)
   })
 
   it('patentDisclosureManifest: structure and retry declarations are valid', () => {
-    expect(() => validateWorkflowManifest(patentDisclosureManifest)).not.toThrow()
+    expect(() => { validateWorkflowManifest(patentDisclosureManifest) }).not.toThrow()
     expect(patentDisclosureManifest.id).toBe('patent_disclosure_v1')
     expect(patentDisclosureManifest.stages).toHaveLength(13)
     const consistency = patentDisclosureManifest.stages.find(s => s.id === 'consistency')!
@@ -225,10 +225,10 @@ describe('workflow retry validation', () => {
 
   it('patentDisclosureManifest: declared atoms exist after builtin registration', () => {
     registerBuiltinAtoms()
-    expect(() =>
+    expect(() => {
       validateWorkflowManifest(patentDisclosureManifest, {
         atomNames: new Set(globalAtomRegistry.list().map(a => a.name)),
-      }),
+      }) },
     ).not.toThrow()
   })
 })

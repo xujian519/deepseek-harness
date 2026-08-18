@@ -298,7 +298,7 @@ function buildFigureAnalysisPrompt(
   imagePath: string,
 ): string {
   return [
-    '你是一位资深专利代理师与专利审查专家。请分析一张专利说明书附图（图' + figureNumber + '）。',
+    `你是一位资深专利代理师与专利审查专家。请分析一张专利说明书附图（图${figureNumber}）。`,
     '',
     `附图图片路径：${imagePath}`,
     `发明名称：${inventionName?.trim() || '（未提供）'}`,
@@ -500,7 +500,7 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
           modelUsed: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderFigureAnalysis(value as unknown as FigureAnalysisResult) }],
+      render: (_args, value) => [{ type: 'text', text: renderFigureAnalysis(value) }],
     },
     async execute(args, exec) {
       // 本构建的 PatentModelPort 是纯文本接缝，从不发送图片字节；execute 走

@@ -15,7 +15,6 @@ import z from '@deepseek-ai/schemastery'
 import { createLlmModelPort, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
-import type { PatentKnowledge } from '@deepseek-ai/dsh-patent-knowledge'
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -161,6 +160,7 @@ function buildModelPort(ctx: Context, config: Config): PatentModelPort {
     }
   }
   return {
+    // oxlint-disable-next-line typescript/require-await -- PatentModelPort.stream contract returns AsyncIterable
     stream: async function* () {
       throw new PatentToolError('setup_required', '未配置 LLM provider/model（Config.provider/model 或部署默认路由不可用），无法执行 LLM 工具。', {})
     },
@@ -197,7 +197,7 @@ export function apply(ctx: Context, config: Config): void {
   const model = buildModelPort(ctx, config)
   const gateModel = figureRoute(ctx, config)
   const resolveImageInputModalitiesFor = buildImageGateResolver(ctx)
-  const knowledge = ctx.get('patentKnowledge') as PatentKnowledge | undefined
+  const knowledge = ctx.get('patentKnowledge')
 
   // Search / metadata / legal status: default to the nuo engine (no service needed).
   ctx.tools.register(createPatentSearchTool())
@@ -252,6 +252,7 @@ export function apply(ctx: Context, config: Config): void {
   // Search figure index: analyze_patent_figure does not persist an index in
   // this port, so the tool fails loud until an integrator wires a real loader.
   ctx.tools.register(createSearchPatentFigureTool({
+    // oxlint-disable-next-line typescript/require-await -- SearchPatentFigureDeps.loadIndex contract returns Promise<LoadFigureIndexResult>
     loadIndex: async () => {
       throw new PatentToolError('setup_required', 'search_patent_figure 需要附图索引加载器（analyze_patent_figure 当前不落盘索引）；未接线。', { tool: 'search_patent_figure' })
     },
@@ -260,12 +261,14 @@ export function apply(ctx: Context, config: Config): void {
   // PDF download: the ego-browser runner adapter is a deferred integration point;
   // the tool fails loud until a real runEgo is wired.
   ctx.tools.register(createPatentPdfDownloadTool({
+    // oxlint-disable-next-line typescript/require-await -- RunEgo contract returns Promise<EgoDownloadResult>
     runEgo: async () => {
       throw new PatentToolError('setup_required', 'patent_pdf_download 需要 ego-browser 运行器（经 ctx.patentData.createEgoSession 注入）；当前未接线。', { tool: 'patent_pdf_download' })
     },
     fetchImpl: globalThis.fetch,
   }))
   ctx.tools.register(createKnowledgeNoteSaveTool({
+    // oxlint-disable-next-line typescript/require-await -- KnowledgeNoteSaveDeps.writeNote contract returns Promise<WriteNoteResult>
     writeNote: async () => {
       throw new PatentToolError('setup_required', 'knowledge_note_save 需要存储写入器（经 ctx.storage 注入）；当前未接线。', { tool: 'knowledge_note_save' })
     },

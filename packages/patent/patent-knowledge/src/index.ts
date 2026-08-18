@@ -126,7 +126,7 @@ export class PatentKnowledge extends Service {
     super(ctx, 'patentKnowledge')
     this.paths = resolveKnowledgePaths(config)
     this.wiki = new WikiCardLoader(this.paths.wikiDir)
-    this.ctx.effect(() => () => this.close(), 'patent-knowledge: engines')
+    this.ctx.effect(() => () => { this.close() }, 'patent-knowledge: engines')
   }
 
   /**

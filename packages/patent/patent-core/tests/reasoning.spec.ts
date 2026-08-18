@@ -56,8 +56,8 @@ it('黑板：Lock 后修改抛错（防误用）', () => {
   const bb = makeBlackboard()
   bb.lock()
   expect(bb.isLocked()).toBe(true)
-  expect(() => bb.addFact({ id: 'F2', source: 'manual', content: 'x', confidence: 0.5, extractedAt: now() })).toThrow(/locked/)
-  expect(() => bb.discardFact('F1')).toThrow(/locked/)
+  expect(() => { bb.addFact({ id: 'F2', source: 'manual', content: 'x', confidence: 0.5, extractedAt: now() }) }).toThrow(/locked/)
+  expect(() => { bb.discardFact('F1') }).toThrow(/locked/)
   // 只读仍可用
   expect(bb.getFact('F1')?.id).toBe('F1')
 })
