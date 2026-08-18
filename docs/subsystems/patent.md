@@ -123,7 +123,7 @@ ipcStandardsByArticle(article: string): IpcStandardCard[]
 ipcStandardsSearch(keyword: string, limit: number = 10): IpcStandardCard[]
 ```
 
-Source: [`packages/patent/patent-knowledge/src/index.ts:118`](../../packages/patent/patent-knowledge/src/index.ts)
+Source: [`packages/patent/patent-knowledge/src/index.ts:111`](../../packages/patent/patent-knowledge/src/index.ts)
 
 <a id="ctxpatentworkflow--patentworkflow"></a>
 
@@ -160,6 +160,8 @@ async runPlantask( agent: PatentAgent, caseId: string, planSteps: string[], opti
 
 /**
  * Decision entry: approve a pending plantask (resume to executing).
+ * Single-session single-case semantics: one pending plantask per caseId;
+ * concurrent runs of the same caseId are rejected by runPlantask.
  * @param caseId - the case keying the parked plantask.
  * @returns the final plantask state, tasks, and approval outcome.
  */
@@ -174,7 +176,7 @@ approve(caseId: string): PlantaskRunResult
 reject(caseId: string, feedback?: string): PlantaskRunResult
 ```
 
-Source: [`packages/patent/patent-workflow/src/index.ts:70`](../../packages/patent/patent-workflow/src/index.ts)
+Source: [`packages/patent/patent-workflow/src/index.ts:71`](../../packages/patent/patent-workflow/src/index.ts)
 <!-- END GENERATED cordis-surface -->
 
 ## The ModelPort contract

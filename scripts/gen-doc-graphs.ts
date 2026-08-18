@@ -563,6 +563,27 @@ const SERVICE_ROLES: ServiceRole[] = [
     consumers: ['tool-cordis'],
     note: 'Registers host inspect providers, mirrors the client provider manifest, and routes client queries through the dynamic Cordis transport.',
   },
+  {
+    key: 'patentData',
+    pkg: 'patent-data',
+    title: 'Patent data access seam',
+    mode: 'seam',
+    note: 'Service Definition for nuo-patent mapping/search plus the ego-browser subprocess provider; the provider and tool consumers land with the plan phases (P1.2, P3.2).',
+  },
+  {
+    key: 'patentKnowledge',
+    pkg: 'patent-knowledge',
+    title: 'knowledge.db query seam',
+    mode: 'seam',
+    note: 'Service Definition for case-law FTS, legal, wiki-card, and knowledge-graph lookups; the sqlite provider and install command land with P1.3.',
+  },
+  {
+    key: 'patentWorkflow',
+    pkg: 'patent-workflow',
+    title: 'Patent execution pipeline',
+    mode: 'seam',
+    note: 'Service Definition for the workflow/flexible-plan/plantask state machines with HITL approval wiring; the implementation lands with P3.1.',
+  },
 ]
 
 function generatedHeader(title: string): string[] {
@@ -935,6 +956,11 @@ export class EventRelationCollector {
               for (const event of this.eventNamesFromArgumentList(argumentList, new Set())) {
                 this.addDispatcher(event, source.pkg, 'events.dispatch')
               }
+            }
+          } else if (receiverKind === 'events-service' && (method === 'emit' || method === 'parallel' || method === 'serial' || method === 'waterfall')) {
+            // EventsService methods take the event name as their first argument.
+            for (const event of this.eventNamesFromCall(node, 'context')) {
+              this.addDispatcher(event, source.pkg, method)
             }
           } else if (receiverKind === 'context' || receiverKind === 'agent-dispatch') {
             const eventNames = this.eventNamesFromCall(node, receiverKind)
