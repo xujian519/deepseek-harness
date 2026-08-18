@@ -61,3 +61,8 @@ Accepted prompt-section proposals append text to the system prompt for subsequen
 #### KV Cache effect
 
 The stable tool-self-evolve prompt section is present on every request while the consumer is loaded, so it participates in the request prefix. Proposal-driven prompt sections and skills are added to the prefix from the turn they commit onward.
+
+## Known Limitations and Deferred Work
+
+- **L1/L2 only** — the provider targets skill (L1) and prompt-section (L2) proposals; L3-workflow and L4-harness requests produce no proposals yet.
+- **No keyed end-to-end verification** — proposal effects are reversible commits covered by unit tests; a live `dsh --profile` loop run requires a keyed environment.

@@ -34,3 +34,8 @@ Each tool call and its JSON response is rendered as a tool-result row in the con
 #### KV Cache effect
 
 The stable prompt section is part of the request prefix on every turn while the consumer is loaded.
+
+## Known Limitations and Deferred Work
+
+- **Bounded by the provider surface** — the tools expose the seam, but proposal breadth is limited by the loaded provider (L1/L2 today).
+- **No keyed end-to-end verification** — `self_evolve_now` runs are unit-covered; a live loop run requires a keyed environment.

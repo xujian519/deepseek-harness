@@ -37,3 +37,8 @@ None, as the Service Definition only declares the abstract lifecycle and durable
 #### KV Cache effect
 
 No direct request changes; consumers own any prompt-section or tool registrations.
+
+## Known Limitations and Deferred Work
+
+- **Scaffold-stage seam** — the Service Definition declares the abstract lifecycle and the durable event vocabulary; trigger policy, rate limits, proposals, and effect commits are owned by the provider, and no provider implements the L3-workflow or L4-harness proposal levels yet.
+- **Projection scope** — `failure-patterns` folds only the documented event surface (tool results, agent request errors, compaction ends, `self-evolve/end`); non-verifier signals stay outside the pattern vocabulary.
