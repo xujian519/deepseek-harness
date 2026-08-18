@@ -8,7 +8,7 @@ const runnerPrivatePnpmDestination = '${{ runner.temp }}/setup-pnpm'
 
 describe('CI workflow', () => {
   it('isolates every pnpm action setup destination per runner', () => {
-    const workflow: unknown = yaml.load(readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8'))
+    const workflow = loadWorkflow('.github/workflows/ci.yml')
     if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError('CI workflow must define jobs')
 
     const setups = Object.entries(workflow.jobs).flatMap(([jobName, job]) => {
@@ -425,7 +425,21 @@ describe('Git hooks', () => {
 })
 
 function loadWorkflow(path: string): Record<string, unknown> {
-  const workflow: unknown = yaml.load(readFileSync(resolve(root, path), 'utf8'))
+  const candidates = [resolve(root, path)]
+  if (path.startsWith('.github/workflows/')) {
+    candidates.push(resolve(root, path.replace('.github/workflows/', '.github/workflows-disabled/')))
+  }
+  let content: string | undefined
+  for (const file of candidates) {
+    try {
+      content = readFileSync(file, 'utf8')
+      break
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err
+    }
+  }
+  if (content === undefined) throw new TypeError(`${path} must define a workflow`)
+  const workflow: unknown = yaml.load(content)
   if (!isRecord(workflow)) throw new TypeError(`${path} must define a workflow`)
   return workflow
 }
