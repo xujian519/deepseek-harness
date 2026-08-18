@@ -188,6 +188,19 @@ describe('loadProfile', () => {
     ])
   })
 
+  it('auto-initializes the desktop template and normalizes its installation-owned tuple', () => {
+    const anchor = stageInstallation({
+      '@deepseek-ai/dsh-base': { patch: '[]\n' },
+      '@deepseek-ai/dsh-web-app': { patch: '[]\n' },
+      '@deepseek-ai/dsh-desktop-app': { patch: '[]\n' },
+    })
+    const home = tmp()
+    expect(PROFILE_TEMPLATES.desktop).toContain('@deepseek-ai/dsh-desktop-app')
+    loadProfile('t', 'desktop', anchor, home)
+    expect(readProfileManifest('t', resolveProfileDir('desktop', home)).dsh?.profile?.bundles)
+      .toEqual([...PROFILE_TEMPLATES.desktop ?? []])
+  })
+
   it('fails loud when a listed bundle declares no dsh.bundle', () => {
     const anchor = stageInstallation({ 'not-a-bundle': {} })
     const home = tmp()

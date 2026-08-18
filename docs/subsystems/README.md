@@ -49,6 +49,7 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [web-server.md](web-server.md) | the HTTP carrier: `WebRouteKind`/`WebRoute`, match order, the claimable fallback seat, index taps |
 | [storage.md](storage.md) | the storage subsystem: the backend contract (`StorageBackend`), `StorageForms`, `DomainSpec`/`Domain`, `domain/changed` |
 | [workspace.md](workspace.md) | the workspace registry: `Workspace`/`WorkspaceId`, registration and resolution, the session `cwd` relationship |
+| [desktop.md](desktop.md) | desktop OS-integration seam: native dialogs, notifications, menus, shortcuts, tray, and the Electron main bridge |
 | [patent.md](patent.md) | the patent-domain port: the `ctx.patentData`/`ctx.patentKnowledge`/`ctx.patentWorkflow` service seams, the ModelPort contract, the model-facing tool set, rule gates, and document rendering |
 | [client-modules.md](client-modules.md) | the web plugin table: `dsh.client` declarations, `WebBootGraph` wire composition, the bundle route and index tap |
 | [session-projection.md](session-projection.md) | the projection seam: `SessionProjectionMap`, the pure `ProjectionDefinition` unit, `ProjectionSnapshot`'s consistent cut, the change feed |

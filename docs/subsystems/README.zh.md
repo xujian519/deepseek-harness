@@ -49,6 +49,7 @@
 | [web-server.md](web-server.md) | HTTP 载体：`WebRouteKind`/`WebRoute`、匹配顺序、可认领的回退席位、index 渲染挂接点 |
 | [storage.md](storage.md) | 存储子系统：后端约定（`StorageBackend`）、`StorageForms`、`DomainSpec`/`Domain`、`domain/changed` |
 | [workspace.md](workspace.md) | 工作区注册表：`Workspace`/`WorkspaceId`、注册与解析、与会话 `cwd` 的关系 |
+| [desktop.md](desktop.md) | 桌面操作系统集成 seam：原生对话框、通知、菜单、快捷键、托盘与 Electron 主进程桥接 |
 | [patent.md](patent.md) | 专利域移植：`ctx.patentData`/`ctx.patentKnowledge`/`ctx.patentWorkflow` 服务接缝、ModelPort 契约、模型可见工具集、规则门禁与文书渲染 |
 | [client-modules.md](client-modules.md) | Web 插件表：`dsh.client` 声明、`WebBootGraph` 线上组合、bundle 路由与 index 转换 |
 | [session-projection.md](session-projection.md) | 投影 seam：`SessionProjectionMap`、纯函数 `ProjectionDefinition` 单元、`ProjectionSnapshot` 的一致切面、变更馈送 |
