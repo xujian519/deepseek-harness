@@ -293,6 +293,15 @@
     { "path": "./packages/lsp/lsp" },
     { "path": "./packages/lsp/lsp-stdio" },
     { "path": "./packages/lsp/tool-lsp" },
-    { "path": "./apps/cli" }
+    { "path": "./apps/cli" },
+    { "path": "./packages/patent/patent-core" },
+    { "path": "./packages/patent/patent-data" },
+    { "path": "./packages/patent/patent-knowledge" },
+    { "path": "./packages/patent/patent-workflow" },
+    { "path": "./packages/patent/patent-tools" },
+    { "path": "./packages/patent/patent-rule" },
+    { "path": "./packages/patent/patent-document" },
+    { "path": "./packages/patent/tool-literature" },
+    { "path": "./packages/patent/methodology" }
   ]
 }
