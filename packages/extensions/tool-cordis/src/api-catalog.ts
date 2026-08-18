@@ -2367,9 +2367,9 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'cordis/before-approval',
     mode: 'waterfall',
-    signature: '\'cordis/before-approval\'( this: Scoped<Agent>, info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>',
+    signature: '\'cordis/before-approval\'( info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>',
     summary: 'Waterfall consulted before a Client-bearing activation request is armed.',
-    description: 'Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only activations requested through that agent\'s context.',
+    description: 'Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement. Emitted on the runner\'s context without scope routing; the payload carries the owning `agentId` for listeners that need agent isolation.',
     parameters: [{ name: 'info', description: 'the pending activation request facts and base requirement.' }, { name: 'next', description: 'delegate to the remaining listeners; resolves with their effective requirement.' }],
   },
   {
