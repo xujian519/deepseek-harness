@@ -141,8 +141,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:184`](../packages/self-evolve/self-evolve/src/types.ts)
-
+来源：[`packages/self-evolve/self-evolve/src/types.ts:184`](../packages/self-evolve/self-evolve/src/types.ts) /tmp/master-persistence-catalog.zh.md
 ### `agent-preset/*`
 
 <a id="agent-presetselected--log-only"></a>
@@ -519,6 +518,42 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 ```
 
 来源：[`packages/llm/llm-retry/src/types.ts:11`](../packages/llm/llm-retry/src/types.ts)
+
+### `patent/*`
+
+<a id="patentplantask--log-only"></a>
+
+#### `patent/plantask` — log-only
+
+```ts persistence-catalog
+/**
+ * A plantask plan entered a new state. The full task list travels with
+ * every append, so the plan's machine state (pending/in_progress/completed
+ * per task, plus the current PlanTaskState) is reconstructable from the
+ * log alone; replaying the log IS the plan state. Log-only — never derived
+ * model history.
+ * @param event - the plantask state snapshot appended to the session log.
+ */
+'patent/plantask': PatentPlantaskEvent
+```
+
+来源：[`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
+
+<a id="patentworkflow-run--log-only"></a>
+
+#### `patent/workflow-run` — log-only
+
+```ts persistence-catalog
+/**
+ * A workflow run finished (completed, degraded, or interrupted). Carries
+ * the per-stage results and summary the run reports to the model, so a
+ * model-visible run is reconstructable from the log. Log-only.
+ * @param event - the workflow run result appended to the session log.
+ */
+'patent/workflow-run': PatentWorkflowRunEvent
+```
+
+来源：[`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
 
 ### `permission/*`
 

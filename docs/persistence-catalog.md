@@ -90,7 +90,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-Sources: [`packages/core/session/src/types.ts:336`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:343`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:372`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:404`](../packages/core/session/src/types.ts)
+Sources: [`packages/core/session/src/types.ts:336`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:343`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:372`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:423`](../packages/core/session/src/types.ts)
 
 ## Events
 
@@ -517,6 +517,42 @@ Source: [`packages/llm/llm-retry/src/types.ts:9`](../packages/llm/llm-retry/src/
 ```
 
 Source: [`packages/llm/llm-retry/src/types.ts:11`](../packages/llm/llm-retry/src/types.ts)
+
+### `patent/*`
+
+<a id="patentplantask--log-only"></a>
+
+#### `patent/plantask` — log-only
+
+```ts persistence-catalog
+/**
+ * A plantask plan entered a new state. The full task list travels with
+ * every append, so the plan's machine state (pending/in_progress/completed
+ * per task, plus the current PlanTaskState) is reconstructable from the
+ * log alone; replaying the log IS the plan state. Log-only — never derived
+ * model history.
+ * @param event - the plantask state snapshot appended to the session log.
+ */
+'patent/plantask': PatentPlantaskEvent
+```
+
+Source: [`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
+
+<a id="patentworkflow-run--log-only"></a>
+
+#### `patent/workflow-run` — log-only
+
+```ts persistence-catalog
+/**
+ * A workflow run finished (completed, degraded, or interrupted). Carries
+ * the per-stage results and summary the run reports to the model, so a
+ * model-visible run is reconstructable from the log. Log-only.
+ * @param event - the workflow run result appended to the session log.
+ */
+'patent/workflow-run': PatentWorkflowRunEvent
+```
+
+Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
 
 ### `permission/*`
 

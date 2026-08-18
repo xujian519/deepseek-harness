@@ -1,0 +1,148 @@
+/**
+ * src/patent/workflow — 声明式工作流类型契约。
+ *
+ * 从 workflow.ts 拆出（轮次 1 纯搬移）：类型/接口 + WorkflowError，供执行器
+ * 与消费方（workflow-store / workflow-dag / graph/adapter / flexible-plan /
+ * 工具层）共享，解除对执行器文件的类型级耦合。
+ */
+
+import type { AtomRegistry, StageHandlerRegistry } from '../atoms/index.ts'
+import type { StageProvider } from '../types.ts'
+
+/** 阶段执行策略：chain / react / sub_agent。 */
+export type WorkflowStrategy = 'chain' | 'react' | 'sub_agent'
+
+/** 单个工作流阶段：id、策略、描述与可选原子/参数/重试配置。 */
+export type WorkflowStage = {
+  id: string
+  strategy: WorkflowStrategy
+  description: string
+  /**
+   * 可选：Pipeline 原子操作名（如 "extract"/"search"/"compare"/"reasoning"/"approval-gate"）。
+   * 声明后 runWorkflow 按 atom 分发到 StageHandler；缺省回退 executor。
+   */
+  atom?: string
+  /**
+   * 可选：传递给 StageHandler 的静态参数（执行前合并进 PipelineState，handler 经 state 读取）。
+   * 用于同一原子在不同阶段的差异化配置（如 extract 三路的 output_key / extraction_type）。
+   */
+  params?: Record<string, unknown>
+  /**
+   * 可选：一致性重试循环（对齐 Mady disclosure 管线的 check_consistency 条件回退边）。
+   * 本阶段输出匹配 whenOutputMatches（信号：需要重做）时，回退到 rewindTo 阶段
+   * 重新执行（含中间阶段），最多 maxRetries 次。
+   */
+  retry?: {
+    /** 触发回退的输出信号（正则源文本；如 "不一致|矛盾|缺少"）。 */
+    whenOutputMatches: string
+    /** 回退目标阶段 id；缺省重试当前阶段。 */
+    rewindTo?: string
+    /** 最大回退次数（缺省 1）。 */
+    maxRetries?: number
+  }
+}
+
+/** 声明式工作流 manifest：id、名称、案例类型、阶段列表与可选校验配置。 */
+export type WorkflowManifest = {
+  id: string
+  name: string
+  caseType: string
+  stages: WorkflowStage[]
+  validation?: {
+    /** 是否要求所有步骤都产生输出（缺省 true） */
+    requireAllSteps?: boolean
+    maxRetries?: number
+  }
+}
+
+/** 工作流运行上下文：案例 id、输入与可扩展的附加键值。 */
+export type WorkflowContext = {
+  /** 案例目录或案例 ID，用于输入输出路径（可含 {caseId} 占位） */
+  caseId?: string
+  /** 用户输入/初始事实 */
+  input?: string
+  [key: string]: unknown
+}
+
+/** 阶段执行器：消费阶段与上下文，产出阶段输出。 */
+export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>
+
+/** 工作流运行选项：处理器/原子注册表、提供方、审批授权、持久化与运行 id。 */
+export type WorkflowRunOptions = {
+  /** 阶段处理器注册表（缺省全局注册表）。传空注册表可禁用原子执行（收口语义）。 */
+  handlers?: StageHandlerRegistry
+  /** Atom 声明注册表（缺省全局注册表），用于解析 atom.outputSchema[0] 主输出键。 */
+  atoms?: AtomRegistry
+  /** 原子执行所需的外部能力（LLM/检索器），由宿主注入。 */
+  provider?: StageProvider
+  /**
+   * 已人工批准的审批门阶段 id 列表：命中时跳过执行直接放行（输出 "APPROVED"），
+   * 未命中的审批门照常中断。人工批准后重跑时传入，实现"审批门通过后继续"。
+   */
+  approvalGrants?: string[]
+  /**
+   * 结果持久化存储：执行结束时调用 saveRun（可选）。
+   * 设计对齐 src/workflow WorkflowPlanStore（save/load/list 三接口），
+   * 实现见 ./workflow-store.js。
+   */
+  persist?: WorkflowRunStore
+  /** 持久化键（runId），用于区分同一 manifest 的多次执行；缺省 manifestId。 */
+  runId?: string
+  /** 并行窗口上限（连续、同 atom、无 retry 的阶段并行数）；缺省 4。 */
+  maxParallelStages?: number
+  /** 调用方取消信号：阶段边界检查，中止时中止执行。 */
+  signal?: AbortSignal
+}
+
+/** 单个阶段执行结果：阶段 id、策略、输出、降级标记、重试次数与原子名。 */
+export type WorkflowStageResult = {
+  stageId: string
+  strategy: WorkflowStrategy
+  output: string
+  /** 该步骤是否降级（无输出时标记，不中断流程） */
+  degraded: boolean
+  retries: number
+  /** 该阶段声明的原子名（如有） */
+  atom?: string
+}
+
+/** 工作流中断信息（如审批门）：阶段 id、消息与附加数据。 */
+export type WorkflowInterrupt = {
+  stageId: string
+  message: string
+  data: Record<string, unknown>
+}
+
+/** 一次工作流运行结果：完成状态、各阶段结果、降级步骤、摘要与可选中断/告警。 */
+export type WorkflowRunResult = {
+  manifestId: string
+  caseType: string
+  completed: boolean
+  stages: WorkflowStageResult[]
+  /** 未产生输出的步骤 id */
+  degradedSteps: string[]
+  summary: string
+  /** 审批门等中断信息：存在表示执行被人工介入暂停（暂停 ≠ 失败） */
+  interrupted?: WorkflowInterrupt
+  /** 可选：结果持久化失败时的告警（执行本身不受影响） */
+  persistWarning?: string
+}
+
+/**
+ * WorkflowRun 持久化契约（对齐 src/workflow/persistence/WorkflowPlanStore 的
+ * save/load/list 三接口；此处持久化对象为 patent 域的 WorkflowRunResult）。
+ * 实现见 ./workflow-store.js（InMemory / JsonFile 两种后端）。
+ */
+export interface WorkflowRunStore {
+  saveRun(result: WorkflowRunResult, runId?: string): Promise<void>
+  loadRun(runId: string): Promise<WorkflowRunResult | undefined>
+  listRuns(): Promise<string[]>
+}
+
+/** 工作流错误：非法 manifest 或运行失败时抛出的领域错误。 */
+export class WorkflowError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkflowError'
+  }
+}

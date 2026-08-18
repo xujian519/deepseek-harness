@@ -13,8 +13,9 @@
  * in `./types.ts`): such a log was likely written by a newer harness, and
  * silently skipping a required event would reconstruct a wrong session.
  * Downstream (out-of-repo) plugin events are outside this list by
- * construction; a registration surface for them is deferred until such a
- * consumer exists.
+ * construction; a plugin marks its purely informational events via the
+ * `Session.append` write option (`AppendOptions.ignorable`) so first-party
+ * readers that do not know the type can skip them safely.
  */
 export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'agent-preset/selected',
@@ -37,6 +38,8 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'hook/result',
   'llm/retry',
   'llm/retry-started',
+  'patent/plantask',
+  'patent/workflow-run',
   'permission/preset',
   'plan/mode',
   'request/context',

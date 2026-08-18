@@ -1,0 +1,220 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { afterEach, describe, expect, it } from 'vitest'
+import { KgStore } from '@deepseek-ai/dsh-patent-knowledge'
+
+/**
+ * KgStore tests over small fixture graphs. The unified fixture mirrors
+ * knowledge.db (kg_nodes/kg_edges/kg_nodes_fts with trigram FTS over name/title
+ * only, so content-only phrases exercise the LIKE fallback); legacy fixtures
+ * mirror the old patent_kg.db schema.
+ */
+
+const cleanups: Array<() => void> = []
+afterEach(() => {
+  while (cleanups.length > 0) cleanups.pop()!()
+})
+
+function withStore(dbPath: string): KgStore {
+  const store = new KgStore(dbPath)
+  cleanups.push(() => { store.close() })
+  return store
+}
+
+function makeUnifiedDb(dir: string, withFts = true): string {
+  const dbPath = join(dir, 'knowledge.db')
+  const db = new DatabaseSync(dbPath)
+  db.exec(`
+    CREATE TABLE kg_nodes (
+      id TEXT PRIMARY KEY, node_type TEXT, name TEXT, title TEXT, content TEXT,
+      law_refs TEXT, source TEXT, full_ref TEXT, chapter TEXT, article_number TEXT
+    );
+    CREATE TABLE kg_edges (source_id TEXT, target_id TEXT, relation TEXT);
+  `)
+  if (withFts) {
+    db.exec("CREATE VIRTUAL TABLE kg_nodes_fts USING fts5(name, title, tokenize='trigram', content='', contentless_delete=1)")
+  }
+  const insNode = db.prepare('INSERT INTO kg_nodes (id, node_type, name, content) VALUES (?, ?, ?, ?)')
+  insNode.run('n1', 'Concept', '创造性', '创造性是指与现有技术相比具有突出的实质性特点。')
+  insNode.run('n2', 'Concept', '新颖性', '新颖性是指不属于现有技术。')
+  insNode.run('n3', 'SupremeCourtJudgment', '判决', '判决书正文。')
+  insNode.run('n5', 'Concept', '创造%标准', '特殊字符节点。')
+  insNode.run('n6', 'Concept', '细则', '判断标准应当结合本领域技术人员的认知水平。')
+  if (withFts) {
+    const insFts = db.prepare('INSERT INTO kg_nodes_fts (rowid, name, title) VALUES (?, ?, NULL)')
+    insFts.run(1, '创造性')
+    insFts.run(2, '新颖性')
+    insFts.run(3, '判决')
+    insFts.run(4, '创造%标准')
+  }
+  const insEdge = db.prepare('INSERT INTO kg_edges (source_id, target_id, relation) VALUES (?, ?, ?)')
+  insEdge.run('n1', 'n2', 'RELATED_TO')
+  insEdge.run('n1', 'n2', 'SIMILAR_TO')
+  insEdge.run('n1', 'n4', 'SIMILAR_TO') // n4 has no kg_nodes row
+  insEdge.run('n1', 'n1', 'CITES')      // self-loop
+  insEdge.run('n1', 'n3', 'CITES')
+  insEdge.run('n1', 'n3', 'REFERENCES')
+  insEdge.run('n1', 'n4', 'REFERENCES') // missing target in the cites loop
+  insEdge.run('n2', 'n3', 'CITES')
+  db.close()
+  return dbPath
+}
+
+function makeLegacyDb(dir: string, ftsTable: 'trigram' | 'unicode61' | 'broken' | 'none'): string {
+  const dbPath = join(dir, 'patent_kg.db')
+  const db = new DatabaseSync(dbPath)
+  db.exec(`
+    CREATE TABLE nodes (
+      id TEXT PRIMARY KEY, node_type TEXT, name TEXT, title TEXT, content TEXT,
+      law_refs_count INTEGER, source TEXT, full_ref TEXT, chapter TEXT, article_number TEXT, version TEXT
+    );
+    CREATE TABLE edges (source TEXT, target TEXT, relation TEXT);
+  `)
+  if (ftsTable === 'trigram') {
+    db.exec("CREATE VIRTUAL TABLE nodes_fts_trigram USING fts5(id, name, title, tokenize='trigram')")
+    db.prepare('INSERT INTO nodes_fts_trigram (id, name, title) VALUES (?, ?, NULL)').run('n1', '创造性')
+  } else if (ftsTable === 'unicode61') {
+    db.exec('CREATE VIRTUAL TABLE nodes_fts USING fts5(id, name, title)')
+    db.prepare('INSERT INTO nodes_fts (id, name, title) VALUES (?, ?, NULL)').run('n1', '创造性')
+  } else if (ftsTable === 'broken') {
+    db.exec('CREATE TABLE nodes_fts (id TEXT, name TEXT, title TEXT)')
+  }
+  db.prepare('INSERT INTO nodes (id, node_type, name, content) VALUES (?, ?, ?, ?)').run('n1', 'Concept', '创造性', '创造性判断标准。')
+  db.prepare('INSERT INTO edges (source, target, relation) VALUES (?, ?, ?)').run('n1', 'n2', 'RELATED_TO')
+  db.close()
+  return dbPath
+}
+
+describe('KgStore unified schema', () => {
+  it('reports the schema kind and trigram FTS mode', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-unified-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeUnifiedDb(dir, true))
+    expect(store.schemaKind()).toBe('unified')
+    expect(store.ftsMode()).toBe('trigram')
+  })
+
+  it('caches getNode hits and misses', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-cache-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeUnifiedDb(dir, true))
+    expect(store.getNode('n1')?.name).toBe('创造性')
+    expect(store.getNode('n1')?.name).toBe('创造性') // cache hit
+    expect(store.getNode('nope')).toBeUndefined()
+    expect(store.getNode('nope')).toBeUndefined() // cached miss
+  })
+
+  it('searches via FTS, falls back to LIKE on FTS miss, and rejects blank queries', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-search-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeUnifiedDb(dir, true))
+    expect(store.searchByKeyword('创造性', 10).map(n => n.id)).toContain('n1')
+    // kg_nodes_fts indexes name/title only: a content-only phrase hits LIKE.
+    expect(store.searchByKeyword('实质性特点', 10).map(n => n.id)).toContain('n1')
+    // A separated phrase skips the LIKE fallback (near-zero recall).
+    expect(store.searchByKeyword('创造性 三步法', 10)).toEqual([])
+    expect(store.searchByKeyword('   ')).toEqual([])
+  })
+
+  it('searches without FTS via LIKE and escapes wildcards', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-like-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeUnifiedDb(dir, false))
+    expect(store.ftsMode()).toBe('none')
+    const hits = store.searchByKeyword('创造%', 10)
+    expect(hits.some(n => n.id === 'n5')).toBe(true)
+    expect(hits.some(n => n.id === 'n1')).toBe(false) // "%" is a literal, not a wildcard
+  })
+
+  it('runs OR-mode searches across separators, windows, and LIKE terms', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-or-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeUnifiedDb(dir, true))
+    // Separated multi-word query: both words become FTS terms.
+    expect(store.searchByKeyword('创造性 新颖性', 10, { mode: 'or' }).map(n => n.id).sort()).toEqual(['n1', 'n2'])
+    // Two-char terms go to the multi-term LIKE scan.
+    expect(store.searchByKeyword('创造 新颖', 10, { mode: 'or' }).map(n => n.id).sort()).toContain('n1')
+    // Exactly one LIKE term after one-char words are dropped: single-term scan.
+    expect(store.searchByKeyword('创造 的', 10, { mode: 'or' }).map(n => n.id)).toContain('n1')
+    // Short unseparated word collects directly.
+    expect(store.searchByKeyword('创造性', 5, { mode: 'or' }).map(n => n.id)).toContain('n1')
+    // Long unseparated word: whole-word LIKE + 2-char window LIKE terms.
+    expect(store.searchByKeyword('创造性判断', 10, { mode: 'or' }).map(n => n.id)).toContain('n1')
+    // Long word with a whole-word LIKE hit (literal % in the target name).
+    expect(store.searchByKeyword('创造%标', 10, { mode: 'or' }).map(n => n.id)).toContain('n5')
+    // 6+ runes use a 3-char window: windows become FTS terms.
+    expect(store.searchByKeyword('创造性判断标准', 10, { mode: 'or' }).map(n => n.id)).toContain('n1')
+    // FTS misses a content-only 3-char word; the final whole-word LIKE fallback hits.
+    expect(store.searchByKeyword('判断标', 10, { mode: 'or' }).map(n => n.id)).toContain('n6')
+    // No candidate hits: a final whole-word LIKE fallback still runs.
+    expect(store.searchByKeyword('无此词汇', 10, { mode: 'or' })).toEqual([])
+    // One-char terms are dropped; a separated phrase gets no fallback.
+    expect(store.searchByKeyword('创 新', 10, { mode: 'or' })).toEqual([])
+  })
+
+  it('traverses neighbors, lists by type, and expands to depth', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-graph-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeUnifiedDb(dir, true))
+    const neighbors = store.getNeighbors('n1')
+    expect(neighbors.some(n => n.targetId === 'n2' && n.relation === 'RELATED_TO')).toBe(true)
+    const cites = store.getNeighbors('n1', 'CITES')
+    expect(cites.map(n => n.targetId).sort()).toEqual(['n1', 'n3'])
+
+    const concepts = store.listByType('Concept')
+    expect(concepts.map(n => n.id).sort()).toEqual(['n1', 'n2', 'n5', 'n6'])
+    expect(store.listByType('Concept', 1)).toHaveLength(1)
+
+    // Depth 2: n1 → n2 → n3; self-loop and missing target are skipped.
+    const expanded = store.expandNeighbors('n1')
+    expect(expanded.map(e => e.node.id).sort()).toEqual(['n2', 'n3'])
+    expect(store.expandNeighbors('n1', 'RELATED_TO', 1, 5).map(e => e.node.id)).toEqual(['n2'])
+  })
+
+  it('closes the underlying database', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-close-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const dbPath = makeUnifiedDb(dir, true)
+    const store = new KgStore(dbPath)
+    expect(store.getNode('n1')?.id).toBe('n1')
+    store.close()
+  })
+})
+
+describe('KgStore legacy schema', () => {
+  it('detects the legacy trigram FTS table', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-legacy-tri-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeLegacyDb(dir, 'trigram'))
+    expect(store.schemaKind()).toBe('legacy')
+    expect(store.ftsMode()).toBe('trigram')
+    expect(store.searchByKeyword('创造性', 5).map(n => n.id)).toContain('n1')
+    // OR mode with two LIKE terms runs the multi-term scan against the legacy nodes table.
+    expect(store.searchByKeyword('创造 新颖', 10, { mode: 'or' }).map(n => n.id)).toContain('n1')
+  })
+
+  it('detects the legacy unicode61 FTS table', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-legacy-uni-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeLegacyDb(dir, 'unicode61'))
+    expect(store.ftsMode()).toBe('unicode61')
+  })
+
+  it('degrades to none when the legacy FTS statement cannot be prepared', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-legacy-broken-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = withStore(makeLegacyDb(dir, 'broken'))
+    expect(store.ftsMode()).toBe('none')
+    expect(store.searchByKeyword('创造性', 5).map(n => n.id)).toContain('n1')
+  })
+
+  it('fails loud when no graph tables exist', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-failclosed-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const dbPath = join(dir, 'empty.db')
+    new DatabaseSync(dbPath).close()
+    expect(() => new KgStore(dbPath)).toThrow(/知识图谱表/)
+  })
+})

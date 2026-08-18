@@ -172,6 +172,7 @@ function expectedDshPackageFiles(manifest: PackageManifest): readonly string[] {
     'lib/invariant.js',
     ...manifest.bin ? ['lib/bin.js'] : [],
     ...manifest.exports?.['./worker'] ? ['lib/worker.cjs'] : [],
+    ...exportDefault(manifest, './bridge-client') === './lib/bridge-client.js' ? ['lib/bridge-client.js'] : [],
     // UI plugin packages ship their browser bundle beside the node lib
     // (single-artifact ruling: dist/ retired, ./client resolves lib/client.js).
     // Keyed on the artifact path, not the subpath name: apiproxy's ./client is

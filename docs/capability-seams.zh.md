@@ -199,6 +199,12 @@ flowchart LR
   pkg_cordis_host_runner["cordis-host-runner"]
   svc_dynamicCordisRunner["ctx.dynamicCordisRunner<br/>Dynamic Cordis package host runner"]
   svc_cordisInspect["ctx.cordisInspect<br/>Dynamic Cordis inspect registry"]
+  pkg_patent_data["patent-data"]
+  svc_patentData["ctx.patentData<br/>Patent data access seam"]
+  pkg_patent_knowledge["patent-knowledge"]
+  svc_patentKnowledge["ctx.patentKnowledge<br/>knowledge.db query seam"]
+  pkg_patent_workflow["patent-workflow"]
+  svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
   pkg_acp --> svc_approval
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
@@ -241,6 +247,9 @@ flowchart LR
   pkg_lsp_local --> svc_lsp
   pkg_message_feedback --> svc_messageFeedback
   pkg_modules --> svc_clientModules
+  pkg_patent_data --> svc_patentData
+  pkg_patent_knowledge --> svc_patentKnowledge
+  pkg_patent_workflow --> svc_patentWorkflow
   pkg_permission_presets --> svc_permissionPresets
   pkg_plan_mode --> svc_planMode
   pkg_pwsh_local --> svc_shell
@@ -477,5 +486,8 @@ flowchart LR
 | `ctx.apiProxy` | `core` | `apiproxy` | - | `connection` | - | 与传输无关的 Host 网关接口：它分派浏览器 API 调用，每条打开的 Host 流自行订阅转发事件，而不是由广播方法向其推送。 |
 | `ctx.dynamicCordisRunner` | `core` | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | - | [`tool-cordis`](../packages/extensions/tool-cordis) | - | 拥有内存定义注册表、Host 半的 vm 沙箱和 request-run 往返流程；浏览器页面通过其 Remote 命名空间在线访问同一服务。 |
 | `ctx.cordisInspect` | `core` | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | - | [`tool-cordis`](../packages/extensions/tool-cordis) | - | 注册 Host inspect 提供方、镜像 Client 提供方 manifest，并通过动态 Cordis 传输路由 Client 查询。 |
+| `ctx.patentData` | `seam` | [`patent-data`](../packages/patent/patent-data) | - | - | - | nuo-patent 映射／检索与 ego-browser 子进程 provider 的 Service Definition；provider 与工具消费方随计划阶段落地（P1.2、P3.2）。 |
+| `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | 判例 FTS、法规、wiki 卡片与知识图谱查询的 Service Definition；sqlite provider 与安装命令随 P1.3 落地。 |
+| `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | workflow/flexible-plan/plantask 状态机与 HITL 审批接线的 Service Definition；实现随 P3.1 落地。 |
 
 维护模式：混合模式。服务从 Cordis 声明中发现；接口、实现和消费方角色在 `scripts/gen-doc-graphs.ts` 中分类，并设有完整性守卫。

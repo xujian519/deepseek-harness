@@ -60,6 +60,10 @@ import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
+import * as Methodology from '@deepseek-ai/dsh-methodology'
+import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
+import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
@@ -533,6 +537,63 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-methodology',
+    dir: 'methodology',
+    source: 'packages/patent/methodology/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The triz tool registers from the shipped data assets alone; no network
+      // or persistence, so booting stays offline. Every Config field has a default.
+      await ctx.plugin(Methodology, {})
+    },
+    note:
+      'triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-literature',
+    dir: 'tool-literature',
+    source: 'packages/patent/tool-literature/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // Both tools register from the registry alone; no network until a search
+      // runs, so booting stays offline. Every Config field has a default.
+      await ctx.plugin(ToolLiterature, {})
+    },
+    note:
+      'paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-tools',
+    dir: 'patent-tools',
+    source: 'packages/patent/patent-tools/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // All 23 tools register from their factories alone; knowledge/LLM services are
+      // read via ctx.get at execute time (absent here), so booting stays offline.
+      await ctx.plugin(PatentTools, {})
+    },
+    note:
+      'The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-document',
+    dir: 'patent-document',
+    source: 'packages/patent/patent-document/src/index.ts',
+    requires: ['ctx.tools', 'ctx.subprocess'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin injects subprocess (headless-Chrome PDF rendering) and only
+      // registers render_patent_document once that seam is mounted.
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(PatentDocument, {})
+    },
+    note:
+      'render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',

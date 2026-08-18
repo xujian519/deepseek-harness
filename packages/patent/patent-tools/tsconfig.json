@@ -1,0 +1,42 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../patent-core"
+    },
+    {
+      "path": "../patent-data"
+    },
+    {
+      "path": "../patent-knowledge"
+    },
+    {
+      "path": "../patent-workflow"
+    },
+    {
+      "path": "../patent-rule"
+    },
+    {
+      "path": "../patent-document"
+    }
+  ]
+}

@@ -40,6 +40,10 @@
 | `@deepseek-ai/dsh-tool-subagent-report` | `report` | `ctx.subagents`、`ctx.systemPrompt`、`a live continuable in-process child Agent` | `tool/call`、`tool/result`、`a user-role message in the direct parent session` | - | 按可继续的进程内子级注册，而非全局注册，因此该 schema 仅在这种子级内部可见，并且不受其全局 `toolFilter` 影响。同一份贡献还会安装子级作用域的 `tool:report` 系统提示词 section，本目录不渲染该 section。面向父级的 `send_message` 工具单独安装。 |
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`、`job_list`、`job_output` | `ctx.tools`、`ctx.jobs`、`ctx.systemPrompt` | `tool/call`、`tool/result`、`user/message via agent.inject() for background completion notices` | - | 与任务种类无关的后台任务控制器：后台 bash 命令、PTY 发送和 subagent 都通过相同的 3 个工具读取、列出和终止。加载该插件会挂接控制器，从而启用生产方的 `ctx.jobs.start()`。 |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
+| `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。 |
+| `@deepseek-ai/dsh-tool-literature` | `paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
+| `@deepseek-ai/dsh-patent-tools` | `analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`knowledge_note_save`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`validate_specification` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图谱查询，权利要求对照表、撰写、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
+| `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 
@@ -1284,7 +1288,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 两个工具驱动 self-evolve 能力缝：`self_evolve_inspect_patterns` 读取会话投影出的失败模式，`self_evolve_now` 启动一次显式循环。基础提供方仅面向 L1-skill 与 L2-context；L3-workflow 与 L4-harness 请求暂不产生提案。
 
-<a id="deepseek-aidsh-tool-session-query"></a>
+<a id="deepseek-aidsh-tool-session-query"></a> /tmp/master-tool-catalog.zh.md
 
 ## `@deepseek-ai/dsh-tool-session-query`
 
@@ -1781,6 +1785,1433 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。
 
 <a id="deepseek-aidsh-methodology"></a>
+## `@deepseek-ai/dsh-methodology`
+
+### `triz`
+
+- TRIZ 发明问题解决理论：40 条发明原理与 39×39 Altshuller 矛盾矩阵
+- 无参数调用时列出全部 39 个工程参数与 40 条原理
+- 传入 improving 与 worsening 参数编号（1-39）读取对应矩阵单元格及其推荐原理
+- 用于技术矛盾、权衡与专利规避设计
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "improving": {
+      "type": "integer",
+      "description": "Improving engineering parameter number (1-39). Omit it together with worsening to list the full catalog."
+    },
+    "worsening": {
+      "type": "integer",
+      "description": "Worsening engineering parameter number (1-39). Provide it only together with improving."
+    }
+  }
+}
+```
+
+来源：[`packages/patent/methodology/src/index.ts`](../packages/patent/methodology/src/index.ts)
+
+triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。
+
+<a id="deepseek-aidsh-tool-literature"></a>
+
+## `@deepseek-ai/dsh-tool-literature`
+
+### `paper_list_sources`
+
+- 列出可通过 `paper_search` 检索的学术文献数据库
+- 返回每个源的 id、名称与描述
+- 先调用它发现应传给 `paper_search` 的 `db` id
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "domain": {
+      "type": "string",
+      "description": "Optional domain filter (currently only 'literature')"
+    }
+  }
+}
+```
+
+来源：[`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
+
+### `paper_search`
+
+- 检索学术文献数据库（arXiv、OpenAlex、Semantic Scholar、Crossref）——免费，无需 API key
+- 传入 `db` id（来自 `paper_list_sources`）与 `query`
+- 返回归一化命中：id、标题、摘要与 URL
+- 适用于学术论文、预印本、DOI 元数据与研究文献
+
+使用说明：
+  - 先调用 `paper_list_sources` 发现可用的 `db` id
+  - arXiv 与 OpenAlex 支持字段化查询（如 `ti:transformer AND cat:cs.LG`）
+  - 本工具只读，不修改文件
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "db": {
+      "type": "string",
+      "description": "Database id to search (from paper_list_sources, e.g. 'arxiv', 'openalex', 'semantic-scholar', 'crossref')"
+    },
+    "query": {
+      "type": "string",
+      "description": "Search query in the database's native syntax. Be specific; arXiv supports fielded syntax like `ti:transformer`."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Max results (1-50, default 10)"
+    }
+  },
+  "required": [
+    "db",
+    "query"
+  ]
+}
+```
+
+来源：[`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
+
+<a id="deepseek-aidsh-patent-tools"></a>
+
+## `@deepseek-ai/dsh-patent-tools`
+
+### `analyze_patent_figure`
+
+分析专利说明书附图：识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文提升识别准确率。
+
+当前为文本态最小路径：图片多模态分析引擎尚未接入，分析基于附图编号与权利要求/技术方案上下文推断，结果置信度与可用性相应降低。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "image_path": {
+      "type": "string",
+      "description": "附图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp）"
+    },
+    "figure_number": {
+      "type": "number",
+      "description": "附图编号（默认 1，用于附图说明「图N」）"
+    },
+    "claim_context": {
+      "type": "string",
+      "description": "权利要求或技术方案文本（图文对齐，可显著提高组件识别准确率）"
+    },
+    "invention_name": {
+      "type": "string",
+      "description": "发明名称（用于附图说明模板，如「一种供热管道电位采集装置」）"
+    }
+  },
+  "required": [
+    "image_path"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `claim_chart_build`
+
+构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "description": "场景模式：infringement=侵权（被控产品，支持 doe）/invalidity=无效/oa-response=审查意见答复/reexamination=复审/patentability=撰写前可专利性",
+      "enum": [
+        "infringement",
+        "invalidity",
+        "oa-response",
+        "reexamination",
+        "patentability"
+      ]
+    },
+    "claim_text": {
+      "type": "string",
+      "description": "权利要求原文（需拆分的权利要求，可含多条）"
+    },
+    "targets": {
+      "type": "array",
+      "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}",
+      "items": {}
+    },
+    "case_id": {
+      "type": "string",
+      "description": "案卷 ID（提供时结果落盘 data/cases/<case_id>/outputs/）"
+    }
+  },
+  "required": [
+    "mode",
+    "claim_text",
+    "targets"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `draft_claims`
+
+根据技术交底书或技术方案撰写权利要求书草案（机械/电学/化学/软件四领域）。当用户要求撰写权利要求、写权利要求书时使用，避免自行手写权利要求文本。输出独立权利要求 + 从属权利要求 + 形式校验报告。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "invention_name": {
+      "type": "string",
+      "description": "发明名称"
+    },
+    "tech_domain": {
+      "type": "string",
+      "description": "技术领域（为空时自动识别）",
+      "enum": [
+        "mechanical",
+        "electrical",
+        "chemical",
+        "software",
+        "general"
+      ]
+    },
+    "patent_type": {
+      "type": "string",
+      "description": "专利类型：发明或实用新型（默认 invention）。实用新型按细则 A23 校验 10 条上限。",
+      "enum": [
+        "invention",
+        "utility_model"
+      ]
+    },
+    "technical_features": {
+      "type": "array",
+      "description": "必要技术特征列表（用于独立权利要求）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optional_features": {
+      "type": "array",
+      "description": "附加/可选技术特征列表（用于从属权利要求）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prior_art": {
+      "type": "string",
+      "description": "最接近现有技术描述（可选，用于前序部分）"
+    }
+  },
+  "required": [
+    "invention_name",
+    "technical_features"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `draft_specification`
+
+根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "发明名称（不超过 25 字）"
+    },
+    "tech_domain": {
+      "type": "string",
+      "description": "技术领域（为空时自动识别）",
+      "enum": [
+        "mechanical",
+        "electrical",
+        "chemical",
+        "software",
+        "general"
+      ]
+    },
+    "patent_type": {
+      "type": "string",
+      "description": "专利类型：发明或实用新型（默认 invention）",
+      "enum": [
+        "invention",
+        "utility_model"
+      ]
+    },
+    "technical_problem": {
+      "type": "string",
+      "description": "要解决的技术问题（可选）"
+    },
+    "technical_solution": {
+      "type": "string",
+      "description": "技术方案描述（可选）"
+    },
+    "beneficial_effects": {
+      "type": "string",
+      "description": "有益效果（可选）"
+    },
+    "background": {
+      "type": "string",
+      "description": "背景技术/现有技术描述（可选）"
+    },
+    "drawing_descriptions": {
+      "type": "array",
+      "description": "附图说明（可选，如 \"图1为本发明实施例的整体结构示意图\"）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "figure_analysis": {
+      "type": "array",
+      "description": "附图智能分析结果（可选，未提供 drawing_descriptions 时自动生成附图说明）",
+      "items": {}
+    },
+    "embodiments": {
+      "type": "array",
+      "description": "具体实施方式（可选，可多个实施例）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "has_drawings": {
+      "type": "boolean",
+      "description": "是否有附图（实用新型必须有附图）"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `evaluate_evidence`
+
+对专利证据做确定性三性判定（相关性/合法性/真实性）与类型特定检查（电子证据/互联网公开/使用公开四要件/域外证据/公知常识），输出综合评分、举证责任分配与实际适用的证据规则。在 OA 答复、无效宣告论证引用证据前调用，可提前发现证据缺陷。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "snippet": {
+      "type": "string",
+      "description": "待判定证据描述（原文摘录）。"
+    },
+    "sourceUri": {
+      "type": "string",
+      "description": "来源 URI，如 web:https://example.com/page、patent:CN123、file:///path。判定平台可信度与证据类型。"
+    },
+    "docVersion": {
+      "type": "string",
+      "description": "证据日期，如 2023-01-02、2023年1月、20230102、Jan 15, 2023。"
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "内容哈希（真实性/完整性校验）。"
+    },
+    "direction": {
+      "type": "string",
+      "description": "证据方向。",
+      "enum": [
+        "supporting",
+        "contradicting",
+        "neutral"
+      ]
+    },
+    "claimRefs": {
+      "type": "array",
+      "description": "绑定的结论 id 列表。",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidenceType": {
+      "type": "string",
+      "description": "显式证据类型（缺省按 sourceUri 推断）。",
+      "enum": [
+        "general",
+        "foreign_language",
+        "overseas",
+        "electronic",
+        "witness_testimony",
+        "expert_opinion",
+        "common_knowledge",
+        "notarial_certificate",
+        "burden_of_proof",
+        "standard_of_proof",
+        "prior_art_date",
+        "procedural",
+        "internet_publication",
+        "public_use",
+        "design_comparison"
+      ]
+    },
+    "filingDate": {
+      "type": "string",
+      "description": "专利申请日（公开日是否早于申请日）。"
+    },
+    "caseType": {
+      "type": "string",
+      "description": "案件类型：invalidation / infringement / new_product_method。"
+    },
+    "notarized": {
+      "type": "boolean",
+      "description": "域外证据已公证（EVI-011 条件）。"
+    },
+    "legalized": {
+      "type": "boolean",
+      "description": "域外证据已认证（EVI-011 条件）。"
+    },
+    "translated": {
+      "type": "boolean",
+      "description": "外文证据已附中文译本（EVI-011 条件）。"
+    },
+    "witnessDisclosed": {
+      "type": "boolean",
+      "description": "证人利害关系已披露（EVI-012 条件）。"
+    },
+    "isWellKnown": {
+      "type": "boolean",
+      "description": "待证事实为公知常识（EVI-013 条件）。"
+    },
+    "isUncontested": {
+      "type": "boolean",
+      "description": "待证事实无争议（EVI-013 条件）。"
+    },
+    "deadlineDefined": {
+      "type": "boolean",
+      "description": "举证期限已定义（EVI-051 条件）。"
+    },
+    "submissionWithinDeadline": {
+      "type": "boolean",
+      "description": "证据在期限内提交（EVI-051 条件）。"
+    },
+    "collectionLegal": {
+      "type": "boolean",
+      "description": "证据收集主体/程序/形式合法（EVI-002 条件）。"
+    },
+    "supportingCount": {
+      "type": "number",
+      "description": "支持性证据已计数（EVI-030 证明标准条件）。"
+    },
+    "contradictingCount": {
+      "type": "number",
+      "description": "矛盾证据已计数（EVI-030 证明标准条件）。"
+    },
+    "custodyChainTraceable": {
+      "type": "boolean",
+      "description": "证据保管链可追溯（EVI-050 条件）。"
+    },
+    "integrityVerified": {
+      "type": "boolean",
+      "description": "证据完整性已核验（EVI-050 条件）。"
+    }
+  },
+  "required": [
+    "snippet"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `flexible_plan`
+
+专利案件的灵活计划（阶段级 HITL）。create：构建计划（可选根据交底书文本推断 IPC 技术领域）。run：通过原子注册表以 LLM + 在先技术检索执行未确认阶段（pending + rolled_back），与 patent_workflow_run 完全一致。confirm / rollback：冻结或重做某一阶段；add / remove / reorder：运行期编辑阶段；complete / abandon：结束计划。计划按 caseId 跨调用持久化（区别于无状态的 patent_plan_task）。已确认阶段被冻结，因此 confirm 固定输出；autoConfirm=true 在一次运行结束时确认全部成功阶段。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Operation: create | get | run | confirm | rollback | add | remove | reorder | complete | abandon.",
+      "enum": [
+        "create",
+        "get",
+        "run",
+        "confirm",
+        "rollback",
+        "add",
+        "remove",
+        "reorder",
+        "complete",
+        "abandon"
+      ]
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Plan key (required for every operation; persists by this id)."
+    },
+    "caseType": {
+      "type": "string",
+      "description": "Orchestration type, e.g. invalidation / infringement / drafting (create)."
+    },
+    "inputText": {
+      "type": "string",
+      "description": "Case input text (create persists it for later runs; run can override it)."
+    },
+    "technicalField": {
+      "type": "string",
+      "description": "Explicit technical field (create; else inferred from inputText)."
+    },
+    "stages": {
+      "type": "array",
+      "description": "Stage definitions (create).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "chain",
+              "react",
+              "sub_agent"
+            ]
+          },
+          "atom": {
+            "type": "string",
+            "description": "Atom name to auto-execute this stage (e.g. extract)."
+          },
+          "params": {
+            "type": "object",
+            "description": "Static params passed to the stage handler.",
+            "additionalProperties": true
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraintIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "articleJudgments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "goal",
+          "strategy"
+        ]
+      }
+    },
+    "stage": {
+      "type": "object",
+      "description": "Single stage definition (add).",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "chain",
+            "react",
+            "sub_agent"
+          ]
+        },
+        "atom": {
+          "type": "string",
+          "description": "Atom name to auto-execute this stage (e.g. extract)."
+        },
+        "params": {
+          "type": "object",
+          "description": "Static params passed to the stage handler.",
+          "additionalProperties": true
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraintIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "articleJudgments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "goal",
+        "strategy"
+      ]
+    },
+    "stageId": {
+      "type": "string",
+      "description": "Target stage id (confirm / rollback / remove)."
+    },
+    "stageIds": {
+      "type": "array",
+      "description": "New stage order (reorder, must include all ids).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reason": {
+      "type": "string",
+      "description": "Abandon reason, kept for audit (abandon)."
+    },
+    "maxResults": {
+      "type": "number",
+      "description": "Max prior-art search results for run (default 5)."
+    },
+    "autoConfirm": {
+      "type": "boolean",
+      "description": "When true, run confirms all successful (non-degraded) stages at the end."
+    }
+  },
+  "required": [
+    "action",
+    "caseId"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `knowledge_note_save`
+
+把项目专利产出（OA 答复要点、无效分析结论、检索心得）沉淀为知识笔记，后续检索可召回。用于定稿后建议沉淀：如 knowledge_note_save({title, content, project})。同一内容重复保存会自动跳过（幂等）。
+
+注意：dsh 的知识库写 API（knowledge.db personal_note 层）尚未接入，当前落为案卷目录下的笔记文件。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "笔记标题（≤200 字符，作为检索索引词）"
+    },
+    "content": {
+      "type": "string",
+      "description": "笔记正文（≤20,000 字符）"
+    },
+    "project": {
+      "type": "string",
+      "description": "来源项目标签（可选，参与幂等与检索过滤）"
+    }
+  },
+  "required": [
+    "title",
+    "content"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_case_search`
+
+检索本地专利判例全文（无效复审决定/专利判决，knowledge.db，FTS5 BM25 优先）。用于无效宣告分析、OA 答复时检索相似在先决定的理由论证与证据认定。支持 doc_type（case=无效决定/judgment=判决）与 court（法院）过滤。默认排除 wiki 审查标准卡片（审查标准请用 patent_wiki_search）。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（如 创造性 三步法、技术启示、区别特征 预料不到的效果）"
+    },
+    "doc_type": {
+      "type": "string",
+      "description": "文档类型过滤：case=无效复审决定，judgment=专利判决（缺省全部）",
+      "enum": [
+        "case",
+        "judgment"
+      ]
+    },
+    "court": {
+      "type": "string",
+      "description": "审理法院过滤（子串匹配，如 最高人民法院）"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    },
+    "include_content": {
+      "type": "boolean",
+      "description": "是否附命中片段（默认 true，截断约 800 字）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_eval`
+
+评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "description": "评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
+      "enum": [
+        "report",
+        "retrieval",
+        "workflow",
+        "citations",
+        "comprehensive"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "description": "待评估的内容文本（报告正文/检索关键词列表/工作流步骤/引文列表等）"
+    },
+    "required_citations": {
+      "type": "array",
+      "description": "要求必须包含的法条引用列表（如 [\"第二十二条第二款\", \"第二十二条第三款\"]）",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "mode"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_kg_query`
+
+查询专利知识图谱节点（判例/审查规则/法条/概念）。三种模式：① query 关键词检索（FTS5，附相似/引用关系标注）；② id 按节点 id 展开详情与相似/引用邻居；③ node_type 按类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept，支持 Judgment/LawArticle 别名）。与 patent_wiki_search（wiki 卡片正文）和 law_search（法条原文）互补。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "关键词检索（如 创造性 三步法、Bolar例外、禁止反悔）；与 id 二选一"
+    },
+    "id": {
+      "type": "string",
+      "description": "节点 id（如 CASE_005）；返回节点详情 + 相似/引用邻居；与 query 二选一，id 优先"
+    },
+    "node_type": {
+      "type": "string",
+      "description": "按节点类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept；Judgment=最高法院+地方法院判决，LawArticle=法条条款）"
+    },
+    "expand": {
+      "type": "boolean",
+      "description": "关键词命中后是否做关系扩展（相似/引用），默认 true"
+    },
+    "include_content": {
+      "type": "boolean",
+      "description": "是否附节点正文片段（默认 false，截断约 600 字）"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    }
+  }
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_legal_status`
+
+- 查询专利法律状态（有效 Active / 失效 Expired / 放弃 Abandoned）与预计到期日，数据来自 Google Patents
+- 批量：一次传入 1-20 个专利号；单个失败按专利逐个报告，不中断整批
+- 返回标题、状态、预计到期日、申请/授权日、申请人、发明人及状态事件历史
+
+使用说明：
+  - 只读；每篇专利发起一次网络请求（默认并发 4）
+  - 中国（CNIPA）法律状态事务请改用 cnipa-query skill
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patents": {
+      "type": "array",
+      "description": "Patent numbers (1-20), e.g. ['US11452699B2', 'US2668287A']",
+      "items": {
+        "type": "string"
+      }
+    },
+    "maxConcurrency": {
+      "type": "number",
+      "description": "Max concurrent requests (default 4)"
+    }
+  },
+  "required": [
+    "patents"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_metadata`
+
+- 按专利号（如 US11452699B2）从 Google Patents 获取专利元数据
+- 返回结构化数据：标题、发明人、受让人、日期、法律状态、预计到期日、摘要、PDF URL、分类号、引用
+- 自动校验并归一化专利号
+- 用于专利尽职调查、在先技术详情查询、法律状态核查
+
+使用说明：
+  - 只读；每篇专利发起一次网络请求
+  - 未找到（专利不存在）以 success:false 的数据返回，而非错误
+  - 页面结构变化时的非致命解析告警通过 parseWarnings 返回
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patent": {
+      "type": "string",
+      "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces)."
+    },
+    "timeout": {
+      "type": "number",
+      "description": "Request timeout in ms (default 30000)"
+    },
+    "returnAbstract": {
+      "type": "boolean",
+      "description": "Include abstract (default true)"
+    },
+    "returnLegal": {
+      "type": "boolean",
+      "description": "Include legal status (default true)"
+    }
+  },
+  "required": [
+    "patent"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_pdf_download`
+
+从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。
+
+Usage notes:
+  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下
+  - record=true 可额外录屏留证（输出 `<outputDir>/recording.webm`）
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patents": {
+      "type": "array",
+      "description": "专利公开号列表（1-50 篇）",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "输出目录（绝对或相对当前工作目录）；默认 <cwd>/专利原文/YYYY-MM-DD"
+    },
+    "pageTimeoutSec": {
+      "type": "number",
+      "description": "每页打开超时（秒），默认 20"
+    },
+    "downloadTimeoutMs": {
+      "type": "number",
+      "description": "每篇下载拦截超时（毫秒），默认 60000"
+    },
+    "timeoutMs": {
+      "type": "number",
+      "description": "整体执行超时（毫秒），默认 180000，上限 300000"
+    },
+    "record": {
+      "type": "boolean",
+      "description": "是否录屏留证（默认 false）"
+    },
+    "force": {
+      "type": "boolean",
+      "description": "忽略 MANIFEST 断点续传，强制重下全部（默认 false）"
+    }
+  },
+  "required": [
+    "patents"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_plan_task`
+
+专利任务的人工在环计划状态机。transition：白名单校验的状态迁移（planning → awaiting_approval → executing → awaiting_feedback → replanning → finished）。sync：把计划步骤转为带 blockedBy 依赖的有序任务。replan：对已完成步骤做哈希比对，支持增量续跑。非法迁移与缺失语义前置条件均失败关闭（executing 需要 tasks，replanning 需要 feedback）。无状态：每次调用传入当前状态。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Operation: transition | sync | replan.",
+      "enum": [
+        "transition",
+        "sync",
+        "replan"
+      ]
+    },
+    "currentState": {
+      "type": "string",
+      "description": "Current state (required for transition)."
+    },
+    "to": {
+      "type": "string",
+      "description": "Target state (required for transition)."
+    },
+    "planSteps": {
+      "type": "array",
+      "description": "Plan steps (sync/replan).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "previousTasks": {
+      "type": "array",
+      "description": "Previous task list (replan, optional: preserve completed steps).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Current task list (transition to executing, required: sync first).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "feedback": {
+      "type": "string",
+      "description": "Feedback driving replanning (transition to replanning, required)."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_search`
+
+- 按关键词或布尔表达式检索 Google Patents（如 (phase change OR PCM) AND thermal、assignee:(Samsung) after:20200101）
+- 返回结构化命中：专利号、标题、受让人、公开日、摘要、URL
+- 用于在先技术检索、新颖性预筛、竞争对手/受让人分析
+
+使用说明：
+  - 只读；查询语法遵循 Google Patents 检索语法
+  - 命中详情请继续用 patent_metadata 获取
+  - 网络失败以错误报告；真正的零结果检索返回空命中并附 warnings
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query in Google Patents syntax: keywords, phrases, boolean (AND/OR/NOT), fielded (assignee:/inventor:), date ranges (after:/before:)."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Max hits (1-50, default 10)"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_wiki_search`
+
+检索专利 wiki 知识卡片（说明书/权利要求/撰写/附图四目录），用于撰写说明书、权利要求书时查询充分公开、实施例、数值范围、以说明书为依据等撰写标准。支持 dir 目录过滤（specification/claims/drafting/figures）与 include_body 正文片段。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出全部卡片）"
+    },
+    "dir": {
+      "type": "string",
+      "description": "目录过滤：specification=说明书、claims=权利要求、drafting=撰写、figures=附图（缺省全部）",
+      "enum": [
+        "specification",
+        "claims",
+        "drafting",
+        "figures"
+      ]
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    },
+    "include_body": {
+      "type": "boolean",
+      "description": "是否附带卡片正文片段（默认 false）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_worker_validate`
+
+按声明契约（必填字段）校验专利 worker 产出。缺失硬契约字段将输出标记为降级（绝不中断）；软契约缺口单独报告。返回通过/降级判定及缺失的硬/软字段清单。用于专利产物的契约级质量审查（技术分析、检索报告、新颖性/创造性分析、OA 答复、质检报告）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "workerName": {
+      "type": "string",
+      "description": "Worker name from the built-in catalog (e.g. patent-technical-analyzer, patent-novelty-analyzer, quality_checker)."
+    },
+    "outputText": {
+      "type": "string",
+      "description": "Output text to validate against the worker contract."
+    }
+  },
+  "required": [
+    "workerName",
+    "outputText"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_workflow`
+
+运行声明式专利工作流（recap 模式）：校验 manifest，把各阶段输出组装为带降级标记与摘要的结构化结果，并持久化记录。内置 manifest：patent_novelty_v1、patent_disclosure_v1、patent_inventiveness_v1、patent_patentability_v1、patent_oa_response_v1、patent_invalidation_v1、patent_infringement_v1。按阶段 id 提供 outputs；缺失阶段标记为降级。不调用 LLM——本工具只收尾 agent 已产出的文本。用于以单一可验证结果记录收尾多阶段专利分析（新颖性 / 公开充分 / 创造性 / ……）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "description": "Workflow manifest id. Defaults to 'patent_novelty_v1'."
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Optional case id for result records; when provided the run persists under <caseDir>/workflow-runs/."
+    },
+    "outputs": {
+      "type": "array",
+      "description": "Per-stage outputs keyed by stage id. Missing stages are marked degraded.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "stageId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stageId",
+          "text"
+        ]
+      }
+    }
+  }
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `patent_workflow_run`
+
+自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）及其他内置 manifest。图路径（graph=novelty|inventiveness|enablement）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）。以 input 字段提供输入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "description": "Workflow manifest id. Defaults to 'patent_disclosure_v1'."
+    },
+    "graph": {
+      "type": "string",
+      "description": "Domain graph to run end-to-end (takes precedence over manifestId).",
+      "enum": [
+        "novelty",
+        "inventiveness",
+        "enablement"
+      ]
+    },
+    "resumeCheckpointId": {
+      "type": "string",
+      "description": "Graph checkpoint id from a previous interrupted run; resumes from it."
+    },
+    "approveCheckpointId": {
+      "type": "string",
+      "description": "Graph checkpoint id to grant and resume past (approves the gate)."
+    },
+    "approveStageIds": {
+      "type": "array",
+      "description": "Manifest stage ids of already-approved approval gates (e.g. ['review_gate']); skipped on rerun.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Optional case id enabling run/checkpoint persistence."
+    },
+    "input": {
+      "type": "string",
+      "description": "Initial material consumed by the extract atoms."
+    },
+    "chartTargets": {
+      "type": "string",
+      "description": "claim-chart target objects JSON (default empty)."
+    },
+    "maxResults": {
+      "type": "number",
+      "description": "Max prior-art search results (default 5)."
+    }
+  },
+  "required": [
+    "input"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `recognize_chemical_structure`
+
+识别化学式/化学结构：从化学结构图（图片模式，多模态模型两步分析 + RDKit 校验）或文档文本（文本模式，正则候选 → LLM 复核/化合物名称转 SMILES → RDKit 校验）中提取多候选 SMILES、分子式与化合物名称。当交底书/说明书/权利要求含化学结构式（含 Markush 广义结构）、分子式或化合物名称需要转 SMILES 时使用。注意：本工具不直接解析 PDF——图片模式输入须为已导出的图片（jpeg/png/gif/webp），文本模式可传 PDF 文本层提取结果。
+
+当前环境未安装 RDKit（可选原生依赖），本工具暂不可用，调用将返回 needHumanReview=true 的不可用结果。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "image_path": {
+      "type": "string",
+      "description": "化学结构图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp；PDF 页请先导出为图片）"
+    },
+    "text": {
+      "type": "string",
+      "description": "文档文本片段（说明书/权利要求）或单独的化合物名称（name→SMILES）"
+    },
+    "mode": {
+      "type": "string",
+      "description": "识别模式：image 走图片两步法；text 走文本三级流水线；auto 按输入分派（默认）",
+      "enum": [
+        "image",
+        "text",
+        "auto"
+      ]
+    },
+    "claim_context": {
+      "type": "string",
+      "description": "权利要求或技术方案文本（图文对齐，可提高识别准确率）"
+    }
+  }
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `rule_check`
+
+对给定文本运行确定性成文规则检查（关键词黑名单 / 模式 / 结构 / 引用范围 / 同义词匹配），返回带严重级别、处置建议与法条依据的违规项。在发布合规敏感输出（如专利结论、法律意见）前使用。范围：patent（通用专利合规）、patent-electrical（H 部电学规则 + 通用合规）、patent-full（通用合规 + nuo 完整专利规则集，需激活评审）、pack（由项目 manifest .sati/rules.yaml 组装的分层规则包：base + domains + overrides）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The text to check."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `search_patent_figure`
+
+检索已分析的专利附图（索引由 analyze_patent_figure 分析时写入 .sati/figures-index.json）：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引为空时返回提示，需先调用 analyze_patent_figure 分析附图。当前仅关键词检索（向量/语义检索未接入）。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）"
+    },
+    "limit": {
+      "type": "number",
+      "description": "返回条数上限（默认 5，最大 10）"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `validate_specification`
+
+验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。
+- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节
+- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词与摘要附图
+- 模糊表述、附图说明与图引用一致性、实施例存在性
+- 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例
+- 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）
+
+用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis 启用相应校验。
+
+注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。
+
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "说明书全文（markdown，含章节标题）"
+    },
+    "title": {
+      "type": "string",
+      "description": "发明名称（可选，单独校验长度）"
+    },
+    "abstract": {
+      "type": "string",
+      "description": "摘要（可选，校验长度/关键词/摘要附图）"
+    },
+    "claims": {
+      "type": "string",
+      "description": "权利要求书全文（可选，用于特征覆盖比对）"
+    },
+    "tech_domain": {
+      "type": "string",
+      "description": "技术领域（chemical 时附加化学表征数据校验）",
+      "enum": [
+        "mechanical",
+        "electrical",
+        "chemical",
+        "software",
+        "general"
+      ]
+    },
+    "figure_analysis": {
+      "type": "array",
+      "description": "附图智能分析结果（可选）：提供时执行图文一致性校验",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "usable": {
+            "type": "boolean",
+            "description": "分析结果是否可用（组件提取成功）"
+          },
+          "components": {
+            "type": "array",
+            "description": "识别的组件列表",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "refNumber": {
+                  "type": "string",
+                  "description": "附图标记号（与图面标号一致）"
+                }
+              },
+              "required": [
+                "refNumber"
+              ]
+            }
+          }
+        },
+        "required": [
+          "usable"
+        ]
+      }
+    }
+  }
+}
+```
+
+来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图谱查询，权利要求对照表、撰写、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。
+
+<a id="deepseek-aidsh-patent-document"></a>
+
+## `@deepseek-ai/dsh-patent-document`
+
+### `render_patent_document`
+
+从内置的中文 HTML 模板把专利代理交付物（可专利性意见、检索报告、OA 答复、权利要求对照表或无效意见）渲染为磁盘文件。选择模板 id 与 outputName；以 id → innerHTML 记录的形式传入 sections 填充模板插槽。写出 HTML 文件，默认还通过无头 Chrome 生成 PDF（format：html、pdf 或 both，默认 both）。返回写入的文件路径及任何告警或 PDF 失败原因（PDF 失败时 HTML 仍存在）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "string",
+      "description": "Template id to render (one of the five shipped patent templates).",
+      "enum": [
+        "patentability-opinion",
+        "search-report",
+        "oa-response",
+        "claims-spec",
+        "invalidation-opinion"
+      ]
+    },
+    "outputName": {
+      "type": "string",
+      "description": "Output filename stem (no extension); only letters, digits, underscore, hyphen, and dot."
+    },
+    "caseId": {
+      "type": "string",
+      "description": "Optional case id; when given the result lands in data/cases/<caseId>/outputs/ instead of the default directory."
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "Optional explicit output directory (overrides caseId and the default directory)."
+    },
+    "format": {
+      "type": "string",
+      "description": "Output format: html, pdf, or both (default both).",
+      "enum": [
+        "html",
+        "pdf",
+        "both"
+      ]
+    },
+    "sections": {
+      "type": "object",
+      "description": "Record of element id -> HTML innerHTML content to inject into the template.",
+      "additionalProperties": true
+    },
+    "brand": {
+      "type": "object",
+      "description": "Optional inline brand overrides (keys map to the --sati-doc-* CSS variables, e.g. firm, accent).",
+      "additionalProperties": true
+    },
+    "brandPath": {
+      "type": "string",
+      "description": "Optional path to a theme.json whose documents.patent namespace supplies brand overrides."
+    }
+  },
+  "required": [
+    "template",
+    "outputName"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
+
+render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。
+
+<a id="deepseek-aidsh-tool-workflow"></a> /tmp/master-tool-catalog.zh.md
 
 ## `@deepseek-ai/dsh-tool-workflow`
 

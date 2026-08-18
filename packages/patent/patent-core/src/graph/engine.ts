@@ -1,0 +1,295 @@
+/**
+ * src/patent/graph — SuperStep 执行引擎（移植自 Mady graph/pregel.go + graph/graph.go）。
+ *
+ * 执行模型（BSP 批量同步并行）：
+ *   1. 并行执行当前超步所有 active 节点（Promise.all），每节点收到 state 深拷贝快照；
+ *   2. 节点失败：failFast=true 立即终止；否则写入节点级降级标记（_graph_error）继续；
+ *   3. 节点增量按 Reducer + 节点名字典序确定性合并回共享 state；
+ *   4. 计算下一超步 active：静态边目标 ∪ 条件边 router 返回；任一含 GRAPH_END 即终止；
+ *   5. 去重后进入下一轮；maxSteps（默认 100）防死循环。
+ *
+ * 无拓扑排序、无环检测：允许条件边形成受控循环（一致性回退、ReAct 循环）。
+ * 中断（GraphInterruptError，如审批门）：引擎捕获后暂停返回，completed=false。
+ */
+
+import type {
+  EdgeRouter,
+  GraphCheckpoint,
+  GraphNode,
+  GraphRunResult,
+  GraphState,
+  NodePolicy,
+  Reducer,
+  RunOptions,
+  StateDelta,
+} from './types.ts'
+import { GRAPH_END, GraphEngineError, isGraphInterruptError } from './types.ts'
+import { cloneState } from './state.ts'
+import { DEGRADATION_SUFFIX, degradationSummary } from './degradation.ts'
+import { mergeWithSchema, type MergeSchema } from './merge.ts'
+import { runNodeWithPolicy } from './node-policy.ts'
+
+/** 编译快照（不可变）。 */
+export type CompiledGraphDef = {
+  nodes: Map<string, GraphNode>
+  edges: Map<string, string[]>
+  conditionalEdges: Map<string, EdgeRouter>
+  nodePolicies: Map<string, NodePolicy>
+  schema: MergeSchema
+  entry: string
+  maxSteps: number
+}
+
+/** 链式图构建 API（对齐 Mady PregelGraph）。 */
+export class GraphBuilder {
+  private readonly nodes = new Map<string, GraphNode>()
+  private readonly edges = new Map<string, string[]>()
+  private readonly conditionalEdges = new Map<string, EdgeRouter>()
+  private readonly nodePolicies = new Map<string, NodePolicy>()
+  private schema: MergeSchema = {}
+
+  /** 注册节点（GRAPH_END 为保留哨兵，不可注册）。
+   * @param name - 节点名。
+   * @param node - 节点实现。
+   * @returns this（链式调用）。
+   */
+  addNode(name: string, node: GraphNode): this {
+    if (name === GRAPH_END) throw new GraphEngineError(`"${GRAPH_END}" 为保留哨兵，不可注册为节点`)
+    if (!name.trim()) throw new GraphEngineError('节点名不能为空')
+    this.nodes.set(name, node)
+    return this
+  }
+
+  /** 静态边：from → to（to 可为 GRAPH_END）。
+   * @param from - 源节点名。
+   * @param to - 目标节点名（可为 GRAPH_END）。
+   * @returns this（链式调用）。
+   */
+  addEdge(from: string, to: string): this {
+    this.assertNode(from)
+    const targets = this.edges.get(from) ?? []
+    if (!targets.includes(to)) targets.push(to)
+    this.edges.set(from, targets)
+    return this
+  }
+
+  /** 条件边：运行时 router 决定目标节点列表（与静态边叠加；实践上二选一）。
+   * @param from - 源节点名。
+   * @param router - 运行时决定下一超步目标的边路由器。
+   * @returns this（链式调用）。
+   */
+  setConditionalEdge(from: string, router: EdgeRouter): this {
+    this.assertNode(from)
+    this.conditionalEdges.set(from, router)
+    return this
+  }
+
+  /** 节点策略（重试/超时/副作用）；编译时快照。
+   * @param name - 节点名。
+   * @param policy - 节点策略。
+   * @returns this（链式调用）。
+   */
+  setNodePolicy(name: string, policy: NodePolicy): this {
+    this.assertNode(name)
+    this.nodePolicies.set(name, { ...policy })
+    return this
+  }
+
+  /** 合并 schema：key → Reducer（多次调用叠加）。
+   * @param entries - 要叠加的 key → Reducer 映射。
+   * @returns this（链式调用）。
+   */
+  setSchema(entries: Record<string, Reducer>): this {
+    this.schema = { ...this.schema, ...entries }
+    return this
+  }
+
+  /** 编译为不可变可执行图。
+   * @param entry - 入口节点名。
+   * @param maxSteps - 最大超步数（默认 100，防死循环）。
+   * @returns 编译后的可执行图。
+   */
+  compile(entry: string, maxSteps = 100): CompiledGraph {
+    this.assertNode(entry)
+    if (!Number.isInteger(maxSteps) || maxSteps <= 0) {
+      throw new GraphEngineError('maxSteps 必须为正整数')
+    }
+    // 静态边目标校验：拼错的节点名在构建期暴露，而非运行时静默降级。
+    for (const [from, targets] of this.edges) {
+      for (const to of targets) {
+        if (to !== GRAPH_END && !this.nodes.has(to)) {
+          throw new GraphEngineError(`边 "${from}" → "${to}" 指向未注册节点（${GRAPH_END} 除外）`)
+        }
+      }
+    }
+    return new CompiledGraph({
+      nodes: new Map(this.nodes),
+      edges: new Map([...this.edges].map(([k, v]) => [k, [...v]])),
+      conditionalEdges: new Map(this.conditionalEdges),
+      nodePolicies: new Map(this.nodePolicies),
+      schema: { ...this.schema },
+      entry,
+      maxSteps,
+    })
+  }
+
+  private assertNode(name: string): void {
+    if (!this.nodes.has(name)) throw new GraphEngineError(`节点 "${name}" 未注册`)
+  }
+}
+
+/** 可执行图（编译后不可变）。 */
+export class CompiledGraph {
+  constructor(private readonly def: CompiledGraphDef) {}
+
+  /** 从入口节点运行。
+   * @param initial - 初始图状态。
+   * @param opts - 运行选项。
+   * @returns 图运行结果。
+   */
+  run(initial: GraphState, opts: RunOptions = {}): Promise<GraphRunResult> {
+    return runSuperSteps(this.def, initial, opts)
+  }
+
+  /** 从检查点恢复（从 checkpoint.activeNodes 继续，超步序号续接）。
+   * @param checkpoint - 要恢复的检查点。
+   * @param opts - 运行选项。
+   * @returns 图运行结果。
+   */
+  resume(checkpoint: GraphCheckpoint, opts: RunOptions = {}): Promise<GraphRunResult> {
+    return runSuperSteps(this.def, {}, opts, {
+      state: checkpoint.state,
+      active: checkpoint.activeNodes,
+      stepIndex: checkpoint.stepIndex,
+    })
+  }
+
+  /** 图元数据（诊断/可视化用）。
+   * @returns 入口/最大超步数/节点列表/静态边列表。
+   */
+  describe(): { entry: string; maxSteps: number; nodes: string[]; edges: [string, string[]][] } {
+    return {
+      entry: this.def.entry,
+      maxSteps: this.def.maxSteps,
+      nodes: [...this.def.nodes.keys()],
+      edges: [...this.def.edges].map(([from, to]) => [from, [...to]]),
+    }
+  }
+}
+
+/** 恢复起点（resume 用）：state + active + 超步序号。 */
+export type ResumePoint = { state: GraphState; active: string[]; stepIndex: number }
+
+/** SuperStep 主循环（resumeFrom 提供时从指定超步继续）。 */
+async function runSuperSteps(
+  def: CompiledGraphDef,
+  initial: GraphState,
+  opts: RunOptions,
+  resumeFrom?: ResumePoint,
+): Promise<GraphRunResult> {
+  const state = cloneState(resumeFrom?.state ?? initial)
+  let active: string[] = resumeFrom?.active ?? [def.entry]
+  let steps = resumeFrom?.stepIndex ?? 0
+  let completed = false
+  let interrupted: GraphRunResult['interrupted']
+
+  for (let step = steps; step < def.maxSteps; step += 1) {
+    if (opts.signal?.aborted === true) throw new GraphEngineError('图执行已取消')
+    steps = step
+    if (active.length === 0) {
+      completed = true
+      break
+    }
+    await opts.onSuperStepStart?.(step, active, state)
+
+    const snapshot = cloneState(state)
+    const outcomes = await Promise.all(
+      active.map(async (name) => {
+        const node = def.nodes.get(name)
+        if (node === undefined) {
+          return { name, error: new GraphEngineError(`节点 "${name}" 未注册（图定义不一致）`) }
+        }
+        const policy = def.nodePolicies.get(name)
+        try {
+          const outcome = await runNodeWithPolicy(node, policy, {
+            state: snapshot,
+            ...(opts.provider !== undefined ? { provider: opts.provider } : {}),
+            ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
+          })
+          return outcome.ok
+            ? ({ name, delta: outcome.delta })
+            : ({ name, error: outcome.error })
+        } catch (err) {
+          // runNodeWithPolicy 不抛普通错误；中断错误穿透至此。
+          return { name, error: err }
+        }
+      }),
+    )
+    steps = step + 1
+
+    // 中断（审批门等）：立即暂停，不执行后续超步。
+    for (const outcome of outcomes) {
+      if ('error' in outcome && isGraphInterruptError(outcome.error)) {
+        const interrupt = outcome.error
+        interrupted = { node: outcome.name, message: interrupt.message, data: interrupt.data }
+        return { state, completed: false, steps, degraded: degradationSummary(state), interrupted }
+      }
+    }
+
+    // 失败处理：failFast 终止 / 否则节点级降级标记。
+    const results: Array<{ node: string; delta: StateDelta }> = []
+    let failed = false
+    for (const outcome of outcomes) {
+      if ('delta' in outcome) {
+        results.push({ node: outcome.name, delta: outcome.delta })
+      } else if (opts.failFast) {
+        failed = true
+        break
+      } else {
+        const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error)
+        state[`${outcome.name}${DEGRADATION_SUFFIX}`] = {
+          reason: 'node_failed',
+          message,
+          severity: 'critical',
+        }
+      }
+    }
+    if (failed) {
+      return { state, completed: false, steps, degraded: degradationSummary(state) }
+    }
+
+    // 确定性合并（Reducer + 节点名字典序）。
+    mergeWithSchema(state, results, def.schema)
+
+    // 计算下一超步 active。
+    const next = new Set<string>()
+    let sawEnd = false
+    for (const name of active) {
+      for (const target of def.edges.get(name) ?? []) {
+        if (target === GRAPH_END) sawEnd = true
+        else next.add(target)
+      }
+      const router = def.conditionalEdges.get(name)
+      if (router !== undefined) {
+        const targets = await router(state)
+        for (const target of targets) {
+          if (target === GRAPH_END) sawEnd = true
+          else next.add(target)
+        }
+      }
+    }
+    if (sawEnd) {
+      completed = true
+      break
+    }
+    active = [...next]
+  }
+
+  // 循环因 maxSteps 耗尽退出（active 非空）→ 未正常完成（护栏触发）。
+  if (!completed && active.length > 0) {
+    return { state, completed: false, steps, degraded: degradationSummary(state) }
+  }
+  // 最后超步期间的取消必须上报为取消，而不是吞成 completed=true。
+  if (opts.signal?.aborted === true) throw new GraphEngineError('图执行已取消')
+  return { state, completed, steps, degraded: degradationSummary(state) }
+}

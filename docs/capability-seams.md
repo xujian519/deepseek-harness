@@ -197,6 +197,12 @@ flowchart LR
   pkg_cordis_host_runner["cordis-host-runner"]
   svc_dynamicCordisRunner["ctx.dynamicCordisRunner<br/>Dynamic Cordis package host runner"]
   svc_cordisInspect["ctx.cordisInspect<br/>Dynamic Cordis inspect registry"]
+  pkg_patent_data["patent-data"]
+  svc_patentData["ctx.patentData<br/>Patent data access seam"]
+  pkg_patent_knowledge["patent-knowledge"]
+  svc_patentKnowledge["ctx.patentKnowledge<br/>knowledge.db query seam"]
+  pkg_patent_workflow["patent-workflow"]
+  svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
   pkg_acp --> svc_approval
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
@@ -239,6 +245,9 @@ flowchart LR
   pkg_lsp_local --> svc_lsp
   pkg_message_feedback --> svc_messageFeedback
   pkg_modules --> svc_clientModules
+  pkg_patent_data --> svc_patentData
+  pkg_patent_knowledge --> svc_patentKnowledge
+  pkg_patent_workflow --> svc_patentWorkflow
   pkg_permission_presets --> svc_permissionPresets
   pkg_plan_mode --> svc_planMode
   pkg_pwsh_local --> svc_shell
@@ -475,5 +484,8 @@ flowchart LR
 | `ctx.apiProxy` | `core` | `apiproxy` | - | `connection` | - | The transport-agnostic host gateway face: it dispatches browser API calls, and each open host stream subscribes to the events it forwards rather than being pushed to through a broadcast verb. |
 | `ctx.dynamicCordisRunner` | `core` | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | - | [`tool-cordis`](../packages/extensions/tool-cordis) | - | Owns the in-memory definition registry, the vm sandbox for host halves, and the request-run round trip; browser pages reach the same service over the wire through its remote namespace. |
 | `ctx.cordisInspect` | `core` | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | - | [`tool-cordis`](../packages/extensions/tool-cordis) | - | Registers host inspect providers, mirrors the client provider manifest, and routes client queries through the dynamic Cordis transport. |
+| `ctx.patentData` | `seam` | [`patent-data`](../packages/patent/patent-data) | - | - | - | Service Definition for nuo-patent mapping/search plus the ego-browser subprocess provider; the provider and tool consumers land with the plan phases (P1.2, P3.2). |
+| `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | Service Definition for case-law FTS, legal, wiki-card, and knowledge-graph lookups; the sqlite provider and install command land with P1.3. |
+| `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | Service Definition for the workflow/flexible-plan/plantask state machines with HITL approval wiring; the implementation lands with P3.1. |
 
 Maintenance mode: hybrid: services are discovered from Cordis declarations; interface/implementation/consumer roles are classified in `scripts/gen-doc-graphs.ts` with a completeness guard.
