@@ -6,6 +6,7 @@
 # Publication is a manual dispatch from a vendor-* tag; a vendor release can
 # carry several versions, so each package has its own tag.
 name: Release (vendor)
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:

@@ -1,4 +1,5 @@
 name: E2E (E2B sandbox)
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 # This suite provisions external E2B sandboxes and is intentionally opt-in.
 # It has no push, pull_request, schedule, or workflow_call trigger.

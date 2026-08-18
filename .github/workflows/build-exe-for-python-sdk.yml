@@ -1,4 +1,5 @@
 name: Build single-exe
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 # Native builds for the release targets; see
 # .agents/notes/implemented/architecture/2026-07-10-single-file-executable-sdk-runtime-distribution.md.

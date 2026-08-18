@@ -6,6 +6,7 @@
 # launcher is built from native/landlock-run on each Landlock leg and installed
 # from the same tarballs the main-repository release workflow publishes.
 name: Sandbox
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   push:

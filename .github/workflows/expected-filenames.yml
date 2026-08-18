@@ -1,4 +1,5 @@
 name: Expected filenames
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:

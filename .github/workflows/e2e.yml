@@ -1,4 +1,5 @@
 name: E2E (real DeepSeek API)
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 # Real-API end-to-end suite (`pnpm run test:e2e`). Unlike ci.yml this job
 # consumes the DEEPSEEK_API_KEY_EXTERNAL secret (mapped to the env var

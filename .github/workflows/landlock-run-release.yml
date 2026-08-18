@@ -2,6 +2,7 @@
 # harness source of record. Rehearsal and publication consume the same packed
 # tarballs; each native binary is built on its matching architecture.
 name: Landlock Run Release
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   workflow_dispatch:

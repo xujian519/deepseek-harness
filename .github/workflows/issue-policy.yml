@@ -1,4 +1,5 @@
 name: Issue policy
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:

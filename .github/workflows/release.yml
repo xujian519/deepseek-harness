@@ -6,6 +6,7 @@
 # pull request proves the whole publish set still packs. Publication is a
 # manual dispatch from a dsh-v* tag and consumes exactly the packed bytes.
 name: Release (dsh)
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:

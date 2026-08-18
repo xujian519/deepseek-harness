@@ -3,6 +3,7 @@
 # the harness Node matrix. Release assembly and publication use the companion
 # Landlock Run Release workflow.
 name: Landlock Run
+if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:

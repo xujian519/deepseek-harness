@@ -1,4 +1,5 @@
 name: CI (fork free)
+if: github.repository == 'xujian519/deepseek-harness'
 
 on:
   push:
