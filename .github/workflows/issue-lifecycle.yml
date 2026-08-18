@@ -36,12 +36,10 @@ concurrency:
 jobs:
   lifecycle:
     name: Issue lifecycle
+    # secrets 上下文不能在 job-level if 中使用；App private key 在步骤级判断。
     if: |
-      ${{
-        vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
-        secrets.DSH_ISSUE_APP_PRIVATE_KEY != '' &&
-        (github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested'))
-      }}
+      vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
+      (github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested'))
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy
@@ -51,6 +49,7 @@ jobs:
           persist-credentials: false
       - name: Create project token
         id: app-token
+        if: secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
           client-id: ${{ vars.DSH_ISSUE_APP_CLIENT_ID }}
@@ -58,6 +57,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Handle repository event
+        if: steps.app-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: node .github/issue-management/policy.mjs lifecycle

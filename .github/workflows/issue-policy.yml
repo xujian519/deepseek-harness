@@ -14,11 +14,8 @@ permissions:
 jobs:
   policy:
     name: Issue policy
-    if: |
-      ${{
-        vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
-        secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''
-      }}
+    # secrets 上下文不能在 job-level if 中使用；用 vars 判断 issue-management 是否已配置。
+    if: vars.DSH_ISSUE_APP_CLIENT_ID != ''
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy

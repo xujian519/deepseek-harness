@@ -389,26 +389,20 @@ describe('Issue lifecycle workflow', () => {
     expect(lifecyclePullRequest.types).toContain('review_requested')
     expect(lifecycleReview.types).toEqual(['submitted'])
     expect(lifecycleJob.if).toBe(
-      `\${{
-  vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
-  secrets.DSH_ISSUE_APP_PRIVATE_KEY != '' &&
-  (github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested'))
-}}\n`,
+      'vars.DSH_ISSUE_APP_CLIENT_ID != \'\' &&\n(github.event_name != \'pull_request_review\' || (github.event.action == \'submitted\' && github.event.review.state == \'changes_requested\'))\n',
     )
     expect(policyPullRequest.types).toContain('ready_for_review')
-    expect(policyJob.if).toBe(
-      `\${{
-  vars.DSH_ISSUE_APP_CLIENT_ID != '' &&
-  secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''
-}}\n`,
-    )
+    expect(policyJob.if).toBe("vars.DSH_ISSUE_APP_CLIENT_ID != ''")
 
     const tokenStep = workflowStep(lifecycleJob, 'Create project token')
     if (!isRecord(tokenStep.with)) {
       throw new TypeError('Create project token step must define with')
     }
+    expect(tokenStep.if).toBe("secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''")
     expect(tokenStep.with.owner).toBe('${{ github.repository_owner }}')
     expect(tokenStep.with.repositories).toBe('${{ github.event.repository.name }}')
+    const handleStep = workflowStep(lifecycleJob, 'Handle repository event')
+    expect(handleStep.if).toBe("steps.app-token.outputs.token != ''")
   })
 })
 
