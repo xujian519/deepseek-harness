@@ -34,7 +34,6 @@ env:
 
 jobs:
   pack:
-    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Pack npm tarballs
     runs-on: ubuntu-24.04
     steps:
@@ -108,7 +107,6 @@ jobs:
           retention-days: 7
 
   publish:
-    if: github.repository == 'deepseek-ai/deepseek-harness'
     name: Publish to npm
     if: inputs.publish
     needs: pack
