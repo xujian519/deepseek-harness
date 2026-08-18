@@ -8,7 +8,7 @@ The base bundle deliberately does not carry these rows: `tool-self-evolve` regis
 
 ## Model Experience
 
-The bundle adds the `tool:self-evolve` prompt section and the `self_evolve_inspect_patterns` / `self_evolve_now` tools to every agent composed from a profile that mounts it. See [`@deepseek-ai/dsh-tool-self-evolve`](../../self-evolve/tool-self-evolve/README.md) for the model-facing contract.
+Indirectly, through the mounted consumer: this bundle inserts the `tool-self-evolve` row, whose prompt section and `self_evolve_*` tools are the only model-visible surface; the bundle's own glue plugin contributes no prompt text, tool schema, or result of its own. See [`@deepseek-ai/dsh-tool-self-evolve`](../../self-evolve/tool-self-evolve/README.md) for the consumer contract.
 
 #### KV Cache effect
 
