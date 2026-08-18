@@ -30,6 +30,7 @@ import { getStateString } from './state.ts'
  * @param handler - 要执行的 StageHandler。
  * @param state - 传入 handler 的图状态。
  * @param provider - 注入 handler 的 StageProvider（可选，缺省由 handler 内部 provider 兜底）。
+ * @param signal - 取消信号；中止时拒绝执行并保留已有增量。
  * @returns handler 执行产生的状态增量片段。
  */
 export async function runStageHandler(

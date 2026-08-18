@@ -2653,11 +2653,11 @@ triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给�
 
 ### `patent_pdf_download`
 
-从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 <outputDir>/<patent>.pdf。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。
+从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。
 
 Usage notes:
   - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下
-  - record=true 可额外录屏留证（输出 <outputDir>/recording.webm）
+  - record=true 可额外录屏留证（输出 `<outputDir>/recording.webm`）
 
 
 ```json
@@ -2907,7 +2907,7 @@ Usage notes:
 
 ### `patent_workflow_run`
 
-自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）及其他内置 manifest。图路径（graph=novelty|inventiveness|enablement）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）。以 input 字段提供输入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 <caseDir>/workflow-runs/。需要模型端口。
+自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）及其他内置 manifest。图路径（graph=novelty|inventiveness|enablement）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）。以 input 字段提供输入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。
 
 ```json
 {

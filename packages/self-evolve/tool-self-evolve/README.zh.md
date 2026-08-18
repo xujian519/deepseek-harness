@@ -34,3 +34,8 @@
 #### KV Cache 效果
 
 只要消费者处于加载状态，稳定提示片段就是每轮请求前缀的一部分。
+
+## Known Limitations and Deferred Work
+
+- **受 provider 面限制** — 工具暴露接缝，但提案广度受所加载 provider 限制（当前为 L1/L2）。
+- **无 keyed 端到端验证** — `self_evolve_now` 运行由单元测试覆盖；实机循环运行需要 keyed 环境。

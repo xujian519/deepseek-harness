@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-desktop-electron",
   "description": "DeepSeek Harness desktop shell: Electron main/preload around the dsh backend and the web UI",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.7",
   "publishConfig": {
     "access": "public"
   },

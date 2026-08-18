@@ -37,3 +37,8 @@
 #### KV Cache 效果
 
 无直接请求变更；消费者拥有任何提示片段或工具注册。
+
+## Known Limitations and Deferred Work
+
+- **脚手架级接缝** — Service Definition 只声明抽象生命周期与持久事件词汇；触发策略、速率限制、提案与效果提交由 provider 拥有，且目前没有任何 provider 实现 L3-workflow 或 L4-harness 提案层级。
+- **投影范围** — `failure-patterns` 只折叠已文档化的事件面（工具结果、agent 请求错误、compaction 结束、`self-evolve/end`）；非验证器信号不在模式词汇表内。

@@ -360,11 +360,11 @@ const ITEM_SCHEMA = {
 } as const
 
 const DESCRIPTION = [
-  '从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 <outputDir>/<patent>.pdf。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。',
+  '从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。',
   '',
   'Usage notes:',
   '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下',
-  '  - record=true 可额外录屏留证（输出 <outputDir>/recording.webm）',
+  '  - record=true 可额外录屏留证（输出 `<outputDir>/recording.webm`）',
 ].join('\n')
 /**
  * Build the `patent_pdf_download` tool over an injected ego-browser runner.

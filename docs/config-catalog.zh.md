@@ -1294,7 +1294,7 @@ export interface Config {
 ```
 
 来源：[`packages/feedback/message-feedback/src/index.ts:49`](../packages/feedback/message-feedback/src/index.ts)
-<a id="deepseek-aidsh-permission-presets"></a>
+
 <a id="deepseek-aidsh-methodology"></a>
 
 ## `@deepseek-ai/dsh-methodology`
@@ -1404,6 +1404,7 @@ export interface ImageModelConfig {
 
 来源：[`packages/patent/patent-tools/src/index.ts:110`](../packages/patent/patent-tools/src/index.ts)
 
+<a id="deepseek-aidsh-permission-presets"></a>
 
 ## `@deepseek-ai/dsh-permission-presets`
 
@@ -2704,7 +2705,7 @@ export type CompletionDelivery = 'quiet' | 'wakeup'
 ```
 
 来源：[`packages/jobs/tool-jobs/src/index.ts:32`](../packages/jobs/tool-jobs/src/index.ts)
-<a id="deepseek-aidsh-tool-lsp"></a>
+
 <a id="deepseek-aidsh-tool-literature"></a>
 
 ## `@deepseek-ai/dsh-tool-literature`
@@ -2731,6 +2732,7 @@ export interface Config {
 
 来源：[`packages/patent/tool-literature/src/index.ts:38`](../packages/patent/tool-literature/src/index.ts)
 
+<a id="deepseek-aidsh-tool-lsp"></a>
 
 ## `@deepseek-ai/dsh-tool-lsp`
 

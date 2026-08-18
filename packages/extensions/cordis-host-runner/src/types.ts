@@ -388,8 +388,12 @@ declare module '@deepseek-ai/cordis' {
      * re-approval even when the base requirement is `false` (e.g. a stale
      * `approveFutureVersions` grant). The runner treats the outermost result
      * as the effective requirement.
+     * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped
+     * listeners receive only activations requested through that agent's
+     * context.
      * @param info - the pending activation request facts and base requirement.
      * @param next - delegate to the remaining listeners; resolves with their effective requirement.
+     * @dshScopeScan unsupported
      * @mode waterfall
      */
     'cordis/before-approval'(

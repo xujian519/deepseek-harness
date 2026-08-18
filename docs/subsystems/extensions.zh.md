@@ -264,7 +264,7 @@ Source: [`packages/extensions/cordis-host-runner/src/index.ts:124`](../../packag
 
 #### `cordis/before-approval` — waterfall
 
-Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement.
+Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only activations requested through that agent's context.
 
 ```ts cordis-catalog
 /**
@@ -274,8 +274,12 @@ Waterfall consulted before a Client-bearing activation request is armed. Listene
  * re-approval even when the base requirement is `false` (e.g. a stale
  * `approveFutureVersions` grant). The runner treats the outermost result
  * as the effective requirement.
+ * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped
+ * listeners receive only activations requested through that agent's
+ * context.
  * @param info - the pending activation request facts and base requirement.
  * @param next - delegate to the remaining listeners; resolves with their effective requirement.
+ * @dshScopeScan unsupported
  * @mode waterfall
  */
 'cordis/before-approval'( this: Scoped<Agent>, info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>
@@ -283,7 +287,7 @@ Waterfall consulted before a Client-bearing activation request is armed. Listene
 
 Types: [Agent](core.md) · [Scoped](scope.md)
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:395`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:399`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisdynamic-package--emit"></a>
 
@@ -300,7 +304,7 @@ One exact Plugin/Package activation is now live in the Host.
 'cordis/dynamic-package'(pkg: DynamicCordisPackage): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:411`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:415`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisdynamic-retract--emit"></a>
 
@@ -317,7 +321,7 @@ One exact activation was withdrawn.
 'cordis/dynamic-retract'(retracted: DynamicCordisRetracted): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:417`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:421`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisinspect-query--emit"></a>
 
@@ -334,7 +338,7 @@ Request a live read-only query from the Client inspect registry.
 'cordis/inspect-query'(request: CordisInspectQueryRequest): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:423`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:427`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisinspect-query-resolved--emit"></a>
 
@@ -351,7 +355,7 @@ Notify every Client that an inspect query has settled or been cancelled.
 'cordis/inspect-query-resolved'(resolved: CordisInspectQueryResolved): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:429`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:433`](../../packages/extensions/cordis-host-runner/src/types.ts)
 
 <a id="cordisrequest-run--emit"></a>
 
@@ -385,5 +389,5 @@ A pending Client activation request left the answerable state.
 'cordis/request-run-resolved'(resolved: DynamicCordisRequestResolved): void
 ```
 
-Source: [`packages/extensions/cordis-host-runner/src/types.ts:405`](../../packages/extensions/cordis-host-runner/src/types.ts)
+Source: [`packages/extensions/cordis-host-runner/src/types.ts:409`](../../packages/extensions/cordis-host-runner/src/types.ts)
 <!-- END GENERATED cordis-surface -->

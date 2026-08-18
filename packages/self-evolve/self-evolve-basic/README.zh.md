@@ -61,3 +61,8 @@ L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全�
 #### KV Cache 效果
 
 只要消费者处于加载状态，稳定的 tool-self-evolve 提示片段就会出现在每次请求中，因此参与请求前缀。提案驱动的提示片段与技能从它们提交生效的轮次起加入前缀。
+
+## Known Limitations and Deferred Work
+
+- **仅 L1/L2** — provider 面向技能（L1）与提示词段落（L2）提案；L3-workflow 与 L4-harness 请求暂不产生提案。
+- **无 keyed 端到端验证** — 提案效果是可逆提交，由单元测试覆盖；实机 `dsh --profile` 循环运行需要 keyed 环境。
