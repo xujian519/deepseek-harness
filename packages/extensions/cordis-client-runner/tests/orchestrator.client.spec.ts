@@ -85,7 +85,7 @@ function boot(overrides: {
   return { orchestrator, host, load, answers }
 }
 
-/** Register one request the way the `cordis/request-run` event does. */
+/** Register one request the way the `@deepseek-ai/cordis/request-run` event does. */
 function ask(bench: Bench, requestId: ApprovalRequestId = REQ): void {
   bench.orchestrator.open({
     requestId,
@@ -407,7 +407,6 @@ describe('startUserRun', () => {
   })
 
   it('records a load failure, stringifying a non-Error rejection', async () => {
-
     // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the case under test
     const bench = boot({ loaded: () => Promise.reject('plain rejection') })
     await bench.orchestrator.startUserRun(DUAL)
