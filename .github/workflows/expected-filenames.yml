@@ -1,5 +1,4 @@
 name: Expected filenames
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:
@@ -8,6 +7,7 @@ on:
       - '**/*[gG][oO][lL][dD][eE][nN]*'
       - '!vendor/**'
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
 

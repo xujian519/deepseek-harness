@@ -1,5 +1,4 @@
 name: Release (Python)
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 # A PR labeled python-release-dry-run or a manual run with publish=false builds
 # and validates the complete release without registry credentials. Publication
@@ -16,6 +15,7 @@ on:
   pull_request:
     types: [labeled]
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
 

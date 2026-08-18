@@ -1,5 +1,4 @@
 name: Issue policy
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:
@@ -7,6 +6,7 @@ on:
   pull_request_review:
     types: [submitted]
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
   issues: read

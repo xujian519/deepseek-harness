@@ -1,5 +1,4 @@
 name: Issue lifecycle
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   issues:
@@ -27,6 +26,7 @@ on:
     types:
       - submitted
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
 

@@ -1,5 +1,4 @@
 name: CI
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   push:
@@ -16,6 +15,7 @@ on:
           - larger-runner-benchmark
           - consolidated-runner-benchmark
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 # Cancel a superseded run on every event EXCEPT push. A push run carries the two
 # self-hosted standby drills, which take longer than the interval between master
 # merges, so cancelling supersedes a drill before it reaches a verdict and the

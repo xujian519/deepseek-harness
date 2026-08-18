@@ -3,7 +3,6 @@
 # the harness Node matrix. Release assembly and publication use the companion
 # Landlock Run Release workflow.
 name: Landlock Run
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 on:
   pull_request:
@@ -25,6 +24,7 @@ on:
       - 'pnpm-workspace.yaml'
   workflow_dispatch:
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

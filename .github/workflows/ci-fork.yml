@@ -1,5 +1,4 @@
 name: CI (fork free)
-if: github.repository == 'xujian519/deepseek-harness'
 
 on:
   push:
@@ -7,6 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
 
+if: github.repository == 'xujian519/deepseek-harness'
 permissions:
   contents: read
 
@@ -17,7 +17,7 @@ env:
 jobs:
   node-checks:
     runs-on: ubuntu-latest
-    name: node ${{ env.PRIMARY_NODE_VERSION }} / lint + typecheck + test
+    name: node 24 / lint + typecheck + test
     steps:
       - uses: actions/checkout@v6
         with:

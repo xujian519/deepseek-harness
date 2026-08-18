@@ -1,5 +1,4 @@
 name: E2E (pi-ai Azure OpenAI and Anthropic)
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 # This suite spends tokens against two external providers and is intentionally
 # opt-in. It has no push, pull_request, schedule, or workflow_call trigger.
@@ -17,6 +16,7 @@ on:
         default: claude-opus-4-8
         type: string
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 permissions:
   contents: read
 

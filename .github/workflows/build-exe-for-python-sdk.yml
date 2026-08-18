@@ -1,5 +1,4 @@
 name: Build single-exe
-if: github.repository == 'deepseek-ai/deepseek-harness'
 
 # Native builds for the release targets; see
 # .agents/notes/implemented/architecture/2026-07-10-single-file-executable-sdk-runtime-distribution.md.
@@ -39,6 +38,7 @@ on:
   pull_request:
     types: [labeled]
 
+if: github.repository == 'deepseek-ai/deepseek-harness'
 concurrency:
   # Keep the called workflow distinct from its caller's concurrency group;
   # github.workflow identifies the caller inside a reusable workflow and keeps
