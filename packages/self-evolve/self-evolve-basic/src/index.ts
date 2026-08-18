@@ -35,6 +35,7 @@ import type {
   SelfEvolveResult,
 } from '@deepseek-ai/dsh-self-evolve'
 import type { EvolveCommit, ProposalValidationOutcome, ReplayEvidence, ValidationScores } from '@deepseek-ai/dsh-self-evolve/types'
+import type { CordisDynamicPluginId } from '@deepseek-ai/dsh-cordis-host-runner/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent'
@@ -302,7 +303,15 @@ export interface ChampionArchiveRow {
   patternId: string
   proposalId: string
   name: string
+  /** The candidate this commit made live. */
   candidate: EvolveProposal['candidate']
+  /**
+   * The candidate the commit replaced — the true champion a rollback
+   * restores. `null` on the first commit for a pattern (nothing to restore).
+   * L1 previous state is derived from the archive history because the skill
+   * registry has no name-based reader.
+   */
+  previousCandidate: EvolveProposal['candidate'] | null
 }
 
 /** Whether a configured LLM target is complete; a partial target fails load. */
@@ -315,6 +324,13 @@ function requireCompleteTarget(
     throw new Error(`self-evolve: ${label} must include both provider and model`)
   }
   return true
+}
+
+/** Most recent matching rows for one pattern, kept in log order. */
+function recentNegatives(rows: NegativeResultRow[], patternId: string, limit: number): NegativeResultRow[] {
+  const matches: NegativeResultRow[] = []
+  for (const row of rows) if (row.patternId === patternId) matches.push(row)
+  return matches.slice(-limit)
 }
 
 /** Resolve and validate public configuration; throw at load time. */
@@ -425,10 +441,12 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   private readonly l4Pending = new Map<string, string>()
   /** L4 approval ledger, keyed by pluginId → last approved proposal + timestamp (P2.3). */
   private readonly l4Ledger = new Map<string, { proposalId: string; approvedAt: number }>()
+  /** Runner request correlation for pending L4 plugins (requestId → owner), for cleanup on refusal. */
+  private readonly l4RequestByRun = new Map<string, { pluginId: CordisDynamicPluginId; agentId: SessionId }>()
   /** Per-session step-reflection counts for the current turn (P3.1). */
   private readonly reflectionCounts = new Map<string, { turn: number; count: number }>()
   /** Per-session per-pattern proposal counts for the 24h freeze (P3.3). */
-  private readonly proposalCounts = new Map<string, number>()
+  private readonly proposalCounts = new Map<string, { count: number; at: number }>()
   /** Byte budget charged across one loop's LLM calls and searches (P3.4); null outside a loop. */
   private loopBudget: { used: number } | null = null
 
@@ -468,6 +486,8 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       // waterfall must delegate regardless of our recording outcome.
       try {
         payload.agent.session.append('agent/request-error', {
+          turn: payload.turn,
+          step: payload.step,
           provider: payload.provider,
           statusCode: payload.failure.status,
           error: { code: payload.failure.code, name: 'LlmFailure', message: payload.failure.message },
@@ -507,6 +527,36 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       }
       return next()
     }))
+    ctx.effect(() => ctx.on('cordis/request-run', (request) => {
+      // Correlate the runner's approval request with an L4 plugin this
+      // provider drove, so a later refusal can drop the definition (P2.2).
+      if (this.l4Pending.has(request.pluginId)) {
+        this.l4RequestByRun.set(String(request.requestId), { pluginId: request.pluginId, agentId: request.agentId })
+      }
+    }))
+    ctx.effect(() => ctx.on('cordis/request-run-resolved', (resolved) => {
+      const owner = this.l4RequestByRun.get(String(resolved.requestId))
+      if (owner === undefined) return
+      this.l4RequestByRun.delete(String(resolved.requestId))
+      this.l4Pending.delete(owner.pluginId)
+      if (resolved.outcome === 'approved' || resolved.outcome === 'completed') return
+      // The activation was refused or failed: drop the orphaned definition so
+      // the runner registry does not accumulate never-activated plugins.
+      void this.dropL4Plugin(owner.agentId, owner.pluginId)
+    }))
+  }
+
+  /** Undefine an L4 plugin this provider defined when its run was refused or failed (P2.2). */
+  private async dropL4Plugin(agentId: SessionId, pluginId: CordisDynamicPluginId): Promise<void> {
+    const runner = this.ctx.get('dynamicCordisRunner')
+    const parent = this.ctx.agents.get(agentId)
+    if (runner === undefined || parent === undefined) return
+    try {
+      await runner.undefine(parent, pluginId)
+    } catch (error: unknown) {
+      // The definition may already be gone; cleanup is best-effort.
+      this.ctx.logger('self-evolve').debug(`L4 undefine skipped for ${pluginId}: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   async evolveIfNeeded(
@@ -549,13 +599,14 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     // Cross-session occurrence merge (P4.2): other sessions' occurrences
     // within the 24h window push sparse patterns over the mining threshold.
     const global = await this.readGlobalPatternOccurrences(sessionId)
+    const allNegatives = await this.readAllNegativeResults()
     // Enrich each pattern with its durable rejection history (P1.6) so the
     // proposer sees prior failed attempts as few-shot counterexamples.
     const enriched: FailurePattern[] = []
     for (const pattern of sorted) {
       const globalOccurrences = global.get(pattern.patternId) ?? 0
       const occurrences = pattern.occurrences + globalOccurrences
-      const failed = await this.readNegativeResults(pattern.patternId, NEGATIVE_RESULTS_CONTEXT_ITEMS)
+      const failed = recentNegatives(allNegatives, pattern.patternId, NEGATIVE_RESULTS_CONTEXT_ITEMS)
       if (failed.length === 0) {
         enriched.push(globalOccurrences > 0 ? { ...pattern, occurrences } : pattern)
         continue
@@ -586,6 +637,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   /** The P0/P1 template proposer: one L2 prompt section per L1-skill pattern. */
   private async proposeTemplate(patterns: FailurePattern[], levels: readonly EvolveLevel[]): Promise<EvolveProposal[]> {
     if (!levels.includes('L2-context')) return []
+    const allNegatives = await this.readAllNegativeResults()
     const out: EvolveProposal[] = []
     for (const pattern of patterns) {
       if (pattern.level !== 'L1-skill') continue
@@ -597,7 +649,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       const contextHint = lastSeq !== undefined
         ? `supportingSeqs 最后一次失败 (seq ${lastSeq}) 的上下文`
         : '该 pattern 的上下文'
-      const negatives = await this.readNegativeResults(pattern.patternId, NEGATIVE_RESULTS_CONTEXT_ITEMS)
+      const negatives = recentNegatives(allNegatives, pattern.patternId, NEGATIVE_RESULTS_CONTEXT_ITEMS)
       const failurePrefix = negatives.length > 0
         ? `此前针对该模式的 ${negatives.length} 次提案均被拒绝（${[...new Set(negatives.map(n => n.reason))].join('、')}），不要重复同样方案。`
         : ''
@@ -750,6 +802,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       query: pattern.summary,
       limit: this.config.maxHeldOutCases,
     }, { signal })
+    this.chargeBudget(pattern.summary.length + page.items.length * 200)
     const hits = page.items.filter(hit => !pattern.supportingSeqs.includes(hit.seq))
     if (hits.length === 0) return null
     let passed = 0
@@ -958,6 +1011,10 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     this.l4Pending.set(receipt.pluginId, proposal.proposalId)
     const response = await runner.run(parent, receipt.pluginId, receipt.packageId, 'run', signal)
     if (!response.ok) {
+      // The run was refused before activation: drop the definition and the
+      // pending marker so the registry does not accumulate orphans.
+      this.l4Pending.delete(receipt.pluginId)
+      await this.dropL4Plugin(SessionId(agent.sessionId), receipt.pluginId)
       return {
         kind: 'rejected',
         reason: 'approval-denied',
@@ -1038,12 +1095,18 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /**
    * Read the most recent negative results for one pattern (P1.8 prefix feed).
+   * Hot loops should call {@link readAllNegativeResults} once instead.
    *
    * @param patternId - the pattern whose failed proposals to load.
    * @param limit - maximum rows to return, most recent last.
    * @returns the matching rows; empty when the log does not exist yet.
    */
   async readNegativeResults(patternId: string, limit = NEGATIVE_RESULTS_CONTEXT_ITEMS): Promise<NegativeResultRow[]> {
+    return recentNegatives(await this.readAllNegativeResults(), patternId, limit)
+  }
+
+  /** All durable negative-result rows, one file read (P1.7b). */
+  protected async readAllNegativeResults(): Promise<NegativeResultRow[]> {
     let raw: string
     try {
       raw = await readFile(this.negativeResultsFile(), 'utf8')
@@ -1055,14 +1118,13 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     for (const line of raw.split('\n')) {
       if (line.trim().length === 0) continue
       try {
-        const parsed = JSON.parse(line) as NegativeResultRow
-        if (parsed.patternId === patternId) rows.push(parsed)
+        rows.push(JSON.parse(line) as NegativeResultRow)
       } catch {
         // swallow a malformed line: the log is append-only diagnostics and a
         // corrupt row must not block mining
       }
     }
-    return rows.slice(-limit)
+    return rows
   }
 
   /** Commit one accepted proposal. Base handles L1 skill and L2 prompt sections.
@@ -1089,8 +1151,9 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         this.registerL2Section(candidate)
         break
       case 'L3-workflow': {
-        // The validation smoke already gated the candidate; the commit-time
-        // smoke is the roadmap's belt-and-suspenders confirmation.
+        // The validation smoke already gated the candidate; re-running it at
+        // commit time confirms the script still completes before the commit
+        // event records the proposal as live.
         const smoke = await this.runWorkflowSmoke(agent, proposal, new AbortController().signal)
         if (smoke === null || smoke.exitCode !== 0) {
           throw new Error(`applyCommit: L3 workflow smoke failed (${smoke === null ? 'workflow engine unavailable' : 'run did not complete with agents'})`)
@@ -1134,30 +1197,53 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   }
 
   /**
-   * Archive the candidate a rollback would restore BEFORE the new commit
-   * replaces it (P1.8): one JSON row per proposal under
-   * `$DSH_HOME/self-evolve/archive/<patternId>/<proposalId>.json`.
+   * Archive the state this commit replaces BEFORE the new candidate goes
+   * live (P1.8): one JSON row per proposal under
+   * `$DSH_HOME/self-evolve/archive/<patternId>/<proposalId>.json`. The row's
+   * `previousCandidate` is the pattern's last committed candidate (the
+   * champion a rollback restores), or null on the first commit.
    */
   protected async archiveChampion(proposal: EvolveProposal): Promise<void> {
     const patternId = proposal.addressesPatternIds[0]
     if (patternId === undefined) return
-    const file = join(dshHomePath('self-evolve', 'archive', patternId), `${proposal.proposalId}.json`)
+    const archiveDir = dshHomePath('self-evolve', 'archive', patternId)
+    const previousCandidate = await this.latestArchivedCandidate(patternId)
+    const file = join(archiveDir, `${proposal.proposalId}.json`)
     const row: ChampionArchiveRow = {
       ts: Date.now(),
       patternId,
       proposalId: proposal.proposalId,
       name: proposal.name,
       candidate: proposal.candidate,
+      previousCandidate,
     }
     await mkdir(dirname(file), { recursive: true })
     await writeFile(file, `${JSON.stringify(row)}\n`)
   }
 
+  /** The last committed candidate for a pattern, or null when it has none. */
+  private async latestArchivedCandidate(patternId: string): Promise<EvolveProposal['candidate'] | null> {
+    const archiveDir = dshHomePath('self-evolve', 'archive', patternId)
+    let files: string[]
+    try {
+      files = (await readdir(archiveDir)).filter(file => file.endsWith('.json'))
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+    files.sort()
+    const latest = files[files.length - 1]
+    if (latest === undefined) return null
+    const row = JSON.parse(await readFile(join(archiveDir, latest), 'utf8')) as ChampionArchiveRow
+    return row.candidate
+  }
+
   /**
    * Restore the latest archived champion candidate for a pattern after
-   * repeated regressions (P1.8): re-register it through the owning seam (L1
-   * skill / L2 section) without re-validating. L3/L4 candidates have no
-   * base-provider apply path and are skipped.
+   * repeated regressions (P1.8): re-register the state the last commit
+   * replaced through the owning seam (L1 skill / L2 section) without
+   * re-validating. No-op when the pattern has no previous state (first
+   * commit) or the candidate kind has no base-provider apply path.
    */
   protected async rollbackPattern(patternId: string): Promise<void> {
     const archiveDir = dshHomePath('self-evolve', 'archive', patternId)
@@ -1172,13 +1258,14 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const latest = files[files.length - 1]
     if (latest === undefined) return
     const row = JSON.parse(await readFile(join(archiveDir, latest), 'utf8')) as ChampionArchiveRow
-    const candidate = row.candidate
-    switch (candidate.kind) {
+    const champion = row.previousCandidate
+    if (champion === null) return
+    switch (champion.kind) {
       case 'L1-skill':
-        this.registerL1Skill(candidate, row.name, 'runtime-evolve-rollback')
+        this.registerL1Skill(champion, row.name, 'runtime-evolve-rollback')
         break
       case 'L2-context':
-        this.registerL2Section(candidate)
+        this.registerL2Section(champion)
         break
       default:
         return
@@ -1366,9 +1453,10 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     session: Session | undefined,
   ): Promise<string | null> {
     if (levels.length === 0) return null
+    const allNegatives = await this.readAllNegativeResults()
     const sections: string[] = []
     for (const pattern of patterns.slice(0, this.config.maxProposalsPerLoop * 2)) {
-      const failed = await this.readNegativeResults(pattern.patternId, NEGATIVE_RESULTS_CONTEXT_ITEMS)
+      const failed = recentNegatives(allNegatives, pattern.patternId, NEGATIVE_RESULTS_CONTEXT_ITEMS)
       let block = `模式 ${pattern.patternId}（${pattern.summary}，occurrences=${pattern.occurrences}）`
       if (failed.length > 0) {
         block += `\n此前 ${failed.length} 次提案被拒：${failed.map(f => `${f.reason}: ${f.nextRoundSuggestion}`).join('; ')}`
@@ -1390,15 +1478,20 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   /**
    * Per-session per-pattern freeze (P3.3): count proposals per pattern and
    * freeze a pattern for `patternFreezeHours` once it has been proposed
-   * twice; the third targeting attempt skips it.
+   * twice; the third targeting attempt skips it. The count decays with the
+   * freeze window, so a pattern proposed again after an expired freeze
+   * restarts at one.
    */
   private markProposed(sessionId: string, patternId: string): void {
     const key = `${sessionId}:${patternId}`
-    const next = (this.proposalCounts.get(key) ?? 0) + 1
-    this.proposalCounts.set(key, next)
-    if (next >= 2) {
+    const windowMs = this.config.patternFreezeHours * 3_600_000
+    const prior = this.proposalCounts.get(key)
+    const count = prior === undefined || Date.now() - prior.at > windowMs ? 1 : prior.count + 1
+    this.proposalCounts.set(key, { count, at: Date.now() })
+    if (count >= 2) {
       const state = this.rateState(sessionId)
-      state.frozenPatterns.set(patternId, Date.now() + this.config.patternFreezeHours * 3_600_000)
+      state.frozenPatterns.set(patternId, Date.now() + windowMs)
+      this.proposalCounts.delete(key)
     }
   }
 

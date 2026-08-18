@@ -19,7 +19,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { EvolveLevel } from '@deepseek-ai/dsh-self-evolve'
+import type { EvolveLevel, SelfEvolveResult } from '@deepseek-ai/dsh-self-evolve'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -102,15 +102,25 @@ export function apply(ctx: Context): void {
     async execute(args, exec): Promise<JsonValue> {
       const agent = requireAgent(exec)
       const levels = toLevels(args.levels)
-      const result = await ctx.selfEvolve.evolveNow(
-        {
-          sessionId: agent.session.id,
-          options: agent.options,
-          runMaintenance: agent.runMaintenance.bind(agent),
-        },
-        exec.signal,
-        levels,
-      )
+      let result: SelfEvolveResult
+      try {
+        result = await ctx.selfEvolve.evolveNow(
+          {
+            sessionId: agent.session.id,
+            options: agent.options,
+            runMaintenance: agent.runMaintenance.bind(agent),
+          },
+          exec.signal,
+          levels,
+        )
+      } catch (error: unknown) {
+        // The agent's maintenance phase rejects a second loop on a busy
+        // agent; translate that raw guard error into a model-facing message.
+        if (error instanceof Error && /already has active work/.test(error.message)) {
+          throw new Error('self-evolve loop is already running for this agent; wait for it to settle before starting another')
+        }
+        throw error
+      }
       return {
         runId: String(result.runId),
         trigger: result.trigger,

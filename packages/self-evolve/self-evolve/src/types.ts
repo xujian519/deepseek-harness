@@ -180,8 +180,12 @@ declare module '@deepseek-ai/dsh-session/types' {
      * Emitted when the agent loop records a failed model request. The
      * `error.code` drives the `llm-provider` tier's causal signature (Gate
      * SIG-4); `statusCode` is the provider's HTTP status when available.
+     * `turn`/`step` pin the failing step so turn-scoped consumers (step
+     * reflection) can match the event to its turn.
      */
     'agent/request-error': {
+      turn?: number
+      step?: number
       provider?: unknown
       model?: unknown
       statusCode?: unknown
@@ -189,8 +193,8 @@ declare module '@deepseek-ai/dsh-session/types' {
     }
     /**
      * Marks the start of a single self-evolve loop — weakness mining, proposal,
-     * validation, and optional commit. Log-only; holds the run lock until
-     * `self-evolve/end`.
+     * validation, and optional commit. Log-only; the agent's maintenance phase
+     * serializes concurrent loops until `self-evolve/end`.
      */
     'self-evolve/start': {
       runId: SelfEvolveRunId
@@ -206,6 +210,9 @@ declare module '@deepseek-ai/dsh-session/types' {
      * Records the folded failure-pattern set produced by weakness mining for
      * this run. The snapshot is reconstructable from the projection unit plus
      * preceding session events; this event pins its durable identity.
+     * `occurrences` may include the cross-session 24h merge from
+     * `$DSH_HOME/self-evolve/global-patterns.jsonl` (P4.2), which the session
+     * log alone cannot reconstruct.
      */
     'self-evolve/mined': {
       runId: SelfEvolveRunId
@@ -257,8 +264,8 @@ declare module '@deepseek-ai/dsh-session/types' {
       suggestion: string
     }
     /**
-     * Marks the end of a self-evolve loop — releases the run lock. `error`
-     * records an unsuccessful loop; absent on clean termination.
+     * Marks the end of a self-evolve loop — the maintenance phase releases the
+     * agent. `error` records an unsuccessful loop; absent on clean termination.
      */
     'self-evolve/end': {
       runId: SelfEvolveRunId

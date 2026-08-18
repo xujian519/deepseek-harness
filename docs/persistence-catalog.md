@@ -126,8 +126,12 @@ Source: [`packages/core/agent/src/types.ts:19`](../packages/core/agent/src/types
  * Emitted when the agent loop records a failed model request. The
  * `error.code` drives the `llm-provider` tier's causal signature (Gate
  * SIG-4); `statusCode` is the provider's HTTP status when available.
+ * `turn`/`step` pin the failing step so turn-scoped consumers (step
+ * reflection) can match the event to its turn.
  */
 'agent/request-error': {
+  turn?: number
+  step?: number
   provider?: unknown
   model?: unknown
   statusCode?: unknown
@@ -135,7 +139,7 @@ Source: [`packages/core/agent/src/types.ts:19`](../packages/core/agent/src/types
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:184`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:186`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `agent-preset/*`
 
@@ -674,7 +678,7 @@ Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/sch
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:240`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:247`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveend--log-only"></a>
 
@@ -682,8 +686,8 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:240`](../packages/self-e
 
 ```ts persistence-catalog
 /**
- * Marks the end of a self-evolve loop — releases the run lock. `error`
- * records an unsuccessful loop; absent on clean termination.
+ * Marks the end of a self-evolve loop — the maintenance phase releases the
+ * agent. `error` records an unsuccessful loop; absent on clean termination.
  */
 'self-evolve/end': {
   runId: SelfEvolveRunId
@@ -693,7 +697,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:240`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:263`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:270`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvemined--log-only"></a>
 
@@ -704,6 +708,9 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:263`](../packages/self-e
  * Records the folded failure-pattern set produced by weakness mining for
  * this run. The snapshot is reconstructable from the projection unit plus
  * preceding session events; this event pins its durable identity.
+ * `occurrences` may include the cross-session 24h merge from
+ * `$DSH_HOME/self-evolve/global-patterns.jsonl` (P4.2), which the session
+ * log alone cannot reconstruct.
  */
 'self-evolve/mined': {
   runId: SelfEvolveRunId
@@ -713,7 +720,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:263`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:210`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:217`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveproposed--log-only"></a>
 
@@ -731,7 +738,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:210`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:228`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvereflection--log-only"></a>
 
@@ -755,7 +762,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:250`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:257`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvestart--log-only"></a>
 
@@ -764,8 +771,8 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:250`](../packages/self-e
 ```ts persistence-catalog
 /**
  * Marks the start of a single self-evolve loop — weakness mining, proposal,
- * validation, and optional commit. Log-only; holds the run lock until
- * `self-evolve/end`.
+ * validation, and optional commit. Log-only; the agent's maintenance phase
+ * serializes concurrent loops until `self-evolve/end`.
  */
 'self-evolve/start': {
   runId: SelfEvolveRunId
@@ -779,7 +786,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:250`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:195`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:199`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvevalidated--log-only"></a>
 
@@ -798,7 +805,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:195`](../packages/self-e
 }
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/types.ts:230`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:237`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `session/*`
 
