@@ -169,6 +169,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'agent-preset': 'core.md',
   'approval': 'approval.md',
   'commands': 'commands.md',
+  'cordis': 'extensions.md',
   '@deepseek-ai': 'extensions.md',
   'credentials': 'credentials.md',
   'domain': 'storage.md',
