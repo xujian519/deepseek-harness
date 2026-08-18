@@ -162,7 +162,7 @@ export interface Config {
 
 Depends on: [`AgentOptions`](subsystems/core.md) · [`SessionId`](subsystems/core.md)
 
-Source: [`packages/core/agent-loop/src/index.ts:255`](../packages/core/agent-loop/src/index.ts)
+Source: [`packages/core/agent-loop/src/index.ts:256`](../packages/core/agent-loop/src/index.ts)
 
 <a id="deepseek-aidsh-agent-presets"></a>
 
@@ -654,7 +654,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/bundle/headless/src/index.ts:31`](../packages/bundle/headless/src/index.ts)
+Source: [`packages/bundle/headless/src/index.ts:32`](../packages/bundle/headless/src/index.ts)
 
 <a id="deepseek-aidsh-hooks-claude-code"></a>
 
@@ -1291,7 +1291,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/feedback/message-feedback/src/index.ts:49`](../packages/feedback/message-feedback/src/index.ts)
+Source: [`packages/feedback/message-feedback/src/index.ts:50`](../packages/feedback/message-feedback/src/index.ts)
 
 <a id="deepseek-aidsh-methodology"></a>
 
@@ -1439,7 +1439,7 @@ export interface PresetSpec {
 
 Depends on: [`ApprovalPolicy`](subsystems/approval.md) · [`SandboxMode`](subsystems/sandbox.md)
 
-Source: [`packages/interaction/permission-presets/src/index.ts:140`](../packages/interaction/permission-presets/src/index.ts)
+Source: [`packages/interaction/permission-presets/src/index.ts:141`](../packages/interaction/permission-presets/src/index.ts)
 
 <a id="deepseek-aidsh-persona"></a>
 
@@ -1653,6 +1653,122 @@ Depends on: `Readable` (`node:stream`) · `Writable` (`node:stream`)
 
 Source: [`packages/sdk/server/src/index.ts:25`](../packages/sdk/server/src/index.ts)
 
+<a id="deepseek-aidsh-self-evolve-basic"></a>
+
+## `@deepseek-ai/dsh-self-evolve-basic`
+
+Requires: `sessionProjections` · `sessions` · `skills` · `systemPrompt` · `agents`
+
+```ts config-catalog
+/** Public configuration for the basic self-evolve provider. */
+export interface BasicSelfEvolveConfig {
+  /** Maximum autonomous loops started per session per 24-hour wall-clock window. */
+  maxDailyLoopsPerSession?: number
+  /** Which triggers this provider will honour. */
+  triggers?: TriggerPolicy
+  /** Which edit surfaces proposals target; undefined = default L1+L2 only. */
+  defaultLevels?: EvolveLevel[]
+  /** Minimum occurrence count before a pattern becomes a proposal target. */
+  minPatternOccurrences?: number
+  /** Maximum number of proposals generated per loop; positive integer. */
+  maxProposalsPerLoop?: number
+  /** Provider/model target routed for the proposer LLM call; absent => same as session. */
+  proposerTarget?: {
+    /** Registered provider route for the proposer LLM call. */
+    provider: string
+    /** Model name for the proposer LLM call. */
+    model: string
+  }
+  /**
+   * Provider/model target routed for the validation LLM judge (P1.4). Absent
+   * disables the judge (structural scores only). When set, it MUST differ from
+   * `proposerTarget` — load-time validation rejects identical targets so the
+   * judge cannot drift with the proposer (Validator 漂移防护).
+   */
+  validatorTarget?: {
+    /** Registered provider route for the validation LLM judge. */
+    provider: string
+    /** Model name for the validation LLM judge. */
+    model: string
+  }
+  /**
+   * Minimum aggregate confidence for an accepted proposal:
+   * `min(deconstructedScores) × heldInRate × heldOutRate`. The weak path
+   * (verifier signals or held-out unavailable) caps each missing rate at 0.3,
+   * so unverifiable proposals are rejected conservatively instead of
+   * committing on trust.
+   */
+  minAcceptConfidence?: number
+  /**
+   * Maximum held-out cases searched and replayed per proposal (P1.3).
+   */
+  maxHeldOutCases?: number
+  /**
+   * Long-horizon prompt-inflation budget (翁荔挑战 7, P1.9): when the total
+   * bytes of live self-evolve-generated L2 sections exceeds this, the pruning
+   * job archives the oldest sections (to `$DSH_HOME/self-evolve/l2-archive/`)
+   * and disposes their effects until the total is back under the budget.
+   */
+  maxPromptInflationBytesPerWeek?: number
+  /**
+   * L4 re-approval cadence (Phase 2, P2.3): an L4 plugin approved by
+   * self-evolve more than this many hours ago is forced through human
+   * approval again, even when `approveFutureVersions` grants would
+   * auto-approve. Cross-proposal reuse of a plugin id always re-approves.
+   */
+  l4ReapprovalHours?: number
+  /**
+   * Maximum step reflections per turn (Phase 3, P3.1): a low-budget LLM
+   * reflection on a failing step runs at most this many times per turn.
+   * Zero disables step reflection entirely.
+   */
+  maxStepReflectionsPerTurn?: number
+  /**
+   * Minimum model-reported confidence for a step reflection to reinforce a
+   * pattern (Phase 3, P3.1); below this the reflection is dropped.
+   */
+  reflectionMinConfidence?: number
+  /**
+   * Per-pattern proposal freeze window (Phase 3, P3.3): after a pattern has
+   * been proposed twice, it is skipped for this many hours (diversity
+   * collapse guard).
+   */
+  patternFreezeHours?: number
+  /**
+   * Per-loop byte budget for LLM calls and search (Phase 3, P3.4): when the
+   * accumulated request bytes exceed it, the loop aborts with
+   * `budget-exceeded` and closes its bracket with an error.
+   */
+  maxBudgetCharsPerLoop?: number
+  /**
+   * Held-In dual verification gate (翁荔挑战 1). When true, proposals are
+   * rejected unless BOTH the replay and workspace verifiers pass; the base
+   * provider's collectors return `null` until P1.2/P1.3 infrastructure lands,
+   * so the gate degrades to the bracket-smoke validator (honest, no fake
+   * acceptances are produced by the dual check).
+   */
+  requireDualVerification?: boolean
+  /**
+   * Held-In dual-verifier (翁荔挑战 1) tolerance: number of dirty lines the
+   * build/dirty-state signal may add to a workspace before marking a replay
+   * as dirty-regression. Keeps small formatter jitter from failing the gate.
+   */
+  maxDirtyLinesAddedPerCommit?: number
+}
+
+/** Per-trigger rate-limiting policy for the basic provider. */
+export type TriggerPolicy = Record<EvolveTrigger, {
+  /** Whether this trigger may start a loop. */
+  enabled: boolean
+  /** Minimum milliseconds between two starts of this trigger. */
+  minIntervalMs: number
+}>
+```
+
+Depends on: [`EvolveLevel`](../packages/self-evolve/self-evolve/src/index.ts) · [`EvolveTrigger`](../packages/self-evolve/self-evolve/src/index.ts)
+
+Source: [`packages/self-evolve/self-evolve-basic/src/types.ts:30`](../packages/self-evolve/self-evolve-basic/src/types.ts)
+
 <a id="deepseek-aidsh-session-persistence-jsonl"></a>
 
 ## `@deepseek-ai/dsh-session-persistence-jsonl`
@@ -1758,7 +1874,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/session/session-projection-cache/src/index.ts:42`](../packages/session/session-projection-cache/src/index.ts)
+Source: [`packages/session/session-projection-cache/src/index.ts:43`](../packages/session/session-projection-cache/src/index.ts)
 
 <a id="deepseek-aidsh-session-query-sqlite"></a>
 
@@ -1804,7 +1920,7 @@ export type JournalMode = 'wal' | 'delete' | 'truncate' | 'persist'
 
 Depends on: [`SessionQueryConfig`](../packages/session-query/session-query/src/index.ts)
 
-Source: [`packages/session-query/session-query-sqlite/src/index.ts:89`](../packages/session-query/session-query-sqlite/src/index.ts)
+Source: [`packages/session-query/session-query-sqlite/src/index.ts:90`](../packages/session-query/session-query-sqlite/src/index.ts)
 
 <a id="deepseek-aidsh-session-reference"></a>
 
@@ -1890,7 +2006,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/session/session-title/src/index.ts:79`](../packages/session/session-title/src/index.ts)
+Source: [`packages/session/session-title/src/index.ts:80`](../packages/session/session-title/src/index.ts)
 
 <a id="deepseek-aidsh-session-title-all-prompts-llm"></a>
 
@@ -3286,7 +3402,6 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-sdk-jsonrpc-demo` ([`packages/examples/jsonrpc-demo/src/index.ts`](../packages/examples/jsonrpc-demo/src/index.ts))
 - `@deepseek-ai/dsh-sdk-protocol` ([`packages/sdk/protocol/src/index.ts`](../packages/sdk/protocol/src/index.ts))
 - `@deepseek-ai/dsh-self-evolve` ([`packages/self-evolve/self-evolve/src/index.ts`](../packages/self-evolve/self-evolve/src/index.ts))
-- `@deepseek-ai/dsh-self-evolve-basic` ([`packages/self-evolve/self-evolve-basic/src/index.ts`](../packages/self-evolve/self-evolve-basic/src/index.ts))
 - `@deepseek-ai/dsh-session-telemetry` ([`packages/session/session-telemetry/src/index.ts`](../packages/session/session-telemetry/src/index.ts))
 - `@deepseek-ai/dsh-session-title-llm` ([`packages/session/session-title-llm/src/index.ts`](../packages/session/session-title-llm/src/index.ts))
 - `@deepseek-ai/dsh-subagent-in-process-driver` ([`packages/subagent/subagent-in-process-driver/src/index.ts`](../packages/subagent/subagent-in-process-driver/src/index.ts))

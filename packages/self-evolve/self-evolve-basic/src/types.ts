@@ -13,7 +13,12 @@
 import type { EvolveLevel, EvolveTrigger } from '@deepseek-ai/dsh-self-evolve'
 
 /** Per-trigger rate-limiting policy for the basic provider. */
-export type TriggerPolicy = Record<EvolveTrigger, { enabled: boolean; minIntervalMs: number }>
+export type TriggerPolicy = Record<EvolveTrigger, {
+  /** Whether this trigger may start a loop. */
+  enabled: boolean
+  /** Minimum milliseconds between two starts of this trigger. */
+  minIntervalMs: number
+}>
 
 /** Resolved configuration with defaults applied; `proposerTarget`/`validatorTarget` stay optional. */
 export interface ResolvedBasicSelfEvolveConfig extends Required<Omit<BasicSelfEvolveConfig, 'proposerTarget' | 'validatorTarget'>> {
@@ -34,14 +39,24 @@ export interface BasicSelfEvolveConfig {
   /** Maximum number of proposals generated per loop; positive integer. */
   maxProposalsPerLoop?: number
   /** Provider/model target routed for the proposer LLM call; absent => same as session. */
-  proposerTarget?: { provider: string; model: string }
+  proposerTarget?: {
+    /** Registered provider route for the proposer LLM call. */
+    provider: string
+    /** Model name for the proposer LLM call. */
+    model: string
+  }
   /**
    * Provider/model target routed for the validation LLM judge (P1.4). Absent
    * disables the judge (structural scores only). When set, it MUST differ from
    * `proposerTarget` — load-time validation rejects identical targets so the
    * judge cannot drift with the proposer (Validator 漂移防护).
    */
-  validatorTarget?: { provider: string; model: string }
+  validatorTarget?: {
+    /** Registered provider route for the validation LLM judge. */
+    provider: string
+    /** Model name for the validation LLM judge. */
+    model: string
+  }
   /**
    * Minimum aggregate confidence for an accepted proposal:
    * `min(deconstructedScores) × heldInRate × heldOutRate`. The weak path
