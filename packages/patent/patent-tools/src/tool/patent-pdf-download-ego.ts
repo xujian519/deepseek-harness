@@ -37,7 +37,7 @@ export type EgoSessionSeam = {
   /** Run one script via stdin and return the collected output. */
   runScript: (script: string, options: { cwd: string; timeoutMs?: number; signal?: AbortSignal }) => Promise<EgoScriptRun>
   /** Parse the first EGO_<tag>:<json> line from the output. */
-  extractTaggedJson: <T>(output: string, tag: string) => T | null
+  extractTaggedJson: (output: string, tag: string) => unknown
 }
 
 /**
@@ -50,7 +50,7 @@ export function buildDownloadScript(request: EgoDownloadRequest): string {
   const outputDir = JSON.stringify(request.outputDir)
   const pageTimeoutSec = request.pageTimeoutSec
   const downloadTimeoutMs = request.downloadTimeoutMs
-  const evidenceLines = request.record === true
+  const evidenceLines = request.record
     ? [
       '        if (saved) {',
       '          const shot = await cdp(\'Page.captureScreenshot\', { format: \'png\' })',
@@ -58,14 +58,14 @@ export function buildDownloadScript(request: EgoDownloadRequest): string {
       '        }',
     ]
     : []
-  const recordedLine = request.record === true
+  const recordedLine = request.record
     ? '  if (evidence.length > 0) payload.recorded = outputDir + \'/evidence\''
     : undefined
   return [
     `const task = await useOrCreateTaskSpace('${TASK_SPACE_DOMAIN}')`,
     'try {',
     '  const items = []',
-    ...(request.record === true ? ['  const evidence = []'] : []),
+    ...(request.record ? ['  const evidence = []'] : []),
     `  const patents = ${patents}`,
     `  const outputDir = ${outputDir}`,
     '  for (const patent of patents) {',
@@ -144,7 +144,7 @@ export function createEgoDownloadRunner(session: EgoSessionSeam): RunEgo {
         tool: 'patent_pdf_download',
       })
     }
-    const payload = session.extractTaggedJson<EgoDownloadResult>(result.output, 'DOWNLOAD')
+    const payload = session.extractTaggedJson(result.output, 'DOWNLOAD') as EgoDownloadResult | null
     if (payload === null || !Array.isArray(payload.items)) {
       const tail = result.output.slice(-400)
       throw new PatentToolError(

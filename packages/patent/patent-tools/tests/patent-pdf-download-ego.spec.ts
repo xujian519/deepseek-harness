@@ -23,11 +23,11 @@ function okSession(overrides: Partial<Parameters<typeof createEgoDownloadRunner>
   return {
     checkAvailability: () => ({ ok: true }),
     runScript: async () => ({ output: 'EGO_DOWNLOAD:{"items":[{"patent":"US11452699B2","status":"ok","path":"/tmp/patent-pdf/US11452699B2.pdf"}]}', exitCode: 0, timedOut: false }),
-    extractTaggedJson: <T>(output: string, tag: string) => {
+    extractTaggedJson: (output: string, tag: string) => {
       const prefix = `EGO_${tag}:`
       const idx = output.indexOf(prefix)
       if (idx < 0) return null
-      return JSON.parse(output.slice(idx + prefix.length)) as T
+      return JSON.parse(output.slice(idx + prefix.length)) as unknown
     },
     ...overrides,
   }
