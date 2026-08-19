@@ -305,6 +305,7 @@
     { "path": "./packages/patent/patent-knowledge" },
     { "path": "./packages/patent/patent-workflow" },
     { "path": "./packages/patent/patent-tools" },
+    { "path": "./packages/patent/patent-teams" },
     { "path": "./packages/patent/patent-rule" },
     { "path": "./packages/patent/patent-document" },
     { "path": "./packages/patent/tool-literature" },

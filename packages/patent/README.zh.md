@@ -11,6 +11,7 @@
 | [`patent-core/`](patent-core/README.md) | 纯专利域库：ModelPort、atoms、checker、claim-chart、problem、evidence、reasoning、graph。 | — |
 | [`patent-workflow/`](patent-workflow/README.md) | 执行管线：workflow/flexible-plan/plantask 状态机 + HITL 审批。 | `patentWorkflow` |
 | [`patent-tools/`](patent-tools/README.md) | 模型可见专利工具集（检索/元数据/法律状态/判例/撰写/渲染/规则检查）。 | （注册于 `ctx.tools`） |
+| [`patent-teams/`](patent-teams/README.md) | 持久多智能体团队：队长领导成员、依赖感知任务、邮箱消息、共享任务调度器。 | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.md) | 规则引擎、合规资产、`tools/post-execute` 输出门禁。 | （策略插件） |
 | [`patent-document/`](patent-document/README.md) | 专利文书渲染：模板、品牌注入、PDF。 | （注册于 `ctx.tools`） |
 | [`tool-literature/`](tool-literature/README.md) | 文献连接器：arXiv/OpenAlex/Semantic Scholar/Crossref。 | （注册于 `ctx.tools`） |

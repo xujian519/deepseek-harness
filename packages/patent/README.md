@@ -11,6 +11,7 @@ Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh
 | [`patent-core/`](patent-core/README.md) | Pure patent-domain library: ModelPort, atoms, checker, claim-chart, problem, evidence, reasoning, graph. | — |
 | [`patent-workflow/`](patent-workflow/README.md) | Execution pipeline: workflow/flexible-plan/plantask state machines + HITL approval. | `patentWorkflow` |
 | [`patent-tools/`](patent-tools/README.md) | Model-facing patent tool set (search/metadata/legal-status/case-search/draft/render/rule-check). | (registers on `ctx.tools`) |
+| [`patent-teams/`](patent-teams/README.md) | Durable multi-agent teams: captain-led members, dependency-aware tasks, mailbox messaging, shared-task scheduler. | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.md) | Rule engine, compliance assets, output gates on `tools/post-execute`. | (policy plugin) |
 | [`patent-document/`](patent-document/README.md) | Patent document rendering: templates, brand injection, PDF. | (registers on `ctx.tools`) |
 | [`tool-literature/`](tool-literature/README.md) | Literature connectors: arXiv/OpenAlex/Semantic Scholar/Crossref. | (registers on `ctx.tools`) |

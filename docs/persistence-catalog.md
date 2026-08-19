@@ -554,6 +554,106 @@ Source: [`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/p
 
 Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
 
+### `patent-teams/*`
+
+<a id="patent-teamsmember-added--log-only"></a>
+
+#### `patent-teams/member-added` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one team member.
+ * @param data - team identity, member child session, and display identity.
+ */
+'patent-teams/member-added': PatentTeamsMemberAddedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:84`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsmember-removed--log-only"></a>
+
+#### `patent-teams/member-removed` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one member removal.
+ * @param data - team identity and the member's child session id.
+ */
+'patent-teams/member-removed': PatentTeamsMemberRemovedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsmessage-sent--log-only"></a>
+
+#### `patent-teams/message-sent` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one mailbox message.
+ * @param data - team identity, sender, recipient, and content.
+ */
+'patent-teams/message-sent': PatentTeamsMessageSentData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:104`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-created--log-only"></a>
+
+#### `patent-teams/task-created` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one task creation.
+ * @param data - team identity, task id, subject, dependencies, assignee.
+ */
+'patent-teams/task-created': PatentTeamsTaskCreatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:94`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-updated--log-only"></a>
+
+#### `patent-teams/task-updated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one task transition.
+ * @param data - team identity, task id, and the new status/assignee/output.
+ */
+'patent-teams/task-updated': PatentTeamsTaskUpdatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:99`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsteam-created--log-only"></a>
+
+#### `patent-teams/team-created` — log-only
+
+```ts persistence-catalog
+/**
+ * Opens one team record.
+ * @param data - stable team identity and display name.
+ */
+'patent-teams/team-created': PatentTeamsTeamCreatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:79`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsteam-deleted--log-only"></a>
+
+#### `patent-teams/team-deleted` — log-only
+
+```ts persistence-catalog
+/**
+ * Closes one team record after deletion.
+ * @param data - stable team identity.
+ */
+'patent-teams/team-deleted': PatentTeamsTeamDeletedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:109`](../packages/patent/patent-teams/src/event-types.ts)
+
 ### `permission/*`
 
 <a id="permissionpreset--log-only"></a>
