@@ -11,6 +11,7 @@
  * @module @deepseek-ai/dsh/profile-boot
  */
 
+import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +21,8 @@ import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import {
   boot,
   composeEntries,
+  divergentProfileCoreVersions,
+  ensureProfileVersionPins,
   healProfilesModuleFallback,
   installFailLoud,
   loadOptionalPatches,
@@ -98,8 +101,49 @@ export function resolveTelemetryPatch(disabledEnv: string | undefined, hasRow: b
 export function prepareProfile(name: string, userLayer = true): Profile {
   healProfilesModuleFallback(INSTALL_ANCHOR)
   const profile = loadProfile(NAME, name, INSTALL_ANCHOR, undefined, { userLayer })
+  convergeProfileCoreCopies(profile.dir)
   writeFileSync(join(profile.dir, PROFILE_ROOT_FILENAME), PROFILE_ROOT_CONFIG)
   return profile
+}
+
+/**
+ * Converge the profile's physical core-seam copies on the installation's
+ * versions: backfill the pnpm-workspace version pins, then either print the
+ * manual fix or (when `DSH_AUTO_PNPM_INSTALL` is set, the desktop launch)
+ * run `pnpm install` in the profile. Never blocks boot on the outcome.
+ * @param profileDir - the profile directory.
+ */
+function convergeProfileCoreCopies(profileDir: string): void {
+  const pinned = ensureProfileVersionPins(profileDir, INSTALL_ANCHOR)
+  const divergent = divergentProfileCoreVersions(profileDir, INSTALL_ANCHOR)
+  if (pinned.length === 0 && divergent.length === 0) return
+  if ((process.env.DSH_AUTO_PNPM_INSTALL ?? '') === '') {
+    const details = [...pinned.map(packageName => `pinned ${packageName}`), ...divergent]
+    process.stderr.write(
+      `${NAME}: ${details.join('; ')} — run 'pnpm install' in ${profileDir} so every copy of the scheduler handshake `
+      + 'converges on the installation\'s versions\n',
+    )
+    return
+  }
+  const result = spawnSync('pnpm', ['install'], {
+    cwd: profileDir,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  })
+  if (result.error !== undefined) {
+    process.stderr.write(
+      `${NAME}: cannot auto-run pnpm (${result.error.message}); run 'pnpm install' in ${profileDir} so the scheduler handshake copies converge\n`,
+    )
+    return
+  }
+  if ((result.status ?? 1) !== 0) {
+    process.stderr.write(`${NAME}: 'pnpm install' failed in ${profileDir}; run it manually so the scheduler handshake copies converge\n`)
+    return
+  }
+  const remaining = divergentProfileCoreVersions(profileDir, INSTALL_ANCHOR)
+  if (remaining.length > 0) {
+    process.stderr.write(`${NAME}: warning: ${remaining.join(', ')} still differ from the installation after install\n`)
+  }
 }
 
 /** One profile's patch layers (application order) and the row index of its pre-flag composition. */

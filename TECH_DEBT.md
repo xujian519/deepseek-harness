@@ -210,7 +210,7 @@
 
 ### L6. 已论证的权衡(记录,不建议改动)
 
-- `TOOL_RUNTIME_SCHEDULER` 字符串键服务握手(`core/tools/src/index.ts:475`,消费 `agent-loop/tool-calls.ts:19,155-176`):pnpm 双副本 hoist 下 Symbol 失效的正当理由;若未来单一副本分发应回归 Symbol/typed 访问
+- `TOOL_RUNTIME_SCHEDULER` 字符串键服务握手(`core/tools/src/index.ts:475`,消费 `agent-loop/tool-calls.ts:19,155-176`):pnpm 双副本 hoist 下 Symbol 失效的正当理由;纵深防御见 [2026-08-19-dual-copy-defense-in-depth](.agents/notes/implemented/architecture/2026-08-19-dual-copy-defense-in-depth.md)(profile pnpm-workspace overrides 钉版本 + `requireScheduler` 诊断 + `DSH_AUTO_PNPM_INSTALL` 自动收敛);若未来单一副本分发应回归 Symbol/typed 访问
 - `credentials-local` 与 `settings-file` 约 200 行 provider 对称代码:`jscpd:ignore-start` 声明「deliberate symmetry」并豁免
 - `tools/src/json-schema.ts:89-135` 复制 `session/src/json.ts:16-42` realm 探测、`py-types.ts:511-548` 与 `ts-types.ts:112-230` 渲染器骨架:均已 jscpd 豁免并注释;bug 修复需手工同步,第三处消费时下沉
 

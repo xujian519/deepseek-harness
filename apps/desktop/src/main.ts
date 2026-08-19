@@ -154,6 +154,9 @@ void app.whenReady().then(async () => {
     env: {
       ...process.env,
       DSH_DESKTOP_BRIDGE_PATH: bridgePath,
+      // The desktop launch has no terminal; let profile boot converge the
+      // scheduler-handshake copies by running pnpm itself when they diverge.
+      DSH_AUTO_PNPM_INSTALL: '1',
     },
   })
   backend.onExit((exit) => {

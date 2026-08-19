@@ -15,8 +15,10 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   DEFAULT_PROFILE_BUNDLES,
+  divergentProfileCoreVersions,
   initProfile,
   PROFILE_TEMPLATES,
+  profileCoreOverrides,
   readProfileManifest,
   resolveBundleDir,
   resolveProfileDir,
@@ -120,7 +122,7 @@ function anchorPathSpec(argument: string, cwd: string): string {
 export function runPlugin(profile: string, args: readonly string[]): number {
   const dir = resolveProfileDir(profile)
   if (!existsSync(join(dir, 'package.json'))) {
-    initProfile(dir, PROFILE_TEMPLATES[profile] ?? DEFAULT_PROFILE_BUNDLES)
+    initProfile(dir, PROFILE_TEMPLATES[profile] ?? DEFAULT_PROFILE_BUNDLES, { overrides: profileCoreOverrides(INSTALL_ANCHOR) })
     process.stderr.write(`${NAME}: initialized profile ${profile} at ${dir}\n`)
   }
   const before = readProfileManifest(NAME, dir)
@@ -142,6 +144,12 @@ export function runPlugin(profile: string, args: readonly string[]): number {
   const exitCode = result.status ?? 1
   if (exitCode === 0) {
     reconcilePlugins(before, dir)
+    for (const divergent of divergentProfileCoreVersions(dir, INSTALL_ANCHOR)) {
+      process.stderr.write(
+        `${NAME}: warning: ${divergent} in profile ${profile} differs from the installation; `
+        + `run 'pnpm install' in ${dir} so the scheduler handshake copies converge\n`,
+      )
+    }
   } else {
     // pnpm's own diagnostics name pnpm-workspace.yaml without saying WHICH
     // one; the profile owns it, and the commonest failure here is pnpm ≥10
