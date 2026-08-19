@@ -2876,7 +2876,7 @@ Usage notes:
     },
     "caseId": {
       "type": "string",
-      "description": "Optional case id for result records; when provided the run persists under <caseDir>/workflow-runs/."
+      "description": "Optional case id for result records; when provided the run persists under `<caseDir>/workflow-runs/`."
     },
     "outputs": {
       "type": "array",

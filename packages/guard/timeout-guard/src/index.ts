@@ -3,12 +3,7 @@
  * promises to honor `exec.signal`; this wrapper arms that deadline and maps its
  * own expiry to `TOOL_TIMEOUT` without racing or abandoning the tool promise.
  *
- * FIXME: settle the intended `@deepseek-ai/dsh-timeout-guard` rename before the
- * first tagged release — suggestion only, aligning the name with its `guard/`
- * home; decide at resolution time
- * ([regrouping Agent Note](../../../../.agents/notes/implemented/architecture/2026-07-29-package-regrouping.md)).
- *
- * @module @deepseek-ai/dsh-tool-call-timeout-policy
+ * @module @deepseek-ai/dsh-timeout-guard
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -25,7 +20,7 @@ import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 export const TOOL_TIMEOUT = 'TOOL_TIMEOUT'
 
 /** Cordis plugin name used by loader diagnostics. */
-export const name = 'timeout-policy'
+export const name = 'timeout-guard'
 
 /** The tool registry service this plugin wraps (`tools/execute`) and reads (`get`). */
 export const inject = ['tools']

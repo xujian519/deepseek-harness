@@ -1,16 +1,16 @@
-# dsh-tool-call-timeout-policy
+# dsh-timeout-guard
 
 English | [中文](README.zh.md)
 
 Tool-call timeout enforcer: a single `tools/execute` around-dispatch listener that arms a per-call cooperative deadline on `exec.signal` for a tool declaring `timeoutMs` on its `ToolDefinition` and returns a structured `TOOL_TIMEOUT` result when that deadline wins. The budget is read from the tool's own declaration (`ToolDefinition.timeoutMs`, set by the owning tool plugin), so this plugin is **zero-config**. It is the reference `tools/execute` wrapper and the enforcement home for model-facing tool-call budgets ([timeout-library Agent Note](../../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.md)).
 
-## Plugin (namespace: `timeout-policy`)
+## Plugin (namespace: `timeout-guard`)
 
 A function/namespace plugin (`name` / `inject` / `apply`), not a service. It registers no tool and takes no config — it consumes `ctx.tools`'s `tools/execute` waterfall (which the `dsh-tools` registry always provides) and reads each dispatched tool's declared `timeoutMs` from the registry (`ctx.tools.get(exec.name)`).
 
 ```yaml
-- id: timeout-policy
-  name: '@deepseek-ai/dsh-tool-call-timeout-policy'
+- id: timeout-guard
+  name: '@deepseek-ai/dsh-timeout-guard'
 ```
 
 The per-tool budget is declared by the tool plugin (e.g. `dsh-tool-web`'s `fetchTimeoutMs`/`searchTimeoutMs` config, attached as `ToolDefinition.timeoutMs`); this plugin only enforces it, so a mistyped tool name is not possible.

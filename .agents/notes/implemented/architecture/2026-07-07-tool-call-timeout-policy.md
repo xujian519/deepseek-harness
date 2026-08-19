@@ -16,7 +16,7 @@ Tool-call timeout is a policy that applies only to model-facing tool execution, 
 
 - `@deepseek-ai/dsh-timeout` remains the shared library that owns `deadline()` and `timeoutOf()`.
 - `@deepseek-ai/dsh-tools` has an around-dispatch waterfall, `tools/execute`, between `tools/pre-execute` and `tools/post-execute`.
-- The [repository naming contract](2026-08-11-repository-naming-contract-and-rename-ledger.md) names `@deepseek-ai/dsh-tool-call-timeout-policy` for the exact operation it limits. The plugin reads each tool's declared `timeoutMs` from the runtime and wraps a call that has one by deriving a new `exec.signal`.
+- The [repository naming contract](2026-08-11-repository-naming-contract-and-rename-ledger.md) names `@deepseek-ai/dsh-timeout-guard` for the exact operation it limits. The plugin reads each tool's declared `timeoutMs` from the runtime and wraps a call that has one by deriving a new `exec.signal`.
 
 The execution pipeline is:
 
@@ -36,15 +36,15 @@ The default behavior is conservative: a tool that declares no `timeoutMs` receiv
 
 `@deepseek-ai/dsh-tools` declares a `tools/execute` waterfall whose base `next()` is the dispatch-with-normalization thunk — the same inner `try`/`catch` that turns a thrown tool (or unknown tool) into an `isError` `ToolExecutionResult`. A listener receives `(exec, next)`: it calls `next()` to delegate to dispatch (returning its result, optionally wrapped) or returns a replacement result to short-circuit dispatch. The whole pipeline still sits inside `execute`'s outer try/catch, so a throwing listener becomes an `isError` result, never a turn failure.
 
-That the catch is the base `next` — not something outside the waterfall — is load-bearing: when a provider sees the timeout signal and throws its own upstream-abort error, registry dispatch first converts it to a normal error result, and only then can `timeout-policy` replace the final result with `TOOL_TIMEOUT`.
+That the catch is the base `next` — not something outside the waterfall — is load-bearing: when a provider sees the timeout signal and throws its own upstream-abort error, registry dispatch first converts it to a normal error result, and only then can `timeout-guard` replace the final result with `TOOL_TIMEOUT`.
 
-### The `timeout-policy` plugin
+### The `timeout-guard` plugin
 
-The plugin is `@deepseek-ai/dsh-tool-call-timeout-policy`, a zero-config function/namespace plugin (`name` / `inject` / `apply`) in the `packages/guard/` group (originally its own `timeout/` group). The per-tool budget is DECLARED on the tool, not on this plugin: a `ToolDefinition` carries an optional `timeoutMs`, which the owning tool plugin sets from its own config. `dsh-tool-web`, for example, resolves `fetchTimeoutMs` / `searchTimeoutMs` (default 30000) onto the `web_fetch` / `web_search` definitions:
+The plugin is `@deepseek-ai/dsh-timeout-guard`, a zero-config function/namespace plugin (`name` / `inject` / `apply`) in the `packages/guard/` group (originally its own `timeout/` group). The per-tool budget is DECLARED on the tool, not on this plugin: a `ToolDefinition` carries an optional `timeoutMs`, which the owning tool plugin sets from its own config. `dsh-tool-web`, for example, resolves `fetchTimeoutMs` / `searchTimeoutMs` (default 30000) onto the `web_fetch` / `web_search` definitions:
 
 ```yaml
-- id: timeout-policy
-  name: '@deepseek-ai/dsh-tool-call-timeout-policy'
+- id: timeout-guard
+  name: '@deepseek-ai/dsh-timeout-guard'
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
   config:
@@ -56,7 +56,7 @@ Timeouts live on tool definitions rather than a free-text name map, eliminating 
 
 Signal replacement is by **in-place mutation of `exec.signal`**, not by passing a new object to `next()`. Cordis's waterfall `next()` ignores any arguments handed to it and re-invokes downstream listeners with the shared payload array (`vendor/cordis/src/events.ts`), so mutation is how the wrapper supplies its deadline to the registry. The registry re-fuses the captured caller signal immediately before the body, and the plugin restores `exec.signal` to the caller's original in a `finally` so `tools/post-execute` never sees the plugin's deadline signal.
 
-`timeout-policy` owns both uses of the `TOOL_TIMEOUT` code: the internal deadline code passed to `deadline()`/`timeoutOf()` (scoped so a nested outer deadline reads as an ordinary cancel) and the structured tool-result error code. Its replacement result is:
+`timeout-guard` owns both uses of the `TOOL_TIMEOUT` code: the internal deadline code passed to `deadline()`/`timeoutOf()` (scoped so a nested outer deadline reads as an ordinary cancel) and the structured tool-result error code. Its replacement result is:
 
 ```ts ignore-check
 function toolTimeoutResult(timeoutMs: number): ToolExecutionResult {
@@ -79,7 +79,7 @@ No new session event is needed for reconstructability: `TOOL_TIMEOUT` is the fin
 
 `web_fetch` and `web_search` are migrated. `dsh-tool-web` keeps ownership of their model-facing schemas, and those schemas expose no timeout knob: `web_fetch` dropped its `timeout_ms` parameter to match the reference-agent shape, and `web_search` stays query-only. The tool bodies do not import `@deepseek-ai/dsh-timeout`; they forward `exec.signal` to `ctx.web`.
 
-`dsh-web-fetch-http` keeps one configured provider-level `timeoutMs` as a large resource backstop for direct `ctx.web.fetch()` callers and misconfigured deployments; it owns no model-facing timeout. When a `TOOL_TIMEOUT` signal reaches the fetch provider first, provider-scoped classification treats it as upstream `WEB_ABORTED`, and the outer `tools/execute` wrapper replaces the final tool result with `TOOL_TIMEOUT`. A shipped web-tool deployment configures the provider backstop above the `timeout-policy` budget so the tool-call policy normally wins for model calls.
+`dsh-web-fetch-http` keeps one configured provider-level `timeoutMs` as a large resource backstop for direct `ctx.web.fetch()` callers and misconfigured deployments; it owns no model-facing timeout. When a `TOOL_TIMEOUT` signal reaches the fetch provider first, provider-scoped classification treats it as upstream `WEB_ABORTED`, and the outer `tools/execute` wrapper replaces the final tool result with `TOOL_TIMEOUT`. A shipped web-tool deployment configures the provider backstop above the `timeout-guard` budget so the tool-call policy normally wins for model calls.
 
 `bash` stays on the current backend timeout path. `dsh-tool-bash` continues to expose `timeoutMs` and `run_in_background`; `dsh-bash-local` continues to use `@deepseek-ai/dsh-timeout` for `BASH_TIMEOUT`; hook bridges continue to call `runHook()` and pass `timeoutMs` through `ctx.shell`. This keeps foreground/background/hook behavior stable.
 

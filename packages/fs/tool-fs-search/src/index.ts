@@ -89,7 +89,7 @@ export interface Config {
   stderrMaxBytes?: number
   /**
    * Cooperative tool-call timeout budget (ms) on both tools, enforced by
-   * `@deepseek-ai/dsh-tool-call-timeout-policy` through `exec.signal`.
+   * `@deepseek-ai/dsh-timeout-guard` through `exec.signal`.
    */
   timeoutMs?: number
 }
