@@ -67,11 +67,21 @@ function gb(bytes: number): string {
 /**
  * 路径的真实形态：父目录 realpath 后拼接 basename。输出文件可能尚不存在，
  * 无法对其本身 realpath，故对父目录解析——同文件别名（./、symlink）归一为同一值。
+ * 父目录也可能不存在（首次安装）：从下往上找第一个存在的祖先做 realpath，
+ * 再拼接其余段，使同文件守卫在输出目录缺失时仍可比较（目录不存在则输出必不与输入同文件）。
  * @param path - 待归一化的文件路径。
  * @returns 归一化后的绝对路径。
  */
 function realPathOf(path: string): string {
-  return join(realpathSync(dirname(resolve(path))), basename(resolve(path)))
+  const abs = resolve(path)
+  let dir = dirname(abs)
+  let suffix = basename(abs)
+  // 每轮 dir 上移一层，必然终止于存在的根目录。
+  while (!existsSync(dir)) {
+    suffix = join(basename(dir), suffix)
+    dir = dirname(dir)
+  }
+  return join(realpathSync(dir), suffix)
 }
 
 /**

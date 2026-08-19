@@ -235,6 +235,19 @@ describe('installKnowledgeDb verify + option branches', () => {
     expect(existsSync(staleTmp)).toBe(false)
   })
 
+  it('creates the output directory when it does not exist', async () => {
+    // 首次安装场景：输出父目录尚未创建，install 应先建目录再落盘
+    //（同文件守卫须对缺失目录容错，不得在比较阶段 ENOENT）。
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-mkdir-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const input = makeSourceDb(dir)
+    const outputDir = join(dir, 'nested', 'knowledge')
+    const output = join(outputDir, 'knowledge-lite.db')
+    const result = await installKnowledgeDb({ sourceDbPath: input, output, skipVerify: true })
+    expect(result.output).toBe(output)
+    expect(existsSync(output)).toBe(true)
+  })
+
   it('overwrites an existing output file', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-install-overwrite-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
