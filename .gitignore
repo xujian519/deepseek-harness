@@ -43,3 +43,10 @@ worktrees/
 .typert-*/
 .qoder/
 graphify-out/
+
+# Runtime team state (dsh-agent-teams / dsh-patent-teams workspaces)
+.agent-teams/
+.patent-teams/
+# Local tool indexes
+.codegraph/
+.cursor/
