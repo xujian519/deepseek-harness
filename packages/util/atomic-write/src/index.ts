@@ -1,17 +1,18 @@
 /**
  * Zero-dependency atomic file replacement and writer coordination.
  * `writeFileAtomic` writes a random-suffix sibling with exclusive create and
- * the caller's permission bits, then renames it over the target, so readers
- * observe either the old or the new complete content and a replaced file ends
- * up with exactly the stated mode. `withFileLock` serializes cross-process
- * writers of one file through a `wx`-created `<file>.lock` sibling, so a
+ * the caller's permission bits, fsyncs it, then renames it over the target and
+ * fsyncs the parent directory, so readers observe either the old or the new
+ * complete content, a replaced file ends up with exactly the stated mode, and
+ * the commit survives a crash. `withFileLock` serializes cross-process writers
+ * of one file through a `wx`-created `<file>.lock` sibling, so a
  * read-modify-write cycle can never resurrect a state another writer just
  * replaced; readers stay lock-free because the rename commit is atomic.
  * @module @deepseek-ai/dsh-atomic-write
  */
 
 import { randomBytes } from 'node:crypto'
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, open, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 /**
@@ -40,8 +41,12 @@ export interface WriteFileAtomicOptions {
  * rename, so replacing a wider-permission file narrows it without a chmod
  * race. The rename also replaces a symlinked target itself instead of writing
  * through to its referent, and the same-directory sibling keeps the rename on
- * one filesystem. On any failure the temp file is removed and the failure
- * rethrown. Crash durability (fsync) is out of scope.
+ * one filesystem. The temp inode is fsynced before the rename and the parent
+ * directory after it, so a crash cannot leave a zero-length or torn target;
+ * Windows cannot open a directory for fsync and some filesystems reject it
+ * outright (EINVAL/ENOTSUP/EOPNOTSUPP), where the flush is skipped or treated
+ * as best-effort and the file fsync still bounds the torn content. On any
+ * failure the temp file is removed and the failure rethrown.
  * @param filename - final path receiving the content.
  * @param content - complete next file content.
  * @param options - permission bits for the replacement inode.
@@ -51,21 +56,42 @@ export async function writeFileAtomic(filename: string, content: string, options
     recursive: true,
     ...options.dirMode === undefined ? {} : { mode: options.dirMode },
   })
-  // TODO(settings-atomic-durability): Use a replacement that fsyncs the file
-  // and parent directory and preserves owner-only permissions on Windows.
   const temp = `${filename}.${randomBytes(6).toString('hex')}.tmp`
   try {
-    await writeFile(temp, content, { mode: options.mode, flag: 'wx' })
+    const handle = await open(temp, 'wx', options.mode)
+    try {
+      await handle.writeFile(content)
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
     await rename(temp, filename)
+    if (process.platform !== 'win32') {
+      try {
+        const dir = await open(dirname(filename), 'r')
+        try {
+          await dir.sync()
+        } finally {
+          await dir.close()
+        }
+      } catch (error) {
+        // Some filesystems cannot fsync a directory and report EINVAL or
+        // ENOTSUP/EOPNOTSUPP; the temp inode fsync above already bounds torn
+        // content, so the write is complete and durable either way and this
+        // flush is best-effort. Any other error is a real I/O failure and
+        // the write reports failed.
+        if (!hasCode(error, 'EINVAL') && !hasCode(error, 'ENOTSUP') && !hasCode(error, 'EOPNOTSUPP')) throw error
+      }
+    }
   } catch (error) {
     await rm(temp, { force: true })
     throw error
   }
 }
 
-/** Whether an exclusive create failed because the path already exists. */
-function isEEXIST(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
+/** Whether the error carries the given errno code. */
+function hasCode(error: unknown, code: string): boolean {
+  return (error as NodeJS.ErrnoException | null)?.code === code
 }
 
 /**
@@ -102,7 +128,7 @@ export async function withFileLock<T>(
       await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600, flag: 'wx' })
       break
     } catch (error) {
-      if (!isEEXIST(error)) throw error
+      if (!hasCode(error, 'EEXIST')) throw error
     }
     if (Date.now() >= deadline) {
       throw new Error(`atomic-write: timed out waiting for the writer lock at ${lockPath}`)

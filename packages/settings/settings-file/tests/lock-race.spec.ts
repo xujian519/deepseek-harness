@@ -1,5 +1,8 @@
 // A temp-file write failure cannot be timed from outside. The `fs/promises` API
 // injects it once so the test can prove that the writer lock still releases.
+// The atomic replacement writes through an `open`ed FileHandle, so the failure
+// is injected on the handle's `writeFile`; document create stays on the
+// module-level `writeFile` (`wx`) and is injected there.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -31,12 +34,20 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         state.failDocumentCreate = false
         throw Object.assign(new Error('ENOSPC: injected document create failure'), { code: 'ENOSPC' })
       }
-      if (state.failTempWrite && String(path).endsWith('.tmp')) {
-        state.failTempWrite = false
-        throw Object.assign(new Error('ENOSPC: injected writeFile failure'), { code: 'ENOSPC' })
-      }
       return (actual.writeFile as (path: unknown, ...args: never[]) => Promise<void>)(path, ...rest)
     }) as typeof actual.writeFile,
+    open: async (path: string, flag: string, mode?: number) => {
+      const handle = await actual.open(path, flag, mode)
+      const write = handle.writeFile.bind(handle)
+      handle.writeFile = async (data: string) => {
+        if (state.failTempWrite && path.endsWith('.tmp')) {
+          state.failTempWrite = false
+          throw Object.assign(new Error('ENOSPC: injected writeFile failure'), { code: 'ENOSPC' })
+        }
+        return write(data)
+      }
+      return handle
+    },
   }
 })
 
