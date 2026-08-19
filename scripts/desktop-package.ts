@@ -9,7 +9,7 @@
 
 import { spawnSync } from 'node:child_process'
 import {
-  cpSync, existsSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync,
+  cpSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, type Dirent,
 } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -48,11 +48,26 @@ const CLI_BIN = resolve(ROOT, 'apps', 'cli', 'lib', 'bin.js')
 /**
  * Relative paths the deployed backend must contain for the `desktop` profile
  * to boot: the cli entry, the Cordis core, the profile bundles, the plugins
- * the base/web-app bundles reference, and the built web frontend dist.
+ * the base/web-app bundles reference, and the built web frontend dist. The
+ * vendored cordis plugins are the peer set `dsh-app-boot` registers at boot,
+ * so every one must resolve from the deployed tree even when `pnpm deploy`
+ * cannot link them (they are not declared as prod dependencies).
+ *
+ * Maintenance contract: `findUnresolvableBackendImports` only proves
+ * `@deepseek-ai/*` specifiers that deployed code imports statically. A bundle
+ * row that references a plugin outside that set (a future non-harness
+ * dependency, e.g. a cordis.yml `name:` that is not `@deepseek-ai/*`) must
+ * add its package path to this list in the same change, or the deployed tree
+ * can boot-fail silently.
  */
 const REQUIRED_BACKEND_PATHS = [
   'lib/bin.js',
   'node_modules/@deepseek-ai/cordis/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-group/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-hmr/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-include/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-loader/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-timer/package.json',
   'node_modules/@deepseek-ai/dsh-base/package.json',
   'node_modules/@deepseek-ai/dsh-web-app/package.json',
   'node_modules/@deepseek-ai/dsh-desktop-app/package.json',
@@ -73,6 +88,93 @@ const REQUIRED_BACKEND_PATHS = [
 /** Missing relative paths in a deployed backend tree; empty when complete. */
 export function verifyBackendDeploy(backendDir: string): string[] {
   return REQUIRED_BACKEND_PATHS.filter(path => !existsSync(join(backendDir, path)))
+}
+
+/**
+ * Every `@deepseek-ai/*` specifier statically imported by the deployed
+ * backend's own code must resolve from the tree. Harness packages declare
+ * shared seam packages (service definitions, `dsh-timeout`, ...) as peers,
+ * and `pnpm deploy --prod` drops peers the cli does not also declare; a
+ * missing peer otherwise surfaces only as an `ERR_MODULE_NOT_FOUND` boot
+ * failure. `import.meta.resolve` resolves from the calling module rather
+ * than an explicit parent, so the check runs as an `--eval` subprocess whose
+ * working directory is the deployed tree: its module URL sits at the tree
+ * root, whose node_modules chain is the same one boot-time resolution walks.
+ * @param backendDir - the deployed backend tree.
+ * @returns each unresolvable specifier with the files that import it.
+ */
+export function findUnresolvableBackendImports(backendDir: string): Map<string, string[]> {
+  const importPattern = /(?:from|import)\s*\(?\s*["'](@deepseek-ai\/[a-z0-9-]+)["']/g
+  const importers = new Map<string, string[]>()
+  const files: string[] = []
+  const collect = (dir: string): void => {
+    let entries: Dirent[] = []
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const entryPath = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        // Dependencies resolve from the virtual store, not the package tree;
+        // walking a package's own node_modules only re-scans the same store.
+        if (entry.name === 'node_modules' || entry.name === 'dist') continue
+        collect(entryPath)
+      } else if (entry.name.endsWith('.js')) {
+        files.push(entryPath)
+      }
+    }
+  }
+  collect(join(backendDir, 'lib'))
+  const store = join(backendDir, 'node_modules', '.pnpm')
+  if (existsSync(store)) {
+    for (const id of readdirSync(store, { withFileTypes: true })) {
+      if (!id.isDirectory()) continue
+      const scoped = join(store, id.name, 'node_modules', '@deepseek-ai')
+      if (!existsSync(scoped)) continue
+      for (const name of readdirSync(scoped, { withFileTypes: true })) {
+        if (!name.isDirectory()) continue
+        collect(join(scoped, name.name))
+      }
+    }
+  }
+  for (const file of files) {
+    const code = readFileSync(file, 'utf8')
+      .split('\n')
+      // JSDoc `@import {X} from 'pkg'` directives are comments, not imports.
+      .filter(line => !/^\s*[*\/]/.test(line))
+      .join('\n')
+    for (const match of code.matchAll(importPattern)) {
+      const specifier = match[1] ?? ''
+      const list = importers.get(specifier)
+      if (list === undefined) importers.set(specifier, [file])
+      else if (list.length < 3) list.push(file)
+    }
+  }
+  if (importers.size === 0) return new Map()
+  const probe = [
+    'const specs = JSON.parse(process.argv[1]);',
+    'const out = [];',
+    'for (const s of specs) { try { import.meta.resolve(s) } catch { out.push(s) } }',
+    'process.stdout.write(JSON.stringify(out))',
+  ].join(' ')
+  const result = spawnSync(process.execPath, ['--input-type=module', '--eval', probe, JSON.stringify([...importers.keys()])], {
+    cwd: backendDir,
+    encoding: 'utf8',
+  })
+  if (result.error !== undefined) {
+    throw new Error(`import-resolution probe failed: ${result.error.message}`)
+  }
+  if (result.status !== 0) {
+    throw new Error(`import-resolution probe failed (status ${String(result.status)}): ${result.stderr}`)
+  }
+  const unresolved = new Set<string>(JSON.parse(result.stdout) as string[])
+  const broken = new Map<string, string[]>()
+  for (const [specifier, importersOf] of importers) {
+    if (unresolved.has(specifier)) broken.set(specifier, importersOf)
+  }
+  return broken
 }
 
 /**
@@ -366,6 +468,13 @@ export async function prepareDesktopResources(options: PrepareResourcesOptions =
   const materialized = materializeExternalLinks(join(backendDir, 'node_modules'))
   if (materialized.length > 0) {
     console.log(`materialized ${materialized.length} out-of-tree symlinks in the backend`)
+  }
+  const unresolvable = findUnresolvableBackendImports(backendDir)
+  if (unresolvable.size > 0) {
+    const detail = [...unresolvable.entries()]
+      .map(([specifier, importers]) => `${specifier} (imported by ${importers.join(', ')})`)
+      .join('\n')
+    throw new Error(`backend deploy has unresolvable runtime imports:\n${detail}`)
   }
   const missing = verifyBackendDeploy(backendDir)
   if (missing.length > 0) {

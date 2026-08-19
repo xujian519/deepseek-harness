@@ -8,7 +8,7 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkS
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { hoistVirtualStore, materializeExternalLinks, pruneNodePtyPrebuilds, resourcesDirForPlatform, topLevelPackageNames, verifyBackendDeploy, virtualStorePackages } from './desktop-package.ts'
+import { findUnresolvableBackendImports, hoistVirtualStore, materializeExternalLinks, pruneNodePtyPrebuilds, resourcesDirForPlatform, topLevelPackageNames, verifyBackendDeploy, virtualStorePackages } from './desktop-package.ts'
 
 const POSIX: NodeJS.Platform = 'linux'
 const WIN32: NodeJS.Platform = 'win32'
@@ -75,6 +75,11 @@ function expectPackageJson(nm: string, pkgPath: string, fragment: string): void 
 const REQUIRED = [
   'lib/bin.js',
   'node_modules/@deepseek-ai/cordis/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-group/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-hmr/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-include/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-loader/package.json',
+  'node_modules/@deepseek-ai/cordis-plugin-timer/package.json',
   'node_modules/@deepseek-ai/dsh-base/package.json',
   'node_modules/@deepseek-ai/dsh-web-app/package.json',
   'node_modules/@deepseek-ai/dsh-desktop-app/package.json',
@@ -308,6 +313,48 @@ describe('verifyBackendDeploy', () => {
       expect(verifyBackendDeploy(dir)).toEqual([
         'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
       ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('findUnresolvableBackendImports', () => {
+  /** Fixture: a boot file and one store package importing @deepseek-ai names. */
+  function makeImportTree(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'backend-imports-'))
+    const storePkg = join(dir, 'node_modules', '.pnpm', '@deepseek-ai+dsh-a@1.0.0', 'node_modules', '@deepseek-ai', 'dsh-a')
+    mkdirSync(join(storePkg, 'lib'), { recursive: true })
+    writeFileSync(join(storePkg, 'lib', 'index.js'), [
+      "import { scope } from '@deepseek-ai/dsh-scope'",
+      "import { timeout } from '@deepseek-ai/dsh-missing'",
+      "* @import {X} from '@deepseek-ai/dsh-comment-only'",
+    ].join('\n'))
+    // A top-level package so the resolvable import has a target.
+    mkdirSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-scope'), { recursive: true })
+    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-scope', 'package.json'), '{"name":"@deepseek-ai/dsh-scope","main":"index.js"}')
+    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-scope', 'index.js'), 'export const scope = 1\n')
+    mkdirSync(join(dir, 'lib'), { recursive: true })
+    writeFileSync(join(dir, 'lib', 'bin.js'), "import '@deepseek-ai/dsh-scope'\n")
+    return dir
+  }
+
+  it('reports nothing when every import resolves', () => {
+    const dir = makeImportTree()
+    try {
+      rmSync(join(dir, 'node_modules', '.pnpm', '@deepseek-ai+dsh-a@1.0.0', 'node_modules', '@deepseek-ai', 'dsh-a', 'lib', 'index.js'))
+      expect(findUnresolvableBackendImports(dir)).toEqual(new Map())
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('lists unresolvable imports with the importing files and ignores JSDoc @import', () => {
+    const dir = makeImportTree()
+    try {
+      const broken = findUnresolvableBackendImports(dir)
+      expect([...broken.keys()]).toEqual(['@deepseek-ai/dsh-missing'])
+      expect(broken.get('@deepseek-ai/dsh-missing')![0]).toContain('dsh-a')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

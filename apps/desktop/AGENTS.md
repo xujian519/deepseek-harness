@@ -52,15 +52,12 @@ under the host aggregate and run on any packager host:
 - `scripts/desktop-package.ts`       # `pnpm deploy --prod` of the dsh CLI + deploy verification
 - `scripts/desktop-download-node.ts` # fetch + checksum-verify the platform Node binary
 
-packages/desktop/         # planned: the desktop-shell plugin seams land here
-  shell/                 # Cordis plugin that registers desktop host services
+packages/desktop/         # desktop-shell plugin seams (shell service landed; menu,
+  shell/                 # tray, shortcuts, notifications, drag-drop still to come)
     src/
       index.ts           # apply(): expose desktop services to the dsh host
-      menu.ts            # application menu / Dock / tray integration
-      dialog.ts          # native file/folder dialogs
-      shortcut.ts        # global shortcuts
-      notification.ts    # system notifications
-      drag-drop.ts       # file drop ingestion
+      bridge-client.ts   # JSON-RPC 2.0 client over the Main-process socket
+  directory-picker/      # Electron dialog provider for the directoryPicker seam
 ```
 
 ## Common commands
@@ -130,8 +127,10 @@ Desktop-only behavior must still go through Cordis seams where one exists:
 2. `pnpm run package:desktop:prepare` runs `scripts/desktop-package.ts` for the
    packager host OS: it `pnpm deploy --prod`s `apps/cli` into
    `apps/desktop/resources/<os>/backend`, verifies the tree carries every
-   plugin the `desktop` profile resolves, and downloads the checksum-verified
-   Node binary into `apps/desktop/resources/<os>/node`.
+   plugin the `desktop` profile resolves and every `@deepseek-ai` import the
+   deployed code makes resolves from the tree (missing peer-provided seam
+   packages otherwise die with `ERR_MODULE_NOT_FOUND` at boot), and downloads
+   the checksum-verified Node binary into `apps/desktop/resources/<os>/node`.
 3. `pnpm run package:desktop:mac` / `package:desktop:win` run the prepare step
    and then `electron-builder` against `apps/desktop/electron-builder.yml`;
    each target packs its own OS resources directory as extraResources.
