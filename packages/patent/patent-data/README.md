@@ -42,4 +42,4 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 ## Known Limitations and Deferred Work
 
 - **External `ego-browser` CLI dependency** — the anti-crawl scrape path needs the external `ego-browser` (ego-lite) CLI installed and on the PATH (macOS only); the package ships no ego-browser script assets (Sati's `skills/ego-browser/` holds only learnings), so site anti-crawl upgrades are maintained outside this package.
-- **Scaffold-stage service surface** — the service exposes only the search provider factory and the ego-session runner; the cache, mapper, persistence, and path modules are exported but not yet wired to model-facing tools, which land with `dsh-patent-tools` (P3.x).
+- **Consumer wiring** — the search provider and ego-session runner are consumed by `dsh-patent-tools` (patent_search/metadata/legal_status and patent_pdf_download). The cache, mapper, persistence, and path modules stay library exports for those consumers.

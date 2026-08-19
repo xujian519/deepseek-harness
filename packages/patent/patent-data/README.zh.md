@@ -42,4 +42,4 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 ## 已知局限与延期工作
 
 - **外部 `ego-browser` CLI 依赖** — 反爬抓取路径需要外部 `ego-browser`（ego-lite）CLI 已安装且在 PATH 上（仅 macOS）；本包不随附任何 ego-browser 脚本资产（Sati 的 `skills/ego-browser/` 仅含 learnings），因此站点反爬升级在本包之外维护。
-- **脚手架阶段的服务面** — 服务仅暴露检索 provider 工厂与 ego-session runner；缓存、映射、持久化与路径模块已导出，但尚未接入模型可见工具（随 `dsh-patent-tools` 在 P3.x 落地）。
+- **消费方接线** — 检索 provider 工厂与 ego-session runner 由 `dsh-patent-tools` 消费（patent_search/metadata/legal_status 与 patent_pdf_download）。缓存、映射、持久化与路径模块保持库导出供这些消费方使用。

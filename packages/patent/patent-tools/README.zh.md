@@ -23,14 +23,14 @@
 | `rule_check` | 质量 | `@deepseek-ai/dsh-patent-rule` 规则引擎 |
 | `analyze_patent_figure` | 分析 | ModelPort（按附图模型做图片输入门禁） |
 | `search_patent_figure` | 检索 | 附图索引关键词检索（不做图片门禁；当前装配 fail-loud——无索引写入方接线） |
-| `patent_pdf_download` | 文档 | 本装配下为 fail-loud 桩（ego-browser 运行器未接线） |
+| `patent_pdf_download` | 文档 | `ctx.patentData.createEgoSession()`（ego-browser 下载拦截 + fetch 兜底） |
 | `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包） |
 | `flexible_plan` | 工作流 | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
 | `patent_workflow` | 工作流 | `@deepseek-ai/dsh-patent-workflow` 收口 |
 | `patent_workflow_run` | 工作流 | `@deepseek-ai/dsh-patent-workflow` + ModelPort |
 | `patent_plan_task` | 工作流 | `@deepseek-ai/dsh-patent-workflow` plantask 状态机 |
 | `patent_worker_validate` | 质量 | `@deepseek-ai/dsh-patent-workflow` worker 契约 |
-| `knowledge_note_save` | 知识 | 本装配下为 fail-loud 桩（存储写入器未接线；knowledge.db 无写 API） |
+| `knowledge_note_save` | 知识 | Config.noteDir 下的文件写入器（默认 `<cwd>/99-知识库`） |
 
 `render_patent_document` 由 `@deepseek-ai/dsh-patent-document` 拥有（其 `apply()` 注册该工具）；本包仅再导出 `createRenderPatentDocumentTool` 与 `renderDocumentResult` 供库消费者使用，不重复注册，因此同时组合两个插件不会产生重名错误。
 
@@ -44,6 +44,7 @@ Schemastery 配置，所有字段可选。
 | `model` | string | — | LLM 消费工具的模型 id。 |
 | `imageModel` | object | — | 专用附图/图片模型路由（`{ provider, model }`），其声明的输入模态用于门禁 `analyze_patent_figure`；未设置时回退到 `provider`/`model`。 |
 | `maxTokens` | number | — | LLM 消费工具的输出 token 上限（可选）；省略时用 provider 默认值。 |
+| `noteDir` | string | `<cwd>/99-知识库` | `knowledge_note_save` 的知识笔记目录（绝对或相对 cwd）。 |
 
 未设置 `provider`/ `model` 时，LLM 消费工具照常注册，但调用时 fail loud（`setup_required`）。知识类工具需要经 `patent-knowledge:install` 准备的 knowledge.db；缺失时 fail loud 并给出安装引导。
 
@@ -70,6 +71,6 @@ Schemastery 配置，所有字段可选。
 - **图片模态门禁范围** — `analyze_patent_figure` 按解析出的附图模型路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；`search_patent_figure` 读取注入的索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。本装配无索引写入方接线，故 `search_patent_figure` 报 `setup_required`，待集成器注入后启用。
 - **化学引擎未移植** — `recognize_chemical_structure` 与 `validate_specification` 的化学表征检查降级为不可用，因为 `@rdkit/rdkit` 是未随包的可选原生依赖。
 - **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，多图一致性、网表可视化与 SMILES 解析延后。
-- **知识笔记 / PDF 下载接线** — `knowledge_note_save` 与 `patent_pdf_download` 在本装配下为 fail-loud 桩（存储写入器与 ego-browser 运行器未接线）；knowledge.db 原生写 API 延后。
+- **知识笔记 / PDF 下载接线** — `knowledge_note_save` 将笔记写入 Config.noteDir 下的文件（knowledge.db 原生写 API 延后）；`patent_pdf_download` 在挂载 patent-data 服务时经 `ctx.patentData` 运行其 ego-browser 适配器，未挂载该服务时工具以 setup 指引 fail-loud。ego-browser 下载拦截为尽力而为——浏览器无法保存的条目回退为对提取的 CDN URL 直接 fetch。
 - **移除语义召回** — `patent_case_search` 仅保留 FTS/LIKE；基于 embedding 的语义召回未移植（dsh 暂无向量基建）。
 - **证据规则资产** — `evaluate_evidence` 经 `@deepseek-ai/dsh-patent-rule` 的资产定位解析 `evidence-rules.yaml`；缺失时引擎降级为默认权重。

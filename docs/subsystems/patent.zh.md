@@ -4,7 +4,7 @@
 
 专利子系统是 Sati 专利域的原生移植（[计划](../../docs/sati-as-dsh-plugins-plan.md)）：专利数据访问、knowledge.db 查询、执行管线、纯域引擎、模型可见工具集、合规规则门禁与文书渲染。该能力族位于 [packages/patent](../../packages/patent/README.md)，以 `@deepseek-ai/dsh-patent-*` 包运行，无 Sati 进程、无 MCP 桥。
 
-本页记录三个服务接缝（`ctx.patentData`、`ctx.patentKnowledge`、`ctx.patentWorkflow`）与纯库 ModelPort 契约（`@deepseek-ai/dsh-patent-core`）。`patentKnowledge` 与 `patentWorkflow` 已提供完整方法面；`patentData` 处于脚手架阶段——检索提供器与 ego-browser 会话工厂已就绪，但面向工具层的集成（PDF 下载运行器、知识笔记存储）在消费包中仅以 fail-loud 桩接线，待宿主挂载后启用。模型可见工具、规则门禁与文书渲染位于消费包（`dsh-patent-tools`、`dsh-patent-rule`、`dsh-patent-document`、`dsh-tool-literature`、`dsh-methodology`）。
+本页记录三个服务接缝（`ctx.patentData`、`ctx.patentKnowledge`、`ctx.patentWorkflow`）与纯库 ModelPort 契约（`@deepseek-ai/dsh-patent-core`）。模型可见工具、规则门禁与文书渲染位于消费包（`dsh-patent-tools`、`dsh-patent-rule`、`dsh-patent-document`、`dsh-tool-literature`、`dsh-methodology`）。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

@@ -10,6 +10,7 @@
  */
 
 import { existsSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createLlmModelPort, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
@@ -36,6 +37,7 @@ import { createRuleCheckTool } from './tool/rule-check.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
 import { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
+import { createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
 import { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
 import { createPatentWorkflowTool } from './tool/patent-workflow.ts'
@@ -43,6 +45,7 @@ import { createPatentWorkflowRunTool } from './tool/patent-workflow-run.ts'
 import { createPatentPlanTaskTool } from './tool/patent-plan-task.ts'
 import { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts'
 import { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
+import { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
 
 // ---- public library surface (factories + error + render_patent_document) ----
 export { PatentToolError } from './error.ts'
@@ -80,7 +83,9 @@ export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisR
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps, LoadFigureIndexResult } from './tool/search-patent-figure.ts'
 export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
-export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownloadDeps, RunEgo } from './tool/patent-pdf-download.ts'
+export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownloadDeps, RunEgo, EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult } from './tool/patent-pdf-download.ts'
+export { buildDownloadScript, createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
+export type { EgoSessionSeam } from './tool/patent-pdf-download-ego.ts'
 export { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
 export type { RecognizeChemicalStructureInput, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
 export { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
@@ -95,6 +100,7 @@ export { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts
 export type { PatentWorkerValidateInput, PatentWorkerValidateOutput } from './tool/patent-worker-validate.ts'
 export { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 export type { KnowledgeNoteSaveInput, KnowledgeNoteSaveOutput, KnowledgeNoteSaveDeps, KnowledgeNote } from './tool/knowledge-note-save.ts'
+export { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
 
 // render_patent_document is owned by dsh-patent-document; re-export for library consumers.
 export { createRenderPatentDocumentTool, renderDocumentResult }
@@ -113,6 +119,8 @@ export interface Config {
   model?: string
   /** Dedicated figure/image model route whose input modalities gate analyze_patent_figure. */
   imageModel?: ImageModelConfig
+  /** 知识笔记落盘目录（相对或绝对路径）；默认 <cwd>/99-知识库。 */
+  noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
 }
@@ -131,6 +139,7 @@ export const Config: z<Config> = z.object({
   model: z.string(),
   imageModel: z.object({ provider: z.string(), model: z.string() }),
   maxTokens: z.number(),
+  noteDir: z.string(),
 })
 
 /** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
@@ -183,6 +192,11 @@ export function buildImageGateResolver(
   const llm = ctx.get('llm') as { resolveModelInfo: (provider: string, model: string) => Promise<LlmResolvedModelInfo> } | undefined
   if (llm === undefined) return undefined
   return (provider, model) => resolveImageInputModalities(llm.resolveModelInfo.bind(llm), provider, model)
+}
+
+/** Resolve the knowledge-note directory: Config.noteDir (absolute or relative to cwd), else <cwd>/99-知识库. */
+function resolveNoteDir(config: Config): string {
+  return config.noteDir !== undefined ? resolve(config.noteDir) : join(process.cwd(), '99-知识库')
 }
 
 /**
@@ -258,19 +272,18 @@ export function apply(ctx: Context, config: Config): void {
     },
   }))
 
-  // PDF download: the ego-browser runner adapter is a deferred integration point;
-  // the tool fails loud until a real runEgo is wired.
-  ctx.tools.register(createPatentPdfDownloadTool({
-    // oxlint-disable-next-line typescript/require-await -- RunEgo contract returns Promise<EgoDownloadResult>
-    runEgo: async () => {
-      throw new PatentToolError('setup_required', 'patent_pdf_download 需要 ego-browser 运行器（经 ctx.patentData.createEgoSession 注入）；当前未接线。', { tool: 'patent_pdf_download' })
-    },
-    fetchImpl: globalThis.fetch,
-  }))
+  // PDF download: wire the ego-browser runner when the patent-data service is
+  // present (its createEgoSession provides the session over ctx.subprocess);
+  // otherwise the tool fails loud until an integrator mounts patent-data.
+  const patentData = ctx.get('patentData')
+  const runEgo = patentData !== undefined
+    ? createEgoDownloadRunner(patentData.createEgoSession())
+    : () => Promise.reject(new PatentToolError('setup_required', 'patent_pdf_download 需要 patent-data 服务（preset 挂载 @deepseek-ai/dsh-patent-data 后自动接线）；当前未挂载。', { tool: 'patent_pdf_download' }))
+  ctx.tools.register(createPatentPdfDownloadTool({ runEgo, fetchImpl: globalThis.fetch }))
+
+  // Notes land as files under the configured noteDir (default <cwd>/99-知识库):
+  // no storage service dependency, works in headless and web compositions.
   ctx.tools.register(createKnowledgeNoteSaveTool({
-    // oxlint-disable-next-line typescript/require-await -- KnowledgeNoteSaveDeps.writeNote contract returns Promise<WriteNoteResult>
-    writeNote: async () => {
-      throw new PatentToolError('setup_required', 'knowledge_note_save 需要存储写入器（经 ctx.storage 注入）；当前未接线。', { tool: 'knowledge_note_save' })
-    },
+    writeNote: createNoteFileWriter(resolveNoteDir(config)),
   }))
 }

@@ -49,7 +49,7 @@ export type PatentPdfDownloadInput = {
   downloadTimeoutMs?: number
   /** 整体执行超时（毫秒），默认 180_000，上限 300_000。 */
   timeoutMs?: number
-  /** 是否录屏留证（screencast），默认 false。 */
+  /** 是否截图留证（页面证据截图），默认 false。 */
   record?: boolean
   /** 忽略 MANIFEST 断点续传，强制重跑全部专利（默认 false）。 */
   force?: boolean
@@ -76,7 +76,7 @@ export type PatentPdfDownloadOutput = {
   results: PatentDownloadItem[]
   summary: { total: number; ok: number; failed: number }
   outputDir: string
-  /** record=true 且录屏成功时的录制文件路径。 */
+  /** record=true 且截图成功时的证据目录路径。 */
   recorded?: string
 }
 
@@ -92,7 +92,7 @@ export type EgoDownloadItem = {
 /** ego-browser 批量下载结果。 */
 export type EgoDownloadResult = {
   items: EgoDownloadItem[]
-  /** 录屏文件路径（record=true 且成功时）。 */
+  /** 截图证据目录路径（record=true 且成功时）。 */
   recorded?: string
 }
 
@@ -333,7 +333,7 @@ function renderPdfDownload(value: PatentPdfDownloadOutput): string {
     `下载完成：${value.summary.ok}/${value.summary.total} 成功，${value.summary.failed} 失败`,
     `输出目录：${value.outputDir}`,
   ]
-  if (value.recorded) lines.push(`录屏留证：${value.recorded}`)
+  if (value.recorded) lines.push(`截图留证：${value.recorded}`)
   for (const r of value.results) {
     if (r.status === 'failed') {
       const retry = r.pdfUrl ? `；可手动重试：${r.pdfUrl}` : ''
@@ -366,7 +366,7 @@ const DESCRIPTION = [
   '',
   'Usage notes:',
   '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下',
-  '  - record=true 可额外录屏留证（输出 `<outputDir>/recording.webm`）',
+  '  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）',
 ].join('\n')
 /**
  * Build the `patent_pdf_download` tool over an injected ego-browser runner.
@@ -384,7 +384,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
       pageTimeoutSec: { type: 'number', description: '每页打开超时（秒），默认 20' },
       downloadTimeoutMs: { type: 'number', description: '每篇下载拦截超时（毫秒），默认 60000' },
       timeoutMs: { type: 'number', description: '整体执行超时（毫秒），默认 180000，上限 300000' },
-      record: { type: 'boolean', description: '是否录屏留证（默认 false）' },
+      record: { type: 'boolean', description: '是否截图留证（默认 false）' },
       force: { type: 'boolean', description: '忽略 MANIFEST 断点续传，强制重下全部（默认 false）' },
     },
     output: {

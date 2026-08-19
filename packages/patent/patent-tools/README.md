@@ -23,14 +23,14 @@ Function plugin porting the Sati patent-domain tool set into the DeepSeek Harnes
 | `rule_check` | quality | `@deepseek-ai/dsh-patent-rule` rule engine |
 | `analyze_patent_figure` | analysis | ModelPort (image-input gated on the figure model) |
 | `search_patent_figure` | search | keyword retrieval over the figure index (not image-gated; current assembly fails loud — no index writer is wired) |
-| `patent_pdf_download` | document | fail-loud stub in this assembly (ego-browser runner not wired) |
+| `patent_pdf_download` | document | `ctx.patentData.createEgoSession()` (ego-browser download intercept + fetch fallback) |
 | `recognize_chemical_structure` | analysis | optional (rdkit not bundled) |
 | `flexible_plan` | workflow | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
 | `patent_workflow` | workflow | `@deepseek-ai/dsh-patent-workflow` recap |
 | `patent_workflow_run` | workflow | `@deepseek-ai/dsh-patent-workflow` + ModelPort |
 | `patent_plan_task` | workflow | `@deepseek-ai/dsh-patent-workflow` plantask state machine |
 | `patent_worker_validate` | quality | `@deepseek-ai/dsh-patent-workflow` worker contract |
-| `knowledge_note_save` | knowledge | fail-loud stub in this assembly (storage writer not wired; knowledge.db has no write API) |
+| `knowledge_note_save` | knowledge | file writer under Config.noteDir (default `<cwd>/99-知识库`) |
 
 `render_patent_document` is owned by `@deepseek-ai/dsh-patent-document` (its `apply()` registers it); this package re-exports `createRenderPatentDocumentTool` and `renderDocumentResult` for library consumers but does not register it, so composing both plugins does not produce a duplicate-name error.
 
@@ -44,6 +44,7 @@ Schemastery configuration, every field optional.
 | `model` | string | — | LLM model id for the LLM-consuming tools. |
 | `imageModel` | object | — | Dedicated figure/image model route (`{ provider, model }`) whose declared input modalities gate `analyze_patent_figure`; falls back to `provider`/`model` when unset. |
 | `maxTokens` | number | — | Optional output token cap for the LLM-consuming tools; omitted leaves the provider default. |
+| `noteDir` | string | `<cwd>/99-知识库` | Knowledge-note directory for `knowledge_note_save` (absolute or relative to cwd). |
 
 When `provider`/ `model` are unset the LLM-consuming tools register but fail loud (`setup_required`) when called. The knowledge tools require a knowledge.db prepared via `patent-knowledge:install`; they fail loud with install guidance when it is absent.
 
@@ -70,6 +71,6 @@ Prefix-stable while the registered tool set and their descriptions are unchanged
 - **Image-modal gate scope** — `analyze_patent_figure` is gated on the resolved figure-model route's declared image input (denied with error code `model_cannot_accept_image` when absent); `search_patent_figure` reads the injected index and is intentionally not gated (matches Sati, which gates analyze only). In this assembly no index writer is wired, so `search_patent_figure` fails loud (`setup_required`) until an integrator injects one.
 - **Chemistry engine not ported** — `recognize_chemical_structure` and the chemical-characterization check in `validate_specification` degrade to unavailable because `@rdkit/rdkit` is an optional native dependency not bundled.
 - **Figure/chemistry engines not ported** — the Sati `src/patent/figure` and `src/patent/chemistry` engines are not in any dsh package; the figure tools implement a minimal ModelPort path and keyword retrieval, with multi-figure consistency, netlist visualization, and SMILES parsing deferred.
-- **Knowledge note / PDF download wiring** — `knowledge_note_save` and `patent_pdf_download` are fail-loud stubs in this assembly (storage writer and ego-browser runner not wired); a native knowledge.db write API is deferred.
+- **Knowledge note / PDF download wiring** — `knowledge_note_save` writes files under Config.noteDir (a native knowledge.db write API is deferred), and `patent_pdf_download` runs its ego-browser adapter through `ctx.patentData` when the patent-data service is mounted; without that service the download tool fails loud with setup guidance. The ego-browser download intercept is best-effort — anything the browser cannot save falls back to a plain fetch of the extracted CDN URL.
 - **Semantic recall removed** — `patent_case_search` keeps FTS/LIKE only; the embedding-based semantic recall path is not ported (dsh ships no vector infrastructure yet).
 - **Evidence rule assets** — `evaluate_evidence` resolves `evidence-rules.yaml` through `@deepseek-ai/dsh-patent-rule`'s asset location; without it the engine falls back to default weights.

@@ -6,8 +6,9 @@
 
 ## 挂载内容
 
-除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 挂载 7 个专利域插件：
+除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 挂载 8 个专利域插件：
 
+- `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器。
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
 - `@deepseek-ai/dsh-patent-workflow` — 执行管线服务（ctx.patentWorkflow：runWorkflow / runPlantask / approve / reject）。
 - `@deepseek-ai/dsh-patent-tools` — 23 个模型工具：检索、元数据、法律状态、判例/wiki/图谱查询、撰写、权利要求对照表、工作流收口、附图分析、PDF 下载、知识笔记。
@@ -16,7 +17,7 @@
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
 
-专利服务放在 isolate 领域（patentKnowledge / patentWorkflow）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 保持 fetch 关闭，因为发货 profile 不挂 fetch provider（见 base 层注释）；需要 web_fetch 的部署自行添加 provider，如 `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`。
+专利服务放在 isolate 领域（patentData / patentKnowledge / patentWorkflow）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentData') / ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 保持 fetch 关闭，因为发货 profile 不挂 fetch provider（见 base 层注释）；需要 web_fetch 的部署自行添加 provider，如 `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`。
 
 ## 技能
 
@@ -49,6 +50,6 @@ skills/ 下随附 7 个技能：
 ## Known Limitations and Deferred Work
 
 - 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文经 patent_case_search 加 web_fetch（挂载 fetch provider 时）与 `99-知识库/` 基线核验。发货 profile 不挂 fetch provider（SSRF 防护延后），未添加前 web_fetch 会以 WEB_PROVIDER_UNAVAILABLE 失败。
-- patent_pdf_download 与 knowledge_note_save 在 patent-tools 中是 fail-loud 占位（ego-browser 运行器与存储写入器未接线）；本 preset 未挂载 patent-data 服务（ctx.patentData）。
+- patent_pdf_download 需要宿主机可用的 ego-browser（ego lite）：ego-browser CLI 必须安装并在 PATH 上（仅 macOS），否则工具以 setup 指引 fail-loud。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；法条原文在使用时核验。

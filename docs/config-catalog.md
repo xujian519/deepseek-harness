@@ -1387,6 +1387,8 @@ export interface Config {
   model?: string
   /** Dedicated figure/image model route whose input modalities gate analyze_patent_figure. */
   imageModel?: ImageModelConfig
+  /** 知识笔记落盘目录（相对或绝对路径）；默认 <cwd>/99-知识库。 */
+  noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
 }
@@ -1400,7 +1402,7 @@ export interface ImageModelConfig {
 }
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:109`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:115`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 
@@ -2997,7 +2999,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/web/tool-web/src/index.ts:37`](../packages/web/tool-web/src/index.ts)
+Source: [`packages/web/tool-web/src/index.ts:38`](../packages/web/tool-web/src/index.ts)
 
 <a id="deepseek-aidsh-tool-workflow"></a>
 
@@ -3051,7 +3053,7 @@ export interface Config {
 export type ToolPresentationMode = 'native' | 'code' | 'both'
 ```
 
-Source: [`packages/core/tools/src/index.ts:654`](../packages/core/tools/src/index.ts)
+Source: [`packages/core/tools/src/index.ts:663`](../packages/core/tools/src/index.ts)
 
 <a id="deepseek-aidsh-typert-loader"></a>
 

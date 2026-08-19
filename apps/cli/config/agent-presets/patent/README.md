@@ -6,8 +6,9 @@ The `patent` agent preset composes a Chinese-patent-engineering agent on the Dee
 
 ## What it mounts
 
-Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts seven patent-domain plugins:
+Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts eight patent-domain plugins:
 
+- `@deepseek-ai/dsh-patent-data` — the data seam (ctx.patentData: nuo search provider factory + the ego-browser session runner). patent_pdf_download runs its ego-browser download adapter through this service.
 - `@deepseek-ai/dsh-patent-knowledge` — the knowledge.db query service (ctx.patentKnowledge: caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify).
 - `@deepseek-ai/dsh-patent-workflow` — the execution-pipeline service (ctx.patentWorkflow: runWorkflow / runPlantask / approve / reject).
 - `@deepseek-ai/dsh-patent-tools` — 23 model-facing tools: search, metadata, legal status, case/wiki/kg queries, drafting, claim chart, workflow recap, figure analysis, PDF download, knowledge notes.
@@ -16,7 +17,7 @@ Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources.
 - `@deepseek-ai/dsh-methodology` — the triz tool.
 
-The patent services sit behind an isolate realm (patentKnowledge / patentWorkflow) shared with patent-tools, so its ctx.get('patentKnowledge') resolves this preset's instance rather than the host's. tool-ralph is omitted (a patent case uses goal / todo / workflow, not fresh-agent iteration), and tool-web keeps fetch disabled because shipped profiles mount no fetch provider (see the base layer comment); a deployment that needs web_fetch adds a provider itself, e.g. `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
+The patent services sit behind an isolate realm (patentData / patentKnowledge / patentWorkflow) shared with patent-tools, so its ctx.get('patentData') / ctx.get('patentKnowledge') resolve this preset's instances rather than the host's. tool-ralph is omitted (a patent case uses goal / todo / workflow, not fresh-agent iteration), and tool-web keeps fetch disabled because shipped profiles mount no fetch provider (see the base layer comment); a deployment that needs web_fetch adds a provider itself, e.g. `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
 
 ## Skills
 
@@ -49,6 +50,6 @@ The model sees the Chinese patent-agent persona (professional identity, seven wo
 ## Known Limitations and Deferred Work
 
 - Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified through patent_case_search plus web_fetch (when a fetch provider is mounted) and the `99-知识库/` baseline. Shipped profiles mount no fetch provider (SSRF protection is deferred), so web_fetch fails with WEB_PROVIDER_UNAVAILABLE until one is added.
-- patent_pdf_download and knowledge_note_save are fail-loud stubs in patent-tools (the ego-browser runner and the storage writer are not wired); the patent-data service (ctx.patentData) is not mounted by this preset.
+- patent_pdf_download requires a working ego-browser (ego lite) on the host: the ego-browser CLI must be installed and on the PATH (macOS only), or the tool fails loud with setup guidance. knowledge_note_save writes files under the workspace `99-知识库/` directory (a native knowledge.db write API is deferred).
 - The 4 rewritten analysis skills inherit Sati's methodology but have not yet been reviewed against current Chinese patent practice; cross-check their checklists against the user's patent-legal baseline before relying on them.
 - The design doc's `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` is a Sati user-level asset not shipped here; law text is verified at use time instead.

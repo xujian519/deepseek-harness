@@ -220,18 +220,23 @@
 
 # ── patent services and tools ───────────────────────────────────────────────
 
-# The two patent services publish into an entry-local realm and patent-tools
-# (their consumer) shares it, so patent-tools' `ctx.get('patentKnowledge')`
-# and the workflow tools' library imports resolve this mount's instances.
-# `tools` (and the `llm` patent-tools reads) are host-plane and stay visible
-# from inside the realm because only patentKnowledge/patentWorkflow are isolated.
+# The patent services publish into an entry-local realm and patent-tools
+# (their consumer) shares it, so patent-tools' `ctx.get('patentKnowledge')`,
+# `ctx.get('patentData')`, and the workflow tools' library imports resolve
+# this mount's instances. `tools`, `subprocess` (patent-data injects it), and
+# the `llm` patent-tools reads are host-plane and stay visible from inside
+# the realm because only the patent services are isolated.
 - id: patent
   name: cordis:group
   group: true
   isolate:
+    patentData: true
     patentKnowledge: true
     patentWorkflow: true
   config:
+    - id: patent-data
+      name: '@deepseek-ai/dsh-patent-data'
+
     - id: patent-knowledge
       name: '@deepseek-ai/dsh-patent-knowledge'
 

@@ -2646,7 +2646,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 Usage notes:
   - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下
-  - record=true 可额外录屏留证（输出 `<outputDir>/recording.webm`）
+  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）
 
 ```json
 {
@@ -2677,7 +2677,7 @@ Usage notes:
     },
     "record": {
       "type": "boolean",
-      "description": "是否录屏留证（默认 false）"
+      "description": "是否截图留证（默认 false）"
     },
     "force": {
       "type": "boolean",

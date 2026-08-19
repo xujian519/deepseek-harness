@@ -333,7 +333,7 @@ describe('patent_pdf_download', () => {
       const resultC = await execute(ctxC, 'patent_pdf_download', { patents: ['US1A'] }, 'pf-9')
       expect(resultC.isError).toBe(false)
       if (resultC.isError) throw new Error('expected success')
-      expect(text(resultC)).toContain('录屏留证')
+      expect(text(resultC)).toContain('截图留证')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
