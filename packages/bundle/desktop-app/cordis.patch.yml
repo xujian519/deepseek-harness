@@ -9,8 +9,10 @@
 
 # The web runtime keeps its web values in the desktop profile: the URL line
 # is the readiness signal the Electron main process parses. Desktop shell
-# rows (menu, tray, dialogs, shortcuts, notifications, drag-and-drop) mount
-# through packages/desktop/* once those plugins land.
+# rows mount through packages/desktop/*; the shell service and the Electron
+# directory picker are landed, remaining rows (menu, tray, shortcuts,
+# notifications, drag-and-drop) arrive with further packages/desktop/*
+# plugins.
 - id: web-runtime
   config:
     printUrl: true

@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) rides over [`dsh-web-app`](../web-app/README.md): it restates the web runtime values for the desktop profile and inserts this package's `desktop-runtime` glue plugin, which occupies the composition seat the desktop shell plugins (`packages/desktop/*`) mount through. The desktop profile (`dsh --profile desktop`) stacks `dsh-base`, `dsh-web-app`, and this bundle.
+The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) rides over [`dsh-web-app`](../web-app/README.md): it restates the web runtime values for the desktop profile, inserts this package's `desktop-runtime` glue plugin, mounts the desktop shell service (`@deepseek-ai/dsh-desktop-shell`), and swaps the web runtime's directory picker for the Electron dialog provider (`@deepseek-ai/dsh-desktop-directory-picker`). The desktop profile (`dsh --profile desktop`) stacks `dsh-base`, `dsh-web-app`, and this bundle.
 
 ## Model Experience
 
@@ -14,4 +14,4 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- **Desktop shell services are not mounted yet** — menu, tray, dialogs, global shortcuts, notifications, and drag-and-drop arrive with the `packages/desktop/*` plugins; the `desktop-runtime` row is their composition seat.
+- **The desktop bridge surface is partial** — the shell service (`ctx.desktop`) and the Electron directory picker are landed; the Main-process bridge methods for menu, tray, global shortcuts, and notifications are still stubs, and the push-event chain (`desktop/menu-activated`, `desktop/tray-clicked`, …) has no caller yet. Further `packages/desktop/*` plugins fill these seats.

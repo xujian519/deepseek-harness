@@ -126,7 +126,7 @@ export type FlexiblePlanOutput = {
 export interface FlexiblePlanToolDeps extends WorkflowProviderDeps {
   /** Stage-handler registry (default: the global registry). */
   handlers?: StageHandlerRegistry
-  /** Plan store (default: JsonFileFlexiblePlanStore under <caseDir>/workflow-runs/flexible-plans/). */
+  /** Plan store (default: JsonFileFlexiblePlanStore under `<caseDir>/workflow-runs/flexible-plans/`). */
   store?: FlexiblePlanStore
   /** Working directory (default process.cwd()). */
   cwd?: string
@@ -193,7 +193,7 @@ async function loadPlan(store: FlexiblePlanStore, caseId: string): Promise<Flexi
   return plan
 }
 
-/** Default plan store: <caseDir>/workflow-runs/flexible-plans/. */
+/** Default plan store: `<caseDir>/workflow-runs/flexible-plans/`. */
 function defaultPlanStore(caseId: string, cwd: string): FlexiblePlanStore {
   const runsDir = resolveWorkflowRunsDir(caseId, cwd)
   return new JsonFileFlexiblePlanStore(join(runsDir, 'flexible-plans'))

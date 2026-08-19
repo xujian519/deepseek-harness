@@ -137,7 +137,7 @@ export function createPatentWorkflowTool(deps: PatentWorkflowToolDeps = {}): Too
       manifestId: { type: 'string', description: "Workflow manifest id. Defaults to 'patent_novelty_v1'." },
       caseId: {
         type: 'string',
-        description: 'Optional case id for result records; when provided the run persists under <caseDir>/workflow-runs/.',
+        description: 'Optional case id for result records; when provided the run persists under `<caseDir>/workflow-runs/`.',
       },
       outputs: {
         type: 'array',
