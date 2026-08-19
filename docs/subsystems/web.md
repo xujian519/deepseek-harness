@@ -193,6 +193,16 @@ async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearch
  * @returns the retrieval outcome; non-2xx responses resolve descriptively.
  */
 async fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult>
+
+/**
+ * Resolve the fetch provider under the same selection rules as {@link fetch}
+ * without throwing: the provider that call would use, or `undefined` when
+ * the selection is missing, unavailable, or ambiguous. Tool enablement
+ * consults this at load time; {@link fetch} itself throws the descriptive
+ * {@link WebError}.
+ * @returns the usable fetch provider, or `undefined`.
+ */
+resolveFetchProvider(): WebFetchProvider | undefined
 ```
 
 Source: [`packages/web/web/src/index.ts:74`](../../packages/web/web/src/index.ts)

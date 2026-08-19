@@ -2247,6 +2247,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'request', description: 'the URL plus retrieval options.' }, { name: 'signal', description: 'optional cancellation signal forwarded to the provider.' }],
         returns: 'the retrieval outcome; non-2xx responses resolve descriptively.',
       },
+      {
+        signature: 'resolveFetchProvider(): WebFetchProvider | undefined',
+        description: 'Resolve the fetch provider under the same selection rules as fetch without throwing: the provider that call would use, or `undefined` when the selection is missing, unavailable, or ambiguous. Tool enablement consults this at load time; fetch itself throws the descriptive WebError.',
+        parameters: [],
+        returns: 'the usable fetch provider, or `undefined`.',
+      },
     ],
   },
   {
