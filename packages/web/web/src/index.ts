@@ -138,10 +138,7 @@ export class WebRuntime extends Service {
    * @returns the provider's results, capped to `request.maxResults`.
    */
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
-    const provider = resolveProvider({
-      providers: this.searchProviders,
-      ...this.searchProviderId !== undefined ? { configuredId: this.searchProviderId } : {},
-    })
+    const provider = this.selectProvider(this.searchProviders, this.searchProviderId)
     const result = await provider.search(request, signal)
     return capSources(result, request.maxResults)
   }
@@ -155,11 +152,34 @@ export class WebRuntime extends Service {
    * @returns the retrieval outcome; non-2xx responses resolve descriptively.
    */
   async fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> {
-    const provider = resolveProvider({
-      providers: this.fetchProviders,
-      ...this.fetchProviderId !== undefined ? { configuredId: this.fetchProviderId } : {},
-    })
+    const provider = this.selectProvider(this.fetchProviders, this.fetchProviderId)
     return provider.fetch(request, signal)
+  }
+
+  /**
+   * Resolve the fetch provider under the same selection rules as {@link fetch}
+   * without throwing: the provider that call would use, or `undefined` when
+   * the selection is missing, unavailable, or ambiguous. Tool enablement
+   * consults this at load time; {@link fetch} itself throws the descriptive
+   * {@link WebError}.
+   * @returns the usable fetch provider, or `undefined`.
+   */
+  resolveFetchProvider(): WebFetchProvider | undefined {
+    try {
+      return this.selectProvider(this.fetchProviders, this.fetchProviderId)
+    } catch {
+      // Every resolution failure means "no usable provider"; the fetch path
+      // reports the specific one.
+      return undefined
+    }
+  }
+
+  /** Resolve a provider from its registry under the configured id, or throw. */
+  private selectProvider<P extends ResolvableProvider>(providers: Map<string, P>, configuredId: string | undefined): P {
+    return resolveProvider({
+      providers,
+      ...configuredId !== undefined ? { configuredId } : {},
+    })
   }
 }
 

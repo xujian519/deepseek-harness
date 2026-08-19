@@ -5,7 +5,7 @@ import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import WebRuntime from '@deepseek-ai/dsh-web'
-import type { WebSearchProvider, WebSearchResult } from '@deepseek-ai/dsh-web'
+import type { WebFetchProvider, WebSearchProvider, WebSearchResult } from '@deepseek-ai/dsh-web'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import {
   formatSearchOutput,
@@ -33,19 +33,28 @@ function searchProvider(result: WebSearchResult, isAvailable = available): WebSe
   return { id: 'stub-search', available: () => isAvailable, search: () => Promise.resolve(result) }
 }
 
+function fetchProvider(isAvailable = available): WebFetchProvider {
+  return {
+    id: 'stub-fetch',
+    available: () => isAvailable,
+    fetch: () => Promise.resolve({ url: 'https://stub.test', statusCode: 503, body: { kind: 'text', content: '' }, truncated: false }),
+  }
+}
+
 /** Mount the real registry, seam, and tool-web; return an executor helper. */
 async function mountTools(opts: {
   config?: ToolWeb.Config
   webConfig?: ConstructorParameters<typeof WebRuntime>[1]
   search?: WebSearchProvider
-  fetchProvider?: import('@deepseek-ai/dsh-web').WebFetchProvider
+  fetchProvider?: import('@deepseek-ai/dsh-web').WebFetchProvider | null
 } = {}): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>>; call: (name: string, args: unknown) => Promise<ToolExecutionResult> }> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(WebRuntime, opts.webConfig ?? {})
   if (opts.search) ctx.web.registerSearchProvider(opts.search)
-  if (opts.fetchProvider) ctx.web.registerFetchProvider(opts.fetchProvider)
+  // fetch defaults to true, which now fails at load without a usable provider.
+  if (opts.fetchProvider !== null) ctx.web.registerFetchProvider(opts.fetchProvider ?? fetchProvider())
   const fiber = await ctx.plugin(ToolWeb, opts.config ?? {})
   let counter = 0
   const call = (name: string, args: unknown) => ctx.tools.execute({ signal: testToolSignal, callId: CallId(`call-${++counter}`), name, arguments: args })
@@ -469,13 +478,39 @@ describe('tool-web registration', () => {
     await fiber.dispose()
   })
 
-  it('registers web_search even when no provider is available (schema follows enablement, not availability)', async () => {
-    const { fiber, ctx, call } = await mountTools()
+  it('registers web_search even when no search provider is available (schema follows enablement, not availability)', async () => {
+    const { fiber, ctx, call } = await mountTools({ config: { fetch: false } })
     expect(ctx.tools.schemas().map(s => s.name)).toContain('web_search')
-    // No provider is registered: the schema stays visible and execution reports
-    // the structured unavailability instead.
+    // No search provider is registered: the schema stays visible and execution
+    // reports the structured unavailability instead.
     const out = await call('web_search', { query: 'q' })
     expect(out.error?.info?.code).toBe('WEB_PROVIDER_UNAVAILABLE')
+    await fiber.dispose()
+  })
+
+  it('fails loud when fetch is enabled without a usable fetch provider', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(WebRuntime, {})
+    await expect(ctx.plugin(ToolWeb, {})).rejects.toThrow(
+      /tool-web: fetch is enabled but no usable fetch provider is mounted/,
+    )
+  })
+
+  it('fails loud when the configured fetch provider is not registered', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(WebRuntime, { fetchProvider: 'missing' })
+    await expect(ctx.plugin(ToolWeb, {})).rejects.toThrow(
+      /tool-web: fetch is enabled but no usable fetch provider is mounted/,
+    )
+  })
+
+  it('loads when fetch is enabled with a configured and registered provider', async () => {
+    const { fiber, ctx } = await mountTools({ webConfig: { fetchProvider: 'stub-fetch' } })
+    expect(ctx.tools.schemas().map(s => s.name)).toContain('web_fetch')
     await fiber.dispose()
   })
 
@@ -595,7 +630,7 @@ describe('tool-web execution through the real registry', () => {
       truncated: false,
     })
     // The model schema exposes no timeout: the tool forwards only the url; the
-    // tool-call budget is owned by dsh-tool-call-timeout-policy over exec.signal.
+    // tool-call budget is owned by dsh-timeout-guard over exec.signal.
     expect(seen.request).toEqual({ url: 'https://a.test' })
     expect(seen.signal).toBe(controller.signal)
     await fiber.dispose()

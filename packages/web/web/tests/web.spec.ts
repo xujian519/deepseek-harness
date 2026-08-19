@@ -204,6 +204,33 @@ describe('WebRuntime fetch capability', () => {
       expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }),
     )
   })
+
+  it('resolveFetchProvider returns the provider fetch would use', async () => {
+    const { web } = await mountWeb()
+    expect(web.resolveFetchProvider()).toBeUndefined()
+    const provider = makeFetchProvider('http', available, fetchResult('http'))
+    web.registerFetchProvider(provider)
+    expect(web.resolveFetchProvider()).toBe(provider)
+  })
+
+  it('resolveFetchProvider is undefined for missing, unusable, and ambiguous selections', async () => {
+    const { web } = await mountWeb({ fetchProvider: 'missing' })
+    web.registerFetchProvider(makeFetchProvider('http', unavailable, fetchResult('http')))
+    // The configured id is not registered: missing wins over the unusable one.
+    expect(web.resolveFetchProvider()).toBeUndefined()
+    const { web: ambiguous } = await mountWeb()
+    ambiguous.registerFetchProvider(makeFetchProvider('one', available, fetchResult('one')))
+    ambiguous.registerFetchProvider(makeFetchProvider('two', available, fetchResult('two')))
+    // Two usable providers without a configured id are ambiguous.
+    expect(ambiguous.resolveFetchProvider()).toBeUndefined()
+  })
+
+  it('resolveFetchProvider honors a configured and registered id', async () => {
+    const { web } = await mountWeb({ fetchProvider: 'picked' })
+    const provider = makeFetchProvider('picked', available, fetchResult('picked'))
+    web.registerFetchProvider(provider)
+    expect(web.resolveFetchProvider()).toBe(provider)
+  })
 })
 
 describe('WebError', () => {

@@ -43,7 +43,7 @@
       ## 作业纪律（违背任意一条即视为失职）
       1. 检索先于结论：任何"是否具有新颖性/创造性"的判断，必须先完成检索并引用对比文件，禁止凭记忆断言某技术方案是现有技术或非现有技术。
       2. 单独对比原则：新颖性判断逐篇单独对比；创造性判断以最接近的现有技术 D1 为起点，按三步法（确定区别特征→确定实际解决的技术问题→判断显而易见性）论证，并说明技术启示的来源。
-      3. 法条引用必须核验：引用 A22.2/A22.3/A26.3/A26.4/A33/A9 等条文时，用 patent_case_search / patent_kg_query 查判例与审查标准、用 web_fetch 打开官方来源核验原文，并对照 99-知识库/ 项目基线，禁止凭记忆引错条号或断章取义。
+      3. 法条引用必须核验：引用 A22.2/A22.3/A26.3/A26.4/A33/A9 等条文时，用 patent_case_search / patent_kg_query 查判例与审查标准、有 web_fetch 时打开官方来源核验原文，并对照 99-知识库/ 项目基线，禁止凭记忆引错条号或断章取义。
       4. 逐特征比对：权利要求分析必须逐项（特征→对比文件对应内容→结论）给出，标注引用关系，不使用"整体上相似/明显不同"这类不可追溯的表述。
       5. 输出即证据：检索报告写明数据来源、检索式、检索日期与覆盖范围；分析报告写明对比文件编号、对应特征与推理链。
       6. HITL 确认点不可跳过：检索式、权利要求布局、答复策略、无效理由组合，在动手前必须用 ask_user 向用户确认或至少说明取舍理由。
@@ -53,7 +53,7 @@
       交底书理解（PFE 三元组：技术问题/技术特征/技术效果）→ 现有技术检索 → 新颖性分析（单独对比）→ 创造性分析（三步法）→ 权利要求布局与撰写 → 说明书撰写（五部分）→ 形式与质量自检 → HITL 确认 → 输出成品。
 
       ## 工具与技能
-      - 检索：patent_search / patent_metadata / patent_legal_status 查公开与法律状态；patent_case_search / patent_wiki_search / patent_kg_query 查判例、审查标准卡片与知识图谱；web_search 补充、web_fetch 打开原文验证；paper_search 查学术文献。
+      - 检索：patent_search / patent_metadata / patent_legal_status 查公开与法律状态；patent_case_search / patent_wiki_search / patent_kg_query 查判例、审查标准卡片与知识图谱；web_search 补充、有 web_fetch 时打开原文验证；paper_search 查学术文献。
       - 撰写：draft_claims / draft_specification 起草权利要求与说明书，validate_specification 校验；成品用 render_patent_document 渲染 html/pdf。
       - 分析：新颖性/创造性/侵权/无效遵循 preset 内对应技能（patent-novelty-inventiveness / patent-infringement / patent-invalidity）的分析框架与检查清单；专利性结论用 patent_workflow / patent_workflow_run 收口。
       - 长任务：一个案子注册一个 goal；多阶段作业用 todo 跟踪；需要脚本化流水线时用 workflow。
@@ -270,11 +270,16 @@
     allowParallelInProgress: true
 
 # The `web` service and its search provider stay in the host composition; only
-# the model-facing tool is per-session. `fetch: true` is required: every
-# patent fact (公开日 / 法律状态 / 法条原文) must be verified by opening the
-# source page, never trusted from a search snippet (patent-mode-design.md §12).
+# the model-facing tool is per-session. `fetch` stays false: shipped profiles
+# mount no fetch provider (that provider defers SSRF protection, see the base
+# layer comment), so `fetch: true` would register a web_fetch tool that fails
+# every call with WEB_PROVIDER_UNAVAILABLE. The verify-before-cite rule
+# (patent-mode-design.md §12) then relies on patent_case_search plus the
+# search provider's server-side retrieval; a deployment that needs to open
+# source pages must add a fetch provider itself, e.g.
+# `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
   config:
-    fetch: true
+    fetch: false
     searchTimeoutMs: 60000

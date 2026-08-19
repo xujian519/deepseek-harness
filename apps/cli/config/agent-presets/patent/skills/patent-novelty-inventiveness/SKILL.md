@@ -12,7 +12,7 @@ description: 专利新颖性（单独对比）与创造性（三步法）分析�
 - 用 patent_wiki_search 查审查标准卡片：新颖性单独对比、创造性三步法、所属领域技术人员。
 - 用 patent_case_search 查相似在先决定的论证细节与证据认定。
 - 用 patent_kg_query 沿知识图谱追查裁判规则。
-- 用 web_fetch 核验 A22.2 / A22.3 法条原文；法条引用不得凭记忆。
+- 用 patent_case_search 或（已挂载时）web_fetch 核验 A22.2 / A22.3 法条原文；法条引用不得凭记忆。
 
 ## 新颖性分析（A22.2，单独对比）
 

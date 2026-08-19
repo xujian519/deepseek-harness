@@ -16,7 +16,7 @@
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
 
-专利服务放在 isolate 领域（patentKnowledge / patentWorkflow）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 配置 fetch: true 以满足"先验证后引用"规则。
+专利服务放在 isolate 领域（patentKnowledge / patentWorkflow）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 保持 fetch 关闭，因为发货 profile 不挂 fetch provider（见 base 层注释）；需要 web_fetch 的部署自行添加 provider，如 `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`。
 
 ## 技能
 
@@ -34,7 +34,7 @@ skills/ 下随附 7 个技能：
 
 ## 知识库策略
 
-按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文经 patent_case_search 加 web_fetch 核验权威来源。工作目录 `99-知识库/` 仍为项目级沉淀，用 fs-search / grep 先查本地再上网。
+按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文经 patent_case_search 加 web_fetch（挂载 fetch provider 时）核验权威来源。工作目录 `99-知识库/` 仍为项目级沉淀，用 fs-search / grep 先查本地再上网。
 
 这修订了 patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
 
@@ -44,11 +44,11 @@ skills/ 下随附 7 个技能：
 
 ## Model Experience
 
-模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、带强制免责声明的输出纪律）、专利计划模式段落、7 个预设内技能，以及专利工具加标准编码工具。人设要求先验证后引用（每个事实 web_fetch）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
+模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、带强制免责声明的输出纪律）、专利计划模式段落、7 个预设内技能，以及专利工具加标准编码工具。人设要求先验证后引用（挂载时每个事实用 web_fetch）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
 
 ## Known Limitations and Deferred Work
 
-- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。
+- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文经 patent_case_search 加 web_fetch（挂载 fetch provider 时）与 `99-知识库/` 基线核验。发货 profile 不挂 fetch provider（SSRF 防护延后），未添加前 web_fetch 会以 WEB_PROVIDER_UNAVAILABLE 失败。
 - patent_pdf_download 与 knowledge_note_save 在 patent-tools 中是 fail-loud 占位（ego-browser 运行器与存储写入器未接线）；本 preset 未挂载 patent-data 服务（ctx.patentData）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；法条原文在使用时核验。
