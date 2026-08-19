@@ -247,7 +247,7 @@ export interface ToolDefinition extends ToolSchema {
   finalizeContent?(exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>): ContentBlock[] | undefined
   /**
    * Cooperative tool-call timeout budget in milliseconds. Omit for no deadline.
-   * Enforced by `@deepseek-ai/dsh-tool-call-timeout-policy` (a `tools/execute` wrapper); it
+   * Enforced by `@deepseek-ai/dsh-timeout-guard` (a `tools/execute` wrapper); it
    * is NEVER sent to the model — `schemas()` whitelists only name/description/
    * parameters. Declaring it asserts this tool forwards `exec.signal` to a
    * cooperative implementation that can reach quiescence when the signal aborts.
@@ -460,10 +460,19 @@ export interface ToolRuntimeScheduler {
 }
 
 /**
- * Scheduler entry point omitted from the generated named service API.
+ * Property key of the scheduler handshake between `dsh-agent-loop` and the
+ * `ToolRuntime` instance. A namespaced STRING, not a module-local `Symbol`:
+ * pnpm can legitimately hoist a second copy of this package into a profile's
+ * own `node_modules` (a third-party plugin's peer dependency), and two module
+ * instances mint distinct symbols, which made `ctx.tools[symbol]` undefined
+ * for the loop's copy and failed every tool call with
+ * "Cannot read properties of undefined (reading 'prepare')". The literal is
+ * shared by value across copies, so the loop reaches the scheduler regardless
+ * of which copy created the instance. Still omitted from the generated named
+ * service API.
  * @internal
  */
-export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol('@deepseek-ai/dsh-tools.scheduler')
+export const TOOL_RUNTIME_SCHEDULER = '@deepseek-ai/dsh-tools:runtime-scheduler' as const
 
 /** Canonical error code for cancellation after a tool body was invoked. */
 export const TOOL_ABORTED = 'ABORTED'

@@ -27,6 +27,7 @@ import {
   existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
+import * as yaml from 'js-yaml'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -64,6 +65,7 @@ export interface DshManifestSection {
 /** The slice of package.json both profiles and bundles use. */
 export interface ProfileManifest {
   name?: string
+  version?: string
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
   dsh?: DshManifestSection
@@ -114,11 +116,13 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
   web: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
   headless: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'],
+  desktop: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-desktop-app'],
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */
 const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
   headless: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless'],
+  desktop: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-desktop-app'],
 }
 
 /** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
@@ -135,7 +139,7 @@ const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied
 // profiles/node_modules installation fallback, so every plugin shares the
 // installation's single cordis instance instead of a duplicate. pnpm ≥10
 // reads its settings from pnpm-workspace.yaml, not .npmrc.
-const PROFILE_PNPM_WORKSPACE = `packages:
+const PROFILE_PNPM_WORKSPACE_BASE = `packages:
   - .
 
 nodeLinker: hoisted
@@ -143,13 +147,71 @@ autoInstallPeers: false
 `
 
 /**
+ * Core seam packages pinned to the installation's version in every profile
+ * tree. A third-party plugin that declares one of these as a direct
+ * dependency (not a peer) makes pnpm materialize a second physical copy in
+ * the profile's node_modules; keeping that copy at the installation's version
+ * is what lets the string-key scheduler handshake (and cordis identity) agree
+ * across the copies.
+ */
+export const PROFILE_VERSION_PINNED_PACKAGES = ['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'] as const
+
+/**
+ * The pnpm settings out-of-tree plugins need, plus optional version pins that
+ * keep every physical copy of a core seam package at the installation's
+ * version.
+ * @param overrides - package-name → exact version pins written as pnpm overrides.
+ * @returns the workspace file content.
+ */
+export function profilePnpmWorkspace(overrides: Readonly<Record<string, string>> = {}): string {
+  const lines = Object.entries(overrides).map(
+    ([packageName, version]) => `  ${JSON.stringify(packageName)}: ${JSON.stringify(version)}`,
+  )
+  return PROFILE_PNPM_WORKSPACE_BASE + (lines.length === 0 ? '' : `overrides:\n${lines.join('\n')}\n`)
+}
+
+/**
+ * Resolve a package's installed version from an installation anchor's
+ * resolvable dependency surface; `undefined` when the package is absent.
+ * @param installAnchor - absolute path of a package.json inside the installation.
+ * @param packageName - the package whose installed version to read.
+ */
+export function installedPackageVersion(installAnchor: string, packageName: string): string | undefined {
+  const dir = packageDirFromAnchor(installAnchor, packageName)
+  if (dir === undefined) return undefined
+  const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as ProfileManifest
+  return manifest.version
+}
+
+/**
+ * Version pins that keep every physical copy of a core seam package in a
+ * profile tree at the installation's version, so the scheduler handshake and
+ * cordis identity cannot diverge across copies. Packages the installation
+ * cannot resolve are skipped.
+ * @param installAnchor - absolute path of the dsh app's package.json.
+ */
+export function profileCoreOverrides(installAnchor: string): Record<string, string> {
+  const overrides: Record<string, string> = {}
+  for (const packageName of PROFILE_VERSION_PINNED_PACKAGES) {
+    const version = installedPackageVersion(installAnchor, packageName)
+    if (version !== undefined) overrides[packageName] = version
+  }
+  return overrides
+}
+
+/**
  * Initialize a profile directory: manifest, empty user patch layer, and the
  * pnpm settings out-of-tree plugins need. Existing files are never touched,
  * so re-running is a no-op on an initialized profile.
  * @param dir - the profile directory from {@link resolveProfileDir}.
  * @param bundles - the initial `dsh.profile.bundles` layer list.
+ * @param options - optional version pins for the profile's pnpm workspace.
  */
-export function initProfile(dir: string, bundles: readonly string[]): void {
+export function initProfile(
+  dir: string,
+  bundles: readonly string[],
+  options: { overrides?: Readonly<Record<string, string>> } = {},
+): void {
   mkdirSync(dir, { recursive: true })
   const manifestPath = join(dir, 'package.json')
   if (!existsSync(manifestPath)) {
@@ -164,7 +226,65 @@ export function initProfile(dir: string, bundles: readonly string[]): void {
   const patchPath = join(dir, PROFILE_PATCH_FILENAME)
   if (!existsSync(patchPath)) writeFileSync(patchPath, PROFILE_PATCH_TEMPLATE)
   const workspacePath = join(dir, 'pnpm-workspace.yaml')
-  if (!existsSync(workspacePath)) writeFileSync(workspacePath, PROFILE_PNPM_WORKSPACE)
+  if (!existsSync(workspacePath)) writeFileSync(workspacePath, profilePnpmWorkspace(options.overrides))
+}
+
+/**
+ * Ensure a profile's pnpm-workspace.yaml pins the core seam packages to the
+ * installation's versions. Profiles initialized before version pins existed
+ * keep running without them (a same-version dual copy already handshakes
+ * through the string-key scheduler), but a third-party plugin that declares
+ * one of the pinned packages as a direct dependency would otherwise drag a
+ * divergent copy into the tree on the next install. Idempotent: rewrites the
+ * file only when a pin is missing or differs from the installation, keeps
+ * every other workspace key, and never touches an uninitialized profile.
+ * @param profileDir - the profile directory.
+ * @param installAnchor - absolute path of the dsh app's package.json.
+ * @returns the pin names written (empty when nothing changed).
+ */
+export function ensureProfileVersionPins(profileDir: string, installAnchor: string): string[] {
+  const workspacePath = join(profileDir, 'pnpm-workspace.yaml')
+  if (!existsSync(workspacePath)) return []
+  const overrides = profileCoreOverrides(installAnchor)
+  if (Object.keys(overrides).length === 0) return []
+  const current = yaml.load(readFileSync(workspacePath, 'utf8')) as Record<string, unknown> | null | undefined
+  const existing = current === null || current === undefined
+    ? {}
+    : typeof current.overrides === 'object' && current.overrides !== null
+      ? current.overrides as Record<string, unknown>
+      : {}
+  const merged: Record<string, unknown> = { ...existing }
+  const written: string[] = []
+  for (const [packageName, version] of Object.entries(overrides)) {
+    if (merged[packageName] !== version) {
+      merged[packageName] = version
+      written.push(packageName)
+    }
+  }
+  if (written.length === 0) return []
+  writeFileSync(workspacePath, yaml.dump({ ...(current ?? {}), overrides: merged }))
+  return written
+}
+
+/**
+ * Names of the pinned core seam packages whose installed copy in a profile's
+ * node_modules diverges from the installation's version. A profile without a
+ * physical copy (the copy resolves through the healed installation fallback)
+ * is not divergent.
+ * @param profileDir - the profile directory.
+ * @param installAnchor - absolute path of the dsh app's package.json.
+ * @returns one diagnostic string per divergent package.
+ */
+export function divergentProfileCoreVersions(profileDir: string, installAnchor: string): string[] {
+  const overrides = profileCoreOverrides(installAnchor)
+  const divergent: string[] = []
+  for (const [packageName, expected] of Object.entries(overrides)) {
+    const manifestPath = join(profileDir, 'node_modules', packageName, 'package.json')
+    if (!existsSync(manifestPath)) continue
+    const installed = (JSON.parse(readFileSync(manifestPath, 'utf8')) as ProfileManifest).version
+    if (installed !== expected) divergent.push(`${packageName}@${installed ?? 'unknown'} (installation: ${expected})`)
+  }
+  return divergent
 }
 
 /** Ensure `link` is a symlink to `target`, replacing a wrong or dangling link; a real directory throws. */
@@ -380,7 +500,7 @@ export function loadProfile(
         `${binName}: profile ${JSON.stringify(name)} does not exist; create it with 'dsh plugin --profile ${name} add <package>'`,
       )
     }
-    initProfile(dir, template)
+    initProfile(dir, template, { overrides: profileCoreOverrides(installAnchor) })
   }
   const manifest = normalizeShippedProfile(name, dir, readProfileManifest(binName, dir))
   // A hand-written profile manifest may omit the dsh section entirely.

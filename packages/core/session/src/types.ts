@@ -378,6 +378,25 @@ export type SurfaceOp =
   | { op: 'replace'; start: number; end: number }
 
 /**
+ * Optional write options for {@link Session.append} on non-surface (log-only)
+ * events. Surface events take {@link SurfaceIntent} instead — the conditional
+ * tuple type in `append` rejects the wrong shape per event kind.
+ */
+export interface AppendOptions {
+  /**
+   * Mark the event with the {@link SessionEvent.ignorable} envelope marker: a
+   * reader that does not recognize `type` may safely skip it. A writer sets
+   * `true` only on purely informational records whose loss cannot affect
+   * reconstruction — out-of-repo plugin telemetry is the intended case, since
+   * plugin event types are outside every harness build's generated vocabulary
+   * by construction. Absent means required: the read path refuses an
+   * unrecognized type without this marker instead of silently resuming a
+   * gutted session.
+   */
+  readonly ignorable?: true
+}
+
+/**
  * Surface placement and cited source-event seqs for {@link Session.append}. Required on
  * message-producing events and forbidden on log-only events.
  */

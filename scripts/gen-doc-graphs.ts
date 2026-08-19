@@ -496,6 +496,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Producers (background bash, PTY sends, and subagent delegations) register running work; tool-jobs is the model-facing controller that reads, lists, and kills it; jobs-local is the process-local registry.',
   },
   {
+    key: 'selfEvolve',
+    pkg: 'self-evolve',
+    title: 'Self-evolve evolution loop',
+    mode: 'seam',
+    implementations: ['self-evolve-basic'],
+    consumers: ['tool-self-evolve'],
+    note: 'The provider owns trigger policy, verifier-grounded failure mining, validation (fork replay, held-out search, LLM judge), and reversible L1/L2 commits; tool-self-evolve is the model-facing controller that inspects patterns and starts explicit loops.',
+  },
+  {
     key: 'web',
     pkg: 'web',
     title: 'Web access provider registry',
@@ -521,6 +530,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     implementations: ['directory-picker-native', 'directory-picker-browse'],
     consumers: ['apiproxy'],
     note: 'Discriminated interaction capability: the native backend opens one OS chooser on the host display, the browse backend serves listing/creation primitives for the in-app browser; dual-face backends fill ui-workspace directory-flow slots from their browser halves (no wire advertisement).',
+  },
+  {
+    key: 'desktop',
+    pkg: 'desktop',
+    title: 'Desktop OS-integration seam',
+    mode: 'seam',
+    implementations: ['desktop-shell'],
+    consumers: ['desktop-directory-picker'],
+    note: 'Electron Main owns native dialogs, notifications, menus, global shortcuts, tray, and drag-and-drop; the shell provider bridges them to the backend over a local socket so the renderer stays sandboxed.',
   },
   {
     key: 'webServer',
@@ -579,6 +597,27 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'core',
     consumers: ['tool-cordis'],
     note: 'Registers host inspect providers, mirrors the client provider manifest, and routes client queries through the dynamic Cordis transport.',
+  },
+  {
+    key: 'patentData',
+    pkg: 'patent-data',
+    title: 'Patent data access seam',
+    mode: 'seam',
+    note: 'Service Definition for nuo-patent mapping/search plus the ego-browser subprocess provider; the provider and tool consumers land with the plan phases (P1.2, P3.2).',
+  },
+  {
+    key: 'patentKnowledge',
+    pkg: 'patent-knowledge',
+    title: 'knowledge.db query seam',
+    mode: 'seam',
+    note: 'Service Definition for case-law FTS, legal, wiki-card, and knowledge-graph lookups; the sqlite provider and install command land with P1.3.',
+  },
+  {
+    key: 'patentWorkflow',
+    pkg: 'patent-workflow',
+    title: 'Patent execution pipeline',
+    mode: 'seam',
+    note: 'Service Definition for the workflow/flexible-plan/plantask state machines with HITL approval wiring; the implementation lands with P3.1.',
   },
 ]
 
@@ -952,6 +991,11 @@ export class EventRelationCollector {
               for (const event of this.eventNamesFromArgumentList(argumentList, new Set())) {
                 this.addDispatcher(event, source.pkg, 'events.dispatch')
               }
+            }
+          } else if (receiverKind === 'events-service' && (method === 'emit' || method === 'parallel' || method === 'serial' || method === 'waterfall')) {
+            // EventsService methods take the event name as their first argument.
+            for (const event of this.eventNamesFromCall(node, 'context')) {
+              this.addDispatcher(event, source.pkg, method)
             }
           } else if (receiverKind === 'context' || receiverKind === 'agent-dispatch') {
             const eventNames = this.eventNamesFromCall(node, receiverKind)

@@ -90,7 +90,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-Sources: [`packages/core/session/src/types.ts:340`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:347`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:376`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:408`](../packages/core/session/src/types.ts)
+Sources: [`packages/core/session/src/types.ts:340`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:347`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:376`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:427`](../packages/core/session/src/types.ts)
 
 ## Events
 
@@ -116,6 +116,30 @@ Sources: [`packages/core/session/src/types.ts:340`](../packages/core/session/src
 ```
 
 Source: [`packages/core/agent/src/types.ts:19`](../packages/core/agent/src/types.ts)
+
+<a id="agentrequest-error--log-only"></a>
+
+#### `agent/request-error` — log-only
+
+```ts persistence-catalog
+/**
+ * Emitted when the agent loop records a failed model request. The
+ * `error.code` drives the `llm-provider` tier's causal signature (Gate
+ * SIG-4); `statusCode` is the provider's HTTP status when available.
+ * `turn`/`step` pin the failing step so turn-scoped consumers (step
+ * reflection) can match the event to its turn.
+ */
+'agent/request-error': {
+  turn?: number
+  step?: number
+  provider?: unknown
+  model?: unknown
+  statusCode?: unknown
+  error?: unknown
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:190`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `agent-preset/*`
 
@@ -498,6 +522,142 @@ Source: [`packages/llm/llm-retry/src/types.ts:9`](../packages/llm/llm-retry/src/
 
 Source: [`packages/llm/llm-retry/src/types.ts:11`](../packages/llm/llm-retry/src/types.ts)
 
+### `patent/*`
+
+<a id="patentplantask--log-only"></a>
+
+#### `patent/plantask` — log-only
+
+```ts persistence-catalog
+/**
+ * A plantask plan entered a new state. The full task list travels with
+ * every append, so the plan's machine state (pending/in_progress/completed
+ * per task, plus the current PlanTaskState) is reconstructable from the
+ * log alone; replaying the log IS the plan state. Log-only — never derived
+ * model history.
+ * @param event - the plantask state snapshot appended to the session log.
+ */
+'patent/plantask': PatentPlantaskEvent
+```
+
+Source: [`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
+
+<a id="patentworkflow-run--log-only"></a>
+
+#### `patent/workflow-run` — log-only
+
+```ts persistence-catalog
+/**
+ * A workflow run finished (completed, degraded, or interrupted). Carries
+ * the per-stage results and summary the run reports to the model, so a
+ * model-visible run is reconstructable from the log. Log-only.
+ * @param event - the workflow run result appended to the session log.
+ */
+'patent/workflow-run': PatentWorkflowRunEvent
+```
+
+Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
+
+### `patent-teams/*`
+
+<a id="patent-teamsmember-added--log-only"></a>
+
+#### `patent-teams/member-added` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one team member.
+ * @param data - team identity, member child session, and display identity.
+ */
+'patent-teams/member-added': PatentTeamsMemberAddedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:84`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsmember-removed--log-only"></a>
+
+#### `patent-teams/member-removed` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one member removal.
+ * @param data - team identity and the member's child session id.
+ */
+'patent-teams/member-removed': PatentTeamsMemberRemovedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsmessage-sent--log-only"></a>
+
+#### `patent-teams/message-sent` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one mailbox message.
+ * @param data - team identity, sender, recipient, and content.
+ */
+'patent-teams/message-sent': PatentTeamsMessageSentData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:104`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-created--log-only"></a>
+
+#### `patent-teams/task-created` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one task creation.
+ * @param data - team identity, task id, subject, dependencies, assignee.
+ */
+'patent-teams/task-created': PatentTeamsTaskCreatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:94`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-updated--log-only"></a>
+
+#### `patent-teams/task-updated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records one task transition.
+ * @param data - team identity, task id, and the new status/assignee/output.
+ */
+'patent-teams/task-updated': PatentTeamsTaskUpdatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:99`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsteam-created--log-only"></a>
+
+#### `patent-teams/team-created` — log-only
+
+```ts persistence-catalog
+/**
+ * Opens one team record.
+ * @param data - stable team identity and display name.
+ */
+'patent-teams/team-created': PatentTeamsTeamCreatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:79`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamsteam-deleted--log-only"></a>
+
+#### `patent-teams/team-deleted` — log-only
+
+```ts persistence-catalog
+/**
+ * Closes one team record after deletion.
+ * @param data - stable team identity.
+ */
+'patent-teams/team-deleted': PatentTeamsTeamDeletedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:109`](../packages/patent/patent-teams/src/event-types.ts)
+
 ### `permission/*`
 
 <a id="permissionpreset--log-only"></a>
@@ -603,6 +763,153 @@ Source: [`packages/sandbox/sandbox-policy/src/session-mode.ts:33`](../packages/s
 Types: [ScheduleChange](subsystems/schedule.md)
 
 Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/schedule/src/types.ts)
+
+### `self-evolve/*`
+
+<a id="self-evolvecommit--log-only"></a>
+
+#### `self-evolve/commit` — log-only
+
+```ts persistence-catalog
+/**
+ * Records a successful proposal commit: the proposal's effect has been
+ * applied to the runtime through its owning seam, and the validation
+ * outcome was `accepted`.
+ */
+'self-evolve/commit': {
+  runId: SelfEvolveRunId
+  commit: EvolveCommit
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:251`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolveend--log-only"></a>
+
+#### `self-evolve/end` — log-only
+
+```ts persistence-catalog
+/**
+ * Marks the end of a self-evolve loop — the maintenance phase releases the
+ * agent. `error` records an unsuccessful loop; absent on clean termination.
+ */
+'self-evolve/end': {
+  runId: SelfEvolveRunId
+  committedProposalIds: string[]
+  error?: string
+  endedAt: number
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvemined--log-only"></a>
+
+#### `self-evolve/mined` — log-only
+
+```ts persistence-catalog
+/**
+ * Records the folded failure-pattern set produced by weakness mining for
+ * this run. The snapshot is reconstructable from the projection unit plus
+ * preceding session events; this event pins its durable identity.
+ * `occurrences` may include the cross-session 24h merge from
+ * `$DSH_HOME/self-evolve/global-patterns.jsonl` (P4.2), which the session
+ * log alone cannot reconstruct.
+ */
+'self-evolve/mined': {
+  runId: SelfEvolveRunId
+  patterns: FailurePattern[]
+  /** Pattern ids that this run will attempt to address, in priority order. */
+  targeting: string[]
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolveproposed--log-only"></a>
+
+#### `self-evolve/proposed` — log-only
+
+```ts persistence-catalog
+/**
+ * Records an immutable proposal definition produced by the harness-proposal
+ * stage. Defined proposals are candidates; only a `self-evolve/commit`
+ * event changes runtime behavior.
+ */
+'self-evolve/proposed': {
+  runId: SelfEvolveRunId
+  proposal: EvolveProposal
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:232`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvereflection--log-only"></a>
+
+#### `self-evolve/reflection` — log-only
+
+```ts persistence-catalog
+/**
+ * A low-budget step reflection (Phase 3, P3.1) reinforced an existing
+ * failure pattern with high confidence: the projection folds it as extra
+ * evidence (occurrences +1, supporting seq added). The pattern must
+ * already exist — reflections never mint verifier-ungrounded patterns.
+ */
+'self-evolve/reflection': {
+  turn: number
+  step: number
+  patternId: string
+  /** Model-reported confidence in the attribution, 0–1. */
+  confidence: number
+  /** One-sentence repair suggestion from the reflection. */
+  suggestion: string
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:261`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvestart--log-only"></a>
+
+#### `self-evolve/start` — log-only
+
+```ts persistence-catalog
+/**
+ * Marks the start of a single self-evolve loop — weakness mining, proposal,
+ * validation, and optional commit. Log-only; the agent's maintenance phase
+ * serializes concurrent loops until `self-evolve/end`.
+ */
+'self-evolve/start': {
+  runId: SelfEvolveRunId
+  sessionId: SessionId
+  trigger: EvolveTrigger
+  startedAt: number
+  /** Levels this loop is allowed to target. */
+  levels: EvolveLevel[]
+  /** Pattern ids this loop will attempt to address; pinned for replay. */
+  targeting: string[]
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+
+<a id="self-evolvevalidated--log-only"></a>
+
+#### `self-evolve/validated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records the validation outcome for one proposal. Rejected proposals do
+ * not produce a matching commit event; the diagnostic here is the durable
+ * record of why.
+ */
+'self-evolve/validated': {
+  runId: SelfEvolveRunId
+  proposalId: string
+  outcome: ProposalValidationOutcome
+}
+```
+
+Source: [`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-evolve/self-evolve/src/types.ts)
 
 ### `session/*`
 

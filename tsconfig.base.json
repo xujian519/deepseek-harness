@@ -39,8 +39,8 @@
       "@deepseek-ai/cordis-plugin-logger-console": ["./vendor/logger-console/src"],
       "@deepseek-ai/node-addon-landlock-run": ["./native/landlock-run/packages/entry/src/index.ts"],
       "@deepseek-ai/dsh-invariants": ["./packages/runtime-diagnostics/invariants/src/index.ts"],
-      "@deepseek-ai/dsh-tool-call-timeout-policy": ["./packages/guard/timeout-policy/src"],
-      "@deepseek-ai/dsh-tool-call-timeout-policy/invariant": ["./packages/guard/timeout-policy/src/invariant.ts"],
+      "@deepseek-ai/dsh-timeout-guard": ["./packages/guard/timeout-guard/src"],
+      "@deepseek-ai/dsh-timeout-guard/invariant": ["./packages/guard/timeout-guard/src/invariant.ts"],
       "@deepseek-ai/dsh-typert-registry": ["./packages/typert/registry/src/index.ts"],
       "@deepseek-ai/dsh-typert-registry/client": ["./packages/typert/registry/src/client/index.ts"],
       "@deepseek-ai/dsh-api-gateway": ["./packages/api/gateway/src/index.ts"],
@@ -147,7 +147,8 @@
         "./packages/util/*/src/invariant.ts",
         "./packages/mcp/*/src/invariant.ts",
         "./packages/identity/*/src/invariant.ts",
-        "./packages/test-support/*/src/invariant.ts"
+        "./packages/test-support/*/src/invariant.ts",
+        "./packages/patent/*/src/invariant.ts"
       ],
       // host/client package names prefix the group dir (dsh-client-<dir>), so
       // the generic dsh-*/invariant list above cannot map them; strip the
@@ -156,6 +157,14 @@
       "@deepseek-ai/dsh-client-*/invariant": ["./packages/client/*/src/invariant.ts"],
       "@deepseek-ai/dsh-headless/startup": ["./packages/bundle/headless/src/startup.ts"],
       "@deepseek-ai/dsh-web-app/startup": ["./packages/bundle/web-app/src/startup.ts"],
+      "@deepseek-ai/dsh-desktop-app": ["./packages/bundle/desktop-app/src"],
+      "@deepseek-ai/dsh-desktop-app/*": ["./packages/bundle/desktop-app/src/*"],
+      "@deepseek-ai/dsh-desktop": ["./packages/desktop/desktop/src"],
+      "@deepseek-ai/dsh-desktop/*": ["./packages/desktop/desktop/src/*"],
+      "@deepseek-ai/dsh-desktop-shell": ["./packages/desktop/shell/src"],
+      "@deepseek-ai/dsh-desktop-shell/*": ["./packages/desktop/shell/src/*"],
+      "@deepseek-ai/dsh-desktop-directory-picker": ["./packages/desktop/directory-picker/src"],
+      "@deepseek-ai/dsh-desktop-directory-picker/*": ["./packages/desktop/directory-picker/src/*"],
       "@deepseek-ai/dsh-client-*/client": ["./packages/client/*/src/client"],
        // One wildcard maps every @deepseek-ai/dsh-<name> to its source. Package
       // dir names are unique across groups, so first-on-disk-wins resolution is
@@ -282,9 +291,11 @@
         "./packages/util/*/src",
         "./packages/mcp/*/src",
         "./packages/identity/*/src",
+        "./packages/self-evolve/*/src",
         "./packages/test-support/*/src",
         "./packages/host/*/src",
-        "./packages/client/*/src"
+        "./packages/client/*/src",
+        "./packages/patent/*/src"
       ]
     }
   }

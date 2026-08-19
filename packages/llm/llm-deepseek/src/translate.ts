@@ -23,6 +23,72 @@ interface OpenBlock {
   name?: string
 }
 
+/** Whether a parsed JSON value is a plain data object. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Reject a payload that parsed as JSON but violates the wire chunk structure. */
+function malformedPayload(payload: string, reason: string): LlmError {
+  return new LlmError(`malformed SSE payload (${reason}): ${payload.slice(0, 120)}`, 'MALFORMED_RESPONSE')
+}
+
+/**
+ * Parse and structurally validate one SSE data payload. The wire is an
+ * untrusted boundary: a JSON value that is not a chunk object (a scalar, an
+ * array), a non-object choice, a non-array `tool_calls`, or a non-numeric
+ * usage would otherwise crash with a bare `TypeError` or flow `NaN` and
+ * `[object Object]` fragments into the stream assembly and the session log.
+ * Optional fields stay lenient (a null `delta` or `usage`, absent tool-call
+ * details) exactly as the assembler tolerates them today.
+ */
+function parseWireChunk(payload: string): WireChunk {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(payload)
+  } catch {
+    throw malformedPayload(payload, 'invalid JSON')
+  }
+  if (!isRecord(parsed)) throw malformedPayload(payload, 'not an object')
+  if (parsed.choices !== undefined) {
+    if (!Array.isArray(parsed.choices)) throw malformedPayload(payload, 'choices is not an array')
+    for (const choice of parsed.choices) {
+      if (!isRecord(choice)) throw malformedPayload(payload, 'a choice is not an object')
+      if (choice.delta !== undefined && choice.delta !== null && !isRecord(choice.delta)) {
+        throw malformedPayload(payload, 'a delta is not an object')
+      }
+      if (isRecord(choice.delta) && choice.delta.tool_calls !== undefined && choice.delta.tool_calls !== null) {
+        if (!Array.isArray(choice.delta.tool_calls)) throw malformedPayload(payload, 'tool_calls is not an array')
+        for (const call of choice.delta.tool_calls) {
+          if (!isRecord(call)) throw malformedPayload(payload, 'a tool-call delta is not an object')
+          if (call.index !== undefined && typeof call.index !== 'number') {
+            throw malformedPayload(payload, 'a tool-call index is not a number')
+          }
+          if (call.id !== undefined && typeof call.id !== 'string') {
+            throw malformedPayload(payload, 'a tool-call id is not a string')
+          }
+          if (call.function !== undefined && call.function !== null) {
+            if (!isRecord(call.function)) throw malformedPayload(payload, 'a tool-call function is not an object')
+            if (call.function.name !== undefined && typeof call.function.name !== 'string') {
+              throw malformedPayload(payload, 'a tool-call name is not a string')
+            }
+            if (call.function.arguments !== undefined && typeof call.function.arguments !== 'string') {
+              throw malformedPayload(payload, 'a tool-call arguments fragment is not a string')
+            }
+          }
+        }
+      }
+    }
+  }
+  if (parsed.usage !== undefined && parsed.usage !== null) {
+    if (!isRecord(parsed.usage)) throw malformedPayload(payload, 'usage is not an object')
+    if (typeof parsed.usage.prompt_tokens !== 'number' || typeof parsed.usage.completion_tokens !== 'number') {
+      throw malformedPayload(payload, 'usage token counts are not numbers')
+    }
+  }
+  return parsed
+}
+
 /**
  * Map the wire finish_reason vocabulary to the harness FinishReason.
  * @param reason - the wire `finish_reason` string.
@@ -117,12 +183,7 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
       return
     }
 
-    let chunk: WireChunk
-    try {
-      chunk = JSON.parse(payload) as WireChunk
-    } catch {
-      throw new LlmError(`malformed SSE payload: ${payload.slice(0, 120)}`, 'MALFORMED_RESPONSE')
-    }
+    const chunk = parseWireChunk(payload)
 
     for (const choice of chunk.choices ?? []) {
       const delta = choice.delta

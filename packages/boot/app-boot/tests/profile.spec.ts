@@ -10,11 +10,15 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   composeEntries,
+  divergentProfileCoreVersions,
+  ensureProfileVersionPins,
   healProfilesModuleFallback,
   initProfile,
   loadProfile,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
+  profileCoreOverrides,
+  profilePnpmWorkspace,
   readProfileManifest,
   resolveBundleDir,
   resolveProfileDir,
@@ -69,6 +73,104 @@ describe('initProfile', () => {
     initProfile(dir, ['other'])
     expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base'])
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('- id: x')
+  })
+
+  it('writes version pins into a new profile workspace and omits them without pins', () => {
+    const pinned = tmp()
+    initProfile(pinned, ['@deepseek-ai/dsh-base'], { overrides: { '@deepseek-ai/dsh-tools': '0.1.0-rc.7' } })
+    const pinnedWorkspace = readFileSync(join(pinned, 'pnpm-workspace.yaml'), 'utf8')
+    expect(pinnedWorkspace).toContain('overrides:')
+    expect(pinnedWorkspace).toContain('"@deepseek-ai/dsh-tools": "0.1.0-rc.7"')
+    const plain = tmp()
+    initProfile(plain, ['@deepseek-ai/dsh-base'])
+    expect(readFileSync(join(plain, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('overrides:')
+  })
+})
+
+describe('profile version pins', () => {
+  it('profilePnpmWorkspace emits overrides only when pins are given', () => {
+    const base = profilePnpmWorkspace()
+    expect(base).toContain('nodeLinker: hoisted')
+    expect(base).not.toContain('overrides:')
+    const pinned = profilePnpmWorkspace({ '@deepseek-ai/dsh-tools': '0.1.0-rc.7', '@deepseek-ai/cordis': '4.0.1' })
+    expect(pinned).toContain('overrides:')
+    expect(pinned).toContain('"@deepseek-ai/dsh-tools": "0.1.0-rc.7"')
+    expect(pinned).toContain('"@deepseek-ai/cordis": "4.0.1"')
+  })
+
+  it('profileCoreOverrides resolves installed versions from the installation anchor', () => {
+    const anchor = stageInstallation({
+      '@deepseek-ai/dsh-tools': {},
+      '@deepseek-ai/cordis': {},
+    })
+    expect(profileCoreOverrides(anchor)).toEqual({
+      '@deepseek-ai/dsh-tools': '0.0.0',
+      '@deepseek-ai/cordis': '0.0.0',
+    })
+  })
+
+  it('loadProfile initializes a missing profile with the installation-pinned workspace', () => {
+    const anchor = stageInstallation({
+      '@deepseek-ai/dsh-base': { patch: '[]' },
+      '@deepseek-ai/dsh-web-app': { patch: '[]' },
+      '@deepseek-ai/dsh-tools': {},
+    })
+    const profile = loadProfile('t', 'web', anchor, tmp())
+    expect(readFileSync(join(profile.dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('"@deepseek-ai/dsh-tools": "0.0.0"')
+  })
+
+  it('ensureProfileVersionPins backfills pins idempotently and keeps unrelated keys', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+    const dir = tmp()
+    initProfile(dir, ['@deepseek-ai/dsh-base'])
+    writeFileSync(join(dir, 'pnpm-workspace.yaml'), [
+      'packages:',
+      '  - .',
+      '',
+      'nodeLinker: hoisted',
+      'autoInstallPeers: false',
+      '',
+      'allowBuilds:',
+      '  node-pty: true',
+      '',
+    ].join('\n'))
+    expect(ensureProfileVersionPins(dir, anchor)).toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    const updated = readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')
+    expect(updated).toContain('overrides:')
+    expect(updated).toContain('allowBuilds:')
+    expect(updated).toContain('node-pty: true')
+    // Idempotent: a second run rewrites nothing.
+    expect(ensureProfileVersionPins(dir, anchor)).toEqual([])
+  })
+
+  it('ensureProfileVersionPins corrects a stale pin to the installation version', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+    const dir = tmp()
+    initProfile(dir, ['@deepseek-ai/dsh-base'], { overrides: { '@deepseek-ai/dsh-tools': '0.1.0-rc.6' } })
+    expect(ensureProfileVersionPins(dir, anchor)).toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('0.0.0')
+  })
+
+  it('ensureProfileVersionPins skips an uninitialized profile', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {} })
+    expect(ensureProfileVersionPins(tmp(), anchor)).toEqual([])
+  })
+
+  it('divergentProfileCoreVersions names only installed copies whose version differs', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+    const dir = tmp()
+    initProfile(dir, ['@deepseek-ai/dsh-base'])
+    // No physical copy yet — resolution falls through to the installation fallback.
+    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([])
+    mkdirSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools'), { recursive: true })
+    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
+      JSON.stringify({ name: '@deepseek-ai/dsh-tools', version: '0.1.0-rc.6' }))
+    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([
+      '@deepseek-ai/dsh-tools@0.1.0-rc.6 (installation: 0.0.0)',
+    ])
+    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
+      JSON.stringify({ name: '@deepseek-ai/dsh-tools', version: '0.0.0' }))
+    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([])
   })
 })
 
@@ -186,6 +288,19 @@ describe('loadProfile', () => {
     expect(readProfileManifest('t', custom).dsh?.profile?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless', 'custom-bundle',
     ])
+  })
+
+  it('auto-initializes the desktop template and normalizes its installation-owned tuple', () => {
+    const anchor = stageInstallation({
+      '@deepseek-ai/dsh-base': { patch: '[]\n' },
+      '@deepseek-ai/dsh-web-app': { patch: '[]\n' },
+      '@deepseek-ai/dsh-desktop-app': { patch: '[]\n' },
+    })
+    const home = tmp()
+    expect(PROFILE_TEMPLATES.desktop).toContain('@deepseek-ai/dsh-desktop-app')
+    loadProfile('t', 'desktop', anchor, home)
+    expect(readProfileManifest('t', resolveProfileDir('desktop', home)).dsh?.profile?.bundles)
+      .toEqual([...PROFILE_TEMPLATES.desktop ?? []])
   })
 
   it('fails loud when a listed bundle declares no dsh.bundle', () => {

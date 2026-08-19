@@ -256,6 +256,38 @@ describe('translate: errors', () => {
     await expect(collect(translate(feed('{bad json')))).rejects.toThrow(/malformed SSE payload/)
   })
 
+  it.each([
+    ['null payload', 'null'],
+    ['scalar payload', '42'],
+    ['string payload', '"hello"'],
+    ['array payload', '[]'],
+    ['non-array choices', JSON.stringify({ choices: 5 })],
+    ['null choice', JSON.stringify({ choices: [null] })],
+    ['scalar choice', JSON.stringify({ choices: [5] })],
+    ['non-object delta', JSON.stringify({ choices: [{ delta: 'x' }] })],
+    ['non-array tool_calls', JSON.stringify({ choices: [{ delta: { tool_calls: 'x' } }] })],
+    ['null tool-call element', JSON.stringify({ choices: [{ delta: { tool_calls: [null] } }] })],
+    ['non-number tool-call index', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: '0' }] } }] })],
+    ['non-string tool-call id', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 5 }] } }] })],
+    ['non-object tool-call function', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: 'f' }] } }] })],
+    ['non-string arguments fragment', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 42 } }] } }] })],
+    ['non-object usage', JSON.stringify({ choices: [], usage: 42 })],
+    ['non-number usage counts', JSON.stringify({ choices: [], usage: { prompt_tokens: '5', completion_tokens: 2 } })],
+  ])('rejects %s with MALFORMED_RESPONSE', async (_, payload) => {
+    await expect(collect(translate(feed(payload)))).rejects.toThrow(LlmError)
+    await expect(collect(translate(feed(payload)))).rejects.toThrow(/malformed SSE payload/)
+  })
+
+  it('still accepts the lenient wire variants the assembler tolerates', async () => {
+    // Null delta/usage and absent optional tool-call fields remain valid.
+    const chunks = await collect(translate(feed(
+      { choices: [{ delta: { content: 'x' } }] },
+      { choices: [{ delta: null, finish_reason: 'stop' }], usage: null },
+      DONE,
+    )))
+    expect(chunks.at(-1)).toEqual({ type: 'finish', reason: { kind: 'stop' } })
+  })
+
   it('throws STREAM_CLOSED when the payload source ends without DONE', async () => {
     await expect(collect(translate(feed(firstChunk)))).rejects.toThrow(/without \[DONE\]/)
   })

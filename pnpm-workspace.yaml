@@ -8,6 +8,13 @@ packages:
   # Product assemblies over the package tier; apps/cli owns the `dsh` bin.
   - apps/*
   - website
+  # The desktop backend deploy target carries its own package.json and
+  # node_modules but is NOT a workspace member: exclude it (and its per-OS
+  # subdirectories) so pnpm's pre-command dependency check does not try to
+  # reinstall it. Packaged outputs under release/ contain the same backend
+  # tree and are excluded for the same reason.
+  - '!apps/desktop/resources/**'
+  - '!apps/desktop/release/**'
   # The runnable demo leaves join as ONE workspace member: examples/package.json
   # declares the union of every leaf's cordis.yml plugins as workspace:*, so a
   # plain-node (`:lib`) boot of any leaf (examples/<leaf>/cordis.yml) resolves its
@@ -27,6 +34,9 @@ linkWorkspacePackages: true
 overrides:
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+  # electron-builder 26.15.3 references ElectronDownloadCacheMode, which
+  # @electron/get added in 3.1.0; ^3.0.0 otherwise resolves to the enum-less 3.0.0.
+  '@electron/get@^3.0.0': '3.1.0'
 
 peerDependencyRules:
   allowedVersions:
@@ -53,6 +63,10 @@ allowBuilds:
   # The Python runtime deploy includes the reviewed workspace postinstall that
   # restores the executable bit on node-pty's macOS spawn helper.
   '@deepseek-ai/dsh-subprocess-local@file:packages/subprocess/subprocess-local': true
+  electron: true
+  # electron-builder's Squirrel-installer dependency; its script only picks a
+  # bundled 7z arch copy (NSIS does not use it), but allowing it keeps installs quiet.
+  electron-winstaller: true
 
 minimumReleaseAgeExclude:
   # Fresh pi-ai releases carry the model catalog updates that are the whole

@@ -1,0 +1,32 @@
+# The dsh-desktop-app bundle patch: the desktop surface over dsh-web-app.
+# Applied after dsh-web-app's layer; rows here override web rows by id, with
+# the profile's own cordis.patch.yml and any --patch overlays still to come.
+#
+# A patch replaces the targeted row's whole `config`, so the restated row
+# below owns every key the web runtime reads.
+
+# ── surface-specific overrides over dsh-web-app ─────────────────────────────
+
+# The web runtime keeps its web values in the desktop profile: the URL line
+# is the readiness signal the Electron main process parses. Desktop shell
+# rows mount through packages/desktop/*; the shell service and the Electron
+# directory picker are landed, remaining rows (menu, tray, shortcuts,
+# notifications, drag-and-drop) arrive with further packages/desktop/*
+# plugins.
+- id: web-runtime
+  config:
+    printUrl: true
+    surfaceContext: true
+    trustedHosts: !!js ctx.webStartup.trustedHosts
+
+# ── desktop host glue ───────────────────────────────────────────────────────
+
+- insert:
+    - id: desktop-runtime
+      name: '@deepseek-ai/dsh-desktop-app'
+    - id: desktop-shell
+      name: '@deepseek-ai/dsh-desktop-shell'
+
+# Replace the web runtime's directory picker with the Electron dialog provider.
+- id: directory-picker
+  name: '@deepseek-ai/dsh-desktop-directory-picker'

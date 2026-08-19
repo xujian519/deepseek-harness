@@ -101,6 +101,73 @@ describe('redactSecrets', () => {
     expect(redactSecrets({ type: 'object' } as never, { k: 'v' })).toEqual({ value: { k: 'v' }, secrets: [] })
     expect(redactSecrets({ type: 'array' } as never, ['v'])).toEqual({ value: ['v'], secrets: [] })
   })
+
+  it('passes scalar nodes and scalar-member unions through', () => {
+    const Schema = z.object({
+      name: z.string(),
+      count: z.number(),
+      theme: z.union(['dark', 'light']),
+      choice: z.union([z.string(), z.number()]),
+    })
+    const { value, secrets } = redactSecrets(Schema as z<never>, { name: 'x', count: 1, theme: 'dark', choice: 2 })
+    expect(value).toEqual({ name: 'x', count: 1, theme: 'dark', choice: 2 })
+    expect(secrets).toEqual([])
+  })
+
+  it('passes unexpandable containers through when no secret is reachable', () => {
+    const WithUnion = z.object({ choice: z.union([z.object({ a: z.string() }), z.number()]) })
+    const WithTransform = z.object({ when: z.transform(z.string(), s => new Date(s)) })
+    const { value, secrets } = redactSecrets(WithUnion as z<never>, { choice: { a: 'x' } })
+    expect(value).toEqual({ choice: { a: 'x' } })
+    expect(secrets).toEqual([])
+    const transform = redactSecrets(WithTransform as z<never>, { when: '2026-01-01' })
+    expect(transform.value).toEqual({ when: '2026-01-01' })
+    expect(transform.secrets).toEqual([])
+    const tuple = redactSecrets({ type: 'tuple', list: [{ type: 'object', dict: {} }] } as never, ['x'])
+    expect(tuple.value).toEqual(['x'])
+    expect(tuple.secrets).toEqual([])
+    const intersect = redactSecrets({ type: 'intersect', list: [{ type: 'object', dict: {} }] } as never, { a: 1 })
+    expect(intersect.value).toEqual({ a: 1 })
+    expect(intersect.secrets).toEqual([])
+  })
+
+  it('fails closed when a reachable secret sits under an unexpandable container', () => {
+    const SecretUnion = z.object({ choice: z.union([z.object({ token: z.string().role('secret') }), z.number()]) })
+    const SecretTransform = z.object({
+      when: z.transform(z.object({ token: z.string().role('secret') }), s => s.token),
+    })
+    expect(() => redactSecrets(SecretUnion as z<never>, { choice: { token: 'x' } })).toThrow(
+      /cannot redact a value under schema node type "union"/,
+    )
+    expect(() => redactSecrets(SecretTransform as z<never>, { when: { token: 'x' } })).toThrow(
+      /cannot redact a value under schema node type "transform"/,
+    )
+    expect(() => redactSecrets({
+      type: 'tuple',
+      list: [{ type: 'object', dict: { token: { type: 'string', meta: { role: 'secret' } } } }],
+    } as never, ['x'])).toThrow(
+      /cannot redact a value under schema node type "tuple"/,
+    )
+    expect(() => redactSecrets({
+      type: 'intersect',
+      list: [{ type: 'object', dict: { token: { type: 'string', meta: { role: 'secret' } } } }],
+    } as never, { token: 'x' })).toThrow(
+      /cannot redact a value under schema node type "intersect"/,
+    )
+    expect(() => redactSecrets({
+      type: 'union',
+      list: [{ type: 'string', meta: { role: 'secret' } }, { type: 'number' }],
+    } as never, 'x')).toThrow(
+      /cannot redact a value under schema node type "union"/,
+    )
+  })
+
+  it('does not fail closed when an unexpandable container holds no value', () => {
+    const WithUnion = z.object({ choice: z.union([z.object({ a: z.string() }), z.number()]) })
+    const { value, secrets } = redactSecrets(WithUnion as z<never>, {})
+    expect(value).toEqual({})
+    expect(secrets).toEqual([])
+  })
 })
 
 describe('describe() layers and redaction', () => {

@@ -795,6 +795,16 @@
         "@deepseek-ai/dsh-code-runtime-worker-thread"
       ]
     },
+    "packages/bundle/self-evolve-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "packages/bundle/desktop-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
     "packages/bundle/web-app": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"

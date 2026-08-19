@@ -30,6 +30,12 @@ describe('dsh-tool-web real-load-path guard', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(WebRuntime, {})
+    // fetch defaults to true and fails at load without a usable provider.
+    ctx.web.registerFetchProvider({
+      id: 'stub-fetch',
+      available: () => true,
+      fetch: () => Promise.resolve({ url: 'https://stub.test', statusCode: 503, body: { kind: 'text', content: '' }, truncated: false }),
+    })
 
     const loader = Object.create(Loader.prototype) as Loader
     const unwrapped = loader.unwrapExports(toolWeb) as Parameters<Context['plugin']>[0]

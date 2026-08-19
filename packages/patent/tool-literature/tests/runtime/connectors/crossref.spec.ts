@@ -1,0 +1,104 @@
+import { describe, expect, it } from 'vitest'
+import { createCrossrefConnector } from '../../../src/runtime/connectors/crossref.ts'
+
+const SEARCH_RESPONSE = {
+  message: {
+    'total-results': 1,
+    items: [
+      {
+        DOI: '10.48550/arXiv.1706.03762',
+        title: ['Attention Is All You Need'],
+        subtitle: ['Transformer'],
+        abstract: '<jats:p>The dominant sequence transduction models are based on complex recurrent networks.</jats:p>',
+        author: [{ given: 'Ashish', family: 'Vaswani' }, { name: 'Noam Shazeer' }],
+        'container-title': ['Advances in Neural Information Processing Systems'],
+        issued: { 'date-parts': [[2017]] },
+        score: 12.5,
+        URL: 'https://doi.org/10.48550/arXiv.1706.03762',
+      },
+    ],
+  },
+}
+
+function jsonResponse(payload: unknown): Response {
+  return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } })
+}
+
+describe('crossref connector', () => {
+  it('strips JATS abstract and normalizes hits', async () => {
+    const connector = createCrossrefConnector({ fetchImpl: async () => jsonResponse(SEARCH_RESPONSE) })
+    const hits = await connector.search('attention is all you need')
+
+    expect(hits.length).toBe(1)
+    const hit = hits[0]!
+    expect(hit.id).toBe('10.48550/arXiv.1706.03762')
+    expect(hit.title).toBe('Attention Is All You Need: Transformer')
+    expect(hit.summary).toBe('The dominant sequence transduction models are based on complex recurrent networks.')
+    expect(hit.score).toBe(12.5)
+    expect(hit.url).toBe('https://doi.org/10.48550/arXiv.1706.03762')
+  })
+
+  it('appends mailto and select projection', async () => {
+    let url = ''
+    const connector = createCrossrefConnector({
+      fetchImpl: async (input: RequestInfo | URL) => {
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        return jsonResponse({ message: { items: [] } })
+      },
+    })
+
+    await connector.search('transformer', { limit: 3 })
+    expect(url.includes('rows=3')).toBe(true)
+    expect(url.includes('mailto=sati@users.noreply.github.com')).toBe(true)
+    expect(url.includes('select=DOI,title')).toBe(true)
+  })
+
+  it('normalizes sparse works defensively', async () => {
+    const connector = createCrossrefConnector({
+      fetchImpl: async () => jsonResponse({
+        message: {
+          items: [
+            { DOI: '10.1111/doi-only' },
+            {},
+          ],
+        },
+      }),
+    })
+    const hits = await connector.search('edge')
+    const [doiOnly, bare] = hits
+    expect(doiOnly!.id).toBe('10.1111/doi-only')
+    expect(doiOnly!.title).toBe('10.1111/doi-only')
+    expect(doiOnly!.url).toBe('https://doi.org/10.1111/doi-only')
+    expect(doiOnly!.score).toBeUndefined()
+    expect(doiOnly!.summary).toBeUndefined()
+    expect(bare!.id).toBe('')
+    expect(bare!.title).toBe('Untitled')
+    expect(bare!.url).toBeUndefined()
+    expect(bare!.score).toBeUndefined()
+    expect(bare!.summary).toBeUndefined()
+  })
+
+  it('returns [] when the search message has no items', async () => {
+    const connector = createCrossrefConnector({ fetchImpl: async () => jsonResponse({ message: {} }) })
+    await expect(connector.search('empty')).resolves.toEqual([])
+  })
+
+  it('fetch resolves DOI metadata and strips doi.org prefixes', async () => {
+    let url = ''
+    const connector = createCrossrefConnector({
+      fetchImpl: async (input: RequestInfo | URL) => {
+        url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        return jsonResponse({ message: { DOI: '10.1111/test', title: ['T'] } })
+      },
+    })
+
+    const work = await connector.fetch!('https://dx.doi.org/10.1111/test')
+    expect((work as { DOI: string }).DOI).toBe('10.1111/test')
+    expect(url.includes('/works/10.1111%2Ftest?mailto=')).toBe(true)
+  })
+
+  it('fetch returns null when the record is missing', async () => {
+    const connector = createCrossrefConnector({ fetchImpl: async () => jsonResponse({}) })
+    await expect(connector.fetch!('10.2222/none')).resolves.toBeNull()
+  })
+})

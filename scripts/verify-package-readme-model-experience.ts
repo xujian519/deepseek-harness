@@ -105,6 +105,9 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/hooks/hook-protocol': { kind: 'indirect', reason: 'Only the hook bridge plugins render decoded hook output to a model.' },
   'packages/host/apiproxy': { kind: 'none', reason: 'The wire contract and fetch carriers move already-composed messages and register nothing model-facing.' },
   'packages/host/directory-picker': { kind: 'none', reason: 'The GUI-host picking seam registers nothing model-facing.' },
+  'packages/desktop/desktop': { kind: 'none', reason: 'The Service Definition only declares the ctx.desktop seam; providers and consumers own every model-facing effect.' },
+  'packages/desktop/shell': { kind: 'none', reason: 'The bridge provider only forwards calls to Electron Main; consumers own every model-facing effect.' },
+  'packages/desktop/directory-picker': { kind: 'none', reason: 'The directory-picker backend only opens a native chooser on behalf of the GUI host; it registers nothing model-facing.' },
   'packages/host/directory-picker-auto': { kind: 'none', reason: 'The GUI-host picking chooser only mounts a backend row; it registers nothing model-facing.' },
   'packages/host/directory-picker-browse': { kind: 'none', reason: 'The GUI-host picking backend registers nothing model-facing.' },
   'packages/host/directory-picker-native': { kind: 'none', reason: 'The GUI-host picking backend registers nothing model-facing.' },
@@ -113,6 +116,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/host/plugin-inventory': { kind: 'none', reason: 'Host-side read-only Loader projection; registers nothing model-facing.' },
   'packages/bundle/base': { kind: 'indirect', reason: 'The bundle is a patch-list carrier; each inserted row\'s package owns its model-facing behavior.' },
   'packages/bundle/headless': { kind: 'none', reason: 'The one-shot runner submits the task as an ordinary user message; prompts and tools belong to the composed base and headless bundles.' },
+  'packages/bundle/desktop-app': { kind: 'none', reason: 'The glue plugin holds a composition seat without contributing prompt text, tool schemas, or results; the web surface is owned by dsh-web-app.' },
   'packages/llm/llm': { kind: 'none', reason: 'The adapter registry forwards already-assembled requests unchanged.' },
   'packages/llm/token-meter': { kind: 'indirect', reason: 'The measurement service leaves model-visible changes to its consumers.' },
   'packages/lsp/lsp': { kind: 'indirect', reason: 'The provider registry delegates model rendering to dsh-tool-lsp.' },
@@ -166,6 +170,11 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/web/web-fetch-http': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-tool-web.' },
   'packages/web/web-search-exa': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-tool-web.' },
   'packages/workflow/workflow': { kind: 'indirect', reason: 'The service delegates parent and child model rendering to its consumer and engine.' },
+  'packages/patent/patent-data': { kind: 'none', reason: 'The data seam resolves and serves patent data to the tool layer; dsh-patent-tools owns every model-facing schema and result.' },
+  'packages/patent/patent-knowledge': { kind: 'none', reason: 'The knowledge seam answers read-only queries for the tool layer; dsh-patent-tools owns every model-facing schema and result.' },
+  'packages/patent/patent-core': { kind: 'none', reason: 'The library is pure computation for the workflow and tool layer; every model-facing schema and result is owned by its consumers.' },
+  'packages/patent/patent-workflow': { kind: 'none', reason: 'The pipeline executes work for the tool layer; tool schemas, results, and approval prompts are owned by dsh-patent-tools and the interaction seam.' },
+  'packages/patent/patent-rule': { kind: 'none', reason: 'The rule engine registers no tool schema, prompt section, or result projection; its EVI-011 guards and post-execute gate deny or block existing tool calls, and dsh-tools renders the denial and block feedback as ordinary error results.' },
 }
 
 interface Failure {

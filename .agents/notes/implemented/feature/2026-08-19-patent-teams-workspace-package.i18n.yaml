@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-19-patent-teams-workspace-package.md
+2026-08-19-patent-teams-workspace-package.md: eadc24fd4a470b1a692d07b3334448c4fda6e072
+2026-08-19-patent-teams-workspace-package.zh.md: 88f1bd424fd6c0d97faf266ba1a1decfd4ec4cd3

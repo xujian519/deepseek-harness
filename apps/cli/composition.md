@@ -128,8 +128,8 @@ flowchart LR
   cfg --> plugin_dsh_base_workflow_worker_thread
   plugin_dsh_base_tool_workflow["tool-workflow<br/>@deepseek-ai/dsh-tool-workflow"]
   cfg --> plugin_dsh_base_tool_workflow
-  plugin_dsh_base_timeout_policy["timeout-policy<br/>@deepseek-ai/dsh-tool-call-timeout-policy"]
-  cfg --> plugin_dsh_base_timeout_policy
+  plugin_dsh_base_timeout_guard["timeout-guard<br/>@deepseek-ai/dsh-timeout-guard"]
+  cfg --> plugin_dsh_base_timeout_guard
   plugin_dsh_base_spill_local["spill-local<br/>@deepseek-ai/dsh-spill-local"]
   cfg --> plugin_dsh_base_spill_local
   plugin_dsh_base_spill_policy["spill-policy<br/>@deepseek-ai/dsh-spill-policy"]
@@ -228,7 +228,7 @@ flowchart LR
 | `tool-subagent-report` | `@deepseek-ai/dsh-tool-subagent-report` |
 | `workflow-worker-thread` | `@deepseek-ai/dsh-workflow-worker-thread` |
 | `tool-workflow` | `@deepseek-ai/dsh-tool-workflow` |
-| `timeout-policy` | `@deepseek-ai/dsh-tool-call-timeout-policy` |
+| `timeout-guard` | `@deepseek-ai/dsh-timeout-guard` |
 | `spill-local` | `@deepseek-ai/dsh-spill-local` |
 | `spill-policy` | `@deepseek-ai/dsh-spill-policy` |
 | `session-checkpoint-policy` | `@deepseek-ai/dsh-session-checkpoint-policy` |

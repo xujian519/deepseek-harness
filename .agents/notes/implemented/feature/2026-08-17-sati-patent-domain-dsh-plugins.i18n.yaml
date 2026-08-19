@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-17-sati-patent-domain-dsh-plugins.md
+2026-08-17-sati-patent-domain-dsh-plugins.md: 798bb54d27e216a195a24c2a1b98e9563b909310
+2026-08-17-sati-patent-domain-dsh-plugins.zh.md: f3e5c88bffa8f47247409ad8eb24bf085e28f84a

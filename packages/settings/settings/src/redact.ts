@@ -20,6 +20,8 @@ interface SchemaNode {
   dict?: Record<string, SchemaNode>
   /** `dict`/`array` element schema. */
   inner?: SchemaNode
+  /** `tuple`/`union`/`intersect` member schemas. */
+  list?: SchemaNode[]
 }
 
 /** One schema-declared secret position inside a redacted value. */
@@ -47,6 +49,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** Assign an own data property without triggering the `__proto__` prototype setter. */
+function setDataProperty(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true })
+}
+
+/**
+ * Whether a `role('secret')` field is reachable through the container
+ * relations the walker follows (`dict` properties, `inner`, `list` members).
+ * An unexpandable node (transform, object-member union/intersect/tuple) that
+ * still reaches a secret fails closed; one without any reachable secret has
+ * nothing to redact and passes through.
+ */
+function hasReachableSecret(node: SchemaNode | undefined): boolean {
+  if (node === undefined) return false
+  if (node.meta?.role === 'secret') return true
+  return (
+    (node.dict !== undefined && Object.values(node.dict).some(hasReachableSecret)) ||
+    (node.inner !== undefined && hasReachableSecret(node.inner)) ||
+    (node.list ?? []).some(hasReachableSecret)
+  )
+}
+
 function walk(node: SchemaNode | undefined, value: unknown, path: string[], secrets: RedactedSecret[]): unknown {
   if (node === undefined) return value
   if (node.meta?.role === 'secret') {
@@ -61,12 +85,12 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
       if (source !== undefined) {
         for (const [key, entry] of Object.entries(source)) {
           if (key in properties) continue
-          rebuilt[key] = entry
+          setDataProperty(rebuilt, key, entry)
         }
       }
       for (const [key, child] of Object.entries(properties)) {
         const stripped = walk(child, source?.[key], [...path, key], secrets)
-        if (stripped !== undefined) rebuilt[key] = stripped
+        if (stripped !== undefined) setDataProperty(rebuilt, key, stripped)
       }
       return source === undefined && Object.keys(rebuilt).length === 0 ? value : rebuilt
     }
@@ -75,7 +99,7 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
       const rebuilt: Record<string, unknown> = {}
       for (const [key, entry] of Object.entries(value)) {
         const stripped = walk(node.inner, entry, [...path, key], secrets)
-        if (stripped !== undefined) rebuilt[key] = stripped
+        if (stripped !== undefined) setDataProperty(rebuilt, key, stripped)
       }
       return rebuilt
     }
@@ -83,11 +107,19 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
       if (!Array.isArray(value)) return value
       return value.map((entry, index) => walk(node.inner, entry, [...path, String(index)], secrets))
     }
-    default:
-      // TODO(settings-wire-redaction): Fail closed instead — a secret reachable
-      // only through a union, intersection, or transform is returned verbatim
-      // here, with nothing recording that it was missed.
-      return value
+    default: {
+      // A scalar node cannot nest a secret and passes through. A container the
+      // walker cannot expand (a transform, or a union/intersect/tuple whose
+      // members carry a role('secret') field) could hide one; forwarding its
+      // value verbatim would leak the secret across the wire, so it fails
+      // closed — but only where a secret is actually reachable. Without one
+      // (union members that are all plain scalars, a transform of a scalar
+      // schema) there is nothing to redact and the value passes through like
+      // any other scalar.
+      if (value === undefined) return value
+      if (!hasReachableSecret(node)) return value
+      throw new Error(`redactSecrets: cannot redact a value under schema node type "${node.type}"`)
+    }
   }
 }
 
@@ -96,7 +128,9 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
  * walker follows `object`, `dict`, and `array` containers; a secret must be
  * declared directly on a field reachable through those containers (a secret
  * buried inside a union branch or transform is not reachable and must not be
- * modeled that way). The input is never mutated.
+ * modeled that way). An unexpandable node throws only while a secret is
+ * reachable beneath it; nodes without one pass their value through. The input
+ * is never mutated.
  * @param schema - live schemastery schema describing the value.
  * @param value - the value to strip; `undefined` yields an empty record with
  *   object-property secret slots still enumerated.

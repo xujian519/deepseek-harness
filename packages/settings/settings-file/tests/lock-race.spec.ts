@@ -1,5 +1,8 @@
 // A temp-file write failure cannot be timed from outside. The `fs/promises` API
 // injects it once so the test can prove that the writer lock still releases.
+// writeFileAtomic writes a random-suffix `.tmp` sibling through the module-level
+// `writeFile`, so the failure is injected there; document create stays on the
+// module-level `writeFile` (`wx`) and is injected there too.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'

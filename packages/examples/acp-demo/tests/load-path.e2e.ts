@@ -46,8 +46,8 @@ const CORDIS_YML = `
     workspaceContext: false
 - id: tool-session-query
   name: '@deepseek-ai/dsh-tool-session-query'
-- id: timeout-policy
-  name: '@deepseek-ai/dsh-tool-call-timeout-policy'
+- id: timeout-guard
+  name: '@deepseek-ai/dsh-timeout-guard'
 - id: spill-local
   name: '@deepseek-ai/dsh-spill-local'
 - id: spill-policy

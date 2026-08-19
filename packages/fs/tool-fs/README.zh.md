@@ -172,4 +172,4 @@ Use the edit tool for targeted changes to existing UTF-8 text files. It replaces
 - **路由门禁与并发模型切换存在竞态**：`read_image` 在执行时检查最新路由的模型；在该检查与下一次请求之间提交的切换，可能让图像块落在拒绝图像内容的路由上。Web 宿主已拒绝把含图像的会话切到纯文本模型；其他前端拥有各自的等价防护。
 - **媒体类型按扩展名声明**：扩展名选择声明类型，附件存储的魔数校验保持权威；扩展名错误但格式正确的图像会得到改名修复提示，而不是被嗅探接受。
 - **工具结果卡片没有内嵌图像预览**：UI 表面以通用形式渲染图像结果（持久引用而非像素）；内嵌渲染延后到 UI 包处理。
-- **没有超时接口**：`read`/`write`/`edit` 不接受超时参数，也不声明 `timeout-policy` 预算；取消只通过 `exec.signal` 传递（见[提供方理由](../README.md#no-timeouts-on-file-io)）。
+- **没有超时接口**：`read`/`write`/`edit` 不接受超时参数，也不声明 `timeout-guard` 预算；取消只通过 `exec.signal` 传递（见[提供方理由](../README.md#no-timeouts-on-file-io)）。

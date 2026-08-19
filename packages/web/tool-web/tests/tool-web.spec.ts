@@ -5,7 +5,7 @@ import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import WebRuntime from '@deepseek-ai/dsh-web'
-import type { WebSearchProvider, WebSearchResult } from '@deepseek-ai/dsh-web'
+import type { WebFetchProvider, WebSearchProvider, WebSearchResult } from '@deepseek-ai/dsh-web'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import {
   formatSearchOutput,
@@ -34,19 +34,29 @@ function searchProvider(result: WebSearchResult, isAvailable = available): WebSe
   return { id: 'stub-search', available: () => isAvailable, search: () => Promise.resolve(result) }
 }
 
+function fetchProvider(isAvailable = available): WebFetchProvider {
+  return {
+    id: 'stub-fetch',
+    available: () => isAvailable,
+    fetch: () => Promise.resolve({ url: 'https://stub.test', statusCode: 503, body: { kind: 'text', content: '' }, truncated: false }),
+  }
+}
+
 /** Mount the real registry, seam, and tool-web; return an executor helper. */
 async function mountTools(opts: {
   config?: ToolWeb.Config
   webConfig?: ConstructorParameters<typeof WebRuntime>[1]
   search?: WebSearchProvider
-  fetchProvider?: import('@deepseek-ai/dsh-web').WebFetchProvider
+  fetchProvider?: import('@deepseek-ai/dsh-web').WebFetchProvider | null
 } = {}): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>>; call: (name: string, args: unknown) => Promise<ToolExecutionResult> }> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(WebRuntime, opts.webConfig ?? {})
   if (opts.search) ctx.web.registerSearchProvider(opts.search)
-  if (opts.fetchProvider) ctx.web.registerFetchProvider(opts.fetchProvider)
+  // fetch 默认开启,tool-web 在无可用 provider 时于加载阶段 fail-loud(fork 的
+  // SSRF 保护改进);默认挂一个 stub provider,需要显式无 provider 时传 null。
+  if (opts.fetchProvider !== null) ctx.web.registerFetchProvider(opts.fetchProvider ?? fetchProvider())
   const fiber = await ctx.plugin(ToolWeb, opts.config ?? {})
   let counter = 0
   const call = (name: string, args: unknown) => ctx.tools.execute({ signal: testToolSignal, callId: CallId(`call-${++counter}`), name, arguments: args })

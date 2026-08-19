@@ -6,7 +6,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import ApprovalService, { type ApprovalOutcome, type ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import ToolRuntime, {
   defineContentToolFixture, defineTool, JsonSchemaError, parameterSchemaSpecToJsonSchema, validateArgs, ToolArgsError, ToolNotFoundError,
-  TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH,
+  TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER,
   type InferArgs, type JsonValue, type ParameterSchemaSpec, type PreToolDecision, type PostToolDecision,
   type JsonSchemaNode, type ToolDefinition, type ToolDispatchExecution, type ToolExecutionResult, type ToolExecutionToken,
 } from '@deepseek-ai/dsh-tools'
@@ -49,6 +49,26 @@ describe('ToolRuntime', () => {
 
     const assembly = await ctx.systemPrompt.assemble()
     expect(assembly.tools.map(t => t.name)).toEqual(['echo'])
+  })
+
+  it('hands the agent loop its scheduler under a string key shared across package copies', async () => {
+    const ctx = await setup()
+    // The loop's scheduler handshake must survive two loaded copies of this
+    // package: a profile's plugin tree can hoist a second dsh-tools into its
+    // own node_modules, and two module instances mint distinct Symbols, which
+    // made ctx.tools[symbol] undefined and failed every tool call with
+    // "Cannot read properties of undefined (reading 'prepare')". The key is a
+    // namespaced literal, so the loop reaches the scheduler on the instance
+    // regardless of which copy created it.
+    expect(typeof TOOL_RUNTIME_SCHEDULER).toBe('string')
+    const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER]
+    expect(scheduler).toBeDefined()
+    expect(typeof scheduler.prepare.bind(scheduler)).toBe('function')
+    expect(typeof scheduler.dispatch.bind(scheduler)).toBe('function')
+    expect(typeof scheduler.finalize.bind(scheduler)).toBe('function')
+    expect(typeof scheduler.finish.bind(scheduler)).toBe('function')
+    expect(ctx.tools[TOOL_RUNTIME_SCHEDULER])
+      .toBe(ctx.tools['@deepseek-ai/dsh-tools:runtime-scheduler'])
   })
 
   it('schemas() drops host callbacks — they must never reach the model', async () => {

@@ -8,7 +8,7 @@ const runnerPrivatePnpmDestination = '${{ runner.temp }}/setup-pnpm'
 
 describe('CI workflow', () => {
   it('isolates every pnpm action setup destination per runner', () => {
-    const workflow: unknown = yaml.load(readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8'))
+    const workflow = loadWorkflow('.github/workflows/ci.yml')
     if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError('CI workflow must define jobs')
 
     const setups = Object.entries(workflow.jobs).flatMap(([jobName, job]) => {
@@ -407,14 +407,26 @@ describe('Issue lifecycle workflow', () => {
     const lifecycleJob = workflowJob(lifecycle, 'lifecycle')
     const policy = loadWorkflow('.github/workflows/issue-policy.yml')
     const policyPullRequest = workflowEvent(policy, 'pull_request')
+    const policyJob = workflowJob(policy, 'policy')
 
     expect(lifecyclePullRequest.types).not.toContain('ready_for_review')
     expect(lifecyclePullRequest.types).toContain('review_requested')
     expect(lifecycleReview.types).toEqual(['submitted'])
     expect(lifecycleJob.if).toBe(
-      "${{ github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested') }}",
+      'vars.DSH_ISSUE_APP_CLIENT_ID != \'\' &&\n(github.event_name != \'pull_request_review\' || (github.event.action == \'submitted\' && github.event.review.state == \'changes_requested\'))\n',
     )
     expect(policyPullRequest.types).toContain('ready_for_review')
+    expect(policyJob.if).toBe("vars.DSH_ISSUE_APP_CLIENT_ID != ''")
+
+    const tokenStep = workflowStep(lifecycleJob, 'Create project token')
+    if (!isRecord(tokenStep.with)) {
+      throw new TypeError('Create project token step must define with')
+    }
+    expect(tokenStep.if).toBe("secrets.DSH_ISSUE_APP_PRIVATE_KEY != ''")
+    expect(tokenStep.with.owner).toBe('${{ github.repository_owner }}')
+    expect(tokenStep.with.repositories).toBe('${{ github.event.repository.name }}')
+    const handleStep = workflowStep(lifecycleJob, 'Handle repository event')
+    expect(handleStep.if).toBe("steps.app-token.outputs.token != ''")
   })
 })
 
@@ -437,7 +449,21 @@ describe('Git hooks', () => {
 })
 
 function loadWorkflow(path: string): Record<string, unknown> {
-  const workflow: unknown = yaml.load(readFileSync(resolve(root, path), 'utf8'))
+  const candidates = [resolve(root, path)]
+  if (path.startsWith('.github/workflows/')) {
+    candidates.push(resolve(root, path.replace('.github/workflows/', '.github/workflows-disabled/')))
+  }
+  let content: string | undefined
+  for (const file of candidates) {
+    try {
+      content = readFileSync(file, 'utf8')
+      break
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err
+    }
+  }
+  if (content === undefined) throw new TypeError(`${path} must define a workflow`)
+  const workflow: unknown = yaml.load(content)
   if (!isRecord(workflow)) throw new TypeError(`${path} must define a workflow`)
   return workflow
 }
@@ -454,6 +480,14 @@ function workflowJob(workflow: Record<string, unknown>, job: string): Record<str
     throw new TypeError(`workflow must define the ${job} job`)
   }
   return workflow.jobs[job]
+}
+
+function workflowStep(job: Record<string, unknown>, name: string): Record<string, unknown> {
+  const steps = job.steps
+  if (!Array.isArray(steps)) throw new TypeError('job must define steps')
+  const step: unknown = steps.find((candidate: unknown) => isRecord(candidate) && candidate.name === name)
+  if (!isRecord(step)) throw new TypeError(`job must define the ${name} step`)
+  return step
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

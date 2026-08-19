@@ -14,7 +14,34 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { assertNever, createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext, type ToolRuntimeScheduler } from '@deepseek-ai/dsh-tools'
+
+/**
+ * The loop's scheduler slot on the tool registry, or a diagnostic error when
+ * it is absent. A missing slot means the dsh-tools copies loaded in this
+ * process do not agree on {@link TOOL_RUNTIME_SCHEDULER} — the dual-copy
+ * failure (two physical @deepseek-ai/dsh-tools trees, same or different
+ * versions) — or ToolRuntime was never mounted. The message names the
+ * checkpoints that converge both sides on one installation and version.
+ * @param ctx - loop context whose tool registry should carry the scheduler.
+ * @returns the mounted scheduler.
+ */
+function requireScheduler(ctx: Context): ToolRuntimeScheduler {
+  // The slot is typed required on ToolRuntime, but a dual dsh-tools copy can
+  // genuinely leave it absent at runtime; widen the read so the check below
+  // is meaningful and the failure is diagnosable instead of a bare undefined.prepare.
+  const scheduler = (ctx.tools as { readonly [TOOL_RUNTIME_SCHEDULER]?: ToolRuntimeScheduler })[TOOL_RUNTIME_SCHEDULER]
+  if (scheduler === undefined) {
+    throw new Error(
+      `tool runtime scheduler is not registered under key ${JSON.stringify(TOOL_RUNTIME_SCHEDULER)}; `
+      + 'this usually means two copies of @deepseek-ai/dsh-tools (different installs or versions) are loaded in one process. '
+      + "Check the symlink target of $DSH_HOME/profiles/node_modules/@deepseek-ai/dsh-tools and the installed version in the profile's "
+      + 'node_modules/@deepseek-ai/dsh-tools/package.json; converge both on the same dsh-tools version from one installation, '
+      + 'then run pnpm install in the profile directory',
+    )
+  }
+  return scheduler
+}
 
 /** One tool call after argument parsing, ready to schedule. */
 interface PlannedCall {
@@ -149,8 +176,8 @@ async function runGroup(
       if (slot === undefined) break
       const call = group[committed]
       const result = slot.needsPost
-        ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result)
-        : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result)
+        ? await requireScheduler(ctx).finalize(slot.exec, slot.result)
+        : requireScheduler(ctx).finish(slot.exec, slot.result)
       // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded index
       appendToolResult(session, turn, step, call!.block, result, callSeqs[committed]!)
       for (const context of result.additionalContexts ?? []) acceptContext(context)
@@ -166,11 +193,11 @@ async function runGroup(
     const call = group[index]!
     callSeqs[index] = appendToolCall(session, turn, step, call.block)
     started++
-    const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(call.exec)
+    const prepared = await requireScheduler(ctx).prepare(call.exec)
     throwSchedulerFailure()
     switch (prepared.kind) {
       case 'dispatch': {
-        const promise = ctx.tools[TOOL_RUNTIME_SCHEDULER].dispatch(prepared.exec).then(
+        const promise = requireScheduler(ctx).dispatch(prepared.exec).then(
           (outcome) => {
             slots[index] = { exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' }
             return index

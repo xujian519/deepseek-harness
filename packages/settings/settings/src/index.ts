@@ -250,6 +250,11 @@ function describeRejected(value: unknown): string {
  * @param reject - builds the validation error from a value label and its `$`-rooted path.
  * @returns the detached JSON-compatible clone.
  */
+/** Assign an own data property without triggering the `__proto__` prototype setter. */
+function setDataProperty(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true })
+}
+
 function cloneJsonShaped(
   root: Record<string, unknown>,
   reject: (label: string, path: string) => TypeError,
@@ -272,12 +277,10 @@ function cloneJsonShaped(
     if (isPlainObject(value)) {
       if (visiting.has(value)) throw reject('a circular reference', path)
       visiting.add(value)
-      // TODO(settings-json-properties): Use property-safe construction here and
-      // in mergeLayers so valid JSON keys such as "__proto__" remain own data.
       const out: Record<string, unknown> = {}
       for (const [key, entry] of Object.entries(value)) {
         if (entry === undefined) continue
-        out[key] = clone(entry, `${path}.${key}`)
+        setDataProperty(out, key, clone(entry, `${path}.${key}`))
       }
       visiting.delete(value)
       return out
@@ -299,7 +302,7 @@ function mergeLayers(under: unknown, over: unknown): unknown {
   if (!isPlainObject(under) || !isPlainObject(over)) return over
   const merged: Record<string, unknown> = { ...under }
   for (const [key, value] of Object.entries(over)) {
-    merged[key] = key in merged ? mergeLayers(merged[key], value) : value
+    setDataProperty(merged, key, key in merged ? mergeLayers(merged[key], value) : value)
   }
   return merged
 }

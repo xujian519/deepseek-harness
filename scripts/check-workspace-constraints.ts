@@ -31,6 +31,7 @@ const vendoredPackages = new Set([
   '@deepseek-ai/cordis-plugin-timer',
   '@deepseek-ai/cordis-plugin-hmr',
   '@deepseek-ai/cordis-plugin-logger-console',
+  '@deepseek-ai/nuo-patent',
 ])
 const publicLandlockPackages = new Set([
   '@deepseek-ai/node-addon-landlock-run',
@@ -61,6 +62,9 @@ const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   // The Web build emits sourcemaps for browser debugging; publishing them is
   // what the payload policy forbids, so the bundle ships without them.
   '@deepseek-ai/dsh-web-frontend': ['dist', '!dist/**/*.map'],
+  // The desktop shell publishes its built main/preload plus the packaging
+  // configuration; sources stay out of the payload per the publication policy.
+  '@deepseek-ai/dsh-desktop-electron': ['dist', '!dist/**/*.map', 'build', 'electron-builder.yml'],
 }
 
 /** The subset of package.json fields this constraint check cares about. */
@@ -148,6 +152,12 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // unpublished, as everywhere else in the repository.
   '@deepseek-ai/dsh-client-ui-primitives': ['lib/**/*.css'],
   '@deepseek-ai/dsh-client-web': ['lib/**/*.css'],
+  // Profile bundles publish their dsh.bundle.patch layer beside the lib.
+  '@deepseek-ai/dsh-base': ['cordis.patch.yml'],
+  '@deepseek-ai/dsh-web-app': ['cordis.patch.yml'],
+  '@deepseek-ai/dsh-headless': ['cordis.patch.yml'],
+  '@deepseek-ai/dsh-desktop-app': ['cordis.patch.yml'],
+  '@deepseek-ai/dsh-self-evolve-app': ['cordis.patch.yml'],
   '@deepseek-ai/dsh-client-ui-theme': ['lib/styles'],
   // The CPython side ships as source .py files, published as-is rather than built.
   '@deepseek-ai/dsh-code-runtime-python': ['py/**/*.py'],
@@ -160,7 +170,17 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-sandbox-windows-acl': ['lib/runner.js', 'lib/types-*.js'],
   // SQLite loads every statement from immutable package resources at runtime.
   '@deepseek-ai/dsh-session-persistence-sqlite': ['resources/sql/**/*.sql'],
+  // TRIZ data ships as package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-methodology': ['assets'],
   '@deepseek-ai/dsh-skill-badge': ['assets'],
+  // ipc-standards.yaml ships as a package-root asset resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-core': ['assets'],
+  // The Sati rule packs (base/domains/patent YAML + pack.schema.json) ship as
+  // package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-rule': ['assets'],
+  // The Sati patent document templates (5 template dirs + manifest + tokens.css)
+  // ship as package-root assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-document': ['assets'],
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
 }
 
@@ -182,6 +202,7 @@ function expectedDshPackageFiles(manifest: PackageManifest): readonly string[] {
     'lib/invariant.js',
     ...manifest.bin ? ['lib/bin.js'] : [],
     ...manifest.exports?.['./worker'] ? ['lib/worker.cjs'] : [],
+    ...exportDefault(manifest, './bridge-client') === './lib/bridge-client.js' ? ['lib/bridge-client.js'] : [],
     // UI plugin packages ship their browser bundle beside the node lib
     // (single-artifact ruling: dist/ retired, ./client resolves lib/client.js).
     // Keyed on the artifact path, not the subpath name: apiproxy's ./client is

@@ -277,18 +277,34 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     const requestId = ApprovalRequestId(this.registry.mintApprovalRequestId())
     const requiresApproval = !plan.plugin.clientVersionUpdatesApproved
       && !plan.plugin.approvedClientPackages.has(packageId)
+    // The before-approval waterfall lets policy listeners (e.g. self-evolve's
+    // re-approval guard) force approval even when grants would auto-approve.
+    const effectiveRequiresApproval = (await this.ctx.events.waterfall(
+      'cordis/before-approval',
+      {
+        requestId,
+        agentId: agent.id,
+        pluginId,
+        packageId,
+        mode,
+        name: plan.definition.name,
+        purpose: plan.definition.purpose,
+        requiresApproval,
+      },
+      () => Promise.resolve(requiresApproval),
+    )) as boolean
     attempt.approvalRequestId = requestId
-    attempt.requiresApproval = requiresApproval
-    attempt.status = requiresApproval ? 'awaiting-approval' : 'starting-host'
+    attempt.requiresApproval = effectiveRequiresApproval
+    attempt.status = effectiveRequiresApproval ? 'awaiting-approval' : 'starting-host'
     this.registry.armRequest(requestId, {
       agentId: agent.id,
       pluginId,
       packageId,
       pluginRunId: attempt.pluginRunId,
       mode,
-      requiresApproval,
+      requiresApproval: effectiveRequiresApproval,
     })
-    this.ctx.emit('cordis/request-run', {
+    this.ctx.emit('@deepseek-ai/cordis/request-run', {
       requestId,
       agentId: agent.id,
       pluginId,
@@ -296,11 +312,11 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
       mode,
       name: plan.definition.name,
       purpose: plan.definition.purpose,
-      requiresApproval,
+      requiresApproval: effectiveRequiresApproval,
     })
     return {
       ok: true,
-      status: requiresApproval ? 'awaiting-approval' : 'starting',
+      status: effectiveRequiresApproval ? 'awaiting-approval' : 'starting',
       pluginId,
       packageId,
       pluginRunId: attempt.pluginRunId,
@@ -854,7 +870,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
       if (failure !== undefined) return { ok: false, ...failure }
     }
     plugin.run = run
-    this.ctx.emit('cordis/dynamic-package', {
+    this.ctx.emit('@deepseek-ai/cordis/dynamic-package', {
       pluginId: plugin.pluginId,
       packageId: definition.packageId,
       pluginRunId: run.pluginRunId,
@@ -1013,7 +1029,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     override?: RequestRunOutcome,
   ): void {
     const outcome = override ?? (resolution.ok ? 'approved' : resolution.reason === 'rejected' ? 'rejected' : 'failed')
-    this.ctx.emit('cordis/request-run-resolved', { requestId, outcome })
+    this.ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId, outcome })
   }
 
   private steerRunOutcome(
@@ -1222,7 +1238,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     delete plugin.run
     for (const dispose of run.handlerDisposers.splice(0)) dispose()
     if (run.fiber !== undefined) await run.fiber.dispose()
-    this.ctx.emit('cordis/dynamic-retract', {
+    this.ctx.emit('@deepseek-ai/cordis/dynamic-retract', {
       pluginId: plugin.pluginId,
       packageId: run.packageId,
       pluginRunId: run.pluginRunId,

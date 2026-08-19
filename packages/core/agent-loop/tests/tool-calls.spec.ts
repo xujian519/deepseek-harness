@@ -760,3 +760,28 @@ describe('code-mode native-tool denial through the agent loop', () => {
     })
   })
 })
+
+describe('tool-call scheduler: missing scheduler diagnostics', () => {
+  it('fails the turn with a diagnostic naming the key and the dual-copy checkpoints', async () => {
+    const adapter = new MockAdapter([
+      multiCall([{ id: 'c1', name: 'p', args: { id: '1' } }]),
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(gatedParallelTool('p').tool)
+    // Simulate the dual-copy failure: the dsh-tools copy that owns the
+    // ToolRuntime instance never registered the scheduler under the loop's key.
+    Object.defineProperty(ctx.tools, TOOL_RUNTIME_SCHEDULER, { value: undefined, configurable: true })
+    const reasons: unknown[] = []
+    ctx.on('session/event', (_s, event) => { if (event.type === 'turn/end') reasons.push(event.data.reason) })
+    const agent = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(reasons).toHaveLength(1)
+    const reason = reasons[0] as { kind: string; error?: { message: string } }
+    expect(reason.kind).toBe('error')
+    expect(reason.error?.message).toContain(TOOL_RUNTIME_SCHEDULER)
+    expect(reason.error?.message).toContain('$DSH_HOME/profiles/node_modules')
+  })
+})

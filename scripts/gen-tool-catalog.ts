@@ -63,9 +63,15 @@ import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
+import * as Methodology from '@deepseek-ai/dsh-methodology'
+import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
+import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
+import * as ToolSelfEvolve from '@deepseek-ai/dsh-tool-self-evolve'
+import type { SelfEvolveEngine } from '@deepseek-ai/dsh-self-evolve'
 import { githubSlug } from './verify-md-links.ts'
 
 /** Attachment seam marker that makes the attachments-conditional `read_image` schema harvestable. */
@@ -439,6 +445,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
   },
   {
+    pkg: '@deepseek-ai/dsh-tool-self-evolve',
+    dir: 'tool-self-evolve',
+    source: 'packages/self-evolve/tool-self-evolve/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.selfEvolve', 'ctx.agents'],
+    writes: ['tool/call', 'tool/result', 'self-evolve/start|end brackets when a loop runs'],
+    async mount(ctx) {
+      await ctx.plugin(AgentRegistry)
+      ctx.provide('selfEvolve', {} as unknown as SelfEvolveEngine)
+      await ctx.plugin(ToolSelfEvolve)
+    },
+    note:
+      'Two tools drive the self-evolve seam: `self_evolve_inspect_patterns` reads the session\u2019s projected failure patterns, and `self_evolve_now` starts one explicit loop. The base provider targets L1-skill and L2-context; L3-workflow and L4-harness requests produce no proposals yet.',
+  },
+  {
     pkg: '@deepseek-ai/dsh-tool-session-query',
     dir: 'tool-session-query',
     source: 'packages/session-query/tool-session-query/src/index.ts',
@@ -572,6 +592,63 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-methodology',
+    dir: 'methodology',
+    source: 'packages/patent/methodology/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The triz tool registers from the shipped data assets alone; no network
+      // or persistence, so booting stays offline. Every Config field has a default.
+      await ctx.plugin(Methodology, {})
+    },
+    note:
+      'triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-literature',
+    dir: 'tool-literature',
+    source: 'packages/patent/tool-literature/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // Both tools register from the registry alone; no network until a search
+      // runs, so booting stays offline. Every Config field has a default.
+      await ctx.plugin(ToolLiterature, {})
+    },
+    note:
+      'paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-tools',
+    dir: 'patent-tools',
+    source: 'packages/patent/patent-tools/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // All 23 tools register from their factories alone; knowledge/LLM services are
+      // read via ctx.get at execute time (absent here), so booting stays offline.
+      await ctx.plugin(PatentTools, {})
+    },
+    note:
+      'The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-document',
+    dir: 'patent-document',
+    source: 'packages/patent/patent-document/src/index.ts',
+    requires: ['ctx.tools', 'ctx.subprocess'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin injects subprocess (headless-Chrome PDF rendering) and only
+      // registers render_patent_document once that seam is mounted.
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(PatentDocument, {})
+    },
+    note:
+      'render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',
