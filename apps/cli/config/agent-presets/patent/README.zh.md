@@ -21,7 +21,7 @@
 
 ## 技能
 
-skills/ 下随附 7 个技能：
+skills/ 下随附 8 个技能：
 
 - patent-disclosure-understanding
 - patent-prior-art-search
@@ -30,6 +30,9 @@ skills/ 下随附 7 个技能：
 - patent-invalidity
 - patent-quality-gate
 - patent-workspace-layout
+- patent-team-composition
+
+`patent-team-composition` 是持久团队组建模板：当环境挂载 dsh-agent-teams 插件（agent_teams_* 工具）时，案件按覆盖专利全生命周期的七个场景角色包选择——立案包（案件管理员 / 检索员 / 技术专家 / 撰写员）、撰写包（检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理）、答复审查意见包（同撰写五角色）、补正包（撰写员 / 形式审查员）、复审包（检索员 / 撰写员 / 对立审查员 / 申请人代理 / 合议组）、无效宣告包（检索员 / 撰写员 / 技术专家 / 无效请求人 / 专利权人 / 合议组）、侵权诉讼包（检索员 / 撰写员 / 技术专家 / 专利权人 / 被告代理人 / 裁判，另可选技术调查官），由当前会话任 captain 统一调度；无插件时回退单会话 + subagent_fork 专家互评。复审、无效与诉讼包采用"立场配对 + 中立裁判"的对抗结构。
 
 新颖性/创造性、侵权、无效三个技能改写自 Sati 的 patent-novelty-analysis、patent-inventiveness-analysis、patent-infringement-checker、patent-invalidity-checker。Sati 工具引用（patent_kg_query / patent_case_search / law_search）替换为 dsh 专利工具，<memory-context> 自动注入替换为显式必查清单，Sati 内部文件路径替换为工作目录相对路径。
 

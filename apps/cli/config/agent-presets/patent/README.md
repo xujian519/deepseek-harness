@@ -21,7 +21,7 @@ The patent services sit behind an isolate realm (patentData / patentKnowledge / 
 
 ## Skills
 
-Seven skills ship in skills/:
+Eight skills ship in skills/:
 
 - patent-disclosure-understanding
 - patent-prior-art-search
@@ -30,6 +30,9 @@ Seven skills ship in skills/:
 - patent-invalidity
 - patent-quality-gate
 - patent-workspace-layout
+- patent-team-composition
+
+`patent-team-composition` is the durable-team template: when the environment mounts the `dsh-agent-teams` plugin (`agent_teams_*` tools), cases pick one of seven scenario role packs covering the full patent lifecycle — case intake (case-manager / researcher / technical-expert / drafter), drafting (researcher / drafter / adversarial-reviewer / technical-expert / applicant-counsel), office-action response (same five), correction (drafter / formal-examiner), reexamination (researcher / drafter / adversarial-reviewer / applicant-counsel / adjudicator), invalidation (researcher / drafter / technical-expert / invalidity-petitioner / patentee-defender / adjudicator), and infringement litigation (researcher / drafter / technical-expert / patentee-defender / defendant-counsel / adjudicator, plus optional tech-investigator) — led by the current session as captain; without the plugin it falls back to single-session `subagent_fork` expert review. The reexamination, invalidation, and litigation packs use the adversarial structure of paired positions plus a neutral adjudicator.
 
 The novelty/inventiveness, infringement, and invalidity skills are rewritten from the Sati skills patent-novelty-analysis, patent-inventiveness-analysis, patent-infringement-checker, and patent-invalidity-checker. Sati tool references (patent_kg_query / patent_case_search / law_search) are replaced by the dsh patent tools, the <memory-context> auto-injection is replaced by explicit must-check lists, and Sati-internal file paths are replaced by workspace-relative paths.
 
