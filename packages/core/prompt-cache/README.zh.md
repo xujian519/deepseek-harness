@@ -20,3 +20,17 @@
 ## 与 provider 端缓存的关系
 
 本缓存节省的是重复计算，不是 provider 成本：provider 端 KV 缓存是字节寻址的，stable 前缀字节相同的请求无论来自哪个 scope 都会命中。字节一致的前缀是两者共同生效的前提，这正是 `system-prompt` 显式声明 `stable` 段而非缓存一切的原因。
+
+## 模型体验
+
+经由 `system-prompt` 间接生效：缓存复用已求值的 stable 前缀文本，使模型请求保持字节一致的前缀，provider 端 KV 缓存得以持续命中。
+
+#### KV 缓存效果
+
+字节一致的 stable 前缀跨请求保持 provider KV 复用；缓存未命中只是重新求值 stable providers，请求字节在命中与未命中两种情况下保持一致。
+
+## 已知限制与待办事项
+
+- **仅内存** —— 条目只存在于单进程内，重启即失效；没有跨进程或持久化缓存。
+- **仅未插值文本** —— 变量插值仍在每次请求时运行，缓存无法跳过最终渲染步骤。
+- **stale 前缀暴露面** —— 误声明 `stable` 的 provider（TTL 内输出变化）会产生 stale 前缀；TTL、`system-prompt/change` 显式失效与遥测只是限制损害，而非消除。

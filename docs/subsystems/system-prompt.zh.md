@@ -65,6 +65,15 @@ interface PromptSection {
    * More than one effective complete section makes assembly fail.
    */
   readonly complete?: boolean
+  /**
+   * Deterministic-text promise: the provider output depends only on the
+   * assembly's scope and prompt variables, so the section may enter the
+   * stable-prefix cache. Static strings are stable by definition; a function
+   * provider must declare `stable: true` to be cached. A misdeclared stable
+   * provider (output that changes within the cache TTL) yields a stale
+   * prefix; TTL, explicit invalidation, and telemetry bound the damage.
+   */
+  readonly stable?: boolean
 }
 ```
 

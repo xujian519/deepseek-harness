@@ -20,3 +20,17 @@ Registration changes invalidate every entry: the service listens for `system-pro
 ## Relationship to provider caches
 
 This cache saves recomputation, not provider cost: provider-side KV caches are byte-addressed, so any request whose stable prefix bytes match hits regardless of scope. A byte-identical prefix is what makes both work, which is why `system-prompt` declares `stable` sections explicitly rather than caching everything.
+
+## Model Experience
+
+Indirectly, through `system-prompt`, the cache reuses already-resolved stable-prefix text so model requests keep byte-identical prefixes and provider KV caches keep hitting.
+
+#### KV Cache effect
+
+Byte-stable prefixes preserve provider KV reuse across requests; a cache miss only re-evaluates the stable providers, and the request bytes stay the same either way.
+
+## Known Limitations and Deferred Work
+
+- **In-memory only** — entries live in one process and expire on restart; there is no shared or persistent cache across runs.
+- **Uninterpolated text only** — variable interpolation still runs per request, so the cache cannot skip the final render step.
+- **Stale-prefix exposure** — a misdeclared `stable` provider (output that changes within the TTL) yields a stale prefix; TTL, explicit invalidation on `system-prompt/change`, and telemetry bound the damage rather than eliminate it.

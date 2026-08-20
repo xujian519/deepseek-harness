@@ -263,6 +263,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns the deterministic fallback, latest-title fold, and sole optional asynchronous provider registration.',
   },
   {
+    key: 'promptCache',
+    pkg: 'prompt-cache',
+    title: 'Prompt prefix cache',
+    mode: 'seam',
+    consumers: ['system-prompt'],
+    note: 'Optional assembly-prefix cache: system-prompt reads it through ctx.reflect.get("promptCache", false); without a mounted strategy assembly stays byte-identical.',
+  },
+  {
     key: 'systemPrompt',
     pkg: 'system-prompt',
     title: 'System prompt assembly registry',
