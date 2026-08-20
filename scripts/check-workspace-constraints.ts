@@ -152,12 +152,6 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // unpublished, as everywhere else in the repository.
   '@deepseek-ai/dsh-client-ui-primitives': ['lib/**/*.css'],
   '@deepseek-ai/dsh-client-web': ['lib/**/*.css'],
-  // Profile bundles publish their dsh.bundle.patch layer beside the lib.
-  '@deepseek-ai/dsh-base': ['cordis.patch.yml'],
-  '@deepseek-ai/dsh-web-app': ['cordis.patch.yml'],
-  '@deepseek-ai/dsh-headless': ['cordis.patch.yml'],
-  '@deepseek-ai/dsh-desktop-app': ['cordis.patch.yml'],
-  '@deepseek-ai/dsh-self-evolve-app': ['cordis.patch.yml'],
   '@deepseek-ai/dsh-client-ui-theme': ['lib/styles'],
   // The CPython side ships as source .py files, published as-is rather than built.
   '@deepseek-ai/dsh-code-runtime-python': ['py/**/*.py'],
