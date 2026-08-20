@@ -756,6 +756,9 @@ it('pins native DeepSeek image offload in the request sent by the assembled app'
       env: {
         DSH_SNAPSHOT_API_KEY: 'snapshot-key',
         DSH_SNAPSHOT_BASE_URL: `http://127.0.0.1:${address.port}`,
+        // The scenario loads node:sqlite; Node emits a one-time experimental
+        // warning on first import, which would pollute the stderr assertion.
+        NODE_OPTIONS: '--no-warnings=ExperimentalWarning',
       },
     })
     expect(result.stderr).toBe('')
