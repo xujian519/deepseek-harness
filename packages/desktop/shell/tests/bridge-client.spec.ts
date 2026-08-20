@@ -292,4 +292,40 @@ describe('BridgeClient reconnect', () => {
     expect(reconnects).toBe(0)
     expect(client.connected).toBe(false)
   })
+
+  it('recovers a first-connect refusal once the peer starts listening', async () => {
+    // A fresh path with no listener yet: the constructor's connect is refused,
+    // and the backoff retry must recover a Main that was still starting.
+    const latePath = process.platform === 'win32'
+      ? `\\\\.\\pipe\\dsh-desktop-bridge-late-${process.pid}`
+      : join(tmpdir(), `dsh-desktop-bridge-late-${process.pid}.sock`)
+    let initialClose = 0
+    client = new BridgeClient({
+      path: latePath,
+      onNotification: () => {},
+      onClose: () => { initialClose += 1 },
+      reconnect: { retries: 10, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    // Wait for the refusal before starting the server, so the recovery is
+    // exercised by a retry and not by the initial connect winning the race.
+    await expect.poll(() => initialClose, { timeout: 5_000 }).toBe(1)
+    const late = createServer(() => {})
+    await new Promise<void>((resolve, reject) => {
+      late.on('error', reject)
+      late.listen(latePath, resolve)
+    })
+    await expect.poll(() => reconnects, { timeout: 5_000 }).toBe(1)
+    expect(client.connected).toBe(true)
+    // Disconnect before closing the server: server.close waits for live
+    // connections, and the reconnected client is still attached.
+    client.dispose()
+    await new Promise<void>((resolve, reject) => {
+      late.close((error) => {
+        if (error != null) reject(error)
+        else resolve()
+      })
+    })
+    try { unlinkSync(latePath) } catch {}
+  })
 })

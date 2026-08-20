@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   buildFromTemplate: vi.fn(),
   setApplicationMenu: vi.fn(),
   registerShortcut: vi.fn(),
+  unregisterAll: vi.fn(),
   isNotificationSupported: vi.fn(),
 }))
 
@@ -62,7 +63,7 @@ vi.mock('electron', () => ({
   globalShortcut: {
     register: mocks.registerShortcut.mockReturnValue(true),
     unregister: vi.fn(),
-    unregisterAll: vi.fn(),
+    unregisterAll: mocks.unregisterAll,
   },
   Tray: vi.fn().mockImplementation(function (this: unknown) {
     const instance = {
@@ -121,6 +122,7 @@ describe('BridgeServer', () => {
     mocks.buildFromTemplate.mockClear()
     mocks.setApplicationMenu.mockClear()
     mocks.registerShortcut.mockClear().mockReturnValue(true)
+    mocks.unregisterAll.mockClear()
     mocks.isNotificationSupported.mockClear().mockReturnValue(true)
     socketPath = nextSocketPath()
     bridge = new BridgeServer(window)
@@ -252,6 +254,27 @@ describe('BridgeServer', () => {
     expect(pushed.params).toEqual({ menuId: 'open' })
   })
 
+  it('restores the roles-only application menu when the last group is removed', async () => {
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/registerMenuItem',
+      params: { group: 'file', item: { id: 'open', label: 'Open' } },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(mocks.setApplicationMenu).toHaveBeenCalledTimes(1)
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 2, method: 'desktop/unregisterMenuItem',
+      params: { group: 'file', id: 'open' },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // Removing the last group must reinstall the roles-only menu, not leave
+    // the custom menu with a stale group standing.
+    expect(mocks.setApplicationMenu).toHaveBeenCalledTimes(2)
+    expect(mocks.lastMenuTemplate.some((entry) => {
+      const candidate = entry as { label?: string }
+      return candidate.label === 'file'
+    })).toBe(false)
+  })
+
   it('registers a global shortcut and pushes its trigger', async () => {
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator: 'Cmd+K' },
@@ -292,7 +315,15 @@ describe('BridgeServer', () => {
       params: { group: 'tray', item: { id: 'pause', label: 'Pause' } },
     }) + '\n')
     await new Promise(resolve => setTimeout(resolve, 20))
-    expect(mocks.setApplicationMenu).not.toHaveBeenCalled()
+    // A tray-group item never joins the application menu; the rebuild still
+    // runs (roles-only baseline) but must not carry the tray item. Read the
+    // template from the setApplicationMenu call, not the shared mock capture:
+    // the tray rebuild's own buildFromTemplate overwrites that capture.
+    const appMenu = mocks.setApplicationMenu.mock.calls.at(-1)?.[0] as { template?: unknown[] } | undefined
+    expect(appMenu?.template?.some((entry) => {
+      const candidate = entry as { label?: string }
+      return candidate.label === 'Pause'
+    })).toBe(false)
     const trayMenu = mocks.trays[0]?.setContextMenu.mock.calls.at(-1)?.[0] as { template?: unknown[] } | undefined
     expect(trayMenu?.template?.some(entry =>
       typeof entry === 'object' && entry !== null && (entry as { label?: string }).label === 'Pause')).toBe(true)
@@ -330,8 +361,7 @@ describe('BridgeServer', () => {
     }) + '\n')
     await new Promise(resolve => setTimeout(resolve, 20))
     bridge.dispose()
-    const { globalShortcut } = await import('electron')
-    expect(globalShortcut.unregisterAll).toHaveBeenCalled()
+    expect(mocks.unregisterAll).toHaveBeenCalled()
     expect(mocks.trays[0]?.destroy).toHaveBeenCalled()
   })
 })

@@ -120,8 +120,8 @@ export class BridgeClient {
       socket.destroy()
       if (initial) {
         // A first-connect failure is a genuine bridge outage: the socket Main
-        // promised never came up. Report it like any other loss, but do not
-        // reconnect — there is nothing to re-establish yet.
+        // promised never came up. Report it like any other loss, then let the
+        // backoff retry recover a Main that was still starting at plugin load.
         this.onClose()
       } else {
         this.scheduleReconnect()

@@ -327,7 +327,11 @@ export class BridgeServer {
 
   private unregisterMenuItem(params: unknown): void {
     const { group, id } = (params ?? {}) as { group: string; id: string }
-    this.menuGroups.get(group)?.delete(id)
+    const items = this.menuGroups.get(group)
+    items?.delete(id)
+    // A group with no remaining items disappears from the model so rebuilds
+    // never emit an empty submenu.
+    if (items !== undefined && items.size === 0) this.menuGroups.delete(group)
     this.rebuildAppMenu()
     this.rebuildTrayMenu()
   }
@@ -372,8 +376,8 @@ export class BridgeServer {
 
   /** Rebuild the application menu: standard roles plus one top-level menu per registered group. */
   private rebuildAppMenu(): void {
-    const groups = [...this.menuGroups.entries()].filter(([group]) => group !== this.trayMenuGroup)
-    if (groups.length === 0) return // no registered groups: the default menu stands
+    const groups = [...this.menuGroups.entries()]
+      .filter(([group, items]) => group !== this.trayMenuGroup && items.size > 0)
     const template: Electron.MenuItemConstructorOptions[] = [
       ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
       { role: 'fileMenu' },
@@ -385,6 +389,9 @@ export class BridgeServer {
         submenu: [...items.values()].map(item => this.menuItemTemplate(item)),
       })),
     ]
+    // Rebuild unconditionally: once a custom menu was installed, removing the
+    // last group must restore the roles-only menu rather than leave the
+    // stale custom one standing.
     Menu.setApplicationMenu(Menu.buildFromTemplate(template))
   }
 
