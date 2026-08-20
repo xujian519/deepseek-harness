@@ -139,6 +139,12 @@ export const SUB_CONTAINERS_AND_OBJECTS_INHERIT = 0x3 // == OBJECT_INHERIT_ACE |
  * handles, required because Node clears stdio inheritability at startup.
  */
 export const STARTF_USESTDHANDLES = 0x00000100
+/**
+ * STARTF_USESHOWWINDOW: STARTUPINFOW dwFlags — honor `wShowWindow`. Paired
+ * with `wShowWindow: 0` (SW_HIDE) so a restricted-token child never flashes
+ * its own console window.
+ */
+export const STARTF_USESHOWWINDOW = 0x00000001
 /** HANDLE_FLAG_INHERIT: SetHandleInformation flag re-enabling handle inheritance for the spawned child's stdio handles. */
 export const HANDLE_FLAG_INHERIT = 0x1
 /** INFINITE: never-timeout wait value. */

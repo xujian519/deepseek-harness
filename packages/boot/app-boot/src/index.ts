@@ -317,6 +317,9 @@ export function loadOverlayPatches(binName: string, file: string): PatchOptions[
  * because a patch file that cannot be applied at all is a misconfiguration; a
  * single patch whose target row is absent stays a per-entry Loader warning, so
  * one overlay shared across surfaces does not have to match every tree.
+ * A file that parses to nothing (empty, or comments only) is zero patches, not
+ * a misconfiguration: a bundle ships a `cordis.patch.yml` unconditionally and
+ * may have nothing to patch in a given release.
  * @param binName - the diagnostic prefix on the thrown error.
  * @param file - the source path, quoted in errors.
  * @param content - the file's text.
@@ -332,6 +335,7 @@ function parsePatchList(
   } catch (error) {
     throw new Error(`${binName}: failed to parse ${label} ${file}: ${String(error)}`)
   }
+  if (parsed === undefined || parsed === null) return []
   if (!Array.isArray(parsed)) {
     throw new Error(`${binName}: ${label} ${file} must be a top-level YAML array of loader patch entries`)
   }

@@ -12,8 +12,8 @@ import koffi from 'koffi'
 
 import { Win32Error } from '../src/errors.ts'
 import {
-  allocBytes, decodePtr, decodePtrAt, errorText, getTempPath,
-  isInvalidHandle, isNullPtr, sameSidAt, throwLastError, throwWin32,
+  allocBytes, allocStartupInfo, decodePtr, decodePtrAt, encodeStartupInfo,
+  errorText, getTempPath, isInvalidHandle, isNullPtr, sameSidAt, throwLastError, throwWin32,
 } from '../src/ffi.ts'
 import type { NativePtr, Win32Bindings } from '../src/ffi.ts'
 import * as abi from '../src/win32-abi.ts'
@@ -198,5 +198,35 @@ describe('sameSidAt bounded comparison', () => {
     }
     expect(sameSidAt(left, 4, right, 4)).toBe(true)
     expect(sameSidAt(left, 0, right, 0)).toBe(false) // the differing prefixes are not a matching SID
+  })
+})
+
+describe('startup info encoding', () => {
+  it('round-trips the stdio and window-visibility fields', () => {
+    const startupInfo = allocStartupInfo()
+    encodeStartupInfo(startupInfo, {
+      cb: abi.STARTUPINFOW_SIZE,
+      dwFlags: abi.STARTF_USESTDHANDLES | abi.STARTF_USESHOWWINDOW,
+      wShowWindow: 0,
+      hStdInput: allocBytes(1),
+      hStdOutput: allocBytes(1),
+      hStdError: allocBytes(1),
+    })
+    expect(koffi.decode(startupInfo, 0, 'uint32')).toBe(abi.STARTUPINFOW_SIZE)
+    // Verified STARTUPINFOW offsets (ffi.ts layout, size 104): dwFlags at 60, wShowWindow at 64.
+    expect(koffi.decode(startupInfo, 60, 'uint32')).toBe(abi.STARTF_USESTDHANDLES | abi.STARTF_USESHOWWINDOW)
+    expect(koffi.decode(startupInfo, 64, 'uint16')).toBe(0) // wShowWindow: SW_HIDE
+  })
+
+  it('keeps wShowWindow default-zero when the flag is absent', () => {
+    const startupInfo = allocStartupInfo()
+    encodeStartupInfo(startupInfo, {
+      cb: abi.STARTUPINFOW_SIZE,
+      dwFlags: abi.STARTF_USESTDHANDLES,
+      hStdInput: allocBytes(1),
+      hStdOutput: allocBytes(1),
+      hStdError: allocBytes(1),
+    })
+    expect(koffi.decode(startupInfo, 60, 'uint32')).toBe(abi.STARTF_USESTDHANDLES)
   })
 })

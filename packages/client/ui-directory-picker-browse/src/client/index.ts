@@ -19,6 +19,29 @@ const LOCALE_NS = 'directory-browser'
 /** Required services (cordis fiber inject): the slot registry, the wire-facing workspace service, and locale. */
 export const inject = ['slots', 'workspaces', 'locale']
 
+declare global {
+  interface Window {
+    /** Desktop-shell native folder chooser, when a sandboxed preload runs the web surface. */
+    __DSH_DESKTOP_PICK_DIRECTORY__?: () => Promise<string | null>
+    /** Desktop-shell path validation before a picked directory is opened. */
+    __DSH_DESKTOP_VALIDATE_DIRECTORY__?: (path: string) => Promise<boolean>
+  }
+}
+
+/**
+ * The directory-flow holes a desktop shell's sandboxed preload can fill:
+ * a native folder chooser and a path-validation gate. Absent globals leave
+ * the in-browser browser as the only chooser, which is the plain-web form.
+ */
+function hostDirectoryHooks(): Pick<BrowseFlowInjected, 'pickNativeDirectory' | 'validateDirectory'> {
+  const pick = window.__DSH_DESKTOP_PICK_DIRECTORY__
+  const validate = window.__DSH_DESKTOP_VALIDATE_DIRECTORY__
+  return {
+    ...typeof pick === 'function' ? { pickNativeDirectory: pick } : {},
+    ...typeof validate === 'function' ? { validateDirectory: validate } : {},
+  }
+}
+
 /**
  * Client plugin body: register the dialog's dictionaries and the browse flow
  * into both directory-flow holes through `slots.inject()` because the
@@ -46,6 +69,7 @@ export function apply(ctx: ClientContext): void {
         'browser.loading': '加载中…',
         'browser.truncated': '文件夹过多，仅显示开头部分。',
         'browser.showHidden': '显示隐藏文件',
+        'browser.nativePicker': '使用系统选择文件夹',
       }],
       ['en', {
         'browser.title': 'Select Workspace Directory',
@@ -61,6 +85,7 @@ export function apply(ctx: ClientContext): void {
         'browser.loading': 'Loading…',
         'browser.truncated': 'Too many folders to list; only the beginning is shown.',
         'browser.showHidden': 'Show hidden files',
+        'browser.nativePicker': 'Choose with system picker',
       }],
     ]
     try {
@@ -75,6 +100,9 @@ export function apply(ctx: ClientContext): void {
   const injected = (): BrowseFlowInjected => ({
     listDirectory: (path, signal) => ctx.workspaces.listDirectory(path, signal),
     createDirectory: (path, name) => ctx.workspaces.createDirectory(path, name),
+    // A desktop shell's sandboxed preload exposes these when it runs the web
+    // surface; absence keeps the in-browser browser as the only chooser.
+    ...hostDirectoryHooks(),
     t: ctx.locale.bind(LOCALE_NS),
   })
   // Both declaration lifetimes must be live before the pair installs; the

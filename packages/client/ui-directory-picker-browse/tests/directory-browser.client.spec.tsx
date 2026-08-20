@@ -1749,4 +1749,89 @@ describe('DirectoryBrowser', () => {
     expect(columns()).toHaveLength(1)
     expect(b.listDirectory).toHaveBeenLastCalledWith(undefined, expect.any(AbortSignal))
   })
+
+  it('hides the native picker button when no desktop chooser is provided', async () => {
+    mount()
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    expect(screen.queryByRole('button', { name: 'browser.nativePicker' })).toBeNull()
+  })
+
+  it('picks a directory through the native chooser and validates the chosen path', async () => {
+    const pickNativeDirectory = vi.fn(async () => DOCS)
+    const validateDirectory = vi.fn(async () => true)
+    const b = mount({ pickNativeDirectory, validateDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(DOCS) })
+    expect(validateDirectory).toHaveBeenCalledWith(DOCS)
+  })
+
+  it('a denied validation keeps the dialog open without opening the path', async () => {
+    const pickNativeDirectory = vi.fn(async () => DOCS)
+    const validateDirectory = vi.fn(async () => false)
+    const b = mount({ pickNativeDirectory, validateDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(validateDirectory).toHaveBeenCalledWith(DOCS)
+    expect(b.onOpen).not.toHaveBeenCalled()
+    expect(b.onClose).not.toHaveBeenCalled()
+  })
+
+  it('a native pick failure surfaces the error and keeps the dialog open', async () => {
+    const pickNativeDirectory = vi.fn(async () => { throw new Error('chooser unavailable') })
+    const b = mount({ pickNativeDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('chooser unavailable') })
+    expect(b.onOpen).not.toHaveBeenCalled()
+    expect(b.onClose).not.toHaveBeenCalled()
+  })
+
+  it('a cancelled native pick changes nothing', async () => {
+    const pickNativeDirectory = vi.fn(async () => null)
+    const b = mount({ pickNativeDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(b.onOpen).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('the in-browser Open path also runs through the validation gate', async () => {
+    const validateDirectory = vi.fn(async () => true)
+    const b = mount({ validateDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.open' }))
+    await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(HOME) })
+    expect(validateDirectory).toHaveBeenCalledWith(HOME)
+  })
+
+  it('Escape during a pending validation cannot close the dialog under the settle', async () => {
+    let releaseValidation!: (allowed: boolean) => void
+    const validateDirectory = vi.fn(() => new Promise<boolean>((resolve) => { releaseValidation = resolve }))
+    const b = mount({ validateDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.open' }))
+    await waitFor(() => { expect(validateDirectory).toHaveBeenCalled() })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    // The freeze the validation round-trip imposes covers the Modal's own
+    // close paths too; otherwise the late onOpen lands on a closed dialog.
+    expect(b.onClose).not.toHaveBeenCalled()
+    releaseValidation(true)
+    await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(HOME) })
+  })
+
+  it('Escape during a pending native pick cannot close the dialog under the settle', async () => {
+    let releasePick!: (path: string | null) => void
+    const pickNativeDirectory = vi.fn(() => new Promise<string | null>((resolve) => { releasePick = resolve }))
+    const b = mount({ pickNativeDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await waitFor(() => { expect(pickNativeDirectory).toHaveBeenCalled() })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(b.onClose).not.toHaveBeenCalled()
+    releasePick(DOCS)
+    await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(DOCS) })
+  })
 })
