@@ -51,3 +51,5 @@ graphify-out/
 # Local tool indexes
 .codegraph/
 .cursor/
+# Release pack output (dist/npm, dist/npm-vendor)
+dist/
