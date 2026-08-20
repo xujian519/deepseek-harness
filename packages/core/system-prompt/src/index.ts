@@ -9,6 +9,28 @@ import z from '@deepseek-ai/schemastery'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ContextSnapshotSection, ToolSchema } from '@deepseek-ai/dsh-llm'
+import {
+  configFingerprintOf,
+  providerIdOf,
+  stablePrefixSignature,
+} from './prompt-cache.ts'
+import type {
+  CachedPromptSection,
+  PromptCache,
+  PromptCacheKey,
+} from './prompt-cache.ts'
+
+export {
+  configFingerprintOf,
+  providerIdOf,
+  stablePrefixSignature,
+}
+export type {
+  CachedPromptSection,
+  PromptCache,
+  PromptCacheKey,
+  SectionFingerprintInput,
+} from './prompt-cache.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -72,6 +94,15 @@ export interface PromptSection {
    * More than one effective complete section makes assembly fail.
    */
   readonly complete?: boolean
+  /**
+   * Deterministic-text promise: the provider output depends only on the
+   * assembly's scope and prompt variables, so the section may enter the
+   * stable-prefix cache. Static strings are stable by definition; a function
+   * provider must declare `stable: true` to be cached. A misdeclared stable
+   * provider (output that changes within the cache TTL) yields a stale
+   * prefix; TTL, explicit invalidation, and telemetry bound the damage.
+   */
+  readonly stable?: boolean
 }
 
 /** Dynamic model context materialized as a durable user-role snapshot. */
@@ -349,10 +380,13 @@ export class SystemPrompt extends Service {
     () => { this.ctx.emit('system-prompt/change') },
   )
   private readonly toolOrder: string[] | undefined
+  /** The configured deployment persona text; feeds the cache config fingerprint. */
+  private readonly persona: string
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'systemPrompt')
     this.toolOrder = validateToolOrder(config.toolOrder)
+    this.persona = config.persona ?? ''
     // Keep harness-owned openers independent of the selected loop plugin.
     if (config.includeHarnessIdentity ?? true) {
       this.section({
@@ -506,16 +540,70 @@ export class SystemPrompt extends Service {
     if (completeSections.length > 1) {
       throw new Error(`multiple complete prompt sections are active: ${completeSections.map(section => JSON.stringify(section.name)).join(', ')}`)
     }
+
+    // Stable-prefix cache: the contiguous sections from the first one whose
+    // text is deterministic resolve through the cache when a strategy is
+    // mounted, so their providers are not re-evaluated per assembly. Static
+    // strings are stable by definition; function providers must declare
+    // `stable: true`. Sections from the first unstable one onward keep their
+    // per-assembly evaluation, preserving the existing order join.
+    const stableCount = (() => {
+      let count = 0
+      for (const section of sectionDefinitions) {
+        if (typeof section.text === 'string' || section.stable === true) count++
+        else break
+      }
+      return count
+    })()
+    const cache = this.ctx.reflect.get('promptCache', false) as PromptCache | undefined
+    let cacheKey: PromptCacheKey | undefined
+    let cachedPrefix: CachedPromptSection[] | undefined
+    if (cache !== undefined && stableCount > 0) {
+      const key: PromptCacheKey = {
+        scope,
+        signature: stablePrefixSignature(
+          sectionDefinitions.slice(0, stableCount).map(section => ({
+            name: section.name,
+            order: section.order,
+            fingerprint: typeof section.text === 'string' ? section.text : providerIdOf(section.text),
+          })),
+          variables,
+        ),
+        configFingerprint: configFingerprintOf(this.persona),
+      }
+      cacheKey = key
+      const cached = await cache.get(key)
+      // The name sequence guards against a stale or corrupt entry: any
+      // mismatch is a miss, never a served prefix.
+      if (cached !== undefined && cached.length === stableCount
+        && cached.every((section, index) => {
+          // oxlint-disable-next-line typescript/no-non-null-assertion -- index is bounded by the length check above
+          return section.name === sectionDefinitions[index]!.name
+        })) {
+        cachedPrefix = cached
+      }
+    }
+
     let completeSection: AssembledSection | undefined
-    const sections = sectionDefinitions
-      .map((section) => {
-        const assembled = {
-          name: section.name,
-          text: typeof section.text === 'function' ? section.text(context) : section.text,
-        }
-        if (section.complete === true) completeSection = { ...assembled }
-        return assembled
-      })
+    const sections: AssembledSection[] = []
+    for (const [index, section] of sectionDefinitions.entries()) {
+      if (cachedPrefix !== undefined && index < stableCount) {
+        // oxlint-disable-next-line typescript/no-non-null-assertion -- length-validated splice (cached.length === stableCount)
+        const fromCache = cachedPrefix[index]!
+        sections.push(fromCache)
+        if (section.complete === true) completeSection = { ...fromCache }
+        continue
+      }
+      const assembled: AssembledSection = {
+        name: section.name,
+        text: typeof section.text === 'function' ? section.text(context) : section.text,
+      }
+      sections.push(assembled)
+      if (section.complete === true) completeSection = { ...assembled }
+    }
+    if (cache !== undefined && cacheKey !== undefined && cachedPrefix === undefined) {
+      await cache.set(cacheKey, sections.slice(0, stableCount))
+    }
     const assembly: PromptAssembly = {
       sections,
       contexts: runtimeContextSuppressed

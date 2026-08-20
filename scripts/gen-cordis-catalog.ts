@@ -57,6 +57,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   apiProxy: 'typert.md',
   approval: 'approval.md',
   attachments: 'attachment.md',
+  promptCache: 'system-prompt.md',
   shell: 'shell.md',
   shellEnv: 'shell.md',
   clientModules: 'client-modules.md',
@@ -135,6 +136,7 @@ export const SERVICE_PAGE: Record<string, string> = {
  * to a model as `cordis_runtime_inspect what:"client"`).
  */
 export const SERVICE_WALK_EXEMPTIONS: Record<string, string> = {
+  pluginMarket: 'not a subsystems-catalog service: the open plugin-market capability seam — packages/host/plugin-market/README.md owns the contract',
   agent: 'not a service: the DX accessor field on Agent.ctx (root accessor defaulting to undefined) — docs/subsystems/core.md owns the Agent handle',
   appExit: 'not a service: launcher-provided bounded process-exit callback — packages/boot/cmdline/README.md owns the launcher contract',
   cmdlineArgs: 'not a service: launcher-provided immutable app argument accessor — packages/boot/cmdline/README.md owns the launcher contract',
@@ -431,6 +433,9 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   PromptSection: 'system-prompt.md',
   SystemPrompt: 'system-prompt.md',
   ToolProviderResult: 'system-prompt.md',
+  CachedPromptSection: 'system-prompt.md',
+  PromptCache: 'system-prompt.md',
+  PromptCacheKey: 'system-prompt.md',
   JobDoneListener: 'jobs.md',
   JobId: 'jobs.md',
   JobRead: 'jobs.md',

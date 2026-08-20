@@ -1193,6 +1193,9 @@ importers:
       '@deepseek-ai/dsh-plan-mode':
         specifier: workspace:^
         version: link:../../plan/plan-mode
+      '@deepseek-ai/dsh-prompt-cache':
+        specifier: workspace:^
+        version: link:../../core/prompt-cache
       '@deepseek-ai/dsh-pwsh-sandbox':
         specifier: workspace:^
         version: link:../../shell/pwsh-sandbox
@@ -3865,6 +3868,22 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:^
         version: link:../tools
+
+  packages/core/prompt-cache:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-scope':
+        specifier: workspace:^
+        version: link:../scope
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:^
+        version: link:../system-prompt
 
   packages/core/scope:
     devDependencies:

@@ -89,6 +89,7 @@
     "@deepseek-ai/dsh-subagent-spawn-in-process": "workspace:^",
     "@deepseek-ai/dsh-subprocess-local": "workspace:^",
     "@deepseek-ai/dsh-system-prompt": "workspace:^",
+    "@deepseek-ai/dsh-prompt-cache": "workspace:^",
     "@deepseek-ai/dsh-jobs-local": "workspace:^",
     "@deepseek-ai/dsh-timeout-guard": "workspace:^",
     "@deepseek-ai/dsh-token-meter": "workspace:^",

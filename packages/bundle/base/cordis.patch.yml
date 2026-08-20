@@ -431,6 +431,10 @@
       config:
         persona: ''
 
+    # The prompt-prefix cache: stable-prefix assembly is reused across steps.
+    - id: prompt-cache
+      name: '@deepseek-ai/dsh-prompt-cache'
+
     # Agents created at startup. The base stays empty; raw overlays may create
     # agents, while Web creates sessions on client request.
     - id: agent-loop

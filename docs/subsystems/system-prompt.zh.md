@@ -92,6 +92,38 @@ interface PromptContext {
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxpromptcache--promptcache"></a>
+
+### `ctx.promptCache` — `PromptCache`
+
+The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`. Delegates to MemoryPromptCacheStrategy; a future persistent strategy replaces the strategy selection without changing the service surface.
+
+```ts cordis-catalog
+/**
+ * Resolve one stable prefix.
+ * @param key - the cache identity.
+ * @returns the cached stable sections, or `undefined` on a miss.
+ */
+get(key: PromptCacheKey): Promise<CachedPromptSection[] | undefined>
+
+/**
+ * Persist one stable prefix.
+ * @param key - the cache identity.
+ * @param sections - the resolved stable sections, in prefix order.
+ */
+set(key: PromptCacheKey, sections: readonly CachedPromptSection[]): Promise<void>
+
+/**
+ * Drop every entry belonging to one scope (`undefined` = the global layer).
+ * @param scope - the scope whose entries to clear.
+ */
+invalidate(scope: ScopeKey | undefined): Promise<void>
+```
+
+Types: [ScopeKey](scope.md)
+
+Source: [`packages/core/prompt-cache/src/index.ts:96`](../../packages/core/prompt-cache/src/index.ts)
+
 <a id="ctxsystemprompt--systemprompt"></a>
 
 ### `ctx.systemPrompt` — `SystemPrompt`
@@ -156,7 +188,7 @@ variable(name: string, provider: (context: AssembleContext) => string | undefine
 async assemble(context: AssembleContext = {}): Promise<PromptAssembly>
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:338`](../../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:369`](../../packages/core/system-prompt/src/index.ts)
 
 <a id="system-prompt-events"></a>
 
@@ -186,7 +218,7 @@ Expert waterfall over the assembled sections, contexts, tools, and variables. Sc
 
 Types: [Scoped](scope.md)
 
-Source: [`packages/core/system-prompt/src/index.ts:31`](../../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:53`](../../packages/core/system-prompt/src/index.ts)
 
 <a id="system-promptchange--emit"></a>
 
@@ -203,5 +235,5 @@ Emitted when any prompt provider changes. This registry notification is unfilter
 'system-prompt/change'(): void
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:37`](../../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:59`](../../packages/core/system-prompt/src/index.ts)
 <!-- END GENERATED cordis-surface -->

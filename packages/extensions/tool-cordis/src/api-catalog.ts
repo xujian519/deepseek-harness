@@ -1293,6 +1293,29 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'promptCache',
+    summary: 'The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`.',
+    description: 'The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`. Delegates to MemoryPromptCacheStrategy; a future persistent strategy replaces the strategy selection without changing the service surface.',
+    methods: [
+      {
+        signature: 'get(key: PromptCacheKey): Promise<CachedPromptSection[] | undefined>',
+        description: 'Resolve one stable prefix.',
+        parameters: [{ name: 'key', description: 'the cache identity.' }],
+        returns: 'the cached stable sections, or `undefined` on a miss.',
+      },
+      {
+        signature: 'set(key: PromptCacheKey, sections: readonly CachedPromptSection[]): Promise<void>',
+        description: 'Persist one stable prefix.',
+        parameters: [{ name: 'key', description: 'the cache identity.' }, { name: 'sections', description: 'the resolved stable sections, in prefix order.' }],
+      },
+      {
+        signature: 'invalidate(scope: ScopeKey | undefined): Promise<void>',
+        description: 'Drop every entry belonging to one scope (`undefined` = the global layer).',
+        parameters: [{ name: 'scope', description: 'the scope whose entries to clear.' }],
+      },
+    ],
+  },
+  {
     key: 'sandbox',
     summary: 'Abstract process-sandbox service.',
     description: 'Abstract process-sandbox service. confine must return enforcing argv or fail closed at wrap or runner-execution time; silent unconfined passthrough is forbidden. Functional probes arbitrate multi-runner chains and may be skipped for a sole candidate, whose own refusal remains the fail-closed end.',
@@ -3191,6 +3214,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type Branded<B extends string> = string & {\n    readonly [BRAND]: B;\n};',
   },
   {
+    name: 'CachedPromptSection',
+    declaration: 'export interface CachedPromptSection {\n    name: string;\n    text: string;\n}',
+  },
+  {
     name: 'CancelOptions',
     declaration: 'export interface CancelOptions {\n    keepInbox?: boolean | undefined;\n}',
   },
@@ -4195,12 +4222,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PromptAssembly {\n    sections: AssembledSection[];\n    contexts: AssembledContext[];\n    tools: ToolSchema[];\n    variables: Record<string, string | undefined>;\n}',
   },
   {
+    name: 'PromptCacheKey',
+    declaration: 'export interface PromptCacheKey {\n    scope: ScopeKey | undefined;\n    signature: string;\n    configFingerprint: string;\n}',
+  },
+  {
     name: 'PromptContext',
     declaration: 'export interface PromptContext {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n}',
   },
   {
     name: 'PromptSection',
-    declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n}',
+    declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n    readonly stable?: boolean;\n}',
   },
   {
     name: 'ProposalValidationOutcome',

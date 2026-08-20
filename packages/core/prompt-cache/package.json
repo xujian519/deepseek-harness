@@ -1,6 +1,6 @@
 {
-  "name": "@deepseek-ai/dsh-system-prompt",
-  "description": "System prompt assembly registry for the DeepSeek Harness",
+  "name": "@deepseek-ai/dsh-prompt-cache",
+  "description": "Prompt-prefix cache strategy for the DeepSeek Harness system-prompt assembly",
   "version": "0.1.0-rc.8",
   "publishConfig": {
     "access": "public"
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/core/system-prompt"
+    "directory": "packages/core/prompt-cache"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -18,37 +18,25 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/invariant.js"
-    },
-    "./prompt-cache": {
-      "types": "./lib/types/prompt-cache.d.ts",
-      "default": "./lib/prompt-cache.js"
-    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
-    "lib/invariant.js",
-    "lib/prompt-cache.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-scope": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:^"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-scope": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }
 }
