@@ -44,6 +44,14 @@ describe('loadOptionalPatches', () => {
     expect(loadOptionalPatches(NAME, join(tmp(), PROFILE_PATCH_FILENAME))).toBeUndefined()
   })
 
+  it('treats an empty or comment-only patch file as zero patches', () => {
+    const dir = tmp()
+    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '')
+    expect(loadOptionalPatches(NAME, join(dir, PROFILE_PATCH_FILENAME))).toEqual([])
+    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '# this bundle patches nothing in this release\n')
+    expect(loadOptionalPatches(NAME, join(dir, PROFILE_PATCH_FILENAME))).toEqual([])
+  })
+
   it('parses a patch list and preserves !!js expressions as loader expression nodes', () => {
     const dir = tmp()
     writeFileSync(join(dir, PROFILE_PATCH_FILENAME), [

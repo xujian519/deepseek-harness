@@ -46,6 +46,8 @@ export interface StartupInfoInput {
   hStdInput: NativePtr
   hStdOutput: NativePtr
   hStdError: NativePtr
+  /** Initial show state honored when `dwFlags` carries STARTF_USESHOWWINDOW. */
+  wShowWindow?: number
 }
 
 /** Decoded PROCESS_INFORMATION (layout verified: size 24). */
@@ -341,7 +343,8 @@ export function allocStartupInfo(): NativePtr {
 }
 
 /**
- * Write the stdio-relevant fields into a zeroed STARTUPINFOW (others stay default-initialized).
+ * Write the stdio and window-visibility fields into a zeroed STARTUPINFOW
+ * (others stay default-initialized).
  * @param startupInfo - the allocated STARTUPINFOW to encode into.
  * @param fields - the field subset to write.
  */

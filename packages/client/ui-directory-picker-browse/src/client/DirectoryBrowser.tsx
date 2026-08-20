@@ -53,6 +53,10 @@ export interface DirectoryBrowserProps {
   listDirectory: (path?: string, signal?: AbortSignal) => Promise<DirectoryListing>
   /** Create one child directory under an existing parent. */
   createDirectory: (path: string, name: string) => Promise<string>
+  /** Optional native folder chooser contributed by a local desktop shell; absent hides the button. */
+  pickNativeDirectory?: () => Promise<string | null>
+  /** Optional owner validation before a picked or listed path is opened. */
+  validateDirectory?: (path: string) => Promise<boolean>
   /** The operator confirmed a directory (the selection, else the listed level). */
   onOpen: (path: string) => void
   /** Close without picking (mask, Escape, Cancel). */
@@ -259,7 +263,9 @@ function LevelColumn({ entries, selectedPath, busy, onPick, showHidden, filterPr
  * @param props - owner-controlled browser props.
  * @returns the dialog element (null while closed, via Modal).
  */
-export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }: DirectoryBrowserProps) {
+export function DirectoryBrowser({
+  open, listDirectory, createDirectory, pickNativeDirectory, validateDirectory, onOpen, onClose, busy, t,
+}: DirectoryBrowserProps) {
   // Miller state: the listed level, the selected row in it, and the selected
   // folder's own listing (the right column; null while nothing is selected).
   const [parent, setParent] = useState<DirectoryListing | null>(null)
@@ -283,6 +289,10 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
   const [folderDraft, setFolderDraft] = useState<string | null>(null)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  // Native-pick state: true while the desktop shell's chooser or the owner's
+  // validation gate is in flight; the dialog freezes like any other busy step.
+  const [nativePicking, setNativePicking] = useState(false)
+  const [validatingDirectory, setValidatingDirectory] = useState(false)
   const requestSeq = useRef(0)
   // The in-flight listing's controller: superseding intent aborts the wire
   // request too — the Host stops scanning — instead of only discarding the
@@ -742,12 +752,45 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
   const twoPane = selected !== null
   // The nested create dialog owns the interaction while open: Modal has no
   // focus trap, so every parent control goes inert (Shift-Tab or AT must not
-  // close, adopt, or retarget underneath the child).
-  const parentInert = busy || folderDraft !== null
+  // close, adopt, or retarget underneath the child). A native pick or a
+  // validation round-trip freezes the same surface so a late settle cannot
+  // land on a dialog the operator already left.
+  const parentInert = busy || folderDraft !== null || nativePicking || validatingDirectory
   // An uncommitted path draft makes targetPath stale relative to the header:
   // committing actions must not act on the previous selection/listing while
   // a different path is displayed.
   const draftPending = pathDraft !== null
+
+  /** Open a path through the owner's validation gate, when one is supplied. */
+  const openDirectory = (path: string): void => {
+    if (validateDirectory === undefined) {
+      onOpen(path)
+      return
+    }
+    setError(null)
+    setValidatingDirectory(true)
+    validateDirectory(path).then((allowed) => {
+      setValidatingDirectory(false)
+      if (allowed) onOpen(path)
+    }, (reason: unknown) => {
+      setValidatingDirectory(false)
+      setError(failureText(reason))
+    })
+  }
+
+  /** Ask the desktop shell's native chooser for a directory, then validate it like any other path. */
+  const pickFromSystem = (): void => {
+    if (pickNativeDirectory === undefined) return
+    setError(null)
+    setNativePicking(true)
+    pickNativeDirectory().then((path) => {
+      setNativePicking(false)
+      if (path !== null) openDirectory(path)
+    }, (reason: unknown) => {
+      setNativePicking(false)
+      setError(failureText(reason))
+    })
+  }
 
   return (
     <Modal
@@ -980,6 +1023,19 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
               * shifts when the pressed state toggles. */}
             {showHidden && <IconCheckOutline16 size={14} />}
           </button>
+          {pickNativeDirectory !== undefined && (
+            <button
+              type="button"
+              className={css.nativePickerButton}
+              aria-label={t('browser.nativePicker')}
+              aria-busy={nativePicking || undefined}
+              title={t('browser.nativePicker')}
+              disabled={parentInert}
+              onClick={pickFromSystem}
+            >
+              <IconFolderOpen16 size={16} />
+            </button>
+          )}
           <span className={css.footerGap} />
           <Button variant="outline" className={clsx(css.footerAction)} disabled={parentInert} onClick={onClose}>{t('browser.cancel')}</Button>
           <Button
@@ -987,7 +1043,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
             className={clsx(css.footerAction)}
             disabled={targetPath === null || loading || parentInert || draftPending}
             /* v8 ignore next -- narrowing guard: Open disables while no target exists. */
-            onClick={() => { if (targetPath !== null) onOpen(targetPath) }}
+            onClick={() => { if (targetPath !== null) openDirectory(targetPath) }}
           >
             {t('browser.open')}
           </Button>

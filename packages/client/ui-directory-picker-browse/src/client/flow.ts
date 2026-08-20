@@ -17,6 +17,10 @@ export interface BrowseFlowInjected {
   listDirectory: (path?: string, signal?: AbortSignal) => Promise<DirectoryListing>
   /** Create one child directory under an existing parent. */
   createDirectory: (path: string, name: string) => Promise<string>
+  /** Optional native folder chooser contributed by a local desktop shell; absent hides the button. */
+  pickNativeDirectory?: () => Promise<string | null>
+  /** Optional owner validation before a picked or listed path is opened. */
+  validateDirectory?: (path: string) => Promise<boolean>
   /** Localized dialog copy (this package's namespace). */
   t: Translate
 }
@@ -36,6 +40,8 @@ export function BrowseDirectoryFlow(props: DirectoryFlowOwnerProps & BrowseFlowI
     busy: props.busy,
     listDirectory: props.listDirectory,
     createDirectory: props.createDirectory,
+    ...props.pickNativeDirectory !== undefined ? { pickNativeDirectory: props.pickNativeDirectory } : {},
+    ...props.validateDirectory !== undefined ? { validateDirectory: props.validateDirectory } : {},
     t: props.t,
     onOpen: props.onPicked,
     onClose: props.onCancel,
