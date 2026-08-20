@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dsh:plugin-market:schema:catalog-provider-page:1.0.0",
+  "title": "DSH plugin-market catalog provider page",
+  "description": "The wire response to a GET /v1/plugins query. Entries must not embed install commands, scripts, or remote URLs; the host stamps provenance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/entry" }
+    },
+    "nextCursor": { "type": "string", "maxLength": 256 }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "package", "version"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 },
+        "package": { "type": "string", "minLength": 1, "maxLength": 214, "pattern": "^(@[a-z0-9-~][a-z0-9-._~]*\\/)?[a-z0-9-~][a-z0-9-._~]*$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "category": { "type": "string", "maxLength": 64 },
+        "capability": { "type": "array", "maxItems": 32, "items": { "type": "string", "minLength": 1, "maxLength": 64 } },
+        "homepage": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "license": { "type": "string", "maxLength": 64 }
+      }
+    }
+  }
+}

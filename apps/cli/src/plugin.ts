@@ -25,9 +25,17 @@ import {
   writeProfileManifest,
   type ProfileManifest,
 } from '@deepseek-ai/dsh-app-boot'
+import { searchCatalog, fetchSourceManifest } from '@deepseek-ai/dsh-host-plugin-market/catalog'
+import type { CatalogQuery, PluginMarketSource } from '@deepseek-ai/dsh-host-plugin-market'
+import { PluginMarketError } from '@deepseek-ai/dsh-host-plugin-market'
+import { SOURCES_FILE, readSources, writeSources } from '@deepseek-ai/dsh-host-plugin-market/provider'
+import { installPlugin, previewInstall, uninstallPlugin } from '@deepseek-ai/dsh-host-plugin-market/install'
 import { INSTALL_ANCHOR } from './profile-boot.ts'
 
 const NAME = 'dsh'
+
+/** The `dsh plugin` verbs owned by the plugin-market pipeline, not pnpm. */
+const MARKET_VERBS = new Set(['source', 'search', 'preview', 'install', 'uninstall'])
 
 /**
  * Whether a resolved dependency exports a profile patch, i.e. is a bundle.
@@ -115,18 +123,19 @@ function anchorPathSpec(argument: string, cwd: string): string {
 
 /**
  * Run one `dsh plugin` invocation: init if needed, forward to pnpm, reconcile.
+ * Market verbs (`source`, `search`, `preview`, `install`, `uninstall`) are
+ * handled by the plugin-market pipeline instead of pnpm.
  * @param profile - the profile name.
  * @param args - pnpm arguments with relative path specs anchored to the invoking directory.
  * @returns the pnpm exit code.
  */
-export function runPlugin(profile: string, args: readonly string[]): number {
+function runPlugin(profile: string, args: readonly string[]): number {
   const dir = resolveProfileDir(profile)
   if (!existsSync(join(dir, 'package.json'))) {
     initProfile(dir, PROFILE_TEMPLATES[profile] ?? DEFAULT_PROFILE_BUNDLES, { overrides: profileCoreOverrides(INSTALL_ANCHOR) })
     process.stderr.write(`${NAME}: initialized profile ${profile} at ${dir}\n`)
   }
-  const before = readProfileManifest(NAME, dir)
-  // Windows resolves pnpm through its .cmd shim, which spawn() refuses
+  const before = readProfileManifest(NAME, dir)  // Windows resolves pnpm through its .cmd shim, which spawn() refuses
   // without a shell since the CVE-2024-27980 hardening.
   const result = spawnSync('pnpm', args.map(argument => anchorPathSpec(argument, process.cwd())), {
     cwd: dir,
@@ -163,4 +172,145 @@ export function runPlugin(profile: string, args: readonly string[]): number {
     }
   }
   return exitCode
+}
+
+/**
+ * Dispatch one `dsh plugin` invocation: market verbs run through the
+ * plugin-market pipeline, everything else through the pnpm forwarder.
+ * @param profile - the profile name.
+ * @param args - the plugin arguments.
+ * @returns the process exit code.
+ */
+export async function runPluginCommand(profile: string, args: readonly string[]): Promise<number> {
+  if (MARKET_VERBS.has(args[0] ?? '')) return runMarket(profile, args)
+  return runPlugin(profile, args)
+}
+/**
+ * Run one market verb against the profile: source registration, catalog
+ * search, preview, and the managed install/uninstall pipeline.
+ * @param profile - the profile name.
+ * @param args - the market verb and its arguments.
+ * @returns the process exit code.
+ */
+async function runMarket(profile: string, args: readonly string[]): Promise<number> {
+  const dir = resolveProfileDir(profile)
+  const sourcesPath = join(dir, SOURCES_FILE)
+  try {
+    switch (args[0]) {
+      case 'source':
+        return await runSourceVerb(sourcesPath, args.slice(1))
+      case 'search': {
+        const query = parseSearchQuery(args.slice(1))
+        let found = 0
+        for (const source of readSources(sourcesPath)) {
+          const page = await searchCatalog(source, query)
+          for (const item of page.items) {
+            process.stdout.write(`${item.package}@${item.version}\t${item.name}\t(from ${source.providerId})\n`)
+            found += 1
+          }
+        }
+        if (found === 0) process.stderr.write(`${NAME}: no catalog results (register a source with 'dsh plugin source add')\n`)
+        return 0
+      }
+      case 'preview': {
+        const ref = args[1]
+        if (ref === undefined) return usage('preview <name@version>')
+        const preview = await previewInstall(ref)
+        process.stdout.write(
+          `${preview.package}@${preview.version}: ${preview.verified ? 'verified' : 'rejected'}`,
+        )
+        for (const reason of preview.reasons) process.stdout.write(`\n  - ${reason}`)
+        if (!preview.compatible) process.stdout.write('\n  - Node engine constraint not satisfied')
+        process.stdout.write('\n')
+        return preview.verified ? 0 : 1
+      }
+      case 'install': {
+        const ref = args[1]
+        if (ref === undefined) return usage('install <name@version>')
+        const preview = await previewInstall(ref)
+        if (!preview.verified) {
+          process.stderr.write(`${NAME}: install rejected by preview: ${preview.reasons.join('; ') || 'unverified'}\n`)
+          return 1
+        }
+        const before = readProfileManifest(NAME, dir)
+        const receipt = installPlugin(dir, ref)
+        reconcilePlugins(before, dir)
+        process.stdout.write(`${NAME}: installed ${receipt.package}@${receipt.version} (receipt ${receipt.id})\n`)
+        return 0
+      }
+      case 'uninstall': {
+        const receiptId = args[1]
+        if (receiptId === undefined) return usage('uninstall <receipt-id>')
+        uninstallPlugin(dir, receiptId)
+        process.stdout.write(`${NAME}: uninstalled receipt ${receiptId}\n`)
+        return 0
+      }
+      default:
+        return usage(args[0] ?? '')
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`${NAME}: ${error instanceof PluginMarketError ? error.code : 'plugin-market'} error: ${message}\n`)
+    return 1
+  }
+}
+
+/** Handle the `source` verb's subcommands. */
+async function runSourceVerb(sourcesPath: string, args: readonly string[]): Promise<number> {
+  switch (args[0]) {
+    case 'list':
+      for (const source of readSources(sourcesPath)) {
+        process.stdout.write(`${source.id}\t${source.providerId}\t${source.endpoint}\n`)
+      }
+      return 0
+    case 'add': {
+      const url = args[1]
+      if (url === undefined) return usage('source add <manifest-url>')
+      const source = await fetchSourceManifest(url)
+      const existing = readSources(sourcesPath).find(candidate => candidate.providerId === source.providerId)
+      const persisted: PluginMarketSource = {
+        ...source,
+        id: existing?.id ?? source.id,
+      }
+      const next = existing === undefined ? [...readSources(sourcesPath), persisted]
+        : readSources(sourcesPath).map(candidate => candidate.providerId === existing.providerId ? persisted : candidate)
+      writeSources(sourcesPath, next)
+      process.stdout.write(`${NAME}: registered source ${persisted.id} (${source.name})\n`)
+      return 0
+    }
+    case 'remove': {
+      const id = args[1]
+      if (id === undefined) return usage('source remove <id>')
+      const next = readSources(sourcesPath).filter(source => source.id !== id)
+      if (next.length === readSources(sourcesPath).length) {
+        process.stderr.write(`${NAME}: no source ${id}\n`)
+        return 1
+      }
+      writeSources(sourcesPath, next)
+      process.stdout.write(`${NAME}: removed source ${id}\n`)
+      return 0
+    }
+    default:
+      return usage('source <list|add|remove>')
+  }
+}
+
+/** Parse the search verb's `key=value` arguments into a query. */
+function parseSearchQuery(args: readonly string[]): CatalogQuery {
+  const query: CatalogQuery = {}
+  for (const argument of args) {
+    const separator = argument.indexOf('=')
+    if (separator <= 0) continue
+    const key = argument.slice(0, separator) as keyof CatalogQuery
+    const value = argument.slice(separator + 1)
+    if (key === 'limit') query.limit = Number(value)
+    else (query as Record<string, string>)[key] = value
+  }
+  return query
+}
+
+/** Print a usage line and return the usage exit code. */
+function usage(expectation: string): number {
+  process.stderr.write(`${NAME}: usage: dsh plugin ${expectation}\n`)
+  return 2
 }

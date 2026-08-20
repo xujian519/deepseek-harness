@@ -38,8 +38,8 @@ switch (invocation.mode) {
     break
   }
   case 'plugin': {
-    const { runPlugin } = await import('./plugin.ts')
-    process.exit(runPlugin(invocation.profile, invocation.args))
+    const { runPluginCommand } = await import('./plugin.ts')
+    process.exit(await runPluginCommand(invocation.profile, invocation.args))
     break
   }
   case 'dump-config': {

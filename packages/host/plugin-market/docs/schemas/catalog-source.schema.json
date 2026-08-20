@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dsh:plugin-market:schema:catalog-source:1.0.0",
+  "title": "DSH plugin-market catalog source manifest",
+  "description": "Provider-neutral declaration for one user-registered HTTPS catalog endpoint. Remote payloads are untrusted input; the host validates against this schema and enforces HTTPS-only transport.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestVersion", "providerId", "name", "attribution", "transport", "query"],
+  "properties": {
+    "manifestVersion": { "const": "1.0.0" },
+    "providerId": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)+$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 500 },
+    "homepage": { "type": "string", "format": "uri", "maxLength": 2048 },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "url"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "url": { "type": "string", "format": "uri", "maxLength": 2048 }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseUrl"],
+      "properties": {
+        "baseUrl": { "type": "string", "format": "uri", "maxLength": 2048 }
+      }
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported"],
+      "properties": {
+        "supported": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "enum": ["q", "category", "capability", "cursor", "limit", "sort", "locale"] }
+        }
+      }
+    }
+  }
+}

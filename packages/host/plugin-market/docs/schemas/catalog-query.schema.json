@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dsh:plugin-market:schema:catalog-query:1.0.0",
+  "title": "DSH plugin-market catalog query",
+  "description": "The search parameters a host may send a source. A source only receives parameters it declared in its manifest's query.supported.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "q": { "type": "string", "maxLength": 256 },
+    "category": { "type": "string", "maxLength": 64 },
+    "capability": { "type": "string", "maxLength": 64 },
+    "cursor": { "type": "string", "maxLength": 256 },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
+    "sort": { "type": "string", "maxLength": 32 },
+    "locale": { "type": "string", "maxLength": 32 }
+  }
+}
