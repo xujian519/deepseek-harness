@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-desktop-shell",
   "description": "Electron-main bridge provider for the ctx.desktop capability seam",
-  "version": "0.1.0-rc.7",
+  "version": "0.1.0-rc.8",
   "publishConfig": {
     "access": "public"
   },
