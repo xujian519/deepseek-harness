@@ -20,6 +20,8 @@ import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './c
 import type { ReconnectConfig } from './connection.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
+// Side-effect type import: declaration-merges `ctx.systemPrompt` onto Context.
+import type {} from '@deepseek-ai/dsh-system-prompt'
 
 export type { McpResult } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
@@ -28,10 +30,17 @@ export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
 export const name = 'mcp-client'
 
 /** Services required by this plugin. */
-export const inject = ['tools']
+export const inject = ['tools', 'systemPrompt']
 
 /** Default timeout for individual MCP tool calls (ms). */
 const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
+
+/**
+ * Prompt order for the surfaced server-instructions section, inside the tool
+ * guidance band (100–199) and clear of the section orders other harness
+ * packages use there (subagent 116/116.5, report 117, SDK code-mode 150).
+ */
+const MCP_INSTRUCTIONS_SECTION_ORDER = 155
 
 /** Valid `serverName`, kept below the public tool-name budget. */
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
@@ -68,6 +77,8 @@ export interface StdioConfig {
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** Surface the server's `instructions` (MCP initialize response) as a system-prompt section. */
+  surfaceInstructions: boolean
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
 }
@@ -90,6 +101,8 @@ export interface StreamableHttpConfig {
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** Surface the server's `instructions` (MCP initialize response) as a system-prompt section. */
+  surfaceInstructions: boolean
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
 }
@@ -114,6 +127,7 @@ export const Config = z.union([
     cwd: z.string().default(''),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    surfaceInstructions: z.boolean().default(true),
     reconnect: Reconnect,
   }),
   z.object({
@@ -123,6 +137,7 @@ export const Config = z.union([
     headers: z.dict(String).default({}),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    surfaceInstructions: z.boolean().default(true),
     reconnect: Reconnect,
   }),
 ]) as unknown as z<Config>
@@ -168,6 +183,20 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   ctx.effect(() => {
     return () => connection.dispose()
   }, 'mcp-client.connection')
+
+  // Surface the server's own instructions (MCP initialize response) as a
+  // prompt section so the model sees the server's collaboration rules, which
+  // the tool bridge alone would otherwise drop. The text provider re-reads
+  // the live generation on every assembly, so a reconnect that returns new
+  // instructions is reflected without re-registration, and an absent or
+  // empty value contributes nothing (rendering drops empty sections).
+  if (config.surfaceInstructions) {
+    ctx.effect(() => ctx.systemPrompt.section({
+      name: `mcp:${config.serverName}:instructions`,
+      order: MCP_INSTRUCTIONS_SECTION_ORDER,
+      text: () => connection.instructions,
+    }), 'mcp-client.instructions')
+  }
 
   // Block plugin activation on the initial connection + tool discovery so
   // Cordis consumers observe the tools immediately after the fiber activates.

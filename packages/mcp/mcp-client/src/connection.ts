@@ -104,6 +104,13 @@ export interface ConnectionHandle {
    */
   ready: Promise<ConnectionOutcome>
   /**
+   * The live generation's server instructions from the MCP initialize
+   * response, empty when the server provided none or nothing has connected
+   * yet. A reconnect keeps the last known value while the generation is
+   * down, mirroring the tool registry's last-good-list behavior.
+   */
+  readonly instructions: string
+  /**
    * Stop reconnection, close the live client, wait for the in-flight attempt
    * and queued tool syncs to quiesce, then unregister every tool this server
    * still owns.
@@ -141,6 +148,8 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   let clientClosed: Promise<void> | undefined
   /** Live tool registrations owned by this server; only {@link enqueueSync} and dispose swap it. */
   let disposers: ToolDisposers = new Map()
+  /** Server instructions from the latest successful connect, empty before the first one. */
+  let latestInstructions = ''
   let reconnectTimer: NodeJS.Timeout | undefined
   /** Consecutive failed connection attempts within the current outage. */
   let failedAttempts = 0
@@ -301,6 +310,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     }
     if (!isCurrent(generation)) return
     connectedAt = Date.now()
+    latestInstructions = generation.getInstructions() ?? ''
     if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
   }
 
@@ -324,6 +334,9 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
 
   return {
     ready,
+    get instructions(): string {
+      return latestInstructions
+    },
     async dispose(): Promise<void> {
       disposed = true
       if (reconnectTimer !== undefined) {

@@ -45,6 +45,7 @@ The model sees `mcp__github__create_issue`, `mcp__web__search`, … — the same
 | `headers` | http | no | Extra headers (e.g. auth tokens) |
 | `toolCallTimeoutMs` | both | no | Timeout per `callTool` invocation (default 60000) |
 | `failOnStartupError` | both | no | Reject plugin activation when initial connection or tool synchronization fails (default `false`) |
+| `surfaceInstructions` | both | no | Surface the server's `instructions` (MCP initialize response) as a system-prompt section (default `true`) |
 | `reconnect.enabled` | both | no | Reconnect automatically after a lost connection (default `true`) |
 | `reconnect.initialDelayMs` | both | no | First reconnect delay in ms; doubles per consecutive failed attempt (default 500) |
 | `reconnect.maxDelayMs` | both | no | Backoff ceiling in ms; also the uptime after which the attempt budget resets (default 30000) |
@@ -62,6 +63,7 @@ Every MCP tool has two names: the raw MCP name (sent on the wire in `tools/call`
 ## Behavior
 
 - On connect: plugin activation awaits `listTools()` and registers each tool via `ctx.tools.register()` under its public name before the composition starts its first turn. Initial connection, discovery, or registration failure is always logged; it rejects activation when `failOnStartupError` is true and otherwise activates with no tools.
+- Server instructions: when the server provides `instructions` in its initialize response, they are registered as the `mcp:<serverName>:instructions` system-prompt section (order 155, tool-guidance band). The section re-reads the live generation on every assembly, so a reconnect that returns different instructions is reflected without re-registration; an absent or empty value contributes nothing. Disable with `surfaceInstructions: false`.
 - Listens for `notifications/tools/list_changed` → re-syncs; a fetch-phase failure keeps the previous generation registered, while a registration conflict rolls back the attempted generation and leaves no tools from that server.
 - Tool execute: `client.callTool({ name: rawName, arguments }, { signal })` with timeout + abort support—the public name is never sent to the server.
 - Canonical success is `{ content: JsonValue[], structuredContent? }`; complete JSON MCP blocks survive for programmatic callers. A supported advertised `outputSchema` validates `structuredContent`; unsupported schema vocabulary falls back to unconstrained `JsonValue`.
@@ -75,6 +77,7 @@ Every MCP tool has two names: the raw MCP name (sent on the wire in `tools/call`
 | Service | Usage |
 |---|---|
 | `ctx.tools` | Register/unregister MCP tools |
+| `ctx.systemPrompt` | Surface the server's `instructions` as a prompt section (when `surfaceInstructions` is enabled) |
 | `ctx.attachments` | Optionally validate and persist image result batches before model projection |
 | `ctx.llm` | Optionally prove the exact calling route explicitly supports image input |
 
@@ -110,7 +113,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 ## Known Limitations and Deferred Work
 
-- **Tools are the only bridged MCP capability** — Resources and Prompts have no harness consumer and are deferred.
+- **Tools and server instructions are the only bridged MCP capabilities** — Resources and Prompts have no harness consumer and are deferred.
 - **Startup timeout is inherited from the MCP SDK** — DSH does not yet expose a connection/discovery timeout. Each initialize or paginated `tools/list` request uses the SDK's 60-second default, so an unresponsive server or cursor chain can delay both activation and teardown while the initial synchronization settles.
 - **Reconnect triggers on transport close** — a crashed stdio child fires it; Streamable HTTP failures surface per request and through the SDK transport's own SSE-stream recovery, so an unreachable HTTP server is retried per call rather than respawned by the supervisor.
 - **Image is the only durable rich-result bridge** — PNG, JPEG, WebP, and GIF can enter Native context after exact capability proof. Audio and embedded-resource payloads remain execution-local with explicit diagnostics, while resource links preserve only their name and URI as text.

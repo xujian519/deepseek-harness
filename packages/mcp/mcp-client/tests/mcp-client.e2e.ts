@@ -106,6 +106,7 @@ describe('fixture server — controlled scenarios', () => {
     cwd: packageDir,
     toolCallTimeoutMs: 15_000,
     failOnStartupError: false,
+    surfaceInstructions: true,
   }
 
   beforeAll(async () => {
@@ -205,6 +206,7 @@ describe('fixture server — duplicate serverName', () => {
       cwd: packageDir,
       toolCallTimeoutMs: 15_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     await apply(ctx, config)
 
@@ -227,6 +229,7 @@ describe('fixture server — disposal', () => {
       cwd: packageDir,
       toolCallTimeoutMs: 15_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     })
 
     // Tools are registered before dispose.
@@ -250,6 +253,7 @@ describe('fixture server — crash recovery', () => {
       cwd: packageDir,
       toolCallTimeoutMs: 15_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
       reconnect,
     }
   }
@@ -293,7 +297,7 @@ describe('fixture server — crash recovery', () => {
   it('plugin unload during an outage stops reconnection and unregisters tools', async () => {
     const ctx = await mountRegistry()
     const fiber = ctx.plugin(
-      { name: 'mcp-client', inject: ['tools'], apply },
+      { name: 'mcp-client', inject: ['tools', 'systemPrompt'], apply },
       crashConfig('ephemeral', { initialDelayMs: 8_000, maxDelayMs: 8_000, maxAttempts: 5 }),
     )
     // Cordis awaits async apply() as startup work; wait for it.
@@ -334,6 +338,7 @@ describe('server-everything — official test server', () => {
     cwd: '',
     toolCallTimeoutMs: 30_000,
     failOnStartupError: false,
+    surfaceInstructions: true,
   }
 
   beforeAll(async () => {
@@ -403,6 +408,7 @@ describe('server-filesystem — real filesystem operations', () => {
       cwd: '',
       toolCallTimeoutMs: 30_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     await apply(ctx, config)
   }, 60_000)
@@ -520,6 +526,7 @@ describe('streamable-http — in-process MCP server', () => {
       headers: { Authorization: 'Bearer e2e-test-token' },
       toolCallTimeoutMs: 15_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     await apply(ctx, config)
   }, 30_000)
