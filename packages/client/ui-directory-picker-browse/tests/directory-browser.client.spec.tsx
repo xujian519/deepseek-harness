@@ -1806,4 +1806,32 @@ describe('DirectoryBrowser', () => {
     await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(HOME) })
     expect(validateDirectory).toHaveBeenCalledWith(HOME)
   })
+
+  it('Escape during a pending validation cannot close the dialog under the settle', async () => {
+    let releaseValidation!: (allowed: boolean) => void
+    const validateDirectory = vi.fn(() => new Promise<boolean>((resolve) => { releaseValidation = resolve }))
+    const b = mount({ validateDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.open' }))
+    await waitFor(() => { expect(validateDirectory).toHaveBeenCalled() })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    // The freeze the validation round-trip imposes covers the Modal's own
+    // close paths too; otherwise the late onOpen lands on a closed dialog.
+    expect(b.onClose).not.toHaveBeenCalled()
+    releaseValidation(true)
+    await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(HOME) })
+  })
+
+  it('Escape during a pending native pick cannot close the dialog under the settle', async () => {
+    let releasePick!: (path: string | null) => void
+    const pickNativeDirectory = vi.fn(() => new Promise<string | null>((resolve) => { releasePick = resolve }))
+    const b = mount({ pickNativeDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await waitFor(() => { expect(pickNativeDirectory).toHaveBeenCalled() })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(b.onClose).not.toHaveBeenCalled()
+    releasePick(DOCS)
+    await waitFor(() => { expect(b.onOpen).toHaveBeenCalledWith(DOCS) })
+  })
 })

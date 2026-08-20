@@ -800,7 +800,7 @@ export function DirectoryBrowser({
       // (its own guard keeps an in-flight creation open), and an in-flight
       // adoption pins the flow — dismissing it would leave the owner's
       // createWorkspace to land after an apparent cancel.
-      onClose={() => { if (folderDraft === null && !busy) onClose() }}
+      onClose={() => { if (folderDraft === null && !busy && !nativePicking && !validatingDirectory) onClose() }}
       title={t('browser.title')}
       className={clsx(css.dialog)}
       headless
