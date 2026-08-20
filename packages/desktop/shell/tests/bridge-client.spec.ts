@@ -6,7 +6,7 @@ import { createServer, type Server, type Socket } from 'node:net'
 import { unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from '../src/bridge-client.ts'
 
 // Windows cannot listen on a POSIX socket file; a named pipe is the native form.
@@ -267,9 +267,29 @@ describe('BridgeClient reconnect', () => {
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(client.connected).toBe(true)
     const pending = client.call('desktop/probe', {}).catch((error: unknown) => error)
-    ;(client as unknown as { socket: { emit: (event: string, error: Error) => void } }).socket.emit('error', new Error('reset'))
+    const reset = new Error('reset')
+    ;(client as unknown as { socket: { emit: (event: string, error: Error) => void } }).socket.emit('error', reset)
     const error = await pending
-    expect(error).toBeInstanceOf(Error)
+    expect(error).toBe(reset)
+  })
+
+  it('stops scheduling reconnects when disposed mid-flight', async () => {
+    client = new BridgeClient({
+      path: socketPath,
+      onNotification: () => {},
+      onClose: () => {},
+      reconnect: { retries: 5, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(client.connected).toBe(true)
+    client.dispose()
+    // An in-flight retry socket's close handler reaches scheduleReconnect
+    // after dispose; it must not arm another connection.
+    const connect = vi.spyOn(client as unknown as { connect: (initial: boolean) => void }, 'connect')
+    ;(client as unknown as { scheduleReconnect: () => void }).scheduleReconnect()
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(connect).not.toHaveBeenCalled()
   })
 
   it('reconnects after an unexpected close and fires onReconnect', async () => {

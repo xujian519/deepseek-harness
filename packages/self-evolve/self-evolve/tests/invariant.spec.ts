@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
@@ -217,7 +217,10 @@ describe('self-evolve invariant payload validation', () => {
     const ctx = await setup()
     const session = ctx.sessions.create()
     fullBracket(session, runId('ok'))
+    const warn = vi.spyOn(ctx.logger, 'warn')
     session.append('turn/start', { turn: 1 })
+    // A non-self-evolve event neither stages nor fails the invariant.
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('self-evolve event published without pre-commit validation'))
     const turnStart = session.events.find(event => event.type === 'turn/start')
     expect(() => {
       ctx.emit('internal/dispatch', 'emit', 'session/event', [session, turnStart], undefined)

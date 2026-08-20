@@ -182,6 +182,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
   ctx.on('session/created', (session: Session) => { seed(session) }, { global: true })
 
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
+    if (!event.type.startsWith('self-evolve/')) return
     const candidate = staged.get(event)
     /* v8 ignore next -- internal/dispatch stages every self-evolve event */
     if (candidate === undefined || candidate.session !== session) return fail('self-evolve event published without pre-commit validation')

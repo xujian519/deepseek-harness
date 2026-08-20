@@ -314,7 +314,7 @@ function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
   })
 }
 
-/** 按 resume 规格取检查点：grant 走 grantApproval，否则原样 load。 */
+/** Load the checkpoint a resume spec names, routing grant specs through grant approval. */
 async function loadResumeCheckpoint(
   store: CheckpointStore,
   spec: { checkpointId: string; grant: boolean },

@@ -201,7 +201,7 @@ describe('directory-picker-browse client half', () => {
     try {
       await b.ctx.plugin({ inject: [...inject], apply }).await()
       const entry = b.slots.entries(HOLES[0])[0]!
-      const injected = (entry.inject as () => BrowseFlowInjected)()
+      const injected = (entry.inject as unknown as () => BrowseFlowInjected)()
       expect(injected.pickNativeDirectory).toBe(pick)
       expect(injected.validateDirectory).toBe(validate)
     } finally {
