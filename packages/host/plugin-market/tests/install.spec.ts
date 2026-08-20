@@ -126,10 +126,13 @@ describe('previewInstall', () => {
   })
 
   it('reports the engines constraint', async () => {
+    // A range above the running major is unsatisfied on every Node version
+    // (the workflow runs Node 24, local dev often Node 22).
+    const nextMajor = Number(process.versions.node.split('.')[0]) + 1
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       name: 'dsh-p1', version: '1.0.0',
       dist: { tarball: 'x', integrity: 'y' },
-      engines: { node: '>=24.0.0' },
+      engines: { node: `>=${nextMajor}.0.0` },
     }), { status: 200 })))
     const preview = await previewInstall('dsh-p1@1.0.0')
     expect(preview.compatible).toBe(false)
