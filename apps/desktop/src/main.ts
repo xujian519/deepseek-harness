@@ -7,11 +7,11 @@
 
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, type Tray } from 'electron'
 import { startDshBackend, type DesktopBackend } from './server-manager.ts'
 import { BridgeServer, resolveBridgePath } from './bridge-server.ts'
 import { isWithinBackendOrigin } from './navigation.ts'
-import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
+import { shouldHideOnClose } from './tray.ts'
 
 /** Repository root from either layout (src/main.ts or dist/main.js: three hops up). */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
@@ -98,36 +98,24 @@ function createWindow(): BrowserWindow {
 }
 
 /**
- * Create the system tray from the packaged or dev assets directory.
+ * Create the system tray through the bridge, whose menu model rebuilds it
+ * when backend plugins register tray items.
  * @param appPath - `app.getAppPath()`: the app root in dev, `app.asar` when packaged.
- * @returns the created tray.
+ * @returns the created tray, or undefined when the platform cannot host one.
  */
-function createTray(appPath: string): Tray {
-  const icon = nativeImage.createFromPath(trayIconPath(appPath, process.platform))
-  if (isTemplateTrayIcon(process.platform)) icon.setTemplateImage(true)
-  const created = new Tray(icon)
-  created.setToolTip('DeepSeek Harness')
-  created.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show DeepSeek Harness', click: showMainWindow },
-    { type: 'separator' },
-    { label: 'Quit DeepSeek Harness', click: () => {
+function createTray(appPath: string): Tray | undefined {
+  return bridge?.initTray(appPath, {
+    onShow: showMainWindow,
+    onQuit: () => {
       isQuitting = true
       app.quit()
-    } },
-  ]))
-  created.on('click', showMainWindow)
-  return created
+    },
+  })
 }
 
 void app.whenReady().then(async () => {
   ipcMain.handle('desktop:ping', () => 'pong')
   const window = createWindow()
-
-  try {
-    tray = createTray(app.getAppPath())
-  } catch (error) {
-    console.warn(`System tray is unavailable: ${error instanceof Error ? error.message : String(error)}`)
-  }
 
   bridge = new BridgeServer(window)
   const bridgePath = resolveBridgePath(app.getPath('userData'))
@@ -142,6 +130,8 @@ void app.whenReady().then(async () => {
     app.quit()
     return
   }
+  // initTray reports unavailability itself; a tray-less run still works.
+  tray = createTray(app.getAppPath())
 
   const { entry, loaderArgs, cwd } = resolveBackend()
   backend = startDshBackend({

@@ -55,6 +55,10 @@ describe('BridgeClient', () => {
       path: socketPath,
       onNotification: (notification) => { notifications.push(notification) },
       onClose: () => { closeCount += 1 },
+      // The close-oriented tests below own the socket lifecycle; a reconnecting
+      // client would open fresh connections mid-test. Reconnect is exercised
+      // in its own describe block with a dedicated construction.
+      reconnect: { retries: 0 },
     })
     await new Promise(resolve => setTimeout(resolve, 20))
   })
@@ -214,5 +218,114 @@ describe('BridgeClient', () => {
     serverSocket?.write(JSON.stringify({ jsonrpc: '2.0' }) + '\n')
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(notifications).toEqual([])
+  })
+})
+
+describe('BridgeClient reconnect', () => {
+  let server: Server
+  let serverSocket: Socket | undefined
+  let client: BridgeClient
+  let reconnects = 0
+
+  beforeEach(async () => {
+    reconnects = 0
+    serverSocket = undefined
+    socketPath = nextSocketPath()
+    server = createServer((socket) => {
+      serverSocket = socket
+      socket.setEncoding('utf8')
+      socket.on('data', () => {})
+    })
+    await new Promise<void>((resolve) => { server.listen(socketPath, resolve) })
+  })
+
+  afterEach(async () => {
+    client.dispose()
+    serverSocket?.end()
+    if (server.listening) {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (err != null) {
+            reject(err)
+          } else {
+            resolve()
+          }
+        })
+      })
+    }
+    try { unlinkSync(socketPath) } catch {}
+  })
+
+  it('reconnects after an unexpected close and fires onReconnect', async () => {
+    client = new BridgeClient({
+      path: socketPath,
+      onNotification: () => {},
+      onClose: () => {},
+      reconnect: { retries: 5, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(client.connected).toBe(true)
+    serverSocket?.end()
+    await expect.poll(() => reconnects, { timeout: 5_000 }).toBe(1)
+    expect(client.connected).toBe(true)
+  })
+
+  it('gives up after the retry budget when the peer stays down', async () => {
+    client = new BridgeClient({
+      path: socketPath,
+      onNotification: () => {},
+      onClose: () => {},
+      reconnect: { retries: 2, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // Take the server down entirely: every reconnect attempt is refused.
+    serverSocket?.end()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err != null) reject(err)
+        else resolve()
+      })
+    })
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(reconnects).toBe(0)
+    expect(client.connected).toBe(false)
+  })
+
+  it('recovers a first-connect refusal once the peer starts listening', async () => {
+    // A fresh path with no listener yet: the constructor's connect is refused,
+    // and the backoff retry must recover a Main that was still starting.
+    const latePath = process.platform === 'win32'
+      ? `\\\\.\\pipe\\dsh-desktop-bridge-late-${process.pid}`
+      : join(tmpdir(), `dsh-desktop-bridge-late-${process.pid}.sock`)
+    let initialClose = 0
+    client = new BridgeClient({
+      path: latePath,
+      onNotification: () => {},
+      onClose: () => { initialClose += 1 },
+      reconnect: { retries: 10, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    // Wait for the refusal before starting the server, so the recovery is
+    // exercised by a retry and not by the initial connect winning the race.
+    await expect.poll(() => initialClose, { timeout: 5_000 }).toBe(1)
+    const late = createServer(() => {})
+    await new Promise<void>((resolve, reject) => {
+      late.on('error', reject)
+      late.listen(latePath, resolve)
+    })
+    await expect.poll(() => reconnects, { timeout: 5_000 }).toBe(1)
+    expect(client.connected).toBe(true)
+    // Disconnect before closing the server: server.close waits for live
+    // connections, and the reconnected client is still attached.
+    client.dispose()
+    await new Promise<void>((resolve, reject) => {
+      late.close((error) => {
+        if (error != null) reject(error)
+        else resolve()
+      })
+    })
+    try { unlinkSync(latePath) } catch {}
   })
 })

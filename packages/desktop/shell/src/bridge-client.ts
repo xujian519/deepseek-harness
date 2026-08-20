@@ -53,6 +53,17 @@ export interface BridgeClientOptions {
   onNotification: (notification: JsonRpcNotification) => void
   /** The socket closed. */
   onClose: () => void
+  /** Reconnection policy and hook, when the client should recover an unexpected close. */
+  reconnect?: {
+    /** How many reconnection attempts before giving up (default 10). */
+    retries?: number
+    /** Base backoff delay between attempts (default 500ms). */
+    baseDelayMs?: number
+    /** Maximum backoff delay (default 5000ms). */
+    maxDelayMs?: number
+  }
+  /** A reconnection succeeded after an unexpected close. */
+  onReconnect?: () => void
 }
 
 /** One pending request keyed by JSON-RPC id. */
@@ -67,26 +78,63 @@ interface PendingRequest {
 
 /**
  * Line-delimited JSON-RPC client. Methods return promises; notifications are
- * forwarded through {@link BridgeClientOptions.onNotification}.
+ * forwarded through {@link BridgeClientOptions.onNotification}. An unexpected
+ * close schedules reconnection with exponential backoff while the client is
+ * not disposed; pending calls reject at the close, and the caller decides
+ * whether to retry its own work after {@link BridgeClientOptions.onReconnect}.
  */
 export class BridgeClient {
-  private readonly socket: Socket
+  private socket: Socket | undefined
   private readonly pending = new Map<number, PendingRequest>()
   private nextId = 1
   private buffer = ''
   private disposed = false
+  private reconnectAttempts = 0
+  private reconnectTimer: NodeJS.Timeout | undefined
 
   constructor(private readonly options: BridgeClientOptions) {
-    this.socket = createConnection(options.path)
-    this.socket.setEncoding('utf8')
-    this.socket.on('data', (chunk: string) => { this.onData(chunk) })
-    this.socket.on('close', () => { this.onClose() })
-    this.socket.on('error', (error) => { this.onError(error) })
+    this.connect(true)
+  }
+
+  /**
+   * Create a socket and promote it to the live bridge once it connects.
+   * Pre-connection failures stay local to the attempt: the client-level
+   * close/reconnect handling only ever runs for an established connection.
+   * @param initial - whether this is the first connection (no replay hook).
+   */
+  private connect(initial: boolean): void {
+    const socket = createConnection(this.options.path)
+    socket.setEncoding('utf8')
+    const promote = (): void => {
+      socket.removeListener('error', onError)
+      socket.removeListener('close', onClose)
+      this.socket = socket
+      this.reconnectAttempts = 0
+      socket.on('data', (chunk: string) => { this.onData(chunk) })
+      socket.on('close', () => { this.onClose() })
+      socket.on('error', (error) => { this.onError(error) })
+      if (!initial) this.options.onReconnect?.()
+    }
+    const onError = (): void => { socket.destroy() }
+    const onClose = (): void => {
+      socket.destroy()
+      if (initial) {
+        // A first-connect failure is a genuine bridge outage: the socket Main
+        // promised never came up. Report it like any other loss, then let the
+        // backoff retry recover a Main that was still starting at plugin load.
+        this.onClose()
+      } else {
+        this.scheduleReconnect()
+      }
+    }
+    socket.once('connect', promote)
+    socket.once('error', onError)
+    socket.once('close', onClose)
   }
 
   /** True if the socket is currently connected. */
   get connected(): boolean {
-    return this.socket.readyState === 'open'
+    return this.socket?.readyState === 'open'
   }
 
   /**
@@ -102,7 +150,8 @@ export class BridgeClient {
    */
   call(method: string, params?: unknown, signal?: AbortSignal): Promise<unknown> {
     if (this.disposed) return Promise.reject(new Error('bridge client is disposed'))
-    if (!this.connected) return Promise.reject(new Error('bridge socket is not connected'))
+    const socket = this.socket
+    if (socket === undefined || socket.readyState !== 'open') return Promise.reject(new Error('bridge socket is not connected'))
     const id = this.nextId++
     const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params }
     return new Promise((resolve, reject) => {
@@ -121,10 +170,9 @@ export class BridgeClient {
         signal.addEventListener('abort', onAbort, { once: true })
       }
       this.pending.set(id, pending)
-      this.socket.write(JSON.stringify(request) + '\n')
+      socket.write(JSON.stringify(request) + '\n')
     })
   }
-
   /**
    * Send a one-way notification to the Electron main bridge.
    * @param method - JSON-RPC method name.
@@ -132,17 +180,10 @@ export class BridgeClient {
    */
   notify(method: string, params?: unknown): void {
     if (this.disposed) return
-    if (!this.connected) return
+    const socket = this.socket
+    if (socket === undefined || socket.readyState !== 'open') return
     const notification = { jsonrpc: '2.0', method, params }
-    this.socket.write(JSON.stringify(notification) + '\n')
-  }
-
-  /** Close the bridge socket and reject any pending requests. */
-  dispose(): void {
-    if (this.disposed) return
-    this.disposed = true
-    this.rejectAllPending(new Error('bridge client disposed'))
-    this.socket.end()
+    socket.write(JSON.stringify(notification) + '\n')
   }
 
   private settle(id: number, pending: PendingRequest, error: Error | null, result?: unknown): void {
@@ -202,9 +243,41 @@ export class BridgeClient {
     if (this.disposed) return
     this.rejectAllPending(new Error('bridge socket closed'))
     this.options.onClose()
+    this.scheduleReconnect()
   }
 
   private onError(error: Error): void {
     this.rejectAllPending(error)
+  }
+
+  /** Backoff delay for the next reconnect attempt (exponential, capped). */
+  private reconnectDelay(): number {
+    const base = this.options.reconnect?.baseDelayMs ?? 500
+    const max = this.options.reconnect?.maxDelayMs ?? 5_000
+    return Math.min(base * 2 ** this.reconnectAttempts, max)
+  }
+
+  private scheduleReconnect(): void {
+    if (this.disposed) return
+    const retries = this.options.reconnect?.retries ?? 10
+    if (this.reconnectAttempts >= retries) return
+    this.reconnectAttempts += 1
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined
+      if (this.disposed) return
+      this.connect(false)
+    }, this.reconnectDelay())
+  }
+
+  /** Close the bridge socket and reject any pending requests. */
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    if (this.reconnectTimer !== undefined) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = undefined
+    }
+    this.rejectAllPending(new Error('bridge client disposed'))
+    this.socket?.end()
   }
 }
