@@ -1,0 +1,61 @@
+{
+  "name": "@deepseek-ai/dsh-host-plugin-market",
+  "description": "Open plugin catalog seam (ctx.pluginMarket): source registration, catalog search, and managed install/uninstall with snapshot/rollback receipts for the DeepSeek Harness",
+  "version": "0.1.0-rc.8",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/host/plugin-market"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./catalog": {
+      "types": "./lib/types/catalog.d.ts",
+      "default": "./lib/catalog.js"
+    },
+    "./install": {
+      "types": "./lib/types/install.d.ts",
+      "default": "./lib/install.js"
+    },
+    "./restricted-fetch": {
+      "types": "./lib/types/restricted-fetch.d.ts",
+      "default": "./lib/restricted-fetch.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/catalog.js",
+    "lib/install.js",
+    "lib/restricted-fetch.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-brand": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-brand": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:^",
+    "zod": "^4.4.3"
+  }
+}
