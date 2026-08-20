@@ -11,6 +11,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
@@ -26,7 +27,7 @@ import {
   type ProfileManifest,
 } from '@deepseek-ai/dsh-app-boot'
 import { searchCatalog, fetchSourceManifest } from '@deepseek-ai/dsh-host-plugin-market/catalog'
-import type { CatalogQuery, PluginMarketSource } from '@deepseek-ai/dsh-host-plugin-market'
+import type { CatalogQuery, PluginMarketSource, SourceId } from '@deepseek-ai/dsh-host-plugin-market'
 import { PluginMarketError } from '@deepseek-ai/dsh-host-plugin-market'
 import { SOURCES_FILE, readSources, writeSources } from '@deepseek-ai/dsh-host-plugin-market/provider'
 import { installPlugin, previewInstall, uninstallPlugin } from '@deepseek-ai/dsh-host-plugin-market/install'
@@ -241,7 +242,11 @@ async function runMarket(profile: string, args: readonly string[]): Promise<numb
       case 'uninstall': {
         const receiptId = args[1]
         if (receiptId === undefined) return usage('uninstall <receipt-id>')
+        const before = readProfileManifest(NAME, dir)
         uninstallPlugin(dir, receiptId)
+        // Mirror the install path: a removed market package must leave the
+        // bundle layer list, or the next profile load cannot resolve it.
+        reconcilePlugins(before, dir)
         process.stdout.write(`${NAME}: uninstalled receipt ${receiptId}\n`)
         return 0
       }
@@ -268,9 +273,11 @@ async function runSourceVerb(sourcesPath: string, args: readonly string[]): Prom
       if (url === undefined) return usage('source add <manifest-url>')
       const source = await fetchSourceManifest(url)
       const existing = readSources(sourcesPath).find(candidate => candidate.providerId === source.providerId)
+      // The host identity is minted like the service provider's: a fresh UUID
+      // on first registration, the existing id preserved on re-add.
       const persisted: PluginMarketSource = {
         ...source,
-        id: existing?.id ?? source.id,
+        id: existing?.id ?? (randomUUID() as SourceId),
       }
       const next = existing === undefined ? [...readSources(sourcesPath), persisted]
         : readSources(sourcesPath).map(candidate => candidate.providerId === existing.providerId ? persisted : candidate)

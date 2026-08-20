@@ -14,7 +14,9 @@ import { restrictedFetchJson, type RestrictedFetchOptions } from './restricted-f
 export const CATALOG_PATH = '/v1/plugins'
 
 /**
- * Fetch and validate a catalog source manifest, minting its host identity.
+ * Fetch and validate a catalog source manifest. The returned id is
+ * provisional (the provider's own id); registration replaces it with a
+ * host-minted identity so the host id never mirrors a provider's claim.
  * @param manifestUrl - HTTPS URL of the source manifest.
  * @param options - fetch bounds.
  * @param resolve - DNS resolver override (tests).

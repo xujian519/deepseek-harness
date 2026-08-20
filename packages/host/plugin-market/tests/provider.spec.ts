@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginMarketSource } from '../src/index.ts'
+import { PluginMarketError } from '../src/index.ts'
 import { MarketProvider, readSources, writeSources } from '../src/provider.ts'
 
 vi.mock('node:dns/promises', () => ({
@@ -146,6 +147,28 @@ describe('install pipeline', () => {
 
   it('requires a registered source to install', async () => {
     await expect(provider.install('missing', 'dsh-p1@1.0.0')).rejects.toMatchObject({ code: 'source-not-found' })
+  })
+
+  it('refuses to uninstall a receipt belonging to another profile', async () => {
+    const receiptsDir = join(dir, '.dsh-plugin-market', 'receipts')
+    mkdirSync(receiptsDir, { recursive: true })
+    writeFileSync(join(receiptsDir, 'other.json'), JSON.stringify({
+      id: 'other', package: 'dsh-p1', version: '1.0.0', profile: '/elsewhere', installedAt: '2026-08-20T00:00:00.000Z',
+    }))
+    const error = await provider.uninstall('other').catch((caught: unknown) => caught as PluginMarketError)
+    expect(error.code).toBe('receipt-mismatch')
+    expect(error.message).toContain('/elsewhere')
+    expect(runPnpm).not.toHaveBeenCalled()
+  })
+
+  it('wraps a failed pnpm remove as install-failed and keeps the receipt', async () => {
+    writeFileSync(join(dir, 'package.json'), '{ "name": "profile" }')
+    const added = await provider.addSource('https://example.dev/manifest.json')
+    const receipt = await provider.install(added.id, 'dsh-p1@1.0.0')
+    runPnpm.mockReturnValue({ status: 1, stderr: 'remove boom' })
+    await expect(provider.uninstall(receipt.id)).rejects.toMatchObject({ code: 'install-failed' })
+    // The receipt survives a failed remove, so the uninstall stays retryable.
+    expect(await provider.listInstallations()).toHaveLength(1)
   })
 
   it('wraps install failures as install-failed', async () => {

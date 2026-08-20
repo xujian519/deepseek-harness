@@ -53,6 +53,13 @@ describe('isBlockedIpv6', () => {
     expect(isBlockedIpv6('ff02::1')).toBe(true)
   })
 
+  it('blocks IPv4-mapped literals whose embedded address is blocked', () => {
+    expect(isBlockedIpv6('::ffff:127.0.0.1')).toBe(true) // loopback
+    expect(isBlockedIpv6('::ffff:10.0.0.1')).toBe(true) // private
+    expect(isBlockedIpv6('::ffff:192.168.1.1')).toBe(true)
+    expect(isBlockedIpv6('::ffff:8.8.8.8')).toBe(false) // global
+  })
+
   it('allows global addresses', () => {
     expect(isBlockedIpv6('2606:4700::1111')).toBe(false)
   })

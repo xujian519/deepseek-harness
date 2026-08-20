@@ -8,9 +8,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReceiptId } from '../src/index.ts'
 import {
   LIFECYCLE_SCRIPTS, installPlugin, listReceipts, nodeSatisfies, parseRef,
-  previewInstall, readReceipt, receiptDirFor, restoreSnapshot, runPnpm, snapshotProfile, uninstallPlugin,
+  previewInstall, readReceipt, receiptDirFor, restoreSnapshot, runPnpm, snapshotProfile, uninstallPlugin, writeReceipt,
 } from '../src/install.ts'
 
 let dir: string
@@ -224,6 +225,17 @@ describe('installPlugin and uninstallPlugin', () => {
     const receipts = listReceipts(join(dir, '.dsh-plugin-market', 'receipts'))
     expect(receipts.map(receipt => receipt.package).sort()).toEqual(['dsh-a', 'dsh-b'])
     expect(receipts.length).toBe(2)
+  })
+
+  it('orders receipts sharing a timestamp by id', () => {
+    const receipts = join(dir, '.dsh-plugin-market', 'receipts')
+    writeReceipt(receipts, {
+      id: 'b' as ReceiptId, package: 'dsh-b', version: '1.0.0', profile: dir, installedAt: '2026-08-20T00:00:00.000Z',
+    })
+    writeReceipt(receipts, {
+      id: 'a' as ReceiptId, package: 'dsh-a', version: '1.0.0', profile: dir, installedAt: '2026-08-20T00:00:00.000Z',
+    })
+    expect(listReceipts(receipts).map(receipt => receipt.id)).toEqual(['a', 'b'])
   })
 
   it('resolves the receipts directory from options or the profile default', () => {

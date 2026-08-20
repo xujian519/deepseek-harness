@@ -14,7 +14,7 @@ import z from '@deepseek-ai/schemastery'
 import type { CatalogPage, CatalogQuery, InstallPreview, InstallReceipt, PluginMarketSource, SourceId } from './index.ts'
 import PluginMarket, { PluginMarketError } from './index.ts'
 import { fetchSourceManifest, searchCatalog } from './catalog.ts'
-import { DEFAULT_REGISTRY, installPlugin, listReceipts, previewInstall, uninstallPlugin, type InstallOptions } from './install.ts'
+import { DEFAULT_REGISTRY, installPlugin, listReceipts, previewInstall, readReceipt, receiptDirFor, uninstallPlugin, type InstallOptions } from './install.ts'
 
 /** Provider configuration; the Loader-facing schema is {@link Config}. */
 export interface ProviderConfig {
@@ -125,11 +125,26 @@ export class MarketProvider extends PluginMarket {
   }
 
   override uninstall(receiptId: string): Promise<void> {
+    const options: InstallOptions = this.config.runPnpm !== undefined ? { runPnpm: this.config.runPnpm } : {}
+    // Receipt-level failures (missing, malformed, or profile-mismatched) are
+    // the caller's input problem; a failed `pnpm remove` is an install failure.
+    let receipt: InstallReceipt
     try {
-      uninstallPlugin(this.config.profileDir, receiptId, this.config.runPnpm !== undefined ? { runPnpm: this.config.runPnpm } : {})
+      receipt = readReceipt(receiptDirFor(this.config.profileDir, options), receiptId)
+    } catch (error) {
+      /* v8 ignore next -- readReceipt throws Error instances only. */
+      return Promise.reject(new PluginMarketError('receipt-mismatch', error instanceof Error ? error.message : String(error)))
+    }
+    if (receipt.profile !== this.config.profileDir) {
+      return Promise.reject(
+        new PluginMarketError('receipt-mismatch', `receipt ${receiptId} belongs to ${receipt.profile}, not ${this.config.profileDir}`),
+      )
+    }
+    try {
+      uninstallPlugin(this.config.profileDir, receiptId, options)
     } catch (error) {
       /* v8 ignore next -- uninstallPlugin throws Error instances only. */
-      return Promise.reject(new PluginMarketError('receipt-mismatch', error instanceof Error ? error.message : String(error)))
+      return Promise.reject(new PluginMarketError('install-failed', error instanceof Error ? error.message : String(error)))
     }
     return Promise.resolve()
   }

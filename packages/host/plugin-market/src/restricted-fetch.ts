@@ -82,13 +82,21 @@ export function isBlockedIpv4(ip: string): boolean {
     || inRange(0xF0000000, 4) // 240.0.0.0/4 reserved
 }
 
-/** Whether an IPv6 literal is blocked (loopback/unspecified/ULA/link-local/multicast). */
+/**
+ * Whether an IPv6 literal is blocked: loopback/unspecified/ULA/link-local/
+ * multicast forms, plus IPv4-mapped forms whose embedded IPv4 is itself
+ * blocked (`::ffff:127.0.0.1` reaches loopback). Non-mapped forms are matched
+ * by their text prefix; exotic spellings of the same prefix (e.g. full
+ * `0:0:0:0:0:0:0:1` for loopback) are not canonicalized.
+ */
 export function isBlockedIpv6(ip: string): boolean {
-  return ip === '::1'
-    || ip === '::'
-    || ip.startsWith('fc') || ip.startsWith('fd') // fc00::/7 ULA
-    || ip.startsWith('fe8') || ip.startsWith('fe9') || ip.startsWith('fea') || ip.startsWith('feb') // fe80::/10
-    || ip.startsWith('ff') // ff00::/8 multicast
+  const lower = ip.toLowerCase()
+  if (lower.startsWith('::ffff:')) return isBlockedIpv4(lower.slice('::ffff:'.length))
+  return lower === '::1'
+    || lower === '::'
+    || lower.startsWith('fc') || lower.startsWith('fd') // fc00::/7 ULA
+    || lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb') // fe80::/10
+    || lower.startsWith('ff') // ff00::/8 multicast
 }
 
 /** Whether a hostname is blocked on sight (local names and literal blocked addresses). */
