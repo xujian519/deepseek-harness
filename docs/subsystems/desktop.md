@@ -52,30 +52,35 @@ abstract showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promi
 abstract sendNotification(notification: DesktopNotification): void
 
 /**
- * Register a menu item under a named group.
- * @param group - named menu group (e.g., `file`, `view`).
+ * Register a menu item under a named group. Items in the tray's configured
+ * menu group (`'tray'` by default) join the tray context menu; other groups
+ * become top-level application menus.
+ * @param group - named menu group (e.g., `file`, `view`, `tray`).
  * @param item - menu item to register.
- * @returns a disposer that removes the item.
+ * @returns a promise resolving to a disposer that removes the item; rejects
+ * when the bridge cannot place the item.
  */
-abstract registerMenuItem(group: string, item: DesktopMenuItem): () => void
+abstract registerMenuItem(group: string, item: DesktopMenuItem): Promise<() => void>
 
 /**
  * Register a global keyboard shortcut.
  * @param accelerator - Electron accelerator string.
  * @param handler - callback invoked when the shortcut fires.
- * @returns a disposer that unregisters the shortcut.
+ * @returns a promise resolving to a disposer that unregisters the shortcut;
+ * rejects when the accelerator is already claimed.
  */
-abstract registerGlobalShortcut(accelerator: string, handler: () => void): () => void
+abstract registerGlobalShortcut(accelerator: string, handler: () => void): Promise<() => void>
 
 /**
  * Configure the host tray icon.
  * @param config - tray configuration.
- * @returns a disposer that removes the tray.
+ * @returns a promise resolving to a disposer that removes the tray
+ * configuration; rejects when no tray is available.
  */
-abstract setTray(config: DesktopTrayConfig): () => void
+abstract setTray(config: DesktopTrayConfig): Promise<() => void>
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:118`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:125`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktop-events"></a>
 
@@ -95,7 +100,7 @@ The bridge to Electron Main was lost.
 'desktop/bridge-lost'(): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:110`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:117`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopfile-dropped--emit"></a>
 
@@ -112,7 +117,7 @@ Files were dropped on the renderer window.
 'desktop/file-dropped'(payload: { paths: string[] }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:99`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:106`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopmenu-activated--emit"></a>
 
@@ -129,7 +134,7 @@ A registered menu item was activated.
 'desktop/menu-activated'(payload: { menuId: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:81`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:88`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopnotification-clicked--emit"></a>
 
@@ -146,7 +151,7 @@ A notification was clicked.
 'desktop/notification-clicked'(payload: { notificationId: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:105`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:112`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopshortcut-triggered--emit"></a>
 
@@ -163,7 +168,7 @@ A registered global shortcut was pressed.
 'desktop/shortcut-triggered'(payload: { accelerator: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:87`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:94`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktoptray-clicked--emit"></a>
 
@@ -180,5 +185,5 @@ The tray icon was clicked.
 'desktop/tray-clicked'(payload: { button: 'left' | 'right' }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:93`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts:100`](../../packages/desktop/desktop/src/index.ts)
 <!-- END GENERATED cordis-surface -->
