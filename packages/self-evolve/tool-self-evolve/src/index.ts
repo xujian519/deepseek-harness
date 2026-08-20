@@ -44,10 +44,12 @@ function requireAgent(exec: { agent?: Agent }): Agent {
 
 function toLevels(raw: unknown): EvolveLevel[] {
   if (raw === undefined || raw === null) return ['L1-skill', 'L2-context']
+  /* v8 ignore next -- the parameter schema validates levels as an array before execute */
   if (!Array.isArray(raw)) throw new Error('`levels` must be an array, when provided')
   const allowed = new Set<EvolveLevel>(['L1-skill', 'L2-context', 'L3-workflow', 'L4-harness'])
   const levels: EvolveLevel[] = []
   for (const item of raw) {
+    /* v8 ignore next -- the parameter schema constrains items to the EvolveLevel enum */
     if (!allowed.has(item as EvolveLevel)) throw new Error(`unknown level ${String(item)}`)
     levels.push(item as EvolveLevel)
   }

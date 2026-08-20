@@ -1778,6 +1778,17 @@ describe('DirectoryBrowser', () => {
     expect(b.onClose).not.toHaveBeenCalled()
   })
 
+  it('a rejected validation surfaces the gate error and keeps the dialog open', async () => {
+    const pickNativeDirectory = vi.fn(async () => DOCS)
+    const validateDirectory = vi.fn(async () => { throw new Error('gate down') })
+    const b = mount({ pickNativeDirectory, validateDirectory })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: 'browser.nativePicker' }))
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('gate down') })
+    expect(b.onOpen).not.toHaveBeenCalled()
+    expect(b.onClose).not.toHaveBeenCalled()
+  })
+
   it('a native pick failure surfaces the error and keeps the dialog open', async () => {
     const pickNativeDirectory = vi.fn(async () => { throw new Error('chooser unavailable') })
     const b = mount({ pickNativeDirectory })

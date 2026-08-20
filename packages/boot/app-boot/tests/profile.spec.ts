@@ -14,6 +14,7 @@ import {
   ensureProfileVersionPins,
   healProfilesModuleFallback,
   initProfile,
+  installedPackageVersion,
   loadProfile,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
@@ -109,6 +110,11 @@ describe('profile version pins', () => {
     })
   })
 
+  it('installedPackageVersion returns undefined for an unresolvable package', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {} })
+    expect(installedPackageVersion(anchor, '@deepseek-ai/dsh-no-such-package')).toBeUndefined()
+  })
+
   it('loadProfile initializes a missing profile with the installation-pinned workspace', () => {
     const anchor = stageInstallation({
       '@deepseek-ai/dsh-base': { patch: '[]' },
@@ -156,6 +162,15 @@ describe('profile version pins', () => {
     expect(ensureProfileVersionPins(tmp(), anchor)).toEqual([])
   })
 
+  it('ensureProfileVersionPins tolerates an empty workspace file', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+    const dir = tmp()
+    initProfile(dir, ['@deepseek-ai/dsh-base'])
+    writeFileSync(join(dir, 'pnpm-workspace.yaml'), '')
+    expect(ensureProfileVersionPins(dir, anchor)).toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('overrides:')
+  })
+
   it('divergentProfileCoreVersions names only installed copies whose version differs', () => {
     const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
     const dir = tmp()
@@ -171,6 +186,18 @@ describe('profile version pins', () => {
     writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
       JSON.stringify({ name: '@deepseek-ai/dsh-tools', version: '0.0.0' }))
     expect(divergentProfileCoreVersions(dir, anchor)).toEqual([])
+  })
+
+  it('divergentProfileCoreVersions reports a copy missing its version field', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+    const dir = tmp()
+    initProfile(dir, ['@deepseek-ai/dsh-base'])
+    mkdirSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools'), { recursive: true })
+    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
+      JSON.stringify({ name: '@deepseek-ai/dsh-tools' }))
+    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([
+      '@deepseek-ai/dsh-tools@unknown (installation: 0.0.0)',
+    ])
   })
 })
 

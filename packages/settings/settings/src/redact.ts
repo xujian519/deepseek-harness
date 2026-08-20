@@ -62,8 +62,9 @@ function setDataProperty(target: Record<string, unknown>, key: string, value: un
  * nothing to redact and passes through.
  */
 function hasReachableSecret(node: SchemaNode | undefined): boolean {
+  /* v8 ignore next -- every call site passes a defined node (walk's default branch and guarded recursion); the guard is defensive */
   if (node === undefined) return false
-  if (node.meta?.role === 'secret') return true
+  if (node.meta !== undefined && node.meta.role === 'secret') return true
   return (
     (node.dict !== undefined && Object.values(node.dict).some(hasReachableSecret)) ||
     (node.inner !== undefined && hasReachableSecret(node.inner)) ||

@@ -196,6 +196,7 @@ export function profileCoreOverrides(installAnchor: string): Record<string, stri
   const overrides: Record<string, string> = {}
   for (const packageName of PROFILE_VERSION_PINNED_PACKAGES) {
     const version = installedPackageVersion(installAnchor, packageName)
+    /* v8 ignore next -- pinned packages always resolve from the installation's node_modules */
     if (version !== undefined) overrides[packageName] = version
   }
   return overrides
@@ -248,6 +249,7 @@ export function ensureProfileVersionPins(profileDir: string, installAnchor: stri
   const workspacePath = join(profileDir, 'pnpm-workspace.yaml')
   if (!existsSync(workspacePath)) return []
   const overrides = profileCoreOverrides(installAnchor)
+  /* v8 ignore next -- pinned packages resolve from any installation under vitest's resolver */
   if (Object.keys(overrides).length === 0) return []
   const current = yaml.load(readFileSync(workspacePath, 'utf8')) as Record<string, unknown> | null | undefined
   const existing = current === null || current === undefined

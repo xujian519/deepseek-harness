@@ -150,3 +150,89 @@ describe('self-evolve invariant brackets', () => {
     await expect(ctx.plugin(SelfEvolveInvariant)).rejects.toThrow(/has no matching end/)
   })
 })
+
+describe('self-evolve invariant payload validation', () => {
+  it('rejects a start with an empty runId', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    expect(() => {
+      session.append('self-evolve/start', {
+        runId: '',
+        sessionId: SessionId('probe'),
+        trigger: 'user-command',
+        startedAt: Date.now(),
+        levels: ['L1-skill', 'L2-context'],
+        targeting: [],
+      } as never)
+    }).toThrow(/must be a non-empty string/)
+  })
+
+  it('rejects proposing the same proposal twice', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    start(session, runId('dup'))
+    propose(session, runId('dup'), 'p1')
+    expect(() => { propose(session, runId('dup'), 'p1') }).toThrow(/already proposed/)
+  })
+
+  it('rejects validating a proposal that was never proposed', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    start(session, runId('ghost'))
+    expect(() => { validate(session, runId('ghost'), 'ghost') }).toThrow(/was never proposed/)
+  })
+
+  it('rejects committing the same proposal twice', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    start(session, runId('twice'))
+    propose(session, runId('twice'), 'p1')
+    validate(session, runId('twice'), 'p1')
+    commit(session, runId('twice'), 'p1')
+    expect(() => { commit(session, runId('twice'), 'p1') }).toThrow(/already committed/)
+  })
+
+  it('rejects an end whose committedProposalIds is not an array', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    start(session, runId('bad'))
+    expect(() => {
+      session.append('self-evolve/end', { runId: runId('bad'), committedProposalIds: 'not-an-array', endedAt: Date.now() } as never)
+    }).toThrow(/must be an array/)
+  })
+
+  it('seeds a pre-install session carrying unrelated events without complaint', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const seeded = ctx.sessions.create(SessionId('busy-session'))
+    seeded.append('turn/start', { turn: 1 })
+    seeded.append('agent/request-error', { provider: 'deepseek', model: 'v3', error: { code: 'x' } })
+    await ctx.plugin(InvariantRegistry)
+    await ctx.plugin(SelfEvolveInvariant)
+    // The unrelated events validate as no-ops; nothing is staged or failed.
+    expect(() => { ctx.emit('internal/dispatch', 'emit', 'some/unrelated', [], undefined) }).not.toThrow()
+  })
+
+  it('ignores dispatched events outside the self-evolve namespace', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    fullBracket(session, runId('ok'))
+    session.append('turn/start', { turn: 1 })
+    const turnStart = session.events.find(event => event.type === 'turn/start')
+    expect(() => {
+      ctx.emit('internal/dispatch', 'emit', 'session/event', [session, turnStart], undefined)
+    }).not.toThrow()
+  })
+
+  it('traceFor lazily seeds a raw session on dispatch', async () => {
+    const ctx = await setup()
+    const raw = Session.create(SessionId('raw-seed'))
+    fullBracket(raw, runId('raw'))
+    // A session the store never seeded still folds through the lazy path;
+    // the closing end event already sealed the bracket during seed, so the
+    // re-emitted start event validates cleanly against the empty trace.
+    expect(() => {
+      ctx.emit('internal/dispatch', 'emit', 'session/event', [raw, raw.events[0]!], undefined)
+    }).not.toThrow()
+  })
+})

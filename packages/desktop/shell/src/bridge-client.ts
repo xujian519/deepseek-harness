@@ -258,12 +258,14 @@ export class BridgeClient {
   }
 
   private scheduleReconnect(): void {
+    /* v8 ignore next -- dispose clears the timer and rejects before onClose can reach this point */
     if (this.disposed) return
     const retries = this.options.reconnect?.retries ?? 10
     if (this.reconnectAttempts >= retries) return
     this.reconnectAttempts += 1
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined
+      /* v8 ignore next -- dispose clears the timer, so the callback cannot observe it */
       if (this.disposed) return
       this.connect(false)
     }, this.reconnectDelay())

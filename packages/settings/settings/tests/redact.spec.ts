@@ -100,6 +100,7 @@ describe('redactSecrets', () => {
     expect(redactSecrets({ type: 'dict' } as never, { k: 'v' })).toEqual({ value: { k: 'v' }, secrets: [] })
     expect(redactSecrets({ type: 'object' } as never, { k: 'v' })).toEqual({ value: { k: 'v' }, secrets: [] })
     expect(redactSecrets({ type: 'array' } as never, ['v'])).toEqual({ value: ['v'], secrets: [] })
+    expect(redactSecrets({ type: 'transform' } as never, 'x')).toEqual({ value: 'x', secrets: [] })
   })
 
   it('passes scalar nodes and scalar-member unions through', () => {

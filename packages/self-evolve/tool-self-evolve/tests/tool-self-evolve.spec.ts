@@ -8,6 +8,7 @@ type RegisteredTool = {
   name: string
   description: string
   parameters: Record<string, unknown>
+  output: { schema: unknown; render: (args: Record<string, unknown>, value: unknown) => unknown }
   execute: (args: Record<string, unknown>, exec: { agent?: Agent; signal: AbortSignal }) => Promise<unknown>
 }
 
@@ -131,5 +132,79 @@ describe('self_evolve_now', () => {
     await expect(tool.execute({ levels: ['L5-magic'] }, { agent: fakeAgent(), signal: new AbortController().signal }))
       .rejects.toThrow(/invalid arguments/)
     expect(engine.evolveNow).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-array levels argument', async () => {
+    const engine = { readPatterns: vi.fn(), evolveNow: vi.fn() }
+    const { tools } = setup(engine)
+    const tool = tools.find(t => t.name === 'self_evolve_now')!
+    await expect(tool.execute({ levels: 'L1-skill' }, { agent: fakeAgent(), signal: new AbortController().signal }))
+      .rejects.toThrow(/must be an array/)
+    expect(engine.evolveNow).not.toHaveBeenCalled()
+  })
+
+  it('maps proposals and commits into the model-facing result', async () => {
+    const mapped: SelfEvolveResult = {
+      runId: 'run-1' as never,
+      trigger: 'user-command',
+      patterns: [],
+      proposals: [{
+        proposalId: 'p-1',
+        level: 'L1-skill',
+        name: 'guard',
+        addressesPatternIds: ['L1-skill:abc'],
+        purpose: 'p',
+        runId: 'run-1' as never,
+        candidate: { kind: 'L1-skill', skillName: 'guard', content: 'c' },
+      }],
+      commits: [{
+        proposal: { proposalId: 'p-1', level: 'L1-skill', name: 'guard', addressesPatternIds: [], purpose: 'p', runId: 'run-1' as never, candidate: { kind: 'L1-skill', skillName: 'guard', content: 'c' } },
+        validation: { kind: 'accepted', heldInPassed: 1, heldOutPassed: 1, regressions: [], deconstructedScores: { activatesWhenCorrect: 1, clarity: 1, noRegressionIntroduced: 1, safety: 1 }, confidence: 1, replayEvidence: [], nextRoundSuggestion: '' },
+        commitSeq: 5,
+      }],
+      startSeq: 1,
+      endSeq: 6,
+    }
+    const engine = { readPatterns: vi.fn(), evolveNow: vi.fn(async () => mapped) }
+    const { tools } = setup(engine)
+    const tool = tools.find(t => t.name === 'self_evolve_now')!
+    const value = await tool.execute({}, { agent: fakeAgent(), signal: new AbortController().signal }) as Record<string, unknown>
+    expect(value.proposals).toEqual([{
+      proposalId: 'p-1', level: 'L1-skill', name: 'guard', addressesPatternIds: ['L1-skill:abc'],
+    }])
+    expect(value.commits).toEqual([{ proposalId: 'p-1', regressions: 0 }])
+    expect(value.patternsMined).toBe(0)
+  })
+
+  it('translates a busy-agent guard error into a model-facing message', async () => {
+    const engine = {
+      readPatterns: vi.fn(),
+      evolveNow: vi.fn(async () => { throw new Error('agent already has active work') }),
+    }
+    const { tools } = setup(engine)
+    const tool = tools.find(t => t.name === 'self_evolve_now')!
+    await expect(tool.execute({}, { agent: fakeAgent(), signal: new AbortController().signal }))
+      .rejects.toThrow(/already running for this agent/)
+  })
+
+  it('rethrows errors that are not busy-agent guards', async () => {
+    const engine = {
+      readPatterns: vi.fn(),
+      evolveNow: vi.fn(async () => { throw new Error('provider unavailable') }),
+    }
+    const { tools } = setup(engine)
+    const tool = tools.find(t => t.name === 'self_evolve_now')!
+    await expect(tool.execute({}, { agent: fakeAgent(), signal: new AbortController().signal }))
+      .rejects.toThrow(/provider unavailable/)
+  })
+
+  it('renders both tool outputs as indented JSON', () => {
+    const { tools } = setup({ readPatterns: vi.fn(), evolveNow: vi.fn() })
+    const inspect = tools.find(t => t.name === 'self_evolve_inspect_patterns')!
+    const inspectRender = inspect.output.render({}, { patterns: [] })
+    expect(inspectRender).toEqual([{ type: 'text', text: JSON.stringify({ patterns: [] }, null, 2) }])
+    const now = tools.find(t => t.name === 'self_evolve_now')!
+    const nowRender = now.output.render({}, { runId: 'r' })
+    expect(nowRender).toEqual([{ type: 'text', text: JSON.stringify({ runId: 'r' }, null, 2) }])
   })
 })

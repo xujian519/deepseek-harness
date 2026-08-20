@@ -63,6 +63,7 @@ type ClassifiedFailure = {
 }
 
 function toNarrowLevel(tier: VerifierTier): EvolveLevel {
+  /* v8 ignore start -- every call site passes the fallback tier 'tool-runtime'; the other mappings are type-completeness */
   switch (tier) {
     case 'subprocess-exit':
     case 'tool-runtime':
@@ -72,6 +73,7 @@ function toNarrowLevel(tier: VerifierTier): EvolveLevel {
     case 'agent-loop':
       return 'L4-harness'
   }
+  /* v8 ignore stop */
 }
 
 const B32_CHARS = 'abcdefghijklmnopqrstuvwxyz234567'
@@ -90,6 +92,7 @@ function sha1Base32(input: string): string {
       out += B32_CHARS.charAt((buffer >>> bits) & 31)
     }
   }
+  /* v8 ignore next -- sha1 digests are always 160 bits, a multiple of the 5-bit alphabet; the trailing group never fires */
   if (bits > 0) out += B32_CHARS.charAt((buffer << (5 - bits)) & 31)
   return out
 }
@@ -147,6 +150,7 @@ export function parseShellMarkers(text: string): ShellFailureMark | null {
   const signal = /(?:^|\n)\[killed by signal: ([A-Z0-9]+)\]$/.exec(text)
   if (signal !== null) {
     const signalName = signal[1]
+    /* v8 ignore next -- the marker regex requires the capture group, so a match always yields a signal name */
     if (signalName === undefined) return null
     return { kind: 'signal', signal: signalName, ...shellSignature(text, signal.index, `signal=${signalName}`) }
   }
@@ -316,6 +320,7 @@ function foldToolCall(state: FailurePatternsState, event: SessionEvent): Failure
         oldestKey = key
       }
     }
+    /* v8 ignore next -- every key was just inserted, so the oldest scan always finds a defined entry */
     if (oldestKey !== undefined) {
       const pruned: Record<string, { name: string; seq: number }> = {}
       for (const key of keys) {

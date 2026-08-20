@@ -73,6 +73,7 @@ export default class DesktopShell extends Desktop {
     return (): void => {
       this.menuRegistrations.delete(key)
       const current = this.bridge
+      /* v8 ignore next -- registration requires a bridge, so the disposer always sees one */
       if (current !== undefined) current.notify('desktop/unregisterMenuItem', { group, id: item.id })
     }
   }
@@ -84,6 +85,7 @@ export default class DesktopShell extends Desktop {
     return (): void => {
       this.shortcutRegistrations.delete(accelerator)
       const current = this.bridge
+      /* v8 ignore next -- registration requires a bridge, so the disposer always sees one */
       if (current !== undefined) current.notify('desktop/unregisterGlobalShortcut', { accelerator })
     }
   }
@@ -94,6 +96,7 @@ export default class DesktopShell extends Desktop {
     const disposer = (): void => {
       if (this.trayRegistration?.disposer === disposer) this.trayRegistration = undefined
       const current = this.bridge
+      /* v8 ignore next -- registration requires a bridge, so the disposer always sees one */
       if (current !== undefined) current.notify('desktop/clearTray', {})
     }
     this.trayRegistration = { config, disposer }

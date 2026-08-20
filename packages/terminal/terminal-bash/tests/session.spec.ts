@@ -329,6 +329,23 @@ describe('LocalPtySession readiness and output', () => {
     expect((await operation.done).waitReason).toBe('stdin_read')
   })
 
+  it('tolerates a failed CPR reply write', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = makeSession(terminal, new FakeInspector(), config())
+    await initialize(session, terminal)
+
+    const operation = session.startSend({ text: 'echo x', submit: true })
+    await vi.advanceTimersByTimeAsync(10)
+    const write = vi.spyOn(terminal, 'write').mockRejectedValueOnce(new Error('write failed'))
+    terminal.emitData('\x1b[6n')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(write).toHaveBeenCalledWith('\x1b[1;1R')
+    terminal.emitData('x\r\n\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
   it('cancels with foreground-group SIGINT, observes AbortSignal, and contains write failures', async () => {
     vi.useFakeTimers()
     const terminal = new FakeTerminal()

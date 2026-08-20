@@ -132,8 +132,10 @@ function applyTransition(trace: Map<string, OpenRun>, transition: RunTransition)
     case 'commit': {
       // validateEvent guarantees proposalId for these kinds; skip defensively
       // so an invariant-validated transition can never throw here.
+      /* v8 ignore next -- validateEvent guarantees proposalId for these kinds */
       if (transition.proposalId === undefined) break
       const entry = trace.get(runId)
+      /* v8 ignore next -- requireOpen guarantees the trace entry for validated transitions */
       if (entry === undefined) break
       switch (transition.kind) {
         case 'proposed':

@@ -78,9 +78,19 @@ describe('createEgoDownloadRunner', () => {
     await expect(runner(request())).rejects.toMatchObject({ code: 'setup_required' })
   })
 
+  it('throws setup_required with the fallback reason when none is provided', async () => {
+    const runner = createEgoDownloadRunner(okSession({ checkAvailability: () => ({ ok: false }) }))
+    await expect(runner(request())).rejects.toThrow('ego-browser 不可用')
+  })
+
   it('throws tool_execution_failed when runScript rejects', async () => {
     const runner = createEgoDownloadRunner(okSession({ runScript: async () => { throw new Error('spawn boom') } }))
     await expect(runner(request())).rejects.toMatchObject({ code: 'tool_execution_failed' })
+  })
+
+  it('stringifies a non-Error runScript rejection', async () => {
+    const runner = createEgoDownloadRunner(okSession({ runScript: async () => { throw 'spawn boom' } }))
+    await expect(runner(request())).rejects.toThrow('spawn boom')
   })
 
   it('throws tool_execution_failed on timeout', async () => {

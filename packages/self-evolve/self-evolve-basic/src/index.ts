@@ -1142,6 +1142,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         }
         break
       }
+      /* v8 ignore next -- candidate.kind is a closed union of the four switch cases */
       default:
         throw new Error('applyCommit: unsupported candidate kind')
     }

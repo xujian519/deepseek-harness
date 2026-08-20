@@ -289,6 +289,7 @@ describe('translate: errors', () => {
     ['non-number tool-call index', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: '0' }] } }] })],
     ['non-string tool-call id', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 5 }] } }] })],
     ['non-object tool-call function', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: 'f' }] } }] })],
+    ['non-string tool-call name', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { name: 5 } }] } }] })],
     ['non-string arguments fragment', JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 42 } }] } }] })],
     ['non-object usage', JSON.stringify({ choices: [], usage: 42 })],
     ['non-number usage counts', JSON.stringify({ choices: [], usage: { prompt_tokens: '5', completion_tokens: 2 } })],

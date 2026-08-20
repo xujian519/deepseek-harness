@@ -3,8 +3,10 @@ import { z } from 'zod'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import {
   FAILURE_PATTERNS_PROJECTION_KEY,
+  extractText,
   failurePatternsProjectionDefinition,
   foldEvent,
+  parseShellMarkers,
 } from '../src/failure-projection.ts'
 import type { FailurePattern } from '../src/types.ts'
 
@@ -275,5 +277,204 @@ describe('P3.1 reflection folding', () => {
       suggestion: 'x',
     })
     expect(patternsOf(folded(session))).toHaveLength(0)
+  })
+})
+
+describe('extractText and parseShellMarkers edge surfaces', () => {
+  it('extractText returns empty for non-array content', () => {
+    expect(extractText('plain string')).toBe('')
+    expect(extractText(undefined)).toBe('')
+    expect(extractText(null)).toBe('')
+  })
+
+  it('extractText joins text blocks and skips non-text blocks', () => {
+    expect(extractText([
+      { type: 'image', url: 'x.png' },
+      { type: 'text', text: 'hello' },
+      { type: 'text', text: 42 },
+      'bare string',
+    ])).toBe('hello')
+  })
+
+  it('parseShellMarkers returns null when no trailing marker exists', () => {
+    expect(parseShellMarkers('no markers here')).toBeNull()
+    expect(parseShellMarkers('')).toBeNull()
+  })
+})
+
+describe('classifier edge surfaces', () => {
+  it('a tool/result without a message payload is not classified', () => {
+    const session = sessionFactory()
+    session.append('tool/result', { turn: 1, step: 1, error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
+    expect(patternsOf(folded(session))).toHaveLength(0)
+  })
+
+  it('a tool/result with a null or non-object message is not classified', () => {
+    const session = sessionFactory()
+    session.append('tool/result', { turn: 1, step: 1, message: null, error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
+    session.append('tool/result', { turn: 1, step: 1, message: 'bare', error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
+    expect(patternsOf(folded(session))).toHaveLength(0)
+  })
+
+  it('an empty error name degrades to generic-error', () => {
+    const session = sessionFactory()
+    const callSeq = session.append('tool/call', { turn: 1, step: 1, callId: 'c1' as never, name: 'read', arguments: '{}' }).seq
+    session.append('tool/result', {
+      turn: 1,
+      step: 1,
+      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope' }] } as never,
+      error: { name: '', code: 'E_EMPTY' },
+    }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('generic-error')
+  })
+
+  it('an error tool/result without a paired call names the tool unknown-tool', () => {
+    const session = sessionFactory()
+    session.append('tool/result', {
+      turn: 1,
+      step: 1,
+      message: { role: 'tool', content: [{ type: 'text', text: 'nope' }] } as never,
+      error: { name: 'ReadDenied', code: 'E_DENIED' },
+    }, { surfaceOp: 'append' })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.summary).toBe('tool unknown-tool error: ReadDenied')
+  })
+
+  it('agent/request-error with only a numeric status uses the status as signature', () => {
+    const session = sessionFactory()
+    session.append('agent/request-error', { provider: 'deepseek', model: 'v3', error: {}, statusCode: 503 })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('503')
+  })
+
+  it('agent/request-error with only an error name uses the name as signature', () => {
+    const session = sessionFactory()
+    session.append('agent/request-error', { provider: 'deepseek', model: 'v3', error: { name: 'TimeoutError' } })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('TimeoutError')
+  })
+
+  it('agent/request-error with no usable fields degrades to unknown-request-error', () => {
+    const session = sessionFactory()
+    session.append('agent/request-error', { provider: 'deepseek', model: 'v3', error: {} })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('unknown-request-error')
+  })
+
+  it('compaction/end error text without a colon keeps the whole text as signature', () => {
+    const session = sessionFactory()
+    session.append('compaction/end', { compactionId: 'x' as never, turn: 1, error: 'overflow' })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('overflow')
+  })
+
+  it('compaction/end whitespace-only error degrades to compaction-error', () => {
+    const session = sessionFactory()
+    session.append('compaction/end', { compactionId: 'x' as never, turn: 1, error: '   ' })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('compaction-error')
+  })
+
+  it('self-evolve/end with a non-string error degrades to self-evolve-error', () => {
+    const session = sessionFactory()
+    session.append('self-evolve/end', { runId: 'r-1' as never, committedProposalIds: [], error: { message: 'boom' } as never, endedAt: Date.now() })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('self-evolve-error')
+  })
+
+  it('self-evolve/end with whitespace-only error degrades to self-evolve-error', () => {
+    const session = sessionFactory()
+    session.append('self-evolve/end', { runId: 'r-2' as never, committedProposalIds: [], error: '   ', endedAt: Date.now() })
+    const pattern = patternsOf(folded(session))[0]
+    expect(pattern?.causalSignature).toBe('self-evolve-error')
+  })
+})
+
+describe('fold stability for repeated events', () => {
+  it('re-folding the same failure event keeps supportingSeqs stable and bumps occurrences', () => {
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', 'bash', '[stderr]\nboom\n[exit code: 1]')
+    const resultEvent = session.events.at(-1)!
+    const state = folded(session)
+    expect(patternsOf(state)[0]?.supportingSeqs).toHaveLength(1)
+    const [pattern] = patternsOf(foldEvent(state, resultEvent))
+    expect(pattern!.occurrences).toBe(2)
+    expect(pattern!.supportingSeqs).toHaveLength(1)
+  })
+
+  it('re-folding the same reflection event keeps supportingSeqs stable', () => {
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', 'bash', '[stderr]\nboom\n[exit code: 1]')
+    const [before] = patternsOf(folded(session))
+    session.append('self-evolve/reflection', {
+      turn: 1,
+      step: 2,
+      patternId: before!.patternId,
+      confidence: 0.9,
+      suggestion: 'x',
+    })
+    const reflectionEvent = session.events.at(-1)!
+    const state = folded(session)
+    const [after] = patternsOf(foldEvent(state, reflectionEvent))
+    expect(after!.occurrences).toBe(before!.occurrences + 2)
+    expect(after!.supportingSeqs).toEqual([...before!.supportingSeqs, reflectionEvent.seq])
+  })
+
+  it('a reflection with a non-string patternId is ignored', () => {
+    const session = sessionFactory()
+    session.append('self-evolve/reflection', { turn: 1, step: 1, patternId: 123, confidence: 0.9, suggestion: 'x' } as never)
+    expect(patternsOf(folded(session))).toHaveLength(0)
+  })
+})
+
+describe('tool-call identity folding', () => {
+  it('a tool/call without a usable callId is ignored', () => {
+    const session = sessionFactory()
+    session.append('tool/call', { turn: 1, step: 1, callId: '' as never, name: 'bash', arguments: '{}' })
+    const state = folded(session)
+    expect(Object.keys(state.toolCalls)).toHaveLength(0)
+  })
+
+  it('a tool/call with an empty name degrades to unknown-tool', () => {
+    const session = sessionFactory()
+    session.append('tool/call', { turn: 1, step: 1, callId: 'c1' as never, name: '', arguments: '{}' })
+    const state = folded(session)
+    expect(state.toolCalls['c1']?.name).toBe('unknown-tool')
+  })
+
+  it('re-folding the identical tool/call event returns the same state', () => {
+    const session = sessionFactory()
+    session.append('tool/call', { turn: 1, step: 1, callId: 'dup' as never, name: 'bash', arguments: '{}' })
+    const event = session.events[0]!
+    const state = folded(session)
+    expect(foldEvent(state, event)).toBe(state)
+  })
+
+  it('a reused callId with a different tool name re-registers the identity', () => {
+    const session = sessionFactory()
+    session.append('tool/call', { turn: 1, step: 1, callId: 'c1' as never, name: 'bash', arguments: '{}' })
+    session.append('tool/call', { turn: 1, step: 1, callId: 'c1' as never, name: 'git', arguments: '{}' })
+    const state = folded(session)
+    expect(state.toolCalls['c1']?.name).toBe('git')
+  })
+
+  it('a reused callId with a new seq re-registers the identity', () => {
+    const session = sessionFactory()
+    session.append('tool/call', { turn: 1, step: 1, callId: 'c1' as never, name: 'bash', arguments: '{}' })
+    session.append('tool/call', { turn: 2, step: 1, callId: 'c1' as never, name: 'bash', arguments: '{}' })
+    const state = folded(session)
+    expect(state.toolCalls['c1']?.seq).toBe(session.events[1]!.seq)
+  })
+
+  it('tool-call identity tracking prunes the oldest entry past 64 calls', () => {
+    const session = sessionFactory()
+    for (let i = 0; i < 65; i += 1) {
+      session.append('tool/call', { turn: 1, step: 1, callId: `c-${i}` as never, name: 'bash', arguments: '{}' })
+    }
+    const state = folded(session)
+    expect(Object.keys(state.toolCalls)).toHaveLength(64)
+    expect(state.toolCalls['c-0']).toBeUndefined()
+    expect(state.toolCalls['c-64']?.name).toBe('bash')
   })
 })

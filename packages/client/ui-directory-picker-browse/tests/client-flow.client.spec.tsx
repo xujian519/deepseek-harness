@@ -8,7 +8,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { apply, inject } from '../src/client/index.ts'
-import { BrowseDirectoryFlow } from '../src/client/flow.ts'
+import { BrowseDirectoryFlow, type BrowseFlowInjected } from '../src/client/flow.ts'
 import { apply as nodeApply } from '../src/index.ts'
 
 // The service reads its initial locale from the browser; these specs assert
@@ -188,6 +188,29 @@ describe('directory-picker-browse client half', () => {
     expect(b.createDirectory).toHaveBeenCalledWith(HOME, 'fresh')
   })
 
+  it('injects desktop chooser hooks when the sandboxed preload exposes them', async () => {
+    const b = await bench()
+    b.declare()
+    const pick = vi.fn(async () => HOME)
+    const validate = vi.fn(async () => true)
+    const globals = window as unknown as Record<string, unknown>
+    const originalPick = globals.__DSH_DESKTOP_PICK_DIRECTORY__
+    const originalValidate = globals.__DSH_DESKTOP_VALIDATE_DIRECTORY__
+    globals.__DSH_DESKTOP_PICK_DIRECTORY__ = pick
+    globals.__DSH_DESKTOP_VALIDATE_DIRECTORY__ = validate
+    try {
+      await b.ctx.plugin({ inject: [...inject], apply }).await()
+      const entry = b.slots.entries(HOLES[0])[0]!
+      const injected = (entry.inject as () => BrowseFlowInjected)()
+      expect(injected.pickNativeDirectory).toBe(pick)
+      expect(injected.validateDirectory).toBe(validate)
+    } finally {
+      globals.__DSH_DESKTOP_PICK_DIRECTORY__ = originalPick
+      globals.__DSH_DESKTOP_VALIDATE_DIRECTORY__ = originalValidate
+      await b.ctx.fiber.dispose()
+    }
+  })
+
   it('adapts the owner conversation onto the dialog: confirm picks, dismissal cancels', async () => {
     const props = owner()
     const listDirectory = vi.fn(async (): Promise<DirectoryListing> => homeListing)
@@ -208,6 +231,26 @@ describe('directory-picker-browse client half', () => {
     fireEvent.click(screen.getByRole('button', { name: 'browser.cancel' }))
     expect(props.onCancel).toHaveBeenCalled()
     expect(props.onError).not.toHaveBeenCalled()
+  })
+
+  it('forwards native-pick and validation injections when the owner supplies them', async () => {
+    const props = owner()
+    const pickNativeDirectory = vi.fn(async () => HOME)
+    const validateDirectory = vi.fn(async () => true)
+    render(
+      <BrowseDirectoryFlow
+        {...props}
+        listDirectory={vi.fn(async (): Promise<DirectoryListing> => homeListing)}
+        createDirectory={vi.fn(async () => '')}
+        pickNativeDirectory={pickNativeDirectory}
+        validateDirectory={validateDirectory}
+        t={key => key}
+      />,
+    )
+    const native = screen.getByRole<HTMLButtonElement>('button', { name: 'browser.nativePicker' })
+    fireEvent.click(native)
+    expect(pickNativeDirectory).toHaveBeenCalled()
+    await waitFor(() => { expect(props.onPicked).toHaveBeenCalledWith(HOME) })
   })
 
   it('renders nothing while the flow is closed', () => {

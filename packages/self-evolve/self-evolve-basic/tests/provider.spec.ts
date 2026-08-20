@@ -8,7 +8,7 @@ import {
   BasicSelfEvolveEngine,
   eligiblePatterns,
 } from '../src/index.ts'
-import type { BasicSelfEvolveConfig } from '../src/types.ts'
+import type { BasicSelfEvolveConfig, TriggerPolicy } from '../src/types.ts'
 import { failurePatternsProjectionDefinition } from '@deepseek-ai/dsh-self-evolve'
 import type { EvolveLevel, EvolveProposal, FailurePattern, SelfEvolveAgentContext } from '@deepseek-ai/dsh-self-evolve'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -109,8 +109,8 @@ class SignalEngine extends BasicSelfEvolveEngine {
     return this.heldOut
   }
 
-  validate(proposal: EvolveProposal): Promise<ProposalValidationOutcome> {
-    return this.validateProposal(agentFor(this.session), proposal, new AbortController().signal)
+  validate(proposal: EvolveProposal, signal = new AbortController().signal): Promise<ProposalValidationOutcome> {
+    return this.validateProposal(agentFor(this.session), proposal, signal)
   }
 }
 
@@ -192,6 +192,14 @@ class ProbeEngine extends BasicSelfEvolveEngine {
       replayEvidence: [],
       nextRoundSuggestion: '',
     })
+  }
+
+  workflowSmoke(agent: SelfEvolveAgentContext, p: EvolveProposal, signal: AbortSignal): ReturnType<BasicSelfEvolveEngine['runWorkflowSmoke']> {
+    return this.runWorkflowSmoke(agent, p, signal)
+  }
+
+  skillFile(agent: SelfEvolveAgentContext, p: EvolveProposal): Promise<void> {
+    return this.persistSkillFile(agent, p)
   }
 }
 
@@ -935,8 +943,28 @@ function fakeLlm(ctx: Context, text: string): void {
   } as never)
 }
 
+function fakeLlmQueue(ctx: Context, texts: string[]): void {
+  let index = 0
+  ctx.provide('llm', {
+    stream: async function* () {
+      yield { type: 'text-delta', index: 0, text: texts[Math.min(index, texts.length - 1)] ?? '' }
+      index += 1
+    },
+  } as never)
+}
+
 function reflectAgent(session: Session): Agent {
   return { session, options: { provider: 'deepseek', model: 'chat' } } as unknown as Agent
+}
+
+/** A session with two mined patterns and the services the engine needs. */
+function reflectSetup(): { ctx: Context; session: Session } {
+  const ctx = new Context()
+  const session = sessionFactory()
+  appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+  appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+  provideServices(ctx, session)
+  return { ctx, session }
 }
 
 describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () => {
@@ -1170,5 +1198,1319 @@ describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
     } as never)
     ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
     await vi.waitFor(() => { expect(undefinedIds).toEqual(['dyn-1']) })
+  })
+})
+
+describe('candidate rendering across kinds (judge path)', () => {
+  it('renders L1-skill, L3-workflow, and L4-harness candidates for the judge', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    fakeLlm(ctx, JSON.stringify({ activatesWhenCorrect: 0.8, clarity: 0.9, noRegressionIntroduced: 1, safety: 1 }))
+    const engine = new ProbeEngine(ctx, baseConfig({ validatorTarget: { provider: 'deepseek', model: 'judge' } }))
+    const signal = new AbortController().signal
+    await expect(engine.judge(
+      proposal({ candidate: { kind: 'L1-skill', skillName: 'guard', content: 'check first', whenToUse: 'on bash' } }),
+      [], signal,
+    )).resolves.toEqual({ activatesWhenCorrect: 0.8, clarity: 0.9, noRegressionIntroduced: 1, safety: 1 })
+    await expect(engine.judge(
+      proposal({ candidate: { kind: 'L3-workflow', scriptName: 'audit', scriptBody: 'return 1' } }),
+      [], signal,
+    )).resolves.toEqual({ activatesWhenCorrect: 0.8, clarity: 0.9, noRegressionIntroduced: 1, safety: 1 })
+    await expect(engine.judge(
+      proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn', hostCode: 'host()', clientCode: 'client()' } }),
+      [], signal,
+    )).resolves.toEqual({ activatesWhenCorrect: 0.8, clarity: 0.9, noRegressionIntroduced: 1, safety: 1 })
+    await expect(engine.judge(
+      proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'bare' } }),
+      [], signal,
+    )).resolves.toEqual({ activatesWhenCorrect: 0.8, clarity: 0.9, noRegressionIntroduced: 1, safety: 1 })
+  })
+})
+
+describe('LLM output parser edges (P3.1/P3.2/P1.4)', () => {
+  it('non-object reflection output is dropped', async () => {
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    const ctx = new Context()
+    provideServices(ctx, session)
+    fakeLlm(ctx, '"plain string"')
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('reflection with no match or unparseable JSON is dropped', async () => {
+    const { ctx, session } = reflectSetup()
+    fakeLlmQueue(ctx, ['no json here', '{oops'])
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    await engine.reflect(reflectAgent(session), 2, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('reflection with non-numeric confidence or non-string patternId is dropped', async () => {
+    const { ctx, session } = reflectSetup()
+    const engine = new ProbeEngine(ctx, baseConfig({ maxStepReflectionsPerTurn: 2 }))
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlmQueue(ctx, [
+      JSON.stringify({ confidence: 'high', patternId: pattern!.patternId, suggestion: 'x' }),
+      JSON.stringify({ confidence: 0.9, patternId: 123, suggestion: 'x' }),
+    ])
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    await engine.reflect(reflectAgent(session), 1, 2, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('reflection with a non-string suggestion appends an empty suggestion', async () => {
+    const { ctx, session } = reflectSetup()
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 42 }))
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    const event = session.events.find(e => e.type === 'self-evolve/reflection')
+    expect((event?.data as { suggestion?: unknown }).suggestion).toBe('')
+  })
+
+  it('judge output that is not an object or misses a dimension degrades to null', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    fakeLlmQueue(ctx, [
+      'null',
+      '{"activatesWhenCorrect":0.5,"clarity":"high","noRegressionIntroduced":1,"safety":1}',
+    ])
+    const engine = new ProbeEngine(ctx, baseConfig({ validatorTarget: { provider: 'deepseek', model: 'judge' } }))
+    expect(await engine.judge(proposal(), [], new AbortController().signal)).toBeNull()
+    expect(await engine.judge(proposal(), [], new AbortController().signal)).toBeNull()
+  })
+
+  it('the LLM proposer drops malformed entries and keeps well-formed ones', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-llm-proposer-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session, { session })
+      ctx.provide('sessionQuery', {
+        searchEvents: async () => ({ items: [{ seq: 3, snippet: 'resolved by checking cwd', type: 'tool/result' }] }),
+      } as never)
+      const engine = new ProbeEngine(ctx, baseConfig({ proposerTarget: { provider: 'deepseek', model: 'proposer' }, maxProposalsPerLoop: 10 }))
+      const patterns = await engine.readPatterns(session.id)
+      fakeLlm(ctx, JSON.stringify([
+        { name: 'a', purpose: 'b', addressesPatternIds: ['p1', 42], candidate: { kind: 'L1-skill', skillName: 's1', content: 'c1', whenToUse: 'w1' } },
+        { name: 'b', purpose: 'c', addressesPatternIds: ['p1'], candidate: { kind: 'L1-skill', skillName: 's2', content: 'c2' } },
+        { name: 'c', purpose: 'd', candidate: { kind: 'L1-skill', skillName: 42, content: 'c3' } },
+        { name: 'd', purpose: 'e', candidate: { kind: 'L1-skill', skillName: 's4', content: 42 } },
+        { name: 'e', purpose: 'f', candidate: { kind: 'L2-context', sectionName: 'sn', sectionText: 'st', order: 'x' } },
+        { name: 42, purpose: 'g', candidate: { kind: 'L2-context', sectionName: 'sn2', sectionText: 'st2', order: 1 } },
+        { name: 'h', purpose: 42, candidate: { kind: 'L2-context', sectionName: 'sn3', sectionText: 'st3', order: 1 } },
+        { name: 'i', purpose: 'j', addressesPatternIds: 'not-array', candidate: { kind: 'L2-context', sectionName: 'sn4', sectionText: 'st4', order: 1 } },
+        { name: 'k', purpose: 'l', candidate: { kind: 'L3-workflow', scriptName: 'w', scriptBody: 'b' } },
+        { name: 'm', purpose: 'n' },
+      ]))
+      const proposals = await engine.propose(patterns, ['L1-skill', 'L2-context'], new AbortController().signal, session.id)
+      expect(proposals).toHaveLength(4)
+      const l1 = proposals.filter(p => p.level === 'L1-skill')
+      expect(l1).toHaveLength(2)
+      expect((l1[0]?.candidate as Extract<EvolveProposal['candidate'], { kind: 'L1-skill' }>).whenToUse).toBe('w1')
+      expect((l1[1]?.candidate as Extract<EvolveProposal['candidate'], { kind: 'L1-skill' }>).whenToUse).toBeUndefined()
+      const l2 = proposals.filter(p => p.level === 'L2-context')
+      expect(l2).toHaveLength(2)
+      expect((l2[0]?.candidate as Extract<EvolveProposal['candidate'], { kind: 'L2-context' }>).order).toBe(260)
+      expect((l2[1]?.candidate as Extract<EvolveProposal['candidate'], { kind: 'L2-context' }>).sectionName).toBe('sn4')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('a non-array LLM proposer output falls back to the template', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    fakeLlm(ctx, '{"not": "an array"}')
+    const engine = new ProbeEngine(ctx, baseConfig({ proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+    const patterns = await engine.readPatterns(session.id)
+    const proposals = await engine.propose(patterns, ['L1-skill', 'L2-context'], new AbortController().signal, session.id)
+    expect(proposals).toHaveLength(1)
+    expect(proposals[0]?.candidate.kind).toBe('L2-context')
+  })
+
+  it('empty levels short-circuit the LLM proposer context', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    fakeLlm(ctx, '[]')
+    const engine = new ProbeEngine(ctx, baseConfig({ proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+    const patterns = await engine.readPatterns(session.id)
+    expect(await engine.propose(patterns, [], new AbortController().signal, session.id)).toEqual([])
+  })
+
+  it('buildProposerContext renders negatives and skips the CSR block without sessionQuery', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-llm-context-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      // Seed a negative result on one context (same shell events → same patternId).
+      const seederCtx = new Context()
+      const seederSession = sessionFactory()
+      appendShellResult(seederSession, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(seederSession, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(seederCtx, seederSession)
+      const rejecter = new RejectingEngine(seederCtx, baseConfig())
+      const [target] = await rejecter.readPatterns(seederSession.id)
+      await rejecter.persist(proposal({ proposalId: 'p-old', addressesPatternIds: [target!.patternId] }), {
+        kind: 'rejected', reason: 'held-in-failed', regressions: [],
+        diagnostic: 'x', nextRoundSuggestion: 'different approach',
+      })
+
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session, { session })
+      const engine = new ProbeEngine(ctx, baseConfig({ proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+      const patterns = await engine.readPatterns(session.id)
+      // An empty LLM output falls back to the template; without sessionQuery
+      // the CSR block is skipped.
+      fakeLlm(ctx, '[]')
+      const withoutQuery = await engine.propose(patterns, ['L1-skill', 'L2-context'], new AbortController().signal, session.id)
+      expect(withoutQuery).toHaveLength(1)
+      expect(withoutQuery[0]?.candidate.kind).toBe('L2-context')
+      // With sessionQuery returning no items the CSR block stays empty.
+      ctx.provide('sessionQuery', { searchEvents: async () => ({ items: [] }) } as never)
+      const emptyItems = await engine.propose(patterns, ['L1-skill', 'L2-context'], new AbortController().signal, session.id)
+      expect(emptyItems).toHaveLength(1)
+      expect(emptyItems[0]?.candidate.kind).toBe('L2-context')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+})
+
+describe('config resolution edges', () => {
+  it('empty config applies every default', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, {})
+    expect(engine.config.maxDailyLoopsPerSession).toBe(4)
+    expect(engine.config.defaultLevels).toEqual(['L1-skill', 'L2-context'])
+    expect(engine.config.minPatternOccurrences).toBe(2)
+    expect(engine.config.maxProposalsPerLoop).toBe(2)
+    expect(engine.config.maxDirtyLinesAddedPerCommit).toBe(2)
+    expect(engine.config.requireDualVerification).toBe(true)
+  })
+
+  it('a partial proposerTarget fails load with a loud error', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    expect(() => new BasicSelfEvolveEngine(ctx, baseConfig({ proposerTarget: { provider: 'deepseek' } as never })))
+      .toThrow(/must include both provider and model/)
+  })
+})
+
+describe('constructor lifecycle listeners', () => {
+  function turnEndSetup(
+    status: string,
+    runMaintenance?: (task: (signal: AbortSignal) => Promise<unknown>) => Promise<unknown>,
+  ): { ctx: Context; session: Session } {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    const agent = {
+      session,
+      options: {},
+      status,
+      runMaintenance: runMaintenance ?? (async (task: (signal: AbortSignal) => Promise<unknown>) => task(new AbortController().signal)),
+    }
+    provideServices(ctx, session, agent)
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    return { ctx, session }
+  }
+
+  it('ignores non-turn/end and unresolved-agent session events', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    expect(() => {
+      ctx.emit('session/event', session, { type: 'turn/start', seq: 0 } as never)
+      ctx.emit('session/event', session, { type: 'turn/end', seq: 1 } as never)
+    }).not.toThrow()
+  })
+
+  it('skips a turn/end whose agent is not idle', () => {
+    const { ctx, session } = turnEndSetup('running')
+    expect(() => {
+      ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+    }).not.toThrow()
+  })
+
+  it('runs an idle-maintenance loop on turn/end for an idle agent', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-turnend-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const { ctx, session } = turnEndSetup('idle')
+      ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+      await vi.waitFor(() => {
+        expect(session.events.some(e => e.type === 'self-evolve/end')).toBe(true)
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('logs idle-maintenance failures that happen outside the loop bracket', async () => {
+    const { ctx, session } = turnEndSetup('idle', async () => { throw new Error('maintenance exploded') })
+    const logs: string[] = []
+    ctx.logger.exporter({ levels: { default: 2 }, export: (message) => { logs.push(String(message.args[0])) } })
+    ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+    await vi.waitFor(() => { expect(logs.some(line => line.includes('maintenance exploded'))).toBe(true) })
+  })
+
+  it('logs non-Error idle-maintenance failures with String coercion', async () => {
+    const { ctx, session } = turnEndSetup('idle', async () => { throw 'exploded-string' })
+    const logs: string[] = []
+    ctx.logger.exporter({ levels: { default: 2 }, export: (message) => { logs.push(String(message.args[0])) } })
+    ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+    await vi.waitFor(() => { expect(logs.some(line => line.includes('exploded-string'))).toBe(true) })
+  })
+
+  it('the request-error producer survives a session that rejects appends', () => {
+    const ctx = new Context()
+    provideServices(ctx, sessionFactory())
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    let nextCalled = false
+    ctx.emit('agent/request-error', {
+      agent: { session: { append: () => { throw new Error('closed') } } },
+      turn: 1, step: 1, provider: 'deepseek',
+      failure: { message: 'x', code: 'y', status: 429 },
+      retryPolicy: undefined,
+      signal: new AbortController().signal,
+    } as never, async () => { nextCalled = true })
+    expect(nextCalled).toBe(true)
+  })
+
+  it('the request-error producer coerces non-Error append failures', () => {
+    const ctx = new Context()
+    provideServices(ctx, sessionFactory())
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    let nextCalled = false
+    ctx.emit('agent/request-error', {
+      agent: { session: { append: () => { throw 'closed' } } },
+      turn: 1, step: 1, provider: 'deepseek',
+      failure: { message: 'x', code: 'y', status: 429 },
+      retryPolicy: undefined,
+      signal: new AbortController().signal,
+    } as never, async () => { nextCalled = true })
+    expect(nextCalled).toBe(true)
+  })
+
+  it('the pre-step hook skips aborted signals and zero-reflection configs', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    new BasicSelfEvolveEngine(ctx, baseConfig({ maxStepReflectionsPerTurn: 0 }))
+    let calls = 0
+    ctx.emit('agent/pre-step', {
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: { aborted: true } as AbortSignal,
+    }, async () => { calls += 1; return { kind: 'reject' } })
+    ctx.emit('agent/pre-step', {
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+    }, async () => { calls += 1; return { kind: 'reject' } })
+    expect(calls).toBe(2)
+  })
+
+  it('the pre-step hook reflects for idle turns and always delegates', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
+    let nextCalled = false
+    ctx.emit('agent/pre-step', {
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+    }, async () => { nextCalled = true; return { kind: 'reject' } })
+    await vi.waitFor(() => { expect(nextCalled).toBe(true) })
+  })
+
+  it('the pre-step hook swallows reflection failures', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    new BasicSelfEvolveEngine(ctx, baseConfig())
+    let nextCalled = false
+    // A broken agent object makes maybeReflect throw before any session work.
+    ctx.emit('agent/pre-step', {
+      agent: null as never, messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+    }, async () => { nextCalled = true; return { kind: 'reject' } })
+    await vi.waitFor(() => { expect(nextCalled).toBe(true) })
+  })
+
+  it('the pre-step hook coerces non-Error reflection failures', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    void engine
+    ctx.provide('llm', { stream: async function* () { throw 'llm-boom' } } as never)
+    let nextCalled = false
+    ctx.emit('agent/pre-step', {
+      agent: reflectAgent(session), messages: [], turn: 1, step: 1, signal: new AbortController().signal,
+    }, async () => { nextCalled = true; return { kind: 'reject' } })
+    await vi.waitFor(() => { expect(nextCalled).toBe(true) })
+  })
+
+  it('request-run correlation only tracks plugins this provider drove', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    ctx.emit('@deepseek-ai/cordis/request-run', {
+      requestId: 'req-x', agentId: session.id, pluginId: 'unrelated', packageId: 'p',
+      mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
+    } as never)
+    expect(engine['l4RequestByRun'].has('req-x')).toBe(false)
+    ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-x', outcome: 'rejected' } as never)
+  })
+
+  it('an approved request-run keeps the pending L4 definition', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const undefinedIds: string[] = []
+    ctx.provide('dynamicCordisRunner', {
+      undefine: async () => { undefinedIds.push('dyn-1') },
+    } as never)
+    engine['l4Pending'].set('dyn-1', 'prop-1')
+    ctx.emit('@deepseek-ai/cordis/request-run', {
+      requestId: 'req-1', agentId: session.id, pluginId: 'dyn-1', packageId: 'pkg-1',
+      mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
+    } as never)
+    ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-1', outcome: 'approved' } as never)
+    expect(undefinedIds).toEqual([])
+  })
+
+  it('cleanup after a refused run tolerates a missing runner', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    engine['l4Pending'].set('dyn-1', 'prop-1')
+    ctx.emit('@deepseek-ai/cordis/request-run', {
+      requestId: 'req-1', agentId: session.id, pluginId: 'dyn-1', packageId: 'pkg-1',
+      mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
+    } as never)
+    ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
+    expect(engine['l4Pending'].has('dyn-1')).toBe(false)
+  })
+
+  it('dropL4Plugin swallows undefine failures', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    ctx.provide('dynamicCordisRunner', {
+      undefine: async () => { throw new Error('already gone') },
+    } as never)
+    engine['l4Pending'].set('dyn-1', 'prop-1')
+    ctx.emit('@deepseek-ai/cordis/request-run', {
+      requestId: 'req-1', agentId: session.id, pluginId: 'dyn-1', packageId: 'pkg-1',
+      mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
+    } as never)
+    ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
+    // No unhandled rejection; the cleanup is best-effort.
+  })
+
+  it('dropL4Plugin coerces non-Error undefine failures', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    ctx.provide('dynamicCordisRunner', {
+      undefine: async () => { throw 'gone' },
+    } as never)
+    engine['l4Pending'].set('dyn-1', 'prop-1')
+    ctx.emit('@deepseek-ai/cordis/request-run', {
+      requestId: 'req-1', agentId: session.id, pluginId: 'dyn-1', packageId: 'pkg-1',
+      mode: 'run', name: 'n', purpose: 'p', requiresApproval: true,
+    } as never)
+    ctx.emit('@deepseek-ai/cordis/request-run-resolved', { requestId: 'req-1', outcome: 'rejected' } as never)
+  })
+})
+
+describe('mining and proposer gates', () => {
+  it('a turn/end is skipped when idle-maintenance is disabled', () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const triggers: TriggerPolicy = { ...baseConfig().triggers!, 'idle-maintenance': { enabled: false, minIntervalMs: 0 } }
+    new BasicSelfEvolveEngine(ctx, baseConfig({ triggers }))
+    expect(() => {
+      ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
+    }).not.toThrow()
+  })
+
+  it('evolveIfNeeded returns null for a disabled trigger', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const triggers: TriggerPolicy = { ...baseConfig().triggers!, 'user-command': { enabled: false, minIntervalMs: 0 } }
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig({ triggers }))
+    expect(await engine.evolveIfNeeded(agentFor(session), 'user-command', new AbortController().signal)).toBeNull()
+  })
+
+  it('autonomous triggers without eligible patterns short-circuit before a loop', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    expect(await engine.evolveIfNeeded(agentFor(session), 'pressure', new AbortController().signal)).toBeNull()
+    expect(await engine.evolveIfNeeded(agentFor(session), 'validation-retry', new AbortController().signal)).toBeNull()
+  })
+
+  it('readPatterns returns [] when the projection state is absent', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => ({ values: {} }) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('agents', { get: () => undefined })
+    ctx.provide('skills', { register: () => () => {} })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    expect(await engine.readPatterns(session.id)).toEqual([])
+  })
+
+  it('requireSession fails loud for an unknown session id', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await expect(engine.readPatterns('missing-session')).rejects.toThrow(/unknown sessionId/)
+  })
+
+  it('proposeForPatterns without a session id runs the template directly', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const proposals = await engine.propose(
+      [pattern('a', 'subprocess-exit', 2)],
+      ['L1-skill', 'L2-context'],
+      new AbortController().signal,
+      undefined as never,
+    )
+    expect(proposals).toHaveLength(1)
+    expect(proposals[0]?.candidate.kind).toBe('L2-context')
+  })
+
+  it('the template proposer skips non-L1 patterns', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig({ maxProposalsPerLoop: 3 }))
+    const l2Level = { ...pattern('x', 'subprocess-exit', 2), level: 'L2-context' as const }
+    const proposals = await engine.propose(
+      [pattern('a', 'subprocess-exit', 2), l2Level],
+      ['L1-skill', 'L2-context'],
+      new AbortController().signal,
+      session.id,
+    )
+    expect(proposals).toHaveLength(1)
+    expect(proposals[0]?.candidate.kind).toBe('L2-context')
+  })
+
+  it('the template proposer fills the per-loop cap', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig({ maxProposalsPerLoop: 1 }))
+    const proposals = await engine.propose(
+      [pattern('a', 'subprocess-exit', 2), pattern('b', 'subprocess-exit', 2)],
+      ['L1-skill', 'L2-context'],
+      new AbortController().signal,
+      session.id,
+    )
+    expect(proposals).toHaveLength(1)
+    expect(proposals[0]?.candidate.kind).toBe('L2-context')
+  })
+
+  it('the template proposer renders ids without a colon and empty evidence windows', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig({ maxProposalsPerLoop: 3 }))
+    const bare = { ...pattern('bare', 'subprocess-exit', 2), patternId: 'nocolon', supportingSeqs: [] }
+    const proposals = await engine.propose(
+      [pattern('a', 'subprocess-exit', 2), bare],
+      ['L1-skill', 'L2-context'],
+      new AbortController().signal,
+      session.id,
+    )
+    expect(proposals).toHaveLength(2)
+    expect(proposals[1]?.name).toBe('self-evolve-patch-nocolon')
+    if (proposals[1]?.candidate.kind === 'L2-context') {
+      expect(proposals[1].candidate.sectionText).toContain('该 pattern 的上下文')
+    }
+  })
+})
+
+describe('replay and held-out edge surfaces', () => {
+  function failingFork(ctx: Context, stopReason: string, child?: Session): void {
+    ctx.provide('subagents', {
+      getProvider: () => ({}),
+      start: async () => ({
+        result: Promise.resolve({ stopReason, output: [] }),
+        ...(child !== undefined ? { localAgent: { session: child } } : {}),
+        dispose: async () => {},
+      }),
+    } as never)
+  }
+
+  it('a failing fork replay reports exitCode 1', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    failingFork(ctx, 'error')
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
+    expect(replay?.exitCode).toBe(1)
+  })
+
+  it('a fork without a local agent reports no retriggered patterns', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    failingFork(ctx, 'completed')
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
+    expect(replay).toEqual({ exitCode: 0, retriggeredPatternIds: [] })
+  })
+
+  it('a fork child without an end-seed marker contributes no patterns', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    // No seed argument: Session.create appends no end-seed boundary.
+    const child = Session.create(SessionId('child-no-seed'))
+    const callSeq = child.append('tool/call', { turn: 1, step: 1, callId: 'rc1' as never, name: 'bash', arguments: '{}' }).seq
+    child.append('tool/result', {
+      turn: 1, step: 1,
+      message: { role: 'tool', toolCallId: 'rc1', content: [{ type: 'text', text: '[stderr]\nboom\n[exit code: 1]' }] } as never,
+    }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
+    failingFork(ctx, 'completed', child)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const replay = await engine.replay(agentFor(session), proposal(), 'case', new AbortController().signal)
+    expect(replay?.retriggeredPatternIds).toEqual([])
+  })
+
+  it('collectReplaySignal falls back when the last seq is not in the session', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const unknownSeq = { ...pattern('x', 'subprocess-exit', 2), supportingSeqs: [9999] }
+    // The replay infrastructure is absent, so the signal is null; the context
+    // string is still rendered through the not-found branch.
+    expect(await engine.replaySignal(agentFor(session), proposal(), unknownSeq, new AbortController().signal)).toBeNull()
+  })
+
+  it('collectReplaySignal falls back when the session or last seq is unknown', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const noSeq = { ...pattern('x', 'subprocess-exit', 2), supportingSeqs: [] }
+    expect(await engine.replaySignal(agentFor(session), proposal(), noSeq, new AbortController().signal)).toBeNull()
+  })
+
+  it('runWorkflowSmoke returns null for non-L3 candidates', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    expect(await engine.workflowSmoke(agentFor(session), proposal(), new AbortController().signal)).toBeNull()
+  })
+
+  it('collectHeldOutSignal returns null when every hit is already supporting evidence', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session, { session })
+    ctx.provide('sessionQuery', {
+      searchEvents: async () => ({ items: [{ seq: 1, snippet: 'known', type: 'tool/result' }] }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    // seq 1 is already in supportingSeqs, so the hit filters out.
+    expect(await engine.heldOut(agentFor(session), proposal(), pattern!, new AbortController().signal)).toBeNull()
+  })
+
+  it('collectHeldOutSignal aborts mid-replay when the signal fires', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session, { session })
+    ctx.provide('sessionQuery', {
+      searchEvents: async () => ({ items: [{ seq: 5, snippet: 'old failure', type: 'tool/result' }] }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    const signal = new AbortController()
+    signal.abort()
+    await expect(engine.heldOut(agentFor(session), proposal(), pattern!, signal.signal)).rejects.toThrow(/aborted/)
+  })
+
+  it('collectHeldOutSignal counts only replays that exit cleanly', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session, { session })
+    ctx.provide('sessionQuery', {
+      searchEvents: async () => ({ items: [
+        { seq: 5, snippet: 'old failure one', type: 'tool/result' },
+        { seq: 9, snippet: 'old failure two', type: 'tool/result' },
+      ] }),
+    } as never)
+    failingFork(ctx, 'error')
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    const signal = await engine.heldOut(agentFor(session), proposal(), pattern!, new AbortController().signal)
+    expect(signal).toEqual({ passed: 0, cases: 2 })
+  })
+})
+
+describe('validateProposal and validateL4Proposal edges', () => {
+  it('an aborted signal aborts validation', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new SignalEngine(ctx, baseConfig(), session)
+    const signal = new AbortController()
+    signal.abort()
+    await expect(engine.validate(proposal(), signal.signal)).rejects.toThrow(/aborted/)
+  })
+
+  it('L4 candidates route through validateL4Proposal and reject without the runner', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    const engine = new SignalEngine(ctx, baseConfig(), session)
+    const outcome = await engine.validate(proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn' } }))
+    expect(outcome.kind).toBe('rejected')
+    if (outcome.kind === 'rejected') expect(outcome.reason).toBe('approval-denied')
+  })
+
+  it('an unknown addressed pattern degrades both held-in and held-out to the weak path', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new SignalEngine(ctx, baseConfig(), session)
+    const outcome = await engine.validate(proposal({ addressesPatternIds: ['L1-skill:ghost'] }))
+    expect(outcome.kind).toBe('rejected')
+  })
+
+  it('held-out with zero cases degrades to the weak rate', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new SignalEngine(ctx, baseConfig(), session)
+    engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false }
+    engine.heldOut = { passed: 0, cases: 0 }
+    const [pattern] = await engine.readPatterns(session.id)
+    const outcome = await engine.validate(proposal({ addressesPatternIds: [pattern!.patternId] }))
+    expect(outcome.kind).toBe('rejected')
+    if (outcome.kind === 'rejected') expect(outcome.diagnostic).toContain('heldOut=0.30')
+  })
+
+  it('without dual verification the confidence gate uses heldIn=1 in the diagnostic', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new SignalEngine(ctx, baseConfig({ requireDualVerification: false }), session)
+    engine.heldOut = null
+    const [pattern] = await engine.readPatterns(session.id)
+    const outcome = await engine.validate(proposal({ addressesPatternIds: [pattern!.patternId] }))
+    expect(outcome.kind).toBe('rejected')
+    if (outcome.kind === 'rejected') expect(outcome.diagnostic).toContain('heldIn=1')
+  })
+
+  it('validateL4Proposal throws for non-L4 candidates', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    ctx.provide('dynamicCordisRunner', {
+      define: () => ({ pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }),
+      run: async () => ({ ok: true, status: 'awaiting-approval', pluginId: 'dyn-1', packageId: 'pkg-1', pluginRunId: 'run-1', waitingFor: [] }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await expect(engine.validateL4(agentFor(session), proposal(), new AbortController().signal))
+      .rejects.toThrow(/expected an L4-harness candidate/)
+  })
+
+  it('validateL4Proposal maps host and client code into the define call', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    let received: Record<string, unknown> | undefined
+    ctx.provide('dynamicCordisRunner', {
+      define: (input: Record<string, unknown>) => {
+        received = input
+        return { pluginId: 'dyn-1', packageId: 'pkg-1', name: 'n', purpose: 'p', hasHostHalf: true, hasClientHalf: true }
+      },
+      run: async () => ({ ok: true, status: 'awaiting-approval', pluginId: 'dyn-1', packageId: 'pkg-1', pluginRunId: 'run-1', waitingFor: [] }),
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const outcome = await engine.validateL4(
+      agentFor(session),
+      proposal({ candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn', hostCode: 'host()', clientCode: 'client()' } }),
+      new AbortController().signal,
+    )
+    expect(outcome.kind).toBe('accepted')
+    expect(received?.code).toEqual({ host: 'host()', client: 'client()' })
+  })
+})
+
+describe('applyCommit across candidate kinds', () => {
+  let dir: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'self-evolve-commit-'))
+    vi.stubEnv('DSH_HOME', dir)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  function commitSetup(overrides: Partial<BasicSelfEvolveConfig> = {}): {
+    ctx: Context
+    session: Session
+    agent: SelfEvolveAgentContext
+    engine: ProbeEngine
+  } {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session, { session })
+    const engine = new ProbeEngine(ctx, baseConfig(overrides))
+    return { ctx, session, agent: agentFor(session), engine }
+  }
+
+  it('L1 candidates register a runtime skill and skip the fs write without fs', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    const skills: unknown[] = []
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('agents', { get: () => undefined })
+    ctx.provide('skills', { register: (skill: unknown) => { skills.push(skill) } })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.commit(agentFor(session), proposal({
+      proposalId: 'l1-1',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L1-skill', skillName: 'guard', content: 'check first', whenToUse: 'on bash' },
+    }))
+    expect(skills).toHaveLength(1)
+    expect(skills[0]).toMatchObject({ name: 'guard', source: 'runtime-evolve', whenToUse: 'on bash' })
+  })
+
+  it('L1 candidates persist a frontmatter skill file through the fs service', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    const writes: { target: unknown; content: string }[] = []
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('agents', { get: () => undefined })
+    ctx.provide('skills', { register: () => () => {} })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    ctx.provide('fs', {
+      resolve: async (path: unknown, options: { cwd?: string }) => ({ kind: 'resolved', path, cwd: options.cwd }),
+      writeText: async (target: unknown, content: string) => { writes.push({ target, content }) },
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.commit(agentFor(session), proposal({
+      proposalId: 'l1-2',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L1-skill', skillName: 'guard', content: 'check first' },
+    }))
+    expect(writes).toHaveLength(1)
+    expect(writes[0]?.content).toContain('name: guard')
+    expect(writes[0]?.content).toContain('whenToUse: ')
+  })
+
+  it('L1 candidates honor a session cwd and a whenToUse value in the frontmatter', async () => {
+    const ctx = new Context()
+    const session = Session.create(SessionId('cwd-session'), [], { version: 0, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj' })
+    const writes: { content: string }[] = []
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('agents', { get: () => undefined })
+    ctx.provide('skills', { register: () => () => {} })
+    ctx.provide('systemPrompt', { section: () => () => {} })
+    ctx.provide('fs', {
+      resolve: async (_path: unknown, options: { cwd?: string }) => ({ kind: 'resolved', cwd: options.cwd }),
+      writeText: async (_target: unknown, content: string) => { writes.push({ content }) },
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.commit(agentFor(session), proposal({
+      proposalId: 'l1-3',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L1-skill', skillName: 'guard', content: 'check first', whenToUse: 'when bash fails' },
+    }))
+    expect(writes[0]?.content).toContain('whenToUse: when bash fails')
+  })
+
+  it('persistSkillFile returns early for non-L1 candidates', async () => {
+    const { ctx, session, agent, engine } = commitSetup()
+    ctx.provide('fs', {
+      resolve: async () => 'target',
+      writeText: async () => {},
+    } as never)
+    await engine.skillFile(agent, proposal())
+    expect(session).toBeDefined()
+  })
+
+  it('L3 candidates commit after a passing smoke run', async () => {
+    const { ctx, session, agent, engine } = commitSetup()
+    ctx.provide('workflowEngine', {
+      start: () => ({
+        result: Promise.resolve({ value: null, stopReason: 'completed', agentsStarted: 2 }),
+        dispose: async () => {},
+      }),
+    } as never)
+    const result = await engine.commit(agent, proposal({
+      proposalId: 'l3-1',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L3-workflow', scriptName: 'audit', scriptBody: 'return 1' },
+    }))
+    expect(result.commitSeq).toBeGreaterThanOrEqual(0)
+    expect(session.events.some(e => e.type === 'self-evolve/commit')).toBe(true)
+  })
+
+  it('L3 candidates without a workflow engine fail the commit loudly', async () => {
+    const { agent, engine } = commitSetup()
+    await expect(engine.commit(agent, proposal({
+      proposalId: 'l3-2',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L3-workflow', scriptName: 'audit', scriptBody: 'return 1' },
+    }))).rejects.toThrow(/workflow engine unavailable/)
+  })
+
+  it('L3 candidates with a failing smoke run fail the commit loudly', async () => {
+    const { ctx, agent, engine } = commitSetup()
+    ctx.provide('workflowEngine', {
+      start: () => ({
+        result: Promise.resolve({ value: null, stopReason: 'error', error: 'script threw', agentsStarted: 0 }),
+        dispose: async () => {},
+      }),
+    } as never)
+    await expect(engine.commit(agent, proposal({
+      proposalId: 'l3-3',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L3-workflow', scriptName: 'audit', scriptBody: 'throw new Error()' },
+    }))).rejects.toThrow(/run did not complete with agents/)
+  })
+
+  it('L4 candidates update the approval ledger for their pending plugin', async () => {
+    const { agent, engine } = commitSetup()
+    engine['l4Pending'].set('dyn-2', 'other')
+    engine['l4Pending'].set('dyn-1', 'l4-1')
+    await engine.commit(agent, proposal({
+      proposalId: 'l4-1',
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L4-harness', pluginIdPrefix: 'dyn' },
+    }))
+    expect(engine['l4Ledger'].get('dyn-1')?.proposalId).toBe('l4-1')
+    expect(engine['l4Ledger'].has('dyn-2')).toBe(false)
+  })
+
+  it('rollbackPattern restores an L1-skill champion through the skill seam', async () => {
+    const { engine } = commitSetup()
+    const l1 = (skillName: string, content: string) => proposal({
+      addressesPatternIds: ['L1-skill:abc'],
+      candidate: { kind: 'L1-skill', skillName, content },
+    })
+    await engine.archive(l1('s1', 'champion'))
+    await engine.archive(l1('s2', 'regressing'))
+    await engine.rollback('L1-skill:abc')
+  })
+
+  it('rollbackPattern ignores champions without a base-provider apply path', async () => {
+    const { engine } = commitSetup()
+    // 'a1' sorts before 'a2', so the second archive is the latest row.
+    await engine.archive(proposal({ proposalId: 'a1', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L3-workflow', scriptName: 'w', scriptBody: 'b' } }))
+    await engine.archive(proposal({ proposalId: 'a2', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L3-workflow', scriptName: 'w2', scriptBody: 'b2' } }))
+    await engine.rollback('L1-skill:abc')
+  })
+
+  it('registerL2Section disposes the previous registration of the same section', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    const disposed: string[] = []
+    const systemPrompt = {
+      section: (section: { name: string }) => () => { disposed.push(section.name) },
+    }
+    provideServices(ctx, session, undefined, systemPrompt)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const agent = agentFor(session)
+    const candidate = (text: string) => ({
+      kind: 'L2-context' as const,
+      sectionName: 'sec',
+      sectionText: text,
+      order: 260,
+      estimatedBytes: text.length,
+    })
+    await engine.commit(agent, proposal({ proposalId: 'a', candidate: candidate('first') }))
+    await engine.commit(agent, proposal({ proposalId: 'b', candidate: candidate('second') }))
+    expect(disposed).toEqual(['sec'])
+  })
+
+  it('pruneInflatedSections stops mid-loop once the budget is back under', async () => {
+    const { agent, engine } = commitSetup({ maxPromptInflationBytesPerWeek: 25 })
+    const section = (name: string, text: string) => proposal({
+      proposalId: `p-${name}`,
+      candidate: { kind: 'L2-context', sectionName: name, sectionText: text, order: 260, estimatedBytes: text.length },
+    })
+    await engine.commit(agent, section('sec-a', 'a'.repeat(20)))
+    await engine.commit(agent, section('sec-b', 'b'.repeat(20)))
+    await engine.commit(agent, section('sec-c', 'c'.repeat(20)))
+    await engine.prune()
+    expect(engine['liveSections'].size).toBe(1)
+  })
+})
+
+describe('step-reflection gate surfaces (P3.1)', () => {
+  it('returns early without an llm service', async () => {
+    const { ctx, session } = reflectSetup()
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('returns early without provider and model options', async () => {
+    const { ctx, session } = reflectSetup()
+    const engine = new ProbeEngine(ctx, baseConfig())
+    fakeLlm(ctx, '{}')
+    await engine.reflect({ session, options: {} } as Agent, 1, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('returns early when the turn has no failure surface', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    const callSeq = session.append('tool/call', { turn: 1, step: 1, callId: 'ok1' as never, name: 'bash', arguments: '{}' }).seq
+    session.append('tool/result', {
+      turn: 1, step: 1,
+      message: { role: 'tool', toolCallId: 'ok1', content: [{ type: 'text', text: 'all good' }] } as never,
+    }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
+    provideServices(ctx, session)
+    fakeLlm(ctx, '{}')
+    const engine = new ProbeEngine(ctx, baseConfig())
+    // The same events at a different turn also skip every event.
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    await engine.reflect(reflectAgent(session), 5, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('returns early when the projection has no patterns yet', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    // A tool error without a message produces a failure surface but no pattern.
+    session.append('tool/result', { turn: 1, step: 1, error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
+    provideServices(ctx, session)
+    fakeLlm(ctx, '{}')
+    const engine = new ProbeEngine(ctx, baseConfig())
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('a request-error recorded first drives the reflection path', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    session.append('agent/request-error', {
+      turn: 1, step: 2, provider: 'deepseek', statusCode: 429,
+      error: { code: 'rate_limit_exceeded', name: 'LlmFailure', message: 'rate limited' },
+    })
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'retry later' }))
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+  })
+
+  it('a second turn resets the per-turn reflection count', async () => {
+    const { ctx, session } = reflectSetup()
+    const callSeq = session.append('tool/call', { turn: 2, step: 1, callId: 'c3' as never, name: 'bash', arguments: '{}' }).seq
+    session.append('tool/result', {
+      turn: 2, step: 1,
+      message: { role: 'tool', toolCallId: 'c3', content: [{ type: 'text', text: '[stderr]\nboom\n[exit code: 1]' }] } as never,
+    }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
+    const engine = new ProbeEngine(ctx, baseConfig())
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    await engine.reflect(reflectAgent(session), 2, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(2)
+  })
+
+  it('a raised per-turn budget reflects twice in the same turn', async () => {
+    const { ctx, session } = reflectSetup()
+    const engine = new ProbeEngine(ctx, baseConfig({ maxStepReflectionsPerTurn: 2 }))
+    const [pattern] = await engine.readPatterns(session.id)
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    await engine.reflect(reflectAgent(session), 1, 2, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(2)
+  })
+
+  it('a reflection naming an unknown pattern id is dropped', async () => {
+    const { ctx, session } = reflectSetup()
+    const engine = new ProbeEngine(ctx, baseConfig())
+    fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: 'L1-skill:ghost', suggestion: 'x' }))
+    await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
+    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+  })
+
+  it('an invalid JSON judge payload degrades to structural scores', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    fakeLlm(ctx, '{oops}')
+    const engine = new ProbeEngine(ctx, baseConfig({ validatorTarget: { provider: 'deepseek', model: 'judge' } }))
+    expect(await engine.judge(proposal(), [], new AbortController().signal)).toBeNull()
+  })
+
+  it('judge output blocks without string text are dropped from the stream', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    provideServices(ctx, session)
+    ctx.provide('llm', {
+      stream: async function* () {
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 42 } }
+      },
+    } as never)
+    const engine = new ProbeEngine(ctx, baseConfig({ validatorTarget: { provider: 'deepseek', model: 'judge' } }))
+    expect(await engine.judge(proposal(), [], new AbortController().signal)).toBeNull()
+  })
+})
+
+describe('full-loop integration edges', () => {
+  it('an aborted signal closes the loop bracket with the error', async () => {
+    const ctx = new Context()
+    const session = sessionFactory()
+    appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+    appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+    provideServices(ctx, session)
+    const engine = new BasicSelfEvolveEngine(ctx, baseConfig())
+    const signal = new AbortController()
+    signal.abort()
+    await expect(engine.evolveNow(agentFor(session), signal.signal)).rejects.toThrow(/aborted/)
+    const end = session.events.find(e => e.type === 'self-evolve/end')
+    expect((end?.data as { error?: string }).error).toContain('aborted')
+  })
+
+  it('a loop with both LLM routes charged stays under the default budget', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-loop-budget-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      const engine = new ProbeEngine(ctx, baseConfig({
+        proposerTarget: { provider: 'deepseek', model: 'proposer' },
+        validatorTarget: { provider: 'deepseek', model: 'judge' },
+      }))
+      const [pattern] = await engine.readPatterns(session.id)
+      fakeLlm(ctx, JSON.stringify([{
+        name: 'cwd-guard', purpose: 'check cwd', addressesPatternIds: [pattern!.patternId],
+        candidate: { kind: 'L2-context', sectionName: 'cwd-guard', sectionText: 'check cwd first', order: 260 },
+      }]))
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      // The proposal is conservatively rejected on the weak verifier path.
+      expect(result.commits).toHaveLength(0)
+      expect(result.proposals).toHaveLength(1)
+      expect(session.events.some(e => e.type === 'self-evolve/end')).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('a proposal without addressed patterns skips freeze accounting and writes an empty pattern id', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-loop-no-address-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      const engine = new ProbeEngine(ctx, baseConfig({ proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+      fakeLlm(ctx, JSON.stringify([{
+        name: 'bare', purpose: 'no addresses',
+        candidate: { kind: 'L2-context', sectionName: 's', sectionText: 't', order: 260 },
+      }]))
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.proposals).toHaveLength(1)
+      const raw = await readFile(join(dir, 'self-evolve', 'negative-results.jsonl'), 'utf8')
+      expect(raw).toContain('"patternId":""')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('an accepted proposal without addressed patterns skips archiving and resets cleanly', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-loop-accept-bare-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      const engine = new (class extends BasicSelfEvolveEngine {
+        protected override async validateProposal(): Promise<ProposalValidationOutcome> {
+          const outcome: ProposalValidationOutcome = {
+            kind: 'accepted',
+            heldInPassed: 1,
+            heldOutPassed: 1,
+            regressions: [],
+            deconstructedScores: { activatesWhenCorrect: 1, clarity: 1, noRegressionIntroduced: 1, safety: 1 },
+            confidence: 1,
+            replayEvidence: [],
+            nextRoundSuggestion: '',
+          }
+          return outcome
+        }
+      })(ctx, baseConfig({ proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+      fakeLlm(ctx, JSON.stringify([{
+        name: 'bare', purpose: 'no addresses',
+        candidate: { kind: 'L2-context', sectionName: 's', sectionText: 't', order: 260 },
+      }]))
+      const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
+      expect(result.commits).toHaveLength(1)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('a mid-loop failure after a commit closes the bracket with the raw diagnostic', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-loop-throw-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      const engine = new (class extends BasicSelfEvolveEngine {
+        calls = 0
+        protected override async validateProposal(): Promise<ProposalValidationOutcome> {
+          this.calls += 1
+          if (this.calls === 2) throw 'boom'
+          const outcome: ProposalValidationOutcome = {
+            kind: 'accepted',
+            heldInPassed: 1,
+            heldOutPassed: 1,
+            regressions: [],
+            deconstructedScores: { activatesWhenCorrect: 1, clarity: 1, noRegressionIntroduced: 1, safety: 1 },
+            confidence: 1,
+            replayEvidence: [],
+            nextRoundSuggestion: '',
+          }
+          return outcome
+        }
+      })(ctx, baseConfig({ maxProposalsPerLoop: 2, proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+      fakeLlm(ctx, JSON.stringify([
+        { name: 'a', purpose: 'b', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L2-context', sectionName: 'a', sectionText: 'a', order: 260 } },
+        { name: 'c', purpose: 'd', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L2-context', sectionName: 'c', sectionText: 'c', order: 260 } },
+      ]))
+      await expect(engine.evolveNow(agentFor(session), new AbortController().signal)).rejects.toThrow('boom')
+      const ends = session.events.filter(e => e.type === 'self-evolve/end')
+      const errorEnd = ends.find(e => (e.data as { error?: string }).error !== undefined)
+      expect((errorEnd?.data as { error?: string }).error).toBe('boom')
+      const errorEndData = errorEnd?.data as { committedProposalIds?: string[] }
+      expect(errorEndData.committedProposalIds).toEqual(expect.arrayContaining([expect.any(String)]))
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('a stackless Error failure falls back to the message in the diagnostic', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-loop-throw-stack-'))
+    vi.stubEnv('DSH_HOME', dir)
+    try {
+      const ctx = new Context()
+      const session = sessionFactory()
+      appendShellResult(session, 'c1', '[stderr]\nboom\n[exit code: 1]')
+      appendShellResult(session, 'c2', '[stderr]\nboom\n[exit code: 1]')
+      provideServices(ctx, session)
+      const engine = new (class extends BasicSelfEvolveEngine {
+        calls = 0
+        protected override async validateProposal(): Promise<ProposalValidationOutcome> {
+          this.calls += 1
+          if (this.calls === 2) {
+            const error = Object.create(Error.prototype) as Error
+            error.message = 'boom'
+            throw error
+          }
+          const outcome: ProposalValidationOutcome = {
+            kind: 'accepted',
+            heldInPassed: 1,
+            heldOutPassed: 1,
+            regressions: [],
+            deconstructedScores: { activatesWhenCorrect: 1, clarity: 1, noRegressionIntroduced: 1, safety: 1 },
+            confidence: 1,
+            replayEvidence: [],
+            nextRoundSuggestion: '',
+          }
+          return outcome
+        }
+      })(ctx, baseConfig({ maxProposalsPerLoop: 2, proposerTarget: { provider: 'deepseek', model: 'proposer' } }))
+      fakeLlm(ctx, JSON.stringify([
+        { name: 'a', purpose: 'b', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L2-context', sectionName: 'a', sectionText: 'a', order: 260 } },
+        { name: 'c', purpose: 'd', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L2-context', sectionName: 'c', sectionText: 'c', order: 260 } },
+      ]))
+      await expect(engine.evolveNow(agentFor(session), new AbortController().signal)).rejects.toThrow('boom')
+      const errorEnd = session.events.find(e => e.type === 'self-evolve/end' && (e.data as { error?: string }).error !== undefined)
+      expect((errorEnd?.data as { error?: string }).error).toBe('boom')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

@@ -256,6 +256,22 @@ describe('BridgeClient reconnect', () => {
     try { unlinkSync(socketPath) } catch {}
   })
 
+  it('rejects pending calls when the socket errors after connecting', async () => {
+    client = new BridgeClient({
+      path: socketPath,
+      onNotification: () => {},
+      onClose: () => {},
+      reconnect: { retries: 5, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(client.connected).toBe(true)
+    const pending = client.call('desktop/probe', {}).catch((error: unknown) => error)
+    ;(client as unknown as { socket: { emit: (event: string, error: Error) => void } }).socket.emit('error', new Error('reset'))
+    const error = await pending
+    expect(error).toBeInstanceOf(Error)
+  })
+
   it('reconnects after an unexpected close and fires onReconnect', async () => {
     client = new BridgeClient({
       path: socketPath,

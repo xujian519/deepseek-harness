@@ -150,6 +150,10 @@ describe('DesktopShell', () => {
     disposer()
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lastMethod).toBe('desktop/clearTray')
+    // A second disposer call clears nothing further.
+    disposer()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(lastMethod).toBe('desktop/clearTray')
   })
 
   it('replays live registrations after a bridge reconnect', async () => {
@@ -165,6 +169,45 @@ describe('DesktopShell', () => {
     serverSocket?.end()
     await expect.poll(() => lastMethod, { timeout: 5_000 }).toBe('desktop/registerGlobalShortcut')
     expect(await shell.showOpenDialog({})).toEqual(['/selected'])
+  })
+
+  it('replays a live tray registration after a bridge reconnect', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await shell.setTray({ tooltip: 'DSH' })
+    lastMethod = undefined
+    serverSocket?.end()
+    await expect.poll(() => lastMethod, { timeout: 5_000 }).toBe('desktop/setTray')
+  })
+
+  it('logs a warning when reconnect replay fails', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await shell.registerMenuItem('tray', { id: 'pause', label: 'Pause' })
+    const warn = vi.spyOn(ctx.logger, 'warn')
+    const call = vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValueOnce(new Error('replay boom'))
+    serverSocket?.end()
+    await expect.poll(() => warn.mock.calls.length, { timeout: 5_000 }).toBeGreaterThan(0)
+    expect(warn.mock.calls[0]?.[0]).toContain('replay boom')
+    call.mockRestore()
+  })
+
+  it('logs a warning when replay rejects with a non-Error value', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await shell.registerMenuItem('tray', { id: 'pause', label: 'Pause' })
+    const warn = vi.spyOn(ctx.logger, 'warn')
+    const call = vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValueOnce('plain failure')
+    serverSocket?.end()
+    await expect.poll(() => warn.mock.calls.length, { timeout: 5_000 }).toBeGreaterThan(0)
+    expect(warn.mock.calls[0]?.[0]).toContain('plain failure')
+    call.mockRestore()
   })
 
   it('rejects methods when the bridge path is missing', async () => {
