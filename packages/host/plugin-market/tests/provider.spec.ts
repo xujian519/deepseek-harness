@@ -155,9 +155,12 @@ describe('install pipeline', () => {
     writeFileSync(join(receiptsDir, 'other.json'), JSON.stringify({
       id: 'other', package: 'dsh-p1', version: '1.0.0', profile: '/elsewhere', installedAt: '2026-08-20T00:00:00.000Z',
     }))
-    const error = await provider.uninstall('other').catch((caught: unknown) => caught as PluginMarketError)
-    expect(error.code).toBe('receipt-mismatch')
-    expect(error.message).toContain('/elsewhere')
+    const error = await provider.uninstall('other').then(
+      () => undefined,
+      (caught: unknown) => caught as PluginMarketError,
+    )
+    expect(error?.code).toBe('receipt-mismatch')
+    expect(error?.message).toContain('/elsewhere')
     expect(runPnpm).not.toHaveBeenCalled()
   })
 
