@@ -50,12 +50,22 @@ export async function withTeamLock<T>(key: string, fn: () => Promise<T>): Promis
   }
 }
 
-/** Resolved absolute state root directory. */
+/**
+ * Resolve the absolute state root directory.
+ * @param workspace - the team's workspace directory.
+ * @param stateDir - configured state directory, relative to the workspace.
+ * @returns the resolved absolute state root directory.
+ */
 export function stateRootOf(workspace: string, stateDir: string): string {
   return join(workspace, stateDir)
 }
 
-/** Process-local lock key scoping one team's mutations. */
+/**
+ * Process-local lock key scoping one team's mutations.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param teamId - the team id.
+ * @returns the lock key.
+ */
 export function teamLockKey(stateRoot: string, teamId: string): string {
   return `team:${stateRoot}:${teamId}`
 }
@@ -138,7 +148,12 @@ export function transitionError(current: TaskStatus, next: TaskStatus): string |
   return undefined
 }
 
-/** Activate the task's current generation for one owner and return its capability id. */
+/**
+ * Activate the task's current generation for one owner.
+ * @param task - the task to claim.
+ * @param assignee - the member name taking ownership.
+ * @returns the new attempt's capability id.
+ */
 export function activateTaskAttempt(task: TeamTask, assignee: string): string {
   const attemptId = randomUUID()
   task.status = 'claimed'
@@ -151,7 +166,12 @@ export function activateTaskAttempt(task: TeamTask, assignee: string): string {
   return attemptId
 }
 
-/** Start a fresh task generation for one owner. */
+/**
+ * Start a fresh task generation for one owner.
+ * @param task - the task to start.
+ * @param assignee - the member name taking ownership.
+ * @returns the new attempt's capability id.
+ */
 export function beginTaskAttempt(task: TeamTask, assignee: string): string {
   task.attempt = (task.attempt ?? 0) + 1
   return activateTaskAttempt(task, assignee)
@@ -160,6 +180,9 @@ export function beginTaskAttempt(task: TeamTask, assignee: string): string {
 /**
  * Revoke the current worker immediately. Clearing its capability makes old
  * updates stale; a separate handoff generation serializes async quiescence.
+ * @param task - the task whose generation to revoke.
+ * @param nextAssignee - optional member to reassign the task to.
+ * @param reassigning - whether this invalidation is part of a reassignment.
  */
 export function invalidateTaskAttempt(
   task: TeamTask,
@@ -194,6 +217,7 @@ export async function createTeamDir(stateRoot: string, state: TeamState): Promis
  * Read one team record; `undefined` when absent.
  * @param stateRoot - resolved absolute state root directory.
  * @param teamId - the team's sanitized id.
+ * @returns the team record, or `undefined` when absent.
  */
 export async function readTeam(stateRoot: string, teamId: string): Promise<TeamState | undefined> {
   try {
@@ -245,7 +269,11 @@ export async function writeTeam(stateRoot: string, state: TeamState): Promise<vo
   await atomicWriteText(join(stateRoot, state.id, 'team.json'), JSON.stringify(state, null, 2))
 }
 
-/** Read the durable set of member session ids retired by remove/delete. */
+/**
+ * Read the durable set of member session ids retired by remove/delete.
+ * @param stateRoot - resolved absolute state root directory.
+ * @returns the retired member session ids.
+ */
 export async function readRetiredMemberIds(stateRoot: string): Promise<Set<string>> {
   try {
     const parsed: unknown = JSON.parse(stripLeadingBom(
@@ -263,7 +291,11 @@ export async function readRetiredMemberIds(stateRoot: string): Promise<Set<strin
   }
 }
 
-/** Atomically add session ids to the durable retired-member deny-list. */
+/**
+ * Atomically add session ids to the durable retired-member deny-list.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param memberIds - the member session ids to retire.
+ */
 export async function recordRetiredMemberIds(stateRoot: string, memberIds: readonly string[]): Promise<void> {
   const additions = memberIds.filter(id => id !== '')
   if (additions.length === 0) return
@@ -353,7 +385,13 @@ export async function findTeamByParticipant(
   )
 }
 
-/** Build a fresh message record. */
+/**
+ * Build a fresh message record.
+ * @param from - the sender key (`captain` or a member name).
+ * @param to - the recipient key (`captain` or a member name).
+ * @param content - the message body.
+ * @returns the new message record.
+ */
 export function createMessage(from: string, to: string, content: string): TeamMessage {
   return { id: randomUUID(), from, to, content, ts: Date.now() }
 }
@@ -429,7 +467,15 @@ export async function readMailbox(
   }
 }
 
-/** Read only messages that have not been acknowledged by their recipient. */
+/**
+ * Read only messages that have not been acknowledged by their recipient,
+ * excluding still-claimed deliveries whose lease has not yet expired.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param teamId - the team id.
+ * @param agentKey - `captain` or a member name.
+ * @param onMalformedLine - optional diagnostic hook for malformed records.
+ * @returns the unacknowledged messages, empty when the mailbox does not exist.
+ */
 export async function readUnreadMailbox(
   stateRoot: string,
   teamId: string,
@@ -474,7 +520,14 @@ async function mutateMailbox(
   await atomicWriteText(file, lines.join('\n'))
 }
 
-/** Lease selected fallback messages to one delivery path. */
+/**
+ * Lease selected fallback messages to one delivery path so the scheduler can
+ * retry them without double-delivery while the lease is active.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param teamId - the team id.
+ * @param agentKey - `captain` or a member name.
+ * @param messageIds - the message ids to lease.
+ */
 export async function claimMailboxDelivery(
   stateRoot: string,
   teamId: string,
@@ -488,7 +541,13 @@ export async function claimMailboxDelivery(
   }))
 }
 
-/** Release a failed delivery lease so the scheduler can retry it later. */
+/**
+ * Release a failed delivery lease so the scheduler can retry it later.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param teamId - the team id.
+ * @param agentKey - `captain` or a member name.
+ * @param messageIds - the message ids whose lease to release.
+ */
 export async function releaseMailboxDelivery(
   stateRoot: string,
   teamId: string,
@@ -504,6 +563,10 @@ export async function releaseMailboxDelivery(
 /**
  * Mark selected durable mailbox records delivered/read while preserving
  * malformed lines for diagnostics. Callers serialize this with the team lock.
+ * @param stateRoot - resolved absolute state root directory.
+ * @param teamId - the team id.
+ * @param agentKey - `captain` or a member name.
+ * @param messageIds - the message ids to mark delivered/read.
  */
 export async function acknowledgeMailbox(
   stateRoot: string,
@@ -577,6 +640,11 @@ export interface AtomicReplaceOptions {
  * removes the temp file; when both the atomic rename and the direct write
  * fail, the combined error surfaces as an {@link AggregateError}.
  *
+ * @param temporary - the temp file holding the fully-written payload.
+ * @param file - the target file to replace.
+ * @param content - the content to write when falling back to a direct write.
+ * @param primitives - the fs primitives (rename/write/remove) to use.
+ * @param options - optional retry tuning; defaults match production.
  * @returns nothing once the file has been replaced by one of the two paths.
  */
 export async function replaceFileAtomicOrDirect(
@@ -829,6 +897,7 @@ export async function archiveTeamDir(stateRoot: string, teamId: string): Promise
  * it was never archived.
  * @param stateRoot - resolved absolute state root directory.
  * @param teamId - the team id.
+ * @returns the archived team record, or `undefined` when never archived.
  */
 export async function readArchivedTeam(stateRoot: string, teamId: string): Promise<TeamState | undefined> {
   return readTeam(join(stateRoot, 'archive'), teamId)
@@ -861,6 +930,10 @@ export type VisualTaskState = 'blocked' | 'open' | 'running' | 'completed'
 /**
  * The visual state of one task: `running` while in_progress, `completed`
  * when done, `blocked` while any dependency is unfinished, else `open`.
+ * @param status - the task's current status.
+ * @param dependencies - the task's dependency ids.
+ * @param tasks - the team's tasks, for dependency lookup.
+ * @returns the visual task state.
  */
 export function taskVisualState(
   status: string,
@@ -879,6 +952,8 @@ export function taskVisualState(
 
 /**
  * Longest dependency path depth per task id (each depth = one lane column).
+ * @param tasks - the team's tasks.
+ * @returns the longest dependency-path depth per task id.
  */
 export function taskDepthsById(tasks: readonly TeamTask[]): Map<string, number> {
   const byId = new Map(tasks.map(task => [task.id, task]))

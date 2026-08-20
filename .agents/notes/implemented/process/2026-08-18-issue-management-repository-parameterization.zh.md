@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-[Issue lifecycle](../../../../.github/workflows/issue-lifecycle.yml) 工作流与 [Issue policy](../../../../.github/workflows/issue-policy.yml) 工作流都委托 [policy.mjs](../../../../.github/issue-management/policy.mjs) 执行。此前：
+[Issue lifecycle](../../../../.github/workflows-disabled/issue-lifecycle.yml) 工作流与 [Issue policy](../../../../.github/workflows-disabled/issue-policy.yml) 工作流都委托 [policy.mjs](../../../../.github/issue-management/policy.mjs) 执行。此前：
 
 - `issue-lifecycle.yml` 在创建 GitHub App token 时硬编码了 `owner: deepseek-harness` 和 `repositories: deepseek-harness`。
 - `policy.mjs` 通过 [config.json](../../../../.github/issue-management/config.json) 硬编码了仓库的 owner 和 name。

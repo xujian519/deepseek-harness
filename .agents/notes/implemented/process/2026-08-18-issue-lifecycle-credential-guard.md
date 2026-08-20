@@ -6,7 +6,7 @@ English | [中文](2026-08-18-issue-lifecycle-credential-guard.zh.md)
 
 ## Problem
 
-The [Issue lifecycle](../../../../.github/workflows/issue-lifecycle.yml) job uses a GitHub App token to write ProjectV2 status and issue audit comments. It reads the App client ID and private key from `vars.DSH_ISSUE_APP_CLIENT_ID` and `secrets.DSH_ISSUE_APP_PRIVATE_KEY`. When these values are absent — for example on a fork that has not installed the same App — `actions/create-github-app-token` fails before any lifecycle logic runs, turning every Issue and pull-request event into a CI failure.
+The [Issue lifecycle](../../../../.github/workflows-disabled/issue-lifecycle.yml) job uses a GitHub App token to write ProjectV2 status and issue audit comments. It reads the App client ID and private key from `vars.DSH_ISSUE_APP_CLIENT_ID` and `secrets.DSH_ISSUE_APP_PRIVATE_KEY`. When these values are absent — for example on a fork that has not installed the same App — `actions/create-github-app-token` fails before any lifecycle logic runs, turning every Issue and pull-request event into a CI failure.
 
 The [event-directed PR review status](../../../../.agents/notes/implemented/process/2026-08-10-event-directed-pr-review-status.md) decision assumes a working App token but does not itself describe how to provide or detect one.
 

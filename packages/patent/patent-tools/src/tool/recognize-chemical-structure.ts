@@ -95,7 +95,11 @@ const DESCRIPTION = [
   '',
   '当前环境未安装 RDKit（可选原生依赖），本工具暂不可用，调用将返回 needHumanReview=true 的不可用结果。',
 ].join('\n')
-/** Render the canonical chemistry result into model-facing prose. */
+/**
+ * Render the canonical chemistry result into model-facing prose.
+ * @param value - the chemistry recognition result to render.
+ * @returns the rendered prose.
+ */
 export function renderChemicalStructure(value: ChemicalStructureResult): string {
   if (!value.usable) {
     return `化学结构识别不可用：${value.warnings.join('；') || '未知原因'}`

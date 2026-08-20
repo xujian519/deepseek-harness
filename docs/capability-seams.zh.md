@@ -215,6 +215,8 @@ flowchart LR
   svc_patentKnowledge["ctx.patentKnowledge<br/>knowledge.db query seam"]
   pkg_patent_workflow["patent-workflow"]
   svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
+  pkg_patent_teams["patent-teams"]
+  svc_patentTeams["ctx.patentTeams<br/>Patent team coordination domain"]
   pkg_acp --> svc_approval
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
@@ -264,6 +266,7 @@ flowchart LR
   pkg_modules --> svc_clientModules
   pkg_patent_data --> svc_patentData
   pkg_patent_knowledge --> svc_patentKnowledge
+  pkg_patent_teams --> svc_patentTeams
   pkg_patent_workflow --> svc_patentWorkflow
   pkg_permission_presets --> svc_permissionPresets
   pkg_plan_mode --> svc_planMode
@@ -509,5 +512,6 @@ flowchart LR
 | `ctx.patentData` | `seam` | [`patent-data`](../packages/patent/patent-data) | - | - | - | nuo-patent 映射／检索与 ego-browser 子进程 provider 的 Service Definition；provider 与工具消费方随计划阶段落地（P1.2、P3.2）。 |
 | `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | 判例 FTS、法规、wiki 卡片与知识图谱查询的 Service Definition；sqlite provider 与安装命令随 P1.3 落地。 |
 | `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | workflow/flexible-plan/plantask 状态机与 HITL 审批接线的 Service Definition；实现随 P3.1 落地。 |
+| `ctx.patentTeams` | `core` | [`patent-teams`](../packages/patent/patent-teams) | - | - | - | 拥有持久化的团队名册、共享任务 DAG、成员信箱与调度锁；同仓的 patent_teams_* 工具是其面向模型的控制器。 |
 
 维护模式：混合模式。服务从 Cordis 声明中发现；接口、实现和消费方角色在 `scripts/gen-doc-graphs.ts` 中分类，并设有完整性守卫。

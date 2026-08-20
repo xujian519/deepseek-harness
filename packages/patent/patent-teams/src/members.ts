@@ -120,6 +120,11 @@ function modelSelection(selection: MemberLlmSelection): ModelSelection {
  * An explicit effort overrides either policy; the sentinel "default" also
  * selects the target model's default. The final effort is validated against
  * the target model before a child is created.
+ * @param ctx - registrant context with the llm route and model registry.
+ * @param captain - the parent agent whose route and effort the member snapshots.
+ * @param request - the member's requested provider/model/effort selection.
+ * @param signal - optional abort signal for the selection resolution.
+ * @returns the member's complete llm selection.
  */
 export async function resolveMemberLlmSelection(
   ctx: Context,
@@ -194,6 +199,9 @@ export async function resolveMemberLlmSelection(
  * cold resume restores the same selection from the owning team's durable
  * record. Legacy members without a complete saved route retain Harness's
  * descriptor provider/model behavior.
+ * @param ctx - registrant context carrying the subagent registry.
+ * @param stateDir - configured state directory, where team records persist.
+ * @returns the member selection bridge runtime.
  */
 export function installMemberSelectionRuntime(ctx: Context, stateDir: string): MemberSelectionRuntime {
   const pending = new Map<string, MemberLlmSelection>()
@@ -264,6 +272,7 @@ export function installMemberSelectionRuntime(ctx: Context, stateDir: string): M
  * @param member - the member record (name/role are read before spawning).
  * @param stateDir - configured state directory, so the member can locate the
  *   team files with its own file tools.
+ * @returns the member's system prompt (persona).
  */
 export function memberPersona(team: TeamState, member: TeamMember, stateDir: string): string {
   return `You are ${member.name}, a member of the multi-agent team "${team.name}" running inside DeepSeek Harness PatentTeams. The captain leads the team; you are a worker member${member.role ? ` with the role: ${member.role}` : ''}.
@@ -287,6 +296,7 @@ Working rules:
 /**
  * The initial user message delivered when the member is created.
  * @param team - the team the member joined.
+ * @returns the initial welcome message.
  */
 export function memberWelcome(team: TeamState): string {
   return `You have joined the team "${team.name}" as a member. The captain will send you tasks and messages; wait for instructions. Current team status: ${team.tasks.length} task(s), none assigned to you yet.`
@@ -426,6 +436,8 @@ async function retiredForParent(ctx: Context, parentId: SessionId, stateDir: str
  * direct `followup()` is rejected before it can cold-resume the member. Exact
  * ids keep unrelated subagents untouched; transcripts remain in persistence
  * for archived-team review.
+ * @param ctx - registrant context carrying the subagent registry.
+ * @param stateDir - configured state directory, where retired ids persist.
  */
 export function installRetiredMemberGuard(ctx: Context, stateDir: string): void {
   const runtime = ctx.subagents

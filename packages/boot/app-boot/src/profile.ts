@@ -175,6 +175,7 @@ export function profilePnpmWorkspace(overrides: Readonly<Record<string, string>>
  * resolvable dependency surface; `undefined` when the package is absent.
  * @param installAnchor - absolute path of a package.json inside the installation.
  * @param packageName - the package whose installed version to read.
+ * @returns the installed version, or `undefined` when the package is absent.
  */
 export function installedPackageVersion(installAnchor: string, packageName: string): string | undefined {
   const dir = packageDirFromAnchor(installAnchor, packageName)
@@ -189,6 +190,7 @@ export function installedPackageVersion(installAnchor: string, packageName: stri
  * cordis identity cannot diverge across copies. Packages the installation
  * cannot resolve are skipped.
  * @param installAnchor - absolute path of the dsh app's package.json.
+ * @returns the pinned version overrides.
  */
 export function profileCoreOverrides(installAnchor: string): Record<string, string> {
   const overrides: Record<string, string> = {}

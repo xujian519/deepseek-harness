@@ -213,6 +213,8 @@ flowchart LR
   svc_patentKnowledge["ctx.patentKnowledge<br/>knowledge.db query seam"]
   pkg_patent_workflow["patent-workflow"]
   svc_patentWorkflow["ctx.patentWorkflow<br/>Patent execution pipeline"]
+  pkg_patent_teams["patent-teams"]
+  svc_patentTeams["ctx.patentTeams<br/>Patent team coordination domain"]
   pkg_acp --> svc_approval
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
@@ -262,6 +264,7 @@ flowchart LR
   pkg_modules --> svc_clientModules
   pkg_patent_data --> svc_patentData
   pkg_patent_knowledge --> svc_patentKnowledge
+  pkg_patent_teams --> svc_patentTeams
   pkg_patent_workflow --> svc_patentWorkflow
   pkg_permission_presets --> svc_permissionPresets
   pkg_plan_mode --> svc_planMode
@@ -507,5 +510,6 @@ flowchart LR
 | `ctx.patentData` | `seam` | [`patent-data`](../packages/patent/patent-data) | - | - | - | Service Definition for nuo-patent mapping/search plus the ego-browser subprocess provider; the provider and tool consumers land with the plan phases (P1.2, P3.2). |
 | `ctx.patentKnowledge` | `seam` | [`patent-knowledge`](../packages/patent/patent-knowledge) | - | - | - | Service Definition for case-law FTS, legal, wiki-card, and knowledge-graph lookups; the sqlite provider and install command land with P1.3. |
 | `ctx.patentWorkflow` | `seam` | [`patent-workflow`](../packages/patent/patent-workflow) | - | - | - | Service Definition for the workflow/flexible-plan/plantask state machines with HITL approval wiring; the implementation lands with P3.1. |
+| `ctx.patentTeams` | `core` | [`patent-teams`](../packages/patent/patent-teams) | - | - | - | Owns the durable team roster, shared task DAG, member mailbox, and scheduling lock; the co-located patent_teams_* tools are the model-facing controllers. |
 
 Maintenance mode: hybrid: services are discovered from Cordis declarations; interface/implementation/consumer roles are classified in `scripts/gen-doc-graphs.ts` with a completeness guard.

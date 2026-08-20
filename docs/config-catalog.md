@@ -1527,7 +1527,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/patent/patent-teams/src/index.ts:35`](../packages/patent/patent-teams/src/index.ts)
+Source: [`packages/patent/patent-teams/src/index.ts:40`](../packages/patent/patent-teams/src/index.ts)
 
 <a id="deepseek-aidsh-patent-tools"></a>
 

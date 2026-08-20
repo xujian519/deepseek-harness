@@ -6,7 +6,7 @@ English | [中文](2026-08-18-issue-management-repository-parameterization.zh.md
 
 ## Problem
 
-The [Issue lifecycle](../../../../.github/workflows/issue-lifecycle.yml) workflow and the [Issue policy](../../../../.github/workflows/issue-policy.yml) workflow both delegate to [policy.mjs](../../../../.github/issue-management/policy.mjs). Previously:
+The [Issue lifecycle](../../../../.github/workflows-disabled/issue-lifecycle.yml) workflow and the [Issue policy](../../../../.github/workflows-disabled/issue-policy.yml) workflow both delegate to [policy.mjs](../../../../.github/issue-management/policy.mjs). Previously:
 
 - `issue-lifecycle.yml` hardcoded `owner: deepseek-harness` and `repositories: deepseek-harness` when creating the GitHub App token.
 - `policy.mjs` hardcoded the repository owner and name via [config.json](../../../../.github/issue-management/config.json).

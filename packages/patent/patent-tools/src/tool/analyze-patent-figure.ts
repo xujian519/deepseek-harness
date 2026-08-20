@@ -418,7 +418,11 @@ function normalizeFigureAnalysis(
   }
 }
 
-/** Render the canonical figure analysis into model-facing Markdown. */
+/**
+ * Render the canonical figure analysis into model-facing Markdown.
+ * @param value - the figure analysis result to render.
+ * @returns the rendered Markdown.
+ */
 export function renderFigureAnalysis(value: FigureAnalysisResult): string {
   const lines = [
     `附图分析（图${value.figureNumber} · ${FIGURE_TYPE_NAMES[value.figureType]} · 置信度 ${value.confidence.toFixed(2)}${value.usable ? '' : ' · 需人工确认'}）`,

@@ -8,6 +8,7 @@
 
 import { runeSlice } from '@deepseek-ai/dsh-patent-core'
 
+/** Rule groups the anti-slop phrase cleanup can act on. */
 export type SlopGroup =
   | 'filler' | 'qualifier' | 'passive' | 'meta' | 'advisory' | 'search' | 'intimacy' | 'subjectless'
 

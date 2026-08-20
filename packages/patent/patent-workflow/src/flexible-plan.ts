@@ -425,6 +425,12 @@ type LoosePlanState = {
   currentStageId: string | undefined
 }
 
+/**
+ * 从 JSON 快照反序列化 FlexiblePlanState，校验每个必填字段与约束。
+ * @param text - 计划快照的 JSON 文本。
+ * @returns 反序列化并校验后的计划状态。
+ * @throws {@link FlexiblePlanError} 当快照缺少或违反必填字段时。
+ */
 export function fromJSON(text: string): FlexiblePlanState {
   const data = JSON.parse(text) as LoosePlanState
   if (typeof data.caseId !== 'string' || data.caseId.trim() === '') {

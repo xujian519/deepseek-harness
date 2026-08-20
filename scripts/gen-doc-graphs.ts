@@ -619,6 +619,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'seam',
     note: 'Service Definition for the workflow/flexible-plan/plantask state machines with HITL approval wiring; the implementation lands with P3.1.',
   },
+  {
+    key: 'patentTeams',
+    pkg: 'patent-teams',
+    title: 'Patent team coordination domain',
+    mode: 'core',
+    note: 'Owns the durable team roster, shared task DAG, member mailbox, and scheduling lock; the co-located patent_teams_* tools are the model-facing controllers.',
+  },
 ]
 
 function generatedHeader(title: string): string[] {

@@ -1074,7 +1074,11 @@ export interface PatentTeamsStatus {
   mailbox_warning_count: number
 }
 
-/** The calling agent from a tool exec, for the tools Consumer. */
+/**
+ * The calling agent from a tool exec, for the tools Consumer.
+ * @param exec - the tool run context of the calling agent.
+ * @returns the calling agent.
+ */
 export function callingAgent(exec: ToolRunContext): Agent {
   return requireAgent(exec)
 }

@@ -206,7 +206,11 @@ export function retrieveFiguresKeyword(
     .slice(0, limit)
 }
 
-/** Render the canonical search value into model-facing Markdown. */
+/**
+ * Render the canonical search value into model-facing Markdown.
+ * @param value - the figure search output to render.
+ * @returns the rendered Markdown.
+ */
 export function renderSearchFigure(value: SearchPatentFigureOutput): string {
   if (value.results.length === 0) {
     return `search_patent_figure: 0 张附图命中。${value.hint ? `\n\n提示：${value.hint}` : ''}`

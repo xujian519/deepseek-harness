@@ -42,7 +42,7 @@ Every state mutation appends one `patent-teams/*` event to the captain's session
 
 #### What the model sees
 
-The usage section is a fixed system-prompt contribution whenever this plugin is mounted, plus the ten tool schemas in the [generated tool catalog](../../docs/tool-catalog.md).
+The usage section is a fixed system-prompt contribution whenever this plugin is mounted, plus the ten tool schemas in the [generated tool catalog](../../../docs/tool-catalog.md).
 
 ##### Verbatim text for this field, when needed
 

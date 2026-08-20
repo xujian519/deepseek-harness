@@ -29,10 +29,12 @@ import {
 } from './state.ts'
 import type { TeamMember, TeamTask } from './types.ts'
 
+/** Scheduler configuration: where team state lives on disk. */
 export interface SchedulerConfig {
   readonly stateDir: string
 }
 
+/** The team scheduler: serialized, ready-work dispatch to idle members. */
 export interface TeamScheduler {
   /** Try to give every genuinely idle/ready member one unit of ready work. */
   kickTeam(workspace: string, teamId: string, captain?: Agent, signal?: AbortSignal): Promise<void>
@@ -95,7 +97,12 @@ function fallbackMailboxPrompt(messages: Awaited<ReturnType<typeof readUnreadMai
   ].join('\n')
 }
 
-/** Install one scheduler and its member activity observer. */
+/**
+ * Install one scheduler and its member activity observer.
+ * @param ctx - registrant context carrying the agent registry.
+ * @param config - the scheduler's state-directory configuration.
+ * @returns the installed scheduler runtime.
+ */
 export function installTeamScheduler(ctx: Context, config: SchedulerConfig): TeamScheduler {
   const memberQueues = new Map<string, Promise<unknown>>()
 

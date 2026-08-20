@@ -185,7 +185,11 @@ function figureRoute(ctx: Context, config: Config): { provider: string; model: s
   return resolveModelRoute(ctx, config)
 }
 
-/** Build the image-gate capability resolver from ctx.llm (undefined when no capability source). */
+/**
+ * Build the image-gate capability resolver from ctx.llm.
+ * @param ctx - registrant context carrying the llm service.
+ * @returns the resolver, or `undefined` when no llm capability source exists.
+ */
 export function buildImageGateResolver(
   ctx: Context,
 ): ((provider: string, model: string) => Promise<readonly ModelModality[] | undefined>) | undefined {
