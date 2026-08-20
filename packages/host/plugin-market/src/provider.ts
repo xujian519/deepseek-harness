@@ -154,7 +154,11 @@ export class MarketProvider extends PluginMarket {
   }
 }
 
-/** Read the persisted sources (empty when none exist yet). */
+/**
+ * Read the persisted sources (empty when none exist yet).
+ * @param path - the sources file path.
+ * @returns the persisted sources.
+ */
 export function readSources(path: string): PluginMarketSource[] {
   if (!existsSync(path)) return []
   try {
@@ -164,7 +168,11 @@ export function readSources(path: string): PluginMarketSource[] {
   }
 }
 
-/** Persist the sources (a diagnostic file; a failed write surfaces as an error). */
+/**
+ * Persist the sources (a diagnostic file; a failed write surfaces as an error).
+ * @param path - the sources file path.
+ * @param sources - the sources to persist.
+ */
 export function writeSources(path: string, sources: readonly PluginMarketSource[]): void {
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, `${JSON.stringify(sources, null, 2)}\n`)

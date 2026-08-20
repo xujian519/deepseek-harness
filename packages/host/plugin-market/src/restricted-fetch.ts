@@ -47,7 +47,11 @@ export const DEFAULT_TIMEOUT_MS = 10_000
 /** Default redirect cap. */
 export const DEFAULT_MAX_REDIRECTS = 3
 
-/** An IPv4 dotted-quad parsed to its numeric form, or undefined when malformed. */
+/**
+ * An IPv4 dotted-quad parsed to its numeric form, or undefined when malformed.
+ * @param ip - the dotted-quad address.
+ * @returns the numeric address, or `undefined` when not a valid IPv4 literal.
+ */
 export function ipv4ToInt(ip: string): number | undefined {
   const parts = ip.split('.')
   if (parts.length !== 4) return undefined
@@ -61,7 +65,11 @@ export function ipv4ToInt(ip: string): number | undefined {
   return value >>> 0
 }
 
-/** Whether an IPv4 address falls in a blocked range (private/loopback/link-local/metadata). */
+/**
+ * Whether an IPv4 address falls in a blocked range (private/loopback/link-local/metadata).
+ * @param ip - the address to test.
+ * @returns whether it is blocked.
+ */
 export function isBlockedIpv4(ip: string): boolean {
   const value = ipv4ToInt(ip)
   if (value === undefined) return false // not an IPv4 literal; the hostname layer handles names
@@ -88,6 +96,8 @@ export function isBlockedIpv4(ip: string): boolean {
  * blocked (`::ffff:127.0.0.1` reaches loopback). Non-mapped forms are matched
  * by their text prefix; exotic spellings of the same prefix (e.g. full
  * `0:0:0:0:0:0:0:1` for loopback) are not canonicalized.
+ * @param ip - the IPv6 literal to test.
+ * @returns whether it is blocked.
  */
 export function isBlockedIpv6(ip: string): boolean {
   const lower = ip.toLowerCase()
@@ -99,7 +109,11 @@ export function isBlockedIpv6(ip: string): boolean {
     || lower.startsWith('ff') // ff00::/8 multicast
 }
 
-/** Whether a hostname is blocked on sight (local names and literal blocked addresses). */
+/**
+ * Whether a hostname is blocked on sight (local names and literal blocked addresses).
+ * @param host - the hostname or literal address to test.
+ * @returns whether it is blocked.
+ */
 export function isBlockedHostname(host: string): boolean {
   const lower = host.toLowerCase().replace(/\.$/, '')
   if (lower === 'localhost') return true
@@ -107,7 +121,11 @@ export function isBlockedHostname(host: string): boolean {
   return isBlockedIpv4(lower)
 }
 
-/** Resolve a hostname to every candidate address (the default resolver). */
+/**
+ * Resolve a hostname to every candidate address (the default resolver).
+ * @param host - the hostname to resolve.
+ * @returns every candidate address.
+ */
 export async function resolveHostname(host: string): Promise<readonly string[]> {
   const addresses = await lookup(host, { all: true })
   return addresses.map(entry => entry.address)

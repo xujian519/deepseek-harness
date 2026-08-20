@@ -1646,6 +1646,20 @@ export interface PlanModeConfig {
 
 来源：[`packages/plan/plan-mode/src/index.ts:71`](../packages/plan/plan-mode/src/index.ts)
 
+<a id="deepseek-aidsh-prompt-cache"></a>
+
+## `@deepseek-ai/dsh-prompt-cache`
+
+```ts config-catalog
+/** Plugin config: deployment-varying cache lifetime. */
+export interface Config {
+  /** In-memory entry lifetime in milliseconds. */
+  ttlMs: number
+}
+```
+
+来源：[`packages/core/prompt-cache/src/index.ts:33`](../packages/core/prompt-cache/src/index.ts)
+
 <a id="deepseek-aidsh-pwsh-local"></a>
 
 ## `@deepseek-ai/dsh-pwsh-local`
@@ -2642,7 +2656,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/core/system-prompt/src/index.ts:186`](../packages/core/system-prompt/src/index.ts)
+来源：[`packages/core/system-prompt/src/index.ts:217`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3569,6 +3583,7 @@ export interface Config {
 - `@deepseek-ai/dsh-file-reference` — 抽象 `FileReferenceService`（[`packages/context/file-reference/src/index.ts`](../packages/context/file-reference/src/index.ts)）
 - `@deepseek-ai/dsh-fs` — 抽象 `FileSystem`（[`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker` — 抽象 `DirectoryPicker`（[`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts)）
+- `@deepseek-ai/dsh-host-plugin-market` — 抽象 `PluginMarket`（[`packages/host/plugin-market/src/index.ts`](../packages/host/plugin-market/src/index.ts)）
 - `@deepseek-ai/dsh-jobs` — 抽象 `JobRegistry`（[`packages/jobs/jobs/src/index.ts`](../packages/jobs/jobs/src/index.ts)）
 - `@deepseek-ai/dsh-sandbox` — 抽象 `SandboxProvider`（[`packages/sandbox/sandbox/src/index.ts`](../packages/sandbox/sandbox/src/index.ts)）
 - `@deepseek-ai/dsh-session-persistence` — 抽象 `SessionPersistence`（[`packages/session/session-persistence/src/index.ts`](../packages/session/session-persistence/src/index.ts)）

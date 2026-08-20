@@ -1644,6 +1644,20 @@ export interface PlanModeConfig {
 
 Source: [`packages/plan/plan-mode/src/index.ts:71`](../packages/plan/plan-mode/src/index.ts)
 
+<a id="deepseek-aidsh-prompt-cache"></a>
+
+## `@deepseek-ai/dsh-prompt-cache`
+
+```ts config-catalog
+/** Plugin config: deployment-varying cache lifetime. */
+export interface Config {
+  /** In-memory entry lifetime in milliseconds. */
+  ttlMs: number
+}
+```
+
+Source: [`packages/core/prompt-cache/src/index.ts:33`](../packages/core/prompt-cache/src/index.ts)
+
 <a id="deepseek-aidsh-pwsh-local"></a>
 
 ## `@deepseek-ai/dsh-pwsh-local`
@@ -2640,7 +2654,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:186`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:217`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3569,6 +3583,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 - `@deepseek-ai/dsh-file-reference` — abstract `FileReferenceService` ([`packages/context/file-reference/src/index.ts`](../packages/context/file-reference/src/index.ts))
 - `@deepseek-ai/dsh-fs` — abstract `FileSystem` ([`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker` — abstract `DirectoryPicker` ([`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts))
+- `@deepseek-ai/dsh-host-plugin-market` — abstract `PluginMarket` ([`packages/host/plugin-market/src/index.ts`](../packages/host/plugin-market/src/index.ts))
 - `@deepseek-ai/dsh-jobs` — abstract `JobRegistry` ([`packages/jobs/jobs/src/index.ts`](../packages/jobs/jobs/src/index.ts))
 - `@deepseek-ai/dsh-sandbox` — abstract `SandboxProvider` ([`packages/sandbox/sandbox/src/index.ts`](../packages/sandbox/sandbox/src/index.ts))
 - `@deepseek-ai/dsh-session-persistence` — abstract `SessionPersistence` ([`packages/session/session-persistence/src/index.ts`](../packages/session/session-persistence/src/index.ts))

@@ -158,7 +158,11 @@ export interface ProfileSnapshot {
   files: Record<string, string>
 }
 
-/** Capture the profile manifest files an install may rewrite. */
+/**
+ * Capture the profile manifest files an install may rewrite.
+ * @param dir - the profile directory.
+ * @returns the captured manifest contents.
+ */
 export function snapshotProfile(dir: string): ProfileSnapshot {
   const files: Record<string, string> = {}
   for (const file of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
@@ -168,14 +172,23 @@ export function snapshotProfile(dir: string): ProfileSnapshot {
   return { files }
 }
 
-/** Restore a captured snapshot over the profile. */
+/**
+ * Restore a captured snapshot over the profile.
+ * @param dir - the profile directory.
+ * @param snapshot - the manifest contents captured by {@link snapshotProfile}.
+ */
 export function restoreSnapshot(dir: string, snapshot: ProfileSnapshot): void {
   for (const [file, content] of Object.entries(snapshot.files)) {
     writeFileSync(join(dir, file), content)
   }
 }
 
-/** The default package-manager runner: `pnpm <args>` in the profile. */
+/**
+ * The default package-manager runner: `pnpm <args>` in the profile.
+ * @param cwd - the directory pnpm runs in.
+ * @param args - pnpm arguments.
+ * @returns the process exit status and captured stderr.
+ */
 export function runPnpm(cwd: string, args: readonly string[]): PnpmResult {
   const result = spawnSync('pnpm', [...args], { cwd, stdio: 'pipe', encoding: 'utf8' })
   // On a spawn failure (missing pnpm, bad cwd) Node reports no status and a
@@ -184,7 +197,12 @@ export function runPnpm(cwd: string, args: readonly string[]): PnpmResult {
   return { status: result.status ?? 1, stderr }
 }
 
-/** Resolve the receipts directory for one profile. */
+/**
+ * Resolve the receipts directory for one profile.
+ * @param profileDir - the profile directory.
+ * @param options - receipt dir override.
+ * @returns the absolute receipts directory.
+ */
 export function receiptDirFor(profileDir: string, options: InstallOptions): string {
   return options.receiptDir ?? join(profileDir, RECEIPTS_DIR)
 }
@@ -238,13 +256,22 @@ export function uninstallPlugin(profileDir: string, receiptId: string, options: 
   rmSync(join(receiptDirFor(profileDir, options), `${receiptId}.json`), { force: true })
 }
 
-/** Write one receipt file. */
+/**
+ * Write one receipt file.
+ * @param receiptDir - the receipts directory.
+ * @param receipt - the receipt to persist.
+ */
 export function writeReceipt(receiptDir: string, receipt: InstallReceipt): void {
   mkdirSync(receiptDir, { recursive: true })
   writeFileSync(join(receiptDir, `${receipt.id}.json`), `${JSON.stringify(receipt, null, 2)}\n`)
 }
 
-/** Read one receipt file, throwing when it is absent or malformed. */
+/**
+ * Read one receipt file, throwing when it is absent or malformed.
+ * @param receiptDir - the receipts directory.
+ * @param receiptId - the receipt identity.
+ * @returns the parsed receipt.
+ */
 export function readReceipt(receiptDir: string, receiptId: string): InstallReceipt {
   const path = join(receiptDir, `${receiptId}.json`)
   if (!existsSync(path)) throw new Error(`no receipt ${receiptId}`)
@@ -255,7 +282,11 @@ export function readReceipt(receiptDir: string, receiptId: string): InstallRecei
   }
 }
 
-/** List every receipt in a directory (empty when the directory is absent). */
+/**
+ * List every receipt in a directory (empty when the directory is absent).
+ * @param receiptDir - the receipts directory.
+ * @returns every parsed receipt, in readdir order.
+ */
 export function listReceipts(receiptDir: string): readonly InstallReceipt[] {
   if (!existsSync(receiptDir)) return []
   return readdirSync(receiptDir)

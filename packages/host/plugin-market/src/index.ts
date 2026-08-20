@@ -154,7 +154,10 @@ export abstract class PluginMarket extends Service {
     super(ctx, 'pluginMarket')
   }
 
-  /** List the registered catalog sources. */
+  /**
+   * List the registered catalog sources.
+   * @returns every registered source.
+   */
   abstract listSources(): Promise<readonly PluginMarketSource[]>
 
   /**
@@ -199,7 +202,10 @@ export abstract class PluginMarket extends Service {
    */
   abstract uninstall(receiptId: string): Promise<void>
 
-  /** List the managed installations. */
+  /**
+   * List the managed installations.
+   * @returns every durable installation receipt.
+   */
   abstract listInstallations(): Promise<readonly InstallReceipt[]>
 }
 
