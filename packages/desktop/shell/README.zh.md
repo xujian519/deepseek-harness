@@ -14,6 +14,5 @@
 
 ## 已知限制与延后工作
 
-- **主进程桩实现** — Electron Main 中的桥接服务端目前把 `showOpenDialog` 和 `showSaveDialog` 接到 Electron 的 `dialog` API。通知、菜单、全局快捷键和文件拖放仍为桩实现，需在 Main 中补齐；托盘以 Main 进程静态图标形式存在，可编程的 `setTray` 桥接契约仍为桩实现。
-- **无自动重连** — socket 关闭时会发出 `desktop/bridge-lost`，但提供方不会重连；生命周期恢复由 Electron 主进程负责。
-- **单一后端连接** — 桥接服务端只接受一个并发后端 socket，额外连接会被拒绝。
+- **文件拖放延后** — `desktop/file-dropped` 目前没有 Main 侧发射方：窗口级拖放不会到达 Electron Main，且 Web 界面已自行处理应用内拖放（workspace 界面的 `acceptDrop`）。渲染器拖放通道会扩大沙箱 preload 面，随该工作延后。
+- **单一后端连接** — 桥接服务端只接受一个并发后端 socket，额外连接会被拒绝；重连由客户端驱动，带指数退避与活动注册重放。

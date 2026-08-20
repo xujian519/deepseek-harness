@@ -8,7 +8,11 @@
 import { connect, createServer, type Server, type Socket } from 'node:net'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { type BrowserWindow, dialog } from 'electron'
+import {
+  type BrowserWindow,
+  dialog, globalShortcut, Menu, nativeImage, Notification, Tray,
+} from 'electron'
+import { isTemplateTrayIcon, trayIconPath } from './tray.ts'
 
 /** Incoming JSON-RPC request from the backend. */
 export interface JsonRpcRequest {
@@ -31,10 +35,25 @@ export interface JsonRpcResponse {
 }
 
 /** Outgoing JSON-RPC notification to the backend. */
-export interface JsonRpcNotification {
+interface JsonRpcNotification {
   jsonrpc: '2.0'
   method: string
   params?: unknown
+}
+
+/** One registered menu item as it travels over the wire. */
+export interface WireMenuItem {
+  id: string
+  label: string
+  accelerator?: string
+}
+
+/** Base tray entries supplied by the shell owner (main.ts). */
+export interface TrayBaseActions {
+  /** Restore and focus the main window. */
+  onShow: () => void
+  /** Begin an explicit quit. */
+  onQuit: () => void
 }
 
 /** Allow-listed bridge methods implemented by the main process. */
@@ -49,6 +68,9 @@ const ALLOWED_METHODS = new Set([
   'desktop/setTray',
   'desktop/clearTray',
 ])
+
+/** The default tray menu group, overridable through {@link DesktopTrayConfig.menuGroup}. */
+const DEFAULT_TRAY_GROUP = 'tray'
 
 /**
  * Resolve a bridge socket path in the app user-data directory.
@@ -66,12 +88,19 @@ export function resolveBridgePath(userData: string, platform: NodeJS.Platform = 
 /**
  * Bridge server owned by Electron Main. It creates the socket before the dsh
  * backend is spawned, accepts one backend connection, and dispatches allow-listed
- * JSON-RPC methods to Electron APIs.
+ * JSON-RPC methods to Electron APIs. Menu, tray, shortcut, and notification
+ * state all live here so backend registrations and OS events share one model.
  */
 export class BridgeServer {
   private server: Server | undefined = undefined
   private socket: Socket | undefined = undefined
   private buffer = ''
+  private readonly menuGroups = new Map<string, Map<string, WireMenuItem>>()
+  private tray: Tray | undefined = undefined
+  private trayBaseActions: TrayBaseActions | undefined = undefined
+  private trayMenuGroup = DEFAULT_TRAY_GROUP
+  private readonly notifications = new Map<string, Notification>()
+  private notificationSeq = 0
 
   constructor(private readonly window: BrowserWindow) {}
 
@@ -122,17 +151,52 @@ export class BridgeServer {
     })
   }
 
-  /** Close the socket server and any active connection. */
+  /**
+   * Create the base tray: icon, Show/Quit entries, and click notifications.
+   * Registered items in the configured tray menu group join the context menu.
+   * @param appPath - `app.getAppPath()`: the app root in dev, `app.asar` when packaged.
+   * @param actions - the base menu entries owned by the shell.
+   * @returns the created tray, or undefined when the platform cannot host one.
+   */
+  initTray(appPath: string, actions: TrayBaseActions): Tray | undefined {
+    try {
+      const icon = nativeImage.createFromPath(trayIconPath(appPath, process.platform))
+      if (isTemplateTrayIcon(process.platform)) icon.setTemplateImage(true)
+      const tray = new Tray(icon)
+      tray.setToolTip('DeepSeek Harness')
+      tray.on('click', () => {
+        this.notify('desktop/tray-clicked', { button: 'left' })
+      })
+      tray.on('right-click', () => {
+        this.notify('desktop/tray-clicked', { button: 'right' })
+      })
+      this.tray = tray
+      this.trayBaseActions = actions
+      this.rebuildTrayMenu()
+      return tray
+    } catch (error) {
+      console.warn(`System tray is unavailable: ${error instanceof Error ? error.message : String(error)}`)
+      return undefined
+    }
+  }
+
+  /** Close the socket server, any active connection, and every OS registration. */
   dispose(): void {
     this.socket?.end()
     this.socket = undefined
     this.server?.close()
     this.server = undefined
+    globalShortcut.unregisterAll()
+    this.tray?.destroy()
+    this.tray = undefined
+    this.trayBaseActions = undefined
+    this.notifications.clear()
   }
 
   /** Send a one-way notification to the connected backend. */
-  notify(notification: JsonRpcNotification): void {
+  notify(method: string, params?: unknown): void {
     if (this.socket === undefined) return
+    const notification: JsonRpcNotification = { jsonrpc: '2.0', method, params }
     this.socket.write(JSON.stringify(notification) + '\n')
   }
 
@@ -184,16 +248,24 @@ export class BridgeServer {
       case 'desktop/showSaveDialog':
         return this.showSaveDialog(params)
       case 'desktop/sendNotification':
-        this.sendNotification(params)
-        return undefined
+        return this.sendNotification(params)
       case 'desktop/registerMenuItem':
+        this.registerMenuItem(params)
+        return { ok: true }
       case 'desktop/unregisterMenuItem':
+        this.unregisterMenuItem(params)
+        return { ok: true }
       case 'desktop/registerGlobalShortcut':
+        return this.registerGlobalShortcut(params)
       case 'desktop/unregisterGlobalShortcut':
+        this.unregisterGlobalShortcut(params)
+        return { ok: true }
       case 'desktop/setTray':
+        this.setTray(params)
+        return { ok: true }
       case 'desktop/clearTray':
-        this.stub(method, params)
-        return undefined
+        this.clearTray()
+        return { ok: true }
     }
     return undefined
   }
@@ -220,13 +292,117 @@ export class BridgeServer {
     return { filePath: result.filePath }
   }
 
-  private sendNotification(params: unknown): void {
-    const { title, body } = (params ?? {}) as { title?: string; body?: string }
-    console.log(`[notification stub] ${title ?? ''}: ${body ?? ''}`)
+  private sendNotification(params: unknown): { delivered: boolean; notificationId?: string } {
+    const { title, body, id } = (params ?? {}) as { title: string; body?: string; id?: string }
+    if (!Notification.isSupported()) return { delivered: false }
+    const notificationId = id ?? `notification-${++this.notificationSeq}`
+    const notification = new Notification({
+      title,
+      ...body !== undefined ? { body } : {},
+    })
+    notification.on('click', () => {
+      this.notifications.delete(notificationId)
+      this.notify('desktop/notification-clicked', { notificationId })
+    })
+    notification.on('close', () => {
+      this.notifications.delete(notificationId)
+    })
+    // Electron drops an unreferenced Notification; keep it until it closes.
+    this.notifications.set(notificationId, notification)
+    notification.show()
+    return { delivered: true, notificationId }
   }
 
-  private stub(method: string, params: unknown): undefined {
-    console.log(`[desktop bridge stub] ${method}`, params)
-    return undefined
+  private registerMenuItem(params: unknown): void {
+    const { group, item } = (params ?? {}) as { group: string; item: WireMenuItem }
+    let items = this.menuGroups.get(group)
+    if (items === undefined) {
+      items = new Map()
+      this.menuGroups.set(group, items)
+    }
+    items.set(item.id, item)
+    this.rebuildAppMenu()
+    this.rebuildTrayMenu()
+  }
+
+  private unregisterMenuItem(params: unknown): void {
+    const { group, id } = (params ?? {}) as { group: string; id: string }
+    this.menuGroups.get(group)?.delete(id)
+    this.rebuildAppMenu()
+    this.rebuildTrayMenu()
+  }
+
+  private registerGlobalShortcut(params: unknown): { ok: true } {
+    const { accelerator } = (params ?? {}) as { accelerator: string }
+    const registered = globalShortcut.register(accelerator, () => {
+      this.notify('desktop/shortcut-triggered', { accelerator })
+    })
+    if (!registered) throw new Error(`accelerator ${accelerator} is already registered or unavailable`)
+    return { ok: true }
+  }
+
+  private unregisterGlobalShortcut(params: unknown): void {
+    const { accelerator } = (params ?? {}) as { accelerator: string }
+    globalShortcut.unregister(accelerator)
+  }
+
+  private setTray(params: unknown): void {
+    const { tooltip, menuGroup } = (params ?? {}) as { tooltip?: string; menuGroup?: string }
+    if (this.tray === undefined) throw new Error('tray is unavailable')
+    if (tooltip !== undefined) this.tray.setToolTip(tooltip)
+    this.trayMenuGroup = menuGroup ?? DEFAULT_TRAY_GROUP
+    this.rebuildTrayMenu()
+  }
+
+  private clearTray(): void {
+    if (this.tray === undefined) return
+    this.tray.setToolTip('DeepSeek Harness')
+    this.trayMenuGroup = DEFAULT_TRAY_GROUP
+    this.rebuildTrayMenu()
+  }
+
+  /** One registered item as an Electron menu template entry. */
+  private menuItemTemplate(item: WireMenuItem): Electron.MenuItemConstructorOptions {
+    return {
+      label: item.label,
+      ...item.accelerator !== undefined ? { accelerator: item.accelerator } : {},
+      click: () => { this.notify('desktop/menu-activated', { menuId: item.id }) },
+    }
+  }
+
+  /** Rebuild the application menu: standard roles plus one top-level menu per registered group. */
+  private rebuildAppMenu(): void {
+    const groups = [...this.menuGroups.entries()].filter(([group]) => group !== this.trayMenuGroup)
+    if (groups.length === 0) return // no registered groups: the default menu stands
+    const template: Electron.MenuItemConstructorOptions[] = [
+      ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
+      { role: 'fileMenu' },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+      ...groups.map(([group, items]) => ({
+        label: group,
+        submenu: [...items.values()].map(item => this.menuItemTemplate(item)),
+      })),
+    ]
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  }
+
+  /** Rebuild the tray context menu: base entries plus the configured tray group. */
+  private rebuildTrayMenu(): void {
+    const tray = this.tray
+    const actions = this.trayBaseActions
+    if (tray === undefined || actions === undefined) return
+    const template: Electron.MenuItemConstructorOptions[] = [
+      { label: 'Show DeepSeek Harness', click: actions.onShow },
+      { type: 'separator' },
+      { label: 'Quit DeepSeek Harness', click: actions.onQuit },
+    ]
+    const groupItems = this.menuGroups.get(this.trayMenuGroup)
+    if (groupItems !== undefined && groupItems.size > 0) {
+      template.push({ type: 'separator' })
+      for (const item of groupItems.values()) template.push(this.menuItemTemplate(item))
+    }
+    tray.setContextMenu(Menu.buildFromTemplate(template))
   }
 }

@@ -11,10 +11,75 @@ import type { BrowserWindow } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BridgeServer, resolveBridgePath } from '../src/bridge-server.ts'
 
+/** Hoisted fake state shared by the mocked electron module and the tests. */
+const mocks = vi.hoisted(() => ({
+  notifications: [] as {
+    options: Record<string, string | undefined>
+    handlers: Record<string, () => void>
+    show: ReturnType<typeof vi.fn>
+  }[],
+  trays: [] as {
+    handlers: Record<string, () => void>
+    setToolTip: ReturnType<typeof vi.fn>
+    setContextMenu: ReturnType<typeof vi.fn>
+    destroy: ReturnType<typeof vi.fn>
+  }[],
+  lastMenuTemplate: [] as unknown[],
+  buildFromTemplate: vi.fn(),
+  setApplicationMenu: vi.fn(),
+  registerShortcut: vi.fn(),
+  isNotificationSupported: vi.fn(),
+}))
+
 vi.mock('electron', () => ({
   dialog: {
     showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
     showSaveDialog: vi.fn().mockResolvedValue({ canceled: true, filePath: '' }),
+  },
+  Menu: {
+    buildFromTemplate: mocks.buildFromTemplate.mockImplementation((template: unknown[]) => {
+      mocks.lastMenuTemplate = template
+      return { template }
+    }),
+    setApplicationMenu: mocks.setApplicationMenu,
+  },
+  Notification: Object.assign(
+    vi.fn().mockImplementation(function (this: unknown, options: Record<string, string | undefined>) {
+      const instance = {
+        options,
+        handlers: {} as Record<string, () => void>,
+        show: vi.fn(),
+        on: vi.fn((event: string, cb: () => void) => {
+          instance.handlers[event] = cb
+          return instance
+        }),
+      }
+      mocks.notifications.push(instance)
+      return instance
+    }),
+    { isSupported: mocks.isNotificationSupported.mockReturnValue(true) },
+  ),
+  globalShortcut: {
+    register: mocks.registerShortcut.mockReturnValue(true),
+    unregister: vi.fn(),
+    unregisterAll: vi.fn(),
+  },
+  Tray: vi.fn().mockImplementation(function (this: unknown) {
+    const instance = {
+      handlers: {} as Record<string, () => void>,
+      setToolTip: vi.fn(),
+      setContextMenu: vi.fn(),
+      on: vi.fn((event: string, cb: () => void) => {
+        instance.handlers[event] = cb
+        return instance
+      }),
+      destroy: vi.fn(),
+    }
+    mocks.trays.push(instance)
+    return instance
+  }),
+  nativeImage: {
+    createFromPath: vi.fn(() => ({ setTemplateImage: vi.fn() })),
   },
 }))
 
@@ -50,6 +115,13 @@ describe('BridgeServer', () => {
 
   beforeEach(async () => {
     frames = []
+    mocks.notifications.length = 0
+    mocks.trays.length = 0
+    mocks.lastMenuTemplate = []
+    mocks.buildFromTemplate.mockClear()
+    mocks.setApplicationMenu.mockClear()
+    mocks.registerShortcut.mockClear().mockReturnValue(true)
+    mocks.isNotificationSupported.mockClear().mockReturnValue(true)
     socketPath = nextSocketPath()
     bridge = new BridgeServer(window)
     await bridge.start(socketPath)
@@ -135,5 +207,131 @@ describe('BridgeServer', () => {
   it('disposes without failing when never started', () => {
     const fresh = new BridgeServer(window)
     fresh.dispose()
+  })
+
+  it('delivers a notification and pushes its click back with the id', async () => {
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/sendNotification', params: { title: 'hello', body: 'world' },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const response = JSON.parse(frames[0] ?? '{}') as { result?: { delivered: boolean; notificationId: string } }
+    expect(response.result).toEqual({ delivered: true, notificationId: 'notification-1' })
+    expect(mocks.notifications).toHaveLength(1)
+    expect(mocks.notifications[0]?.options).toEqual({ title: 'hello', body: 'world' })
+    frames.length = 0
+    mocks.notifications[0]?.handlers.click?.()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { notificationId: string } }
+    expect(pushed.method).toBe('desktop/notification-clicked')
+    expect(pushed.params).toEqual({ notificationId: 'notification-1' })
+  })
+
+  it('reports undelivered when notifications are unsupported', async () => {
+    mocks.isNotificationSupported.mockReturnValue(false)
+    client?.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'desktop/sendNotification', params: { title: 'x' } }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const response = JSON.parse(frames[0] ?? '{}') as { result?: { delivered: boolean } }
+    expect(response.result).toEqual({ delivered: false })
+  })
+
+  it('registers a menu item into the application menu and pushes its activation', async () => {
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/registerMenuItem',
+      params: { group: 'file', item: { id: 'open', label: 'Open', accelerator: 'CmdOrCtrl+O' } },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(mocks.setApplicationMenu).toHaveBeenCalledTimes(1)
+    const group = mocks.lastMenuTemplate.find(entry =>
+      typeof entry === 'object' && entry !== null && (entry as { label?: string }).label === 'file') as { submenu: { click: () => void }[] } | undefined
+    expect(group?.submenu).toHaveLength(1)
+    frames.length = 0
+    group?.submenu[0]?.click?.()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { menuId: string } }
+    expect(pushed.method).toBe('desktop/menu-activated')
+    expect(pushed.params).toEqual({ menuId: 'open' })
+  })
+
+  it('registers a global shortcut and pushes its trigger', async () => {
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator: 'Cmd+K' },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(JSON.parse(frames[0] ?? '{}')).toMatchObject({ result: { ok: true } })
+    const callback = mocks.registerShortcut.mock.calls[0]?.[1] as (() => void) | undefined
+    frames.length = 0
+    callback?.()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { accelerator: string } }
+    expect(pushed.method).toBe('desktop/shortcut-triggered')
+    expect(pushed.params).toEqual({ accelerator: 'Cmd+K' })
+  })
+
+  it('rejects a shortcut registration the OS cannot claim', async () => {
+    mocks.registerShortcut.mockReturnValue(false)
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator: 'Cmd+K' },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const response = JSON.parse(frames[0] ?? '{}') as { error?: { code: number; message: string } }
+    expect(response.error?.code).toBe(-32000)
+    expect(response.error?.message).toContain('already registered')
+  })
+
+  it('sets the tray tooltip and menu group through setTray', async () => {
+    const created = bridge.initTray('/app', { onShow: () => {}, onQuit: () => {} })
+    expect(created).toBeDefined()
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/setTray', params: { tooltip: 'DSH', menuGroup: 'tray' },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(mocks.trays[0]?.setToolTip).toHaveBeenCalledWith('DSH')
+    // A tray-group menu item lands in the tray menu, not the application menu.
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 2, method: 'desktop/registerMenuItem',
+      params: { group: 'tray', item: { id: 'pause', label: 'Pause' } },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(mocks.setApplicationMenu).not.toHaveBeenCalled()
+    const trayMenu = mocks.trays[0]?.setContextMenu.mock.calls.at(-1)?.[0] as { template?: unknown[] } | undefined
+    expect(trayMenu?.template?.some(entry =>
+      typeof entry === 'object' && entry !== null && (entry as { label?: string }).label === 'Pause')).toBe(true)
+  })
+
+  it('clears the tray configuration back to the default tooltip', async () => {
+    bridge.initTray('/app', { onShow: () => {}, onQuit: () => {} })
+    client?.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'desktop/setTray', params: { tooltip: 'DSH' } }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    client?.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'desktop/clearTray' }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(mocks.trays[0]?.setToolTip).toHaveBeenLastCalledWith('DeepSeek Harness')
+  })
+
+  it('pushes tray clicks to the backend', async () => {
+    bridge.initTray('/app', { onShow: () => {}, onQuit: () => {} })
+    frames.length = 0
+    mocks.trays[0]?.handlers.click?.()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { button: string } }
+    expect(pushed.method).toBe('desktop/tray-clicked')
+    expect(pushed.params).toEqual({ button: 'left' })
+  })
+
+  it('reports an unavailable tray from initTray', async () => {
+    const { Tray } = await import('electron')
+    vi.mocked(Tray).mockImplementationOnce(() => { throw new Error('no tray support') })
+    expect(bridge.initTray('/app', { onShow: () => {}, onQuit: () => {} })).toBeUndefined()
+  })
+
+  it('dispose tears down shortcuts, tray, and notifications', async () => {
+    bridge.initTray('/app', { onShow: () => {}, onQuit: () => {} })
+    client?.write(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'desktop/sendNotification', params: { title: 'x' },
+    }) + '\n')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    bridge.dispose()
+    const { globalShortcut } = await import('electron')
+    expect(globalShortcut.unregisterAll).toHaveBeenCalled()
+    expect(mocks.trays[0]?.destroy).toHaveBeenCalled()
   })
 })

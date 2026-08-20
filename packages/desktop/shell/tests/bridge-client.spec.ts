@@ -55,6 +55,10 @@ describe('BridgeClient', () => {
       path: socketPath,
       onNotification: (notification) => { notifications.push(notification) },
       onClose: () => { closeCount += 1 },
+      // The close-oriented tests below own the socket lifecycle; a reconnecting
+      // client would open fresh connections mid-test. Reconnect is exercised
+      // in its own describe block with a dedicated construction.
+      reconnect: { retries: 0 },
     })
     await new Promise(resolve => setTimeout(resolve, 20))
   })
@@ -214,5 +218,78 @@ describe('BridgeClient', () => {
     serverSocket?.write(JSON.stringify({ jsonrpc: '2.0' }) + '\n')
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(notifications).toEqual([])
+  })
+})
+
+describe('BridgeClient reconnect', () => {
+  let server: Server
+  let serverSocket: Socket | undefined
+  let client: BridgeClient
+  let reconnects = 0
+
+  beforeEach(async () => {
+    reconnects = 0
+    serverSocket = undefined
+    socketPath = nextSocketPath()
+    server = createServer((socket) => {
+      serverSocket = socket
+      socket.setEncoding('utf8')
+      socket.on('data', () => {})
+    })
+    await new Promise<void>((resolve) => { server.listen(socketPath, resolve) })
+  })
+
+  afterEach(async () => {
+    client.dispose()
+    serverSocket?.end()
+    if (server.listening) {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (err != null) {
+            reject(err)
+          } else {
+            resolve()
+          }
+        })
+      })
+    }
+    try { unlinkSync(socketPath) } catch {}
+  })
+
+  it('reconnects after an unexpected close and fires onReconnect', async () => {
+    client = new BridgeClient({
+      path: socketPath,
+      onNotification: () => {},
+      onClose: () => {},
+      reconnect: { retries: 5, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(client.connected).toBe(true)
+    serverSocket?.end()
+    await expect.poll(() => reconnects, { timeout: 5_000 }).toBe(1)
+    expect(client.connected).toBe(true)
+  })
+
+  it('gives up after the retry budget when the peer stays down', async () => {
+    client = new BridgeClient({
+      path: socketPath,
+      onNotification: () => {},
+      onClose: () => {},
+      reconnect: { retries: 2, baseDelayMs: 10, maxDelayMs: 20 },
+      onReconnect: () => { reconnects += 1 },
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // Take the server down entirely: every reconnect attempt is refused.
+    serverSocket?.end()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err != null) reject(err)
+        else resolve()
+      })
+    })
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(reconnects).toBe(0)
+    expect(client.connected).toBe(false)
   })
 })

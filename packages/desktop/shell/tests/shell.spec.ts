@@ -118,7 +118,7 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 50))
-    const disposer = shell.registerMenuItem('file', { id: 'open', label: 'Open' })
+    const disposer = await shell.registerMenuItem('file', { id: 'open', label: 'Open' })
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lastMethod).toBe('desktop/registerMenuItem')
     disposer()
@@ -131,7 +131,7 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 50))
-    const disposer = shell.registerGlobalShortcut('Cmd+K', () => {})
+    const disposer = await shell.registerGlobalShortcut('Cmd+K', () => {})
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lastMethod).toBe('desktop/registerGlobalShortcut')
     disposer()
@@ -144,12 +144,27 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 50))
-    const disposer = shell.setTray({ tooltip: 'DSH' })
+    const disposer = await shell.setTray({ tooltip: 'DSH' })
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lastMethod).toBe('desktop/setTray')
     disposer()
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lastMethod).toBe('desktop/clearTray')
+  })
+
+  it('replays live registrations after a bridge reconnect', async () => {
+    const ctx = new Context()
+    const shell = new DesktopShell(ctx)
+    shells.push({ shell, ctx })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await shell.registerMenuItem('tray', { id: 'pause', label: 'Pause' })
+    await shell.registerGlobalShortcut('Cmd+P', () => {})
+    // Drop the backend socket; the client reconnects (backoff 500ms base)
+    // and re-sends every live registration in order.
+    lastMethod = undefined
+    serverSocket?.end()
+    await expect.poll(() => lastMethod, { timeout: 5_000 }).toBe('desktop/registerGlobalShortcut')
+    expect(await shell.showOpenDialog({})).toEqual(['/selected'])
   })
 
   it('rejects methods when the bridge path is missing', async () => {
@@ -201,7 +216,7 @@ describe('DesktopShell', () => {
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 20))
     let fired = 0
-    shell.registerGlobalShortcut('Cmd+K', () => { fired += 1 })
+    await shell.registerGlobalShortcut('Cmd+K', () => { fired += 1 })
     serverSocket?.write(
       JSON.stringify({ jsonrpc: '2.0', method: 'desktop/shortcut-triggered', params: { accelerator: 'Cmd+K' } }) + '\n',
     )

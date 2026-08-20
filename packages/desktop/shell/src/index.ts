@@ -24,9 +24,13 @@ import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from './bridge
  * the same bundle without Electron.
  */
 export default class DesktopShell extends Desktop {
-  private readonly bridge?: BridgeClient
-  private readonly menuDisposers = new Map<string, () => void>()
-  private readonly shortcutHandlers = new Map<string, () => void>()
+  private bridge?: BridgeClient
+  /** Live menu registrations keyed by `${group}:${id}`, replayed after a bridge reconnect. */
+  private readonly menuRegistrations = new Map<string, { group: string; item: DesktopMenuItem }>()
+  /** Live shortcut registrations keyed by accelerator, replayed after a bridge reconnect. */
+  private readonly shortcutRegistrations = new Map<string, { accelerator: string; handler: () => void }>()
+  /** The live tray configuration, replayed after a bridge reconnect. */
+  private trayRegistration: { config: DesktopTrayConfig; disposer: () => void } | undefined
 
   constructor(ctx: Context) {
     super(ctx)
@@ -39,6 +43,7 @@ export default class DesktopShell extends Desktop {
       path,
       onNotification: (notification) => { this.onBridgeNotification(ctx, notification) },
       onClose: () => { ctx.emit('desktop/bridge-lost') },
+      onReconnect: () => { void this.replayRegistrations(ctx) },
     })
     ctx.effect(() => {
       return () => { this.bridge?.dispose() }
@@ -60,34 +65,54 @@ export default class DesktopShell extends Desktop {
     bridge.notify('desktop/sendNotification', notification)
   }
 
-  registerMenuItem(group: string, item: DesktopMenuItem): () => void {
+  async registerMenuItem(group: string, item: DesktopMenuItem): Promise<() => void> {
     const bridge = this.bridgeOrThrow()
     const key = `${group}:${item.id}`
-    bridge.notify('desktop/registerMenuItem', { group, item })
-    const dispose = (): void => {
-      this.menuDisposers.delete(key)
-      bridge.notify('desktop/unregisterMenuItem', { group, id: item.id })
-    }
-    this.menuDisposers.set(key, dispose)
-    return dispose
-  }
-
-  registerGlobalShortcut(accelerator: string, handler: () => void): () => void {
-    const bridge = this.bridgeOrThrow()
-    bridge.notify('desktop/registerGlobalShortcut', { accelerator })
-    const dispose = (): void => {
-      this.shortcutHandlers.delete(accelerator)
-      bridge.notify('desktop/unregisterGlobalShortcut', { accelerator })
-    }
-    this.shortcutHandlers.set(accelerator, handler)
-    return dispose
-  }
-
-  setTray(config: DesktopTrayConfig): () => void {
-    const bridge = this.bridgeOrThrow()
-    bridge.notify('desktop/setTray', config)
+    await bridge.call('desktop/registerMenuItem', { group, item })
+    this.menuRegistrations.set(key, { group, item })
     return (): void => {
-      bridge.notify('desktop/clearTray', {})
+      this.menuRegistrations.delete(key)
+      const current = this.bridge
+      if (current !== undefined) current.notify('desktop/unregisterMenuItem', { group, id: item.id })
+    }
+  }
+
+  async registerGlobalShortcut(accelerator: string, handler: () => void): Promise<() => void> {
+    const bridge = this.bridgeOrThrow()
+    await bridge.call('desktop/registerGlobalShortcut', { accelerator })
+    this.shortcutRegistrations.set(accelerator, { accelerator, handler })
+    return (): void => {
+      this.shortcutRegistrations.delete(accelerator)
+      const current = this.bridge
+      if (current !== undefined) current.notify('desktop/unregisterGlobalShortcut', { accelerator })
+    }
+  }
+
+  async setTray(config: DesktopTrayConfig): Promise<() => void> {
+    const bridge = this.bridgeOrThrow()
+    await bridge.call('desktop/setTray', config)
+    const disposer = (): void => {
+      if (this.trayRegistration?.disposer === disposer) this.trayRegistration = undefined
+      const current = this.bridge
+      if (current !== undefined) current.notify('desktop/clearTray', {})
+    }
+    this.trayRegistration = { config, disposer }
+    return disposer
+  }
+
+  /** Re-establish every live registration after the bridge socket reconnects. */
+  private async replayRegistrations(ctx: Context): Promise<void> {
+    try {
+      for (const { group, item } of this.menuRegistrations.values()) {
+        await this.bridge?.call('desktop/registerMenuItem', { group, item })
+      }
+      for (const { accelerator } of this.shortcutRegistrations.values()) {
+        await this.bridge?.call('desktop/registerGlobalShortcut', { accelerator })
+      }
+      const tray = this.trayRegistration
+      if (tray !== undefined) await this.bridge?.call('desktop/setTray', tray.config)
+    } catch (error) {
+      ctx.logger.warn(`desktop bridge reconnect replay failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -121,7 +146,7 @@ export default class DesktopShell extends Desktop {
       case 'desktop/shortcut-triggered': {
         const { accelerator } = notification.params as { accelerator: string }
         ctx.emit('desktop/shortcut-triggered', { accelerator })
-        this.shortcutHandlers.get(accelerator)?.()
+        this.shortcutRegistrations.get(accelerator)?.handler()
         return
       }
       case 'desktop/tray-clicked':

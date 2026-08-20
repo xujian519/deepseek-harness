@@ -33,6 +33,8 @@ export interface DesktopNotification {
   title: string
   /** Notification body text. */
   body?: string
+  /** Stable identifier echoed back in `desktop/notification-clicked`; the provider mints one when absent. */
+  id?: string
 }
 
 /** One dynamic application-menu entry registered by a backend plugin. */
@@ -49,6 +51,11 @@ export interface DesktopMenuItem {
 export interface DesktopTrayConfig {
   /** Tooltip text. */
   tooltip?: string
+  /**
+   * Menu group whose registered items populate the tray context menu, on top
+   * of the shell's own Show/Quit entries (default `'tray'`).
+   */
+  menuGroup?: string
 }
 
 /** Closed failure vocabulary for desktop operations. */
@@ -147,27 +154,32 @@ export abstract class Desktop extends Service {
   abstract sendNotification(notification: DesktopNotification): void
 
   /**
-   * Register a menu item under a named group.
-   * @param group - named menu group (e.g., `file`, `view`).
+   * Register a menu item under a named group. Items in the tray's configured
+   * menu group (`'tray'` by default) join the tray context menu; other groups
+   * become top-level application menus.
+   * @param group - named menu group (e.g., `file`, `view`, `tray`).
    * @param item - menu item to register.
-   * @returns a disposer that removes the item.
+   * @returns a promise resolving to a disposer that removes the item; rejects
+   * when the bridge cannot place the item.
    */
-  abstract registerMenuItem(group: string, item: DesktopMenuItem): () => void
+  abstract registerMenuItem(group: string, item: DesktopMenuItem): Promise<() => void>
 
   /**
    * Register a global keyboard shortcut.
    * @param accelerator - Electron accelerator string.
    * @param handler - callback invoked when the shortcut fires.
-   * @returns a disposer that unregisters the shortcut.
+   * @returns a promise resolving to a disposer that unregisters the shortcut;
+   * rejects when the accelerator is already claimed.
    */
-  abstract registerGlobalShortcut(accelerator: string, handler: () => void): () => void
+  abstract registerGlobalShortcut(accelerator: string, handler: () => void): Promise<() => void>
 
   /**
    * Configure the host tray icon.
    * @param config - tray configuration.
-   * @returns a disposer that removes the tray.
+   * @returns a promise resolving to a disposer that removes the tray
+   * configuration; rejects when no tray is available.
    */
-  abstract setTray(config: DesktopTrayConfig): () => void
+  abstract setTray(config: DesktopTrayConfig): Promise<() => void>
 }
 
 export default Desktop
