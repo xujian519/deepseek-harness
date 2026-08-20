@@ -213,6 +213,15 @@ export async function createTeamDir(stateRoot: string, state: TeamState): Promis
   await atomicWriteText(join(dir, 'team.json'), JSON.stringify(state, null, 2))
 }
 
+/** Parse and validate one team record's file content. */
+function parseTeamRecord(raw: string, teamId: string): TeamState {
+  const value: unknown = JSON.parse(stripLeadingBom(raw))
+  if (!isTeamState(value, teamId)) {
+    throw new Error(`invalid PatentTeams state in team "${teamId}"`)
+  }
+  return value
+}
+
 /**
  * Read one team record; `undefined` when absent.
  * @param stateRoot - resolved absolute state root directory.
@@ -221,12 +230,7 @@ export async function createTeamDir(stateRoot: string, state: TeamState): Promis
  */
 export async function readTeam(stateRoot: string, teamId: string): Promise<TeamState | undefined> {
   try {
-    const raw = await readFile(join(stateRoot, teamId, 'team.json'), 'utf8')
-    const value: unknown = JSON.parse(stripLeadingBom(raw))
-    if (!isTeamState(value, teamId)) {
-      throw new Error(`invalid PatentTeams state in team "${teamId}"`)
-    }
-    return value
+    return parseTeamRecord(await readFile(join(stateRoot, teamId, 'team.json'), 'utf8'), teamId)
   } catch (error: unknown) {
     if (isEnoent(error)) {
       return undefined
@@ -246,12 +250,7 @@ export async function readTeam(stateRoot: string, teamId: string): Promise<TeamS
  */
 export function readTeamSync(stateRoot: string, teamId: string): TeamState | undefined {
   try {
-    const raw = readFileSync(join(stateRoot, teamId, 'team.json'), 'utf8')
-    const value: unknown = JSON.parse(stripLeadingBom(raw))
-    if (!isTeamState(value, teamId)) {
-      throw new Error(`invalid PatentTeams state in team "${teamId}"`)
-    }
-    return value
+    return parseTeamRecord(readFileSync(join(stateRoot, teamId, 'team.json'), 'utf8'), teamId)
   } catch (error: unknown) {
     if (isEnoent(error)) {
       return undefined

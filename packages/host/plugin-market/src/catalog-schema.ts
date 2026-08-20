@@ -44,24 +44,8 @@ export const catalogSourceManifestSchema = z.object({
   }),
 }).strict()
 
-/** A catalog provider page (docs/schemas/catalog-provider-page.schema.json). */
-export const catalogProviderPageSchema = z.object({
-  items: z.array(z.object({
-    id: z.string().min(1).max(256),
-    name: z.string().min(1).max(120),
-    description: z.string().max(500).optional(),
-    package: z.string().min(1).max(214).regex(/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/),
-    version: z.string().min(1).max(64),
-    category: z.string().max(64).optional(),
-    capability: z.array(z.string().min(1).max(64)).max(32).optional(),
-    homepage: urlSchema.optional(),
-    license: z.string().max(64).optional(),
-  }).strict()).max(200),
-  nextCursor: z.string().max(256).optional(),
-}).strict()
-
-/** The normalized snapshot entry the host exposes (docs/schemas/catalog-snapshot.schema.json). */
-export const catalogSnapshotEntrySchema = z.object({
+/** Fields shared by provider-page items and normalized snapshot entries. */
+const catalogEntryFields = {
   id: z.string().min(1).max(256),
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
@@ -71,7 +55,16 @@ export const catalogSnapshotEntrySchema = z.object({
   capability: z.array(z.string().min(1).max(64)).max(32).optional(),
   homepage: urlSchema.optional(),
   license: z.string().max(64).optional(),
+} as const
+
+/** A catalog provider page (docs/schemas/catalog-provider-page.schema.json). */
+export const catalogProviderPageSchema = z.object({
+  items: z.array(z.object(catalogEntryFields).strict()).max(200),
+  nextCursor: z.string().max(256).optional(),
 }).strict()
+
+/** The normalized snapshot entry the host exposes (docs/schemas/catalog-snapshot.schema.json). */
+export const catalogSnapshotEntrySchema = z.object(catalogEntryFields).strict()
 
 /** Query the host may send a source (docs/schemas/catalog-query.schema.json). */
 export const catalogQuerySchema = z.object({

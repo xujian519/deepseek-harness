@@ -118,6 +118,22 @@ function requireTask(team: TeamState, taskId: string): TeamTask {
   return task
 }
 
+/**
+ * Project one task's mutation result row. The optional fields carry values on
+ * every call path whose fallbacks are unreachable (v8 ignore).
+ */
+function taskView(task: TeamTask): { task_id: string; status: string; attempt: number; attempt_id?: string; output?: string } {
+  // v8 ignore start -- every caller has already asserted the fields it relies on
+  return {
+    task_id: task.id,
+    status: task.status,
+    attempt: task.attempt ?? 0,
+    ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
+    ...task.output !== undefined ? { output: task.output } : {},
+  }
+  // v8 ignore stop
+}
+
 function memberOpenTask(team: TeamState, memberName: string, exceptTaskId?: string): TeamTask | undefined {
   return team.tasks.find(task => task.id !== exceptTaskId
     && task.assignee === memberName
@@ -720,15 +736,7 @@ export class PatentTeamsService extends Service {
         if (!sameStatus || !sameOutput) {
           throw new Error(`terminal task ${task.id} is immutable; use patent_teams_reassign_task to retry failed/cancelled work`)
         }
-        // v8 ignore start -- a terminal task always carries attempt/attemptId
-        return {
-          task_id: task.id,
-          status: task.status,
-          attempt: task.attempt ?? 0,
-          ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
-          ...task.output !== undefined ? { output: task.output } : {},
-        }
-        // v8 ignore stop
+        return taskView(task)
       }
       if (args.status !== undefined) {
         const transition = transitionError(task.status, args.status as never)
@@ -746,14 +754,8 @@ export class PatentTeamsService extends Service {
         ...task.assignee !== undefined ? { assignee: task.assignee } : {},
         ...task.output !== undefined ? { output: task.output } : {},
       })
-      return {
-        task_id: task.id,
-        status: task.status,
-        attempt: task.attempt ?? 0,
-        ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
-        ...task.output !== undefined ? { output: task.output } : {},
-      }
       // v8 ignore stop
+      return taskView(task)
     })
     await this.scheduler.kickTeam(workspace, team.id, team.captainSessionId === agent.id ? agent : undefined, signal)
     return updated

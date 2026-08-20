@@ -314,6 +314,16 @@ function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
   })
 }
 
+/** 按 resume 规格取检查点：grant 走 grantApproval，否则原样 load。 */
+async function loadResumeCheckpoint(
+  store: CheckpointStore,
+  spec: { checkpointId: string; grant: boolean },
+): Promise<GraphCheckpoint | undefined> {
+  return spec.grant
+    ? await grantApproval(store, spec.checkpointId)
+    : await store.load(spec.checkpointId)
+}
+
 /** Graph-mode execution: build the subgraph, assemble the provider, run with checkpoints. */
 async function executeGraphRun(
   input: PatentWorkflowRunInput,
@@ -355,9 +365,7 @@ async function executeGraphRun(
   }
   let resumeFrom: GraphCheckpoint | undefined
   if (resumeSpec !== undefined) {
-    resumeFrom = resumeSpec.grant
-      ? await grantApproval(store, resumeSpec.checkpointId)
-      : await store.load(resumeSpec.checkpointId)
+    resumeFrom = await loadResumeCheckpoint(store, resumeSpec)
     if (resumeFrom === undefined) {
       return {
         ok: false,
