@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-20-terminal-bash-answers-pwsh-cpr.md
-2026-08-20-terminal-bash-answers-pwsh-cpr.md: 0f6eafd630fcf5c7495d3e3b8c46024ceb2b22dc
-2026-08-20-terminal-bash-answers-pwsh-cpr.zh.md: 69280f7b9145d03c9dfb6fafbbbcc2b7b9a537b1
+2026-08-20-terminal-bash-answers-pwsh-cpr.md: 2decd43c9bfa98dfd965d9c43396d7403ab3521c
+2026-08-20-terminal-bash-answers-pwsh-cpr.zh.md: 4b27d70d2bee46123ad988a09e4d03c39c69a022

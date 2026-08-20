@@ -25,6 +25,7 @@ A second startup bug compounded the freeze. The pwsh startup loop broke when the
 
 ## Consequences
 
-- pwsh sessions reach `stdin_read` readiness, execute commands, and render the controlled `dsh> ` prompt. The three fork-CI pwsh failures — two in `terminal-bash/tests/local.spec.ts` and the `tool-pwsh-persistent` loader-composition test — now pass.
+- pwsh sessions reach `stdin_read` readiness, execute commands, and render the controlled `dsh> ` prompt. The CPR fix unblocked the previously-gated fork-CI pwsh tests: `tool-pwsh-persistent` loader-composition and `pins UTF-8` now pass, and `bootstraps a persistent pwsh` passes once its silence bound fits the host.
+- The fork CI runs on a loaded `ubuntu-latest` host, where a fresh pwsh can take over a second to render the first post-command prompt (first-use JIT plus CPU contention), whereas macOS local runs finish in tens of milliseconds. The pwsh tests' `idleSilenceMs: 300` therefore settled `inferred_idle` while pwsh was merely slow. The tests now use the product default `idleSilenceMs: 3_000` (and `handoffGraceMs: 500`, `timeoutMs: 30_000`), which still proves prompt-based `stdin_read` — a genuinely frozen pwsh still settles `inferred_idle` and fails the assertion.
 - The loader-composition fixture now asserts cwd against `realpath` so it replays on macOS, where the temp dir is reached through the `/var` → `/private/var` symlink. Linux is unaffected (`realpath` is identity there).
 - A user typing the literal bytes `ESC[6n` at a pwsh prompt would receive a spurious report, which is harmless. The window uses a fixed constant because protocol constants stay fixed.

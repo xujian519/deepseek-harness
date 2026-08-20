@@ -285,9 +285,14 @@ describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
     process.env.DSH_TEST_SECRET = 'must-not-leak'
     try {
       const { ctx, root, agent } = await harness('danger-full-access', {
-        idleSilenceMs: 300,
-        handoffGraceMs: 300,
-        timeoutMs: 8_000,
+        // A freshly-started pwsh can take seconds to render its first post-command
+        // prompt on a loaded CI host (first-use JIT, CPU contention), so the
+        // default 3000ms silence bound — not the 300ms this suite uses for bash —
+        // is the floor that still proves prompt-based `stdin_read` readiness
+        // instead of letting `inferred_idle` settle while pwsh is merely slow.
+        idleSilenceMs: 3_000,
+        handoffGraceMs: 500,
+        timeoutMs: 30_000,
       }, 'pwsh')
       const created = await ctx.terminals.spawn(agent, { type: 'shell', name: 'main', cwd: root })
       expect(created.motd).toContain('dsh> ')
@@ -317,9 +322,9 @@ describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
 
   it('pins UTF-8 output encoding so non-ASCII output survives the byte decode', async () => {
     const { ctx, root, agent } = await harness('danger-full-access', {
-      idleSilenceMs: 300,
-      handoffGraceMs: 300,
-      timeoutMs: 8_000,
+      idleSilenceMs: 3_000,
+      handoffGraceMs: 500,
+      timeoutMs: 30_000,
     }, 'pwsh')
     const created = await ctx.terminals.spawn(agent, { type: 'shell', name: 'main', cwd: root })
     // The bootstrap itself must have pinned both encodings: the session byte

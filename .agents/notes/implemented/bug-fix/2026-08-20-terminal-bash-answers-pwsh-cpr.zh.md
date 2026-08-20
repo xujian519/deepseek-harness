@@ -25,6 +25,7 @@ Status: implemented
 
 ## Consequences
 
-- pwsh 会话达到 `stdin_read` 就绪、执行命令、渲染受控 `dsh> ` 提示符。三个 fork-CI pwsh 失败——`terminal-bash/tests/local.spec.ts` 的两个与 `tool-pwsh-persistent` 的 loader-composition 测试——现在全部通过。
+- pwsh 会话达到 `stdin_read` 就绪、执行命令、渲染受控 `dsh> ` 提示符。CPR 修复解锁了此前被门控的 fork-CI pwsh 测试：`tool-pwsh-persistent` 的 loader-composition 与 `pins UTF-8` 现在通过，`bootstraps a persistent pwsh` 在静默上限适配宿主后通过。
+- fork CI 运行在负载较高的 `ubuntu-latest` 主机上，新启动的 pwsh 渲染命令后的首个提示符可能要一秒以上（首次 JIT 加 CPU 竞争），而 macOS 本地运行只需几十毫秒。pwsh 测试原来的 `idleSilenceMs: 300` 因此在 pwsh 仅仅是慢时就把 send 结算为 `inferred_idle`。测试现改用产品默认的 `idleSilenceMs: 3_000`（以及 `handoffGraceMs: 500`、`timeoutMs: 30_000`），仍严格验证基于提示符的 `stdin_read`——真正冻结的 pwsh 依然会结算 `inferred_idle` 并使断言失败。
 - loader-composition fixture 现在用 `realpath` 断言 cwd，使其能在 macOS 上回放——macOS 上临时目录经 `/var` → `/private/var` 符号链接访问。Linux 不受影响（那里 `realpath` 是恒等操作）。
 - 用户在 pwsh 提示符下输入字面字节 `ESC[6n` 时会收到一次多余的报告，这无害。窗口使用固定常量，因为协议常量保持固定。
