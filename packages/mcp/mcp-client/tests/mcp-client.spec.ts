@@ -1127,6 +1127,7 @@ describe('createTransport', () => {
       cwd: '/tmp',
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     const transport = createTransport(config)
     expect(transport).toBeDefined()
@@ -1142,6 +1143,7 @@ describe('createTransport', () => {
       headers: {},
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     const transport = createTransport(config)
     expect(transport).toBeDefined()
@@ -1157,6 +1159,7 @@ describe('createTransport', () => {
       headers: { Authorization: 'Bearer token' },
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     const transport = createTransport(config)
     expect(transport).toBeDefined()
@@ -1181,6 +1184,7 @@ describe('createTransport', () => {
         cwd: '',
         toolCallTimeoutMs: 60_000,
         failOnStartupError: false,
+        surfaceInstructions: true,
       }
       // StdioClientTransport keeps its env private; the observable contract is
       // that createTransport(config) returns a transport without throwing.
@@ -1207,6 +1211,7 @@ describe('createTransport', () => {
       cwd: '',
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
     const transport = createTransport(config)
     expect(transport).toBeDefined()

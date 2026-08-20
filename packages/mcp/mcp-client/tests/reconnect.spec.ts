@@ -15,7 +15,9 @@ import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
 // vi.mock factories are hoisted above every import/const, so the mock fns and
 // class must be created inside vi.hoisted to exist when the factories run.
-const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, MockClient, instances } = vi.hoisted(() => {
+const {
+  mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, mockGetInstructions, MockClient, instances,
+} = vi.hoisted(() => {
   const mockConnect = vi.fn<() => Promise<void>>()
   const mockClose = vi.fn<() => Promise<void>>()
   const mockListTools = vi.fn<(_params?: Record<string, unknown>) => Promise<unknown>>()
@@ -23,6 +25,7 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
     _params?: Record<string, unknown>, _compatibilitySchema?: unknown, _options?: unknown,
   ) => Promise<unknown>>()
   const mockSetNotificationHandler = vi.fn()
+  const mockGetInstructions = vi.fn<() => string | undefined>()
   const mockRequest = vi.fn(async (
     request: { method: string; params?: Record<string, unknown> },
     _schema: unknown,
@@ -38,10 +41,11 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
     close = mockClose
     request = mockRequest
     setNotificationHandler = mockSetNotificationHandler
+    getInstructions = mockGetInstructions
     constructor() { instances.push(this) }
   }
   const instances: MockClient[] = []
-  return { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, MockClient, instances }
+  return { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, mockGetInstructions, MockClient, instances }
 })
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
@@ -102,6 +106,7 @@ function stdioConfig(reconnect?: Config['reconnect']): Config {
     cwd: '',
     toolCallTimeoutMs: 60_000,
     failOnStartupError: false,
+    surfaceInstructions: true,
     ...reconnect === undefined ? {} : { reconnect },
   }
 }
@@ -134,6 +139,7 @@ describe('reconnect supervisor', () => {
     })
     mockListTools.mockResolvedValue(listing('remote'))
     mockCallTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    mockGetInstructions.mockReturnValue('')
     ctx = await mountRegistry()
   })
 
@@ -309,7 +315,7 @@ describe('reconnect supervisor', () => {
   })
 
   it('a transport close after dispose schedules nothing', async () => {
-    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools'], apply }, stdioConfig())
+    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools', 'systemPrompt'], apply }, stdioConfig())
     await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
 
     await fiber.dispose()
@@ -419,7 +425,10 @@ describe('reconnect supervisor', () => {
   })
 
   it('dispose during an in-flight initial sync quiesces without leaking tools', async () => {
-    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools'], apply }, stdioConfig({ initialDelayMs: 2, maxDelayMs: 8, maxAttempts: 5 }))
+    const fiber = ctx.plugin(
+      { name: 'mcp-client', inject: ['tools', 'systemPrompt'], apply },
+      stdioConfig({ initialDelayMs: 2, maxDelayMs: 8, maxAttempts: 5 }),
+    )
     await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
 
     // Block the reconnect attempt's tool discovery until after dispose starts.
@@ -441,7 +450,7 @@ describe('reconnect supervisor', () => {
 
   it('a re-sync failing because dispose closed the transport stays silent', async () => {
     const { errors } = captureLogs(ctx)
-    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools'], apply }, stdioConfig())
+    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools', 'systemPrompt'], apply }, stdioConfig())
     await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
 
     const gate: PromiseWithResolvers<unknown> = Promise.withResolvers()

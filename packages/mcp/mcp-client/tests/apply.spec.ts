@@ -12,7 +12,9 @@ import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
 // vi.mock factories are hoisted above every import/const, so the mock fns and
 // class must be created inside vi.hoisted to exist when the factories run.
-const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, MockClient } = vi.hoisted(() => {
+const {
+  mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, mockGetInstructions, MockClient,
+} = vi.hoisted(() => {
   const mockConnect = vi.fn<() => Promise<void>>()
   const mockClose = vi.fn<() => Promise<void>>()
   const mockListTools = vi.fn<(_params?: Record<string, unknown>) => Promise<unknown>>()
@@ -20,6 +22,7 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
     _params?: Record<string, unknown>, _compatibilitySchema?: unknown, _options?: unknown,
   ) => Promise<unknown>>()
   const mockSetNotificationHandler = vi.fn()
+  const mockGetInstructions = vi.fn<() => string | undefined>()
   const mockRequest = vi.fn(async (
     request: { method: string; params?: Record<string, unknown> },
     _schema: unknown,
@@ -36,8 +39,9 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
     callTool = mockCallTool
     request = mockRequest
     setNotificationHandler = mockSetNotificationHandler
+    getInstructions = mockGetInstructions
   }
-  return { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, MockClient }
+  return { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, mockGetInstructions, MockClient }
 })
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
@@ -83,6 +87,7 @@ const stdioConfig: Config = {
   cwd: '',
   toolCallTimeoutMs: 60_000,
   failOnStartupError: false,
+  surfaceInstructions: true,
 }
 
 // ---- Tests ----
@@ -90,7 +95,7 @@ const stdioConfig: Config = {
 describe('mcp-client plugin module exports', () => {
   it('exports name, inject, and Config', () => {
     expect(name).toBe('mcp-client')
-    expect(inject).toEqual(['tools'])
+    expect(inject).toEqual(['tools', 'systemPrompt'])
     expect(ConfigSchema).toBeDefined()
   })
 
@@ -168,6 +173,8 @@ describe('apply (plugin lifecycle)', () => {
       nextCursor: undefined,
     })
     mockCallTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    // Servers without instructions are the default; surfacing cases set a value.
+    mockGetInstructions.mockReturnValue('')
     ctx = await mountRegistry()
   })
 
@@ -350,7 +357,7 @@ describe('apply (plugin lifecycle)', () => {
   it('effect disposer unregisters the CURRENT generation and closes client', async () => {
     // Load through ctx.plugin so ONLY the plugin's fiber is disposed — the
     // registry must survive to observe the unregistration.
-    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools'], apply }, stdioConfig)
+    const fiber = ctx.plugin({ name: 'mcp-client', inject: ['tools', 'systemPrompt'], apply }, stdioConfig)
     await fiber
 
     // Advance to a second generation first.
@@ -393,11 +400,78 @@ describe('apply (plugin lifecycle)', () => {
       headers: { Authorization: 'Bearer x' },
       toolCallTimeoutMs: 30_000,
       failOnStartupError: false,
+      surfaceInstructions: true,
     }
 
     await apply(ctx, httpConfig)
 
     expect(mockConnect).toHaveBeenCalled()
     expect(ctx.tools.get('mcp__web__remote')).toBeDefined()
+  })
+
+  it('registers the server instructions as a system-prompt section', async () => {
+    const instructions = 'All mutations go through tools. Reply on the task thread only.'
+    mockGetInstructions.mockReturnValue(instructions)
+
+    await apply(ctx, stdioConfig)
+
+    const assembly = await ctx.systemPrompt.assemble()
+    const section = assembly.sections.find(s => s.name === 'mcp:srv:instructions')
+    expect(section?.text).toBe(instructions)
+  })
+
+  it('contributes nothing when the server provides no instructions', async () => {
+    // The SDK returns undefined when the initialize response omitted instructions.
+    mockGetInstructions.mockReturnValue(undefined)
+
+    await apply(ctx, stdioConfig)
+
+    const assembly = await ctx.systemPrompt.assemble()
+    // The section is registered, but its empty text is dropped at rendering.
+    const section = assembly.sections.find(s => s.name === 'mcp:srv:instructions')
+    expect(section?.text).toBe('')
+  })
+
+  it('skips the section when surfaceInstructions is disabled', async () => {
+    mockGetInstructions.mockReturnValue('server rules')
+
+    await apply(ctx, { ...stdioConfig, surfaceInstructions: false })
+
+    const assembly = await ctx.systemPrompt.assemble()
+    expect(assembly.sections.find(s => s.name === 'mcp:srv:instructions')).toBeUndefined()
+  })
+
+  it('unregisters the section when the plugin is disposed', async () => {
+    mockGetInstructions.mockReturnValue('server rules')
+    const fiber = ctx.plugin({ name: 'mcp-client', inject, apply }, stdioConfig)
+    await fiber
+
+    expect((await ctx.systemPrompt.assemble()).sections.find(s => s.name === 'mcp:srv:instructions')?.text)
+      .toBe('server rules')
+
+    await fiber.dispose()
+    await sleep(50)
+
+    expect((await ctx.systemPrompt.assemble()).sections.find(s => s.name === 'mcp:srv:instructions'))
+      .toBeUndefined()
+  })
+
+  it('namespaces sections per serverName', async () => {
+    mockGetInstructions.mockReturnValue('rules-a')
+    await apply(ctx, stdioConfig)
+    mockGetInstructions.mockReturnValue('rules-b')
+    await apply(ctx, {
+      transport: 'streamable-http',
+      serverName: 'web',
+      url: 'http://localhost:3000/mcp',
+      headers: {},
+      toolCallTimeoutMs: 60_000,
+      failOnStartupError: false,
+      surfaceInstructions: true,
+    })
+
+    const assembly = await ctx.systemPrompt.assemble()
+    expect(assembly.sections.find(s => s.name === 'mcp:srv:instructions')?.text).toBe('rules-a')
+    expect(assembly.sections.find(s => s.name === 'mcp:web:instructions')?.text).toBe('rules-b')
   })
 })
