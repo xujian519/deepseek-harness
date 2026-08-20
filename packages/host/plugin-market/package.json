@@ -20,15 +20,19 @@
     },
     "./catalog": {
       "types": "./lib/types/catalog.d.ts",
-      "default": "./lib/catalog.js"
+      "default": "./lib/types/catalog.js"
     },
     "./install": {
       "types": "./lib/types/install.d.ts",
-      "default": "./lib/install.js"
+      "default": "./lib/types/install.js"
+    },
+    "./provider": {
+      "types": "./lib/types/provider.d.ts",
+      "default": "./lib/types/provider.js"
     },
     "./restricted-fetch": {
       "types": "./lib/types/restricted-fetch.d.ts",
-      "default": "./lib/restricted-fetch.js"
+      "default": "./lib/types/restricted-fetch.js"
     },
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
@@ -39,10 +43,8 @@
   },
   "files": [
     "lib/index.js",
-    "lib/catalog.js",
-    "lib/install.js",
-    "lib/restricted-fetch.js",
     "lib/invariant.js",
+    "lib/types/**/*.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

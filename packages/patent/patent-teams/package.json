@@ -10,6 +10,7 @@
     "directory": "packages/patent/patent-teams"
   },
   "type": "module",
+  "license": "MIT",
   "description": "Durable multi-agent team capability for patent workflow: captain-led teams, dependency-aware tasks, mailbox messaging, and an event-driven shared-task scheduler, surfaced as the patent_teams_* tools.",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

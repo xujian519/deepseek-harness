@@ -26,6 +26,7 @@
       "entry": [
         "scripts/**/*.mjs",
         "scripts/**/*.cjs",
+        "scripts/build-exe-for-python-sdk.ts",
         "scripts/types/client-build-environment/index.d.ts"
       ],
       "ignoreUnresolved": [

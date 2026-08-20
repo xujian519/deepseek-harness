@@ -9437,9 +9437,33 @@ importers:
       '@deepseek-ai/dsh-mcp-client':
         specifier: workspace:^
         version: link:../../packages/mcp/mcp-client
+      '@deepseek-ai/dsh-methodology':
+        specifier: workspace:^
+        version: link:../../packages/patent/methodology
       '@deepseek-ai/dsh-output-retention':
         specifier: workspace:^
         version: link:../../packages/util/output-retention
+      '@deepseek-ai/dsh-patent-core':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-core
+      '@deepseek-ai/dsh-patent-data':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-data
+      '@deepseek-ai/dsh-patent-document':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-document
+      '@deepseek-ai/dsh-patent-knowledge':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-knowledge
+      '@deepseek-ai/dsh-patent-rule':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-rule
+      '@deepseek-ai/dsh-patent-tools':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-tools
+      '@deepseek-ai/dsh-patent-workflow':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-workflow
       '@deepseek-ai/dsh-permission-presets':
         specifier: workspace:^
         version: link:../../packages/interaction/permission-presets
@@ -9587,6 +9611,9 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: workspace:^
         version: link:../../packages/jobs/tool-jobs
+      '@deepseek-ai/dsh-tool-literature':
+        specifier: workspace:^
+        version: link:../../packages/patent/tool-literature
       '@deepseek-ai/dsh-tool-ralph':
         specifier: workspace:^
         version: link:../../packages/workflow/tool-ralph

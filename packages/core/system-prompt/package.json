@@ -24,7 +24,7 @@
     },
     "./prompt-cache": {
       "types": "./lib/types/prompt-cache.d.ts",
-      "default": "./lib/prompt-cache.js"
+      "default": "./lib/types/prompt-cache.js"
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
@@ -32,7 +32,7 @@
   "files": [
     "lib/index.js",
     "lib/invariant.js",
-    "lib/prompt-cache.js",
+    "lib/types/**/*.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
