@@ -94,7 +94,7 @@ describe('SystemPrompt stable-prefix cache', () => {
     expect(renderPrompt(second)).toContain('live 2')
   })
 
-  it('treats a variable value change as a signature change (miss)', async () => {
+  it('serves the cached prefix across variable value changes', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
     const cache = new StubCache()
@@ -109,8 +109,11 @@ describe('SystemPrompt stable-prefix cache', () => {
 
     expect(renderPrompt(first)).toContain('now 1')
     expect(renderPrompt(second)).toContain('now 2')
-    // Each changed variable value recomputed the prefix: never served stale.
-    expect(cache.setCalls).toBe(2)
+    // The cached text is uninterpolated, so the changed value must not
+    // invalidate the prefix; the second assembly hit the cache and
+    // interpolation applied the new value at render time.
+    expect(cache.setCalls).toBe(1)
+    expect(cache.getCalls).toBe(2)
   })
 
   it('invalidating the scope forces re-evaluation', async () => {
@@ -161,21 +164,72 @@ describe('SystemPrompt stable-prefix cache', () => {
     expect(cache.getCalls).toBe(2)
   })
 
-  it('includes undefined variable values in the signature', async () => {
+  it('keeps registered variable values out of the signature', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
+    let ticks = 0
     ctx.systemPrompt.variable('optional', () => undefined)
+    ctx.systemPrompt.variable('volatile', () => String(++ticks))
 
     const first = await ctx.systemPrompt.assemble()
     const second = await ctx.systemPrompt.assemble()
 
     expect(renderPrompt(first)).toBe(renderPrompt(second))
-    // Both assembles produced the same signature; the second hit the cache.
+    // No section references either variable; their changing values never
+    // enter the signature, so the second assembly hit the cache.
     expect(cache.setCalls).toBe(1)
     expect(cache.getCalls).toBe(2)
+  })
+
+  it('degrades to the normal assembly path when the cache read throws', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    const failing = new StubCache()
+    failing.get = async () => { throw new Error('cache down') }
+    ctx.provide('promptCache', failing)
+
+    let calls = 0
+    ctx.systemPrompt.section({
+      name: 'stable-fn',
+      order: 10,
+      stable: true,
+      text: () => `resolved ${++calls}`,
+    })
+
+    const first = await ctx.systemPrompt.assemble()
+    const second = await ctx.systemPrompt.assemble()
+
+    expect(renderPrompt(first)).toContain('resolved 1')
+    expect(renderPrompt(second)).toContain('resolved 2')
+    // Every read failed, so the provider evaluated per assembly.
+    expect(calls).toBe(2)
+  })
+
+  it('degrades to the normal assembly path when the cache write throws', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    const failing = new StubCache()
+    failing.set = async () => { throw new Error('cache full') }
+    ctx.provide('promptCache', failing)
+
+    let calls = 0
+    ctx.systemPrompt.section({
+      name: 'stable-fn',
+      order: 10,
+      stable: true,
+      text: () => `resolved ${++calls}`,
+    })
+
+    const first = await ctx.systemPrompt.assemble()
+    const second = await ctx.systemPrompt.assemble()
+
+    expect(renderPrompt(first)).toContain('resolved 1')
+    expect(renderPrompt(second)).toContain('resolved 2')
+    // The write never landed, so each assembly evaluated and wrote again.
+    expect(calls).toBe(2)
   })
 
   it('caches only the contiguous stable prefix, excluding later unstable sections', async () => {

@@ -547,14 +547,8 @@ export class SystemPrompt extends Service {
     // strings are stable by definition; function providers must declare
     // `stable: true`. Sections from the first unstable one onward keep their
     // per-assembly evaluation, preserving the existing order join.
-    const stableCount = (() => {
-      let count = 0
-      for (const section of sectionDefinitions) {
-        if (typeof section.text === 'string' || section.stable === true) count++
-        else break
-      }
-      return count
-    })()
+    const firstUnstable = sectionDefinitions.findIndex(section => typeof section.text !== 'string' && section.stable !== true)
+    const stableCount = firstUnstable === -1 ? sectionDefinitions.length : firstUnstable
     const cache = this.ctx.reflect.get('promptCache', false) as PromptCache | undefined
     let cacheKey: PromptCacheKey | undefined
     let cachedPrefix: CachedPromptSection[] | undefined
@@ -567,42 +561,44 @@ export class SystemPrompt extends Service {
             order: section.order,
             fingerprint: typeof section.text === 'string' ? section.text : providerIdOf(section.text),
           })),
-          variables,
         ),
         configFingerprint: configFingerprintOf(this.persona),
       }
       cacheKey = key
-      const cached = await cache.get(key)
-      // The name sequence guards against a stale or corrupt entry: any
-      // mismatch is a miss, never a served prefix.
-      if (cached !== undefined && cached.length === stableCount
-        && cached.every((section, index) => {
-          // oxlint-disable-next-line typescript/no-non-null-assertion -- index is bounded by the length check above
-          return section.name === sectionDefinitions[index]!.name
-        })) {
-        cachedPrefix = cached
+      try {
+        const cached = await cache.get(key)
+        // The name sequence guards against a stale or corrupt entry: any
+        // mismatch is a miss, never a served prefix.
+        if (cached !== undefined && cached.length === stableCount
+          && cached.every((section, index) => section.name === sectionDefinitions[index]?.name)) {
+          cachedPrefix = cached
+        }
+      } catch {
+        // A failing cache read degrades to the normal assembly path: the
+        // cache is an optimization, never a correctness path.
       }
     }
 
     let completeSection: AssembledSection | undefined
     const sections: AssembledSection[] = []
     for (const [index, section] of sectionDefinitions.entries()) {
-      if (cachedPrefix !== undefined && index < stableCount) {
+      const assembled: AssembledSection = cachedPrefix !== undefined && index < stableCount
         // oxlint-disable-next-line typescript/no-non-null-assertion -- length-validated splice (cached.length === stableCount)
-        const fromCache = cachedPrefix[index]!
-        sections.push(fromCache)
-        if (section.complete === true) completeSection = { ...fromCache }
-        continue
-      }
-      const assembled: AssembledSection = {
-        name: section.name,
-        text: typeof section.text === 'function' ? section.text(context) : section.text,
-      }
+        ? cachedPrefix[index]!
+        : {
+          name: section.name,
+          text: typeof section.text === 'function' ? section.text(context) : section.text,
+        }
       sections.push(assembled)
       if (section.complete === true) completeSection = { ...assembled }
     }
     if (cache !== undefined && cacheKey !== undefined && cachedPrefix === undefined) {
-      await cache.set(cacheKey, sections.slice(0, stableCount))
+      try {
+        await cache.set(cacheKey, sections.slice(0, stableCount))
+      } catch {
+        // A failing cache write must not fail the assembly; the entry is
+        // simply absent for the next request.
+      }
     }
     const assembly: PromptAssembly = {
       sections,

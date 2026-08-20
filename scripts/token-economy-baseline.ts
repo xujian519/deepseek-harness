@@ -3,7 +3,7 @@
  * provider-reported cache hit rate per turn and in total, from the usage each
  * model request reports. The numbers are the Phase-1 baseline for
  * prompt-prefix cache reuse (see
- * `.agents/notes/proposed/architecture/2026-08-20-prompt-prefix-cache-reuse.md`).
+ * `.agents/notes/implemented/architecture/2026-08-20-prompt-prefix-cache-reuse.md`).
  *
  * Input is a plaintext JSONL session artifact. Zstandard-compressed logs
  * (`.jsonl.zstd`) are rejected with a clear error; decompress first or
@@ -179,7 +179,8 @@ export async function loadBaseline(path: string): Promise<{ meta: SessionHeader;
 async function main(argv: string[]): Promise<number> {
   const jsonOut = argv.indexOf('--json')
   const jsonPath = jsonOut >= 0 ? argv[jsonOut + 1] : undefined
-  const logs = (jsonOut >= 0 ? [...argv.slice(0, jsonOut), ...argv.slice(jsonOut + 2)] : argv).filter(arg => !arg.startsWith('--'))
+  const positional = jsonOut >= 0 ? [...argv.slice(0, jsonOut), ...argv.slice(jsonOut + 2)] : argv
+  const logs = positional.filter(arg => !arg.startsWith('--'))
   if (logs.length === 0) {
     process.stderr.write('usage: tsx scripts/token-economy-baseline.ts <log>... [--json <out.json>]\n')
     return 1

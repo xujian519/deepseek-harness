@@ -6,12 +6,14 @@ import type { PromptCache as PromptCacheIface } from '@deepseek-ai/dsh-system-pr
 import { apply, verifyRoundTrip } from '@deepseek-ai/dsh-prompt-cache/invariant'
 
 describe('prompt-cache round-trip invariant', () => {
-  it('passes for a healthy service', async () => {
+  it('passes for a healthy service without touching real entries', async () => {
     const ctx = new Context()
     await ctx.plugin(PromptCache, { ttlMs: 10000 })
+    // A real global-scope entry set before the probe survives the cleanup.
+    const realKey = { scope: undefined, signature: 'real', configFingerprint: 'real' }
+    await ctx.promptCache.set(realKey, [{ name: 'a', text: 'A' }])
     await verifyRoundTrip(ctx.promptCache, (message): never => { throw new Error(message) })
-    // The probe was cleaned up.
-    expect(await ctx.promptCache.get({ scope: undefined, signature: 'invariant-probe', configFingerprint: 'invariant-probe' })).toBeUndefined()
+    expect(await ctx.promptCache.get(realKey)).toEqual([{ name: 'a', text: 'A' }])
   })
 
   it('fails when the served sections do not match the set sections', async () => {

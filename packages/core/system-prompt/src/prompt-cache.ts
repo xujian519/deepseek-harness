@@ -24,9 +24,11 @@ export interface CachedPromptSection {
 
 /**
  * Identity of one cached assembly prefix. `signature` covers the stable
- * sections' ordered `(name, order, fingerprint)` plus the current prompt
- * variable values; `configFingerprint` covers the deployment persona. Any
- * change in either recomputes and rewrites the entry.
+ * sections' ordered `(name, order, fingerprint)` only: the cached text is
+ * uninterpolated, so current variable values never enter the identity —
+ * interpolation runs at render time against the latest values on both hit
+ * and miss. `configFingerprint` covers the deployment persona. Any change in
+ * either recomputes and rewrites the entry.
  */
 export interface PromptCacheKey {
   /** The agent scope the assembly was built for (`undefined` = global). */
@@ -99,32 +101,29 @@ function sha256(value: string): string {
 
 /**
  * The cache signature of one assembly prefix: the ordered stable sections'
- * `(name, order, fingerprint)` plus the current prompt variable values.
- * Variable values are part of the signature so a changed variable (even one
- * referenced only inside a stable section's text) recomputes the prefix
- * instead of serving interpolated stale bytes.
+ * `(name, order, fingerprint)`. Variable values are deliberately excluded —
+ * the cached text is uninterpolated, so any change in them must not
+ * invalidate the prefix; the current values are applied at render time
+ * regardless of a hit or a miss.
  * @param sections - the contiguous stable prefix sections, in order.
- * @param variables - the assembly's prompt variables.
  * @returns the signature string.
  */
 export function stablePrefixSignature(
   sections: readonly SectionFingerprintInput[],
-  variables: Record<string, string | undefined>,
 ): string {
-  const sectionPart = sections
-    .map(({ name, order, fingerprint }) => `${name}\u0000${order}\u0000${fingerprint}`)
-    .join('\u0001')
-  const variablePart = Object.keys(variables)
-    .sort()
-    .map(name => `${name}=${variables[name] ?? ''}`)
-    .join('\u0001')
-  return sha256(`${sectionPart}\u0002${variablePart}`)
+  return sha256(
+    sections
+      .map(({ name, order, fingerprint }) => `${name}\u0000${order}\u0000${fingerprint}`)
+      .join('\u0001'),
+  )
 }
 
 /**
  * The deployment fingerprint of one assembly: the configured persona text.
  * Scoped persona overrides are already inside the stable-prefix signature as
  * sections; this covers the deployment-wide configuration the registry owns.
+ * Today it duplicates the persona section's own fingerprint, and stays in the
+ * key as the reserved slot for future non-section deployment configuration.
  * @param persona - the configured deployment persona.
  * @returns the persona fingerprint.
  */

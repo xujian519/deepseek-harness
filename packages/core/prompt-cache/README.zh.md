@@ -12,7 +12,7 @@
 
 ## 公共 API
 
-- `ctx.promptCache` 缓存服务：`get(key)` / `set(key, sections)` / `invalidate(scope)`。键的 `signature` 覆盖 stable 段的有序指纹与当前 prompt 变量值，`configFingerprint` 覆盖部署 persona——任一变化都会重算条目。
+- `ctx.promptCache` 缓存服务：`get(key)` / `set(key, sections)` / `invalidate(scope)`。键的 `signature` 只覆盖 stable 段的有序指纹——缓存文本未插值，变量值不进身份；`configFingerprint` 覆盖部署 persona——任一变化都会重算条目。
 - `DEFAULT_PROMPT_CACHE_TTL_MS` 默认条目存活时间。
 
 注册变化会使全部条目失效：服务监听 `system-prompt/change` 并清空所有 scope，因为任一 prompt provider 变化都会改变每个 scope 的 stable 签名。

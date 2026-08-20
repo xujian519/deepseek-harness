@@ -20,10 +20,10 @@ Status: implemented
 harness 缓存每个会话的**连续 stable 前缀**——从首段起、文本确定性的连续 sections——使后续组装复用已解析文本，而非重新求值 stable providers。
 
 - `PromptSection` 增加 `stable?: boolean`（`packages/core/system-prompt`）：静态字符串天然 stable；函数 provider 必须显式声明 `stable: true` 才能进入缓存。
-- `SystemPrompt.assemble()` 通过可选的 `ctx.promptCache` 服务按 `(scope, 签名, configFingerprint)` 解析 stable 前缀。签名覆盖 stable sections 的有序 `(name, order, fingerprint)` 与当前 prompt 变量值；config 指纹覆盖部署 persona。命中返回缓存 sections 并跳过这些 providers；`system-prompt/assemble` 瀑布与每请求的变量插值仍照常运行。首个 unstable section 起的各段保持每次组装求值，既有 order 拼接不变。工具 schema 不入缓存（工具变更是低频、显式的动作；顺序已确定性）。
+- `SystemPrompt.assemble()` 通过可选的 `ctx.promptCache` 服务按 `(scope, 签名, configFingerprint)` 解析 stable 前缀。签名只覆盖 stable sections 的有序 `(name, order, fingerprint)`——缓存文本未插值，变量值不进身份；config 指纹覆盖部署 persona。命中返回缓存 sections 并跳过这些 providers；`system-prompt/assemble` 瀑布与每请求的变量插值仍照常运行。首个 unstable section 起的各段保持每次组装求值，既有 order 拼接不变。工具 schema 不入缓存（工具变更是低频、显式的动作；顺序已确定性）。
 - 新包 `@deepseek-ai/dsh-prompt-cache`（`packages/core/prompt-cache`）实现缓存：内存 TTL 策略（默认 1 天），经 `dsh-base` 挂载到 `ctx.promptCache`。`system-prompt/change` 事件清空所有 scope 的条目。未挂载策略时，组装与缓存前路径逐字节一致。
 - 键是 agent scope（`assembleContextFor` 解析为 `scope: agent`，`packages/core/agent/src/dispatch.ts`），同 agent 的派生会话复用缓存，子代理会话键不同则不共享。无克隆协议：provider 端缓存字节寻址，stable 前缀字节相同的请求无论 scope 都命中。
-- 基线脚本（`scripts/token-economy-baseline.ts`，`pnpm run token-economy:baseline`）读取明文会话日志，按每个请求报告的 usage 输出逐轮与总缓存命中率，复用 token-meter 的 `usageOf` 提取逻辑。
+- 基线脚本（`scripts/token-economy-baseline.ts`，`pnpm run token-economy:baseline`）读取明文会话日志，按每个请求报告的 usage 输出逐轮与总缓存命中率，镜像 token-meter 的同 step 替换规则（最终的 assistant-message usage 替换较早的 usage chunk）。
 
 压缩（compaction）只重写历史、不改前缀，因此不失效前缀缓存。
 

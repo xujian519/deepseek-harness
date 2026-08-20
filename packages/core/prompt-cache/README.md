@@ -12,7 +12,7 @@ Prompt-prefix cache for `SystemPrompt.assemble()`: the `ctx.promptCache` service
 
 ## Public API
 
-- `ctx.promptCache` The cache service: `get(key)` / `set(key, sections)` / `invalidate(scope)`. The key's `signature` covers the stable sections' ordered fingerprints plus the current prompt-variable values, and `configFingerprint` covers the deployment persona — any change recomputes the entry.
+- `ctx.promptCache` The cache service: `get(key)` / `set(key, sections)` / `invalidate(scope)`. The key's `signature` covers the stable sections' ordered fingerprints only — the cached text is uninterpolated, so variable values never enter the identity; `configFingerprint` covers the deployment persona. Any change in either recomputes the entry.
 - `DEFAULT_PROMPT_CACHE_TTL_MS` The default entry lifetime.
 
 Registration changes invalidate every entry: the service listens for `system-prompt/change` and clears all scopes, because a prompt-provider change alters every scope's stable signature.
