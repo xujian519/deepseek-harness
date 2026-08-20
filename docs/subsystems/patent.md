@@ -242,7 +242,7 @@ async delete(agent: Agent, signal: AbortSignal): Promise<{ deleted: boolean; tea
 
 Types: [Agent](core.md)
 
-Source: [`packages/patent/patent-teams/src/service.ts:192`](../../packages/patent/patent-teams/src/service.ts)
+Source: [`packages/patent/patent-teams/src/service.ts:194`](../../packages/patent/patent-teams/src/service.ts)
 
 <a id="ctxpatentworkflow--patentworkflow"></a>
 

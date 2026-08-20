@@ -145,7 +145,9 @@ async function waitForMemberIdle(ctx: Context, member: TeamMember, signal: Abort
   if (member.id === '') return
   const live = ctx.get('agents')?.get(member.id as SessionId)
   if (live === undefined) return
-  if (signal.aborted) throw signal.reason
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error('task reassignment was cancelled')
+  }
   let onAbort!: () => void
   const aborted = new Promise<never>((_resolve, reject) => {
     onAbort = () => {

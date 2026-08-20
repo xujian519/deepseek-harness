@@ -769,17 +769,39 @@ describe('authorization and edge branches', () => {
     await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
     await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
     const { promise, resolve } = Promise.withResolvers<undefined>()
-    h.agents.set('member-1', fakeAgent('member-1', h.workspace, { whenIdle: () => promise }))
+    const enteredWait = Promise.withResolvers<undefined>()
+    // Wait for waitForMemberIdle to register its abort listener and call
+    // whenIdle, so the abort lands mid-wait on any host speed.
+    h.agents.set('member-1', fakeAgent('member-1', h.workspace, {
+      whenIdle: () => {
+        enteredWait.resolve(undefined)
+        return promise
+      },
+    }))
     const controller = new AbortController()
     const reassigning = h.ctx.patentTeams.reassignTask(captain, {
       task_id: 't1', assignee: 'captain', reason: 'take over',
     }, controller.signal).catch((error: unknown) => error)
-    await new Promise(resolve2 => setTimeout(resolve2, 10))
+    await enteredWait.promise
     controller.abort('user cancelled')
     resolve(undefined)
     const result = await reassigning
     // A non-Error abort reason is wrapped into the cancellation fallback error.
     expect(String(result)).toContain('task reassignment was cancelled')
+  })
+
+  it('wraps a non-Error reason when the signal is already aborted before quiescence', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
+    await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    h.agents.set('member-1', fakeAgent('member-1', h.workspace))
+    const signal = AbortSignal.abort('user cancelled')
+    await expect(h.ctx.patentTeams.reassignTask(captain, {
+      task_id: 't1', assignee: 'captain',
+    }, signal)).rejects.toThrow('task reassignment was cancelled')
   })
 
   it('throws the Error quiescence reason verbatim', async () => {
