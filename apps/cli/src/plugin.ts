@@ -272,15 +272,16 @@ async function runSourceVerb(sourcesPath: string, args: readonly string[]): Prom
       const url = args[1]
       if (url === undefined) return usage('source add <manifest-url>')
       const source = await fetchSourceManifest(url)
-      const existing = readSources(sourcesPath).find(candidate => candidate.providerId === source.providerId)
+      const sources = readSources(sourcesPath)
+      const existing = sources.find(candidate => candidate.providerId === source.providerId)
       // The host identity is minted like the service provider's: a fresh UUID
       // on first registration, the existing id preserved on re-add.
       const persisted: PluginMarketSource = {
         ...source,
         id: existing?.id ?? (randomUUID() as SourceId),
       }
-      const next = existing === undefined ? [...readSources(sourcesPath), persisted]
-        : readSources(sourcesPath).map(candidate => candidate.providerId === existing.providerId ? persisted : candidate)
+      const next = existing === undefined ? [...sources, persisted]
+        : sources.map(candidate => candidate.providerId === existing.providerId ? persisted : candidate)
       writeSources(sourcesPath, next)
       process.stdout.write(`${NAME}: registered source ${persisted.id} (${source.name})\n`)
       return 0
@@ -288,8 +289,9 @@ async function runSourceVerb(sourcesPath: string, args: readonly string[]): Prom
     case 'remove': {
       const id = args[1]
       if (id === undefined) return usage('source remove <id>')
-      const next = readSources(sourcesPath).filter(source => source.id !== id)
-      if (next.length === readSources(sourcesPath).length) {
+      const sources = readSources(sourcesPath)
+      const next = sources.filter(source => source.id !== id)
+      if (next.length === sources.length) {
         process.stderr.write(`${NAME}: no source ${id}\n`)
         return 1
       }
