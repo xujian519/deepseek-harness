@@ -136,7 +136,11 @@ async function startupSession(
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
       viewport = result.viewport
       const scrollback = session.read({ offset: 0, count: 20 }).text
-      if (viewport.includes(CONTROLLED_PROMPT) || scrollback.includes(CONTROLLED_PROMPT)) break
+      // The setup echo alone contains the prompt string (it lives inside the
+      // prompt function body), so a substring match would break while pwsh is
+      // still frozen at a cursor-position query. Only a prompt at the very end
+      // of the retained text is the live, rendered prompt.
+      if (viewport.endsWith(CONTROLLED_PROMPT) || scrollback.endsWith(CONTROLLED_PROMPT)) break
     }
     session.motd = viewport
   }

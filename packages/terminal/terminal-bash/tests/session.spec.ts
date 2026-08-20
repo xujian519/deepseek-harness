@@ -291,6 +291,44 @@ describe('LocalPtySession readiness and output', () => {
     expect(() => session.startSend({ text: '', submit: false })).toThrow('has exited')
   })
 
+  it('answers PSReadLine cursor-position queries so pwsh can render its next prompt', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    const session = makeSession(terminal, inspector, config())
+    await initialize(session, terminal)
+
+    const operation = session.startSend({ text: 'Write-Output hi', submit: true })
+    await vi.advanceTimersByTimeAsync(10)
+    // PSReadLine probes the cursor position before rendering a prompt; a
+    // session that never replies leaves the shell waiting and the command
+    // unexecuted, so the reply must land before the prompt marker completes.
+    terminal.emitData('\x1b[6n')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(terminal.writes).toEqual(['Write-Output hi\r', '\x1b[1;1R'])
+
+    terminal.emitData('\r\nhi\r\n\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect(await operation.done).toMatchObject({ waitReason: 'stdin_read' })
+  })
+
+  it('answers a cursor-position query split across output chunks', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = makeSession(terminal, new FakeInspector(), config())
+    await initialize(session, terminal)
+
+    const operation = session.startSend({ text: 'echo x', submit: true })
+    await vi.advanceTimersByTimeAsync(10)
+    terminal.emitBytes(Uint8Array.of(0x0d, 0x0a, 0x1b))
+    terminal.emitBytes(Uint8Array.of(0x5b, 0x36, 0x6e, 0x0d, 0x0a))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(terminal.writes).toEqual(['echo x\r', '\x1b[1;1R'])
+    terminal.emitData('x\r\n\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
   it('cancels with foreground-group SIGINT, observes AbortSignal, and contains write failures', async () => {
     vi.useFakeTimers()
     const terminal = new FakeTerminal()

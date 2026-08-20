@@ -23,6 +23,11 @@ import type {
 import type { ResolvedConfig } from './config.ts'
 import { CONTROLLED_PROMPT, TerminalSanitizer } from './sanitize.ts'
 
+/** ESC [ 6 n — terminal cursor-position request (CPR), emitted by PSReadLine before it renders a pwsh prompt. */
+const CPR_QUERY_WINDOW = 0x1b5b366e
+/** ESC [ 1 ; 1 R — standard cursor-position report that answers the request. */
+const CPR_RESPONSE = '\x1b[1;1R'
+
 function utf8Tail(text: string, maxBytes: number): { text: string; truncated: boolean } {
   if (Buffer.byteLength(text) <= maxBytes) return { text, truncated: false }
   const chars = Array.from(text)
@@ -179,6 +184,7 @@ export class LocalPtySession implements TerminalBackendSession {
   private promptTextSeen = false
   private promptTail = ''
   private shellPgid: number | undefined
+  private cprWindow = 0
   private initializing = false
   private lastOutputAt = Date.now()
   private closing = false
@@ -363,7 +369,26 @@ export class LocalPtySession implements TerminalBackendSession {
 
   private readonly onTerminalData = (chunk: Buffer | Uint8Array | string): void => {
     const bytes = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk
+    this.respondToCpr(bytes)
     this.onData(this.decoder.decode(bytes, { stream: true }))
+  }
+
+  /**
+   * Answer terminal cursor-position requests (CPR) so shells whose prompt
+   * renderer blocks on the reply can finish rendering and run the next
+   * command. PSReadLine in pwsh asks before every prompt; GNU readline in bash
+   * never asks, so the unconditional response is inert there.
+   */
+  private respondToCpr(bytes: Uint8Array): void {
+    for (let index = 0; index < bytes.length; index += 1) {
+      this.cprWindow = ((this.cprWindow << 8) | (bytes[index] as number)) & 0xffffffff
+      if (this.cprWindow === CPR_QUERY_WINDOW) {
+        void this.terminal.write(CPR_RESPONSE).catch(() => {
+          // A failed reply only leaves the shell waiting as before; the
+          // transport-failure path owns the eventual teardown.
+        })
+      }
+    }
   }
 
   private readonly onTerminalEnd = (): void => {
