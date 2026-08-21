@@ -121,6 +121,12 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'packages/extensions/cordis-host-runner/tests/helpers.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-host-runner/tests/runner.spec.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-host-runner/tests/versioning.spec.ts', upstream: ['cordis'] },
+  // `cordis/before-approval` is the same extensions event-domain wire id; its
+  // listener and waterfall assertions must match the emitted name verbatim.
+  { file: 'packages/self-evolve/self-evolve-basic/src/index.ts', upstream: ['cordis'] },
+  { file: 'packages/self-evolve/self-evolve-basic/tests/provider.spec.ts', upstream: ['cordis'] },
+  // The packaged-app script walks the vendor tree by directory name.
+  { file: 'scripts/desktop-package.ts', upstream: ['schemastery', 'cosmokit'] },
   { file: 'packages/extensions/tool-cordis/src/api-catalog.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/tool-cordis/src/providers.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/index.ts', upstream: ['cordis'] },
@@ -194,23 +200,6 @@ const EXACT_EDITS: readonly ExactEdit[] = [
     if (!dev) errors.push(\`\${label}: @deepseek-ai/cordis must also be a devDependency\`)
     if (peer && dev && peer !== dev) {
       errors.push(\`\${label}: @deepseek-ai/cordis peer (\${peer}) and dev (\${dev}) ranges must match\`)`,
-    expect: 1,
-  },
-  {
-    // The rescoped name is already covered by the `@deepseek-ai/.+` pattern beside it.
-    id: 'knip-logger-console',
-    file: 'knip.json',
-    find: `      "ignoreDependencies": [
-        "@cordisjs/plugin-logger-console",
-        "@deepseek-ai/.+"
-      ]
-    },
-    "packages/util/home": {`,
-    replace: `      "ignoreDependencies": [
-        "@deepseek-ai/.+"
-      ]
-    },
-    "packages/util/home": {`,
     expect: 1,
   },
   {
@@ -348,7 +337,7 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
     id: 'vendoring-cookbook-name-invariant-zh',
     file: 'docs/cookbook/adding-a-vendored-package.zh.md',
     find: '保留上游的 `name`/`version`/`exports`/`type`',
-    replace: '改写 `name` 的 scope（[映射](../rescope.md)），保留上游的 `version`/`exports`/`type`',
+    replace: '改写 `name` 的 scope（[映射](../rescope.zh.md)），保留上游的 `version`/`exports`/`type`',
     expect: 1,
   },
   {
