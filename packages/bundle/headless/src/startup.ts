@@ -8,6 +8,7 @@
 import { Command } from 'commander'
 import type { Context } from '@deepseek-ai/cordis'
 import { parseCmdline } from '@deepseek-ai/dsh-cmdline'
+import { createBrowsersCommand } from './browsers.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'headless-startup'
@@ -48,6 +49,7 @@ Examples:
  */
 export function apply(ctx: Context): void {
   const program = headlessCommand()
+  program.addCommand(createBrowsersCommand(ctx))
   program.action(() => {
     const task = program.args.join(' ')
     if (task.trim() === '') program.error('error: a task is required, for example: dsh --profile headless "run the tests"')

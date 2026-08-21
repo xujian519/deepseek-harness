@@ -113,6 +113,9 @@ flowchart TD
     pkg_app_boot["app-boot"]
     pkg_cmdline["cmdline"]
   end
+  subgraph group_browser["packages/browser"]
+    pkg_browser_backend["browser-backend"]
+  end
   subgraph group_bundle["packages/bundle"]
     pkg_base["base"]
     pkg_desktop_app["desktop-app"]
@@ -368,6 +371,7 @@ flowchart TD
   pkg_timeout --> pkg_invariants
   pkg_scope --> pkg_invariants
   pkg_cmdline --> pkg_invariants
+  pkg_browser_backend --> pkg_invariants
   pkg_base --> pkg_invariants
   pkg_desktop_app --> pkg_invariants
   pkg_self_evolve_app --> pkg_invariants
@@ -1568,6 +1572,7 @@ flowchart TD
 | [`timeout`](../packages/util/timeout) | `util` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`scope`](../packages/core/scope) | `core` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`cmdline`](../packages/boot/cmdline) | `boot` | [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`browser-backend`](../packages/browser/browser-backend) | `browser` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`base`](../packages/bundle/base) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`desktop-app`](../packages/bundle/desktop-app) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`self-evolve-app`](../packages/bundle/self-evolve-app) | `bundle` | [`invariants`](../packages/runtime-diagnostics/invariants) |

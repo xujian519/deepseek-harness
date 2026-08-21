@@ -11,7 +11,7 @@ import type { NetworkRetryOptions } from '../../internal/network-fetch.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
-const FIELDS = 'title,abstract,url,year,venue,citationCount,externalIds,authors.name'
+const FIELDS = 'title,abstract,url,year,venue,citationCount,externalIds,authors.name,openAccessPdf'
 const RATE_LIMIT = { minIntervalMs: 1000 }
 
 /** 创建 Semantic Scholar 连接器的选项（提额 key、限速、重试）。 */
@@ -39,6 +39,7 @@ interface Paper {
   citationCount?: number
   authors?: Author[]
   externalIds?: Record<string, unknown>
+  openAccessPdf?: { url?: string }
 }
 
 interface SearchResponse {
@@ -60,7 +61,7 @@ function toHit(p: Paper): ConnectorHit {
     summary: snippet(p.abstract) ?? nonEmpty(meta),
     url: p.url ?? (p.paperId ? `https://www.semanticscholar.org/paper/${p.paperId}` : undefined),
     score: typeof p.citationCount === 'number' ? p.citationCount : undefined,
-    extra: raw(p),
+    extra: { ...raw(p), ...(p.openAccessPdf?.url === undefined ? {} : { pdf_url: p.openAccessPdf.url }) },
   }
 }
 

@@ -1107,6 +1107,21 @@ importers:
         specifier: ^15.0.0
         version: 15.0.0
 
+  packages/browser/browser-backend:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:^
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:^
+        version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+
   packages/bundle/base:
     dependencies:
       '@deepseek-ai/cordis-plugin-hmr':
@@ -1372,6 +1387,9 @@ importers:
 
   packages/bundle/headless:
     dependencies:
+      '@deepseek-ai/dsh-browser-backend':
+        specifier: workspace:^
+        version: link:../../browser/browser-backend
       '@deepseek-ai/dsh-cmdline':
         specifier: workspace:^
         version: link:../../boot/cmdline
@@ -6189,6 +6207,9 @@ importers:
 
   packages/patent/patent-tools:
     dependencies:
+      '@deepseek-ai/dsh-browser-backend':
+        specifier: workspace:^
+        version: link:../../browser/browser-backend
       '@deepseek-ai/nuo-patent':
         specifier: workspace:^
         version: link:../../../vendor/nuo-patent
@@ -6262,6 +6283,9 @@ importers:
 
   packages/patent/tool-literature:
     dependencies:
+      '@deepseek-ai/dsh-browser-backend':
+        specifier: workspace:^
+        version: link:../../browser/browser-backend
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery

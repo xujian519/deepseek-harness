@@ -19,6 +19,7 @@ import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-paten
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
+import { BrowserUseExtractor, resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
 import { PatentToolError } from './error.ts'
 import { createPatentSearchTool } from './tool/patent-search.ts'
@@ -36,8 +37,9 @@ import { createEvaluateEvidenceTool } from './tool/evaluate-evidence.ts'
 import { createRuleCheckTool } from './tool/rule-check.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
-import { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
+import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
+import { createBrowserUseDownloadRunner } from './tool/patent-pdf-download-browser-use.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
 import { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
 import { createPatentWorkflowTool } from './tool/patent-workflow.ts'
@@ -84,8 +86,8 @@ export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps, LoadFigureIndexResult } from './tool/search-patent-figure.ts'
 export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
 export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownloadDeps, RunEgo, EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult } from './tool/patent-pdf-download.ts'
-export { buildDownloadScript, createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
 export type { EgoSessionSeam } from './tool/patent-pdf-download-ego.ts'
+export { createBrowserUseDownloadRunner } from './tool/patent-pdf-download-browser-use.ts'
 export { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
 export type { RecognizeChemicalStructureInput, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
 export { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
@@ -203,6 +205,34 @@ function resolveNoteDir(config: Config): string {
   return config.noteDir !== undefined ? resolve(config.noteDir) : join(process.cwd(), '99-知识库')
 }
 
+/** Inputs for the patent PDF-download runner resolver. */
+export type DownloadRunnerResolverOptions = {
+  /** ego-browser batch runner (fail-loud stub when patent-data is not mounted). */
+  runEgo: RunEgo
+  /** browser-use link extractor for the fallback channel. */
+  extractor: BrowserUseExtractor
+  /** Backend resolver (tests inject a fake; defaults to resolveBrowserBackend). */
+  resolve?: typeof resolveBrowserBackend
+}
+
+/**
+ * Build the cold-decision runner resolver for patent_pdf_download: ego first,
+ * browser-use extraction + fetch as the fallback. browseros-neo and playwright
+ * participate in the probe matrix but never in downloads (no intercept/extract
+ * execution), so the resolution excludes them.
+ * @param options - the ego runner, the browser-use extractor, and an optional resolver.
+ * @returns a resolver returning the ego runner or a browser-use runner.
+ */
+export function createDownloadRunnerResolver(options: DownloadRunnerResolverOptions): () => Promise<RunEgo> {
+  const resolveBackend = options.resolve ?? resolveBrowserBackend
+  return async () => {
+    // 下载通道只认有拦截/提取执行的两个后端；browseros-neo 与 playwright 参与探测矩阵但不参与下载。
+    const backend = await resolveBackend({ exclude: ['browseros-neo', 'playwright'] })
+    if (backend.id === 'ego') return options.runEgo
+    return createBrowserUseDownloadRunner(options.extractor)
+  }
+}
+
 /**
  * Register the 23 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
@@ -276,14 +306,20 @@ export function apply(ctx: Context, config: Config): void {
     },
   }))
 
-  // PDF download: wire the ego-browser runner when the patent-data service is
-  // present (its createEgoSession provides the session over ctx.subprocess);
-  // otherwise the tool fails loud until an integrator mounts patent-data.
+  // PDF download: wire the runner through a browser-backend cold decision —
+  // ego-browser first on macOS, browser-use link extraction + fetch as the
+  // fallback channel; browseros-neo and playwright stay out of the download
+  // path (no intercept/extract execution yet). Without patent-data the ego
+  // channel fails loud at resolution, as before.
   const patentData = ctx.get('patentData')
   const runEgo = patentData !== undefined
     ? createEgoDownloadRunner(patentData.createEgoSession())
-    : () => Promise.reject(new PatentToolError('setup_required', 'patent_pdf_download 需要 patent-data 服务（preset 挂载 @deepseek-ai/dsh-patent-data 后自动接线）；当前未挂载。', { tool: 'patent_pdf_download' }))
-  ctx.tools.register(createPatentPdfDownloadTool({ runEgo, fetchImpl: globalThis.fetch }))
+    : () => Promise.reject(new PatentToolError('setup_required', 'patent_pdf_download 需要 patent-data 服务（preset 挂载 @deepseek-ai/dsh-patent-data 后自动接线 ego 通道）；当前未挂载。', { tool: 'patent_pdf_download' }))
+  ctx.tools.register(createPatentPdfDownloadTool({
+    runEgo,
+    fetchImpl: globalThis.fetch,
+    resolveRunner: createDownloadRunnerResolver({ runEgo, extractor: new BrowserUseExtractor() }),
+  }))
 
   // Notes land as files under the configured noteDir (default <cwd>/99-知识库):
   // no storage service dependency, works in headless and web compositions.

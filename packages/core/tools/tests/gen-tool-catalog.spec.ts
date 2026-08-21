@@ -32,7 +32,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'draft_specification', 'edit', 'evaluate_evidence', 'exit_plan_mode', 'flexible_plan',
       'followup_task', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
       'job_kill', 'job_list', 'job_output', 'knowledge_note_save', 'list_agents', 'list_agents',
-      'lsp', 'paper_list_sources', 'paper_search', 'patent_case_search', 'patent_eval',
+      'lsp', 'paper_download', 'paper_list_sources', 'paper_search', 'patent_case_search', 'patent_eval',
       'patent_kg_query', 'patent_legal_status', 'patent_metadata', 'patent_pdf_download',
       'patent_plan_task', 'patent_search', 'patent_wiki_search', 'patent_worker_validate',
       'patent_workflow', 'patent_workflow_run', 'pwsh', 'pwsh', 'ralph', 'read', 'read_image',

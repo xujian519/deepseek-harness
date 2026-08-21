@@ -780,6 +780,7 @@ export function DirectoryBrowser({
 
   /** Ask the desktop shell's native chooser for a directory, then validate it like any other path. */
   const pickFromSystem = (): void => {
+    // v8 ignore next -- the native-picker button renders only when pickNativeDirectory is injected; this guard is defensive redundancy.
     if (pickNativeDirectory === undefined) return
     setError(null)
     setNativePicking(true)

@@ -8,9 +8,11 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { BrowserUseExtractor } from '@deepseek-ai/dsh-browser-backend'
 import { createLiteratureRegistry } from './runtime/create-literature-registry.ts'
 import { createPaperSearchTool } from './tool/paper-search.ts'
 import { createPaperListSourcesTool } from './tool/paper-list-sources.ts'
+import { createPaperDownloadTool } from './tool/paper-download.ts'
 
 // Re-export the public API surface for consumers.
 export { ConnectorRegistry } from './runtime/connector-registry.ts'
@@ -28,8 +30,16 @@ export { LiteratureToolError } from './error.ts'
 export type { LiteratureToolErrorCode } from './error.ts'
 export { createPaperSearchTool } from './tool/paper-search.ts'
 export { createPaperListSourcesTool } from './tool/paper-list-sources.ts'
+export { createPaperDownloadTool } from './tool/paper-download.ts'
 export type { PaperSearchInput, PaperSearchOutput } from './tool/paper-search.ts'
 export type { PaperListSourcesInput, PaperListSourcesOutput } from './tool/paper-list-sources.ts'
+export type {
+  PaperDownloadInput,
+  PaperDownloadOutput,
+  PaperDownloadResult,
+  PaperDownloadDeps,
+  FetchedPdf,
+} from './tool/paper-download.ts'
 
 export const name = 'tool-literature'
 export const inject = ['tools']
@@ -76,4 +86,6 @@ export function apply(ctx: Context, config: Config): void {
   })
   ctx.tools.register(createPaperSearchTool(registry))
   ctx.tools.register(createPaperListSourcesTool(registry))
+  // 论文 PDF 下载：直链优先，browser-use 提取链接兜底（浏览器后端抽象预留 ego 通道接入）。
+  ctx.tools.register(createPaperDownloadTool({ registry, extractor: new BrowserUseExtractor() }))
 }

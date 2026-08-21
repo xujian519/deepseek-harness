@@ -43,7 +43,7 @@
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | `followup_task`、`interrupt_agent`、`list_agents`、`send_message`、`spawn_teammate`、`team_task_create`、`team_task_get`、`team_task_list`、`team_task_update`、`wait_agent` | `ctx.tools`、`ctx.systemPrompt`、`ctx.agentTeams`、`an exact live Team member Agent` | `tool/call`、`team/member`、`team/message/queued`、`team/message/delivered`、`team/task`、`tool/result` | - | 这 10 个工具限定于隐式 Team Lead 与持久 teammate 作用域。随产品发布的 dsh-base bundle 默认禁用该包；文档中的 Agent Teams profile patch 会启用它，并禁用旧 continuable child 的同名控制工具。 |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。 |
-| `@deepseek-ai/dsh-tool-literature` | `paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
+| `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。paper_download 直链优先下载论文 PDF，直链失败时走 browser-use 兜底。 |
 | `@deepseek-ai/dsh-patent-tools` | `analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`knowledge_note_save`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`validate_specification` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图谱查询，权利要求对照表、撰写、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
@@ -2161,6 +2161,51 @@ triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给�
 <a id="deepseek-aidsh-tool-literature"></a>
 
 ## `@deepseek-ai/dsh-tool-literature`
+
+### `paper_download`
+
+- 按 `db` + `id`（来自 `paper_search`）下载一篇学术论文的 PDF
+- 优先使用源的直链（arXiv extra.pdf / OpenAlex pdf_url / Semantic Scholar openAccessPdf），经 PDF 魔数与最小字节数校验
+- 直链失败（403/404/HTML 壳页）时，回退为 browser-use 打开记录页并提取 PDF 链接
+- 保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）
+
+使用说明：
+  - 先调用 `paper_search` 获取 `db` id 与论文 `id`
+  - `pdfUrl` 覆盖连接器解析的链接（诊断 / 手动重试）
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "db": {
+      "type": "string",
+      "description": "Database id (from paper_list_sources)"
+    },
+    "id": {
+      "type": "string",
+      "description": "Paper id from a paper_search hit"
+    },
+    "pdfUrl": {
+      "type": "string",
+      "description": "Direct PDF link override (skips connector resolution)"
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "Output directory; default <cwd>/论文原文/YYYY-MM-DD"
+    },
+    "timeoutMs": {
+      "type": "number",
+      "description": "Whole-call timeout (ms); default 60000, max 300000"
+    }
+  },
+  "required": [
+    "db",
+    "id"
+  ]
+}
+```
+
+来源：[`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
 
 ### `paper_list_sources`
 

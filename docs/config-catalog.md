@@ -1563,7 +1563,7 @@ export interface ImageModelConfig {
 }
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:115`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:117`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 
@@ -2920,7 +2920,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/patent/tool-literature/src/index.ts:38`](../packages/patent/tool-literature/src/index.ts)
+Source: [`packages/patent/tool-literature/src/index.ts:48`](../packages/patent/tool-literature/src/index.ts)
 
 <a id="deepseek-aidsh-tool-lsp"></a>
 
@@ -3605,6 +3605,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-atomic-write` ([`packages/util/atomic-write/src/index.ts`](../packages/util/atomic-write/src/index.ts))
 - `@deepseek-ai/dsh-base` ([`packages/bundle/base/src/index.ts`](../packages/bundle/base/src/index.ts))
 - `@deepseek-ai/dsh-brand` ([`packages/util/brand/src/index.ts`](../packages/util/brand/src/index.ts))
+- `@deepseek-ai/dsh-browser-backend` ([`packages/browser/browser-backend/src/index.ts`](../packages/browser/browser-backend/src/index.ts))
 - `@deepseek-ai/dsh-client-test-runtime` ([`packages/test-support/client-runtime/src/index.ts`](../packages/test-support/client-runtime/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-primitives` ([`packages/client/ui-primitives/src/index.ts`](../packages/client/ui-primitives/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-slots` ([`packages/client/ui-slots/src/index.ts`](../packages/client/ui-slots/src/index.ts))

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { appendFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -505,6 +505,53 @@ describe('patent_pdf_download', () => {
         { patents: ['US1A'] },
         { signal: controller.signal } as never,
       )).rejects.toMatchObject({ code: 'tool_aborted' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses the runner resolved by resolveRunner', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const resolved = vi.fn(async () => ({ items: [{ patent: 'US1A', status: 'ok' as const, path: join(dir, 'US1A.pdf') }] }))
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => { throw new Error('default runner must not run') },
+        resolveRunner: () => resolved,
+        resolveOutputDir: () => dir,
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'patent_pdf_download', { patents: ['US1A'] }, 'p-12')
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      expect(resolved).toHaveBeenCalledWith(expect.objectContaining({ patents: ['US1A'] }))
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates a setup_required from resolveRunner', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => ({ items: [] }),
+        resolveRunner: () => Promise.reject(new PatentToolError('setup_required', 'no browser backend', { tool: 'patent_pdf_download' })),
+        resolveOutputDir: () => dir,
+      })
+      await expect(tool.execute({ patents: ['US1A'] }, { signal } as never)).rejects.toMatchObject({ code: 'setup_required' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('wraps a non-tool error from resolveRunner as tool_execution_failed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => ({ items: [] }),
+        resolveRunner: () => Promise.reject(new Error('resolution boom')),
+        resolveOutputDir: () => dir,
+      })
+      await expect(tool.execute({ patents: ['US1A'] }, { signal } as never)).rejects.toMatchObject({ code: 'tool_execution_failed' })
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

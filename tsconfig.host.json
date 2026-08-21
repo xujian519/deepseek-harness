@@ -260,6 +260,7 @@
     { "path": "./packages/desktop/directory-picker" },
     { "path": "./packages/boot/app-boot" },
     { "path": "./packages/boot/cmdline" },
+    { "path": "./packages/browser/browser-backend" },
     { "path": "./packages/sdk/server" },
     { "path": "./packages/examples/jsonrpc-demo" },
     { "path": "./packages/test-support/llm-replay" },

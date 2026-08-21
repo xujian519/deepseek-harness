@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach } from 'vitest'
 import { createOpenAlexConnector } from '../../../src/runtime/connectors/openalex.ts'
+import { clearCache } from '../../../src/runtime/http.ts'
 
 const SEARCH_RESPONSE = {
   meta: { count: 1 },
@@ -26,6 +27,11 @@ function jsonResponse(payload: unknown): Response {
 }
 
 describe('openalex connector', () => {
+  // The shared http layer caches GET responses per URL; clear between tests.
+  beforeEach(() => {
+    clearCache()
+  })
+
   it('rebuilds abstracts from inverted index and normalizes hits', async () => {
     const connector = createOpenAlexConnector({ fetchImpl: async () => jsonResponse(SEARCH_RESPONSE) })
     const hits = await connector.search('attention is all you need', { limit: 5 })
@@ -139,5 +145,33 @@ describe('openalex connector', () => {
     expect(url.includes('/works/?mailto=')).toBe(true)
 
     await expect(connector.fetch!('W999999')).resolves.toBeNull()
+  })
+
+  it('exposes the best-oa pdf link in extra.pdf_url', async () => {
+    const connector = createOpenAlexConnector({
+      fetchImpl: async () => jsonResponse({
+        results: [{ id: 'https://openalex.org/W1', display_name: 'T', best_oa_location: { pdf_url: 'https://pdf.example/a.pdf' } }],
+      }),
+    })
+    const [hit] = await connector.search('t', { limit: 5 })
+    expect((hit?.extra as { pdf_url?: string }).pdf_url).toBe('https://pdf.example/a.pdf')
+  })
+
+  it('falls back to open_access.oa_url when the best-oa pdf is absent', async () => {
+    const connector = createOpenAlexConnector({
+      fetchImpl: async () => jsonResponse({
+        results: [{ id: 'https://openalex.org/W1', display_name: 'T', open_access: { oa_url: 'https://pdf.example/b.pdf' } }],
+      }),
+    })
+    const [hit] = await connector.search('t', { limit: 5 })
+    expect((hit?.extra as { pdf_url?: string }).pdf_url).toBe('https://pdf.example/b.pdf')
+  })
+
+  it('omits pdf_url when no open-access link exists', async () => {
+    const connector = createOpenAlexConnector({
+      fetchImpl: async () => jsonResponse({ results: [{ id: 'https://openalex.org/W1', display_name: 'T' }] }),
+    })
+    const [hit] = await connector.search('t', { limit: 5 })
+    expect((hit?.extra as { pdf_url?: string }).pdf_url).toBeUndefined()
   })
 })

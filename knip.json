@@ -4,14 +4,19 @@
     "duplicates"
   ],
   "ignoreBinaries": [
+    "browser-use",
     "bwrap",
+    "ego-browser",
     "icacls",
+    "lsof",
     "musl-gcc",
+    "netstat",
     "python3",
     "sandbox-exec",
     "tar",
     "taskkill",
-    "where.exe"
+    "where.exe",
+    "which"
   ],
   "ignoreWorkspaces": [
     "vendor/*",

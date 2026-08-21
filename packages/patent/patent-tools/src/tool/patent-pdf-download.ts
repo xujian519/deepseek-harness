@@ -130,6 +130,8 @@ export type PatentPdfDownloadDeps = {
   resolveOutputDir?: (outputDir: string | undefined, cwd: string) => string
   /** fetch implementation for the CDN fallback (defaults to globalThis.fetch). */
   fetchImpl?: typeof fetch
+  /** Resolve the batch runner from a browser-backend cold decision (defaults to runEgo). */
+  resolveRunner?: () => Promise<RunEgo> | RunEgo
 }
 
 /**
@@ -455,7 +457,8 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
 
       let egoResult: EgoDownloadResult
       try {
-        egoResult = await deps.runEgo({
+        const runner = deps.resolveRunner !== undefined ? await deps.resolveRunner() : deps.runEgo
+        egoResult = await runner({
           patents: pending,
           outputDir,
           pageTimeoutSec: pageTimeoutSecValue,

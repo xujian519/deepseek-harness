@@ -123,4 +123,26 @@ describe('semantic scholar connector', () => {
     resetRateLimits()
     await expect(connector.fetch!('abc')).resolves.toBeNull()
   })
+
+  it('exposes the open-access pdf link in extra.pdf_url', async () => {
+    clearCache()
+    const connector = createSemanticScholarConnector({
+      rateLimit: { minIntervalMs: 0 },
+      retry: { maxRetries: 0 },
+      fetchImpl: async () => jsonResponse({ data: [{ paperId: 'p1', title: 'T', openAccessPdf: { url: 'https://pdf.example/a.pdf' } }] }),
+    })
+    const [hit] = await connector.search('t', { limit: 5 })
+    expect((hit?.extra as { pdf_url?: string }).pdf_url).toBe('https://pdf.example/a.pdf')
+  })
+
+  it('omits pdf_url when the record has no open-access pdf', async () => {
+    clearCache()
+    const connector = createSemanticScholarConnector({
+      rateLimit: { minIntervalMs: 0 },
+      retry: { maxRetries: 0 },
+      fetchImpl: async () => jsonResponse({ data: [{ paperId: 'p1', title: 'T' }] }),
+    })
+    const [hit] = await connector.search('t', { limit: 5 })
+    expect((hit?.extra as { pdf_url?: string }).pdf_url).toBeUndefined()
+  })
 })

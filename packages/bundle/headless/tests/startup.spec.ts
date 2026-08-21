@@ -12,7 +12,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import { internals, provideCmdline } from '@deepseek-ai/dsh-cmdline'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, HEADLESS_STARTUP_SERVICE, type HeadlessStartupValues } from '../src/startup.ts'
 
 /** What one boot of the fixture tree observed. */
@@ -101,6 +101,19 @@ describe('headless command-line provider', () => {
     expect(observed.out).toContain('dsh --profile headless')
     expect(task).toBeUndefined()
     expect(observed.runnerConfig).toBeUndefined()
+    expect(observed.exits).toEqual([0])
+  })
+
+  it('runs the browsers probe subcommand and exits', async () => {
+    const { task, observed } = await bootStartup(['browsers'])
+    // The subcommand action is async (backend probes); wait for its output.
+    await vi.waitFor(() => {
+      expect(observed.out).toContain('Browser automation backends')
+    })
+    for (const label of ['ego lite', 'BrowserOS neo', 'browser-use', '@playwright/mcp']) {
+      expect(observed.out).toContain(label)
+    }
+    expect(task).toBeUndefined()
     expect(observed.exits).toEqual([0])
   })
 })

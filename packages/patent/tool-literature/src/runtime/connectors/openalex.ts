@@ -26,6 +26,7 @@ interface Authorship {
 interface Location {
   source?: { display_name?: string }
   landing_page_url?: string
+  pdf_url?: string
 }
 
 interface Work {
@@ -38,6 +39,8 @@ interface Work {
   abstract_inverted_index?: Record<string, number[]> | null
   authorships?: Authorship[]
   primary_location?: Location
+  best_oa_location?: Location
+  open_access?: { oa_url?: string }
   relevance_score?: number
 }
 
@@ -56,6 +59,11 @@ function authors(w: Work): string | undefined {
 
 }
 
+/** Best open-access PDF link: the best-oa location's pdf, else the oa_url. */
+function pdfUrlOf(w: Work): string | undefined {
+  return w.best_oa_location?.pdf_url || w.open_access?.oa_url || undefined
+}
+
 function toHit(w: Work): ConnectorHit {
   const meta = [authors(w), w.primary_location?.source?.display_name, w.publication_year].filter(Boolean).join('. ')
   return {
@@ -64,7 +72,7 @@ function toHit(w: Work): ConnectorHit {
     summary: snippet(fromInverted(w.abstract_inverted_index)) ?? nonEmpty(meta),
     url: w.id ?? w.primary_location?.landing_page_url ?? w.doi ?? undefined,
     score: typeof w.relevance_score === 'number' ? w.relevance_score : w.cited_by_count,
-    extra: raw(w),
+    extra: { ...raw(w), ...(pdfUrlOf(w) === undefined ? {} : { pdf_url: pdfUrlOf(w) }) },
   }
 }
 
