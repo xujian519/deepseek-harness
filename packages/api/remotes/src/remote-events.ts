@@ -17,7 +17,7 @@
 export const API_REMOTE_FORWARDED_EVENTS = [
   'agent-preset/selected',
   'commands/change',
-  'credentials/updated',
+  'credentials/reference-updated',
   '@deepseek-ai/cordis/request-run',
   '@deepseek-ai/cordis/request-run-resolved',
   '@deepseek-ai/cordis/dynamic-package',
