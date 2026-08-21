@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-18-self-evolve-commit-and-lint-hardening.md
-2026-08-18-self-evolve-commit-and-lint-hardening.md: 37f938ada21fdc2acd4c285ea0d21c088d01d1f5
-2026-08-18-self-evolve-commit-and-lint-hardening.zh.md: 57f55cad85e3b24b2d11fe84bbcdc17835cea0e0
+2026-08-18-self-evolve-commit-and-lint-hardening.md: c5421edbd68186ccb5dd27161c372549f82e4095
+2026-08-18-self-evolve-commit-and-lint-hardening.zh.md: ae74896143ae4ddb0cc8a535f43797e6caa97f4b

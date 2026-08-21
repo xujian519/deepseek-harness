@@ -21,6 +21,11 @@
           - L2-context
         minPatternOccurrences: 2
         requireDualVerification: true
+        # The held-in workspace verifier (P1.9b) produces a signal only when a
+        # project build command is configured; without it the loop degrades to
+        # the conservative weak path and no commits occur. Enable it with e.g.:
+        #   workspaceVerifier:
+        #     buildCommand: 'pnpm run build'
 
     - id: tool-self-evolve
       name: '@deepseek-ai/dsh-tool-self-evolve'

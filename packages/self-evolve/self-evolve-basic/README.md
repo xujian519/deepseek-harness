@@ -29,7 +29,8 @@ The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It 
 | `minHeldOutPassRate` | `0.6` | Held-out pass-rate threshold (P1.3): similar-history replays passing at or above this ratio count as held-out-passed. |
 | `proposerTarget` | none | Optional `{ provider, model }` routed for the proposer LLM call. |
 | `validatorTarget` | none | Optional `{ provider, model }` routed for the validation LLM judge (P1.4). Must differ from `proposerTarget` or load fails. |
-| `maxDirtyLinesAddedPerCommit` | `2` | Dirty-line tolerance for the held-in workspace verifier; unused until a subclass supplies workspace signals (P1.3). |
+| `maxDirtyLinesAddedPerCommit` | `2` | Dirty-line tolerance for the held-in workspace verifier (P1.9b); a replay may add at most this many dirty lines before the gate rejects it as a workspace regression. |
+| `workspaceVerifier` | `{ enabled: true }` | Held-in workspace verifier policy (P1.9b): `enabled` is the master switch; `buildCommand` (e.g. `pnpm run build`) is the project build command run after the replay; `gitTimeoutMs` (default 30000) and `buildTimeoutMs` (default 300000) bound the git and build runs. Without a `buildCommand`, the signal stays unavailable and the loop degrades to the weak path. |
 | `maxPromptInflationBytesPerWeek` | `2048` | Long-horizon prompt-inflation budget (翁荔 challenge 7): when live self-evolve L2 sections exceed it, the pruning job archives the oldest to `$DSH_HOME/self-evolve/l2-archive/` and disposes their effects (P1.9). |
 | `l4ReapprovalHours` | `24` | L4 re-approval cadence (P2.3): a plugin this provider drove is forced through human approval again when the current proposal differs from the last approved one or the approval is older than this window — even over `approveFutureVersions` grants. |
 | `maxStepReflectionsPerTurn` | `1` | Step-reflection throttle (P3.1): a low-budget LLM reflection on a failing step runs at most this many times per turn; `0` disables it. |
@@ -41,7 +42,7 @@ L3 and L4 proposals are not implemented by this base provider; downstream provid
 
 ## Validation pipeline (Phase 1)
 
-`validateProposal` runs the Phase 1 pipeline: held-in dual verification (fork replay P1.2 + workspace signal), held-out similarity replay over `sessionQuery.searchEvents` hits (P1.3), the LLM judge over `validatorTarget` (P1.4), and the aggregate confidence gate. Missing dimensions degrade to the weak rate 0.3, so unverifiable proposals are rejected conservatively instead of committing on trust. Rejected proposals land in the negative-results log (P1.7b), and two consecutive same-pattern regressions roll the archived champion back (P1.8).
+`validateProposal` runs the Phase 1 pipeline: held-in dual verification (fork replay P1.2 + workspace verifier P1.9b), held-out similarity replay over `sessionQuery.searchEvents` hits (P1.3), the LLM judge over `validatorTarget` (P1.4), and the aggregate confidence gate. The workspace verifier captures the pre-replay baseline, then measures the replay's net git dirty delta (`git diff HEAD --numstat` plus untracked-file lines, excluding harness-owned `.dsh/` paths) and runs the configured `buildCommand`; both must pass within `maxDirtyLinesAddedPerCommit`. Missing dimensions degrade to the weak rate 0.3, so unverifiable proposals are rejected conservatively instead of committing on trust. Rejected proposals land in the negative-results log (P1.7b), and two consecutive same-pattern regressions roll the archived champion back (P1.8).
 
 ## Negative results (P1.7b)
 
@@ -66,5 +67,5 @@ The stable tool-self-evolve prompt section is present on every request while the
 ## Known Limitations and Deferred Work
 
 - **L1/L2 only** — the provider targets skill (L1) and prompt-section (L2) proposals; L3-workflow and L4-harness requests produce no proposals yet.
-- **No commits in the base bundle** — the held-in dual verifier needs the workspace signal, which the base provider does not implement (P1.3); with the weak rate applied to every missing dimension, `minAcceptConfidence` is unreachable, so base proposals are always rejected and only a subclass-supplied workspace signal (or an L3/L4 route) makes commits possible. This is deliberate conservatism, not a bug: an unverifiable edit must not go live.
+- **No commits without a configured workspace build** — the held-in workspace verifier (P1.9b) is implemented, but it only produces a signal when the workspace is a git work tree AND `workspaceVerifier.buildCommand` is configured; otherwise the held-in gate degrades to the weak rate and `minAcceptConfidence` is unreachable, so proposals are conservatively rejected. Enabling the verifier is an explicit composition step, not the shipped default.
 - **No keyed end-to-end verification** — proposal effects are reversible commits covered by unit tests; a live `dsh --profile` loop run requires a keyed environment.

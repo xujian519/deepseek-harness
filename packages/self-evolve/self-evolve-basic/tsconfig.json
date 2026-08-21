@@ -64,6 +64,12 @@
     },
     {
       "path": "../../core/tools"
+    },
+    {
+      "path": "../../shell/shell"
+    },
+    {
+      "path": "../../subprocess/subprocess"
     }
   ]
 }

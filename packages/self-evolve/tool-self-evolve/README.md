@@ -25,7 +25,7 @@ The **`tool-self-evolve`** package is the model-facing Consumer of `ctx.selfEvol
 
 #### What the model sees
 
-A prompt section that explains the self-evolve capability is experimental, instructs the model to call `self_evolve_inspect_patterns` before `self_evolve_now`, states that the base provider implements L1/L2 only and that proposal validation requires the held-in dual verifier (whose workspace signal the base provider does not implement, so base proposals are conservatively rejected and no commits occur in the base bundle), and warns against fabricating patterns. The two tools appear in the tool list when the composition loads this package.
+A prompt section that explains the self-evolve capability is experimental, instructs the model to call `self_evolve_inspect_patterns` before `self_evolve_now`, states that the base provider implements L1/L2 only and that proposal validation requires the held-in dual verifier (whose workspace half is active only when the profile configures `workspaceVerifier.buildCommand`; without it the loop degrades to the conservative weak path and no commits occur), and warns against fabricating patterns. The two tools appear in the tool list when the composition loads this package.
 
 #### Token effect
 

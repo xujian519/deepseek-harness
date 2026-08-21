@@ -29,7 +29,8 @@
 | `minHeldOutPassRate` | `0.6` | held-out 通过率阈值（P1.3）：相似历史重放达到或超过该比例才计为 held-out 通过。 |
 | `proposerTarget` | 无 | 提案 LLM 调用可选的 `{ provider, model }` 路由。 |
 | `validatorTarget` | 无 | 验证 LLM judge（P1.4）可选的 `{ provider, model }` 路由；与 `proposerTarget` 相同时加载失败。 |
-| `maxDirtyLinesAddedPerCommit` | `2` | held-in 工作区验证器允许的脏行容差；在子类提供工作区信号（P1.3）前不生效。 |
+| `maxDirtyLinesAddedPerCommit` | `2` | held-in 工作区验证器（P1.9b）允许的脏行容差；重放最多可净新增这么多脏行，超过即作为工作区回归被拒绝。 |
+| `workspaceVerifier` | `{ enabled: true }` | held-in 工作区验证器策略（P1.9b）：`enabled` 为总开关；`buildCommand`（如 `pnpm run build`）为重放后运行的项目构建命令；`gitTimeoutMs`（默认 30000）与 `buildTimeoutMs`（默认 300000）约束 git 与 build 运行。未配置 `buildCommand` 时信号保持不可用，循环退化为弱路径。 |
 | `maxPromptInflationBytesPerWeek` | `2048` | 长视界提示膨胀预算（翁荔挑战 7）：存活 self-evolve L2 片段总字节超限时，pruning job 把最旧的归档到 `$DSH_HOME/self-evolve/l2-archive/` 并撤销其 effect（P1.9）。 |
 | `l4ReapprovalHours` | `24` | L4 复审节奏（P2.3）：本提供方驱动过的插件，当当前提案与上次已批准提案不同或批准时间超过该窗口时，强制再次走人工审批——即使存在 `approveFutureVersions` 授权。 |
 | `maxStepReflectionsPerTurn` | `1` | 步骤反思节流（P3.1）：失败步骤上的低成本 LLM 反思每轮最多运行这么多次；`0` 关闭。 |
@@ -41,7 +42,7 @@ L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全�
 
 ## 验证管线（Phase 1）
 
-`validateProposal` 运行 Phase 1 管线：held-in 双验证（fork 重放 P1.2 + 工作区信号）、`sessionQuery.searchEvents` 命中事件的 held-out 相似性重放（P1.3）、`validatorTarget` 上的 LLM judge（P1.4）与聚合置信度门。缺失维度按弱路径 0.3 计，无法验证的提案被保守拒绝而非凭信任提交。被拒提案落入负面结果日志（P1.7b）；同一模式连续两次回归会回滚已归档的 champion（P1.8）。
+`validateProposal` 运行 Phase 1 管线：held-in 双验证（fork 重放 P1.2 + 工作区验证器 P1.9b）、`sessionQuery.searchEvents` 命中事件的 held-out 相似性重放（P1.3）、`validatorTarget` 上的 LLM judge（P1.4）与聚合置信度门。工作区验证器先采集重放前基线，再测量重放的净 git 脏增量（`git diff HEAD --numstat` 加未跟踪文件行数，排除 harness 自营的 `.dsh/` 路径）并运行配置的 `buildCommand`；两者都需在 `maxDirtyLinesAddedPerCommit` 容差内通过。缺失维度按弱路径 0.3 计，无法验证的提案被保守拒绝而非凭信任提交。被拒提案落入负面结果日志（P1.7b）；同一模式连续两次回归会回滚已归档的 champion（P1.8）。
 
 ## 负面结果（P1.7b）
 
@@ -66,5 +67,5 @@ L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全�
 ## Known Limitations and Deferred Work
 
 - **仅 L1/L2** — provider 面向技能（L1）与提示词段落（L2）提案；L3-workflow 与 L4-harness 请求暂不产生提案。
-- **基础 bundle 中不会发生提交** — held-in 双 verifier 需要 workspace 信号，而基础提供方未实现该信号（P1.3）；每个缺失维度都按弱路径 0.3 计后，`minAcceptConfidence` 无法达到，因此基础提案总是被拒绝，只有子类提供 workspace 信号（或 L3/L4 路径）才可能提交。这是刻意的保守策略而非缺陷：未经验证的改动不得上线。
+- **未配置工作区构建则不会发生提交** — held-in 工作区验证器（P1.9b）已实现，但只有当工作区是 git 仓库且配置了 `workspaceVerifier.buildCommand` 时才产生信号；否则 held-in 门退化为弱路径，`minAcceptConfidence` 无法达到，提案被保守拒绝。启用验证器是显式的组合步骤，不是随附默认。
 - **无 keyed 端到端验证** — 提案效果是可逆提交，由单元测试覆盖；实机 `dsh --profile` 循环运行需要 keyed 环境。
