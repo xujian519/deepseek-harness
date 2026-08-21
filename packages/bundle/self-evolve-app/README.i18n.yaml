@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/bundle/self-evolve-app/README.md
 README.md: 15a20b51819b74543df03935f6c67f02afd187d8
-README.zh.md: ca29c5f9092d153e0ba1475267a0a1a6313122bb
+README.zh.md: dd325e417e5d5b02a13837428e651f5bacf95a22

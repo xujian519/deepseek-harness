@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.md
 2026-07-06-timeout-deadline-library.md: 614519292f11ea3df232e394c998302add4a9906
-2026-07-06-timeout-deadline-library.zh.md: d6618c2cadf3bf1ac76aba3444c9b995f4fda3f5
+2026-07-06-timeout-deadline-library.zh.md: ec0a8fd0a21b7df3facfa34191f044a9b4b8499f

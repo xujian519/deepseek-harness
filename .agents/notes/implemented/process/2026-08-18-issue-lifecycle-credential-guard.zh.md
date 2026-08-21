@@ -8,7 +8,7 @@ Status: implemented
 
 [Issue lifecycle](../../../../.github/workflows-disabled/issue-lifecycle.yml) 作业使用 GitHub App token 写入 ProjectV2 状态与 issue 审计评论。它从 `vars.DSH_ISSUE_APP_CLIENT_ID` 和 `secrets.DSH_ISSUE_APP_PRIVATE_KEY` 读取 App 的 client ID 与私钥。当这些值缺失时——例如在未安装同一 App 的 fork 上——`actions/create-github-app-token` 会在任何生命周期逻辑执行前失败，导致每个 Issue 与 pull-request 事件都触发一次 CI 失败。
 
-[由事件直接指定的 PR 评审状态命令](../../../../.agents/notes/implemented/process/2026-08-10-event-directed-pr-review-status.md) 假设 App token 可用，但并未说明如何提供或检测它。
+[由事件直接指定的 PR 评审状态命令](../../../../.agents/notes/implemented/process/2026-08-10-event-directed-pr-review-status.zh.md) 假设 App token 可用，但并未说明如何提供或检测它。
 
 ## 决策
 

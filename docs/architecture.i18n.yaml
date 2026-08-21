@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/architecture.md
 architecture.md: 46ff6608ac77e1fe938cf297e8aea4ec858a794d
-architecture.zh.md: 4a63f1eedb0bd93ec45c75fa5651071eff4e69f3
+architecture.zh.md: e2aca5d581ebb9bbbe75279ad045485198325d17

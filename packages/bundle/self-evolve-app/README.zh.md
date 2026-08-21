@@ -2,13 +2,13 @@
 
 [English](README.md) | 中文
 
-dsh 自进化 opt-in bundle。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.md) 之上：插入 `self-evolve-basic` provider 与 `tool-self-evolve` consumer 两行。需要该能力接缝的 profile 挂载此 bundle；不挂载则接缝休眠，宿主面不持有任何工具。
+dsh 自进化 opt-in bundle。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.zh.md) 之上：插入 `self-evolve-basic` provider 与 `tool-self-evolve` consumer 两行。需要该能力接缝的 profile 挂载此 bundle；不挂载则接缝休眠，宿主面不持有任何工具。
 
 base bundle 刻意不携带这两行：`tool-self-evolve` 在挂载上下文注册工具，base 级行会把它们泄漏到宿主面与每个 agent（minimal 预设的双工具契约与"宿主面无工具"不变量都依赖这一点）。因此 standard 与 minimal 预设保持不变；启用是一个显式的组合步骤。
 
 ## Model Experience
 
-Indirectly, through the mounted consumer: this bundle inserts the `tool-self-evolve` row, whose prompt section and `self_evolve_*` tools are the only model-visible surface; the bundle's own glue plugin contributes no prompt text, tool schema, or result of its own. See [`@deepseek-ai/dsh-tool-self-evolve`](../../self-evolve/tool-self-evolve/README.md) for the consumer contract.
+Indirectly, through the mounted consumer: this bundle inserts the `tool-self-evolve` row, whose prompt section and `self_evolve_*` tools are the only model-visible surface; the bundle's own glue plugin contributes no prompt text, tool schema, or result of its own. See [`@deepseek-ai/dsh-tool-self-evolve`](../../self-evolve/tool-self-evolve/README.zh.md) for the consumer contract.
 
 #### KV Cache 效果
 

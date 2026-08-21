@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-18-issue-management-repository-parameterization.md
 2026-08-18-issue-management-repository-parameterization.md: e29a05901d33a82819fa6e3aaa269e48abdcd42f
-2026-08-18-issue-management-repository-parameterization.zh.md: 58b4aa070e167c125d0452b128d8f507c28cbc43
+2026-08-18-issue-management-repository-parameterization.zh.md: 6468de0ae8f934cce02514c200d7f890264b9ed5
