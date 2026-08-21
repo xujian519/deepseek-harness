@@ -55,7 +55,7 @@ describe('tool-self-evolve registration', () => {
     expect(sections).toHaveLength(1)
     expect(sections[0]?.name).toBe('tool:self-evolve')
     expect(sections[0]?.text).toContain('The base provider targets L1-skill and L2-context only')
-    expect(sections[0]?.text).toContain('no commits occur in the base bundle')
+    expect(sections[0]?.text).toContain('the loop degrades to the conservative weak path and no commits occur')
     expect(sections[0]?.text).not.toContain('bracket smoke')
     expect(sections[0]?.text).not.toContain('regression acceptance')
     expect(sections[0]?.text).not.toContain('dry-run by default')

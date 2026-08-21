@@ -37,4 +37,4 @@ Status: implemented
 - 每个 accepted 提案只产生一条 `self-evolve/commit` 事件；bracket invariant companion（若接线）不再看到重复提交。
 - `pnpm run typecheck`、`pnpm exec vitest run packages/self-evolve/ packages/bundle/self-evolve-app/`（85 测试）、双配置 oxlint、`verify-package-invariants`、`gen-tool-catalog --check` 全部通过。
 - `compaction/end` 失败模式现在携带真实的错误名签名而非常量回退；`self-evolve/end` 的无冒号错误名不再被截断。
-- 仍延后：P1.9b workspace verifier、P1.10 评估、keyless snapshot，以及 `turnHasFailure` 的全量会话扫描。
+- 仍延后：P1.10 评估、keyless snapshot，以及 `turnHasFailure` 的全量会话扫描。工作区验证器随后在 [P1.9b 工作区验证器笔记](../feature/2026-08-21-self-evolve-workspace-verifier.zh.md) 落地，取代此处记录的不可达状态。

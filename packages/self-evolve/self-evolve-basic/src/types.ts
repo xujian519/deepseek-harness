@@ -21,9 +21,69 @@ export type TriggerPolicy = Record<EvolveTrigger, {
 }>
 
 /** Resolved configuration with defaults applied; `proposerTarget`/`validatorTarget` stay optional. */
-export interface ResolvedBasicSelfEvolveConfig extends Required<Omit<BasicSelfEvolveConfig, 'proposerTarget' | 'validatorTarget'>> {
+export interface ResolvedBasicSelfEvolveConfig extends Required<Omit<BasicSelfEvolveConfig, 'proposerTarget' | 'validatorTarget' | 'workspaceVerifier'>> {
   proposerTarget?: { provider: string; model: string }
   validatorTarget?: { provider: string; model: string }
+  workspaceVerifier: ResolvedWorkspaceVerifierConfig
+}
+
+/** One held-in workspace signal (dual verifier B: git dirty delta + build health). */
+export interface WorkspaceSignal {
+  /**
+   * Net dirty lines the replay added relative to the captured baseline:
+   * tracked `git diff HEAD --numstat` insertions+deletions plus untracked
+   * file line counts, excluding `.dsh/` harness-owned paths; floored at 0.
+   */
+  dirtyLines: number
+  /**
+   * True when the git dimension is unavailable (not a git work tree, or git
+   * command infrastructure failed); the build dimension alone decides the
+   * gate, matching the `noDirtyFallback` branch of `_verifyHeldInCase`.
+   */
+  noDirtyFallback: boolean
+  /**
+   * False when the configured build command exited non-zero or timed out;
+   * null when no build command was run. A returned signal always carries a
+   * definite build health — null values never leave the verifier.
+   */
+  buildHealthy: boolean | null
+}
+
+/** Baseline workspace state captured before the held-in replay (P1.9b). */
+export interface WorkspaceBaseline {
+  /** Whether the workspace is a git work tree (git dimension available). */
+  gitAvailable: boolean
+  /** Dirty line count at capture time; 0 when git is unavailable. */
+  dirtyLines: number
+}
+
+/** Workspace verifier policy (P1.9b): git dirty delta + build health. */
+export interface WorkspaceVerifierConfig {
+  /**
+   * Master switch. Disabled → the workspace signal is unavailable and the
+   * held-in gate degrades to the weak path (default true; the weak path is
+   * also what an absent `buildCommand` produces, so default deployments
+   * behave exactly as before this verifier landed).
+   */
+  enabled?: boolean
+  /**
+   * Project build command, e.g. `pnpm run build`, run after the replay with
+   * the session's cwd; absent disables the build dimension, which keeps the
+   * workspace signal unavailable (weak path).
+   */
+  buildCommand?: string
+  /** Timeout for one git command (default 30_000 ms). */
+  gitTimeoutMs?: number
+  /** Timeout for one build run (default 300_000 ms). */
+  buildTimeoutMs?: number
+}
+
+/** Resolved workspace verifier policy with defaults applied. */
+export interface ResolvedWorkspaceVerifierConfig {
+  enabled: boolean
+  buildCommand?: string
+  gitTimeoutMs: number
+  buildTimeoutMs: number
 }
 
 /** Public configuration for the basic self-evolve provider. */
@@ -126,4 +186,13 @@ export interface BasicSelfEvolveConfig {
    * as dirty-regression. Keeps small formatter jitter from failing the gate.
    */
   maxDirtyLinesAddedPerCommit?: number
+  /**
+   * Held-in workspace verifier policy (P1.9b): after the fork replay, the
+   * provider measures the workspace's git dirty delta and runs the configured
+   * build command; both must pass (dirty lines within
+   * `maxDirtyLinesAddedPerCommit`) for the held-in gate to accept. The signal
+   * degrades to the weak path whenever the workspace is not a git work tree,
+   * no build command is configured, or the shell service is absent.
+   */
+  workspaceVerifier?: WorkspaceVerifierConfig
 }

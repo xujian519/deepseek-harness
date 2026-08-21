@@ -37,4 +37,4 @@ Fix all four in one scoped change across the self-evolve packages:
 - One `self-evolve/commit` event per accepted proposal; the bracket invariant companion (when mounted) no longer sees a duplicate commit.
 - `pnpm run typecheck`, `pnpm exec vitest run packages/self-evolve/ packages/bundle/self-evolve-app/` (85 tests), oxlint under both configs, `verify-package-invariants`, and `gen-tool-catalog --check` pass.
 - `compaction/end` failure patterns now carry the real error-name signature instead of a constant fallback; `self-evolve/end` colon-less error names are no longer truncated.
-- Still deferred: P1.9b workspace verifier, P1.10 evaluation, keyless snapshots, and the `turnHasFailure` full-session scan.
+- Still deferred: P1.10 evaluation, keyless snapshots, and the `turnHasFailure` full-session scan. The workspace verifier later landed in [the P1.9b workspace-verifier note](../feature/2026-08-21-self-evolve-workspace-verifier.md) and supersedes the documented unreachable state.

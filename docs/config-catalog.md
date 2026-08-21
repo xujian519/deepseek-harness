@@ -1938,6 +1938,15 @@ export interface BasicSelfEvolveConfig {
    * as dirty-regression. Keeps small formatter jitter from failing the gate.
    */
   maxDirtyLinesAddedPerCommit?: number
+  /**
+   * Held-in workspace verifier policy (P1.9b): after the fork replay, the
+   * provider measures the workspace's git dirty delta and runs the configured
+   * build command; both must pass (dirty lines within
+   * `maxDirtyLinesAddedPerCommit`) for the held-in gate to accept. The signal
+   * degrades to the weak path whenever the workspace is not a git work tree,
+   * no build command is configured, or the shell service is absent.
+   */
+  workspaceVerifier?: WorkspaceVerifierConfig
 }
 
 /** Per-trigger rate-limiting policy for the basic provider. */
@@ -1947,11 +1956,32 @@ export type TriggerPolicy = Record<EvolveTrigger, {
   /** Minimum milliseconds between two starts of this trigger. */
   minIntervalMs: number
 }>
+
+/** Workspace verifier policy (P1.9b): git dirty delta + build health. */
+export interface WorkspaceVerifierConfig {
+  /**
+   * Master switch. Disabled → the workspace signal is unavailable and the
+   * held-in gate degrades to the weak path (default true; the weak path is
+   * also what an absent `buildCommand` produces, so default deployments
+   * behave exactly as before this verifier landed).
+   */
+  enabled?: boolean
+  /**
+   * Project build command, e.g. `pnpm run build`, run after the replay with
+   * the session's cwd; absent disables the build dimension, which keeps the
+   * workspace signal unavailable (weak path).
+   */
+  buildCommand?: string
+  /** Timeout for one git command (default 30_000 ms). */
+  gitTimeoutMs?: number
+  /** Timeout for one build run (default 300_000 ms). */
+  buildTimeoutMs?: number
+}
 ```
 
 Depends on: [`EvolveLevel`](../packages/self-evolve/self-evolve/src/index.ts) · [`EvolveTrigger`](../packages/self-evolve/self-evolve/src/index.ts)
 
-Source: [`packages/self-evolve/self-evolve-basic/src/types.ts:30`](../packages/self-evolve/self-evolve-basic/src/types.ts)
+Source: [`packages/self-evolve/self-evolve-basic/src/types.ts:90`](../packages/self-evolve/self-evolve-basic/src/types.ts)
 
 <a id="deepseek-aidsh-session-persistence-jsonl"></a>
 

@@ -41,6 +41,8 @@ import type { EvolveCommit, ProposalValidationOutcome, ReplayEvidence, Validatio
 import type { CordisDynamicPluginId } from '@deepseek-ai/dsh-cordis-host-runner/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
+import type { ShellExecutor, ShellRunResult } from '@deepseek-ai/dsh-shell'
+import type {} from '@deepseek-ai/dsh-shell'
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-subagent'
@@ -52,8 +54,23 @@ import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-projection'
 
-export type { BasicSelfEvolveConfig, ResolvedBasicSelfEvolveConfig } from './types.ts'
-import type { BasicSelfEvolveConfig, ResolvedBasicSelfEvolveConfig, TriggerPolicy } from './types.ts'
+export type {
+  BasicSelfEvolveConfig,
+  ResolvedBasicSelfEvolveConfig,
+  ResolvedWorkspaceVerifierConfig,
+  TriggerPolicy,
+  WorkspaceBaseline,
+  WorkspaceSignal,
+  WorkspaceVerifierConfig,
+} from './types.ts'
+import type {
+  BasicSelfEvolveConfig,
+  ResolvedBasicSelfEvolveConfig,
+  ResolvedWorkspaceVerifierConfig,
+  TriggerPolicy,
+  WorkspaceBaseline,
+  WorkspaceSignal,
+} from './types.ts'
 
 const DEFAULT_LEVELS: EvolveLevel[] = ['L1-skill', 'L2-context']
 const DEFAULT_TRIGGERS: TriggerPolicy = {
@@ -62,6 +79,14 @@ const DEFAULT_TRIGGERS: TriggerPolicy = {
   'user-command': { enabled: true, minIntervalMs: 0 },
   'validation-retry': { enabled: true, minIntervalMs: 0 },
 }
+/** Paths under this prefix are harness-owned state, not the project tree. */
+export const WORKSPACE_EXCLUDED_PREFIX = '.dsh/'
+/** Upper bound on untracked-file lines counted toward the dirty measure (P1.9b). */
+const MAX_UNTRACKED_LINES = 100_000
+/** Upper bound on collected git stdout the verifier parses (P1.9b). */
+const GIT_OUTPUT_MAX_BYTES = 1_000_000
+const DEFAULT_GIT_TIMEOUT_MS = 30_000
+const DEFAULT_BUILD_TIMEOUT_MS = 300_000
 
 /**
  * Patterns that cleared the mining threshold (SIG-2). Weak `tool-runtime`
@@ -77,6 +102,34 @@ export function eligiblePatterns(patterns: FailurePattern[], minOccurrences: num
     const lift = pattern.verifierTier === 'tool-runtime' ? 1 : 0
     return pattern.occurrences >= minOccurrences + lift
   })
+}
+
+/**
+ * Sum `git diff HEAD --numstat` rows into a dirty-line count, adding the
+ * caller-supplied untracked-line total. Rows under the harness-owned `.dsh/`
+ * prefix are excluded; a binary row counts as one dirty unit because git
+ * reports `-` for both count fields while the file still changed.
+ *
+ * @param numstat - stdout of `git diff HEAD --numstat --relative`.
+ * @param untrackedLines - total lines of untracked files outside `.dsh/`, already bounded.
+ * @returns the dirty-line count.
+ */
+export function parseDirtyDelta(numstat: string, untrackedLines = 0): number {
+  let lines = untrackedLines
+  for (const row of numstat.split('\n')) {
+    if (row.trim().length === 0) continue
+    const [added, deleted, ...rest] = row.split('\t')
+    const path = rest.join('\t')
+    if (path.startsWith(WORKSPACE_EXCLUDED_PREFIX)) continue
+    const addedCount = Number(added)
+    const deletedCount = Number(deleted)
+    if (Number.isFinite(addedCount) && Number.isFinite(deletedCount)) {
+      lines += addedCount + deletedCount
+    } else {
+      lines += 1
+    }
+  }
+  return lines
 }
 
 /** Render one candidate as plain text for replay prompts and the judge. */
@@ -329,6 +382,14 @@ function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveCo
       triggers[key] = { ...triggers[key], ...config.triggers[key] }
     }
   }
+  const workspaceVerifier: ResolvedWorkspaceVerifierConfig = {
+    enabled: config.workspaceVerifier?.enabled ?? true,
+    gitTimeoutMs: config.workspaceVerifier?.gitTimeoutMs ?? DEFAULT_GIT_TIMEOUT_MS,
+    buildTimeoutMs: config.workspaceVerifier?.buildTimeoutMs ?? DEFAULT_BUILD_TIMEOUT_MS,
+  }
+  if (config.workspaceVerifier?.buildCommand !== undefined) {
+    workspaceVerifier.buildCommand = config.workspaceVerifier.buildCommand
+  }
   const resolved: ResolvedBasicSelfEvolveConfig = {
     maxDailyLoopsPerSession: config.maxDailyLoopsPerSession ?? 4,
     triggers,
@@ -346,6 +407,7 @@ function resolveConfig(config: BasicSelfEvolveConfig): ResolvedBasicSelfEvolveCo
     reflectionMinConfidence: config.reflectionMinConfidence ?? 0.85,
     patternFreezeHours: config.patternFreezeHours ?? 24,
     maxBudgetCharsPerLoop: config.maxBudgetCharsPerLoop ?? 32_768,
+    workspaceVerifier,
   }
   if (requireCompleteTarget(config.proposerTarget, 'proposerTarget')) resolved.proposerTarget = config.proposerTarget
   if (requireCompleteTarget(config.validatorTarget, 'validatorTarget')) resolved.validatorTarget = config.validatorTarget
@@ -418,6 +480,12 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       model: z.string(),
     }),
     maxDirtyLinesAddedPerCommit: z.number().step(1).min(0).default(2),
+    workspaceVerifier: z.object({
+      enabled: z.boolean().default(true),
+      buildCommand: z.string(),
+      gitTimeoutMs: z.number().step(1).min(1_000).default(DEFAULT_GIT_TIMEOUT_MS),
+      buildTimeoutMs: z.number().step(1).min(1_000).default(DEFAULT_BUILD_TIMEOUT_MS),
+    }),
   })
 
   /** Resolved provider configuration with defaults applied. */
@@ -762,12 +830,160 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
   }
 
   /**
-   * Workspace signal for one proposal's held-in case (dual verifier B: `git
-   * diff --stat` + build health). The base provider has no workspace verifier
-   * (P1.3), so it reports the signal unavailable; subclasses override.
+   * Capture the pre-replay workspace state (P1.9b): whether the session's
+   * project is a git work tree and its dirty-line count at that moment. The
+   * held-in gate measures the replay's NET dirty delta against this baseline,
+   * so pre-existing in-progress user changes never fail the gate and the
+   * replay cannot hide its own footprint behind them.
+   *
+   * Returns `null` when the verifier is disabled, the shell service is absent,
+   * or the session has no cwd — the workspace signal then degrades to the
+   * weak path.
    */
-  protected collectWorkspaceSignal(_proposal: EvolveProposal): Promise<{ dirtyLines: number; noDirtyFallback: boolean } | null> {
-    return Promise.resolve(null)
+  protected async captureWorkspaceBaseline(
+    agent: SelfEvolveAgentContext,
+    signal: AbortSignal,
+  ): Promise<WorkspaceBaseline | null> {
+    const shell = this.ctx.get('shell')
+    const session = this.ctx.sessions.get(SessionId(agent.sessionId))
+    if (shell === undefined || session === undefined || !this.config.workspaceVerifier.enabled) return null
+    const cwd = session.header.cwd ?? process.cwd()
+    const gitAvailable = await this.gitAvailable(shell, cwd, signal)
+    if (!gitAvailable) return { gitAvailable: false, dirtyLines: 0 }
+    const dirtyLines = await this.measureDirty(shell, cwd, signal)
+    if (dirtyLines === null) return { gitAvailable: false, dirtyLines: 0 }
+    return { gitAvailable: true, dirtyLines }
+  }
+
+  /**
+   * Workspace signal for one proposal's held-in case (dual verifier B: git
+   * dirty delta + build health, P1.9b). The signal measures the replay's net
+   * dirty delta against the captured baseline and runs the configured build
+   * command in the session's project; `null` (weak path) when the verifier is
+   * disabled, the shell service is absent, or either dimension is
+   * unavailable. Subclasses may override for project-specific build checks.
+   *
+   * @param agent - owner session; its cwd is the project to check.
+   * @param proposal - the candidate being validated.
+   * @param signal - cancels the build run; an aborted loop rethrows.
+   * @param baseline - the pre-replay state captured by {@link captureWorkspaceBaseline}.
+   * @returns the workspace signal, or `null` when unavailable.
+   */
+  protected async collectWorkspaceSignal(
+    agent: SelfEvolveAgentContext,
+    _proposal: EvolveProposal,
+    signal: AbortSignal,
+    baseline: WorkspaceBaseline | null,
+  ): Promise<WorkspaceSignal | null> {
+    const shell = this.ctx.get('shell')
+    const session = this.ctx.sessions.get(SessionId(agent.sessionId))
+    if (shell === undefined || session === undefined || !this.config.workspaceVerifier.enabled) return null
+    if (baseline === null) return null
+    const cwd = session.header.cwd ?? process.cwd()
+    const cfg = this.config.workspaceVerifier
+
+    let buildHealthy: boolean | null = null
+    if (cfg.buildCommand !== undefined && cfg.buildCommand.length > 0) {
+      const spec = shell.resolve({
+        command: cfg.buildCommand,
+        workdir: cwd,
+        timeoutMs: cfg.buildTimeoutMs,
+        signal,
+      })
+      try {
+        const result = await shell.run(spec)
+        if (result.aborted) throw new DOMException('aborted', 'AbortError')
+        buildHealthy = result.exitCode === 0 && !result.timedOut
+      } catch (error: unknown) {
+        // Build infrastructure failure (missing binary, spawn error): the
+        // dimension cannot be judged, so the whole signal degrades to the
+        // weak path instead of guessing.
+        this.ctx.logger('self-evolve').debug(`workspace verifier build failed: ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      }
+    }
+
+    if (!baseline.gitAvailable) {
+      if (buildHealthy === null) return null
+      return { dirtyLines: 0, noDirtyFallback: true, buildHealthy }
+    }
+    if (buildHealthy === null) return null
+    const dirtyLines = await this.measureDirty(shell, cwd, signal)
+    if (dirtyLines === null) return null
+    return { dirtyLines: Math.max(0, dirtyLines - baseline.dirtyLines), noDirtyFallback: false, buildHealthy }
+  }
+
+  /** Whether the session's project is a git work tree; command failure = unavailable. */
+  private async gitAvailable(shell: ShellExecutor, cwd: string, signal: AbortSignal): Promise<boolean> {
+    const result = await this.runGitCommand(shell, cwd, 'rev-parse --is-inside-work-tree', signal)
+    return result?.exitCode === 0
+  }
+
+  /** Current dirty-line count, or null when a git command fails (dimension unavailable). */
+  private async measureDirty(shell: ShellExecutor, cwd: string, signal: AbortSignal): Promise<number | null> {
+    const numstat = await this.runGitCommand(shell, cwd, 'diff HEAD --numstat --relative', signal)
+    if (numstat === null || numstat.exitCode !== 0) return null
+    const untrackedLines = await this.countUntrackedLines(shell, cwd, signal)
+    if (untrackedLines === null) return null
+    return parseDirtyDelta(numstat.stdout.text, untrackedLines)
+  }
+
+  /** Total lines of untracked files outside `.dsh/`, bounded; null when git fails. */
+  private async countUntrackedLines(shell: ShellExecutor, cwd: string, signal: AbortSignal): Promise<number | null> {
+    const listed = await this.runGitCommand(shell, cwd, 'ls-files --others --exclude-standard -- .', signal)
+    if (listed === null || listed.exitCode !== 0) return null
+    const paths = listed.stdout.text
+      .split('\n')
+      .map(path => path.trim())
+      .filter(path => path.length > 0 && !path.startsWith(WORKSPACE_EXCLUDED_PREFIX))
+    if (paths.length === 0) return 0
+    const shellQuote = (path: string): string => `'${path.replace(/'/g, "'\\''")}'`
+    const quoted = paths.map(shellQuote).join(' ')
+    const spec = shell.resolve({
+      command: `wc -l -- ${quoted}`,
+      workdir: cwd,
+      timeoutMs: this.config.workspaceVerifier.gitTimeoutMs,
+      signal,
+      stdoutMaxBytes: GIT_OUTPUT_MAX_BYTES,
+    })
+    try {
+      const result = await shell.run(spec)
+      if (result.aborted) throw new DOMException('aborted', 'AbortError')
+      if (result.exitCode !== 0) return null
+      let total = 0
+      for (const line of result.stdout.text.split('\n')) {
+        const match = /^\s*(\d+)/.exec(line)
+        if (match !== null) total += Number(match[1])
+      }
+      return Math.min(total, MAX_UNTRACKED_LINES)
+    } catch (error: unknown) {
+      this.ctx.logger('self-evolve').debug(`workspace verifier wc failed: ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    }
+  }
+
+  /** Run one read-only git command; null on infrastructure failure (git missing, spawn error). */
+  private async runGitCommand(
+    shell: ShellExecutor,
+    cwd: string,
+    args: string,
+    signal: AbortSignal,
+  ): Promise<ShellRunResult | null> {
+    const spec = shell.resolve({
+      command: `git ${args}`,
+      workdir: cwd,
+      timeoutMs: this.config.workspaceVerifier.gitTimeoutMs,
+      signal,
+      stdoutMaxBytes: GIT_OUTPUT_MAX_BYTES,
+    })
+    try {
+      const result = await shell.run(spec)
+      if (result.aborted) throw new DOMException('aborted', 'AbortError')
+      return result
+    } catch (error: unknown) {
+      this.ctx.logger('self-evolve').debug(`workspace verifier git failed: ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    }
   }
 
   /**
@@ -864,10 +1080,14 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
     let heldInRate: number | null = null
     if (this.config.requireDualVerification) {
-      const [replay, workspace] = await Promise.all([
-        addressed !== undefined ? this.collectReplaySignal(agent, proposal, addressed, signal) : null,
-        this.collectWorkspaceSignal(proposal),
-      ])
+      // Sequential: the workspace signal must measure the state AFTER the
+      // replay, so the baseline is captured first and the delta is the
+      // replay's own footprint (P1.9b).
+      const baseline = await this.captureWorkspaceBaseline(agent, signal)
+      const replay = addressed !== undefined
+        ? await this.collectReplaySignal(agent, proposal, addressed, signal)
+        : null
+      const workspace = await this.collectWorkspaceSignal(agent, proposal, signal, baseline)
       if (replay !== null && workspace !== null) {
         const held = this._verifyHeldInCase(replay, workspace)
         evidence.push({
@@ -896,7 +1116,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
           coversPatternIds: proposal.addressesPatternIds,
           passed: false,
           verifierSignal: 'verifier-unavailable',
-          note: 'held-in 双 verifier 信号不可用（重放/工作区基础设施未接入），按弱路径 0.3 计。',
+          note: 'held-in 双 verifier 信号不可用（重放或工作区信号缺失），按弱路径 0.3 计。',
         })
       }
     }
@@ -1040,15 +1260,16 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
    */
   protected _verifyHeldInCase(
     replay: { exitCode: number; retriggeredPatternIds: string[] },
-    workspace: { dirtyLines: number; noDirtyFallback: boolean },
-  ): { passed: boolean; reason?: 'replay-failed' | 'workspace-dirty' } {
+    workspace: WorkspaceSignal,
+  ): { passed: boolean; reason?: 'replay-failed' | 'workspace-dirty' | 'build-failed' } {
     const replayPassed = replay.exitCode === 0 && replay.retriggeredPatternIds.length === 0
-    const buildPassed = workspace.noDirtyFallback || workspace.dirtyLines <= this.config.maxDirtyLinesAddedPerCommit
-    if (replayPassed && buildPassed) return { passed: true }
-    return {
-      passed: false,
-      reason: !replayPassed ? 'replay-failed' : 'workspace-dirty',
-    }
+    const buildPassed = workspace.buildHealthy !== false
+    const dirtyPassed = workspace.noDirtyFallback
+      || workspace.dirtyLines <= this.config.maxDirtyLinesAddedPerCommit
+    if (replayPassed && buildPassed && dirtyPassed) return { passed: true }
+    if (!replayPassed) return { passed: false, reason: 'replay-failed' }
+    if (!buildPassed) return { passed: false, reason: 'build-failed' }
+    return { passed: false, reason: 'workspace-dirty' }
   }
 
   /** Durable negative-results file under the resolved DSH home. */

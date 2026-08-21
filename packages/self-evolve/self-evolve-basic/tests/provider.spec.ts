@@ -1,14 +1,18 @@
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionHeader } from '@deepseek-ai/dsh-session'
+import type { ShellExecRequest, ShellExecSpec, ShellRunResult } from '@deepseek-ai/dsh-shell'
 import {
   BasicSelfEvolveEngine,
   eligiblePatterns,
+  parseDirtyDelta,
 } from '../src/index.ts'
-import type { BasicSelfEvolveConfig, TriggerPolicy } from '../src/types.ts'
+import type { BasicSelfEvolveConfig, TriggerPolicy, WorkspaceBaseline, WorkspaceSignal } from '../src/types.ts'
 import { failurePatternsProjectionDefinition } from '@deepseek-ai/dsh-self-evolve'
 import type { EvolveLevel, EvolveProposal, FailurePattern, SelfEvolveAgentContext } from '@deepseek-ai/dsh-self-evolve'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -88,7 +92,7 @@ function baseConfig(overrides: Partial<BasicSelfEvolveConfig> = {}): BasicSelfEv
 /** Subclass exposing protected hooks and injecting verifier signals. */
 class SignalEngine extends BasicSelfEvolveEngine {
   replay: { exitCode: number; retriggeredPatternIds: string[] } | null = null
-  workspace: { dirtyLines: number; noDirtyFallback: boolean } | null = null
+  workspace: WorkspaceSignal | null = null
   heldOut: { passed: number; cases: number } | null = { passed: 1, cases: 1 }
   session: Session
 
@@ -101,7 +105,7 @@ class SignalEngine extends BasicSelfEvolveEngine {
     return this.replay
   }
 
-  protected override async collectWorkspaceSignal(): Promise<{ dirtyLines: number; noDirtyFallback: boolean } | null> {
+  protected override async collectWorkspaceSignal(): Promise<WorkspaceSignal | null> {
     return this.workspace
   }
 
@@ -230,6 +234,28 @@ describe('eligiblePatterns (SIG-2 weak-tier threshold lift)', () => {
   })
 })
 
+describe('parseDirtyDelta (P1.9b)', () => {
+  it('sums insertions and deletions of tracked rows', () => {
+    expect(parseDirtyDelta('1\t2\tpath/a.ts\n3\t0\tb.ts')).toBe(6)
+  })
+
+  it('excludes harness-owned .dsh/ paths', () => {
+    expect(parseDirtyDelta('1\t2\t.dsh/skills/x/SKILL.md\n3\t0\ta.ts')).toBe(3)
+  })
+
+  it('counts a binary row as one dirty unit', () => {
+    expect(parseDirtyDelta('-\t-\tassets/logo.png\n1\t0\ta.ts')).toBe(2)
+  })
+
+  it('adds the untracked-line total', () => {
+    expect(parseDirtyDelta('1\t0\ta.ts', 7)).toBe(8)
+  })
+
+  it('empty numstat yields 0', () => {
+    expect(parseDirtyDelta('')).toBe(0)
+  })
+})
+
 describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   async function signalEngine(overrides: Partial<BasicSelfEvolveConfig> = {}): Promise<{ engine: SignalEngine; patternId: string }> {
     const ctx = new Context()
@@ -245,7 +271,7 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   it('both verifiers pass + held-out passes → accepted with heldInPassed=1', async () => {
     const { engine, patternId } = await signalEngine()
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
-    engine.workspace = { dirtyLines: 0, noDirtyFallback: false }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
     expect(outcome.kind).toBe('accepted')
     if (outcome.kind === 'accepted') {
@@ -257,7 +283,7 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   it('mixed T+F → rejected with no counted regressions (conservative)', async () => {
     const { engine, patternId } = await signalEngine()
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
-    engine.workspace = { dirtyLines: 9, noDirtyFallback: false }
+    engine.workspace = { dirtyLines: 9, noDirtyFallback: false, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
     expect(outcome.kind).toBe('rejected')
     if (outcome.kind === 'rejected') {
@@ -269,15 +295,36 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   it('F+T → rejected', async () => {
     const { engine, patternId } = await signalEngine()
     engine.replay = { exitCode: 3, retriggeredPatternIds: [patternId] }
-    engine.workspace = { dirtyLines: 0, noDirtyFallback: false }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
     expect(outcome.kind).toBe('rejected')
+  })
+
+  it('build failure → rejected held-in-failed with build-failed reason (P1.9b)', async () => {
+    const { engine, patternId } = await signalEngine()
+    engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: false }
+    const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
+    expect(outcome.kind).toBe('rejected')
+    if (outcome.kind === 'rejected') {
+      expect(outcome.reason).toBe('held-in-failed')
+      expect(outcome.diagnostic).toContain('build-failed')
+      expect(outcome.regressions).toEqual([])
+    }
+  })
+
+  it('noDirtyFallback with a healthy build → accepted regardless of dirty lines (P1.9b)', async () => {
+    const { engine, patternId } = await signalEngine()
+    engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
+    engine.workspace = { dirtyLines: 999, noDirtyFallback: true, buildHealthy: true }
+    const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
+    expect(outcome.kind).toBe('accepted')
   })
 
   it('requireDualVerification=false → held-in is not required but confidence still gates', async () => {
     const { engine, patternId } = await signalEngine({ requireDualVerification: false })
     engine.replay = { exitCode: 3, retriggeredPatternIds: [patternId] }
-    engine.workspace = { dirtyLines: 99, noDirtyFallback: false }
+    engine.workspace = { dirtyLines: 99, noDirtyFallback: false, buildHealthy: true }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
     expect(outcome.kind).toBe('accepted')
     if (outcome.kind === 'accepted') expect(outcome.heldInPassed).toBe(0)
@@ -300,7 +347,7 @@ describe('Phase 1 validation pipeline (P1.1b/P1.3/P1.4)', () => {
   it('held-out pass rate below 0.6 lowers confidence below the gate', async () => {
     const { engine, patternId } = await signalEngine()
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
-    engine.workspace = { dirtyLines: 0, noDirtyFallback: false }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
     engine.heldOut = { passed: 1, cases: 3 }
     const outcome = await engine.validate(proposal({ addressesPatternIds: [patternId] }))
     // confidence = 1 × 1 × (1/3) = 0.333 < 0.5
@@ -1943,7 +1990,7 @@ describe('validateProposal and validateL4Proposal edges', () => {
     provideServices(ctx, session)
     const engine = new SignalEngine(ctx, baseConfig(), session)
     engine.replay = { exitCode: 0, retriggeredPatternIds: [] }
-    engine.workspace = { dirtyLines: 0, noDirtyFallback: false }
+    engine.workspace = { dirtyLines: 0, noDirtyFallback: false, buildHealthy: true }
     engine.heldOut = { passed: 0, cases: 0 }
     const [pattern] = await engine.readPatterns(session.id)
     const outcome = await engine.validate(proposal({ addressesPatternIds: [pattern!.patternId] }))
@@ -2512,5 +2559,218 @@ describe('full-loop integration edges', () => {
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+})
+
+/** Real-execution workspace verifier coverage (P1.9b): real git in a temp repo. */
+describe('workspace verifier (P1.9b)', () => {
+  /** One command outcome as the fake shell would observe it. */
+  interface FakeRunOutcome {
+    exitCode: number | null
+    signal: NodeJS.Signals | null
+    stdout: string
+    stderr: string
+    timedOut: boolean
+  }
+
+  /** Execute one whitespace-only command through `execFile` with a timeout. */
+  function realRunner(command: string, workdir: string, timeoutMs: number): Promise<FakeRunOutcome> {
+    return new Promise((resolve) => {
+      execFile('/bin/sh', ['-c', command], { cwd: workdir, timeout: timeoutMs }, (error, stdout, stderr) => {
+        if (error === null) {
+          resolve({ exitCode: 0, signal: null, stdout, stderr, timedOut: false })
+          return
+        }
+        const code = typeof error.code === 'number' ? error.code : null
+        const signal = (error as NodeJS.ErrnoException & { signal?: NodeJS.Signals }).signal ?? null
+        resolve({ exitCode: code, signal, stdout, stderr, timedOut: signal !== null })
+      })
+    })
+  }
+
+  /** A minimal in-process `ctx.shell` double that runs real commands. */
+  function fakeShell(): { resolve: (request: ShellExecRequest) => ShellExecSpec; run: (spec: ShellExecSpec) => Promise<ShellRunResult> } {
+    return {
+      resolve: (request: ShellExecRequest): ShellExecSpec => ({
+        command: request.command,
+        workdir: request.workdir ?? process.cwd(),
+        timeoutMs: request.timeoutMs ?? 60_000,
+        stdoutMaxBytes: request.stdoutMaxBytes ?? 1_000_000,
+        signal: request.signal,
+        sandboxPolicy: undefined,
+      }),
+      run: async (spec: ShellExecSpec): Promise<ShellRunResult> => {
+        const outcome = await realRunner(spec.command, spec.workdir, spec.timeoutMs)
+        return {
+          exitCode: outcome.exitCode,
+          signal: outcome.signal,
+          timedOut: outcome.timedOut,
+          aborted: false,
+          timeoutMs: spec.timeoutMs,
+          stdout: { text: outcome.stdout, truncated: false },
+          stderr: { text: outcome.stderr, truncated: false },
+        }
+      },
+    }
+  }
+
+  /** Subclass exposing the protected workspace hooks. */
+  class WorkspaceProbe extends BasicSelfEvolveEngine {
+    baseline(agent: SelfEvolveAgentContext, signal: AbortSignal): Promise<WorkspaceBaseline | null> {
+      return this.captureWorkspaceBaseline(agent, signal)
+    }
+
+    signal(
+      agent: SelfEvolveAgentContext,
+      p: EvolveProposal,
+      signal: AbortSignal,
+      baseline: WorkspaceBaseline | null,
+    ): Promise<WorkspaceSignal | null> {
+      return this.collectWorkspaceSignal(agent, p, signal, baseline)
+    }
+  }
+
+  const tempDirs: string[] = []
+
+  afterEach(async () => {
+    for (const dir of tempDirs.splice(0)) await rm(dir, { recursive: true, force: true })
+  })
+
+  async function tempDir(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-ws-'))
+    tempDirs.push(dir)
+    return dir
+  }
+
+  async function gitRepo(buildScript?: string): Promise<string> {
+    const dir = await tempDir()
+    await realRunner('git init -q', dir, 10_000)
+    await realRunner('git config user.email test@example.com', dir, 10_000)
+    await realRunner('git config user.name test', dir, 10_000)
+    await writeFile(join(dir, 'a.txt'), 'one\n')
+    if (buildScript !== undefined) await writeFile(join(dir, 'build-check.js'), buildScript)
+    await realRunner('git add -A', dir, 10_000)
+    await realRunner('git commit -qm init', dir, 10_000)
+    return dir
+  }
+
+  function sessionAt(dir: string): Session {
+    const id = SessionId(`ws-${Math.random().toString(36).slice(2, 10)}`)
+    const header: SessionHeader = { version: 0, id, createdAt: Date.now(), cwd: dir }
+    return Session.create(id, undefined, header)
+  }
+
+  /** A context with the services the real workspace verifier needs. */
+  function workspaceEnv(dir: string): { ctx: Context; session: Session } {
+    const ctx = new Context()
+    const session = sessionAt(dir)
+    ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
+    ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => ({ values: {} }) })
+    ctx.provide('shell', fakeShell())
+    return { ctx, session }
+  }
+
+  function workspaceConfig(overrides: Partial<BasicSelfEvolveConfig['workspaceVerifier']> = {}): BasicSelfEvolveConfig {
+    return baseConfig({
+      workspaceVerifier: { buildCommand: 'node build-check.js', gitTimeoutMs: 5_000, buildTimeoutMs: 5_000, ...overrides },
+    })
+  }
+
+  function probe(ctx: Context, config: BasicSelfEvolveConfig): WorkspaceProbe {
+    return new WorkspaceProbe(ctx, config)
+  }
+
+  it('captures a clean baseline and reports the replay delta with a healthy build', async () => {
+    const dir = await gitRepo('process.exit(0)\n')
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, workspaceConfig())
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    const baseline = await engine.baseline(agent, signal)
+    expect(baseline).toEqual({ gitAvailable: true, dirtyLines: 0 })
+
+    await appendFile(join(dir, 'a.txt'), 'two\nthree\nfour\n')
+    const ws = await engine.signal(agent, proposal(), signal, baseline)
+    expect(ws).toEqual({ dirtyLines: 3, noDirtyFallback: false, buildHealthy: true })
+  })
+
+  it('not a git work tree → build-only fallback (noDirtyFallback)', async () => {
+    const dir = await tempDir()
+    await writeFile(join(dir, 'build-check.js'), 'process.exit(0)\n')
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, workspaceConfig())
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    const baseline = await engine.baseline(agent, signal)
+    expect(baseline).toEqual({ gitAvailable: false, dirtyLines: 0 })
+    const ws = await engine.signal(agent, proposal(), signal, baseline)
+    expect(ws).toEqual({ dirtyLines: 0, noDirtyFallback: true, buildHealthy: true })
+  })
+
+  it('build failure → buildHealthy=false', async () => {
+    const dir = await gitRepo('process.exit(1)\n')
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, workspaceConfig())
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    const baseline = await engine.baseline(agent, signal)
+    const ws = await engine.signal(agent, proposal(), signal, baseline)
+    expect(ws).toEqual({ dirtyLines: 0, noDirtyFallback: false, buildHealthy: false })
+  })
+
+  it('build timeout → buildHealthy=false', async () => {
+    const dir = await gitRepo('setTimeout(() => {}, 60_000)\n')
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, workspaceConfig({ buildTimeoutMs: 500 }))
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    const baseline = await engine.baseline(agent, signal)
+    const ws = await engine.signal(agent, proposal(), signal, baseline)
+    expect(ws).not.toBeNull()
+    if (ws !== null) expect(ws.buildHealthy).toBe(false)
+  })
+
+  it('untracked files outside .dsh count; harness-owned .dsh paths are excluded', async () => {
+    const dir = await gitRepo('process.exit(0)\n')
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, workspaceConfig())
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    const baseline = await engine.baseline(agent, signal)
+    expect(baseline).toEqual({ gitAvailable: true, dirtyLines: 0 })
+
+    await writeFile(join(dir, 'scratch.txt'), 'x\ny\nz\n')
+    await mkdir(join(dir, '.dsh', 'skills', 's'), { recursive: true })
+    await writeFile(join(dir, '.dsh', 'skills', 's', 'SKILL.md'), Array(10).fill('line').join('\n'))
+    const ws = await engine.signal(agent, proposal(), signal, baseline)
+    expect(ws).toEqual({ dirtyLines: 3, noDirtyFallback: false, buildHealthy: true })
+  })
+
+  it('no buildCommand → signal unavailable (weak path)', async () => {
+    const dir = await gitRepo()
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, baseConfig())
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    const baseline = await engine.baseline(agent, signal)
+    expect(baseline).toEqual({ gitAvailable: true, dirtyLines: 0 })
+    expect(await engine.signal(agent, proposal(), signal, baseline)).toBeNull()
+  })
+
+  it('workspaceVerifier.enabled=false → baseline and signal unavailable', async () => {
+    const dir = await gitRepo()
+    const { ctx, session } = workspaceEnv(dir)
+    const engine = probe(ctx, workspaceConfig({ enabled: false }))
+    const agent = agentFor(session)
+    const signal = new AbortController().signal
+
+    expect(await engine.baseline(agent, signal)).toBeNull()
+    expect(await engine.signal(agent, proposal(), signal, null)).toBeNull()
   })
 })

@@ -332,6 +332,15 @@
         "tests/**/*.ts"
       ]
     },
+    "packages/test-support/self-evolve-eval": {
+      "entry": [
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
     "packages/core/agent-loop": {
       "entry": [
         "tests/**/*.spec.ts",
