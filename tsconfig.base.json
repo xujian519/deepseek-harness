@@ -291,6 +291,7 @@
         "./packages/sdk/*/src",
         "./packages/interaction/*/src",
         "./packages/boot/*/src",
+        "./packages/browser/*/src",
         "./packages/examples/*/src",
         "./packages/util/*/src",
         "./packages/mcp/*/src",
