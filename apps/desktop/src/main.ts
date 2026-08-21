@@ -139,7 +139,9 @@ void app.whenReady().then(async () => {
     entry,
     loaderArgs,
     profile: 'desktop',
-    args: ['--port', '0'],
+    // The Electron window is the UI surface; suppress the web runtime's
+    // default-browser handoff so it does not open the same URL a second time.
+    args: ['--port', '0', '--no-open'],
     cwd,
     env: {
       ...process.env,
