@@ -79,6 +79,7 @@
 - [x] negative results 持久化 + 读取 + 模板 proposer 前缀（P1.7b/P1.8）。
 - [x] Champion-Challenger 归档与回滚（P1.8）；prompt 膨胀 pruning（P1.9，`estimatedBytes` + `maxPromptInflationBytesPerWeek`）。
 - [ ] 60 题离线子集 baseline + 净胜分 95% CI 评估（含 CI 跨零自动停开关）；Phase 1 snapshot 录制（需 key 环境）。
+  - [x] 评估脚手架（P1.10a）：`@deepseek-ai/dsh-self-evolve-eval`——确定性子集、配对结果 schema、bootstrap 95% CI、决策记录与 `verify-self-evolve-eval` CI 停开关；实机双跑待 keyed+docker 环境。
 
 ### P3：L3 + L4 审批（Phase 2 完成）
 

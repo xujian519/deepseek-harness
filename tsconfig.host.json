@@ -250,6 +250,7 @@
     { "path": "./packages/guard/timeout-guard" },
     { "path": "./packages/runtime-diagnostics/invariants" },
     { "path": "./packages/test-support/agent-loop-testkit" },
+    { "path": "./packages/test-support/self-evolve-eval" },
     { "path": "./packages/acp/acp" },
     { "path": "./packages/examples/acp-demo" },
     { "path": "./packages/bundle/base" },
