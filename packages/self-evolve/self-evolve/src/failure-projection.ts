@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import type { EvolveLevel, FailurePattern } from './types.ts'
+import type { EvolveLevel, FailurePattern, FailurePatternsProjection } from './types.ts'
 
 /** Projection-unit key registered under `ctx.sessionProjections`. */
 export const FAILURE_PATTERNS_PROJECTION_KEY = 'failure-patterns'
@@ -42,11 +42,18 @@ const failurePatternsStateSchema = z.object({
 }).strict()
 
 /** Wire-payload schema for the read-side projection (`view` output); `toolCalls` is fold-internal state. */
-const failurePatternsViewSchema = z.object({
+export const failurePatternsViewSchema = z.object({
   patterns: z.record(z.string(), failurePatternSchema),
   discoveryOrder: z.array(z.string()),
   lastMinedSeq: z.number().int().nonnegative(),
 }).strict()
+
+declare module '@deepseek-ai/dsh-session-projection/types' {
+  // Host fold state for the client-visible 'failure-patterns' key declared in ./types.ts.
+  interface SessionProjectionStateMap {
+    'failure-patterns': FailurePatternsState
+  }
+}
 
 /** Durable folded state — one copy per session, projected incrementally. */
 export type FailurePatternsState = z.infer<typeof failurePatternsStateSchema>
@@ -375,20 +382,32 @@ function foldReflection(state: FailurePatternsState, event: SessionEvent): Failu
 }
 
 /**
+ * Read-side view of the failure-patterns fold; the unit stays host-only in
+ * the sense that the view and its schema live in the `wire` block of the
+ * {@link ProjectionDefinition} (client-visible key, see `./types.ts`).
+ * @param state - the current fold state.
+ * @returns the wire view (excludes the fold-internal `toolCalls` map).
+ */
+export const failurePatternsView = (state: FailurePatternsState): FailurePatternsProjection => ({
+  patterns: state.patterns,
+  discoveryOrder: state.discoveryOrder,
+  lastMinedSeq: state.lastMinedSeq,
+})
+
+/**
  * Registered ProjectionDefinition. `stateVersion` is bumped to `3` from the
  * original `1` because FailurePattern grew two required shape fields
  * (`verifierTier`, `causalSignature`; v2) and the state added the `toolCalls`
  * identity map (v3); both break deserialization of older states.
  */
-export const failurePatternsProjectionDefinition: ProjectionDefinition<typeof FAILURE_PATTERNS_PROJECTION_KEY, FailurePatternsState> = {
+export const failurePatternsProjectionDefinition = {
   key: FAILURE_PATTERNS_PROJECTION_KEY,
-  schema: failurePatternsViewSchema,
-  init: () => ({ patterns: {}, discoveryOrder: [], lastMinedSeq: 0, toolCalls: {} }),
-  apply: (state, event) => foldEvent(state, event),
-  view: state => ({
-    patterns: state.patterns,
-    discoveryOrder: state.discoveryOrder,
-    lastMinedSeq: state.lastMinedSeq,
-  }),
+  stateSchema: failurePatternsStateSchema,
+  init: (): FailurePatternsState => ({ patterns: {}, discoveryOrder: [], lastMinedSeq: 0, toolCalls: {} }),
+  apply: (state: FailurePatternsState, event: SessionEvent) => foldEvent(state, event),
+  wire: {
+    viewSchema: failurePatternsViewSchema,
+    view: failurePatternsView,
+  },
   stateVersion: 3,
-}
+} satisfies ProjectionDefinition<typeof FAILURE_PATTERNS_PROJECTION_KEY, FailurePatternsState>

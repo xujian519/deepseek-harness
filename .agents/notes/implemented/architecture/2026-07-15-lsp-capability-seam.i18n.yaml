@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-15-lsp-capability-seam.md
 2026-07-15-lsp-capability-seam.md: 57c4adfa9578b320a3fe74ae5f344591d3a7424f
-2026-07-15-lsp-capability-seam.zh.md: faf53aa2096cee3301f9ea7fa70ddffae7d93494
+2026-07-15-lsp-capability-seam.zh.md: 7e7ae966d6cbcb3bcf4b1833d663cda2c4bc8547

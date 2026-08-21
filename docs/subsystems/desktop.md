@@ -16,7 +16,7 @@ The current Phase 3 implementation wires the bridge, the Service Definition, and
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxdesktop--desktop-abstract-seam"></a>
 
@@ -80,7 +80,7 @@ abstract registerGlobalShortcut(accelerator: string, handler: () => void): Promi
 abstract setTray(config: DesktopTrayConfig): Promise<() => void>
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:125`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktop-events"></a>
 
@@ -100,7 +100,7 @@ The bridge to Electron Main was lost.
 'desktop/bridge-lost'(): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:117`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopfile-dropped--emit"></a>
 
@@ -117,7 +117,7 @@ Files were dropped on the renderer window.
 'desktop/file-dropped'(payload: { paths: string[] }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:106`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopmenu-activated--emit"></a>
 
@@ -134,7 +134,7 @@ A registered menu item was activated.
 'desktop/menu-activated'(payload: { menuId: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:88`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopnotification-clicked--emit"></a>
 
@@ -151,7 +151,7 @@ A notification was clicked.
 'desktop/notification-clicked'(payload: { notificationId: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:112`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktopshortcut-triggered--emit"></a>
 
@@ -168,7 +168,7 @@ A registered global shortcut was pressed.
 'desktop/shortcut-triggered'(payload: { accelerator: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:94`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 
 <a id="desktoptray-clicked--emit"></a>
 
@@ -185,5 +185,5 @@ The tray icon was clicked.
 'desktop/tray-clicked'(payload: { button: 'left' | 'right' }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts:100`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
 <!-- END GENERATED cordis-surface -->

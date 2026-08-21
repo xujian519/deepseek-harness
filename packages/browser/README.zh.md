@@ -6,6 +6,6 @@
 
 | 包 | 职责 |
 |---|---|
-| [`browser-backend/`](browser-backend/README.md) | 后端类型/能力位、各后端探测、级联路由、browser-use 链接提取器。 |
+| [`browser-backend/`](browser-backend/README.zh.md) | 后端类型/能力位、各后端探测、级联路由、browser-use 链接提取器。 |
 
 各包契约由子 README 负责。

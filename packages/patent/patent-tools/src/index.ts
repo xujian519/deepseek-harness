@@ -227,7 +227,15 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
   const resolveBackend = options.resolve ?? resolveBrowserBackend
   return async () => {
     // 下载通道只认有拦截/提取执行的两个后端；browseros-neo 与 playwright 参与探测矩阵但不参与下载。
-    const backend = await resolveBackend({ exclude: ['browseros-neo', 'playwright'] })
+    let backend: Awaited<ReturnType<typeof resolveBrowserBackend>>
+    try {
+      backend = await resolveBackend({ exclude: ['browseros-neo', 'playwright'] })
+    } catch {
+      // No backend is detectable on this host. The caller explicitly wired the
+      // ego channel (runEgo comes from ctx.patentData), so honor it rather than
+      // failing the download with install guidance.
+      return options.runEgo
+    }
     if (backend.id === 'ego') return options.runEgo
     return createBrowserUseDownloadRunner(options.extractor)
   }

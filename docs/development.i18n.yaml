@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/development.md
 development.md: c2fc58d10b73cf62757707795436fd35aee91080
-development.zh.md: 1acaae3e908600956c72657c364535b9c61c47fd
+development.zh.md: c350da50b8d2b73e3929158f020d0cc2319fb9c4

@@ -12,7 +12,7 @@ Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-ev
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxselfevolve--selfevolveengine-abstract-seam"></a>
 
@@ -63,7 +63,7 @@ abstract evolveNow( agent: SelfEvolveAgentContext, signal: AbortSignal, levels?:
 abstract readPatterns(sessionId: string): Promise<FailurePattern[]>
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/index.ts:61`](../../packages/self-evolve/self-evolve/src/index.ts)
+Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 
 <a id="self-evolve-loop-events"></a>
 
@@ -85,7 +85,7 @@ An evolution loop settled. Every `start` event emits exactly one end event, incl
 'self-evolve-loop/end'(info: { runId: SelfEvolveRunId; error?: string }): void
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/index.ts:47`](../../packages/self-evolve/self-evolve/src/index.ts)
+Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 
 <a id="self-evolve-loopstart--emit"></a>
 
@@ -102,5 +102,5 @@ An evolution loop started. Paired with `self-evolve-loop/end`.
 'self-evolve-loop/start'(info: { runId: SelfEvolveRunId; trigger: EvolveTrigger }): void
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/index.ts:40`](../../packages/self-evolve/self-evolve/src/index.ts)
+Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 <!-- END GENERATED cordis-surface -->

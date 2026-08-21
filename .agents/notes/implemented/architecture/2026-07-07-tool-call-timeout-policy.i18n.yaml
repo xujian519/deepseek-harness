@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-07-tool-call-timeout-policy.md
 2026-07-07-tool-call-timeout-policy.md: c4d04edac19fce2a625a933fa26021e8c6990f32
-2026-07-07-tool-call-timeout-policy.zh.md: 24f00c8ce34fe48cbfd5fdd8439d21a630e0b86d
+2026-07-07-tool-call-timeout-policy.zh.md: 1dc8d5cda7dff009de50ffe6bcfc3e1cd9858ce0

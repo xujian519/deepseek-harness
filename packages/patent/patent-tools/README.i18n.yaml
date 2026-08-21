@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-tools/README.md
 README.md: 74e30eea9230fe2853bce56043c0fbc633b741b9
-README.zh.md: f30cb8436a6ff0e19576b2908b54ff5d9c6f829d
+README.zh.md: 6ad00434e9b831bc8d1742b20b9ffac2fef8f924

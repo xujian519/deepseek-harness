@@ -2,7 +2,7 @@
 
 [English](patent.md) | 中文
 
-专利子系统是 Sati 专利域的原生移植（[计划](../../docs/sati-as-dsh-plugins-plan.md)）：专利数据访问、knowledge.db 查询、执行管线、纯域引擎、模型可见工具集、合规规则门禁与文书渲染。该能力族位于 [packages/patent](../../packages/patent/README.md)，以 `@deepseek-ai/dsh-patent-*` 包运行，无 Sati 进程、无 MCP 桥。
+专利子系统是 Sati 专利域的原生移植（[计划](../../docs/sati-as-dsh-plugins-plan.md)）：专利数据访问、knowledge.db 查询、执行管线、纯域引擎、模型可见工具集、合规规则门禁与文书渲染。该能力族位于 [packages/patent](../../packages/patent/README.zh.md)，以 `@deepseek-ai/dsh-patent-*` 包运行，无 Sati 进程、无 MCP 桥。
 
 本页记录三个服务接缝（`ctx.patentData`、`ctx.patentKnowledge`、`ctx.patentWorkflow`）与纯库 ModelPort 契约（`@deepseek-ai/dsh-patent-core`）。模型可见工具、规则门禁与文书渲染位于消费包（`dsh-patent-tools`、`dsh-patent-rule`、`dsh-patent-document`、`dsh-tool-literature`、`dsh-methodology`）。
 
@@ -12,7 +12,7 @@
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxpatentdata--patentdata"></a>
 
@@ -36,7 +36,7 @@ createSearchProvider(options?: CreateNuoSearchProviderOptions): StageProvider
 createEgoSession(options?: EgoSessionOptions): EgoBrowserSession
 ```
 
-Source: [`packages/patent/patent-data/src/index.ts:58`](../../packages/patent/patent-data/src/index.ts)
+Source: [`packages/patent/patent-data/src/index.ts`](../../packages/patent/patent-data/src/index.ts)
 
 <a id="ctxpatentknowledge--patentknowledge"></a>
 
@@ -123,7 +123,7 @@ ipcStandardsByArticle(article: string): IpcStandardCard[]
 ipcStandardsSearch(keyword: string, limit: number = 10): IpcStandardCard[]
 ```
 
-Source: [`packages/patent/patent-knowledge/src/index.ts:111`](../../packages/patent/patent-knowledge/src/index.ts)
+Source: [`packages/patent/patent-knowledge/src/index.ts`](../../packages/patent/patent-knowledge/src/index.ts)
 
 <a id="ctxpatentteams--patentteamsservice"></a>
 
@@ -240,9 +240,9 @@ async status(agent: Agent, signal?: AbortSignal): Promise<PatentTeamsStatus>
 async delete(agent: Agent, signal: AbortSignal): Promise<{ deleted: boolean; team_name: string }>
 ```
 
-Types: [Agent](core.md)
+Types: [Agent](core.zh.md)
 
-Source: [`packages/patent/patent-teams/src/service.ts:194`](../../packages/patent/patent-teams/src/service.ts)
+Source: [`packages/patent/patent-teams/src/service.ts`](../../packages/patent/patent-teams/src/service.ts)
 
 <a id="ctxpatentworkflow--patentworkflow"></a>
 
@@ -295,7 +295,7 @@ approve(caseId: string): PlantaskRunResult
 reject(caseId: string, feedback?: string): PlantaskRunResult
 ```
 
-Source: [`packages/patent/patent-workflow/src/index.ts:71`](../../packages/patent/patent-workflow/src/index.ts)
+Source: [`packages/patent/patent-workflow/src/index.ts`](../../packages/patent/patent-workflow/src/index.ts)
 <!-- END GENERATED cordis-surface -->
 
 ## ModelPort 契约

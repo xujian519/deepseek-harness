@@ -29,4 +29,4 @@ Status: implemented
 
 ## 影响
 
-Issue management 脚本现在跟随其运行的仓库。主仓库（`deepseek-harness/deepseek-harness`）仍使用自己的 Project，因为 `projectOrganization` 仍指向 `deepseek-harness`。安装同一个 App 的 fork 不再需要修改源码来指向自己的 issues 和 pull requests；它们只需要满足或关闭 [Issue lifecycle credential guard](2026-08-18-issue-lifecycle-credential-guard.md) 中的 credential guard。
+Issue management 脚本现在跟随其运行的仓库。主仓库（`deepseek-harness/deepseek-harness`）仍使用自己的 Project，因为 `projectOrganization` 仍指向 `deepseek-harness`。安装同一个 App 的 fork 不再需要修改源码来指向自己的 issues 和 pull requests；它们只需要满足或关闭 [Issue lifecycle credential guard](2026-08-18-issue-lifecycle-credential-guard.zh.md) 中的 credential guard。

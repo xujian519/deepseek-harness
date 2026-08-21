@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-19-tool-call-timeout-rename.md
 2026-08-19-tool-call-timeout-rename.md: ec913d4e7a105496aa290fc2f569bff30717d8ae
-2026-08-19-tool-call-timeout-rename.zh.md: 5b6fbd19b886601349abe77d80c1a09a1fa27f4d
+2026-08-19-tool-call-timeout-rename.zh.md: eb59add191d6cf00478b35c6fecd6da336c1877b

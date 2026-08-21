@@ -5,9 +5,12 @@ import {
   FAILURE_PATTERNS_PROJECTION_KEY,
   extractText,
   failurePatternsProjectionDefinition,
+  failurePatternsView,
+  failurePatternsViewSchema,
   foldEvent,
   parseShellMarkers,
 } from '../src/failure-projection.ts'
+import type { FailurePatternsState } from '../src/failure-projection.ts'
 import type { FailurePattern } from '../src/types.ts'
 
 function sessionFactory(): Session {
@@ -61,7 +64,7 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
   it('projection definition apply folds events', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
-    let state = failurePatternsProjectionDefinition.init()
+    let state: FailurePatternsState = failurePatternsProjectionDefinition.init()
     for (const event of session.events) state = failurePatternsProjectionDefinition.apply(state, event)
     expect(state.discoveryOrder).toHaveLength(1)
   })
@@ -69,7 +72,7 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
   it('projection definition schema parses a folded state', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
-    let state = failurePatternsProjectionDefinition.init()
+    let state: FailurePatternsState = failurePatternsProjectionDefinition.init()
     for (const event of session.events) state = foldEvent(state, event)
     expect(state.discoveryOrder).toHaveLength(1)
     const parsed = STATE_ZOD.safeParse(state)
@@ -81,11 +84,11 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
   it('definition schema parses the view output (wire payload excludes fold-internal toolCalls)', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
-    let state = failurePatternsProjectionDefinition.init()
+    let state: FailurePatternsState = failurePatternsProjectionDefinition.init()
     for (const event of session.events) state = failurePatternsProjectionDefinition.apply(state, event)
-    const view = failurePatternsProjectionDefinition.view(state)
+    const view = failurePatternsView(state)
     expect(view).not.toHaveProperty('toolCalls')
-    expect(failurePatternsProjectionDefinition.schema.safeParse(view).success).toBe(true)
+    expect(failurePatternsViewSchema.safeParse(view).success).toBe(true)
   })
 
   it('FailurePattern zod strict: extra fields reject, missing required fields reject', () => {

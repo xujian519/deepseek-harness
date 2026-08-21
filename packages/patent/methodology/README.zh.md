@@ -48,7 +48,7 @@ Call triz with an improving and a worsening parameter number (1-39) to read that
 
 #### 模型看到的内容
 
-一个名为 `triz` 的已注册工具定义，含两个可选整数参数 `improving` 与 `worsening`（各 1-39）。其确切描述与参数见生成的 [`triz` schema](../../../docs/tool-catalog.md#deepseek-aidsh-methodology)；结果以 Markdown 渲染，而非 schema token。
+一个名为 `triz` 的已注册工具定义，含两个可选整数参数 `improving` 与 `worsening`（各 1-39）。其确切描述与参数见生成的 [`triz` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-methodology)；结果以 Markdown 渲染，而非 schema token。
 
 #### Token 影响
 

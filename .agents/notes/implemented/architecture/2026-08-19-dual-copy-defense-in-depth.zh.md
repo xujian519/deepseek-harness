@@ -6,7 +6,7 @@
 
 ## Problem
 
-字符串键调度器握手（[2026-08-16-dual-copy-dsh-tools-scheduler-handshake](2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md)）让"同版本双副本 `@deepseek-ai/dsh-tools`"不再有害，但仍有三处缺口：
+字符串键调度器握手（[2026-08-16-dual-copy-dsh-tools-scheduler-handshake](2026-08-16-dual-copy-dsh-tools-scheduler-handshake.zh.md)）让"同版本双副本 `@deepseek-ai/dsh-tools`"不再有害，但仍有三处缺口：
 
 1. **版本分裂无防线。** 第三方插件把 `@deepseek-ai/dsh-tools` 声明为**直接依赖**（而非 peer）时，pnpm 会在 profile 的 `node_modules` 里按其锁定的版本物化一份物理副本。复现环境的 profile 中，`dsh-feishu-bot` 直接依赖 `@deepseek-ai/dsh-tools@0.1.0-rc.6`，与 app 的 `0.1.0-rc.7` 并存；`dsh-credentials`、`dsh-sdk-client`、`dsh-sdk-protocol`、`dsh-settings` 也各有一份 rc.6。修复后的 app 一旦遇到 profile 中 hoist 的"修复前（Symbol 键）或不同版本"副本，每次工具调用都会重新崩溃。
 2. **故障不可诊断。** `ctx.tools[schedulerKey].prepare(...)` 对 `undefined` 抛出的裸错误 `Cannot read properties of undefined (reading 'prepare')` 不指向双副本成因，也不给出修复检查点。

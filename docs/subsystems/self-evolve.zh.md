@@ -2,7 +2,7 @@
 
 [English](self-evolve.md) | 中文
 
-自进化子系统让 harness 能够自我改进：它观察以验证器为锚的失败模式，并对技能、提示词段落、工作流或 harness 包提出窄范围修改。能力接缝位于 `packages/self-evolve` 之下，以 `@deepseek-ai/dsh-self-evolve*` 包形式存在：[`@deepseek-ai/dsh-self-evolve`](../../packages/self-evolve/self-evolve/README.md) 定义 `ctx.selfEvolve` Service Definition 与 `self-evolve-loop/start|end` 事件；[`@deepseek-ai/dsh-self-evolve-basic`](../../packages/self-evolve/self-evolve-basic/README.md) 是 Service Provider（空闲压力触发、速率限制、L1/L2 提案、可逆效果提交）；[`@deepseek-ai/dsh-tool-self-evolve`](../../packages/self-evolve/tool-self-evolve/README.md) 是面向模型的 Consumer（基于该接缝的工具与提示词段落）。
+自进化子系统让 harness 能够自我改进：它观察以验证器为锚的失败模式，并对技能、提示词段落、工作流或 harness 包提出窄范围修改。能力接缝位于 `packages/self-evolve` 之下，以 `@deepseek-ai/dsh-self-evolve*` 包形式存在：[`@deepseek-ai/dsh-self-evolve`](../../packages/self-evolve/self-evolve/README.zh.md) 定义 `ctx.selfEvolve` Service Definition 与 `self-evolve-loop/start|end` 事件；[`@deepseek-ai/dsh-self-evolve-basic`](../../packages/self-evolve/self-evolve-basic/README.zh.md) 是 Service Provider（空闲压力触发、速率限制、L1/L2 提案、可逆效果提交）；[`@deepseek-ai/dsh-tool-self-evolve`](../../packages/self-evolve/tool-self-evolve/README.zh.md) 是面向模型的 Consumer（基于该接缝的工具与提示词段落）。
 
 Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 
@@ -12,7 +12,7 @@ Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-ev
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxselfevolve--selfevolveengine-abstract-seam"></a>
 
@@ -63,7 +63,7 @@ abstract evolveNow( agent: SelfEvolveAgentContext, signal: AbortSignal, levels?:
 abstract readPatterns(sessionId: string): Promise<FailurePattern[]>
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/index.ts:61`](../../packages/self-evolve/self-evolve/src/index.ts)
+Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 
 <a id="self-evolve-loop-events"></a>
 
@@ -85,7 +85,7 @@ An evolution loop settled. Every `start` event emits exactly one end event, incl
 'self-evolve-loop/end'(info: { runId: SelfEvolveRunId; error?: string }): void
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/index.ts:47`](../../packages/self-evolve/self-evolve/src/index.ts)
+Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 
 <a id="self-evolve-loopstart--emit"></a>
 
@@ -102,5 +102,5 @@ An evolution loop started. Paired with `self-evolve-loop/end`.
 'self-evolve-loop/start'(info: { runId: SelfEvolveRunId; trigger: EvolveTrigger }): void
 ```
 
-Source: [`packages/self-evolve/self-evolve/src/index.ts:40`](../../packages/self-evolve/self-evolve/src/index.ts)
+Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 <!-- END GENERATED cordis-surface -->
