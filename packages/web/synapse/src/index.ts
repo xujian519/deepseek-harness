@@ -296,12 +296,9 @@ export function apply(ctx: Context, config: SynapseConfig): void {
         const beforeSeq = positiveInt(url.searchParams.get('beforeSeq'))
         if (limit === null || beforeSeq === null) throw new InputError('limit 与 beforeSeq 必须是正整数')
         const { events } = await ctx.sessionPersistence.inspect(history[1] as SessionId)
-        const messages = projectHistory(events, {
-          ...(limit === undefined ? {} : { limit }),
-          ...(beforeSeq === undefined ? {} : { beforeSeq }),
-        })
-        const total = projectHistory(events, beforeSeq === undefined ? {} : { beforeSeq }).length
-        sendJson(res, 200, { messages, hasMore: total > messages.length })
+        const filtered = projectHistory(events, beforeSeq === undefined ? {} : { beforeSeq })
+        const messages = limit === undefined ? filtered : filtered.slice(-limit)
+        sendJson(res, 200, { messages, hasMore: filtered.length > messages.length })
         return
       }
       const messages = /^\/synapse\/api\/threads\/([0-9a-f-]+)\/messages$/i.exec(path)

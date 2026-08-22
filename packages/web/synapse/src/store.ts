@@ -443,7 +443,6 @@ export class WorkspaceStore {
     }, SAVE_DEBOUNCE_MS)
   }
 
-  /** Persist the current state when dirty, ordered after in-flight mutations. */
   /** Persist the current state when dirty, ordered after in-flight mutations.
    * @returns The save promise, or a no-op when not dirty. */
   flush(): Promise<unknown> {

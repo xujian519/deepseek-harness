@@ -20,7 +20,7 @@ The snapshot-policy decision is recorded rather than silently expanded: the canv
 
 ## Alternatives considered
 
-- **Page by re-projecting twice in the route** (once for the page, once for the count). Rejected: `projectHistory` is the single semantic source and one projection per event list is cheap and bounded, so `hasMore` is computed from a second page of the same function rather than a hand-rolled filter copy.
+- **Compute the page and the count as two separate `projectHistory` calls.** Rejected: `projectHistory` is the single semantic source and one projection per event list is cheap and bounded, so the route calls it once (without a limit) and slices the resulting filtered list in place, deriving `hasMore` from that same array rather than re-projecting the event list.
 - **Reuse `state.historyBySession` to store `{ messages, hasMore }`.** Rejected: `persistedMessagesFor` reads the session value as a plain array, so an object would break the detail view; a parallel `historyHasMore` map keeps the array contract intact.
 - **Serve the map inline as one document.** Rejected: it is a committed static asset served from `/synapse/app.js`, which is what makes the browser surface reproducible and cache-friendly; the CSP only has to permit same-origin external scripts.
 - **Extend the snapshot harness to cover the canvas UI.** Rejected for this change: the map is an iframe self-contained static script with its own markdown renderer, not a snapshot-harness transcript; the jsdom bridge regression is the honest, cheaper contract test (recorded here so the decision is not re-litigated silently).

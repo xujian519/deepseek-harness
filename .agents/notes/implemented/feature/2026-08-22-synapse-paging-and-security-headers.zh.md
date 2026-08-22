@@ -20,7 +20,7 @@ Status: implemented
 
 ## Alternatives considered
 
-- **在路由里投影两次**（一次取页、一次计数）。否决：`projectHistory` 是单一语义来源，单次投影就廉价且有界，因此 `hasMore` 从同一函数的第二页计算，而非手工复刻一份过滤器。
+- **用两次 `projectHistory` 调用分别取页与计数。** 否决：`projectHistory` 是单一语义来源，单次投影就廉价且有界，因此路由只调用一次（不带 limit），对结果过滤列表就地切片，`hasMore` 从同一数组推导，而非重投影事件列表。
 - **复用 `state.historyBySession` 存 `{ messages, hasMore }`。** 否决：`persistedMessagesFor` 把该会话值当纯数组读取，对象会弄坏详情视图；用并行的 `historyHasMore` 映射保持数组契约不变。
 - **把地图内联成一个文档。** 否决：它是从 `/synapse/app.js` 托管的已提交静态资产，这既让浏览器表层可复现又可缓存；CSP 只需放行同源外部脚本。
 - **扩展快照 harness 覆盖画布 UI。** 本改动否决：地图是 iframe 内自足的静态脚本、自带 markdown 渲染器，不是快照 harness 的 transcript；jsdom 桥接回归才是诚实且更便宜的契约测试（在此记录，避免被无声重新争论）。

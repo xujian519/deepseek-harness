@@ -14,14 +14,33 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
+interface BridgeState {
+  dshWorkspaces: Array<{ id: string }>
+  currentDsh: { id: string } | null
+  selectedDshWorkspaceId: string | null
+  liveReplies: Map<string, { running: boolean; text: string }>
+  workspace: { id: string; title: string; threads: unknown[] } | null
+  mode: string
+  draft: unknown
+  dragging: boolean
+  canvasGesture: boolean
+  canvasRefreshAfter: number
+  error: string
+  summaries: unknown[]
+  pendingRpc: Map<string, unknown>
+  activeId: string | null
+  historyBySession: Map<string, Array<{ at: string; id: string; kind: string; sourceSeq: number; text: string }>>
+  historyHasMore: Map<string, boolean>
+}
+
 interface BridgeExports {
   post(type: string, payload?: Record<string, unknown>): void
   dshRpc(type: string, payload?: Record<string, unknown>): Promise<unknown>
   settleRpc(requestId: string, value?: unknown, error?: unknown): void
   renderThread(): string
-  // The asset is an untyped static script; its runtime state is foreign.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  state: Record<string, any>
+  // The asset is an untyped static script whose runtime state is foreign, so
+  // only the fields this test reads or writes are declared here.
+  state: BridgeState
 }
 
 let bridge: BridgeExports
@@ -83,7 +102,7 @@ beforeAll(async () => {
   Object.defineProperty(window, 'clearInterval', { configurable: true, value: () => {} })
   globalThis.fetch = fakeFetch as unknown as typeof fetch
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
-    Object.defineProperty(globalThis.crypto!, 'randomUUID', {
+    Object.defineProperty(globalThis.crypto, 'randomUUID', {
       configurable: true,
       value: (() => { let i = 0; return () => `r-${++i}` })(),
     })

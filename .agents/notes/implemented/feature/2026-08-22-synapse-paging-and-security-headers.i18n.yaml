@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-22-synapse-paging-and-security-headers.md
-2026-08-22-synapse-paging-and-security-headers.md: 5eba4be4e53ef161cbcffdac4bd91d233728a805
-2026-08-22-synapse-paging-and-security-headers.zh.md: 3f1b0ce58b655a5f56276e87237ebe1bd38d2ccc
+2026-08-22-synapse-paging-and-security-headers.md: 990f182b3d2b5f1fc959f37515f1389fa5021b03
+2026-08-22-synapse-paging-and-security-headers.zh.md: 7dd96c38931885bca7e4ab234952ade74edfbe50
