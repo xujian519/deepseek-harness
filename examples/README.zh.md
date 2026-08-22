@@ -8,6 +8,10 @@
 
 通过通用 MCP 客户端连接受支持第三方记忆服务器的可选 overlay。详见[记忆示例参考](mcp-memory/README.zh.md)。
 
+## opendesign
+
+把 OpenDesign checkout 的 Agent-Skills 目录（`skills/` 与 `design-templates/`）挂载进面向模型的技能目录的 opt-in overlay，无守护进程依赖。需要 `OPEN_DESIGN_DIR`；详见[OpenDesign 示例参考](opendesign/README.zh.md)。
+
 ## headless-agent
 
 非交互式 agent（智能体）：接受一项任务并运行，然后以选定的机器可读或人类可读格式输出结果。详见[无头示例参考](headless-agent/README.zh.md)。

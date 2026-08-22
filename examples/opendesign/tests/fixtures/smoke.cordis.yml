@@ -1,0 +1,6 @@
+# Keyless smoke base: only the skill registry. The driver applies the real
+# examples/opendesign/cordis.yml overlay over this tree via the CLI-identical
+# patch path, then reads the resulting skill catalog.
+
+- id: skill-registry
+  name: '@deepseek-ai/dsh-skill'

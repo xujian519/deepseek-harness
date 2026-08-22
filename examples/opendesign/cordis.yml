@@ -1,0 +1,18 @@
+# Opt-in overlay: mount an OpenDesign checkout's Agent-Skills directories as
+# an isolated, model-facing skill source. The shipped composition already owns
+# the skill registry and model-facing catalog, so this overlay only adds one
+# provider whose roots are OpenDesign's `skills/` and `design-templates/`.
+#
+# Prerequisite: an OpenDesign checkout with OPEN_DESIGN_DIR pointing at its
+# root. Without the variable the provider registers with no roots — an
+# explicit empty catalog, not a silent skip. The provider is isolated
+# (`includeDefaultRoots: false`) and namespaced (`providerName: open-design`)
+# so it coexists with the profile's default filesystem provider.
+
+- insert:
+    - id: skills-open-design
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: open-design
+        includeDefaultRoots: false
+        customSkillDirs: !!js 'process.env.OPEN_DESIGN_DIR ? [process.env.OPEN_DESIGN_DIR + "/skills", process.env.OPEN_DESIGN_DIR + "/design-templates"] : []'
