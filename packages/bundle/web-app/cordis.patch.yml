@@ -150,6 +150,18 @@
     - id: client-hmr
       name: '@deepseek-ai/dsh-client-hmr'
 
+    # Synapse session map, host half: the /synapse canvas page and its
+    # committed-session projection store, mounted on the existing webserver.
+    # The browser half is the dsh.client row `synapse-client` below; a profile
+    # can disable either row by id without touching the other.
+    - id: synapse
+      name: '@deepseek-ai/dsh-host-synapse'
+      config:
+        dataFile: !!js dshHomePath('synapse/workspaces.json')
+        autoProjection: true
+        projectionWorkspaceTitle: DSH 任务
+        trustedHosts: []
+
     # ── browser plugin roster (dsh.client rows; node halves are layer-2 hosts) ──
 
     # Dual-face: the node half scans this tree, composes window.__DSH_BOOT__,
@@ -236,6 +248,11 @@
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
+
+    # Synapse session map, browser half: the 对话/会话地图 switch and the
+    # /synapse/ iframe bridge over the client session and workspace services.
+    - id: synapse-client
+      name: '@deepseek-ai/dsh-client-synapse'
 
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the reference sources (ui-skill / ui-reference).

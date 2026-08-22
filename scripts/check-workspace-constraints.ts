@@ -169,6 +169,9 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-skill-badge': ['assets'],
   // ipc-standards.yaml ships as a package-root asset resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-core': ['assets'],
+  // The Synapse canvas page (app.js/styles.css/svg) ships as package-root assets
+  // resolved via import.meta.url from the host lib.
+  '@deepseek-ai/dsh-host-synapse': ['assets'],
   // The Sati rule packs (base/domains/patent YAML + pack.schema.json) ship as
   // package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-rule': ['assets'],

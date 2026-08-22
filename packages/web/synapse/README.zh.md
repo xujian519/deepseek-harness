@@ -1,0 +1,42 @@
+# @deepseek-ai/dsh-host-synapse
+
+[English](README.md) | 中文
+
+Synapse 会话地图的宿主半侧：`/synapse` 画布页面、静态资源与 `/synapse/api` JSON API，挂载在 DSH 现有 Web Server 上；外加投影存储——把已提交的 DSH 会话事件变成画布卡片（工作区、节点、分支锚点、折叠的工具过程）。
+
+画布是派生、可重建的 UI 状态：DSH SessionStore 仍是会话事实来源。本包只读取**已提交**的会话日志，不向任何模型请求添加内容。
+
+## 注册
+
+Web 组合以行 `synapse` 挂载本包，以行 `synapse-client` 挂载 `@deepseek-ai/dsh-client-synapse`（对话/会话地图切换）。profile 可按 id 单独禁用任一行。
+
+## 配置
+
+| 键 | 默认值 | 说明 |
+|---|---|---|
+| `dataFile` | `$DSH_HOME/synapse/workspaces.json` | 画布元数据持久化路径 |
+| `autoProjection` | `true` | 自动把已提交的 DSH 会话事件投影为画布卡片 |
+| `projectionWorkspaceTitle` | `DSH 任务` | 无 cwd 会话的投影工作区标题 |
+| `trustedHosts` | `[]` | `/synapse` Host 检查额外放行的权威；loopback 始终允许 |
+
+## 画布数据
+
+- 画布基线从 `SessionPersistence` 重放冷态恢复会话（按 revision 去重，重复便宜），叠加 live `session/created`/`session/event` 流与浏览器会话同步；fork 子会话跳过其继承的种子前缀，根会话从 seq 0 回放（此处的 `session/end-seed` 只是持久化快照边界，不是谱系裁剪）。
+- 只有人类提问成为问题卡：user-role 注入（工作区指令、技能目录、运行时上下文快照）按 `source.kind` 识别并留在画布之外；空白会话（无人类提问）被跳过。
+- `GET /synapse/api/sessions/<id>/history` 返回完整详情消息列表（不截断、工具过程折叠、注入上下文标记为 `context`），数据源为 `SessionPersistence.inspect`。
+- 第二个 `dsh web` 实例写同一 `workspaces.json` 时不再被静默覆盖：自上次读取后文件 mtime 变化即重载磁盘状态并丢弃本地增量，同时大声告警（投影可从会话日志重建；手动布局是损失）。
+
+## 模型影响
+
+无：本包只读取已提交的会话事件并渲染；不添加系统提示文本、工具 schema 或请求上下文。
+
+### KV Cache 影响
+
+无：本包从不改变请求头、系统提示或工具注册表，可复用的 KV 前缀保持可复用。
+
+## 已知限制与后续
+
+- 地图 UI 是 iframe 内的静态浏览器脚本（`assets/app.js`）：使用自带的迷你 markdown 渲染器，而非仓库的 React 栈，不受客户端快照门禁覆盖。
+- history 端点返回整个会话日志：超长对话在详情视图加载更慢（分页留待后续）。
+- 两个 `dsh web` 实例共享同一 profile 在同一瞬间仍会竞争；mtime 冲突检查与锁窗口串行化，失败一方的本地增量被丢弃并告警，而不是合并。
+- 旧版（v3）数据迁移时工具卡片按顺序配对；实时事件按 `callId` 配对。
