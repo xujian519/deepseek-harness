@@ -55,7 +55,12 @@ interface Harness {
   setFollowup(impl: (...args: never[]) => Promise<unknown>): void
 }
 
-async function makeService(options: { maxMembers?: number; memberModel?: string } = {}): Promise<Harness> {
+async function makeService(options: {
+  maxMembers?: number
+  memberModel?: string
+  qualityGate?: boolean
+  passThreshold?: number
+} = {}): Promise<Harness> {
   const ctx = new Context()
   const stateDir = '.patent-teams'
   const workspace = await tmpWorkspace()
@@ -92,6 +97,8 @@ async function makeService(options: { maxMembers?: number; memberModel?: string 
     memberProvider: 'spawn',
     maxMembers: options.maxMembers ?? 8,
     ...options.memberModel === undefined ? {} : { memberModel: options.memberModel },
+    qualityGate: options.qualityGate ?? false,
+    passThreshold: options.passThreshold ?? 0.7,
   })
   return {
     ctx,
@@ -917,5 +924,149 @@ describe('callingAgent', () => {
     const agent = fakeAgent('captain-1', '/tmp')
     expect(callingAgent({ agent } as never)).toBe(agent)
     expect(() => callingAgent({} as never)).toThrow('patent_teams tools require a calling agent')
+  })
+})
+
+describe('role contract and quality gate', () => {
+  it('creates a task with a worker contract and rejects unknown workers', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    const task = await h.ctx.patentTeams.createTask(captain, { subject: 'search', worker: 'patent-search-commander' })
+    expect(task.worker).toBe('patent-search-commander')
+    await expect(h.ctx.patentTeams.createTask(captain, { subject: 'x', worker: 'ghost-worker' }))
+      .rejects.toThrow('worker "ghost-worker" is not in the patent worker catalog')
+  })
+
+  it('records a contract validation verdict on a completing member task', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.contractValidation).toMatchObject({ worker: 'patent-search-commander', valid: true, degraded: false })
+  })
+
+  it('includes role contract summaries and worker validation in status', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice', { role: 'researcher' })
+    await addMember(h, captain, 'bob', { role: 'ghost-role' })
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
+    const status = await h.ctx.patentTeams.status(captain)
+    expect(status.members[0]?.role_contract).toEqual({ stance: 'neutral', deliverables: '检索式、对比文件、公开日' })
+    expect(status.members[1]?.role_contract).toBeUndefined()
+    expect(status.tasks[0]?.worker).toBe('patent-search-commander')
+    expect(status.tasks[0]?.contract_validation).toMatchObject({ valid: true, degraded: false })
+  })
+
+  // Contract-complete, content-sufficient, section-less work product. A search
+  // report/adverse opinion is a segment, not a full multi-section brief, so it
+  // must clear the gate (regression for "format dims bounce every segment").
+  const CONTRACT_COMPLETE = '检索式：(A AND B) OR C。对比文件：D1 为 CN123456A（公开日 2024-01-01），D2 为 CN654321B（公开日 2023-06-15）。检索途径：CNIPA 全文检索，检索日期 2026-08-23，共命中 12 篇，其中 D1 与 D2 为最接近的现有技术。经逐篇阅读，D1 公开了权1 的全部必要技术特征，其采用相变材料填充散热基板；区别特征在于 D2 通过设置导热翅片实现散热。建议以 D1 为最接近现有技术，按三步法主张二者结合不具备技术启示，并结合 D1 的公开日论证相应时间点。' // prettier-ignore
+  // Content-sufficient (>=200 chars) but missing the `公开日` hard field.
+  const CONTRACT_MISSING = '检索式：(A AND B) OR C。对比文件：D1 为 CN123456A（申请号 CN202310000001），D2 为 CN654321B；二者均属 IPC 分类号 H05K 领域。检索途径：CNIPA 全文检索；检索日期 2026-08-23；命中 12 篇。经逐篇阅读，D1 公开了权1 的全部必要技术特征，其采用相变材料填充散热基板；区别特征在于 D2 通过设置导热翅片实现散热。建议以 D1 为最接近现有技术，按三步法主张二者结合不具备技术启示。' // prettier-ignore
+
+  it('admits a contract-complete, content-sufficient completion under the default gate', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    const result = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
+    expect(result.gated).toBeUndefined()
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('completed')
+    expect(team?.tasks[0]?.contractValidation?.valid).toBe(true)
+  })
+
+  it('bounces a contract-incomplete completion back for rework when the gate is on', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    const gated = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_MISSING, attempt_id: claimed.attempt_id! })
+    expect(gated.gated).toBe(true)
+    expect(gated.status).toBe('in_progress')
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('in_progress')
+    expect(team?.tasks[0]?.gateFeedback?.satisfied).toBe(false)
+    expect(team?.tasks[0]?.gateFeedback?.failures.join('')).toContain('契约缺字段')
+  })
+
+  it('bounces a content-thin but contract-complete completion as an empty shell', async () => {
+    const h = await makeService({ qualityGate: true })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    const gated = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: '检索式：A；对比文件：D1；公开日：2024', attempt_id: claimed.attempt_id! })
+    expect(gated.gated).toBe(true)
+    expect(gated.gate_feedback).toContain('内容充分性')
+  })
+
+  it('bounces a completion when the patent-rule gate requires approval', async () => {
+    const h = await makeService({ qualityGate: true })
+    h.ctx.provide('patentRuleGate', { process: () => ({ needsApproval: true, reviewHits: ['rule'], blockHits: [] }) })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    const gated = await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
+    expect(gated.gated).toBe(true)
+    expect(gated.gate_feedback).toContain('规则需要人工确认')
+  })
+
+  it('admits a compliant completion when the rule gate is mounted but no rule fires', async () => {
+    const h = await makeService({ qualityGate: true })
+    h.ctx.provide('patentRuleGate', { process: () => ({ needsApproval: false, reviewHits: [], blockHits: [] }) })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('completed')
+  })
+
+  it('admits a completion whose advisory score is at or above a low pass threshold', async () => {
+    const h = await makeService({ qualityGate: true, passThreshold: 0.01 })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search', assignee: 'alice', worker: 'patent-search-commander' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'completed', output: CONTRACT_COMPLETE, attempt_id: claimed.attempt_id! })
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('completed')
   })
 })

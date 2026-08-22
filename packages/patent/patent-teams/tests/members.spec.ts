@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { roleContract } from '@deepseek-ai/dsh-patent-workflow'
 import { SESSION_FORMAT_VERSION, Session, SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
@@ -243,6 +244,24 @@ describe('memberPersona and memberWelcome', () => {
     const persona = memberPersona(makeTeam(), noRoleMember, 'state')
     expect(persona).toContain('You are alice')
     expect(persona).not.toContain('with the role:')
+  })
+
+  it('folds a non-HITL role contract into the persona', () => {
+    const team = makeTeam({ id: 'team1', members: [validMember] })
+    const persona = memberPersona(team, validMember, '.patent-teams', roleContract('researcher')!)
+    expect(persona).toContain('Role contract:')
+    expect(persona).toContain('检索员 (researcher)')
+    expect(persona).toContain('Stance: [neutral]')
+    expect(persona).toContain('Required deliverables: 检索式、对比文件、公开日')
+    expect(persona).toContain('Forbidden:')
+    expect(persona).toContain('HITL: deliverables can be completed directly')
+  })
+
+  it('marks an HITL role contract as needing confirmation', () => {
+    const drafter = { ...validMember, role: 'drafter' }
+    const persona = memberPersona(makeTeam(), drafter, 'state', roleContract('drafter')!)
+    expect(persona).toContain('HITL: deliverables need human confirmation before the final output')
+    expect(persona).toContain('Required deliverables: 技术问题、技术特征、技术效果、意见陈述、修改对照')
   })
 
   it('renders the welcome message with the team name and task count', () => {

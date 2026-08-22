@@ -53,6 +53,15 @@ export interface Config {
   maxMembers?: number
   /** Prompt-section order for the usage policy (default `117`, after delegation policy). */
   promptSectionOrder?: number
+  /** Run the composite quality gate on contract-backed task completion (deployment choice; default `false`). */
+  qualityGate?: boolean
+  /**
+   * Comprehensive-eval score below which the gate calls out the composite score
+   * as advisory feedback (0..1; default `0.7`). The bounce decision itself is
+   * made by contract fields, content sufficiency, expression quality, and the
+   * rule gate — never by the composite score alone.
+   */
+  passThreshold?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -62,6 +71,8 @@ export const Config: z<Config> = z.object({
   memberMaxDepth: z.natural().default(1),
   maxMembers: z.natural().min(1).default(8),
   promptSectionOrder: z.natural().default(117),
+  qualityGate: z.boolean().default(false),
+  passThreshold: z.number().min(0.01).max(1).default(0.7),
 })
 
 /** The model-facing usage policy: when and how to drive PatentTeams. */
@@ -85,6 +96,8 @@ export function apply(ctx: Context, config: Config): void {
     ...config.memberModel === undefined ? {} : { memberModel: config.memberModel },
     memberMaxDepth: config.memberMaxDepth ?? 1,
     maxMembers: config.maxMembers ?? 8,
+    qualityGate: config.qualityGate ?? false,
+    passThreshold: config.passThreshold ?? 0.7,
   }
 
   // Provider registration is a sibling plugin's effect (`subagent-spawn` /

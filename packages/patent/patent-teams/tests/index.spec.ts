@@ -21,6 +21,8 @@ describe('Config schema', () => {
       memberMaxDepth: 1,
       maxMembers: 8,
       promptSectionOrder: 117,
+      qualityGate: false,
+      passThreshold: 0.7,
     })
   })
 
@@ -32,6 +34,8 @@ describe('Config schema', () => {
       memberMaxDepth: 0,
       maxMembers: 2,
       promptSectionOrder: 5,
+      qualityGate: true,
+      passThreshold: 0.9,
     })).toEqual({
       stateDir: 'state',
       memberProvider: 'fork',
@@ -39,6 +43,8 @@ describe('Config schema', () => {
       memberMaxDepth: 0,
       maxMembers: 2,
       promptSectionOrder: 5,
+      qualityGate: true,
+      passThreshold: 0.9,
     })
     expect(() => Config({ maxMembers: 0 })).toThrow()
     expect(() => Config({ memberMaxDepth: -1 })).toThrow()

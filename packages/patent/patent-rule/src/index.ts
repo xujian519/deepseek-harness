@@ -27,7 +27,7 @@ import type { PostToolDecision, ToolExecution, ToolExecutionResult } from '@deep
 // Type-only: makes `ctx.get('approval')` resolve to the ApprovalService
 // augmentation. The seam stays optional at runtime.
 import type {} from '@deepseek-ai/dsh-user-approval'
-import type { RuleOutputGateResult } from '@deepseek-ai/dsh-patent-core'
+import type { RuleOutputGate as PatentRuleOutputGate, RuleOutputGateResult } from '@deepseek-ai/dsh-patent-core'
 import { patentAssetDir } from './asset-location.ts'
 import { createEvidenceComplianceGuards } from './guard/evidenceComplianceGuards.ts'
 import { loadPatentFullRuleSet, selectGateRules } from './runtime/patent-compliance.ts'
@@ -103,6 +103,13 @@ export {
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'patent-rule'
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** The rule output gate for the loaded rule pack; present only when this plugin is mounted (patent-teams gating). */
+    patentRuleGate?: PatentRuleOutputGate
+  }
+}
+
 /** Require the tool registry (guards + the post-execute waterfall are its extension points). */
 export const inject = ['tools']
 
@@ -164,6 +171,9 @@ export function apply(ctx: Context, config: Config): void {
   const { ruleSet, warnings } = loadPatentFullRuleSet(config.rulesDir)
   for (const warning of warnings) ctx.logger.warn('patent-rule: ' + warning)
   const gate = new RuleOutputGate(selectGateRules(ruleSet))
+  // Expose the same gate to team-consumers (e.g. patent-teams) so a task
+  // completion can be rule-gated consistently with the tools/post-execute path.
+  ctx.provide('patentRuleGate', gate)
 
   // EVI-011 evidence-compliance guards: monotonic deny (no allow result), so no
   // allow/ask permission rule can override them.

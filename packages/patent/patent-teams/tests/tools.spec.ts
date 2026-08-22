@@ -217,4 +217,37 @@ describe('registerPatentTeamsTools', () => {
     expect(text).toContain('  - t1 [pending] attempt 0 s → unassigned')
     expect(text).toContain('Captain inbox (0):')
   })
+
+  it('renders role contract and quality-gate annotations', () => {
+    const ctx = new Context()
+    const tools = register(ctx, makeService())
+    const status: PatentTeamsStatus = {
+      team_id: 'alpha', team_name: 'Alpha', description: '', viewer: 'captain',
+      members: [{
+        name: 'alice', role: 'researcher', provider: 'spawn', model: 'm1', reasoning_effort: 'high',
+        status: 'idle', activity: 'idle', role_contract: { stance: 'neutral', deliverables: '检索式、对比文件、公开日' },
+      }],
+      tasks: [
+        { id: 't1', subject: 'ok', status: 'completed', assignee: 'alice', dependencies: [], attempt: 1, attempt_id: 'a1', reassigning: false, output: 'x', worker: 'patent-search-commander', contract_validation: { valid: true, missing_hard_fields: [], degraded: false } },
+        { id: 't2', subject: 'bad', status: 'in_progress', assignee: 'alice', dependencies: [], attempt: 1, attempt_id: 'a2', reassigning: false, output: 'y', worker: 'patent-search-commander', gate_feedback: { score: 0.4, satisfied: false, failures: ['质量评分:0.40/1.0 未达 0.70', '内容充分性(0.10)'], feedback: 'revise' } },
+      ],
+      captain_inbox: [], member_inboxes: {}, mailbox_warnings: [], mailbox_warning_count: 0,
+    }
+    const text = tools.get('patent_teams_status')!.output.render({}, status)
+      .map(block => block.text).join('\n')
+    expect(text).toContain('role: neutral (交付: 检索式、对比文件、公开日)')
+    expect(text).toContain('worker: patent-search-commander')
+    expect(text).toContain('contract: ok')
+    expect(text).toContain('gated: 0.40 (质量评分:0.40/1.0 未达 0.70、内容充分性(0.10))')
+  })
+
+  it('renders a gated update result', () => {
+    const ctx = new Context()
+    const tools = register(ctx, makeService())
+    const text = tools.get('patent_teams_update_task')!.output.render({}, {
+      task_id: 't1', status: 'in_progress', attempt: 1, gated: true, gate_feedback: 'revise',
+    }).map(block => block.text).join('\n')
+    expect(text).toContain('未过质量门禁（保持 in_progress）')
+    expect(text).toContain('revise')
+  })
 })

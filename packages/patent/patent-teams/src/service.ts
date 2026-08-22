@@ -15,6 +15,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { RuleOutputGate } from '@deepseek-ai/dsh-patent-core'
+import { roleContract, validateWorkerOutput, workerContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
+import { evaluatePatentContent } from '@deepseek-ai/dsh-patent-tools'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { join } from 'node:path'
@@ -52,7 +55,7 @@ import {
   type MemberRuntimeConfig,
   type MemberSelectionRuntime,
 } from './members.ts'
-import { TERMINAL_TASK_STATUSES, type TeamMember, type TeamState, type TeamTask } from './types.ts'
+import { TERMINAL_TASK_STATUSES, type TaskContractValidation, type TaskGateFeedback, type TeamMember, type TeamState, type TeamTask } from './types.ts'
 import { installTeamScheduler, type TeamScheduler } from './scheduler.ts'
 
 /** Resolved plugin config consumed by the service. */
@@ -67,6 +70,10 @@ export interface PatentTeamsConfig {
   memberMaxDepth?: number
   /** Team size cap (members). */
   maxMembers: number
+  /** Run the composite quality gate on contract-backed task completion. */
+  qualityGate: boolean
+  /** Comprehensive-eval pass score threshold (0..1). */
+  passThreshold: number
 }
 
 /** The caller agent, or a loud failure for non-agent callers. */
@@ -364,6 +371,7 @@ export class PatentTeamsService extends Service {
         joinedAt: Date.now(),
         status: 'idle',
       }
+      const memberContract = args.role === undefined ? undefined : roleContract(args.role)
       await spawnMember(
         this.ctx,
         memberRuntime(this.config),
@@ -374,6 +382,7 @@ export class PatentTeamsService extends Service {
         member,
         this.config.stateDir,
         signal,
+        memberContract,
       )
       fresh.members.push(member)
       try {
@@ -472,9 +481,10 @@ export class PatentTeamsService extends Service {
       description?: string
       dependencies?: string[]
       assignee?: string
+      worker?: string
     },
     signal?: AbortSignal,
-  ): Promise<{ task_id: string; subject: string; status: string; assignee?: string }> {
+  ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }> {
     const { workspace, stateRoot, team } = await this.captainTeam(agent)
     const created = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
       const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
@@ -485,12 +495,16 @@ export class PatentTeamsService extends Service {
         }
       }
       if (args.assignee !== undefined) requireMember(fresh, args.assignee)
+      if (args.worker !== undefined && workerContract(args.worker) === undefined) {
+        throw new Error(`patent_teams_create_task: worker "${args.worker}" is not in the patent worker catalog`)
+      }
       const task: TeamTask = {
         id: `t${fresh.taskSeq + 1}`,
         subject: args.subject,
         ...args.description === undefined ? {} : { description: args.description },
         status: 'pending',
         ...args.assignee === undefined ? {} : { assignee: args.assignee },
+        ...args.worker === undefined ? {} : { worker: args.worker },
         dependencies,
         attempt: 0,
         createdAt: Date.now(),
@@ -505,12 +519,14 @@ export class PatentTeamsService extends Service {
         subject: task.subject,
         dependencies: task.dependencies,
         ...task.assignee !== undefined ? { assignee: task.assignee } : {},
+        ...task.worker !== undefined ? { worker: task.worker } : {},
       })
       return {
         task_id: task.id,
         subject: task.subject,
         status: task.status,
         ...task.assignee !== undefined ? { assignee: task.assignee } : {},
+        ...task.worker !== undefined ? { worker: task.worker } : {},
       }
     })
     await this.scheduler.kickTeam(workspace, team.id, agent, signal)
@@ -714,7 +730,15 @@ export class PatentTeamsService extends Service {
     agent: Agent,
     args: { task_id: string; status?: string; output?: string; attempt_id?: string },
     signal?: AbortSignal,
-  ): Promise<{ task_id: string; status: string; output?: string; attempt: number; attempt_id?: string }> {
+  ): Promise<{
+    task_id: string
+    status: string
+    output?: string
+    attempt: number
+    attempt_id?: string
+    gated?: boolean
+    gate_feedback?: string
+  }> {
     const { workspace, stateRoot, team } = await this.participantTeam(agent)
     const updated = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
       const { team: fresh, identity } = await this.freshParticipant(stateRoot, team.id, agent.id)
@@ -741,11 +765,52 @@ export class PatentTeamsService extends Service {
         return taskView(task)
       }
       if (args.status !== undefined) {
+        // For a contract-backed task, do not admit `completed` until the
+        // composite quality gate passes: a low score / missing contract field /
+        // rule violation bounces the task back to the member for rework.
+        const targetCompleted = args.status === 'completed'
+        const shouldGate = targetCompleted && this.config.qualityGate
+          && task.worker !== undefined && args.output !== undefined
+        if (shouldGate) {
+          // shouldGate required task.worker and args.output to reach runQualityGate.
+          // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured task.worker and args.output are defined
+          const gate = runQualityGate(this.ctx, task.worker!, args.output!, this.config.passThreshold)
+          if (!gate.satisfied) {
+            // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured args.output is defined
+            task.output = args.output!
+            task.gateFeedback = gate
+            task.updatedAt = Date.now()
+            await writeTeam(stateRoot, fresh)
+            appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-gated', {
+              teamId: fresh.id,
+              taskId: task.id,
+              score: gate.score,
+              failures: gate.failures,
+              feedback: gate.feedback,
+            })
+            // v8 ignore start -- the task is still in a non-terminal status, so attempt/attemptId are always set
+            return {
+              task_id: task.id,
+              status: task.status,
+              ...task.output !== undefined ? { output: task.output } : {},
+              attempt: task.attempt ?? 0,
+              ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
+              gated: true,
+              gate_feedback: gate.feedback,
+            }
+            // v8 ignore stop
+          }
+        }
         const transition = transitionError(task.status, args.status as never)
         if (transition !== undefined) throw new Error(transition)
         task.status = args.status as never
       }
       if (args.output !== undefined) task.output = args.output
+      let validated: TaskContractValidation | undefined
+      if (task.status === 'completed' && task.worker !== undefined && task.output !== undefined) {
+        validated = validateTaskContract(task.worker, task.output)
+        task.contractValidation = validated
+      }
       task.updatedAt = Date.now()
       await writeTeam(stateRoot, fresh)
       // v8 ignore start -- an updatable task always carries assignee/attempt/attemptId
@@ -757,6 +822,16 @@ export class PatentTeamsService extends Service {
         ...task.output !== undefined ? { output: task.output } : {},
       })
       // v8 ignore stop
+      if (validated !== undefined) {
+        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-validated', {
+          teamId: fresh.id,
+          taskId: task.id,
+          worker: validated.worker,
+          valid: validated.valid,
+          missingHardFields: validated.missingHardFields,
+          degraded: validated.degraded,
+        })
+      }
       return taskView(task)
     })
     await this.scheduler.kickTeam(workspace, team.id, team.captainSessionId === agent.id ? agent : undefined, signal)
@@ -888,15 +963,21 @@ export class PatentTeamsService extends Service {
     // v8 ignore start -- spawned members always carry route fields and a child id; task attempts are always set
     const members = fresh.members
       .filter(member => member.status !== 'removed')
-      .map(member => ({
-        name: member.name,
-        role: member.role ?? '',
-        provider: member.provider ?? '',
-        model: member.model ?? '',
-        reasoning_effort: member.reasoningEffort ?? '',
-        status: member.status,
-        activity: member.id !== '' ? (activity.get(member.id) ?? 'unknown') : 'unspawned',
-      }))
+      .map((member) => {
+        const summary = member.role === undefined || member.role === ''
+          ? undefined
+          : contractSummary(member.role)
+        return {
+          name: member.name,
+          role: member.role ?? '',
+          provider: member.provider ?? '',
+          model: member.model ?? '',
+          reasoning_effort: member.reasoningEffort ?? '',
+          status: member.status,
+          activity: member.id !== '' ? (activity.get(member.id) ?? 'unknown') : 'unspawned',
+          ...summary !== undefined ? { role_contract: summary } : {},
+        }
+      })
     const tasks = fresh.tasks.map(task => ({
       id: task.id,
       subject: task.subject,
@@ -907,6 +988,19 @@ export class PatentTeamsService extends Service {
       attempt_id: task.attemptId ?? '',
       reassigning: task.reassigning === true,
       ...task.output !== undefined ? { output: task.output } : {},
+      ...task.worker !== undefined ? { worker: task.worker } : {},
+      ...task.contractValidation !== undefined
+        ? {
+          contract_validation: {
+            valid: task.contractValidation.valid,
+            missing_hard_fields: task.contractValidation.missingHardFields,
+            degraded: task.contractValidation.degraded,
+          },
+        }
+        : {},
+      ...task.gateFeedback !== undefined
+        ? { gate_feedback: task.gateFeedback }
+        : {},
     }))
     // v8 ignore stop
     const mailboxWarnings: string[] = []
@@ -1033,6 +1127,79 @@ function memberRuntime(config: PatentTeamsConfig): MemberRuntimeConfig {
   }
 }
 
+/** Validate one task's completed output against its worker contract (soft, never blocks). */
+function validateTaskContract(workerName: string, output: string): TaskContractValidation {
+  // v8 ignore next -- createTask rejects unknown workers, so a completing task always resolves its worker
+  // oxlint-disable-next-line typescript/no-non-null-assertion -- createTask rejects unknown workers
+  const worker = workerContract(workerName)!
+  const validation = validateWorkerOutput(worker, output)
+  return {
+    worker: workerName,
+    valid: validation.valid,
+    missingHardFields: validation.missingHardFields,
+    degraded: validation.degraded,
+  }
+}
+
+/**
+ * Summarize a member's role contract for the status payload: its stance and
+ * the flat list of required deliverable fields across its workers.
+ * @param role - the member's SKILL role id.
+ * @returns the summary, or undefined when the role is not registered.
+ */
+function contractSummary(role: string): { stance: string; deliverables: string } | undefined {
+  const contract = roleContract(role)
+  if (contract === undefined) return undefined
+  return { stance: contract.stance, deliverables: workerDeliverables(role) }
+}
+
+/**
+ * Run the composite completion gate over one contract-backed task's output.
+ *
+ * Bounce criteria are the signals that apply to a single work-product segment:
+ * worker-contract hard fields, content sufficiency (a segment must not be an
+ * empty shell), and the optional patent-rule gate. The
+ * `comprehensive` score is retained as an advisory value (it is reported in the
+ * feedback and the `TaskGateFeedback.score`) but is never the sole reason to
+ * bounce: its structure/workflow dimensions penalize short work products that
+ * the worker contract already obliges. `passThreshold` therefore lowers the
+ * threshold at which the advisory composite score is called out in the feedback,
+ * not the bounce decision.
+ *
+ * Never throws; `satisfied` is false on any failure.
+ */
+function runQualityGate(ctx: Context, workerName: string, output: string, passThreshold: number): TaskGateFeedback {
+  const failures: string[] = []
+  // v8 ignore next -- createTask rejects unknown workers, so a gated task always resolves its worker
+  // oxlint-disable-next-line typescript/no-non-null-assertion -- createTask rejects unknown workers
+  const validation = validateWorkerOutput(workerContract(workerName)!, output)
+  if (validation.missingHardFields.length > 0) {
+    failures.push(`契约缺字段:${validation.missingHardFields.join('、')}（${workerName}）`)
+  }
+  const evaluation = evaluatePatentContent('comprehensive', output, [])
+  const sufficiency = evaluation.details['内容充分性']
+  if (sufficiency !== undefined && !sufficiency.passed) {
+    failures.push(`内容充分性:${sufficiency.score.toFixed(2)}/1.0 未达及格线`)
+  }
+  // The rule gate is an optional contribution from patent-rule; without it the rule dimension is skipped.
+  const ruleGate = ctx.get('patentRuleGate') as RuleOutputGate | undefined
+  if (ruleGate !== undefined) {
+    const gateResult = ruleGate.process(output)
+    if (gateResult.needsApproval) {
+      const rules = [...gateResult.reviewHits, ...gateResult.blockHits].join('、')
+      failures.push(`规则需要人工确认:${rules}`)
+    }
+  }
+  const lines = failures.map(f => `- ${f}`)
+  if (evaluation.score < passThreshold) {
+    lines.push(`- 综合评分偏低(${evaluation.score.toFixed(2)}/1.0)，建议完善论证与引用（不以此单独打回）`)
+  }
+  const feedback = lines.length === 0
+    ? ''
+    : `未过质量门禁，请修订后重新提交 completed:\n${lines.join('\n')}`
+  return { score: evaluation.score, satisfied: failures.length === 0, failures, feedback }
+}
+
 /** One member row of the status payload. */
 export interface PatentTeamsStatusMember {
   name: string
@@ -1042,6 +1209,8 @@ export interface PatentTeamsStatusMember {
   reasoning_effort: string
   status: string
   activity: string
+  /** Role contract summary (stance + required deliverables) when the member carries a known role. */
+  role_contract?: { stance: string; deliverables: string }
 }
 
 /** One task row of the status payload. */
@@ -1055,6 +1224,12 @@ export interface PatentTeamsStatusTask {
   attempt_id: string
   reassigning: boolean
   output?: string
+  /** Optional worker contract the task output is validated against. */
+  worker?: string
+  /** Recorded contract verdict when the task completed with a worker. */
+  contract_validation?: { valid: boolean; missing_hard_fields: string[]; degraded: boolean }
+  /** Quality-gate verdict when a completion was bounced back for rework. */
+  gate_feedback?: { score: number; satisfied: boolean; failures: string[]; feedback: string }
 }
 
 /** One captain-inbox preview row. */

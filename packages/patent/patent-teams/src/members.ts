@@ -17,6 +17,7 @@ import { installModelSelection, type Agent, type ModelSelection } from '@deepsee
 // Declaration merge only: makes ctx.subagents visible.
 import { foldSubagentDescriptor, SubagentError } from '@deepseek-ai/dsh-subagent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { workerDeliverables, type RoleContract } from '@deepseek-ai/dsh-patent-workflow'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { join } from 'node:path'
 import { readRetiredMemberIds, readTeamSync } from './state.ts'
@@ -267,22 +268,33 @@ export function installMemberSelectionRuntime(ctx: Context, stateDir: string): M
 
 /**
  * The member's system prompt (persona), shadowing the deployment persona for
- * that child. Self-contained: it replaces the whole persona section.
+ * that child. Self-contained: it replaces the whole persona section. When a
+ * team role contract is given it is folded in as a dedicated role section
+ * (the role's stance, required deliverables, forbidden actions, and HITL
+ * flag), so a member knows its scope beyond the generic working rules.
  * @param team - the team the member joined.
  * @param member - the member record (name/role are read before spawning).
  * @param stateDir - configured state directory, so the member can locate the
  *   team files with its own file tools.
+ * @param roleContract - the team role's contract, when the member carries a role.
  * @returns the member's system prompt (persona).
  */
-export function memberPersona(team: TeamState, member: TeamMember, stateDir: string): string {
-  return `You are ${member.name}, a member of the multi-agent team "${team.name}" running inside DeepSeek Harness PatentTeams. The captain leads the team; you are a worker member${member.role ? ` with the role: ${member.role}` : ''}.
+export function memberPersona(
+  team: TeamState,
+  member: TeamMember,
+  stateDir: string,
+  roleContract?: RoleContract,
+): string {
+  const roleLine = member.role ? ` with the role: ${member.role}` : ''
+  const contractBlock = roleContract === undefined ? '' : roleSection(roleContract)
+  return `You are ${member.name}, a member of the multi-agent team "${team.name}" running inside DeepSeek Harness PatentTeams. The captain leads the team; you are a worker member${roleLine}.
 
 Team context:
 - Team id: ${team.id}
 - Your name inside the team (use it as \`from\`/identity): ${member.name}
 - The team state lives under ${stateDir}/${team.id}/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the patent_teams_* tools so JSON escaping and concurrent updates stay safe.
 - The captain and your teammates reach you through messages. Each message you receive is a new turn: act on it and end your turn with a concise reply.
-
+${contractBlock}
 Working rules:
 1. When you receive a task assignment, call patent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every patent_teams_update_task call for that execution attempt. Then mark the task in_progress.
 2. Work thoroughly with your available tools; do not cut corners.
@@ -291,6 +303,21 @@ Working rules:
 5. To ask a teammate something, use patent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).
 6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.
 7. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.`
+}
+
+/** Render one team role's contract as a guide section for the persona. */
+function roleSection(contract: RoleContract): string {
+  const deliverables = workerDeliverables(contract.role)
+  const forbidden = contract.forbiddenActions.join('、')
+  const hitl = contract.triggersHITL
+    ? 'deliverables need human confirmation before the final output'
+    : 'deliverables can be completed directly'
+  return `Role contract:
+- Role: ${contract.name} (${contract.role})
+- Stance: [${contract.stance}] ${contract.description}
+- Required deliverables: ${deliverables}
+- Forbidden: ${forbidden}
+- HITL: ${hitl}`
 }
 
 /**
@@ -314,6 +341,7 @@ export function memberWelcome(team: TeamState): string {
  * @param member - the member draft whose `id` is filled on success.
  * @param stateDir - configured state directory (for the persona).
  * @param signal - caller cancellation, forwarded to the start.
+ * @param roleContract - the team role's contract, folded into the persona when present.
  */
 export async function spawnMember(
   ctx: Context,
@@ -325,6 +353,7 @@ export async function spawnMember(
   member: TeamMember,
   stateDir: string,
   signal: AbortSignal,
+  roleContract?: RoleContract,
 ): Promise<void> {
   // Fail loud at the first use: provider registration is a sibling plugin's
   // effect and may settle after this plugin mounts. Capability checks here
@@ -353,7 +382,7 @@ export async function spawnMember(
       request: {
         prompt: [{ type: 'text', text: memberWelcome(team) }],
         parent: captain,
-        persona: memberPersona(team, member, stateDir),
+        persona: memberPersona(team, member, stateDir, roleContract),
         toolFilter: { deny: [...MEMBER_DENIED_TOOLS] },
         agentOptions: {
           provider: llmSelection.provider,

@@ -43,8 +43,42 @@ export interface TeamTask {
   handoffId?: string
   /** A handoff is quiescing the old owner; the scheduler must not dispatch it yet. */
   reassigning?: boolean
+  /** Optional worker contract the task's output is validated against on completion. */
+  worker?: string
+  /** Recorded contract verdict when the task completes with a `worker` set. */
+  contractValidation?: TaskContractValidation
+  /** Quality-gate verdict recorded when a completion is rejected (soft; never blocks `completed`). */
+  gateFeedback?: TaskGateFeedback
   createdAt: number
   updatedAt: number
+}
+
+/** Contract validation verdict recorded at task completion (soft; never blocks `completed`). */
+export interface TaskContractValidation {
+  /** The worker contract the output was validated against. */
+  worker: string
+  /** Whether all hard required fields were present. */
+  valid: boolean
+  /** Hard-contract fields absent from the output. */
+  missingHardFields: string[]
+  /** Whether the output was marked degraded. */
+  degraded: boolean
+}
+
+/**
+ * Quality-gate verdict recorded when the composite gate rejects a completion.
+ * The gate blocks the `completed` transition: the task stays `in_progress`/
+ * `claimed` and the member revises then resubmits with the same `attempt_id`.
+ */
+export interface TaskGateFeedback {
+  /** Comprehensive-eval score (0..1); advisory — the verdict is decided by `failures`, not the composite score alone. */
+  score: number
+  /** Whether every gate dimension passed. */
+  satisfied: boolean
+  /** Human-readable labels for the failing dimensions (e.g. `内容充分性(0.3)`). */
+  failures: string[]
+  /** Revisions suggested to the member, keyed to the failing dimensions. */
+  feedback: string
 }
 
 /** Member lifecycle status. */
