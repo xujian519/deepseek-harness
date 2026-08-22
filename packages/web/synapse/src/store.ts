@@ -1,0 +1,675 @@
+/**
+ * JSON persistence for the Synapse workspace graph. The canvas is derived
+ * state: DSH remains the source of session truth, and this store only keeps
+ * the projection (the layout, fork anchors, and folded cards) plus manual
+ * boards a user drew without a DSH session.
+ * @module @deepseek-ai/dsh-host-synapse
+ */
+
+import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { dirname } from 'node:path'
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Position, ProjectedMessage, Thread, Workspace, WorkspaceState, WorkspaceSummary } from './types.ts'
+import {
+  TOPIC_COLORS,
+  contentText,
+  projectableEvent,
+  sessionCwd,
+  sessionTitle,
+  sessionTitleOf,
+  titleFromText,
+  workspaceTitle,
+} from './projection.ts'
+import { normalizeState } from './migration.ts'
+
+/** Pick the next palette color; the fallback covers an empty table. */
+function topicColor(index: number): string {
+  return TOPIC_COLORS[index % TOPIC_COLORS.length] ?? '#3478f6'
+}
+
+export const MAX_TITLE_LENGTH = 120
+export const MAX_NOTE_LENGTH = 4_000
+const LOCK_STALE_MS = 60_000
+// Deferred (event-projection) writes coalesce into one save per window, so a
+// burst of session events costs a single full-state write instead of one per
+// event (issue #13: per-event saves pinned the main thread at ~90% CPU).
+const SAVE_DEBOUNCE_MS = 800
+
+/** One DSH session summary row delivered by the browser for canvas sync. */
+export interface SessionRow {
+  id: string
+  /** Session cwd; absent rows are skipped by syncSessions. */
+  cwd: string
+  title?: string
+  parentId?: string
+  blank?: boolean
+}
+
+/** The minimal session facts the canvas projection needs: a listed row from
+ * the browser, or a live `Session` folded by the caller. */
+interface ThreadSource {
+  id: string
+  title?: string | null | undefined
+  parentId?: string | undefined
+  header?: { seedLength?: number | undefined; parentSession?: string | undefined } | undefined
+}
+
+interface CreateThreadInput {
+  title?: string | undefined
+  parentId?: string | undefined
+  dshSessionId?: string | undefined
+  dshSessionTitle?: string | undefined
+  position?: Position | undefined
+  color?: string | undefined
+}
+
+interface BranchInput {
+  title?: string | undefined
+  dshSessionId?: string | undefined
+  dshSessionTitle?: string | undefined
+  position?: Position | undefined
+  color?: string | undefined
+}
+
+/** Fold a live Session into the minimal facts the canvas projection needs. */
+function threadSource(session: Session): ThreadSource {
+  const title = sessionTitle(session.events)
+  return {
+    id: session.id,
+    ...(title === null ? {} : { title }),
+    ...(session.header.parentSession === undefined ? {} : { parentId: session.header.parentSession }),
+    header: {
+      ...(session.header.seedLength === undefined ? {} : { seedLength: session.header.seedLength }),
+      ...(session.header.parentSession === undefined ? {} : { parentSession: session.header.parentSession }),
+    },
+  }
+}
+
+/** JSON persistence for the Synapse workspace graph. */
+export class WorkspaceStore {
+  constructor(dataFile: string) {
+    if (typeof dataFile !== 'string' || dataFile.length === 0) {
+      throw new Error('synapse: config.dataFile must be a non-empty path')
+    }
+    this.dataFile = dataFile
+    this.serial = Promise.resolve()
+    this.ready = this.load()
+  }
+
+  readonly dataFile: string
+  private state!: WorkspaceState
+  private serial: Promise<unknown>
+  readonly ready: Promise<void>
+  private lastKnownMtime: number | null = null
+  private externalModWarned = false
+  private lockWarned = false
+  private dirty = false
+  private flushTimer: ReturnType<typeof setTimeout> | null = null
+
+  async list(): Promise<WorkspaceSummary[]> {
+    await this.ready
+    return this.state.workspaces.map(workspace => this.summary(workspace))
+  }
+
+  async get(workspaceId: string): Promise<Workspace> {
+    await this.ready
+    const workspace = this.workspace(workspaceId)
+    return structuredClone(workspace)
+  }
+
+  async create(title: string): Promise<WorkspaceSummary> {
+    return this.mutate(() => {
+      const now = new Date().toISOString()
+      const workspace: Workspace = {
+        id: randomUUID(),
+        kind: 'manual',
+        cwd: null,
+        title: requiredText(title, MAX_TITLE_LENGTH, 'title'),
+        createdAt: now,
+        updatedAt: now,
+        threads: [],
+      }
+      this.state.workspaces.unshift(workspace)
+      return this.summary(workspace)
+    })
+  }
+
+  async createThread(workspaceId: string, input: CreateThreadInput): Promise<Thread> {
+    return this.mutate(() => {
+      const workspace = this.workspace(workspaceId)
+      const now = new Date().toISOString()
+      const thread = this.thread({
+        title: input?.title,
+        parentId: input?.parentId,
+        dshSessionId: input?.dshSessionId,
+        dshSessionTitle: input?.dshSessionTitle,
+        position: input?.position,
+        color: input?.color,
+        now,
+        order: workspace.threads.length,
+      })
+      if (thread.parentId !== null && !workspace.threads.some(item => item.id === thread.parentId)) {
+        throw new InputError('分支来源不存在')
+      }
+      workspace.threads.push(thread)
+      workspace.updatedAt = now
+      return structuredClone(thread)
+    })
+  }
+
+  async branch(threadId: string, input: BranchInput): Promise<Thread> {
+    return this.mutate(() => {
+      const { workspace, thread: parent } = this.locateThread(threadId)
+      const now = new Date().toISOString()
+      const sessionId = typeof input?.dshSessionId === 'string' && input.dshSessionId.length > 0 ? input.dshSessionId : null
+      // A DSH fork emits session/created while the browser receives its fork
+      // response. Either path may win the race, but both must resolve to one node.
+      if (sessionId !== null) {
+        const existing = workspace.threads.find(item => item.dshSessionId === sessionId)
+        if (existing !== undefined) {
+          existing.parentId ??= parent.id
+          if (typeof input?.title === 'string' && input.title.trim() !== '') {
+            existing.title = requiredText(input.title, MAX_TITLE_LENGTH, 'title')
+          }
+          if (typeof input?.dshSessionTitle === 'string') {
+            existing.dshSessionTitle = input.dshSessionTitle.slice(0, MAX_TITLE_LENGTH)
+          }
+          existing.updatedAt = now
+          workspace.updatedAt = now
+          return structuredClone(existing)
+        }
+      }
+      const siblings = workspace.threads.filter(item => item.parentId === parent.id)
+      const thread = this.thread({
+        title: input?.title,
+        parentId: parent.id,
+        dshSessionId: input?.dshSessionId,
+        dshSessionTitle: input?.dshSessionTitle,
+        position: input?.position ?? { x: parent.position.x + 420, y: parent.position.y + siblings.length * 248 },
+        color: input?.color ?? parent.color,
+        now,
+        order: workspace.threads.length,
+      })
+      workspace.threads.push(thread)
+      workspace.updatedAt = now
+      return structuredClone(thread)
+    })
+  }
+
+  /** Keep only the canvas graph in Synapse; DSH remains the source of session truth. */
+  async syncSessions(sessions: SessionRow[], removedSessionIds: string[] = []): Promise<WorkspaceSummary[]> {
+    return this.mutate(() => {
+      if (!Array.isArray(sessions)) throw new InputError('sessions 必须是数组')
+      if (!Array.isArray(removedSessionIds) || removedSessionIds.some(item => typeof item !== 'string')) {
+        throw new InputError('removedSessionIds 必须是字符串数组')
+      }
+      const blankIds = new Set(sessions.filter(item => item?.blank === true && typeof item.id === 'string').map(item => item.id))
+      const removedIds = new Set(removedSessionIds)
+      for (const workspace of this.state.workspaces) {
+        if (workspace.kind !== 'dsh') continue
+        workspace.threads = workspace.threads.filter(thread => !blankIds.has(thread.dshSessionId ?? '') && !removedIds.has(thread.dshSessionId ?? ''))
+      }
+      this.state.workspaces = this.state.workspaces.filter(workspace => workspace.kind !== 'dsh' || workspace.threads.length > 0)
+      for (const item of sessions) {
+        if (typeof item?.id !== 'string' || item.id === '' || typeof item.cwd !== 'string' || item.cwd === '') continue
+        if (item.blank === true) continue
+        // Canvas archiving is persistent UI state. A normal DSH list refresh
+        // must not recreate a session the user deliberately archived.
+        if (this.state.hiddenSessionIds.includes(item.id)) continue
+        const workspace = this.dshWorkspace(item.cwd, 'DSH 任务')
+        const source = this.dshThread(workspace, { id: item.id, title: item.title, parentId: item.parentId })
+        if (typeof item.title === 'string' && item.title.trim() !== '') {
+          source.title = item.title.slice(0, MAX_TITLE_LENGTH)
+          source.dshSessionTitle = source.title
+        }
+      }
+      return this.list()
+    }, { deferred: true })
+  }
+
+  async addMessage(threadId: string, text: string): Promise<Thread> {
+    return this.mutate(() => {
+      const { workspace, thread } = this.locateThread(threadId)
+      const at = new Date().toISOString()
+      thread.messages.push({
+        id: randomUUID(),
+        text: requiredText(text, MAX_NOTE_LENGTH, 'text'),
+        kind: 'user',
+        at,
+      })
+      thread.updatedAt = at
+      workspace.updatedAt = at
+      return structuredClone(thread)
+    })
+  }
+
+  async updateThread(threadId: string, input: { title?: string | undefined; position?: Position | undefined }): Promise<Thread> {
+    return this.mutate(() => {
+      const { workspace, thread } = this.locateThread(threadId)
+      if (input?.title !== undefined) thread.title = requiredText(input.title, MAX_TITLE_LENGTH, 'title')
+      if (input?.position !== undefined) thread.position = positionOf(input.position)
+      thread.updatedAt = new Date().toISOString()
+      workspace.updatedAt = thread.updatedAt
+      return structuredClone(thread)
+    })
+  }
+
+  async removeThread(threadId: string): Promise<{ removed: number }> {
+    return this.mutate(() => {
+      const { workspace, thread } = this.locateThread(threadId)
+      const removal = new Set([thread.id])
+      for (let changed = true; changed;) {
+        changed = false
+        for (const item of workspace.threads) {
+          if (item.parentId !== null && removal.has(item.parentId) && !removal.has(item.id)) {
+            removal.add(item.id)
+            changed = true
+          }
+        }
+      }
+      for (const item of workspace.threads) {
+        if (removal.has(item.id) && item.dshSessionId !== null && !this.state.hiddenSessionIds.includes(item.dshSessionId)) {
+          this.state.hiddenSessionIds.push(item.dshSessionId)
+        }
+      }
+      workspace.threads = workspace.threads.filter(item => !removal.has(item.id))
+      workspace.updatedAt = new Date().toISOString()
+      if (workspace.threads.length === 0) this.state.workspaces = this.state.workspaces.filter(item => item.id !== workspace.id)
+      return { removed: removal.size }
+    })
+  }
+
+  async clearLegacy(sessions: string[] | readonly Session[]): Promise<{ cleared: true }> {
+    return this.mutate(() => {
+      const hidden = new Set(this.state.hiddenSessionIds)
+      for (const workspace of this.state.workspaces) {
+        for (const thread of workspace.threads) if (thread.dshSessionId !== null) hidden.add(thread.dshSessionId)
+      }
+      for (const session of sessions) hidden.add(typeof session === 'string' ? session : session.id)
+      this.state.hiddenSessionIds = [...hidden]
+      this.state.workspaces = []
+      return { cleared: true }
+    })
+  }
+
+  /** Replay one live DSH session into the dedicated projection workspace. */
+  async projectSession(session: Session, replayFrom = 0, workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
+    return this.projectPersisted(threadSource(session), sessionCwd(session), session.events, replayFrom, workspaceTitleFallback)
+  }
+
+  /** Replay a persisted session log (cold restore or a live snapshot). */
+  async projectPersisted(
+    source: ThreadSource,
+    cwd: string,
+    events: readonly SessionEvent[],
+    replayFrom = 0,
+    workspaceTitleFallback = 'DSH 任务',
+  ): Promise<Thread | null> {
+    return this.mutate(() => {
+      if (this.state.hiddenSessionIds.includes(source.id)) return null
+      const workspace = this.dshWorkspace(cwd, workspaceTitleFallback)
+      const thread = this.dshThread(workspace, source)
+      for (const event of events) {
+        if (event.seq >= replayFrom) this.projectEventInto(workspace, thread, event)
+      }
+      return structuredClone(thread)
+    }, { deferred: true })
+  }
+
+  /** Project one committed DSH session event. Repeated sequence numbers are ignored. */
+  async projectEvent(session: Session, event: SessionEvent, workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
+    return this.mutate(() => {
+      if (this.state.hiddenSessionIds.includes(session.id)) return null
+      const workspace = this.dshWorkspace(sessionCwd(session), workspaceTitleFallback)
+      const thread = this.dshThread(workspace, threadSource(session))
+      this.projectEventInto(workspace, thread, event)
+      return structuredClone(thread)
+    }, { deferred: true })
+  }
+
+  /** Project a batch of committed events for one session in a single write. */
+  async projectEvents(session: Session, events: readonly SessionEvent[], workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
+    if (events.length === 0) return null
+    return this.mutate(() => {
+      if (this.state.hiddenSessionIds.includes(session.id)) return null
+      const workspace = this.dshWorkspace(sessionCwd(session), workspaceTitleFallback)
+      const thread = this.dshThread(workspace, threadSource(session))
+      for (const event of events) this.projectEventInto(workspace, thread, event)
+      return structuredClone(thread)
+    }, { deferred: true })
+  }
+
+  async load(): Promise<void> {
+    await mkdir(dirname(this.dataFile), { recursive: true })
+    try {
+      const parsed = JSON.parse(await readFile(this.dataFile, 'utf8'))
+      const { state, migrated } = normalizeState(parsed)
+      this.state = state
+      if (migrated) await this.save()
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        throw new Error(`synapse: cannot read ${this.dataFile}: ${(error as Error).message}`)
+      }
+      this.state = { version: 4, hiddenSessionIds: [], workspaces: [] }
+      await this.save()
+    }
+  }
+
+  async mutate<T>(action: () => T, { deferred = false } = {}): Promise<T> {
+    await this.ready
+    const task = this.serial.then(async () => {
+      const result = action()
+      if (deferred) this.markDirty()
+      else await this.save()
+      return result
+    })
+    this.serial = task.catch(() => undefined)
+    return task
+  }
+
+  /** Mark the state dirty and schedule one trailing flush for the window. */
+  markDirty(): void {
+    this.dirty = true
+    if (this.flushTimer !== null) return
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null
+      void this.flush()
+    }, SAVE_DEBOUNCE_MS)
+  }
+
+  /** Persist the current state when dirty, ordered after in-flight mutations. */
+  flush(): Promise<unknown> {
+    if (!this.dirty) return Promise.resolve()
+    this.dirty = false
+    const task = this.serial.then(() => this.save())
+    this.serial = task.catch(() => undefined)
+    return task
+  }
+
+  async save(): Promise<void> {
+    // Two dsh web instances sharing one profile clobber each other's canvas
+    // state. Warn loudly instead of silently losing work; a live lock held by
+    // another process or a file mtime that moved since our last write both
+    // indicate a second writer.
+    const before = await this.fileMtime()
+    if (this.lastKnownMtime !== null && before !== null && before !== this.lastKnownMtime) {
+      this.lastKnownMtime = before
+      if (!this.externalModWarned) {
+        this.externalModWarned = true
+        process.stderr.write('synapse: workspaces.json 已被另一个 dsh web 实例修改，本实例的写入可能覆盖其更改——请只运行一个实例\n')
+      }
+    }
+    await this.acquireLock()
+    try {
+      const temporaryFile = `${this.dataFile}.${process.pid}.tmp`
+      await writeFile(temporaryFile, `${JSON.stringify(this.state)}\n`, 'utf8')
+      await rename(temporaryFile, this.dataFile)
+      this.lastKnownMtime = (await stat(this.dataFile)).mtimeMs
+    } finally {
+      await this.releaseLock()
+    }
+  }
+
+  async fileMtime(): Promise<number | null> {
+    try { return (await stat(this.dataFile)).mtimeMs } catch { return null }
+  }
+
+  /** Take an exclusive cross-process lock, breaking a stale one; warn when a live process holds it. */
+  async acquireLock(): Promise<void> {
+    const lockFile = `${this.dataFile}.lock`
+    if (await this.tryAcquire(lockFile)) return
+    if (await this.lockIsStale(lockFile)) {
+      await unlink(lockFile).catch(() => {})
+      if (await this.tryAcquire(lockFile)) return
+    }
+    if (!this.lockWarned) {
+      this.lockWarned = true
+      process.stderr.write('synapse: 另一个 dsh web 实例正在写入 workspaces.json——请只运行一个实例，否则画布数据可能互相覆盖\n')
+    }
+  }
+
+  async tryAcquire(lockFile: string): Promise<boolean> {
+    try {
+      await writeFile(lockFile, `${process.pid}\n`, { flag: 'wx' })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** A lock is stale when its owner PID is gone or the lock file is older than the stale window. */
+  async lockIsStale(lockFile: string): Promise<boolean> {
+    try {
+      const [content, stats] = await Promise.all([readFile(lockFile, 'utf8'), stat(lockFile)])
+      const tooOld = Date.now() - stats.mtimeMs > LOCK_STALE_MS
+      const pid = Number.parseInt(content, 10)
+      if (!Number.isInteger(pid)) return tooOld
+      if (pid === process.pid) return false
+      try {
+        process.kill(pid, 0)
+        return tooOld
+      } catch {
+        return true
+      }
+    } catch {
+      return false
+    }
+  }
+
+  async releaseLock(): Promise<void> {
+    await unlink(`${this.dataFile}.lock`).catch(() => {})
+  }
+
+  private workspace(workspaceId: string): Workspace {
+    const workspace = this.state.workspaces.find(item => item.id === workspaceId)
+    if (workspace === undefined) throw new NotFoundError('工作空间不存在')
+    return workspace
+  }
+
+  private locateThread(threadId: string): { workspace: Workspace; thread: Thread } {
+    for (const workspace of this.state.workspaces) {
+      const thread = workspace.threads.find(item => item.id === threadId)
+      if (thread !== undefined) return { workspace, thread }
+    }
+    throw new NotFoundError('节点不存在')
+  }
+
+  private dshWorkspace(cwd: string, fallbackTitle: string): Workspace {
+    let workspace = this.state.workspaces.find(item => item.kind === 'dsh' && item.cwd === cwd)
+    if (workspace !== undefined) return workspace
+    const now = new Date().toISOString()
+    workspace = {
+      id: randomUUID(),
+      kind: 'dsh',
+      cwd,
+      title: workspaceTitle(cwd, fallbackTitle),
+      createdAt: now,
+      updatedAt: now,
+      threads: [],
+    }
+    this.state.workspaces.unshift(workspace)
+    return workspace
+  }
+
+  /** Resolve the canvas thread for a session: existing node, or a fresh one
+   * anchored on the durable fork lineage. */
+  private dshThread(workspace: Workspace, source: ThreadSource): Thread {
+    const sessionId = source.id
+    const titleOverride = source.title ?? null
+    let thread = workspace.threads.find(item => item.dshSessionId === sessionId)
+    if (thread !== undefined) {
+      if (typeof titleOverride === 'string' && titleOverride.trim() !== '') {
+        const title = titleOverride.slice(0, MAX_TITLE_LENGTH)
+        thread.title = title
+        thread.dshSessionTitle = title
+      }
+      // `sourceSeedLength` is DSH's durable fork cut. Keep it even after the
+      // session has been restored, when its in-process `firstLiveSeq` moves.
+      const seedLength = source.header?.seedLength
+      if (Number.isSafeInteger(seedLength) && seedLength !== undefined && seedLength >= 0) thread.sourceSeedLength = seedLength
+      return thread
+    }
+    const parentSessionId = source.parentId ?? source.header?.parentSession ?? null
+    const parent = parentSessionId === null ? undefined : workspace.threads.find(item => item.dshSessionId === parentSessionId)
+    const now = new Date().toISOString()
+    thread = {
+      id: randomUUID(),
+      title: typeof titleOverride === 'string' && titleOverride.trim() !== ''
+        ? titleOverride.slice(0, MAX_TITLE_LENGTH)
+        : (parent === undefined ? 'DSH 会话' : `${parent.title} 分支`),
+      parentId: parent?.id ?? null,
+      sourceParentSessionId: parentSessionId,
+      sourceSeedLength: Number.isSafeInteger(source.header?.seedLength) ? (source.header?.seedLength ?? null) : null,
+      dshSessionId: sessionId,
+      dshSessionTitle: typeof titleOverride === 'string' ? titleOverride.slice(0, MAX_TITLE_LENGTH) : null,
+      color: topicColor(workspace.threads.length),
+      // DSH projection stores only a neutral semantic anchor. The visual map
+      // lays out visible cards from the current conversation graph each render,
+      // so old/archived session counts must never leak into future coordinates.
+      position: parent === undefined ? { x: 86, y: 82 } : { x: parent.position.x + 400, y: parent.position.y },
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    }
+    workspace.threads.push(thread)
+    // A child may arrive before its parent during startup replay. Repair that
+    // relation when the missing parent later reaches the projection.
+    for (const child of workspace.threads) {
+      if (child.sourceParentSessionId === sessionId && child.parentId === null) child.parentId = thread.id
+    }
+    workspace.updatedAt = now
+    return thread
+  }
+
+  private projectEventInto(workspace: Workspace, thread: Thread, event: SessionEvent): void {
+    const title = sessionTitleOf(event)
+    if (title !== null) {
+      thread.title = title.slice(0, MAX_TITLE_LENGTH)
+      thread.dshSessionTitle = thread.title
+      thread.updatedAt = new Date(event.time).toISOString()
+      workspace.updatedAt = thread.updatedAt
+      return
+    }
+    if (event.type === 'tool/call' || event.type === 'tool/result') {
+      this.foldToolProcess(thread, event)
+      workspace.updatedAt = thread.updatedAt
+      return
+    }
+    const projection = projectableEvent(event)
+    if (projection === null || thread.messages.some(message => message.sourceSeq === event.seq)) return
+    const at = new Date(event.time).toISOString()
+    const message: ProjectedMessage = {
+      id: randomUUID(),
+      text: projection.text,
+      kind: projection.kind,
+      sourceSeq: event.seq,
+      at,
+    }
+    if (projection.kind === 'assistant' && event.type === 'assistant/message') {
+      message.turn = event.data.turn
+      message.step = event.data.step
+      message.process = []
+    }
+    thread.messages.push(message)
+    thread.updatedAt = at
+    workspace.updatedAt = at
+    if (thread.dshSessionTitle === null && projection.kind === 'user') {
+      thread.title = titleFromText(projection.text)
+      thread.dshSessionTitle = thread.title
+    }
+  }
+
+  /**
+   * Fold one tool call or result into the assistant message of its own
+   * turn/step, keyed by `callId`, so a tool invocation never becomes a
+   * separate canvas card. A legacy assistant message without `turn`/`step` is
+   * the fallback target; an event with no such target is dropped.
+   */
+  private foldToolProcess(thread: Thread, event: SessionEvent): void {
+    if (event.type !== 'tool/call' && event.type !== 'tool/result') return
+    const at = new Date(event.time).toISOString()
+    const target = [...thread.messages].reverse().find(message =>
+      message.kind === 'assistant'
+      && (message.turn === event.data.turn && message.step === event.data.step
+        || message.turn === undefined && message.step === undefined))
+    if (target === undefined) return
+    const process = target.process ??= []
+    const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message?.source?.callId ?? '')
+    const entry = process.find(item => item.callId === callId)
+    if (event.type === 'tool/call') {
+      if (entry === undefined) {
+        process.push({ callId, name: event.data.name, arguments: event.data.arguments, result: null, error: null })
+      } else {
+        entry.name = event.data.name
+        entry.arguments = event.data.arguments
+      }
+    } else {
+      const outcome = contentText(event.data.message?.content)
+      const error = event.data.error === undefined ? null : `${event.data.error.name}: ${event.data.error.code}`
+      if (entry === undefined) {
+        process.push({ callId, name: '工具调用', arguments: null, result: outcome, error })
+      } else {
+        entry.result = outcome
+        entry.error = error
+      }
+    }
+    thread.updatedAt = at
+  }
+
+  private thread(input: {
+    title: string | undefined
+    parentId: string | undefined
+    dshSessionId: string | undefined
+    dshSessionTitle: string | undefined
+    position: Position | undefined
+    color: string | undefined
+    now: string
+    order: number
+  }): Thread {
+    return {
+      id: randomUUID(),
+      title: requiredText(input.title, MAX_TITLE_LENGTH, 'title'),
+      parentId: typeof input.parentId === 'string' && input.parentId.length > 0 ? input.parentId : null,
+      dshSessionId: typeof input.dshSessionId === 'string' && input.dshSessionId.length > 0 ? input.dshSessionId : null,
+      dshSessionTitle: typeof input.dshSessionTitle === 'string' ? input.dshSessionTitle.slice(0, MAX_TITLE_LENGTH) : null,
+      color: (TOPIC_COLORS as readonly string[]).includes(input.color ?? '') ? (input.color ?? '') : topicColor(input.order),
+      position: positionOf(input.position ?? { x: 86 + (input.order % 3) * 410, y: 82 + Math.floor(input.order / 3) * 260 }),
+      createdAt: input.now,
+      updatedAt: input.now,
+      messages: [],
+      sourceParentSessionId: null,
+      sourceSeedLength: null,
+    }
+  }
+
+  private summary(workspace: Workspace): WorkspaceSummary {
+    return {
+      id: workspace.id,
+      kind: workspace.kind,
+      cwd: workspace.cwd,
+      title: workspace.title,
+      createdAt: workspace.createdAt,
+      updatedAt: workspace.updatedAt,
+      threadCount: workspace.threads.length,
+    }
+  }
+}
+
+export class InputError extends Error {}
+export class NotFoundError extends Error {}
+
+function positionOf(value: Position | undefined): Position {
+  const x = Number(value?.x)
+  const y = Number(value?.y)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) throw new InputError('position 必须包含有效坐标')
+  return { x: Math.round(Math.max(-2000, Math.min(5000, x))), y: Math.round(Math.max(-2000, Math.min(5000, y))) }
+}
+
+function requiredText(value: unknown, maxLength: number, field: string): string {
+  if (typeof value !== 'string') throw new InputError(`${field} 必须是文本`)
+  const text = value.trim()
+  if (text.length === 0) throw new InputError(`${field} 不能为空`)
+  if (text.length > maxLength) throw new InputError(`${field} 超过长度限制`)
+  return text
+}

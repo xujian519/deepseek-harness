@@ -244,6 +244,7 @@
     { "path": "./packages/web/web-search-deepseek" },
     { "path": "./packages/web/web-fetch-http" },
     { "path": "./packages/web/tool-web" },
+    { "path": "./packages/web/synapse" },
     { "path": "./packages/spill/spill" },
     { "path": "./packages/spill/spill-local" },
     { "path": "./packages/spill/spill-policy" },
