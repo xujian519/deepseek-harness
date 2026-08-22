@@ -73,3 +73,15 @@ export const hostOpenPathRequestSchema = z.object({
 export const hostOpenPathValueSchema = z.object({
   opened: z.literal(true),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.openPath'>>>
+
+/** host.readFileText request payload: absolute host path plus an optional read cap. */
+export const hostReadFileTextRequestSchema = z.object({
+  path: z.string().min(1),
+  maxBytes: z.number().int().positive().max(4 * 1024 * 1024).optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.readFileText'>>>
+
+/** host.readFileText response value: capped UTF-8 content plus the truncation flag. */
+export const hostReadFileTextValueSchema = z.object({
+  content: z.string(),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.readFileText'>>>

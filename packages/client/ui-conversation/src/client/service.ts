@@ -57,6 +57,19 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+
+  /**
+   * Switch one session's active conversation view (a `conversation.view`
+   * entry id; unknown ids fall back to the stable Chat view). A peer plugin
+   * that cannot touch the per-session store — the store handle is
+   * apply-local by design — uses this to jump a session to its own view.
+   * @param sessionId - target session.
+   * @param view - the view id to activate.
+   * @returns whether a view setter is registered for the session; false when
+   * the session's conversation seat has not mounted yet (the caller may
+   * retry).
+   */
+  setActiveView(sessionId: SessionId, view: string): boolean
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
@@ -98,6 +111,7 @@ export class ConversationController extends Service implements IConversation {
   private readonly imageUrls = new Map<string, ImageUrlEntry>()
   private readonly imageGenerations = new Map<SessionId, number>()
   private readonly createdImageUrls = new Set<string>()
+  private readonly viewSetters = new Map<SessionId, (view: string) => void>()
   private disposed = false
 
   /**
@@ -112,6 +126,9 @@ export class ConversationController extends Service implements IConversation {
     this.input = config.input
     this.blocks = config.blocks
     ctx.effect(() => () => {
+      this.viewSetters.clear()
+    }, 'conversation view setters')
+    ctx.effect(() => () => {
       this.disposed = true
       for (const url of this.createdImageUrls) revokePreview(url)
       this.createdImageUrls.clear()
@@ -119,6 +136,25 @@ export class ConversationController extends Service implements IConversation {
       this.imageUrls.clear()
       this.imageGenerations.clear()
     }, 'conversation attachment URL cache')
+  }
+
+  /**
+   * Register (or replace) the per-session view switch write path. Called by
+   * the conversation-session seat when its store actions materialize; the
+   * map is cleared with the controller fiber.
+   * @param sessionId - target session.
+   * @param setter - store-backed view writer.
+   */
+  registerViewSetter(sessionId: SessionId, setter: (view: string) => void): void {
+    this.viewSetters.set(sessionId, setter)
+  }
+
+  /** @inheritdoc */
+  setActiveView(sessionId: SessionId, view: string): boolean {
+    const setter = this.viewSetters.get(sessionId)
+    if (setter === undefined) return false
+    setter(view)
+    return true
   }
 
   /**

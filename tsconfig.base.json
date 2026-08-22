@@ -218,6 +218,7 @@
       "@deepseek-ai/dsh-client-ui-conversation": ["./packages/client/ui-conversation/src"],
       "@deepseek-ai/dsh-client-ui-tool": ["./packages/client/ui-tool/src"],
       "@deepseek-ai/dsh-client-ui-deliverables": ["./packages/client/ui-deliverables/src"],
+      "@deepseek-ai/dsh-client-ui-document-studio": ["./packages/client/ui-document-studio/src"],
       "@deepseek-ai/dsh-client-ui-workflow-run": ["./packages/client/ui-workflow-run/src"],
       "@deepseek-ai/dsh-client-ui-input-trigger": ["./packages/client/ui-input-trigger/src"],
       "@deepseek-ai/dsh-client-ui-reference": ["./packages/client/ui-reference/src"],

@@ -95,4 +95,18 @@ export interface HostApi {
     request: RpcRequest<{ path: string }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<{ opened: true }>>
+
+  /**
+   * Read one Host-resolved UTF-8 text document for in-app preview (HTML
+   * sources, Markdown, JSON). The path is absolute, resolved by the caller
+   * through the workspace path resolver — this method never joins path
+   * segments itself. Reads are capped: a document larger than `maxBytes`
+   * (default 1 MiB, at most 4 MiB) returns its head with `truncated: true`
+   * instead of failing, so previews never flood the browser. A missing,
+   * non-UTF-8, or unreadable target fails with `file-unreadable`.
+   */
+  readFileText(
+    request: RpcRequest<{ path: string; maxBytes?: number }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{ content: string; truncated: boolean }>>
 }
