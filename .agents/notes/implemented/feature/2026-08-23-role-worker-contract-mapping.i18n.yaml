@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-role-worker-contract-mapping.md
+2026-08-23-role-worker-contract-mapping.md: 946bbfb030d0118d6567624982019e2e18402314
+2026-08-23-role-worker-contract-mapping.zh.md: 0301bb098b0a491b70915052f34c1b35c74f8342
