@@ -54,6 +54,28 @@ function basename(path: string): string {
   return index === -1 ? path : path.slice(index + 1)
 }
 
+/** Outcome of one desktop print-to-PDF request (mirror of the preload bridge). */
+export interface DesktopPrintResult {
+  /** Saved file path on success. */
+  path?: string
+  /** The user dismissed the save dialog. */
+  cancelled?: true
+  /** Print, raster, or save failure message. */
+  error?: string
+}
+
+/** The desktop shell's `window.desktop` surface, when running under Electron. */
+export interface DesktopPrintBridge {
+  printHtmlToPdf(payload: { html: string; suggestedName?: string }): Promise<DesktopPrintResult>
+}
+
+declare global {
+  interface Window {
+    /** Allow-listed Electron preload bridge; absent outside the desktop app. */
+    desktop?: DesktopPrintBridge
+  }
+}
+
 /** Print one HTML document through the browser's print dialog (PDF save). */
 function printHtmlDocument(content: string): void {
   const win = window.open('', '_blank')
@@ -131,8 +153,21 @@ export function StudioView({
   const selected = produced.find(file => file.path === selectedPath) ?? null
   const selectedName = selected === null ? '' : basename(selected.path)
 
-  const onPrint = (): void => {
+  const [printOutcome, setPrintOutcome] = useState<{ saved: string } | { failed: string } | null>(null)
+  const onPrint = async (): Promise<void> => {
     if (htmlPreview === null) return
+    setPrintOutcome(null)
+    if (window.desktop?.printHtmlToPdf !== undefined) {
+      const result = await window.desktop.printHtmlToPdf({
+        html: htmlPreview,
+        suggestedName: selectedName,
+      })
+      if (result.error !== undefined) setPrintOutcome({ failed: result.error })
+      else if (result.cancelled !== true && result.path !== undefined) {
+        setPrintOutcome({ saved: result.path })
+      }
+      return
+    }
     printHtmlDocument(htmlPreview)
   }
 
@@ -172,9 +207,16 @@ export function StudioView({
                       </button>
                     )}
                     {htmlPreview !== null && (
-                      <button type="button" className={css.action} onClick={onPrint}>
+                      <button type="button" className={css.action} onClick={() => { void onPrint() }}>
                         {t('studio.action.print')}
                       </button>
+                    )}
+                    {printOutcome !== null && (
+                      <span className={css.note}>
+                        {'saved' in printOutcome
+                          ? t('studio.print.exported', { path: printOutcome.saved })
+                          : t('studio.print.failed', { message: printOutcome.failed })}
+                      </span>
                     )}
                   </span>
                 )}

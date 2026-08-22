@@ -29,6 +29,6 @@ None; this package neither assembles nor sends a provider request.
 ## Known Limitations and Deferred Work
 
 - **The preview is preview, not execution** — HTML renders with `sandbox=""`, so interactive artifacts (JS-driven decks, live dashboards) show their first paint but do not run. A renderer that trusts the session's own produced files is deferred.
-- **PDF is browser-print in this iteration** — the print action opens the OS print dialog; silent `webContents.printToPDF` export through the desktop shell is the P3 follow-up of the document-agent plan.
+- **PDF is silent export on desktop** — inside the desktop app (Electron), the print action goes through `window.desktop.printHtmlToPdf` (hidden-window rasterization + OS save dialog); outside the desktop shell it falls back to the browser print dialog.
 - **Auto-switch fires on session entry** — a deliberate tab pick back to chat survives until the user leaves and re-enters the session.
 - **Preview is text-only by extension** — binary formats (`.docx`, `.pptx`, `.pdf`) list and open but have no inline preview yet.

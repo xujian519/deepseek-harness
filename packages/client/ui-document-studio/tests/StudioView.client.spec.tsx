@@ -163,6 +163,29 @@ describe('StudioView', () => {
     expect(container.querySelector('iframe')).toBeNull()
   })
 
+  it('exports through the desktop bridge when present and falls back to browser print otherwise', async () => {
+    const host = hostDescription(true)
+    const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/report.pdf' }))
+    ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
+      printHtmlToPdf,
+    }
+    try {
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host)} />)
+      await screen.findByTitle('index.html')
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.exported', { path: '/tmp/report.pdf' }))).toBeTruthy()
+      expect(printHtmlToPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>out/index.html</h1>', suggestedName: 'index.html' }),
+      )
+      // A failing export surfaces the message (typed via the bridge's result union).
+      ;(printHtmlToPdf as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ error: 'printer offline' })
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.failed', { message: 'printer offline' }))).toBeTruthy()
+    } finally {
+      delete (window as Window & { desktop?: unknown }).desktop
+    }
+  })
+
   it('classifies preview kinds by extension', () => {
     expect(isHtmlPath('a.html')).toBe(true)
     expect(isHtmlPath('a.htm')).toBe(true)

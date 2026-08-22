@@ -18,6 +18,8 @@ export const zh = {
   'studio.section.html': 'HTML / 网页',
   'studio.section.document': '文档与数据',
   'studio.print.note': '在打印对话框中选择「另存为 PDF」即可导出。',
+  'studio.print.exported': '已导出 PDF：{path}',
+  'studio.print.failed': '导出失败：{message}',
 }
 
 /** English dictionary (same key set). */
@@ -35,6 +37,8 @@ export const en: Record<DocumentStudioKey, string> = {
   'studio.section.html': 'HTML / Web',
   'studio.section.document': 'Documents & data',
   'studio.print.note': 'Choose “Save as PDF” in the print dialog to export.',
+  'studio.print.exported': 'PDF exported: {path}',
+  'studio.print.failed': 'Export failed: {message}',
 }
 
 /** Union of this namespace's dictionary keys. */

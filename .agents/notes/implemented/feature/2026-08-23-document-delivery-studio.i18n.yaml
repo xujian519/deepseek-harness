@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-document-delivery-studio.md
 2026-08-23-document-delivery-studio.md: e4650e11f403309744866419f29379e64e1b97fb
-2026-08-23-document-delivery-studio.zh.md: abfac0f673d051a4c9a5a650ea72bf8030321d0e
+2026-08-23-document-delivery-studio.zh.md: c431c10f4b1426573254ed1999c718993de12cb9
