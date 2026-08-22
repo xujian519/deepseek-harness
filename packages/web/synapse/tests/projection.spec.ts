@@ -96,7 +96,7 @@ describe('titles and cwds', () => {
         event('session/title', { title: '标题二' }),
       ],
     }
-    expect(sessionTitle(titled.events as never[])).toBe('标题二')
+    expect(sessionTitle(titled.events)).toBe('标题二')
     const blank = [event('turn/start', { turn: 1 })]
     expect(sessionIsBlank(blank)).toBe(true)
     const used = [event('user/message', { content: [{ type: 'text', text: '问' }] })]

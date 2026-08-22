@@ -79,7 +79,7 @@ export function apply(ctx: ClientContext): void {
     const session = scope === undefined ? undefined : ctx.sessions.sessionOf(scope)
     if (session === undefined) throw new Error('关联的 DSH 会话已不可用')
     const result = await session.prompt([{ type: 'text', text }], 'queue')
-    if (!result.ok) throw new Error(result.error?.message ?? 'DSH 未接受这条消息')
+    if (!result.ok) throw new Error(result.error.message)
   }
   const bridgeText = (session: SessionFace | undefined): string => {
     if (session === undefined) return ''
@@ -174,7 +174,7 @@ export function apply(ctx: ClientContext): void {
     })
   }
   const syncTheme = (): void => {
-    send('synapse:theme', { dark: document.body?.hasAttribute('data-ds-dark-theme') === true })
+    send('synapse:theme', { dark: document.body.hasAttribute('data-ds-dark-theme') })
   }
   const syncCurrentSession = (): void => {
     syncSessions()
@@ -211,8 +211,8 @@ export function apply(ctx: ClientContext): void {
     if (mapOpening) send('synapse:map-opened')
   }
   const onMessage = (event: MessageEvent): void => {
-    if (event.origin !== window.location.origin || event.data?.source !== 'dsh-synapse') return
     const data = event.data as {
+      source?: unknown
       type: string
       requestId?: string
       sessionId?: string
@@ -223,11 +223,13 @@ export function apply(ctx: ClientContext): void {
       cwd?: unknown
       message?: unknown
     }
-    if (data.type === 'synapse:close') return close()
-    if (data.type === 'synapse:map-ready') return showMapOverlay()
+    if (event.origin !== window.location.origin || data.source !== 'dsh-synapse') return
+    if (data.type === 'synapse:close') { close(); return }
+    if (data.type === 'synapse:map-ready') { showMapOverlay(); return }
     if (data.type === 'synapse:request-current') {
       send('synapse:workspaces', { workspaces: workspaceRows() })
-      return send('synapse:current-session', { session: currentSession() })
+      send('synapse:current-session', { session: currentSession() })
+      return
     }
     if (data.type === 'synapse:open-session') {
       if (typeof data.sessionId !== 'string') return
@@ -259,10 +261,10 @@ export function apply(ctx: ClientContext): void {
     if (data.type === 'synapse:send-message') {
       if (typeof data.sessionId !== 'string') return
       const text = typeof data.text === 'string' ? data.text.trim() : ''
-      if (text === '') return send('synapse:bridge-error', { requestId: data.requestId, message: '消息不能为空' })
+      if (text === '') { send('synapse:bridge-error', { requestId: data.requestId, message: '消息不能为空' }); return }
       void promptSession(data.sessionId as SessionId, text).then(() => {
         send('synapse:message-sent', { requestId: data.requestId, sessionId: data.sessionId })
-      }).catch((error) => {
+      }).catch((error: unknown) => {
         send('synapse:bridge-error', { requestId: data.requestId, message: error instanceof Error ? error.message : 'DSH 消息发送失败' })
       })
       return
@@ -320,8 +322,8 @@ export function apply(ctx: ClientContext): void {
   // client's dark-mode signal, mirrored into the map iframe via synapse:theme.
   const themeObserver = typeof MutationObserver === 'undefined'
     ? null
-    : new MutationObserver(() => syncTheme())
-  if (themeObserver !== null && document.body) {
+    : new MutationObserver(() => { syncTheme() })
+  if (themeObserver !== null) {
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
   }
   const unsubscribeSessions = ctx.sessions.list.subscribe(syncCurrentSession)

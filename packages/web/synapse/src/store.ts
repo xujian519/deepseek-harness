@@ -21,7 +21,7 @@ import {
   titleFromText,
   workspaceTitle,
 } from './projection.ts'
-import { normalizeState } from './migration.ts'
+import { normalizeState, type LegacyWorkspaceRecord } from './migration.ts'
 
 /** Pick the next palette color; the fallback covers an empty table. */
 function topicColor(index: number): string {
@@ -140,12 +140,12 @@ export class WorkspaceStore {
       const workspace = this.workspace(workspaceId)
       const now = new Date().toISOString()
       const thread = this.thread({
-        title: input?.title,
-        parentId: input?.parentId,
-        dshSessionId: input?.dshSessionId,
-        dshSessionTitle: input?.dshSessionTitle,
-        position: input?.position,
-        color: input?.color,
+        title: input.title,
+        parentId: input.parentId,
+        dshSessionId: input.dshSessionId,
+        dshSessionTitle: input.dshSessionTitle,
+        position: input.position,
+        color: input.color,
         now,
         order: workspace.threads.length,
       })
@@ -162,17 +162,17 @@ export class WorkspaceStore {
     return this.mutate(() => {
       const { workspace, thread: parent } = this.locateThread(threadId)
       const now = new Date().toISOString()
-      const sessionId = typeof input?.dshSessionId === 'string' && input.dshSessionId.length > 0 ? input.dshSessionId : null
+      const sessionId = typeof input.dshSessionId === 'string' && input.dshSessionId.length > 0 ? input.dshSessionId : null
       // A DSH fork emits session/created while the browser receives its fork
       // response. Either path may win the race, but both must resolve to one node.
       if (sessionId !== null) {
         const existing = workspace.threads.find(item => item.dshSessionId === sessionId)
         if (existing !== undefined) {
           existing.parentId ??= parent.id
-          if (typeof input?.title === 'string' && input.title.trim() !== '') {
+          if (typeof input.title === 'string' && input.title.trim() !== '') {
             existing.title = requiredText(input.title, MAX_TITLE_LENGTH, 'title')
           }
-          if (typeof input?.dshSessionTitle === 'string') {
+          if (typeof input.dshSessionTitle === 'string') {
             existing.dshSessionTitle = input.dshSessionTitle.slice(0, MAX_TITLE_LENGTH)
           }
           existing.updatedAt = now
@@ -182,12 +182,12 @@ export class WorkspaceStore {
       }
       const siblings = workspace.threads.filter(item => item.parentId === parent.id)
       const thread = this.thread({
-        title: input?.title,
+        title: input.title,
         parentId: parent.id,
-        dshSessionId: input?.dshSessionId,
-        dshSessionTitle: input?.dshSessionTitle,
-        position: input?.position ?? { x: parent.position.x + 420, y: parent.position.y + siblings.length * 248 },
-        color: input?.color ?? parent.color,
+        dshSessionId: input.dshSessionId,
+        dshSessionTitle: input.dshSessionTitle,
+        position: input.position ?? { x: parent.position.x + 420, y: parent.position.y + siblings.length * 248 },
+        color: input.color ?? parent.color,
         now,
         order: workspace.threads.length,
       })
@@ -204,7 +204,7 @@ export class WorkspaceStore {
       if (!Array.isArray(removedSessionIds) || removedSessionIds.some(item => typeof item !== 'string')) {
         throw new InputError('removedSessionIds 必须是字符串数组')
       }
-      const blankIds = new Set(sessions.filter(item => item?.blank === true && typeof item.id === 'string').map(item => item.id))
+      const blankIds = new Set(sessions.filter(item => item.blank === true && typeof item.id === 'string').map(item => item.id))
       const removedIds = new Set(removedSessionIds)
       for (const workspace of this.state.workspaces) {
         if (workspace.kind !== 'dsh') continue
@@ -212,7 +212,7 @@ export class WorkspaceStore {
       }
       this.state.workspaces = this.state.workspaces.filter(workspace => workspace.kind !== 'dsh' || workspace.threads.length > 0)
       for (const item of sessions) {
-        if (typeof item?.id !== 'string' || item.id === '' || typeof item.cwd !== 'string' || item.cwd === '') continue
+        if (typeof item.id !== 'string' || item.id === '' || typeof item.cwd !== 'string' || item.cwd === '') continue
         if (item.blank === true) continue
         // Canvas archiving is persistent UI state. A normal DSH list refresh
         // must not recreate a session the user deliberately archived.
@@ -247,8 +247,8 @@ export class WorkspaceStore {
   async updateThread(threadId: string, input: { title?: string | undefined; position?: Position | undefined }): Promise<Thread> {
     return this.mutate(() => {
       const { workspace, thread } = this.locateThread(threadId)
-      if (input?.title !== undefined) thread.title = requiredText(input.title, MAX_TITLE_LENGTH, 'title')
-      if (input?.position !== undefined) thread.position = positionOf(input.position)
+      if (input.title !== undefined) thread.title = requiredText(input.title, MAX_TITLE_LENGTH, 'title')
+      if (input.position !== undefined) thread.position = positionOf(input.position)
       thread.updatedAt = new Date().toISOString()
       workspace.updatedAt = thread.updatedAt
       return structuredClone(thread)
@@ -343,13 +343,13 @@ export class WorkspaceStore {
   async load(): Promise<void> {
     await mkdir(dirname(this.dataFile), { recursive: true })
     try {
-      const parsed = JSON.parse(await readFile(this.dataFile, 'utf8'))
+      const parsed = JSON.parse(await readFile(this.dataFile, 'utf8')) as LegacyWorkspaceRecord
       const { state, migrated } = normalizeState(parsed)
       this.state = state
       this.lastKnownMtime = await this.fileMtime()
       if (migrated) await this.save()
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw new Error(`synapse: cannot read ${this.dataFile}: ${(error as Error).message}`)
       }
       this.state = { version: 4, hiddenSessionIds: [], workspaces: [] }
@@ -398,7 +398,7 @@ export class WorkspaceStore {
     const before = await this.fileMtime()
     if (this.lastKnownMtime !== null && before !== null && before !== this.lastKnownMtime) {
       try {
-        const parsed = JSON.parse(await readFile(this.dataFile, 'utf8'))
+        const parsed = JSON.parse(await readFile(this.dataFile, 'utf8')) as LegacyWorkspaceRecord
         const { state } = normalizeState(parsed)
         this.state = state
       } catch (error) {
@@ -607,7 +607,7 @@ export class WorkspaceStore {
         || message.turn === undefined && message.step === undefined))
     if (target === undefined) return
     const process = target.process ??= []
-    const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message?.source?.callId ?? '')
+    const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message.source.callId)
     const entry = process.find(item => item.callId === callId)
     if (event.type === 'tool/call') {
       if (entry === undefined) {
@@ -617,7 +617,7 @@ export class WorkspaceStore {
         entry.arguments = event.data.arguments
       }
     } else {
-      const outcome = contentText(event.data.message?.content)
+      const outcome = contentText(event.data.message.content)
       const error = event.data.error === undefined ? null : `${event.data.error.name}: ${event.data.error.code}`
       if (entry === undefined) {
         process.push({ callId, name: '工具调用', arguments: null, result: outcome, error })

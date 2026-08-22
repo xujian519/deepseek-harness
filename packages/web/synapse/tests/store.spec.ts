@@ -152,7 +152,7 @@ describe('WorkspaceStore', () => {
     const graph = await reloaded.get(summaries[0]!.id)
     expect(graph.title).toBe('旧项目')
     expect(graph.threads[0]?.messages[0]?.text).toBe('老问题')
-    expect(JSON.parse(await readFile(dataFile, 'utf8')).version).toBe(4)
+    expect((JSON.parse(await readFile(dataFile, 'utf8')) as { version: number }).version).toBe(4)
   })
 
   it('rejects malformed input loudly and clamps positions', async () => {

@@ -10,7 +10,7 @@ import type { Position, ProjectedMessage, Thread, ToolProcessEntry, Workspace, W
 import { TOPIC_COLORS, isRuntimeContextMessage } from './projection.ts'
 
 /** The persisted-state shapes accepted by normalizeState (older schema versions). */
-interface LegacyWorkspaceRecord {
+export interface LegacyWorkspaceRecord {
   version?: number
   updatedAt?: string
   hiddenSessionIds?: unknown
@@ -56,7 +56,9 @@ function legacyPosition(row: LegacyThreadRow): Position {
 }
 
 function legacyText(value: unknown): string {
-  return String(value ?? '')
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint' || typeof value === 'symbol') return String(value)
+  return ''
 }
 
 function legacyIso(value: unknown, fallback: string): string {
@@ -148,7 +150,7 @@ function workspaceFromLegacyV1(row: LegacyWorkspaceRow, index: number, now: stri
 export function foldLegacyToolCards(workspaces: Workspace[]): boolean {
   let changed = false
   for (const workspace of workspaces) {
-    for (const thread of workspace.threads ?? []) {
+    for (const thread of workspace.threads) {
       const folded: ProjectedMessage[] = []
       let assistant: ProjectedMessage | null = null
       let pending: ToolProcessEntry[] = []
@@ -196,7 +198,7 @@ export function normalizeState(value: LegacyWorkspaceRecord): { state: Workspace
   let version: number
   let hiddenSessionIds: string[]
   let workspaces: Workspace[]
-  if ((value?.version === 2 || value?.version === 3 || value?.version === 4) && Array.isArray(value.workspaces)) {
+  if ((value.version === 2 || value.version === 3 || value.version === 4) && Array.isArray(value.workspaces)) {
     hiddenSessionIds = Array.isArray(value.hiddenSessionIds) ? value.hiddenSessionIds.filter((item): item is string => typeof item === 'string') : []
     migrated = value.version < 3 || !Array.isArray(value.hiddenSessionIds)
     version = value.version
@@ -219,7 +221,7 @@ export function normalizeState(value: LegacyWorkspaceRecord): { state: Workspace
         threads,
       }
     })
-  } else if (value?.version === 1 && Array.isArray(value.workspaces)) {
+  } else if (value.version === 1 && Array.isArray(value.workspaces)) {
     const now = legacyIso(value.updatedAt, new Date().toISOString())
     hiddenSessionIds = []
     version = 3

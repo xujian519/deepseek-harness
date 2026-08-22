@@ -32,14 +32,14 @@ interface SessionSubscriber {
 interface FakeRuntime {
   sessions: {
     list: SessionListFace
-    open(id: string): void
+    open: (id: string) => void
     scope(id: string): unknown
     sessionOf(scope: unknown): SessionSubscriber | undefined
     fork(opts: { sessionId: string; atSeq?: number; increaseTitle?: boolean }): Promise<string>
   }
   workspaces: {
     list: { getSnapshot(): { items: never[]; archivedSessionIds: never[] }; subscribe(listener: () => void): () => void }
-    startSession(workspaceId?: string): void
+    startSession: (workspaceId?: string) => void
     create(input: { path: string }): Promise<{ workspaceId: string }>
   }
   effects: Array<() => void>
@@ -65,7 +65,7 @@ function makeRuntime(): FakeRuntime {
     startSession: vi.fn(),
     create: vi.fn(async () => ({ workspaceId: 'w-new' })),
   }
-  return { sessions: sessions as unknown as FakeRuntime['sessions'], workspaces: workspaces as unknown as FakeRuntime['workspaces'], effects }
+  return { sessions, workspaces, effects }
 }
 
 function boot(): { runtime: FakeRuntime; dispose: () => void } {

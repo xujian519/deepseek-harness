@@ -34,13 +34,13 @@ export function isRuntimeContextMessage(message: { kind?: string; text?: unknown
  * carry their call name and raw arguments, so an unfolded card shows what ran
  * without reading the session log. */
 export function contentText(content: readonly ContentBlock[] | undefined): string {
-  if (!Array.isArray(content)) return ''
+  if (content === undefined) return ''
   return content.flatMap((block) => {
-    if (block?.type === 'text') return [block.text]
-    if (block?.type === 'tool-call') return [block.name, block.arguments]
-    if (block?.type === 'tool-result') return contentText(block.content)
+    if (block.type === 'text') return [block.text]
+    if (block.type === 'tool-call') return [block.name, block.arguments]
+    if (block.type === 'tool-result') return [contentText(block.content)]
     return []
-  }).filter(value => typeof value === 'string' && value.trim() !== '').join('\n')
+  }).filter(value => value.trim() !== '').join('\n')
 }
 
 function noteProjection(kind: ProjectedMessage['kind'], text: string): { kind: ProjectedMessage['kind']; text: string } | null {
@@ -58,9 +58,10 @@ export function projectableEvent(event: SessionEvent): { kind: ProjectedMessage[
       // Only human prompts become question cards. DSH injects workspace
       // instructions, skill catalogs, and the runtime-context snapshot as
       // user-role messages with explicit non-human source kinds; a canvas
-      // card per injection would bury the actual conversation. Logs without
-      // a source (pre-source formats) stay human.
-      const source = event.data.source
+      // card per injection would bury the actual conversation. The persisted
+      // log is a durable boundary: older logs may predate the source field,
+      // so it stays optional here.
+      const source = (event.data as unknown as { source?: { kind?: string } | null }).source
       if (source !== undefined && source !== null && source.kind !== 'user') return null
       const text = contentText(event.data.content)
       return isRuntimeContextText(text) ? null : noteProjection('user', text)
@@ -99,7 +100,7 @@ function foldProcessInto(messages: DetailMessage[], event: SessionEvent): void {
       || message.turn === undefined && message.step === undefined))
   if (target === undefined) return
   const process = target.process ??= []
-  const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message?.source?.callId ?? '')
+  const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message.source.callId)
   const entry = process.find(item => item.callId === callId)
   if (event.type === 'tool/call') {
     if (entry === undefined) process.push({ callId, name: event.data.name, arguments: event.data.arguments, result: null, error: null })
@@ -109,7 +110,7 @@ function foldProcessInto(messages: DetailMessage[], event: SessionEvent): void {
     }
     return
   }
-  const outcome = contentText(event.data.message?.content)
+  const outcome = contentText(event.data.message.content)
   const error = event.data.error === undefined ? null : `${event.data.error.name}: ${event.data.error.code}`
   if (entry === undefined) process.push({ callId, name: '工具调用', arguments: null, result: outcome, error })
   else {
@@ -127,7 +128,7 @@ export function projectHistory(events: readonly SessionEvent[]): DetailMessage[]
     if (event.type === 'user/message') {
       const text = contentText(event.data.content)
       if (text.trim() === '') continue
-      const source = event.data.source
+      const source = (event.data as unknown as { source?: { kind?: string } | null }).source
       const human = source === undefined || source === null || source.kind === 'user'
       messages.push({
         id: `history-${event.seq}`,
@@ -191,8 +192,8 @@ export function sessionTitleOf(event: SessionEvent): string | null {
   // session/title is declared by the session-title package through declaration
   // merging; the core SessionEventMap does not know the type, so read the
   // loosely typed slot here and validate the payload at this boundary.
-  if ((event as { type: string }).type !== 'session/title') return null
-  const title = (event as SessionEvent & { data: { title?: unknown } }).data.title
+  if ((event.type as string) !== 'session/title') return null
+  const title = (event.data as unknown as { title?: unknown }).title
   return typeof title === 'string' ? title : null
 }
 

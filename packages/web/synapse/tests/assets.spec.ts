@@ -74,11 +74,11 @@ describe('assets/app.js render helpers', () => {
       ],
     }] as never[])
     expect(cards).toHaveLength(2)
-    expect((cards[0] as unknown as { question: string }).question).toBe('第一个问题')
-    expect(((cards[0] as unknown as { answer: { text: string } }).answer).text).toBe('第一个最终回答')
-    expect((cards[1] as unknown as { parentId: string }).parentId).toBe((cards[0] as unknown as { id: string }).id)
-    expect((cards[1] as unknown as { canContinue: boolean }).canContinue).toBe(true)
-    expect((cards[0] as unknown as { canContinue?: boolean }).canContinue).toBeUndefined()
+    expect((cards[0] as { question: string }).question).toBe('第一个问题')
+    expect(((cards[0] as { answer: { text: string } }).answer).text).toBe('第一个最终回答')
+    expect((cards[1] as { parentId: string }).parentId).toBe((cards[0] as { id: string }).id)
+    expect((cards[1] as { canContinue: boolean }).canContinue).toBe(true)
+    expect((cards[0] as { canContinue?: boolean }).canContinue).toBeUndefined()
   })
 
   it('connects a restored fork to its DSH seed boundary, not its canvas position', async () => {
@@ -101,8 +101,8 @@ describe('assets/app.js render helpers', () => {
         ],
       },
     ] as never[])
-    const childCards = cards.filter(card => (card as unknown as { dshThreadId: string }).dshThreadId === 'child')
-    expect((childCards[0] as unknown as { parentId: string }).parentId).toBe((cards[0] as unknown as { id: string }).id)
+    const childCards = cards.filter(card => (card as { dshThreadId: string }).dshThreadId === 'child')
+    expect((childCards[0] as { parentId: string }).parentId).toBe((cards[0] as { id: string }).id)
   })
 
   it('does not turn the DSH runtime context into a question card', async () => {
@@ -111,7 +111,7 @@ describe('assets/app.js render helpers', () => {
       { type: 'user/message', seq: 1, time: 1, data: { content: [{ type: 'text', text: 'Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\nPolicy details.' }] } },
       { type: 'user/message', seq: 2, time: 2, data: { content: [{ type: 'text', text: '你是谁' }] } },
     ] as never[])
-    expect(messages.map(message => (message as unknown as { text: string }).text)).toEqual(['你是谁'])
+    expect(messages.map(message => (message as { text: string }).text)).toEqual(['你是谁'])
   })
 
   it('keeps one camera transform and preserves card scroll across re-renders', async () => {
