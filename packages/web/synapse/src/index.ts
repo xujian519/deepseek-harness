@@ -14,10 +14,11 @@ import z from '@deepseek-ai/schemastery'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 // Type-only import: activates the webServer Context merge (ctx.webServer) below.
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import {
   UNSPECIFIED_CWD,
+  projectHistory,
   sessionIsBlank,
   sessionLiveStart,
   sessionTitle,
@@ -257,6 +258,12 @@ export function apply(ctx: Context, config: SynapseConfig): void {
         // events: refresh the persisted baseline (revision-keyed, cheap).
         void replayPersistedBaseline()
         return sendJson(res, 200, { workspaces: summaries })
+      }
+      const history = /^\/synapse\/api\/sessions\/([0-9a-z-]+)\/history$/i.exec(path)
+      if (history !== null && req.method === 'GET') {
+        if (typeof history[1] !== 'string' || history[1] === '') return sendJson(res, 404, { error: '接口不存在' })
+        const { events } = await ctx.sessionPersistence.inspect(history[1] as SessionId)
+        return sendJson(res, 200, { messages: projectHistory(events) })
       }
       const messages = /^\/synapse\/api\/threads\/([0-9a-f-]+)\/messages$/i.exec(path)
       if (messages !== null && req.method === 'POST') {

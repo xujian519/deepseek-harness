@@ -346,6 +346,7 @@ export class WorkspaceStore {
       const parsed = JSON.parse(await readFile(this.dataFile, 'utf8'))
       const { state, migrated } = normalizeState(parsed)
       this.state = state
+      this.lastKnownMtime = await this.fileMtime()
       if (migrated) await this.save()
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
@@ -388,17 +389,28 @@ export class WorkspaceStore {
   }
 
   async save(): Promise<void> {
-    // Two dsh web instances sharing one profile clobber each other's canvas
-    // state. Warn loudly instead of silently losing work; a live lock held by
-    // another process or a file mtime that moved since our last write both
-    // indicate a second writer.
+    // Two dsh web instances sharing one profile can write the same canvas
+    // state. A write by another instance is never clobbered: the file mtime
+    // moving since our last read means a second writer, so this save adopts
+    // the disk state and drops the local delta (projection rebuilds from
+    // session logs; manual layout is the loss). The cross-process lock still
+    // serializes the writers that do race in the same instant.
     const before = await this.fileMtime()
     if (this.lastKnownMtime !== null && before !== null && before !== this.lastKnownMtime) {
+      try {
+        const parsed = JSON.parse(await readFile(this.dataFile, 'utf8'))
+        const { state } = normalizeState(parsed)
+        this.state = state
+      } catch (error) {
+        process.stderr.write(`synapse: 无法重载 ${this.dataFile}（${(error as Error).message}），保持当前状态\
+`)
+      }
       this.lastKnownMtime = before
       if (!this.externalModWarned) {
         this.externalModWarned = true
-        process.stderr.write('synapse: workspaces.json 已被另一个 dsh web 实例修改，本实例的写入可能覆盖其更改——请只运行一个实例\n')
+        process.stderr.write('synapse: workspaces.json 已被另一个 dsh web 实例修改；本实例已重载磁盘状态，未保存的本地画布变更已放弃——请只运行一个实例\n')
       }
+      return
     }
     await this.acquireLock()
     try {

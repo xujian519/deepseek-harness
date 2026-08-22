@@ -122,7 +122,29 @@ function messagesFromEvents(events) {
   })
 }
 
-async function loadThreadHistory() {}
+async function loadThreadHistory(thread, renderAfter = true) {
+  if (thread == null || thread.dshSessionId === null) return
+  const sessionId = thread.dshSessionId
+  const inFlight = state.historyRequests.get(sessionId)
+  if (inFlight !== undefined) return inFlight
+  const request = (async () => {
+    try {
+      const body = await api('/synapse/api/sessions/' + encodeURIComponent(sessionId) + '/history')
+      const messages = Array.isArray(body && body.messages) ? body.messages : null
+      if (messages !== null) state.historyBySession.set(sessionId, messages)
+      // The history is the full, denoised record; the projected store copy is
+      // only the canvas summary, so a thread that already loaded history
+      // renders it first (persistedMessagesFor).
+      if (renderAfter && canReplaceView()) render()
+    } catch (error) {
+      console.warn('synapse: history load failed for ' + sessionId, error)
+    } finally {
+      state.historyRequests.delete(sessionId)
+    }
+  })()
+  state.historyRequests.set(sessionId, request)
+  return request
+}
 
 function canReplaceView() {
   return state.draft === null && !state.dragging && !state.canvasGesture && Date.now() >= state.canvasRefreshAfter && !document.activeElement?.matches('textarea')
@@ -828,7 +850,7 @@ function processSummary(text) {
 
 function threadMessage(thread, message) {
   const isUser = message.kind === 'user'
-  const label = isUser ? '你' : message.kind === 'assistant' ? 'DSH' : message.kind === 'error' ? '错误' : '记录'
+  const label = isUser ? '你' : message.kind === 'assistant' ? 'DSH' : message.kind === 'error' ? '错误' : message.kind === 'context' ? '上下文' : '记录'
   const branch = message.kind === 'assistant' && Number.isInteger(message.sourceSeq)
     ? `<button class="message-branch" data-action="open-branch" data-thread="${thread.id}" data-seq="${message.sourceSeq}" title="从此回答创建分支"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M4.5 3v6a2.5 2.5 0 0 0 2.5 2.5H12"/><circle cx="4.5" cy="3" r="1.5"/><circle cx="11.5" cy="12" r="1.5"/></svg>分支</button>`
     : ''

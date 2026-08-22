@@ -41,4 +41,4 @@
 
 - 单包 tsc 干净；pnpm run typecheck（两个聚合）待跑。
 - vitest：host 包 23 例（store/projection/assets vm 切片/apply API），client 包 5 例（jsdom 冒烟）。
-- 接下来：构建 + dsh web 实机验证 + 一轮优化。
+- 第二轮（2026-08-22 续）：详情视图接入真实 session history——宿主新增 GET /synapse/api/sessions/<id>/history（projectHistory 纯函数：全文不截断、工具过程折叠、注入上下文标 kind 'context'，数据源 SessionPersistence.inspect），画布 app.js 实现 loadThreadHistory 并优先渲染历史，threadMessage 增加 '上下文' 标签；双实例冲突从'警告后覆盖'升级为'重载磁盘 + 告警 + 丢弃本地增量'（save 前 mtime 校验；投影可重建、手动布局是损失）。实机验证：history API 返回 7 条完整消息（含 3 条 context 注入），浏览器详情视图标签 你/上下文/错误 正确。

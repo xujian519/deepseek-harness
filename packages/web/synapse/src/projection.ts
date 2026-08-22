@@ -7,7 +7,7 @@
 
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { ProjectedMessage } from './types.ts'
+import type { ProjectedMessage, ToolProcessEntry } from './types.ts'
 
 /** Projected message text cap: longer replies truncate with a marker pointing
  * at the detail view instead of silently cutting mid-sentence. */
@@ -74,6 +74,110 @@ export function projectableEvent(event: SessionEvent): { kind: ProjectedMessage[
     default:
       return null
   }
+}
+
+
+/** One full-fidelity detail-view message: the whole text, folded tool
+ * process, and injected context preserved with its own kind. */
+export interface DetailMessage {
+  id: string
+  kind: 'user' | 'assistant' | 'todo' | 'error' | 'context'
+  text: string
+  at: string
+  sourceSeq?: number
+  turn?: number
+  step?: number
+  process?: ToolProcessEntry[]
+}
+
+/** Fold one tool event into the closest assistant message of its turn/step. */
+function foldProcessInto(messages: DetailMessage[], event: SessionEvent): void {
+  if (event.type !== 'tool/call' && event.type !== 'tool/result') return
+  const target = [...messages].reverse().find(message =>
+    message.kind === 'assistant'
+    && (message.turn === event.data.turn && message.step === event.data.step
+      || message.turn === undefined && message.step === undefined))
+  if (target === undefined) return
+  const process = target.process ??= []
+  const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message?.source?.callId ?? '')
+  const entry = process.find(item => item.callId === callId)
+  if (event.type === 'tool/call') {
+    if (entry === undefined) process.push({ callId, name: event.data.name, arguments: event.data.arguments, result: null, error: null })
+    else {
+      entry.name = event.data.name
+      entry.arguments = event.data.arguments
+    }
+    return
+  }
+  const outcome = contentText(event.data.message?.content)
+  const error = event.data.error === undefined ? null : `${event.data.error.name}: ${event.data.error.code}`
+  if (entry === undefined) process.push({ callId, name: '工具调用', arguments: null, result: outcome, error })
+  else {
+    entry.result = outcome
+    entry.error = error
+  }
+}
+
+/** Project one committed log into the full detail-view message list.
+ * Unlike the canvas projection, injected context stays visible (kind
+ * 'context') and texts are never truncated. */
+export function projectHistory(events: readonly SessionEvent[]): DetailMessage[] {
+  const messages: DetailMessage[] = []
+  for (const event of events) {
+    if (event.type === 'user/message') {
+      const text = contentText(event.data.content)
+      if (text.trim() === '') continue
+      const source = event.data.source
+      const human = source === undefined || source === null || source.kind === 'user'
+      messages.push({
+        id: `history-${event.seq}`,
+        kind: human ? 'user' : 'context',
+        text,
+        at: new Date(event.time).toISOString(),
+        sourceSeq: event.seq,
+      })
+      continue
+    }
+    if (event.type === 'assistant/message') {
+      const text = contentText(event.data.message.content)
+      if (text.trim() === '') continue
+      messages.push({
+        id: `history-${event.seq}`,
+        kind: 'assistant',
+        text,
+        at: new Date(event.time).toISOString(),
+        sourceSeq: event.seq,
+        turn: event.data.turn,
+        step: event.data.step,
+        process: [],
+      })
+      continue
+    }
+    if (event.type === 'tool/call' || event.type === 'tool/result') {
+      foldProcessInto(messages, event)
+      continue
+    }
+    if (event.type === 'todo/write') {
+      messages.push({
+        id: `history-${event.seq}`,
+        kind: 'todo',
+        text: event.data.todos.map(todo => `[${todo.status}] ${todo.content}`).join('\n'),
+        at: new Date(event.time).toISOString(),
+        sourceSeq: event.seq,
+      })
+      continue
+    }
+    if (event.type === 'turn/end' && event.data.reason.kind === 'error') {
+      messages.push({
+        id: `history-${event.seq}`,
+        kind: 'error',
+        text: event.data.reason.error.message,
+        at: new Date(event.time).toISOString(),
+        sourceSeq: event.seq,
+      })
+    }
+  }
+  return messages
 }
 
 /** First-line title from a user question, matching the canvas card head. */

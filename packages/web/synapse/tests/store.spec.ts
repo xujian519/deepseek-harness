@@ -2,8 +2,9 @@
  * WorkspaceStore semantics: persistence round-trip, DSH projection, fork
  * lineage and dedupe, removal cascade, and the v1–v4 migrations.
  */
-import { describe, expect, it } from 'vitest'
-import { readFile } from 'node:fs/promises'
+import { describe, expect, it, vi } from 'vitest'
+import { utimesSync } from 'node:fs'
+import { readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@deepseek-ai/dsh-session'
@@ -165,5 +166,22 @@ describe('WorkspaceStore', () => {
     const saved = await store.get(workspace.id)
     expect(saved.threads[0]?.position).toEqual({ x: 100, y: 100 })
     await expect(store.createThread(workspace.id, { title: '坏点', position: { x: Number.NaN, y: 1 } })).rejects.toThrow('坐标')
+  })
+
+  it('adopts disk state instead of clobbering when another instance wrote the file', async () => {
+    const dataFile = tempFile('dsh-synapse-conflict')
+    const store = new WorkspaceStore(dataFile)
+    await store.create('本实例板')
+    // Simulate a second instance: rewrite the file with different state and a
+    // newer mtime (force a distinct mtime; a same-ms write would not collide).
+    await writeFile(dataFile, JSON.stringify({ version: 4, hiddenSessionIds: [], workspaces: [{ id: 'w-ext', kind: 'manual', cwd: null, title: '外部板', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', threads: [] }] }), 'utf8')
+    const now = new Date()
+    utimesSync(dataFile, now, new Date(now.getTime() + 2000))
+    const warn = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await store.create('本实例增量') // save() detects the external write
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('已重载磁盘状态'))
+    warn.mockRestore()
+    const summaries = await new WorkspaceStore(dataFile).list()
+    expect(summaries.map(w => w.title)).toEqual(['外部板'])
   })
 })

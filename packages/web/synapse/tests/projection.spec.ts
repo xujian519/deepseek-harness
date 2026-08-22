@@ -9,6 +9,7 @@ import {
   isRuntimeContextText,
   projectableEvent,
   sessionCwd,
+  projectHistory,
   sessionIsBlank,
   sessionLiveStart,
   sessionTitle,
@@ -104,5 +105,36 @@ describe('titles and cwds', () => {
     expect(sessionLiveStart([])).toBe(0)
     expect(sessionCwd({ header: { cwd: '/work/a' } } as unknown as Session)).toBe('/work/a')
     expect(sessionCwd({ header: {} } as unknown as Session)).toBe('未指定工作目录')
+  })
+})
+
+describe('projectHistory', () => {
+  it('keeps the full record: human turns, injected context, tool process, errors', () => {
+    const long = 'A'.repeat(9_000)
+    const events = [
+      { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '问题一' }], source: { kind: 'user' } } },
+      { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '答一' }] } } },
+      { type: 'tool/call', seq: 2, time: 3, data: { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{}' } },
+      { type: 'tool/result', seq: 3, time: 4, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: 'ok' }] } } },
+      { type: 'user/message', seq: 4, time: 5, data: { content: [{ type: 'text', text: '<system-reminder> workspace instructions ' + long.slice(0, 500) }], source: { kind: 'agent-instructions' } } },
+      { type: 'user/message', seq: 5, time: 6, data: { content: [{ type: 'text', text: '问题二' }], source: { kind: 'user' } } },
+      { type: 'turn/end', seq: 6, time: 7, data: { turn: 1, reason: { kind: 'error', error: { name: 'L', code: 'e', message: '模型挂了' } } } },
+      { type: 'todo/write', seq: 7, time: 8, data: { todos: [{ content: '写文档', status: 'in_progress' }] } },
+    ] as never[]
+    const messages = projectHistory(events)
+    expect(messages.map(m => m.kind)).toEqual(['user', 'assistant', 'context', 'user', 'error', 'todo'])
+    expect(messages[1]?.process?.[0]?.result).toBe('ok')
+    expect(messages[2]?.text).toContain('workspace instructions')
+    expect(messages[2]?.text.length).toBeGreaterThan(500)
+    expect(messages[0]?.text).toBe('问题一')
+  })
+
+  it('folds tool results that arrive without a preceding call into the turn card', () => {
+    const events = [
+      { type: 'assistant/message', seq: 0, time: 1, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '准备' }] } } },
+      { type: 'tool/result', seq: 1, time: 2, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'x9' }, content: [{ type: 'text', text: '顺带结果' }] } } },
+    ] as never[]
+    const messages = projectHistory(events)
+    expect(messages[0]?.process?.[0]).toMatchObject({ callId: 'x9', name: '工具调用', result: '顺带结果' })
   })
 })

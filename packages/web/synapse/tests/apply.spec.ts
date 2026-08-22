@@ -176,4 +176,26 @@ describe('host apply', () => {
     // Human question only: the injected workspace instructions dropped.
     expect(messages.map(m => m.kind)).toEqual(['user'])
   })
+
+  it('serves the full history for a session id through /synapse/api/sessions/:id/history', async () => {
+    const events = [
+      { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '看下历史' }], source: { kind: 'user' } } },
+      { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '这就是完整内容' }] } } },
+      { type: 'tool/call', seq: 2, time: 3, data: { turn: 1, step: 1, callId: 'c9', name: 'bash', arguments: '{}' } },
+      { type: 'tool/result', seq: 3, time: 4, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c9' }, content: [{ type: 'text', text: 'done' }] } } },
+      { type: 'user/message', seq: 4, time: 5, data: { content: [{ type: 'text', text: '<system-reminder> busy' }], source: { kind: 'skill-catalog' } } },
+    ]
+    const persistence = {
+      listSnapshots: async () => [],
+      inspect: async () => ({ meta: { id: 's-hist', cwd: '/tmp/h' }, events }),
+    }
+    const { routes } = boot({}, [], persistence)
+    const api = route(routes, 'prefix', '/synapse/api')
+    const out = makeResponse()
+    await api.handler(makeRequest('GET', '/synapse/api/sessions/s-hist/history'), out.res)
+    expect(out.status()).toBe(200)
+    const messages = (out.json() as { messages: { kind: string; process?: unknown[] }[] }).messages
+    expect(messages.map(m => m.kind)).toEqual(['user', 'assistant', 'context'])
+    expect(messages[1]?.process).toHaveLength(1)
+  })
 })
