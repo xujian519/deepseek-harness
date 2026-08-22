@@ -1,0 +1,3 @@
+name: 文档模式
+description: 面向产品/技术/运营/市场团队的文档交付 Agent：把需求拆解为规范成品——Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。可挂载 OpenDesign 技能库（OPEN_DESIGN_DIR）增强模板与设计系统。输出前强制质量门禁。
+order: 6
