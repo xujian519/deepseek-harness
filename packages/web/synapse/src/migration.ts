@@ -146,7 +146,8 @@ function workspaceFromLegacyV1(row: LegacyWorkspaceRow, index: number, now: stri
  * preceding assistant message's `process` list, pairing each call with the
  * result that follows it in order, so every tool invocation lives in one
  * home: the assistant turn card.
- */
+ * @param workspaces The canvas workspaces to migrate in place.
+ * @returns True when any workspace was rewritten. */
 export function foldLegacyToolCards(workspaces: Workspace[]): boolean {
   let changed = false
   for (const workspace of workspaces) {
@@ -192,7 +193,9 @@ export function foldLegacyToolCards(workspaces: Workspace[]): boolean {
   return changed
 }
 
-/** Upgrade a parsed older-schema file to the current v4 shape. */
+/** Upgrade a parsed older-schema file to the current v4 shape.
+ * @param value The raw persisted record.
+ * @returns The normalized v4 state and whether any migration ran. */
 export function normalizeState(value: LegacyWorkspaceRecord): { state: WorkspaceState; migrated: boolean } {
   let migrated = false
   let version: number

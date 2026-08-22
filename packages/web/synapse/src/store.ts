@@ -28,7 +28,9 @@ function topicColor(index: number): string {
   return TOPIC_COLORS[index % TOPIC_COLORS.length] ?? '#3478f6'
 }
 
+/** Longest allowed canvas title (session, thread, or workspace). */
 export const MAX_TITLE_LENGTH = 120
+/** Longest allowed manual canvas note. */
 export const MAX_NOTE_LENGTH = 4_000
 const LOCK_STALE_MS = 60_000
 // Deferred (event-projection) writes coalesce into one save per window, so a
@@ -97,9 +99,11 @@ export class WorkspaceStore {
     this.ready = this.load()
   }
 
+  /** Persistence path for the canvas graph. */
   readonly dataFile: string
   private state!: WorkspaceState
   private serial: Promise<unknown>
+  /** Resolves once the store has loaded or created the on-disk state. */
   readonly ready: Promise<void>
   private lastKnownMtime: number | null = null
   private externalModWarned = false
@@ -107,17 +111,25 @@ export class WorkspaceStore {
   private dirty = false
   private flushTimer: ReturnType<typeof setTimeout> | null = null
 
+  /** Summaries of every canvas workspace, newest first.
+   * @returns The workspace summaries. */
   async list(): Promise<WorkspaceSummary[]> {
     await this.ready
     return this.state.workspaces.map(workspace => this.summary(workspace))
   }
 
+  /** A deep clone of one workspace.
+   * @param workspaceId The workspace id.
+   * @returns The workspace, or NotFoundError when absent. */
   async get(workspaceId: string): Promise<Workspace> {
     await this.ready
     const workspace = this.workspace(workspaceId)
     return structuredClone(workspace)
   }
 
+  /** Create a blank manual workspace.
+   * @param title The workspace title.
+   * @returns The new workspace summary. */
   async create(title: string): Promise<WorkspaceSummary> {
     return this.mutate(() => {
       const now = new Date().toISOString()
@@ -135,6 +147,10 @@ export class WorkspaceStore {
     })
   }
 
+  /** Add a thread to a workspace; a branch requires its parent to already exist.
+   * @param workspaceId The target workspace.
+   * @param input The thread fields.
+   * @returns The new thread, or InputError/NotFoundError. */
   async createThread(workspaceId: string, input: CreateThreadInput): Promise<Thread> {
     return this.mutate(() => {
       const workspace = this.workspace(workspaceId)
@@ -158,6 +174,10 @@ export class WorkspaceStore {
     })
   }
 
+  /** Fork a thread from a parent; a DSH fork race resolves to the one node.
+   * @param threadId The parent thread id.
+   * @param input The branch fields.
+   * @returns The branch thread, or the existing node when a DSH fork already arrived. */
   async branch(threadId: string, input: BranchInput): Promise<Thread> {
     return this.mutate(() => {
       const { workspace, thread: parent } = this.locateThread(threadId)
@@ -197,7 +217,10 @@ export class WorkspaceStore {
     })
   }
 
-  /** Keep only the canvas graph in Synapse; DSH remains the source of session truth. */
+  /** Keep only the browser-reported sessions on the canvas; DSH remains the source of session truth.
+   * @param sessions The rows the browser currently lists.
+   * @param removedSessionIds Session ids the browser no longer lists.
+   * @returns The surviving workspace summaries. */
   async syncSessions(sessions: SessionRow[], removedSessionIds: string[] = []): Promise<WorkspaceSummary[]> {
     return this.mutate(() => {
       if (!Array.isArray(sessions)) throw new InputError('sessions 必须是数组')
@@ -228,6 +251,10 @@ export class WorkspaceStore {
     }, { deferred: true })
   }
 
+  /** Append a manual user note to a thread.
+   * @param threadId The target thread id.
+   * @param text The note text.
+   * @returns The updated thread. */
   async addMessage(threadId: string, text: string): Promise<Thread> {
     return this.mutate(() => {
       const { workspace, thread } = this.locateThread(threadId)
@@ -244,6 +271,10 @@ export class WorkspaceStore {
     })
   }
 
+  /** Rename or reposition a thread.
+   * @param threadId The target thread id.
+   * @param input The fields to update.
+   * @returns The updated thread. */
   async updateThread(threadId: string, input: { title?: string | undefined; position?: Position | undefined }): Promise<Thread> {
     return this.mutate(() => {
       const { workspace, thread } = this.locateThread(threadId)
@@ -255,6 +286,9 @@ export class WorkspaceStore {
     })
   }
 
+  /** Remove a thread and its descendants; the underlying DSH session is preserved.
+   * @param threadId The target thread id.
+   * @returns The number of removed nodes. */
   async removeThread(threadId: string): Promise<{ removed: number }> {
     return this.mutate(() => {
       const { workspace, thread } = this.locateThread(threadId)
@@ -280,6 +314,9 @@ export class WorkspaceStore {
     })
   }
 
+  /** Hide every known session and drop all canvas workspaces (legacy reset).
+   * @param sessions The session ids (or live sessions) to mark hidden.
+   * @returns The reset confirmation. */
   async clearLegacy(sessions: string[] | readonly Session[]): Promise<{ cleared: true }> {
     return this.mutate(() => {
       const hidden = new Set(this.state.hiddenSessionIds)
@@ -293,12 +330,22 @@ export class WorkspaceStore {
     })
   }
 
-  /** Replay one live DSH session into the dedicated projection workspace. */
+  /** Replay one live DSH session into the dedicated projection workspace.
+   * @param session The live session to project.
+   * @param replayFrom First event seq to project (forks skip their seed prefix).
+   * @param workspaceTitleFallback Title for sessions without a cwd.
+   * @returns The projected thread, or null when the session was archived. */
   async projectSession(session: Session, replayFrom = 0, workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
     return this.projectPersisted(threadSource(session), sessionCwd(session), session.events, replayFrom, workspaceTitleFallback)
   }
 
-  /** Replay a persisted session log (cold restore or a live snapshot). */
+  /** Replay a persisted session log (cold restore or a live snapshot).
+   * @param source The minimal session facts.
+   * @param cwd The session cwd key.
+   * @param events The committed session events.
+   * @param replayFrom First event seq to project.
+   * @param workspaceTitleFallback Title for sessions without a cwd.
+   * @returns The projected thread, or null when the session was archived. */
   async projectPersisted(
     source: ThreadSource,
     cwd: string,
@@ -317,7 +364,11 @@ export class WorkspaceStore {
     }, { deferred: true })
   }
 
-  /** Project one committed DSH session event. Repeated sequence numbers are ignored. */
+  /** Project one committed DSH session event. Repeated sequence numbers are ignored.
+   * @param session The live session the event belongs to.
+   * @param event The committed session event.
+   * @param workspaceTitleFallback Title for sessions without a cwd.
+   * @returns The projected thread, or null when the session was archived. */
   async projectEvent(session: Session, event: SessionEvent, workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
     return this.mutate(() => {
       if (this.state.hiddenSessionIds.includes(session.id)) return null
@@ -328,7 +379,11 @@ export class WorkspaceStore {
     }, { deferred: true })
   }
 
-  /** Project a batch of committed events for one session in a single write. */
+  /** Project a batch of committed events for one session in a single write.
+   * @param session The live session the events belong to.
+   * @param events The committed session events.
+   * @param workspaceTitleFallback Title for sessions without a cwd.
+   * @returns The projected thread, or null when the session was archived. */
   async projectEvents(session: Session, events: readonly SessionEvent[], workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
     if (events.length === 0) return null
     return this.mutate(() => {
@@ -340,6 +395,8 @@ export class WorkspaceStore {
     }, { deferred: true })
   }
 
+  /** Load the canvas graph from disk, creating an empty state on first run.
+   * @returns The loaded (or freshly created) state promise. */
   async load(): Promise<void> {
     await mkdir(dirname(this.dataFile), { recursive: true })
     try {
@@ -357,7 +414,14 @@ export class WorkspaceStore {
     }
   }
 
-  async mutate<T>(action: () => T, { deferred = false } = {}): Promise<T> {
+  /**
+   * Run a state mutation serialized after prior ones and persist it.
+   * @param action The mutation to run.
+   * @param options `deferred` writes in the debounced window instead of immediately.
+   * @returns The mutation result.
+   */
+  async mutate<T>(action: () => T, options: { deferred?: boolean } = {}): Promise<T> {
+    const { deferred = false } = options
     await this.ready
     const task = this.serial.then(async () => {
       const result = action()
@@ -380,6 +444,8 @@ export class WorkspaceStore {
   }
 
   /** Persist the current state when dirty, ordered after in-flight mutations. */
+  /** Persist the current state when dirty, ordered after in-flight mutations.
+   * @returns The save promise, or a no-op when not dirty. */
   flush(): Promise<unknown> {
     if (!this.dirty) return Promise.resolve()
     this.dirty = false
@@ -388,6 +454,7 @@ export class WorkspaceStore {
     return task
   }
 
+  /** Persist the canvas state, adopting a second writer's on-disk state instead of clobbering it. */
   async save(): Promise<void> {
     // Two dsh web instances sharing one profile can write the same canvas
     // state. A write by another instance is never clobbered: the file mtime
@@ -423,6 +490,8 @@ export class WorkspaceStore {
     }
   }
 
+  /** The file's last-modified timestamp, or null when absent.
+   * @returns The mtime in milliseconds, or null. */
   async fileMtime(): Promise<number | null> {
     try { return (await stat(this.dataFile)).mtimeMs } catch { return null }
   }
@@ -441,6 +510,9 @@ export class WorkspaceStore {
     }
   }
 
+  /** Try to create the exclusive lock file.
+   * @param lockFile The lock path.
+   * @returns True when the lock was acquired. */
   async tryAcquire(lockFile: string): Promise<boolean> {
     try {
       await writeFile(lockFile, `${process.pid}\n`, { flag: 'wx' })
@@ -450,7 +522,9 @@ export class WorkspaceStore {
     }
   }
 
-  /** A lock is stale when its owner PID is gone or the lock file is older than the stale window. */
+  /** A lock is stale when its owner PID is gone or the lock file is older than the stale window.
+   * @param lockFile The lock path.
+   * @returns True when the existing lock can be broken. */
   async lockIsStale(lockFile: string): Promise<boolean> {
     try {
       const [content, stats] = await Promise.all([readFile(lockFile, 'utf8'), stat(lockFile)])
@@ -469,6 +543,7 @@ export class WorkspaceStore {
     }
   }
 
+  /** Delete the exclusive cross-process lock. */
   async releaseLock(): Promise<void> {
     await unlink(`${this.dataFile}.lock`).catch(() => {})
   }
@@ -668,7 +743,9 @@ export class WorkspaceStore {
   }
 }
 
+/** A request-level validation failure, mapped to a 400 response. */
 export class InputError extends Error {}
+/** A missing referent, mapped to a 404 response. */
 export class NotFoundError extends Error {}
 
 function positionOf(value: Position | undefined): Position {
