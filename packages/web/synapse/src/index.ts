@@ -58,13 +58,16 @@ export const inject = ['webServer', 'sessions', 'sessionPersistence']
  * its script is same-origin and no eval/blob sources exist in the asset. */
 const PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'self'"
 
+/** Shared no-store cache policy and MIME-sniff guard for every /synapse response. */
+const BASE_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }
+
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...BASE_HEADERS })
   res.end(JSON.stringify(body))
 }
 
 function sendFile(res: ServerResponse, contentType: string, body: string, additionalHeaders: Record<string, string> = {}): void {
-  res.writeHead(200, { 'content-type': contentType, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...additionalHeaders })
+  res.writeHead(200, { 'content-type': contentType, ...BASE_HEADERS, ...additionalHeaders })
   res.end(body)
 }
 
