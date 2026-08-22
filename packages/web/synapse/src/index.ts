@@ -54,13 +54,17 @@ export const name = 'synapse'
  * host keeps restored sessions cold). */
 export const inject = ['webServer', 'sessions', 'sessionPersistence']
 
+/** Security headers for the map document: only the HTML page carries a CSP;
+ * its script is same-origin and no eval/blob sources exist in the asset. */
+const PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'self'"
+
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
   res.end(JSON.stringify(body))
 }
 
-function sendFile(res: ServerResponse, contentType: string, body: string): void {
-  res.writeHead(200, { 'content-type': contentType, 'cache-control': 'no-store' })
+function sendFile(res: ServerResponse, contentType: string, body: string, additionalHeaders: Record<string, string> = {}): void {
+  res.writeHead(200, { 'content-type': contentType, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...additionalHeaders })
   res.end(body)
 }
 
@@ -94,6 +98,15 @@ function positionOrUndefined(value: unknown): { x: number; y: number } | undefin
   const x = Number(record.x)
   const y = Number(record.y)
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined
+}
+
+/** Parse a positive-integer query value: undefined when absent, null when
+ * present-but-invalid (the route rejects it), else the integer. */
+function positiveInt(value: string | null): number | null | undefined {
+  if (value === null) return undefined
+  if (!/^\d+$/.test(value)) return null
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
 /** Mount the Synapse routes and live projection on the existing DSH Web Server. */
@@ -197,7 +210,8 @@ export function apply(ctx: Context, config: SynapseConfig): void {
         sendJson(res, 403, { error: '不被信任的 Host' })
         return
       }
-      const path = new URL(req.url ?? '/', 'http://dsh.local').pathname
+      const url = new URL(req.url ?? '/', 'http://dsh.local')
+      const path = url.pathname
       if (path === '/synapse/api/reset' && req.method === 'POST') {
         sendJson(res, 200, await store.clearLegacy(ctx.sessions.list()))
         return
@@ -278,8 +292,16 @@ export function apply(ctx: Context, config: SynapseConfig): void {
           sendJson(res, 404, { error: '接口不存在' })
           return
         }
+        const limit = positiveInt(url.searchParams.get('limit'))
+        const beforeSeq = positiveInt(url.searchParams.get('beforeSeq'))
+        if (limit === null || beforeSeq === null) throw new InputError('limit 与 beforeSeq 必须是正整数')
         const { events } = await ctx.sessionPersistence.inspect(history[1] as SessionId)
-        sendJson(res, 200, { messages: projectHistory(events) })
+        const messages = projectHistory(events, {
+          ...(limit === undefined ? {} : { limit }),
+          ...(beforeSeq === undefined ? {} : { beforeSeq }),
+        })
+        const total = projectHistory(events, beforeSeq === undefined ? {} : { beforeSeq }).length
+        sendJson(res, 200, { messages, hasMore: total > messages.length })
         return
       }
       const messages = /^\/synapse\/api\/threads\/([0-9a-f-]+)\/messages$/i.exec(path)
@@ -316,7 +338,7 @@ export function apply(ctx: Context, config: SynapseConfig): void {
   }
   const asset = (name: string): Promise<string> => readFile(new URL(`../assets/${name}`, import.meta.url), 'utf8')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/synapse', handler: (_req, res) => { res.writeHead(302, { location: '/synapse/' }); res.end() } }), 'synapse: redirect')
-  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/synapse/', handler: (_req, res) => { sendFile(res, 'text/html; charset=utf-8', page()) } }), 'synapse: page')
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/synapse/', handler: (_req, res) => { sendFile(res, 'text/html; charset=utf-8', page(), { 'content-security-policy': PAGE_CSP, 'referrer-policy': 'no-referrer' }) } }), 'synapse: page')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/synapse/app.js', handler: async (_req, res) => { sendFile(res, 'text/javascript; charset=utf-8', await asset('app.js')) } }), 'synapse: app')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/synapse/styles.css', handler: async (_req, res) => { sendFile(res, 'text/css; charset=utf-8', await asset('styles.css')) } }), 'synapse: styles')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/synapse/deepseek-mark.svg', handler: async (_req, res) => { sendFile(res, 'image/svg+xml', await asset('deepseek-mark.svg')) } }), 'synapse: DeepSeek mark')

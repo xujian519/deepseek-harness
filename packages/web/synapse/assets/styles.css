@@ -143,6 +143,8 @@ button.primary:hover { border-color: #000; background: #000; color: #fff; }
 .detail-head-actions button.primary:hover { background: #2563eb; }
 .detail-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding: 22px 38px 24px; }
 .note-empty { padding: 34px 25px; border: 1px dashed #cbd5df; border-radius: 10px; color: #8a97a8; font-size: 13px; text-align: center; }
+.load-earlier { flex: none; align-self: center; margin: 4px 0; min-height: 30px; border: 1px solid #d9e1ea; border-radius: 7px; background: #fff; padding: 0 14px; color: #3d4a5c; font-size: 12px; font-weight: 600; }
+.load-earlier:hover { border-color: #b9c7d8; background: #f4f7fb; }
 .message { padding: 13px 16px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
 .message header { display: flex; align-items: center; gap: 7px; color: #475569; font-size: 11px; font-weight: 650; }
 .message time { color: #94a3b8; font-weight: 400; }
@@ -280,6 +282,8 @@ button.primary:hover { border-color: #000; background: #000; color: #fff; }
 [data-theme="dark"] .empty-canvas strong { color: #d7dae0; }
 [data-theme="dark"] .empty-canvas p { color: #8f959e; }
 [data-theme="dark"] .note-empty { border-color: #2a2d33; color: #8f959e; }
+[data-theme="dark"] .load-earlier { border-color: #2a2d33; background: #15171b; color: #c6cbd2; }
+[data-theme="dark"] .load-earlier:hover { border-color: #4a4f57; background: #222428; }
 [data-theme="dark"] .status-message { border-color: #7a2e2e; background: #2b1a1c; color: #f0a3a3; box-shadow: 0 3px 10px rgba(0,0,0,.4); }
 [data-theme="dark"] .status-message button { color: #f0a3a3; }
 [data-theme="dark"] .status-message button:hover { background: #3a2326; }

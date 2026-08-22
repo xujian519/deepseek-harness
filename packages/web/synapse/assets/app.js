@@ -32,7 +32,7 @@ const CAMERA_INSET_Y = 56
 const state = {
   summaries: [], workspace: null, activeId: null, mode: 'canvas', zoom: 1, currentDsh: null, sidebarCollapsed: false,
   dshWorkspaces: [], selectedDshWorkspaceId: null,
-  historyBySession: new Map(), historyRequests: new Map(), pendingReplies: new Map(), pendingRpc: new Map(), liveReplies: new Map(),
+  historyBySession: new Map(), historyRequests: new Map(), historyHasMore: new Map(), pendingReplies: new Map(), pendingRpc: new Map(), liveReplies: new Map(),
   draft: null, error: '', workspaceLoad: 0, branchAnchors: new Map(savedBranchAnchors), cardPositions: new Map(savedCardPositions), collapsedCardIds: new Set(savedCollapsedCards),
   dragging: false, canvasGesture: false, canvasRefreshAfter: 0, canvasViewInitialized: false, canvasCamera: { x: 0, y: 0 },
   expandedMessageIds: new Set(),
@@ -122,16 +122,25 @@ function messagesFromEvents(events) {
   })
 }
 
-async function loadThreadHistory(thread, renderAfter = true) {
+async function loadThreadHistory(thread, renderAfter = true, { beforeSeq, limit = 200 } = {}) {
   if (thread == null || thread.dshSessionId === null) return
   const sessionId = thread.dshSessionId
   const inFlight = state.historyRequests.get(sessionId)
   if (inFlight !== undefined) return inFlight
   const request = (async () => {
     try {
-      const body = await api('/synapse/api/sessions/' + encodeURIComponent(sessionId) + '/history')
+      const query = new URLSearchParams({ limit: String(limit) })
+      if (beforeSeq !== undefined) query.set('beforeSeq', String(beforeSeq))
+      const body = await api(`/synapse/api/sessions/${encodeURIComponent(sessionId)}/history?${query}`)
       const messages = Array.isArray(body && body.messages) ? body.messages : null
-      if (messages !== null) state.historyBySession.set(sessionId, messages)
+      const hasMore = body?.hasMore === true
+      if (messages !== null) {
+        // A later page is strictly older than the loaded prefix; prepend it and
+        // keep the list ascending, so "load earlier" never re-orders the view.
+        const existing = state.historyBySession.get(sessionId) ?? []
+        state.historyBySession.set(sessionId, beforeSeq === undefined ? messages : [...messages, ...existing])
+        state.historyHasMore.set(sessionId, hasMore)
+      }
       // The history is the full, denoised record; the projected store copy is
       // only the canvas summary, so a thread that already loaded history
       // renders it first (persistedMessagesFor).
@@ -254,6 +263,7 @@ async function archiveThread(thread) {
   if (!window.confirm(`归档画布中的「${thread.title}」及其分支？DSH 原会话会保留，可在 DSH 内继续查看。`)) return
   await api(`/synapse/api/threads/${thread.id}`, { method: 'DELETE' })
   state.historyBySession.delete(thread.dshSessionId)
+  state.historyHasMore.delete(thread.dshSessionId)
   if (state.workspace !== null) {
     const removed = new Set([thread.id])
     for (let changed = true; changed;) {
@@ -884,7 +894,10 @@ function renderThread() {
   if (thread === null) return renderCanvas()
   const messages = messagesFor(thread)
   const waiting = state.pendingReplies.has(thread.dshSessionId)
-  return `<section class="detail-view"><header class="detail-head"><div class="detail-head-title"><div class="detail-head-meta"><span class="detail-badge">${thread.parentId === null ? '会话' : '分支'}</span>${thread.dshSessionTitle ?? thread.title ? `<span class="detail-subtitle">${escapeHtml(thread.dshSessionTitle ?? thread.title)}</span>` : ''}</div><h1>${escapeHtml(questionFor(thread))}</h1></div><div class="detail-head-actions"><button data-action="open-dsh" data-thread="${thread.id}" title="在原生对话中打开此会话">在 DSH 中打开</button><button data-action="open-branch" data-thread="${thread.id}" title="基于最新回答创建分支">创建分支</button><button class="primary" data-action="show-canvas">返回画布</button></div></header><div class="detail-scroll">${messages.map(message => threadMessage(thread, message)).join('') || '<div class="note-empty">等待这条会话的第一条消息。</div>'}</div><form class="message-composer" data-compose="${thread.id}"><textarea maxlength="4000" placeholder="继续当前会话…" ${waiting ? 'disabled' : ''}></textarea><button class="primary" type="submit" ${waiting ? 'disabled' : ''}>${waiting ? '等待回复' : '发送'}</button></form></section>`
+  const loadEarlier = state.historyHasMore.get(thread.dshSessionId) === true && messages.length > 0
+    ? `<button class="load-earlier" data-action="load-earlier" data-thread="${thread.id}">加载更早的消息</button>`
+    : ''
+  return `<section class="detail-view"><header class="detail-head"><div class="detail-head-title"><div class="detail-head-meta"><span class="detail-badge">${thread.parentId === null ? '会话' : '分支'}</span>${thread.dshSessionTitle ?? thread.title ? `<span class="detail-subtitle">${escapeHtml(thread.dshSessionTitle ?? thread.title)}</span>` : ''}</div><h1>${escapeHtml(questionFor(thread))}</h1></div><div class="detail-head-actions"><button data-action="open-dsh" data-thread="${thread.id}" title="在原生对话中打开此会话">在 DSH 中打开</button><button data-action="open-branch" data-thread="${thread.id}" title="基于最新回答创建分支">创建分支</button><button class="primary" data-action="show-canvas">返回画布</button></div></header><div class="detail-scroll">${loadEarlier}${messages.map(message => threadMessage(thread, message)).join('') || '<div class="note-empty">等待这条会话的第一条消息。</div>'}</div><form class="message-composer" data-compose="${thread.id}"><textarea maxlength="4000" placeholder="继续当前会话…" ${waiting ? 'disabled' : ''}></textarea><button class="primary" type="submit" ${waiting ? 'disabled' : ''}>${waiting ? '等待回复' : '发送'}</button></form></section>`
 }
 
 function render() {
@@ -1100,6 +1113,11 @@ app.addEventListener('click', async event => {
     }
     if (button.dataset.action === 'show-thread' && thread !== undefined) { state.activeId = thread.id; state.mode = 'thread'; render(); void loadThreadHistory(thread) }
     if (button.dataset.action === 'show-canvas') { state.mode = 'canvas'; render() }
+    if (button.dataset.action === 'load-earlier' && thread !== undefined) {
+      const loaded = state.historyBySession.get(thread.dshSessionId) ?? []
+      const oldest = loaded.find(message => typeof message.sourceSeq === 'number')
+      void loadThreadHistory(thread, true, { beforeSeq: oldest?.sourceSeq })
+    }
     if (button.dataset.action === 'toggle-card-children' && button.dataset.card !== undefined) {
       const cardId = button.dataset.card
       const collapsing = !state.collapsedCardIds.has(cardId)

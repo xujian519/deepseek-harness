@@ -27,15 +27,23 @@ function makeRequest(method: string, url: string, body?: unknown, host = '127.0.
   } as unknown as IncomingMessage
 }
 
-function makeResponse(): { res: ServerResponse; status: () => number; json: () => unknown; raw: () => string } {
+function makeResponse(): {
+  res: ServerResponse
+  status: () => number
+  headers: () => Record<string, unknown>
+  json: () => unknown
+  raw: () => string
+} {
   let status = 0
   let raw = ''
+  let headers: Record<string, unknown> = {}
   return {
     res: {
-      writeHead: (code: number) => { status = code },
+      writeHead: (code: number, hdrs?: Record<string, unknown>) => { status = code; headers = hdrs ?? {} },
       end: (body?: string) => { raw = body ?? '' },
     } as unknown as ServerResponse,
     status: () => status,
+    headers: () => headers,
     json: () => JSON.parse(raw) as unknown,
     raw: () => raw,
   }
@@ -89,11 +97,23 @@ describe('host apply', () => {
     await page.handler(makeRequest('GET', '/synapse/'), pageOut.res)
     expect(pageOut.status()).toBe(200)
     expect(pageOut.raw()).toContain('Synapse for DSH')
+    const pageHeaders = pageOut.headers()
+    expect(pageHeaders['content-security-policy']).toContain("default-src 'self'")
+    expect(pageHeaders['content-security-policy']).toContain("frame-ancestors 'self'")
+    expect(pageHeaders['referrer-policy']).toBe('no-referrer')
+    expect(pageHeaders['x-content-type-options']).toBe('nosniff')
+
+    const appJs = route(routes, 'exact', '/synapse/app.js')
+    const appOut = makeResponse()
+    await appJs.handler(makeRequest('GET', '/synapse/app.js'), appOut.res)
+    expect(appOut.headers()['x-content-type-options']).toBe('nosniff')
+    expect(appOut.headers()['content-security-policy']).toBeUndefined()
 
     const api = route(routes, 'prefix', '/synapse/api')
     const forbidden = makeResponse()
     await api.handler(makeRequest('GET', '/synapse/api/workspaces', undefined, 'evil.example'), forbidden.res)
     expect(forbidden.status()).toBe(403)
+    expect(forbidden.headers()['x-content-type-options']).toBe('nosniff')
   })
 
   it('creates and lists workspaces and projects synced session rows', async () => {
@@ -197,5 +217,48 @@ describe('host apply', () => {
     const messages = (out.json() as { messages: { kind: string; process?: unknown[] }[] }).messages
     expect(messages.map(m => m.kind)).toEqual(['user', 'assistant', 'context'])
     expect(messages[1]?.process).toHaveLength(1)
+  })
+
+  it('pages the history endpoint with limit/beforeSeq and reports hasMore', async () => {
+    const events = [
+      { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '一' }], source: { kind: 'user' } } },
+      { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '答一' }] } } },
+      { type: 'assistant/message', seq: 2, time: 3, data: { turn: 2, step: 1, message: { content: [{ type: 'text', text: '答二' }] } } },
+      { type: 'assistant/message', seq: 3, time: 4, data: { turn: 3, step: 1, message: { content: [{ type: 'text', text: '答三' }] } } },
+    ]
+    const persistence = {
+      listSnapshots: async () => [],
+      inspect: async () => ({ meta: { id: 's-page', cwd: '/tmp/h' }, events }),
+    }
+    const { routes } = boot({}, [], persistence)
+    const api = route(routes, 'prefix', '/synapse/api')
+
+    const paged = makeResponse()
+    await api.handler(makeRequest('GET', '/synapse/api/sessions/s-page/history?limit=2'), paged.res)
+    expect(paged.status()).toBe(200)
+    const first = paged.json() as { messages: { sourceSeq?: number }[]; hasMore: boolean }
+    expect(first.messages.map(m => m.sourceSeq)).toEqual([2, 3])
+    expect(first.hasMore).toBe(true)
+
+    const older = makeResponse()
+    await api.handler(makeRequest('GET', '/synapse/api/sessions/s-page/history?limit=2&beforeSeq=2'), older.res)
+    const olderBody = older.json() as { messages: { sourceSeq?: number }[]; hasMore: boolean }
+    expect(olderBody.messages.map(m => m.sourceSeq)).toEqual([0, 1])
+    // Boundary is exclusive: seq-2 is not repeated.
+    expect(olderBody.messages.some(m => m.sourceSeq === 2)).toBe(false)
+    expect(olderBody.hasMore).toBe(false)
+
+    const full = makeResponse()
+    await api.handler(makeRequest('GET', '/synapse/api/sessions/s-page/history?limit=99'), full.res)
+    const fullBody = full.json() as { messages: unknown[]; hasMore: boolean }
+    expect(fullBody.messages).toHaveLength(4)
+    expect(fullBody.hasMore).toBe(false)
+
+    const bad = makeResponse()
+    await api.handler(makeRequest('GET', '/synapse/api/sessions/s-page/history?limit=abc'), bad.res)
+    expect(bad.status()).toBe(400)
+    const badSeq = makeResponse()
+    await api.handler(makeRequest('GET', '/synapse/api/sessions/s-page/history?beforeSeq=0'), badSeq.res)
+    expect(badSeq.status()).toBe(400)
   })
 })

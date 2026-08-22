@@ -23,7 +23,8 @@ The web bundle mounts this package as row `synapse`, and `@deepseek-ai/dsh-clien
 
 - The canvas baseline replays cold restored sessions from `SessionPersistence` (revision-keyed, cheap repeats) plus the live `session/created`/`session/event` stream and the browser's session sync; a fork child skips its inherited seed prefix, a root session replays from seq 0 (`session/end-seed` is the persistence snapshot boundary there, not a lineage cut).
 - Only human prompts become question cards: user-role injections (workspace instructions, skill catalogs, runtime-context snapshot) are recognized by their `source.kind` and stay off the canvas; blank sessions (no human question) are skipped.
-- `GET /synapse/api/sessions/<id>/history` returns the full detail-view message list (no truncation, folded tool process, injected context marked `context`) from `SessionPersistence.inspect`.
+- `GET /synapse/api/sessions/<id>/history` pages the detail-view message list (`?limit`/`?beforeSeq`; the default opens the most recent messages and loads earlier ones on request). It never truncates, folds tool process, and marks injected context `context`, from `SessionPersistence.inspect`.
+- The map document is served with a restrictive `Content-Security-Policy` (same-origin script/style, `frame-ancestors 'self'`), and every `/synapse` response carries `X-Content-Type-Options: nosniff`.
 - A second `dsh web` instance writing the same `workspaces.json` is never clobbered silently: the file mtime moving since our last read reloads the disk state and drops the local delta with a loud warning (projection rebuilds from session logs; manual layout is the loss).
 
 ## Model Experience
@@ -37,6 +38,6 @@ None: it never changes request headers, system prompts, or tool registries, so a
 ## Known Limitations and Deferred Work
 
 - The map UI is a static browser script (`assets/app.js`) inside an iframe: it renders with its own mini markdown renderer, not the repo's React stack, and is not covered by the client snapshot gates.
-- The history endpoint returns the whole session log: a very long conversation loads slower in the detail view (paging is deferred).
+- The history endpoint pages the session log (`?limit`/`?beforeSeq`): the detail view opens with the most recent messages and loads earlier ones on request, so a very long conversation no longer loads in full.
 - Two `dsh web` instances sharing one profile still race at the same instant; the mtime conflict check serializes on the lock window, and a losing local delta is dropped with a warning rather than merged.
 - Legacy v3 data migrates tool cards by order (each call paired with the next result); live events pair by `callId`.

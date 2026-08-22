@@ -137,4 +137,45 @@ describe('projectHistory', () => {
     const messages = projectHistory(events)
     expect(messages[0]?.process?.[0]).toMatchObject({ callId: 'x9', name: '工具调用', result: '顺带结果' })
   })
+
+  it('pages to the most recent limit while keeping the default full record', () => {
+    const events = pagingFixture()
+    expect(projectHistory(events)).toHaveLength(6)
+    const tail = projectHistory(events, { limit: 2 })
+    expect(tail.map(m => m.kind)).toEqual(['error', 'todo'])
+    const mid = projectHistory(events, { limit: 3 })
+    expect(mid.map(m => m.kind)).toEqual(['user', 'error', 'todo'])
+  })
+
+  it('pages an older segment with an exclusive beforeSeq that never duplicates the boundary', () => {
+    const events = pagingFixture()
+    // sourceSeq strictly below 5: seq 0,1,4 (the seq-5 user is excluded).
+    const older = projectHistory(events, { beforeSeq: 5 })
+    expect(older.map(m => m.kind)).toEqual(['user', 'assistant', 'context'])
+    // seq-5 human question is the boundary; the exclusive filter keeps it out.
+    expect(older.map(m => m.sourceSeq)).toEqual([0, 1, 4])
+    // combined with limit: filter then take the newest two of [0,1,4].
+    const page = projectHistory(events, { beforeSeq: 5, limit: 2 })
+    expect(page.map(m => m.sourceSeq)).toEqual([1, 4])
+  })
+
+  it('keeps tool process folded when the page cuts after the tool turn', () => {
+    const events = pagingFixture()
+    const page = projectHistory(events, { beforeSeq: 4 })
+    // The assistant card carries the tool process folded before the slice.
+    expect(page[1]?.process?.[0]?.result).toBe('ok')
+  })
 })
+
+function pagingFixture(): never[] {
+  return [
+    { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '问题一' }], source: { kind: 'user' } } },
+    { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '答一' }] } } },
+    { type: 'tool/call', seq: 2, time: 3, data: { turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{}' } },
+    { type: 'tool/result', seq: 3, time: 4, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: 'ok' }] } } },
+    { type: 'user/message', seq: 4, time: 5, data: { content: [{ type: 'text', text: '<system-reminder> instructions' }], source: { kind: 'agent-instructions' } } },
+    { type: 'user/message', seq: 5, time: 6, data: { content: [{ type: 'text', text: '问题二' }], source: { kind: 'user' } } },
+    { type: 'turn/end', seq: 6, time: 7, data: { turn: 1, reason: { kind: 'error', error: { name: 'L', code: 'e', message: '模型挂了' } } } },
+    { type: 'todo/write', seq: 7, time: 8, data: { todos: [{ content: '写文档', status: 'in_progress' }] } },
+  ] as never[]
+}
