@@ -99,6 +99,7 @@ export function selectSubset(tasks: EvalTask[], seed: number, count = DEFAULT_SU
     const swapWith = Math.floor(random() * (index + 1))
     const current = sorted[index]
     const swapTarget = sorted[swapWith]
+    /* v8 ignore next -- noUncheckedIndexedAccess: swapWith is within [0, index+1) and index < length, so both are defined. */
     if (current === undefined || swapTarget === undefined) continue
     sorted[index] = swapTarget
     sorted[swapWith] = current
@@ -118,6 +119,7 @@ export async function loadTaskManifest(path: string): Promise<EvalTask[]> {
   const trimmed = text.trim()
   if (trimmed.startsWith('[')) {
     const parsed = JSON.parse(trimmed) as unknown
+    /* v8 ignore next -- a '['-prefixed value always parses to an array, so the empty fallback is unreachable. */
     return Array.isArray(parsed) ? normalizeSwebenchInstances(parsed) : []
   }
   const rows: unknown[] = []

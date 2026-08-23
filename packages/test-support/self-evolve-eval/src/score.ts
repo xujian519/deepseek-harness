@@ -77,6 +77,7 @@ export function bootstrapCi(
       // A resampled index is always within bounds (n > 0); the guard only
       // satisfies the indexed-access type without a non-null assertion.
       const task = tasks[Math.floor(random() * n)]
+      /* v8 ignore next -- indexed-access guard: index is always within [0, n), so the element is defined. */
       if (task === undefined) continue
       if (task.evolvedPassed && !task.baselinePassed) passedDiff += 1
       if (!task.evolvedPassed && task.baselinePassed) passedDiff -= 1
@@ -101,6 +102,7 @@ function percentile(sorted: number[], q: number): number {
   const rest = position - base
   const value = sorted[base]
   const next = sorted[base + 1]
+  /* v8 ignore next -- base is always within [0, length-1] for q in [0, 1], so the element is defined. */
   if (value === undefined) return first
   return value + ((next ?? last) - value) * rest
 }
@@ -133,6 +135,7 @@ function zForConfidence(confidence: number): number {
   for (let iteration = 0; iteration < 6; iteration += 1) {
     const f = normalCdf(-z) - tail
     const pdf = Math.exp(-z * z / 2) / Math.sqrt(2 * Math.PI)
+    /* v8 ignore next -- the standard normal pdf is positive for every finite z. */
     if (pdf === 0) break
     z = z - f / pdf
   }
@@ -144,6 +147,7 @@ function normalCdf(z: number): number {
   const t = 1 / (1 + 0.2316419 * Math.abs(z))
   const d = 0.3989422804014327 * Math.exp(-z * z / 2)
   const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))))
+  /* v8 ignore next -- zForConfidence always passes a negative argument, so the upper-tail branch is unreachable. */
   return z >= 0 ? 1 - p : p
 }
 

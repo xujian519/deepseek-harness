@@ -52,6 +52,14 @@ describe('parseTestPatchFiles', () => {
   it('returns an empty list for a patch with no diffs', () => {
     expect(parseTestPatchFiles('---\n+++\n')).toEqual([])
   })
+
+  it('skips a diff header without a b-side split', () => {
+    expect(parseTestPatchFiles('diff --git a/tests/a.py\n')).toEqual([])
+  })
+
+  it('skips an empty b-side path and dedupes repeated paths', () => {
+    expect(parseTestPatchFiles(['diff --git a/foo b/', 'diff --git a/x.py b/x.py', 'diff --git a/x.py b/x.py'].join('\n'))).toEqual(['x.py'])
+  })
 })
 
 describe('renderEvolvedOverlay', () => {
@@ -88,6 +96,28 @@ describe('mergeArmOutcome', () => {
     const settled = mergeArmOutcome(infra, 't-1', 'baseline', false)
     expect(settled[0]).toEqual({ taskId: 't-1', baselineError: 'env: clone failed', baselinePassed: false })
   })
+
+  it('appends a bare task row when no verdict or error is supplied', () => {
+    expect(mergeArmOutcome([], 't-9', 'baseline')).toEqual([{ taskId: 't-9' }])
+  })
+
+  it('sets both the evolved verdict and its error together', () => {
+    const merged = mergeArmOutcome([], 't-2', 'evolved', true, 'note')
+    expect(merged[0]).toEqual({ taskId: 't-2', evolvedPassed: true, evolvedError: 'note' })
+  })
+
+  it('preserves sibling rows when updating one task', () => {
+    const merged = mergeArmOutcome(
+      [{ taskId: 'a', baselinePassed: true }, { taskId: 'b', baselinePassed: false }],
+      'a',
+      'evolved',
+      true,
+    )
+    expect(merged).toEqual([
+      { taskId: 'a', baselinePassed: true, evolvedPassed: true },
+      { taskId: 'b', baselinePassed: false },
+    ])
+  })
 })
 
 describe('manifest rows', () => {
@@ -109,6 +139,14 @@ describe('manifest rows', () => {
     expect(row?.install).toBe('pip install -e .')
   })
 
+  it('omits install when absent and tolerates a non-array failToPass/passToPass', () => {
+    const row = normalizeSwebenchRow({ ...valid, install: undefined, FAIL_TO_PASS: 'not-an-array', PASS_TO_PASS: 7 })
+    expect(row).not.toBeNull()
+    expect(row?.install).toBeUndefined()
+    expect(row?.failToPass).toEqual([])
+    expect(row?.passToPass).toEqual([])
+  })
+
   it('returns null when a field the campaign needs is missing', () => {
     expect(normalizeSwebenchRow({ ...valid, problem_statement: undefined })).toBeNull()
     expect(normalizeSwebenchRow({ ...valid, test_patch: '' })).toBeNull()
@@ -128,6 +166,30 @@ describe('manifest rows', () => {
       await writeFile(path, `${JSON.stringify(valid)}\n\n${JSON.stringify({ instance_id: 'a__b-2' })}\n`)
       const rows = await readManifestRows(path)
       expect(rows).toHaveLength(2)
+    } finally {
+      await rm(temp, { recursive: true, force: true })
+    }
+  })
+
+  it('reads a JSON array manifest, filtering non-record elements', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'self-evolve-eval-'))
+    try {
+      const path = join(temp, 'rows.json')
+      await writeFile(path, JSON.stringify([valid, 'nope', null]))
+      const rows = await readManifestRows(path)
+      expect(rows).toHaveLength(1)
+    } finally {
+      await rm(temp, { recursive: true, force: true })
+    }
+  })
+
+  it('skips non-record lines in a JSONL manifest', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'self-evolve-eval-'))
+    try {
+      const path = join(temp, 'rows.jsonl')
+      await writeFile(path, `${JSON.stringify(valid)}\nnull\n"nope"\n`)
+      const rows = await readManifestRows(path)
+      expect(rows).toHaveLength(1)
     } finally {
       await rm(temp, { recursive: true, force: true })
     }

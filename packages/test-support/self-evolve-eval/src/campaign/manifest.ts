@@ -33,6 +33,7 @@ export async function readManifestRows(path: string): Promise<Record<string, unk
   const trimmed = text.trim()
   if (trimmed.startsWith('[')) {
     const parsed = JSON.parse(trimmed) as unknown
+    /* v8 ignore next -- a '['-prefixed value always parses to an array, so the empty fallback is unreachable. */
     return Array.isArray(parsed) ? parsed.filter(isRecord) : []
   }
   const rows: Record<string, unknown>[] = []

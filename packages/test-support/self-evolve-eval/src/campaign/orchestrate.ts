@@ -178,6 +178,7 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
       const detail = `env: ${errorMessage(error)}`
       tasks = foldInfraFailure(tasks, taskId, arms, detail)
       await persist()
+      /* v8 ignore next -- arms is never empty (planCampaign always emits at least one), so the fallback label is unreachable. */
       await recordStats(statLine(Date.now(), taskId, arms[0] ?? 'baseline', 'env', false, 0, null, detail))
       return
     }
@@ -193,6 +194,7 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
       tasks = mergeArmOutcome(tasks, taskId, arm, result.passed, result.error)
       await persist()
       await recordStats(
+        /* v8 ignore next -- runArm always sets seconds, so the zero fallback is unreachable. */
         statLine(Date.now(), taskId, arm, 'verdict', result.passed, result.seconds ?? 0, result.exitCode ?? null, result.error ?? ''),
       )
     }
@@ -362,6 +364,7 @@ async function runPool<T>(items: readonly T[], concurrency: number, worker: (ite
     while (next < items.length) {
       const item = items[next]
       next += 1
+      /* v8 ignore next -- noUncheckedIndexedAccess: next is always < items.length in the loop body, so the item is defined. */
       if (item === undefined) continue
       await worker(item)
     }

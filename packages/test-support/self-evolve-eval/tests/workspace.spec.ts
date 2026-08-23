@@ -94,14 +94,14 @@ describe('verifyVerdict', () => {
     // test_patch adds a test file; prediction appends a line to app.py.
     mkdirSync(join(repo, 'tests'), { recursive: true })
     await writeFile(join(repo, 'tests', 'test_app.py'), 'def test_x():\n    assert True\n')
-    await git(repo, 'add', '-N', 'tests/test_app.py')
+    git(repo, 'add', '-N', 'tests/test_app.py')
     const testPatch = git(repo, 'diff', '--', 'tests/test_app.py')
-    await git(repo, 'reset', '--hard', '-q', 'HEAD')
-    await git(repo, 'clean', '-fdq')
+    git(repo, 'reset', '--hard', '-q', 'HEAD')
+    git(repo, 'clean', '-fdq')
 
     await writeFile(join(repo, 'app.py'), 'x = 1\ny = 2\n')
     const prediction = git(repo, 'diff', '--', 'app.py')
-    await git(repo, 'checkout', '--', 'app.py')
+    git(repo, 'checkout', '--', 'app.py')
 
     const testPatchPath = join(taskDir, 'test.patch')
     const predictionPath = join(taskDir, 'prediction.patch')

@@ -78,6 +78,7 @@ async function exec(
       }
       const timer = setTimeout(() => {
         killProcessGroup(child.pid, 'SIGTERM')
+        /* v8 ignore next -- best-effort SIGKILL escalation: the grace period far exceeds any test run's lifetime. */
         const escalation = setTimeout(() => { killProcessGroup(child.pid, 'SIGKILL') }, SIGKILL_GRACE_MS)
         escalation.unref()
         finish(null, true, null)
@@ -124,6 +125,7 @@ async function execCapture(
     }
     const timer = setTimeout(() => {
       killProcessGroup(child.pid, 'SIGTERM')
+      /* v8 ignore next -- best-effort SIGKILL escalation: the grace period far exceeds any test run's lifetime. */
       const escalation = setTimeout(() => { killProcessGroup(child.pid, 'SIGKILL') }, SIGKILL_GRACE_MS)
       escalation.unref()
       finish(null, null)
@@ -230,6 +232,7 @@ export async function prepareTaskWorkspace(options: PrepareTaskOptions): Promise
     const installResult = await exec('bash', ['-lc', row.install], {
       cwd: repoBase,
       env: {
+        /* v8 ignore next -- a test/CI environment always sets PATH, so the empty fallback is unreachable. */
         PATH: `${venv}/bin:${process.env.PATH ?? ''}`,
         VIRTUAL_ENV: venv,
         PIP_DISABLE_PIP_VERSION_CHECK: '1',
@@ -301,20 +304,22 @@ export async function runAgent(options: AgentRunOptions): Promise<ExecResult> {
  * @param workspace - the prepared task environment.
  * @param arm - which arm's checkout to inspect.
  * @param predictionPath - where to write the collected patch.
+ * @param timeoutMs - git subprocess wall-clock cap (default 120s; injectable for tests).
  * @returns the prediction patch path, or null for an empty diff.
  */
 export async function collectPrediction(
   workspace: PreparedWorkspace,
   arm: CampaignArm,
   predictionPath: string,
+  timeoutMs = 120_000,
 ): Promise<string | null> {
   const repo = workspace.repoArms[arm]
   const stage = await exec('git', ['add', '-A', '--', ':(exclude).dsh'], {
-    cwd: repo, timeoutMs: 120_000, logPath: predictionPath,
+    cwd: repo, timeoutMs, logPath: predictionPath,
   })
   if (stage.exitCode !== 0) throw new Error(`git add exited ${stage.exitCode}`)
   const excludes = [':(exclude).dsh', ...workspace.testPatchFiles.map(file => `:(exclude)${file}`)]
-  const diff = await execCapture('git', ['diff', '--cached', '--', ...excludes], { cwd: repo, timeoutMs: 120_000 })
+  const diff = await execCapture('git', ['diff', '--cached', '--', ...excludes], { cwd: repo, timeoutMs })
   if (diff.exitCode !== 0) throw new Error(`git diff exited ${diff.exitCode}`)
   if (diff.output.trim().length === 0) return null
   await writeFile(predictionPath, diff.output)
@@ -365,6 +370,7 @@ export async function verifyVerdict(
   const test = await exec(workspace.venvPython, ['-m', 'pytest', '-q', '-p', 'no:cacheprovider', ...ids], {
     cwd: repo,
     env: {
+      /* v8 ignore next -- a test/CI environment always sets PATH, so the empty fallback is unreachable. */
       PATH: `${workspace.venv}/bin:${process.env.PATH ?? ''}`,
       VIRTUAL_ENV: workspace.venv,
       PYTHONUNBUFFERED: '1',
@@ -383,6 +389,7 @@ async function tailOf(path: string, maxChars: number): Promise<string> {
     const text = await readFile(path, 'utf8')
     return text.length > maxChars ? text.slice(-maxChars) : text
   } catch {
+    /* v8 ignore next -- an unreadable log yields an empty detail; the verify path always creates the file. */
     return ''
   }
 }
