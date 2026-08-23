@@ -1234,7 +1234,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the removed member and requeued task ids.',
       },
       {
-        signature: 'async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string }>',
+        signature: 'async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string worker?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }>',
         description: 'Create a task in the team\'s task list. Tasks can depend on other tasks; a task is only claimable once every dependency is completed.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'subject, description, dependencies, optional assignee.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling.' }],
         returns: 'the created task\'s identity.',
@@ -1252,7 +1252,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the claimed task\'s capability.',
       },
       {
-        signature: 'async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; status: string; output?: string; attempt: number; attempt_id?: string }>',
+        signature: 'async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string status: string output?: string attempt: number attempt_id?: string gated?: boolean gate_feedback?: string }>',
         description: 'Update a task status/output. Members must supply the current attempt_id returned by claim_task; stale attempts are rejected after takeover or reassignment. Terminal results are immutable.',
         parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'args', description: 'task id, status, output, attempt_id.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling.' }],
         returns: 'the task\'s updated state.',
@@ -4332,7 +4332,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PatentTeamsStatusMember',
-    declaration: 'export interface PatentTeamsStatusMember {\n    name: string;\n    role: string;\n    provider: string;\n    model: string;\n    reasoning_effort: string;\n    status: string;\n    activity: string;\n}',
+    declaration: 'export interface PatentTeamsStatusMember {\n    name: string;\n    role: string;\n    provider: string;\n    model: string;\n    reasoning_effort: string;\n    status: string;\n    activity: string;\n    role_contract?: {\n        stance: string;\n        deliverables: string;\n    };\n}',
   },
   {
     name: 'PatentTeamsStatusMessage',
@@ -4340,7 +4340,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PatentTeamsStatusTask',
-    declaration: 'export interface PatentTeamsStatusTask {\n    id: string;\n    subject: string;\n    status: string;\n    assignee: string;\n    dependencies: string[];\n    attempt: number;\n    attempt_id: string;\n    reassigning: boolean;\n    output?: string;\n}',
+    declaration: 'export interface PatentTeamsStatusTask {\n    id: string;\n    subject: string;\n    status: string;\n    assignee: string;\n    dependencies: string[];\n    attempt: number;\n    attempt_id: string;\n    reassigning: boolean;\n    output?: string;\n    worker?: string;\n    contract_validation?: {\n        valid: boolean;\n        missing_hard_fields: string[];\n        degraded: boolean;\n    };\n    gate_feedback?: {\n        score: number;\n        satisfied: boolean;\n        failures: string[];\n        feedback: string;\n    };\n}',
   },
   {
     name: 'PermissionSelect',

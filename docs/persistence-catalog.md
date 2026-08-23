@@ -572,7 +572,7 @@ Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/p
 'patent-teams/member-added': PatentTeamsMemberAddedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:84`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:105`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmember-removed--log-only"></a>
 
@@ -586,7 +586,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:84`](../packages/paten
 'patent-teams/member-removed': PatentTeamsMemberRemovedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:110`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmessage-sent--log-only"></a>
 
@@ -600,7 +600,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:89`](../packages/paten
 'patent-teams/message-sent': PatentTeamsMessageSentData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:104`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:135`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-created--log-only"></a>
 
@@ -609,12 +609,26 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:104`](../packages/pate
 ```ts persistence-catalog
 /**
  * Records one task creation.
- * @param data - team identity, task id, subject, dependencies, assignee.
+ * @param data - team identity, task id, subject, dependencies, assignee, worker.
  */
 'patent-teams/task-created': PatentTeamsTaskCreatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:94`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:115`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-gated--log-only"></a>
+
+#### `patent-teams/task-gated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records a completion rejected by the composite quality gate.
+ * @param data - team identity, task id, score, failing dimensions, and feedback.
+ */
+'patent-teams/task-gated': PatentTeamsTaskGatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:130`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-updated--log-only"></a>
 
@@ -628,7 +642,21 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:94`](../packages/paten
 'patent-teams/task-updated': PatentTeamsTaskUpdatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:99`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:120`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-validated--log-only"></a>
+
+#### `patent-teams/task-validated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records a contract-validation verdict on a completed task.
+ * @param data - team identity, task id, worker, and the missing-field verdict.
+ */
+'patent-teams/task-validated': PatentTeamsTaskValidatedData
+```
+
+Source: [`packages/patent/patent-teams/src/event-types.ts:125`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-created--log-only"></a>
 
@@ -642,7 +670,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:99`](../packages/paten
 'patent-teams/team-created': PatentTeamsTeamCreatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:79`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:100`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-deleted--log-only"></a>
 
@@ -656,7 +684,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:79`](../packages/paten
 'patent-teams/team-deleted': PatentTeamsTeamDeletedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:109`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:140`](../packages/patent/patent-teams/src/event-types.ts)
 
 ### `permission/*`
 

@@ -46,7 +46,13 @@ interface Harness {
   followup: ReturnType<typeof vi.fn>
 }
 
-async function makeService(options: { maxMembers?: number; memberModel?: string; memberMaxDepth?: number } = {}): Promise<Harness> {
+async function makeService(options: {
+  maxMembers?: number
+  memberModel?: string
+  memberMaxDepth?: number
+  qualityGate?: boolean
+  passThreshold?: number
+} = {}): Promise<Harness> {
   const ctx = new Context()
   const stateDir = '.patent-teams'
   const workspace = await tmpWorkspace()
@@ -79,6 +85,8 @@ async function makeService(options: { maxMembers?: number; memberModel?: string;
     maxMembers: options.maxMembers ?? 8,
     ...options.memberModel === undefined ? {} : { memberModel: options.memberModel },
     ...options.memberMaxDepth === undefined ? {} : { memberMaxDepth: options.memberMaxDepth },
+    qualityGate: options.qualityGate ?? false,
+    passThreshold: options.passThreshold ?? 0.7,
   })
   return { ctx, workspace, stateDir, agents, followup }
 }

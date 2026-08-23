@@ -6,18 +6,19 @@
 
 ## 挂载内容
 
-除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 挂载 8 个专利域插件：
+除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 挂载 9 个专利域插件：
 
 - `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器。
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
 - `@deepseek-ai/dsh-patent-workflow` — 执行管线服务（ctx.patentWorkflow：runWorkflow / runPlantask / approve / reject）。
 - `@deepseek-ai/dsh-patent-tools` — 23 个模型工具：检索、元数据、法律状态、判例/wiki/图谱查询、撰写、权利要求对照表、工作流收口、附图分析、PDF 下载、知识笔记。
+- `@deepseek-ai/dsh-patent-teams` — 持久多智能体团队服务（ctx.patentTeams），提供十个 `patent_teams_*` 工具；`qualityGate: true` 时运行组合完成门禁。
 - `@deepseek-ai/dsh-patent-rule` — 规则引擎、tools/post-execute 输出门禁、EVI-011 证据守卫。
 - `@deepseek-ai/dsh-patent-document` — render_patent_document。
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
 
-专利服务放在 isolate 领域（patentData / patentKnowledge / patentWorkflow）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentData') / ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 保持 fetch 关闭，因为发货 profile 不挂 fetch provider（见 base 层注释）；需要 web_fetch 的部署自行添加 provider，如 `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`。
+专利服务放在 isolate 领域（patentData / patentKnowledge / patentWorkflow / patentTeams）内，与 patent-tools 共享该领域，使后者的 ctx.get('patentData') / ctx.get('patentKnowledge') 解析到本 preset 的实例而非宿主实例。省略 tool-ralph（一个案子用 goal / todo / workflow，而非 fresh-agent 迭代）；tool-web 保持 fetch 关闭，因为发货 profile 不挂 fetch provider（见 base 层注释）；需要 web_fetch 的部署自行添加 provider，如 `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`。
 
 ## 技能
 
@@ -32,7 +33,7 @@ skills/ 下随附 8 个技能：
 - patent-workspace-layout
 - patent-team-composition
 
-`patent-team-composition` 是持久团队组建模板：当环境挂载 dsh-agent-teams 插件（agent_teams_* 工具）时，案件按覆盖专利全生命周期的七个场景角色包选择——立案包（案件管理员 / 检索员 / 技术专家 / 撰写员）、撰写包（检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理）、答复审查意见包（同撰写五角色）、补正包（撰写员 / 形式审查员）、复审包（检索员 / 撰写员 / 对立审查员 / 申请人代理 / 合议组）、无效宣告包（检索员 / 撰写员 / 技术专家 / 无效请求人 / 专利权人 / 合议组）、侵权诉讼包（检索员 / 撰写员 / 技术专家 / 专利权人 / 被告代理人 / 裁判，另可选技术调查官），由当前会话任 captain 统一调度；无插件时回退单会话 + subagent_fork 专家互评。复审、无效与诉讼包采用"立场配对 + 中立裁判"的对抗结构。
+`patent-team-composition` 是持久团队组建模板：本会话已挂载 dsh-patent-teams 插件（patent_teams_* 工具），案件按覆盖专利全生命周期的七个场景角色包选择——立案包（案件管理员 / 检索员 / 技术专家 / 撰写员）、撰写包（检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理）、答复审查意见包（同撰写五角色）、补正包（撰写员 / 形式审查员）、复审包（检索员 / 撰写员 / 对立审查员 / 申请人代理 / 合议组）、无效宣告包（检索员 / 撰写员 / 技术专家 / 无效请求人 / 专利权人 / 合议组）、侵权诉讼包（检索员 / 撰写员 / 技术专家 / 专利权人 / 被告代理人 / 裁判，另可选技术调查官），由当前会话任 captain 统一调度；仅当插件被禁用时回退单会话 + subagent_fork 专家互评。复审、无效与诉讼包采用"立场配对 + 中立裁判"的对抗结构。
 
 新颖性/创造性、侵权、无效三个技能改写自 Sati 的 patent-novelty-analysis、patent-inventiveness-analysis、patent-infringement-checker、patent-invalidity-checker。Sati 工具引用（patent_kg_query / patent_case_search / law_search）替换为 dsh 专利工具，<memory-context> 自动注入替换为显式必查清单，Sati 内部文件路径替换为工作目录相对路径。
 

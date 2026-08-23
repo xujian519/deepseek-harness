@@ -67,6 +67,7 @@ import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
 import * as Methodology from '@deepseek-ai/dsh-methodology'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
+import * as PatentTeams from '@deepseek-ai/dsh-patent-teams'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
@@ -649,6 +650,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-teams',
+    dir: 'patent-teams',
+    source: 'packages/patent/patent-teams/src/index.ts',
+    requires: ['ctx.tools', 'ctx.subagents', 'ctx.systemPrompt', 'a calling Agent as captain (member spawn/follow-up)'],
+    writes: ['tool/call', 'tool/result', 'patent-teams/* session events'],
+    async mount(ctx) {
+      await ctx.plugin(SubagentRuntime)
+      registerCatalogSubagentProvider(ctx, 'mock')
+      await ctx.plugin(PatentTeams, {})
+    },
+    note:
+      'The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',

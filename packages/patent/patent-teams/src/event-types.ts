@@ -40,6 +40,8 @@ export interface PatentTeamsTaskCreatedData {
   readonly subject: string
   readonly dependencies: readonly string[]
   readonly assignee?: string
+  /** The worker contract the task output is validated against, when set. */
+  readonly worker?: string
 }
 
 /** Records one task status/assignee/output transition. */
@@ -51,6 +53,25 @@ export interface PatentTeamsTaskUpdatedData {
   readonly output?: string
   readonly attempt?: number
   readonly attemptId?: string
+}
+
+/** Records a contract-validation verdict on a completed task. */
+export interface PatentTeamsTaskValidatedData {
+  readonly teamId: string
+  readonly taskId: string
+  readonly worker: string
+  readonly valid: boolean
+  readonly missingHardFields: readonly string[]
+  readonly degraded: boolean
+}
+
+/** Records a completion rejected by the composite quality gate. */
+export interface PatentTeamsTaskGatedData {
+  readonly teamId: string
+  readonly taskId: string
+  readonly score: number
+  readonly failures: readonly string[]
+  readonly feedback: string
 }
 
 /** Closes one team record: the team was deleted. */
@@ -89,7 +110,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     'patent-teams/member-removed': PatentTeamsMemberRemovedData
     /**
      * Records one task creation.
-     * @param data - team identity, task id, subject, dependencies, assignee.
+     * @param data - team identity, task id, subject, dependencies, assignee, worker.
      */
     'patent-teams/task-created': PatentTeamsTaskCreatedData
     /**
@@ -97,6 +118,16 @@ declare module '@deepseek-ai/dsh-session/types' {
      * @param data - team identity, task id, and the new status/assignee/output.
      */
     'patent-teams/task-updated': PatentTeamsTaskUpdatedData
+    /**
+     * Records a contract-validation verdict on a completed task.
+     * @param data - team identity, task id, worker, and the missing-field verdict.
+     */
+    'patent-teams/task-validated': PatentTeamsTaskValidatedData
+    /**
+     * Records a completion rejected by the composite quality gate.
+     * @param data - team identity, task id, score, failing dimensions, and feedback.
+     */
+    'patent-teams/task-gated': PatentTeamsTaskGatedData
     /**
      * Records one mailbox message.
      * @param data - team identity, sender, recipient, and content.
@@ -117,5 +148,7 @@ export type PatentTeamsEventType =
   | 'patent-teams/member-removed'
   | 'patent-teams/task-created'
   | 'patent-teams/task-updated'
+  | 'patent-teams/task-validated'
+  | 'patent-teams/task-gated'
   | 'patent-teams/message-sent'
   | 'patent-teams/team-deleted'

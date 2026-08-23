@@ -23,14 +23,24 @@ function renderStatus(team: PatentTeamsStatus): string {
     ...team.members.map((member) => {
       const route = member.provider && member.model ? ` · ${member.provider}/${member.model}` : ''
       const effort = member.reasoning_effort ? ` · reasoning ${member.reasoning_effort}` : ''
-      return `  - ${member.name} [${member.role}] ${member.status}/${member.activity}${route}${effort}`
+      const contract = member.role_contract
+        ? ` · role: ${member.role_contract.stance} (交付: ${member.role_contract.deliverables})`
+        : ''
+      return `  - ${member.name} [${member.role}] ${member.status}/${member.activity}${route}${effort}${contract}`
     }),
     `Tasks (${team.tasks.length}):`,
     ...team.tasks.map((task) => {
       const deps = task.dependencies.length > 0 ? ` (deps: ${task.dependencies.join(',')})` : ''
       const output = task.output !== undefined ? `\n      output: ${task.output.slice(0, 300)}` : ''
       const handoff = task.reassigning ? ' (reassigning)' : ''
-      return `  - ${task.id} [${task.status}] attempt ${task.attempt}${handoff} ${task.subject} → ${task.assignee || 'unassigned'}${deps}${output}`
+      const worker = task.worker ? ` · worker: ${task.worker}` : ''
+      const validation = task.contract_validation
+        ? ` · contract: ${task.contract_validation.valid ? 'ok' : `degraded(${task.contract_validation.missing_hard_fields.join('、')})`}`
+        : ''
+      const gated = task.gate_feedback && !task.gate_feedback.satisfied
+        ? ` · gated: ${task.gate_feedback.score.toFixed(2)} (${task.gate_feedback.failures.join('、')})`
+        : ''
+      return `  - ${task.id} [${task.status}] attempt ${task.attempt}${handoff} ${task.subject} → ${task.assignee || 'unassigned'}${deps}${worker}${validation}${gated}${output}`
     }),
     `Captain inbox (${team.captain_inbox.length}):`,
     ...team.captain_inbox.map(message => `  - [${message.from}] ${message.content.slice(0, 200)}`),
@@ -86,7 +96,7 @@ export function registerPatentTeamsTools(ctx: Context): void {
     description: 'Add a durable continuable member. By default it snapshots the captain\'s current LLM route and effort. Supply provider/model only for an explicitly requested role-specific route; a changed provider or model automatically uses the target model\'s default effort. Set reasoning_effort only to request one of the target model\'s supported ids explicitly (or "default" to force its default). The member waits for messages, works on assigned tasks, and can message the team.',
     parameters: {
       name: { type: 'string', required: true, description: 'Unique member name inside the team.' },
-      role: { type: 'string', description: 'Role of the member (e.g. researcher, engineer, reviewer).' },
+      role: { type: 'string', description: 'Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator).' },
       provider: { type: 'string', description: 'Optional LLM provider route. Use only when the user explicitly requests a different provider; requires model.' },
       model: { type: 'string', description: 'Optional model override. Omit for the captain\'s current model (or the configured memberModel default).' },
       reasoning_effort: { type: 'string', description: 'Optional reasoning effort override: one of the target model\'s supported effort ids, or "default" to force its default. When omitted, the captain\'s effort is inherited only for the same provider/model; a changed route uses the target default.' },
@@ -152,6 +162,7 @@ export function registerPatentTeamsTools(ctx: Context): void {
         description: 'Task ids this task depends on (must be completed before this task can be claimed).',
       },
       assignee: { type: 'string', description: 'Optional member name this task is intended for.' },
+      worker: { type: 'string', description: 'Optional worker contract the task output is validated against on completion (e.g. patent-search-commander, patent-oa-writer).' },
     },
     output: {
       schema: {
@@ -257,11 +268,15 @@ export function registerPatentTeamsTools(ctx: Context): void {
           output: { type: 'string' },
           attempt: { type: 'number', required: true },
           attempt_id: { type: 'string' },
+          gated: { type: 'boolean' },
+          gate_feedback: { type: 'string' },
         },
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `Task ${value.task_id} attempt ${value.attempt} → ${value.status}${value.output !== undefined ? `\nOutput: ${value.output}` : ''}`,
+        text: value.gated === true
+          ? `Task ${value.task_id} 未过质量门禁（保持 ${value.status}）:\n${value.gate_feedback ?? ''}`
+          : `Task ${value.task_id} attempt ${value.attempt} → ${value.status}${value.output !== undefined ? `\nOutput: ${value.output}` : ''}`,
       }],
     },
     async execute(args, exec) {

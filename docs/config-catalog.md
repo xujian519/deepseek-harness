@@ -1558,7 +1558,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/patent/patent-rule/src/index.ts:118`](../packages/patent/patent-rule/src/index.ts)
+Source: [`packages/patent/patent-rule/src/index.ts:125`](../packages/patent/patent-rule/src/index.ts)
 
 <a id="deepseek-aidsh-patent-teams"></a>
 
@@ -1584,6 +1584,15 @@ export interface Config {
   maxMembers?: number
   /** Prompt-section order for the usage policy (default `117`, after delegation policy). */
   promptSectionOrder?: number
+  /** Run the composite quality gate on contract-backed task completion (deployment choice; default `false`). */
+  qualityGate?: boolean
+  /**
+   * Comprehensive-eval score below which the gate calls out the composite score
+   * as advisory feedback (0..1; default `0.7`). The bounce decision itself is
+   * made by contract fields, content sufficiency, expression quality, and the
+   * rule gate — never by the composite score alone.
+   */
+  passThreshold?: number
 }
 ```
 

@@ -146,7 +146,7 @@ describe('validateWorkerOutput', () => {
 })
 
 describe('defaultPatentWorkers', () => {
-  it('ships the six built-in patent workers with hard output contracts', () => {
+  it('ships the built-in patent workers with hard output contracts', () => {
     const workers = defaultPatentWorkers()
     expect(workers.map(w => w.name)).toEqual([
       'patent-technical-analyzer',
@@ -155,6 +155,14 @@ describe('defaultPatentWorkers', () => {
       'patent-inventiveness-analyzer',
       'patent-oa-writer',
       'quality_checker',
+      'case-manager',
+      'applicant-counsel',
+      'formal-examiner',
+      'invalidity-petitioner',
+      'patentee-defender',
+      'defendant-counsel',
+      'adjudicator',
+      'tech-investigator',
     ])
     for (const def of workers) {
       expect(def.outputs?.length).toBeGreaterThan(0)

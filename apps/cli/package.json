@@ -58,6 +58,7 @@
     "@deepseek-ai/dsh-patent-document": "workspace:^",
     "@deepseek-ai/dsh-patent-knowledge": "workspace:^",
     "@deepseek-ai/dsh-patent-rule": "workspace:^",
+    "@deepseek-ai/dsh-patent-teams": "workspace:^",
     "@deepseek-ai/dsh-patent-tools": "workspace:^",
     "@deepseek-ai/dsh-patent-workflow": "workspace:^",
     "@deepseek-ai/dsh-persona": "workspace:^",

@@ -6,18 +6,19 @@ The `patent` agent preset composes a Chinese-patent-engineering agent on the Dee
 
 ## What it mounts
 
-Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts eight patent-domain plugins:
+Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts nine patent-domain plugins:
 
 - `@deepseek-ai/dsh-patent-data` — the data seam (ctx.patentData: nuo search provider factory + the ego-browser session runner). patent_pdf_download runs its ego-browser download adapter through this service.
 - `@deepseek-ai/dsh-patent-knowledge` — the knowledge.db query service (ctx.patentKnowledge: caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify).
 - `@deepseek-ai/dsh-patent-workflow` — the execution-pipeline service (ctx.patentWorkflow: runWorkflow / runPlantask / approve / reject).
 - `@deepseek-ai/dsh-patent-tools` — 23 model-facing tools: search, metadata, legal status, case/wiki/kg queries, drafting, claim chart, workflow recap, figure analysis, PDF download, knowledge notes.
+- `@deepseek-ai/dsh-patent-teams` — the durable multi-agent team service (ctx.patentTeams) surfacing the ten `patent_teams_*` tools; with `qualityGate: true` it runs the composite completion gate.
 - `@deepseek-ai/dsh-patent-rule` — the rule engine, the output gate on tools/post-execute, and the EVI-011 evidence guards.
 - `@deepseek-ai/dsh-patent-document` — render_patent_document.
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources.
 - `@deepseek-ai/dsh-methodology` — the triz tool.
 
-The patent services sit behind an isolate realm (patentData / patentKnowledge / patentWorkflow) shared with patent-tools, so its ctx.get('patentData') / ctx.get('patentKnowledge') resolve this preset's instances rather than the host's. tool-ralph is omitted (a patent case uses goal / todo / workflow, not fresh-agent iteration), and tool-web keeps fetch disabled because shipped profiles mount no fetch provider (see the base layer comment); a deployment that needs web_fetch adds a provider itself, e.g. `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
+The patent services sit behind an isolate realm (patentData / patentKnowledge / patentWorkflow / patentTeams) shared with patent-tools, so its ctx.get('patentData') / ctx.get('patentKnowledge') resolve this preset's instances rather than the host's. tool-ralph is omitted (a patent case uses goal / todo / workflow, not fresh-agent iteration), and tool-web keeps fetch disabled because shipped profiles mount no fetch provider (see the base layer comment); a deployment that needs web_fetch adds a provider itself, e.g. `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
 
 ## Skills
 
@@ -32,7 +33,7 @@ Eight skills ship in skills/:
 - patent-workspace-layout
 - patent-team-composition
 
-`patent-team-composition` is the durable-team template: when the environment mounts the `dsh-agent-teams` plugin (`agent_teams_*` tools), cases pick one of seven scenario role packs covering the full patent lifecycle — case intake (case-manager / researcher / technical-expert / drafter), drafting (researcher / drafter / adversarial-reviewer / technical-expert / applicant-counsel), office-action response (same five), correction (drafter / formal-examiner), reexamination (researcher / drafter / adversarial-reviewer / applicant-counsel / adjudicator), invalidation (researcher / drafter / technical-expert / invalidity-petitioner / patentee-defender / adjudicator), and infringement litigation (researcher / drafter / technical-expert / patentee-defender / defendant-counsel / adjudicator, plus optional tech-investigator) — led by the current session as captain; without the plugin it falls back to single-session `subagent_fork` expert review. The reexamination, invalidation, and litigation packs use the adversarial structure of paired positions plus a neutral adjudicator.
+`patent-team-composition` is the durable-team template: this session mounts the `dsh-patent-teams` plugin (`patent_teams_*` tools), so cases pick one of seven scenario role packs covering the full patent lifecycle — case intake (case-manager / researcher / technical-expert / drafter), drafting (researcher / drafter / adversarial-reviewer / technical-expert / applicant-counsel), office-action response (same five), correction (drafter / formal-examiner), reexamination (researcher / drafter / adversarial-reviewer / applicant-counsel / adjudicator), invalidation (researcher / drafter / technical-expert / invalidity-petitioner / patentee-defender / adjudicator), and infringement litigation (researcher / drafter / technical-expert / patentee-defender / defendant-counsel / adjudicator, plus optional tech-investigator) — led by the current session as captain; only when the plugin is disabled does it fall back to single-session `subagent_fork` expert review. The reexamination, invalidation, and litigation packs use the adversarial structure of paired positions plus a neutral adjudicator.
 
 The novelty/inventiveness, infringement, and invalidity skills are rewritten from the Sati skills patent-novelty-analysis, patent-inventiveness-analysis, patent-infringement-checker, and patent-invalidity-checker. Sati tool references (patent_kg_query / patent_case_search / law_search) are replaced by the dsh patent tools, the <memory-context> auto-injection is replaced by explicit must-check lists, and Sati-internal file paths are replaced by workspace-relative paths.
 
