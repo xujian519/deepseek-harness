@@ -292,6 +292,7 @@ function mount(slots: SlotRegistry, nodes: ConversationSnapshot['nodes'] = NODES
         renderSlot={renderSlot}
         views={views}
         releaseSessionImages={vi.fn()}
+        releaseViewSetter={vi.fn()}
         useInput={useInput}
         inputActions={inputActions}
         bindDraftMirror={() => () => {}}
