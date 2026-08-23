@@ -174,7 +174,7 @@ async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<{ m
  * @param signal - caller cancellation, forwarded to scheduling.
  * @returns the created task's identity.
  */
-async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string }>
+async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string worker?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }>
 
 /**
  * Atomically retry, reassign, or let the captain take over any unfinished or
@@ -206,7 +206,7 @@ async claimTask( agent: Agent, args: { task_id: string; assignee?: string }, ): 
  * @param signal - caller cancellation, forwarded to scheduling.
  * @returns the task's updated state.
  */
-async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; status: string; output?: string; attempt: number; attempt_id?: string }>
+async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string status: string output?: string attempt: number attempt_id?: string gated?: boolean gate_feedback?: string }>
 
 /**
  * Send a message to the captain or to a teammate. Messages go straight into
