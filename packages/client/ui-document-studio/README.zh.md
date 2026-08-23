@@ -22,7 +22,7 @@ Web patch（`packages/bundle/web-app/cordis.patch.yml`）是加载本包的唯�
 
 无：本包是浏览器端 UI 管线，不触达任何模型请求。产物数据派生自变更工具自身的 `locations`，而非模型的收尾文案。
 
-### KV 缓存影响
+#### KV 缓存影响
 
 无；本包既不组装也不发送 provider 请求。
 
