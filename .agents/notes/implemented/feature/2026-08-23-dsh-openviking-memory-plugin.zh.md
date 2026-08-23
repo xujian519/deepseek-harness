@@ -30,7 +30,7 @@ harness 需要一个跨会话长期记忆插件：会话中的用户偏好、项
 
 ## Consequences
 
-- 新组 README 与 [packages/README.md](../../../packages/README.md) 组表已更新；`packages/memory/` 持有外部服务契约链接。
+- 新组 README 与 [packages/README.md](../../../../packages/README.zh.md) 组表已更新；`packages/memory/` 持有外部服务契约链接。
 - Web 面：设置页自动获得 `openviking` 配置段；`GET /openviking/status`（host webServer 精确路由）提供健康+队列 JSON。
 - 浏览器状态卡片（client ui-* 插件，含 client-build 注册）**未随本包落地**：client 侧 slot 集成与 client-build 注册面是独立大块，记录为包 README 的 Known Limitation。
 - e2e 采用 opt-in 标记（`OPENVIKING_E2E=1` + 可达服务器），CI 无密钥自动跳过。

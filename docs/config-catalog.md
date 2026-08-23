@@ -1497,6 +1497,78 @@ export interface Config {
 
 Source: [`packages/patent/methodology/src/index.ts:52`](../packages/patent/methodology/src/index.ts)
 
+<a id="deepseek-aidsh-openviking"></a>
+
+## `@deepseek-ai/dsh-openviking`
+
+Requires: `tools` · `systemPrompt` · `agents`
+
+```ts config-catalog
+/** Resolved plugin configuration (schema defaults applied). */
+export interface Config {
+  /** OpenViking HTTP service base URL. */
+  endpoint: string
+  /** `X-API-Key` value; empty omits the header. */
+  apiKey: string
+  /** `X-OpenViking-Account` value; empty omits the header. */
+  account: string
+  /** `X-OpenViking-User` value; empty omits the header. */
+  user: string
+  /** `X-OpenViking-Agent` value; empty omits the header. */
+  agentId: string
+  /** Per-request timeout in milliseconds (1000-300000). */
+  timeoutMs: number
+  /** Session-sync state file; `~` is expanded. */
+  stateFile: string
+  /** Repository-list recall: enabled flag and cache TTL (ms) for the `repositories` context. */
+  repoContext: RepoContextConfig
+  /** Auto-recall: pre-step memory injection budget, score gate, and refresh cadence. */
+  autoRecall: AutoRecallConfig
+  /** Auto-commit: periodic capture of session turns into the memory store. */
+  autoCommit: AutoCommitConfig
+}
+
+/** Configuration for the indexed-resources prompt contribution. */
+export interface RepoContextConfig {
+  /** Inject the indexed-repository list into the prompt. */
+  enabled: boolean
+  /** TTL of the in-process repository cache in milliseconds. */
+  cacheTtlMs: number
+}
+
+/** Configuration for automatic recall before model steps. */
+export interface AutoRecallConfig {
+  /** Auto-inject relevant memories before each model step. */
+  enabled: boolean
+  /** Maximum memories injected per step. */
+  limit: number
+  /** Minimum score for filler memories (0-1). */
+  scoreThreshold: number
+  /** Per-memory content character cap. */
+  maxContentChars: number
+  /** Approximate token budget; the injected block is capped at `tokenBudget * 4` chars. */
+  tokenBudget: number
+  /** Also search the agent space (`viking://agent/`) for cases/patterns/tools/skills memories and skill playbooks. */
+  agentSpaces: boolean
+  /** Re-search mid-message every N tool steps and inject only new memories (0 disables). */
+  refreshSteps: number
+  /** Memory map: inject on session start, refresh every N user turns (2+); 1 = start only, 0 = never. */
+  startupMapEveryTurns: number
+}
+
+/** Configuration for session auto-commit. */
+export interface AutoCommitConfig {
+  /** Periodically commit sessions with uncommitted messages. */
+  enabled: boolean
+  /** Commit after this many uncommitted user turns; 0 disables the turn trigger. */
+  turns: number
+  /** Wall-clock fallback for previously committed sessions. */
+  intervalMinutes: number
+}
+```
+
+Source: [`packages/memory/openviking/src/config.ts:51`](../packages/memory/openviking/src/config.ts)
+
 <a id="deepseek-aidsh-patent-document"></a>
 
 ## `@deepseek-ai/dsh-patent-document`
@@ -1558,7 +1630,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/patent/patent-rule/src/index.ts:118`](../packages/patent/patent-rule/src/index.ts)
+Source: [`packages/patent/patent-rule/src/index.ts:125`](../packages/patent/patent-rule/src/index.ts)
 
 <a id="deepseek-aidsh-patent-teams"></a>
 
@@ -1584,6 +1656,15 @@ export interface Config {
   maxMembers?: number
   /** Prompt-section order for the usage policy (default `117`, after delegation policy). */
   promptSectionOrder?: number
+  /** Run the composite quality gate on contract-backed task completion (deployment choice; default `false`). */
+  qualityGate?: boolean
+  /**
+   * Comprehensive-eval score below which the gate calls out the composite score
+   * as advisory feedback (0..1; default `0.7`). The bounce decision itself is
+   * made by contract fields, content sufficiency, expression quality, and the
+   * rule gate — never by the composite score alone.
+   */
+  passThreshold?: number
 }
 ```
 
@@ -3630,6 +3711,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-desktop-app` ([`packages/bundle/desktop-app/src/index.ts`](../packages/bundle/desktop-app/src/index.ts))
 - `@deepseek-ai/dsh-desktop-directory-picker` — requires `desktop` ([`packages/desktop/directory-picker/src/index.ts`](../packages/desktop/directory-picker/src/index.ts))
 - `@deepseek-ai/dsh-desktop-shell` ([`packages/desktop/shell/src/index.ts`](../packages/desktop/shell/src/index.ts))
+- `@deepseek-ai/dsh-document-deliver` — requires `tools` · `fs` ([`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts))
 - `@deepseek-ai/dsh-fs-e2b` — requires `e2b` ([`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
 - `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))

@@ -35,6 +35,7 @@ const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
   'packages/util/brand': 'The package is a type-only primitive erased at compile time.',
   'packages/util/home-paths': 'The package only resolves harness-owned host paths; model-facing consumers own any rendered use.',
   'packages/util/launch-environment': 'The package only resolves host environment values; model-facing consumers own any rendered use.',
+  'packages/test-support/self-evolve-eval': 'The P1-10 evaluation scaffold owns no service and no model-visible surface; the self-evolve runner and its tool consumers own every model-facing effect.',
 }
 
 /**
@@ -93,6 +94,8 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/client/ui-directory-picker-browse': { kind: 'none', reason: 'Browser-side directory-browsing surface; registers nothing model-facing.' },
   'packages/client/ui-directory-picker-native': { kind: 'none', reason: 'Browser-side surface driving the host OS chooser; registers nothing model-facing.' },
   'packages/client/ui-document-studio': { kind: 'none', reason: 'Browser-side delivery-studio view; renders already logged delivery registrations without changing model context.' },
+  'packages/client/synapse': { kind: 'none', reason: 'Browser-half Synapse canvas chrome; bridges client session/workspace snapshots without touching model requests.' },
+  'packages/web/synapse': { kind: 'none', reason: 'Host-side canvas surface and projection; serves committed session/workspace data without touching model requests.' },
   'packages/client/ui-theme': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },
   'packages/client/ui-settings': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },
   'packages/client/ui-settings-general': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },

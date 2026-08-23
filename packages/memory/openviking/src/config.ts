@@ -63,8 +63,11 @@ export interface Config {
   timeoutMs: number
   /** Session-sync state file; `~` is expanded. */
   stateFile: string
+  /** Repository-list recall: enabled flag and cache TTL (ms) for the `repositories` context. */
   repoContext: RepoContextConfig
+  /** Auto-recall: pre-step memory injection budget, score gate, and refresh cadence. */
   autoRecall: AutoRecallConfig
+  /** Auto-commit: periodic capture of session turns into the memory store. */
   autoCommit: AutoCommitConfig
 }
 

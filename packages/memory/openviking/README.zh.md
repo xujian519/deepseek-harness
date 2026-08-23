@@ -2,16 +2,13 @@
 
 [English](README.md) | 中文
 
-DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自动召回、会话捕获与自动提交、OpenViking 工具面，以及共享的 `openviking-memory` 技能指导。服务契约见[上游项目](https://github.com/volcengine/OpenViking)及其
-[DeepSeek Harness Memory Bundle](https://github.com/volcengine/OpenViking/tree/main/examples/dsh-memory-plugin)。
+DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自动召回、会话捕获与自动提交、OpenViking 工具面，以及共享的 `openviking-memory` 技能指导。服务契约见[上游项目](https://github.com/volcengine/OpenViking)及其 [DeepSeek Harness Memory Bundle](https://github.com/volcengine/OpenViking/tree/main/examples/dsh-memory-plugin)。
 
 插件仅与运行中的 OpenViking HTTP 服务通信——从不调用 `ov` CLI，也不内嵌服务器。服务可能不可达：插件仍可加载，普通对话继续，自动分层以去重警告跳过，显式工具调用则抛出清晰错误。
 
 ## 公开 API
 
-- `Config` — 校验后的插件配置：`endpoint`（默认
-  `http://localhost:1933`）、`apiKey`、`account`、`user`、`agentId`、`timeoutMs`
-  （默认 30000）、`stateFile`（默认 `~/.dsh/openviking/state.json`），以及下文记载的 `repoContext`、`autoRecall`、`autoCommit` 分组。
+- `Config` — 校验后的插件配置：`endpoint`（默认 `http://localhost:1933`）、`apiKey`、`account`、`user`、`agentId`、`timeoutMs` （默认 30000）、`stateFile`（默认 `~/.dsh/openviking/state.json`），以及下文记载的 `repoContext`、`autoRecall`、`autoCommit` 分组。
 - 函数插件 `name` / `inject` / `Config` / `apply` —— 无默认导出。
 - `./invariant` —— 包级不变式伴生插件。
 
@@ -36,23 +33,6 @@ DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自
 | `autoCommit.turns` | `3` | 未提交用户回合达到 N 即提交；0 关闭回合触发。 |
 | `autoCommit.intervalMinutes` | `10` | 已提交会话的时间兜底。 |
 
-## 模型体验
-
-插件仅通过 `systemPrompt.context()` 注册表（随会话重放、对压缩可见的 durable 用户角色快照）与模型工具参与模型输入。这部分输入包括：
-
-- **记忆库概览**（`openviking:library` 上下文，order ~120）：类别计数与检索指导，会话启动注入并按配置节奏刷新。代理按需用工具取详情。
-- **召回块**（`openviking:memories` 上下文，order ~125）：当前步骤的 `<relevant-memories>` 块，去重、打分、预算封顶。块内从不包含"按记忆执行"的指令——它是不可信背景数据。
-- **仓库列表**（`openviking:repositories` 上下文，order ~118）：`viking://resources/` 下已索引资源的名称。
-
-因为这是上下文而非 section，`complete: true`（恢复为唯一 section）的 preset 不会丢弃它们。召回文本永不镜像回 OpenViking：上下文贡献携带非 `user` 的 `source.kind`，捕获层也会防御性剥离它们。
-
-### Token 影响
-
-召回成本由 `autoRecall.tokenBudget` 与单条 `maxContentChars` 上限约束；启动概览是一块按配置节奏刷新的紧凑内容。
-
-### KV Cache 影响
-
-召回块作为上下文快照追加；新块只改变后缀，保留此前可缓存的上下文。
 ## 测试
 
 ```sh
@@ -60,10 +40,23 @@ pnpm vitest run packages/memory/openviking/          # unit suite (per-file 100%
 OPENVIKING_E2E=1 pnpm vitest run packages/memory/openviking/tests/e2e.spec.ts
 ```
 
-e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认
-`http://127.0.0.1:1934`），无 `OPENVIKING_E2E=1` 时跳过；它存储唯一会话、
-镜像用户与助手消息、提交，并断言提交后的会话与其实时尾部——这是任何
-stub 都无法证明的性质。
+e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认 `http://127.0.0.1:1934`），无 `OPENVIKING_E2E=1` 时跳过；它存储唯一会话、 镜像用户与助手消息、提交，并断言提交后的会话与其实时尾部——这是任何 stub 都无法证明的性质。
+
+## 模型体验
+
+### 模型可见的上下文与工具
+
+#### 模型所见
+
+插件仅通过 `systemPrompt.context()` 注册表（随会话重放、对压缩可见的 durable 用户角色快照）与模型工具参与模型输入。上下文包括 `openviking:library`（类别计数与检索指导，会话启动注入并按配置节奏刷新）、`openviking:memories`（当前步骤的 `<relevant-memories>` 召回块，去重、打分、预算封顶——不可信背景数据，绝不含"按记忆执行"的指令）与 `openviking:repositories`（`viking://resources/` 下已索引资源的名称）。因为这是上下文而非 section，`complete: true`（恢复为唯一 section）的 preset 不会丢弃它们。召回文本永不镜像回 OpenViking：上下文贡献携带非 `user` 的 `source.kind`，捕获层也会防御性剥离它们。
+
+#### Token 影响
+
+召回成本由 `autoRecall.tokenBudget` 与单条 `maxContentChars` 上限约束；启动概览是一块按配置节奏刷新的紧凑内容。
+
+#### KV Cache 影响
+
+召回块作为上下文快照追加；新块只改变后缀，保留此前可缓存的上下文。
 
 ## 已知限制与延后工作
 

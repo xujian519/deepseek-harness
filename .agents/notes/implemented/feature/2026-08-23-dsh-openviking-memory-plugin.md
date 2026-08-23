@@ -6,12 +6,7 @@ English | [中文](2026-08-23-dsh-openviking-memory-plugin.zh.md)
 
 ## Problem
 
-The harness needs a cross-session long-term memory plugin: user preferences,
-project knowledge, and lessons learned in one conversation must be retrievable
-semantically in later conversations, with context injection that is
-token-cheap, replayable, and neutral to existing compositions. Until now this
-repository had only in-conversation context (`context/`) and local session
-retrieval (`session-query/`), with no external context-database integration.
+The harness needs a cross-session long-term memory plugin: user preferences, project knowledge, and lessons learned in one conversation must be retrievable semantically in later conversations, with context injection that is token-cheap, replayable, and neutral to existing compositions. Until now this repository had only in-conversation context (`context/`) and local session retrieval (`session-query/`), with no external context-database integration.
 
 ## Decision
 
@@ -35,7 +30,7 @@ retrieval (`session-query/`), with no external context-database integration.
 
 ## Consequences
 
-- The new group README and the [packages/README.md](../../../packages/README.md) group table are updated; `packages/memory/` owns the external-service contract links.
+- The new group README and the [packages/README.md](../../../../packages/README.md) group table are updated; `packages/memory/` owns the external-service contract links.
 - Web surface: the settings page gains the `openviking` config section automatically; `GET /openviking/status` (exact host webServer route) serves health + queue JSON.
 - The browser status card (a client `ui-*` plugin with client-build registration) is **not shipped with this package**: client-side slot integration and the client-build registration surface are a separate large block, recorded as a Known Limitation in the package README.
 - e2e is opt-in (`OPENVIKING_E2E=1` plus a reachable server); CI skips without a key.

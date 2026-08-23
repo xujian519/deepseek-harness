@@ -29,11 +29,11 @@ The web bundle mounts this package as row `synapse`, and `@deepseek-ai/dsh-clien
 
 ## Model Experience
 
-None: the package reads committed session events and renders them; it adds no system-prompt prose, tool schemas, or request-context content to any model request.
+None, as the host half renders committed session events to the canvas and adds no prompt prose, tool schemas, or request-context content to any model request.
 
-### KV Cache effect
+#### KV Cache effect
 
-None: it never changes request headers, system prompts, or tool registries, so an already-reusable KV prefix stays reusable.
+None. It never changes request headers, system prompts, or tool registries, so an already-reusable KV prefix stays reusable.
 
 ## Known Limitations and Deferred Work
 

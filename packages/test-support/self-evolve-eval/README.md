@@ -33,12 +33,7 @@ pnpm eval:self-evolve score  --results packages/self-evolve/evaluation/results.j
 pnpm eval:self-evolve decide --results packages/self-evolve/evaluation/results.json --write
 ```
 
-**Constraint — install vs arm workspaces**: the dataset `install` command runs once
-into the shared venv from the base checkout; the two arm checkouts are independent
-clones made before that step, and the verdict runs in an arm after a pristine reset.
-For tasks whose `install` is an editable package install, the package under test may
-resolve from the base checkout instead of the arm's prediction — a known
-local-reproduction caveat, and the reason verdicts are reported as such.
+**Constraint — install vs arm workspaces**: the dataset `install` command runs once into the shared venv from the base checkout; the two arm checkouts are independent clones made before that step, and the verdict runs in an arm after a pristine reset. For tasks whose `install` is an editable package install, the package under test may resolve from the base checkout instead of the arm's prediction — a known local-reproduction caveat, and the reason verdicts are reported as such.
 
 `decide --write` persists `eval-decision.json`; `pnpm run verify-self-evolve-eval` (a CI gate) fails when the recorded recommendation is `rollback` — the "CI 跨零自动停开关".
 
@@ -69,3 +64,8 @@ A task resolved by the self-evolve run but not by baseline is a **win**; the rev
 ## Honest status
 
 The scaffold is landed and unit-tested (subset determinism, scoring, interval, decision I/O). The `campaign` runner's dry-run plan, git-pathspec prediction exclusion, and merge/verdict pure logic are unit-tested; its subprocess path (git/venv/pytest) is exercised against temp repos with a stubbed verdict. A keyed e2e (`pnpm run test:e2e`, requiring `DEEPSEEK_API_KEY` and the exported manifest at `SELF_EVOLVE_E2E_MANIFEST`) is wired to drive one real task through the pipeline but self-skips without them. **No real SWE-bench task has been run in this repository** — the keyed agent plus a per-task environment is required and the recorded decision file does not exist yet, so the CI stop switch is dormant.
+## Known Limitations and Deferred Work
+
+- **Local reproduction, not official SWE-bench** — the P-B verdict is a local `python -m pytest` in the arm checkout; dependency and system drift can make it differ from the official per-instance verdict, which remains the formal evidence route.
+- **Install-vs-arm workspace caveat** — the dataset `install` command runs once into the shared venv from the base checkout, so for editable-package installs the package under test may resolve from the base checkout instead of the arm's prediction; verdicts are reported with that caveat.
+- **The keyed path has never run here** — no real SWE-bench task has been executed in this repository. The recorded `eval-decision.json` does not exist yet, so the CI stop switch is dormant.

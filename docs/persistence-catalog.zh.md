@@ -610,12 +610,26 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 ```ts persistence-catalog
 /**
  * Records one task creation.
- * @param data - team identity, task id, subject, dependencies, assignee.
+ * @param data - team identity, task id, subject, dependencies, assignee, worker.
  */
 'patent-teams/task-created': PatentTeamsTaskCreatedData
 ```
 
 来源：[`packages/patent/patent-teams/src/event-types.ts:94`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-gated--log-only"></a>
+
+#### `patent-teams/task-gated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records a completion rejected by the composite quality gate.
+ * @param data - team identity, task id, score, failing dimensions, and feedback.
+ */
+'patent-teams/task-gated': PatentTeamsTaskGatedData
+```
+
+来源：[`packages/patent/patent-teams/src/event-types.ts:130`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-updated--log-only"></a>
 
@@ -630,6 +644,20 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 ```
 
 来源：[`packages/patent/patent-teams/src/event-types.ts:99`](../packages/patent/patent-teams/src/event-types.ts)
+
+<a id="patent-teamstask-validated--log-only"></a>
+
+#### `patent-teams/task-validated` — log-only
+
+```ts persistence-catalog
+/**
+ * Records a contract-validation verdict on a completed task.
+ * @param data - team identity, task id, worker, and the missing-field verdict.
+ */
+'patent-teams/task-validated': PatentTeamsTaskValidatedData
+```
+
+来源：[`packages/patent/patent-teams/src/event-types.ts:125`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-created--log-only"></a>
 

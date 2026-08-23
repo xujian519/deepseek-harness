@@ -12,11 +12,11 @@ The web bundle mounts this package as `dsh.client` row `synapse-client` (node ha
 
 ## Model Experience
 
-None: the browser half never touches a model request; it reads client-side session/workspace snapshots and live partials only after the host commits them.
+None, as the browser half bridges session/workspace snapshots to the canvas and never touches a model request, tool execution, or session events.
 
-### KV Cache effect
+#### KV Cache effect
 
-None: it sends no model requests and mutates no request headers.
+None. It sends no model requests and mutates no request headers.
 
 ## Known Limitations and Deferred Work
 
