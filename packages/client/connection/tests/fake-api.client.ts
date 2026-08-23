@@ -84,6 +84,8 @@ export class FakeApiClient implements IApiClient {
     () => Promise.resolve(ok({ path: null }))
   onOpenPath: (payload: unknown) => Promise<RpcResponse<{ opened: true }>> =
     () => Promise.resolve(ok({ opened: true as const }))
+  onReadFileText: (payload: unknown) => Promise<RpcResponse<{ content: string; truncated: boolean }>> =
+    () => Promise.resolve(ok({ content: '', truncated: false }))
 
   onListDirectory: (payload: unknown) => Promise<RpcResponse<{
     path: string
@@ -147,6 +149,7 @@ export class FakeApiClient implements IApiClient {
     listDirectory: payload => this.record('host.listDirectory', payload, this.onListDirectory(payload)),
     createDirectory: payload => this.record('host.createDirectory', payload, this.onCreateDirectory(payload)),
     openPath: payload => this.record('host.openPath', payload, this.onOpenPath(payload)),
+    readFileText: payload => this.record('host.readFileText', payload, this.onReadFileText(payload)),
   }
 
   readonly workspace: IApiClient['workspace'] = {

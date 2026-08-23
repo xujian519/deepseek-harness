@@ -8,6 +8,10 @@ Runnable demonstrations of the main DeepSeek Harness interfaces and extension po
 
 Optional overlays that connect supported third-party memory servers through the generic MCP client. See the [memory example reference](mcp-memory/README.md).
 
+## opendesign
+
+An opt-in overlay that mounts an OpenDesign checkout's Agent-Skills directories (`skills/` and `design-templates/`) into the model-facing skill catalog, with no daemon dependency. Requires `OPEN_DESIGN_DIR`; see the [OpenDesign example reference](opendesign/README.md).
+
 ## headless-agent
 
 A non-interactive agent that accepts one task, runs it, and emits a selected machine-readable or human-readable output format. See the [headless example reference](headless-agent/README.md).

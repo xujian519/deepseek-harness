@@ -245,6 +245,12 @@
     - id: ui-deliverables
       name: '@deepseek-ai/dsh-client-ui-deliverables'
 
+    # Document studio: the Deliverables conversation view (session-wide
+    # produced files, HTML/text preview, print) and the document-preset
+    # auto-switch. Remove this entry to turn the studio off; the chat tab
+    # stays default.
+    - id: ui-document-studio
+      name: '@deepseek-ai/dsh-client-ui-document-studio'
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'

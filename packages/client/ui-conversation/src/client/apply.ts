@@ -243,11 +243,16 @@ export function apply(ctx: Context): void {
       'conversation.view': { kind: 'list', scope: 'session' },
     },
     store: chatStore,
-    inject: (sessionId: SessionId, _actions: BoundActions<typeof chatStore>): ConversationSessionInjected => {
+    inject: (sessionId: SessionId, actions: BoundActions<typeof chatStore>): ConversationSessionInjected => {
       const conversation = concreteConversation(ctx)
+      // Peer plugins switch this session's active view through the
+      // controller: the store handle is apply-local by design, so the
+      // session seat is the one place that can hand a setter outward.
+      conversation.registerViewSetter(sessionId, actions.setView)
       return {
         views,
         releaseSessionImages: (id) => { conversation.releaseSessionImages(id) },
+        releaseViewSetter: (id) => { conversation.releaseViewSetter(id) },
         bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
       }
     },

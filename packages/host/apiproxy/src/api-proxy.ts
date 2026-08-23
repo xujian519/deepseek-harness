@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, open, stat, type FileHandle } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { z as zod } from 'zod'
@@ -1864,6 +1864,39 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return openTarget(request, path, signal, open)
   }
 
+  /**
+   * Strict UTF-8 decode for {@link readFileText}: invalid byte sequences
+   * throw so the caller's catch reports `file-unreadable` rather than
+   * surfacing replacement characters as if they were file content.
+   * @param bytes - the capped byte buffer to decode.
+   * @param path - the source path, named in the thrown diagnostic.
+   */
+  function decodeUtf8Strict(bytes: Buffer, path: string): string {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    } catch {
+      throw new Error(`not valid UTF-8: ${path}`)
+    }
+  }
+
+  /**
+   * Fill a buffer from one file handle, looping because a single positioned
+   * read may return fewer bytes than requested (EOF or short reads).
+   * @param handle - open file handle at the caller's position.
+   * @param length - exact number of bytes to collect.
+   * @returns a buffer of exactly `length` bytes (zeros beyond EOF).
+   */
+  async function readUpTo(handle: FileHandle, length: number): Promise<Buffer> {
+    const bytes = Buffer.alloc(length)
+    let total = 0
+    while (total < length) {
+      const { bytesRead } = await handle.read(bytes, total, length - total, total)
+      if (bytesRead === 0) break
+      total += bytesRead
+    }
+    return bytes
+  }
+
   /** Whether this deployment can hand a path to a native opener at all. */
   function canOpenPaths(): boolean {
     if (defaults.canOpenPath !== undefined) return defaults.canOpenPath()
@@ -2937,6 +2970,54 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async openPath(request, signal) {
         return openPath(request, request.payload.path, signal)
+      },
+
+      async readFileText(request, signal) {
+        const { path, maxBytes } = request.payload
+        // Read cap is the caller's budget; the absolute ceiling keeps one
+        // preview from ever buffering more than 4 MiB.
+        const cap = Math.min(maxBytes ?? 1024 * 1024, 4 * 1024 * 1024)
+        try {
+          const handle = await open(path, 'r')
+          try {
+            const { size } = await handle.stat()
+            if (size > cap) {
+              // Read past the cap so a UTF-8 multi-byte character straddling
+              // the boundary can be detected and dropped whole; trimming the
+              // trailing continuation bytes keeps the head valid UTF-8.
+              const bytes = await readUpTo(handle, Math.min(size, cap + 3))
+              let end = cap
+              while (end > 0 && end < bytes.length) {
+                const tail = bytes[end]
+                if (tail === undefined || (tail & 0xc0) !== 0x80) break
+                end -= 1
+              }
+              return ok(request, {
+                content: decodeUtf8Strict(bytes.subarray(0, end), path),
+                truncated: true,
+              })
+            }
+            return ok(request, {
+              content: decodeUtf8Strict(await readUpTo(handle, size), path),
+              truncated: false,
+            })
+          } finally {
+            await handle.close()
+          }
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, {
+              code: 'cancelled',
+              message: 'file read was aborted',
+              details: {},
+            })
+          }
+          return err(request, {
+            code: 'file-unreadable',
+            message: `file read failed: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path },
+          })
+        }
       },
     },
 

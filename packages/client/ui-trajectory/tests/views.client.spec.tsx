@@ -89,8 +89,10 @@ function historySnapshot(
   return {
     sessionId: SID,
     views: {
-      get: target => target === 'trajectory' ? trajectory : undefined,
-    },
+      // The mock answers only the trajectory target; the merge-extensible
+      // view map's generic get face is cast past the literal inference.
+      get: (target: string) => target === 'trajectory' ? trajectory : undefined,
+    } as never,
     chat: EMPTY_CHAT_SNAPSHOT,
     nodes,
     turnTimings: new Map(),
@@ -290,6 +292,7 @@ function mount(slots: SlotRegistry, nodes: ConversationSnapshot['nodes'] = NODES
         renderSlot={renderSlot}
         views={views}
         releaseSessionImages={vi.fn()}
+        releaseViewSetter={vi.fn()}
         useInput={useInput}
         inputActions={inputActions}
         bindDraftMirror={() => () => {}}

@@ -494,6 +494,8 @@ export interface ConversationSessionInjected {
   }
   /** Release historical image URLs when this rendered session scope unmounts. */
   releaseSessionImages: (sessionId: SessionId) => void
+  /** Release the view switch write path when this rendered session scope unmounts. */
+  releaseViewSetter: (sessionId: SessionId) => void
   /** Bind the input machine's draft persistence mirror to the session store. */
   bindDraftMirror: (write: (text: string) => void) => () => void
 }

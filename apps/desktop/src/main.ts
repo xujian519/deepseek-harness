@@ -11,10 +11,14 @@ import { app, BrowserWindow, dialog, ipcMain, shell, type Tray } from 'electron'
 import { startDshBackend, type DesktopBackend } from './server-manager.ts'
 import { BridgeServer, resolveBridgePath } from './bridge-server.ts'
 import { isWithinBackendOrigin } from './navigation.ts'
+import { printHtmlToPdf } from './print.ts'
 import { shouldHideOnClose } from './tray.ts'
 
 /** Repository root from either layout (src/main.ts or dist/main.js: three hops up). */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
+
+/** Renderer-supplied HTML ceiling for print-to-PDF, matching the host read cap. */
+const MAX_PRINT_HTML_BYTES = 4 * 1024 * 1024
 
 let backend: DesktopBackend | undefined
 let bridge: BridgeServer | undefined
@@ -115,6 +119,21 @@ function createTray(appPath: string): Tray | undefined {
 
 void app.whenReady().then(async () => {
   ipcMain.handle('desktop:ping', () => 'pong')
+  ipcMain.handle('desktop:print-to-pdf', async (_event, payload: unknown) => {
+    // Renderer input is untrusted: validate the closed channel's arguments
+    // before the hidden print window touches anything.
+    if (typeof payload !== 'object' || payload === null) return { error: 'invalid payload' }
+    const html = (payload as { html?: unknown }).html
+    const suggestedName = (payload as { suggestedName?: unknown }).suggestedName
+    if (typeof html !== 'string' || html.length === 0) return { error: 'invalid html' }
+    // Match the host read ceiling so a hostile or buggy renderer cannot push
+    // an unbounded document into the hidden print window.
+    if (html.length > MAX_PRINT_HTML_BYTES) return { error: 'html too large' }
+    if (suggestedName !== undefined && typeof suggestedName !== 'string') {
+      return { error: 'invalid suggestedName' }
+    }
+    return printHtmlToPdf(mainWindow, html, suggestedName ?? 'document')
+  })
   const window = createWindow()
 
   bridge = new BridgeServer(window)

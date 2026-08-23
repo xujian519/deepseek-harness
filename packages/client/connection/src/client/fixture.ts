@@ -1499,6 +1499,13 @@ class FxInbox<F> implements StreamConn<F> {
  * @param options - fixture branches for empty state and failure timing.
  * @returns an ApiProxy backed entirely by in-memory state — no host process, no network.
  */
+/**
+ * Seeded host text files for `host.readFileText` previews in the in-memory
+ * fake host. Tests write entries before driving a preview; unknown paths
+ * answer `file-unreadable`.
+ */
+export const fixtureFiles = new Map<string, string>()
+
 export function createFixtureApi(options: FixtureOptions = {}): ApiProxy {
   return createFixtureWorld(options).api
 }
@@ -2656,6 +2663,14 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         return ok(request, { path: target })
       },
       openPath: request => ok(request, { opened: true as const }),
+      readFileText: (request) => {
+        // Fixture file table seeded by tests; unknown paths fail loud.
+        const entry = fixtureFiles.get(request.payload.path)
+        if (entry === undefined) {
+          return err(request, { code: 'file-unreadable', message: `fixture file missing: ${request.payload.path}`, details: { path: request.payload.path } })
+        }
+        return ok(request, { content: entry, truncated: false })
+      },
     },
     workspace: {
       list: request => ok(request, {
@@ -3196,6 +3211,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
       case 'host.createDirectory': return this.api.host.createDirectory(request)
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
+      case 'host.readFileText': return this.api.host.readFileText(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)
       case 'workspace.rename': return this.api.workspace.rename(request)
