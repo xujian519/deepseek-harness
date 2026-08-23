@@ -215,7 +215,7 @@ export function createDocumentDeliverTool(ctx: Context): ToolDefinition {
         },
       },
       render: (_args, value) => {
-        const result = value as unknown as DocumentDeliverResult
+        const result = value
         const lines = [
           `已登记 ${result.registered.length} 个交付文件：${result.registered.map(file => file.path).join('、')}`,
           `质量门：P0 ${result.gate.p0.length} 项通过${result.gate.p1.length > 0 ? `，P1 ${result.gate.p1.length} 项` : ''}`,
@@ -226,7 +226,7 @@ export function createDocumentDeliverTool(ctx: Context): ToolDefinition {
     },
     presentCall: (args) => {
       try {
-        const spec = parseDocumentDeliverArgs(args as unknown as DocumentDeliverInput)
+        const spec = parseDocumentDeliverArgs(args)
         return {
           card: 'generic',
           title: `登记文档交付物（${spec.files.length} 个文件）`,
@@ -247,7 +247,7 @@ export function createDocumentDeliverTool(ctx: Context): ToolDefinition {
     },
     async execute(args, exec) {
       exec.signal.throwIfAborted()
-      const spec = parseDocumentDeliverArgs(args as unknown as DocumentDeliverInput)
+      const spec = parseDocumentDeliverArgs(args)
       const missing = await missingDeliverableFiles(ctx, exec, spec.files.map(file => file.path))
       if (missing.length > 0) {
         throw new Error(`document_deliver: 以下交付文件在工作区中不存在，先修复或从登记中移除: ${missing.join('、')}`)

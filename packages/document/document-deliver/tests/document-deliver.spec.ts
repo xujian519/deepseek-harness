@@ -204,7 +204,7 @@ describe('document_deliver tool', () => {
   })
 
   it('presents the pending call as a generic card with the file locations', () => {
-    const tool = createDocumentDeliverTool(new Context() as never)
+    const tool = createDocumentDeliverTool(new Context())
     const view = tool.presentCall?.({
       files: [{ path: 'out/report.html', format: 'html' }],
       gate: { p0: ['命名规范'], p1: ['可访问性'] },
@@ -219,7 +219,7 @@ describe('document_deliver tool', () => {
   })
 
   it('presents the card without a brief_ref key when none was provided', () => {
-    const tool = createDocumentDeliverTool(new Context() as never)
+    const tool = createDocumentDeliverTool(new Context())
     const view = tool.presentCall?.({
       files: [{ path: 'out/deck.html', format: 'html' }],
       gate: { p0: ['命名规范'] },
@@ -248,7 +248,7 @@ describe('document_deliver tool', () => {
   })
 
   it('falls back to the default card when the pending args are semantically invalid', () => {
-    const tool = createDocumentDeliverTool(new Context() as never)
+    const tool = createDocumentDeliverTool(new Context())
     expect(tool.presentCall?.({ files: [], gate: { p0: ['x'] } })).toBeUndefined()
   })
 })
