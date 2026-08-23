@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-22-self-evolve-p1-10-campaign-runner.md
-2026-08-22-self-evolve-p1-10-campaign-runner.md: 394eb60ec0544c868041307d94abb8d2fa982325
-2026-08-22-self-evolve-p1-10-campaign-runner.zh.md: 6652e709d7ac2e9d3b7976027baf8a33bfb77b44
+2026-08-22-self-evolve-p1-10-campaign-runner.md: 7fd07a8601857297b3c586bebb5ef5f9e7761575
+2026-08-22-self-evolve-p1-10-campaign-runner.zh.md: d671f7a8b7df0aa17b141a14539263d05e5d6d01

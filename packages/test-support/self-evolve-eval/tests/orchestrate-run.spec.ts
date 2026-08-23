@@ -149,6 +149,11 @@ describe('runCampaign execute path', () => {
     mocks.prepareTaskWorkspace.mockRejectedValue('env clone failed')
     const summary = await runCampaign(options(dir))
     expect(summary.infraErrors).toBe(1)
+    const stats = await readFile(join(dir, 'stats.jsonl'), 'utf8')
+    const lines = stats.trim().split('\n').filter(Boolean).map(line => JSON.parse(line) as { arm: string; stage: string })
+    expect(lines).toHaveLength(2)
+    expect(lines.map(line => line.arm).sort()).toEqual(['baseline', 'evolved'])
+    expect(lines.every(line => line.stage === 'env')).toBe(true)
   })
 
   it('retries a crashed agent once and reports the terminal exit', async () => {
@@ -163,6 +168,22 @@ describe('runCampaign execute path', () => {
     expect(mocks.runAgent).toHaveBeenCalledTimes(2)
     expect(summary.failed).toBe(1)
     expect(mocks.collectPrediction).not.toHaveBeenCalled()
+  })
+
+  it('does not retry a timed-out agent and reports it as final', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-timeout')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-timeout', { instance_id: 't-timeout' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue(workspace('t-timeout').row)
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-timeout'))
+    mocks.runAgent.mockResolvedValue({ exitCode: 1, seconds: 1800, timeout: true, spawnError: null })
+    const summary = await runCampaign(options(dir, { armMode: 'baseline' }))
+    expect(mocks.runAgent).toHaveBeenCalledTimes(1)
+    expect(summary.failed).toBe(1)
+    const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as { tasks: Array<{ baselineError?: string }> }
+    expect(results.tasks[0]?.baselineError).toContain('agent timeout')
+    expect(results.tasks[0]?.baselineError).not.toContain('after retry')
   })
 
   it('reports a spawn failure and a timed-out agent without a retry verdict', async () => {
@@ -220,6 +241,46 @@ describe('runCampaign execute path', () => {
     expect(summary.passed).toBe(1)
   })
 
+  it('folds an unexpected verdict error into a failed arm instead of aborting', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-verdict-throw')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-verdict-throw', { instance_id: 't-verdict-throw' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue(workspace('t-verdict-throw').row)
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-verdict-throw'))
+    mocks.runAgent.mockResolvedValue({ exitCode: 0, seconds: 1, timeout: false, spawnError: null })
+    mocks.collectPrediction.mockResolvedValue('/work/t-verdict-throw/pred.patch')
+    mocks.verifyVerdict.mockRejectedValue(new Error('boom'))
+    const summary = await runCampaign(options(dir, { armMode: 'baseline' }))
+    expect(summary.failed).toBe(1)
+    expect(summary.infraErrors).toBe(0)
+    const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as { tasks: Array<{ baselineError?: string }> }
+    expect(results.tasks[0]?.baselineError).toContain('verdict failed: boom')
+  })
+
+  it('persists every arm under concurrency without dropping rows', async () => {
+    const dir = await tempDir()
+    const tasks = [task('t-a'), task('t-b')]
+    mocks.loadTaskManifest.mockResolvedValue(tasks)
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map(tasks.map(t => [t.instanceId, { instance_id: t.instanceId }])))
+    mocks.normalizeSwebenchRow.mockImplementation((raw: { instance_id: string }) => ({ ...workspace(raw.instance_id).row }))
+    mocks.prepareTaskWorkspace.mockImplementation(({ task: t }: { task: { instanceId: string } }) => workspace(t.instanceId))
+    mocks.runAgent.mockResolvedValue({ exitCode: 0, seconds: 1, timeout: false, spawnError: null })
+    mocks.collectPrediction.mockResolvedValue('/work/x/pred.patch')
+    mocks.verifyVerdict.mockResolvedValue({ passed: true, detail: 'ok' })
+    const summary = await runCampaign(options(dir, { concurrency: 4 }))
+    expect(summary.passed).toBe(4)
+    const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as {
+      tasks: Array<{ taskId: string; baselinePassed?: boolean; evolvedPassed?: boolean }>
+    }
+    const byId = new Map(results.tasks.map(row => [row.taskId, row]))
+    expect(byId.get('t-a')?.baselinePassed).toBe(true)
+    expect(byId.get('t-a')?.evolvedPassed).toBe(true)
+    expect(byId.get('t-b')?.baselinePassed).toBe(true)
+    expect(byId.get('t-b')?.evolvedPassed).toBe(true)
+  })
+
   it('skips a settled arm and keeps the working tree when asked', async () => {
     const dir = await tempDir()
     const resultsPath = join(dir, 'results.json')
@@ -271,6 +332,22 @@ describe('runCampaign execute path', () => {
     mocks.loadTaskManifest.mockResolvedValue([])
     const summary = await runCampaign(options(dir, { resultsPath }))
     expect(summary.planned).toBe(0)
+  })
+
+  it('fails loud on a corrupt results file instead of overwriting it', async () => {
+    const dir = await tempDir()
+    const resultsPath = join(dir, 'results.json')
+    await writeFile(resultsPath, '{ not json')
+    mocks.loadTaskManifest.mockResolvedValue([])
+    await expect(runCampaign(options(dir, { resultsPath }))).rejects.toThrow(/results file .* not valid JSON/)
+  })
+
+  it('fails loud when the results file is not a JSON object', async () => {
+    const dir = await tempDir()
+    const resultsPath = join(dir, 'results.json')
+    await writeFile(resultsPath, '"just a string"')
+    mocks.loadTaskManifest.mockResolvedValue([])
+    await expect(runCampaign(options(dir, { resultsPath }))).rejects.toThrow(/results file .* not a JSON object/)
   })
 })
 

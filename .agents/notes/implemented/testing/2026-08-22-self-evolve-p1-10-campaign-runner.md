@@ -15,7 +15,7 @@ Implement the campaign runner as a `campaign` CLI subcommand of the existing sca
 - Per task: clone the repo at `base_commit`, apply `test_patch` to two independent arm checkouts, provision one shared venv (`uv venv --seed`, `--env-tool venv` fallback), run the dataset `install` command into it, then run one agent per arm (`node --import tsx/esm apps/cli/src/bin.ts --profile headless [--patch <generated overlay>] "<problem_statement>"`). The evolved overlay mirrors `packages/bundle/self-evolve-app/cordis.patch.yml` plus a per-task `workspaceVerifier.buildCommand` (default `{python} -m compileall -q .`) — without it the held-in verifier degrades to the weak path and the evolved arm never commits.
 - Prediction = staged diff excluding `.dsh/` and every file the test patch owns (test-file edits never reach the verdict).
 - Verdict = `python -m pytest <FAIL_TO_PASS> <PASS_TO_PASS>` in the task venv inside a pristine reset (base commit + test patch + prediction re-applied).
-- Semantics: a dsh process crash (non-zero exit) is retried once — infra, not evidence; a verdict failure is final. Environment/manifest failures become retryable error rows without a boolean, which `validateResults` rejects at scoring, so an incomplete campaign never scores silently. Rows persist after every arm, so `--skip-existing` resumes a killed run.
+- Semantics: a dsh process crash (non-zero exit) is retried once — infra, not evidence; an agent timeout and a verdict failure are final. Environment/manifest failures become retryable error rows without a boolean, which `validateResults` rejects at scoring, so an incomplete campaign never scores silently. Rows persist after every arm, so `--skip-existing` resumes a killed run.
 
 ## Alternatives considered
 

@@ -15,7 +15,7 @@ P1-10 需要一次 60 题 SWE-bench_Verified 的配对离线战役：baseline �
 - 每任务：在 `base_commit` 检出仓库、把 `test_patch` 应用到两个独立的臂检出、准备一个共享 venv（`uv venv --seed`，`--env-tool venv` 回退）、把数据集 `install` 命令装进该 venv，然后每臂运行一次 agent（`node --import tsx/esm apps/cli/src/bin.ts --profile headless [--patch <生成的 overlay>] "<problem_statement>"`）。evolved overlay 镜像 `packages/bundle/self-evolve-app/cordis.patch.yml` 并附加逐任务 `workspaceVerifier.buildCommand`（默认 `{python} -m compileall -q .`）——不配则 held-in 验证器退化到弱路径，evolved 臂永不 commit。
 - 预测 = 暂存 diff，排除 `.dsh/` 与测试补丁拥有的全部文件（测试文件改动永远不进判定）。
 - 判定 = 在干净 reset（base commit + test_patch + 重新应用预测）后的任务 venv 中 `python -m pytest <FAIL_TO_PASS> <PASS_TO_PASS>`。
-- 语义：dsh 进程崩溃（非零退出）重试一次——属基础设施而非证据；判定失败为终局。环境/清单失败成为无 boolean 的可重试 error 行，`validateResults` 在评分时拒绝它们——不完整战役永不静默计分。每臂完成后行即落盘，`--skip-existing` 可续跑被中止的运行。
+- 语义：dsh 进程崩溃（非零退出）重试一次——属基础设施而非证据；agent 超时与判定失败均为终局。环境/清单失败成为无 boolean 的可重试 error 行，`validateResults` 在评分时拒绝它们——不完整战役永不静默计分。每臂完成后行即落盘，`--skip-existing` 可续跑被中止的运行。
 
 ## Alternatives considered
 

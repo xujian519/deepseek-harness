@@ -142,8 +142,14 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
   let infraErrors = 0
   let skipped = 0
 
-  const persist = async (): Promise<void> => {
-    await saveResults(options.resultsPath, { ...results, generatedAt: Date.now(), tasks })
+  // Writes are serialized through one chain and snapshotted at call time, so
+  // concurrent workers cannot interleave and regress the file to a stale state.
+  let writeChain: Promise<void> = Promise.resolve()
+  const persist = (): Promise<void> => {
+    const snapshot = `${JSON.stringify({ ...results, generatedAt: Date.now(), tasks }, null, 2)}\n`
+    const write = writeChain.then(() => saveResults(options.resultsPath, snapshot))
+    writeChain = write
+    return write
   }
   const recordStats = async (entry: string): Promise<void> => {
     await appendFile(options.statsPath, `${entry}\n`, 'utf8')
@@ -178,8 +184,9 @@ export async function runCampaign(options: CampaignOptions): Promise<CampaignRun
       const detail = `env: ${errorMessage(error)}`
       tasks = foldInfraFailure(tasks, taskId, arms, detail)
       await persist()
-      /* v8 ignore next -- arms is never empty (planCampaign always emits at least one), so the fallback label is unreachable. */
-      await recordStats(statLine(Date.now(), taskId, arms[0] ?? 'baseline', 'env', false, 0, null, detail))
+      for (const arm of arms) {
+        await recordStats(statLine(Date.now(), taskId, arm, 'env', false, 0, null, detail))
+      }
       return
     }
 
@@ -220,7 +227,8 @@ interface ArmOutcome {
 
 /**
  * Agent run → prediction → verdict for one arm. A dsh process crash (non-zero
- * exit) is retried once — infra, not evidence; a verdict failure is final.
+ * exit) is retried once — infra, not evidence; an agent timeout and a verdict
+ * failure are final.
  */
 async function runArm(
   workspace: PreparedWorkspace,
@@ -248,14 +256,15 @@ async function runArm(
   }
   const first = await runAgent(agentOptions)
   let agentRun = first
-  if (first.exitCode !== 0) {
+  if (first.exitCode !== 0 && !first.timeout) {
     agentRun = await runAgent(agentOptions)
   }
   const seconds = (Date.now() - started) / 1000
   if (agentRun.spawnError !== null) return { passed: false, error: `agent spawn failed: ${agentRun.spawnError}`, seconds, exitCode: agentRun.exitCode }
   if (agentRun.exitCode !== 0) {
     const extra = agentRun.timeout ? ' (agent timeout)' : ''
-    return { passed: false, error: `agent exited ${agentRun.exitCode}${extra} after retry`, seconds, exitCode: agentRun.exitCode }
+    const retried = agentRun !== first ? ' after retry' : ''
+    return { passed: false, error: `agent exited ${agentRun.exitCode}${extra}${retried}`, seconds, exitCode: agentRun.exitCode }
   }
   const predictionPath = join(taskDir, `prediction-${arm}.patch`)
   let prediction: string | null
@@ -265,12 +274,16 @@ async function runArm(
     return { passed: false, error: `prediction collection failed: ${errorMessage(error)}`, seconds }
   }
   if (prediction === null) return { passed: false, error: 'no prediction (empty diff)', seconds, exitCode: 0 }
-  const verdict = await verifyVerdict(
-    workspace, arm, prediction, options.verifyTimeoutMs, join(logDir, `${arm}-verify.log`),
-  )
-  return verdict.passed
-    ? { passed: true, seconds, exitCode: 0 }
-    : { passed: false, error: verdict.detail, seconds, exitCode: 0 }
+  try {
+    const verdict = await verifyVerdict(
+      workspace, arm, prediction, options.verifyTimeoutMs, join(logDir, `${arm}-verify.log`),
+    )
+    return verdict.passed
+      ? { passed: true, seconds, exitCode: 0 }
+      : { passed: false, error: verdict.detail, seconds, exitCode: 0 }
+  } catch (error) {
+    return { passed: false, error: `verdict failed: ${errorMessage(error)}`, seconds }
+  }
 }
 
 /** Recover the EvalTask view of a plan entry (subset fields + raw row verdict fields). */
@@ -318,14 +331,23 @@ async function loadResults(path: string): Promise<RawResultsFile> {
   } catch {
     return { tasks: [] }
   }
-  const parsed = JSON.parse(text) as Record<string, unknown>
-  const tasks = Array.isArray(parsed.tasks)
-    ? parsed.tasks.filter(isPartialTaskOutcome)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error(`results file ${path} is not valid JSON; move it aside or delete it to start a fresh campaign`)
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`results file ${path} is not a JSON object; move it aside or delete it to start a fresh campaign`)
+  }
+  const record = parsed as Record<string, unknown>
+  const tasks = Array.isArray(record.tasks)
+    ? record.tasks.filter(isPartialTaskOutcome)
     : []
   return {
-    ...(typeof parsed.seed === 'number' ? { seed: parsed.seed } : {}),
-    ...(typeof parsed.subsetSize === 'number' ? { subsetSize: parsed.subsetSize } : {}),
-    ...(typeof parsed.generatedAt === 'number' ? { generatedAt: parsed.generatedAt } : {}),
+    ...(typeof record.seed === 'number' ? { seed: record.seed } : {}),
+    ...(typeof record.subsetSize === 'number' ? { subsetSize: record.subsetSize } : {}),
+    ...(typeof record.generatedAt === 'number' ? { generatedAt: record.generatedAt } : {}),
     tasks,
   }
 }
@@ -335,9 +357,9 @@ function isPartialTaskOutcome(value: unknown): value is PartialTaskOutcome {
     && typeof (value as Record<string, unknown>).taskId === 'string'
 }
 
-async function saveResults(path: string, results: RawResultsFile): Promise<void> {
+async function saveResults(path: string, content: string): Promise<void> {
   const tmp = `${path}.tmp`
-  await writeFile(tmp, `${JSON.stringify(results, null, 2)}\n`)
+  await writeFile(tmp, content)
   await rename(tmp, path)
 }
 
