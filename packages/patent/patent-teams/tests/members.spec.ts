@@ -248,7 +248,7 @@ describe('memberPersona and memberWelcome', () => {
 
   it('folds a non-HITL role contract into the persona', () => {
     const team = makeTeam({ id: 'team1', members: [validMember] })
-    const persona = memberPersona(team, validMember, '.patent-teams', roleContract('researcher')!)
+    const persona = memberPersona(team, validMember, '.patent-teams', roleContract('researcher'))
     expect(persona).toContain('Role contract:')
     expect(persona).toContain('检索员 (researcher)')
     expect(persona).toContain('Stance: [neutral]')
@@ -259,7 +259,7 @@ describe('memberPersona and memberWelcome', () => {
 
   it('marks an HITL role contract as needing confirmation', () => {
     const drafter = { ...validMember, role: 'drafter' }
-    const persona = memberPersona(makeTeam(), drafter, 'state', roleContract('drafter')!)
+    const persona = memberPersona(makeTeam(), drafter, 'state', roleContract('drafter'))
     expect(persona).toContain('HITL: deliverables need human confirmation before the final output')
     expect(persona).toContain('Required deliverables: 技术问题、技术特征、技术效果、意见陈述、修改对照')
   })

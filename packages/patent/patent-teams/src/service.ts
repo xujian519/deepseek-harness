@@ -15,7 +15,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { RuleOutputGate } from '@deepseek-ai/dsh-patent-core'
 import { roleContract, validateWorkerOutput, workerContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
 import { evaluatePatentContent } from '@deepseek-ai/dsh-patent-tools'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -792,7 +791,7 @@ export class PatentTeamsService extends Service {
             return {
               task_id: task.id,
               status: task.status,
-              ...task.output !== undefined ? { output: task.output } : {},
+              output: task.output,
               attempt: task.attempt ?? 0,
               ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
               gated: true,
@@ -1182,7 +1181,7 @@ function runQualityGate(ctx: Context, workerName: string, output: string, passTh
     failures.push(`内容充分性:${sufficiency.score.toFixed(2)}/1.0 未达及格线`)
   }
   // The rule gate is an optional contribution from patent-rule; without it the rule dimension is skipped.
-  const ruleGate = ctx.get('patentRuleGate') as RuleOutputGate | undefined
+  const ruleGate = ctx.get('patentRuleGate')
   if (ruleGate !== undefined) {
     const gateResult = ruleGate.process(output)
     if (gateResult.needsApproval) {
