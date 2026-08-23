@@ -71,6 +71,16 @@
       - 'button "复制: 专利模式"':
         - img
         - text: 复制
+    - listitem:
+      - 'button "设为默认: 文档模式"':
+        - text: 文档模式 内置 面向产品/技术/运营/市场团队的文档交付 Agent：把需求拆解为规范成品——Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。可挂载 OpenDesign 技能库（OPEN_DESIGN_DIR）增强模板与设计系统。输出前强制质量门禁。
+        - code: document
+      - 'button "查看: 文档模式"':
+        - img
+        - text: 查看
+      - 'button "复制: 文档模式"':
+        - img
+        - text: 复制
   - heading "自定义" [level=3]
   - list:
     - listitem:

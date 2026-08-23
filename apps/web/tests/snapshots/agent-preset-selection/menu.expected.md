@@ -2,7 +2,8 @@
   - menuitem "Standard mode Full coding agent with file editing, shell, file and web search, skills, planning, goals, subagents, and workflows.":
     - text: Standard mode Full coding agent with file editing, shell, file and web search, skills, planning, goals, subagents, and workflows.
     - img
-  - menuitem "Code mode All Standard mode capabilities, with tools exposed through the Code Mode SDK so the model can combine multi-step operations in one TypeScript program."
+  - menuitem "PTC mode All Standard mode capabilities, with tools exposed through the Code Mode SDK so the model can combine multi-step operations in one TypeScript program."
   - menuitem "Minimal mode Two-tool coding agent with persistent bash and str_replace_editor."
   - menuitem "Creator mode Built for creating custom agent presets, with all Standard mode capabilities plus runtime inspection, plugin experiments, and preset-authoring guidance."
   - menuitem "专利模式 面向专利工程师/代理人/律师：交底书理解、现有技术检索、新颖性与创造性分析、权利要求与说明书撰写、审查意见答复、侵权比对与无效宣告。输出前强制质量门禁与免责声明。"
+  - menuitem "文档模式 面向产品/技术/运营/市场团队的文档交付 Agent：把需求拆解为规范成品——Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。可挂载 OpenDesign 技能库（OPEN_DESIGN_DIR）增强模板与设计系统。输出前强制质量门禁。"
