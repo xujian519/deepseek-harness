@@ -29,4 +29,4 @@ P1-10 需要一次 60 题 SWE-bench_Verified 的配对离线战役：baseline �
 
 - 运行器无需 Docker：本地路径峰值磁盘 ≈ 5–10 GB，每任务 venv 从全局 `uv` 缓存创建；60 题战役可容纳在一台 keyed 主机上。
 - 判定如实表述为"本地复现"，而非官方 SWE-bench；报告必须声明这一点，官方抽检仍属路径 P-C。
-- 脚手架诚实状态不变：本仓库尚未执行真实 60 题战役；`campaign` 运行器的 dry-run、git 路径排除与纯逻辑已做单测/冒烟。
+- 脚手架诚实状态不变：本仓库尚未执行真实 60 题战役。运行器已作为 `campaign` CLI 子命令接线；其 dry-run 计划、git 路径排除、merge/verdict 纯逻辑，以及子进程路径（在带桩判定的临时仓库里跑 git/venv/pytest）已做单测。
