@@ -63,4 +63,4 @@ self-evolve 跑通而 baseline 未跑通的任务为 **win**，反之为 **loss*
 
 ## 诚实状态
 
-脚手架已落地并有单测（子集确定性、评分、区间、决策 I/O）。`campaign` 运行器的 dry-run 计划、git-pathspec 预测排除、以及 merge/verdict 纯逻辑有单测；其子进程路径（git/venv/pytest）由带桩判定的临时仓库覆盖。**本仓库尚未执行任何真实 SWE-bench 任务**——需要 keyed agent 加每题环境，且决策记录文件尚不存在，因此 CI 停开关处于休眠态。
+脚手架已落地并有单测（子集确定性、评分、区间、决策 I/O）。`campaign` 运行器的 dry-run 计划、git-pathspec 预测排除、以及 merge/verdict 纯逻辑有单测；其子进程路径（git/venv/pytest）由带桩判定的临时仓库覆盖。另接了一个 keyed e2e（`pnpm run test:e2e`，需要 `DEEPSEEK_API_KEY` 与导出的清单 `SELF_EVOLVE_E2E_MANIFEST`）来贯通单个真实任务，但无它们时 self-skip。**本仓库尚未执行任何真实 SWE-bench 任务**——需要 keyed agent 加每题环境，且决策记录文件尚不存在，因此 CI 停开关处于休眠态。
