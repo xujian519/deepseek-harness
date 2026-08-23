@@ -12,7 +12,7 @@ Status: implemented
 
 以一个合并提交（`Merge upstream v0.1.1-rc.2 (b150a551b8) into fork`）前向合并，按类别解决冲突：
 
-- **冲突（9 个文件，全部为文档）**：`docs/event-producer-consumer.{md,zh.md}`、`docs/module-graph.{md,zh.md}`、`packages/fs/tool-fs/README.{md,zh.md}` 及其 `.i18n.yaml` 配对记录。生成类图谱文档以 fork 侧为合并基线，随后从合并后的源码树重新生成——既纳入上游变更（`llm/stream` 源码行号移动、`host-apiproxy` 删除的 `permission-presets` 依赖），又保留 fork 内容。手写 tool-fs README 双侧合并：保留 fork 的 `timeout-guard` 措辞，采纳上游新增的 `No attachment-region tool` 限制条目。
+- **冲突（9 个文件，全部为文档）**：`docs/event-producer-consumer.{md,zh.md}`、`docs/module-graph.{md,zh.md}`、`packages/fs/tool-fs/README.md` 与 `README.zh.md` 及其 `.i18n.yaml` 配对记录。生成类图谱文档以 fork 侧为合并基线，随后从合并后的源码树重新生成——既纳入上游变更（`llm/stream` 源码行号移动、`host-apiproxy` 删除的 `permission-presets` 依赖），又保留 fork 内容。手写 tool-fs README 双侧合并：保留 fork 的 `timeout-guard` 措辞，采纳上游新增的 `No attachment-region tool` 限制条目。
 - **无源码冲突**：fork 代码不触及重构后的 attachment/`read_image` seam；合并树上的 `typecheck`、`lint`（89 规则）与单元测试均通过，无需进一步源码改动。
 - **版本族**：25 个 fork 专有包清单与 `apps/desktop/package.json` 从 `0.1.1-rc.1` 升到 `0.1.1-rc.2`，使工作区共享同一版本（dsh 发布族要求）。不推送标签——fork 与上游共享 `dsh-v*` 标签空间。
 - **重新生成**：对合并后的源码树重新生成文档图谱、模块图、cordis/config/tool/persistence 目录、client 插槽目录、scoped events 与第三方声明。重新生成恢复了被合并后的上游目录内容覆盖的 fork 条目（config 目录中的 `dsh-host-synapse`、`dsh-client-synapse`、`dsh-client-ui-document-studio`、`dsh-self-evolve-eval`；模块图中的 synapse/patent/self-evolve 行）。zh 对侧手工镜像，五个变更配对重新记录（`verify-translation-pairing --write`）。

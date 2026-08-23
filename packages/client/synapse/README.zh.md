@@ -14,7 +14,7 @@ Web 组合以 `dsh.client` 行 `synapse-client` 挂载本包（节点半侧为�
 
 无：浏览器半侧从不触及模型请求；只读取客户端会话/工作区快照与已提交后的实时 partial。
 
-### KV Cache 影响
+#### KV Cache 影响
 
 无：不发模型请求，不改动请求头。
 

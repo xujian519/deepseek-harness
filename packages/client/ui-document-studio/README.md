@@ -20,9 +20,9 @@ The document agent preset (`document` in `apps/cli/config/agent-presets/`) is wh
 
 ## Model Experience
 
-None: this package is browser-side UI plumbing and reaches no model request. The produced-file data is derived from the mutation tools' own `locations`, never from the model's closing prose.
+None, as this package is browser-side UI plumbing and reaches no model request; the produced-file data is derived from the mutation tools' own `locations`, never from the model's closing prose.
 
-### KV Cache effect
+#### KV Cache effect
 
 None; this package neither assembles nor sends a provider request.
 

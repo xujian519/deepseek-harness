@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-23-clear-master-gate-debt.md
-2026-08-23-clear-master-gate-debt.md: 469a9c539432e117621ffbff047d9da0bad7d359
-2026-08-23-clear-master-gate-debt.zh.md: 049d356b3cb650284effb31bc3fbf29137f4ce63
+2026-08-23-clear-master-gate-debt.md: f6f6552f1a5a89d832b91995bf16cab940234905
+2026-08-23-clear-master-gate-debt.zh.md: c78187c0cdd4eaba6aac1d0571bc96de00723f10

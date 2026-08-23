@@ -1497,6 +1497,78 @@ export interface Config {
 
 Source: [`packages/patent/methodology/src/index.ts:52`](../packages/patent/methodology/src/index.ts)
 
+<a id="deepseek-aidsh-openviking"></a>
+
+## `@deepseek-ai/dsh-openviking`
+
+Requires: `tools` · `systemPrompt` · `agents`
+
+```ts config-catalog
+/** Resolved plugin configuration (schema defaults applied). */
+export interface Config {
+  /** OpenViking HTTP service base URL. */
+  endpoint: string
+  /** `X-API-Key` value; empty omits the header. */
+  apiKey: string
+  /** `X-OpenViking-Account` value; empty omits the header. */
+  account: string
+  /** `X-OpenViking-User` value; empty omits the header. */
+  user: string
+  /** `X-OpenViking-Agent` value; empty omits the header. */
+  agentId: string
+  /** Per-request timeout in milliseconds (1000-300000). */
+  timeoutMs: number
+  /** Session-sync state file; `~` is expanded. */
+  stateFile: string
+  /** Indexed-repositories prompt contribution (enable + cache TTL). */
+  repoContext: RepoContextConfig
+  /** Automatic pre-step recall (enable, scoring, and budget limits). */
+  autoRecall: AutoRecallConfig
+  /** Session auto-commit (enable, turn cadence, and wall-clock fallback). */
+  autoCommit: AutoCommitConfig
+}
+
+/** Configuration for the indexed-resources prompt contribution. */
+export interface RepoContextConfig {
+  /** Inject the indexed-repository list into the prompt. */
+  enabled: boolean
+  /** TTL of the in-process repository cache in milliseconds. */
+  cacheTtlMs: number
+}
+
+/** Configuration for automatic recall before model steps. */
+export interface AutoRecallConfig {
+  /** Auto-inject relevant memories before each model step. */
+  enabled: boolean
+  /** Maximum memories injected per step. */
+  limit: number
+  /** Minimum score for filler memories (0-1). */
+  scoreThreshold: number
+  /** Per-memory content character cap. */
+  maxContentChars: number
+  /** Approximate token budget; the injected block is capped at `tokenBudget * 4` chars. */
+  tokenBudget: number
+  /** Also search the agent space (`viking://agent/`) for cases/patterns/tools/skills memories and skill playbooks. */
+  agentSpaces: boolean
+  /** Re-search mid-message every N tool steps and inject only new memories (0 disables). */
+  refreshSteps: number
+  /** Memory map: inject on session start, refresh every N user turns (2+); 1 = start only, 0 = never. */
+  startupMapEveryTurns: number
+}
+
+/** Configuration for session auto-commit. */
+export interface AutoCommitConfig {
+  /** Periodically commit sessions with uncommitted messages. */
+  enabled: boolean
+  /** Commit after this many uncommitted user turns; 0 disables the turn trigger. */
+  turns: number
+  /** Wall-clock fallback for previously committed sessions. */
+  intervalMinutes: number
+}
+```
+
+Source: [`packages/memory/openviking/src/config.ts:51`](../packages/memory/openviking/src/config.ts)
+
 <a id="deepseek-aidsh-patent-document"></a>
 
 ## `@deepseek-ai/dsh-patent-document`

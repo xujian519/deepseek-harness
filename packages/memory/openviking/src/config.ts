@@ -63,8 +63,11 @@ export interface Config {
   timeoutMs: number
   /** Session-sync state file; `~` is expanded. */
   stateFile: string
+  /** Indexed-repositories prompt contribution (enable + cache TTL). */
   repoContext: RepoContextConfig
+  /** Automatic pre-step recall (enable, scoring, and budget limits). */
   autoRecall: AutoRecallConfig
+  /** Session auto-commit (enable, turn cadence, and wall-clock fallback). */
   autoCommit: AutoCommitConfig
 }
 
