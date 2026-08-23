@@ -316,6 +316,7 @@
     { "path": "./packages/lsp/lsp" },
     { "path": "./packages/lsp/lsp-stdio" },
     { "path": "./packages/lsp/tool-lsp" },
+    { "path": "./packages/memory/openviking" },
     { "path": "./apps/cli" },
     { "path": "./apps/desktop" },
     { "path": "./packages/patent/patent-core" },
