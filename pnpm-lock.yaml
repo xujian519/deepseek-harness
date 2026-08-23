@@ -232,6 +232,9 @@ importers:
       '@deepseek-ai/dsh-methodology':
         specifier: workspace:^
         version: link:../../packages/patent/methodology
+      '@deepseek-ai/dsh-openviking':
+        specifier: workspace:^
+        version: link:../../packages/memory/openviking
       '@deepseek-ai/dsh-output-retention':
         specifier: workspace:^
         version: link:../../packages/util/output-retention
