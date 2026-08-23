@@ -9627,6 +9627,9 @@ importers:
       '@deepseek-ai/dsh-patent-rule':
         specifier: workspace:^
         version: link:../../packages/patent/patent-rule
+      '@deepseek-ai/dsh-patent-teams':
+        specifier: workspace:^
+        version: link:../../packages/patent/patent-teams
       '@deepseek-ai/dsh-patent-tools':
         specifier: workspace:^
         version: link:../../packages/patent/patent-tools
