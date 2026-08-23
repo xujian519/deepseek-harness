@@ -247,9 +247,6 @@ importers:
       '@deepseek-ai/dsh-patent-rule':
         specifier: workspace:^
         version: link:../../packages/patent/patent-rule
-      '@deepseek-ai/dsh-patent-teams':
-        specifier: workspace:^
-        version: link:../../packages/patent/patent-teams
       '@deepseek-ai/dsh-patent-tools':
         specifier: workspace:^
         version: link:../../packages/patent/patent-tools
@@ -6288,9 +6285,6 @@ importers:
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../llm/llm
-      '@deepseek-ai/dsh-patent-workflow':
-        specifier: workspace:^
-        version: link:../patent-workflow
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
