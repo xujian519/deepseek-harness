@@ -573,7 +573,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/member-added': PatentTeamsMemberAddedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:84`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:105`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmember-removed--log-only"></a>
 
@@ -587,7 +587,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/member-removed': PatentTeamsMemberRemovedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:89`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:110`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmessage-sent--log-only"></a>
 
@@ -601,7 +601,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/message-sent': PatentTeamsMessageSentData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:104`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:135`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-created--log-only"></a>
 
@@ -615,7 +615,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/task-created': PatentTeamsTaskCreatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:94`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:115`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-gated--log-only"></a>
 
@@ -643,7 +643,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/task-updated': PatentTeamsTaskUpdatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:99`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:120`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-validated--log-only"></a>
 
@@ -671,7 +671,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/team-created': PatentTeamsTeamCreatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:79`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:100`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-deleted--log-only"></a>
 
@@ -685,7 +685,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/team-deleted': PatentTeamsTeamDeletedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:109`](../packages/patent/patent-teams/src/event-types.ts)
+来源：[`packages/patent/patent-teams/src/event-types.ts:140`](../packages/patent/patent-teams/src/event-types.ts)
 ### `permission/*`
 
 <a id="permissionpreset--log-only"></a>

@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-23-clear-master-gate-debt.md
 2026-08-23-clear-master-gate-debt.md: f6f6552f1a5a89d832b91995bf16cab940234905
-2026-08-23-clear-master-gate-debt.zh.md: d8f5964e41be1a5ffa0699e9678e28b9f21daf20
+2026-08-23-clear-master-gate-debt.zh.md: c78187c0cdd4eaba6aac1d0571bc96de00723f10

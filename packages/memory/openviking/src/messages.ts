@@ -4,9 +4,9 @@
  */
 
 /**
- * Text of the string-text blocks of one message, joined by newlines.
- * @param content - Message content blocks; only `text` blocks with a string value contribute.
- * @returns The joined text of the block, or '' when no text block has a string value.
+ * Text of the non-empty text blocks of a message.
+ * @param content - Content blocks of the message.
+ * @returns Newline-joined text of the string-typed text blocks.
  */
 export function textOf(content: readonly { type: string; text?: unknown }[]): string {
   return content

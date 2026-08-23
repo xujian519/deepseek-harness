@@ -44,19 +44,47 @@ The e2e gate runs against a real OpenViking service (`OPENVIKING_URL`, default `
 
 ## Model Experience
 
-### Model-visible contexts and tools
+### Memory library map
 
 #### What the model sees
 
-The plugin injects model input through the `systemPrompt.context()` registry (a durable user-role snapshot that replays with the session and is visible to compaction) and through model-facing tools. The contexts are `openviking:library` (category counts and retrieval guidance, injected at session start and refreshed on the configured cadence), `openviking:memories` (the `<relevant-memories>` recall block for the current step, deduplicated, scored, and budget-capped — untrusted background data, never instructions to follow from memory), and `openviking:repositories` (names of indexed resources under `viking://resources/`). Because these are contexts, not sections, restore-to-sole-section presets (`complete: true`) do not discard them. Recalled text is never mirrored back into OpenViking: context contributions carry `source.kind` other than `user` and the capture layer strips them defensively.
+The plugin participates in model input through the `systemPrompt.context()` registry — a durable user-role snapshot that replays with the session and is visible to compaction. The library map contributes category counts and retrieval guidance (`openviking:library` context, order ~120), injected at session start and refreshed on the configured cadence; agents fetch details on demand through the model-facing tools.
 
 #### Token effect
 
-Recall cost is bounded by `autoRecall.tokenBudget` and the per-item `maxContentChars` cap; the startup map is one compact block refreshed on the configured cadence.
+One compact block at session start, refreshed on the configured cadence; each refresh costs the block size only.
+
+#### KV Cache effect
+
+The block sits in the reusable prompt prefix and changes only when a cadence refresh replaces it.
+
+### Recall block
+
+#### What the model sees
+
+The `<relevant-memories>` block for the current step (`openviking:memories` context, order ~125), deduplicated, scored, and budget-capped. The block never contains instructions to follow from memory — it is untrusted background data. Because these are contexts, not sections, restore-to-sole-section presets (`complete: true`) do not discard them, and recalled text is never mirrored back into OpenViking: context contributions carry a `source.kind` other than `user` and the capture layer strips them defensively.
+
+#### Token effect
+
+Bounded by `autoRecall.tokenBudget` and the per-item `maxContentChars` cap.
 
 #### KV Cache effect
 
 Recall blocks append as context snapshots; a new block changes the suffix only, preserving earlier cacheable history.
+
+### Repository list
+
+#### What the model sees
+
+Names of indexed resources under `viking://resources/` (`openviking:repositories` context, order ~118).
+
+#### Token effect
+
+One short list per refresh; its cost is bounded by the number of indexed repositories.
+
+#### KV Cache effect
+
+The list joins the prompt prefix and changes only when the repository index changes.
 
 ## Known Limitations and Deferred Work
 

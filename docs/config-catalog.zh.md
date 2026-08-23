@@ -1503,7 +1503,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-openviking`
 
-需要： `tools` · `systemPrompt` · `agents`
+需要：`tools` · `systemPrompt` · `agents`
 
 ```ts config-catalog
 /** Resolved plugin configuration (schema defaults applied). */
@@ -1522,11 +1522,11 @@ export interface Config {
   timeoutMs: number
   /** Session-sync state file; `~` is expanded. */
   stateFile: string
-  /** Repository-list recall: enabled flag and cache TTL (ms) for the `repositories` context. */
+  /** Indexed-repositories prompt contribution (enable + cache TTL). */
   repoContext: RepoContextConfig
-  /** Auto-recall: pre-step memory injection budget, score gate, and refresh cadence. */
+  /** Automatic pre-step recall (enable, scoring, and budget limits). */
   autoRecall: AutoRecallConfig
-  /** Auto-commit: periodic capture of session turns into the memory store. */
+  /** Session auto-commit (enable, turn cadence, and wall-clock fallback). */
   autoCommit: AutoCommitConfig
 }
 
@@ -1632,7 +1632,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/patent/patent-rule/src/index.ts:118`](../packages/patent/patent-rule/src/index.ts)
+来源：[`packages/patent/patent-rule/src/index.ts:125`](../packages/patent/patent-rule/src/index.ts)
 
 <a id="deepseek-aidsh-patent-teams"></a>
 

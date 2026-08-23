@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/memory/openviking/README.md
-README.md: 300dc04bfeeba8b4e6bcb5b27839100bdf0451e8
-README.zh.md: c909f3485d3b5224ba93baa8e8955b99be1738c7
+README.md: 47f0ed10c025a9ffd40877e679110a95d2b7606c
+README.zh.md: bfb7dfa07442d6a2601e670a55813abd7fcb2cdd
