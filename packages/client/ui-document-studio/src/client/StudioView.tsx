@@ -157,6 +157,29 @@ export function StudioView({
   const selected = produced.find(file => file.path === selectedPath) ?? null
   const selectedName = selected === null ? '' : basename(selected.path)
 
+  // One preview pane per state; the hint covers no selection and
+  // non-previewable files (the effect clears content and error for both).
+  const showHint = selectedPath === null || (htmlPreview === null && textPreview === null && error === null)
+  let preview: ReactNode
+  if (showHint) {
+    preview = <div className={css.note}>{t('studio.preview.hint')}</div>
+  } else if (error !== null) {
+    preview = <div className={css.error}>{t('studio.preview.error', { message: error })}</div>
+  } else if (htmlPreview !== null) {
+    preview = <iframe className={css.frame} title={selectedName} sandbox="" srcDoc={htmlPreview} />
+  } else if (textPreview !== null) {
+    preview = (
+      <div className={css.textPreview}>
+        {textPreview}
+        {content?.truncated === true && (
+          <p className={css.note}>{t('studio.preview.truncated')}</p>
+        )}
+      </div>
+    )
+  } else {
+    preview = null
+  }
+
   const [printOutcome, setPrintOutcome] = useState<{ saved: string } | { failed: string } | null>(null)
   const onPrint = async (): Promise<void> => {
     if (selectedPath === null || htmlPreview === null) return
@@ -241,29 +264,7 @@ export function StudioView({
                   </span>
                 )}
               </div>
-              {selectedPath === null || (!htmlPreview && textPreview === null && error === null)
-                ? <div className={css.note}>{t('studio.preview.hint')}</div>
-                : error !== null
-                  ? <div className={css.error}>{t('studio.preview.error', { message: error })}</div>
-                  : htmlPreview !== null
-                    ? (
-                      <iframe
-                        className={css.frame}
-                        title={selectedName}
-                        sandbox=""
-                        srcDoc={htmlPreview}
-                      />
-                    )
-                    : textPreview !== null
-                      ? (
-                        <div className={css.textPreview}>
-                          {textPreview}
-                          {content?.truncated === true && (
-                            <p className={css.note}>{t('studio.preview.truncated')}</p>
-                          )}
-                        </div>
-                      )
-                      : null}
+              {preview}
             </div>
           </>
         )}
