@@ -138,7 +138,7 @@ describe('host.readFileText', () => {
     expect(response.result.ok).toBe(false)
     if (response.result.ok) throw new Error('unreachable')
     expect(response.result.error.code).toBe('file-unreadable')
-    expect(String(response.result.error.message)).toContain('not valid UTF-8')
+    expect(response.result.error.message).toContain('not valid UTF-8')
   })
 
   it('answers cancelled for an aborted caller even when the read would fail', async () => {

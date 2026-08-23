@@ -98,7 +98,7 @@ describe('tsdown client artifact', () => {
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     const locale = await import('@deepseek-ai/dsh-client-locale/client')
     ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
-    const fiber = ctx.plugin(exports as { apply: (ctx: Context) => void })
+    const fiber = ctx.plugin(exports)
     return { ctx, fiber, slots, sessionsList, viewSetters }
   }
 
@@ -177,7 +177,7 @@ describe('tsdown client artifact', () => {
       ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
       const locale = await import('@deepseek-ai/dsh-client-locale/client')
       ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
-      const fiber = ctx.plugin(exports as { apply: (ctx: Context) => void })
+      const fiber = ctx.plugin(exports)
       await fiber.await()
       const initial = attempts
       vi.advanceTimersByTime(150)

@@ -53,7 +53,7 @@ export async function printHtmlToPdf(
       defaultPath,
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
     })
-    if (canceled || filePath === undefined) return { cancelled: true }
+    if (canceled || !filePath) return { cancelled: true }
     await writeFile(filePath, pdf)
     return { path: filePath }
   } catch (error: unknown) {

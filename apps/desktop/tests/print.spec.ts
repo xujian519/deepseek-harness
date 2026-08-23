@@ -15,7 +15,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:fs/promises', () => ({ writeFile: mocks.writeFile }))
 vi.mock('electron', () => ({
-  dialog: { showSaveDialog: (...args: unknown[]) => mocks.dialogShowSaveDialog(...args) },
+  dialog: {
+    showSaveDialog: (...args: unknown[]) =>
+      mocks.dialogShowSaveDialog(...args) as Promise<{ canceled: boolean; filePath?: string }>,
+  },
   BrowserWindow: vi.fn(function (this: unknown) {
     return {
       loadURL: mocks.loadURL,

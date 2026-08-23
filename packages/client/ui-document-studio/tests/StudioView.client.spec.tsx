@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ConversationSnapshot, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   StudioView, isHtmlPath, isTextPreviewable,
@@ -38,7 +38,7 @@ function hostDescription(canOpenPath: boolean) {
   return {
     store,
     useHostDescription: ((select: (facts: HostFacts | undefined) => unknown) =>
-      select(store.getSnapshot() as HostFacts | undefined)) as StudioViewProps['useHostDescription'],
+      select(store.getSnapshot())) as StudioViewProps['useHostDescription'],
   }
 }
 
@@ -62,7 +62,7 @@ function studioProps(
   // The full session-scope standard kit the outlet would bake; members the
   // studio does not read are stubbed inert (the trajectory spec pattern).
   return {
-    sessionId: 's1' as SessionId,
+    sessionId: 's1',
     useSession: s.useSession,
     useSessions: (() => undefined) as never,
     useWorkspaces: (() => undefined) as never,
