@@ -27,9 +27,9 @@ export class StartupMap {
   }
 
   /**
- * The model-visible map block; empty string contributes nothing.
- * @returns tring {.
- */
+   * The model-visible map block; empty string contributes nothing.
+   * @returns the map block, or empty until the first refresh.
+   */
   prompt(): string {
     if (this.counts === undefined) return ''
     const entries = Object.entries(this.counts).filter(([, count]) => count > 0)

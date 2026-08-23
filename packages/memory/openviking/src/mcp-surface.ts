@@ -11,7 +11,12 @@
  */
 
 import type { Context, Fiber } from '@deepseek-ai/cordis'
-import { apply as mcpClientApply, Config as mcpClientConfigSchema } from '@deepseek-ai/dsh-mcp-client'
+import {
+  apply as mcpClientApply,
+  Config as mcpClientConfigSchema,
+  inject as mcpClientInject,
+  name as mcpClientName,
+} from '@deepseek-ai/dsh-mcp-client'
 
 /** Mount the OpenViking MCP server as a streamable-http client.
  * @param ctx - Cordis context scoped to this registration.
@@ -33,7 +38,10 @@ export function mountOpenVikingMcp(ctx: Context, options: {
   if (options.agentId) headers['x-openviking-agent'] = options.agentId
 
   return ctx.plugin({
-    name: 'mcp-client',
+    name: mcpClientName,
+    // Preserve the client's declared injections: an inline object without
+    // them loses the proxy rights its apply() relies on (systemPrompt, tools).
+    inject: mcpClientInject,
     Config: mcpClientConfigSchema,
     apply: mcpClientApply,
   }, {

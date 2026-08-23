@@ -100,28 +100,27 @@ export class MemoryRecall {
   }
 
   /**
- * Latest staged block for an agent; empty string contributes nothing.
- * @param agentId - The DSH session id of the recall scope.
- * @returns tring {.
- */
+   * Latest staged block for an agent; empty string contributes nothing.
+   * @param agentId - The DSH session id of the recall scope.
+   * @returns the staged block, or empty when nothing was staged.
+   */
   renderContext(agentId: string): string {
     return this.states.get(agentId)?.block ?? ''
   }
 
   /**
- * User-turn count since mount for an agent (startup-map cadence).
- * @param agentId - The DSH session id of the recall scope.
- * @returns umber {.
- */
+   * User-turn count since mount for an agent (startup-map cadence).
+   * @param agentId - The DSH session id of the recall scope.
+   * @returns the user-turn count since mount.
+   */
   userTurnCount(agentId: string): number {
     return this.states.get(agentId)?.userTurns ?? 0
   }
 
   /**
- * Forget one disposed agent.
- * @param agentId - The DSH session id of the recall scope.
- * @returns oid {.
- */
+   * Forget one disposed agent.
+   * @param agentId - The DSH session id of the recall scope.
+   */
   forget(agentId: string): void {
     this.states.delete(agentId)
   }
@@ -151,8 +150,12 @@ export class MemoryRecall {
       : []
     if (signal.aborted) return
 
-    const selected = this.select(results, procedureCandidates, state.shownUris, config)
     const isNewQuery = state.queryHash !== hash
+    // shownUris scopes to the current query (refresh complement); a new
+    // question must re-evaluate its own best hits, not be filtered by a
+    // previous question's selection.
+    if (isNewQuery) state.shownUris.clear()
+    const selected = this.select(results, procedureCandidates, state.shownUris, config)
     if (selected.length === 0 && !isNewQuery) return
     if (selected.length > 0) {
       state.block = this.renderBlock(selected)
@@ -269,7 +272,7 @@ export class MemoryRecall {
       if (seen.has(item.uri) || shown.has(item.uri)) continue
       if (result.length >= config.limit) break
       const snippet = item.abstract.slice(0, config.maxContentChars)
-      if (used + snippet.length > maxChars && result.length > 0) break
+      if (used + snippet.length > maxChars) break
       seen.add(item.uri)
       result.push(item)
       used += snippet.length

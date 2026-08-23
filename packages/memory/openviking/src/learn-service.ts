@@ -35,7 +35,7 @@ export interface LearnResult {
 /** Secret-shaped values redacted before any write. */
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/sk-[A-Za-z0-9_-]{16,}/g, '[REDACTED]'],
-  [/(?:api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*\S+/gi, '$1: [REDACTED]'],
+  [/(api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*\S+/gi, '$1: [REDACTED]'],
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g, 'Bearer [REDACTED]'],
 ]
 
@@ -79,11 +79,11 @@ export class LearnService {
   }
 
   /**
- * Capture a lesson per the capability routing.
- * @param request - One deliberate learning request.
- * @param signal - Cancellation signal for the request.
- * @returns romise<LearnResult> {.
- */
+   * Capture a lesson per the capability routing.
+   * @param request - One deliberate learning request.
+   * @param signal - Cancellation signal for the request.
+   * @returns the capture outcome.
+   */
   async capture(request: LearnRequest, signal?: AbortSignal): Promise<LearnResult> {
     const lesson = redactSecrets(request.lesson.trim())
     if (lesson.replace(/\[REDACTED\]/g, '').trim().length === 0) {

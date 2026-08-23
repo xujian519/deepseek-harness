@@ -57,7 +57,7 @@ describe('registerOpenVikingTools', () => {
     const fiber = ctx.plugin({ apply: (c: Context) => {
       registerOpenVikingTools(c, {
         client: f.client,
-        sync: sync as never,
+        sync: () => sync as never,
         learn: new LearnService(f.client),
       })
     } })
@@ -111,7 +111,7 @@ describe('registerOpenVikingTools', () => {
     const fiber = ctx.plugin({ apply: (c: Context) => {
       registerOpenVikingTools(c, {
         client: f.client,
-        sync: { flush: vi.fn(), commit: vi.fn() } as never,
+        sync: () => ({ flush: vi.fn(), commit: vi.fn() }) as never,
         learn: new LearnService(f.client),
       })
     } })
@@ -125,9 +125,9 @@ describe('registerOpenVikingTools', () => {
 
 describe('LearnService', () => {
   it('redacts secret-shaped strings', () => {
-    expect(redactSecrets('key sk-abcdefghijklmnopqrstuvwxyz123456').includes('sk-')).toBe(false)
-    expect(redactSecrets('api_key: hunter2')).toContain('[REDACTED]')
-    expect(redactSecrets('Bearer abcdefghijklmnopqrstuvwxyz1234567890')).toContain('Bearer [REDACTED]')
+    expect(redactSecrets('key sk-abcdefghijklmnopqrstuvwxyz123456')).toBe('key [REDACTED]')
+    expect(redactSecrets('api_key: hunter2')).toBe('api_key: [REDACTED]')
+    expect(redactSecrets('Bearer abcdefghijklmnopqrstuvwxyz1234567890')).toBe('Bearer [REDACTED]')
   })
 
   it('validates skill names and viking targets', () => {
@@ -290,6 +290,8 @@ describe('registerOpenVikingCommands', () => {
 describe('mountOpenVikingMcp', () => {
   it('mounts without failing on an unreachable endpoint', async () => {
     const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const fiber = mountOpenVikingMcp(ctx, { endpoint: 'http://127.0.0.1:1', apiKey: '', account: '', user: '', agentId: 'dsh', timeoutMs: 1000 })
     await new Promise(resolve => setTimeout(resolve, 50))
     await fiber.dispose()
@@ -297,12 +299,16 @@ describe('mountOpenVikingMcp', () => {
 
   it('passes identity headers for the MCP session', async () => {
     const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const fiber = mountOpenVikingMcp(ctx, { endpoint: 'http://127.0.0.1:1/', apiKey: 'k', account: 'a', user: 'u', agentId: 'dsh', timeoutMs: 1000 })
     await fiber.dispose()
   })
 
   it('omits an empty agent header', async () => {
     const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const fiber = mountOpenVikingMcp(ctx, { endpoint: 'http://127.0.0.1:1', apiKey: 'k', account: 'a', user: 'u', agentId: '', timeoutMs: 1000 })
     await fiber.dispose()
   })
@@ -318,7 +324,7 @@ describe('tool render branches and edge wires', () => {
     const fiber = ctx.plugin({ apply: (c: Context) => {
       registerOpenVikingTools(c, {
         client: f.client,
-        sync: { flush: vi.fn(async () => {}), commit: vi.fn(async () => {}) } as never,
+        sync: () => ({ flush: vi.fn(async () => {}), commit: vi.fn(async () => {}) }) as never,
         learn: new LearnService(f.client),
       })
     } })

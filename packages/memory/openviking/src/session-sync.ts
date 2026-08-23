@@ -73,6 +73,7 @@ function isUserSource(source: { kind?: string }): boolean {
 export class SessionSync {
   private readonly runtimes = new Map<string, AgentRuntime>()
   private timer: ReturnType<typeof setInterval> | undefined
+  private ticking: Promise<void> | undefined
   private readonly client: OpenVikingClient
   private readonly store: StateStore
   private readonly config: () => SessionSyncConfig
@@ -93,10 +94,10 @@ export class SessionSync {
   }
 
   /**
- * Adopt (or re-adopt) a session; existing queue and counts are kept.
- * @param session - The DSH session being adopted or forgotten.
- * @returns gentRuntime {.
- */
+   * Adopt (or re-adopt) a session; existing queue and counts are kept.
+   * @param session - The DSH session to adopt.
+   * @returns the runtime record for the session (existing or fresh).
+   */
   adopt(session: Session): AgentRuntime {
     const sessionId = String(session.id)
     const openvikingSessionId = openvikingSessionIdOf(sessionId)
@@ -116,22 +117,23 @@ export class SessionSync {
   }
 
   /**
- * Drop a disposed session; its queue is discarded (unflushed messages are lost).
- * @param session - The DSH session being adopted or forgotten.
- * @returns oid {.
- */
+   * Drop a disposed session; its queue is discarded (unflushed messages are lost).
+   * @param session - The DSH session to forget.
+   */
   forget(session: Session): void {
     this.runtimes.delete(String(session.id))
   }
 
   /**
- * Start the scheduler: every tick, flush queues and apply the interval fallback commit.
- * @returns oid {.
- */
+   * Start the scheduler: every tick, flush queues and apply the interval fallback commit.
+   * Overlapping ticks are skipped while a sweep is in flight so a slow server
+   * cannot double-drain queues or race the commit's queue reset.
+   */
   start(): void {
     if (this.timer !== undefined) return
     this.timer = setInterval(() => {
-      void this.tick()
+      if (this.ticking !== undefined) return
+      this.ticking = this.tick().finally(() => { this.ticking = undefined })
     }, this.schedulerMs)
   }
 
@@ -152,11 +154,10 @@ export class SessionSync {
   }
 
   /**
- * Handle one session event; capture-only, never blocks the loop.
- * @param session - The DSH session being adopted or forgotten.
- * @param event - One session event.
- * @returns oid {.
- */
+   * Handle one session event; capture-only, never blocks the loop.
+   * @param session - The DSH session the event belongs to.
+   * @param event - One session event.
+   */
   capture(session: Session, event: SessionEvent): void {
     const runtime = this.runtimes.get(String(session.id))
     if (runtime === undefined) return
@@ -195,10 +196,9 @@ export class SessionSync {
   }
 
   /**
- * Immediately commit when the turn threshold is crossed (called on turn/end).
- * @param sessionId - OpenViking session id.
- * @returns oid {.
- */
+   * Immediately commit when the turn threshold is crossed (called on turn/end).
+   * @param sessionId - OpenViking session id.
+   */
   maybeCommitOnTurnEnd(sessionId: string): void {
     const runtime = this.runtimes.get(sessionId)
     const turns = this.config().autoCommit.turns

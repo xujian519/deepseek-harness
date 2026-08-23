@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 
 import { apply, Config, createPreInitSync, dedupeWarn, errorLabel, inject, name, probeHealth } from '../src/index.ts'
@@ -27,7 +28,7 @@ class MemorySettings extends SettingsProvider {
 describe('@deepseek-ai/dsh-openviking plugin surface', () => {
   it('exports the Cordis function-plugin namespace', () => {
     expect(name).toBe('openviking')
-    expect(inject).toEqual(['tools', 'fs', 'systemPrompt', 'agents'])
+    expect(inject).toEqual(['tools', 'systemPrompt', 'agents'])
   })
 
   it('defaults the endpoint to the local OpenViking service', () => {
@@ -47,6 +48,8 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
 
   it('mounts with an unreachable service without throwing', async () => {
     const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const config = Config({ endpoint: 'http://127.0.0.1:1' }) as Parameters<typeof apply>[1]
     const fiber = await ctx.plugin(apply, config)
     await new Promise(resolve => setTimeout(resolve, 30))
@@ -56,6 +59,8 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
   it('registers the openviking settings namespace when a settings service is mounted', async () => {
     const ctx = new Context()
     await ctx.plugin(MemorySettings).await()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const fiber = ctx.plugin(apply, Config({}))
     await fiber.await()
     expect(ctx.settings.describe().map(row => row.ns)).toContain(SETTINGS_NAMESPACE)
@@ -65,6 +70,8 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
 
   it('wires session lifecycle events through the mount', async () => {
     const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const tmp = await mkdtemp(join(tmpdir(), 'ov-mount-'))
     const stateFile = join(tmp, 'state.json')
     const config = Config({ endpoint: 'http://127.0.0.1:1', stateFile }) as Parameters<typeof apply>[1]
@@ -105,6 +112,8 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
 
   it('warns when the previous state file was quarantined', async () => {
     const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
     const tmp = await mkdtemp(join(tmpdir(), 'ov-mount-'))
     const stateFile = join(tmp, 'state.json')
     await (await import('node:fs/promises')).writeFile(stateFile, '{not json')
@@ -121,6 +130,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const tmp = await mkdtemp(join(tmpdir(), 'ov-mount-'))
     const stateFile = join(tmp, 'state.json')
     await ctx.plugin(SystemPrompt, { persona: 'You are an agent.' })
+    await ctx.plugin(ToolRuntime)
     const fiber = ctx.plugin(apply, Config({ endpoint: 'http://127.0.0.1:1', stateFile }))
     await fiber.await()
     const assembly = await ctx.systemPrompt.assemble({ agent: { id: 'a1' } } as never)

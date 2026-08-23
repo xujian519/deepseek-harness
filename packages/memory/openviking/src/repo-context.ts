@@ -27,9 +27,9 @@ export class RepoContext {
   }
 
   /**
- * The model-visible repository list; empty string contributes nothing.
- * @returns tring {.
- */
+   * The model-visible repository list; empty string contributes nothing.
+   * @returns the cached repository list, or empty when nothing is indexed.
+   */
   prompt(): string {
     if (!this.config().enabled) return ''
     const names = this.cached?.names ?? []

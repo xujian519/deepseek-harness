@@ -324,4 +324,24 @@ describe('SessionSync scheduler and edge paths', () => {
     await sync.flush('s1')
     expect(client.addMessage).toHaveBeenCalledTimes(1)
   })
+
+  it('skips overlapping scheduler sweeps while one flush is in flight', async () => {
+    const { sync, client } = await setup({ schedulerMs: 20 })
+    // A gate the addBatch await can never settle quickly: every later tick of
+    // the 20ms interval would otherwise start another concurrent flush.
+    const gate: { resolve?: () => void } = {}
+    const blocked = new Promise<void>((resolve) => { gate.resolve = resolve })
+    const addBatch = vi.fn(async () => { await blocked; return {} })
+    client.addBatch = addBatch
+    const s = session('s1')
+    sync.adopt(s)
+    sync.capture(s, userEvent(1))
+    sync.start()
+    // Several interval rounds pass while the first flush is still awaiting.
+    await new Promise(resolve => setTimeout(resolve, 90))
+    expect(addBatch).toHaveBeenCalledTimes(1)
+    gate.resolve?.()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await sync.dispose()
+  })
 })

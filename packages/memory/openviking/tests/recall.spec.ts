@@ -111,10 +111,26 @@ describe('MemoryRecall', () => {
     const items = Array.from({ length: 20 }, (_v, index) =>
       memory(`viking://user/memories/m${index}.md`, 'long abstract '.repeat(50), 0.5 + index * 0.001))
     ;(client as { find: ReturnType<typeof vi.fn> }).find = vi.fn(async () => ({ memories: items, resources: [], skills: [], total: 20 }))
-    const recall = new MemoryRecall(client, recallConfig({ limit: 3, maxContentChars: 100, tokenBudget: 2 }), logger)
-    await recall.prepareStep(agent(), 1, [userMessage('show me everything about the long project')], signal())
-    const block = recall.renderContext('a1')
-    expect(block.split('\n').filter(line => line.startsWith('- [memory]'))).toHaveLength(1)
+    // A budget below one snippet contributes nothing: the bound covers the first item too.
+    const small = new MemoryRecall(client, recallConfig({ limit: 3, maxContentChars: 100, tokenBudget: 2 }), logger)
+    await small.prepareStep(agent(), 1, [userMessage('show me everything about the long project')], signal())
+    expect(small.renderContext('a1')).toBe('')
+    // A budget that fits exactly one snippet caps the block at one item.
+    const fit = new MemoryRecall(client, recallConfig({ limit: 3, maxContentChars: 100, tokenBudget: 30 }), logger)
+    await fit.prepareStep(agent(), 1, [userMessage('show me everything about the long project')], signal())
+    expect(fit.renderContext('a1').split('\n').filter(line => line.startsWith('- [memory]'))).toHaveLength(1)
+  })
+
+  it('re-evaluates shown hits when the query changes', async () => {
+    const { client, find } = mockClient()
+    find.mockImplementation(async () => ({ memories: [memory('viking://user/memories/one.md', 'first', 0.9)], resources: [], skills: [], total: 1 }))
+    const recall = new MemoryRecall(client, recallConfig({ limit: 6 }), logger)
+    await recall.prepareStep(agent(), 1, [userMessage('how do I recover from a failure here')], signal())
+    expect(recall.renderContext('a1')).toContain('one.md')
+    // A different question whose best hit is the same memory must see it again:
+    // shownUris scopes to the current query, not to the whole agent lifetime.
+    await recall.prepareStep(agent(), 2, [userMessage('what was that recovery procedure again')], signal())
+    expect(recall.renderContext('a1')).toContain('one.md')
   })
 
   it('dedupes already-shown URIs on a mid-message refresh', async () => {

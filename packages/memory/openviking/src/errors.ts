@@ -18,7 +18,7 @@ export type OpenVikingErrorCode =
 
 /** An OpenViking service call failed. */
 export class OpenVikingError extends Error {
-/** Stable error category callers and diagnostics key on. */
+  /** Stable error category callers and diagnostics key on. */
   readonly code: OpenVikingErrorCode
   /** The OpenViking service base URL that failed. */
   readonly endpoint: string
@@ -26,14 +26,11 @@ export class OpenVikingError extends Error {
   readonly httpStatus?: number | undefined
 
   /**
- * @param endpoint - Base URL of the OpenViking HTTP service.
- * @param message - One message to append.
- * @param detail - detail argument.
- */
+   * @param endpoint - Base URL of the OpenViking HTTP service.
+   * @param message - the failure message.
+   * @param detail - the error category and optional HTTP status.
+   */
   constructor(endpoint: string, message: string, detail: { code: OpenVikingErrorCode; httpStatus?: number }) {
-    /**
-
- */
     super(`${message} (${endpoint})`)
     this.name = 'OpenVikingError'
     this.code = detail.code
@@ -44,14 +41,11 @@ export class OpenVikingError extends Error {
 
 /** The request crossed the configured per-request deadline. */
 export class OpenVikingTimeoutError extends OpenVikingError {
-/**
- * @param endpoint - Base URL of the OpenViking HTTP service.
- * @param timeoutMs - timeoutMs argument.
- */
+  /**
+   * @param endpoint - Base URL of the OpenViking HTTP service.
+   * @param timeoutMs - the crossed per-request deadline in milliseconds.
+   */
   constructor(endpoint: string, timeoutMs: number) {
-    /**
- * @param endpoint - Base URL of the OpenViking HTTP service.
- */
     super(endpoint, `request timed out after ${timeoutMs}ms`, { code: 'TIMEOUT' })
     this.name = 'OpenVikingTimeoutError'
   }
@@ -59,14 +53,7 @@ export class OpenVikingTimeoutError extends OpenVikingError {
 
 /** The caller's abort signal cancelled the request. */
 export class OpenVikingAbortError extends Error {
-/**
-
-
- */
   constructor() {
-    /**
-
- */
     super('The operation was aborted')
     this.name = 'OpenVikingAbortError'
   }

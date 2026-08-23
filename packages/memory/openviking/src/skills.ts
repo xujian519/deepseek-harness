@@ -42,11 +42,11 @@ skills live in one \`viking://\` virtual filesystem with three loading tiers
 
 ## How to search
 
-- Start with \`memsearch\`/\`mcp__openviking__find\` for semantic hits; results
-  include URI, abstract, and score.
-- Read a hit with \`memread\`/\`mcp__openviking__read\` at \`overview\` level, then
+- Start with \`mcp__openviking__find\` for semantic hits; results include
+  URI, abstract, and score.
+- Read a hit with \`mcp__openviking__read\` at \`overview\` level, then
   \`read\` only when the exact content matters.
-- Browse the library with \`membrowse\`/\`mcp__openviking__list\` when you want the
+- Browse the library with \`mcp__openviking__list\` when you want the
   tree of a category.
 
 ## When to write

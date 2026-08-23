@@ -48,8 +48,7 @@ describe('registerStatusRoute', () => {
     const register = vi.fn((_route: unknown) => () => {}) as unknown as ((route: unknown) => () => void) & { mock: { calls: unknown[][] } }
     ctx.provide('webServer', { register } as never)
     registerStatusRoute(ctx, mockClient())
-    await new Promise(resolve => setTimeout(resolve, 10))
-    expect(register).toHaveBeenCalledTimes(1)
+    await expect.poll(() => register.mock.calls.length, { timeout: 5_000 }).toBe(1)
     const route = (register.mock.calls[0]![0] as { path: string; handler(req: unknown, res: unknown): void | Promise<void> })
     expect(route.path).toBe('/openviking/status')
     const res = { writeHead: vi.fn(), end: vi.fn() }
@@ -64,7 +63,7 @@ describe('registerStatusRoute', () => {
     const register = vi.fn(() => () => {})
     ctx.provide('webServer', { register } as never)
     registerStatusRoute(ctx, mockClient())
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await expect.poll(() => (register as never as { mock: { calls: Array<[unknown]> } }).mock.calls.length, { timeout: 5_000 }).toBe(1)
     const calls = (register as never as { mock: { calls: Array<[unknown]> } }).mock.calls
     const route = calls[0]![0] as { handler(req: unknown, res: unknown): void | Promise<void> }
     const res = { writeHead: vi.fn(), end: vi.fn() }

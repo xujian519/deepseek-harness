@@ -19,11 +19,12 @@ import type { LearnService } from './learn-service.ts'
 
 /** Commit the caller's DSH session into OpenViking. Mounts only when a tools service exists.
  * @param ctx - Cordis context scoped to this registration.
- * @param options - client, session sync, and learning service for the tool executions.
+ * @param options - client, session-sync provider, and learning service for the tool executions.
  */
 export function registerOpenVikingTools(ctx: Context, options: {
   client: OpenVikingClient
-  sync: SessionSync
+  /** Resolves the live sync instance; the session-sync effect initializes asynchronously. */
+  sync: () => SessionSync
   learn: LearnService
 }): void {
   ctx.inject(['tools'], (toolsCtx) => {
@@ -51,8 +52,8 @@ export function registerOpenVikingTools(ctx: Context, options: {
             const agent = exec.agent
             if (agent === undefined) throw new Error('memcommit requires an agent context')
             const sessionId = String(agent.session.id)
-            await options.sync.flush(sessionId)
-            await options.sync.commit(sessionId)
+            await options.sync().flush(sessionId)
+            await options.sync().commit(sessionId)
             return { committed: true, session: sessionId }
           },
         })),

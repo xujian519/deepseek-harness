@@ -16,6 +16,7 @@ import type { Context, Logger } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
+import type { PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 
 import { OpenVikingClient } from './client.ts'
@@ -39,7 +40,7 @@ export type { AutoCommitConfig, AutoRecallConfig, RepoContextConfig } from './co
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'openviking'
 /** Services required by this plugin; `agents` guarantees the registry is ready and lets us adopt live agents. */
-export const inject = ['tools', 'fs', 'systemPrompt', 'agents']
+export const inject = ['tools', 'systemPrompt', 'agents']
 
 export type { ClientCredentials, FindQuery } from './client.ts'
 export { OpenVikingAbortError, OpenVikingError, OpenVikingTimeoutError } from './errors.ts'
@@ -187,13 +188,17 @@ export function apply(ctx: Context, config: Config): void {
 
   // Model-facing wire surface: viking:// guard, runtime skill, HTTP tools,
   // human command, and the MCP bridge (mounted last; activation never waits
-  // on it).
-  ctx.on('tools/pre-execute', (exec, _next) => Promise.resolve(guardVikingUri(exec)))
+  // on it). The sync provider is a thunk: the session-sync effect assigns the
+  // live instance asynchronously, and tools must see it once it exists.
+  ctx.on('tools/pre-execute', (exec, next) => {
+    const decision = guardVikingUri(exec)
+    return decision.kind === 'deny' ? Promise.resolve<PreToolDecision>(decision) : next()
+  })
   mountOpenVikingSkill(ctx)
   const learn = new LearnService(client)
   registerOpenVikingTools(ctx, {
     client,
-    sync,
+    sync: () => sync,
     learn,
   })
   registerOpenVikingCommands(ctx, learn)

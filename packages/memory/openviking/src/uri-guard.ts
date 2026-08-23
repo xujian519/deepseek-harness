@@ -8,7 +8,7 @@
 import type { ToolExecutionInput, PreToolDecision } from '@deepseek-ai/dsh-tools'
 
 /** Tools whose arguments must never carry a `viking://` URI as a local path. */
-const LOCAL_PATH_TOOLS = new Set(['read', 'write', 'edit', 'ls', 'glob', 'grep', 'stat', 'tree', 'bash', 'fleet'])
+const LOCAL_PATH_TOOLS = new Set(['read', 'write', 'edit', 'read_image', 'glob', 'grep', 'str_replace_editor', 'bash', 'pwsh'])
 
 /** Whether any argument value mentions a viking URI.
  * @param value - arbitrary tool argument to scan.

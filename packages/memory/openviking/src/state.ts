@@ -129,27 +129,27 @@ export class StateStore {
   }
 
   /**
- * Current bookkeeping for one OpenViking session, or `null` when new.
- * @param openvikingSessionId - OpenViking session id (dsh- prefixed).
- * @returns essionBookkeeping | null {.
- */
+   * Current bookkeeping for one OpenViking session, or `null` when new.
+   * @param openvikingSessionId - OpenViking session id (dsh- prefixed).
+   * @returns the session bookkeeping, or `null` when none is recorded.
+   */
   session(openvikingSessionId: string): SessionBookkeeping | null {
     return this.snapshot.sessions[openvikingSessionId] ?? null
   }
 
   /**
- * All openviking sessions recorded in this state.
- * @returns tring[] {.
- */
+   * All openviking sessions recorded in this state.
+   * @returns the recorded openviking session ids.
+   */
   sessions(): string[] {
     return Object.keys(this.snapshot.sessions)
   }
 
   /**
- * Record a sent seq for one session.
- * @param openvikingSessionId - OpenViking session id (dsh- prefixed).
- * @param seq - seq argument.
- */
+   * Record a sent seq for one session.
+   * @param openvikingSessionId - OpenViking session id (dsh- prefixed).
+   * @param seq - the session event seq that was appended.
+   */
   recordSent(openvikingSessionId: string, seq: number): Promise<void> {
     const existing = this.session(openvikingSessionId) ?? { sentSeqs: [], uncommittedUserTurns: 0, lastCommitAt: null }
     // Bound the dedupe window: seqs are monotonic, only a recent crash window can replay.
