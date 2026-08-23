@@ -44,6 +44,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
 | `@deepseek-ai/dsh-patent-tools` | `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `knowledge_note_save`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `validate_specification` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
+| `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 
@@ -3585,6 +3586,285 @@ Render a patent-attorney deliverable (patentability opinion, search report, OA r
 Source: [`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
 
 render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.
+
+<a id="deepseek-aidsh-patent-teams"></a>
+
+## `@deepseek-ai/dsh-patent-teams`
+
+### `patent_teams_add_member`
+
+Add a durable continuable member. By default it snapshots the captain's current LLM route and effort. Supply provider/model only for an explicitly requested role-specific route; a changed provider or model automatically uses the target model's default effort. Set reasoning_effort only to request one of the target model's supported ids explicitly (or "default" to force its default). The member waits for messages, works on assigned tasks, and can message the team.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique member name inside the team."
+    },
+    "role": {
+      "type": "string",
+      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator)."
+    },
+    "provider": {
+      "type": "string",
+      "description": "Optional LLM provider route. Use only when the user explicitly requests a different provider; requires model."
+    },
+    "model": {
+      "type": "string",
+      "description": "Optional model override. Omit for the captain's current model (or the configured memberModel default)."
+    },
+    "reasoning_effort": {
+      "type": "string",
+      "description": "Optional reasoning effort override: one of the target model's supported effort ids, or \"default\" to force its default. When omitted, the captain's effort is inherited only for the same provider/model; a changed route uses the target default."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_claim_task`
+
+Claim one ready task for a member (or yourself). A member cannot own a second unfinished task. The returned attempt_id is required for that member's updates and becomes stale after retry/reassignment.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "The task id to claim."
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Member to claim for (captain only; defaults to the task's assignee)."
+    }
+  },
+  "required": [
+    "task_id"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_create`
+
+Create a new PatentTeams team: you (the calling agent) become the captain. A captain leads one team at a time; create tasks and members afterwards with patent_teams_add_member and patent_teams_create_task.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name for the new team (used as its stable id)."
+    },
+    "description": {
+      "type": "string",
+      "description": "Team purpose / the goal the team will work on."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_create_task`
+
+Create a task in your team's task list. Tasks can depend on other tasks (dependencies): a task is only claimable once every dependency is completed. Optionally assign it to a member, who still claims it before working.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "Brief title for the task."
+    },
+    "description": {
+      "type": "string",
+      "description": "What needs to be done, in detail."
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Task ids this task depends on (must be completed before this task can be claimed).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Optional member name this task is intended for."
+    },
+    "worker": {
+      "type": "string",
+      "description": "Optional worker contract the task output is validated against on completion (e.g. patent-search-commander, patent-oa-writer)."
+    }
+  },
+  "required": [
+    "subject"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_delete`
+
+End your team: interrupts all members (best effort) and archives the team's state directory (team file, tasks, mailboxes). Use when the team's work is done or abandoned.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_reassign_task`
+
+Atomically retry, reassign, or let the captain take over any unfinished/failed task. The old attempt is revoked before its member is interrupted, so late updates cannot overwrite the new owner. Use assignee="captain" for captain takeover.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "Task to retry/reassign."
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Active member name, or \"captain\" for captain takeover."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why the task is being retried or reassigned."
+    }
+  },
+  "required": [
+    "task_id",
+    "assignee"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_remove_member`
+
+Remove a member safely: revoke its current attempts, return all unfinished owned tasks to the shared pending pool, interrupt its live turn, and mark it removed.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the member to remove."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_send_message`
+
+Send a message to the captain or to a teammate. Messages go straight into the recipient's mailbox; when the captain agent is online the plugin also schedules live delivery (member recipients get the message as their next turn; a running captain sees it at the nearest model step). No relay is involved: teammates talk to each other directly.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "to": {
+      "type": "string",
+      "description": "Recipient: \"captain\" or a member name."
+    },
+    "content": {
+      "type": "string",
+      "description": "The message text."
+    },
+    "from": {
+      "type": "string",
+      "description": "Sender (defaults to the caller: the captain, or the calling member)."
+    }
+  },
+  "required": [
+    "to",
+    "content"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_status`
+
+Team snapshot: members with live activity and tasks with status/assignee/dependencies/output. Captains also see every team mailbox; members see only their own inbox. Poll this to watch progress.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+### `patent_teams_update_task`
+
+Update a task status/output. Members must supply the current attempt_id returned by claim_task; stale attempts are rejected after takeover/reassignment. Terminal results are immutable. A captain must use reassign_task(assignee="captain") before updating member-owned work.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "The task id to update."
+    },
+    "status": {
+      "type": "string",
+      "description": "New status (in_progress, completed, failed, cancelled).",
+      "enum": [
+        "in_progress",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "output": {
+      "type": "string",
+      "description": "Result summary; set when completing or failing."
+    },
+    "attempt_id": {
+      "type": "string",
+      "description": "Current execution capability returned by claim_task (required for members when present on the task)."
+    }
+  },
+  "required": [
+    "task_id"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-teams/src/index.ts`](../packages/patent/patent-teams/src/index.ts)
+
+The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts.
 
 <a id="deepseek-aidsh-tool-workflow"></a>
 
