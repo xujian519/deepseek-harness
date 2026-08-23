@@ -53,6 +53,10 @@ interface DocumentDeliverablesState extends DocumentTurnDeliverables {
  * Paths a call view reports having created or changed, by render intent
  * rather than tool name — the same vocabulary the produced-files row uses.
  */
+// Intentional duplicate of ui-deliverables' producedPaths: the two packages
+// own separate turn keys and must compose independently
+// (packages/client/AGENTS.md forbids cross-package value imports).
+/* jscpd:ignore-start */
 function producedPaths(view: ToolResultNode['callView']): readonly string[] {
   if (view === null) return []
   if (view.card === 'diff') return (view.locations ?? []).map(location => location.path)
@@ -61,8 +65,12 @@ function producedPaths(view: ToolResultNode['callView']): readonly string[] {
   }
   return []
 }
+/* jscpd:ignore-end */
 
 /** Turn-local successful mutation accumulator; it publishes no view Node. */
+// Intentional duplicate of ui-deliverables' deliverablesDefinition (same
+// accumulator skeleton, own turn key) — keep the two packages in sync.
+/* jscpd:ignore-start */
 export const documentDeliverablesDefinition: ConversationNodeDefinition<DocumentDeliverablesState> = {
   kind: 'documentDeliverables',
   match: (event) => {
@@ -105,6 +113,7 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
       value: { produced: context.state.produced },
     },
 }
+/* jscpd:ignore-end */
 
 const EMPTY: DocumentDeliverablesSnapshot = { produced: [] }
 

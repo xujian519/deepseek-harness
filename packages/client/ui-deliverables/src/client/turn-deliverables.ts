@@ -40,6 +40,10 @@ interface DeliverablesState extends DeliverablesTurnData {
  * root call views enter this Turn accumulator; nested Code Mode dispatches
  * preserve the pre-assembly behavior and do not contribute independently.
  */
+// Intentional duplicate of ui-document-studio's producedPaths: the two
+// packages own separate turn keys and must compose independently
+// (packages/client/AGENTS.md forbids cross-package value imports).
+/* jscpd:ignore-start */
 function producedPaths(view: ToolResultNode['callView']): readonly string[] {
   if (view === null) return []
   if (view.card === 'diff') return (view.locations ?? []).map(location => location.path)
@@ -48,6 +52,7 @@ function producedPaths(view: ToolResultNode['callView']): readonly string[] {
   }
   return []
 }
+/* jscpd:ignore-end */
 
 /**
  * Files produced by one Turn data value.
@@ -95,6 +100,9 @@ export function selectProducedFiles(owner: TurnTailOwnerProps): readonly string[
 }
 
 /** Turn-local successful mutation accumulator; it publishes no view Node. */
+// Intentional duplicate of ui-document-studio's documentDeliverablesDefinition
+// (same accumulator skeleton, own turn key) — keep the two packages in sync.
+/* jscpd:ignore-start */
 export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesState> = {
   kind: 'deliverables',
   match: (event) => {
@@ -137,6 +145,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       value: { produced: context.state.produced },
     },
 }
+/* jscpd:ignore-end */
 
 /**
  * Trailing path segment, the part that identifies the file at a glance.

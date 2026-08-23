@@ -334,7 +334,8 @@
     },
     "packages/test-support/self-evolve-eval": {
       "entry": [
-        "tests/**/*.spec.ts"
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
       ],
       "project": [
         "src/**/*.ts",

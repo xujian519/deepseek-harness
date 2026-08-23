@@ -100,8 +100,23 @@ export interface DetailMessage {
   process?: ToolProcessEntry[]
 }
 
-/** Fold one tool event into the closest assistant message of its turn/step. */
-function foldProcessInto(messages: DetailMessage[], event: SessionEvent): void {
+/** An assistant message that can host a folded tool process. */
+export interface ToolProcessHost {
+  readonly kind: string
+  readonly turn?: number
+  readonly step?: number
+  process?: ToolProcessEntry[]
+}
+
+/**
+ * Fold one tool call or result into the closest assistant message of its
+ * turn/step, keyed by `callId`, so a tool invocation never becomes a separate
+ * canvas card. A legacy assistant message without `turn`/`step` is the
+ * fallback target; an event with no such target is dropped.
+ * @param messages - the message list to fold into (mutated in place).
+ * @param event - the tool call or result session event.
+ */
+export function foldToolProcessInto(messages: readonly ToolProcessHost[], event: SessionEvent): void {
   if (event.type !== 'tool/call' && event.type !== 'tool/result') return
   const target = [...messages].reverse().find(message =>
     message.kind === 'assistant'
@@ -186,7 +201,7 @@ function projectDetail(events: readonly SessionEvent[]): DetailMessage[] {
       continue
     }
     if (event.type === 'tool/call' || event.type === 'tool/result') {
-      foldProcessInto(messages, event)
+      foldToolProcessInto(messages, event)
       continue
     }
     if (event.type === 'todo/write') {
