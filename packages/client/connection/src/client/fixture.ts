@@ -1495,17 +1495,17 @@ class FxInbox<F> implements StreamConn<F> {
 }
 
 /**
- * In-memory fake host: fx-alpha carries history and replay scripts; fx-beta is fx-alpha's child session (lineage indent material).
- * @param options - fixture branches for empty state and failure timing.
- * @returns an ApiProxy backed entirely by in-memory state — no host process, no network.
- */
-/**
  * Seeded host text files for `host.readFileText` previews in the in-memory
  * fake host. Tests write entries before driving a preview; unknown paths
  * answer `file-unreadable`.
  */
 export const fixtureFiles = new Map<string, string>()
 
+/**
+ * In-memory fake host: fx-alpha carries history and replay scripts; fx-beta is fx-alpha's child session (lineage indent material).
+ * @param options - fixture branches for empty state and failure timing.
+ * @returns an ApiProxy backed entirely by in-memory state — no host process, no network.
+ */
 export function createFixtureApi(options: FixtureOptions = {}): ApiProxy {
   return createFixtureWorld(options).api
 }
