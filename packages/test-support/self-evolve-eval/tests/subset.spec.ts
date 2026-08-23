@@ -35,6 +35,11 @@ describe('normalizeSwebenchInstances', () => {
   it('fails loud when repo or base_commit is missing', () => {
     expect(() => normalizeSwebenchInstances([{ instance_id: 'a__b-1' }])).toThrow(/missing repo or base_commit/)
   })
+
+  it('skips non-object rows', () => {
+    const rows = [null, 'nope', 42, { instance_id: 'a__b-1', repo: 'a/b', base_commit: 'c' }]
+    expect(normalizeSwebenchInstances(rows)).toHaveLength(1)
+  })
 })
 
 describe('selectSubset', () => {

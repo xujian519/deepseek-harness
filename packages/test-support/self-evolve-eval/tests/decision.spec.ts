@@ -68,4 +68,26 @@ describe('decision record I/O', () => {
     await writeFile(path, JSON.stringify({ recommended: 'continue' }))
     await expect(readDecision(path)).rejects.toThrow(/malformed decision record/)
   })
+
+  it('a non-string recommendation fails loud', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-decision-'))
+    tempDirs.push(dir)
+    const path = join(dir, 'bad2.json')
+    await writeFile(path, JSON.stringify({ recommended: 5, ci: {} }))
+    await expect(readDecision(path)).rejects.toThrow(/malformed decision record/)
+  })
+
+  it('a null confidence interval fails loud', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-decision-'))
+    tempDirs.push(dir)
+    const path = join(dir, 'bad3.json')
+    await writeFile(path, JSON.stringify({ recommended: 'continue', ci: null }))
+    await expect(readDecision(path)).rejects.toThrow(/malformed decision record/)
+  })
+
+  it('a read failure that is not ENOENT fails loud', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'self-evolve-decision-'))
+    tempDirs.push(dir)
+    await expect(readDecision(dir)).rejects.toThrow()
+  })
 })

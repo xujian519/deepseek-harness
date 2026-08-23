@@ -1,6 +1,12 @@
 packages:
   - vendor/*
   - packages/*/*
+  # The P1-10 offline-evaluation artifact directory (subset.json, results.json,
+  # eval-decision.json, launch-checklist.md) is data, not a workspace package:
+  # it deliberately has no package.json, and the two-level glob above would
+  # otherwise treat it as a build target. Exclude it like the other non-member
+  # trees below.
+  - '!packages/self-evolve/evaluation'
   # The Landlock launcher is developed with its harness consumers but keeps
   # its native build and publication scripts under native/landlock-run.
   - native/landlock-run

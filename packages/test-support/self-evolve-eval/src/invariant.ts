@@ -18,6 +18,7 @@ export const inject = ['invariants']
  * No runtime invariant: this evaluation scaffold owns no production event stream or mutable data;
  * it only consumes campaign result files authored by keyed external runs.
  */
+/* v8 ignore next -- no-op installer: an evaluation scaffold owns no runtime stream to check. */
 const install: InvariantInstaller = () => {}
 
 /**

@@ -181,6 +181,9 @@ export default defineConfig({
         'packages/*/*/src/types.ts',
         'packages/*/*/src/bin.ts',
         'packages/*/*/src/worker.ts',
+        // The self-evolve campaign CLI is an entry that spawns real agent
+        // subprocesses; its entry glue is covered by cli.spec.ts subprocess tests.
+        'packages/test-support/self-evolve-eval/src/cli.ts',
         // Dynamic Host/Client composition is covered by its focused lifecycle
         // tests and assembled application checks rather than per-file coverage.
         'packages/self-modification/*/src/**/*.{ts,tsx}',
