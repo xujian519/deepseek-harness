@@ -20,6 +20,7 @@ import type { PreToolDecision } from '@deepseek-ai/dsh-tools'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 
 import { OpenVikingClient } from './client.ts'
+import type { ClientCredentials } from './client.ts'
 import { registerOpenVikingCommands } from './commands.ts'
 import { Config, SETTINGS_NAMESPACE, assertValidEndpoint } from './config.ts'
 import { LearnService } from './learn-service.ts'
@@ -60,7 +61,7 @@ export function dedupeWarn(logger: { warn(message: string, fields?: object): voi
 }
 
 /** Project the current config onto the client's credential slice. */
-function credentialsOf(config: Config): Parameters<OpenVikingClient['reconfigure']>[0] {
+function credentialsOf(config: Config): ClientCredentials {
   return {
     endpoint: config.endpoint,
     apiKey: config.apiKey,

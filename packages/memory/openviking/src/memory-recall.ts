@@ -17,6 +17,7 @@ import type { UserMessage } from '@deepseek-ai/dsh-llm'
 
 import { OpenVikingClient, type SearchItem } from './client.ts'
 import type { AutoRecallConfig } from './config.ts'
+import { textOf } from './messages.ts'
 
 /** Procedural-query intent signals (local classification, no model call). */
 const PROCEDURE_QUERY_RE = new RegExp(
@@ -41,14 +42,6 @@ const PROCEDURE_BRANCH_LIMIT = 16
 const PROCEDURE_BRANCH_DEADLINE_MS = 3000
 /** Tree cache TTL for procedure branch discovery. */
 const BRANCH_CACHE_TTL_MS = 5 * 60_000
-
-/** Text of the non-empty text blocks of a message. */
-function textOf(content: readonly { type: string; text?: unknown }[]): string {
-  return content
-    .filter(block => block.type === 'text' && typeof block.text === 'string')
-    .map(block => block.text as string)
-    .join('\n')
-}
 
 /** Short hash for query-identity tracking (no cryptographic purpose). */
 function queryHash(query: string): string {

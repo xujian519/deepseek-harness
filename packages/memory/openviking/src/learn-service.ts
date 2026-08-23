@@ -138,7 +138,7 @@ export class LearnService {
       await this.client.writeContent(hit.uri, `\n${lesson}`, { mode: 'append', signal })
     } catch (error) {
       // A memory `.abstract.md` is not a write target; the parent file is.
-      if (!(error instanceof OpenVikingError) || error.httpStatus !== 400 && error.httpStatus !== 404) throw error
+      if (!(error instanceof OpenVikingError) || (error.httpStatus !== 400 && error.httpStatus !== 404)) throw error
       const parent = `${hit.uri.replace(/\/[^/]+$/, '')}/`
       await this.client.writeContent(parent, `\n${lesson}`, { mode: 'append', signal })
     }

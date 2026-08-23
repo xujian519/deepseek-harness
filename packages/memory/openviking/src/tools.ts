@@ -52,8 +52,9 @@ export function registerOpenVikingTools(ctx: Context, options: {
             const agent = exec.agent
             if (agent === undefined) throw new Error('memcommit requires an agent context')
             const sessionId = String(agent.session.id)
-            await options.sync().flush(sessionId)
-            await options.sync().commit(sessionId)
+            const sync = options.sync()
+            await sync.flush(sessionId)
+            await sync.commit(sessionId)
             return { committed: true, session: sessionId }
           },
         })),

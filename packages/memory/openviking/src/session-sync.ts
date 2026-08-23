@@ -18,6 +18,7 @@ import type { AssistantMessage } from '@deepseek-ai/dsh-llm'
 import { OpenVikingClient } from './client.ts'
 import { OpenVikingError } from './errors.ts'
 import type { AutoCommitConfig } from './config.ts'
+import { textOf } from './messages.ts'
 import { StateStore } from './state.ts'
 
 /** OpenViking session id for one DSH session. Every subagent owns one.
@@ -49,14 +50,6 @@ interface AgentRuntime {
   pendingUserTurns: number
   countedThisTurn: boolean
   dirty: boolean
-}
-
-/** Text of the non-empty text blocks of a message. */
-function textOf(content: readonly { type: string; text?: unknown }[]): string {
-  return content
-    .filter(block => block.type === 'text' && typeof block.text === 'string')
-    .map(block => block.text as string)
-    .join('\n')
 }
 
 function isUserSource(source: { kind?: string }): boolean {
@@ -201,9 +194,9 @@ export class SessionSync {
    */
   maybeCommitOnTurnEnd(sessionId: string): void {
     const runtime = this.runtimes.get(sessionId)
-    const turns = this.config().autoCommit.turns
-    if (runtime === undefined || !this.config().autoCommit.enabled || turns === 0) return
-    if (runtime.pendingUserTurns >= turns) {
+    const autoCommit = this.config().autoCommit
+    if (runtime === undefined || !autoCommit.enabled || autoCommit.turns === 0) return
+    if (runtime.pendingUserTurns >= autoCommit.turns) {
       void this.commit(sessionId)
     }
   }
@@ -264,14 +257,15 @@ export class SessionSync {
   }
 
   private async appendBatch(runtime: AgentRuntime): Promise<QueuedMessage[]> {
+    const toPayload = (message: QueuedMessage): { role: string; content: string; message_kind: string; source_message_ids: string[] } => ({
+      role: message.role,
+      content: message.content,
+      message_kind: message.role === 'user' ? 'user_query' : 'assistant_step',
+      source_message_ids: [String(message.seq)],
+    })
     const slice = runtime.queue.slice(0, 100)
     try {
-      await this.client.addBatch(runtime.openvikingSessionId, slice.map(message => ({
-        role: message.role,
-        content: message.content,
-        message_kind: message.role === 'user' ? 'user_query' : 'assistant_step',
-        source_message_ids: [String(message.seq)],
-      })))
+      await this.client.addBatch(runtime.openvikingSessionId, slice.map(toPayload))
       return slice
     } catch (error) {
       if (!(error instanceof OpenVikingError) || (error.httpStatus !== 404 && error.httpStatus !== 405)) {
@@ -282,12 +276,7 @@ export class SessionSync {
       const sent: QueuedMessage[] = []
       for (const message of slice) {
         try {
-          await this.client.addMessage(runtime.openvikingSessionId, {
-            role: message.role,
-            content: message.content,
-            message_kind: message.role === 'user' ? 'user_query' : 'assistant_step',
-            source_message_ids: [String(message.seq)],
-          })
+          await this.client.addMessage(runtime.openvikingSessionId, toPayload(message))
           sent.push(message)
         } catch (fallbackError) {
           this.warnOnce(runtime.sessionId, fallbackError)
