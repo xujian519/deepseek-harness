@@ -48,17 +48,21 @@ const CLI_BIN = resolve(ROOT, 'apps', 'cli', 'lib', 'bin.js')
 /**
  * Relative paths the deployed backend must contain for the `desktop` profile
  * to boot: the cli entry, the Cordis core, the profile bundles, the plugins
- * the base/web-app bundles reference, and the built web frontend dist. The
- * vendored cordis plugins are the peer set `dsh-app-boot` registers at boot,
- * so every one must resolve from the deployed tree even when `pnpm deploy`
- * cannot link them (they are not declared as prod dependencies).
+ * the base/web-app bundles reference, plugins carried for patch-layer
+ * composition, and the built web frontend dist. The vendored cordis plugins
+ * are the peer set `dsh-app-boot` registers at boot, so every one must
+ * resolve from the deployed tree even when `pnpm deploy` cannot link them
+ * (they are not declared as prod dependencies).
  *
  * Maintenance contract: `findUnresolvableBackendImports` only proves
  * `@deepseek-ai/*` specifiers that deployed code imports statically. A bundle
  * row that references a plugin outside that set (a future non-harness
  * dependency, e.g. a cordis.yml `name:` that is not `@deepseek-ai/*`) must
  * add its package path to this list in the same change, or the deployed tree
- * can boot-fail silently.
+ * can boot-fail silently. `dsh-openviking` is carried as a cli production
+ * dependency for patch-layer composition: no deployed file imports it
+ * statically, so only this list proves the packaged tree carries it. Any
+ * plugin carried that way must add its package path here in the same change.
  */
 const REQUIRED_BACKEND_PATHS = [
   'lib/bin.js',
@@ -81,6 +85,7 @@ const REQUIRED_BACKEND_PATHS = [
   'node_modules/@deepseek-ai/dsh-tools/package.json',
   'node_modules/@deepseek-ai/dsh-settings-file/package.json',
   'node_modules/@deepseek-ai/dsh-llm-deepseek/package.json',
+  'node_modules/@deepseek-ai/dsh-openviking/package.json',
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
   'node_modules/js-yaml/package.json',
 ]

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-dsh-openviking-memory-plugin.md
-2026-08-23-dsh-openviking-memory-plugin.md: 0c5c1c0b441d7456a12bbb76e5fff7063f72edab
-2026-08-23-dsh-openviking-memory-plugin.zh.md: e7674eecd87bd779729fe706429ed30087d91aee
+2026-08-23-dsh-openviking-memory-plugin.md: 6c4882703a51bc0b9aac0a5578ad59261a461f8f
+2026-08-23-dsh-openviking-memory-plugin.zh.md: 52da3df996f33c229e60fca65efa6c8a9dab08c0

@@ -72,6 +72,9 @@ function expectPackageJson(nm: string, pkgPath: string, fragment: string): void 
   expect(readFileSync(join(nm, pkgPath, 'package.json'), 'utf8')).toContain(fragment)
 }
 
+// Mirror of REQUIRED_BACKEND_PATHS in desktop-package.ts. verifyBackendDeploy
+// asserts against the production list while fixtures build from this copy,
+// so a one-sided edit fails the tests below — update both lists together.
 const REQUIRED = [
   'lib/bin.js',
   'node_modules/@deepseek-ai/cordis/package.json',
@@ -93,6 +96,7 @@ const REQUIRED = [
   'node_modules/@deepseek-ai/dsh-tools/package.json',
   'node_modules/@deepseek-ai/dsh-settings-file/package.json',
   'node_modules/@deepseek-ai/dsh-llm-deepseek/package.json',
+  'node_modules/@deepseek-ai/dsh-openviking/package.json',
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
   'node_modules/js-yaml/package.json',
 ]

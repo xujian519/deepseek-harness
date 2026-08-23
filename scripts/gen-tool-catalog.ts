@@ -65,6 +65,7 @@ import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
 import * as Methodology from '@deepseek-ai/dsh-methodology'
+import * as DocumentDeliver from '@deepseek-ai/dsh-document-deliver'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import * as PatentTeams from '@deepseek-ai/dsh-patent-teams'
@@ -621,6 +622,22 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-document-deliver',
+    dir: 'document-deliver',
+    source: 'packages/document/document-deliver/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The tool resolves declared files through the filesystem seam at
+      // execute time; registration itself needs only the registry and the
+      // bare local provider.
+      await ctx.plugin(LocalFileSystem)
+      await ctx.plugin(DocumentDeliver)
+    },
+    note:
+      'document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. The delivery studio folds the logged call into its deliverable list and gate badges.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-tools',

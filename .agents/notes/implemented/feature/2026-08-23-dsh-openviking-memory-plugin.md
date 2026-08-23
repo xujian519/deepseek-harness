@@ -22,11 +22,14 @@ The harness needs a cross-session long-term memory plugin: user preferences, pro
 
 **Local configuration and state:** config is exposed as the `openviking` namespace through `installSettingsSection` (rendered and seam-validated by the Web UI settings page); the state file stores only message seqs and commit timestamps (atomic writes, corrupt/identity-change quarantine), transport is at-least-once, and the server dedupes through `source_message_ids`.
 
+**Desktop release carries the plugin as a cli production dependency, not a profile row.** The root `link:` overrides for `vendor/cosmokit`/`vendor/schemastery` hold only for in-repo development; the packaged app gets schemastery as a real copy via `materializeExternalLinks` in `scripts/desktop-package.ts`, and the deploy gates (`findUnresolvableBackendImports` + `verifyBackendDeploy`) fail the packaging step when openviking or its runtime imports are missing.
+
 ## Alternatives considered
 
 - **stdio proxy bridge (the official bundle pattern)** — adds a resident subprocess and requires credential pass-through via env; the current server's streamable HTTP works, so it was rejected.
 - **All 11 mem* tools (Rxiain style)** — duplicates the MCP tool surface with a second maintenance surface; only the 3 tools whose semantics MCP cannot express were kept.
 - **System-prompt section injection** — discarded under `complete: true` personas (the official bundle switched to pre-step messages for the same reason); this package uses the context channel for the same durability without touching the message stream.
+- **Default load via a desktop-profile `cordis.yml` row** — changes the shipped default for every desktop user; patch-layer opt-in keeps the default unchanged at the cost of one cli dependency plus one whitelist entry.
 
 ## Consequences
 
@@ -34,3 +37,4 @@ The harness needs a cross-session long-term memory plugin: user preferences, pro
 - Web surface: the settings page gains the `openviking` config section automatically; `GET /openviking/status` (exact host webServer route) serves health + queue JSON.
 - The browser status card (a client `ui-*` plugin with client-build registration) is **not shipped with this package**: client-side slot integration and the client-build registration surface are a separate large block, recorded as a Known Limitation in the package README.
 - e2e is opt-in (`OPENVIKING_E2E=1` plus a reachable server); CI skips without a key.
+- The `dsh-openviking` entry lives in both `REQUIRED_BACKEND_PATHS` and the spec's mirror list; the two lists must change together (a one-sided edit fails the `verifyBackendDeploy` tests), and removing the carry later must remove both entries.

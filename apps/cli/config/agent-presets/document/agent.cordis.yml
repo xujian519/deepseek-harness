@@ -134,6 +134,17 @@
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
+# ── deliverable registration ────────────────────────────────────────────────
+
+# `tool-document-deliver` registers the model-facing `document_deliver` tool:
+# after the quality gate passes it records the delivered files, formats, and
+# P0/P1 gate state. The call is session-logged, so the delivery studio derives
+# the deliverable list and gate badges without any host write RPC; the tool
+# resolves declared files through the HOST-plane `fs` service. It provides
+# nothing, so it needs no realm.
+- id: tool-document-deliver
+  name: '@deepseek-ai/dsh-document-deliver'
+
 # ── goals ───────────────────────────────────────────────────────────────────
 
 # Only the model-facing tool. The goal SERVICE, its session driver, and the

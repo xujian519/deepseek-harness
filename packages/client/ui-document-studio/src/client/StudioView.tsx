@@ -30,7 +30,7 @@ export interface StudioViewInjected {
   }
   /** Open one produced file with the OS default application. */
   openFile: (path: string) => Promise<void>
-  /** Reveal one produced file in the OS file manager (only when supported). */
+  /** Reveal one produced file's containing folder in the OS file manager (only when supported). */
   showInFolder: (path: string) => Promise<void>
   /** Read one produced file's UTF-8 text (host-capped; `maxBytes` raises the budget for a full read). */
   readFileText: (path: string, maxBytes?: number) => Promise<{ content: string; truncated: boolean }>
@@ -157,6 +157,25 @@ export function StudioView({
   const selected = produced.find(file => file.path === selectedPath) ?? null
   const selectedName = selected === null ? '' : basename(selected.path)
 
+  // One badge per produced file: the announced export format, and the quality-
+  // gate state (or the visible degrade note when the file was never registered).
+  const badge = (file: DocumentDeliverable): ReactNode => (
+    <>
+      {file.format !== undefined && (
+        <span className={css.badge}>{file.format}</span>
+      )}
+      {file.gate !== undefined
+        ? (
+          <span className={`${css.badge} ${css.gatePassed}`}>
+            {t('studio.file.gatePassed', { p0: file.gate.p0.length, p1: file.gate.p1.length })}
+          </span>
+        )
+        : (
+          <span className={`${css.badge} ${css.gateMissing}`}>{t('studio.file.gateMissing')}</span>
+        )}
+    </>
+  )
+
   // One preview pane per state; the hint covers no selection and
   // non-previewable files (the effect clears content and error for both).
   const showHint = selectedPath === null || (htmlPreview === null && textPreview === null && error === null)
@@ -231,6 +250,7 @@ export function StudioView({
                     onClick={() => { setSelectedPath(file.path) }}
                   >
                     <span className={css.fileName}>{basename(file.path)}</span>
+                    {badge(file)}
                   </button>
                 ))}
               </div>

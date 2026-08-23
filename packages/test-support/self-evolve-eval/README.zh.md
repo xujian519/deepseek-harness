@@ -64,15 +64,8 @@ self-evolve 跑通而 baseline 未跑通的任务为 **win**，反之为 **loss*
 ## 诚实状态
 
 脚手架已落地并有单测（子集确定性、评分、区间、决策 I/O）。`campaign` 运行器的 dry-run 计划、git-pathspec 预测排除、以及 merge/verdict 纯逻辑有单测；其子进程路径（git/venv/pytest）由带桩判定的临时仓库覆盖。另接了一个 keyed e2e（`pnpm run test:e2e`，需要 `DEEPSEEK_API_KEY` 与导出的清单 `SELF_EVOLVE_E2E_MANIFEST`）来贯通单个真实任务，但无它们时 self-skip。**本仓库尚未执行任何真实 SWE-bench 任务**——需要 keyed agent 加每题环境，且决策记录文件尚不存在，因此 CI 停开关处于休眠态。
+## 已知限制与后续工作
 
-## 模型体验
-
-无，因为评估脚手架从不贡献任何模型请求；keyed agent 臂与其每题环境拥有全部模型可见效果。
-
-#### KV Cache 影响
-
-无：脚手架不发送模型请求，也不改动请求头。
-
-## 已知限制与延后工作
-
-- **本地判定不是官方 SWE-bench 路径** — 轻量战役路径（每题一个共享 venv 加本地 pytest 判定）被标注为 local-reproduction，而非官方每题容器判定；依赖/系统漂移可能异于正式路径，且可编辑 `install` 可能让被测包从基础 checkout 而非 arm 的预测解析。
+- **本地复现，非官方 SWE-bench**——P-B 判定是在 arm checkout 中本地执行 `python -m pytest`；依赖与系统漂移可能使其不同于官方每实例判定，后者仍是正式证据路径。
+- **安装与 arm 工作区的约束**——数据集 `install` 命令在基 checkout 上运行一次并写入共享 venv；对 editable 包安装，被测包可能从基 checkout 而非 arm 的预测解析；判定将以此为前提报告。
+- **Keyed 路径尚未在本仓库跑过**——本仓库尚未执行任何真实 SWE-bench 任务。记录的 `eval-decision.json` 尚不存在，因此 CI 停开关处于休眠态。

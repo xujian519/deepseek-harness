@@ -64,15 +64,8 @@ A task resolved by the self-evolve run but not by baseline is a **win**; the rev
 ## Honest status
 
 The scaffold is landed and unit-tested (subset determinism, scoring, interval, decision I/O). The `campaign` runner's dry-run plan, git-pathspec prediction exclusion, and merge/verdict pure logic are unit-tested; its subprocess path (git/venv/pytest) is exercised against temp repos with a stubbed verdict. A keyed e2e (`pnpm run test:e2e`, requiring `DEEPSEEK_API_KEY` and the exported manifest at `SELF_EVOLVE_E2E_MANIFEST`) is wired to drive one real task through the pipeline but self-skips without them. **No real SWE-bench task has been run in this repository** — the keyed agent plus a per-task environment is required and the recorded decision file does not exist yet, so the CI stop switch is dormant.
-
-## Model Experience
-
-None, as the evaluation scaffold never contributes to a model request; the keyed agent arms and their per-task environments own every model-facing effect.
-
-#### KV Cache effect
-
-None: the scaffold sends no model requests and mutates no request headers.
-
 ## Known Limitations and Deferred Work
 
-- **Local verdicts are not the official SWE-bench route** — the light-weight campaign path (one shared venv per task plus a local pytest verdict) is reported as local-reproduction, not the official per-instance container verdict; dependency/system drift can differ from the formal route, and an editable `install` can resolve the package under test from the base checkout instead of an arm's prediction.
+- **Local reproduction, not official SWE-bench** — the P-B verdict is a local `python -m pytest` in the arm checkout; dependency and system drift can make it differ from the official per-instance verdict, which remains the formal evidence route.
+- **Install-vs-arm workspace caveat** — the dataset `install` command runs once into the shared venv from the base checkout, so for editable-package installs the package under test may resolve from the base checkout instead of the arm's prediction; verdicts are reported with that caveat.
+- **The keyed path has never run here** — no real SWE-bench task has been executed in this repository. The recorded `eval-decision.json` does not exist yet, so the CI stop switch is dormant.

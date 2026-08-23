@@ -24,6 +24,8 @@ The document-agent workline (P1 landed the `document` agent preset) needs its de
 
 ## Consequences
 
+- The studio's produced list derives from mutation `locations` **and** `document_deliver` registrations (see [structured deliverable registration](2026-08-23-document-deliver-registration.md)): registered entries carry the announced format and P0/P1 gate badges, and sessions recorded before the tool existed show a visible "no gate record" degrade badge.
+- Show-in-folder opens the produced file's containing folder through the same `openPath` RPC — the host exposes no reveal-in-folder intent, and opening the folder is the file-manager handoff (the `ui-deliverables` convention).
 - PDF export: inside the desktop app the print action goes through the `window.desktop.printHtmlToPdf` bridge (hidden-window rasterization + OS save dialog); outside the desktop shell it falls back to the browser print dialog ("Save as PDF"). Print re-reads the file at the host's 4 MiB ceiling when the preview head is truncated, and blocks with an explanation when the file still does not fit.
 - HTML preview is sandboxed (`sandbox=""`, no scripts): preview, not execution; interactive artifacts show only their first paint.
 - The studio's auto-switch fires on session entry only; a deliberate tab pick back to chat survives until the user leaves and re-enters the session.

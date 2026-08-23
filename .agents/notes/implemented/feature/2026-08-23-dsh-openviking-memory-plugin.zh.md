@@ -22,11 +22,14 @@ harness 需要一个跨会话长期记忆插件：会话中的用户偏好、项
 
 **本地配置与状态**：配置经 `installSettingsSection` 暴露 `openviking` namespace（Web UI 设置页自动渲染、校验在 seam 边界）；状态文件只存消息 seq/提交时间（原子写、corrupt/identity 变更隔离），传输 at-least-once，服务器靠 `source_message_ids` 去重。
 
+**桌面发布版以 cli 生产依赖携带该插件，而非 profile 行。** 根 `pnpm-workspace.yaml` 的 `link:vendor/cosmokit`/`link:vendor/schemastery` override 仅对仓库内开发成立；打包 app 经 `scripts/desktop-package.ts` 的 `materializeExternalLinks` 拿到 schemastery 真实拷贝，部署门禁（`findUnresolvableBackendImports` + `verifyBackendDeploy`）在 openviking 或其运行时 import 缺失时令打包失败。
+
 ## Alternatives considered
 
 - **stdio 代理桥（官方 bundle 模式）**——多一个常驻子进程、凭据要经 env 传入子进程；当前服务器 streamable HTTP 可用，否决。
 - **11 个 mem* 全量工具（Rxiain 风格）**——与 MCP 工具面重复，双份维护面；只保留语义无法替代的 3 个。
 - **系统提示 section 注入**——`complete: true` persona 下会被丢弃，否决（官方 bundle 同理改用 pre-step 消息；本包用 context 通道获得同一持久性且不污染消息流）。
+- **desktop profile cordis.yml 默认装载**——改变所有桌面用户的出厂默认；patch-layer 按需启用保持默认不变，代价仅一条 cli 依赖 + 一条白名单条目。
 
 ## Consequences
 
@@ -34,3 +37,4 @@ harness 需要一个跨会话长期记忆插件：会话中的用户偏好、项
 - Web 面：设置页自动获得 `openviking` 配置段；`GET /openviking/status`（host webServer 精确路由）提供健康+队列 JSON。
 - 浏览器状态卡片（client ui-* 插件，含 client-build 注册）**未随本包落地**：client 侧 slot 集成与 client-build 注册面是独立大块，记录为包 README 的 Known Limitation。
 - e2e 采用 opt-in 标记（`OPENVIKING_E2E=1` + 可达服务器），CI 无密钥自动跳过。
+- `dsh-openviking` 条目同时存在于 `REQUIRED_BACKEND_PATHS` 与其 spec 镜像清单；两份清单必须同改（单侧改动即挂 `verifyBackendDeploy` 测试），日后移除携带须同步移除两条。

@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/synapse/README.md
 README.md: 566ace49fc2ac7704dee550cba154b249c9c72ee
-README.zh.md: e68f0fb2bae71f52202bb44ecb791b43d3250469
+README.zh.md: 4b5864f40ed2e0ccdda4575f41d09c0b622e119f
