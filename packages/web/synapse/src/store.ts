@@ -13,7 +13,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Position, ProjectedMessage, Thread, Workspace, WorkspaceState, WorkspaceSummary } from './types.ts'
 import {
   TOPIC_COLORS,
-  contentText,
+  foldToolProcessInto,
   projectableEvent,
   sessionCwd,
   sessionTitle,
@@ -669,38 +669,12 @@ export class WorkspaceStore {
   /**
    * Fold one tool call or result into the assistant message of its own
    * turn/step, keyed by `callId`, so a tool invocation never becomes a
-   * separate canvas card. A legacy assistant message without `turn`/`step` is
-   * the fallback target; an event with no such target is dropped.
+   * separate canvas card, then stamp the thread as touched.
    */
   private foldToolProcess(thread: Thread, event: SessionEvent): void {
     if (event.type !== 'tool/call' && event.type !== 'tool/result') return
-    const at = new Date(event.time).toISOString()
-    const target = [...thread.messages].reverse().find(message =>
-      message.kind === 'assistant'
-      && (message.turn === event.data.turn && message.step === event.data.step
-        || message.turn === undefined && message.step === undefined))
-    if (target === undefined) return
-    const process = target.process ??= []
-    const callId = String(event.type === 'tool/call' ? event.data.callId : event.data.message.source.callId)
-    const entry = process.find(item => item.callId === callId)
-    if (event.type === 'tool/call') {
-      if (entry === undefined) {
-        process.push({ callId, name: event.data.name, arguments: event.data.arguments, result: null, error: null })
-      } else {
-        entry.name = event.data.name
-        entry.arguments = event.data.arguments
-      }
-    } else {
-      const outcome = contentText(event.data.message.content)
-      const error = event.data.error === undefined ? null : `${event.data.error.name}: ${event.data.error.code}`
-      if (entry === undefined) {
-        process.push({ callId, name: '工具调用', arguments: null, result: outcome, error })
-      } else {
-        entry.result = outcome
-        entry.error = error
-      }
-    }
-    thread.updatedAt = at
+    foldToolProcessInto(thread.messages, event)
+    thread.updatedAt = new Date(event.time).toISOString()
   }
 
   private thread(input: {

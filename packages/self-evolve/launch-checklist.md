@@ -3,7 +3,7 @@
 > **改判（2026-08-22）**：用户决定**放弃离线实测**，改用实际使用观察。
 > 本清单转为"未来需要正式证据时的执行指南"，不再按 M1–M6 推进；
 > 无需再拍板 §8 的各项开放项。观察方案见
-> [`../spec.md`](../spec.md) §"证据策略改判"。
+> [`./spec.md`](./spec.md) §"证据策略改判"。
 >
 > **2026-08-22 状态**：T3 战役运行器已实现（`pnpm eval:self-evolve campaign`，本地无 Docker 路径 P-B）；
 > 证据路径与 CI 停开关保留。
@@ -13,7 +13,7 @@
 > （`verify-self-evolve-eval`，已注册于 `scripts/run-gates.ts` 的 `ciSharedStaticGates`）。
 >
 > 脚手架（`packages/test-support/self-evolve-eval`）负责子集选择、评分、区间、决策与门禁；
-> **它不代跑 agent**（[README Honest status](../packages/test-support/self-evolve-eval/README.md)）。
+> **它不代跑 agent**（[README Honest status](../test-support/self-evolve-eval/README.md)）。
 > 因此本清单除环境与命令外，还包含一份当前缺失的"战役运行器"工程项（T3），需先实现再开跑。
 
 ---
@@ -22,7 +22,7 @@
 
 - 主统计量：配对通过率差 `winRateDelta = (evolvedPassed − baselinePassed) / N`。
 - 区间：`bootstrapCi` 1 万次重采样的 2.5%/97.5% 分位（`--seed` 固定可复现）。
-- 决策（[decision.ts](../packages/test-support/self-evolve-eval/src/decision.ts)）：
+- 决策（[decision.ts](../test-support/self-evolve-eval/src/decision.ts)）：
   - `continue` 仅当 **区间低界严格 > 0**；
   - 区间跨零（随机性无法排除）或 ≤ 0（损伤证据）→ `rollback`。
 - **预期敏感性**：N=60 时每任务占 1/60 ≈ 1.67%，区间颗粒度粗。粗略测算：
@@ -56,7 +56,7 @@
 | 臂 | 组成 | 关键点 |
 |---|---|---|
 | **baseline** | 标准 headless 组装（不含 `self-evolve-app`） | 与 evolved 唯一的差异 = self-evolve 开关 |
-| **evolved** | 同 headless + `self-evolve-app` bundle overlay | **必须同时配置** `workspaceVerifier.buildCommand`——不配则 held-in 恒走弱路径 → 永不产生 commit，evolved≈baseline，测到的只是 overhead 而非收益（bundle 的 [`cordis.patch.yml`](../packages/bundle/self-evolve-app/cordis.patch.yml) 默认注释掉该项） |
+| **evolved** | 同 headless + `self-evolve-app` bundle overlay | **必须同时配置** `workspaceVerifier.buildCommand`——不配则 held-in 恒走弱路径 → 永不产生 commit，evolved≈baseline，测到的只是 overhead 而非收益（bundle 的 [`cordis.patch.yml`](../bundle/self-evolve-app/cordis.patch.yml) 默认注释掉该项） |
 
 - 每任务 buildCommand 建议：该仓库的快速健康检查（如 `python -m compileall <src>` 或项目自身测试搜集命令），需在**干净检出**上通过；同一任务两臂用同一命令（其实只影响 evolved 臂）。
 - 其余控制项：同一模型、同一最大轮数/预算上限、同一 `problem_statement`、同一 task 工作区（同 base_commit + 同 test_patch）。建议每任务轮换两臂顺序（或固定并记录），消除系统性偏差。
