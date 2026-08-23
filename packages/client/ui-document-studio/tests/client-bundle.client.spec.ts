@@ -138,6 +138,10 @@ describe('tsdown client artifact', () => {
     sessionsList.update((draft) => { draft.current = 's2' })
     await Promise.resolve()
     expect(viewSetters).toEqual([['s1', 'document']])
+    // Re-entering the document session switches again (session entry only).
+    sessionsList.update((draft) => { draft.current = 's1' })
+    await Promise.resolve()
+    expect(viewSetters).toEqual([['s1', 'document'], ['s1', 'document']])
     await fiber.dispose()
   })
 

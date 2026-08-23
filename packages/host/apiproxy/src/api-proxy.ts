@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, stat } from 'node:fs/promises'
+import { mkdir, open, stat, type FileHandle } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { z as zod } from 'zod'
@@ -1879,6 +1879,24 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     }
   }
 
+  /**
+   * Fill a buffer from one file handle, looping because a single positioned
+   * read may return fewer bytes than requested (EOF or short reads).
+   * @param handle - open file handle at the caller's position.
+   * @param length - exact number of bytes to collect.
+   * @returns a buffer of exactly `length` bytes (zeros beyond EOF).
+   */
+  async function readUpTo(handle: FileHandle, length: number): Promise<Buffer> {
+    const bytes = Buffer.alloc(length)
+    let total = 0
+    while (total < length) {
+      const { bytesRead } = await handle.read(bytes, total, length - total, total)
+      if (bytesRead === 0) break
+      total += bytesRead
+    }
+    return bytes
+  }
+
   /** Whether this deployment can hand a path to a native opener at all. */
   function canOpenPaths(): boolean {
     if (defaults.canOpenPath !== undefined) return defaults.canOpenPath()
@@ -2964,17 +2982,23 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           try {
             const { size } = await handle.stat()
             if (size > cap) {
-              const bytes = Buffer.alloc(cap)
-              await handle.read(bytes, 0, cap, 0)
+              // Read past the cap so a UTF-8 multi-byte character straddling
+              // the boundary can be detected and dropped whole; trimming the
+              // trailing continuation bytes keeps the head valid UTF-8.
+              const bytes = await readUpTo(handle, Math.min(size, cap + 3))
+              let end = cap
+              while (end > 0 && end < bytes.length) {
+                const tail = bytes[end]
+                if (tail === undefined || (tail & 0xc0) !== 0x80) break
+                end -= 1
+              }
               return ok(request, {
-                content: decodeUtf8Strict(bytes, path),
+                content: decodeUtf8Strict(bytes.subarray(0, end), path),
                 truncated: true,
               })
             }
-            const bytes = Buffer.alloc(size)
-            await handle.read(bytes, 0, size, 0)
             return ok(request, {
-              content: decodeUtf8Strict(bytes, path),
+              content: decodeUtf8Strict(await readUpTo(handle, size), path),
               truncated: false,
             })
           } finally {

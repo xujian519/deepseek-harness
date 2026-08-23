@@ -186,6 +186,48 @@ describe('StudioView', () => {
     }
   })
 
+  it('re-reads the full document before printing when the preview head was truncated', async () => {
+    const host = hostDescription(true)
+    const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/full.pdf' }))
+    ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
+      printHtmlToPdf,
+    }
+    const readFileText = vi.fn((_path: string, maxBytes?: number) => {
+      if (maxBytes === 4 * 1024 * 1024) return Promise.resolve({ content: '<h1>FULL</h1>', truncated: false })
+      return Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true })
+    })
+    try {
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host, { readFileText })} />)
+      await screen.findByTitle('index.html')
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.exported', { path: '/tmp/full.pdf' }))).toBeTruthy()
+      // The full re-read feeds the bridge, not the truncated preview head.
+      expect(printHtmlToPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>FULL</h1>', suggestedName: 'index.html' }),
+      )
+    } finally {
+      delete (window as Window & { desktop?: unknown }).desktop
+    }
+  })
+
+  it('blocks print with an explanation when the full read is still truncated', async () => {
+    const host = hostDescription(true)
+    const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/x.pdf' }))
+    ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
+      printHtmlToPdf,
+    }
+    const readFileText = vi.fn(() => Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true }))
+    try {
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host, { readFileText })} />)
+      await screen.findByTitle('index.html')
+      fireEvent.click(screen.getByText(t('studio.action.print')))
+      expect(await screen.findByText(t('studio.print.failed', { message: t('studio.print.tooLarge') }))).toBeTruthy()
+      expect(printHtmlToPdf).not.toHaveBeenCalled()
+    } finally {
+      delete (window as Window & { desktop?: unknown }).desktop
+    }
+  })
+
   it('classifies preview kinds by extension', () => {
     expect(isHtmlPath('a.html')).toBe(true)
     expect(isHtmlPath('a.htm')).toBe(true)

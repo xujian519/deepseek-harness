@@ -252,6 +252,7 @@ export function apply(ctx: Context): void {
       return {
         views,
         releaseSessionImages: (id) => { conversation.releaseSessionImages(id) },
+        releaseViewSetter: (id) => { conversation.releaseViewSetter(id) },
         bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
       }
     },

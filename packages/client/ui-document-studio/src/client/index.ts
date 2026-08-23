@@ -63,8 +63,10 @@ export function apply(ctx: ClientContext): void {
         hooks: { hostDescription: connection.hostDescription },
         openFile: path => ctx.workspaces.openPath(resolve(path)),
         showInFolder: path => ctx.workspaces.openPath(resolve(path)),
-        readFileText: async (path) => {
-          const response = await connection.api.host.readFileText({ path: resolve(path) })
+        readFileText: async (path, maxBytes) => {
+          const response = await connection.api.host.readFileText(
+            maxBytes === undefined ? { path: resolve(path) } : { path: resolve(path), maxBytes },
+          )
           if (!response.result.ok) {
             throw new Error(response.result.error.message)
           }
@@ -77,11 +79,10 @@ export function apply(ctx: ClientContext): void {
   // Jump to the studio when the current session is a document-agent session.
   // The store-backed setter mounts with the session's conversation seat, so a
   // list change that precedes it retries for a bounded window; re-entering an
-  // already-visited session switches again (a deliberate tab pick is
-  // overwritten only on session entry, not continuously).
+  // already-visited session switches again (the previous-current guard fires
+  // per session entry, so a deliberate tab pick survives within one visit).
   ctx.effect(() => {
     let previous: SessionId | undefined
-    const autoSwitched = new Set<SessionId>()
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let retries = 0
     let retryFor: SessionId | undefined
@@ -96,9 +97,7 @@ export function apply(ctx: ClientContext): void {
     const attempt = (sessionId: SessionId): boolean => {
       const conversation = ctx.get('conversation')
       if (conversation === undefined) return false
-      const applied = conversation.setActiveView(sessionId, 'document')
-      if (applied) autoSwitched.add(sessionId)
-      return applied
+      return conversation.setActiveView(sessionId, 'document')
     }
     const maybeSwitch = (): void => {
       const state = ctx.sessions.list.getSnapshot()
@@ -106,7 +105,6 @@ export function apply(ctx: ClientContext): void {
       if (current === undefined || current === previous) return
       previous = current
       stopRetry()
-      if (autoSwitched.has(current)) return
       const preset = state.byId[current]?.agentPreset
       if (preset !== DOCUMENT_PRESET_ID) return
       retryFor = current

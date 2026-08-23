@@ -32,9 +32,12 @@ export interface StudioViewInjected {
   openFile: (path: string) => Promise<void>
   /** Reveal one produced file in the OS file manager (only when supported). */
   showInFolder: (path: string) => Promise<void>
-  /** Read one produced file's UTF-8 text for preview (host-capped). */
-  readFileText: (path: string) => Promise<{ content: string; truncated: boolean }>
+  /** Read one produced file's UTF-8 text (host-capped; `maxBytes` raises the budget for a full read). */
+  readFileText: (path: string, maxBytes?: number) => Promise<{ content: string; truncated: boolean }>
 }
+
+/** The host's absolute read ceiling; a full print read may not exceed it. */
+const PRINT_MAX_BYTES = 4 * 1024 * 1024
 
 /** Stable empty list so the selector never allocates per snapshot. */
 const EMPTY_PRODUCED: readonly DocumentDeliverable[] = []
@@ -81,8 +84,9 @@ function printHtmlDocument(content: string): void {
   const win = window.open('', '_blank')
   if (win === null) return
   win.document.open()
-  // oxlint-disable-next-line typescript/no-deprecated -- document.write is the only
-  // way to print a complete standalone HTML document from a popup window.
+  // document.write is the only way to print a complete standalone HTML
+  // document from a popup window.
+  // oxlint-disable-next-line typescript/no-deprecated
   win.document.write(content)
   win.document.close()
   win.focus()
@@ -155,11 +159,27 @@ export function StudioView({
 
   const [printOutcome, setPrintOutcome] = useState<{ saved: string } | { failed: string } | null>(null)
   const onPrint = async (): Promise<void> => {
-    if (htmlPreview === null) return
+    if (selectedPath === null || htmlPreview === null) return
     setPrintOutcome(null)
+    // The preview read uses the host's default 1 MiB budget; re-read at the
+    // full ceiling so the PDF is not silently the truncated head.
+    let html = htmlPreview
+    if (content?.truncated === true) {
+      try {
+        const full = await readFileText(selectedPath, PRINT_MAX_BYTES)
+        if (full.truncated) {
+          setPrintOutcome({ failed: t('studio.print.tooLarge') })
+          return
+        }
+        html = full.content
+      } catch (reason: unknown) {
+        setPrintOutcome({ failed: reason instanceof Error ? reason.message : String(reason) })
+        return
+      }
+    }
     if (window.desktop?.printHtmlToPdf !== undefined) {
       const result = await window.desktop.printHtmlToPdf({
-        html: htmlPreview,
+        html,
         suggestedName: selectedName,
       })
       if (result.error !== undefined) setPrintOutcome({ failed: result.error })
@@ -168,7 +188,7 @@ export function StudioView({
       }
       return
     }
-    printHtmlDocument(htmlPreview)
+    printHtmlDocument(html)
   }
 
   return (

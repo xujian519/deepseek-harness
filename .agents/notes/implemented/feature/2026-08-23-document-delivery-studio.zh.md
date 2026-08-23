@@ -24,7 +24,7 @@ Status: implemented
 
 ## 后果
 
-- PDF 导出：桌面壳桥接 `printHtmlToPdf`（隐藏窗口栅格化 + 系统保存对话框）；Electron 之外以浏览器打印对话框为回退。
+- PDF 导出：桌面壳桥接 `printHtmlToPdf`（隐藏窗口栅格化 + 系统保存对话框）；Electron 之外以浏览器打印对话框为回退。预览头被截断时，打印会按宿主 4 MiB 上限重新读取完整文件；仍超出时给出说明并阻止打印。
 - HTML 预览为沙箱（`sandbox=""`，不执行脚本）：预览而非执行；交互式工件只显示首帧。
 - 工作室的自动跳转仅在进入会话时触发；手动切回聊天标签后，离开并重新进入会话前不会被覆盖。
-- 覆盖率：`packages/client/ui-document-studio/src/*` 加入客户端车道覆盖率豁免（jsdom 车道无法把 eval 后的 bundle 产物映射回 src），与 ui-trajectory 一致；该包以 21 个 jsdom 与真实注册表 spec 替代。
+- 覆盖率：`packages/client/ui-document-studio/src/*` 加入客户端车道覆盖率豁免（jsdom 车道无法把 eval 后的 bundle 产物映射回 src），与 ui-trajectory 一致；该包以 jsdom 与真实注册表 spec 替代。

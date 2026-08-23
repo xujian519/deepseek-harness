@@ -70,6 +70,12 @@ export interface IConversation {
    * retry).
    */
   setActiveView(sessionId: SessionId, view: string): boolean
+  /**
+   * Release one session's view switch write path (the seat-unmount
+   * counterpart of the registration the seat performs on mount).
+   * @param sessionId - released session.
+   */
+  releaseViewSetter(sessionId: SessionId): void
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
@@ -140,13 +146,23 @@ export class ConversationController extends Service implements IConversation {
 
   /**
    * Register (or replace) the per-session view switch write path. Called by
-   * the conversation-session seat when its store actions materialize; the
-   * map is cleared with the controller fiber.
+   * the conversation-session seat when its store actions materialize;
+   * {@link releaseViewSetter} is its seat-unmount counterpart.
    * @param sessionId - target session.
    * @param setter - store-backed view writer.
    */
   registerViewSetter(sessionId: SessionId, setter: (view: string) => void): void {
     this.viewSetters.set(sessionId, setter)
+  }
+
+  /**
+   * Release the per-session view switch write path. Called by the
+   * conversation-session seat on unmount, mirroring releaseSessionImages, so
+   * a closed session does not leave a setter for a disposed store behind.
+   * @param sessionId - released session.
+   */
+  releaseViewSetter(sessionId: SessionId): void {
+    this.viewSetters.delete(sessionId)
   }
 
   /** @inheritdoc */

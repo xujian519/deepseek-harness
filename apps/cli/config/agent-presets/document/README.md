@@ -40,6 +40,6 @@ The model sees the Chinese document-delivery persona (professional identity, six
 
 ## Known Limitations and Deferred Work
 
-- **PDF is export guidance, not a renderer** — `document-report` / `document-html` deliver self-contained HTML; PDF export happens through browser/desktop print or the planned delivery page (P2 of the document-agent plan), not inside the preset.
+- **PDF is export guidance, not a renderer** — `document-report` / `document-html` deliver self-contained HTML; PDF export happens through the delivery studio's print action (desktop print-to-PDF or browser print), not inside the preset.
 - **`document-word` depends on the user-level `officecli` skill** — the preset cannot bundle it; without it the agent falls back to Markdown.
 - **OpenDesign skills are optional** — without `OPEN_DESIGN_DIR` the agent uses the built-in baseline templates; template variety is reduced but delivery is not blocked.

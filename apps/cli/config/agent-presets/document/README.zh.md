@@ -40,6 +40,6 @@ export OPEN_DESIGN_DIR="$PWD/open-design"
 
 ## 已知限制与待办
 
-- **PDF 是导出指引而非渲染器**——`document-report` / `document-html` 交付自包含 HTML；PDF 导出经浏览器/桌面打印或规划的交付页（文档智能体方案 P2）完成，不在 preset 内部。
+- **PDF 是导出指引而非渲染器**——`document-report` / `document-html` 交付自包含 HTML；PDF 导出经交付工作室的打印按钮（桌面端 print-to-PDF 或浏览器打印）完成，不在 preset 内部。
 - **`document-word` 依赖用户级 `officecli` 技能**——preset 无法内置；缺失时回退 Markdown。
 - **OpenDesign 技能为可选**——未设置 `OPEN_DESIGN_DIR` 时使用内置基线模板，模板多样性降低但交付不被阻塞。

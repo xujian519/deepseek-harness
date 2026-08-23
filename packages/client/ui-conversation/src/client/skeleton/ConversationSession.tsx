@@ -172,7 +172,7 @@ export function ConversationSessionHeader({
  */
 export function ConversationSession({
   sessionId, useSession, useInput, inputActions, useStore, actions,
-  renderSlot, views, bindDraftMirror, releaseSessionImages,
+  renderSlot, views, bindDraftMirror, releaseSessionImages, releaseViewSetter,
 }: ConversationSessionProps) {
   useSyncExternalStore(views.subscribe, views.version)
   const tabs = views.list()
@@ -195,7 +195,8 @@ export function ConversationSession({
 
   useEffect(() => () => {
     releaseSessionImages(sessionId)
-  }, [releaseSessionImages, sessionId])
+    releaseViewSetter(sessionId)
+  }, [releaseSessionImages, releaseViewSetter, sessionId])
 
   if (blank && composerPhase === 'blank') return null
   return (

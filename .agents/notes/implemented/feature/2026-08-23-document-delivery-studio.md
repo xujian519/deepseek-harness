@@ -50,13 +50,17 @@ The client `api.host.readFileText` flows from the RpcMethodMap automatically.
 
 ## Consequences
 
-- PDF export in this iteration is browser print ("Save as PDF" dialog);
-  silent `webContents.printToPDF` is the P3 desktop-bridge follow-up.
+- PDF export: inside the desktop app the print action goes through the
+  `window.desktop.printHtmlToPdf` bridge (hidden-window rasterization + OS
+  save dialog); outside the desktop shell it falls back to the browser print
+  dialog ("Save as PDF"). Print re-reads the file at the host's 4 MiB ceiling
+  when the preview head is truncated, and blocks with an explanation when the
+  file still does not fit.
 - HTML preview is sandboxed (`sandbox=""`, no scripts): preview, not
   execution; interactive artifacts show only their first paint.
 - The studio's auto-switch fires on session entry only; a deliberate tab pick
   back to chat survives until the user leaves and re-enters the session.
 - Coverage: `packages/client/ui-document-studio/src/*` joins the client-lane
   coverage exemption (the jsdom lane cannot map the eval'd bundle artifact
-  back to src), matching ui-trajectory; the package ships 21 jsdom and
+  back to src), matching ui-trajectory; the package ships jsdom and
   real-registry specs instead.

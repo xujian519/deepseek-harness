@@ -14,6 +14,19 @@ const packageJson = JSON.parse(readFileSync(fileURLToPath(new URL('../package.js
   scripts: { build: string }
 }
 
+// Electron mocks must be declared at module top level (vitest hoists them
+// before any test runs); the first test only esbuild-bundles preload.ts and
+// never imports it at runtime, so the mock is inert there.
+const exposed = vi.hoisted(() => ({ channels: [] as string[] }))
+vi.mock('electron', () => ({
+  contextBridge: {
+    exposeInMainWorld: (key: string, api: Record<string, unknown>) => {
+      exposed.channels.push(key, ...Object.keys(api))
+    },
+  },
+  ipcRenderer: { invoke: (channel: string) => channel },
+}))
+
 describe('preload bundling', () => {
   it('keeps electron external in the build script and the emitted bundle', async () => {
     expect(packageJson.scripts.build).toContain('--external:electron')
@@ -32,15 +45,6 @@ describe('preload bundling', () => {
   })
 
   it('exposes the closed bridge surface including printHtmlToPdf', async () => {
-    const exposed = vi.hoisted(() => ({ channels: [] as string[] }))
-    vi.mock('electron', () => ({
-      contextBridge: {
-        exposeInMainWorld: (key: string, api: Record<string, unknown>) => {
-          exposed.channels.push(key, ...Object.keys(api))
-        },
-      },
-      ipcRenderer: { invoke: (channel: string) => channel },
-    }))
     await import('../src/preload.ts')
     expect(exposed.channels).toEqual(['desktop', 'ping', 'printHtmlToPdf'])
   })

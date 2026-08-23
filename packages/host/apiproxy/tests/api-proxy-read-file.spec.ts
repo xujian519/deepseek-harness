@@ -77,6 +77,32 @@ describe('host.readFileText', () => {
     expect(response.result).toEqual({ ok: true, value: { content: 'hello', truncated: true } })
   })
 
+  it('drops a multi-byte character split by the cap so the head stays valid UTF-8', async () => {
+    const { api, cwd } = await harness()
+    const path = join(cwd, 'cjk.html')
+    // '报' is a 3-byte character at offsets 5..7; a cap of 6 cuts inside it.
+    writeFileSync(path, 'AAAAA报BBBBBBBBBB', 'utf8')
+
+    const response = await api.host.readFileText(request({ path, maxBytes: 6 }), new AbortController().signal)
+
+    expect(response.result.ok).toBe(true)
+    if (!response.result.ok) throw new Error('unreachable')
+    expect(response.result.value).toEqual({ content: 'AAAAA', truncated: true })
+  })
+
+  it('keeps a character whose last byte lands exactly on the cap', async () => {
+    const { api, cwd } = await harness()
+    const path = join(cwd, 'cjk-boundary.html')
+    // The 3-byte character ends at offset 8, exactly on the cap.
+    writeFileSync(path, 'AAAAA报B', 'utf8')
+
+    const response = await api.host.readFileText(request({ path, maxBytes: 8 }), new AbortController().signal)
+
+    expect(response.result.ok).toBe(true)
+    if (!response.result.ok) throw new Error('unreachable')
+    expect(response.result.value).toEqual({ content: 'AAAAA报', truncated: true })
+  })
+
   it('caps at 4 MiB regardless of the requested budget', async () => {
     const { api, cwd } = await harness()
     const path = join(cwd, 'huge.bin')
