@@ -8,7 +8,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
-import type { TerminalSendOperation } from '@deepseek-ai/dsh-terminal'
+import type { TerminalSendOperation, TerminalSessionId } from '@deepseek-ai/dsh-terminal'
 import SandboxProvider from '@deepseek-ai/dsh-sandbox'
 import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
@@ -280,6 +280,23 @@ const hasPwsh = spawnSync(
 ).status === 0
 
 describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
+  // A send settles inferred_idle when the 3000ms silence bound elapses. On a
+  // loaded CI host the command echo resets the silence clock, and the execution
+  // output alone can miss the bound — the settle snapshot then holds only the
+  // echo. Poll the live scrollback instead, so the assertion waits for the
+  // rendered line rather than the timing window.
+  async function waitForRendered(
+    ctx: Context, agent: Agent, sessionId: TerminalSessionId, expected: string, timeoutMs = 20_000,
+  ): Promise<string> {
+    const deadline = Date.now() + timeoutMs
+    let text = ''
+    while (!text.includes(expected) && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      text = ctx.terminals.read(agent, sessionId, { offset: 0, count: 40 }).text
+    }
+    return text
+  }
+
   it('bootstraps a persistent pwsh, persists state, and scrubs secrets', async () => {
     const previous = process.env.DSH_TEST_SECRET
     process.env.DSH_TEST_SECRET = 'must-not-leak'
@@ -306,12 +323,11 @@ describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
         text: 'Write-Output "keep=$env:KEEP secret=$env:DSH_TEST_SECRET"',
         submit: true,
       })
-      const result = await second.done
-      expect(result.viewport).toContain('keep=ok')
-      expect(result.viewport).toContain('secret=')
-      expect(result.viewport).not.toContain('must-not-leak')
-
-      expect(ctx.terminals.read(agent, created.sessionId, { offset: 0, count: 40 }).text).toContain('keep=ok')
+      await second.done
+      const viewport = await waitForRendered(ctx, agent, created.sessionId, 'keep=ok')
+      expect(viewport).toContain('keep=ok')
+      expect(viewport).toContain('secret=')
+      expect(viewport).not.toContain('must-not-leak')
       expect(await ctx.terminals.kill(agent, created.sessionId)).toBe(true)
       expect(ctx.terminals.list(agent)).toEqual([])
     } finally {
@@ -334,16 +350,18 @@ describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
       text: '"console=" + [Console]::OutputEncoding.WebName + " out=" + $OutputEncoding.WebName',
       submit: true,
     })
-    const pinnedResult = await pinned.done
-    expect(pinnedResult.viewport).toContain('console=utf-8 out=utf-8')
+    await pinned.done
+    const pinnedViewport = await waitForRendered(ctx, agent, created.sessionId, 'console=utf-8')
+    expect(pinnedViewport).toContain('console=utf-8 out=utf-8')
     // Char codes keep the submitted line ASCII-only, so the assertion is a
     // pure output-decode check.
     const sent = ctx.terminals.startSend(agent, created.sessionId, {
       text: "[Console]::Write([char]0x4E2D + [char]0x6587 + ' encoding-ok')",
       submit: true,
     })
-    const result = await sent.done
-    expect(result.viewport).toContain('中文 encoding-ok')
+    await sent.done
+    const sentViewport = await waitForRendered(ctx, agent, created.sessionId, '中文 encoding-ok')
+    expect(sentViewport).toContain('中文 encoding-ok')
     await ctx.terminals.kill(agent, created.sessionId)
   }, 30_000)
 })
