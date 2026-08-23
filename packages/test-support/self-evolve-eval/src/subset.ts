@@ -34,11 +34,13 @@ export function mulberry32(seed: number): () => number {
 /**
  * Normalize raw SWE-bench dataset rows (the exported JSONL fields
  * `instance_id`, `repo`, `base_commit`, `FAIL_TO_PASS`, `PASS_TO_PASS`) into
- * {@link EvalTask}s. Rows missing an instance id are dropped; a missing repo
- * or base commit fails loud because a campaign cannot reproduce the task
- * without them.
+ * {@link EvalTask}s. Also accepts the camelCase {@link EvalTask} shape a
+ * `subset` run writes, so a campaign can plan from its own subset file.
+ * Rows missing an instance id are dropped; a missing repo or base commit
+ * fails loud because a campaign cannot reproduce the task without them.
+ * The snake_case field wins when both shapes are present (raw manifest).
  *
- * @param rows - parsed manifest rows.
+ * @param rows - parsed manifest rows or subset tasks.
  * @returns the normalized tasks, preserving input order.
  */
 export function normalizeSwebenchInstances(rows: unknown[]): EvalTask[] {
@@ -46,10 +48,10 @@ export function normalizeSwebenchInstances(rows: unknown[]): EvalTask[] {
   for (const raw of rows) {
     if (typeof raw !== 'object' || raw === null) continue
     const row = raw as Record<string, unknown>
-    const instanceId = typeof row.instance_id === 'string' ? row.instance_id : undefined
+    const instanceId = rowField(row, ['instance_id', 'instanceId'])
     if (instanceId === undefined || instanceId.length === 0) continue
-    const repo = typeof row.repo === 'string' ? row.repo : undefined
-    const baseCommit = typeof row.base_commit === 'string' ? row.base_commit : undefined
+    const repo = rowField(row, ['repo'])
+    const baseCommit = rowField(row, ['base_commit', 'baseCommit'])
     if (repo === undefined || baseCommit === undefined) {
       throw new Error(`self-evolve-eval: instance ${instanceId} is missing repo or base_commit`)
     }
@@ -57,11 +59,20 @@ export function normalizeSwebenchInstances(rows: unknown[]): EvalTask[] {
       instanceId,
       repo,
       baseCommit,
-      failToPass: asStringArray(row.FAIL_TO_PASS),
-      passToPass: asStringArray(row.PASS_TO_PASS),
+      failToPass: asStringArray(row.FAIL_TO_PASS ?? row.failToPass),
+      passToPass: asStringArray(row.PASS_TO_PASS ?? row.passToPass),
     })
   }
   return tasks
+}
+
+/** First string-valued field among `keys`, in order; undefined when none is. */
+function rowField(row: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = row[key]
+    if (typeof value === 'string') return value
+  }
+  return undefined
 }
 
 function asStringArray(value: unknown): string[] {

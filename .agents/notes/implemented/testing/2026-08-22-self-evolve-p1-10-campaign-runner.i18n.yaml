@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-22-self-evolve-p1-10-campaign-runner.md
+2026-08-22-self-evolve-p1-10-campaign-runner.md: f16bbeeb61eb5d37faf27001b8da3e9f04095f16
+2026-08-22-self-evolve-p1-10-campaign-runner.zh.md: 42f332c5eb63acc0580b12d4bae607e9002fbcab
