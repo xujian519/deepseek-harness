@@ -65,44 +65,41 @@ function legacyIso(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback
 }
 
+/** Project the thread fields shared by the v1 (messages) and v2 (notes) legacy layouts. */
+function projectThreadBase(row: LegacyThreadRow, now: string): Omit<Thread, 'messages'> {
+  return {
+    id: typeof row.id === 'string' ? row.id : randomUUID(),
+    title: typeof row.title === 'string' ? row.title : 'DSH 会话',
+    parentId: typeof row.parentId === 'string' ? row.parentId : null,
+    sourceParentSessionId: null,
+    sourceSeedLength: null,
+    dshSessionId: typeof row.dshSessionId === 'string' ? row.dshSessionId : null,
+    dshSessionTitle: typeof row.dshSessionTitle === 'string' ? row.dshSessionTitle : null,
+    color: typeof row.color === 'string' ? row.color : topicColor(0),
+    position: legacyPosition(row),
+    createdAt: legacyIso(row.createdAt, now),
+    updatedAt: legacyIso(row.updatedAt, now),
+  }
+}
+
 function threadFromLegacy(row: LegacyThreadRow, cleanupNeeded: boolean): { thread: Thread; runtimeContextCleanup: boolean } {
+  const now = new Date().toISOString()
   if (Array.isArray(row.messages)) {
     const messages = (row.messages as ProjectedMessage[]).filter(message => !isRuntimeContextMessage(message))
     return {
       runtimeContextCleanup: messages.length !== (row.messages as ProjectedMessage[]).length,
       thread: {
-        id: typeof row.id === 'string' ? row.id : randomUUID(),
-        title: typeof row.title === 'string' ? row.title : 'DSH 会话',
-        parentId: typeof row.parentId === 'string' ? row.parentId : null,
-        sourceParentSessionId: null,
-        sourceSeedLength: null,
-        dshSessionId: typeof row.dshSessionId === 'string' ? row.dshSessionId : null,
-        dshSessionTitle: typeof row.dshSessionTitle === 'string' ? row.dshSessionTitle : null,
-        color: typeof row.color === 'string' ? row.color : topicColor(0),
-        position: legacyPosition(row),
-        createdAt: legacyIso(row.createdAt, new Date().toISOString()),
-        updatedAt: legacyIso(row.updatedAt, new Date().toISOString()),
+        ...projectThreadBase(row, now),
         messages,
       },
     }
   }
   // v2 stored notes instead of messages: fold them over as the thread body.
   const notes = Array.isArray(row.notes) ? row.notes as { text?: unknown; at?: unknown }[] : []
-  const now = new Date().toISOString()
   return {
     runtimeContextCleanup: cleanupNeeded,
     thread: {
-      id: typeof row.id === 'string' ? row.id : randomUUID(),
-      title: typeof row.title === 'string' ? row.title : 'DSH 会话',
-      parentId: typeof row.parentId === 'string' ? row.parentId : null,
-      sourceParentSessionId: null,
-      sourceSeedLength: null,
-      dshSessionId: typeof row.dshSessionId === 'string' ? row.dshSessionId : null,
-      dshSessionTitle: typeof row.dshSessionTitle === 'string' ? row.dshSessionTitle : null,
-      color: typeof row.color === 'string' ? row.color : topicColor(0),
-      position: legacyPosition(row),
-      createdAt: legacyIso(row.createdAt, now),
-      updatedAt: legacyIso(row.updatedAt, now),
+      ...projectThreadBase(row, now),
       messages: notes.map(note => ({ id: randomUUID(), text: legacyText(note.text), kind: 'user', at: legacyIso(note.at, now) })),
     },
   }
