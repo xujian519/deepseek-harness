@@ -70,6 +70,25 @@
   white-space: nowrap;
 }
 
+.badge {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 18px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.gatePassed {
+  background: var(--dsw-alias-state-success-tertiary);
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.gateMissing {
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .actions {
   display: flex;
   gap: 6px;

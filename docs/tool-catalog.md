@@ -42,6 +42,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
+| `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. The delivery studio folds the logged call into its deliverable list and gate badges. |
 | `@deepseek-ai/dsh-patent-tools` | `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `knowledge_note_save`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `validate_specification` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
@@ -2265,6 +2266,88 @@ Usage notes:
 Source: [`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
 
 paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid.
+
+<a id="deepseek-aidsh-document-deliver"></a>
+
+## `@deepseek-ai/dsh-document-deliver`
+
+### `document_deliver`
+
+登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。调用会写入会话日志，交付物面板据此展示文件与质量门状态。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "description": "本次交付的全部成品文件与格式（至少一个）；path 为工作区相对路径（或绝对路径），如 out/report.html",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "工作区相对路径（或绝对路径）"
+          },
+          "format": {
+            "type": "string",
+            "description": "成品导出格式",
+            "enum": [
+              "markdown",
+              "html",
+              "pdf",
+              "docx",
+              "pptx",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "format"
+        ]
+      }
+    },
+    "gate": {
+      "type": "object",
+      "description": "质量门结果：P0 全过才允许登记",
+      "additionalProperties": false,
+      "properties": {
+        "p0": {
+          "type": "array",
+          "description": "已通过并核验的 P0 自检项（每项一句话）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "p1": {
+          "type": "array",
+          "description": "已满足的 P1 自检项（无则省略）",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "p0"
+      ]
+    },
+    "brief_ref": {
+      "type": "string",
+      "description": "本次交付依据的 brief 文件路径（如 brief.md），可省略"
+    }
+  },
+  "required": [
+    "files",
+    "gate"
+  ]
+}
+```
+
+Source: [`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts)
+
+document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. The delivery studio folds the logged call into its deliverable list and gate badges.
 
 <a id="deepseek-aidsh-patent-tools"></a>
 

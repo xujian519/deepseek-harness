@@ -319,6 +319,7 @@
     { "path": "./packages/memory/openviking" },
     { "path": "./apps/cli" },
     { "path": "./apps/desktop" },
+    { "path": "./packages/document/document-deliver" },
     { "path": "./packages/patent/patent-core" },
     { "path": "./packages/patent/patent-data" },
     { "path": "./packages/patent/patent-knowledge" },

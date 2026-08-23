@@ -20,7 +20,15 @@ const t: StudioViewProps['t'] = makeTranslate(zh, en)
 
 interface HostFacts { canOpenPath: boolean }
 
-function session(produced: Array<{ seq: number; path: string }>) {
+interface ProducedFile {
+  seq: number
+  path: string
+  format?: string
+  gate?: { p0: string[]; p1: string[] }
+  briefRef?: string
+}
+
+function session(produced: Array<ProducedFile>) {
   const store = createSnapshotStore<ConversationSnapshot>({
     views: {
       get: () => (produced.length === 0 ? undefined : { produced }),
@@ -54,7 +62,7 @@ function injected(overrides: Partial<StudioViewInjected> = {}): StudioViewInject
 }
 
 function studioProps(
-  produced: Array<{ seq: number; path: string }>,
+  produced: Array<ProducedFile>,
   host: { useHostDescription: StudioViewProps['useHostDescription'] },
   overrides: Partial<StudioViewInjected> = {},
 ): StudioViewProps {
@@ -107,6 +115,22 @@ describe('StudioView', () => {
     expect(await screen.findByText('# Notes')).toBeTruthy()
     expect(container.querySelector('pre')).toBeNull()
     expect(screen.getByText(t('studio.preview.truncated'))).toBeTruthy()
+  })
+
+  it('renders format and gate badges for registered files and the degrade badge otherwise', () => {
+    const host = hostDescription(true)
+    render(
+      <StudioView {...studioProps([
+        {
+          seq: 1, path: 'out/report.html',
+          format: 'html', gate: { p0: ['命名规范'], p1: ['可访问性'] }, briefRef: 'brief.md',
+        },
+        { seq: 2, path: 'out/report.md' },
+      ], host)} />,
+    )
+    expect(screen.getByText('html')).toBeTruthy()
+    expect(screen.getByText(t('studio.file.gatePassed', { p0: 1, p1: 1 }))).toBeTruthy()
+    expect(screen.getByText(t('studio.file.gateMissing'))).toBeTruthy()
   })
 
   it('runs the open and show-in-folder actions and gates the folder action on host capability', () => {

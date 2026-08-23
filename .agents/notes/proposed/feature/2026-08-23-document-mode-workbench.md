@@ -6,9 +6,9 @@ English | [中文](2026-08-23-document-mode-workbench.zh.md)
 
 ## Problem
 
-The [document delivery studio](../../implemented/feature/2026-08-23-document-delivery-studio.md) gives a document-agent session a deliverables tab: produced files, HTML/text preview, open / show-in-folder / print. Four gaps remain for a document delivery workline:
+The [document delivery studio](../../implemented/feature/2026-08-23-document-delivery-studio.md) gives a document-agent session a deliverables tab: produced files (mutation-derived plus `document_deliver` registrations, with format and gate badges), HTML/text preview, open / show-in-folder / print. The [structured deliverable registration](../../implemented/feature/2026-08-23-document-deliver-registration.md) closed the prose-only gate gap: gate state is logged data, and the studio renders P0/P1 counts. Four gaps remain for a document delivery workline:
 
-- **The quality gate is prose-only.** `document-quality-gate` is a checklist skill; the model's passing report exists only as message text, so nothing can render gate items per deliverable.
+- **The workbench-level gate view is missing.** Gate state renders as badges in the studio, but nothing shows which P0/P1 items passed per deliverable, and no application-level view composes gate state, pipeline progress, and the deliverable list.
 - **The pipeline is invisible.** brief → outline → template → artifact → gate → delivery is a black box until the final file appears.
 - **Deliverables are per-session islands.** No cross-session history, search, or archive.
 - **Preview stops at text and inert HTML.** `.docx`/`.pptx`/`.pdf` have no inline preview, and JS-driven artifacts (decks, dashboards) render only their first paint under `sandbox=""`.
@@ -23,8 +23,8 @@ The document preset serves both pre-delivery verification (gate before delivery)
 
 Three sources, in order of authority:
 
-1. **Existing derived vocabulary (all history).** The studio's `documentDeliverables` fold (locations → turn data → session view target) is reused; the workbench reads the same session-scope target, so every past session renders a deliverable list.
-2. **A structured deliverable-registration tool (new sessions).** A new host tool, `document-deliver`, in a new package mounted by the document preset, that the model calls after the quality gate passes. Arguments record `{files, formats, gate: {p0[], p1[]}, briefRef}`. Tool calls are session-logged, so the client folds them with the same conversation-node machinery and "model-visible ⟺ logged" holds by construction — no new session event type, no `SessionEventMap` change. Sessions without the call degrade to path 1 with a "no gate data" badge. The `document-quality-gate` skill gains one final step: call the registration tool after P0 passes.
+1. **Existing derived vocabulary (all history).** The studio's `documentDeliverables` fold (locations → turn data → session view target) is reused; the workbench reads the same session-scope target, so every past session renders a deliverable list. Since the registration tool shipped, entries carry the announced format and gate state; sessions without a registration degrade to the mutation-derived list with the visible badge.
+2. **A structured deliverable-registration tool (shipped).** The host tool `document_deliver` (`@deepseek-ai/dsh-document-deliver`, mounted by the document preset) records `{files, gate: {p0[], p1[]}, briefRef}` after the quality gate passes; tool calls are session-logged, so the client folds them with the same conversation-node machinery and "model-visible ⟺ logged" holds by construction — no new session event type, no `SessionEventMap` change. The workbench consumes this data; no further registration work is needed for the workbench itself. See the [implemented note](../../implemented/feature/2026-08-23-document-deliver-registration.md).
 3. **A host aggregation query (v2).** Cross-session history, search, and batch export need a host-side query over the session projection; deferred to v2.
 
 ### Application-level view slot
@@ -49,7 +49,7 @@ HTML artifacts render in a sandboxed iframe with `sandbox="allow-scripts"` — n
 ### Scope
 
 - MVP: workbench skeleton, rich deliverable list, PDF/HTML-JS preview, agent-mediated revision.
-- v1: officecli previews, gate visualization, pipeline timeline.
+- v1: officecli previews, gate item visualization, pipeline timeline.
 - v2: host aggregation query, search, batch export, archive.
 - Out of scope: host direct file write, a panel layout customization engine, and the same workbench for non-document presets.
 
@@ -57,14 +57,14 @@ HTML artifacts render in a sandboxed iframe with `sandbox="allow-scripts"` — n
 
 - **Extending the studio tab in place** — the workbench is application-level and session-spanning while the studio is a per-session tab; one entry cannot serve both scopes.
 - **Host direct file write from the panel** — no host write RPC exists today; adding one crosses the sandbox and approval surface and strains the replayable-session rule; agent-mediated revision reaches the same outcome through the logged prompt channel.
-- **Parsing the model's gate report as JSON in the client** — fragile, no schema enforcement; the registration tool keeps the tool-call → log → client-derive pattern the studio already uses.
+- **Parsing the model's gate report as JSON in the client** — fragile, no schema enforcement; rejected — the registration tool (now shipped) keeps the tool-call → log → client-derive pattern the studio already uses.
 - **Free execution or `sandbox=""` only** — `sandbox=""` cannot render JS-driven artifacts; free execution has no trust boundary; the opaque-origin `allow-scripts` sandbox with a produced-file allowlist is the middle ground.
 - **A full mini-app platform** — deferred by the [inline rendered conversation nodes proposal](2026-08-20-inline-rendered-conversation-nodes.md); out of scope here.
 
 ## Acceptance criteria
 
 - With the document preset active, an application-level workbench entry appears; the studio tab still works.
-- Produced files list with format, source session, and gate status; new-session gate items render from the registration tool's logged call, old sessions show the degrade badge.
+- Produced files list with format, source session, and gate status; gate items render from the registration tool's logged call (the studio already shows the counts and degrade badge; the workbench renders the items per deliverable).
 - PDF previews inline; HTML artifacts execute only in the opaque-origin sandbox and only when session-produced.
 - Revision confirm injects a session prompt; the agent answers with a revised file.
 - A keyless snapshot covers the visible GUI change; `test:gui` and the repo gates pass. The workbench package joins the client-lane coverage exemption with jsdom and real-registry specs, matching the studio.
@@ -72,7 +72,7 @@ HTML artifacts render in a sandboxed iframe with `sandbox="allow-scripts"` — n
 ## Risks
 
 - **Executable preview is a new security surface** — the GUI's first executing artifact. A produced file containing script runs in an opaque-origin sandbox with no popups or forms, so it cannot read the app or the host, but it can make network requests. Allowing network is the default; blocking it (injected CSP `connect-src 'none'`) trades deck/dashboard functionality for a stricter surface and needs a product decision.
-- **The registration tool depends on model discipline** — a missed call degrades the session to the locations-derived list; the degrade is visible, not silent.
+- **The registration tool depends on model discipline** — a missed call degrades the session to the locations-derived list; the degrade is visible, not silent (this risk is now realized in production and the degrade badge ships with it).
 - **A new application-level slot is a cross-package SlotMap change** — contract review cost; if the review rejects the slot row, the workbench falls back to a full-screen studio tab in the existing ring.
 - **officecli conversion is user-level dependent** — previews degrade to open-in-app when unavailable.
 - **Vocabulary duplication** — the workbench must reuse the studio's fold, not fork it, or the two views drift.

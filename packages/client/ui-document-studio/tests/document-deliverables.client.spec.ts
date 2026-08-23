@@ -210,3 +210,98 @@ describe('documentDeliverables session view target', () => {
     expect(builder.apply({ upserts: [], timeline })).toEqual(builder.replace({ nodes: [], timeline }))
   })
 })
+
+describe('document_deliver registrations', () => {
+  function deliver(
+    seq: number, callId: string, argumentsJson: string,
+    view: ConversationEventInput['view'], turn = 1,
+  ): ConversationEventInput {
+    return at(seq, 'tool/call', { turn, step: 1, callId, name: 'document_deliver', arguments: argumentsJson }, view)
+  }
+
+  const callView: ConversationEventInput['view'] = {
+    for: 'call',
+    view: { card: 'generic', title: '登记文档交付物' },
+  }
+
+  it('folds a successful registration with format, gate, and brief reference', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'reg', JSON.stringify({
+        files: [{ path: 'out/report.docx', format: 'docx' }, { path: 'out/report.html', format: 'html' }],
+        gate: { p0: ['命名规范', '自包含'], p1: ['可访问性'] },
+        brief_ref: 'brief.md',
+      }), callView),
+      result(3, 'reg'),
+    ])
+
+    expect(turnDataOf(value)?.produced).toEqual([
+      {
+        seq: 3, path: 'out/report.docx', format: 'docx',
+        gate: { p0: ['命名规范', '自包含'], p1: ['可访问性'] }, briefRef: 'brief.md',
+      },
+      {
+        seq: 3, path: 'out/report.html', format: 'html',
+        gate: { p0: ['命名规范', '自包含'], p1: ['可访问性'] }, briefRef: 'brief.md',
+      },
+    ])
+  })
+
+  it('folds without p1/briefRef when the registration omits them', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'reg', JSON.stringify({
+        files: [{ path: 'deck.html', format: 'html' }],
+        gate: { p0: ['命名规范'] },
+      }), callView),
+      result(3, 'reg'),
+    ])
+    expect(turnDataOf(value)?.produced).toEqual([
+      { seq: 3, path: 'deck.html', format: 'html', gate: { p0: ['命名规范'], p1: [] } },
+    ])
+  })
+
+  it('does not fold failed registrations or malformed registration arguments', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'failed-reg', JSON.stringify({
+        files: [{ path: 'a.docx', format: 'docx' }], gate: { p0: ['x'] },
+      }), callView),
+      result(3, 'failed-reg', true),
+      deliver(4, 'not-json', 'not-json', callView),
+      result(5, 'not-json'),
+      deliver(6, 'bad-files', JSON.stringify({ files: 'nope', gate: { p0: ['x'] } }), callView),
+      result(7, 'bad-files'),
+      deliver(8, 'bad-file-shape', JSON.stringify({
+        files: [{ path: 1, format: 'html' }], gate: { p0: ['x'] },
+      }), callView),
+      result(9, 'bad-file-shape'),
+      deliver(10, 'bad-gate', JSON.stringify({
+        files: [{ path: 'a.html', format: 'html' }],
+        gate: { p0: ['x'], p1: [2] },
+      }), callView),
+      result(11, 'bad-gate'),
+    ])
+
+    expect(turnDataOf(value)?.produced).toEqual([])
+  })
+
+  it('upgrades a mutation-derived entry in the session fold when a later registration covers the same path', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'write', diff('out/report.html')),
+      result(3, 'write'),
+      at(4, 'turn/start', { turn: 2 }),
+      deliver(5, 'reg', JSON.stringify({
+        files: [{ path: 'out/report.html', format: 'html' }],
+        gate: { p0: ['命名规范'] },
+      }), callView, 2),
+      result(6, 'reg', false, 2),
+    ])
+
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([
+      { seq: 3, path: 'out/report.html', format: 'html', gate: { p0: ['命名规范'], p1: [] } },
+    ])
+  })
+})

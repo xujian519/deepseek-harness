@@ -40,6 +40,7 @@ npm scope 为 `@deepseek-ai/dsh-*`；Cordis `Service` 子类和函数插件通�
 | [`todo/`](todo/README.zh.md) | 面向模型的 `todo_write` 工具 | 产品：稳定 API |
 | [`plan/`](plan/README.zh.md) | Plan 协作状态，提供直接进入命令与经评审的退出 | 产品：稳定 API |
 | [`preset/`](preset/README.zh.md) | 由 preset `cordis.yml` 按会话组装 agent | 产品：稳定 API |
+| [`document/`](document/README.zh.md) | 文档交付 preset、其六个交付技能与交付工作室 | 产品：稳定 API |
 | [`guard/`](guard/README.zh.md) | 循环卫生守卫：建议性重复调用提醒 + `tools/execute` 截止时间强制执行器 | 产品：稳定 API |
 | [`bundle/`](bundle/README.zh.md) | 可安装的 `dsh --profile` 补丁层 | 产品：稳定 API |
 | [`extensions/`](extensions/README.zh.md) | agent 运行时自修改：实时插件／服务检查和模型所写插件挂载／卸载（[设计](../.agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.zh.md)） | 产品：稳定 API |

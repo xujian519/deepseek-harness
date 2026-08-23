@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
   documentDeliverablesDefinition, documentDeliverablesViewDefinition,
 } from './document-deliverables.ts'
+import { parentDir } from './paths.ts'
 import { StudioView, type StudioViewInjected } from './StudioView.tsx'
 import { en, NS, zh, type DocumentStudioKey } from './locales.ts'
 
@@ -62,7 +63,10 @@ export function apply(ctx: ClientContext): void {
         isLoopback: connection.isLoopback,
         hooks: { hostDescription: connection.hostDescription },
         openFile: path => ctx.workspaces.openPath(resolve(path)),
-        showInFolder: path => ctx.workspaces.openPath(resolve(path)),
+        // Show-in-folder opens the containing directory: the host has no
+        // reveal-in-folder intent, and opening the folder itself is what a
+        // file manager handoff means (the ui-deliverables convention).
+        showInFolder: path => ctx.workspaces.openPath(resolve(parentDir(path))),
         readFileText: async (path, maxBytes) => {
           const response = await connection.api.host.readFileText(
             maxBytes === undefined ? { path: resolve(path) } : { path: resolve(path), maxBytes },

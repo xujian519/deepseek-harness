@@ -305,6 +305,7 @@
         "./packages/test-support/*/src",
         "./packages/host/*/src",
         "./packages/client/*/src",
+        "./packages/document/*/src",
         "./packages/patent/*/src"
       ]
     }

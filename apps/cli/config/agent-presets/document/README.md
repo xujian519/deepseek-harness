@@ -10,6 +10,7 @@ Beyond the standard coding rows a document workflow needs (shell, filesystem, jo
 
 - Six delivery skills in `skills/`: `document-brief` (requirement → delivery spec), `document-html` (single-file HTML artifacts), `document-report` (long reports: Markdown → HTML → PDF-ready), `document-deck` (HTML decks + optional PPTX), `document-word` (`.docx` via the officecli skill), and `document-quality-gate` (P0/P1 pre-delivery checklist).
 - An **OpenDesign skill provider**: a second `skill-filesystem` instance named `open-design` that mounts the checkout's `skills/` and `design-templates/` directories when `OPEN_DESIGN_DIR` is set — the same wiring as `examples/opendesign`, built in. Without the variable it registers with no roots (an explicit empty catalog), so the preset works standalone.
+- A **structured deliverable registration**: the `document_deliver` tool records the delivered files, export formats, and the P0/P1 quality-gate result into the session log. The [delivery studio](../../../../../packages/client/ui-document-studio/README.md) derives its file list and gate badges from that log entry, so binary outputs produced outside the mutation tools (`.docx`/`.pptx` via officecli, PDFs from the print action) become visible in the studio when registered.
 - A document-delivery persona (identity, six work disciplines, the standard workflow, and the output discipline) and a document-flavored plan-mode section: delivery specs, outlines, template choices, and export lists are "plans" — no deliverable files are produced before approval.
 
 ## Skills
@@ -43,3 +44,4 @@ The model sees the Chinese document-delivery persona (professional identity, six
 - **PDF is export guidance, not a renderer** — `document-report` / `document-html` deliver self-contained HTML; PDF export happens through the delivery studio's print action (desktop print-to-PDF or browser print), not inside the preset.
 - **`document-word` depends on the user-level `officecli` skill** — the preset cannot bundle it; without it the agent falls back to Markdown.
 - **OpenDesign skills are optional** — without `OPEN_DESIGN_DIR` the agent uses the built-in baseline templates; template variety is reduced but delivery is not blocked.
+- **`document_deliver` registers, it does not convert** — the tool only checks that a declared file exists in the session workspace; PDF export or binary conversion still needs the matching pipeline step (print action / officecli), and files saved outside the workspace cannot be registered.

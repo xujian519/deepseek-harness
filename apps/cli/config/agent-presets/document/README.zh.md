@@ -10,6 +10,7 @@
 
 - **六个交付技能**（`skills/`）：`document-brief`（需求→交付规范）、`document-html`（单文件 HTML 工件）、`document-report`（长报告：Markdown → HTML → 可 PDF）、`document-deck`（HTML Deck + 可选 PPTX）、`document-word`（经 officecli 技能生成 `.docx`）、`document-quality-gate`（P0/P1 交付前检查清单）。
 - **OpenDesign 技能源**：第二个 `skill-filesystem` 实例（名为 `open-design`），当 `OPEN_DESIGN_DIR` 设置时挂载 checkout 的 `skills/` 与 `design-templates/` 目录——与 `examples/opendesign` 相同的接线，已内建。未设置该变量时以零根注册（显式空目录），preset 可独立工作。
+- **结构化交付登记**：`document_deliver` 工具把交付文件、导出格式与 P0/P1 质量门结果记录进会话日志。[交付工作室](../../../../../packages/client/ui-document-studio/README.zh.md)据此从日志条目推导文件列表与质量门徽标——变更工具之外产出的二进制产物（经 officecli 的 `.docx`/`.pptx`、打印动作的 PDF）经登记后也能出现在工作室。
 - **文档交付 persona**（身份、六条作业纪律、标准作业流程、输出纪律）与文档版计划模式章节：交付规范、大纲、模板选择、导出清单都属于"计划"——获批前不生成任何对外交付文件。
 
 ## 技能
@@ -43,3 +44,4 @@ export OPEN_DESIGN_DIR="$PWD/open-design"
 - **PDF 是导出指引而非渲染器**——`document-report` / `document-html` 交付自包含 HTML；PDF 导出经交付工作室的打印按钮（桌面端 print-to-PDF 或浏览器打印）完成，不在 preset 内部。
 - **`document-word` 依赖用户级 `officecli` 技能**——preset 无法内置；缺失时回退 Markdown。
 - **OpenDesign 技能为可选**——未设置 `OPEN_DESIGN_DIR` 时使用内置基线模板，模板多样性降低但交付不被阻塞。
+- **`document_deliver` 只登记不转换**——工具仅校验声明的文件存在于会话工作区；PDF 导出或二进制转换仍需要相应管线步骤（打印动作 / officecli），工作区外保存的文件无法登记。

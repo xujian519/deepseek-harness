@@ -28,7 +28,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     expect(names).toEqual([
       'analyze_patent_figure', 'ask_user_question', 'bash', 'bash', 'claim_chart_build',
       'cordis_define', 'cordis_inspect_list', 'cordis_inspect_query', 'cordis_inspect_self',
-      'cordis_run', 'cordis_stop', 'cordis_undefine', 'create_goal', 'draft_claims',
+      'cordis_run', 'cordis_stop', 'cordis_undefine', 'create_goal', 'document_deliver', 'draft_claims',
       'draft_specification', 'edit', 'evaluate_evidence', 'exit_plan_mode', 'flexible_plan',
       'followup_task', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
       'job_kill', 'job_list', 'job_output', 'knowledge_note_save', 'list_agents', 'list_agents',

@@ -53,6 +53,7 @@
     "@deepseek-ai/dsh-methodology": "workspace:^",
     "@deepseek-ai/dsh-output-retention": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
+    "@deepseek-ai/dsh-document-deliver": "workspace:^",
     "@deepseek-ai/dsh-patent-core": "workspace:^",
     "@deepseek-ai/dsh-patent-data": "workspace:^",
     "@deepseek-ai/dsh-patent-document": "workspace:^",
