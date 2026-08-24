@@ -1,5 +1,7 @@
 # 自进化插件 Gate 检查清单（优化后）
 
+> **历史草稿（superseded）**：本目录为自进化插件的原始设计工作稿（2026-08-20），内容陈旧，不再维护。当前验收清单见 [`packages/self-evolve/check_list.md`](../../../../packages/self-evolve/check_list.md)。
+
 **使用规则**：每阶段所有项标记 Yes 才能进入下一阶段；任何 No 必须在阶段内修复，不能推到下一阶段。
 
 ---

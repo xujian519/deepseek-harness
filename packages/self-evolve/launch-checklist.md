@@ -1,5 +1,7 @@
 # P1.10 实机评估启动清单（草稿 · 待评审）
 
+> **内部工作追踪文档（非参考，不参与双语/doc-sync）**：用于 P1.10 评估的排期与验收记录。权威参考——子系统见 [`docs/subsystems/self-evolve.md`](../../../docs/subsystems/self-evolve.md)（含 `.zh.md`），各包契约见各自双语 README。
+
 > **改判（2026-08-22）**：用户决定**放弃离线实测**，改用实际使用观察。本清单转为"未来需要正式证据时的执行指南"，不再按 M1–M6 推进；无需再拍板 §8 的各项开放项。观察方案见 [`./spec.md`](./spec.md) §"证据策略改判"。
 >
 > **2026-08-22 状态**：T3 战役运行器已实现（`pnpm eval:self-evolve campaign`，本地无 Docker 路径 P-B）；证据路径与 CI 停开关保留。
@@ -34,7 +36,7 @@
 | 网络 | GitHub（repo 检出）、Docker Hub（镜像）、Hugging Face（数据集，建议 `HF_TOKEN`） | 导出时记录数据集 revision 用于复现 |
 | 本仓库 | 检出**含 P1-10 脚手架**的 master（>= `d1836d45`），`pnpm install` 通过 | 子集/评分/决策全部经 `pnpm eval:self-evolve` |
 
-**环境自检（开跑前 15 分钟）**：`pnpm install` + `pnpm dsh --profile headless "echo ok"`（需 key）+ `pnpm exec vitest run packages/test-support/self-evolve-eval`（27 用例全绿）+ `docker pull swebench/swebench_verified:<一个子集镜像>` 成功。
+**环境自检（开跑前 15 分钟）**：`pnpm install` + `pnpm dsh --profile headless "echo ok"`（需 key）+ `pnpm exec vitest run packages/test-support/self-evolve-eval`（111 用例全绿，2026-08-23 实测）+ `docker pull swebench/swebench_verified:<一个子集镜像>` 成功（该镜像仅 P-C 官方判定路径需要）。
 
 ---
 
@@ -52,6 +54,8 @@
 ---
 
 ## 3. 命令序列
+
+> **可直接执行的完整版本（含每步验收标准）见 [`evaluation/RUNBOOK.md`](evaluation/RUNBOOK.md)（中文 [`evaluation/RUNBOOK.zh.md`](evaluation/RUNBOOK.zh.md)）。本节为要点版命令序列，与之保持一致；如有出入以 RUNBOOK 为准。**
 
 ### Step 1 — 数据集导出（一次性，网络环境）
 
@@ -163,7 +167,7 @@ P-B pilot（15–20 题，半天，验证 T3 运行器）→ P-B 本地 60 题�
 ## 8. 需要拍板的开放项
 
 1. ~~T3 运行器~~ **已解决**：随 `self-evolve-eval` 脚手架实现（`pnpm eval:self-evolve campaign`）。
-2. ~~buildCommand 取值~~ **已解决**：默认 `{python} -m compileall -q .`（`--build-command` 可换）。**待实现**该 flag。
+2. ~~buildCommand 取值~~ **已解决**：默认 `{python} -m compileall -q .`；`--build-command` flag **已实现**（`pnpm eval:self-evolve campaign --build-command <template>`，2026-08-23 经 campaign 测试覆盖确认）。
 3. 是否接受"两臂轮换顺序"与 5 题冒烟先行（推荐）。
 4. **采用哪条路径**：已确认 **P-B**（uv venv 本地轻量，先 15–20 题 pilot 再全量）；是否保留 P-C（云/CI）作为"官方判定"的最终证据路径。
 5. 本清单文档语言：当前为中文单语草稿；若随里程碑入库，需按仓库文档规范补英文配对与 doc-sync 登记（或移入不参与 doc-sync 的脚本/notes 区域）。

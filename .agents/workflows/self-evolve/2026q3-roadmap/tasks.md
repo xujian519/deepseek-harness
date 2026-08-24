@@ -1,5 +1,7 @@
 # 自进化插件推进任务清单（优化后）
 
+> **历史草稿（superseded）**：本目录为自进化插件的原始设计工作稿（2026-08-20），内容陈旧，不再维护。当前任务状态见 [`packages/self-evolve/tasks.md`](../../../../packages/self-evolve/tasks.md)。
+
 严格 gated。每阶段完成后先跑 `check_list.md`，全部 yes 才能进入下一阶段。顺序严格对齐报告 §二 51 行的「优化对象递进链」：**prompt/context → workflow → harness-code → reflection**。
 
 总顺序：

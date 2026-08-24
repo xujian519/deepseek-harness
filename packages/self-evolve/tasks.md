@@ -1,5 +1,7 @@
 # Self-Evolve 任务清单
 
+> **内部工作追踪文档（非参考，不参与双语/doc-sync）**：用于自进化插件的阶段推进与验收记录，内容会随进度漂移。权威参考——子系统见 [`docs/subsystems/self-evolve.md`](../../../docs/subsystems/self-evolve.md)（含 `.zh.md`），各包契约见各自双语 README，设计决策见 `.agents/notes/implemented/` 下 self-evolve 相关 Agent Note。
+
 ## P0 骨架（已完成）
 
 - [x] P0.1 Service Definition：`SelfEvolveEngine` + `self-evolve/*` 事件。
@@ -55,3 +57,4 @@
 - [x] E.1 idle-maintenance listener 错误日志化。
 - [x] E.1b `maxDailyLoopsPerSession` + per-trigger `minIntervalMs` 落实。
 - [x] E.2 Prompt inflation pruning job（P1.9 内实现）。
+- [ ] E.3 negative-results proposer 前缀条数配置化（`negativeResultsMaxContextItems: number`；当前为硬常量 `NEGATIVE_RESULTS_CONTEXT_ITEMS = 3`，见 spec.md §风险矩阵"负面结果被丢弃"）。
