@@ -21,7 +21,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { EvolveLevel, SelfEvolveResult } from '@deepseek-ai/dsh-self-evolve'
+import type { EvolveLevel, FailurePattern, SelfEvolveResult } from '@deepseek-ai/dsh-self-evolve'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -57,6 +57,34 @@ function toLevels(raw: unknown): EvolveLevel[] {
   return levels
 }
 
+/** Model-facing projection of one failure pattern: task-relevant fields only. */
+interface InspectPatternView {
+  patternId: string
+  level: EvolveLevel
+  verifierTier: FailurePattern['verifierTier']
+  summary: string
+  occurrences: number
+  supportingSeqs: number[]
+}
+
+/**
+ * Reduce a seam failure pattern to its model-facing view, dropping the
+ * owner-specific `verifierMeta` payload — which can carry full tool render
+ * text, stderr prefixes, raw error objects, and provider/model routes — and
+ * the internal `causalSignature` so no transport or implementation vocabulary
+ * reaches the model (see packages/AGENTS.md model-facing rule).
+ */
+function toInspectView(pattern: FailurePattern): InspectPatternView {
+  return {
+    patternId: pattern.patternId,
+    level: pattern.level,
+    verifierTier: pattern.verifierTier,
+    summary: pattern.summary,
+    occurrences: pattern.occurrences,
+    supportingSeqs: pattern.supportingSeqs,
+  }
+}
+
 /** Register the model-facing tools and the stable prompt section. */
 export function apply(ctx: Context): void {
   ctx.systemPrompt.section({ name: SECTION_NAME, order: SECTION_ORDER, text: PROMPT_SECTION_TEXT })
@@ -75,7 +103,7 @@ export function apply(ctx: Context): void {
     },
     async execute(_args, exec): Promise<JsonValue> {
       const agent = requireAgent(exec)
-      const patterns = await ctx.selfEvolve.readPatterns(agent.session.id)
+      const patterns = (await ctx.selfEvolve.readPatterns(agent.session.id)).map(toInspectView)
       return { patterns } as unknown as JsonValue
     },
   }))

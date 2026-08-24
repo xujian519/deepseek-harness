@@ -71,7 +71,7 @@ describe('tool-self-evolve registration', () => {
 })
 
 describe('self_evolve_inspect_patterns', () => {
-  it('returns the projected patterns from the seam', async () => {
+  it('returns a task-relevant view and drops the verifierMeta payload', async () => {
     const patterns: FailurePattern[] = [{
       patternId: 'L1-skill:abc',
       verifierTier: 'subprocess-exit',
@@ -80,14 +80,25 @@ describe('self_evolve_inspect_patterns', () => {
       summary: 'boom',
       supportingSeqs: [3],
       occurrences: 2,
-      verifierMeta: {},
+      verifierMeta: { tool: 'bash', exitCode: 1, text: 'sensitive-stderr', error: { name: 'E' } },
     }]
     const engine = { readPatterns: vi.fn(async () => patterns), evolveNow: vi.fn() }
     const { tools } = setup(engine)
     const tool = tools.find(t => t.name === 'self_evolve_inspect_patterns')!
     const value = await tool.execute({}, { agent: fakeAgent(), signal: new AbortController().signal })
     expect(engine.readPatterns).toHaveBeenCalledWith('session-1')
-    expect(value).toEqual({ patterns })
+    // Model-facing only: internal causalSignature and owner-specific
+    // verifierMeta (full text, stderr, raw error objects) must not leak.
+    expect(value).toEqual({
+      patterns: [{
+        patternId: 'L1-skill:abc',
+        level: 'L1-skill',
+        verifierTier: 'subprocess-exit',
+        summary: 'boom',
+        occurrences: 2,
+        supportingSeqs: [3],
+      }],
+    })
   })
 
   it('throws without an Agent-backed session', async () => {

@@ -1,8 +1,10 @@
 /**
  * Package-owned invariant companion for `@deepseek-ai/dsh-tool-self-evolve`.
  *
- * No independent event sequence or mutable-data relation beyond contracts
- * already enforced by the seam.
+ * No runtime invariant: the tool consumer contributes a prompt section and two
+ * tools but owns no durable event sequence or mutable data; its model-visible
+ * contract is enforced by the `tools`/`systemPrompt` services and the
+ * `@deepseek-ai/dsh-self-evolve` seam, which owns the loop bracket.
  *
  * @module @deepseek-ai/dsh-tool-self-evolve/invariant
  */
@@ -16,7 +18,10 @@ const PACKAGE_NAME = '@deepseek-ai/dsh-tool-self-evolve'
 export const name = 'tool-self-evolve-invariant'
 export const inject = ['invariants']
 
-/** No runtime invariant: the tool consumer's contracts are already enforced by the `@deepseek-ai/dsh-self-evolve` seam. */
+/**
+ * No runtime invariant: the tool consumer adds a prompt section and two tools,
+ * owning no event sequence or mutable data; the seam owns the loop bracket.
+ */
 const install: InvariantInstaller = () => {}
 
 export const apply = (ctx: Context): Promise<() => void> =>
