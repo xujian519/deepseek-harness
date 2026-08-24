@@ -1,5 +1,7 @@
 # 自进化插件推进路线图（2026 Q3）
 
+> **历史草稿（superseded）**：本目录为自进化插件的原始设计工作稿（2026-08-20），内容陈旧，不再维护。当前权威状态与阶段验收以 [`packages/self-evolve/spec.md`](../../../../packages/self-evolve/spec.md)、[`packages/self-evolve/tasks.md`](../../../../packages/self-evolve/tasks.md)、[`packages/self-evolve/check_list.md`](../../../../packages/self-evolve/check_list.md) 为准。
+
 ## 范围与定位
 
 本文件定义 `@deepseek-ai/dsh-self-evolve-*` 包组从骨架到可用产物的五阶段落地路径。所有设计复用已有基础设施，不引入新的 runtime 或第三方存储。

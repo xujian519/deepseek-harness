@@ -1,5 +1,7 @@
 # Self-Evolve 阶段验收清单
 
+> **内部工作追踪文档（非参考，不参与双语/doc-sync）**：用于自进化插件的阶段推进与验收记录，内容会随进度漂移。权威参考——子系统见 [`docs/subsystems/self-evolve.md`](../../../docs/subsystems/self-evolve.md)（含 `.zh.md`），各包契约见各自双语 README，设计决策见 `.agents/notes/implemented/` 下 self-evolve 相关 Agent Note。
+
 ## Gate-P0：骨架可运行
 
 | # | 项目 | 验收命令 | Yes/No |

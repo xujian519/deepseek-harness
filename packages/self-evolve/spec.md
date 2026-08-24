@@ -1,5 +1,7 @@
 # Self-Evolve 路线图（v0.1 DP → P4）
 
+> **内部工作追踪文档（非参考，不参与双语/doc-sync）**：用于自进化插件的阶段推进与验收记录，内容会随进度漂移。权威参考——子系统见 [`docs/subsystems/self-evolve.md`](../../../docs/subsystems/self-evolve.md)（含 `.zh.md`），各包契约见各自双语 README，设计决策见 `.agents/notes/implemented/` 下 self-evolve 相关 Agent Note。
+
 ## 证据等级声明
 
 本路线图的前提假设是："Cordis 论文提出的时空可组合性 + Self-Harness 三阶段循环（Weakness Mining / Harness Proposal / Proposal Validation）在 60 题 SWE-bench 子集上确实能带来净正向收益"。
@@ -39,12 +41,12 @@
 | 风险 | 缓解机制 | 配置/回滚 |
 |---|---|---|
 | **弱/模糊评估器导致 Verifier 错判**（SWE-bench 假阳/假阴） | Held-In + Held-Out 使用双 verifier：① 项目内 `dsh test`；② 独立 `git diff --stat` + `build`。两者都 pass 才认定 held-in pass；单边 pass 视为"不确定"，直接 reject，不计入 regressions。**现状**：决策函数已接线（`_verifyHeldInCase` + 信号收集钩子），workspace verifier 已实现（P1.9b，git 净增量 + build 健康）；未配置 `workspaceVerifier.buildCommand` 时信号不可用，退化为弱路径并如实标注。 | `requireDualVerification: boolean`（默认 true，已实现） |
-| **负面结果被丢弃** | rejected proposal 的 `nextRoundSuggestion` + `diagnostic` + `deconstructedScores` 结构化写入 `$DSH_HOME/self-evolve/negative-results.jsonl`（append-only）。proposer prompt 前缀附加"过去 N 次类似尝试为何失败"的 3 条摘要。**现状**：持久化 + 读取 API + 模板 proposer 前缀已实现；LLM 版前缀待 P3.2。 | Phase 1 实现，可配置 `negativeResultsMaxContextItems: number`（当前常量 3，待配置化） |
-| **短期解决 vs 长期 prompt 膨胀** | 每个 L2 proposal 带"最小生效字节数"声明；累计新增文本每超过 2K 阈值，由独立 pruning job 把过去 7 天 usage count=0 的 section 归档。 | `maxPromptInflationBytesPerWeek: number`（E.2，未实现） |
+| **负面结果被丢弃** | rejected proposal 的 `nextRoundSuggestion` + `diagnostic` + `deconstructedScores` 结构化写入 `$DSH_HOME/self-evolve/negative-results.jsonl`（append-only）。proposer prompt 前缀附加"过去 N 次类似尝试为何失败"的 3 条摘要。**现状**：持久化 + 读取 API + 模板 proposer 前缀已实现；LLM 版前缀（P3.2，`proposerTarget` 路由）已实现，prompt 前缀条数仍为硬常量 3（`negativeResultsMaxContextItems` 未配置化，属开放债，见 tasks.md E.3）。 | Phase 1 实现，可配置 `negativeResultsMaxContextItems: number`（当前常量 3，待配置化） |
+| **短期解决 vs 长期 prompt 膨胀** | 每个 L2 proposal 带"最小生效字节数"声明；累计新增文本每超过 2K 阈值，由独立 pruning job 把过去 7 天 usage count=0 的 section 归档。 | `maxPromptInflationBytesPerWeek: number`（E.2，已实现，默认 2048，见 P1.9） |
 | **多样性坍缩** | 每会话提案上限 `maxProposalsPerLoop`；跨会话 global KB 去重相似 causalSignature。 | 已配置（`maxProposalsPerLoop` 生效；global KB 去重属 P4） |
 | **Validator 漂移** | patternId 基于 `(level, verifierTier, causalSignature)` 稳定化；验证结果与 pattern 绑定而非与 summary 绑定。 | 已实现 |
 | **Token 爆炸** | idle/pressure 触发 rate limiting；Step-Reflection 延后到 P3 稳定后。 | 已配置（含 24h 自主循环上限 `maxDailyLoopsPerSession`） |
-| **L4 误批** | L4-harness 默认走人类审批；`clientVersionUpdatesApproved` 保持 false。**现状**：flag 默认 false 已在 `cordis-host-runner` 生效；self-evolve 自身的 L4 提案路径（P3.2 的 runner 翻译）未实现，缓解未闭环。 | 已实现（flag 侧）；路径侧待 P3 |
+| **L4 误批** | L4-harness 默认走人类审批；`clientVersionUpdatesApproved` 保持 false。**现状**：flag 默认 false 已在 `cordis-host-runner` 生效；self-evolve 自身的 L4 提案/审批路径已实现（P3.2 `validateL4Proposal` 经 `dynamicCordisRunner` 的 define+run，Client-bearing 必走人工审批，refusal → `approval-denied`；P3.3 `cordis/before-approval` 二次保险 + `l4ReapprovalHours` 强制重审），缓解已闭环；基座 provider 仍不生成 L4 提案。 | 已实现（flag 侧 + P3.2/P3.3 路径侧） |
 | **人类角色"上移"** | 审批保留在人类可理解的摘要层（L4、reflection 开关），不陷入每步微决策。 | P3/P2 设计原则 |
 
 ## 失败事件源（G1 修复后）
