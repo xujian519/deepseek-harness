@@ -97,8 +97,9 @@ describe('SessionSync capture', () => {
     sync.capture(s, event('turn/start', 4, { turn: 2 }))
     sync.capture(s, userEvent(5))
     sync.capture(s, event('turn/end', 6, { turn: 2 }))
-    await new Promise(resolve => setTimeout(resolve, 10))
-    expect(client.commit).toHaveBeenCalledWith('dsh-s1', { keepRecentCount: 10 })
+    await vi.waitFor(() => {
+      expect(client.commit).toHaveBeenCalledWith('dsh-s1', { keepRecentCount: 10 })
+    })
   })
 
   it('never commits when autoCommit is disabled or turns is zero', async () => {
@@ -242,8 +243,9 @@ describe('SessionSync scheduler and edge paths', () => {
     sync.adopt(s)
     sync.capture(s, userEvent(1))
     sync.start()
-    await new Promise(resolve => setTimeout(resolve, 50))
-    expect(client.commit).toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(client.commit).toHaveBeenCalled()
+    })
     await sync.dispose()
   })
 
