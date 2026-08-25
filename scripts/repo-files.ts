@@ -1,6 +1,7 @@
 /** Shared repository file discovery and line-oriented reference scanning. */
 
 import { globSync, readFileSync, realpathSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { relative, resolve, sep } from 'node:path'
 
 /** One authored path plus its canonical target for symlink deduplication. */
@@ -40,6 +41,7 @@ export function uniqueRepoFiles(
 ): RepoFile[] {
   const seen = new Set<string>()
   const files: RepoFile[] = []
+  const repoPaths: string[] = []
   for (const pattern of patterns) {
     for (const match of globSync(pattern, { cwd: root })) {
       const repoPath = match.split(sep).join('/')
@@ -49,9 +51,23 @@ export function uniqueRepoFiles(
       if (seen.has(real)) continue
       seen.add(real)
       files.push({ abs, real })
+      repoPaths.push(repoPath)
     }
   }
-  return files
+  // Exclude gitignored paths (e.g. local build output) so gates scan the
+  // authored tree, not machine-generated artifacts a checkout never contains.
+  const ignored = new Set<string>()
+  if (repoPaths.length > 0) {
+    const res = spawnSync('git', ['check-ignore', '--stdin'], {
+      input: repoPaths.join('\n'),
+      encoding: 'utf8',
+      cwd: root,
+    })
+    if (res.status === 0 && res.stdout) {
+      for (const p of res.stdout.split('\n')) if (p !== '') ignored.add(p)
+    }
+  }
+  return files.filter((_, index) => !ignored.has(repoPaths[index] ?? ''))
 }
 
 /**

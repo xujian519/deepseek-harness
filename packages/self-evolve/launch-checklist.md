@@ -1,6 +1,6 @@
 # P1.10 实机评估启动清单（草稿 · 待评审）
 
-> **内部工作追踪文档（非参考，不参与双语/doc-sync）**：用于 P1.10 评估的排期与验收记录。权威参考——子系统见 [`docs/subsystems/self-evolve.md`](../../../docs/subsystems/self-evolve.md)（含 `.zh.md`），各包契约见各自双语 README。
+> **内部工作追踪文档（非参考，不参与双语/doc-sync）**：用于 P1.10 评估的排期与验收记录。权威参考——子系统见 [`docs/subsystems/self-evolve.md`](../../docs/subsystems/self-evolve.md)（含 `.zh.md`），各包契约见各自双语 README。
 
 > **改判（2026-08-22）**：用户决定**放弃离线实测**，改用实际使用观察。本清单转为"未来需要正式证据时的执行指南"，不再按 M1–M6 推进；无需再拍板 §8 的各项开放项。观察方案见 [`./spec.md`](./spec.md) §"证据策略改判"。
 >

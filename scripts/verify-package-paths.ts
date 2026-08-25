@@ -42,7 +42,11 @@ const isExcluded = (p: string): boolean =>
 function realPackageNames(): Set<string> {
   const names = new Set<string>()
   for (const pkg of globSync('packages/*/*', { cwd: root, withFileTypes: true })) {
-    if (pkg.isDirectory()) names.add(pkg.name)
+    // Only a real package leaf (has package.json) scopes the drift check; a
+    // package's content subdirectory (e.g. self-evolve/evaluation) is not a leaf.
+    if (!pkg.isDirectory()) continue
+    if (!existsSync(resolve(root, pkg.parentPath, pkg.name, 'package.json'))) continue
+    names.add(pkg.name)
   }
   return names
 }
