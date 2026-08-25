@@ -3,6 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > 本文件是 `docs/patent-workbench-plan.md`（母计划）的可执行拆解，二者一一对应；执行时如发现冲突，以母计划为准并向用户提出。
+>
+> **收敛记录（2026-08-25）**：本清单的落地对象已由用户级 `~/.dsh/.agent-presets/patent/` 改为仓库**正本 `apps/cli/config/agent-presets/patent/`**（git 跟踪；桌面打包部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 user 版（含 `patent-matter`/`patent-fact-check`/`patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow`。目录口径统一为「七级业务子目录（00-交底书/01-检索/02-对比文件/03-分析/04-撰写/05-答复/99-知识库）+ `_case-registry.md` + `_matter-log.md` 两个跟踪文件」。下文建档/修改目标路径如仍写 `~/.dsh/...`，属历史期目标，现均以正本为准。阶段 5 仍为未完成项。
 
 **Goal:** 在 deepseek-harness 上落地专利律师工作台：patent preset → 案件管理 + 双闸门 → docx 交付 → 专家协作 → 全流程打磨，五阶段各自独立验收。
 
@@ -146,7 +148,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 | `patent-infringement` | 改写自 Sati | 全面覆盖 + 等同（三基本等同判定 + 禁止反悔例外）；技术特征分解→逐项比对表 | 侵权比对报告 |
 | `patent-invalidity` | 改写自 Sati | 无效理由地图（A22.2/22.3/26.3/26.4/33/A9 等）、逐特征证据收集、证据组合、成功率分级、答复预测 | 无效分析报告 |
 | `patent-quality-gate` | 新写 | 输出前必查：免责声明、法条核验（基线文件）、缺陷检查清单、检索证据链完整性、必要时 `subagent_fork` 对立审查员攻击性评审 | 门禁结论 |
-| `patent-workspace-layout` | 新写 | 工作目录八级约定（§5）+ 命名规范 + 落盘规则（法条基线读 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md`，不复制） | 目录骨架 |
+| `patent-workspace-layout` | 新写 | 工作目录七级约定（§5：业务子目录 00-交底书/01-检索/02-对比文件/03-分析/04-撰写/05-答复/99-知识库）+ 命名规范 + 落盘规则（法条基线读 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md`，不复制） | 目录骨架 |
 
 - [ ] **Step 2: 技能 provider 接线**——技能发现不是自动的：在 `agent.cordis.yml` 加/改 `skill-filesystem` 行，使 preset 目录的技能进入本 preset 会话（参考 liangshen 的 `skill-filesystem` + `skill-search` 组合；若沿用 `dsh-skill-filesystem`，核对它的目录 root 配置能否指向 `~/.dsh/.agent-presets/patent/skills/`，不能则按 liangshen 的 skill-search.mjs 模式写一个按需注入的小工具）。
 
@@ -185,7 +187,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 **Files:**
 - Create: `~/.dsh/.agent-presets/patent/skills/patent-matter/SKILL.md`
 
-- [ ] **Step 1: 写技能正文**：案件 = 八级目录（`patent-workspace/<案号>/` 下 `00-交底书` → `01-检索` → `02-对比文件` → `03-分析` → `04-撰写` → `05-答复` → `99-知识库` + 根 `_case-registry.md`，目录名与 `patent-mode-design.md` §5 完全一致）+ 六列状态机（**按 L1–L5 流水线阶段定案**：open/retrieving/analyzing/drafting/review/closed 仅作展示别名）+ **只追加事件日志** `_matter-log.md`（每步记录时间/动作/产物/审批人，追加不覆写）。
+- [ ] **Step 1: 写技能正文**：案件 = 七级业务子目录（`patent-workspace/<案号>/` 下 `00-交底书` → `01-检索` → `02-对比文件` → `03-分析` → `04-撰写` → `05-答复` → `99-知识库` + 根 `_case-registry.md` + `_matter-log.md`，目录名与 `patent-mode-design.md` §5 完全一致）+ 六列状态机（**按 L1–L5 流水线阶段定案**：open/retrieving/analyzing/drafting/review/closed 仅作展示别名）+ **只追加事件日志** `_matter-log.md`（每步记录时间/动作/产物/审批人，追加不覆写）。
 
 - [ ] **Step 2: 写建案命令**：给出建案动作序列（mkdir 八目录 + 写 `_case-registry.md` 案号行 + 初始化 `_matter-log.md` 首行），作为技能内的可执行步骤。
 
@@ -242,7 +244,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 
 ### 阶段 2 检查清单（2026-08-19 用户真实案例实测）
 
-- [x] 1. 八级目录名与设计文档 §5 一致，`_case-registry.md` + `_matter-log.md` 已建
+- [x] 1. 七级业务子目录名与设计文档 §5 一致，`_case-registry.md` + `_matter-log.md` 已建
 - [x] 2. 状态机按 L1–L5 对齐，事件日志只追加不覆写
 - [x] 3. 审计链 = 产物元数据 + 事件日志 + ApprovalRecord 并轨，无第二套账本
 - [x] 4. `patent-fact-check` 四类核验清单齐备且 Fail-Closed
