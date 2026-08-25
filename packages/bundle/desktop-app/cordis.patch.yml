@@ -15,6 +15,11 @@
 # plugins.
 - id: web-runtime
   config:
+    # The Electron window is the UI surface; never hand the URL to the system
+    # browser the way the web runtime does. The web-app layer reads this from
+    # `--no-open`; the desktop surface pins it off so the shell stays the sole
+    # viewer regardless of invocation flags.
+    openBrowser: false
     printUrl: true
     surfaceContext: true
     trustedHosts: !!js ctx.webStartup.trustedHosts
@@ -27,6 +32,16 @@
     - id: desktop-shell
       name: '@deepseek-ai/dsh-desktop-shell'
 
-# Replace the web runtime's directory picker with the Electron dialog provider.
+# The web runtime's auto chooser mounts a native backend that would register
+# `ctx.directoryPicker` alongside the Electron provider — but the seam allows one
+# implementation per context, so disable the auto row and pin the Electron pair
+# explicitly. The native browser surface drives the same pick RPC the electron
+# capability serves, so the desktop reuses it to occupy the directory-flow holes
+# (the auto row's own surface mount stays off with it).
 - id: directory-picker
-  name: '@deepseek-ai/dsh-desktop-directory-picker'
+  disabled: true
+- insert:
+    - id: directory-picker-desktop
+      name: '@deepseek-ai/dsh-desktop-directory-picker'
+    - id: ui-directory-picker
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-native'

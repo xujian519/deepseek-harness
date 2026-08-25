@@ -2874,10 +2874,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async pickDirectory(request, signal) {
         const capability = ctx.directoryPicker.capability()
-        if (capability.kind !== 'native') {
+        // The seam is merge-extensible and the desktop `electron` kind is not
+        // visible in this program, so gate on the pick shape rather than a fixed
+        // kind set: any pick-capable backend (native, electron) serves this RPC,
+        // while a browse-only backend (which cannot pick) fails closed.
+        if (!('pick' in capability)) {
           return err(request, {
             code: 'directory-picker-unavailable',
-            message: `host.pickDirectory needs the native capability; the composed picker serves "${capability.kind}"`,
+            message: `host.pickDirectory needs a pick-capable capability (native/electron); the composed picker serves "${capability.kind}"`,
             details: { capability: capability.kind },
           })
         }

@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) rides over [`dsh-web-app`](../web-app/README.md): it restates the web runtime values for the desktop profile, inserts this package's `desktop-runtime` glue plugin, mounts the desktop shell service (`@deepseek-ai/dsh-desktop-shell`), and swaps the web runtime's directory picker for the Electron dialog provider (`@deepseek-ai/dsh-desktop-directory-picker`). The desktop profile (`dsh --profile desktop`) stacks `dsh-base`, `dsh-web-app`, and this bundle.
+The dsh desktop-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) rides over [`dsh-web-app`](../web-app/README.md): it restates the web runtime values for the desktop profile, inserts this package's `desktop-runtime` glue plugin, mounts the desktop shell service (`@deepseek-ai/dsh-desktop-shell`), pins `openBrowser: false` so the Electron window stays the sole UI viewer, and disables the web runtime's auto directory chooser in favor of the Electron-dialog provider (`@deepseek-ai/dsh-desktop-directory-picker`) paired with the native client surface (`@deepseek-ai/dsh-client-ui-directory-picker-native`) that drives `host.pickDirectory`. The desktop profile (`dsh --profile desktop`) stacks `dsh-base`, `dsh-web-app`, and this bundle.
 
 ## Model Experience
 
