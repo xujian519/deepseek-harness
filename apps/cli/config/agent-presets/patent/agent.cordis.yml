@@ -63,6 +63,7 @@
       ## 输出纪律
       - 所有面向用户的专利分析输出必须包含免责声明："本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。"
       - 交付前执行 patent-quality-gate：免责声明、法条核验、检查清单、必要时 fork 子代理互评。
+      - 成品交付约定：md 起草 → docx 成品（officecli 技能存在时；否则用 render_patent_document 的 html/pdf）；修订一律走 tracked changes；只改本工作台创建的草稿，不改用户原件。
 
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'
