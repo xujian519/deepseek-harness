@@ -34,6 +34,13 @@ export interface AgentPresetSeatState {
   introduce: boolean
 }
 
+/**
+ * Semantic marker for a pick the chip refuses because the session already
+ * started. The store holds it as the seat's `error`; surfaces translate it to
+ * the locale line instead of the raw marker.
+ */
+export const SEAT_PRESET_LOCKED = 'session-already-started'
+
 const INITIAL: AgentPresetSeatState = {
   options: [], current: '', error: null, busy: false, introduce: false,
 }
@@ -152,10 +159,19 @@ export class AgentPresetSeatController {
     const staged = this.staged
     const session = this.currentSession()
     if (staged === undefined || session === undefined) return
-    // A started session's history was produced under its own composition; the
-    // host refuses the swap, so the stage is no longer meaningful.
-    if (!session.blank || session.agentPreset === staged) {
+    // Already on the staged preset: nothing to switch, drop the stage.
+    if (session.agentPreset === staged) {
       this.staged = undefined
+      return
+    }
+    // A started session's history was produced under its own composition, so
+    // the host refuses the swap (agent-preset-locked). The chip knows this
+    // before asking and does not spend a round-trip — but the pick must not
+    // read as a silent no-op. Surface the refusal as the seat's error and snap
+    // the label back to the preset the session actually runs.
+    if (!session.blank) {
+      this.staged = undefined
+      this.set({ current: session.agentPreset ?? this.fallback, error: SEAT_PRESET_LOCKED })
       return
     }
     this.set({ busy: true, error: null })
