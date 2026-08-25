@@ -1377,6 +1377,9 @@ importers:
 
   packages/bundle/desktop-app:
     dependencies:
+      '@deepseek-ai/dsh-client-ui-directory-picker-native':
+        specifier: workspace:^
+        version: link:../../client/ui-directory-picker-native
       '@deepseek-ai/dsh-desktop':
         specifier: workspace:^
         version: link:../../desktop/desktop
@@ -1390,6 +1393,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-app-boot':
+        specifier: workspace:^
+        version: link:../../boot/app-boot
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants

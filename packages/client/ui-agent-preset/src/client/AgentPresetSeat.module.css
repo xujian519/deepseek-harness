@@ -96,6 +96,20 @@
   color: var(--dsw-alias-label-caption);
 }
 
+/* Refused switch (a started session keeps the preset it began with): a short
+   line next to the chip rather than a hover-only tooltip, so the pick reads
+   as explained rather than as a click that did nothing. */
+.seatError {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(40%, 320px);
+  flex: none;
+}
+
 /* Menu rows carry the name over its description: the id alone never said what
    a preset does, which is why the metadata exists. */
 .item {

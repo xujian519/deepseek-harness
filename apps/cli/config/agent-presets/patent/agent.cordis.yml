@@ -236,6 +236,7 @@
     patentKnowledge: true
     patentWorkflow: true
     patentTeams: true
+    patentRuleGate: true
   config:
     - id: patent-data
       name: '@deepseek-ai/dsh-patent-data'
@@ -254,15 +255,17 @@
       config:
         qualityGate: true
 
+    - id: patent-rule
+      name: '@deepseek-ai/dsh-patent-rule'
+
 # ── patent rule / document / literature / methodology ───────────────────────
 
 # Function plugins: they register tools and guards into host registries and
-# provide no service, so they need no realm. patent-rule wires the output gate
-# onto tools/post-execute (block / review→approval) and the EVI-011 evidence
-# guards via ctx.tools.guard(). patent-document registers render_patent_document.
-- id: patent-rule
-  name: '@deepseek-ai/dsh-patent-rule'
-
+# provide no service, so they need no realm. patent-document registers
+# render_patent_document. patent-rule lives in the shielded group above because
+# it provides the patentRuleGate service that patent-teams consumes; its
+# tools/post-execute wiring and EVI-011 guards still reach the host registries
+# (only the declared service is isolated).
 - id: patent-document
   name: '@deepseek-ai/dsh-patent-document'
 

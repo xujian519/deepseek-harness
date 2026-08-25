@@ -16,7 +16,7 @@ import {
 function derivedController(api: IApiClient) {
   return new AgentPresetSettingsController(api, new SettingsDescribeMirror(api))
 }
-import { AgentPresetSeatController } from '../src/client/seat-store.ts'
+import { AgentPresetSeatController, SEAT_PRESET_LOCKED } from '../src/client/seat-store.ts'
 import type { SeatSessionSummary } from '../src/client/seat-store.ts'
 
 interface Recorded { ns: string; patch: unknown }
@@ -363,8 +363,14 @@ describe('the new-session chip controller', () => {
 
     await controller.select('minimal')
 
-    // The host enforces the same rule; the chip simply never asks.
+    // The host enforces the same rule; the chip simply never asks. But a
+    // silent drop would read as a click that did nothing, so the seat surfaces
+    // the refusal and snaps the label back to the preset the session runs.
     expect(writes).toEqual([])
+    expect(controller.store.getSnapshot()).toMatchObject({
+      current: 'standard',
+      error: SEAT_PRESET_LOCKED,
+    })
   })
 
   it('drops the stage when the session already runs it', async () => {

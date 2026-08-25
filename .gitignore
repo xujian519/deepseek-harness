@@ -36,6 +36,7 @@ apps/desktop/release/
 apps/desktop/resources/
 .artifacts/
 .dsh-build/
+.build/
 .playwright-mcp/
 .orig
 .worktrees/

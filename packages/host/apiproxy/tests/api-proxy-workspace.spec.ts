@@ -118,6 +118,14 @@ function stageDir(root: string, name: string): string {
   return path
 }
 
+/**
+ * The electron kind is merged only into the desktop program; this program's
+ * seam union has no electron member, so the stub arrives through a cast.
+ */
+function electronPicker(pick: (signal: AbortSignal) => Promise<string | null>): DirectoryPickerCapability {
+  return { kind: 'electron', pick } as unknown as DirectoryPickerCapability
+}
+
 describe('host.pickDirectory', () => {
   it('returns a selected path or explicit cancellation from the native capability', async () => {
     const selected = await harness(undefined, { kind: 'native', pick: async () => '/tmp/project' })
@@ -155,6 +163,16 @@ describe('host.pickDirectory', () => {
       ok: false,
       error: { code: 'directory-picker-unavailable', details: { capability: 'browse' } },
     })
+  })
+
+  it('serves the electron capability the same way it serves native', async () => {
+    const selected = await harness(undefined, electronPicker(async () => '/tmp/desktop-ws'))
+    expect((await selected.api.host.pickDirectory(request({}), new AbortController().signal)).result)
+      .toEqual({ ok: true, value: { path: '/tmp/desktop-ws' } })
+
+    const cancelled = await harness(undefined, electronPicker(async () => null))
+    expect((await cancelled.api.host.pickDirectory(request({}), new AbortController().signal)).result)
+      .toEqual({ ok: true, value: { path: null } })
   })
 })
 

@@ -41,7 +41,8 @@
   "dependencies": {
     "@deepseek-ai/dsh-desktop": "workspace:^",
     "@deepseek-ai/dsh-desktop-shell": "workspace:^",
-    "@deepseek-ai/dsh-desktop-directory-picker": "workspace:^"
+    "@deepseek-ai/dsh-desktop-directory-picker": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-directory-picker-native": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
@@ -49,6 +50,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-app-boot": "workspace:^"
   }
 }

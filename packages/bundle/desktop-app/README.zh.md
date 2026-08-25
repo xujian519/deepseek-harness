@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-web-app`](../web-app/README.zh.md) 之上：它为桌面 profile 复述 web 运行时配置、插入本包提供的 `desktop-runtime` 粘合插件、挂载桌面 shell 服务（`@deepseek-ai/dsh-desktop-shell`），并把 web 运行时的目录选择器替换为 Electron 对话框 provider（`@deepseek-ai/dsh-desktop-directory-picker`）。桌面 profile（`dsh --profile desktop`）依次叠放 `dsh-base`、`dsh-web-app` 与本组合包。
+dsh 桌面表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-web-app`](../web-app/README.zh.md) 之上：它为桌面 profile 复述 web 运行时配置、插入本包提供的 `desktop-runtime` 粘合插件、挂载桌面 shell 服务（`@deepseek-ai/dsh-desktop-shell`）、钉死 `openBrowser: false` 使 Electron 窗口成为唯一 UI 表层，并禁用 web 运行时的自动目录选择器，改用 Electron 对话框 provider（`@deepseek-ai/dsh-desktop-directory-picker`）并配对 native client surface（`@deepseek-ai/dsh-client-ui-directory-picker-native`）来驱动 `host.pickDirectory`。桌面 profile（`dsh --profile desktop`）依次叠放 `dsh-base`、`dsh-web-app` 与本组合包。
 
 ## Model Experience
 
