@@ -33,13 +33,13 @@ Two lines share a narrow band of files and collide there: `scripts/gen-cordis-ca
 
 ## Repair backlog
 
-Once the liberalization-plugin window closes, apply, in one coordinated change and in dependency order:
+Items 1 and 2 shipped 2026-08-26 once the liberalization-plugin window closed; item 3 and the `bundle/im` items remain. The original list:
 
-1. `scripts/check-workspace-constraints.ts` — make `checkHierarchyShape()` honor the `pnpm-workspace.yaml` `!` exclusion globs (read them via `yaml.load`, as `scripts/gen-third-party-notices.ts` already does), or add the data directories to an explicit exemption list.
-2. `packages/memory/openviking/package.json` — remove the redundant `@deepseek-ai/dsh-fs` declaration from the section knip flags.
-3. The `test:coverage` failures are confirmed pre-existing and deliberately out of scope for this repair; they need a separate debt change either adding coverage or registering the packages in `vitest.config.ts` `exclude`.
+1. `scripts/check-workspace-constraints.ts` — **implemented 2026-08-26.** `checkHierarchyShape()` now reads the `pnpm-workspace.yaml` `!` exclusion globs (via `yaml.load`, as `scripts/gen-third-party-notices.ts` does) and skips the excluded `packages/self-evolve/evaluation` tree instead of misreading it as a package with no manifest.
+2. `packages/memory/openviking/package.json` — **implemented 2026-08-26.** Dropped the redundant `@deepseek-ai/dsh-fs` from `devDependencies` (the section knip flags), leaving it a `peerDependencies` declaration only.
+3. The `test:coverage` failures are confirmed pre-existing and deliberately out of scope for this repair; they need a separate debt change either adding coverage or registering the packages in `vitest.config.ts` `exclude`. **Pending.**
 
-The `@xmanrui/dsh-im` / `bundle/im` knip items belong to the liberalization-plugin window: give `packages/bundle/im` a knip configuration (its own `knip.json` or a root `knip.json` entry) that exempts `@xmanrui/dsh-im` and corrects the entry/project patterns so it stops reporting hints. Do not fix these here to avoid colliding.
+The `@xmanrui/dsh-im` / `bundle/im` knip items belong to the liberalization-plugin window: give `packages/bundle/im` a knip configuration (its own `knip.json` or a root `knip.json` entry) that exempts `@xmanrui/dsh-im` and corrects the entry/project patterns so it stops reporting hints. Do not fix these here to avoid colliding. **Pending — the window's item.**
 
 ## Alternatives considered
 
@@ -51,9 +51,9 @@ The `@xmanrui/dsh-im` / `bundle/im` knip items belong to the liberalization-plug
 
 - The analysis above is recorded so the repair can be applied later without re-investigation.
 - The repair keeps `@xmanrui/dsh-im` / `bundle/im` ownership with the liberalization-plugin window; this change does not edit those files.
-- Neither `pnpm constraints` nor `pnpm knip` matters here until the repair lands; this note only records the root cause and the intended repair.
+- Items 1 and 2 landed 2026-08-26 (items 3 and the `bundle/im` items remain for their own debt/window changes); the repair keeps the two fixes scoped and the two open items logged.
 
 ## Risks
 
-- The two repair items (`check-workspace-constraints.ts`, `openviking` manifest) sit in shared catalogs; applying them while the liberalization window is still editing `gen-*.ts` or bundle directories risks a narrow textual conflict, so they are scheduled after that window closes.
-- If the liberize window changes the bounds of `bundle/im` before this repair runs, the recorded `@xmanrui/dsh-im` details may stale; the repair should re-verify them then.
+- The two repair items (`check-workspace-constraints.ts`, `openviking` manifest) sat in shared catalogs; the narrow textual conflict motivated scheduling them after the liberalization window closed, and they landed 2026-08-26 without one.
+- If the liberalization window changes the bounds of `bundle/im` before that repair runs, the recorded `@xmanrui/dsh-im` details may stale; the repair should re-verify them then.
