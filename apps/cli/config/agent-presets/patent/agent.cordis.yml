@@ -299,3 +299,25 @@
   config:
     fetch: false
     searchTimeoutMs: 60000
+
+# ── self-evolve benchmark ────────────────────────────────────────────────────
+
+# The benchmark provider publishes its `selfEvolveBenchmark` service behind an
+# entry-local realm (see the header comment on the patent group): programmatic
+# only — no model-facing tool, the establish/optimize loop is driven by an
+# operator or script through the service. `agentStateDir` points at the seeded
+# `patent-state` work copy under the data root, never the caller's working
+# directory, so a real docket or knowledge base can never be snapshotted or
+# rewritten by the optimize loop. The default seams fork children over the host
+# `subagents` registry, which stays visible from inside the realm.
+- id: self-evolve-benchmark
+  name: cordis:group
+  group: true
+  isolate:
+    selfEvolveBenchmark: true
+  config:
+    - id: self-evolve-benchmark
+      name: '@deepseek-ai/dsh-self-evolve-benchmark'
+      config:
+        agentStateDir: !!js "process.getBuiltinModule('node:path').join(process.env.DSH_HOME && process.env.DSH_HOME.trim() ? process.env.DSH_HOME : process.getBuiltinModule('node:os').homedir() + '/.dsh', 'self-evolve-benchmark', 'patent-state')"
+        targetScore: 80

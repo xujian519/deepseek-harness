@@ -2119,6 +2119,28 @@ Depends on: [`EvolveLevel`](../packages/self-evolve/self-evolve/src/index.ts) ·
 
 Source: [`packages/self-evolve/self-evolve-basic/src/types.ts:90`](../packages/self-evolve/self-evolve-basic/src/types.ts)
 
+<a id="deepseek-aidsh-self-evolve-benchmark"></a>
+
+## `@deepseek-ai/dsh-self-evolve-benchmark`
+
+```ts config-catalog
+/** Public configuration for the benchmark-driven provider. */
+export interface BenchmarkEvolveConfig {
+  /** Benchmark/snapshot data root; defaults to `~/.dsh/self-evolve-benchmark`. */
+  baseDir?: string
+  /** Agent-state directory to snapshot and roll back; defaults to `process.cwd()`. */
+  agentStateDir?: string
+  /** Runs per case when a method does not specify one; defaults to 1. */
+  runsPerCase?: number
+  /** Default maximum candidate rounds per optimize loop; defaults to 1. */
+  maxRoundsPerLoop?: number
+  /** Default score goal for optimize loops; absent disables early acceptance. */
+  targetScore?: number
+}
+```
+
+Source: [`packages/self-evolve/self-evolve-benchmark/src/types.ts:287`](../packages/self-evolve/self-evolve-benchmark/src/types.ts)
+
 <a id="deepseek-aidsh-session-persistence-jsonl"></a>
 
 ## `@deepseek-ai/dsh-session-persistence-jsonl`
@@ -3785,6 +3807,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-code-runtime-python` ([`packages/code-runtime/code-runtime-python/src/index.ts`](../packages/code-runtime/code-runtime-python/src/index.ts))
 - `@deepseek-ai/dsh-home-paths` ([`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts))
 - `@deepseek-ai/dsh-hook-protocol` ([`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts))
+- `@deepseek-ai/dsh-im` ([`packages/bundle/im/src/index.ts`](../packages/bundle/im/src/index.ts))
 - `@deepseek-ai/dsh-launch-environment` ([`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts))
 - `@deepseek-ai/dsh-llm-mock-server` ([`packages/test-support/llm-mock-server/src/index.ts`](../packages/test-support/llm-mock-server/src/index.ts))
 - `@deepseek-ai/dsh-loader-smoke` ([`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts))

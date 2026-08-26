@@ -119,6 +119,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   patentTeams: 'patent.md',
   patentWorkflow: 'patent.md',
   selfEvolve: 'self-evolve.md',
+  selfEvolveBenchmark: 'self-evolve.md',
   workspaceRegistry: 'workspace.md',
 }
 
@@ -647,6 +648,10 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   SelfEvolveAgentContext: 'self-evolve service input is owned by packages/self-evolve/self-evolve/src/types.ts',
   SelfEvolveResult: 'self-evolve service result is owned by packages/self-evolve/self-evolve/src/types.ts',
   FailurePattern: 'self-evolve pattern vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
+  RunBenchmarkOptions: 'benchmark-driven evaluation options are owned by packages/self-evolve/self-evolve-benchmark/src/types.ts',
+  ScoreboardEntry: 'benchmark scoreboard entry is owned by packages/self-evolve/self-evolve-benchmark/src/types.ts',
+  OptimizeLoopOptions: 'benchmark-driven optimization options are owned by packages/self-evolve/self-evolve-benchmark/src/types.ts',
+  OptimizeResult: 'benchmark-driven optimization result is owned by packages/self-evolve/self-evolve-benchmark/src/types.ts',
   SubagentRunEndInfo: 'event payload contract is owned by packages/subagent/subagent/src/types.ts',
   SubagentRunInfo: 'event payload contract is owned by packages/subagent/subagent/src/types.ts',
   WorkflowAgentEndInfo: 'event-local snapshot is owned by packages/workflow/workflow/src/index.ts',

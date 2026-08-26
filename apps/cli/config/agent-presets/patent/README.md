@@ -20,6 +20,8 @@ Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs
 
 The patent services sit behind an isolate realm (patentData / patentKnowledge / patentWorkflow / patentTeams) shared with patent-tools, so its ctx.get('patentData') / ctx.get('patentKnowledge') resolve this preset's instances rather than the host's. tool-ralph is omitted (a patent case uses goal / todo / workflow, not fresh-agent iteration), and tool-web keeps fetch disabled because shipped profiles mount no fetch provider (see the base layer comment); a deployment that needs web_fetch adds a provider itself, e.g. `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
 
+The preset also mounts `@deepseek-ai/dsh-self-evolve-benchmark` behind its own isolate realm (selfEvolveBenchmark): the benchmark-driven self-evolve provider, programmatic only — no model-facing tool. Its `agentStateDir` points at the seeded `patent-state` work copy under the data root (examples/patent-oas in the package), never the caller's working directory, so a real docket or knowledge base can never be snapshotted or rewritten by an optimize loop.
+
 ## Skills
 
 Eight skills ship in skills/:
@@ -57,3 +59,4 @@ The model sees the Chinese patent-agent persona (professional identity, seven wo
 - patent_pdf_download requires a working ego-browser (ego lite) on the host: the ego-browser CLI must be installed and on the PATH (macOS only), or the tool fails loud with setup guidance. knowledge_note_save writes files under the workspace `99-知识库/` directory (a native knowledge.db write API is deferred).
 - The 4 rewritten analysis skills inherit Sati's methodology but have not yet been reviewed against current Chinese patent practice; cross-check their checklists against the user's patent-legal baseline before relying on them.
 - The design doc's `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` is a Sati user-level asset not shipped here; law text is verified at use time instead.
+- The self-evolve benchmark is programmatic only: `ctx.selfEvolveBenchmark` mounts no model-facing tool; establish-baseline / optimize loops run from an operator or script that resolves the service for an agent. Its default seams fork children over the host subagents registry, so a child inherits this preset's approval setting (`'never'`) and plan-mode discipline — approval-gated operations are refused in children, and the executor prompt explicitly exits plan semantics so a deliverable can be produced directly.
