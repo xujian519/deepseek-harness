@@ -163,7 +163,7 @@ export class BridgeServer {
       const icon = nativeImage.createFromPath(trayIconPath(appPath, process.platform))
       if (isTemplateTrayIcon(process.platform)) icon.setTemplateImage(true)
       const tray = new Tray(icon)
-      tray.setToolTip('DeepSeek Harness')
+      tray.setToolTip('DSH Patent')
       tray.on('click', () => {
         this.notify('desktop/tray-clicked', { button: 'left' })
       })
@@ -360,7 +360,7 @@ export class BridgeServer {
 
   private clearTray(): void {
     if (this.tray === undefined) return
-    this.tray.setToolTip('DeepSeek Harness')
+    this.tray.setToolTip('DSH Patent')
     this.trayMenuGroup = DEFAULT_TRAY_GROUP
     this.rebuildTrayMenu()
   }
@@ -401,9 +401,9 @@ export class BridgeServer {
     const actions = this.trayBaseActions
     if (tray === undefined || actions === undefined) return
     const template: Electron.MenuItemConstructorOptions[] = [
-      { label: 'Show DeepSeek Harness', click: actions.onShow },
+      { label: 'Show DSH Patent', click: actions.onShow },
       { type: 'separator' },
-      { label: 'Quit DeepSeek Harness', click: actions.onQuit },
+      { label: 'Quit DSH Patent', click: actions.onQuit },
     ]
     const groupItems = this.menuGroups.get(this.trayMenuGroup)
     if (groupItems !== undefined && groupItems.size > 0) {

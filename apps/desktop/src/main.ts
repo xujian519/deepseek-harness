@@ -1,5 +1,5 @@
 /**
- * DeepSeek Harness desktop shell — Electron Main process. It owns the
+ * DSH Patent desktop shell — Electron Main process. It owns the
  * application lifecycle, spawns the dsh backend child, and loads the Web UI
  * from the backend's bound URL once the readiness line appears.
  * @module @deepseek-ai/dsh-desktop-electron/main
@@ -76,7 +76,7 @@ function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'DeepSeek Harness',
+    title: 'DSH Patent',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -143,7 +143,7 @@ void app.whenReady().then(async () => {
   } catch (error) {
     console.error('failed to start the desktop bridge', error)
     dialog.showErrorBox(
-      'DeepSeek Harness failed to start',
+      'DSH Patent failed to start',
       `Failed to start the desktop bridge: ${error instanceof Error ? error.message : String(error)}`,
     )
     app.quit()
@@ -187,7 +187,7 @@ void app.whenReady().then(async () => {
   } catch (error) {
     console.error('failed to start the dsh backend', error)
     dialog.showErrorBox(
-      'DeepSeek Harness failed to start',
+      'DSH Patent failed to start',
       error instanceof Error ? error.message : String(error),
     )
     app.quit()

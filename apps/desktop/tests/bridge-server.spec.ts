@@ -335,7 +335,7 @@ describe('BridgeServer', () => {
     await new Promise(resolve => setTimeout(resolve, 20))
     client?.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'desktop/clearTray' }) + '\n')
     await new Promise(resolve => setTimeout(resolve, 20))
-    expect(mocks.trays[0]?.setToolTip).toHaveBeenLastCalledWith('DeepSeek Harness')
+    expect(mocks.trays[0]?.setToolTip).toHaveBeenLastCalledWith('DSH Patent')
   })
 
   it('pushes tray clicks to the backend', async () => {

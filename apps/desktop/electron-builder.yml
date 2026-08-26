@@ -1,4 +1,4 @@
-# electron-builder configuration for the DeepSeek Harness desktop shell.
+# electron-builder configuration for the DSH Patent desktop shell.
 # The backend tree and the embedded Node binary are assembled first by
 # `pnpm run package:desktop:prepare` into resources/<os>/, then copied into
 # the app bundle as extraResources. The Node binary and the backend's native
@@ -9,7 +9,7 @@
 # packaged here.
 
 appId: ai.deepseek.harness
-productName: DeepSeek Harness
+productName: DSH Patent
 
 directories:
   output: release
