@@ -1,0 +1,363 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BenchmarkEngineCore } from '../src/engine.ts'
+import { appendScoreboard } from '../src/scoreboard.ts'
+import { ensureBenchmark, writeCase } from '../src/store.ts'
+import type {
+  ApplyCandidateOptions,
+  BenchmarkEngineOptions,
+  EvaluateCaseRequest,
+  ExecuteCaseRequest,
+  ProposeCandidateOptions,
+  ScoreboardEntry,
+} from '../src/types.ts'
+
+function signal(): AbortSignal {
+  return new AbortController().signal
+}
+
+function candidate() {
+  return { name: 'candidate', description: 'change', prediction: 'scores shift' }
+}
+
+describe('BenchmarkEngineCore', () => {
+  let dir: string
+  let agentDir: string
+  let benchmarkId: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-engine-'))
+    agentDir = await mkdtemp(join(tmpdir(), 'dsh-engine-agent-'))
+    benchmarkId = 'summarizer'
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+    await rm(agentDir, { recursive: true, force: true })
+  })
+
+  function options(overrides: Partial<BenchmarkEngineOptions> = {}): BenchmarkEngineOptions {
+    return {
+      baseDir: dir,
+      agentStateDir: agentDir,
+      executeCase: vi.fn(async (_request: ExecuteCaseRequest) => ({ output: 'deliverable' })),
+      evaluateCase: vi.fn(async (_request: EvaluateCaseRequest) => ({ score: 50 })),
+      proposeCandidate: vi.fn(async (_options: ProposeCandidateOptions) => candidate()),
+      applyCandidate: vi.fn(async (_options: ApplyCandidateOptions) => ({ agentStatePath: agentDir })),
+      restoreSnapshot: vi.fn(async (_options: { version: number; signal: AbortSignal }) => {}),
+      ...overrides,
+    }
+  }
+
+  async function prepareBenchmark(
+    cases: { caseId: string; statement: string; rubric?: string }[] = [
+      { caseId: 'c1', statement: 'Task one', rubric: 'Rubric one' },
+    ],
+  ): Promise<void> {
+    await ensureBenchmark(dir, benchmarkId, 'Summarizer')
+    for (const spec of cases) await writeCase(dir, benchmarkId, spec.caseId, spec)
+  }
+
+  describe('runBenchmark', () => {
+    it('runs every case against the current agent state and persists one entry', async () => {
+      await prepareBenchmark([
+        { caseId: 'c1', statement: 'Task one', rubric: 'R1' },
+        { caseId: 'c2', statement: 'Task two' },
+      ])
+      const evaluateCase = vi.fn(async (request: EvaluateCaseRequest) => ({
+        score: request.caseId === 'c1' ? 70 : 80,
+      }))
+      const engine = new BenchmarkEngineCore(options({ evaluateCase }))
+
+      const entry = await engine.runBenchmark(benchmarkId, { signal: signal() })
+
+      expect(entry.version).toBe(0)
+      expect(entry.score).toBe(75)
+      expect(entry.cases).toHaveLength(2)
+      expect(evaluateCase).toHaveBeenCalledTimes(2)
+      const firstCall = evaluateCase.mock.calls[0]![0]
+      expect(firstCall.caseId).toBe('c1')
+      expect(firstCall.statement).toBe('Task one')
+      expect(firstCall.rubric).toBe('R1')
+      expect(firstCall.agentStatePath).toBe(agentDir)
+      await expect(engine.readScoreboard(benchmarkId)).resolves.toHaveLength(1)
+    })
+
+    it('executes each case before scoring and threads the deliverable into evaluation', async () => {
+      await prepareBenchmark([
+        { caseId: 'c1', statement: 'Task one', rubric: 'R1' },
+        { caseId: 'c2', statement: 'Task two' },
+      ])
+      const order: string[] = []
+      const executeCase = vi.fn(async (request: ExecuteCaseRequest) => {
+        order.push(`execute:${request.caseId}`)
+        return { output: `answer for ${request.caseId}`, sessionId: `exec-${request.caseId}` }
+      })
+      const evaluateCase = vi.fn(async (request: EvaluateCaseRequest) => {
+        order.push(`evaluate:${request.caseId}`)
+        return { score: request.attempt?.output === `answer for ${request.caseId}` ? 85 : 0 }
+      })
+      const engine = new BenchmarkEngineCore(options({ executeCase, evaluateCase }))
+
+      const entry = await engine.runBenchmark(benchmarkId, { signal: signal() })
+
+      expect(order).toEqual(['execute:c1', 'evaluate:c1', 'execute:c2', 'evaluate:c2'])
+      const firstEval = evaluateCase.mock.calls[0]![0]
+      expect(firstEval.attempt).toEqual({ output: 'answer for c1', sessionId: 'exec-c1' })
+      expect(entry.score).toBe(85)
+    })
+
+    it('sums executor and evaluator cost and duration when both phases report them', async () => {
+      await prepareBenchmark()
+      const executeCase = vi.fn(async (_request: ExecuteCaseRequest) => ({ output: 'd', cost: 0.2, durationMs: 40 }))
+      const evaluateCase = vi.fn(async (_request: EvaluateCaseRequest) => ({ score: 60, cost: 0.1, durationMs: 100 }))
+      const engine = new BenchmarkEngineCore(options({ executeCase, evaluateCase }))
+
+      const entry = await engine.runBenchmark(benchmarkId, { signal: signal() })
+
+      expect(entry.cost).toBe(0.3)
+      expect(entry.durationMs).toBe(140)
+      const run = entry.cases[0]!.runs[0]!
+      expect(run.score).toBe(60)
+      expect(run.cost).toBeCloseTo(0.3)
+      expect(run.durationMs).toBe(140)
+    })
+
+    it('keeps the reported side when only one phase reports cost or duration', async () => {
+      await prepareBenchmark()
+      const executeCase = vi.fn(async (_request: ExecuteCaseRequest) => ({ output: 'd', cost: 0.2 }))
+      const evaluateCase = vi.fn(async (_request: EvaluateCaseRequest) => ({ score: 60, durationMs: 100 }))
+      const engine = new BenchmarkEngineCore(options({ executeCase, evaluateCase }))
+
+      const entry = await engine.runBenchmark(benchmarkId, { signal: signal() })
+
+      expect(entry.cost).toBe(0.2)
+      expect(entry.durationMs).toBe(100)
+      const run = entry.cases[0]!.runs[0]!
+      expect(run.score).toBe(60)
+      expect(run.cost).toBe(0.2)
+      expect(run.durationMs).toBe(100)
+    })
+
+    it('aggregates runsPerCase runs and records provider metadata', async () => {
+      await prepareBenchmark()
+      const evaluateCase = vi.fn(async (_request: EvaluateCaseRequest) => ({
+        score: 60,
+        cost: 0.1,
+        durationMs: 100,
+        sessionId: 'run-s',
+        note: 'ok',
+      }))
+      const engine = new BenchmarkEngineCore(options({ evaluateCase }))
+
+      const entry = await engine.runBenchmark(benchmarkId, {
+        signal: signal(),
+        runsPerCase: 2,
+        provider: 'deepseek',
+        modelId: 'deepseek-chat',
+        thinkingLevel: 'high',
+        sessionId: 'sess-1',
+        version: 7,
+      })
+
+      expect(evaluateCase).toHaveBeenCalledTimes(2)
+      expect(entry.version).toBe(7)
+      expect(entry.score).toBe(60)
+      expect(entry.provider).toBe('deepseek')
+      expect(entry.modelId).toBe('deepseek-chat')
+      expect(entry.thinkingLevel).toBe('high')
+      expect(entry.sessionId).toBe('sess-1')
+      expect(entry.cost).toBe(0.1)
+      expect(entry.durationMs).toBe(100)
+      expect(entry.cases[0]).toMatchObject({
+        caseId: 'c1',
+        score: 60,
+        cost: 0.1,
+        durationMs: 100,
+        runs: [
+          { score: 60, cost: 0.1, durationMs: 100, sessionId: 'run-s', note: 'ok' },
+          { score: 60, cost: 0.1, durationMs: 100, sessionId: 'run-s', note: 'ok' },
+        ],
+      })
+    })
+
+    it('omits cost and duration when no run reports them', async () => {
+      await prepareBenchmark()
+      const engine = new BenchmarkEngineCore(options())
+      const entry = await engine.runBenchmark(benchmarkId, { signal: signal() })
+      expect(entry.cost).toBeUndefined()
+      expect(entry.durationMs).toBeUndefined()
+    })
+  })
+
+  describe('establishBaseline', () => {
+    it('is a single-run benchmark entry persisted to the scoreboard', async () => {
+      await prepareBenchmark()
+      const engine = new BenchmarkEngineCore(options())
+      const entry = await engine.establishBaseline(benchmarkId, { signal: signal() })
+      expect(entry.score).toBe(50)
+      await expect(engine.readScoreboard(benchmarkId)).resolves.toHaveLength(1)
+    })
+  })
+
+  describe('optimizeLoop', () => {
+    it('refuses to optimize without a reference entry', async () => {
+      await prepareBenchmark()
+      const engine = new BenchmarkEngineCore(options())
+      await expect(engine.optimizeLoop(benchmarkId, { signal: signal() })).rejects.toThrow(/no reference entry/)
+    })
+
+    it('accepts an improving candidate and stops early at the target score', async () => {
+      await prepareBenchmark()
+      const reference: ScoreboardEntry = { version: 0, score: 60, cases: [] }
+      const evaluateCase = vi.fn(async (_request: EvaluateCaseRequest) => ({ score: 90 }))
+      const proposeCandidate = vi.fn(async (_options: ProposeCandidateOptions) => candidate())
+      const applyCandidate = vi.fn(async (_options: ApplyCandidateOptions) => ({ agentStatePath: agentDir }))
+      const restoreSnapshot = vi.fn(async (_options: { version: number; signal: AbortSignal }) => {})
+      const engine = new BenchmarkEngineCore(
+        options({ evaluateCase, proposeCandidate, applyCandidate, restoreSnapshot }),
+      )
+
+      const result = await engine.optimizeLoop(benchmarkId, {
+        reference,
+        targetScore: 80,
+        maxRounds: 3,
+        signal: signal(),
+      })
+
+      expect(result.accepted).toBe(true)
+      expect(result.acceptedVersion).toBe(1)
+      expect(result.referenceScore).toBe(60)
+      expect(result.bestScore).toBe(90)
+      expect(result.rounds).toBe(1)
+      expect(result.entries).toHaveLength(1)
+      expect(restoreSnapshot).not.toHaveBeenCalled()
+      expect(proposeCandidate).toHaveBeenCalledTimes(1)
+      const proposeCall = proposeCandidate.mock.calls[0]![0]
+      expect(proposeCall.reference.score).toBe(60)
+      expect(proposeCall.statement).toContain('Task one')
+      expect(proposeCall.round).toBe(1)
+      expect(applyCandidate).toHaveBeenCalledTimes(1)
+      const applyCall = applyCandidate.mock.calls[0]![0]
+      expect(applyCall.candidate).toEqual(candidate())
+      expect(applyCall.agentStateDir).toBe(agentDir)
+    })
+
+    it('rolls back a candidate that fails to strictly beat the reference', async () => {
+      await prepareBenchmark()
+      const reference: ScoreboardEntry = { version: 0, score: 60, cases: [] }
+      const evaluateCase = vi.fn(async (_request: EvaluateCaseRequest) => ({ score: 50 }))
+      const restoreSnapshot = vi.fn(async (_options: { version: number; signal: AbortSignal }) => {})
+      const engine = new BenchmarkEngineCore(options({ evaluateCase, restoreSnapshot }))
+
+      const result = await engine.optimizeLoop(benchmarkId, { reference, maxRounds: 1, signal: signal() })
+
+      expect(result.accepted).toBe(false)
+      expect(result.acceptedVersion).toBeUndefined()
+      expect(result.bestScore).toBe(60)
+      expect(restoreSnapshot).toHaveBeenCalledTimes(1)
+      const restoreCall = restoreSnapshot.mock.calls[0]![0]
+      expect(restoreCall.version).toBe(1)
+    })
+
+    it('accepts an improving candidate on a later round under a fresh version', async () => {
+      await prepareBenchmark()
+      const reference: ScoreboardEntry = { version: 0, score: 60, cases: [] }
+      const evaluateCase = vi
+        .fn(async (_request: EvaluateCaseRequest) => ({ score: 50 }))
+        .mockResolvedValueOnce({ score: 50 })
+        .mockResolvedValueOnce({ score: 90 })
+      const restoreSnapshot = vi.fn(async (_options: { version: number; signal: AbortSignal }) => {})
+      const engine = new BenchmarkEngineCore(options({ evaluateCase, restoreSnapshot }))
+
+      const result = await engine.optimizeLoop(benchmarkId, { reference, maxRounds: 2, signal: signal() })
+
+      expect(result.rounds).toBe(2)
+      expect(result.accepted).toBe(true)
+      expect(result.acceptedVersion).toBe(2)
+      expect(result.bestScore).toBe(90)
+      expect(restoreSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses the latest scoreboard entry as the reference when none is given', async () => {
+      await prepareBenchmark()
+      await appendScoreboard(dir, benchmarkId, { version: 0, score: 60, cases: [] })
+      const proposeCandidate = vi.fn(async (_options: ProposeCandidateOptions) => candidate())
+      const engine = new BenchmarkEngineCore(options({ proposeCandidate }))
+
+      const result = await engine.optimizeLoop(benchmarkId, { signal: signal() })
+
+      const proposeCall = proposeCandidate.mock.calls[0]![0]
+      expect(proposeCall.reference.score).toBe(60)
+      expect(result.referenceScore).toBe(60)
+    })
+
+    it('passes the session id through to proposal, apply, and evaluation', async () => {
+      await prepareBenchmark()
+      const reference: ScoreboardEntry = { version: 0, score: 60, cases: [] }
+      const proposeCandidate = vi.fn(async (_options: ProposeCandidateOptions) => candidate())
+      const applyCandidate = vi.fn(async (_options: ApplyCandidateOptions) => ({ agentStatePath: agentDir }))
+      const evaluateCase = vi.fn(async (request: EvaluateCaseRequest) => ({
+        score: request.sessionId === 'sess-9' ? 90 : 0,
+      }))
+      const engine = new BenchmarkEngineCore(options({ proposeCandidate, applyCandidate, evaluateCase }))
+
+      const result = await engine.optimizeLoop(benchmarkId, {
+        reference,
+        maxRounds: 1,
+        sessionId: 'sess-9',
+        signal: signal(),
+      })
+
+      const proposeCall = proposeCandidate.mock.calls[0]![0]
+      const applyCall = applyCandidate.mock.calls[0]![0]
+      expect(proposeCall.sessionId).toBe('sess-9')
+      expect(applyCall.sessionId).toBe('sess-9')
+      expect(result.accepted).toBe(true)
+    })
+
+    it('skips all rounds when the signal is already aborted', async () => {
+      await prepareBenchmark()
+      const reference: ScoreboardEntry = { version: 0, score: 60, cases: [] }
+      const proposeCandidate = vi.fn(async (_options: ProposeCandidateOptions) => candidate())
+      const engine = new BenchmarkEngineCore(options({ proposeCandidate }))
+      const controller = new AbortController()
+      controller.abort()
+
+      const result = await engine.optimizeLoop(benchmarkId, {
+        reference,
+        maxRounds: 3,
+        signal: controller.signal,
+      })
+
+      expect(result.rounds).toBe(0)
+      expect(result.accepted).toBe(false)
+      expect(proposeCandidate).not.toHaveBeenCalled()
+    })
+
+    it('passes the candidate evaluation runtime fields through each round', async () => {
+      await prepareBenchmark()
+      const reference: ScoreboardEntry = { version: 0, score: 60, cases: [] }
+      const evaluateCase = vi.fn(async (_request: EvaluateCaseRequest) => ({ score: 90 }))
+      const engine = new BenchmarkEngineCore(options({ evaluateCase }))
+
+      const result = await engine.optimizeLoop(benchmarkId, {
+        reference,
+        runsPerCase: 2,
+        provider: 'deepseek',
+        modelId: 'deepseek-chat',
+        thinkingLevel: 'high',
+        signal: signal(),
+      })
+
+      expect(result.accepted).toBe(true)
+      expect(evaluateCase).toHaveBeenCalledTimes(2)
+      const entry = result.entries[0]!
+      expect(entry.provider).toBe('deepseek')
+      expect(entry.modelId).toBe('deepseek-chat')
+      expect(entry.thinkingLevel).toBe('high')
+    })
+  })
+})

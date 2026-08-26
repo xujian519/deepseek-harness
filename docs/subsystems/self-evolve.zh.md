@@ -65,6 +65,51 @@ abstract readPatterns(sessionId: string): Promise<FailurePattern[]>
 
 Source: [`packages/self-evolve/self-evolve/src/index.ts`](../../packages/self-evolve/self-evolve/src/index.ts)
 
+<a id="ctxselfevolvebenchmark--benchmarkevolveengine"></a>
+
+### `ctx.selfEvolveBenchmark` — `BenchmarkEvolveEngine`
+
+Benchmark-driven self-evolve provider. Registers as `ctx.selfEvolveBenchmark` on instantiation and routes all work through a `BenchmarkEngineCore` whose seams default to the `fork` subagent provider.
+
+```ts cordis-catalog
+/**
+ * Run the full benchmark against the current agent state and persist the entry.
+ *
+ * @param benchmarkId Benchmark id.
+ * @param options Evaluation options.
+ * @returns The aggregated scoreboard entry.
+ */
+runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>
+
+/**
+ * Establish a single-run baseline score for a benchmark.
+ *
+ * @param benchmarkId Benchmark id.
+ * @param options Evaluation options.
+ * @returns The baseline scoreboard entry.
+ */
+establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>
+
+/**
+ * Optimize a benchmark under strict improve-or-rollback.
+ *
+ * @param benchmarkId Benchmark id.
+ * @param options Optimization options.
+ * @returns The loop outcome.
+ */
+optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult>
+
+/**
+ * Read all persisted scoreboard entries for a benchmark.
+ *
+ * @param benchmarkId Benchmark id.
+ * @returns Persisted entries, oldest first.
+ */
+readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]>
+```
+
+Source: [`packages/self-evolve/self-evolve-benchmark/src/index.ts`](../../packages/self-evolve/self-evolve-benchmark/src/index.ts)
+
 <a id="self-evolve-loop-events"></a>
 
 ### `self-evolve-loop/*` events

@@ -52,6 +52,7 @@ External packages that a workspace package resolves at runtime. The tier covers 
 | [`@tanstack/react-virtual`](https://github.com/TanStack/virtual) | MIT |
 | [`@types/mdast`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@vscode/ripgrep`](https://github.com/microsoft/vscode-ripgrep) | MIT |
+| [`@xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) | MIT |
 | [`anser`](https://github.com/IonicaBizau/anser) | MIT |
 | [`cheerio`](https://github.com/cheeriojs/cheerio) | MIT |
 | [`chokidar`](https://github.com/paulmillr/chokidar) | MIT |

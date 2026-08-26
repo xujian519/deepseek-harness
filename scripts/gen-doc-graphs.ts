@@ -522,6 +522,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'The provider owns trigger policy, verifier-grounded failure mining, validation (fork replay, held-out search, LLM judge), and reversible L1/L2 commits; tool-self-evolve is the model-facing controller that inspects patterns and starts explicit loops.',
   },
   {
+    key: 'selfEvolveBenchmark',
+    pkg: 'self-evolve-benchmark',
+    title: 'Benchmark-driven evolution loop',
+    mode: 'seam',
+    implementations: [],
+    consumers: [],
+    note: 'A complementary self-evolve dimension that scores the target agent against a persisted benchmark and optimizes under strict improve-or-rollback with whole-state snapshot versioning; evaluation and optimization run through fork subagents, and the private rubric never reaches an optimizer.',
+  },
+  {
     key: 'web',
     pkg: 'web',
     title: 'Web access provider registry',

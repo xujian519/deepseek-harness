@@ -1456,6 +1456,42 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'selfEvolveBenchmark',
+    summary: 'Benchmark-driven self-evolve provider.',
+    description: 'Benchmark-driven self-evolve provider. Registers as `ctx.selfEvolveBenchmark` on instantiation and routes all work through a `BenchmarkEngineCore` whose seams default to the `fork` subagent provider.',
+    methods: [
+      {
+        signature: 'readonly core: BenchmarkEngineCore',
+        description: 'The orchestration core whose seams this provider wires to the subagent runtime.',
+        parameters: [],
+      },
+      {
+        signature: 'runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
+        description: 'Run the full benchmark against the current agent state and persist the entry.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Evaluation options.' }],
+        returns: 'The aggregated scoreboard entry.',
+      },
+      {
+        signature: 'establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
+        description: 'Establish a single-run baseline score for a benchmark.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Evaluation options.' }],
+        returns: 'The baseline scoreboard entry.',
+      },
+      {
+        signature: 'optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult>',
+        description: 'Optimize a benchmark under strict improve-or-rollback.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Optimization options.' }],
+        returns: 'The loop outcome.',
+      },
+      {
+        signature: 'readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]>',
+        description: 'Read all persisted scoreboard entries for a benchmark.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }],
+        returns: 'Persisted entries, oldest first.',
+      },
+    ],
+  },
+  {
     key: 'sessionPersistence',
     summary: 'Durable append-only session storage.',
     description: 'Durable append-only session storage. Implementations preserve contiguous, losslessly JSON-serializable events; append resolves only after durability, and load balances a complete interrupted tail without rewriting committed events.',
@@ -3243,6 +3279,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ApiKeyRecord {\n    readonly kind: \'api-key\';\n    readonly key?: string;\n    readonly env?: Readonly<Record<string, string>>;\n}',
   },
   {
+    name: 'ApplyCandidate',
+    declaration: 'export type ApplyCandidate = (options: ApplyCandidateOptions) => Promise<{\n    agentStatePath: string;\n}>;',
+  },
+  {
+    name: 'ApplyCandidateOptions',
+    declaration: 'export interface ApplyCandidateOptions {\n    benchmarkId: BenchmarkId;\n    candidate: CandidateProposal;\n    agentStateDir: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
     name: 'ApprovalOutcome',
     declaration: 'export type ApprovalOutcome = \'allowed-once\' | \'rejected\' | \'cancelled\' | \'unavailable\';',
   },
@@ -3383,6 +3427,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
   },
   {
+    name: 'BenchmarkEngineCore',
+    declaration: 'export class BenchmarkEngineCore {\n    constructor(private readonly options: BenchmarkEngineOptions);\n    readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]>;\n    async runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    async optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult>;\n}',
+  },
+  {
+    name: 'BenchmarkEngineOptions',
+    declaration: 'export interface BenchmarkEngineOptions {\n    baseDir: string;\n    agentStateDir: string;\n    executeCase: ExecuteCase;\n    evaluateCase: EvaluateCase;\n    proposeCandidate: ProposeCandidate;\n    applyCandidate: ApplyCandidate;\n    restoreSnapshot: RestoreSnapshot;\n}',
+  },
+  {
+    name: 'BenchmarkId',
+    declaration: 'export type BenchmarkId = string;',
+  },
+  {
     name: 'Branded',
     declaration: 'export type Branded<B extends string> = string & {\n    readonly [BRAND]: B;\n};',
   },
@@ -3393,6 +3449,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CancelOptions',
     declaration: 'export interface CancelOptions {\n    keepInbox?: boolean | undefined;\n}',
+  },
+  {
+    name: 'CandidateProposal',
+    declaration: 'export interface CandidateProposal {\n    name: string;\n    description: string;\n    prediction: string;\n}',
+  },
+  {
+    name: 'CaseAggregate',
+    declaration: 'export interface CaseAggregate {\n    caseId: CaseId;\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    runs: CaseRunRecord[];\n}',
+  },
+  {
+    name: 'CaseId',
+    declaration: 'export type CaseId = string;',
   },
   {
     name: 'CaseLawDocType',
@@ -3409,6 +3477,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CaseLawSearchOptions',
     declaration: 'export type CaseLawSearchOptions = {\n    limit?: number;\n    docType?: CaseLawDocType;\n    court?: string;\n    excludeSource?: string;\n};',
+  },
+  {
+    name: 'CaseRunRecord',
+    declaration: 'export interface CaseRunRecord {\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    note?: string;\n}',
   },
   {
     name: 'ClientResponse',
@@ -3779,6 +3851,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
   },
   {
+    name: 'EvaluateCase',
+    declaration: 'export type EvaluateCase = (request: EvaluateCaseRequest) => Promise<EvaluateCaseResult>;',
+  },
+  {
+    name: 'EvaluateCaseRequest',
+    declaration: 'export interface EvaluateCaseRequest {\n    caseId: CaseId;\n    statement: string;\n    rubric?: string;\n    agentStatePath: string;\n    attempt: ExecuteCaseResult;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
+    name: 'EvaluateCaseResult',
+    declaration: 'export interface EvaluateCaseResult {\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    note?: string;\n}',
+  },
+  {
     name: 'EvolveCommit',
     declaration: 'export interface EvolveCommit {\n    proposal: EvolveProposal;\n    validation: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    commitSeq?: number;\n}',
   },
@@ -3793,6 +3877,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'EvolveTrigger',
     declaration: 'export type EvolveTrigger = \'idle-maintenance\' | \'pressure\' | \'user-command\' | \'validation-retry\';',
+  },
+  {
+    name: 'ExecuteCase',
+    declaration: 'export type ExecuteCase = (request: ExecuteCaseRequest) => Promise<ExecuteCaseResult>;',
+  },
+  {
+    name: 'ExecuteCaseRequest',
+    declaration: 'export interface ExecuteCaseRequest {\n    caseId: CaseId;\n    statement: string;\n    agentStatePath: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
+    name: 'ExecuteCaseResult',
+    declaration: 'export interface ExecuteCaseResult {\n    output: string;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n}',
   },
   {
     name: 'FailurePattern',
@@ -4299,6 +4395,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OpenDialogOptions {\n    title?: string;\n    defaultPath?: string;\n    properties?: (\'openFile\' | \'openDirectory\' | \'multiSelections\')[];\n}',
   },
   {
+    name: 'OptimizeLoopOptions',
+    declaration: 'export interface OptimizeLoopOptions {\n    reference?: ScoreboardEntry;\n    targetScore?: number;\n    maxRounds?: number;\n    runsPerCase?: number;\n    provider?: string;\n    modelId?: string;\n    thinkingLevel?: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
+    name: 'OptimizeResult',
+    declaration: 'export interface OptimizeResult {\n    benchmarkId: BenchmarkId;\n    referenceScore: number;\n    bestScore: number;\n    rounds: number;\n    accepted: boolean;\n    acceptedVersion?: number;\n    entries: ScoreboardEntry[];\n}',
+  },
+  {
     name: 'PatentAgent',
     declaration: 'export interface PatentAgent {\n    session: Session;\n}',
   },
@@ -4451,6 +4555,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ProposalValidationOutcome = {\n    kind: \'accepted\';\n    heldInPassed: number;\n    heldOutPassed: number;\n    regressions: [\n    ];\n    deconstructedScores: ValidationScores;\n    confidence: number;\n    replayEvidence: ReplayEvidence[];\n    nextRoundSuggestion: string;\n} | {\n    kind: \'rejected\';\n    reason: \'held-in-failed\' | \'held-out-regression\' | \'apply-failed\' | \'approval-denied\' | \'rate-limited\' | \'low-confidence\';\n    heldInPassed?: number;\n    heldOutPassed?: number;\n    regressions: string[];\n    diagnostic: string;\n    deconstructedScores?: Partial<ValidationScores>;\n    confidence?: number;\n    replayEvidence?: ReplayEvidence[];\n    nextRoundSuggestion: string;\n};',
   },
   {
+    name: 'ProposeCandidate',
+    declaration: 'export type ProposeCandidate = (options: ProposeCandidateOptions) => Promise<CandidateProposal>;',
+  },
+  {
+    name: 'ProposeCandidateOptions',
+    declaration: 'export interface ProposeCandidateOptions {\n    benchmarkId: BenchmarkId;\n    reference: ScoreboardEntry;\n    statement: string;\n    round: number;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
     name: 'ProviderRequestId',
     declaration: 'export type ProviderRequestId = Branded<\'ProviderRequestId\'>;',
   },
@@ -4543,6 +4655,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RestoredSessionOptions {\n    readonly seed: SessionEvent[];\n    readonly meta: SessionHeader;\n    readonly seedSource: \'persistence\';\n}',
   },
   {
+    name: 'RestoreSnapshot',
+    declaration: 'export type RestoreSnapshot = (options: {\n    version: number;\n    signal: AbortSignal;\n}) => Promise<void>;',
+  },
+  {
     name: 'ResumeAgentOptions',
     declaration: 'export interface ResumeAgentOptions {\n    readonly resumeSessionId: SessionId;\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
   },
@@ -4569,6 +4685,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RpcResult',
     declaration: 'export type RpcResult<T> = {\n    ok: true;\n    value: T;\n} | {\n    ok: false;\n    error: RpcError;\n};',
+  },
+  {
+    name: 'RunBenchmarkOptions',
+    declaration: 'export interface RunBenchmarkOptions {\n    version?: number;\n    runsPerCase?: number;\n    provider?: string;\n    modelId?: string;\n    thinkingLevel?: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
   },
   {
     name: 'RunnerFailureRule',
@@ -4621,6 +4741,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ScopeKey',
     declaration: 'export type ScopeKey = object;',
+  },
+  {
+    name: 'ScoreboardEntry',
+    declaration: 'export interface ScoreboardEntry {\n    version: number;\n    provider?: string;\n    modelId?: string;\n    thinkingLevel?: string;\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    cases: CaseAggregate[];\n    summaryTitle?: string;\n    summary?: string;\n}',
   },
   {
     name: 'SearchFileMatches',
