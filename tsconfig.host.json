@@ -259,6 +259,7 @@
     { "path": "./packages/bundle/web-app" },
     { "path": "./packages/bundle/desktop-app" },
     { "path": "./packages/bundle/self-evolve-app" },
+    { "path": "./packages/bundle/im" },
     { "path": "./packages/desktop/desktop" },
     { "path": "./packages/desktop/shell" },
     { "path": "./packages/desktop/directory-picker" },
@@ -332,6 +333,7 @@
     { "path": "./packages/patent/methodology" },
     { "path": "./packages/self-evolve/self-evolve" },
     { "path": "./packages/self-evolve/self-evolve-basic" },
+    { "path": "./packages/self-evolve/self-evolve-benchmark" },
     { "path": "./packages/self-evolve/tool-self-evolve" }
   ]
 }

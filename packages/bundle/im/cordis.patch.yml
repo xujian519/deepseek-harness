@@ -1,0 +1,13 @@
+# The dsh-im bundle patch: the optional IM integration layer over any surface
+# bundle. Declared by the `dsh.bundle.patch` manifest field; the profile
+# composer appends this bundle after base/web-app/desktop-app when a profile
+# opts into IM, so its rows keep the highest precedence over later surface
+# rows. The xmanrui-dsh-im row id is globally unique and is the sole content.
+#
+# IM is NOT a member of any shipped profile template: a profile enables it by
+# naming @deepseek-ai/dsh-im in its `dsh.profile.bundles` list (or the wrapper
+# is added through `dsh plugin --profile <name> add @deepseek-ai/dsh-im`).
+
+- insert:
+    - id: xmanrui-dsh-im
+      name: '@xmanrui/dsh-im'
