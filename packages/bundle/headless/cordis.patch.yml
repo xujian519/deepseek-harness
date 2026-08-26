@@ -6,8 +6,10 @@
 
 - id: system-prompt
   config:
-    persona: >-
+    persona: |-
       You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
+
+      Language policy: Always respond to the user in Simplified Chinese (简体中文) — chat replies, summaries, and explanations. Think and reason in Simplified Chinese as well. Keep code, identifiers, tool names, file paths, API/property names, and quoted UI strings in their original form.
 
 # The shared module-reload HMR row stays off; the launcher's watch-only
 # fallback still keeps the user patch layers live until the run exits.
