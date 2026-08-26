@@ -3,7 +3,7 @@
 - 创建日期：2026-08-19
 - 状态：**已实施（阶段 1–4）**——2026-08-19 评审通过「可落地」后落地；团队机制定为 `dsh-patent-teams` + `patent-team-composition`；阶段 5（打磨与验证）待完成。
 - 收敛记录（2026-08-25）：两套 patent 预设已收敛为一套。**正本 = 仓库 `apps/cli/config/agent-presets/patent/`**（git 跟踪；桌面打包把它部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 `~/.dsh/.agent-presets/patent/`（含 `patent-matter` / `patent-fact-check` / `patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow` 路线。
-- 前置文档：`patent-mode-design.md`（预设设计）、`docs/sati-as-dsh-plugins-plan.md`（插件移植计划，已实施完毕，本计划的插件层即其产物）
+- 前置文档：`docs/patent-mode-design.md`（预设设计）、`docs/sati-as-dsh-plugins-plan.md`（插件移植计划，已实施完毕，本计划的插件层即其产物）
 - 评审修订：workspace 包数 10→9 勘误、规则数口径、G5 缺口表述（规则门禁已实例化，缺口为事实核验闸门与审计链整合）、阶段 1 补技能发现接线、阶段 2 状态机定案、阶段 4 落地边界
 - 调研输入：开源社区专利/法律 AI 项目横向扫描（star 经 GitHub API 核验，2026-08-19）
 - 定位：**在已有插件层基础上，补齐"工作台"缺的五块拼图，分阶段落地为可用的专利律师日常作业环境**
@@ -17,7 +17,7 @@
 三条硬约束（延续既有决策）：
 1. **零 Sati 进程、零 MCP 桥**——全部能力以 DSH 原生插件 + preset + 技能承载；
 2. **法域以中国专利法体系为主**（CNIPA），检索源 Google Patents + CNIPA 公布公告；
-3. **幻觉防护为内建项**（七道防线，见 patent-mode-design.md §12），不是可选优化。
+3. **幻觉防护为内建项**（七道防线，见 docs/patent-mode-design.md §12），不是可选优化。
 
 ---
 
@@ -30,7 +30,7 @@
 | **插件层** | `packages/patent/` 9 个 workspace 包：`patent-core`（纯库：atoms 引擎、ModelPort、双轨 checker、evidence 引擎、claim-chart、图引擎，不单独挂载）、`patent-data`（nuo-patent 检索/元数据/法律状态）、`patent-knowledge`（knowledge.db：判例 FTS/法规/wiki/图谱）、`patent-workflow`（workflow/flexible-plan/plantask 状态机 + HITL 审批）、`patent-tools`（23 个模型可见工具）、`patent-rule`（规则引擎 + post-execute 门禁 + 证据守卫）、`patent-document`（render_patent_document：5 个文书模板 → HTML/PDF）、`tool-literature`、`methodology`（TRIZ） | ✅ 已移植（P0–P3 落地，git log 可查） |
 | **数据层** | `vendor/nuo-patent` v2.3.1（MIT 数据引擎）、本机 `knowledge.db`（21.5 万节点图谱/7.4 万判例/1500+ wiki 卡片，私有分发）、ego-browser 反爬接缝 | ✅ 就绪 |
 | **技能层（用户级）** | `~/.agents/skills/`：`patent-legal`（撰写四领域/检索/CNIPA 查询/下载/比对）、`document-processing`、`officecli`、`ego-browser`、`browserclaw` | ✅ 就绪，任何会话自动发现 |
-| **预设设计** | `patent-mode-design.md`：五层架构（人设/工具面/技能层/流程层/知识库）、五大流水线 L1–L5、三大 HITL 确认点、七道幻觉防线、证据链契约 | ✅ 已落地（正本 `apps/cli/config/agent-presets/patent/`） |
+| **预设设计** | `docs/patent-mode-design.md`：五层架构（人设/工具面/技能层/流程层/知识库）、五大流水线 L1–L5、三大 HITL 确认点、七道幻觉防线、证据链契约 | ✅ 已落地（正本 `apps/cli/config/agent-presets/patent/`） |
 
 ### 2.2 缺口（对照开源调研发现）
 
@@ -39,7 +39,7 @@
 | G1 | **patent preset 未落地** | 设计文档就绪，shipped 版（`apps/desktop/resources/mac/backend/config/agent-presets/patent/`，sati plan P4.4 产物）已含 persona/plan/7 技能/插件组但漏挂 `patent-data` 行；用户级 `~/.dsh/.agent-presets/patent/` 已落地（2026-08-19 复制 + 补行）；headless/desktop profile 独立依赖树不含 patent 包，会话级验证需 GUI | dsh-legal-work-bench（preset 目录结构样板） | 阶段 1 |
 | G2 | **案件管理（docket/matter）** | 无；设计文档只有 `_case-registry.md` 单文件索引 | dsh-legal-work-bench `legal-matter`（八级目录 + 六列状态机 + 只追加事件） | 阶段 2 |
 | G3 | **文书交付只有 HTML/PDF** | `patent-document` 渲染 5 个模板为 HTML/PDF；无 docx 原生修订 | patrick（agent 直接在 .docx 内以 Word tracked changes 起草/修改，接受或拒绝） | 阶段 3 |
-| G4 | **多专家协作是"按需 fork"，无持久团队** | patent-mode-design §8.4 定义了 5 个 `subagent_fork` 角色，一次性（`dsh-subagent-fork-in-process` 已具备） | dsh-agent-teams（captain + durable members + 依赖感知任务 + 事件驱动调度，源码已存于本机调研目录） | 阶段 4 |
+| G4 | **多专家协作是"按需 fork"，无持久团队** | docs/patent-mode-design §8.4 定义了 5 个 `subagent_fork` 角色，一次性（`dsh-subagent-fork-in-process` 已具备） | dsh-agent-teams（captain + durable members + 依赖感知任务 + 事件驱动调度，源码已存于本机调研目录） | 阶段 4 |
 | G5 | **事实核验闸门与审计链未实例化** | 规则门禁已实例化（`patent-rule` post-execute 门禁 + `patent-workflow` quality-gate/output-gate/approval 审计闭环）；缺口是"事实核验（法条/判例/对比文件/日期数字）+ 合规审查"双闸门技能与案件级审计链无落地样板 | dsh-legal-work-bench（04 事实核验 + 05 合规审查 Fail-Closed + 16 审计链哈希链） | 阶段 2/3 |
 
 ---
@@ -73,7 +73,7 @@
 
 ### 阶段 1 · patent preset 落地（G1）
 
-**做什么**：把 `patent-mode-design.md` §3–§4 的目录结构与 `agent.cordis.yml` 落地为 `~/.dsh/.agent-presets/patent/`；在工具行中**挂载 `dsh-patent-*` 插件族**（不是设计文档里的"零代码纯工具行"——现状已演进为插件已移植，preset 直接接线）。
+**做什么**：把 `docs/patent-mode-design.md` §3–§4 的目录结构与 `agent.cordis.yml` 落地为 `~/.dsh/.agent-presets/patent/`；在工具行中**挂载 `dsh-patent-*` 插件族**（不是设计文档里的"零代码纯工具行"——现状已演进为插件已移植，preset 直接接线）。
 
 **关键动作**：
 1. `preset.yml`：name「专利模式」，description，order 5（字段与语法照 `packages/preset/agent-presets/src/metadata.ts` 与 `liangshen/preset.yml` 样板）；
@@ -96,7 +96,7 @@
 3. 双闸门技能 `patent-fact-check`（法条/判例/对比文件/日期数字核验）+ `patent-compliance-review`（规则检查清单，复用 `dsh-patent-rule` 的 `rule_check` 工具与规则库），Fail-Closed：闸门不过不交付；
 4. 三 HITL 门（检索式/布局/放行）经 `ctx.approval` 接线（`patent-workflow` 已有 plantask approval 接缝，`packages/patent/patent-workflow/src/index.ts`）。
 
-**参考**：`dsh-legal-work-bench`（matter/audit-log/gate 三个技能）；`patent-mode-design.md` §5、§8.3、§12.3。
+**参考**：`dsh-legal-work-bench`（matter/audit-log/gate 三个技能）；`docs/patent-mode-design.md` §5、§8.3、§12.3。
 
 **验收**：建一个虚拟案子，跑完「建案 → 检索 → 分析 → 撰写 → 门禁 → 归档」，事件日志完整、审计链可追溯、双闸门能拦截一处人为注入的错误法条。
 
@@ -129,7 +129,7 @@
 
 ### 阶段 5 · 打磨与验证（全流程）
 
-**做什么**：按 `patent-mode-design.md` §10 P4 的验收标准，用真实案件跑通三类典型任务。
+**做什么**：按 `docs/patent-mode-design.md` §10 P4 的验收标准，用真实案件跑通三类典型任务。
 
 **关键动作**：
 1. L1→L3 完整流水线（交底书 → 检索 → 三性 → 撰写 → 门禁）跑通一次；

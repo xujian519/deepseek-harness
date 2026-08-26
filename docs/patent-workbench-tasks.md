@@ -86,7 +86,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
       name: '@deepseek-ai/dsh-patent-knowledge'
 ```
 
-- [ ] **Step 5: 决策点——`tool-web` 的 `fetch` 取值**：设计文档 `patent-mode-design.md` §4 草案为 `fetch: true`（幻觉防线 2 要求交付前用 web_fetch 打开原文验证），母计划写 `fetch: false`（称有已提交的 fix）。落地时核对：fix 是否覆盖"引用前打开原文验证"这一防线职责；若未覆盖，保持 `fetch: true`。把结论写进阶段 1 检查清单第 8 项。
+- [ ] **Step 5: 决策点——`tool-web` 的 `fetch` 取值**：设计文档 `docs/patent-mode-design.md` §4 草案为 `fetch: true`（幻觉防线 2 要求交付前用 web_fetch 打开原文验证），母计划写 `fetch: false`（称有已提交的 fix）。落地时核对：fix 是否覆盖"引用前打开原文验证"这一防线职责；若未覆盖，保持 `fetch: true`。把结论写进阶段 1 检查清单第 8 项。
 
 - [ ] **Step 6: 语法自检**：`agent.cordis.yml` 中所有发布服务的行都在组内且组带 `isolate`；文件为 ESM 可解析 YAML（无 `!js` 之外的标签）。
 
@@ -97,7 +97,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 
 - [ ] **Step 1: 读取全文来源**
 
-读 `patent-mode-design.md` §6，复制完整 persona 文本（五块：身份与专业边界 / 作业纪律 1–7 / 标准作业流程 / 工具与技能 / 输出纪律含免责声明）。
+读 `docs/patent-mode-design.md` §6，复制完整 persona 文本（五块：身份与专业边界 / 作业纪律 1–7 / 标准作业流程 / 工具与技能 / 输出纪律含免责声明）。
 
 - [ ] **Step 2: 写入 persona 行**（`id: persona`，`name: '@deepseek-ai/dsh-persona'`，`config.text` 为全文）。
 
@@ -108,7 +108,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 **Files:**
 - Modify: `~/.dsh/.agent-presets/patent/agent.cordis.yml`（planning 组）
 
-- [ ] **Step 1: 写入 planning 组**（`cordis:group` + `isolate: { planMode: true }`，`@deepseek-ai/dsh-plan-mode` 的 `config.section` 用 `patent-mode-design.md` §8.2 全文）：
+- [ ] **Step 1: 写入 planning 组**（`cordis:group` + `isolate: { planMode: true }`，`@deepseek-ai/dsh-plan-mode` 的 `config.section` 用 `docs/patent-mode-design.md` §8.2 全文）：
 
 ```yaml
 # ── plan mode（定制段落：专利作业纪律）──
@@ -138,7 +138,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 - Create: `~/.dsh/.agent-presets/patent/skills/<skill-name>/SKILL.md`（7 个，见下表）
 - Modify: `~/.dsh/.agent-presets/patent/agent.cordis.yml`（skill-filesystem 行指向 preset skills/）
 
-- [ ] **Step 1: 写 7 个技能 SKILL.md**（frontmatter 用 `name` + `description` 两字段；正文按下表"要点"展开，改写技能先读 `patent-mode-design.md` §7.3 的改写规则——`patent_kg_query`/`law_search`/`<memory-context>`/`patent_workflow_run` 等 Sati 引用一律替换为 Harness 工具）：
+- [ ] **Step 1: 写 7 个技能 SKILL.md**（frontmatter 用 `name` + `description` 两字段；正文按下表"要点"展开，改写技能先读 `docs/patent-mode-design.md` §7.3 的改写规则——`patent_kg_query`/`law_search`/`<memory-context>`/`patent_workflow_run` 等 Sati 引用一律替换为 Harness 工具）：
 
 | 技能目录名 | 来源 | 职责与要点（摘自设计文档 §7.2） | 产物 |
 |---|---|---|---|
@@ -187,7 +187,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 **Files:**
 - Create: `~/.dsh/.agent-presets/patent/skills/patent-matter/SKILL.md`
 
-- [ ] **Step 1: 写技能正文**：案件 = 七级业务子目录（`patent-workspace/<案号>/` 下 `00-交底书` → `01-检索` → `02-对比文件` → `03-分析` → `04-撰写` → `05-答复` → `99-知识库` + 根 `_case-registry.md` + `_matter-log.md`，目录名与 `patent-mode-design.md` §5 完全一致）+ 六列状态机（**按 L1–L5 流水线阶段定案**：open/retrieving/analyzing/drafting/review/closed 仅作展示别名）+ **只追加事件日志** `_matter-log.md`（每步记录时间/动作/产物/审批人，追加不覆写）。
+- [ ] **Step 1: 写技能正文**：案件 = 七级业务子目录（`patent-workspace/<案号>/` 下 `00-交底书` → `01-检索` → `02-对比文件` → `03-分析` → `04-撰写` → `05-答复` → `99-知识库` + 根 `_case-registry.md` + `_matter-log.md`，目录名与 `docs/patent-mode-design.md` §5 完全一致）+ 六列状态机（**按 L1–L5 流水线阶段定案**：open/retrieving/analyzing/drafting/review/closed 仅作展示别名）+ **只追加事件日志** `_matter-log.md`（每步记录时间/动作/产物/审批人，追加不覆写）。
 
 - [ ] **Step 2: 写建案命令**：给出建案动作序列（mkdir 八目录 + 写 `_case-registry.md` 案号行 + 初始化 `_matter-log.md` 首行），作为技能内的可执行步骤。
 
@@ -312,7 +312,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 **Files:**
 - Modify: `~/.dsh/.agent-presets/patent/skills/patent-quality-gate/SKILL.md`
 
-- [ ] **Step 1: 写入互评流程**：quality-gate 阶段按需 fork 角色（`patent-mode-design.md` §8.4 表：检索员 / 新颖性审查员 / 创造性审查员 / 对立审查员 / 无效反方），给每个角色的 fork 提示词要点（角色名 + 攻击性任务 + 触发时机）。
+- [ ] **Step 1: 写入互评流程**：quality-gate 阶段按需 fork 角色（`docs/patent-mode-design.md` §8.4 表：检索员 / 新颖性审查员 / 创造性审查员 / 对立审查员 / 无效反方），给每个角色的 fork 提示词要点（角色名 + 攻击性任务 + 触发时机）。
 
 - [ ] **Step 2: 实测**：L3 撰写完成后 fork 对立审查员对交付稿挑刺（不清楚/不支持/超范围/缺必要技术特征），确认互评意见能回流并触发修订。
 
@@ -388,7 +388,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 
 ### 占位符扫描结论
 
-无 TBD / TODO / "later" / "fill in details" 类占位符。来源引用均为可读取的确定路径：`patent-mode-design.md` §4/§5/§6/§7.2/§7.3/§8.2/§8.4（本仓库已跟踪）、`packages/patent/patent-*/README.md`（插件装配说明）、`~/.sati/调研/DeepSeek-Harness/源码素材-dsh-agent-teams`（本地源码）。插件行的 config 以各插件 README 为准，是执行步骤而非占位符。
+无 TBD / TODO / "later" / "fill in details" 类占位符。来源引用均为可读取的确定路径：`docs/patent-mode-design.md` §4/§5/§6/§7.2/§7.3/§8.2/§8.4（本仓库已跟踪）、`packages/patent/patent-*/README.md`（插件装配说明）、`~/.sati/调研/DeepSeek-Harness/源码素材-dsh-agent-teams`（本地源码）。插件行的 config 以各插件 README 为准，是执行步骤而非占位符。
 
 ### 名称一致性核对
 

@@ -5,7 +5,7 @@
 - 决策记录：2026-08-17 用户确认路线 A（原生移植），先出详细实施计划再动手；同日评审修订：许可证策略定案（迁入包 MIT，见 §1.4）、耦合面 6 点→9 点勘误、post-execute/subprocess 契约勘误
 - 文档副本：主副本 Sati `docs/sati-as-dsh-plugins-plan.md`；实施副本 deepseek-harness `docs/sati-as-dsh-plugins-plan.md`（2026-08-17 复制）
 - 上游调研：`deepseek-harness/docs/plugin-authoring.md`（插件契约）、`docs/architecture.md`（扩展点地图）、`docs/capability-seams.md`（能力接缝）、`docs/cookbook/adding-a-tool.md`（工具契约）、`docs/cordis-primer.md`（框架语义）、`packages/AGENTS.md`（包规则）、`packages/todo/tool-todo`（参考插件）
-- 前置文档：`deepseek-harness/patent-mode-design.md`（专利模式预设设计，本计划的 preset 组装阶段复用其 §4–§9 内容）
+- 前置文档：`deepseek-harness/docs/patent-mode-design.md`（专利模式预设设计，本计划的 preset 组装阶段复用其 §4–§9 内容）
 
 ---
 
@@ -13,9 +13,9 @@
 
 Sati 与 deepseek-harness（dsh）此前的关系是**单向引入**：`docs/deepseek-harness-phase1/2/4-plan.md` 把 dsh 的工程纪律（可逆注册、单调 guard、会话日志单一事实源、重放测试、输出契约）落地为 Sati 变体。本计划方向反转——**把 Sati 专利域能力原生移植为 `@deepseek-ai/dsh-*` 插件族**，使 dsh 在无 Sati 进程的前提下具备完整的专利作业能力。
 
-### 1.1 与 patent-mode-design.md 的关系（决策修订点，需用户知晓）
+### 1.1 与 docs/patent-mode-design.md 的关系（决策修订点，需用户知晓）
 
-`deepseek-harness/patent-mode-design.md`（2026-08 已批准）的三条决策之一是「只搬内容，永不接 Sati——不移植其运行时引擎（Pregel / workflow 状态机 / checkpoint）」。本计划选择路线 A，**对该决策做定向修订**：
+`deepseek-harness/docs/patent-mode-design.md`（2026-08 已批准）的三条决策之一是「只搬内容，永不接 Sati——不移植其运行时引擎（Pregel / workflow 状态机 / checkpoint）」。本计划选择路线 A，**对该决策做定向修订**：
 
 | 原决策 | 本计划修订 |
 |---|---|
@@ -163,7 +163,7 @@ patent 域对模型调用的入口极窄（直接 `stream` 3 处：chemistry/fig
 | `dsh-patent-document` | `src/patent/document/`（templateResolver/brandInjector/pdfRenderer/renderPatentDocument）+ `assets/templates/patent/`（5 模板） | 函数插件（工具） | `dsh-patent-core` |
 | `dsh-tool-literature` | `src/literature/`（arXiv/OpenAlex/S2/Crossref 连接器 + 限速缓存） | 函数插件（2 工具：paper_list_sources/paper_search） | 轻依赖：`src/network/fetch.js`（`networkFetch` 值依赖）+ `SatiToolRuntimeError` 错误类 + 若干 type-only，随包搬运适配（**非零依赖**，最早可独立交付） |
 | `dsh-methodology` | `src/methodology/`（TRIZ 40 原理 + 39×39 矩阵 data） | 函数插件（section + 工具） | 无 |
-| `patent` preset | 沿用 patent-mode-design.md §4–§9（agent.cordis.yml + 7 个新写技能 + 4 个改写技能 + 工作目录约定） | agent preset（用户目录或 dsh bundle） | 上述全部 |
+| `patent` preset | 沿用 docs/patent-mode-design.md §4–§9（agent.cordis.yml + 7 个新写技能 + 4 个改写技能 + 工作目录约定） | agent preset（用户目录或 dsh bundle） | 上述全部 |
 
 ### 3.2 依赖图
 
@@ -215,7 +215,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 |---|---|---|
 | P0.1 | 在 dsh 仓库建立 `packages/patent/` 组目录 + 9 个包的脚手架（package.json/tsconfig/tsdown/invariant 空壳 + README 规范模板） | 包骨架，`pnpm build` 通过 |
 | P0.2 | 敲定 6 个适配点（§3.3）的接口签名：ModelPort、工具契约映射表、guard 接线、approval 映射、subprocess 注入、域裁剪；并定案 `patent-knowledge:install` 命令载体与数据来源（本机真源/自备库路径，§3.4） | 接口契约文档（本文档 §3.3 定稿版）+ 数据准备定案记录 |
-| P0.3 | 与 patent-mode-design.md 决策修订确认（§1.1 修订点用户签字） | 决策记录 |
+| P0.3 | 与 docs/patent-mode-design.md 决策修订确认（§1.1 修订点用户签字） | 决策记录 |
 | P0.4 | 本地库准备验证：跑 `trim-knowledge-db.ts` 生成裁剪库 + 测体积 + 检索能力保留矩阵（单机直用可跳过裁剪） | 裁剪库体积报告 + 能力保留矩阵 |
 | P0.5 | 许可证落地（§1.4）：包级 LICENSE（MIT）+ dsh 根 THIRD_PARTY_NOTICES.md 登记（nuo-patent 及三依赖、PilotDeck 出处保留）+ P1.1 迁入时出处审计 | 许可证落地记录 |
 
@@ -262,7 +262,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 | P4.1 | `dsh-patent-rule`：`src/rule/` 引擎移植（YAML 加载/评估/输出门禁）+ `rules/patent/compliance.yaml` 等资产随包分发 + 输出门禁接线 `tools/post-execute` | P3.1 | 规则资产随包；分层规则包（base/domains/pack.yaml）语义保留；`RuleOutputGate` 实现注入 workflow 门禁调用点（review → `ctx.approval`） |
 | P4.2 | evidenceComplianceGuards → `ctx.tools.guard()` 注册 | P4.1 | EVI-011 语义不变，guard 无 HITL |
 | P4.3 | `dsh-methodology`：TRIZ 组件 + data 随包分发（section + 工具） | P0.1 | 独立交付 |
-| P4.4 | patent preset：沿用 patent-mode-design.md §4 agent.cordis.yml + §5 工作目录 + §6 persona + §7 技能（7 新写 + 4 改写）+ §8 流水线 + §9 知识库策略（改为读 `dsh-patent-knowledge` 而非"无引擎文件库"） | P1–P3 全部 | 原设计 §9 的"无引擎版"升级为"引擎版"：`99-知识库/` 保留为项目级沉淀，系统库走 dsh-patent-knowledge |
+| P4.4 | patent preset：沿用 docs/patent-mode-design.md §4 agent.cordis.yml + §5 工作目录 + §6 persona + §7 技能（7 新写 + 4 改写）+ §8 流水线 + §9 知识库策略（改为读 `dsh-patent-knowledge` 而非"无引擎文件库"） | P1–P3 全部 | 原设计 §9 的"无引擎版"升级为"引擎版"：`99-知识库/` 保留为项目级沉淀，系统库走 dsh-patent-knowledge |
 | P4.5 | P4 验收 + 全链回归 | | 见 §5 |
 
 **P4 验收**：交付物工具（draft_*/render_patent_document）输出被门禁拦截且可经 approval 放行；EVI-011 guard 在 session allow 存在时仍 deny（单调）；patent preset 新会话可选，persona/技能/流程生效。
@@ -293,7 +293,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 |---|---|---|---|---|
 | P0.1 | 9 包脚手架 + invariant 空壳 + README 模板 | — | 1d | ⬜ |
 | P0.2 | 6 适配点接口定稿（ModelPort/工具映射/guard/approval/subprocess/域裁剪）+ install 命令载体/数据来源定案 | — | 2d | ⬜ |
-| P0.3 | patent-mode-design.md 决策修订确认 | — | 0.5d | ⬜ |
+| P0.3 | docs/patent-mode-design.md 决策修订确认 | — | 0.5d | ⬜ |
 | P0.4 | knowledge.db 本地裁剪库验证 + 检索能力保留矩阵 | — | 1d | ⬜ |
 | P0.5 | 许可证落地（MIT + THIRD_PARTY_NOTICES 登记 + 出处审计） | P0.3 | 0.5d | ⬜ |
 | P1.1 | nuo-patent 迁入 vendor（manifest+SHA） | P0.1 | 1d | ⬜ |
@@ -314,7 +314,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 | P4.1 | dsh-patent-rule（引擎 + 资产 + 输出门禁） | P3.1 | 4d | ⬜ |
 | P4.2 | evidenceComplianceGuards → tools.guard() | P4.1 | 1d | ⬜ |
 | P4.3 | dsh-methodology（TRIZ） | P0.1 | 2d | ⬜ |
-| P4.4 | patent preset 组装（沿用 patent-mode-design.md §4–§9） | P1–P3 | 5d | ⬜ |
+| P4.4 | patent preset 组装（沿用 docs/patent-mode-design.md §4–§9） | P1–P3 | 5d | ⬜ |
 | P4.5 | P4 验收 + 全链回归 | P4.1–P4.4 | 2d | ⬜ |
 
 **总计：约 12–19 人周**（P0 5d + P1 10d + P2 14d + P3 17d + P4 14d = 60d ≈ 12 周，按单人串行口径；P1/P2/P4.3 可并行）。
@@ -354,16 +354,16 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 
 - [ ] dsh 既有插件（tool-bash/fs/web/subagent 等）在 patent preset 下正常
 - [ ] Sati 本体测试不受影响（本计划不动 Sati 代码，除文档外零改动）
-- [ ] patent-mode-design.md §4–§9 的 preset 内容方案与引擎版知识库策略兼容（§9 修订点）
+- [ ] docs/patent-mode-design.md §4–§9 的 preset 内容方案与引擎版知识库策略兼容（§9 修订点）
 
 ---
 
 ## 8. 风险与注意事项
 
-1. **决策冲突（已决议，仍需文档同步）**：patent-mode-design.md「永不接 Sati」决策已由本次评审修订正式翻转（§1.1 + §1.4 许可证定案，P0.3/P0.5 落地）；实施时须同步更新该设计文档的 §1/§11，避免双文档矛盾。
+1. **决策冲突（已决议，仍需文档同步）**：docs/patent-mode-design.md「永不接 Sati」决策已由本次评审修订正式翻转（§1.1 + §1.4 许可证定案，P0.3/P0.5 落地）；实施时须同步更新该设计文档的 §1/§11，避免双文档矛盾。
 2. **裁剪库体积与私有同步**：本机直用无体积约束（真源 3.5 GB 可直接只读打开）；若需跨设备私有同步，裁剪库可能仍超百 MB，此时降级方案为「wiki 卡片 + 判例索引 + 按需回真源库查询」。P0.4 必须先出体积与能力保留报告。
 3. **双轨演进漂移**：Sati 本体与 dsh 插件的功能会自然分叉。对策：a) 等价性测试锁定已移植行为；b) 移植后 Sati 侧专利域**冻结为只修 bug**（新增能力优先在 dsh 侧做）；c) 契约（outputSchema/错误码）两仓同步门禁。
-4. **白盒记忆缺位**：edgeclaw-memory-core 首期不移植，patent preset 的记忆靠「文件即库」（patent-mode-design.md §9 的 `99-知识库/` 约定）+ 会话日志。若后续要移植，edgeclaw-memory-core 是独立 workspace 子包，可整体作为 dsh 依赖（工作量另行评估）。
+4. **白盒记忆缺位**：edgeclaw-memory-core 首期不移植，patent preset 的记忆靠「文件即库」（docs/patent-mode-design.md §9 的 `99-知识库/` 约定）+ 会话日志。若后续要移植，edgeclaw-memory-core 是独立 workspace 子包，可整体作为 dsh 依赖（工作量另行评估）。
 5. **智能路由不移植的影响**：Sati 的多 provider fallback/场景路由不随迁；harness 用 `ctx.llm` 适配器注册 + `agent/request` 瀑布承担等价职责，但「路由后压缩」「零用量重试」等 Sati 特有语义不保留——需要用户确认接受（或 P3 后按需以 dsh 插件补丁形式实现）。
 6. **native 依赖打包**：`@rdkit/rdkit`（化学识别）、`sharp`/`mupdf`（PDF/图处理）是重型 native 依赖，dsh 侧打包策略需评估（Node ABI 兼容、体积）。首期对策：`recognize_chemical_structure`/PDF 渲染标记为「可选安装」（preset 内技能说明），核心作业链（检索/分析/撰写/门禁）不依赖它们。
 7. **ego-browser 反爬的运维责任**：反爬脚本随 `dsh-patent-data` 分发，站点反爬升级需要同步维护；dsh 侧无 Sati 的 `skills/ego-browser` 学习目录，首期用静态脚本 + 显式降级（fetch 回退），学习目录二期评估。
@@ -392,7 +392,7 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 
 ### 10.1 P0.3 决策修订确认（用户批准）
 
-2026-08-17 用户指示「根据 docs/sati-as-dsh-plugins-plan.md 执行」，视为对 §1.1 决策修订点的批准：移植专利域引擎（workflow/plantask/graph/atoms）为 dsh 插件包；维持零 Sati 进程、零 MCP 桥；patent-mode-design.md §4–§9 保留为 Phase 4 preset 组装蓝本。同步动作（风险 1）：patent-mode-design.md 的 §1/§11 需在 P4.4 组装时更新，避免双文档矛盾。
+2026-08-17 用户指示「根据 docs/sati-as-dsh-plugins-plan.md 执行」，视为对 §1.1 决策修订点的批准：移植专利域引擎（workflow/plantask/graph/atoms）为 dsh 插件包；维持零 Sati 进程、零 MCP 桥；docs/patent-mode-design.md §4–§9 保留为 Phase 4 preset 组装蓝本。同步动作（风险 1）：docs/patent-mode-design.md 的 §1/§11 需在 P4.4 组装时更新，避免双文档矛盾。
 
 ### 10.2 P0.1 包脚手架（9 包 + 组 README）
 
@@ -555,9 +555,9 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 ### 12.8 P4.4 完成：patent agent preset（2026-08-17）
 
 - 交付：apps/cli/config/agent-presets/patent/（12 文件全新建，未动任何共享文件）：agent.cordis.yml（281 行 / 21 行）+ preset.yml（name: 专利模式, order: 5）+ 双语 README（Model Experience + Known Limitations 置末）+ 7 个技能 SKILL.md。
-- agent.cordis.yml：保留 patent 工作流所需 standard 行，按 patent-mode-design.md §4 移除 tool-ralph；patent 服务行（patent-knowledge / patent-workflow）置于 cordis:group + isolate realm（patentKnowledge/patentWorkflow），patent-tools 同 realm 消费 ctx.get('patentKnowledge')；patent-rule / patent-document / tool-literature / methodology 为函数插件不入 realm；persona（§6）与 plan-mode section（§8.2 前置 standard 机制）写入；skill-filesystem.customSkillDirs（!!js baseUrl → preset skills/）；tool-web.fetch: true。
+- agent.cordis.yml：保留 patent 工作流所需 standard 行，按 docs/patent-mode-design.md §4 移除 tool-ralph；patent 服务行（patent-knowledge / patent-workflow）置于 cordis:group + isolate realm（patentKnowledge/patentWorkflow），patent-tools 同 realm 消费 ctx.get('patentKnowledge')；patent-rule / patent-document / tool-literature / methodology 为函数插件不入 realm；persona（§6）与 plan-mode section（§8.2 前置 standard 机制）写入；skill-filesystem.customSkillDirs（!!js baseUrl → preset skills/）；tool-web.fetch: true。
 - 技能（§7.2/§7.3 规则）：patent-disclosure-understanding / patent-prior-art-search / patent-novelty-inventiveness（Sati novelty+inventiveness 合并）/ patent-infringement / patent-invalidity / patent-quality-gate / patent-workspace-layout；Sati 工具引用改 dsh 工具、<memory-context> 改显式必查清单、Sati 内部路径改工作目录相对路径。
-- 知识库策略（计划 P4.4 修订 §9）：系统知识读 dsh-patent-knowledge（patent_case_search / patent_wiki_search / patent_kg_query，法条经 patent_case_search + web_fetch），99-知识库/ 保持项目级沉淀；README 明示与 patent-mode-design.md §9 的差异。
+- 知识库策略（计划 P4.4 修订 §9）：系统知识读 dsh-patent-knowledge（patent_case_search / patent_wiki_search / patent_kg_query，法条经 patent_case_search + web_fetch），99-知识库/ 保持项目级沉淀；README 明示与 docs/patent-mode-design.md §9 的差异。
 - 验证：YAML 解析 21 行、技能 front-matter 全有效、单尾换行；verify-md-wrap（1919）/ verify-md-links（1956）全绿；verify-cordis-config 仅因对方窗口 self-evolve 2 处红，preset 零归因。
 - 中央接线（父代理）：apps/cli/package.json dependencies 增 7 个专利包（workspace:^：patent-knowledge/patent-workflow/patent-tools/patent-rule/patent-document/tool-literature/methodology）；pnpm install 更新锁文件（16 处 patent 引用）；package:desktop:prepare 成功，desktop 镜像携带 patent preset + 6 个专利包（patent-core/data 传递依赖）。
 
@@ -568,10 +568,10 @@ patent preset：组装以上全部（P4.1 起 rule 引擎注入 workflow 输出�
 - §7.1 静态与构建：专利 9 包逐包 tsc -b 0 错误；许可证落地（包 LICENSE MIT + THIRD_PARTY_NOTICES 登记 nuo-patent）；pnpm typecheck / lint / build / hygiene / doc-sync 全仓级仅因对方窗口 self-evolve 未完成而红（tsconfig.host.json 引用损坏、缺 lib/、缺 README、JSDoc 违规、生成器完整性守卫），非本计划产物。
 - §7.2 测试：每包 tests/ 全绿（851 用例 / 110 文件，含 Sati spec 搬运）；等价性（graph/atoms/claim-chart/checker）完成；REAL-composition（Loader 组合）与 HMR-safety 在 P3.1 覆盖；invariant 门禁专利包全符合。keyless 快照未做：本环境无 DEEPSEEK_API_KEY 且无 patent 可运行示例，该条目标记为待补（单元覆盖 + spec 搬运替代，见 Agent Note）。
 - §7.3 行为验证：EVI-011 guard 单调 deny、图片工具文本模型拒用（点名模型）、patent-knowledge:install 引导均有单元测试覆盖；实机 dsh --profile patent 链跑需要 API key，本环境不可执行，标记为待 keyed 环境验证。
-- §7.4 回归：Sati 本体零改动（只读源）；patent preset 下既有插件回归待实机验证；patent-mode-design.md §4–§9 与引擎版知识库策略兼容（P4.4 修订，README 记录）。
+- §7.4 回归：Sati 本体零改动（只读源）；patent preset 下既有插件回归待实机验证；docs/patent-mode-design.md §4–§9 与引擎版知识库策略兼容（P4.4 修订，README 记录）。
 
 ### 13.2 提交协调（对方窗口并发工作未提交）
 
-- 本回合提交范围：纯新增专利域文件（packages/patent/ 10 包、vendor/nuo-patent/、apps/cli/config/agent-presets/patent/、docs/sati-as-dsh-plugins-plan.md、patent-mode-design.md、docs/subsystems/patent.*、Agent Note 三件套）。
+- 本回合提交范围：纯新增专利域文件（packages/patent/ 10 包、vendor/nuo-patent/、apps/cli/config/agent-presets/patent/、docs/sati-as-dsh-plugins-plan.md、docs/patent-mode-design.md、docs/subsystems/patent.*、Agent Note 三件套）。
 - 共享文件修改（与对方窗口 self-evolve 内容同文件或锁文件）本回合不提交，待对方窗口完成后随协调提交：docs/tool-catalog.{md,zh,i18n}、docs/capability-seams.*、docs/event-producer-consumer.*、docs/persistence-catalog.*、docs/subsystems/README.*、packages/README.*、packages/core/session/src/known-event-types.ts、packages/extensions/tool-cordis/src/api-catalog.ts、scripts/{check-workspace-constraints,gen-cordis-catalog,gen-doc-graphs,gen-tool-catalog,translation-pairing.manifest,type-equiv.manifest,verify-package-readme-model-experience}、THIRD_PARTY_NOTICES.md、vendor/README.md、apps/cli/package.json（专利 7 依赖）、pnpm-lock.yaml、tsconfig.base.json（对方 wildcard）、tsconfig.host.json（对方损坏引用 + 我方 9 包引用）、packages/bundle/base/cordis.patch.yml（对方）、apps/cli/composition.md（对方）。
 - 上述共享修改中的我方部分均已验证（851 用例、可归因门禁全绿、desktop 镜像携带 preset），随对方窗口收尾一并落地即可。

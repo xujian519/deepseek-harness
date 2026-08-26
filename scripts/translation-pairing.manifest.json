@@ -4,6 +4,7 @@
     ".agents/notes/implemented/AGENTS.md",
     ".agents/notes/implemented/CLAUDE.md",
     "docs/AGENTS.md",
+    "docs/BENCHMARK.md",
     "docs/cordis-api/inherited.md",
     "docs/i18n/style-samples.md",
     "docs/i18n/terminology.md",
@@ -11,6 +12,8 @@
     "docs/sati-as-dsh-plugins-plan.md",
     "docs/patent-workbench-plan.md",
     "docs/patent-workbench-tasks.md",
+    "docs/patent-mode-design.md",
+    "docs/TECH_DEBT.md",
     "packages/patent/patent-document/assets/templates/patent/README.md"
   ]
 }

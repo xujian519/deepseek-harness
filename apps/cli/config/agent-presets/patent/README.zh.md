@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。它以 `standard` preset 为基础，加入专利域插件、7 个预设内技能，以及专利专用的人设与计划模式纪律，按 patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。
+`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。它以 `standard` preset 为基础，加入专利域插件、7 个预设内技能，以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。
 
 ## 挂载内容
 
@@ -41,7 +41,7 @@ skills/ 下随附 8 个技能：
 
 按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文经 patent_case_search 加 web_fetch（挂载 fetch provider 时）核验权威来源。工作目录 `99-知识库/` 仍为项目级沉淀，用 fs-search / grep 先查本地再上网。
 
-这修订了 patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
+这修订了 docs/patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
 
 ## 前置条件
 

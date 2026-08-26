@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, seven preset skills, and a patent-specific persona and plan-mode discipline, assembled per patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md.
+The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, seven preset skills, and a patent-specific persona and plan-mode discipline, assembled per docs/patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md.
 
 ## What it mounts
 
@@ -41,7 +41,7 @@ The novelty/inventiveness, infringement, and invalidity skills are rewritten fro
 
 Per plan P4.4, system knowledge reads dsh-patent-knowledge: case law, wiki cards, and the knowledge graph through patent_case_search / patent_wiki_search / patent_kg_query, with law text verified through patent_case_search plus web_fetch on authoritative sources when a fetch provider is mounted. The workspace `99-知识库/` directory stays project-level accumulation, recalled with fs-search / grep before going online.
 
-This revises patent-mode-design.md §9, which described a no-engine file library. `99-知识库/` remains project accumulation; the change is that system knowledge now has an engine.
+This revises docs/patent-mode-design.md §9, which described a no-engine file library. `99-知识库/` remains project accumulation; the change is that system knowledge now has an engine.
 
 ## Prerequisites
 

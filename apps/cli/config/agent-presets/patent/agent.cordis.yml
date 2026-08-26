@@ -1,6 +1,6 @@
 # The `patent` agent preset: the full patent-agent, mounted once per process.
 #
-# Built on the `standard` preset and assembled per patent-mode-design.md §4–§9
+# Built on the `standard` preset and assembled per docs/patent-mode-design.md §4–§9
 # (plan P4.4). It adds the patent domain packages — patent-knowledge,
 # patent-workflow, patent-tools, patent-rule, patent-document, tool-literature,
 # and methodology — and replaces the coding persona/plan-mode section with the
@@ -129,7 +129,7 @@
 
 # Plan state is per-agent by nature, so an entry-local realm is the correct
 # lifetime. The section carries the patent-specific planning discipline first
-# (patent-mode-design.md §8.2) and then the standard plan-mode mechanics.
+# (docs/patent-mode-design.md §8.2) and then the standard plan-mode mechanics.
 - id: planning
   name: cordis:group
   group: true
@@ -290,7 +290,7 @@
 # mount no fetch provider (that provider defers SSRF protection, see the base
 # layer comment), so `fetch: true` would register a web_fetch tool that fails
 # every call with WEB_PROVIDER_UNAVAILABLE. The verify-before-cite rule
-# (patent-mode-design.md §12) then relies on patent_case_search plus the
+# (docs/patent-mode-design.md §12) then relies on patent_case_search plus the
 # search provider's server-side retrieval; a deployment that needs to open
 # source pages must add a fetch provider itself, e.g.
 # `dsh plugin --profile patent add @deepseek-ai/dsh-web-fetch-http`.
