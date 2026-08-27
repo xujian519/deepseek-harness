@@ -22,9 +22,9 @@
 | `evaluate_evidence` | 证据 | `@deepseek-ai/dsh-patent-core` 证据引擎 |
 | `rule_check` | 质量 | `@deepseek-ai/dsh-patent-rule` 规则引擎 |
 | `analyze_patent_figure` | 分析 | ModelPort（按附图模型做图片输入门禁） |
-| `search_patent_figure` | 检索 | 附图索引关键词检索（不做图片门禁；当前装配 fail-loud——无索引写入方接线） |
+| `search_patent_figure` | 检索 | 附图索引关键词检索（索引由 `analyze_patent_figure` 写入，见 Config.figureIndexFile） |
 | `patent_pdf_download` | 文档 | browser-backend 冷决策：ego-browser 下载拦截 → browser-use 链接提取 + fetch 兜底 |
-| `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包） |
+| `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包）；索引写入已接线（Config.chemistryIndexFile） |
 | `flexible_plan` | 工作流 | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
 | `patent_workflow` | 工作流 | `@deepseek-ai/dsh-patent-workflow` 收口 |
 | `patent_workflow_run` | 工作流 | `@deepseek-ai/dsh-patent-workflow` + ModelPort |
@@ -33,6 +33,8 @@
 | `knowledge_note_save` | 知识 | Config.noteDir 下的文件写入器（默认 `<cwd>/99-知识库`） |
 
 `render_patent_document` 由 `@deepseek-ai/dsh-patent-document` 拥有（其 `apply()` 注册该工具）；本包仅再导出 `createRenderPatentDocumentTool` 与 `renderDocumentResult` 供库消费者使用，不重复注册，因此同时组合两个插件不会产生重名错误。
+
+`slop-gate` 是工作流原子，而非模型可见工具：`apply()` 将 `slopGateAtom` 与 `SlopGateHandler` 注册进全局注册表，因为该门依赖本包内联的反套话引擎。它基于 `state.claims_draft` 做确定性分析，写入 `slop_report` 与 `slop_score`；当草稿未达通过线时，额外写入仅含证据的 `slop_revision_hint`（命中短语与建议替换、结构性问题行级定位；绝不包含评分数字、总分或通过线）。`patent_disclosure_v1` manifest 的 `slop_clean` 阶段门控草稿，命中失败信号即回退到 `draft_claims`，使重写时注入该提示。库消费者同样获得 `slopGateAtom`、`SlopGateHandler`、`SLOP_GATE_PASS_THRESHOLD` 与提示构造器 `buildSlopRevisionHint`。
 
 ## 配置
 
@@ -45,6 +47,8 @@ Schemastery 配置，所有字段可选。
 | `imageModel` | object | — | 专用附图/图片模型路由（`{ provider, model }`），其声明的输入模态用于门禁 `analyze_patent_figure`；未设置时回退到 `provider`/`model`。 |
 | `maxTokens` | number | — | LLM 消费工具的输出 token 上限（可选）；省略时用 provider 默认值。 |
 | `noteDir` | string | `<cwd>/99-知识库` | `knowledge_note_save` 的知识笔记目录（绝对或相对 cwd）。 |
+| `figureIndexFile` | string | `<cwd>/.sati/figures-index.json` | 附图索引文件：`analyze_patent_figure` 写入分析条目、`search_patent_figure` 检索（绝对或相对 cwd）。 |
+| `chemistryIndexFile` | string | `<cwd>/.sati/chemistry-index.json` | `recognize_chemical_structure` 写入的化学索引文件（绝对或相对 cwd）。 |
 
 未设置 `provider`/ `model` 时，LLM 消费工具照常注册，但调用时 fail loud（`setup_required`）。知识类工具需要经 `patent-knowledge:install` 准备的 knowledge.db；缺失时 fail loud 并给出安装引导。
 
@@ -68,9 +72,9 @@ Schemastery 配置，所有字段可选。
 
 - **`render_patent_document` 归属** — 该工具由 `@deepseek-ai/dsh-patent-document` 注册，而非本包；本包仅再导出其工厂。
 - **`flexible_plan` 命名** — Sati 的 `patentFlexiblePlanTool.ts` 声明名为 `flexible_plan`（非 `patent_flexible_plan`）；dsh 工具信任 Sati 的 name 字段。
-- **图片模态门禁范围** — `analyze_patent_figure` 按解析出的附图模型路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；`search_patent_figure` 读取注入的索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。本装配无索引写入方接线，故 `search_patent_figure` 报 `setup_required`，待集成器注入后启用。
+- **图片模态门禁范围** — `analyze_patent_figure` 按解析出的附图模型路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；`search_patent_figure` 读取索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。索引由 `analyze_patent_figure` 写入 Config.figureIndexFile；索引缺失或为空时返回零命中并附引导提示，而非报错。
 - **化学引擎未移植** — `recognize_chemical_structure` 与 `validate_specification` 的化学表征检查降级为不可用，因为 `@rdkit/rdkit` 是未随包的可选原生依赖。
-- **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，多图一致性、网表可视化与 SMILES 解析延后。
+- **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，附图/化学索引存储（`figure/index-store`、`chemistry/index-store`）已接线写+读。多图一致性、网表可视化与 SMILES（RDKit）解析延后。
 - **知识笔记 / PDF 下载接线** — `knowledge_note_save` 将笔记写入 Config.noteDir 下的文件（knowledge.db 原生写 API 延后）；`patent_pdf_download` 经 browser-backend 冷决策（`@deepseek-ai/dsh-browser-backend`）解析批量运行器：macOS 上 ego-browser 优先（挂载 patent-data 服务时经 `ctx.patentData.createEgoSession()`），browser-use 链接提取 + fetch 为兜底通道；browseros-neo 与 playwright 参与探测但不参与下载。未挂载 patent-data 时 ego 通道以 setup 指引 fail-loud。ego-browser 下载拦截为尽力而为——浏览器无法保存的条目回退为对提取的 CDN URL 直接 fetch。
 - **移除语义召回** — `patent_case_search` 仅保留 FTS/LIKE；基于 embedding 的语义召回未移植（dsh 暂无向量基建）。
 - **证据规则资产** — `evaluate_evidence` 经 `@deepseek-ai/dsh-patent-rule` 的资产定位解析 `evidence-rules.yaml`；缺失时引擎降级为默认权重。

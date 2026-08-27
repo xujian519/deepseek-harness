@@ -15,9 +15,9 @@ import {
   renderSearchFigure,
   retrieveFiguresKeyword,
   tokenizeFigureText,
-  type FigureIndexEntry,
 } from '../src/tool/search-patent-figure.ts'
 import type { SearchPatentFigureOutput } from '../src/tool/search-patent-figure.ts'
+import type { FigureIndexEntry } from '../src/figure/index-store.ts'
 import { PatentToolError } from '../src/error.ts'
 
 const signal = new AbortController().signal
@@ -221,6 +221,48 @@ describe('analyze_patent_figure execute', () => {
       await expect(tool.execute({ image_path: 'fig1.png' }, { signal: controller.signal } as never)).rejects.toMatchObject({
         code: 'tool_aborted',
       })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('persists the normalized analysis into the injected index', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image')
+      const written: FigureIndexEntry[] = []
+      const tool = createAnalyzePatentFigureTool({
+        model: jsonModel(fullJson),
+        cwd: dir,
+        modelUsed: 'test-model',
+        upsertIndex: (entry) => { written.push(entry); return Promise.resolve() },
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'analyze_patent_figure', { image_path: 'fig1.png', figure_number: 1 }, 'f-5')
+      expect(result.isError).toBe(false)
+      expect(written).toHaveLength(1)
+      expect(written[0]?.imagePath).toBe('fig1.png')
+      expect(written[0]?.analysis.figureNumber).toBe(1)
+      expect(written[0]?.analysis.usable).toBe(true)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('swallows an upsert failure so the analysis result still returns', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image')
+      const tool = createAnalyzePatentFigureTool({
+        model: jsonModel(fullJson),
+        cwd: dir,
+        upsertIndex: () => Promise.reject(new Error('disk full')),
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'analyze_patent_figure', { image_path: 'fig1.png', figure_number: 1 }, 'f-6')
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      expect(text(result)).toContain('## 组件')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

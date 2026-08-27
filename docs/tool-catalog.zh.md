@@ -3382,7 +3382,7 @@ Usage notes:
 
 ### `patent_workflow_run`
 
-自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）及其他内置 manifest。图路径（graph=novelty|inventiveness|enablement）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）。以 input 字段提供输入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。
+自动执行声明式专利工作流（原子阶段）或领域图。Manifest 路径：patent_disclosure_v1（PFE 抽取 → 在先技术检索 → 逐特征新颖性 → 复核门 → 权利要求草稿）及其他内置 manifest。图路径（graph=novelty|inventiveness|enablement|citation-check）：一次调用运行完整领域图（LLM 节点 + 专利检索 + 确定性规则门）；citation-check 为确定性纯函数图，校验结论文本（inventiveness_conclusion/novelty_report/text）中的每个 D<id>/专利号引用均出现在 priorArt（以 JSON 数组传入）中。以 input 字段提供输入。复核门会暂停运行；再次调用时以 resumeCheckpointId（图路径）或 approveStageIds（manifest 路径）继续。提供 caseId 时，运行结果、Mermaid 图与图检查点持久化于 `<caseDir>/workflow-runs/`。需要模型端口。
 
 ```json
 {
@@ -3398,7 +3398,8 @@ Usage notes:
       "enum": [
         "novelty",
         "inventiveness",
-        "enablement"
+        "enablement",
+        "citation-check"
       ]
     },
     "resumeCheckpointId": {
@@ -3431,6 +3432,10 @@ Usage notes:
     "maxResults": {
       "type": "number",
       "description": "Max prior-art search results (default 5)."
+    },
+    "priorArt": {
+      "type": "string",
+      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
     }
   },
   "required": [

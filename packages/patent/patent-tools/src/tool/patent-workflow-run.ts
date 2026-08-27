@@ -49,7 +49,7 @@ import {
 } from './internal/workflow-helpers.ts'
 
 /** The domain graphs the graph path can run. */
-export type PatentWorkflowRunGraph = 'novelty' | 'inventiveness' | 'enablement'
+export type PatentWorkflowRunGraph = 'novelty' | 'inventiveness' | 'enablement' | 'citation-check'
 
 /** Tool input: manifest or graph path plus the material and approval controls. */
 export type PatentWorkflowRunInput = {
@@ -71,6 +71,8 @@ export type PatentWorkflowRunInput = {
   chartTargets?: string
   /** Max prior-art search results (default 5). */
   maxResults?: number
+  /** Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds against these). */
+  priorArt?: string
 }
 
 /** Tool canonical result: manifest-mode run record or graph-mode run state. */
@@ -122,7 +124,7 @@ export interface PatentWorkflowRunDeps extends WorkflowProviderDeps {
 }
 
 const DESCRIPTION = [
-  "Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call. Provide the input as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.",
+  "Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every D<id>/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.",
 ].join('\n')
 /** Render the graph-mode result into model-facing prose. */
 function renderGraphRun(value: PatentWorkflowRunOutput): string {
@@ -186,7 +188,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       manifestId: { type: 'string', description: "Workflow manifest id. Defaults to 'patent_disclosure_v1'." },
       graph: {
         type: 'string',
-        enum: ['novelty', 'inventiveness', 'enablement'],
+        enum: ['novelty', 'inventiveness', 'enablement', 'citation-check'],
         description: 'Domain graph to run end-to-end (takes precedence over manifestId).',
       },
       resumeCheckpointId: { type: 'string', description: 'Graph checkpoint id from a previous interrupted run; resumes from it.' },
@@ -200,6 +202,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       input: { type: 'string', required: true, description: 'Initial material consumed by the extract atoms.' },
       chartTargets: { type: 'string', description: 'claim-chart target objects JSON (default empty).' },
       maxResults: { type: 'number', description: 'Max prior-art search results (default 5).' },
+      priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these).' },
     },
     output: {
       schema: {
@@ -304,6 +307,28 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
   })
 }
 
+/** 解析工具输入的 priorArt JSON（校验失败在输入边界报错，不静默降级）。 */
+function parsePriorArt(raw: string): unknown[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    /* v8 ignore next -- JSON.parse only rejects with Error values. */
+    const detail = err instanceof Error ? err.message : String(err)
+    throw new PatentToolError(
+      'invalid_tool_input',
+      `priorArt 必须是 JSON 数组（现有技术证据条目）: ${detail}`,
+      { tool: 'patent_workflow_run' },
+    )
+  }
+  if (!Array.isArray(parsed)) {
+    throw new PatentToolError('invalid_tool_input', 'priorArt 必须是 JSON 数组（现有技术证据条目）。', {
+      tool: 'patent_workflow_run',
+    })
+  }
+  return parsed
+}
+
 /** 装配工作流上下文（manifest 与 graph 两条路径共用同一输入映射）。 */
 function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
   return buildWorkflowRunContext({
@@ -311,6 +336,7 @@ function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
     input: input.input,
     ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
     ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
+    ...(input.priorArt !== undefined ? { priorArt: parsePriorArt(input.priorArt) } : {}),
   })
 }
 

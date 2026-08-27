@@ -55,6 +55,7 @@ export {
   GROUNDEDNESS_THRESHOLD,
   draftClaimsAtom,
   DraftClaimsHandler,
+  degraded,
   approvalGateAtom,
   ApprovalGateHandler,
   APPROVAL_GRANTED_KEY,

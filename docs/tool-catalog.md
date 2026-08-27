@@ -3368,7 +3368,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_workflow_run`
 
-Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call. Provide the input as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
+Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every D<id>/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
 
 ```json
 {
@@ -3384,7 +3384,8 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
       "enum": [
         "novelty",
         "inventiveness",
-        "enablement"
+        "enablement",
+        "citation-check"
       ]
     },
     "resumeCheckpointId": {
@@ -3417,6 +3418,10 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     "maxResults": {
       "type": "number",
       "description": "Max prior-art search results (default 5)."
+    },
+    "priorArt": {
+      "type": "string",
+      "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
     }
   },
   "required": [
@@ -3491,7 +3496,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `search_patent_figure`
 
-检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由集成器注入（当前装配未接线，调用将报 setup_required）。当前仅关键词检索（向量/语义检索未接入）。
+检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由 analyze_patent_figure 写入（见 Config.figureIndexFile）。当前仅关键词检索（向量/语义检索未接入）。
 
 ```json
 {

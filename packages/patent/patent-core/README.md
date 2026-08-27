@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with its eleven builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the atomic technical-problem checks, the evidence closed-loop ledger and judgment engine, the structured reasoning primitives, the claim-chart engine, the Pregel-style graph engine with its three patentability subgraphs, the constitutional rule protocol types plus text utilities, the IPC classifier and examination-standards lookup, and the persistence/path helpers.
+Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with its eleven builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the atomic technical-problem checks, the evidence closed-loop ledger and judgment engine, the structured reasoning primitives, the claim-chart engine, the Pregel-style graph engine with its four patentability domain subgraphs (novelty, inventiveness, enablement, citation-check), the constitutional rule protocol types plus text utilities, the IPC classifier and examination-standards lookup, and the persistence/path helpers.
 
 ## Atoms engines
 
@@ -34,7 +34,7 @@ The evidence layer records tool receipts (`Ledger`/`receiptFromToolExecution`), 
 
 ## Graph engine
 
-`GraphBuilder`/`CompiledGraph` run a Pregel-style superstep (BSP) engine: nodes read a deep-copied state snapshot and return a delta, merged deterministically by `Reducer` (last-write-wins/append/union/merge-map/fail-on-conflict). `NodePolicy` adds retry, timeout, and side-effect handling; `GraphInterruptError` pauses for approval gates; `runGraphWithCheckpoints`/`grantApproval` persist per-superstep checkpoints and resume. `buildNoveltyGraph`/`buildInventivenessGraph`/`buildEnablementGraph` assemble the three patentability subgraphs (novelty, inventiveness, enablement) with deterministic nodes, LLM nodes, and a checker `rule_gate` closeout; `manifestToGraph` bridges a `WorkflowManifest` into a graph.
+`GraphBuilder`/`CompiledGraph` run a Pregel-style superstep (BSP) engine: nodes read a deep-copied state snapshot and return a delta, merged deterministically by `Reducer` (last-write-wins/append/union/merge-map/fail-on-conflict). `NodePolicy` adds retry, timeout, and side-effect handling; `GraphInterruptError` pauses for approval gates; `runGraphWithCheckpoints`/`grantApproval` persist per-superstep checkpoints and resume. `buildNoveltyGraph`/`buildInventivenessGraph`/`buildEnablementGraph` assemble the three patentability subgraphs (novelty, inventiveness, enablement) with deterministic nodes, LLM nodes, and a checker `rule_gate` closeout; `buildCitationCheckGraph` is a deterministic pure-function graph that verifies every citation in the conclusion text (patent numbers or D<id>/对比文件N labels) appears in the `prior_art` state; `manifestToGraph` bridges a `WorkflowManifest` into a graph.
 
 ## Rule protocol + IPC
 
@@ -55,4 +55,4 @@ Independent; the library contributes no model-visible content, so it never popul
 - **Evidence rule assets are stubbed** — `loadEvidenceRulesEngine(ruleDirs?)` takes explicit directories and returns the default-weight engine when none are given; the real rule pack resolves through `dsh-patent-rule` (P4.1).
 - **IPC data bundles as an asset** — `ipc-standards.yaml` ships at `assets/` and resolves through `import.meta.url` from both source and built lib.
 - **Checkpoint stays file-based** — `JsonFileCheckpointStore` persists per-superstep checkpoints through the shared `JsonFileStore`; the `ctx.storage` seam lands with workflow integration (P3.1).
-- **Graph is pure computation** — the superstep engine and the three subgraphs run in-process with no `ctx`; LLM and search capabilities arrive through the injected `StageProvider`.
+- **Graph is pure computation** — the superstep engine and the domain subgraphs run in-process with no `ctx`; LLM and search capabilities arrive through the injected `StageProvider`.

@@ -131,10 +131,44 @@ describe('patent-tools plugin wiring', () => {
     expect(result.isError).toBe(true)
   })
 
-  it('fails loud through the deferred search-index loader stub', async () => {
+  it('serves search_patent_figure from the default (absent) figure index', async () => {
+    // Config.figureIndexFile is unset → resolveFigureIndexFile falls back to
+    // <cwd>/.sati/figures-index.json, which does not exist → empty entries →
+    // a zero-hit result (not an error).
     const ctx = await mounted({})
     const result = await exec(ctx, 'search_patent_figure', { query: 'x' }, 'w-6')
-    expect(result.isError).toBe(true)
+    expect(result.isError).toBe(false)
+  })
+
+  it('persists analyze_patent_figure results into Config.figureIndexFile', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-tools-fig-'))
+    const indexFile = join(temp, 'figures-index.json')
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    ctx.provide('llm', {
+      stream: async function* () {
+        yield { type: 'text-delta', text: JSON.stringify({ figure_type: 'structure', overall_description: '结构', components: [{ ref_number: '1', name: '壳体', kind: 'mechanical', description: '外壳' }], connections: [], figure_description: '图1', warnings: [] }) }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      },
+    })
+    await ctx.plugin(tool, { figureIndexFile: indexFile, provider: 'p', model: 'm' })
+    const imagePath = join(temp, 'fig1.png')
+    await writeFile(imagePath, 'fake-image')
+    const analyzeResult = await exec(ctx, 'analyze_patent_figure', { image_path: imagePath, figure_number: 1 }, 'w-6a')
+    expect(analyzeResult.isError).toBe(false)
+    const searchResult = await exec(ctx, 'search_patent_figure', { query: '壳体' }, 'w-6b')
+    expect(searchResult.isError).toBe(false)
+    if (searchResult.isError) throw new Error('expected success')
+    expect(JSON.stringify(searchResult.content)).toContain('壳体')
+  })
+
+  it('resolves Config.chemistryIndexFile for the recognize upsert wiring', async () => {
+    // Config.chemistryIndexFile takes the resolve() branch over the cwd default;
+    // the recognize tool stays registered either way.
+    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-tools-chem-'))
+    const ctx = await mounted({ chemistryIndexFile: join(temp, 'chem-index.json') })
+    expect(ctx.tools.schemas().map(s => s.name)).toContain('recognize_chemical_structure')
   })
 
   it('fails loud for patent_pdf_download without a patent-data service', async () => {

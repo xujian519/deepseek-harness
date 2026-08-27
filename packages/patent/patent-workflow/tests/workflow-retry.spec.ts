@@ -201,13 +201,13 @@ describe('workflow retry validation', () => {
   it('patentDisclosureManifest: structure and retry declarations are valid', () => {
     expect(() => { validateWorkflowManifest(patentDisclosureManifest) }).not.toThrow()
     expect(patentDisclosureManifest.id).toBe('patent_disclosure_v1')
-    expect(patentDisclosureManifest.stages).toHaveLength(13)
+    expect(patentDisclosureManifest.stages).toHaveLength(14)
     const consistency = patentDisclosureManifest.stages.find(s => s.id === 'consistency')!
     expect(consistency.retry?.rewindTo).toBe('extract_problem')
     expect(consistency.retry!.whenOutputMatches).toMatch(/不一致\|矛盾\|缺少\|孤立/)
     const atoms = patentDisclosureManifest.stages.filter(s => s.atom !== undefined).map(s => s.atom)
     expect([...new Set(atoms)].sort()).toEqual([
-      'approval-gate', 'draft-claims', 'extract', 'groundedness', 'keywords', 'merge', 'novelty', 'search',
+      'approval-gate', 'draft-claims', 'extract', 'groundedness', 'keywords', 'merge', 'novelty', 'search', 'slop-gate',
     ])
     const extractStages = patentDisclosureManifest.stages.filter(s => s.id.startsWith('extract_'))
     expect(extractStages).toHaveLength(3)
@@ -221,10 +221,26 @@ describe('workflow retry validation', () => {
     expect(ids.indexOf('generate_keywords') < ids.indexOf('search')).toBe(true)
     expect(ids.indexOf('search') < ids.indexOf('novelty')).toBe(true)
     expect(ids.indexOf('novelty') < ids.indexOf('report')).toBe(true)
+    // slop_clean gates the draft and rewinds to draft_claims on a fail signal.
+    const slopClean = patentDisclosureManifest.stages.find(s => s.id === 'slop_clean')!
+    expect(slopClean.atom).toBe('slop-gate')
+    expect(slopClean.retry?.rewindTo).toBe('draft_claims')
+    expect(slopClean.retry!.whenOutputMatches).toBe('需修订')
+    expect(slopClean.retry!.maxRetries).toBe(1)
+    expect(ids.indexOf('draft_claims') < ids.indexOf('slop_clean')).toBe(true)
   })
 
   it('patentDisclosureManifest: declared atoms exist after builtin registration', () => {
     registerBuiltinAtoms()
+    // slop-gate 的真实注册在 patent-tools apply()（依赖其 slop 引擎）；此处注册
+    // 同名契约 stub 使 manifest 校验通过，真实运行路径由 patent-tools 覆盖。
+    globalAtomRegistry.register({
+      name: 'slop-gate',
+      category: 'gate',
+      description: 'test stub — 真实注册在 patent-tools apply()',
+      inputSchema: [],
+      outputSchema: ['slop_report'],
+    })
     expect(() => {
       validateWorkflowManifest(patentDisclosureManifest, {
         atomNames: new Set(globalAtomRegistry.list().map(a => a.name)),

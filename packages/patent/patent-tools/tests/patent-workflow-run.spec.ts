@@ -8,15 +8,25 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-tools'
-import { registerBuiltinAtoms, type PatentModelPort } from '@deepseek-ai/dsh-patent-core'
+import {
+  globalAtomRegistry,
+  globalStageHandlerRegistry,
+  registerBuiltinAtoms,
+  type PatentModelPort,
+} from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../src/error.ts'
 import {
   createPatentWorkflowRunTool,
   renderWorkflowRun,
   type PatentWorkflowRunOutput,
 } from '../src/tool/patent-workflow-run.ts'
+import { slopGateAtom, SlopGateHandler } from '../src/atoms/slop-gate.ts'
 
 registerBuiltinAtoms()
+// slop-gate 依赖本包的 slop 引擎，真实注册在 apply()（索引第 283-284 行）；
+// 测试直接走包内实现，保证 manifest 校验与实际运行路径一致。
+globalAtomRegistry.register(slopGateAtom)
+globalStageHandlerRegistry.register(new SlopGateHandler())
 
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
@@ -116,6 +126,37 @@ describe('patent_workflow_run', () => {
     await expect(
       createPatentWorkflowRunTool().execute({ graph: 'novelty', input: 'x' }, exec),
     ).rejects.toThrow('未提供模型客户端')
+  })
+
+  it('runs the citation-check graph against priorArt JSON and reports grounding', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    const value = (await tool.execute(
+      { graph: 'citation-check', input: '参见对比文件 D1', priorArt: JSON.stringify([{ title: 'D1' }]) },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    expect(value.mode).toBe('graph')
+    expect(value.completed).toBe(true)
+    const state = value.graphState as { citation_check_grounded?: unknown; citation_check_report?: unknown }
+    expect(state.citation_check_grounded).toBe(true)
+    expect(state.citation_check_report).toContain('引用全部接地')
+  })
+
+  it('rejects a non-JSON priorArt at the input boundary', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    await expect(
+      tool.execute({ graph: 'citation-check', input: 'x', priorArt: 'not-json' }, exec),
+    ).rejects.toThrow(PatentToolError)
+    await expect(
+      tool.execute({ graph: 'citation-check', input: 'x', priorArt: 'not-json' }, exec),
+    ).rejects.toThrow('priorArt 必须是 JSON 数组')
+  })
+
+  it('rejects a non-array priorArt at the input boundary', async () => {
+    const tool = createPatentWorkflowRunTool({ model: fakeModel(), search: fakeSearch })
+    await expect(
+      tool.execute({ graph: 'citation-check', input: 'x', priorArt: '{"title": "D1"}' }, exec),
+    ).rejects.toThrow('priorArt 必须是 JSON 数组')
   })
 
   it('runs a full graph with persisted checkpoints and approval-gate resume', async () => {
