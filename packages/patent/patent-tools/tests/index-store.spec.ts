@@ -87,6 +87,23 @@ describe('figureIndexStore.load', () => {
     }
   })
 
+  it('loads a fully valid index without a warning', async () => {
+    // 新路径不走缓存，解析路径上 dropped=0 分支必须返回无 warning 的结果。
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-valid-'))
+    try {
+      const file = join(dir, 'index.json')
+      await writeFile(
+        file,
+        JSON.stringify({ version: FIGURE_INDEX_VERSION, updatedAt: '', entries: [figureEntry({ imagePath: 'a.png' })] }),
+      )
+      const { entries, warning } = await figureIndexStore.load(file)
+      expect(entries.map(e => e.imagePath)).toEqual(['a.png'])
+      expect(warning).toBeUndefined()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('returns empty + warning on corrupt JSON', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-store-'))
     try {
@@ -179,6 +196,65 @@ describe('figureIndexStore.upsert', () => {
       await figureIndexStore.upsert(file, figureEntry({ imagePath: 'a.png' }))
       const backups = (await readdir(dir)).filter(f => f.startsWith('index.json.corrupt-'))
       expect(backups).toHaveLength(1)
+      const { entries } = await figureIndexStore.load(file)
+      expect(entries.map(e => e.imagePath)).toEqual(['a.png'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('caches parsed loads: repeat load serves the cache, not the file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-cache-'))
+    try {
+      const file = join(dir, 'index.json')
+      await figureIndexStore.upsert(file, figureEntry({ imagePath: 'a.png' }))
+      await rm(file) // 命中缓存后不应重新读盘，删掉文件也仍返回缓存内容。
+      const { entries } = await figureIndexStore.load(file)
+      expect(entries.map(e => e.imagePath)).toEqual(['a.png'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('upsert refreshes the cache so a later load sees the new entry without re-reading', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-cache-'))
+    try {
+      const file = join(dir, 'index.json')
+      await figureIndexStore.load(file) // 空索引入缓存
+      await figureIndexStore.upsert(file, figureEntry({ imagePath: 'a.png' }))
+      await rm(file) // upsert 须同步更新缓存，否则 load 会回退到空。
+      const { entries } = await figureIndexStore.load(file)
+      expect(entries.map(e => e.imagePath)).toEqual(['a.png'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('releases the upsert queue tail so a later upsert on the same path starts fresh', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-queue-'))
+    try {
+      const file = join(dir, 'index.json')
+      await Promise.all([
+        figureIndexStore.upsert(file, figureEntry({ imagePath: 'a.png', figureNumber: 1 })),
+        figureIndexStore.upsert(file, figureEntry({ imagePath: 'b.png', figureNumber: 2 })),
+      ])
+      // 并发链完成后队列尾已释放：后续同路径 upsert 不再串在旧链上，仍正确追加。
+      await figureIndexStore.upsert(file, figureEntry({ imagePath: 'c.png', figureNumber: 3 }))
+      const { entries } = await figureIndexStore.load(file)
+      expect(entries.map(e => e.imagePath)).toEqual(['a.png', 'b.png', 'c.png'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('releases the queue tail when an upsert fails, so a later upsert starts fresh', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-fail-'))
+    try {
+      // upsert 指向目录：load 读目录抛 EISDIR（非 ENOENT），run 失败，调用方感知。
+      await expect(figureIndexStore.upsert(dir, figureEntry({ imagePath: 'a.png' }))).rejects.toBeInstanceOf(Error)
+      // 失败路径下队尾也已释放：同目录下的新文件 upsert 不再串在旧链上，仍正确写入。
+      const file = join(dir, 'index.json')
+      await figureIndexStore.upsert(file, figureEntry({ imagePath: 'a.png' }))
       const { entries } = await figureIndexStore.load(file)
       expect(entries.map(e => e.imagePath)).toEqual(['a.png'])
     } finally {

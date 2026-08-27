@@ -4,7 +4,9 @@
  * 一个索引是一个 JSON 文件：`{ version, updatedAt, entries }`。写入走原子写
  * （同目录临时文件 + rename），同一文件路径的并发 upsert 在进程内串行化，避免
  * "读-改-写"竞态丢条目；命中损坏/版本不兼容/含无效条目的旧索引时先备份原文件
- * 再合并，避免静默丢弃原有有效条目。参考 Sati 的 figure / chemistry index-store。
+ * 再合并，避免静默丢弃原有有效条目。解析结果按文件路径进程内缓存：load 命中
+ * 缓存不读盘、save/upsert 同步更新，避免 search_patent_figure 每次调用全量重读
+ * 重解析；外部文件改动在实例生命周期内不感知。参考 Sati 的 figure / chemistry index-store。
  * @module @deepseek-ai/dsh-patent-tools/internal/index-store
  */
 
@@ -51,28 +53,39 @@ export type IndexStoreOptions<TEntry> = {
 export function createIndexStore<TEntry>(options: IndexStoreOptions<TEntry>): IndexStore<TEntry> {
   /** 进程内写队列：同一文件路径的 upsert 串行执行（防读-改-写竞态）。 */
   const upsertQueues = new Map<string, Promise<unknown>>()
+  /** 进程内解析缓存：load 命中不读盘，save/upsert 同步更新；外部文件改动在实例生命周期内不感知。 */
+  const cache = new Map<string, IndexStoreLoadResult<TEntry>>()
 
   async function load(filePath: string): Promise<IndexStoreLoadResult<TEntry>> {
+    const cached = cache.get(filePath)
+    if (cached !== undefined) return { ...cached, entries: [...cached.entries] }
     let raw: string
     try {
       raw = await readFile(filePath, 'utf8')
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { entries: [] }
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        cache.set(filePath, { entries: [] })
+        return { entries: [] }
+      }
       throw error
     }
+    let result: IndexStoreLoadResult<TEntry>
     try {
       const parsed = JSON.parse(raw) as { version?: unknown; entries?: unknown }
       if (parsed.version !== options.version || !Array.isArray(parsed.entries)) {
-        return { entries: [], warning: `${options.kindLabel}索引版本不兼容或结构异常，已按空索引处理` }
+        result = { entries: [], warning: `${options.kindLabel}索引版本不兼容或结构异常，已按空索引处理` }
+      } else {
+        const entries = parsed.entries.filter(options.validateEntry)
+        const dropped = parsed.entries.length - entries.length
+        result = dropped > 0
+          ? { entries, warning: `${options.kindLabel}索引中存在 ${dropped} 条无效条目，已忽略` }
+          : { entries }
       }
-      const entries = parsed.entries.filter(options.validateEntry)
-      const dropped = parsed.entries.length - entries.length
-      return dropped > 0
-        ? { entries, warning: `${options.kindLabel}索引中存在 ${dropped} 条无效条目，已忽略` }
-        : { entries }
     } catch {
-      return { entries: [], warning: `${options.kindLabel}索引文件损坏，已按空索引处理` }
+      result = { entries: [], warning: `${options.kindLabel}索引文件损坏，已按空索引处理` }
     }
+    cache.set(filePath, result)
+    return result
   }
 
   async function save(filePath: string, entries: TEntry[]): Promise<void> {
@@ -81,6 +94,7 @@ export function createIndexStore<TEntry>(options: IndexStoreOptions<TEntry>): In
       filePath,
       JSON.stringify({ version: options.version, updatedAt: new Date().toISOString(), entries }, null, 2),
     )
+    cache.set(filePath, { entries: [...entries] })
   }
 
   async function upsert(filePath: string, entry: TEntry): Promise<void> {
@@ -97,12 +111,14 @@ export function createIndexStore<TEntry>(options: IndexStoreOptions<TEntry>): In
       await save(filePath, next)
     })
     // 队列吞掉失败，避免一条失败阻塞后续写入；调用方 await run 感知自身失败。
-    upsertQueues.set(
-      filePath,
-      /* v8 ignore next -- the catch fires only when run rejects, which upsert rethrows to its own caller. */
-      run.catch(() => {}),
-    )
-    await run
+    const tail = run.catch(() => {})
+    upsertQueues.set(filePath, tail)
+    try {
+      await run
+    } finally {
+      // 队尾仍指向本次链时清理该路径队列（并发下后续链已接管 Map 项，不得误删）；失败路径同样清理。
+      if (upsertQueues.get(filePath) === tail) upsertQueues.delete(filePath)
+    }
   }
 
   /** 原始索引文件备份（`.corrupt-<时间戳>` 后缀）；备份失败不阻断写入。 */
