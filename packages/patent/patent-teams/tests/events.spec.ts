@@ -1,10 +1,10 @@
-// Session-event emission and captain-session resolution. The recognized-vocabulary
-// gate in events.ts reads the real KNOWN_SESSION_EVENT_TYPES set, which does not
-// contain the out-of-repo patent-teams/* types; tests temporarily register one
-// type so both the skip path and the append path are exercised.
+// Session-event emission and captain-session resolution. Every record is
+// written as an ignorable informational event: on-disk team state is the
+// authoritative source, so builds that predate the patent-teams/* vocabulary
+// may drop the records instead of refusing the log.
 import { Context } from '@deepseek-ai/cordis'
-import { KNOWN_SESSION_EVENT_TYPES, Session, SessionId } from '@deepseek-ai/dsh-session'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { describe, expect, it, vi } from 'vitest'
 import { appendTeamEvent, captainSessionOf } from '../src/events.ts'
 import type { PatentTeamsTeamCreatedData } from '../src/event-types.ts'
 
@@ -15,38 +15,18 @@ function makeContext(): Context {
   return new Context()
 }
 
-afterEach(() => {
-  (KNOWN_SESSION_EVENT_TYPES as Set<string>).delete(TEAM_CREATED)
-  vi.restoreAllMocks()
-})
-
 describe('appendTeamEvent', () => {
-  it('omits events the harness does not recognize and logs the omission once per type', () => {
-    // The generated vocabulary now includes patent-teams/*; simulate a harness
-    // that predates it by removing the type from the live set for this test.
-    ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).delete(TEAM_CREATED)
-    const ctx = makeContext()
-    const debug = vi.spyOn(ctx.logger, 'debug').mockImplementation(() => {})
-    const session = Session.create(SessionId('captain-1'))
-    appendTeamEvent(ctx, session, TEAM_CREATED, data)
-    appendTeamEvent(ctx, session, TEAM_CREATED, data)
-    expect(session.events).toHaveLength(0)
-    expect(debug).toHaveBeenCalledTimes(1)
-    expect(debug).toHaveBeenCalledWith(expect.stringContaining(TEAM_CREATED))
-  })
-
-  it('appends a recognized event to the session log', () => {
-    (KNOWN_SESSION_EVENT_TYPES as Set<string>).add(TEAM_CREATED)
+  it('appends the event as an ignorable informational record', () => {
     const ctx = makeContext()
     const session = Session.create(SessionId('captain-1'))
     appendTeamEvent(ctx, session, TEAM_CREATED, data)
     const event = session.events.find(candidate => candidate.type === TEAM_CREATED)
     expect(event).toBeDefined()
     expect(event!.data).toEqual(data)
+    expect(event!.ignorable).toBe(true)
   })
 
   it('logs a warning when the session append fails', () => {
-    (KNOWN_SESSION_EVENT_TYPES as Set<string>).add(TEAM_CREATED)
     const ctx = makeContext()
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     const broken = { append: () => { throw new Error('append exploded') } } as unknown as Session
