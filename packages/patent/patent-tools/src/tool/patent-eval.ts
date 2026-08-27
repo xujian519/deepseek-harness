@@ -7,7 +7,8 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { ABSOLUTE_PHRASES } from '@deepseek-ai/dsh-patent-workflow'
 import { analyzeSlop } from '../internal/slop-engine.ts'
 
@@ -38,6 +39,8 @@ export type PatentEvalOutput = {
   passed: boolean
   details: Record<string, PatentEvalDimension>
   summary: string
+  /** 标准化检索策略记录（retrieval/comprehensive 模式产出）。 */
+  searchStrategy?: SearchStrategy
 }
 
 /** Report structure section patterns (aligns Mady reportSectionPatterns). */
@@ -236,7 +239,20 @@ export function evaluatePatentContent(mode: PatentEvalMode, content: string, req
   if (mode === 'comprehensive') return runComprehensiveEval(text, requiredCitations)
   const dims = evaluateMode(mode, text, requiredCitations)
   const overall = averageScores(Object.values(dims))
-  return { mode, score: round2(overall), passed: overall >= PASS_LINE, details: dims, summary: summarize(mode, overall) }
+  const output: PatentEvalOutput = {
+    mode,
+    score: round2(overall),
+    passed: overall >= PASS_LINE,
+    details: dims,
+    summary: summarize(mode, overall),
+  }
+  if (mode === 'retrieval') {
+    const keywords = text.trim().split(/\s+/).filter(Boolean)
+    if (keywords.length > 0) {
+      output.searchStrategy = { query: text.trim(), keywords, hits: keywords.length }
+    }
+  }
+  return output
 }
 
 /**
@@ -262,13 +278,22 @@ export function createPatentEvalTool(): ToolDefinition {
           passed: { type: 'boolean', required: true },
           details: { type: 'json', required: true },
           summary: { type: 'string', required: true },
+          searchStrategy: { type: 'json' },
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderEval(value as unknown as PatentEvalOutput) }],
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
-      return evaluatePatentContent(args.mode, args.content ?? '', args.required_citations ?? [])
+      const out = evaluatePatentContent(args.mode, args.content ?? '', args.required_citations ?? [])
+      return {
+        mode: out.mode,
+        score: out.score,
+        passed: out.passed,
+        details: out.details,
+        summary: out.summary,
+        ...(out.searchStrategy !== undefined ? { searchStrategy: out.searchStrategy as unknown as JsonValue } : {}),
+      }
     },
   })
 }

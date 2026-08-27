@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 23 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、撰写、证据判定、规则检查以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
+函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 24 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、撰写、分析报告、证据判定、规则检查以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
 
 ## 工具
 
@@ -15,6 +15,7 @@
 | `patent_wiki_search` | 知识 | `ctx.patentKnowledge` wiki 卡片 |
 | `patent_kg_query` | 知识 | `ctx.patentKnowledge` 知识图谱 |
 | `patent_eval` | 质量 | 确定性（内联反套话引擎） |
+| `patent_analysis_report` | 分析 | `@deepseek-ai/dsh-patent-core` analysis-report 聚合器 + 可选 ModelPort |
 | `claim_chart_build` | 撰写 | `@deepseek-ai/dsh-patent-core` claim-chart 原子 + ModelPort |
 | `draft_claims` | 撰写 | 确定性 |
 | `draft_specification` | 撰写 | 确定性 |
@@ -42,7 +43,7 @@ Schemastery 配置，所有字段可选。
 
 | 键 | 类型 | 默认 | 含义 |
 | --- | --- | --- | --- |
-| `provider` | string | — | LLM 消费工具（`claim_chart_build`、`patent_workflow_run`、`flexible_plan`、`analyze_patent_figure`）的 provider 路由。 |
+| `provider` | string | — | LLM 消费工具（`patent_analysis_report`、`claim_chart_build`、`patent_workflow_run`、`flexible_plan`、`analyze_patent_figure`）的 provider 路由。 |
 | `model` | string | — | LLM 消费工具的模型 id。 |
 | `imageModel` | object | — | 专用附图/图片模型路由（`{ provider, model }`），其声明的输入模态用于门禁 `analyze_patent_figure`；未设置时回退到 `provider`/`model`。 |
 | `maxTokens` | number | — | LLM 消费工具的输出 token 上限（可选）；省略时用 provider 默认值。 |

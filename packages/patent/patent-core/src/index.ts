@@ -61,6 +61,9 @@ export * from './atoms/index.ts'
 // Claim-chart engine (element validation / mapping / gap / pin-cite / store).
 export * from './claim-chart/index.ts'
 
+// Patent analysis product contract + deterministic aggregator (Athena-inspired report).
+export * from './analysis-report/index.ts'
+
 // Dual-track deterministic checker (novelty/inventiveness/infringement/...).
 export * from './checker/index.ts'
 
