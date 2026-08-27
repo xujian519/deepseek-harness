@@ -8,7 +8,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { BrowserUseExtractor } from '@deepseek-ai/dsh-browser-backend'
+import { EgoExtractor } from '@deepseek-ai/dsh-browser-backend'
 import { createLiteratureRegistry } from './runtime/create-literature-registry.ts'
 import { createPaperSearchTool } from './tool/paper-search.ts'
 import { createPaperListSourcesTool } from './tool/paper-list-sources.ts'
@@ -86,6 +86,6 @@ export function apply(ctx: Context, config: Config): void {
   })
   ctx.tools.register(createPaperSearchTool(registry))
   ctx.tools.register(createPaperListSourcesTool(registry))
-  // 论文 PDF 下载：直链优先，browser-use 提取链接兜底（浏览器后端抽象预留 ego 通道接入）。
-  ctx.tools.register(createPaperDownloadTool({ registry, extractor: new BrowserUseExtractor() }))
+  // 论文 PDF 下载：直链优先，ego 提取链接兜底（统一 ego 栈）。
+  ctx.tools.register(createPaperDownloadTool({ registry, extractor: new EgoExtractor() }))
 }

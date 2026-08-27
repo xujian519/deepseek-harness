@@ -40,6 +40,18 @@ export type ExtractResult =
   | { ok: true; value: string | null }
   | { ok: false; error: string; timedOut?: boolean }
 
+/** Browser page-value extraction channel (browser-use, ego, and so on). */
+export interface PageExtractor {
+  /**
+   * Open a URL and extract one js-expression value.
+   * @param url - the page to open.
+   * @param jsExpr - the JavaScript expression whose string value is extracted.
+   * @param options - timeout/cancel/output cap.
+   * @returns the extracted value, or the failure.
+   */
+  extract(url: string, jsExpr: string, options?: ExtractOptions): Promise<ExtractResult>
+}
+
 /** Extractor options (test injection). */
 export type BrowserUseExtractorOptions = {
   /** CLI command name (default "browser-use"). */
@@ -126,7 +138,7 @@ function markerValue(stdout: string): string | null | undefined {
  * A missing marker or a non-zero exit reports the failure; a marker with an
  * empty value means the page had no match (ok with value null).
  */
-export class BrowserUseExtractor {
+export class BrowserUseExtractor implements PageExtractor {
   private readonly run: ScriptRun
 
   /**

@@ -19,7 +19,7 @@ import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-paten
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { BrowserUseExtractor, resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
+import { resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
 import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
 import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
@@ -41,7 +41,6 @@ import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
-import { createBrowserUseDownloadRunner } from './tool/patent-pdf-download-browser-use.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
 import { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
 import { createPatentWorkflowTool } from './tool/patent-workflow.ts'
@@ -238,35 +237,28 @@ function resolveChemistryIndexFile(config: Config): string {
 export type DownloadRunnerResolverOptions = {
   /** ego-browser batch runner (fail-loud stub when patent-data is not mounted). */
   runEgo: RunEgo
-  /** browser-use link extractor for the fallback channel. */
-  extractor: BrowserUseExtractor
   /** Backend resolver (tests inject a fake; defaults to resolveBrowserBackend). */
   resolve?: typeof resolveBrowserBackend
 }
 
 /**
- * Build the cold-decision runner resolver for patent_pdf_download: ego first,
- * browser-use extraction + fetch as the fallback. browseros-neo and playwright
- * participate in the probe matrix but never in downloads (no intercept/extract
- * execution), so the resolution excludes them.
- * @param options - the ego runner, the browser-use extractor, and an optional resolver.
- * @returns a resolver returning the ego runner or a browser-use runner.
+ * Build the download-runner resolver for patent_pdf_download. With the unified
+ * ego stack the download channel resolves only the ego backend and always runs
+ * the ego runner; browseros-neo / playwright / browser-use participate in the
+ * probe matrix but never take a download (no intercept/extract execution).
+ * @param options - the ego runner and an optional resolver.
+ * @returns a resolver returning the ego runner.
  */
 export function createDownloadRunnerResolver(options: DownloadRunnerResolverOptions): () => Promise<RunEgo> {
   const resolveBackend = options.resolve ?? resolveBrowserBackend
   return async () => {
-    // 下载通道只认有拦截/提取执行的两个后端；browseros-neo 与 playwright 参与探测矩阵但不参与下载。
-    let backend: Awaited<ReturnType<typeof resolveBrowserBackend>>
-    try {
-      backend = await resolveBackend({ exclude: ['browseros-neo', 'playwright'] })
-    } catch {
+    // 统一 ego 栈后下载通道只认 ego；browseros-neo / playwright / browser-use 参与探测矩阵但不参与下载。
+    await resolveBackend({ exclude: ['browseros-neo', 'playwright', 'browser-use'] }).catch(() => {
       // No backend is detectable on this host. The caller explicitly wired the
       // ego channel (runEgo comes from ctx.patentData), so honor it rather than
       // failing the download with install guidance.
-      return options.runEgo
-    }
-    if (backend.id === 'ego') return options.runEgo
-    return createBrowserUseDownloadRunner(options.extractor)
+    })
+    return options.runEgo
   }
 }
 
@@ -352,11 +344,11 @@ export function apply(ctx: Context, config: Config): void {
     loadIndex: () => figureIndexStore.load(figureIndexFile),
   }))
 
-  // PDF download: wire the runner through a browser-backend cold decision —
-  // ego-browser first on macOS, browser-use link extraction + fetch as the
-  // fallback channel; browseros-neo and playwright stay out of the download
-  // path (no intercept/extract execution yet). Without patent-data the ego
-  // channel fails loud at resolution, as before.
+  // PDF download: wire the runner through a browser-backend cold decision.
+  // The unified ego stack routes the download to ego-browser only; browseros-neo
+  // / playwright / browser-use stay out of the download path (no intercept/
+  // extract execution yet). Without patent-data the ego channel fails loud at
+  // resolution, as before.
   const patentData = ctx.get('patentData')
   const runEgo = patentData !== undefined
     ? createEgoDownloadRunner(patentData.createEgoSession())
@@ -364,7 +356,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createPatentPdfDownloadTool({
     runEgo,
     fetchImpl: globalThis.fetch,
-    resolveRunner: createDownloadRunnerResolver({ runEgo, extractor: new BrowserUseExtractor() }),
+    resolveRunner: createDownloadRunnerResolver({ runEgo }),
   }))
 
   // Notes land as files under the configured noteDir (default <cwd>/99-知识库):

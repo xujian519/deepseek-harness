@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-figure-chemistry-index-write-read-wiring.md
-2026-08-27-figure-chemistry-index-write-read-wiring.md: 066fb462258d47dcfcfc90b54a46cf3d9f89e794
+2026-08-27-figure-chemistry-index-write-read-wiring.md: 8699c8bde865149a8c0f21df570bd8ca8dfe8dc9
 2026-08-27-figure-chemistry-index-write-read-wiring.zh.md: d72effa222bbb6f0589609c197b1c9ad55949693

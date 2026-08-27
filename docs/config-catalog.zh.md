@@ -1691,6 +1691,10 @@ export interface Config {
   noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
+  /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
+  figureIndexFile?: string
+  /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */
+  chemistryIndexFile?: string
 }
 
 /** Figure/image model route used by the figure-analysis tool. */

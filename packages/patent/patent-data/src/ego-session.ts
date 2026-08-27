@@ -45,17 +45,17 @@ export class EgoBrowserSession {
   }
 
   /**
-   * Static availability check: the platform must be darwin and the CLI executable
-   * must exist (checked live, never cached).
+   * Static availability check: the platform must be macOS or Windows and the
+   * CLI executable must exist (checked live, never cached).
    * @param env - optional environment override for the PATH probe.
    * @returns ok, or the unavailable/setup_required reason.
    */
   checkAvailability(env?: NodeJS.ProcessEnv): EgoAvailability {
-    if (this.platform !== 'darwin') {
+    if (this.platform !== 'darwin' && this.platform !== 'win32') {
       return {
         ok: false,
         code: 'unavailable',
-        reason: 'ego-browser (ego lite) only supports macOS.',
+        reason: 'ego-browser (ego lite) only supports macOS and Windows.',
       }
     }
     if (!this.isCommandExecutable(env ?? this.env)) {
@@ -173,24 +173,27 @@ export class EgoBrowserSession {
   }
 
   private buildEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    const delimiter = pathDelimiter(this.platform)
     const existingPath = base.PATH ?? ''
-    const segments = existingPath.length > 0 ? existingPath.split(':') : []
+    const segments = existingPath.length > 0 ? existingPath.split(delimiter) : []
     for (const entry of this.pathEntries) {
       if (entry && entry.length > 0 && !segments.includes(entry)) {
         segments.push(entry)
       }
     }
-    return { ...base, PATH: segments.join(':') }
+    return { ...base, PATH: segments.join(delimiter) }
   }
 
   private isCommandExecutable(env: NodeJS.ProcessEnv): boolean {
+    const delimiter = pathDelimiter(this.platform)
     const localBin = join(this.homeDir, '.local', 'bin')
-    const pathSegments = (env.PATH ?? '').split(':').filter(s => s.length > 0)
-    const candidates = [
-      join(localBin, this.commandName),
-      ...pathSegments.map(segment => join(segment, this.commandName)),
-    ]
-    return candidates.some(isExecutableFile)
+    const pathSegments = (env.PATH ?? '').split(delimiter).filter(s => s.length > 0)
+    for (const dir of [localBin, ...pathSegments]) {
+      for (const name of commandNames(this.commandName, this.platform)) {
+        if (isUsableFile(join(dir, name), this.platform)) return true
+      }
+    }
+    return false
   }
 
   private truncate(text: string): string {
@@ -198,9 +201,21 @@ export class EgoBrowserSession {
   }
 }
 
-function isExecutableFile(path: string): boolean {
+/** PATH delimiter per platform (Windows ';', elsewhere ':'). */
+function pathDelimiter(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? ';' : ':'
+}
+
+/** File names a command may resolve to on the platform. */
+function commandNames(command: string, platform: NodeJS.Platform): string[] {
+  return platform === 'win32' ? [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`] : [command]
+}
+
+/** Whether a path resolves to a usable command on the platform. */
+function isUsableFile(path: string, platform: NodeJS.Platform): boolean {
   try {
-    accessSync(path, fsConstants.X_OK)
+    // Windows scripts carry no executable bit; presence is the usable signal.
+    accessSync(path, platform === 'win32' ? fsConstants.F_OK : fsConstants.X_OK)
     return true
   } catch {
     return false

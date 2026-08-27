@@ -1,15 +1,24 @@
 /**
- * ego lite backend — the macOS-first choice for the download tools.
+ * ego lite backend — the first-choice backend for the download tools.
  *
  * Probes independently of @deepseek-ai/dsh-patent-data (which owns the ego
- * session that executes scripts): platform must be darwin and the CLI must be
- * on PATH; an optional connection probe spawns `ego-browser nodejs` with an
- * inline cliLog marker. Capability bits are all on (download interception,
- * screencast, handoff, site tools, login state, anti-bot).
+ * session that executes scripts): the platform must be macOS or Windows and
+ * the CLI must be resolvable; an optional connection probe spawns
+ * `ego-browser nodejs` with an inline cliLog marker. Capability bits are all
+ * on (download interception, screencast, handoff, site tools, login state,
+ * anti-bot).
+ *
+ * The CLI lookup is aligned with the execution session (EgoBrowserSession):
+ * it searches `<homeDir>/.local/bin` then each PATH segment, so a CLI installed
+ * in the standard local bin is found even when it is not on the harness PATH.
+ * This keeps the availability probe consistent with what actually runs.
  * @module @deepseek-ai/dsh-browser-backend/ego
  */
 
 import { spawnSync } from 'node:child_process'
+import { accessSync, constants } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { BrowserBackend, BrowserBackendProbe } from './types.ts'
 
 /** Connection-probe marker emitted by an inline ego-browser cliLog. */
@@ -27,27 +36,65 @@ export type EgoBackendOptions = {
   platform?: NodeJS.Platform
   /** Run the connection probe after the CLI check (slower but more accurate). */
   doctorCheck?: boolean
-  /** Executable presence check; defaults to spawnSync `which`. */
+  /** Home directory locating `~/.local/bin` (default os.homedir()). */
+  homeDir?: string
+  /** Command resolvability check; aligns with the execution session lookup. */
   isCommandExecutable?: (command: string) => boolean
   /** Connection probe; runs only when doctorCheck is true. */
   runConnectionProbe?: () => EgoConnectionProbe
 }
 
-/** Default `which` check via spawnSync. */
-function which(command: string): boolean {
+/** PATH delimiter per platform (Windows uses ';', elsewhere ':'). */
+function pathDelimiter(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? ';' : ':'
+}
+
+/** File names a command may resolve to on the platform. */
+function commandNames(command: string, platform: NodeJS.Platform): string[] {
+  return platform === 'win32' ? [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`] : [command]
+}
+
+/** Whether a path is usable as a command on the platform. */
+function isUsableFile(path: string, platform: NodeJS.Platform): boolean {
   try {
-    return spawnSync('which', [command], { timeout: 3_000 }).status === 0
+    // Windows scripts carry no executable bit; presence is the usable signal.
+    accessSync(path, platform === 'win32' ? constants.F_OK : constants.X_OK)
+    return true
   } catch {
     return false
   }
 }
 
+/** Platforms the ego lite CLI supports. */
+const SUPPORTED_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(['darwin', 'win32'])
+
+/** Human label for a supported platform. */
+function platformLabel(platform: NodeJS.Platform): string {
+  return platform === 'darwin' ? 'macOS' : 'Windows'
+}
+
+/** Default command lookup: `<homeDir>/.local/bin` then each PATH segment. */
+function defaultIsCommandExecutable(command: string, platform: NodeJS.Platform, homeDir: string): boolean {
+  const dirs = [
+    join(homeDir, '.local', 'bin'),
+    ...(process.env.PATH ?? '').split(pathDelimiter(platform)).filter(segment => segment.length > 0),
+  ]
+  for (const dir of dirs) {
+    for (const name of commandNames(command, platform)) {
+      if (isUsableFile(join(dir, name), platform)) return true
+    }
+  }
+  return false
+}
+
 /** Default connection probe: run ego-browser nodejs with an inline cliLog marker. */
-function defaultConnectionProbe(): EgoConnectionProbe {
+function defaultConnectionProbe(platform: NodeJS.Platform): EgoConnectionProbe {
   try {
     const result = spawnSync('ego-browser', ['nodejs', '-e', `cliLog('${EGO_DOCTOR_MARKER}')`], {
       encoding: 'utf8',
       timeout: 8_000,
+      // Windows commands are frequently .cmd wrappers, which need the shell.
+      ...(platform === 'win32' ? { shell: true } : {}),
     })
     const ok = result.status === 0 && result.stdout.includes(EGO_DOCTOR_MARKER)
     return {
@@ -62,15 +109,16 @@ function defaultConnectionProbe(): EgoConnectionProbe {
 }
 
 /**
- * ego lite backend with macOS platform gate and CLI presence probe.
- * @param options - platform/doctor overrides and test injections.
- * @returns a backend whose probe reports ok only when the platform is darwin
- * and the CLI is present (and, with doctorCheck, connects).
+ * ego lite backend with platform gate and CLI presence probe.
+ * @param options - platform/doctor/home overrides and test injections.
+ * @returns a backend whose probe reports ok only on a supported platform with
+ * an available CLI (and, with doctorCheck, a working connection).
  */
 export function createEgoBackend(options: EgoBackendOptions = {}): BrowserBackend {
   const platform = options.platform ?? process.platform
-  const commandCheck = options.isCommandExecutable ?? which
-  const probeConnection = options.runConnectionProbe ?? defaultConnectionProbe
+  const homeDir = options.homeDir ?? homedir()
+  const commandCheck = options.isCommandExecutable ?? (command => defaultIsCommandExecutable(command, platform, homeDir))
+  const probeConnection = options.runConnectionProbe ?? (() => defaultConnectionProbe(platform))
   return {
     id: 'ego',
     label: 'ego lite',
@@ -83,17 +131,17 @@ export function createEgoBackend(options: EgoBackendOptions = {}): BrowserBacken
       antiBot: true,
     },
     probe(): BrowserBackendProbe {
-      if (platform !== 'darwin') {
+      if (!SUPPORTED_PLATFORMS.has(platform)) {
         return {
           status: 'missing',
-          detail: 'ego-browser (ego lite) only supports macOS.',
+          detail: 'ego-browser (ego lite) only supports macOS and Windows.',
           installHint: 'https://lite.ego.app/',
         }
       }
       if (!commandCheck('ego-browser')) {
         return {
           status: 'missing',
-          detail: 'ego-browser CLI not found. Install ego lite and confirm ego-browser is on the PATH.',
+          detail: 'ego-browser CLI not found. Install ego lite and confirm ego-browser is on the PATH (usually ~/.local/bin/ego-browser).',
           installHint: 'https://lite.ego.app/',
         }
       }
@@ -106,9 +154,9 @@ export function createEgoBackend(options: EgoBackendOptions = {}): BrowserBacken
             installHint: 'https://lite.ego.app/',
           }
         }
-        return { status: 'ok', detail: `macOS · CLI available · ${probe.detail}` }
+        return { status: 'ok', detail: `${platformLabel(platform)} · CLI available · ${probe.detail}` }
       }
-      return { status: 'ok', detail: 'macOS · CLI available' }
+      return { status: 'ok', detail: `${platformLabel(platform)} · CLI available` }
     },
   }
 }

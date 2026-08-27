@@ -1,30 +1,42 @@
 import { describe, expect, it, vi } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { accessSync } from 'node:fs'
 import { createEgoBackend } from '../src/ego-backend.ts'
 
 vi.mock('node:child_process', () => ({ spawnSync: vi.fn() }))
+vi.mock('node:fs', () => ({ accessSync: vi.fn(), constants: { X_OK: 1, F_OK: 0 } }))
+
+const mockAccess = vi.mocked(accessSync)
+const mockSpawn = vi.mocked(spawnSync)
 
 describe('createEgoBackend', () => {
-  it('reports missing off-darwin with the lite install hint', async () => {
+  it('reports missing off darwin/win32 with the lite install hint', async () => {
     const backend = createEgoBackend({ platform: 'linux' })
     const probe = await backend.probe()
     expect(probe.status).toBe('missing')
-    expect(probe.detail).toContain('only supports macOS')
+    expect(probe.detail).toContain('only supports macOS and Windows')
     expect(probe.installHint).toBe('https://lite.ego.app/')
   })
 
-  it('reports missing when the CLI is absent on darwin', async () => {
+  it('reports missing when the CLI is absent', async () => {
     const backend = createEgoBackend({ platform: 'darwin', isCommandExecutable: () => false })
     const probe = await backend.probe()
     expect(probe.status).toBe('missing')
     expect(probe.detail).toContain('CLI not found')
   })
 
-  it('reports ok when the CLI is present without doctorCheck', async () => {
+  it('reports ok on macOS when the CLI is present without doctorCheck', async () => {
     const backend = createEgoBackend({ platform: 'darwin', isCommandExecutable: () => true })
     const probe = await backend.probe()
     expect(probe.status).toBe('ok')
     expect(probe.detail).toBe('macOS · CLI available')
+  })
+
+  it('reports ok on Windows when the CLI is present', async () => {
+    const backend = createEgoBackend({ platform: 'win32', isCommandExecutable: () => true })
+    const probe = await backend.probe()
+    expect(probe.status).toBe('ok')
+    expect(probe.detail).toBe('Windows · CLI available')
   })
 
   it('reports ok when the doctor connection probe succeeds', async () => {
@@ -66,78 +78,66 @@ describe('createEgoBackend', () => {
   })
 })
 
-describe('default probe implementations', () => {
-  it('finds the CLI through the real which check', async () => {
-    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never)
+describe('default command lookup', () => {
+  it('finds the CLI when the local bin candidate is usable', async () => {
+    mockAccess.mockReturnValue(undefined)
     const backend = createEgoBackend({ platform: 'darwin' })
     expect((await backend.probe()).status).toBe('ok')
   })
 
-  it('reports missing when which fails', async () => {
-    vi.mocked(spawnSync).mockReturnValue({ status: 1 } as never)
+  it('reports missing when no candidate resolves', async () => {
+    mockAccess.mockImplementation(() => { throw new Error('ENOENT') })
     const backend = createEgoBackend({ platform: 'darwin' })
     expect((await backend.probe()).status).toBe('missing')
   })
 
-  it('tolerates a throwing which', async () => {
-    vi.mocked(spawnSync).mockImplementation(() => { throw new Error('boom') })
+  it('checks the executable bit on darwin', async () => {
+    mockAccess.mockReturnValue(undefined)
     const backend = createEgoBackend({ platform: 'darwin' })
-    expect((await backend.probe()).status).toBe('missing')
+    await backend.probe()
+    expect(mockAccess).toHaveBeenCalledWith(expect.any(String), 1) // constants.X_OK
   })
+})
 
+describe('default connection probe', () => {
   it('runs the real connection probe to ok', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockReturnValueOnce({ status: 0, stdout: 'EGO_DOCTOR_OK', stderr: '' } as never)
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
+    mockSpawn.mockReturnValueOnce({ status: 0, stdout: 'EGO_DOCTOR_OK', stderr: '' } as never)
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
     expect((await backend.probe()).status).toBe('ok')
   })
 
   it('reports warn when the real connection probe fails', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockReturnValueOnce({ status: 1, stdout: '', stderr: 'refused' } as never)
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
+    mockSpawn.mockReturnValueOnce({ status: 1, stdout: '', stderr: 'refused' } as never)
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
     expect((await backend.probe()).status).toBe('warn')
   })
 
   it('reports warn when the connection probe throws', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockImplementationOnce(() => { throw new Error('spawn boom') })
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
+    mockSpawn.mockImplementationOnce(() => { throw new Error('spawn boom') })
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
     expect((await backend.probe()).status).toBe('warn')
   })
 
   it('reports warn when the connection probe fails with empty stderr', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockReturnValueOnce({ status: 1, stdout: '', stderr: '' } as never)
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
+    mockSpawn.mockReturnValueOnce({ status: 1, stdout: '', stderr: '' } as never)
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
     expect((await backend.probe()).status).toBe('warn')
   })
 
-  it('reports warn when the connection probe exits null with undefined streams', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockReturnValueOnce({ status: null, stdout: undefined, stderr: undefined } as never)
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
+  it('reports warn when the probe exits ok without the marker', async () => {
+    mockSpawn.mockReturnValueOnce({ status: 0, stdout: 'other', stderr: '' } as never)
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
     expect((await backend.probe()).status).toBe('warn')
   })
 
-  it('reports warn when the probe exits ok without the marker and undefined stdout', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockReturnValueOnce({ status: 0, stdout: undefined, stderr: undefined } as never)
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
-    expect((await backend.probe()).status).toBe('warn')
-  })
-
-  it('reports warn when the connection probe throws a non-Error', async () => {
-    vi.mocked(spawnSync)
-      .mockReturnValueOnce({ status: 0 } as never)
-      .mockImplementationOnce(() => { throw 'plain string' })
-    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true })
-    expect((await backend.probe()).status).toBe('warn')
+  it('runs the connection probe through the shell on Windows', async () => {
+    mockSpawn.mockReturnValue({ status: 0, stdout: 'EGO_DOCTOR_OK', stderr: '' } as never)
+    const backend = createEgoBackend({ platform: 'win32', doctorCheck: true, isCommandExecutable: () => true })
+    expect((await backend.probe()).status).toBe('ok')
+    expect(mockSpawn).toHaveBeenCalledWith(
+      'ego-browser',
+      ['nodejs', '-e', expect.any(String)],
+      expect.objectContaining({ shell: true }),
+    )
   })
 })

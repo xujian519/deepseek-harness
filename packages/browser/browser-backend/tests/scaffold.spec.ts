@@ -11,6 +11,7 @@ describe('@deepseek-ai/dsh-browser-backend surface', () => {
     expect(typeof Pkg.createBrowserUseBackend).toBe('function')
     expect(typeof Pkg.createPlaywrightBackend).toBe('function')
     expect(typeof Pkg.BrowserUseExtractor).toBe('function')
+    expect(typeof Pkg.EgoExtractor).toBe('function')
     expect(Pkg.BROWSEROS_NEO_DEFAULT_URL).toBe('http://127.0.0.1:9010/mcp')
   })
 

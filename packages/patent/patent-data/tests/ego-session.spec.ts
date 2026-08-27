@@ -65,6 +65,21 @@ describe('EgoBrowserSession.checkAvailability', () => {
     const session = new EgoBrowserSession({ homeDir, platform: 'darwin' })
     expect(session.checkAvailability({})).toEqual({ ok: true })
   })
+
+  it('is ok on win32 with the CLI present', () => {
+    const { homeDir } = makeFakeHomeDir()
+    const session = new EgoBrowserSession({ homeDir, platform: 'win32' })
+    expect(session.checkAvailability()).toEqual({ ok: true })
+  })
+
+  it('is ok on win32 when the CLI is a .cmd in a PATH segment', () => {
+    const base = mkdtempSync(join(tmpdir(), 'dsh-ego-session-cmd-'))
+    const bin = join(base, 'bin')
+    mkdirSync(bin, { recursive: true })
+    writeFileSync(join(bin, 'ego-browser.cmd'), '@echo off\r\nexit 0\r\n')
+    const session = new EgoBrowserSession({ homeDir: base, platform: 'win32', env: { PATH: bin } })
+    expect(session.checkAvailability()).toEqual({ ok: true })
+  })
 })
 
 describe('EgoBrowserSession.runScript', () => {
@@ -126,6 +141,21 @@ describe('EgoBrowserSession.runScript', () => {
     const dir = join(base, 'nested', 'downloads')
     session.ensureDir(dir)
     expect(existsSync(dir)).toBe(true)
+  })
+
+  it('joins PATH with the Windows delimiter', async () => {
+    const runner = new FakeRunner()
+    runner.result = { exitCode: 0, stdout: '', stderr: '', timedOut: false, durationMs: 5 }
+    const session = new EgoBrowserSession({
+      runner,
+      homeDir: 'C:\\Users\\tester',
+      platform: 'win32',
+      env: { PATH: 'C:\\Windows' },
+    })
+    await session.runScript("cliLog('x')", { cwd: 'C:\\work', env: { PATH: 'C:\\Windows' } })
+    // Windows joins PATH segments with ';' and appends the home local bin.
+    expect(runner.calls[0]?.env?.PATH).toMatch(/^C:\\Windows;/)
+    expect(runner.calls[0]?.env?.PATH).toContain('C:\\Users\\tester')
   })
 })
 

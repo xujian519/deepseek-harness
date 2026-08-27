@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-citation-check-domain-graph.md
-2026-08-27-citation-check-domain-graph.md: 3f93605b1c08bf35c39ec3d2926759d4d8588946
+2026-08-27-citation-check-domain-graph.md: 2aca58320e06e1117d316de9d770b9f9eef9b8ec
 2026-08-27-citation-check-domain-graph.zh.md: c5e260c8dc6aac86f209300cb20c323c0924012a
