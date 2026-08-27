@@ -4072,7 +4072,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'IpcClassification',
-    declaration: 'export type IpcClassification = {\n    section: string;\n    confidence: number;\n    matchedKeywords: string[];\n    detail?: string;\n    detailConfidence?: number;\n};',
+    declaration: 'export type IpcClassification = {\n    section: string;\n    confidence: number;\n    matchedKeywords: string[];\n    detail?: string;\n    detailConfidence?: number;\n    noveltyImplications?: string[];\n};',
   },
   {
     name: 'IpcStandardCard',
