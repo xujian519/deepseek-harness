@@ -20,11 +20,11 @@ import {
   degraded,
   getStateString,
 } from '@deepseek-ai/dsh-patent-core'
-import { analyzeSlop } from '../internal/slop-engine.ts'
+import { analyzeSlop, SLOP_PASS_LINE } from '../internal/slop-engine.ts'
 import { buildSlopRevisionHint } from '../internal/retry-hints.ts'
 
-/** 反套话评分门通过线（与 slop 引擎的 SlopScore 一致）。 */
-export const SLOP_GATE_PASS_THRESHOLD = 35
+/** 反套话评分门通过线（单一来源为 slop 引擎的 SLOP_PASS_LINE；改判定须改 engine）。 */
+export const SLOP_GATE_PASS_THRESHOLD = SLOP_PASS_LINE
 
 /** slop-gate 原子：对草稿文本做确定性套话检测，未通过时输出「需修订」并附证据提示。 */
 export const slopGateAtom: Atom = {
