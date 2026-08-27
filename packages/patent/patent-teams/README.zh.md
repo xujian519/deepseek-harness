@@ -69,7 +69,7 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 
 ## 已知限制与待办
 
-- **无 Web UI** — 上游插件的活动面板与美术资源路由未移植；团队状态经 `patent_teams_status` 与磁盘文件查看。
+- **Web UI 为独立投影** — 上游插件的活动面板与美术资源路由未移植；`dsh-client-ui-patent-teams` 将 `patent-teams/*` 会话事件折叠为对话卡片与"团队"视图，磁盘文件与 `patent_teams_status` 仍是权威查看路径。
 - **单进程串行** — 状态为文件持久化，在单个 DSH 进程内串行操作；多进程同时修改同一团队不保证一致。
 - **一队长一活跃团队** — 队长须先结束当前团队才能创建新团队。
 - **实时投递尽力而为** — 接收方代理离线时消息留存在邮箱，在下一状态边界重试。

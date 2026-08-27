@@ -1,0 +1,17 @@
+{"type":"session","version":0,"id":"{{sessionId}}","createdAt":1784973850091,"cwd":"{{cwd}}/workspace"}
+{"type":"turn/start","data":{"turn":1,"trigger":{"kind":"message","source":{"kind":"user","rpcId":"{{rpcId}}"}}}}
+{"type":"user/message","data":{"content":[{"type":"text","text":"Use PatentTeams to form a search team and drive it to completion."}],"source":{"kind":"user","rpcId":"{{rpcId}}"}},"surfaceOp":"append"}
+{"type":"session/title","data":{"title":"Use PatentTeams to form a","messageSeqs":[1],"source":{"kind":"fallback"}}}
+{"type":"step/start","data":{"turn":1,"step":1}}
+{"type":"patent-teams/team-created","data":{"teamId":"search-team","captainSessionId":"{{sessionId}}","name":"search-team","description":"Prior-art search across CNIPR and literature"},"ignorable":true}
+{"type":"patent-teams/member-added","data":{"teamId":"search-team","memberId":"child-alice","name":"alice","role":"researcher"},"ignorable":true}
+{"type":"patent-teams/member-added","data":{"teamId":"search-team","memberId":"child-bob","name":"bob","role":"drafter"},"ignorable":true}
+{"type":"patent-teams/task-created","data":{"teamId":"search-team","taskId":"t1","subject":"Search CNIPR for the filing family","dependencies":[]},"ignorable":true}
+{"type":"patent-teams/task-created","data":{"teamId":"search-team","taskId":"t2","subject":"Summarize the search conclusions","dependencies":["t1"]},"ignorable":true}
+{"type":"patent-teams/task-updated","data":{"teamId":"search-team","taskId":"t1","status":"in_progress","assignee":"alice"},"ignorable":true}
+{"type":"patent-teams/message-sent","data":{"teamId":"search-team","messageId":"m1","from":"captain","to":"alice","content":"Start with t1","ts":1784973851000},"ignorable":true}
+{"type":"patent-teams/task-updated","data":{"teamId":"search-team","taskId":"t1","status":"completed","assignee":"alice"},"ignorable":true}
+{"type":"patent-teams/task-validated","data":{"teamId":"search-team","taskId":"t1","worker":"researcher","valid":false,"missingHardFields":["sources"],"degraded":true},"ignorable":true}
+{"type":"patent-teams/task-updated","data":{"teamId":"search-team","taskId":"t2","status":"in_progress","assignee":"bob"},"ignorable":true}
+{"type":"step/end","data":{"turn":1,"step":1}}
+{"type":"turn/end","data":{"turn":1,"reason":{"kind":"completed"}}}

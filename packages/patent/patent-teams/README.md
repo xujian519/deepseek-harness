@@ -69,7 +69,7 @@ Prefix-stable: the usage section is constant for a given mount, so it does not i
 
 ## Known Limitations and Deferred Work
 
-- **No Web UI** — the upstream plugin's activity-panel and artwork routes are not ported; team state is inspected through `patent_teams_status` and the on-disk files.
+- **Web UI is a separate projection** — the upstream plugin's activity-panel and artwork routes are not ported; `dsh-client-ui-patent-teams` folds the `patent-teams/*` session events into a chat card and the Teams view, and the on-disk files plus `patent_teams_status` remain the authoritative inspection paths.
 - **Single-process serialization** — state is file-backed and serialized within one DSH process; concurrent processes editing the same team are not coordinated.
 - **One active team per captain** — a captain must end its current team before creating another.
 - **Live delivery is best-effort** — if the recipient agent is offline, messages stay durable in the mailbox and are retried at the next status boundary.

@@ -1,0 +1,34 @@
+# @deepseek-ai/dsh-client-ui-patent-teams
+
+[English](README.md) | 中文
+
+把 PatentTeams 监视面带回 Web UI 的浏览器插件：对话流里的一张持久团队卡片，以及固定的"团队"会话视图。两个面都折叠 [`dsh-patent-teams`](../../patent/patent-teams/README.zh.md) 拥有的九种 `patent-teams/*` 会话事件；上游 `@nanmicoder/dsh-agent-teams` 的活动面板（body-portal 浮层 + 轮询 host 路由）被有意不复刻——本包改为重放会话日志，零轮询、零新增 host 面。
+
+## 持久状态与重放
+
+`patent-teams/team-created` 以 `teamId` 为键开启一个 Context；成员增删、任务创建、状态迁移、契约裁决、质量门拒绝、邮箱消息与团队删除按日志顺序更新该 Context。聊天 Definition 与视图源 Definition 跑的是 `teams-model.ts` 里的同一个 reducer，卡片与"团队"tab 是同一折叠的两个投影，不可能不一致。只含更新事件的历史尾页会保持 pending，直到更早的页补给唯一的 start；prepend、完整重放与增量 append 收敛到同一状态。后到的有效契约裁决会清掉先前的降级字段——最新裁决拥有任务视图。`patent-teams/team-deleted` 将团队标记为已解散但保留记录供复盘，与 host 的磁盘归档一致。
+
+"团队"tab 经由按会话隔离的 `ConversationViewBuilder` 读取 `patentTeams` 视图快照，builder 在增量 upsert 间保持团队创建顺序。没有团队记录的会话显示空态；tab 本身是每个会话视图中的固定入口（order 30，位于"轨迹"与"文档"之后）。
+
+## 呈现与导航
+
+卡片是受控展开件：进行中的团队挂载即展开，已完成与已解散的团队挂载即折叠，整行表头可切换。折叠尾是成员数、任务 done/total 计数与状态点及文案；展开体列出成员（名字、角色、实时活跃）与任务（状态、负责人、依赖、契约缺字段与未过质量门标记）。宿主闭合词表之外的任务状态按原始字符串渲染。成员只有在全部事实一致时才能打开其子代理会话——运行中、在普通会话列表中、`origin: 'subagent'`、父会话为当前会话——与 `ui-workflow-run` 的证明相同，过期折叠永远不会变成死按钮。"团队"视图按团队渲染区块，行列表与卡片共用。
+
+## 组合
+
+包以 Cordis effect 注册两个 Conversation Node Definition、一个视图 Definition、locale 字典、keyed `patent-teams` Chat 渲染器与 `teams` 会话视图。移除 client 入口即收回全部贡献。发布的 Web bundle 在 `ui-workflow-run` 之后收录本插件；桌面 app 经同一 roster 自动继承。
+
+## Model Experience
+
+无：本包为人渲染持久会话事实，不新增 prompt、工具 schema、请求内容或模型可见结果。
+
+#### KV Cache effect
+
+无。
+
+## 已知限制与后续工作
+
+- 成员实时活跃来自普通会话列表 share；列表行尚未到达的成员渲染为待命，且不提供手动刷新动作。
+- `patent_teams_*` 工具调用仍走通用工具卡；keyed toolview 推迟到能在不分叉 ui-tool 行 chrome 的前提下复用其模式时再做。
+- 视图只列出事件落在本会话日志窗口内的团队；跨会话团队聚合需要新的 host 查询面。
+- 团队创建时不自动切到"团队"tab：会话服务尚无按会话读取快照的接口来给切换做门控。
