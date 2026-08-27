@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import * as yaml from 'js-yaml'
 import { hasTypertRemoteNavigation, isForbiddenPublicationFile } from './publication-payload.ts'
 import { collectProjectReferenceFaceViolations } from './project-reference-faces.ts'
 
@@ -401,12 +402,50 @@ function checkWorkspace({ dir, manifest }: WorkspaceManifest): string[] {
   return errors.map(error => `${relative(root, join(root, dir, 'package.json'))}: ${error}`)
 }
 
+/** Normalize a pnpm-workspace.yaml `!` exclusion glob to a repo-relative dir
+ * prefix: `!packages/self-evolve/evaluation` → `packages/self-evolve/evaluation`,
+ * `!apps/desktop/resources/**` → `apps/desktop/resources`. */
+function excludedDirPrefix(pattern: string): string {
+  return pattern.replace(/^!/, '').replace(/\/?\*\*$/, '').replace(/\/$/, '')
+}
+
+/** Repo-relative dirs pnpm-workspace.yaml excludes from the workspace. The
+ * `!packages/` globs mark data/document trees that deliberately ship no
+ * package.json; `checkHierarchyShape` walks the same `packages/<group>/<pkg>` depth and
+ * must not read them as malformed packages. */
+function excludedWorkspaceDirs(): Set<string> {
+  const workspace = yaml.load(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')) as { packages?: unknown }
+  const excluded = new Set<string>()
+  if (Array.isArray(workspace.packages)) {
+    for (const entry of workspace.packages) {
+      if (typeof entry !== 'string' || !entry.startsWith('!')) continue
+      excluded.add(excludedDirPrefix(entry))
+    }
+  }
+  return excluded
+}
+
+/** Whether `dir` is an excluded tree or sits under one. */
+function isExcludedWorkspaceDir(excluded: Set<string>, dir: string): boolean {
+  if (excluded.has(dir)) return true
+  let prefix = dir
+  for (;;) {
+    const slash = prefix.lastIndexOf('/')
+    if (slash < 0) break
+    prefix = prefix.slice(0, slash)
+    if (excluded.has(prefix)) return true
+  }
+  return false
+}
+
 /**
  * Enforce `packages/<group>/<pkg>`: groups are open-named containers without a
- * package.json, and packages may be neither flat nor more deeply nested.
+ * package.json, and packages may be neither flat nor more deeply nested. Excluded
+ * data/document trees (the `!packages/` globs in pnpm-workspace.yaml) are skipped.
  */
 function checkHierarchyShape(): string[] {
   const errors: string[] = []
+  const excluded = excludedWorkspaceDirs()
   const packagesRoot = join(root, 'packages')
   for (const group of readdirSync(packagesRoot, { withFileTypes: true })) {
     if (!group.isDirectory()) continue
@@ -419,6 +458,7 @@ function checkHierarchyShape(): string[] {
       if (!pkg.isDirectory()) continue
       if (localArtifactDirs.has(pkg.name)) continue
       const pkgRel = join(groupRel, pkg.name)
+      if (isExcludedWorkspaceDir(excluded, pkgRel)) continue
       if (!existsSync(join(packagesRoot, group.name, pkg.name, 'package.json'))) {
         errors.push(`${pkgRel}: expected a package here (no package.json found) — the hierarchy is exactly packages/<group>/<pkg>, no deeper nesting`)
       }

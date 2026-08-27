@@ -2,7 +2,7 @@
 // Folds the six StreamChunk variants into AssistantBlock[] keyed by block index;
 // block-level immutability (a delta only swaps that block's reference).
 
-import type { StreamChunk } from '@deepseek-ai/dsh-llm/types'
+import type { ContentBlock, StreamChunk } from '@deepseek-ai/dsh-llm/types'
 import type { AssistantBlock, PartialAssistant } from './conversation.ts'
 import { toAssistantBlock } from './conversation.ts'
 
@@ -17,6 +17,16 @@ export function isVisibleAssistantChunk(type: string): boolean {
     || type === 'reasoning-delta'
     || type === 'tool-call-delta'
     || type === 'block-end'
+}
+
+/** Whether a stream-chunk block index addresses a real block slot (finite, non-negative integer). */
+function isBlockIndex(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+/** Whether a value is a non-null object that can be classified as a stream block. */
+function isBlockPayload(value: unknown): value is ContentBlock {
+  return typeof value === 'object' && value !== null
 }
 
 /** assistant/chunk accumulator: folds StreamChunks into AssistantBlock[] with block-level immutability. */
@@ -48,23 +58,27 @@ export class PartialAccumulator {
   push(chunk: StreamChunk): boolean {
     switch (chunk.type) {
       case 'block-start': {
+        if (!isBlockIndex(chunk.index)) return false
         this.blocks[chunk.index] = emptyAssistantBlock(chunk.blockType)
         this.changed = true
         return true
       }
       case 'text-delta': {
+        if (!isBlockIndex(chunk.index) || typeof chunk.text !== 'string') return false
         const prev = this.blocks[chunk.index]
         this.blocks[chunk.index] = { kind: 'text', text: (prev?.kind === 'text' ? prev.text : '') + chunk.text }
         this.changed = true
         return true
       }
       case 'reasoning-delta': {
+        if (!isBlockIndex(chunk.index) || typeof chunk.text !== 'string') return false
         const prev = this.blocks[chunk.index]
         this.blocks[chunk.index] = { kind: 'reasoning', text: (prev?.kind === 'reasoning' ? prev.text : '') + chunk.text }
         this.changed = true
         return true
       }
       case 'tool-call-delta': {
+        if (!isBlockIndex(chunk.index) || typeof chunk.argumentsDelta !== 'string') return false
         const prev = this.blocks[chunk.index]
         const base = prev?.kind === 'tool-call' ? prev : { kind: 'tool-call' as const, callId: '', name: '', argsRaw: '' }
         this.blocks[chunk.index] = {
@@ -77,6 +91,7 @@ export class PartialAccumulator {
         return true
       }
       case 'block-end': {
+        if (!isBlockIndex(chunk.index) || !isBlockPayload(chunk.block)) return false
         this.blocks[chunk.index] = toAssistantBlock(chunk.block)
         this.changed = true
         return true

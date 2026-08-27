@@ -31,6 +31,11 @@ export interface AssistantMarkdownProps {
   t: ChatViewSlotProps['t']
 }
 
+/** Coerce a block body to a safe string: a malformed delta can otherwise plant a non-string in the markdown renderer. */
+function textOf(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
   blocks, streaming, interrupted, renderMessageImages, mentions, t,
@@ -55,7 +60,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         rendered.push(
           <MarkdownText
             key={i}
-            text={block.text}
+            text={textOf(block.text)}
             streaming={streaming}
             codeLabels={codeLabels}
             fileMentions={mentions}
@@ -63,7 +68,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         )
         break
       case 'reasoning':
-        rendered.push(<ReasoningRow key={i} text={block.text} running={streaming && i === last} t={t} />)
+        rendered.push(<ReasoningRow key={i} text={textOf(block.text)} running={streaming && i === last} t={t} />)
         break
       case 'image': {
         // Consecutive image blocks share one gallery so several images tile

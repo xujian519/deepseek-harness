@@ -6,6 +6,7 @@ import type {
 import {
   emptyAssistantBlock, isAppendSurfaceEvent, isTokenDelta, toAssistantBlock, toAssistantBlocks,
 } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import type { AssistantChatData } from '../contract/chat-nodes.ts'
 import { CHAT_SYNTHETIC_SEQ_OFFSETS, chatNode } from './common.ts'
@@ -77,25 +78,44 @@ function resetForRetry(state: AssistantState): AssistantState {
   }
 }
 
+/** Whether a stream-chunk block index addresses a real block slot (finite, non-negative integer). */
+function isBlockIndex(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+/** Whether a value is a non-null object that can be classified as a stream block. */
+function isBlockPayload(value: unknown): value is ContentBlock {
+  return typeof value === 'object' && value !== null
+}
+
 function updateChunk(state: AssistantState, match: ConversationMatch): AssistantState {
   if (match.event.type !== 'assistant/chunk') return state
   const chunk = match.event.data.chunk
+  // A malformed delta index or non-string payload would otherwise write an
+  // out-of-range / sparse slot, or feed a non-string into the markdown
+  // renderer (a block-end with a null `block` throws in toAssistantBlock).
+  // Skip such a chunk: keep the accumulated blocks as-is instead of crashing
+  // the whole conversation tree.
   const blocks = [...state.blocks]
   switch (chunk.type) {
     case 'block-start':
+      if (!isBlockIndex(chunk.index)) return state
       blocks[chunk.index] = emptyAssistantBlock(chunk.blockType)
       break
     case 'text-delta': {
+      if (!isBlockIndex(chunk.index) || typeof chunk.text !== 'string') return state
       const previous = blocks[chunk.index]
       blocks[chunk.index] = { kind: 'text', text: (previous?.kind === 'text' ? previous.text : '') + chunk.text }
       break
     }
     case 'reasoning-delta': {
+      if (!isBlockIndex(chunk.index) || typeof chunk.text !== 'string') return state
       const previous = blocks[chunk.index]
       blocks[chunk.index] = { kind: 'reasoning', text: (previous?.kind === 'reasoning' ? previous.text : '') + chunk.text }
       break
     }
     case 'tool-call-delta': {
+      if (!isBlockIndex(chunk.index) || typeof chunk.argumentsDelta !== 'string') return state
       const previous = blocks[chunk.index]
       const base = previous?.kind === 'tool-call'
         ? previous
@@ -109,6 +129,7 @@ function updateChunk(state: AssistantState, match: ConversationMatch): Assistant
       break
     }
     case 'block-end':
+      if (!isBlockIndex(chunk.index) || !isBlockPayload(chunk.block)) return state
       blocks[chunk.index] = toAssistantBlock(chunk.block)
       break
     case 'usage':

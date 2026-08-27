@@ -185,7 +185,15 @@ function workspaceChoices() {
 async function threadsForDshWorkspace(workspace) {
   if (workspace.sessionIds.length === 0) return []
   const requested = new Set(workspace.sessionIds)
-  const projections = await Promise.all(state.summaries.map(summary => api(`/synapse/api/workspaces/${summary.id}`)))
+  const summaries = state.summaries
+  const projections = []
+  // Bound concurrent workspace fetches: an unbounded Promise.all over every
+  // summary exhausts the renderer request budget as the workspace count grows,
+  // surfacing as net::ERR_INSUFFICIENT_RESOURCES.
+  for (let i = 0; i < summaries.length; i += 5) {
+    const batch = summaries.slice(i, i + 5)
+    projections.push(...await Promise.all(batch.map(summary => api(`/synapse/api/workspaces/${summary.id}`))))
+  }
   return projections.flatMap(projection => projection.workspace.threads.filter(thread => requested.has(thread.dshSessionId)))
 }
 

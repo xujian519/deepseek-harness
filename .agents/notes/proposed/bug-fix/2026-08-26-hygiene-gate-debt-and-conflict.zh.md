@@ -33,13 +33,13 @@ Status: proposed
 
 ## 修复清单
 
-待自由化插件窗口结束后,以一次协同变更、按依赖顺序实施:
+第 1、2 项已于 2026-08-26 随自由化插件窗口闭环落地;第 3 项与 `bundle/im` 项仍待办。原始按依赖顺序的清单:
 
-1. `scripts/check-workspace-constraints.ts` — 让 `checkHierarchyShape()` 尊重 `pnpm-workspace.yaml` 的 `!` 排除 glob(用 `yaml.load` 读取,`scripts/gen-third-party-notices.ts` 已如此处理),或把这些数据目录加入显式豁免清单。
-2. `packages/memory/openviking/package.json` — 从 knip 标记的那一节删除冗余的 `@deepseek-ai/dsh-fs` 声明。
-3. `test:coverage` 失败确认为 pre-existing,本就超出本次修复范围;需另开债务变更,要么补覆盖、要么把这些包登记进 `vitest.config.ts` 的 `exclude`。
+1. `scripts/check-workspace-constraints.ts` — **已实施(2026-08-26)。** `checkHierarchyShape()` 现读取 `pnpm-workspace.yaml` 的 `!` 排除 glob(用 `yaml.load`,同 `scripts/gen-third-party-notices.ts`),跳过被排除的 `packages/self-evolve/evaluation` 树,不再把它误判为缺 manifest 的包。
+2. `packages/memory/openviking/package.json` — **已实施(2026-08-26)。** 从 `devDependencies`(knip 标记的那一节)删除冗余的 `@deepseek-ai/dsh-fs`,仅保留 `peerDependencies` 声明。
+3. `test:coverage` 失败确认为 pre-existing,本就超出本次修复范围;需另开债务变更,要么补覆盖、要么把这些包登记进 `vitest.config.ts` 的 `exclude`。**待办。**
 
-`@xmanrui/dsh-im` / `bundle/im` 的 knip 项归属自由化插件窗口:为 `packages/bundle/im` 补 knip 配置(自己的 `knip.json` 或根 `knip.json` 条目),豁免 `@xmanrui/dsh-im` 并修正 entry/project pattern,使其不再报 hints。此处不修,以免撞车。
+`@xmanrui/dsh-im` / `bundle/im` 的 knip 项归属自由化插件窗口:为 `packages/bundle/im` 补 knip 配置(自己的 `knip.json` 或根 `knip.json` 条目),豁免 `@xmanrui/dsh-im` 并修正 entry/project pattern,使其不再报 hints。此处不修,以免撞车。**待办 — 归属窗口。**
 
 ## 备选方案
 
@@ -51,9 +51,9 @@ Status: proposed
 
 - 上述分析已记录,后续无需重新调查即可实施修复。
 - 修复将 `@xmanrui/dsh-im` / `bundle/im` 的归属留给自由化插件窗口;本次不改这些文件。
-- 修复落地前,`pnpm constraints` 与 `pnpm knip` 此处不作为交付结论;本 note 只记录根因与预期修复。
+- 第 1、2 项已于 2026-08-26 落地(第 3 项与 `bundle/im` 项留待各自债务/窗口变更);修复保持两项聚焦,并把两项未完事项记录在案。
 
 ## 风险
 
-- 两项修复(`check-workspace-constraints.ts`、`openviking` manifest)位于共享目录;若在自由化窗口仍编辑 `gen-*.ts` 或 bundle 目录时实施,可能造成窄文本冲突,故安排在窗口结束后。
-- 若本次修复运行前自由化窗口改变了 `bundle/im` 的边界,记录的 `@xmanrui/dsh-im` 细节可能过期;届时修复应先重新核对。
+- 两项修复(`check-workspace-constraints.ts`、`openviking` manifest)位于共享目录;窄文本冲突是安排到自由化窗口结束后的动因,已于 2026-08-26 无冲突落地。
+- 若在下一阶段自由化窗口改变了 `bundle/im` 的边界,记录的 `@xmanrui/dsh-im` 细节可能过期;届时修复应先重新核对。
