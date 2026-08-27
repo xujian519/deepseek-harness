@@ -1,5 +1,5 @@
 /**
- * Function plugin registering the 23 model-facing patent tools ported from Sati:
+ * Function plugin registering the 24 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * drafting, specification validation, evidence judgment, rule check, figure
  * analysis, PDF download, chemical recognition, knowledge notes, and the
@@ -31,6 +31,7 @@ import { createPatentCaseSearchTool } from './tool/patent-case-search.ts'
 import { createPatentWikiSearchTool } from './tool/patent-wiki-search.ts'
 import { createPatentKgQueryTool } from './tool/patent-kg-query.ts'
 import { createPatentEvalTool } from './tool/patent-eval.ts'
+import { createPatentAnalysisReportTool } from './tool/patent-analysis-report.ts'
 import { createClaimChartBuildTool } from './tool/claim-chart-build.ts'
 import { createDraftClaimsTool } from './tool/draft-claims.ts'
 import { createDraftSpecificationTool } from './tool/draft-specification.ts'
@@ -70,6 +71,8 @@ export { createPatentKgQueryTool } from './tool/patent-kg-query.ts'
 export type { PatentKgQueryInput, PatentKgQueryOutput, PatentKgHit, PatentKgNeighbor, PatentKgQueryDeps, KgAdapter } from './tool/patent-kg-query.ts'
 export { createPatentEvalTool, evaluatePatentContent } from './tool/patent-eval.ts'
 export type { PatentEvalInput, PatentEvalOutput, PatentEvalMode, PatentEvalDimension } from './tool/patent-eval.ts'
+export { createPatentAnalysisReportTool } from './tool/patent-analysis-report.ts'
+export type { PatentAnalysisReportInput, PatentAnalysisReportOutput, PatentAnalysisReportDeps } from './tool/patent-analysis-report.ts'
 export { createClaimChartBuildTool } from './tool/claim-chart-build.ts'
 export type { ClaimChartInput, ClaimChartOutput, ClaimChartTargetInput, ClaimChartBuildDeps } from './tool/claim-chart-build.ts'
 export { createDraftClaimsTool, draftClaims, DOMAIN_KEYWORDS } from './tool/draft-claims.ts'
@@ -263,7 +266,7 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
- * Register the 23 patent tools.
+ * Register the 24 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */
@@ -324,6 +327,7 @@ export function apply(ctx: Context, config: Config): void {
   }))
 
   // LLM-consuming tools.
+  ctx.tools.register(createPatentAnalysisReportTool({ model }))
   ctx.tools.register(createClaimChartBuildTool({ model }))
   ctx.tools.register(createPatentWorkflowRunTool({ model }))
   ctx.tools.register(createFlexiblePlanTool({ model }))

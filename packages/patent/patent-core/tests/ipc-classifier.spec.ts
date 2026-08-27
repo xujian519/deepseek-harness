@@ -63,6 +63,14 @@ describe('ipc-classifier', () => {
     expect(multi.detailConfidence!).toBeGreaterThanOrEqual(IPC_DETAIL_MIN_CONFIDENCE)
   })
 
+  it('attaches the domain creativeness focus as novelty implications', () => {
+    const top = classifyIpcTop('一种基于深度学习的图像识别方法，通过数据处理算法对图像进行处理')
+    expect(top.section).toBe('G')
+    expect(top.noveltyImplications).toBeDefined()
+    expect(top.noveltyImplications!.length).toBeGreaterThan(0)
+    expect(top.noveltyImplications!.length).toBeLessThanOrEqual(3)
+  })
+
   it('returns the default B section with low confidence when nothing matches', () => {
     const results = classifyIpc('今天天气很好')
     expect(results[0]!.section).toBe('B')

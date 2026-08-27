@@ -38,4 +38,6 @@ export type IpcClassification = {
   detail?: string
   /** Class-hit confidence 0..1 (same formula; threshold for precise injection). */
   detailConfidence?: number
+  /** 该 IPC 领域的创造性审查要点（自 IPC_DOMAINS.inventivenessFocus 前几条，确定性）。 */
+  noveltyImplications?: string[]
 }

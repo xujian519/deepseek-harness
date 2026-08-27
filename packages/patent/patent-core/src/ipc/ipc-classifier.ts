@@ -20,6 +20,8 @@ const CONFIDENCE_SATURATION_K = 3
 export const IPC_DETAIL_MIN_CONFIDENCE = 0.7
 /** 多重分类门槛：confidence >= 该值（与部级命中 ≥2 词等价：2 词=0.743，1 词=0.642）的部参与并行注入。 */
 export const MULTI_CLASSIFY_MIN_CONFIDENCE = 0.7
+/** 每个 IPC 分类附带的最大创造性审查要点条数（控制模型 token 成本）。 */
+export const IPC_NOVELTY_HINT_MAX = 3
 
 /** IPC 部（A-H）的领域元数据：部号、名称、关键词与审查要点。 */
 export type IpcDomainMeta = {
@@ -728,7 +730,13 @@ export function classifyIpc(text: string): IpcClassification[] {
     if (matched.length === 0) continue
     const confidence = ipcConfidence(matched.length)
     const detail = matchIpcDetail(lowered, domain.section)
-    results.push({ section: domain.section, confidence, matchedKeywords: matched, ...detail })
+    results.push({
+      section: domain.section,
+      confidence,
+      matchedKeywords: matched,
+      noveltyImplications: domain.inventivenessFocus.slice(0, IPC_NOVELTY_HINT_MAX),
+      ...detail,
+    })
   }
 
   if (results.length === 0) {

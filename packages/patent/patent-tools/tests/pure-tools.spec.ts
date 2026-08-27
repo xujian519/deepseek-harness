@@ -45,6 +45,14 @@ describe('patent_eval', () => {
     expect(out.details['引用合规性']?.score).toBe(0.5)
   })
 
+  it('standardizes the search strategy for retrieval mode', () => {
+    const out = evaluatePatentContent('retrieval', '创造性 三步法 技术启示', [])
+    expect(out.searchStrategy).toBeDefined()
+    expect(out.searchStrategy?.query).toBe('创造性 三步法 技术启示')
+    expect(out.searchStrategy?.keywords).toEqual(['创造性', '三步法', '技术启示'])
+    expect(out.searchStrategy?.hits).toBe(3)
+  })
+
   it('runs through the registered tool', async () => {
     const ctx = await ctxWith(createPatentEvalTool())
     const result = await execute(ctx, 'patent_eval', { mode: 'retrieval', content: 'a b c' }, 'e-1')

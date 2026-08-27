@@ -8,8 +8,9 @@
 
 import { existsSync } from 'node:fs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { CaseLawDocType, CaseLawHit, CaseLawSearchOptions } from '@deepseek-ai/dsh-patent-knowledge'
+import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'
 
 /** Input for the patent_case_search tool. */
@@ -43,6 +44,8 @@ export type PatentCaseSearchOutput = {
     via: 'fts' | 'like'
   }>
   dbPath?: string
+  /** 标准化检索策略记录。 */
+  searchStrategy: SearchStrategy
 }
 
 /** Injected case-law search (tests override; production wires ctx.patentKnowledge.caseLawSearch). */
@@ -80,8 +83,13 @@ const DESCRIPTION = '检索本地专利判例全文（无效复审决定/专利�
 
 /** Render the canonical case-search value into model-facing prose. */
 function renderCaseSearch(value: PatentCaseSearchOutput): string {
+  const header = [`**patent_case_search** — ${value.results.length} result(s):`]
+  const s = value.searchStrategy
+  let line = `检索式：${s.query}`
+  if (s.ipc !== undefined && s.ipc.length > 0) line += `（IPC ${s.ipc.join('、')}）`
+  header.push(line)
   if (value.results.length === 0) {
-    return 'patent_case_search: 0 条判例命中。'
+    return [...header, '', '0 条判例命中。'].join('\n')
   }
   const rows = value.results.map((r) => {
     const lines = [`## ${r.title}`]
@@ -93,7 +101,7 @@ function renderCaseSearch(value: PatentCaseSearchOutput): string {
     if (r.snippet) lines.push(r.snippet)
     return lines.join('\n')
   })
-  return [`**patent_case_search** — ${value.results.length} result(s):`, '', rows.join('\n\n---\n\n')].join('\n')
+  return [...header, '', rows.join('\n\n---\n\n')].join('\n')
 }
 
 const RESULT_SCHEMA = {
@@ -138,9 +146,10 @@ export function createPatentCaseSearchTool(deps: PatentCaseSearchDeps): ToolDefi
           total: { type: 'integer', required: true },
           results: { type: 'array', required: true, items: RESULT_SCHEMA },
           dbPath: { type: 'string' },
+          searchStrategy: { type: 'json', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: renderCaseSearch(value) }],
+      render: (_args, value) => [{ type: 'text', text: renderCaseSearch(value as unknown as PatentCaseSearchOutput) }],
     },
     // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
@@ -161,10 +170,23 @@ export function createPatentCaseSearchTool(deps: PatentCaseSearchDeps): ToolDefi
           cause: err instanceof Error ? err.message : String(err),
         })
       }
+      const searchStrategy: SearchStrategy = {
+        query: args.query,
+        ...(args.doc_type !== undefined || args.court !== undefined
+          ? {
+            filters: {
+              ...(args.doc_type !== undefined ? { docType: args.doc_type } : {}),
+              ...(args.court !== undefined ? { court: args.court } : {}),
+            },
+          }
+          : {}),
+        ...(hits.length > 0 ? { hits: hits.length } : {}),
+      }
       return {
         total: hits.length,
         results: hits.map(hit => toResult(hit, includeContent)),
         ...(deps.dbPath !== undefined ? { dbPath: deps.dbPath } : {}),
+        searchStrategy: searchStrategy as unknown as JsonValue,
       }
     },
   })
