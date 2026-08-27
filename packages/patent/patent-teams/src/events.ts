@@ -1,12 +1,18 @@
 /**
  * Durable PatentTeams session events and their emitter.
  *
- * Every team-state mutation appends one event to the captain's Session, so
- * the web client's Conversation Node mechanism can fold the tree view from
- * the session log deterministically (same mechanism as `tool-workflow`'s
- * `tool-workflow/*` record events). Events append to the captain's session
- * even when a member agent performed the mutation, so the captain's
- * conversation stream stays the single authoritative monitor surface.
+ * Every team-state mutation appends one informational event to the captain's
+ * Session, so the web client's Conversation Node mechanism can fold the team
+ * view from the session log deterministically (same mechanism as
+ * `tool-workflow`'s `tool-workflow/*` record events). Events append to the
+ * captain's session even when a member agent performed the mutation, so the
+ * captain's conversation stream stays the single authoritative monitor
+ * surface.
+ *
+ * Every record is marked `ignorable: true`: on-disk team state, not the log,
+ * is the authoritative source, so a harness build that predates the
+ * `patent-teams/*` vocabulary (for example an upstream install of the
+ * published plugin) may drop these records instead of refusing the log.
  *
  * Types and the `SessionEventMap` merge live in `event-types.ts` (zero
  * imports) so the browser program can load them without host augmentations.
@@ -14,17 +20,14 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import * as dshSession from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { SessionEventMap, SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PatentTeamsEventType } from './event-types.ts'
 
-/** Event types already reported as unsupported, to avoid repetitive logs. */
-const skippedEventTypes = new Set<PatentTeamsEventType>()
-
 /**
- * Append one PatentTeams event to a Session, containing failures (a broken
- * durable record must never break team tool execution).
+ * Append one PatentTeams event to a Session as an ignorable informational
+ * record, containing failures (a broken durable record must never break team
+ * tool execution).
  * @param ctx - the plugin context (for logging).
  * @param session - the session to record into (the captain's, normally).
  * @param type - the event type.
@@ -36,24 +39,8 @@ export function appendTeamEvent(
   type: PatentTeamsEventType,
   data: SessionEventMap[PatentTeamsEventType],
 ): void {
-  // Out-of-repo events are not in the harness's generated vocabulary today.
-  // Mutating that ReadonlySet would make readability depend on which plugins
-  // happen to be loaded. Until Session.append exposes the official
-  // `ignorable: true` writer surface, omit these informational records unless
-  // the running harness already recognizes them. Disk state remains the
-  // authoritative source for the activity panel.
-  const known = (dshSession as unknown as {
-    KNOWN_SESSION_EVENT_TYPES?: ReadonlySet<string>
-  }).KNOWN_SESSION_EVENT_TYPES
-  if (known?.has(type) !== true) {
-    if (!skippedEventTypes.has(type)) {
-      skippedEventTypes.add(type)
-      ctx.logger.debug(`patent-teams: session event "${type}" omitted because this harness does not recognize it`)
-    }
-    return
-  }
   try {
-    session.append(type, data)
+    session.append(type, data, { ignorable: true })
   } catch (error: unknown) {
     ctx.logger.warn(`patent-teams: session record failed after ${type}: ${String(error)}`)
   }

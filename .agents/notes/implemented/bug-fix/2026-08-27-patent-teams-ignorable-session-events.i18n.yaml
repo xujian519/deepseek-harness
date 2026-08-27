@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-27-patent-teams-ignorable-session-events.md
+2026-08-27-patent-teams-ignorable-session-events.md: 0db223fa547f3da65397123fbec10cb52a147625
+2026-08-27-patent-teams-ignorable-session-events.zh.md: 4c0e40c612860ab5b7bf5a1c308fd8d51f17898a
