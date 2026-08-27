@@ -22,6 +22,9 @@ export type StructureIssueType =
 /** One detected structure issue with its location, text, and fix suggestion. */
 export type StructureIssue = { type: StructureIssueType; line: number; text: string; suggestion: string }
 
+/** 反套话评分门通过线（43 分制及格线；SlopScore.passed 的唯一判定来源）。 */
+export const SLOP_PASS_LINE = 35
+
 /** Five-dimension 43-point anti-slop score. */
 export type SlopScore = {
   directness: number
@@ -174,7 +177,7 @@ function scoreDocument(text: string, changes: SlopChange[], issues: StructureIss
   const practicality = scorePracticality(changes.length)
   const concision = scoreConcision(text.split('\n\n').length)
   const total = directness + evidenceScore + rhythm + practicality + concision
-  return { directness, evidence: evidenceScore, rhythm, practicality, concision, total, passed: total >= 35 }
+  return { directness, evidence: evidenceScore, rhythm, practicality, concision, total, passed: total >= SLOP_PASS_LINE }
 }
 
 function hasIssueType(issues: StructureIssue[], type: StructureIssueType): boolean {

@@ -29,6 +29,7 @@ import { collectPortText, tryParseJson } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import type { ModelModality } from '@deepseek-ai/dsh-llm'
 import { PatentToolError } from '../error.ts'
+import type { FigureIndexEntry } from '../figure/index-store.ts'
 
 /** 附图类型（PatentVision 分类 + 专利实务常见图型）。 */
 export const FIGURE_TYPES = [
@@ -160,6 +161,12 @@ export type AnalyzePatentFigureDeps = {
   resolveImageInputModalities?: (provider: string, model: string) => Promise<readonly ModelModality[] | undefined>
   /** Config figure-model fallback gated when the calling agent's model is unreachable. */
   gateModel?: { provider: string; model: string }
+  /**
+   * Persist the analysis into the figure index (figureIndexStore.upsert).
+   * Optional enhancement: a throwing upsert is swallowed so the analysis result
+   * still returns.
+   */
+  upsertIndex?: (entry: FigureIndexEntry) => Promise<void>
 }
 
 /**
@@ -533,12 +540,24 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
           { tool: 'analyze_patent_figure' },
         )
       }
-      return normalizeFigureAnalysis(raw, {
+      const result = normalizeFigureAnalysis(raw, {
         imagePath: args.image_path,
         figureNumber,
         inventionName: args.invention_name,
         modelUsed,
       })
+      if (deps.upsertIndex !== undefined) {
+        try {
+          await deps.upsertIndex({
+            imagePath: result.imagePath,
+            analyzedAt: new Date().toISOString(),
+            analysis: result,
+          })
+        } catch {
+          // 索引写入是可选增强：写入失败静默降级，不阻断分析结果返回。
+        }
+      }
+      return result
     },
   })
 }

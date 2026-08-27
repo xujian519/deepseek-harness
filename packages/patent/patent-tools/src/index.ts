@@ -13,13 +13,15 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { createLlmModelPort, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
+import { createLlmModelPort, globalAtomRegistry, globalStageHandlerRegistry, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { BrowserUseExtractor, resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
+import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
+import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
 import { PatentToolError } from './error.ts'
 import { createPatentSearchTool } from './tool/patent-search.ts'
@@ -48,6 +50,7 @@ import { createPatentPlanTaskTool } from './tool/patent-plan-task.ts'
 import { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts'
 import { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 import { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
+import { slopGateAtom, SlopGateHandler } from './atoms/slop-gate.ts'
 
 // ---- public library surface (factories + error + render_patent_document) ----
 export { PatentToolError } from './error.ts'
@@ -83,13 +86,17 @@ export type { RuleCheckInput, RuleCheckOutput, RuleViolationView, RuleCheckDeps 
 export { createAnalyzePatentFigureTool, FIGURE_SPEC_GUIDE, resolveGateRoute } from './tool/analyze-patent-figure.ts'
 export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisResult, FigureComponent, FigureType } from './tool/analyze-patent-figure.ts'
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
-export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps, LoadFigureIndexResult } from './tool/search-patent-figure.ts'
+export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps } from './tool/search-patent-figure.ts'
+export { figureIndexStore, FIGURE_INDEX_VERSION, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
+export type { FigureIndexEntry, LoadFigureIndexResult } from './figure/index-store.ts'
+export { chemistryIndexStore, CHEMISTRY_INDEX_VERSION, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
+export type { ChemistryIndexEntry } from './chemistry/index-store.ts'
 export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
 export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownloadDeps, RunEgo, EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult } from './tool/patent-pdf-download.ts'
 export type { EgoSessionSeam } from './tool/patent-pdf-download-ego.ts'
 export { createBrowserUseDownloadRunner } from './tool/patent-pdf-download-browser-use.ts'
-export { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
-export type { RecognizeChemicalStructureInput, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
+export { createRecognizeChemicalStructureTool, resolveChemicalSourceKey } from './tool/recognize-chemical-structure.ts'
+export type { RecognizeChemicalStructureInput, RecognizeChemicalStructureDeps, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
 export { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
 export type { FlexiblePlanToolInput, FlexiblePlanOutput, FlexiblePlanToolDeps, FlexiblePlanAction, FlexiblePlanStageInput } from './tool/patent-flexible-plan.ts'
 export { createPatentWorkflowTool } from './tool/patent-workflow.ts'
@@ -103,6 +110,8 @@ export type { PatentWorkerValidateInput, PatentWorkerValidateOutput } from './to
 export { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 export type { KnowledgeNoteSaveInput, KnowledgeNoteSaveOutput, KnowledgeNoteSaveDeps, KnowledgeNote } from './tool/knowledge-note-save.ts'
 export { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
+export { slopGateAtom, SlopGateHandler, SLOP_GATE_PASS_THRESHOLD } from './atoms/slop-gate.ts'
+export { buildSlopRevisionHint } from './internal/retry-hints.ts'
 
 // render_patent_document is owned by dsh-patent-document; re-export for library consumers.
 export { createRenderPatentDocumentTool, renderDocumentResult }
@@ -125,6 +134,10 @@ export interface Config {
   noteDir?: string
   /** Max output tokens for the LLM-consuming tools. */
   maxTokens?: number
+  /** 附图索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/figures-index.json。 */
+  figureIndexFile?: string
+  /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */
+  chemistryIndexFile?: string
 }
 
 /** Figure/image model route used by the figure-analysis tool. */
@@ -142,6 +155,8 @@ export const Config: z<Config> = z.object({
   imageModel: z.object({ provider: z.string(), model: z.string() }),
   maxTokens: z.number(),
   noteDir: z.string(),
+  figureIndexFile: z.string(),
+  chemistryIndexFile: z.string(),
 })
 
 /** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
@@ -205,6 +220,20 @@ function resolveNoteDir(config: Config): string {
   return config.noteDir !== undefined ? resolve(config.noteDir) : join(process.cwd(), '99-知识库')
 }
 
+/** Resolve the figure-index file: Config.figureIndexFile (absolute or relative to cwd), else <cwd>/.sati/figures-index.json. */
+function resolveFigureIndexFile(config: Config): string {
+  return config.figureIndexFile !== undefined
+    ? resolve(config.figureIndexFile)
+    : resolve(process.cwd(), DEFAULT_FIGURE_INDEX_RELATIVE_PATH)
+}
+
+/** Resolve the chemistry-index file: Config.chemistryIndexFile (absolute or relative to cwd), else <cwd>/.sati/chemistry-index.json. */
+function resolveChemistryIndexFile(config: Config): string {
+  return config.chemistryIndexFile !== undefined
+    ? resolve(config.chemistryIndexFile)
+    : resolve(process.cwd(), DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH)
+}
+
 /** Inputs for the patent PDF-download runner resolver. */
 export type DownloadRunnerResolverOptions = {
   /** ego-browser batch runner (fail-loud stub when patent-data is not mounted). */
@@ -250,9 +279,14 @@ export function apply(ctx: Context, config: Config): void {
   // 内置原子（契约 + 运行时）注册进全局注册表；幂等。不注册则 atom-bearing
   // manifest 在 runWorkflow 的 fail-fast 处抛错，工作流工具全部不可用。
   registerBuiltinAtoms()
+  // slop-gate 依赖本包的 slop 引擎，按依赖方向注册在 patent-core 内置之外。
+  globalAtomRegistry.register(slopGateAtom)
+  globalStageHandlerRegistry.register(new SlopGateHandler())
   const model = buildModelPort(ctx, config)
   const gateModel = figureRoute(ctx, config)
   const resolveImageInputModalitiesFor = buildImageGateResolver(ctx)
+  const figureIndexFile = resolveFigureIndexFile(config)
+  const chemistryIndexFile = resolveChemistryIndexFile(config)
   const knowledge = ctx.get('patentKnowledge')
 
   // Search / metadata / legal status: default to the nuo engine (no service needed).
@@ -290,7 +324,12 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createRuleCheckTool())
   ctx.tools.register(createPatentWorkerValidateTool())
   ctx.tools.register(createPatentPlanTaskTool())
-  ctx.tools.register(createRecognizeChemicalStructureTool())
+  ctx.tools.register(createRecognizeChemicalStructureTool({
+    // 识别引擎不可用（RDKit 未安装）时 usable 恒 false，该写入闭包不可达；
+    // RDKit 接入并产出 usable 结果后移除 ignore（与 recognize 工具内注释呼应）。
+    /* v8 ignore next -- dead until the chemistry engine produces a usable result. */
+    upsertIndex: entry => chemistryIndexStore.upsert(chemistryIndexFile, entry),
+  }))
 
   // LLM-consuming tools.
   ctx.tools.register(createClaimChartBuildTool({ model }))
@@ -300,18 +339,17 @@ export function apply(ctx: Context, config: Config): void {
     model,
     ...(gateModel === undefined ? {} : { gateModel }),
     ...(resolveImageInputModalitiesFor === undefined ? {} : { resolveImageInputModalities: resolveImageInputModalitiesFor }),
+    upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
   }))
 
   // Evidence + rule-asset + recap + figure-index + notes.
   ctx.tools.register(createEvaluateEvidenceTool({ ruleDirs: candidateRuleDirs() }))
   ctx.tools.register(createPatentWorkflowTool({}))
-  // Search figure index: analyze_patent_figure does not persist an index in
-  // this port, so the tool fails loud until an integrator wires a real loader.
+  // Search figure index: analyze_patent_figure persists its results through
+  // figureIndexStore.upsert into the configured figureIndexFile, which the
+  // search tool loads on each call.
   ctx.tools.register(createSearchPatentFigureTool({
-    // oxlint-disable-next-line typescript/require-await -- SearchPatentFigureDeps.loadIndex contract returns Promise<LoadFigureIndexResult>
-    loadIndex: async () => {
-      throw new PatentToolError('setup_required', 'search_patent_figure 需要附图索引加载器（analyze_patent_figure 当前不落盘索引）；未接线。', { tool: 'search_patent_figure' })
-    },
+    loadIndex: () => figureIndexStore.load(figureIndexFile),
   }))
 
   // PDF download: wire the runner through a browser-backend cold decision —

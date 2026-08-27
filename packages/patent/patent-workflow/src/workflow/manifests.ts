@@ -98,6 +98,17 @@ export const patentDisclosureManifest: WorkflowManifest = {
       description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）',
       atom: 'draft-claims',
     },
+    {
+      id: 'slop_clean',
+      strategy: 'chain',
+      description: '反套话评分门（未通过自动带证据提示回退权利要求修订）',
+      atom: 'slop-gate',
+      retry: {
+        whenOutputMatches: '需修订',
+        rewindTo: 'draft_claims',
+        maxRetries: 1,
+      },
+    },
   ],
   validation: { requireAllSteps: true, maxRetries: 2 },
 }

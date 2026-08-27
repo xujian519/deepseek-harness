@@ -30,6 +30,16 @@ describe('createDownloadRunnerResolver', () => {
     expect(resolve).toHaveBeenCalledWith({ exclude: ['browseros-neo', 'playwright'] })
   })
 
+  it('falls back to the ego runner when backend resolution throws', async () => {
+    // A host with no detectable backend must still honor the explicitly wired
+    // ego channel instead of failing the download with install guidance.
+    const runEgo: RunEgo = vi.fn(async () => ({ items: [] }))
+    const resolve = vi.fn(async () => { throw new Error('no backend') })
+    const resolver = createDownloadRunnerResolver({ runEgo, extractor: new BrowserUseExtractor(), resolve })
+    const runner = await resolver()
+    expect(runner).toBe(runEgo)
+  })
+
   it('returns a browser-use runner when the backend decision lands on browser-use', async () => {
     const runEgo: RunEgo = vi.fn(async () => { throw new Error('ego must not run') })
     const resolve = vi.fn(async () => fakeBackend('browser-use'))

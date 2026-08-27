@@ -222,6 +222,8 @@ export interface BuildWorkflowRunContextOptions {
   maxResults?: number
   /** claim-chart target objects JSON (default empty). */
   chartTargets?: string
+  /** Existing prior-art evidence entries (mapped to the prior_art state the search/citation-check stages read). */
+  priorArt?: unknown[]
 }
 
 /**
@@ -241,6 +243,7 @@ export function buildWorkflowRunContext(opts: BuildWorkflowRunContextOptions): W
     claim: opts.input,
     chart_targets: opts.chartTargets ?? '',
     max_results: String(opts.maxResults ?? 5),
+    ...(opts.priorArt !== undefined ? { prior_art: opts.priorArt } : {}),
   }
 }
 

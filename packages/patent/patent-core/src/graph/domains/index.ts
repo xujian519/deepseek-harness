@@ -17,6 +17,15 @@ import {
   detectTechnicalDomain,
   type BuildEnablementGraphOptions,
 } from './enablement.ts'
+import {
+  PATENT_NUMBER_RE,
+  buildCitationCheckGraph,
+  checkCitations,
+  extractCitationCheckResult,
+  extractCitationIds,
+  extractDocIds,
+  type BuildCitationCheckGraphOptions,
+} from './citation-check.ts'
 
 export {
   handlerNode,
@@ -29,12 +38,22 @@ export type { LlmNodeOptions, RuleGateState } from './shared.ts'
 export { buildNoveltyGraph, extractNumericRanges, type BuildNoveltyGraphOptions }
 export { buildInventivenessGraph, extractInventivenessResult, type BuildInventivenessGraphOptions }
 export { buildEnablementGraph, extractEnablementResult, detectTechnicalDomain, type BuildEnablementGraphOptions }
+export {
+  PATENT_NUMBER_RE,
+  buildCitationCheckGraph,
+  checkCitations,
+  extractCitationCheckResult,
+  extractCitationIds,
+  extractDocIds,
+  type BuildCitationCheckGraphOptions,
+}
 
-/** 三性领域子图注册表（单一数据源：工具层/评测按名取构建函数与入口节点）。 */
+/** 领域子图注册表（单一数据源：工具层/评测按名取构建函数与入口节点）。 */
 export const DOMAIN_GRAPHS = {
   novelty: { build: buildNoveltyGraph, entry: 'extract' },
   inventiveness: { build: buildInventivenessGraph, entry: 'parse' },
   enablement: { build: buildEnablementGraph, entry: 'load' },
+  'citation-check': { build: buildCitationCheckGraph, entry: 'check' },
 } as const
 
 /** 领域子图名（工具层 graph 参数枚举）。 */

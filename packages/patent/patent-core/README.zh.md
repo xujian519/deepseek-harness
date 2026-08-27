@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：atoms `StageProvider`/`StageHandler` 词汇及其 11 个内置 handler、`PatentModelPort` LLM 适配器、双轨 checker 规则引擎、原子化技术问题四检验、证据闭环账本与判定引擎、结构化推理原语、claim-chart 引擎、Pregel 风格图引擎及其三性子图、宪法规则引擎协议类型与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
+纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：atoms `StageProvider`/`StageHandler` 词汇及其 11 个内置 handler、`PatentModelPort` LLM 适配器、双轨 checker 规则引擎、原子化技术问题四检验、证据闭环账本与判定引擎、结构化推理原语、claim-chart 引擎、Pregel 风格图引擎及其四个专利域子图（新颖性/创造性/充分公开/citation-check）、宪法规则引擎协议类型与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
 
 ## Atoms 引擎
 
@@ -34,7 +34,7 @@ atoms 层定义工作流阶段词汇：`Atom`/`AtomRegistry`（声明式契约�
 
 ## Graph 引擎
 
-`GraphBuilder`/`CompiledGraph` 运行 Pregel 风格超步（BSP）引擎：节点读取深拷贝 state 快照并返回增量片段，按 `Reducer`（last-write-wins/append/union/merge-map/fail-on-conflict）确定性合并。`NodePolicy` 提供重试、超时与副作用处理；`GraphInterruptError` 暂停以等待审批门；`runGraphWithCheckpoints`/`grantApproval` 持久化每超步检查点并续跑。`buildNoveltyGraph`/`buildInventivenessGraph`/`buildEnablementGraph` 组装三性子图（新颖性/创造性/充分公开），含确定性节点、LLM 节点与 checker `rule_gate` 收口；`manifestToGraph` 将 `WorkflowManifest` 桥接为图。
+`GraphBuilder`/`CompiledGraph` 运行 Pregel 风格超步（BSP）引擎：节点读取深拷贝 state 快照并返回增量片段，按 `Reducer`（last-write-wins/append/union/merge-map/fail-on-conflict）确定性合并。`NodePolicy` 提供重试、超时与副作用处理；`GraphInterruptError` 暂停以等待审批门；`runGraphWithCheckpoints`/`grantApproval` 持久化每超步检查点并续跑。`buildNoveltyGraph`/`buildInventivenessGraph`/`buildEnablementGraph` 组装三性子图（新颖性/创造性/充分公开），含确定性节点、LLM 节点与 checker `rule_gate` 收口；`buildCitationCheckGraph` 为确定性纯函数图，校验结论文本中的每个引用（专利号或 D<id>/对比文件N 标识）均出现在 `prior_art` 状态中；`manifestToGraph` 将 `WorkflowManifest` 桥接为图。
 
 ## 规则协议 + IPC
 
@@ -55,4 +55,4 @@ Independent; the library contributes no model-visible content, so it never popul
 - **证据规则资产暂存桩** — `loadEvidenceRulesEngine(ruleDirs?)` 接受显式目录，未传时返回默认权重引擎；真实规则包由 `dsh-patent-rule`（P4.1）解析。
 - **IPC 数据以资产打包** — `ipc-standards.yaml` 随包发布在 `assets/`，经 `import.meta.url` 从源码与构建后 lib 均可解析。
 - **检查点仍为文件存储** — `JsonFileCheckpointStore` 经共享的 `JsonFileStore` 持久化每超步检查点；`ctx.storage` 接缝随工作流集成（P3.1）落地。
-- **图引擎为纯计算** — 超步引擎与三性子图在进程内运行、无 `ctx`；LLM 与检索能力经注入的 `StageProvider` 提供。
+- **图引擎为纯计算** — 超步引擎与各域子图在进程内运行、无 `ctx`；LLM 与检索能力经注入的 `StageProvider` 提供。

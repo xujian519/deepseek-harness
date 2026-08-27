@@ -12,12 +12,12 @@ import {
 } from '../../handler.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
 
-/** draft-claims 原子：基于 PFE 与新颖性结果直出权利要求草稿。 */
+/** draft-claims 原子：基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）。 */
 export const draftClaimsAtom: Atom = {
   name: 'draft-claims',
-  description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）',
+  description: '基于 PFE 与新颖性结果直出权利要求草稿（独立+从属），可消费上一轮反套话评审的修订提示',
   category: 'extract',
-  inputSchema: ['pfe_triples', 'merge_result', 'novelty_conclusion', 'source_text'],
+  inputSchema: ['pfe_triples', 'merge_result', 'novelty_conclusion', 'source_text', 'slop_revision_hint'],
   outputSchema: ['claims_draft', 'draft_claims_result'],
 }
 
@@ -48,6 +48,7 @@ export class DraftClaimsHandler implements StageHandler {
     const pfeTriples = getStateArray(state, 'pfe_triples')
     const novelty = getStateString(state, 'novelty_conclusion')
     const source = getStateString(state, 'source_text')
+    const revisionHint = getStateString(state, 'slop_revision_hint')
     const pfeJson = pfeTriples.length > 0 ? JSON.stringify(pfeTriples, null, 2) : ''
     const input = mergeResult || pfeJson || source
     if (input.trim().length === 0) {
@@ -67,6 +68,7 @@ export class DraftClaimsHandler implements StageHandler {
       input.slice(0, 8000),
       '```',
       novelty.trim().length > 0 ? `【新颖性结论】\n${novelty.slice(0, 2000)}` : '',
+      revisionHint.trim().length > 0 ? `【上一轮反套话评审意见（仅修订提示，不含评分）】\n${revisionHint}` : '',
       '',
       '请严格输出 JSON：claims 为权利要求逐条文本数组（第 1 条为独立权利要求），notes 为撰写说明。',
     ].join('\n')

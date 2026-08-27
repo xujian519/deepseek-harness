@@ -368,6 +368,26 @@ describe('extract 分键 / merge / draft-claims', () => {
     const empty = await h.execute({ state: {}, provider: claimsProvider })
     expect(String(empty._error)).toMatch(/输入为空/)
   })
+
+  it('DraftClaimsHandler：slop_revision_hint 注入上一轮反套话评审意见', async () => {
+    const h = LookupStageHandler('draft-claims')!
+    let captured = ''
+    const capturingProvider: StageProvider = {
+      callLLM: async (prompt) => {
+        captured = prompt
+        return JSON.stringify({ claims: ['1. 一种散热装置，包括散热鳍片…'], notes: '修订后' })
+      },
+    }
+    await h.execute({
+      state: { merge_result: 'x', slop_revision_hint: '命中套话表述：填充词「进一步地」 → （删除）' },
+      provider: capturingProvider,
+    })
+    expect(captured).toMatch(/上一轮反套话评审意见/)
+    expect(captured).toMatch(/进一步地/)
+    expect(captured).not.toMatch(/通过线|总分/)
+    await h.execute({ state: { merge_result: 'x' }, provider: capturingProvider })
+    expect(captured).not.toMatch(/上一轮反套话评审意见/)
+  })
 })
 
 // ---------------------------------------------------------------------------

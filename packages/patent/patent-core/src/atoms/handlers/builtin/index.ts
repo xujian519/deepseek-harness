@@ -38,6 +38,7 @@ export {
   GROUNDEDNESS_THRESHOLD,
 } from './reason.ts'
 export { draftClaimsAtom, DraftClaimsHandler } from './draft.ts'
+export { degraded } from './llm.ts'
 export {
   approvalGateAtom,
   ApprovalGateHandler,

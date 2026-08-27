@@ -12,9 +12,11 @@
  * @module @deepseek-ai/dsh-patent-tools/tool/recognize-chemical-structure
  */
 
+import { createHash } from 'node:crypto'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
+import type { ChemistryIndexEntry } from '../chemistry/index-store.ts'
 
 /** 化学实体识别类型。 */
 export const CHEMICAL_KINDS = ['formula', 'structure', 'markush'] as const
@@ -128,15 +130,42 @@ const CANDIDATE_SCHEMA = {
   },
 } as const
 
+/** Injected chemistry-recognition dependencies. */
+export type RecognizeChemicalStructureDeps = {
+  /**
+   * Persist a usable recognition into the chemistry index
+   * (chemistryIndexStore.upsert). Optional enhancement: a throwing upsert is
+   * swallowed so the recognition result still returns.
+   */
+  upsertIndex?: (entry: ChemistryIndexEntry) => Promise<void>
+}
+
+/** 文本来源索引键：`text:<sha256 前缀>`。 */
+function textSourceKey(text: string): string {
+  const hash = createHash('sha256').update(text).digest('hex').slice(0, 16)
+  return `text:${hash}`
+}
+
+/**
+ * 化学索引来源键：图片模式用图片路径，文本模式用 `text:<hash>`（与 Sati 一致）。
+ * @param args - 识别工具输入。
+ * @returns 来源标识（sourceKey）。
+ */
+export function resolveChemicalSourceKey(args: { image_path?: string; text?: string }): string {
+  return args.image_path !== undefined ? args.image_path : textSourceKey(args.text ?? '')
+}
+
 /**
  * Build the `recognize_chemical_structure` tool.
  *
  * The full chemistry pipeline (VLM image analysis, LLM name→SMILES, RDKit
  * validation) is deferred because RDKit is not installed in dsh; execute
  * returns a canonical unavailability result after validating the input.
+ * A usable result (future RDKit build) is persisted into the injected index.
+ * @param deps - optional chemistry-index upsert.
  * @returns a registry-ready tool definition.
  */
-export function createRecognizeChemicalStructureTool(): ToolDefinition {
+export function createRecognizeChemicalStructureTool(deps: RecognizeChemicalStructureDeps = {}): ToolDefinition {
   return defineTool({
     name: 'recognize_chemical_structure',
     description: DESCRIPTION,
@@ -168,7 +197,6 @@ export function createRecognizeChemicalStructureTool(): ToolDefinition {
       },
       render: (_args, value) => [{ type: 'text', text: renderChemicalStructure(value) }],
     },
-    // oxlint-disable-next-line typescript/require-await -- tool contract requires async execute
     async execute(args) {
       const mode: RecognizeChemicalStructureMode = args.mode ?? (args.image_path ? 'image' : 'text')
       if (mode === 'image' && !args.image_path) {
@@ -193,6 +221,19 @@ export function createRecognizeChemicalStructureTool(): ToolDefinition {
         needHumanReview: true,
         usable: false,
         modelUsed: 'unavailable',
+      }
+      // 当前构建识别引擎不可用，usable 恒 false，写入分支不可达（RDKit 接入后移除 ignore）。
+      /* v8 ignore next 11 -- only reachable once the chemistry engine is wired and produces a usable result. */
+      if (result.usable && deps.upsertIndex !== undefined) {
+        try {
+          await deps.upsertIndex({
+            sourceKey: resolveChemicalSourceKey(args),
+            analyzedAt: new Date().toISOString(),
+            analysis: result,
+          })
+        } catch {
+          // 索引写入是可选增强：写入失败静默降级，不阻断识别结果返回。
+        }
       }
       return result
     },

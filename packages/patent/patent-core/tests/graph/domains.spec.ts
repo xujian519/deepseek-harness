@@ -1,10 +1,16 @@
 import { expect, it } from 'vitest'
 import {
+  DOMAIN_GRAPHS,
   StageHandlerRegistry,
+  buildCitationCheckGraph,
   buildEnablementGraph,
   buildInventivenessGraph,
   buildNoveltyGraph,
+  checkCitations,
   detectTechnicalDomain,
+  extractCitationCheckResult,
+  extractCitationIds,
+  extractDocIds,
   extractEnablementResult,
   extractInventivenessResult,
   extractNumericRanges,
@@ -278,4 +284,126 @@ it('enablement: load 节点确定性结构检查', async () => {
   expect(result.state.spec_sections_present).toEqual(['技术领域', '具体实施方式'])
   const missing = result.state.spec_sections_missing
   expect(Array.isArray(missing) && missing.includes('背景技术')).toBe(true)
+})
+
+// ---------------------------------------------------------------------------
+// citation-check：引用真实性校验子图（纯函数 + 确定性图）
+// ---------------------------------------------------------------------------
+
+it('extractCitationIds: 专利号优先提取并去重', () => {
+  expect(extractCitationIds('对比文件 US11452699B2 与 US11452699B2 公开了该特征')).toEqual(['US11452699B2'])
+  expect(extractCitationIds('无任何引用标识')).toEqual([])
+})
+
+it('extractCitationIds: 无专利号时回退归一文档标识（对比文件N/证据N/D<N>）', () => {
+  expect(extractCitationIds('参见对比文件2和证据1，另见 D3 的图2。')).toEqual(['D2', 'D1', 'D3'])
+})
+
+it('extractDocIds: 非对象/空字段返回空列表', () => {
+  expect(extractDocIds(null)).toEqual([])
+  expect(extractDocIds(42)).toEqual([])
+  expect(extractDocIds({ title: 123, url: null })).toEqual([])
+})
+
+it('extractDocIds: 从 title/url/patent 提取专利号与文档标识', () => {
+  expect(extractDocIds({ title: 'D1 的检索结果', url: 'https://x/US11452699B2', patent: 'CN111222333A' })).toEqual([
+    'US11452699B2',
+    'CN111222333A',
+  ])
+})
+
+it('checkCitations: 检索结果为空/无引用标识/无文档标识时放行不误报', () => {
+  const noDocs = checkCitations({ refTexts: ['引用 US11111111'], docs: [] })
+  expect(noDocs.grounded).toBe(true)
+  expect(noDocs.report).toContain('检索结果为空')
+
+  const noRefs = checkCitations({ refTexts: ['   '], docs: [{ title: 'D1' }] })
+  expect(noRefs.grounded).toBe(true)
+  expect(noRefs.report).toContain('未提取到可校验的引用标识')
+
+  const noDocIds = checkCitations({ refTexts: ['引用 US11111111'], docs: [{ title: '一篇无标识的摘要' }] })
+  expect(noDocIds.grounded).toBe(true)
+  expect(noDocIds.report).toContain('检索结果无法提取标识')
+})
+
+it('checkCitations: isGrounded 三种接地方式（相等/包含/被包含）', () => {
+  const exact = checkCitations({ refTexts: ['引用 US12345678'], docs: [{ patent: 'US12345678' }] })
+  expect(exact.grounded).toBe(true)
+  expect(exact.report).toContain('引用全部接地')
+
+  const docContainsRef = checkCitations({ refTexts: ['引用 US12345678'], docs: [{ url: 'https://x/US12345678B2' }] })
+  expect(docContainsRef.grounded).toBe(true)
+
+  const refContainsDoc = checkCitations({ refTexts: ['引用 CN201910000000A'], docs: [{ patent: 'CN201910000000' }] })
+  expect(refContainsDoc.grounded).toBe(true)
+})
+
+it('checkCitations: D 标号精确匹配（D10 不被 D1 前缀误接受）', () => {
+  const result = checkCitations({ refTexts: ['另引用 D10'], docs: [{ title: 'D1 的某专利' }] })
+  expect(result.grounded).toBe(false)
+  expect(result.uncited).toEqual(['D10'])
+})
+
+it('checkCitations: 对比文件N 引用经数组位置标号与仅带专利号的 prior_art 接地', () => {
+  const result = checkCitations({
+    refTexts: ['对比文件2 公开了区别特征'],
+    docs: [{ patent: 'CN111111111A' }, { patent: 'CN222222222A' }],
+  })
+  expect(result.grounded).toBe(true)
+  expect(result.report).toContain('引用全部接地')
+})
+
+it('checkCitations: 超范围的 D 标号引用仍报未接地（防幻觉保留）', () => {
+  const result = checkCitations({
+    refTexts: ['另引用 D7 佐证'],
+    docs: [{ patent: 'CN111111111A' }, { patent: 'CN222222222A' }, { patent: 'CN333333333A' }],
+  })
+  expect(result.grounded).toBe(false)
+  expect(result.uncited).toEqual(['D7'])
+})
+
+it('checkCitations: 部分引用未接地 → grounded false + uncited 列表', () => {
+  const result = checkCitations({
+    refTexts: ['US11111111 已核实，另引用了 US22222222'],
+    docs: [{ patent: 'US11111111' }],
+  })
+  expect(result.grounded).toBe(false)
+  expect(result.uncited).toEqual(['US22222222'])
+  expect(result.report).toContain('US22222222')
+})
+
+it('citation-check: 确定性图节点从 prior_art 校验结论引用', async () => {
+  const graph = buildCitationCheckGraph().compile('check')
+  const grounded = await graph.run({ text: '相对于 D1 不具备新颖性', prior_art: [{ title: 'D1' }] })
+  expect(grounded.completed).toBe(true)
+  expect(grounded.state.citation_check_grounded).toBe(true)
+  expect(grounded.state.citation_check_report).toContain('引用全部接地')
+
+  const ungrounded = await graph.run({ text: '引用 US99999999', prior_art: [{ patent: 'US11111111' }] })
+  expect(ungrounded.state.citation_check_grounded).toBe(false)
+  expect(ungrounded.state.citation_check_failures).toEqual(['US99999999'])
+})
+
+it('citation-check: 自定义 refTextKeys 从指定键提取引用文本', async () => {
+  const graph = buildCitationCheckGraph({ refTextKeys: ['inventiveness_conclusion'] }).compile('check')
+  const result = await graph.run({ inventiveness_conclusion: '本方案与 D2 不同', prior_art: [{ title: 'D2' }] })
+  expect(result.state.citation_check_grounded).toBe(true)
+})
+
+it('extractCitationCheckResult: 缺键时省略，有值时解析类型', () => {
+  expect(extractCitationCheckResult({})).toEqual({})
+  const full = extractCitationCheckResult({
+    citation_check_grounded: false,
+    citation_check_failures: ['US22222222'],
+    citation_check_report: '未接地',
+  })
+  expect(full.grounded).toBe(false)
+  expect(full.uncited).toEqual(['US22222222'])
+  expect(full.report).toBe('未接地')
+})
+
+it('citation-check: 注册进 DOMAIN_GRAPHS（工具层可按名取构建函数与入口）', () => {
+  expect(DOMAIN_GRAPHS['citation-check'].entry).toBe('check')
+  const graph = DOMAIN_GRAPHS['citation-check'].build().compile('check')
+  expect(graph.describe().nodes).toContain('check')
 })

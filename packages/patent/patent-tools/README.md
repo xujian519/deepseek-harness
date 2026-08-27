@@ -22,9 +22,9 @@ Function plugin porting the Sati patent-domain tool set into the DeepSeek Harnes
 | `evaluate_evidence` | evidence | `@deepseek-ai/dsh-patent-core` evidence engine |
 | `rule_check` | quality | `@deepseek-ai/dsh-patent-rule` rule engine |
 | `analyze_patent_figure` | analysis | ModelPort (image-input gated on the figure model) |
-| `search_patent_figure` | search | keyword retrieval over the figure index (not image-gated; current assembly fails loud — no index writer is wired) |
+| `search_patent_figure` | search | keyword retrieval over the figure index written by `analyze_patent_figure` (Config.figureIndexFile) |
 | `patent_pdf_download` | document | browser-backend cold decision: ego-browser download intercept → browser-use link extraction + fetch fallback |
-| `recognize_chemical_structure` | analysis | optional (rdkit not bundled) |
+| `recognize_chemical_structure` | analysis | optional (rdkit not bundled); index upsert wired (Config.chemistryIndexFile) |
 | `flexible_plan` | workflow | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
 | `patent_workflow` | workflow | `@deepseek-ai/dsh-patent-workflow` recap |
 | `patent_workflow_run` | workflow | `@deepseek-ai/dsh-patent-workflow` + ModelPort |
@@ -33,6 +33,8 @@ Function plugin porting the Sati patent-domain tool set into the DeepSeek Harnes
 | `knowledge_note_save` | knowledge | file writer under Config.noteDir (default `<cwd>/99-知识库`) |
 
 `render_patent_document` is owned by `@deepseek-ai/dsh-patent-document` (its `apply()` registers it); this package re-exports `createRenderPatentDocumentTool` and `renderDocumentResult` for library consumers but does not register it, so composing both plugins does not produce a duplicate-name error.
+
+`slop-gate` is a workflow atom, not a model-facing tool: `apply()` registers `slopGateAtom` and `SlopGateHandler` into the global registries because the gate depends on this package's inline slop engine. It runs the deterministic analysis over `state.claims_draft`, writes `slop_report` + `slop_score`, and — when the draft fails the pass line — an evidence-only `slop_revision_hint` (matched phrases with suggested replacements, line-level structure issues; never score numbers, the total, or the pass line). The `patent_disclosure_v1` manifest's `slop_clean` stage gates the draft and rewinds to `draft_claims` on the fail signal, so the rewrite is produced with the hint injected. Library consumers also get `slopGateAtom`, `SlopGateHandler`, `SLOP_GATE_PASS_THRESHOLD`, and the hint builder `buildSlopRevisionHint`.
 
 ## Configuration
 
@@ -45,6 +47,8 @@ Schemastery configuration, every field optional.
 | `imageModel` | object | — | Dedicated figure/image model route (`{ provider, model }`) whose declared input modalities gate `analyze_patent_figure`; falls back to `provider`/`model` when unset. |
 | `maxTokens` | number | — | Optional output token cap for the LLM-consuming tools; omitted leaves the provider default. |
 | `noteDir` | string | `<cwd>/99-知识库` | Knowledge-note directory for `knowledge_note_save` (absolute or relative to cwd). |
+| `figureIndexFile` | string | `<cwd>/.sati/figures-index.json` | Figure index file: `analyze_patent_figure` writes analysis entries, `search_patent_figure` reads them (absolute or relative to cwd). |
+| `chemistryIndexFile` | string | `<cwd>/.sati/chemistry-index.json` | Chemistry index file for `recognize_chemical_structure` upserts (absolute or relative to cwd). |
 
 When `provider`/ `model` are unset the LLM-consuming tools register but fail loud (`setup_required`) when called. The knowledge tools require a knowledge.db prepared via `patent-knowledge:install`; they fail loud with install guidance when it is absent.
 
@@ -68,9 +72,9 @@ Prefix-stable while the registered tool set and their descriptions are unchanged
 
 - **`render_patent_document` ownership** — the tool is registered by `@deepseek-ai/dsh-patent-document`, not here; this package only re-exports its factory.
 - **`flexible_plan` name** — Sati's `patentFlexiblePlanTool.ts` declares the name `flexible_plan` (not `patent_flexible_plan`); the dsh tool trusts the Sati name field.
-- **Image-modal gate scope** — `analyze_patent_figure` is gated on the resolved figure-model route's declared image input (denied with error code `model_cannot_accept_image` when absent); `search_patent_figure` reads the injected index and is intentionally not gated (matches Sati, which gates analyze only). In this assembly no index writer is wired, so `search_patent_figure` fails loud (`setup_required`) until an integrator injects one.
+- **Image-modal gate scope** — `analyze_patent_figure` is gated on the resolved figure-model route's declared image input (denied with error code `model_cannot_accept_image` when absent); `search_patent_figure` reads the index and is intentionally not gated (matches Sati, which gates analyze only). The index is written by `analyze_patent_figure` into Config.figureIndexFile; an absent or empty index returns zero hits with a guidance hint, not an error.
 - **Chemistry engine not ported** — `recognize_chemical_structure` and the chemical-characterization check in `validate_specification` degrade to unavailable because `@rdkit/rdkit` is an optional native dependency not bundled.
-- **Figure/chemistry engines not ported** — the Sati `src/patent/figure` and `src/patent/chemistry` engines are not in any dsh package; the figure tools implement a minimal ModelPort path and keyword retrieval, with multi-figure consistency, netlist visualization, and SMILES parsing deferred.
+- **Figure/chemistry engines not ported** — the Sati `src/patent/figure` and `src/patent/chemistry` engines are not in any dsh package; the figure tools implement a minimal ModelPort path and keyword retrieval, and the figure/chemistry index stores (`figure/index-store`, `chemistry/index-store`) are wired for write+read. Multi-figure consistency, netlist visualization, and SMILES parsing (RDKit) remain deferred.
 - **Knowledge note / PDF download wiring** — `knowledge_note_save` writes files under Config.noteDir (a native knowledge.db write API is deferred), and `patent_pdf_download` resolves its batch runner through a browser-backend cold decision (`@deepseek-ai/dsh-browser-backend`): ego-browser first on macOS (via `ctx.patentData.createEgoSession()` when the patent-data service is mounted), browser-use link extraction + fetch as the fallback channel; browseros-neo and playwright participate in probing but not in downloads. Without patent-data the ego channel fails loud with setup guidance. The ego-browser download intercept is best-effort — anything the browser cannot save falls back to a plain fetch of the extracted CDN URL.
 - **Semantic recall removed** — `patent_case_search` keeps FTS/LIKE only; the embedding-based semantic recall path is not ported (dsh ships no vector infrastructure yet).
 - **Evidence rule assets** — `evaluate_evidence` resolves `evidence-rules.yaml` through `@deepseek-ai/dsh-patent-rule`'s asset location; without it the engine falls back to default weights.

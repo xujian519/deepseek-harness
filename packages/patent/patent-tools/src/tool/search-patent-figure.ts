@@ -5,7 +5,7 @@
  * The Sati vector/hybrid retrieval path (EmbeddingClient) is not ported — dsh
  * ships keyword-only retrieval. The index file (\`.sati/figures-index.json\`) is
  * loaded through the injected \`loadIndex\` dep (the integrator wires
- * ctx.storage); the tool itself is free of filesystem I/O.
+ * figureIndexStore.load); the tool itself is free of filesystem I/O.
  * @module @deepseek-ai/dsh-patent-tools/tool/search-patent-figure
  */
 
@@ -14,7 +14,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 import { FIGURE_TYPE_NAMES } from './analyze-patent-figure.ts'
-import type { FigureAnalysisResult, FigureComponent, FigureType } from './analyze-patent-figure.ts'
+import type { FigureComponent, FigureType } from './analyze-patent-figure.ts'
+import type { FigureIndexEntry, LoadFigureIndexResult } from '../figure/index-store.ts'
 
 /** Input for the search_patent_figure tool. */
 export type SearchPatentFigureInput = {
@@ -22,23 +23,6 @@ export type SearchPatentFigureInput = {
   query: string
   /** 返回条数上限（默认 5，最大 10）。 */
   limit?: number
-}
-
-/** 索引条目：一张已分析附图。 */
-export type FigureIndexEntry = {
-  /** 附图图片路径（工作区相对路径，与 FigureAnalysisResult.imagePath 一致）。 */
-  imagePath: string
-  /** 分析时间（ISO 8601）。 */
-  analyzedAt: string
-  /** 附图分析结果。 */
-  analysis: FigureAnalysisResult
-}
-
-/** 索引加载结果：条目列表 + 非致命异常提示。 */
-export type LoadFigureIndexResult = {
-  entries: FigureIndexEntry[]
-  /** 非致命异常提示（文件损坏/版本不兼容/无效条目被忽略），无则省略。 */
-  warning?: string
 }
 
 /** One analyzed-figure search result. */
@@ -255,7 +239,7 @@ const RESULT_ITEM_SCHEMA = {
 export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): ToolDefinition {
   return defineTool({
     name: 'search_patent_figure',
-    description: '检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由集成器注入（当前装配未接线，调用将报 setup_required）。当前仅关键词检索（向量/语义检索未接入）。',
+    description: '检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由 analyze_patent_figure 写入（见 Config.figureIndexFile）。当前仅关键词检索（向量/语义检索未接入）。',
     parameters: {
       query: { type: 'string', required: true, description: '检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）' },
       limit: { type: 'number', description: '返回条数上限（默认 5，最大 10）' },
@@ -311,7 +295,7 @@ export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): Tool
       if (loaded.warning !== undefined) {
         hint = loaded.warning
       } else if (loaded.entries.length === 0) {
-        hint = '附图索引为空：当前装配未提供附图索引内容，无法检索。'
+        hint = '附图索引为空：尚未分析任何附图，先调用 analyze_patent_figure 写入索引。'
       } else if (results.length === 0 && query.trim() !== '') {
         hint = '未检索到匹配附图，可尝试更换关键词，或先分析更多附图。'
       }
