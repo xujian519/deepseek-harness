@@ -35,6 +35,9 @@ interface PendingRpc {
   timer: number
 }
 
+/** Coalesce session/workspace-list churn into one sync POST. */
+const SYNC_DEBOUNCE_MS = 300
+
 /**
  * Register the map switch and its overlay. Pure DOM: the map lives in an
  * iframe, so nothing here renders through the slot system — the canvas app
@@ -133,7 +136,7 @@ export function apply(ctx: ClientContext): void {
     overlay.hidden = true
     setView('dialog')
   }
-  let syncQueued = false
+  let syncTimer = 0
   let knownSessionIds = new Set<SessionId>()
   const liveUnsubscribers = new Map<SessionId, () => void>()
   const syncLiveSessions = (): void => {
@@ -158,10 +161,14 @@ export function apply(ctx: ClientContext): void {
     }
   }
   const syncSessions = (): void => {
-    if (syncQueued) return
-    syncQueued = true
-    queueMicrotask(() => {
-      syncQueued = false
+    // The list subscription fires on every session change; a team task that
+    // spawns many subagent sessions would otherwise POST /sessions/sync in a
+    // tight burst, exhausting the renderer request budget and surfacing as
+    // net::ERR_INSUFFICIENT_RESOURCES (a white screen). Trailing-debounce the
+    // burst; removedSessionIds is computed from the final snapshot.
+    if (syncTimer !== 0) window.clearTimeout(syncTimer)
+    syncTimer = window.setTimeout(() => {
+      syncTimer = 0
       const sessions = sessionRows()
       const sessionIds = new Set(sessions.map(session => session.id))
       const removedSessionIds = [...knownSessionIds].filter(id => !sessionIds.has(id))
@@ -171,7 +178,7 @@ export function apply(ctx: ClientContext): void {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessions, removedSessionIds }),
       }).catch(() => {})
-    })
+    }, SYNC_DEBOUNCE_MS)
   }
   const syncTheme = (): void => {
     send('synapse:theme', { dark: document.body.hasAttribute('data-ds-dark-theme') })
@@ -342,6 +349,7 @@ export function apply(ctx: ClientContext): void {
     themeObserver?.disconnect()
     unsubscribeSessions()
     unsubscribeWorkspaces()
+    window.clearTimeout(syncTimer)
     for (const unsubscribe of liveUnsubscribers.values()) unsubscribe()
     host.remove()
     style.remove()

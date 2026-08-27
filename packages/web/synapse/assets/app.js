@@ -211,7 +211,13 @@ async function openDshWorkspace(id, { renderAfter = true } = {}) {
   state.activeId = currentThread?.id ?? (state.workspace.threads.some(thread => thread.id === state.activeId) ? state.activeId : state.workspace.threads[0]?.id ?? null)
   if (currentThread !== undefined) revealConversationThread(conversationCards(state.workspace.threads), currentThread.id)
   if (renderAfter && canReplaceView()) render()
-  await Promise.all(state.workspace.threads.map(thread => loadThreadHistory(thread, false)))
+  // Bound concurrent history loads: an unbounded Promise.all over every thread
+  // exhausts the renderer request budget as the thread count grows, surfacing as
+  // net::ERR_INSUFFICIENT_RESOURCES.
+  for (let index = 0; index < state.workspace.threads.length; index += 5) {
+    const batch = state.workspace.threads.slice(index, index + 5)
+    await Promise.all(batch.map(thread => loadThreadHistory(thread, false)))
+  }
   if (renderAfter && load === state.workspaceLoad && canReplaceView()) render()
   return true
 }
@@ -244,7 +250,13 @@ async function openWorkspace(id, { renderAfter = true } = {}) {
   state.workspace = body.workspace
   state.activeId = state.workspace.threads.some(thread => thread.id === state.activeId) ? state.activeId : state.workspace.threads[0]?.id ?? null
   if (renderAfter && canReplaceView()) render()
-  await Promise.all(state.workspace.threads.map(thread => loadThreadHistory(thread, false)))
+  // Bound concurrent history loads: an unbounded Promise.all over every thread
+  // exhausts the renderer request budget as the thread count grows, surfacing as
+  // net::ERR_INSUFFICIENT_RESOURCES.
+  for (let index = 0; index < state.workspace.threads.length; index += 5) {
+    const batch = state.workspace.threads.slice(index, index + 5)
+    await Promise.all(batch.map(thread => loadThreadHistory(thread, false)))
+  }
   if (renderAfter && load === state.workspaceLoad && canReplaceView()) render()
 }
 

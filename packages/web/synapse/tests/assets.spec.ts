@@ -123,4 +123,14 @@ describe('assets/app.js render helpers', () => {
     const wheel = source.slice(source.indexOf("app.addEventListener('wheel'"), source.indexOf("app.addEventListener('click'"))
     expect(wheel).not.toMatch(/scrollTop\s*\+=/)
   })
+
+  it('bounds concurrent thread-history loads instead of an unbounded Promise.all', async () => {
+    const source = await loadSource()
+    // Many threads in one workspace used to fire every history request in a
+    // single Promise.all, exhausting the renderer request budget
+    // (net::ERR_INSUFFICIENT_RESOURCES, "Failed to fetch") and blanking the
+    // canvas. The loads are now folded in batches of five; keep it that way.
+    expect(source).not.toMatch(/Promise\.all\(state\.workspace\.threads\.map\(thread => loadThreadHistory\(thread, false\)\)\)/)
+    expect(source).toMatch(/index < state\.workspace\.threads\.length; index \+= 5/)
+  })
 })
