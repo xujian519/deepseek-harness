@@ -13,6 +13,7 @@ import {
   globalStageHandlerRegistry,
   registerBuiltinAtoms,
   type PatentModelPort,
+  type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../src/error.ts'
 import {
@@ -209,6 +210,40 @@ describe('patent_workflow_run', () => {
     expect(value.interruptNote).toBeUndefined()
     expect(value.persistNote).toContain('持久化:')
     expect((value.degradedSteps ?? []).length).toBeGreaterThan(0)
+  })
+
+  it('disclosure manifest: a slop-heavy draft rewinds via the real slop-gate and exhausts', async () => {
+    // 固定产出套话权利要求：真实 SlopGateHandler 判失败 → 回退 draft_claims 重跑 →
+    // 仍失败 → maxRetries 耗尽降级。套话文本（total 30 < 通过线 35）由 slop-engine 确定性判定。
+    const sloppyClaims = [
+      '首先分析本申请的技术方案，再分析现有技术方案。',
+      '进一步地，此外，值得一提的是，本申请具有显著进步。',
+      '区别特征在于采用了新型结构。',
+      '综上所述，保护范围合理。',
+    ]
+    const model: PatentModelPort = {
+      stream: async function* () {
+        yield { type: 'delta', text: JSON.stringify({ claims: sloppyClaims, notes: '撰写说明' }) }
+        yield { type: 'done' }
+      },
+    }
+    const tool = createPatentWorkflowRunTool({ model, search: fakeSearch })
+    const value = (await tool.execute(
+      { manifestId: 'patent_disclosure_v1', input: 'technical disclosure', approveStageIds: ['review_gate'], maxResults: 3 },
+      exec,
+    )) as PatentWorkflowRunOutput
+    // 耗尽标记只在回退超过 maxRetries 时出现——证明 rewind 真实发生。
+    // stages 在输出类型中是 JsonValue[]，运行值为 WorkflowStageResult[]（单向断言合法）。
+    const stages = (value.stages ?? []) as WorkflowStageResult[]
+    const slopClean = stages.filter(s => s.stageId === 'slop_clean')
+    expect(slopClean).toHaveLength(1)
+    expect(slopClean[0]!.output).toMatch(/\[WORKFLOW_RETRY_EXHAUSTED\]/)
+    expect(slopClean[0]!.degraded).toBe(true)
+    // 回退 splice 掉首轮结果，最终轮 draft 保留重跑后的套话草稿。
+    const draftClaims = stages.filter(s => s.stageId === 'draft_claims')
+    expect(draftClaims).toHaveLength(1)
+    expect(draftClaims[0]!.output).toContain('首先分析')
+    expect(value.degradedSteps).toContain('slop_clean')
   })
 
   it('renders graph edge cases and manifest prose', () => {
