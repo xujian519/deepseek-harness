@@ -2166,7 +2166,7 @@ triz lists the 40 inventive principles and the 39 engineering parameters with no
 
 - Downloads one academic paper PDF identified by `db` + `id` (from `paper_search`)
 - Prefers the source's direct PDF link (arXiv extra.pdf / OpenAlex pdf_url / Semantic Scholar openAccessPdf), verified by PDF magic and minimum size
-- When the direct link fails (403/404/HTML shell), falls back to browser-use opening the record page and extracting the PDF link
+- When the direct link fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link
 - Saves as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`)
 
 Usage notes:
@@ -3368,7 +3368,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_workflow_run`
 
-Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every D<id>/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
+Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
 
 ```json
 {

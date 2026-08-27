@@ -2,9 +2,9 @@
  * `paper_download` tool: download one academic paper's PDF from the literature
  * connectors. The direct link wins (arXiv extra.pdf / OpenAlex pdf_url /
  * Semantic Scholar openAccessPdf), verified by PDF magic and minimum size;
- * when the direct fetch fails (403/404/HTML shell page), the browser-use
- * extractor opens the record page, extracts the PDF link, and the same fetch
- * path downloads it. Mirrors the patent_pdf_download channel design.
+ * when the direct fetch fails (403/404/HTML shell page), the ego extractor
+ * opens the record page, extracts the PDF link, and the same fetch path
+ * downloads it. Mirrors the patent_pdf_download channel design.
  * @module @deepseek-ai/dsh-tool-literature/tool/paper-download
  */
 
@@ -12,7 +12,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { BrowserUseExtractor } from '@deepseek-ai/dsh-browser-backend'
+import { EgoExtractor, type PageExtractor } from '@deepseek-ai/dsh-browser-backend'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 import { LiteratureToolError } from '../error.ts'
 
@@ -69,8 +69,8 @@ export type PaperDownloadDeps = {
   registry: ConnectorRegistry
   /** fetch implementation for the PDF download (defaults to globalThis.fetch). */
   fetchImpl?: typeof fetch
-  /** Browser-use extractor for the browser fallback channel (defaults to a fresh extractor). */
-  extractor?: BrowserUseExtractor
+  /** Page extractor for the browser fallback channel (defaults to a fresh ego extractor). */
+  extractor?: PageExtractor
   /** Working directory used to resolve a relative outputDir (default process.cwd()). */
   cwd?: string
   /** Resolve the output directory (defaults to <cwd>/论文原文/YYYY-MM-DD). */
@@ -156,7 +156,7 @@ function recordPageUrl(record: unknown): string | undefined {
 function renderDownload(value: PaperDownloadOutput): string {
   const { result } = value
   if (result.status === 'ok') {
-    const method = result.method === 'browser' ? '（browser-use 兜底）' : ''
+    const method = result.method === 'browser' ? '（ego 兜底）' : ''
     return [`下载完成：${result.path}${method}`, `输出目录：${value.outputDir}`].join('\n')
   }
   const retry = result.pdfUrl ? `；可手动重试：${result.pdfUrl}` : ''
@@ -167,7 +167,7 @@ function renderDownload(value: PaperDownloadOutput): string {
 const DESCRIPTION = [
   '- Downloads one academic paper PDF identified by `db` + `id` (from `paper_search`)',
   "- Prefers the source's direct PDF link (arXiv extra.pdf / OpenAlex pdf_url / Semantic Scholar openAccessPdf), verified by PDF magic and minimum size",
-  '- When the direct link fails (403/404/HTML shell), falls back to browser-use opening the record page and extracting the PDF link',
+  '- When the direct link fails (403/404/HTML shell), falls back to ego opening the record page and extracting the PDF link',
   '- Saves as `<outputDir>/<id>.pdf` (default `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`)',
   '',
   'Usage notes:',
@@ -183,7 +183,7 @@ const DESCRIPTION = [
  */
 export function createPaperDownloadTool(deps: PaperDownloadDeps): ToolDefinition {
   const resolveDir = deps.resolveOutputDir ?? defaultResolveOutputDir
-  const extractor = deps.extractor ?? new BrowserUseExtractor()
+  const extractor = deps.extractor ?? new EgoExtractor()
   return defineTool({
     name: 'paper_download',
     description: DESCRIPTION,

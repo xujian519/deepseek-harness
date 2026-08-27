@@ -18,7 +18,7 @@
 
 ### paper_download
 
-按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——arXiv `extra.pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url`、Semantic Scholar `openAccessPdf.url`——经 PDF 魔数与最小字节数校验；直链失败（403/404/HTML 壳页）时，browser-use 提取器打开记录页提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
+按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——arXiv `extra.pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url`、Semantic Scholar `openAccessPdf.url`——经 PDF 魔数与最小字节数校验；直链失败（403/404/HTML 壳页）时，ego 提取器打开记录页提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
 
 ## 配置
 
@@ -84,4 +84,4 @@ Schemastery 配置，所有字段均可选。
 - **仅限免费的公开数据源** — 四个连接器覆盖免费、无需 API key 的数据源；没有认证或付费档位的建模，也没有连接器要求凭据才能工作（Semantic Scholar key 只是提高限额）。
 - **按主机限速可能带来延迟** — arXiv 每 3 秒 1 次请求、keyless Semantic Scholar 每秒 1 次请求，因此包含大量 arXiv 命中的多源并发展开可能排在礼貌间隔之后；限速按主机隔离，无关的数据源会并行推进。
 - **PDF 可用性取决于数据源的开放获取状态** — `paper_download` 解析数据源报告的链接（arXiv pdf、OpenAlex best-oa location、Semantic Scholar openAccessPdf）；付费墙内的记录自然没有可下载的链接。
-- **浏览器兜底通道仅 browser-use** — `paper_download` 的兜底经 browser-use 提取器打开记录页；patent_pdf_download 使用的 ego-browser 通道尚未接入文献下载。
+- **浏览器兜底通道为统一 ego 栈** — `paper_download` 的兜底经 `EgoExtractor` 打开记录页；browser-use 提取不再是下载通道兜底。

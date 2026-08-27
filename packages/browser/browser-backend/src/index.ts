@@ -25,7 +25,9 @@ export type { BrowserUseBackendOptions, VersionProbeResult } from './browser-use
 export { createPlaywrightBackend } from './playwright-backend.ts'
 export type { PlaywrightBackendOptions } from './playwright-backend.ts'
 export { BrowserUseExtractor } from './browser-use-extractor.ts'
-export type { BrowserUseExtractorOptions, ExtractResult, ScriptRun } from './browser-use-extractor.ts'
+export type { BrowserUseExtractorOptions, ExtractResult, PageExtractor, ScriptRun } from './browser-use-extractor.ts'
+export { EgoExtractor, EGO_EXTRACT_MARKER, buildEgoExtractScript } from './ego-extractor.ts'
+export type { EgoExtractorOptions } from './ego-extractor.ts'
 
 /** Routing options shared by the candidate builders and resolvers. */
 export type BackendRouteOptions = {
