@@ -9,7 +9,9 @@
  * - prior_art 为空/检索降级时跳过硬校验（不双重惩罚）。
  *
  * 与 Sati 差异：refTexts 按 DSH typed same-process 契约类型化为 string[]（移除
- * 运行时 typeof 过滤）；其余提取/比对逻辑逐字移植。
+ * 运行时 typeof 过滤）；D 标号改为精确匹配（Sati 的双向 includes 会把 D10 误判为
+ * D1 的接地）；并按检索结果数组顺序追加位置标号 D<n>，使「对比文件N」引用与仅带
+ * 专利号的 prior_art 一一对应（Sati 对此系统性误报「未接地」）。
  * @module @deepseek-ai/dsh-patent-core/graph/domains/citation-check
  */
 
@@ -65,8 +67,9 @@ export type CitationCheckResult = {
   report: string
 }
 
-/** 引用是否接地：与某篇检索命中标识相等或互相包含（url 常带路径尾缀）。 */
+/** 引用是否接地：D 标号精确匹配（防 D10 被 D1 前缀误接受）；专利号允许互相包含（同族/后缀变体）。 */
 function isGrounded(refId: string, docIds: string[]): boolean {
+  if (/^D\d+$/.test(refId)) return docIds.includes(refId)
   return docIds.some(d => d === refId || d.includes(refId) || refId.includes(d))
 }
 
@@ -88,7 +91,13 @@ export function checkCitations(opts: { refTexts: readonly string[]; docs: readon
       report: '引用真实性校验：未提取到可校验的引用标识（专利号或文档标识），跳过硬校验',
     }
   }
-  const docIds = docs.flatMap(extractDocIds)
+  // 每篇检索命中按数组顺序附带位置标号 D<n>，使「对比文件N」引用可与仅带专利号的
+  // prior_art 一一对应（防系统性误报未接地）；仅当该篇能提取出真实标识时才追加，
+  // 无标识的检索结果仍走下方「无法校验放行」。
+  const docIds = docs.flatMap((doc, index) => {
+    const ids = extractDocIds(doc)
+    return ids.length > 0 ? [...ids, `D${index + 1}`] : ids
+  })
   if (docIds.length === 0) {
     return {
       grounded: true,

@@ -338,6 +338,30 @@ it('checkCitations: isGrounded 三种接地方式（相等/包含/被包含）',
   expect(refContainsDoc.grounded).toBe(true)
 })
 
+it('checkCitations: D 标号精确匹配（D10 不被 D1 前缀误接受）', () => {
+  const result = checkCitations({ refTexts: ['另引用 D10'], docs: [{ title: 'D1 的某专利' }] })
+  expect(result.grounded).toBe(false)
+  expect(result.uncited).toEqual(['D10'])
+})
+
+it('checkCitations: 对比文件N 引用经数组位置标号与仅带专利号的 prior_art 接地', () => {
+  const result = checkCitations({
+    refTexts: ['对比文件2 公开了区别特征'],
+    docs: [{ patent: 'CN111111111A' }, { patent: 'CN222222222A' }],
+  })
+  expect(result.grounded).toBe(true)
+  expect(result.report).toContain('引用全部接地')
+})
+
+it('checkCitations: 超范围的 D 标号引用仍报未接地（防幻觉保留）', () => {
+  const result = checkCitations({
+    refTexts: ['另引用 D7 佐证'],
+    docs: [{ patent: 'CN111111111A' }, { patent: 'CN222222222A' }, { patent: 'CN333333333A' }],
+  })
+  expect(result.grounded).toBe(false)
+  expect(result.uncited).toEqual(['D7'])
+})
+
 it('checkCitations: 部分引用未接地 → grounded false + uncited 列表', () => {
   const result = checkCitations({
     refTexts: ['US11111111 已核实，另引用了 US22222222'],
