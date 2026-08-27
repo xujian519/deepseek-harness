@@ -1,0 +1,6 @@
+- text: search-team 2 members · 1/2 tasks Active
+- paragraph: Prior-art search across CNIPR and literature
+- heading "Members" [level=4]
+- text: alice researcher Idle bob drafter Idle
+- heading "Tasks" [level=4]
+- text: "t1 Search CNIPR for the filing family Completed alice Contract missing: sources t2 Summarize the search conclusions In progress bob Depends on t1 1 messages"

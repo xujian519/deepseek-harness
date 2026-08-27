@@ -1,0 +1,152 @@
+.root {
+  width: 100%;
+  min-width: 0;
+}
+
+.memberList,
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.memberRow,
+.memberButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  text-align: left;
+}
+
+.memberButton {
+  cursor: pointer;
+}
+
+.memberButton .memberName {
+  color: var(--dsw-alias-state-business-primary);
+  text-decoration: underline;
+  text-underline-position: from-font;
+}
+
+.memberButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.dotSlot {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.memberName {
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 48px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberRole {
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberStatus {
+  flex: none;
+  overflow: hidden;
+  margin-left: auto;
+  width: 56px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+}
+
+.taskId {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.taskSubject {
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskStatus {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.taskAssignee {
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 30%;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskDeps,
+.taskFlag {
+  overflow: hidden;
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskFlag {
+  color: var(--dsw-alias-state-warn-label);
+}
