@@ -15,7 +15,7 @@ import {
 import type { BasicSelfEvolveConfig, TriggerPolicy, WorkspaceBaseline, WorkspaceSignal } from '../src/types.ts'
 import { failurePatternsProjectionDefinition } from '@deepseek-ai/dsh-self-evolve'
 import type { EvolveLevel, EvolveProposal, FailurePattern, SelfEvolveAgentContext } from '@deepseek-ai/dsh-self-evolve'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent'
 import type { ProposalValidationOutcome, ReplayEvidence } from '@deepseek-ai/dsh-self-evolve/types'
 
 function sessionFactory(): Session {
@@ -1543,7 +1543,7 @@ describe('constructor lifecycle listeners', () => {
       failure: { message: 'x', code: 'y', status: 429 },
       retryPolicy: undefined,
       signal: new AbortController().signal,
-    } as never, async () => { nextCalled = true })
+    } as never, async (): Promise<RequestErrorAction> => { nextCalled = true; return undefined })
     expect(nextCalled).toBe(true)
   })
 
@@ -1558,7 +1558,7 @@ describe('constructor lifecycle listeners', () => {
       failure: { message: 'x', code: 'y', status: 429 },
       retryPolicy: undefined,
       signal: new AbortController().signal,
-    } as never, async () => { nextCalled = true })
+    } as never, async (): Promise<RequestErrorAction> => { nextCalled = true; return undefined })
     expect(nextCalled).toBe(true)
   })
 

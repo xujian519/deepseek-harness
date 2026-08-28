@@ -571,8 +571,9 @@ describe('Agent.cancel()', () => {
     const agent = ctx.agentLoop.create(SessionId('recovery-cancel'), { provider: 'mock', model: 'mock' })
     // Cancellation lands while agent/request-error is in flight — the window
     // dsh-llm-retry opens when its backoff waits after appending llm/retry.
-    ctx.on('agent/request-error', async ({ agent: subject }) => {
+    ctx.on('agent/request-error', async ({ agent: subject }, next) => {
       if (subject === agent) subject.cancel({ kind: 'user' })
+      return next()
     })
 
     send(agent, 'go')

@@ -36,8 +36,9 @@ describe('agent/request-error', () => {
     ctx.on('agent/request', () => {
       throw new LlmError('middleware failed', 'MIDDLEWARE')
     })
-    ctx.on('agent/request-error', async () => {
+    ctx.on('agent/request-error', async (_, next) => {
       recoveries += 1
+      return next()
     })
 
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
