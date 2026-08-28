@@ -9,10 +9,10 @@
  * Commits use the user's git global identity untouched (never sets
  * user.name/user.email).
  */
+import { existsSync, realpathSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
-import { resolve } from 'node:path'
 
 /** A parsed `git status --porcelain=v1 -z` entry. */
 export interface GitStatusEntry {
@@ -61,11 +61,16 @@ export interface GitLogEntry {
   refs: string
 }
 
+/** Machine-readable git failure codes (surfaced on the wire by `writeError`).
+ *  `git-error` is the generic command failure; `not-repo` is a cwd outside any
+ *  work tree; `git-worktree` is an unknown linked checkout target. */
+export type GitCommandErrorCode = 'git-error' | 'not-repo' | 'git-worktree'
+
 /** One git failure (stderr text as the message). */
 export class GitCommandError extends Error {
   constructor(
     message: string,
-    readonly code = 'git-error',
+    readonly code: GitCommandErrorCode = 'git-error',
     readonly command: string,
   ) {
     super(message)
@@ -417,7 +422,18 @@ export async function log(cwd: string, count = 30, skip = 0, selected?: string):
  */
 export async function show(cwd: string, rev: string, path: string, selected?: string): Promise<string | null> {
   try {
-    return await runGit(await repoRoot(cwd, selected), ['show', `${rev}:${path}`])
+    const root = await repoRoot(cwd, selected)
+    // `git show <rev>:<path>` resolves the path against the repository tree
+    // and rejects an absolute form, so the workspace-bound absolute path must
+    // be expressed relative to the repo root. The cwd may differ from git's
+    // canonical root on symlinked platforms (macOS /tmp → /private/tmp), so
+    // canonicalize the enclosing directory before relativizing; a path whose
+    // directory is gone is already rooted in the canonical repo root.
+    const normalized = isAbsolute(path) && existsSync(dirname(path))
+      ? join(realpathSync.native(dirname(path)), basename(path))
+      : path
+    const treePath = isAbsolute(normalized) ? relative(root, normalized) : normalized
+    return await runGit(root, ['show', `${rev}:${treePath}`])
   } catch {
     return null
   }

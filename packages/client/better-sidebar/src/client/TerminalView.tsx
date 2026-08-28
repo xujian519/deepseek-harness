@@ -345,7 +345,10 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
       // indefinitely — no park frame needed.
       const tabStillOpen = store.tabOpen(scope.sessionId, tabId)
       const sessionSwitched = store.getSnapshot().sessionId !== scope.sessionId
-      if (!tabStillOpen
+      // Agent terminals own their lifetime entirely (the host's agent-pty.close
+      // route, fired by the tab close, is the close path); this view-unmount
+      // path is always a bare drop for them, so it must never emit either frame.
+      if (!isAgentTabId(tabId) && !tabStillOpen
         && socket !== null && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'close' }))
       } else if (tabStillOpen && sessionSwitched && !isAgentTabId(tabId)

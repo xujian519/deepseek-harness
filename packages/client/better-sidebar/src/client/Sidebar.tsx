@@ -1160,9 +1160,10 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       // socket is mid-reconnect, where the unmount close frame never reaches
       // the host and the process would hold the quota until the grace ends.
       // Agent terminals (tabId `agent:<uuid>`) close through a different
-      // host route: the WS close frame is the primary path (sent by
-      // TerminalView on unmount), and the agent-pty.close HTTP route is the
-      // fallback when the WS is down.
+      // host route: the agent-pty.close HTTP route (fired below) is the close
+      // path. TerminalView never emits a close frame for an agent terminal —
+      // a bare view unmount must leave the agent-owned pty alive — so this
+      // HTTP route is the reliable release even while the WS is down.
       const current = store.getSnapshot().state
       // Terminal tabs may live in EITHER tree (the bottom panel hosts them
       // too) — the pty-release lookup covers both, or the HTTP fallback is

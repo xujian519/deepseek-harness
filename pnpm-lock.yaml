@@ -2331,6 +2331,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
+      '@deepseek-ai/dsh-util-crypto':
+        specifier: workspace:^
+        version: link:../../util/crypto
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3

@@ -114,6 +114,7 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
   lastSocket: () => FakeWebSocket
   lastTerm: () => FakeTerminal
   store: ReturnType<typeof createSidebarStore>
+  service: ReturnType<typeof createBetterSidebarService>
 } {
   const store = createSidebarStore()
   store.setSession('s1')
@@ -149,6 +150,7 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
     lastSocket: () => FakeWebSocket.instances.at(-1)!,
     lastTerm: () => FakeTerminal.instances.at(-1)!,
     store,
+    service,
   }
 }
 
@@ -157,7 +159,7 @@ describe('TerminalView connection lifecycle', () => {
     const { container, unmount, lastSocket, lastTerm } = mountTerminal('terminal:1')
     const socket = lastSocket()
     expect(socket.url).toBe('ws://localhost:3000/sidebar/ws/terminal?sessionId=s1&tab=terminal%3A1&cwd=%2Fws')
-    socket.connect()
+    act(() => { socket.connect() })
     expect(container.textContent).not.toContain('disconnected')
     // The deferred open ran (host reports a size): resize announced once.
     expect(socket.sent).toContain(JSON.stringify({ type: 'resize', cols: 80, rows: 24 }))
@@ -179,19 +181,22 @@ describe('TerminalView connection lifecycle', () => {
     const { unmount, lastSocket } = mountTerminal('agent:abc-uuid-42', undefined)
     expect(lastSocket().url).toBe('ws://localhost:3000/sidebar/ws/terminal?uuid=abc-uuid-42')
     const socket = lastSocket()
-    socket.connect()
+    act(() => { socket.connect() })
     unmount()
-    expect(socket.sent).toEqual([])
+    // Agent terminals never send park (their lifetime is agent-owned); a bare
+    // drop also never sends a close frame — the connect-time resize is the
+    // only legitimate frame.
+    expect(socket.sent.some(frame => frame.includes('"close"') || frame.includes('"park"'))).toBe(false)
   })
 
   it('a tab closed before unmount sends the close frame', () => {
-    const { unmount, lastSocket } = mountTerminal('terminal:1')
+    const { unmount, lastSocket, service } = mountTerminal('terminal:1')
     const socket = lastSocket()
-    socket.connect()
+    act(() => { socket.connect() })
+    // Close the tab so the unmount reads it as a closed terminal — a bare
+    // (still-open) unmount is the park/no-frame case exercised above.
+    act(() => { service.closeTab('terminal:1', { sessionId: 's1', cwd: '/ws' }) })
     unmount()
-    // The seeded home tab never carries terminal:1, so this tab reads as
-    // closed → close frame. (Registered through the service in the mount
-    // helper; see the park case for the still-open variant.)
     expect(socket.sent.some(frame => frame.includes('"close"'))).toBe(true)
   })
 
@@ -246,13 +251,13 @@ describe('TerminalView close handling', () => {
     const { container, unmount } = mountTerminal('terminal:1')
     const drop = (code: number, reason = ''): void => {
       const socket = FakeWebSocket.instances.at(-1)!
-      socket.onclose?.({ code, reason })
+      act(() => { socket.onclose?.({ code, reason }) })
     }
     drop(1006)
     expect(container.textContent).toContain('disconnected')
-    vi.advanceTimersByTime(2000)
+    act(() => { vi.advanceTimersByTime(2000) })
     drop(1006)
-    vi.advanceTimersByTime(2000)
+    act(() => { vi.advanceTimersByTime(2000) })
     drop(1006, 'ECONNREFUSED')
     expect(container.textContent).toContain('(1006: ECONNREFUSED)')
     expect(errorSpy).toHaveBeenCalled()
@@ -262,7 +267,7 @@ describe('TerminalView close handling', () => {
   it('a server refusal (1011 + reason) stops the ladder and offers retry', () => {
     const { container, unmount, lastSocket } = mountTerminal('terminal:1')
     const socket = lastSocket()
-    socket.onclose?.({ code: 1011, reason: 'spawn refused' })
+    act(() => { socket.onclose?.({ code: 1011, reason: 'spawn refused' }) })
     expect(container.textContent).toContain('spawn refused')
     // The retry button reconnects through the stored connector.
     const retry = [...container.querySelectorAll('button')].at(-1)!
@@ -271,13 +276,15 @@ describe('TerminalView close handling', () => {
     unmount()
   })
 
-  it('the deps-missing close fetches the repair details and renders the banner', () => {
+  it('the deps-missing close fetches the repair details and renders the banner', async () => {
     const deps = vi.spyOn(api, 'terminalDeps').mockResolvedValue({
       ok: false, cause: 'binding gone', command: 'npm rebuild', profile: 'web', note: 'or brew',
     })
     const { container, unmount, lastSocket } = mountTerminal('terminal:1')
     const socket = lastSocket()
-    act(() => { socket.onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
+    // `terminalDeps` resolves asynchronously; act-flush the microtask so the
+    // fetched banner state lands before the assertions.
+    await act(async () => { socket.onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
     // The banner renders through TerminalDepsBanner (profile + note + copy).
     expect(container.textContent).toContain('npm rebuild')
     expect(container.textContent).toContain('or brew')
@@ -290,14 +297,15 @@ describe('TerminalView close handling', () => {
     const { container, unmount, lastSocket } = mountTerminal('terminal:1')
     act(() => { lastSocket().onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
     await act(async () => {})
-    expect(container.textContent).toContain('terminalDepsFailed')
+    // A recovered host falls back to the plain (translated) deps-failed banner.
+    expect(container.textContent).toContain('node-pty failed to load')
     unmount()
 
     vi.spyOn(api, 'terminalDeps').mockRejectedValue(new Error('route down'))
     const second = mountTerminal('terminal:1')
     act(() => { second.lastSocket().onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
     await act(async () => {})
-    expect(second.container.textContent).toContain('terminalDepsFailed')
+    expect(second.container.textContent).toContain('node-pty failed to load')
     second.unmount()
   })
 })

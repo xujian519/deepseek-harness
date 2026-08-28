@@ -7,6 +7,7 @@
  * `browser:<n>` the same way (no quota). The editor IS the files window
  * (the old standalone explorer merged into it).
  */
+import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { IconBranchOutline16, IconCodeOutline16, IconFolderOpen16, IconNewChatOutline16, IconPanelLeftOutline16, IconThinkOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '../../context-types.ts'
 import { allLeaves, isAgentTabId, type SidebarState } from '../state.ts'
@@ -63,7 +64,7 @@ export interface BuiltinTabOptions {
 
 /** A client-side identifier for terminal tab identity (not shown in the UI). */
 function terminalUuid(): string {
-  return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+  return randomUUID()
 }
 
 /** Count UI-owned terminals (agent:` tabs excluded — they are the model's). */

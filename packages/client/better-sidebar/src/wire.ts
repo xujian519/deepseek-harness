@@ -5,6 +5,7 @@
  * (HTTP 4xx/5xx matching the code) on failure.
  */
 import type { SidebarHttpRequest, SidebarHttpResponse } from './context-types.ts'
+import { GitCommandError } from './git.ts'
 
 /** Machine-readable error codes of the sidebar API. */
 export type SidebarErrorCode =
@@ -15,6 +16,8 @@ export type SidebarErrorCode =
   | 'too-large'
   | 'fs-error'
   | 'git-error'
+  | 'not-repo'
+  | 'git-worktree'
   | 'pty-error'
   | 'pty-deps-missing'
   | 'job-error'
@@ -83,6 +86,13 @@ export function writeOk(res: SidebarHttpResponse, value: unknown): void {
 export function writeError(res: SidebarHttpResponse, error: unknown): void {
   if (error instanceof SidebarError) {
     writeJson(res, error.status, { ok: false, error: { code: error.code, message: error.message } })
+    return
+  }
+  // Git layer failures carry a specific wire code (`not-repo`, `git-worktree`,
+  // `git-error`); surfacing it distinguishes "outside a repository" from an
+  // unexpected server fault.
+  if (error instanceof GitCommandError) {
+    writeJson(res, 400, { ok: false, error: { code: error.code, message: error.message } })
     return
   }
   const message = error instanceof Error ? error.message : String(error)
