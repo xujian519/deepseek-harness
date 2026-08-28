@@ -32,13 +32,13 @@ const canSymlink = (() => {
 function makeFixture(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-sidebar-search-'))
   mkdirSync(join(dir, 'src'))
-  mkdirSync(join(dir, 'docs'))
+  mkdirSync(join(dir, 'markdown'))
   mkdirSync(join(dir, '.git'))
   mkdirSync(join(dir, '.git', 'objects'))
   writeFileSync(join(dir, 'README.md'), 'readme')
   writeFileSync(join(dir, 'src', 'Index.TS'), 'code')
   writeFileSync(join(dir, 'src', 'util.ts'), 'code')
-  writeFileSync(join(dir, 'docs', 'guide.md'), 'doc')
+  writeFileSync(join(dir, 'markdown', 'guide.md'), 'doc')
   writeFileSync(join(dir, '.git', 'config'), 'git-internal')
   writeFileSync(join(dir, '.git', 'objects', 'readme-pack'), 'git-internal')
   return dir
@@ -53,7 +53,7 @@ describe('fs-search', () => {
       // A multi-level match list is sorted and relative (never absolute).
       const md = await searchFiles(dir, '.md')
       expect(md.truncated).toBe(false)
-      expect(md.matches).toEqual(['README.md', 'docs/guide.md'])
+      expect(md.matches).toEqual(['README.md', 'markdown/guide.md'])
       for (const match of md.matches) {
         expect(match.startsWith(dir)).toBe(false)
         expect(match).not.toContain('\\')
@@ -97,7 +97,7 @@ describe('fs-search', () => {
       writeFileSync(join(dir, 'web', 'app.ts'), 'src')
       // A match hidden behind node_modules / dist must not appear; project
       // files after those forests must still be reachable within budget.
-      expect((await searchFiles(dir, 'guide')).matches).toEqual(['docs/guide.md'])
+      expect((await searchFiles(dir, 'guide')).matches).toEqual(['markdown/guide.md'])
       expect((await searchFiles(dir, 'left-pad')).matches).toEqual([])
       expect((await searchFiles(dir, 'bundle')).matches).toEqual([])
       expect((await searchFiles(dir, 'app.ts')).matches).toEqual(['web/app.ts'])

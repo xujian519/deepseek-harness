@@ -8,9 +8,9 @@ const scope: SessionScope = { sessionId: 'abc', cwd: '/repo' }
 describe('rewriteLocalImageUrls', () => {
   it('resolves relative destinations against the opened file directory', () => {
     const md = '![a](./img.png)\n![b](images/b.jpg)'
-    const out = rewriteLocalImageUrls(md, scope, '/repo/docs/readme.md', ORIGIN)
-    expect(out).toContain(`![a](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fdocs%2Fimg.png&cwd=%2Frepo)`)
-    expect(out).toContain(`![b](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fdocs%2Fimages%2Fb.jpg&cwd=%2Frepo)`)
+    const out = rewriteLocalImageUrls(md, scope, '/repo/markdown/readme.md', ORIGIN)
+    expect(out).toContain(`![a](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fmarkdown%2Fimg.png&cwd=%2Frepo)`)
+    expect(out).toContain(`![b](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fmarkdown%2Fimages%2Fb.jpg&cwd=%2Frepo)`)
   })
 
   it('expects the rewritten destination to be an absolute http URL MarkdownText accepts', () => {
@@ -22,7 +22,7 @@ describe('rewriteLocalImageUrls', () => {
 
   it('passes absolute local paths through unchanged', () => {
     const md = '![a](/repo/assets/b.png)'
-    const out = rewriteLocalImageUrls(md, scope, '/repo/docs/readme.md', ORIGIN)
+    const out = rewriteLocalImageUrls(md, scope, '/repo/markdown/readme.md', ORIGIN)
     expect(out).toContain(`![a](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fassets%2Fb.png&cwd=%2Frepo)`)
   })
 
@@ -50,9 +50,9 @@ describe('rewriteLocalImageUrls', () => {
 
   it('normalizes `.`/`..` segments in relative destinations', () => {
     const md = '![a](./img.png)\n![b](../assets/b.png)'
-    const out = rewriteLocalImageUrls(md, scope, '/repo/docs/sub/readme.md', ORIGIN)
-    expect(out).toContain(`![a](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fdocs%2Fsub%2Fimg.png&cwd=%2Frepo)`)
-    expect(out).toContain(`![b](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fdocs%2Fassets%2Fb.png&cwd=%2Frepo)`)
+    const out = rewriteLocalImageUrls(md, scope, '/repo/markdown/sub/readme.md', ORIGIN)
+    expect(out).toContain(`![a](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fmarkdown%2Fsub%2Fimg.png&cwd=%2Frepo)`)
+    expect(out).toContain(`![b](${ORIGIN}/sidebar/file?sessionId=abc&path=%2Frepo%2Fmarkdown%2Fassets%2Fb.png&cwd=%2Frepo)`)
     expect(out).not.toContain('/.')
   })
 

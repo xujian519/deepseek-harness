@@ -64,7 +64,7 @@ const ARGS_SUMMARY_MAX = 80
 
 /** The most identifying argument keys, in priority order (bash's command,
  *  fs tools' paths, search's pattern, …). */
-const ARGS_SUMMARY_KEYS = ['command', 'file_path', 'path', 'pattern', 'query', 'url', 'prompt'] as const
+const IDENTIFYING_ARG_KEYS = ['command', 'file_path', 'path', 'pattern', 'query', 'url', 'prompt'] as const
 
 function flatTruncate(text: string): string {
   const flat = text.replace(/\s+/g, ' ').trim()
@@ -81,7 +81,7 @@ export function toolArgsSummary(args: string | undefined): string {
   try {
     const parsed = JSON.parse(args) as Record<string, unknown> | null
     if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      for (const key of ARGS_SUMMARY_KEYS) {
+      for (const key of IDENTIFYING_ARG_KEYS) {
         const value = parsed[key]
         if (typeof value === 'string' && value.trim() !== '') return flatTruncate(value)
       }

@@ -864,8 +864,8 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
           instance's, kept in lockstep with package.json by
           tests/service.spec.ts). */}
       <div className={css.versionBadge}>
-        <span className={css.versionBadgeName}>DSH-better-sidebar</span>
-        <span className={css.versionBadgeTag}>v{service.version}</span>
+        <span className={css.versionBadgeName}>{t('sidebarName')}</span>
+        <span className={css.versionBadgeTag}>{t('versionLabel')}{service.version}</span>
       </div>
 
       {/* 常规: the DSH settings-row recipe — title/desc left, control right. */}

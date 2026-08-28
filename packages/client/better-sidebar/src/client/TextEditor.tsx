@@ -375,7 +375,7 @@ export function TextEditor(props: FileViewerProps) {
               type="button"
               className={css.iconButton}
               aria-label={t('save')}
-              title={`${t('save')} (Ctrl/Cmd+S)`}
+              title={`${t('save')} ${t('saveShortcut')}`}
               onClick={save}
             >
               <IconCheckOutline16 />

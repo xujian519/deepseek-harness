@@ -14,11 +14,11 @@ import {
 
 describe('headerOf', () => {
   it('projects the path relative to the session cwd', () => {
-    expect(headerOf('/p/docs/plan.md', '/p', { start: 12, end: 12 })).toBe('docs/plan.md:12')
+    expect(headerOf('/p/markdown/plan.md', '/p', { start: 12, end: 12 })).toBe('markdown/plan.md:12')
   })
 
   it('falls back to the absolute path when the cwd is unknown', () => {
-    expect(headerOf('/p/docs/plan.md', undefined, { start: 3, end: 3 })).toBe('/p/docs/plan.md:3')
+    expect(headerOf('/p/markdown/plan.md', undefined, { start: 3, end: 3 })).toBe('/p/markdown/plan.md:3')
   })
 
   it('keeps the absolute path for files outside the cwd', () => {

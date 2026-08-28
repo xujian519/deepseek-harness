@@ -280,7 +280,7 @@ function MermaidDiagram({ code }: { code: string }): React.ReactNode {
   return (
     <div className={css.mermaidWrap}>
       <div className={css.mermaidHeader}>
-        <span className={css.mermaidInfo}>mermaid</span>
+        <span className={css.mermaidInfo}>{t('mermaid')}</span>
         <button
           type="button"
           className={css.mermaidCopy}

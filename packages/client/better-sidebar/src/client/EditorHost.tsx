@@ -425,7 +425,7 @@ export function EditorHost(props: {
             type="button"
             className={css.iconButton}
             aria-label={t('save')}
-            title={`${t('save')} (Ctrl/Cmd+S)`}
+            title={`${t('save')} ${t('saveShortcut')}`}
             onClick={() => { controlsRef.current?.save() }}
           >
             <IconCheckOutline16 size={14} />
