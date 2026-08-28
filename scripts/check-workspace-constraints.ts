@@ -158,6 +158,14 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-code-runtime-python': ['py/**/*.py'],
   // The shipped preset compositions travel inside the roster package.
   '@deepseek-ai/dsh-agent-presets': ['presets'],
+  // The workspace sidebar's heavy preview/terminal libraries build as lazy
+  // chunk scripts beside the client bundle; the plugin's /sidebar/bundle
+  // route serves them (see packages/client/better-sidebar/tsdown.config.ts).
+  '@deepseek-ai/dsh-better-sidebar': [
+    'lib/client-terminal.js',
+    'lib/client-editor.js',
+    'lib/client-mermaid.js',
+  ],
   // The Web Host mounts the default-off settings owner independently of each
   // Agent-scoped delegation-tool instance.
   '@deepseek-ai/dsh-tool-subagent': ['lib/model-selection-settings.js'],

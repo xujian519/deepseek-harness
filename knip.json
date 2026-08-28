@@ -734,16 +734,6 @@
         "tests/**/*.ts"
       ]
     },
-    "packages/test-support/loader-smoke": {
-      "entry": [
-        "tests/**/*.spec.ts",
-        "tests/fixtures/*.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
     "packages/experimental/agent-team-profile": {
       "ignoreDependencies": [
         "@deepseek-ai/dsh-experimental-agent-team",
@@ -799,6 +789,14 @@
     "packages/bundle/web-app": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"
+      ]
+    },
+    "packages/client/better-sidebar": {
+      "ignoreDependencies": [
+        "not-in-the-table"
+      ],
+      "ignoreFiles": [
+        "tests/consumer-types.ts"
       ]
     }
   }

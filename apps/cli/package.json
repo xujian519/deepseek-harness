@@ -63,6 +63,7 @@
     "@deepseek-ai/dsh-mcp-client": "workspace:^",
     "@deepseek-ai/dsh-methodology": "workspace:^",
     "@deepseek-ai/dsh-openviking": "workspace:^",
+    "@deepseek-ai/dsh-better-sidebar": "workspace:^",
     "@deepseek-ai/dsh-output-retention": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-document-deliver": "workspace:^",
