@@ -12,7 +12,7 @@ import type {
 import type { ChatConversationViewNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {
-  SessionListState, SessionLiveEventEntry,
+  ISessions, SessionListState, SessionLiveEventEntry,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
@@ -881,7 +881,7 @@ describe('plugin lifecycle', () => {
     ctx.provide('remote', { $on: () => () => {} } as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     await ctx.plugin(TestSessions).await()
-    const conversationEvents = new UiConversation(ctx, ctx.sessions).events
+    const conversationEvents = new UiConversation(ctx, ctx.sessions as unknown as ISessions).events
     ctx.slots.register({
       name: 'root',
       children: { 'conversation.chat.node': { kind: 'keyed', scope: 'session' } },
