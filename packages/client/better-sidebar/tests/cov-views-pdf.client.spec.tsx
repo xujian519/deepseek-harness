@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { mediaUrl } from '../src/client/api.ts'
 import { PdfView } from '../src/client/PdfView.tsx'
 import css from '../src/client/sidebar.module.css'

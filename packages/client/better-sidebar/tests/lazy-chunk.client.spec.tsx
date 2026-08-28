@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createElement, type ComponentType, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { builtinTabs } from '../src/client/builtins/tabs.tsx'
 import { builtinViewers } from '../src/client/builtins/viewers.tsx'
 import { registerChunkForTests, resetChunks } from '../src/client/chunk-loader.ts'

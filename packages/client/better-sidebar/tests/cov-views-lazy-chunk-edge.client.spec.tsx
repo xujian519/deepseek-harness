@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createElement, type ComponentType, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { registerChunkForTests, resetChunks } from '../src/client/chunk-loader.ts'
 import { lazyChunkComponent } from '../src/client/lazy-chunk.tsx'
 import css from '../src/client/sidebar.module.css'

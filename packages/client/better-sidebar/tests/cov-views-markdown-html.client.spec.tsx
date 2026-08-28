@@ -11,7 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createElement, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { registerChunkForTests, resetChunks } from '../src/client/chunk-loader.ts'
 import { MarkdownDocument, type MarkdownHtmlMedia } from '../src/client/MarkdownHtml.tsx'
 import { analyzeMarkdownHtml } from '../src/client/markdown-html.ts'

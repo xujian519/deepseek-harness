@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { SubagentView } from '../src/client/SubagentView.tsx'
 import { SIDE_LABEL_PREFIX } from '../src/sidechat-core.ts'
 import type { Context, SidebarSessionList, SidebarSubagentCatalog, SidebarSubagentChildEntry, SidebarSubagentDiagnosticEntry } from '../src/context-types.ts'

@@ -10,7 +10,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { MarkdownDocument, type MarkdownHtmlMedia } from '../src/client/MarkdownHtml.tsx'
 import { analyzeMarkdownHtml } from '../src/client/markdown-html.ts'
 

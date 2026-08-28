@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { PluginListBody } from '../src/client/add-plugin-modal.tsx'
 import { createBetterSidebarService } from '../src/client/service.ts'

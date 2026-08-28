@@ -11,7 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement, useEffect, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import type { Context } from '../src/context-types.ts'
 import { api } from '../src/client/api.ts'
 import { EditorHost } from '../src/client/EditorHost.tsx'

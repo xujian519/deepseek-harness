@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { createElement, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import type { Context } from '../src/context-types.ts'
 import { EditorHost } from '../src/client/EditorHost.tsx'
 import { createBetterSidebarService } from '../src/client/service.ts'

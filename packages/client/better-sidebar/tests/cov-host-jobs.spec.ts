@@ -126,7 +126,7 @@ describe('jobs.kill refusals', () => {
   it('maps a non-Error registry refusal to a 404 job-error', () => {
     const jobs = { kill: vi.fn(() => { throw 'registry gone' }) }
     const api = buildJobsApi(ctxWith({ get: () => undefined }, jobs, undefined), 100)
-    expect(() => api.kill({ sessionId: 's1', id: 'bash-1' })).toThrowError(
+    expect(() => api.kill({ sessionId: 's1', id: 'bash-1' })).toThrow(
       expect.objectContaining({ code: 'job-error', status: 404, message: 'registry gone' }),
     )
   })

@@ -12,7 +12,7 @@
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { FileTree } from '../src/client/FileTree.tsx'
 import { TAB_DRAG_TYPE } from '../src/client/TabBar.tsx'
 import type { UploadItem } from '../src/client/upload.ts'

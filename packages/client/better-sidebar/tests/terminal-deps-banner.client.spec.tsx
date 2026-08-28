@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { createRoot } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { TerminalDepsBanner } from '../src/client/TerminalView.tsx'
 

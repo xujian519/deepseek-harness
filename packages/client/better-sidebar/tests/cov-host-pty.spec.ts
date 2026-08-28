@@ -64,7 +64,7 @@ describe('PtyManager quota and lifecycle edges', () => {
     const manager = new PtyManager(testShell(), 1)
     try {
       manager.open('s1', 't1', process.cwd(), 80, 24)
-      expect(() => manager.open('s1', 't2', process.cwd(), 80, 24)).toThrowError(
+      expect(() => manager.open('s1', 't2', process.cwd(), 80, 24)).toThrow(
         expect.objectContaining({ code: 'pty-error' }),
       )
     } finally {
@@ -203,7 +203,7 @@ describe('AgentPtyRegistry snapshot and read edges', () => {
       await until(() => registry.get(uuid)!.exited)
       expect(registry.snapshot(uuid)).toMatchObject({ exited: true })
       expect(registry.snapshot('no-such-uuid')).toBeUndefined()
-      expect(() => registry.send(uuid, 'more')).toThrowError(
+      expect(() => registry.send(uuid, 'more')).toThrow(
         expect.objectContaining({ code: 'bad-request' }),
       )
       // Reads still work on the retained transcript of an exited terminal.

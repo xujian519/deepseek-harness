@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { UploadOverlay } from '../src/client/UploadOverlay.tsx'
 
 // The act() environment flag (React 18.2 reads it before flushing effects).

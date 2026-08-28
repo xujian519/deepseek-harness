@@ -25,7 +25,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import { isImeComposition, registerImeGuard } from '../src/client/ime-guard.ts'
 
 /** Build a KeyboardEvent the way jsdom allows: keyCode/isComposing via defineProperty. */
