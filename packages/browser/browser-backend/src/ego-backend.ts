@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process'
 import { accessSync, constants } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { pathDelimiter } from './run-script.ts'
 import type { BrowserBackend, BrowserBackendProbe } from './types.ts'
 
 /** Connection-probe marker emitted by an inline ego-browser cliLog. */
@@ -42,11 +43,6 @@ export type EgoBackendOptions = {
   isCommandExecutable?: (command: string) => boolean
   /** Connection probe; runs only when doctorCheck is true. */
   runConnectionProbe?: () => EgoConnectionProbe
-}
-
-/** PATH delimiter per platform (Windows uses ';', elsewhere ':'). */
-function pathDelimiter(platform: NodeJS.Platform): string {
-  return platform === 'win32' ? ';' : ':'
 }
 
 /** File names a command may resolve to on the platform. */
