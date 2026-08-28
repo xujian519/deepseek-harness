@@ -104,10 +104,12 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
       try {
         result = annotateSvg(svg, args.references)
       } catch (error) {
+        /* v8 ignore start -- annotateSvg only throws SvgAnnotateError; the rethrow keeps unknown failures loud */
         if (error instanceof SvgAnnotateError) {
           throw new PatentToolError('invalid_tool_input', `SVG 标注被拒：${error.message}`, { tool: 'add_patent_figure_references' })
         }
         throw error
+        /* v8 ignore stop */
       }
       const dir = resolve(absPath, '..')
       const base = args.output_filename ?? `${baseName(absPath)}_annotated`

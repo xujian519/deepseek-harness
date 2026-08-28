@@ -57,11 +57,11 @@ describe('assignNumerals', () => {
     expect(() => assignNumerals(['a'], { start: 1.5 })).toThrow(DotBuildError)
     expect(() => assignNumerals(['a'], { step: 0 })).toThrow(DotBuildError)
     expect(() => assignNumerals(['a'], { step: -1 })).toThrow(DotBuildError)
-    expect(() => assignNumerals(['a'], { explicit: { a: '  ' } })).toThrowError(/为空/)
+    expect(() => assignNumerals(['a'], { explicit: { a: '  ' } })).toThrow(/为空/)
   })
 
   it('显式标号重复占用时抛冲突', () => {
-    expect(() => assignNumerals(['a', 'b'], { explicit: { a: '100', b: '100' } })).toThrowError(/重复占用/)
+    expect(() => assignNumerals(['a', 'b'], { explicit: { a: '100', b: '100' } })).toThrow(/重复占用/)
   })
 })
 
@@ -69,7 +69,7 @@ describe('sanitizeId / escapeDotLabel / buildDotHeader', () => {
   it('清洗非法字符并拒绝空 id', () => {
     expect(sanitizeId('step 1!')).toBe('step_1_')
     expect(sanitizeId('!@#')).toBe('___')
-    expect(() => sanitizeId('')).toThrowError(/不合法/)
+    expect(() => sanitizeId('')).toThrow(/不合法/)
   })
 
   it('转义双引号、反斜杠与控制字符', () => {
@@ -110,23 +110,30 @@ describe('buildFlowchartDOT', () => {
     expect(dot).toContain('"start" [label="100. 开始", shape=ellipse];')
   })
 
+  it('numeralStep 贯穿三个构建器', () => {
+    expect(buildFlowchartDOT([{ id: 'a', label: 'A', next: [] }], { numeralStep: 10 })).toContain('"a" [label="100. A", shape=box];')
+    expect(buildBlockDiagramDOT([{ id: 'a', label: 'A' }], [], { numeralStep: 10 })).toContain('"a" [label="A (100)", shape=box];')
+    expect(buildComponentHierarchyDOT([{ id: 'a', label: 'A' }], { numeralStep: 10 })).toContain('"a" [label="A (100)"];')
+    expect(buildBlockDiagramDOT([{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], [], { numeralStep: 10 })).toContain('"b" [label="B (110)", shape=box];')
+  })
+
   it('拒绝空输入、未知后继与决策分支缺标签', () => {
-    expect(() => buildFlowchartDOT([])).toThrowError(/至少需要一个步骤/)
+    expect(() => buildFlowchartDOT([])).toThrow(/至少需要一个步骤/)
     expect(() =>
       buildFlowchartDOT([{ id: 'a', label: 'A', next: ['ghost'] }], {}),
-    ).toThrowError(/后继不存在/)
+    ).toThrow(/后继不存在/)
     expect(() =>
       buildFlowchartDOT(
         [{ id: 'd', label: 'D', shape: 'diamond', next: ['x'] }, { id: 'x', label: 'X', next: [] }],
         {},
       ),
-    ).toThrowError(/必须带边标签/)
+    ).toThrow(/必须带边标签/)
     expect(() =>
       buildFlowchartDOT(
         [{ id: 'd', label: 'D', shape: 'diamond', next: [{ id: 'x', label: '  ' }] }, { id: 'x', label: 'X', next: [] }],
         {},
       ),
-    ).toThrowError(/不能为空/)
+    ).toThrow(/不能为空/)
   })
 
   it('拒绝非法形状', () => {
@@ -135,7 +142,7 @@ describe('buildFlowchartDOT', () => {
         [{ id: 'a', label: 'A', shape: 'circle' as never, next: [] }],
         {},
       ),
-    ).toThrowError(/未知节点形状/)
+    ).toThrow(/未知节点形状/)
   })
 })
 
@@ -174,9 +181,9 @@ describe('buildBlockDiagramDOT', () => {
   })
 
   it('拒绝空输入与未知连接端点', () => {
-    expect(() => buildBlockDiagramDOT([], [])).toThrowError(/至少需要一个块/)
-    expect(() => buildBlockDiagramDOT(blocks, [{ from: 'ghost', to: 'cpu' }])).toThrowError(/连接源块不存在/)
-    expect(() => buildBlockDiagramDOT(blocks, [{ from: 'in', to: 'ghost' }])).toThrowError(/连接目标块不存在/)
+    expect(() => buildBlockDiagramDOT([], [])).toThrow(/至少需要一个块/)
+    expect(() => buildBlockDiagramDOT(blocks, [{ from: 'ghost', to: 'cpu' }])).toThrow(/连接源块不存在/)
+    expect(() => buildBlockDiagramDOT(blocks, [{ from: 'in', to: 'ghost' }])).toThrow(/连接目标块不存在/)
   })
 })
 
@@ -204,10 +211,10 @@ describe('buildComponentHierarchyDOT', () => {
   })
 
   it('拒绝空输入与重复 id', () => {
-    expect(() => buildComponentHierarchyDOT([])).toThrowError(/至少需要一个根节点/)
+    expect(() => buildComponentHierarchyDOT([])).toThrow(/至少需要一个根节点/)
     expect(() =>
       buildComponentHierarchyDOT([{ id: 'x', label: 'A' }, { id: 'x', label: 'B' }]),
-    ).toThrowError(/id 重复/)
+    ).toThrow(/id 重复/)
   })
 })
 
@@ -223,6 +230,6 @@ describe('getDiagramTemplate', () => {
   })
 
   it('未知模板抛错', () => {
-    expect(() => getDiagramTemplate('nope' as never)).toThrowError(/未知模板/)
+    expect(() => getDiagramTemplate('nope' as never)).toThrow(/未知模板/)
   })
 })

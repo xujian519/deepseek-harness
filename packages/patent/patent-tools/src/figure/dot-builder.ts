@@ -66,6 +66,7 @@ export type DotBuildErrorCode =
 
 /** DOT 构建错误（引擎层受检查错误；工具层映射为 PatentToolError('invalid_input', ...)）。 */
 export class DotBuildError extends Error {
+  /** 构建错误码（工具层映射为 invalid_tool_input）。 */
   readonly code: DotBuildErrorCode
 
   constructor(code: DotBuildErrorCode, message: string) {
@@ -126,6 +127,22 @@ export type HierarchyNode = {
 /** 参考标号映射输入：组件 id → 标号（字符串，如 "20"、"101"、"S101"）。 */
 export type NumeralMap = Readonly<Record<string, string>>
 
+/** 三个构建器共享的标号分配参数（figureNumber/step/explicit）。 */
+type SharedNumeralOptions = {
+  figureNumber?: number
+  numeralStep?: number
+  numerals?: NumeralMap
+}
+
+/** 以统一参数形式分配标号（三个构建器共用同一写段，避免参数展开漂移）。 */
+function assignFor(ids: readonly string[], options: SharedNumeralOptions): NumeralAssignment[] {
+  return assignNumerals(ids, {
+    figureNumber: options.figureNumber ?? 1,
+    ...(options.numeralStep === undefined ? {} : { step: options.numeralStep }),
+    ...(options.numerals === undefined ? {} : { explicit: options.numerals }),
+  })
+}
+
 /** 标号分配选项。 */
 export type AssignNumeralsOptions = {
   /** 图号（1 开始），决定系列起点：100 + 100*(N-1)。默认 1。 */
@@ -146,7 +163,11 @@ export type NumeralAssignment = {
   numeral: string
 }
 
-/** 系列起点：100 + 100*(图号-1)。 */
+/**
+ * 计算图号的标号系列起点（100 + 100*(图号-1)）。
+ * @param figureNumber - 图号（1 起，负值与 0 按 1 处理）。
+ * @returns 系列起点数值。
+ */
 export function numeralSeriesStart(figureNumber: number): number {
   return NUMERAL_SERIES_BASE + NUMERAL_SERIES_STRIDE * (Math.max(1, figureNumber) - 1)
 }
@@ -169,7 +190,7 @@ export function assignNumerals(ids: readonly string[], options: AssignNumeralsOp
   const used = new Map<string, string>()
   const next = new Map<string, string>()
   for (const explicit of Object.entries(options.explicit ?? {})) {
-    const value = String(explicit[1]).trim()
+    const value = explicit[1].trim()
     if (value === '') throw new DotBuildError('conflicting_numeral', `显式标号不能为空：${explicit[0]}`)
     const owner = used.get(value)
     if (owner !== undefined && owner !== explicit[0]) {
@@ -193,14 +214,22 @@ export function assignNumerals(ids: readonly string[], options: AssignNumeralsOp
   return ids.map(id => ({ id, numeral: next.get(id) as string }))
 }
 
-/** 清洗 DOT 节点/边 id（允许 [A-Za-z0-9_-]，其余替换为下划线）。 */
+/**
+ * 清洗 DOT 节点/边 id（允许 [A-Za-z0-9_-]，其余替换为下划线）。
+ * @param id - 原始 id。
+ * @returns 清洗后的 id（全非法时抛 DotBuildError）。
+ */
 export function sanitizeId(id: string): string {
   const cleaned = id.replace(/[^A-Za-z0-9_-]/g, '_')
   if (cleaned === '') throw new DotBuildError('invalid_id', `节点 id 为空或不合法：${JSON.stringify(id)}`)
   return cleaned
 }
 
-/** 转义 DOT 双引号 label 文本（换行保留为 \n；控制字符替换为空）。 */
+/**
+ * 转义 DOT 双引号 label 文本（换行保留为 \n；控制字符替换为空格）。
+ * @param text - 原始 label。
+ * @returns 可安全嵌入双引号字符串的 label。
+ */
 export function escapeDotLabel(text: string): string {
   return text
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ')
@@ -208,7 +237,12 @@ export function escapeDotLabel(text: string): string {
     .replace(/"/g, '\\"')
 }
 
-/** 构建 DOT 头（图形名、rankdir、node/edge 默认属性）。 */
+/**
+ * 构建 DOT 头（图形名、rankdir、node/edge 默认属性）。
+ * @param graphName - 图形名（自动清洗为合法 id）。
+ * @param options - rankdir 方向、字体名、是否填充（semantic 模式）。
+ * @returns DOT 头行列表。
+ */
 export function buildDotHeader(
   graphName: string,
   options: { rankdir: string; fontName: string; filled: boolean },
@@ -249,11 +283,7 @@ export function buildFlowchartDOT(steps: readonly FlowchartStep[], options: Buil
   const ids = steps.map(step => sanitizeId(step.id))
   const byId = new Map<string, FlowchartStep>()
   steps.forEach((step, index) => byId.set(ids[index] as string, step))
-  const assignments = assignNumerals(ids, {
-    figureNumber: options.figureNumber ?? 1,
-    ...(options.numeralStep === undefined ? {} : { step: options.numeralStep }),
-    ...(options.numerals === undefined ? {} : { explicit: options.numerals }),
-  })
+  const assignments = assignFor(ids, options)
   const numeralOf = new Map(assignments.map(a => [a.id, a.numeral]))
   const lines = buildDotHeader('Flowchart', {
     rankdir: 'TB',
@@ -265,7 +295,7 @@ export function buildFlowchartDOT(steps: readonly FlowchartStep[], options: Buil
     const id = sanitizeId(step.id)
     const shape = step.shape ?? 'box'
     if (!ALLOWED_SHAPES.includes(shape)) {
-      throw new DotBuildError('invalid_shape', `未知节点形状：${String(shape)}`)
+      throw new DotBuildError('invalid_shape', `未知节点形状：${shape}`)
     }
     // 标号由 assignNumerals 对全部组件分配，id->numeral 恒存在。
     /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the ?? and ternary empty branches are unreachable */
@@ -351,11 +381,7 @@ export function buildBlockDiagramDOT(
   const ids = blocks.map(block => sanitizeId(block.id))
   const byId = new Map<string, BlockDiagramBlock>()
   blocks.forEach((block, index) => byId.set(ids[index] as string, block))
-  const assignments = assignNumerals(ids, {
-    figureNumber: options.figureNumber ?? 1,
-    ...(options.numeralStep === undefined ? {} : { step: options.numeralStep }),
-    ...(options.numerals === undefined ? {} : { explicit: options.numerals }),
-  })
+  const assignments = assignFor(ids, options)
   const numeralOf = new Map(assignments.map(a => [a.id, a.numeral]))
   const semantic = options.style === 'semantic'
   const lines = buildDotHeader('BlockDiagram', {
@@ -425,11 +451,7 @@ export function buildComponentHierarchyDOT(
     for (const child of node.children ?? []) visit(child, id)
   }
   for (const root of tree) visit(root, undefined)
-  const assignments = assignNumerals(ids, {
-    figureNumber: options.figureNumber ?? 1,
-    ...(options.numeralStep === undefined ? {} : { step: options.numeralStep }),
-    ...(options.numerals === undefined ? {} : { explicit: options.numerals }),
-  })
+  const assignments = assignFor(ids, options)
   const numeralOf = new Map(assignments.map(a => [a.id, a.numeral]))
   const lines = buildDotHeader('ComponentHierarchy', {
     rankdir: 'TB',
@@ -523,7 +545,8 @@ const TEMPLATE_BUILDERS: Record<DiagramTemplateName, (options: BuildFlowchartOpt
  * @returns DOT 文本。
  */
 export function getDiagramTemplate(name: DiagramTemplateName, options: BuildFlowchartOptions | BuildBlockDiagramOptions = {}): string {
-  const builder = TEMPLATE_BUILDERS[name]
-  if (builder === undefined) throw new DotBuildError('invalid_template', `未知模板：${name}`)
-  return builder(options)
+  if (!Object.prototype.hasOwnProperty.call(TEMPLATE_BUILDERS, name)) {
+    throw new DotBuildError('invalid_template', `未知模板：${name}`)
+  }
+  return TEMPLATE_BUILDERS[name](options)
 }

@@ -19,7 +19,6 @@ import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-paten
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
 import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk } from '@deepseek-ai/dsh-llm'
-import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
 import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
 import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
@@ -400,7 +399,7 @@ export function apply(ctx: Context, config: Config): void {
 
   // Figure generation: render through the dot CLI via ctx.subprocess (pdfRenderer
   // pattern), fail loud with install guidance when Graphviz/subprocess is absent.
-  const subprocess = ctx.get('subprocess') as SubprocessRuntime | undefined
+  const subprocess = ctx.get('subprocess')
   const renderDot = (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> =>
     subprocess === undefined
       ? Promise.resolve({ ok: false, code: 'not_installed', error: 'subprocess 服务不可用（未挂载 @deepseek-ai/dsh-subprocess）' })

@@ -2,7 +2,7 @@
 
 Status: implemented
 
-[中文](2026-08-28-patent-figure-generation.zh.md) | English
+English | [中文](2026-08-28-patent-figure-generation.zh.md)
 
 ## Problem
 

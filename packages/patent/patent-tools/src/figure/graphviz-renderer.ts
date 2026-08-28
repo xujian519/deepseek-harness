@@ -12,7 +12,7 @@
 
 import { existsSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
-import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import type { DotEngine, DotFormat } from './dot-builder.ts'
 
 /** 各平台常见 Graphviz dot 安装路径。 */
@@ -26,6 +26,24 @@ export const DOT_CANDIDATES: readonly string[] = [
   'C:\\ProgramData\\chocolatey\\bin\\dot.exe',
 ]
 
+/** 渲染 spawn 的 stdio 配置（stdin 承载 DOT 文本，输出流设内存上限）。 */
+function renderStdio(dot: string): SubprocessSpawnSpec['stdio'] {
+  return {
+    stdin: dot !== '' ? { data: dot } : 'ignore',
+    stdout: { maxBytes: MAX_OUTPUT_BYTES },
+    stderr: { maxBytes: MAX_OUTPUT_BYTES },
+  }
+}
+
+/** 探测 spawn 的 stdio 配置（无输入，仅收集版本输出）。 */
+function probeStdio(): SubprocessSpawnSpec['stdio'] {
+  return {
+    stdin: 'ignore',
+    stdout: { maxBytes: MAX_OUTPUT_BYTES },
+    stderr: { maxBytes: MAX_OUTPUT_BYTES },
+  }
+}
+
 /** 单次渲染超时（毫秒）。 */
 const RENDER_TIMEOUT_MS = 60_000
 
@@ -38,7 +56,11 @@ const GRACE_MS = 3_000
 /** 单流内存输出上限。 */
 const MAX_OUTPUT_BYTES = 100_000
 
-/** 安装引导文案（platform 无关；找不到 dot 时返回）。 */
+/**
+ * 生成 Graphviz 缺失/路径失效时的安装引导文案。
+ * @param executable - 解析到的路径（未找到时为 undefined）。
+ * @returns 面向用户的安装与配置引导文本。
+ */
 export function graphvizInstallMessage(executable: string | undefined): string {
   const hint = executable === undefined
     ? '未找到 Graphviz dot 可执行文件。'
@@ -102,18 +124,14 @@ export async function probeGraphviz(
   }
   const controller = new AbortController()
   /* v8 ignore start -- probe is fast and the 5s timer is always cleared before its callback can run */
-  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+  const timer = setTimeout(() => { controller.abort() }, PROBE_TIMEOUT_MS)
   timer.unref()
   /* v8 ignore stop */
   try {
     const handle = subprocess.spawn({
       argv: [executable, '-V'],
       cwd: dirname(executable) || process.cwd(),
-      stdio: {
-        stdin: 'ignore',
-        stdout: { maxBytes: MAX_OUTPUT_BYTES },
-        stderr: { maxBytes: MAX_OUTPUT_BYTES },
-      },
+      stdio: probeStdio(),
       graceMs: GRACE_MS,
       signal: controller.signal,
     })
@@ -156,7 +174,11 @@ export type GraphvizRenderSpec = {
   signal?: AbortSignal
 }
 
-/** 清洗输出文件名（拒绝目录分隔与非法字符）。 */
+/**
+ * 清洗输出文件名（非法字符替换为下划线）。
+ * @param filename - 原始文件名（不含扩展名）。
+ * @returns 可安全用作文件名的字符串（空输入回退 'diagram'）。
+ */
 export function sanitizeDotFilename(filename: string): string {
   const cleaned = filename.replace(/[^\w\-]/g, '_')
   return cleaned === '' ? 'diagram' : cleaned
@@ -181,37 +203,36 @@ export async function renderWithGraphviz(
   const filename = sanitizeDotFilename(spec.filename)
   const outputPath = join(spec.outputDir, `${filename}.${spec.format}`)
   const controller = new AbortController()
-  let timedOut = false
+  const state: { timedOut: boolean } = { timedOut: false }
   const timer = setTimeout(() => {
-    timedOut = true
+    state.timedOut = true
     controller.abort()
   }, RENDER_TIMEOUT_MS)
   timer.unref()
-  const onCallerAbort = (): void => controller.abort()
+  const onCallerAbort = (): void => { controller.abort() }
   spec.signal?.addEventListener('abort', onCallerAbort, { once: true })
   if (spec.signal?.aborted === true) controller.abort()
   try {
     const handle = subprocess.spawn({
       argv: [executable, `-T${spec.format}`, `-K${spec.engine}`, '-o', outputPath, '-'],
       cwd: spec.outputDir,
-      stdio: {
-        stdin: spec.dot !== '' ? { data: spec.dot } : 'ignore',
-        stdout: { maxBytes: MAX_OUTPUT_BYTES },
-        stderr: { maxBytes: MAX_OUTPUT_BYTES },
-      },
+      stdio: renderStdio(spec.dot),
       graceMs: GRACE_MS,
       signal: controller.signal,
     })
     const outcome = await handle.done
     if (outcome.exitCode !== 0) {
       const stderr = (handle.collected.stderr?.readFrom(0).text ?? '').trim()
-      const cause = timedOut
-        ? '渲染超时'
-        : outcome.exitCode === null
-          ? spec.signal?.aborted === true
-            ? '被调用方取消'
-            : `被信号 ${outcome.signal ?? '未知'} 终止`
-          : `退出码 ${outcome.exitCode}`
+      let cause: string
+      if (state.timedOut) {
+        cause = '渲染超时'
+      } else if (spec.signal?.aborted === true) {
+        cause = '被调用方取消'
+      } else if (outcome.exitCode === null) {
+        cause = `被信号 ${outcome.signal ?? '未知'} 终止`
+      } else {
+        cause = `退出码 ${outcome.exitCode}`
+      }
       return { ok: false, code: spec.signal?.aborted === true ? 'aborted' : 'render_failed', error: `Graphviz 渲染失败（${cause}）：${stderr || '无 stderr 输出'}` }
     }
     if (!existsSync(outputPath)) {

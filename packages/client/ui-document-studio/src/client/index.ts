@@ -83,9 +83,9 @@ export function apply(ctx: ClientContext): void {
         // FIXME(port): the removed client runtime served file bytes through
         // connection.api.host.readFileText; upstream exposes no file-read
         // Remote, so the preview read fails loud until a replacement lands.
-        readFileText: async () => {
-          throw new Error('document studio: host file reads are unavailable (no file-read Remote after the client-runtime removal)')
-        },
+        readFileText: () => Promise.reject(
+          new Error('document studio: host file reads are unavailable (no file-read Remote after the client-runtime removal)'),
+        ),
       }
     },
   }, StudioView))

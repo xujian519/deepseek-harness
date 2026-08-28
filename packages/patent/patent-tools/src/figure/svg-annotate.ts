@@ -15,6 +15,7 @@ export type SvgAnnotateErrorCode = 'unsafe_svg' | 'invalid_svg' | 'too_large' | 
 
 /** SVG 标注错误。 */
 export class SvgAnnotateError extends Error {
+  /** 标注错误码（工具层映射为 invalid_tool_input）。 */
   readonly code: SvgAnnotateErrorCode
 
   constructor(code: SvgAnnotateErrorCode, message: string) {
@@ -109,7 +110,9 @@ export function annotateSvg(
   let match: RegExpExecArray | null
   while ((match = textPattern.exec(svgText)) !== null) {
     const whole = match[0]
+    /* v8 ignore start -- the regex group always matches (empty text allowed); ?? guards only against hypothetical undefined */
     const content = decodeEntities(stripTags(match[1] ?? '')).toLowerCase()
+    /* v8 ignore stop */
     let hit: number | undefined
     for (let i = 0; i < references.length; i += 1) {
       const ref = references[i] as SvgAnnotateReference

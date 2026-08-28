@@ -33,7 +33,7 @@ interface FakeRuntime {
   sessions: {
     list: SessionListFace
     open: (id: string) => void
-    create(opts?: { workspaceId?: unknown; cwd?: string }): Promise<string>
+    create: (opts?: { workspaceId?: unknown; cwd?: string }) => Promise<string>
     scope(id: string): unknown
     sessionOf(scope: unknown): SessionSubscriber | undefined
     fork(opts: { sessionId: string; atSeq?: number; increaseTitle?: boolean }): Promise<string>
@@ -144,7 +144,8 @@ describe('synapse browser half', () => {
       current,
     })
     sessions.list.subscribe = (listener) => { listeners.push(listener); return () => {} }
-    ;(runtime.sessions.create as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+    const create = runtime.sessions.create as ReturnType<typeof vi.fn<() => Promise<string>>>
+    create.mockImplementation(async () => {
       current = 's-new'
       for (const listener of listeners) listener()
       return 's-new'
@@ -154,7 +155,7 @@ describe('synapse browser half', () => {
       data: { source: 'dsh-synapse', type: 'synapse:create-session', requestId: 'r-1', workspaceId: 'dsh-ungrouped' },
     }))
     await new Promise(resolve => setTimeout(resolve, 10))
-    expect(runtime.sessions.create).toHaveBeenCalled()
+    expect(create).toHaveBeenCalled()
     dispose()
   })
 })

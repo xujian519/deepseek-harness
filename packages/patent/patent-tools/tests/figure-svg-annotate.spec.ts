@@ -55,10 +55,10 @@ describe('annotateSvg', () => {
 
   it('拒绝 DOCTYPE / ENTITY / CDATA / 过大 / 非 SVG', () => {
     expect(() => annotateSvg('<!DOCTYPE svg><svg></svg>', [])).toThrow(SvgAnnotateError)
-    expect(() => annotateSvg('<!ENTITY x "y"><svg></svg>', [])).toThrowError(/不安全/)
-    expect(() => annotateSvg('<svg><![CDATA[x]]></svg>', [])).toThrowError(/不安全/)
-    expect(() => annotateSvg('<svg>' + 'x'.repeat(DEFAULT_SVG_MAX_BYTES + 1) + '</svg>', [])).toThrowError(/过大/)
-    expect(() => annotateSvg('<html></html>', [])).toThrowError(/非 SVG/)
+    expect(() => annotateSvg('<!ENTITY x "y"><svg></svg>', [])).toThrow(/不安全/)
+    expect(() => annotateSvg('<svg><![CDATA[x]]></svg>', [])).toThrow(/不安全/)
+    expect(() => annotateSvg('<svg>' + 'x'.repeat(DEFAULT_SVG_MAX_BYTES + 1) + '</svg>', [])).toThrow(/过大/)
+    expect(() => annotateSvg('<html></html>', [])).toThrow(/非 SVG/)
   })
 
   it('数字实体解码后参与匹配（&#32; 空格）', () => {
@@ -70,8 +70,8 @@ describe('annotateSvg', () => {
   })
 
   it('拒绝空 label / 空 numeral；escape 插入字符', () => {
-    expect(() => annotateSvg(SVG, [{ label: '  ', numeral: '1' }])).toThrowError(/label 不能为空/)
-    expect(() => annotateSvg(SVG, [{ label: 'x', numeral: '  ' }])).toThrowError(/numeral 不能为空/)
+    expect(() => annotateSvg(SVG, [{ label: '  ', numeral: '1' }])).toThrow(/label 不能为空/)
+    expect(() => annotateSvg(SVG, [{ label: 'x', numeral: '  ' }])).toThrow(/numeral 不能为空/)
     const { svg } = annotateSvg(SVG, [{ label: 'Input Sensor', numeral: 'a&b "c"' }])
     expect(svg).toContain('Input Sensor (a&amp;b &quot;c&quot;)')
   })

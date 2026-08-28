@@ -312,7 +312,7 @@ describe('renderWithGraphviz', () => {
           stderr: undefined,
           collected: { stdout: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) }, stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) } },
           done: new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-            signal?.addEventListener('abort', () => resolve({ exitCode: null, signal: 'SIGTERM' }), { once: true })
+            signal?.addEventListener('abort', () => { resolve({ exitCode: null, signal: 'SIGTERM' }) }, { once: true })
           }),
           terminate() {},
           waitForExit: () => Promise.resolve(true),
@@ -324,6 +324,64 @@ describe('renderWithGraphviz', () => {
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('渲染超时')
       expect(calls.length).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('空 DOT 走 stdin ignore 且成功渲染', async () => {
+    const { dot: dotPath } = fakeDot()
+    const dir = tempDir()
+    try {
+      writeFileSync(join(dir, 'f.svg'), '<svg/>')
+      const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: '', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      expect(result).toEqual({ ok: true, path: join(dir, 'f.svg') })
+      expect(calls[0]?.stdio).toEqual({ stdin: 'ignore', stdout: { maxBytes: 100_000 }, stderr: { maxBytes: 100_000 } })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('被信号终止且无调用方取消时报告 render_failed', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      const { runtime } = fakeSubprocess(() => handleWith({ exitCode: null, signal: null }))
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('被信号 未知 终止')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('调用方取消且 spawn 抛错时分类为 aborted', async () => {
+    const dir = tempDir()
+    try {
+      const caller = new AbortController()
+      const { dot: dotPath } = fakeDot()
+      const { runtime } = fakeSubprocess(() => {
+        caller.abort()
+        throw new Error('boom')
+      })
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, dotPath)
+      expect(result).toMatchObject({ ok: false, code: 'aborted' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('非 Error 抛出也分类为 render_failed', async () => {
+    const dir = tempDir()
+    try {
+      const { dot: dotPath } = fakeDot()
+      const { runtime } = fakeSubprocess(() => {
+        throw 'plain-boom'
+      })
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      expect(result).toMatchObject({ ok: false, code: 'render_failed' })
+      expect((result as { error: string }).error).toContain('plain-boom')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

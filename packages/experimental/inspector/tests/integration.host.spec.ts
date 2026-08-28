@@ -388,7 +388,7 @@ describe('experimental Inspector real Worker', () => {
       // means the notification was lost between the worker and the CDP
       // fan-out under full-suite machine load. Re-emit once: the assertions
       // below own the forwarding contract, not notification durability.
-      await client!.log(value, marker)
+      await client.log(value, marker)
     }
     await vi.waitFor(observeBoth, { timeout: 10_000, interval: 50 })
     const firstObjectId = asRecord(recordArray(firstEvent!.params?.args)[0]).objectId

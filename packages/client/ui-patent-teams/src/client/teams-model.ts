@@ -260,7 +260,7 @@ export function projectTeamsCard(state: TeamsTeamState): PatentTeamsCardData {
  * @param buildNode - materialize one target node from a started Context.
  * @returns the complete Definition.
  */
-export function teamsNodeDefinition<Node extends ConversationViewNode>(
+export function teamsNodeDefinition(
   kind: string,
   target: string,
   buildNode: (context: {
@@ -269,7 +269,7 @@ export function teamsNodeDefinition<Node extends ConversationViewNode>(
     readonly state: TeamsTeamState
     readonly anchorSeq: number
     readonly location: ConversationLocation
-  }) => Node | null,
+  }) => ConversationViewNode | null,
 ): ConversationNodeDefinition<TeamsTeamState> {
   return {
     kind,
