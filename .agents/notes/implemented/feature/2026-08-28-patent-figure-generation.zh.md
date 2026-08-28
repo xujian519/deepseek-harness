@@ -13,7 +13,7 @@ Status: implemented
 生成侧原生移植进 `packages/patent/patent-tools`（无 Python 进程、无 WASM、无 torch 栈）：Graphviz `dot` CLI 经 `ctx.subprocess.spawn`，沿用 `pdfRenderer` 的候选路径模式。三个新模块 + 两个工具：
 
 - `figure/dot-builder.ts` — 纯 DOT 构建器（flowchart / block_diagram / component_hierarchy / 四个内置模板），固化专利风格规则：默认 `grayscale` 零填充色（依据《专利审查指南》第一部分第一章 4.3，2023 修订；`semantic` 彩色仅当色彩承载技术内容时允许）、决策菱形分支**必须**带边标签、标号内嵌节点标签（`Processor (20)`、`101. 接收`）、每图独立标号系列（FIG.N = 100+100·(N−1)，默认步进 2，`numerals` 显式传递支持跨图同号续接）。
-- `figure/svg-annotate.ts` — 既有 SVG 后处理：按 `<text>`/`<tspan>` 匹配文本追加 ` (标号)`；拒绝 DOCTYPE/ENTITY/CDATA 与超限输入，未命中参考列 warnings。
+- `figure/svg-annotate.ts` — 既有 SVG 后处理：按 `<text>`/`<tspan>` 匹配文本追加 ` (标号)`；拒绝实体定义/CDATA 与超限输入（Graphviz 的标准 `<!DOCTYPE svg>` 放行），未命中参考列 warnings。
 - `figure/graphviz-renderer.ts` — `findDot`（覆盖值 → `DSH_GRAPHVIZ_DOT` → 平台候选路径 → PATH）、`probeGraphviz`（`dot -V`）、`renderWithGraphviz`（argv 直传子进程、stdin 传 DOT、超时/取消分类、缺失时安装引导）。
 - `tool/generate-patent-figure.ts`（+ `add_patent_figure_references.ts`）— `apply()` 注册，新增 `Config.graphvizExecutable` / `figureOutputDir` / `dotFont`；标号一次分配驱动 DOT 与返回标号表；`persist_index`（默认开）把确定性 `FigureAnalysisResult`（置信度 1，`modelUsed='graphviz-generator'`）upsert 进既有附图索引，闭环：生成 → 检索 → 分析复核。
 

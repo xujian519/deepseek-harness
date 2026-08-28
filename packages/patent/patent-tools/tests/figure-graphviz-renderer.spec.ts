@@ -277,7 +277,7 @@ describe('renderWithGraphviz', () => {
       }, dotPath)
       expect(result).toEqual({ ok: true, path })
       const argv = calls[0]?.argv as string[]
-      expect(argv).toEqual([dotPath, '-Tsvg', '-Kdot', '-o', path, '-'])
+      expect(argv).toEqual([dotPath, '-Tsvg', '-Kdot', '-o', path])
       expect(calls[0]?.cwd).toBe(outputDir)
       expect(calls[0]?.stdio).toEqual({ stdin: { data: 'digraph G {}' }, stdout: { maxBytes: 100_000 }, stderr: { maxBytes: 100_000 } })
     } finally {

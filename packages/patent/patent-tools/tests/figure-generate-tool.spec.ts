@@ -484,7 +484,7 @@ describe('add_patent_figure_references tool', () => {
     try {
       await expect(tool.execute({ svg_path: 'nope.svg', references: [{ label: 'x', numeral: '1' }] }, exec))
         .rejects.toMatchObject({ name: 'PatentToolError', code: 'file_not_found' })
-      writeFileSync(join(dir, 'bad.svg'), '<!DOCTYPE svg><svg></svg>')
+      writeFileSync(join(dir, 'bad.svg'), '<!ENTITY x "y"><svg></svg>')
       await expect(tool.execute({ svg_path: 'bad.svg', references: [{ label: 'x', numeral: '1' }] }, exec))
         .rejects.toMatchObject({ code: 'invalid_tool_input' })
     } finally {

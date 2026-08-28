@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  SvgAnnotateError,
   annotateSvg,
   DEFAULT_SVG_MAX_BYTES,
 } from '../src/figure/svg-annotate.ts'
@@ -53,8 +52,11 @@ describe('annotateSvg', () => {
     expect(annotateSvg(SVG, [])).toEqual({ svg: SVG, warnings: [] })
   })
 
-  it('拒绝 DOCTYPE / ENTITY / CDATA / 过大 / 非 SVG', () => {
-    expect(() => annotateSvg('<!DOCTYPE svg><svg></svg>', [])).toThrow(SvgAnnotateError)
+  it('允许无实体 DOCTYPE（Graphviz 标准输出），拒绝 ENTITY / CDATA / 过大 / 非 SVG', () => {
+    const doctype = '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+    const ok = annotateSvg(`${doctype}<svg xmlns="http://www.w3.org/2000/svg"><text>Sensor</text></svg>`, [{ label: 'Sensor', numeral: '10' }])
+    expect(ok.svg).toContain('Sensor (10)')
+    expect(ok.warnings).toEqual([])
     expect(() => annotateSvg('<!ENTITY x "y"><svg></svg>', [])).toThrow(/不安全/)
     expect(() => annotateSvg('<svg><![CDATA[x]]></svg>', [])).toThrow(/不安全/)
     expect(() => annotateSvg('<svg>' + 'x'.repeat(DEFAULT_SVG_MAX_BYTES + 1) + '</svg>', [])).toThrow(/过大/)

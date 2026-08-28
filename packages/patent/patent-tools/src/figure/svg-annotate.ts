@@ -63,11 +63,13 @@ function decodeEntities(text: string): string {
     .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
 }
 
-/** 检查 SVG 文本中的不安全结构（DOCTYPE/ENTITY/CDATA）。 */
+/** 检查 SVG 文本中的不安全结构（实体定义/CDATA）。 */
 function assertSafeSvg(svgText: string, maxBytes: number): void {
   const lower = svgText.toLowerCase()
-  if (lower.includes('<!doctype') || lower.includes('<!entity') || lower.includes('<![cdata[')) {
-    throw new SvgAnnotateError('unsafe_svg', 'SVG 包含 DOCTYPE/ENTITY/CDATA 等不安全结构，拒绝处理')
+  // Graphviz 自带标准 <!DOCTYPE svg PUBLIC ...>（无实体声明）；本模块不做 XML
+  // 解析，实体不会展开，因此只拒绝实体定义与 CDATA（未来接解析器时的防线）。
+  if (lower.includes('<!entity') || lower.includes('<![cdata[')) {
+    throw new SvgAnnotateError('unsafe_svg', 'SVG 包含 ENTITY/CDATA 等不安全结构，拒绝处理')
   }
   if (svgText.length > maxBytes) {
     throw new SvgAnnotateError('too_large', `SVG 过大（>${maxBytes} 字节），拒绝处理`)

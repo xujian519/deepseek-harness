@@ -2,7 +2,8 @@
  * Graphviz `dot` CLI 渲染器（子进程通道，无 Python/WASM 依赖）。
  *
  * 以 `ctx.subprocess.spawn` 调用系统 Graphviz 的 dot 可执行文件：argv 直传
- * （不经 shell）、输入经 stdin、输出写 `-o` 文件；为版本探测（probe）与
+ * （不经 shell）、DOT 输入经 stdin（无文件参数；graphviz >= 15 拒绝尾随 '-'）、
+ * 输出写 `-o` 文件；为版本探测（probe）与
  * 渲染共享同一候选路径解析（Config.graphvizExecutable 覆盖 → 各平台常见
  * 安装路径 → PATH 分段），找不到时返回可安装引导（brew/apt/winget），
  * 与 patent-document/pdfRenderer 的 Chrome 候选模式一致。
@@ -214,7 +215,8 @@ export async function renderWithGraphviz(
   if (spec.signal?.aborted === true) controller.abort()
   try {
     const handle = subprocess.spawn({
-      argv: [executable, `-T${spec.format}`, `-K${spec.engine}`, '-o', outputPath, '-'],
+      // graphviz >= 15 rejects a trailing '-' as an unknown option; stdin input needs no file argument.
+      argv: [executable, `-T${spec.format}`, `-K${spec.engine}`, '-o', outputPath],
       cwd: spec.outputDir,
       stdio: renderStdio(spec.dot),
       graceMs: GRACE_MS,
