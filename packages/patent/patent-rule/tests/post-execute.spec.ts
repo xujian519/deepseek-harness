@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
@@ -14,7 +14,7 @@ const signal = new AbortController().signal
 
 function exec(name: string): ToolExecution {
   const agent = { session: { header: { id: 's1' } } }
-  return { callId: CallId(`call-${name}`), name, arguments: {}, agent, signal } as unknown as ToolExecution
+  return { callId: ToolCallId(`call-${name}`), name, arguments: {}, agent, signal } as unknown as ToolExecution
 }
 
 function deliveryTool(name: string, text: string) {

@@ -6,9 +6,20 @@
  * replay.
  * @module @deepseek-ai/dsh-client-ui-patent-teams/client
  */
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+// Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: pulls the slots Context merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+// Type-only: pulls the Chat SlotMap entry and ChatNodeDataMap (keyed renderer seat).
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+// Type-only: pulls the Conversation registries' Context merge (ctx.uiConversation).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the sessions-service Context merge (ctx.sessions).
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { TeamsCard } from './TeamsCard.tsx'
 import { TeamsView } from './TeamsView.tsx'
 import { en, NS, zh, type PatentTeamsKey } from './locales.ts'
@@ -23,13 +34,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Required services for the Definitions, the keyed renderer, the view, and copy. */
-export const inject = ['conversationEvents', 'conversationViews', 'slots', 'sessions', 'locale']
+export const inject = ['uiConversation', 'slots', 'sessions', 'locale']
 
 /** Register the fold Definitions, dictionary, the keyed Chat renderer, and the Teams view. */
 export function apply(ctx: ClientContext): void {
-  ctx.conversationEvents.register(patentTeamsCardDefinition)
-  ctx.conversationEvents.register(patentTeamsViewSourceDefinition)
-  ctx.conversationViews.register(patentTeamsViewDefinition)
+  ctx.uiConversation.events.register(patentTeamsCardDefinition)
+  ctx.uiConversation.events.register(patentTeamsViewSourceDefinition)
+  ctx.uiConversation.views.register(patentTeamsViewDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-patent-teams: dictionaries')
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',

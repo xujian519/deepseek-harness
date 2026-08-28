@@ -1,8 +1,26 @@
+---
+description: "The **`BenchmarkEvolveEngine`** is the provider of `ctx.selfEvolveBenchmark`. It adds a quantitative target dimension to the self-evolve capability: a benchmark is a bounded set of cases, each scored against a private rubric, and the provider optimizes the agent state under a strict improve-or-rollback policy backed by whole-state snapshot versioning. This complements `ctx.selfEvolve`, which mines failure patterns from the session stream, with an objective score a loop can chase."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-self-evolve-benchmark
 
 English | [中文](README.zh.md)
 
+## Summary
+
 The **`BenchmarkEvolveEngine`** is the provider of `ctx.selfEvolveBenchmark`. It adds a quantitative target dimension to the self-evolve capability: a benchmark is a bounded set of cases, each scored against a private rubric, and the provider optimizes the agent state under a strict improve-or-rollback policy backed by whole-state snapshot versioning. This complements `ctx.selfEvolve`, which mines failure patterns from the session stream, with an objective score a loop can chase.
+
+## Table of Contents
+
+- [Role](#role)
+- [Configuration](#configuration)
+- [Public API](#public-api)
+- [On-disk layout](#on-disk-layout)
+- [Optimization loop (C1 + C3)](#optimization-loop-c1--c3)
+- [Statement/rubric separation (C2)](#statementrubric-separation-c2)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Role
 
@@ -79,3 +97,7 @@ These child prompts are request-local: their content varies with each case, roun
 - **No UI or CLI surface** — this is a programmatic service; nothing in `dsh` exposes it yet.
 - **No keyed end-to-end verification** — the default seams are exercised through unit tests that mock the subagent runtime; a live `dsh --profile` loop run requires a keyed environment.
 - **Live parent agent must be resolvable by session id** — the engine threads a `sessionId` through the seams, not a direct agent reference; callers that hold an `Agent` must map it to a session first.
+
+### Dev Note
+
+None.

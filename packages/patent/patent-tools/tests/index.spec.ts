@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as tool from '../src/index.ts'
@@ -13,7 +13,7 @@ import { buildImageGateResolver } from '../src/index.ts'
 const signal = new AbortController().signal
 
 function exec(ctx: Context, name: string, args: unknown, label: string) {
-  return ctx.tools.execute({ signal, callId: CallId(label), name, arguments: args })
+  return ctx.tools.execute({ signal, callId: ToolCallId(label), name, arguments: args })
 }
 
 async function mounted(config: Record<string, unknown>): Promise<Context> {

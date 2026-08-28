@@ -1,20 +1,20 @@
 /**
  * Document-studio produced-file definition and view target. The vocabulary is
- * the mutation tools' own follow-along `locations` (the same derivation
- * `ui-deliverables` publishes per turn): a diff card, or a generic card whose
- * `kind` is `edit`, contributes its `locations` paths. The studio also folds
- * the `document_deliver` registration tool: its call arguments (logged with
- * the tool/call event) carry the delivered files, formats, gate state, and
- * brief reference, so a registered entry augments the mutation-derived entry
- * with that metadata. This package owns its own turn-scoped key so the studio
- * works whether or not `ui-deliverables` is composed in; the view target
- * folds every turn in the window into one first-seen ordered list.
+ * the mutation tools' logged arguments (the same derivation `ui-deliverables`
+ * publishes per turn): a supported file-mutation call contributes its target
+ * path. The studio also folds the `document_deliver` registration tool: its
+ * call arguments (logged with the tool/call event) carry the delivered files,
+ * formats, gate state, and brief reference, so a registered entry augments
+ * the mutation-derived entry with that metadata. This package owns its own
+ * turn-scoped key so the studio works whether or not `ui-deliverables` is
+ * composed in; the view target folds every turn in the window into one
+ * first-seen ordered list.
  */
+import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type {
   ConversationNodeDefinition, ConversationTimelineSnapshot, ConversationViewBuilder,
-  ConversationViewDefinition, ConversationViewNode, ToolResultNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
-import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-client-runtime/client'
+  ConversationViewDefinition, ConversationViewNode,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 /** The `document_deliver` registration tool's name, as logged in tool/call. */
 export const DOCUMENT_DELIVER_TOOL = 'document_deliver'
@@ -41,7 +41,7 @@ export interface DocumentDeliverablesSnapshot {
   readonly produced: readonly DocumentDeliverable[]
 }
 
-declare module '@deepseek-ai/dsh-client-runtime/client' {
+declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
   interface ConversationTurnDataMap {
     /** Successful mutations and deliverable registrations accumulated in one Turn. */
     documentDeliverables: DocumentTurnDeliverables
@@ -63,15 +63,16 @@ interface DeliverRegistration {
   readonly briefRef?: string
 }
 
-/** One tool call's stored facts: its presentation view and parsed registration, when it is one. */
-interface CallViewEntry {
-  readonly view: ToolResultNode['callView']
+/** One tool call's stored facts: its parsed registration and args-derived mutation path. */
+interface CallEntry {
   readonly registration?: DeliverRegistration
+  /** Mutation path derived from the logged arguments; null when the call is not a supported mutation. */
+  readonly producedPath: string | null
 }
 
 interface DocumentDeliverablesState extends DocumentTurnDeliverables {
   readonly turn: number
-  readonly calls: ReadonlyMap<string, CallViewEntry>
+  readonly calls: ReadonlyMap<string, CallEntry>
 }
 
 /**
@@ -126,20 +127,79 @@ function normalizeDeliverRegistration(value: unknown): DeliverRegistration | und
 }
 
 /**
- * Paths a call view reports having created or changed, by render intent
- * rather than tool name — the same vocabulary the produced-files row uses.
+ * Extract the produced path from a supported first-party mutation call.
+ * Session `tool/call` events are root calls; Code Dispatch children do not
+ * enter this Definition independently.
+ * @param name - wire tool name.
+ * @param argsRaw - model-produced JSON arguments.
+ * @returns the mutation path, or null when the call is not a supported mutation.
  */
-// Intentional duplicate of ui-deliverables' producedPaths: the two packages
+// Intentional duplicate of ui-deliverables' mutationPath: the two packages
 // own separate turn keys and must compose independently
 // (packages/client/AGENTS.md forbids cross-package value imports).
 /* jscpd:ignore-start */
-function producedPaths(view: ToolResultNode['callView']): readonly string[] {
-  if (view === null) return []
-  if (view.card === 'diff') return (view.locations ?? []).map(location => location.path)
-  if (view.card === 'generic' && view.kind === 'edit') {
-    return (view.locations ?? []).map(location => location.path)
+function mutationPath(name: string, argsRaw: string): string | null {
+  let args: unknown
+  try {
+    args = JSON.parse(argsRaw) as unknown
+  } catch {
+    return null
   }
-  return []
+  if (!isRecord(args)) return null
+  switch (name) {
+    case 'write':
+      return typeof args.content === 'string' ? pathValue(args.file_path) : null
+    case 'edit':
+      return validEditArgs(args) ? pathValue(args.file_path) : null
+    case 'str_replace_editor':
+      return editorMutationPath(args)
+    default:
+      return null
+  }
+}
+
+/** Validate the fields that an `edit` execution requires. */
+function validEditArgs(args: Readonly<Record<string, unknown>>): boolean {
+  return typeof args.old_string === 'string'
+    && args.old_string.length > 0
+    && typeof args.new_string === 'string'
+    && args.old_string !== args.new_string
+    && (args.replace_all === undefined || typeof args.replace_all === 'boolean')
+}
+
+/** Extract a path only from a complete mutating editor command. */
+function editorMutationPath(args: Readonly<Record<string, unknown>>): string | null {
+  const path = pathValue(args.path)
+  if (path === null) return null
+  switch (args.command) {
+    case 'create':
+      return typeof args.file_text === 'string' ? path : null
+    case 'str_replace':
+      return typeof args.old_str === 'string'
+        && args.old_str.length > 0
+        && (args.new_str === undefined || typeof args.new_str === 'string')
+        ? path
+        : null
+    case 'insert':
+      return typeof args.insert_line === 'number'
+        && Number.isInteger(args.insert_line)
+        && args.insert_line >= 0
+        && typeof args.new_str === 'string'
+        ? path
+        : null
+    default:
+      return null
+  }
+}
+
+/** A non-blank path preserves the exact spelling supplied to the tool. */
+function pathValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
+}
+
+/** Narrow parsed JSON to an argument object. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 /* jscpd:ignore-end */
 
@@ -175,12 +235,14 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
     if (match.event.type === 'tool/call') {
       const calls = new Map(context.state.calls)
       const registration = parseDeliverRegistration(match.event.data.name, match.event.data.arguments)
-      calls.set(
-        String(match.event.data.callId),
-        registration === undefined
-          ? { view: match.view?.for === 'call' ? match.view.view : null }
-          : { view: match.view?.for === 'call' ? match.view.view : null, registration },
-      )
+      calls.set(String(match.event.data.callId), {
+        ...registration !== undefined ? { registration } : {},
+        // A registration call contributes its files at result time; a mutation
+        // call contributes its args-derived path.
+        producedPath: registration === undefined
+          ? mutationPath(match.event.data.name, match.event.data.arguments)
+          : null,
+      })
       return { ...context.state, calls }
     }
     if (match.event.type !== 'tool/result') return context.state
@@ -190,7 +252,9 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
     const call = context.state.calls.get(callId)
     const additions = call?.registration !== undefined
       ? registeredEntries(match.event.seq, call.registration)
-      : producedPaths(call?.view ?? null).map(path => ({ seq: match.event.seq, path }))
+      : call === undefined || call.producedPath === null
+        ? []
+        : [{ seq: match.event.seq, path: call.producedPath }]
     return additions.length === 0
       ? context.state
       : { ...context.state, produced: [...context.state.produced, ...additions] }

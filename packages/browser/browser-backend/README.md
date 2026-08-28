@@ -1,8 +1,22 @@
+---
+description: "Browser automation backend cascade for model-facing download and scraping tools, ported from the Sati browser backend layer (`src/browser/backend/`). Four backends are probed and routed in a fixed order — **ego lite → BrowserOS neo → browser-use → @playwright/mcp** — with a cold-decision rule: the backend for a task is resolved once before the task starts and never switches mid-task. The unified ego stack routes downloads to ego only; the other backends join the probe matrix but never take a download."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-browser-backend
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Browser automation backend cascade for model-facing download and scraping tools, ported from the Sati browser backend layer (`src/browser/backend/`). Four backends are probed and routed in a fixed order — **ego lite → BrowserOS neo → browser-use → @playwright/mcp** — with a cold-decision rule: the backend for a task is resolved once before the task starts and never switches mid-task. The unified ego stack routes downloads to ego only; the other backends join the probe matrix but never take a download.
+
+## Table of Contents
+
+- [Backends and capabilities](#backends-and-capabilities)
+- [Routing](#routing)
+- [Link extractors](#link-extractors)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Backends and capabilities
 
@@ -36,3 +50,7 @@ Both extractors are `PageExtractor` implementations; download tools pick one and
 - **Downloads route to ego only**: with the unified ego stack, `patent_pdf_download` and `paper_download` resolve the ego backend; browseros-neo / playwright / browser-use never take a download.
 - **browser-use has no download interception**: per the Sati POC mapping, its downloads go through link extraction + fetch; screencast and handoff capabilities are also off.
 - **browser-use is a local CLI, not an npm dependency**: the probe fails with an install hint when the CLI is absent; the package never assumes it is installed.
+
+### Dev Note
+
+None.

@@ -1,8 +1,23 @@
+---
+description: "Service Definition for the knowledge.db query seam (`ctx.patentKnowledge`): case-law full-text search, legal full-text search, wiki-card keyword lookup, IPC classification, and knowledge-graph queries over `node:sqlite`, plus the `patent-knowledge:install` data bootstrap ported from Sati. Consumers own every model-facing surface; this package resolves and serves read-only knowledge queries."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-knowledge
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Service Definition for the knowledge.db query seam (`ctx.patentKnowledge`): case-law full-text search, legal full-text search, wiki-card keyword lookup, IPC classification, and knowledge-graph queries over `node:sqlite`, plus the `patent-knowledge:install` data bootstrap ported from Sati. Consumers own every model-facing surface; this package resolves and serves read-only knowledge queries.
+
+## Table of Contents
+
+- [Service](#service)
+- [Configuration](#configuration)
+- [patent-knowledge:install](#patent-knowledgeinstall)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Service
 
@@ -66,3 +81,7 @@ Independent; the knowledge seam registers no prompt, tool schema, or result of i
 - **No vector or semantic retrieval in P1** — the embedding/vector paths (`knowledge-embeddings`, `wiki-card-vector-index`, the three memory providers) are not ported; wiki-card lookup is keyword-only, and case-law/legal/knowledge-graph search is FTS5/LIKE only.
 - **Source database is not bundled** — the data must be prepared locally via `patent-knowledge:install` or pointed at directly through `sourceDbPath`/`knowledgeDir`; no public download is provided.
 - **`node:sqlite` is experimental** — the engines run on Node's built-in SQLite, which is experimental in the supported Node line and may change between releases.
+
+### Dev Note
+
+None.

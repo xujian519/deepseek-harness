@@ -5,7 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import { StateDot, type StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PatentTeamsCardData, PatentTeamsCardStatus, PatentTeamsCardTask } from './teams-model.ts'
 import type { PatentTeamsKey } from './locales.ts'

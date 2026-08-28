@@ -25,8 +25,8 @@ const NAME = 'dsh-test-bin'
 
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'dsh-user-patches-'))
 
-async function eventually(test: () => boolean, message: string): Promise<void> {
-  const deadline = Date.now() + 10_000
+async function eventually(test: () => boolean, message: string, budgetMs = 10_000): Promise<void> {
+  const deadline = Date.now() + budgetMs
   while (!test()) {
     if (Date.now() >= deadline) throw new Error(message)
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -71,6 +71,31 @@ describe('loadOptionalPatches', () => {
       config: { model: { __jsExpr: 'process.env.DSH_SPEC_MODEL' } },
     })
     expect(patches?.[1]?.insert).toHaveLength(1)
+  })
+
+  it('anchors inserted relative plugins to the patch file and keeps assertion names literal', () => {
+    const dir = tmp()
+    const patchPath = join(dir, PROFILE_PATCH_FILENAME)
+    writeFileSync(patchPath, [
+      '- id: existing',
+      '  name: ./assertion.mjs',
+      '- insert:',
+      '    - id: rule',
+      '      name: ./rule.mjs',
+      '    - id: nested',
+      '      name: cordis:group',
+      '      group: true',
+      '      config:',
+      '        - id: child',
+      '          name: ../child.mjs',
+      '',
+    ].join('\n'))
+
+    const patches = loadOptionalPatches(NAME, patchPath)
+    expect(patches?.[0]?.name).toBe('./assertion.mjs')
+    expect(patches?.[1]?.insert?.[0]?.name).toBe(pathToFileURL(join(dir, 'rule.mjs')).href)
+    expect((patches?.[1]?.insert?.[1]?.config as { name: string }[])[0]?.name)
+      .toBe(pathToFileURL(join(dir, '..', 'child.mjs')).href)
   })
 
   it('fails loud on an unreadable file (a present user patch layer is never skipped)', () => {
@@ -279,6 +304,12 @@ describe('boot with user patches', () => {
   it('applies id-targeted overrides, inserts, and interpolates !!js from the environment', async () => {
     const dir = tmp()
     const userDir = tmp()
+    writeFileSync(join(userDir, 'noop.mjs'), [
+      'export function apply(_ctx, config = {}) {',
+      '  if (config.fail) throw new Error("candidate config failed")',
+      '}',
+      '',
+    ].join('\n'))
     writeFileSync(join(userDir, PROFILE_PATCH_FILENAME), [
       '- id: noop',
       '  name: ./noop.mjs',
@@ -320,7 +351,7 @@ describe('boot with user patches', () => {
     }
   })
 
-  it('watches add, failure, recovery, and removal through transactional HMR', { timeout: 20_000 }, async () => {
+  it('watches add, failure, recovery, and removal through transactional HMR', { timeout: 30_000 }, async () => {
     const dir = tmp()
     const userDir = tmp()
     const filename = join(userDir, PROFILE_PATCH_FILENAME)
@@ -339,27 +370,31 @@ describe('boot with user patches', () => {
     })
     try {
       writeFileSync(filename, '- id: noop\n  config:\n    value: live\n')
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied')
+      // The watcher applies sub-second when unloaded, but FSEvents delivery
+      // lags behind the full suite's parallel workers; the budget matches the
+      // declared test timeout so every step keeps its own diagnostic.
+      const watcherBudget = 20_000
+      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied', watcherBudget)
 
       writeFileSync(filename, '- id: noop\n  config:\n    fail: true\n')
-      await eventually(() => failures.length === 1, 'failed candidate was not broadcast')
+      await eventually(() => failures.length === 1, 'failed candidate was not broadcast', watcherBudget)
       expect(failures[0]).toMatchObject({ filename })
       expect(failures[0]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
       await settleChokidarChangeThrottle()
 
       writeFileSync(filename, 'invalid: [unclosed\n')
-      await eventually(() => failures.length === 2, 'parse failure was not broadcast')
+      await eventually(() => failures.length === 2, 'parse failure was not broadcast', watcherBudget)
       expect(failures[1]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
       await settleChokidarChangeThrottle()
 
       writeFileSync(filename, '- id: noop\n  config:\n    value: recovered\n')
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'recovered', 'valid recovery was not applied')
+      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'recovered', 'valid recovery was not applied', watcherBudget)
       await settleChokidarChangeThrottle()
 
       unlinkSync(filename)
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'generated', 'user patch removal did not restore the app-owned patch')
+      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'generated', 'user patch removal did not restore the app-owned patch', watcherBudget)
       expect(failures).toHaveLength(2)
       await settleChokidarChangeThrottle()
 
@@ -369,7 +404,7 @@ describe('boot with user patches', () => {
       const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename })
       try {
         writeFileSync(filename, '- id: noop\n  config:\n    value: identity\n')
-        await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied')
+        await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied', watcherBudget)
       } finally {
         await disposeDefault()
       }

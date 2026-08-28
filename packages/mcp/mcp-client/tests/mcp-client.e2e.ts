@@ -22,7 +22,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { CallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { apply } from '@deepseek-ai/dsh-mcp-client/src/index.ts'
 import { publicToolName } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
@@ -87,8 +87,8 @@ function textOf(block: unknown): string {
 }
 
 let callSeq = 0
-function nextCallId(): CallId {
-  return CallId(`e2e-${++callSeq}`)
+function nextToolCallId(): ToolCallId {
+  return ToolCallId(`e2e-${++callSeq}`)
 }
 
 // ---- Fixture server tests ----
@@ -141,7 +141,7 @@ describe('fixture server — controlled scenarios', () => {
   it('executes the dotted tool via its normalized public name', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: publicToolName('fixture', 'admin.reset'), arguments: {},
+      callId: nextToolCallId(), name: publicToolName('fixture', 'admin.reset'), arguments: {},
     })
     expect(result.isError).toBe(false)
     expect(result.content[0]).toEqual({ type: 'text', text: 'reset done' })
@@ -150,7 +150,7 @@ describe('fixture server — controlled scenarios', () => {
   it('executes add(2, 3) → "5"', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__fixture__add', arguments: { a: 2, b: 3 },
+      callId: nextToolCallId(), name: 'mcp__fixture__add', arguments: { a: 2, b: 3 },
     })
     expect(result.isError).toBe(false)
     expect(result.content[0]).toEqual({ type: 'text', text: '5' })
@@ -159,7 +159,7 @@ describe('fixture server — controlled scenarios', () => {
   it('executes greet("World") → "Hello, World!"', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__fixture__greet', arguments: { name: 'World' },
+      callId: nextToolCallId(), name: 'mcp__fixture__greet', arguments: { name: 'World' },
     })
     expect(result.isError).toBe(false)
     expect(result.content[0]).toEqual({ type: 'text', text: 'Hello, World!' })
@@ -168,7 +168,7 @@ describe('fixture server — controlled scenarios', () => {
   it('executes fail() → isError result', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__fixture__fail', arguments: {},
+      callId: nextToolCallId(), name: 'mcp__fixture__fail', arguments: {},
     })
     expect(result.isError).toBe(true)
     expect(result.content[0]).toMatchObject({ type: 'text' })
@@ -177,7 +177,7 @@ describe('fixture server — controlled scenarios', () => {
   it('executes image() → ordered durable image content', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal, agent: imageAgent() as never,
-      callId: nextCallId(), name: 'mcp__fixture__image', arguments: {},
+      callId: nextToolCallId(), name: 'mcp__fixture__image', arguments: {},
     })
     expect(result.isError).toBe(false)
     expect(result.content).toHaveLength(3)
@@ -264,14 +264,14 @@ describe('fixture server — crash recovery', () => {
 
     const before = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__crashy__add', arguments: { a: 2, b: 3 },
+      callId: nextToolCallId(), name: 'mcp__crashy__add', arguments: { a: 2, b: 3 },
     })
     expect(textOf(before.content[0])).toBe('5')
 
     // The crash tool replies, then kills the real child process.
     const crash = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__crashy__crash', arguments: {},
+      callId: nextToolCallId(), name: 'mcp__crashy__crash', arguments: {},
     })
     expect(crash.isError).toBe(false)
 
@@ -280,7 +280,7 @@ describe('fixture server — crash recovery', () => {
     await vi.waitFor(async () => {
       const after = await ctx.tools.execute({
         signal: testToolSignal,
-        callId: nextCallId(), name: 'mcp__crashy__add', arguments: { a: 20, b: 22 },
+        callId: nextToolCallId(), name: 'mcp__crashy__add', arguments: { a: 20, b: 22 },
       })
       expect(after.isError).toBe(false)
       expect(textOf(after.content[0])).toBe('42')
@@ -305,7 +305,7 @@ describe('fixture server — crash recovery', () => {
 
     const crash = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__ephemeral__crash', arguments: {},
+      callId: nextToolCallId(), name: 'mcp__ephemeral__crash', arguments: {},
     })
     expect(crash.isError).toBe(false)
 
@@ -363,7 +363,7 @@ describe('server-everything — official test server', () => {
   it('executes echo({ message: "hello" }) → "Echo: hello"', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__everything__echo', arguments: { message: 'hello' },
+      callId: nextToolCallId(), name: 'mcp__everything__echo', arguments: { message: 'hello' },
     })
     expect(result.isError).toBe(false)
     expect(textOf(result.content[0])).toBe('Echo: hello')
@@ -372,7 +372,7 @@ describe('server-everything — official test server', () => {
   it('executes get-sum({ a: 3, b: 7 }) → contains "10"', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__everything__get-sum', arguments: { a: 3, b: 7 },
+      callId: nextToolCallId(), name: 'mcp__everything__get-sum', arguments: { a: 3, b: 7 },
     })
     expect(result.isError).toBe(false)
     expect(textOf(result.content[0])).toContain('10')
@@ -381,7 +381,7 @@ describe('server-everything — official test server', () => {
   it('executes get-tiny-image → explicit refusal without a durable route', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__everything__get-tiny-image', arguments: {},
+      callId: nextToolCallId(), name: 'mcp__everything__get-tiny-image', arguments: {},
     })
     expect(result.isError).toBe(false)
     expect(result.content.map(block => block.type === 'text' ? block.text : '').join('\n'))
@@ -433,7 +433,7 @@ describe('server-filesystem — real filesystem operations', () => {
 
     const writeResult = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__filesystem__write_file', arguments: { path: filePath, content },
+      callId: nextToolCallId(), name: 'mcp__filesystem__write_file', arguments: { path: filePath, content },
     })
     expect(writeResult.isError).toBe(false)
 
@@ -443,7 +443,7 @@ describe('server-filesystem — real filesystem operations', () => {
 
     const readResult = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__filesystem__read_file', arguments: { path: filePath },
+      callId: nextToolCallId(), name: 'mcp__filesystem__read_file', arguments: { path: filePath },
     })
     expect(readResult.isError).toBe(false)
     expect(textOf(readResult.content[0])).toContain(content)
@@ -454,7 +454,7 @@ describe('server-filesystem — real filesystem operations', () => {
 
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__filesystem__list_directory', arguments: { path: tempDir },
+      callId: nextToolCallId(), name: 'mcp__filesystem__list_directory', arguments: { path: tempDir },
     })
     expect(result.isError).toBe(false)
     expect(textOf(result.content[0])).toContain('listed.txt')
@@ -548,7 +548,7 @@ describe('streamable-http — in-process MCP server', () => {
   it('executes ping() → "pong" over HTTP', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__web__ping', arguments: {},
+      callId: nextToolCallId(), name: 'mcp__web__ping', arguments: {},
     })
     expect(result.isError).toBe(false)
     expect(result.content[0]).toEqual({ type: 'text', text: 'pong' })
@@ -557,7 +557,7 @@ describe('streamable-http — in-process MCP server', () => {
   it('executes shout({ message }) with args over HTTP', async () => {
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: nextCallId(), name: 'mcp__web__shout', arguments: { message: 'quiet' },
+      callId: nextToolCallId(), name: 'mcp__web__shout', arguments: { message: 'quiet' },
     })
     expect(result.isError).toBe(false)
     expect(result.content[0]).toEqual({ type: 'text', text: 'QUIET' })

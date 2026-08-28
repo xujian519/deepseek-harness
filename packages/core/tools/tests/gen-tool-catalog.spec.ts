@@ -26,13 +26,15 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     const catalog = await collectToolCatalog()
     const names = catalog.flatMap(entry => entry.schemas.map(s => s.name)).sort()
     expect(names).toEqual([
+      'add_patent_figure_references',
       'analyze_patent_figure', 'ask_user_question', 'bash', 'bash', 'claim_chart_build',
       'cordis_define', 'cordis_inspect_list', 'cordis_inspect_query', 'cordis_inspect_self',
       'cordis_run', 'cordis_stop', 'cordis_undefine', 'create_goal', 'document_deliver', 'draft_claims',
       'draft_specification', 'edit', 'evaluate_evidence', 'exit_plan_mode', 'flexible_plan',
-      'followup_task', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
+      'followup_task',
+      'generate_patent_figure', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
       'job_kill', 'job_list', 'job_output', 'knowledge_note_save', 'list_agents', 'list_agents',
-      'lsp', 'paper_download', 'paper_list_sources', 'paper_search', 'patent_analysis_report', 'patent_case_search', 'patent_eval',
+      'list_subagent_models', 'lsp', 'paper_download', 'paper_list_sources', 'paper_search', 'patent_analysis_report', 'patent_case_search', 'patent_eval',
       'patent_kg_query', 'patent_legal_status', 'patent_metadata', 'patent_pdf_download',
       'patent_plan_task', 'patent_search', 'patent_teams_add_member', 'patent_teams_claim_task',
       'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete', 'patent_teams_reassign_task',
@@ -98,7 +100,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     // agents surface this one package as both `subagent` and `subagent_fork`.
     const catalog = await collectToolCatalog()
     const subagent = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-subagent')
-    expect(subagent?.schemas.map(s => s.name)).toEqual(['subagent'])
+    expect(subagent?.schemas.map(s => s.name)).toEqual(['list_subagent_models', 'subagent'])
     expect(subagent?.note).toMatch(/subagent_fork/)
   })
 })

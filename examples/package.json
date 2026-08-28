@@ -9,7 +9,6 @@
     "@deepseek-ai/cordis-plugin-include": "workspace:*",
     "@deepseek-ai/cordis-plugin-logger-console": "workspace:*",
     "@deepseek-ai/cordis-plugin-timer": "workspace:*",
-    "@deepseek-ai/dsh-acp-demo": "workspace:*",
     "@deepseek-ai/dsh-agent": "workspace:*",
     "@deepseek-ai/dsh-agent-loop": "workspace:*",
     "@deepseek-ai/dsh-agent-spine-demo": "workspace:*",

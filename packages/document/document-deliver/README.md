@@ -1,8 +1,21 @@
+---
+description: "Function plugin for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome. The tool call is session-logged like every tool call, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list (paths, formats, gate state) from the log — no new session event type, no host write RPC."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-document-deliver
 
 English | [中文](README.zh.md)
 
-Function plugin for the [document agent preset](../../../apps/cli/config/agent-presets/document/README.md): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome. The tool call is session-logged like every tool call, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list (paths, formats, gate state) from the log — no new session event type, no host write RPC.
+## Summary
+
+Function plugin for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome. The tool call is session-logged like every tool call, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list (paths, formats, gate state) from the log — no new session event type, no host write RPC.
+
+## Table of Contents
+
+- [What it mounts](#what-it-mounts)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## What it mounts
 
@@ -29,3 +42,7 @@ Prefix-stable while the registered tool set and the description are unchanged.
 - **Registration is a declaration, not a conversion** — the tool does not copy, render, or convert files; it only checks existence and records the declaration in the session log. PDF export still goes through the studio's print action, and `.docx`/`.pptx` conversion still needs the user-level `officecli` skill.
 - **No cross-session aggregation** — the studio folds one session's log window; cross-session history, search, and batch export are the deferred document-workbench v2 (see the [workbench proposal](../../../.agents/notes/proposed/feature/2026-08-23-document-mode-workbench.md)).
 - **Gate state is model-reported** — the P0/P1 items come from the model's own quality-gate run; the tool enforces that P0 is non-empty and the files exist, not that the checklist was honestly executed.
+
+### Dev Note
+
+None.

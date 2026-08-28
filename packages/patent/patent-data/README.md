@@ -1,8 +1,22 @@
+---
+description: "Service Definition for the patent data seam (`ctx.patentData`): the LRU-cached search provider factory over the vendored [`@deepseek-ai/nuo-patent`](../../../vendor/nuo-patent/README.md) engine, the structured metadata mapper, the patent result cache, and the ego-browser anti-crawl session runner over the injected subprocess service, plus the persistence and case-path helpers ported from Sati. Consumers own every model-facing surface; this package resolves and serves patent data."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-data
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Service Definition for the patent data seam (`ctx.patentData`): the LRU-cached search provider factory over the vendored [`@deepseek-ai/nuo-patent`](../../../vendor/nuo-patent/README.md) engine, the structured metadata mapper, the patent result cache, and the ego-browser anti-crawl session runner over the injected subprocess service, plus the persistence and case-path helpers ported from Sati. Consumers own every model-facing surface; this package resolves and serves patent data.
+
+## Table of Contents
+
+- [Service](#service)
+- [Configuration](#configuration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Service
 
@@ -43,3 +57,7 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 
 - **External `ego-browser` CLI dependency** — the anti-crawl scrape path needs the external `ego-browser` (ego-lite) CLI installed and on the PATH (macOS only); the package ships no ego-browser script assets (Sati's `skills/ego-browser/` holds only learnings), so site anti-crawl upgrades are maintained outside this package.
 - **Consumer wiring** — the search provider and ego-session runner are consumed by `dsh-patent-tools` (patent_search/metadata/legal_status and patent_pdf_download). The cache, mapper, persistence, and path modules stay library exports for those consumers.
+
+### Dev Note
+
+None.

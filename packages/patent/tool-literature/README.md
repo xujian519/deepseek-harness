@@ -1,8 +1,22 @@
+---
+description: "Function plugin porting the Sati academic-literature layer into the DeepSeek Harness: four free, keyless scholarly sources — arXiv, OpenAlex, Semantic Scholar, and Crossref — normalized behind one connector registry and exposed to the model as three stateless tools, `paper_list_sources`, `paper_search`, and `paper_download`. The port preserves the source's per-host polite rate limiting (arXiv 1 request per 3 seconds, keyless Semantic Scholar 1 request per second) and its in-process GET cache with LRU eviction, so fan-out across sources is not over-serialized and malformed responses never poison the cache."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-tool-literature
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Function plugin porting the Sati academic-literature layer into the DeepSeek Harness: four free, keyless scholarly sources — arXiv, OpenAlex, Semantic Scholar, and Crossref — normalized behind one connector registry and exposed to the model as three stateless tools, `paper_list_sources`, `paper_search`, and `paper_download`. The port preserves the source's per-host polite rate limiting (arXiv 1 request per 3 seconds, keyless Semantic Scholar 1 request per second) and its in-process GET cache with LRU eviction, so fan-out across sources is not over-serialized and malformed responses never poison the cache.
+
+## Table of Contents
+
+- [Tools](#tools)
+- [Configuration](#configuration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Tools
 
@@ -85,3 +99,7 @@ Append-only; newly visible list text follows the reusable request prefix and doe
 - **Per-host rate limiting can add latency** — arXiv paces to 1 request per 3 seconds and keyless Semantic Scholar to 1 request per second, so a multi-source fan-out with many arXiv hits may queue behind the polite interval; pacing is per-host, so unrelated sources proceed in parallel.
 - **PDF availability follows the source's open-access status** — `paper_download` resolves the link the source reports (arXiv pdf, OpenAlex best-oa location, Semantic Scholar openAccessPdf); paywalled records simply have no link to download.
 - **The browser fallback channel is the unified ego stack** — `paper_download`'s fallback opens the record page through `EgoExtractor`; browser-use extraction is no longer a download-channel fallback.
+
+### Dev Note
+
+None.

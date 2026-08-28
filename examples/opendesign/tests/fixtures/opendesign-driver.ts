@@ -2,8 +2,9 @@
 /** Keyless smoke driver: apply the real OpenDesign overlay, then print the skill catalog. */
 
 import { fileURLToPath } from 'node:url'
-import type { Context } from '@deepseek-ai/cordis'
 import { boot, installFailLoud, loadOverlayPatches, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+// The overlay mounts the skill registry; this import merges `Context.skills` into the cordis type.
+import type {} from '@deepseek-ai/dsh-skill'
 
 const NAME = 'opendesign-smoke-driver'
 const [baseConfigPath] = process.argv.slice(2)
@@ -12,7 +13,7 @@ if (baseConfigPath === undefined) {
 }
 
 const uninstallFailLoud = installFailLoud(NAME)
-let ctx: Context | undefined
+let ctx: Awaited<ReturnType<typeof boot>> | undefined
 try {
   // Parse the real overlay with the same schema and apply it through the same
   // patch algorithm the dsh app uses for `--patch` files and user layers.

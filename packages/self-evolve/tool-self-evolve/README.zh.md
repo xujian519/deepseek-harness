@@ -1,9 +1,24 @@
+---
+description: "**`tool-self-evolve`** 包是 `ctx.selfEvolve` 面向模型的 Consumer。它注册两个工具——`self_evolve_inspect_patterns` 与 `self_evolve_now`——以及一个稳定的提示片段，用于告诉模型何时使用它们。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-tool-self-evolve
 
 [English](README.md) | 中文
 
+## 概述
+
 **`tool-self-evolve`** 包是 `ctx.selfEvolve` 面向模型的 Consumer。它注册两个工具——`self_evolve_inspect_patterns` 与 `self_evolve_now`——以及一个稳定的提示片段，用于告诉模型何时使用它们。
 
+## 目录
+
+- [角色](#role)
+- [工具](#tools)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+
+<a id="role"></a>
 ## 角色
 
 | 包 | 角色 |
@@ -12,6 +27,7 @@
 | `@deepseek-ai/dsh-self-evolve-basic` | Service Provider：基于投影的 idle 压力策略 |
 | `@deepseek-ai/dsh-tool-self-evolve`（本包） | Consumer：面向模型的工具与提示片段 |
 
+<a id="tools"></a>
 ## 工具
 
 | 工具 | 用途 |
@@ -19,6 +35,7 @@
 | `self_evolve_inspect_patterns` | 读取会话投影出的失败模式状态，使模型能够针对真实模式而非猜测进行定位。 |
 | `self_evolve_now` | 为请求的编辑面启动一次显式的 self-evolve 循环（默认 `L1-skill` + `L2-context`）。`L3-workflow` 与 `L4-harness` 为向前兼容而接受，但基础提供方目前不会为这些层级生成提案。 |
 
+<a id="model-experience"></a>
 ## Model Experience
 
 ### 稳定的 self-evolve 引导与工具
@@ -35,7 +52,12 @@
 
 只要消费者处于加载状态，稳定提示片段就是每轮请求前缀的一部分。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## Known Limitations and Deferred Work
 
 - **受 provider 面限制** — 工具暴露接缝，但提案广度受所加载 provider 限制（当前为 L1/L2）。
 - **无 keyed 端到端验证** — `self_evolve_now` 运行由单元测试覆盖；实机循环运行需要 keyed 环境。
+
+### 开发备注
+
+无。

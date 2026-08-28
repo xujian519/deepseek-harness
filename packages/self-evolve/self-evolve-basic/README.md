@@ -1,8 +1,24 @@
+---
+description: "The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It wires the `failure-patterns` projection unit, triggers evolution loops on idle or explicit request, and commits narrow L1 (skill) and L2 (prompt-section) proposals through reversible Cordis effects."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-self-evolve-basic
 
 English | [中文](README.zh.md)
 
+## Summary
+
 The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It wires the `failure-patterns` projection unit, triggers evolution loops on idle or explicit request, and commits narrow L1 (skill) and L2 (prompt-section) proposals through reversible Cordis effects.
+
+## Table of Contents
+
+- [Role](#role)
+- [Configuration](#configuration)
+- [Validation pipeline (Phase 1)](#validation-pipeline-phase-1)
+- [Negative results (P1.7b)](#negative-results-p17b)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Role
 
@@ -69,3 +85,7 @@ The stable tool-self-evolve prompt section is present on every request while the
 - **L1/L2 only** — the provider targets skill (L1) and prompt-section (L2) proposals; L3-workflow and L4-harness requests produce no proposals yet.
 - **No commits without a configured workspace build** — the held-in workspace verifier (P1.9b) is implemented, but it only produces a signal when the workspace is a git work tree AND `workspaceVerifier.buildCommand` is configured; otherwise the held-in gate degrades to the weak rate and `minAcceptConfidence` is unreachable, so proposals are conservatively rejected. Enabling the verifier is an explicit composition step, not the shipped default.
 - **No keyed end-to-end verification** — proposal effects are reversible commits covered by unit tests; a live `dsh --profile` loop run requires a keyed environment.
+
+### Dev Note
+
+None.

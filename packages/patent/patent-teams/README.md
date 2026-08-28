@@ -1,8 +1,24 @@
+---
+description: "Durable multi-agent teams for patent workflow: one captain-led team of continuable subagents with dependency-aware tasks, mailbox messaging, and an event-driven shared-task scheduler. A formal workspace port of the upstream `@nanmicoder/dsh-agent-teams` plugin, re-scoped to the patent domain (`patent_teams_*` tools, `.patent-teams/` state directory, `patent-teams/*` session events) and shaped as a Service Definition (`ctx.patentTeams`) with the tools as its sole Consumer."
+kind: "package-reference"
+---
+
 # dsh-patent-teams
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Durable multi-agent teams for patent workflow: one captain-led team of continuable subagents with dependency-aware tasks, mailbox messaging, and an event-driven shared-task scheduler. A formal workspace port of the upstream `@nanmicoder/dsh-agent-teams` plugin, re-scoped to the patent domain (`patent_teams_*` tools, `.patent-teams/` state directory, `patent-teams/*` session events) and shaped as a Service Definition (`ctx.patentTeams`) with the tools as its sole Consumer.
+
+## Table of Contents
+
+- [What it mounts](#what-it-mounts)
+- [Configuration](#configuration)
+- [State model](#state-model)
+- [Session events](#session-events)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## What it mounts
 
@@ -73,3 +89,7 @@ Prefix-stable: the usage section is constant for a given mount, so it does not i
 - **Single-process serialization** — state is file-backed and serialized within one DSH process; concurrent processes editing the same team are not coordinated.
 - **One active team per captain** — a captain must end its current team before creating another.
 - **Live delivery is best-effort** — if the recipient agent is offline, messages stay durable in the mailbox and are retried at the next status boundary.
+
+### Dev Note
+
+None.

@@ -20,7 +20,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import PatentData from '@deepseek-ai/dsh-patent-data'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 
 let root: string | undefined
 let context: Context | undefined
@@ -91,7 +91,7 @@ describe('patent-tools real Loader composition', () => {
       const ctx = await boot(notes)
       const result = await ctx.tools.execute({
         signal: new AbortController().signal,
-        callId: CallId('loader-note-1'),
+        callId: ToolCallId('loader-note-1'),
         name: 'knowledge_note_save',
         arguments: { title: '组合测试笔记', content: '写入内容', project: 'loader' },
       })
@@ -112,7 +112,7 @@ describe('patent-tools real Loader composition', () => {
       // host has ego-browser installed, proving the adapter wiring is live.
       const result = await ctx.tools.execute({
         signal: new AbortController().signal,
-        callId: CallId('loader-pdf-1'),
+        callId: ToolCallId('loader-pdf-1'),
         name: 'patent_pdf_download',
         arguments: { patents: [], outputDir: notes },
       })

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -375,7 +375,7 @@ describe('flexible_plan', () => {
     ctx.tools.register(tool)
     const result = await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId('fp-1'),
+      callId: ToolCallId('fp-1'),
       name: 'flexible_plan',
       arguments: { action: 'get', caseId: 'c' },
     })

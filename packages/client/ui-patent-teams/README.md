@@ -1,8 +1,23 @@
+---
+description: "The browser plugin that restores the PatentTeams monitor to the Web UI: one durable team card in the chat stream and the fixed Teams conversation view. Both surfaces fold the nine `patent-teams/*` Session events owned by [`dsh-patent-teams`](../../patent/patent-teams/README.md); the upstream `@nanmicoder/dsh-agent-teams` activity panel (a body-portal floating layer over a polled host route) was deliberately not re-implemented — this package replays the session log instead, with no polling and no new host surface."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-client-ui-patent-teams
 
 English | [中文](README.zh.md)
 
+## Summary
+
 The browser plugin that restores the PatentTeams monitor to the Web UI: one durable team card in the chat stream and the fixed Teams conversation view. Both surfaces fold the nine `patent-teams/*` Session events owned by [`dsh-patent-teams`](../../patent/patent-teams/README.md); the upstream `@nanmicoder/dsh-agent-teams` activity panel (a body-portal floating layer over a polled host route) was deliberately not re-implemented — this package replays the session log instead, with no polling and no new host surface.
+
+## Table of Contents
+
+- [Durable state and replay](#durable-state-and-replay)
+- [Presentation and navigation](#presentation-and-navigation)
+- [Composition](#composition)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Durable state and replay
 
@@ -32,3 +47,7 @@ None.
 - `patent_teams_*` tool calls still render through the generic tool card; keyed toolviews are deferred until the ui-tool row pattern can be reused without forking its chrome.
 - The view lists only teams whose events are in this Session's log window; a cross-session team aggregator needs a new host query surface.
 - No auto-switch to the Teams tab on team creation: the conversation service exposes no per-session snapshot read to gate the switch yet.
+
+### Dev Note
+
+None.

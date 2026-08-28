@@ -4,11 +4,13 @@
  * builder that folds every turn in the window.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  ConversationNodeAssembler, type ConversationEventInput, type ConversationMatch,
-  type ConversationNodeDefinition, type ConversationTimelineSnapshot, type ConversationViewDefinition,
-  type ConversationViewNode, type ToolResultNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import { ConversationNodeAssembler } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ConversationMatch, ConversationNodeDefinition, ConversationStartMatch,
+  ConversationTimelineSnapshot, ConversationViewDefinition, ConversationViewNode,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import {
   documentDeliverablesDefinition, documentDeliverablesViewDefinition,
   type DocumentDeliverablesSnapshot, type DocumentTurnDeliverables,
@@ -38,44 +40,38 @@ const timelineViewDefinition: ConversationViewDefinition<ConversationViewNode, T
   },
 }
 
-function at(seq: number, type: string, data: unknown, view?: ConversationEventInput['view']): ConversationEventInput {
+function at(seq: number, type: string, data: unknown): SessionLiveEventEntry {
   return {
+    type: 'event',
     event: {
       seq, time: seq * 1_000, type, data,
       ...(type === 'tool/result' ? { surfaceOp: 'append' } : {}),
-    } as ConversationEventInput['event'],
-    view,
+    } as SessionEvent,
   }
 }
 
-function matched(input: ConversationEventInput, role: ConversationMatch['role']): ConversationMatch {
-  return { ...input, role, location: { kind: 'unresolved' } }
+function matched(input: SessionLiveEventEntry, role: 'start'): ConversationStartMatch
+function matched(input: SessionLiveEventEntry, role: 'update'): ConversationMatch
+function matched(input: SessionLiveEventEntry, role: ConversationMatch['role']): ConversationMatch {
+  return { event: input.event, role, location: { kind: 'unresolved' } }
 }
 
-function call(seq: number, callId: string, view: NonNullable<ToolResultNode['callView']>, turn = 1): ConversationEventInput {
-  return at(seq, 'tool/call', { turn, step: 1, callId, name: 'fixture', arguments: '{}' }, { for: 'call', view })
+function call(seq: number, callId: string, name: string, args: Readonly<Record<string, unknown>>, turn = 1): SessionLiveEventEntry {
+  return rawCall(seq, callId, name, JSON.stringify(args), turn)
 }
 
-function result(seq: number, callId: string, isError = false, turn = 1): ConversationEventInput {
+function rawCall(seq: number, callId: string, name: string, argsRaw: string, turn = 1): SessionLiveEventEntry {
+  return at(seq, 'tool/call', { turn, step: 1, callId, name, arguments: argsRaw })
+}
+
+function result(seq: number, callId: string, isError = false, turn = 1): SessionLiveEventEntry {
   return at(seq, 'tool/result', {
     turn, step: 1,
     message: { source: { type: 'tool-result', callId }, content: [{ type: 'tool-result', content: [], isError }] },
   })
 }
 
-function diff(...paths: string[]): NonNullable<ToolResultNode['callView']> {
-  return {
-    card: 'diff', title: `Write ${paths[0] ?? ''}`,
-    diffs: paths.map(path => ({ path, oldText: null, newText: 'x' })),
-    locations: paths.map(path => ({ path })),
-  }
-}
-
-function edit(path: string): NonNullable<ToolResultNode['callView']> {
-  return { card: 'generic', title: `insert ${path}`, kind: 'edit', locations: [{ path }] }
-}
-
-function assembler(entries: readonly ConversationEventInput[]): ConversationNodeAssembler {
+function assembler(entries: readonly SessionLiveEventEntry[]): ConversationNodeAssembler {
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
   value.replaceWindow(entries, false)
   value.flush()
@@ -92,40 +88,45 @@ function timelineOf(value: ConversationNodeAssembler): ConversationTimelineSnaps
 }
 
 describe('documentDeliverables turn data', () => {
-  it('folds successful diff and generic-edit calls; reads, failures, and orphan results contribute nothing', () => {
+  it('folds successful mutation calls; reads, failures, and orphan results contribute nothing', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write', diff('out/index.html', 'out/app.css')),
+      call(2, 'write', 'write', { file_path: 'out/index.html', content: '<html></html>' }),
       result(3, 'write'),
-      call(4, 'edit', edit('notes.md')),
-      result(5, 'edit'),
-      call(6, 'read', { card: 'generic', title: 'Read', locations: [{ path: 'input.txt' }] }),
-      result(7, 'read'),
-      call(8, 'failed', diff('broken.txt')),
-      result(9, 'failed', true),
-      call(10, 'orphan', diff('orphan.txt')),
+      call(4, 'style', 'write', { file_path: 'out/app.css', content: 'body {}' }),
+      result(5, 'style'),
+      call(6, 'notes', 'edit', { file_path: 'notes.md', old_string: 'a', new_string: 'b' }),
+      result(7, 'notes'),
+      call(8, 'read', 'read', { file_path: 'input.txt' }),
+      result(9, 'read'),
+      call(10, 'failed', 'write', { file_path: 'broken.txt', content: 'x' }),
+      result(11, 'failed', true),
+      result(12, 'orphan'),
     ])
 
     expect(turnDataOf(value)?.produced).toEqual([
       { seq: 3, path: 'out/index.html' },
-      { seq: 3, path: 'out/app.css' },
-      { seq: 5, path: 'notes.md' },
+      { seq: 5, path: 'out/app.css' },
+      { seq: 7, path: 'notes.md' },
     ])
   })
 
   it('ignores orphan results and non-append replacement results', () => {
-    const replacement = at(11, 'tool/result', {
-      turn: 1, step: 1,
-      message: { source: { type: 'tool-result', callId: 'repl' }, content: [{ type: 'tool-result', content: [], isError: false }] },
-    })
+    const replacement = result(11, 'repl')
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write', diff('out/index.html')),
+      call(2, 'write', 'write', { file_path: 'out/index.html', content: 'x' }),
       result(3, 'write'),
-      // A result whose call never entered this window: no call view, nothing produced.
+      // A result whose call never entered this window: no call, nothing produced.
       result(9, 'ghost'),
       // A result without the append surface is not accepted by the definition.
-      replacement,
+      {
+        ...replacement,
+        event: {
+          ...replacement.event,
+          surfaceOp: { op: 'replace', start: 1, end: 1 },
+        } as SessionEvent,
+      },
     ])
 
     expect(turnDataOf(value)?.produced).toEqual([{ seq: 3, path: 'out/index.html' }])
@@ -134,9 +135,9 @@ describe('documentDeliverables turn data', () => {
   it('keeps turn data append-only; the session fold deduplicates paths', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write1', diff('out/index.html')),
+      call(2, 'write1', 'write', { file_path: 'out/index.html', content: '1' }),
       result(3, 'write1'),
-      call(4, 'write2', diff('out/index.html')),
+      call(4, 'write2', 'write', { file_path: 'out/index.html', content: '2' }),
       result(5, 'write2'),
     ])
 
@@ -176,13 +177,13 @@ describe('documentDeliverables session view target', () => {
   it('folds every turn in the window, first-seen order, deduplicating across turns', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write', diff('out/index.html')),
+      call(2, 'write', 'write', { file_path: 'out/index.html', content: '1' }),
       result(3, 'write'),
       at(4, 'turn/start', { turn: 2 }),
-      call(5, 'edit', edit('out/index.html')),
+      call(5, 'edit', 'edit', { file_path: 'out/index.html', old_string: '1', new_string: '2' }),
       result(6, 'edit'),
-      call(7, 'write', diff('deck.html')),
-      result(8, 'write'),
+      call(7, 'deck', 'write', { file_path: 'deck.html', content: 'x' }),
+      result(8, 'deck'),
     ])
 
     expect(fold(timelineOf(value))).toEqual({
@@ -202,7 +203,7 @@ describe('documentDeliverables session view target', () => {
   it('apply recomputes the same fold as replace', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write', diff('a.html')),
+      call(2, 'write', 'write', { file_path: 'a.html', content: 'x' }),
       result(3, 'write'),
     ])
     const builder = documentDeliverablesViewDefinition.create()
@@ -213,15 +214,9 @@ describe('documentDeliverables session view target', () => {
 
 describe('document_deliver registrations', () => {
   function deliver(
-    seq: number, callId: string, argumentsJson: string,
-    view: ConversationEventInput['view'], turn = 1,
-  ): ConversationEventInput {
-    return at(seq, 'tool/call', { turn, step: 1, callId, name: 'document_deliver', arguments: argumentsJson }, view)
-  }
-
-  const callView: ConversationEventInput['view'] = {
-    for: 'call',
-    view: { card: 'generic', title: '登记文档交付物' },
+    seq: number, callId: string, argumentsJson: string, turn = 1,
+  ): SessionLiveEventEntry {
+    return rawCall(seq, callId, 'document_deliver', argumentsJson, turn)
   }
 
   it('folds a successful registration with format, gate, and brief reference', () => {
@@ -231,7 +226,7 @@ describe('document_deliver registrations', () => {
         files: [{ path: 'out/report.docx', format: 'docx' }, { path: 'out/report.html', format: 'html' }],
         gate: { p0: ['命名规范', '自包含'], p1: ['可访问性'] },
         brief_ref: 'brief.md',
-      }), callView),
+      })),
       result(3, 'reg'),
     ])
 
@@ -253,7 +248,7 @@ describe('document_deliver registrations', () => {
       deliver(2, 'reg', JSON.stringify({
         files: [{ path: 'deck.html', format: 'html' }],
         gate: { p0: ['命名规范'] },
-      }), callView),
+      })),
       result(3, 'reg'),
     ])
     expect(turnDataOf(value)?.produced).toEqual([
@@ -266,20 +261,20 @@ describe('document_deliver registrations', () => {
       at(1, 'turn/start', { turn: 1 }),
       deliver(2, 'failed-reg', JSON.stringify({
         files: [{ path: 'a.docx', format: 'docx' }], gate: { p0: ['x'] },
-      }), callView),
+      })),
       result(3, 'failed-reg', true),
-      deliver(4, 'not-json', 'not-json', callView),
+      deliver(4, 'not-json', 'not-json'),
       result(5, 'not-json'),
-      deliver(6, 'bad-files', JSON.stringify({ files: 'nope', gate: { p0: ['x'] } }), callView),
+      deliver(6, 'bad-files', JSON.stringify({ files: 'nope', gate: { p0: ['x'] } })),
       result(7, 'bad-files'),
       deliver(8, 'bad-file-shape', JSON.stringify({
         files: [{ path: 1, format: 'html' }], gate: { p0: ['x'] },
-      }), callView),
+      })),
       result(9, 'bad-file-shape'),
       deliver(10, 'bad-gate', JSON.stringify({
         files: [{ path: 'a.html', format: 'html' }],
         gate: { p0: ['x'], p1: [2] },
-      }), callView),
+      })),
       result(11, 'bad-gate'),
     ])
 
@@ -289,13 +284,13 @@ describe('document_deliver registrations', () => {
   it('upgrades a mutation-derived entry in the session fold when a later registration covers the same path', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write', diff('out/report.html')),
+      call(2, 'write', 'write', { file_path: 'out/report.html', content: 'x' }),
       result(3, 'write'),
       at(4, 'turn/start', { turn: 2 }),
       deliver(5, 'reg', JSON.stringify({
         files: [{ path: 'out/report.html', format: 'html' }],
         gate: { p0: ['命名规范'] },
-      }), callView, 2),
+      }), 2),
       result(6, 'reg', false, 2),
     ])
 

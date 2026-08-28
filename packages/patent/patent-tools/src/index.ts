@@ -1,9 +1,9 @@
 /**
- * Function plugin registering the 24 model-facing patent tools ported from Sati:
+ * Function plugin registering the 26 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * drafting, specification validation, evidence judgment, rule check, figure
- * analysis, PDF download, chemical recognition, knowledge notes, and the
- * workflow/plan state machines. `render_patent_document` is owned by
+ * analysis + generation, PDF download, chemical recognition, knowledge notes,
+ * and the workflow/plan state machines. `render_patent_document` is owned by
  * @deepseek-ai/dsh-patent-document (its apply() registers it); this package
  * re-exports its factory but does not register it.
  * @module @deepseek-ai/dsh-patent-tools
@@ -23,6 +23,8 @@ import { resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
 import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
 import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
+import { renderWithGraphviz } from './figure/graphviz-renderer.ts'
+import type { GraphvizRenderOutcome, GraphvizRenderSpec } from './figure/graphviz-renderer.ts'
 import { PatentToolError } from './error.ts'
 import { createPatentSearchTool } from './tool/patent-search.ts'
 import { createPatentMetadataTool } from './tool/patent-metadata.ts'
@@ -40,6 +42,8 @@ import { createEvaluateEvidenceTool } from './tool/evaluate-evidence.ts'
 import { createRuleCheckTool } from './tool/rule-check.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
+import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
+import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
@@ -89,8 +93,20 @@ export { createAnalyzePatentFigureTool, FIGURE_SPEC_GUIDE, resolveGateRoute } fr
 export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisResult, FigureComponent, FigureType } from './tool/analyze-patent-figure.ts'
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps } from './tool/search-patent-figure.ts'
+export { createGeneratePatentFigureTool, FIGURE_GENERATOR_MODEL_USED } from './tool/generate-patent-figure.ts'
+export type {
+  GeneratePatentFigureInput,
+  GeneratePatentFigureOutput,
+  GeneratePatentFigureDeps,
+  GeneratePatentFigureIndexEntry,
+  GenerateFigureType,
+} from './tool/generate-patent-figure.ts'
+export { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
+export type { AddPatentFigureReferencesInput, AddPatentFigureReferencesOutput, AddPatentFigureReferencesDeps } from './tool/add-patent-figure-references.ts'
 export { figureIndexStore, FIGURE_INDEX_VERSION, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 export type { FigureIndexEntry, LoadFigureIndexResult } from './figure/index-store.ts'
+export { findDot, probeGraphviz, renderWithGraphviz, sanitizeDotFilename, graphvizInstallMessage, DOT_CANDIDATES } from './figure/graphviz-renderer.ts'
+export type { GraphvizProbeResult, GraphvizRenderOutcome, GraphvizRenderSpec, GraphvizRenderErrorCode } from './figure/graphviz-renderer.ts'
 export { chemistryIndexStore, CHEMISTRY_INDEX_VERSION, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
 export type { ChemistryIndexEntry } from './chemistry/index-store.ts'
 export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
@@ -140,6 +156,12 @@ export interface Config {
   figureIndexFile?: string
   /** 化学结构索引文件路径（相对或绝对路径）；默认 <cwd>/.sati/chemistry-index.json。 */
   chemistryIndexFile?: string
+  /** Graphviz dot 可执行路径覆盖；默认自动探测（候选路径 + PATH）。 */
+  graphvizExecutable?: string
+  /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
+  figureOutputDir?: string
+  /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
+  dotFont?: string
 }
 
 /** Figure/image model route used by the figure-analysis tool. */
@@ -159,6 +181,9 @@ export const Config: z<Config> = z.object({
   noteDir: z.string(),
   figureIndexFile: z.string(),
   chemistryIndexFile: z.string(),
+  graphvizExecutable: z.string(),
+  figureOutputDir: z.string(),
+  dotFont: z.string(),
 })
 
 /** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
@@ -234,6 +259,30 @@ function resolveChemistryIndexFile(config: Config): string {
   return config.chemistryIndexFile !== undefined
     ? resolve(config.chemistryIndexFile)
     : resolve(process.cwd(), DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH)
+}
+
+/** Resolve the figure output directory: Config.figureOutputDir (absolute or relative to cwd), else <cwd>/patent/figures. */
+function resolveFigureOutputDir(config: Config): string {
+  return config.figureOutputDir !== undefined ? resolve(config.figureOutputDir) : resolve(process.cwd(), 'patent/figures')
+}
+
+/** CJK 文本检测（决定平台字体）。 */
+function hasCjk(labels: readonly string[]): boolean {
+  return labels.some(label => /[\u3400-\u9fff]/.test(label))
+}
+
+/** DOT 字体：Config.dotFont 覆盖；否则 CJK 时按平台候选，非 CJK 默认 Helvetica。 */
+function resolveDotFont(config: Config, labels: readonly string[]): string {
+  if (config.dotFont !== undefined && config.dotFont !== '') return config.dotFont
+  if (!hasCjk(labels)) return 'Helvetica'
+  switch (process.platform) {
+    case 'darwin':
+      return 'PingFang SC'
+    case 'win32':
+      return 'Microsoft YaHei'
+    default:
+      return 'Noto Sans CJK SC'
+  }
 }
 
 /** Inputs for the patent PDF-download runner resolver. */
@@ -347,6 +396,21 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createSearchPatentFigureTool({
     loadIndex: () => figureIndexStore.load(figureIndexFile),
   }))
+
+  // Figure generation: render through the dot CLI via ctx.subprocess (pdfRenderer
+  // pattern), fail loud with install guidance when Graphviz/subprocess is absent.
+  const subprocess = ctx.get('subprocess')
+  const renderDot = (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> =>
+    subprocess === undefined
+      ? Promise.resolve({ ok: false, code: 'not_installed', error: 'subprocess 服务不可用（未挂载 @deepseek-ai/dsh-subprocess）' })
+      : renderWithGraphviz(subprocess, spec, config.graphvizExecutable)
+  ctx.tools.register(createGeneratePatentFigureTool({
+    render: renderDot,
+    outputDir: resolveFigureOutputDir(config),
+    upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
+    resolveFont: labels => resolveDotFont(config, labels),
+  }))
+  ctx.tools.register(createAddPatentFigureReferencesTool({}))
 
   // PDF download: wire the runner through a browser-backend cold decision.
   // The unified ego stack routes the download to ego-browser only; browseros-neo

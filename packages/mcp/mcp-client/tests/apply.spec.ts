@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { createScope } from '@deepseek-ai/dsh-scope'
 import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
 // ---- Mock MCP SDK ----
@@ -213,6 +214,20 @@ describe('apply (plugin lifecycle)', () => {
 
     await expect(apply(ctx, stdioConfig)).rejects.toThrow(/serverName "srv" is already in use/)
     expect(ctx.tools.get('mcp__srv__remote')).toBeDefined()
+  })
+
+  it('allows one serverName in each independent registration scope', async () => {
+    const first = createScope(ctx, {})
+    const second = createScope(ctx, {})
+
+    // A bare registration scope carries no systemPrompt service, so the
+    // fork's instruction surfacing (declared inject) cannot resolve there;
+    // this test pins serverName isolation, not prompt surfacing.
+    const scopedConfig = { ...stdioConfig, surfaceInstructions: false }
+    await Promise.all([apply(first.ctx, scopedConfig), apply(second.ctx, scopedConfig)])
+
+    expect(mockConnect).toHaveBeenCalledTimes(2)
+    await Promise.all([first.dispose(), second.dispose()])
   })
 
   it('releases the serverName reservation on dispose', async () => {

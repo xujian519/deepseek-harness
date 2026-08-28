@@ -1,8 +1,22 @@
+---
+description: "Document-delivery studio for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the host, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-client-ui-document-studio
 
 English | [中文](README.zh.md)
 
-Document-delivery studio for the [document agent preset](../../../apps/cli/config/agent-presets/document/README.md): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the host, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent.
+## Summary
+
+Document-delivery studio for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the host, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent.
+
+## Table of Contents
+
+- [What it mounts](#what-it-mounts)
+- [Prerequisites](#prerequisites)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## What it mounts
 
@@ -16,7 +30,7 @@ The shipped Web patch (`packages/bundle/web-app/cordis.patch.yml`) is the only c
 
 ## Prerequisites
 
-The document agent preset (`document` in `apps/cli/config/agent-presets/`) is what a document session selects; the studio renders for every session regardless. The `host.readFileText` RPC ships with the host; no OpenDesign or other external process is required.
+The document agent preset (`document` in `packages/preset/agent-presets/presets/`) is what a document session selects; the studio renders for every session regardless. The `host.readFileText` RPC ships with the host; no OpenDesign or other external process is required.
 
 ## Model Experience
 
@@ -33,3 +47,7 @@ None. The package is client-only presentation.
 - **Auto-switch fires on session entry** — a deliberate tab pick back to chat survives until the user leaves and re-enters the session.
 - **Preview is text-only by extension** — binary formats (`.docx`, `.pptx`, `.pdf`) list with their format and gate badges once registered, but have no inline preview; they open in the OS default application.
 - **The list follows the session log window** — a long session whose early turns fall outside the loaded window loses those entries from the list; batch export and cross-session aggregation are the deferred workbench v2.
+
+### Dev Note
+
+None.

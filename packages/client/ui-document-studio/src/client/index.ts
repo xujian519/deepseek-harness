@@ -6,19 +6,29 @@
  * lives here — composing this plugin out of cordis.yml removes the tab, the
  * auto-switch, and the preview together.
  */
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import {
-  resolveWorkspacePath,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: pulls the slots Context merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+// Type-only: pulls the Conversation registries' Context merges (ctx.uiConversation).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the sessions-service Context merge (ctx.sessions).
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+// Type-only: pulls the Client Remote Context merge (ctx.remote, openWorkspacePath included).
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls the agentPreset Session-projection key (summary.projectionValues).
+import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import {
   documentDeliverablesDefinition, documentDeliverablesViewDefinition,
 } from './document-deliverables.ts'
 import { parentDir } from './paths.ts'
-import { StudioView, type StudioViewInjected } from './StudioView.tsx'
+import { StudioView } from './StudioView.tsx'
 import { en, NS, zh, type DocumentStudioKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -32,7 +42,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const DOCUMENT_PRESET_ID = 'document'
 
 /** Required services for the view registration, the targets, and the auto-switch. */
-export const inject = ['slots', 'locale', 'conversation', 'conversationEvents', 'conversationViews', 'sessions', 'connection', 'workspaces']
+export const inject = ['slots', 'locale', 'uiConversation', 'conversation', 'sessions', 'connection', 'remote', 'remote.session']
 
 /** Auto-switch retry window and cadence (the view setter mounts with the session seat). */
 const SWITCH_RETRY_MS = 150
@@ -46,8 +56,8 @@ const SWITCH_MAX_RETRIES = 20
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-document-studio: dictionaries')
 
-  ctx.conversationEvents.register(documentDeliverablesDefinition)
-  ctx.conversationViews.register(documentDeliverablesViewDefinition)
+  ctx.uiConversation.events.register(documentDeliverablesDefinition)
+  ctx.uiConversation.views.register(documentDeliverablesViewDefinition)
 
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
@@ -55,27 +65,27 @@ export function apply(ctx: ClientContext): void {
     order: 20,
     locale: NS,
     label: () => ctx.locale.bind(NS)('view.document'),
-    inject: (sessionId: SessionId): StudioViewInjected => {
+    inject: (sessionId: SessionId) => {
       const connection = ctx.get('connection') as ConnectionHandle
       const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
       const resolve = (path: string): string => resolveWorkspacePath(cwd, path)
+      const openPath = async (path: string): Promise<void> => {
+        const result = await ctx.remote.session.openWorkspacePath({ path: resolve(path) })
+        if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
+      }
       return {
         isLoopback: connection.isLoopback,
-        hooks: { hostDescription: connection.hostDescription },
-        openFile: path => ctx.workspaces.openPath(resolve(path)),
+        openFile: openPath,
         // Show-in-folder opens the containing directory: the host has no
         // reveal-in-folder intent, and opening the folder itself is what a
         // file manager handoff means (the ui-deliverables convention).
-        showInFolder: path => ctx.workspaces.openPath(resolve(parentDir(path))),
-        readFileText: async (path, maxBytes) => {
-          const response = await connection.api.host.readFileText(
-            maxBytes === undefined ? { path: resolve(path) } : { path: resolve(path), maxBytes },
-          )
-          if (!response.result.ok) {
-            throw new Error(response.result.error.message)
-          }
-          return response.result.value
-        },
+        showInFolder: (path: string) => openPath(parentDir(path)),
+        // FIXME(port): the removed client runtime served file bytes through
+        // connection.api.host.readFileText; upstream exposes no file-read
+        // Remote, so the preview read fails loud until a replacement lands.
+        readFileText: () => Promise.reject(
+          new Error('document studio: host file reads are unavailable (no file-read Remote after the client-runtime removal)'),
+        ),
       }
     },
   }, StudioView))
@@ -109,7 +119,7 @@ export function apply(ctx: ClientContext): void {
       if (current === undefined || current === previous) return
       previous = current
       stopRetry()
-      const preset = state.byId[current]?.agentPreset
+      const preset = state.byId[current]?.projectionValues?.agentPreset
       if (preset !== DOCUMENT_PRESET_ID) return
       retryFor = current
       retries = 0

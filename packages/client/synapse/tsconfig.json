@@ -12,10 +12,16 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../runtime"
+      "path": "../../runtime-diagnostics/invariants"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/workspace-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../core/session"
     }
   ]
 }

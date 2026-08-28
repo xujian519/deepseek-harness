@@ -8,7 +8,9 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { DisclosureRow, IconUserOutline16, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { shallowEqual, type SessionId, type SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import { shallowEqual } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import {
   STATUS_KEYS, TeamsMemberList, TeamsTaskList, teamDotState, type TeamsOpenSession,
 } from './TeamsSections.tsx'

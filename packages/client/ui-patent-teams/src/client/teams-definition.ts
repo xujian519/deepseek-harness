@@ -6,10 +6,11 @@
  * lives in `teams-model.ts` and is shared with the Teams-tab view source.
  * @module dsh-client-ui-patent-teams/teams-definition
  */
-import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ChatConversationViewNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { projectTeamsCard, teamsNodeDefinition, type PatentTeamsCardData, type TeamsTeamState } from './teams-model.ts'
 
-declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
+declare module '@deepseek-ai/dsh-client-ui-chat/client' {
   interface ChatNodeDataMap {
     /** One durable PatentTeams team: members, tasks, and progress. */
     'patent-teams': PatentTeamsCardData
@@ -20,7 +21,7 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 export const patentTeamsCardDefinition: ConversationNodeDefinition<TeamsTeamState> = teamsNodeDefinition(
   'patent-teams',
   'chat',
-  context => ({
+  (context): ChatConversationViewNode | null => ({
     key: context.key,
     kind: 'patent-teams',
     id: context.id,

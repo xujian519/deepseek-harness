@@ -9,10 +9,10 @@
 import type {
   ConversationViewBuilder, ConversationViewDefinition, ConversationViewNode,
   ConversationNodeDefinition,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { projectTeamsCard, teamsNodeDefinition, type PatentTeamsCardData, type TeamsTeamState } from './teams-model.ts'
 
-declare module '@deepseek-ai/dsh-client-runtime/client' {
+declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
   interface ConversationViewSnapshotMap {
     /** Session-wide PatentTeams teams in team-creation order. */
     patentTeams: PatentTeamsViewSnapshot

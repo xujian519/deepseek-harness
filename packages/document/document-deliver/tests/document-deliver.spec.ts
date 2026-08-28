@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
@@ -43,7 +43,7 @@ async function mounted(): Promise<Context> {
 async function run(ctx: Context, args: unknown): Promise<{ isError: boolean; content: string }> {
   const result = await ctx.tools.execute({
     signal,
-    callId: CallId('d-1'),
+    callId: ToolCallId('d-1'),
     name: 'document_deliver',
     arguments: args,
   })

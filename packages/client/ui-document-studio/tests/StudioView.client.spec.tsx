@@ -5,9 +5,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
   StudioView, isHtmlPath, isTextPreviewable,
   type StudioViewInjected, type StudioViewProps,
@@ -17,8 +17,6 @@ import { en, zh } from '../src/client/locales.ts'
 import type {} from '../src/client/index.ts'
 
 const t: StudioViewProps['t'] = makeTranslate(zh, en)
-
-interface HostFacts { canOpenPath: boolean }
 
 interface ProducedFile {
   seq: number
@@ -36,24 +34,14 @@ function session(produced: Array<ProducedFile>) {
   } as unknown as ConversationSnapshot)
   return {
     store,
-    useSession: ((select: (snapshot: ConversationSnapshot) => unknown) =>
-      select(store.getSnapshot())) as StudioViewProps['useSession'],
-  }
-}
-
-function hostDescription(canOpenPath: boolean) {
-  const store = createSnapshotStore<HostFacts>({ canOpenPath })
-  return {
-    store,
-    useHostDescription: ((select: (facts: HostFacts | undefined) => unknown) =>
-      select(store.getSnapshot())) as StudioViewProps['useHostDescription'],
+    useConversation: ((select: (snapshot: ConversationSnapshot) => unknown) =>
+      select(store.getSnapshot())) as StudioViewProps['useConversation'],
   }
 }
 
 function injected(overrides: Partial<StudioViewInjected> = {}): StudioViewInjected {
   return {
     isLoopback: true,
-    hooks: { hostDescription: createSnapshotStore<HostFacts>({ canOpenPath: true }) as never },
     openFile: vi.fn(() => Promise.resolve()),
     showInFolder: vi.fn(() => Promise.resolve()),
     readFileText: vi.fn((path: string) => Promise.resolve({ content: `<h1>${path}</h1>`, truncated: false })),
@@ -63,7 +51,6 @@ function injected(overrides: Partial<StudioViewInjected> = {}): StudioViewInject
 
 function studioProps(
   produced: Array<ProducedFile>,
-  host: { useHostDescription: StudioViewProps['useHostDescription'] },
   overrides: Partial<StudioViewInjected> = {},
 ): StudioViewProps {
   const s = session(produced)
@@ -71,13 +58,12 @@ function studioProps(
   // studio does not read are stubbed inert (the trajectory spec pattern).
   return {
     sessionId: 's1',
-    useSession: s.useSession,
+    useConversation: s.useConversation,
     useSessions: (() => undefined) as never,
     useWorkspaces: (() => undefined) as never,
     useProjection: (() => undefined) as never,
     useInput: (() => undefined) as never,
     inputActions: {} as never,
-    useHostDescription: host.useHostDescription,
     ...injected(overrides),
     t,
   } as unknown as StudioViewProps
@@ -87,19 +73,17 @@ afterEach(cleanup)
 
 describe('StudioView', () => {
   it('shows the empty state when the session produced no files', () => {
-    const host = hostDescription(true)
-    render(<StudioView {...studioProps([], host)} />)
+    render(<StudioView {...studioProps([])} />)
     expect(screen.getByText(t('studio.empty'))).toBeTruthy()
   })
 
   it('lists produced files, auto-selects the first, and previews HTML in a sandboxed frame', async () => {
-    const host = hostDescription(true)
     const readFileText = vi.fn((path: string) => {
       if (path === 'out/index.html') return Promise.resolve({ content: '<h1>Hi</h1>', truncated: false })
       return Promise.resolve({ content: '# Notes', truncated: true })
     })
     const { container } = render(
-      <StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }, { seq: 2, path: 'notes.md' }], host, { readFileText })} />,
+      <StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }, { seq: 2, path: 'notes.md' }], { readFileText })} />,
     )
     expect(screen.getAllByText('index.html').length).toBeGreaterThan(0)
     expect(screen.getAllByText('notes.md').length).toBeGreaterThan(0)
@@ -118,7 +102,6 @@ describe('StudioView', () => {
   })
 
   it('renders format and gate badges for registered files and the degrade badge otherwise', () => {
-    const host = hostDescription(true)
     render(
       <StudioView {...studioProps([
         {
@@ -126,19 +109,18 @@ describe('StudioView', () => {
           format: 'html', gate: { p0: ['命名规范'], p1: ['可访问性'] }, briefRef: 'brief.md',
         },
         { seq: 2, path: 'out/report.md' },
-      ], host)} />,
+      ])} />,
     )
     expect(screen.getByText('html')).toBeTruthy()
     expect(screen.getByText(t('studio.file.gatePassed', { p0: 1, p1: 1 }))).toBeTruthy()
     expect(screen.getByText(t('studio.file.gateMissing'))).toBeTruthy()
   })
 
-  it('runs the open and show-in-folder actions and gates the folder action on host capability', () => {
-    const host = hostDescription(true)
+  it('runs the open and show-in-folder actions and gates the folder action on loopback', () => {
     const openFile = vi.fn(() => Promise.resolve())
     const showInFolder = vi.fn(() => Promise.resolve())
     render(
-      <StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], host, { openFile, showInFolder })} />,
+      <StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], { openFile, showInFolder })} />,
     )
     fireEvent.click(screen.getByText(t('studio.action.open')))
     expect(openFile).toHaveBeenCalledWith('out/report.md')
@@ -146,13 +128,11 @@ describe('StudioView', () => {
     expect(showInFolder).toHaveBeenCalledWith('out/report.md')
 
     cleanup()
-    const noFolder = hostDescription(false)
-    render(<StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], noFolder, { isLoopback: false })} />)
+    render(<StudioView {...studioProps([{ seq: 1, path: 'out/report.md' }], { isLoopback: false })} />)
     expect(screen.queryByText(t('studio.action.folder'))).toBeNull()
   })
 
   it('prints the HTML preview through a print window and tolerates a blocked popup', async () => {
-    const host = hostDescription(true)
     const write = vi.fn()
     const print = vi.fn()
     const open = vi.spyOn(window, 'open')
@@ -161,7 +141,7 @@ describe('StudioView', () => {
       focus: vi.fn(),
       print,
     } as never)
-    render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host)} />)
+    render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }])} />)
     await screen.findByTitle('index.html')
     fireEvent.click(screen.getByText(t('studio.action.print')))
     expect(write).toHaveBeenCalledWith('<h1>out/index.html</h1>')
@@ -174,10 +154,9 @@ describe('StudioView', () => {
   })
 
   it('surfaces read failures in the preview pane and keeps the hint for non-previewable files', async () => {
-    const host = hostDescription(true)
     const readFileText = vi.fn(() => Promise.reject(new Error('boom')))
     const { container } = render(
-      <StudioView {...studioProps([{ seq: 1, path: 'out/broken.html' }, { seq: 2, path: 'out/archive.pdf' }], host, { readFileText })} />,
+      <StudioView {...studioProps([{ seq: 1, path: 'out/broken.html' }, { seq: 2, path: 'out/archive.pdf' }], { readFileText })} />,
     )
     expect(await screen.findByText(t('studio.preview.error', { message: 'boom' }))).toBeTruthy()
     const pdfChip = screen.getAllByText('archive.pdf')[0]
@@ -188,13 +167,12 @@ describe('StudioView', () => {
   })
 
   it('exports through the desktop bridge when present and falls back to browser print otherwise', async () => {
-    const host = hostDescription(true)
     const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/report.pdf' }))
     ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
       printHtmlToPdf,
     }
     try {
-      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host)} />)
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }])} />)
       await screen.findByTitle('index.html')
       fireEvent.click(screen.getByText(t('studio.action.print')))
       expect(await screen.findByText(t('studio.print.exported', { path: '/tmp/report.pdf' }))).toBeTruthy()
@@ -211,7 +189,6 @@ describe('StudioView', () => {
   })
 
   it('re-reads the full document before printing when the preview head was truncated', async () => {
-    const host = hostDescription(true)
     const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/full.pdf' }))
     ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
       printHtmlToPdf,
@@ -221,7 +198,7 @@ describe('StudioView', () => {
       return Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true })
     })
     try {
-      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host, { readFileText })} />)
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText })} />)
       await screen.findByTitle('index.html')
       fireEvent.click(screen.getByText(t('studio.action.print')))
       expect(await screen.findByText(t('studio.print.exported', { path: '/tmp/full.pdf' }))).toBeTruthy()
@@ -235,14 +212,13 @@ describe('StudioView', () => {
   })
 
   it('blocks print with an explanation when the full read is still truncated', async () => {
-    const host = hostDescription(true)
     const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/x.pdf' }))
     ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
       printHtmlToPdf,
     }
     const readFileText = vi.fn(() => Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true }))
     try {
-      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], host, { readFileText })} />)
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText })} />)
       await screen.findByTitle('index.html')
       fireEvent.click(screen.getByText(t('studio.action.print')))
       expect(await screen.findByText(t('studio.print.failed', { message: t('studio.print.tooLarge') }))).toBeTruthy()

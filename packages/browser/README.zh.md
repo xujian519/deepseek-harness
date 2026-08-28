@@ -1,3 +1,8 @@
+---
+description: "面向模型可见下载与抓取工具的浏览器自动化后端：级联抽象（ego lite → BrowserOS neo → browser-use → @playwright/mcp），含能力探测、冷决策路由，以及浏览器兜底路径的链接提取执行。自 Sati 浏览器后端层（`src/browser/backend/`）移植。"
+kind: "package-group"
+---
+
 # browser/ — 浏览器自动化后端能力族
 
 [English](README.md) | 中文

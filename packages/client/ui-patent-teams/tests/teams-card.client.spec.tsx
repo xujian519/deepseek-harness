@@ -2,8 +2,10 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
 import { makeTranslate, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { TeamsCard, type TeamsCardProps } from '../src/client/TeamsCard.tsx'
@@ -72,6 +74,10 @@ function cardNode(team: PatentTeamsCardData): TeamsCardProps['node'] {
 const runtimeShare = {
   sessionId: PARENT_ID,
   useSession: (() => undefined) as TeamsCardProps['useSession'],
+  useConversation: (() => undefined) as TeamsCardProps['useConversation'],
+  useChat: (() => undefined) as TeamsCardProps['useChat'],
+  useTrajectory: (() => undefined) as TeamsCardProps['useTrajectory'],
+  useSessionPendingInteraction: (() => undefined) as TeamsCardProps['useSessionPendingInteraction'],
   useProjection: () => undefined,
   useInput: () => { throw new Error('unused') },
   inputActions: { setDraft: () => {}, submit: () => {} } as unknown as TeamsCardProps['inputActions'],
@@ -108,7 +114,7 @@ function viewProps(
   return {
     ...runtimeShare,
     sessionId: PARENT_ID,
-    useSession: (selector: (state: { views: Map<string, unknown> }) => unknown) =>
+    useConversation: (selector: (state: { views: Map<string, unknown> }) => unknown) =>
       selector({ views: new Map(snapshot === undefined ? [] : [[PATENT_TEAMS_TARGET, snapshot]]) }),
     useSessions: (selector: (state: SessionListState) => unknown) => selector(sessions),
     openSession,
@@ -201,11 +207,12 @@ describe('plugin lifecycle', () => {
   it('registers and removes the Definitions, the view, and both slot entries with its fiber', async () => {
     const ctx = new Context()
     await ctx.plugin(SlotRegistry).await()
+    new UiConversation(ctx, { binding: () => undefined } as never)
+    // The locale plugin requires the connection handle, the forwarded-event
+    // port, and the settings scope; 'locale' backs the slot entries' `t` seat.
     ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
     ctx.provide('remote', { $on: () => () => {} } as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
-    ctx.provide('conversationEvents', { register: () => () => {} } as never)
-    ctx.provide('conversationViews', { register: () => () => {} } as never)
     await ctx.plugin(TestSessions).await()
     ctx.slots.register({
       name: 'root',

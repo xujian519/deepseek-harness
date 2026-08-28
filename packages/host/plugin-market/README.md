@@ -1,8 +1,23 @@
+---
+description: "The open plugin-catalog seam (`ctx.pluginMarket`): user-registered HTTPS catalog sources, catalog search, and a managed install pipeline with snapshot/rollback and durable receipts. Remote catalog payloads are untrusted input — validated against the wire schemas under `docs/schemas/` and fetched through a restricted HTTPS client."
+kind: "package-reference"
+---
+
 # `@deepseek-ai/dsh-host-plugin-market`
 
 English | [中文](README.zh.md)
 
+## Summary
+
 The open plugin-catalog seam (`ctx.pluginMarket`): user-registered HTTPS catalog sources, catalog search, and a managed install pipeline with snapshot/rollback and durable receipts. Remote catalog payloads are untrusted input — validated against the wire schemas under `docs/schemas/` and fetched through a restricted HTTPS client.
+
+## Table of Contents
+
+- [What it does](#what-it-does)
+- [Composition](#composition)
+- [Security boundary](#security-boundary)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## What it does
 - **Catalog protocol** — a source is a manifest (see [`docs/schemas/catalog-source.schema.json`](docs/schemas/catalog-source.schema.json)) declaring its identity, attribution, transport base URL, and the query parameters it supports. Queries go to `baseUrl + /v1/plugins`; pages follow [`catalog-provider-page.schema.json`](docs/schemas/catalog-provider-page.schema.json). Only declared parameters are sent; every entry is provenance-stamped with the source that served it.
@@ -39,3 +54,7 @@ None; this package neither assembles nor sends a provider request.
 
 - The preview's Node-engine check is a heuristic for the first comparator; the package manager remains the authority when `engine-strict` is configured.
 - Install recovery (a WAL for interrupted installs) and a media proxy for catalog icons are deferred; the receipt trail is the current recovery mechanism.
+
+### Dev Note
+
+None.

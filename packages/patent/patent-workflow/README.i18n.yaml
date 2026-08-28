@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-workflow/README.md
-README.md: ebd5c28f9286d9b05f52ac2f8354ca432dfb9140
-README.zh.md: 0ff7623a6a11294466846366b07688525a652986
+README.md: ba0bc97fdd684b16372d6bad87052cc46eaf54a9
+README.zh.md: 4a6622a5842e8440030632057b40ef0a91f8a6ac

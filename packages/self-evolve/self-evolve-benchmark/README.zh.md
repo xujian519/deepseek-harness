@@ -1,8 +1,26 @@
+---
+description: "**`BenchmarkEvolveEngine`** 是 `ctx.selfEvolveBenchmark` 的提供方。它为 self-evolve 能力补充一个量化目标维度:benchmark 是一组有界用例,每个用例按私有评分标准(rubric)打分,提供方在严格的 improve-or-rollback 策略下优化 agent 状态,并以整版快照版本化为支撑。这与 `ctx.selfEvolve` 从会话流挖掘失败模式形成互补,给优化循环一个可以追逐的客观分数。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-self-evolve-benchmark
 
 [English](README.md) | 中文
 
+## 概述
+
 **`BenchmarkEvolveEngine`** 是 `ctx.selfEvolveBenchmark` 的提供方。它为 self-evolve 能力补充一个量化目标维度:benchmark 是一组有界用例,每个用例按私有评分标准(rubric)打分,提供方在严格的 improve-or-rollback 策略下优化 agent 状态,并以整版快照版本化为支撑。这与 `ctx.selfEvolve` 从会话流挖掘失败模式形成互补,给优化循环一个可以追逐的客观分数。
+
+## 目录
+
+- [Role](#role)
+- [Configuration](#configuration)
+- [Public API](#public-api)
+- [On-disk layout](#on-disk-layout)
+- [Optimization loop (C1 + C3)](#optimization-loop-c1--c3)
+- [Statement/rubric 分离(C2)](#statementrubric-separation-c2)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Role
 
@@ -51,6 +69,7 @@
 
 `optimizeLoop` 的每一轮都会铸造一个新的快照版本(版本只增不减、永不回收),打包当前 agent 状态,只基于公共 statement 面提出一个候选,应用它,评估完整矩阵,并且仅当候选分数严格高于参考时才接受该轮。被拒绝的候选回滚到其快照;被接受的候选成为新的参考,配置了 `targetScore` 时循环提前停止。
 
+<a id="statementrubric-separation-c2"></a>
 ## Statement/rubric 分离(C2)
 
 用例的 `statement` 是 target 或优化 agent 能看到的唯一 benchmark 内容;`rubric` 是私有的,存为物理上不同的文件。optimizer prompt 声明评分标准不存在,并指示子代理如果看到评分标准就停止并上报污染;`publicBenchmarkView`/`assertNoPrivateLeak` 从面向 optimizer 的面上机械地剔除并守护私有词汇(`rubric`、`rubrics`、`gold`、`goldAnswer`、`expectedAnswer`)。evaluator 是唯一允许接收 rubric 的角色。
@@ -79,3 +98,7 @@
 - **无 UI 或 CLI 面**——这是一个编程接口服务;`dsh` 里还没有任何东西暴露它。
 - **无 keyed 端到端验证**——默认 seams 由 mock 掉 subagent 运行时的单元测试覆盖;真实的 `dsh --profile` 循环运行需要 keyed 环境。
 - **live parent agent 必须能通过 session id 解析**——引擎通过 seams 传递的是 `sessionId`,不是直接的 agent 引用;持有 `Agent` 的调用方必须先把它映射为 session。
+
+### 开发备注
+
+无。

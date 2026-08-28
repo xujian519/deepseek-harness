@@ -12,22 +12,43 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
       "path": "../locale"
     },
     {
       "path": "../ui-conversation"
     },
     {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-session"
+    },
+    {
       "path": "../ui-slots"
     },
     {
-      "path": "../runtime"
-    },
-    {
-      "path": "../../core/agent"
-    },
-    {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../preset/agent-presets"
+    },
+    {
+      "path": "../../util/workspace-path"
+    },
+    {
+      "path": "../../client/connection/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/remotes/tsconfig.client.json"
     }
   ]
 }
