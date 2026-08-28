@@ -1,9 +1,26 @@
+---
+description: "**`BasicSelfEvolveEngine`** 是 `ctx.selfEvolve` 的默认提供方。它连接 `failure-patterns` 投影单元，在 idle 或显式请求时触发进化循环，并通过可逆 Cordis effect 提交窄范围的 L1（技能）与 L2（提示片段）提案。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-self-evolve-basic
 
 [English](README.md) | 中文
 
+## 概述
+
 **`BasicSelfEvolveEngine`** 是 `ctx.selfEvolve` 的默认提供方。它连接 `failure-patterns` 投影单元，在 idle 或显式请求时触发进化循环，并通过可逆 Cordis effect 提交窄范围的 L1（技能）与 L2（提示片段）提案。
 
+## 目录
+
+- [角色](#role)
+- [配置](#configuration)
+- [验证管线（Phase 1）](#validation-pipeline-phase-1)
+- [负面结果（P1.7b）](#negative-results-p17b)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+
+<a id="role"></a>
 ## 角色
 
 | 包 | 角色 |
@@ -12,6 +29,7 @@
 | `@deepseek-ai/dsh-self-evolve-basic`（本包） | Service Provider：基于投影的 idle 压力策略 + 基础提案/验证器 |
 | `@deepseek-ai/dsh-tool-self-evolve` | Consumer：面向模型的工具与提示片段 |
 
+<a id="configuration"></a>
 ## 配置
 
 `BasicSelfEvolveConfig` 控制触发策略、速率限制、默认编辑面与验证容差：
@@ -40,10 +58,12 @@
 
 L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全地子类化 `proposeForPatterns()` 与 `validateProposal()`。
 
+<a id="validation-pipeline-phase-1"></a>
 ## 验证管线（Phase 1）
 
 `validateProposal` 运行 Phase 1 管线：held-in 双验证（fork 重放 P1.2 + 工作区验证器 P1.9b）、`sessionQuery.searchEvents` 命中事件的 held-out 相似性重放（P1.3）、`validatorTarget` 上的 LLM judge（P1.4）与聚合置信度门。工作区验证器先采集重放前基线，再测量重放的净 git 脏增量（`git diff HEAD --numstat` 加未跟踪文件行数，排除 harness 自营的 `.dsh/` 路径）并运行配置的 `buildCommand`；两者都需在 `maxDirtyLinesAddedPerCommit` 容差内通过。缺失维度按弱路径 0.3 计，无法验证的提案被保守拒绝而非凭信任提交。被拒提案落入负面结果日志（P1.7b）；同一模式连续两次回归会回滚已归档的 champion（P1.8）。
 
+<a id="negative-results-p17b"></a>
 ## 负面结果（P1.7b）
 
 被拒绝的提案以每行一条 JSON 的形式追加到 `$DSH_HOME/self-evolve/negative-results.jsonl`（`{ts, patternId, proposalId, reason, diagnostic, deconstructedScores?, nextRoundSuggestion}`）。`readNegativeResults(patternId, limit)` 加载某个模式最近的结果行，模板提案器会把它们摘要进生成的提示片段文本，避免反复提出已失败的同款方案；`readPatterns` 也会把最近失败注入每个模式的 `verifierMeta.failedProposals`（P1.6）。
@@ -69,3 +89,7 @@ L3 与 L4 提案不在此基础提供方中实现；下游提供方可以安全�
 - **仅 L1/L2** — provider 面向技能（L1）与提示词段落（L2）提案；L3-workflow 与 L4-harness 请求暂不产生提案。
 - **未配置工作区构建则不会发生提交** — held-in 工作区验证器（P1.9b）已实现，但只有当工作区是 git 仓库且配置了 `workspaceVerifier.buildCommand` 时才产生信号；否则 held-in 门退化为弱路径，`minAcceptConfidence` 无法达到，提案被保守拒绝。启用验证器是显式的组合步骤，不是随附默认。
 - **无 keyed 端到端验证** — 提案效果是可逆提交，由单元测试覆盖；实机 `dsh --profile` 循环运行需要 keyed 环境。
+
+### 开发备注
+
+无。

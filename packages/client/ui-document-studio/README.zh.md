@@ -1,9 +1,24 @@
+---
+description: "面向[文档模式 preset](../../preset/agent-presets/presets/document/preset.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经宿主预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-client-ui-document-studio
 
 [English](README.md) | 中文
 
-面向[文档模式 preset](../../../apps/cli/config/agent-presets/document/README.zh.md)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经宿主预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。
+## 概述
 
+面向[文档模式 preset](../../preset/agent-presets/presets/document/preset.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经宿主预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。
+
+## 目录
+
+- [挂载内容](#what-it-mounts)
+- [前提](#prerequisites)
+- [模型体验](#model-experience)
+- [已知限制与待办](#known-limitations-and-deferred-work)
+
+<a id="what-it-mounts"></a>
 ## 挂载内容
 
 - **交付工作室视图**——`conversation.view` 环形槽的一个条目（id `document`，order 20）。插件加载后每个会话都会出现该标签；选中即在中心列显示工作室。
@@ -14,10 +29,12 @@
 
 Web patch（`packages/bundle/web-app/cordis.patch.yml`）是加载本包的唯一组合。移除其唯一条目即同时移除标签、词汇、预览与自动跳转。
 
+<a id="prerequisites"></a>
 ## 前提
 
-文档会话选择的是文档模式 preset（`apps/cli/config/agent-presets/document/`）；工作室对每个会话都渲染，与 preset 无关。`host.readFileText` RPC 随宿主发货；无需 OpenDesign 或任何外部进程。
+文档会话选择的是文档模式 preset（`packages/preset/agent-presets/presets/document/`）；工作室对每个会话都渲染，与 preset 无关。`host.readFileText` RPC 随宿主发货；无需 OpenDesign 或任何外部进程。
 
+<a id="model-experience"></a>
 ## 模型体验
 
 无，本包仅渲染已登记的交付记录，不改变模型请求、工具执行或会话事件。
@@ -26,6 +43,7 @@ Web patch（`packages/bundle/web-app/cordis.patch.yml`）是加载本包的唯�
 
 无。本包为纯客户端展示。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与待办
 
 - **预览是预览而非执行**——HTML 以 `sandbox=""` 渲染，交互式工件（JS 驱动的 Deck、实时仪表盘）只显示首帧而不运行。信任会话自身产物文件的渲染器留待后续。
@@ -33,3 +51,7 @@ Web patch（`packages/bundle/web-app/cordis.patch.yml`）是加载本包的唯�
 - **自动跳转仅在进入会话时触发**——手动切回聊天标签后，离开并重新进入会话前不会被覆盖。
 - **预览按扩展名仅限文本**——二进制格式（`.docx`、`.pptx`、`.pdf`）在登记后列出并带格式与质量门徽标，但无内联预览；它们在系统默认应用中打开。
 - **列表跟随会话日志窗口**——长会话中落在已加载窗口之外的早期 turn 会从列表丢失；批量导出与跨会话聚合属于延后的工作台 v2。
+
+### 开发备注
+
+无。

@@ -23,8 +23,8 @@ async function bootHmr(dir: string, root: string[] = [], usePolling?: boolean): 
   return ctx
 }
 
-async function eventually(test: () => boolean, message: string): Promise<void> {
-  const deadline = Date.now() + 10_000
+async function eventually(test: () => boolean, message: string, budgetMs = 10_000): Promise<void> {
+  const deadline = Date.now() + budgetMs
   while (!test()) {
     if (Date.now() >= deadline) throw new Error(message)
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -109,7 +109,7 @@ describe('HMR exact config paths', () => {
     }
   })
 
-  it('observes creation when the config parent did not exist at registration', { timeout: 20_000 }, async () => {
+  it('observes creation when the config parent did not exist at registration', { timeout: 30_000 }, async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-hmr-config-'))
     const dir = join(root, 'later')
     const filename = join(dir, 'plugins.yml')
@@ -121,7 +121,9 @@ describe('HMR exact config paths', () => {
       })
       mkdirSync(dir)
       writeFileSync(filename, 'created')
-      await eventually(() => observed.includes('created'), 'HMR did not observe config creation under a new parent')
+      // The watcher applies sub-second when unloaded; FSEvents delivery can lag
+      // the full suite's parallel workers, so the budget tracks the test timeout.
+      await eventually(() => observed.includes('created'), 'HMR did not observe config creation under a new parent', 20_000)
     } finally {
       await ctx.fiber.dispose()
     }

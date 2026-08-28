@@ -8,13 +8,14 @@
  * Payload types come from the host package's zero-import `event-types.ts`:
  * that file pulls no host `Context` augmentation, so the browser program can
  * load the `SessionEventMap` merge without colliding with the client
- * runtime's services.
+ * services.
  * @module dsh-client-ui-patent-teams/teams-model
  */
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import type { SessionEventLike } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
   ConversationLocation, ConversationNodeDefinition, ConversationViewNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-patent-teams/src/event-types.ts'
 
 /** One folded team member (identity plus removal state). */
@@ -52,10 +53,10 @@ export interface TeamsTeamState {
 
 /**
  * Extract the owning team id from one event.
- * @param event - any session event.
+ * @param event - any session event (standard or compact history entry).
  * @returns the `teamId` when the event is one of the nine `patent-teams/*` kinds, else null.
  */
-export function teamsEventTeamId(event: SessionEvent): string | null {
+export function teamsEventTeamId(event: SessionEventLike): string | null {
   if (event.type === 'patent-teams/team-created') return event.data.teamId
   if (event.type === 'patent-teams/member-added') return event.data.teamId
   if (event.type === 'patent-teams/member-removed') return event.data.teamId
@@ -145,7 +146,7 @@ function applyValidationVerdict(
  * @param event - one of the nine team events (non-start kinds fall through unchanged).
  * @returns the next state.
  */
-export function applyTeamsEvent(state: TeamsTeamState, event: SessionEvent): TeamsTeamState {
+export function applyTeamsEvent(state: TeamsTeamState, event: SessionEventLike): TeamsTeamState {
   if (event.type === 'patent-teams/member-added') {
     return {
       ...state,
@@ -259,7 +260,7 @@ export function projectTeamsCard(state: TeamsTeamState): PatentTeamsCardData {
  * @param buildNode - materialize one target node from a started Context.
  * @returns the complete Definition.
  */
-export function teamsNodeDefinition(
+export function teamsNodeDefinition<Node extends ConversationViewNode>(
   kind: string,
   target: string,
   buildNode: (context: {
@@ -268,7 +269,7 @@ export function teamsNodeDefinition(
     readonly state: TeamsTeamState
     readonly anchorSeq: number
     readonly location: ConversationLocation
-  }) => ConversationViewNode | null,
+  }) => Node | null,
 ): ConversationNodeDefinition<TeamsTeamState> {
   return {
     kind,

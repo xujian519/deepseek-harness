@@ -1,3 +1,8 @@
+---
+description: "Plugins that give the harness long-lived memory backed by an external context database. Each integration owns a foreign data plane (retrieval, capture, commit, tool surface) and remains a consumer of the in-process lifecycle and prompt extension points; no `agent-loop` code changes here. All packages are opt-in unless a group README says otherwise."
+kind: "package-group"
+---
+
 # memory/ — external memory and context-database integrations
 
 English | [中文](README.zh.md)

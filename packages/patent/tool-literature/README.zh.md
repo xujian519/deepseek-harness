@@ -1,9 +1,24 @@
+---
+description: "函数插件，把 Sati 学术文献层移植进 DeepSeek Harness：四个免费、无需 API key 的学术数据源——arXiv、OpenAlex、Semantic Scholar 与 Crossref——归一化到一个连接器注册表之后，以三个无状态工具 `paper_list_sources`、`paper_search` 与 `paper_download` 暴露给模型。移植保留了源实现的按主机礼貌限速（arXiv 每 3 秒 1 次请求、keyless Semantic Scholar 每秒 1 次）与带 LRU 淘汰的进程内 GET 缓存，因此跨源并发展开不会被过度串行化，畸形响应也不会污染缓存。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-tool-literature
 
 [English](README.md) | 中文
 
+## 概述
+
 函数插件，把 Sati 学术文献层移植进 DeepSeek Harness：四个免费、无需 API key 的学术数据源——arXiv、OpenAlex、Semantic Scholar 与 Crossref——归一化到一个连接器注册表之后，以三个无状态工具 `paper_list_sources`、`paper_search` 与 `paper_download` 暴露给模型。移植保留了源实现的按主机礼貌限速（arXiv 每 3 秒 1 次请求、keyless Semantic Scholar 每秒 1 次）与带 LRU 淘汰的进程内 GET 缓存，因此跨源并发展开不会被过度串行化，畸形响应也不会污染缓存。
 
+## 目录
+
+- [工具](#tools)
+- [配置](#configuration)
+- [模型体验](#model-experience)
+- [已知局限与延期工作](#known-limitations-and-deferred-work)
+
+<a id="tools"></a>
 ## 工具
 
 模型先通过 `paper_list_sources` 发现可用的 `db` id，再通过 `paper_search` 查询具体数据源、用 `paper_download` 下载论文 PDF；无论接入多少个数据源，模型可见的工具数都恒定为三个。三个工具都是对公开数据源的无状态操作，不依赖 agent 或会话。
@@ -20,6 +35,7 @@
 
 按 `db` + `id`（来自 `paper_search` 命中）下载一篇论文的 PDF，保存为 `<outputDir>/<id>.pdf`（默认 `<cwd>/论文原文/YYYY-MM-DD/<id>.pdf`）。直链优先——arXiv `extra.pdf`、OpenAlex `best_oa_location.pdf_url` / `open_access.oa_url`、Semantic Scholar `openAccessPdf.url`——经 PDF 魔数与最小字节数校验；直链失败（403/404/HTML 壳页）时，ego 提取器打开记录页提取 PDF 链接，再由同一 fetch 路径下载。显式 `pdfUrl` 覆盖可跳过连接器解析。与 patent_pdf_download 的通道设计一致（直链优先、浏览器兜底）。
 
+<a id="configuration"></a>
 ## 配置
 
 Schemastery 配置，所有字段均可选。
@@ -35,6 +51,7 @@ Schemastery 配置，所有字段均可选。
 
 连接器工厂接受一个仅测试使用的 `fetchImpl` 覆盖；它不是 `Config` 字段。
 
+<a id="model-experience"></a>
 ## 模型体验
 
 ### 工具
@@ -79,9 +96,14 @@ Schemastery 配置，所有字段均可选。
 
 仅追加；新可见的列表文本跟随可复用的请求前缀，不会使既有的 KV 缓存条目失效。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知局限与延期工作
 
 - **仅限免费的公开数据源** — 四个连接器覆盖免费、无需 API key 的数据源；没有认证或付费档位的建模，也没有连接器要求凭据才能工作（Semantic Scholar key 只是提高限额）。
 - **按主机限速可能带来延迟** — arXiv 每 3 秒 1 次请求、keyless Semantic Scholar 每秒 1 次请求，因此包含大量 arXiv 命中的多源并发展开可能排在礼貌间隔之后；限速按主机隔离，无关的数据源会并行推进。
 - **PDF 可用性取决于数据源的开放获取状态** — `paper_download` 解析数据源报告的链接（arXiv pdf、OpenAlex best-oa location、Semantic Scholar openAccessPdf）；付费墙内的记录自然没有可下载的链接。
 - **浏览器兜底通道为统一 ego 栈** — `paper_download` 的兜底经 `EgoExtractor` 打开记录页；browser-use 提取不再是下载通道兜底。
+
+### 开发备注
+
+无。

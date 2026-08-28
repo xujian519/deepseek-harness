@@ -1,17 +1,34 @@
+---
+description: "DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自动召回、会话捕获与自动提交、OpenViking 工具面，以及共享的 `openviking-memory` 技能指导。服务契约见[上游项目](https://github.com/volcengine/OpenViking)及其 [DeepSeek Harness Memory Bundle](https://github.com/volcengine/OpenViking/tree/main/examples/dsh-memory-plugin)。"
+kind: "package-reference"
+---
+
 # `@deepseek-ai/dsh-openviking`
 
 [English](README.md) | 中文
+
+## 概述
 
 DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自动召回、会话捕获与自动提交、OpenViking 工具面，以及共享的 `openviking-memory` 技能指导。服务契约见[上游项目](https://github.com/volcengine/OpenViking)及其 [DeepSeek Harness Memory Bundle](https://github.com/volcengine/OpenViking/tree/main/examples/dsh-memory-plugin)。
 
 插件仅与运行中的 OpenViking HTTP 服务通信——从不调用 `ov` CLI，也不内嵌服务器。服务可能不可达：插件仍可加载，普通对话继续，自动分层以去重警告跳过，显式工具调用则抛出清晰错误。
 
+## 目录
+
+- [公开 API](#public-api)
+- [配置](#configuration)
+- [测试](#testing)
+- [模型体验](#model-experience)
+- [已知限制与延后工作](#known-limitations-and-deferred-work)
+
+<a id="public-api"></a>
 ## 公开 API
 
 - `Config` — 校验后的插件配置：`endpoint`（默认 `http://localhost:1933`）、`apiKey`、`account`、`user`、`agentId`、`timeoutMs`（默认 30000）、`stateFile`（默认 `~/.dsh/openviking/state.json`），以及下文记载的 `repoContext`、`autoRecall`、`autoCommit` 分组。
 - 函数插件 `name` / `inject` / `Config` / `apply` —— 无默认导出。
 - `./invariant` —— 包级不变式伴生插件。
 
+<a id="configuration"></a>
 ## 配置
 
 | 键 | 默认值 | 契约 |
@@ -33,6 +50,7 @@ DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自
 | `autoCommit.turns` | `3` | 未提交用户回合达到 N 即提交；0 关闭回合触发。 |
 | `autoCommit.intervalMinutes` | `10` | 已提交会话的时间兜底。 |
 
+<a id="testing"></a>
 ## 测试
 
 ```sh
@@ -42,6 +60,7 @@ OPENVIKING_E2E=1 pnpm vitest run packages/memory/openviking/tests/e2e.spec.ts
 
 e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认 `http://127.0.0.1:1934`），无 `OPENVIKING_E2E=1` 时跳过；它存储唯一会话、镜像用户与助手消息、提交，并断言提交后的会话与其实时尾部——这是任何 stub 都无法证明的性质。
 
+<a id="model-experience"></a>
 ## 模型体验
 
 ### 记忆库概览
@@ -86,6 +105,7 @@ e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认 `http
 
 列表进入提示词前缀，仅在仓库索引变化时改变。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与延后工作
 
 - **服务契约漂移** — 本包实现所引用发布版（0.4.15，本地 e2e 所针对的版本）的 OpenViking 线面；服务器升级可能新增工具（MCP 面自动重新同步），但也可能改变 HTTP 端点语义，本包仅通过失败隐性校验其记录的契约。
@@ -93,3 +113,7 @@ e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认 `http
 - **`remember` 作用域** — OpenViking MCP `remember` 工具存入服务器自身的短生命周期会话，而非实时的 `dsh-<session-id>` 流；自动捕获与 `memcommit` 会记录对话本身。
 - **无内嵌服务器** — 插件需要可达的 OpenViking 服务；无服务的部署在启动时看到一次去重告警，自动层静默。
 - **召回块不可信** — 注入的记忆文本是背景数据；模型侧指导禁止执行仅出现在记忆中的指令。
+
+### 开发备注
+
+无。

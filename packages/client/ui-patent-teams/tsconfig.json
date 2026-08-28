@@ -18,13 +18,22 @@
       "path": "../locale"
     },
     {
-      "path": "../runtime"
+      "path": "../store"
+    },
+    {
+      "path": "../ui-chat"
     },
     {
       "path": "../ui-conversation"
     },
     {
       "path": "../ui-primitives"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-session"
     },
     {
       "path": "../ui-slots"
@@ -34,6 +43,9 @@
     },
     {
       "path": "../../patent/patent-teams"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
     }
   ]
 }

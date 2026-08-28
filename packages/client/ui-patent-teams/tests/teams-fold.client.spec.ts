@@ -4,11 +4,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   ConversationNodeAssembler,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  ChatConversationViewNode, ConversationEventInput, ConversationNodeDefinition,
-  ConversationViewDefinition,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  ConversationNodeDefinition, ConversationViewDefinition,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ChatConversationViewNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import {
   applyTeamsEvent, projectTeamsCard, startTeamsState, teamsEventTeamId,
 } from '../src/client/teams-model.ts'
@@ -55,11 +57,11 @@ class TestViewDefinitions {
   }
 }
 
-function at(seq: number, type: string, data: unknown): ConversationEventInput {
-  return { event: { seq, time: seq * 100, type, data } as ConversationEventInput['event'], view: undefined }
+function at(seq: number, type: string, data: unknown): SessionLiveEventEntry {
+  return { type: 'event', event: { seq, time: seq * 100, type, data } as SessionEvent }
 }
 
-function assembler(entries: readonly ConversationEventInput[], hasMore = false): ConversationNodeAssembler {
+function assembler(entries: readonly SessionLiveEventEntry[], hasMore = false): ConversationNodeAssembler {
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
   value.replaceWindow(entries, hasMore)
   value.flush()
@@ -75,7 +77,7 @@ function viewSnapshot(value: ConversationNodeAssembler): PatentTeamsViewSnapshot
 }
 
 /** A full two-team event stream: lifecycle, members, tasks, verdicts, delete. */
-function teamEvents(): readonly ConversationEventInput[] {
+function teamEvents(): readonly SessionLiveEventEntry[] {
   return [
     at(1, 'turn/start', { turn: 1 }),
     at(2, 'patent-teams/team-created', {

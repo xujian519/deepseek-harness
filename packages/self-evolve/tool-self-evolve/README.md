@@ -1,8 +1,22 @@
+---
+description: "The **`tool-self-evolve`** package is the model-facing Consumer of `ctx.selfEvolve`. It registers two tools — `self_evolve_inspect_patterns` and `self_evolve_now` — plus a stable prompt section that tells the model when to use them."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-tool-self-evolve
 
 English | [中文](README.zh.md)
 
+## Summary
+
 The **`tool-self-evolve`** package is the model-facing Consumer of `ctx.selfEvolve`. It registers two tools — `self_evolve_inspect_patterns` and `self_evolve_now` — plus a stable prompt section that tells the model when to use them.
+
+## Table of Contents
+
+- [Role](#role)
+- [Tools](#tools)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Role
 
@@ -39,3 +53,7 @@ The stable prompt section is part of the request prefix on every turn while the 
 
 - **Bounded by the provider surface** — the tools expose the seam, but proposal breadth is limited by the loaded provider (L1/L2 today).
 - **No keyed end-to-end verification** — `self_evolve_now` runs are unit-covered; a live loop run requires a keyed environment.
+
+### Dev Note
+
+None.

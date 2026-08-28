@@ -10,12 +10,11 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  ConversationEventRegistry, ConversationViewRegistry, SlotRegistry,
-  createSnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-document-studio'
 
@@ -50,7 +49,6 @@ describe('tsdown client artifact', () => {
       ['react', await import('react')],
       ['react/jsx-runtime', await import('react/jsx-runtime')],
       ['react-dom', await import('react-dom')],
-      ['@deepseek-ai/dsh-client-runtime/client', await import('@deepseek-ai/dsh-client-runtime/client')],
       ['@deepseek-ai/dsh-client-connection/client', await import('@deepseek-ai/dsh-client-connection/client')],
       ['@deepseek-ai/dsh-client-ui-conversation/client', await import('@deepseek-ai/dsh-client-ui-conversation/client')],
       ['@deepseek-ai/dsh-client-ui-primitives', await import('@deepseek-ai/dsh-client-ui-primitives')],
@@ -64,14 +62,13 @@ describe('tsdown client artifact', () => {
 
   interface SessionsState {
     current: string | undefined
-    byId: Record<string, { agentPreset?: string; cwd?: string } | undefined>
+    byId: Record<string, { projectionValues?: { agentPreset?: string }; cwd?: string } | undefined>
   }
 
   async function harness(exports: { apply: (ctx: Context) => void }, state: SessionsState) {
     const ctx = new Context()
     const slots = new SlotRegistry(ctx)
-    await ctx.plugin(ConversationEventRegistry).await()
-    await ctx.plugin(ConversationViewRegistry).await()
+    new UiConversation(ctx, { binding: () => undefined } as never)
     slots.register({
       name: 'root',
       children: { 'conversation.view': { kind: 'list', scope: 'session' } },
@@ -88,13 +85,10 @@ describe('tsdown client artifact', () => {
         return true
       },
     } as never)
-    ctx.provide('connection', {
-      api: { host: { readFileText: async () => ({ rpcId: 'x', result: { ok: true as const, value: { content: '', truncated: false } } }) } },
-      isLoopback: true,
-      hostDescription: createSnapshotStore({ canOpenPath: true }),
-    } as never)
-    ctx.provide('workspaces', { openPath: vi.fn(() => Promise.resolve()) } as never)
-    ctx.provide('remote', { $on: () => () => {} } as never)
+    ctx.provide('connection', { isLoopback: true } as never)
+    const remoteSession = {}
+    ctx.provide('remote', { $on: () => () => {}, session: remoteSession } as never)
+    ctx.provide('remote.session', remoteSession as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     const locale = await import('@deepseek-ai/dsh-client-locale/client')
     ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
@@ -107,7 +101,7 @@ describe('tsdown client artifact', () => {
     expect(handoff.id).toBe(PLUGIN_ID)
     expect(exports.apply).toBeTypeOf('function')
     expect(exports.inject).toEqual([
-      'slots', 'locale', 'conversation', 'conversationEvents', 'conversationViews', 'sessions', 'connection', 'workspaces',
+      'slots', 'locale', 'uiConversation', 'conversation', 'sessions', 'connection', 'remote', 'remote.session',
     ])
   })
 
@@ -115,8 +109,8 @@ describe('tsdown client artifact', () => {
     const { exports } = await loadArtifact()
     const { ctx, fiber, slots } = await harness(exports, { current: undefined, byId: {} })
     await fiber.await()
-    const events = ctx.get('conversationEvents') as ConversationEventRegistry
-    const views = ctx.get('conversationViews') as ConversationViewRegistry
+    const events = ctx.uiConversation.events
+    const views = ctx.uiConversation.views
     expect(slots.entries('conversation.view').map(entry => entry.options.id)).toEqual(['document'])
     expect(events.entries().map(entry => entry.kind)).toContain('documentDeliverables')
     expect(views.entries().map(entry => entry.target)).toEqual(['documentDeliverables'])
@@ -130,7 +124,7 @@ describe('tsdown client artifact', () => {
     const { exports } = await loadArtifact()
     const { fiber, viewSetters, sessionsList } = await harness(exports, {
       current: 's1',
-      byId: { s1: { agentPreset: 'document', cwd: '/tmp/w' } },
+      byId: { s1: { projectionValues: { agentPreset: 'document' }, cwd: '/tmp/w' } },
     })
     await fiber.await()
     expect(viewSetters).toEqual([['s1', 'document']])
@@ -151,15 +145,14 @@ describe('tsdown client artifact', () => {
       const { exports } = await loadArtifact()
       const ctx = new Context()
       const slots = new SlotRegistry(ctx)
-      await ctx.plugin(ConversationEventRegistry).await()
-      await ctx.plugin(ConversationViewRegistry).await()
+      new UiConversation(ctx, { binding: () => undefined } as never)
       slots.register({
         name: 'root',
         children: { 'conversation.view': { kind: 'list', scope: 'session' } },
       }, (_p: { renderSlot?: unknown }) => null)
       const sessionsList = createSnapshotStore<SessionsState>({
         current: 's1',
-        byId: { s1: { agentPreset: 'document' } },
+        byId: { s1: { projectionValues: { agentPreset: 'document' } } },
       })
       ctx.provide('sessions', { list: sessionsList, binding: () => undefined } as never)
       // Setter reports false until it exists: exercise the retry cadence.
@@ -167,13 +160,10 @@ describe('tsdown client artifact', () => {
       ctx.provide('conversation', {
         setActiveView: (): boolean => { attempts += 1; return false },
       } as never)
-      ctx.provide('connection', {
-        api: { host: { readFileText: async () => ({ rpcId: 'x', result: { ok: true as const, value: { content: '', truncated: false } } }) } },
-        isLoopback: true,
-        hostDescription: createSnapshotStore({ canOpenPath: true }),
-      } as never)
-      ctx.provide('workspaces', { openPath: vi.fn(() => Promise.resolve()) } as never)
-      ctx.provide('remote', { $on: () => () => {} } as never)
+      ctx.provide('connection', { isLoopback: true } as never)
+      const remoteSession = {}
+      ctx.provide('remote', { $on: () => () => {}, session: remoteSession } as never)
+      ctx.provide('remote.session', remoteSession as never)
       ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
       const locale = await import('@deepseek-ai/dsh-client-locale/client')
       ctx.plugin({ inject: [...locale.inject], apply: locale.apply })

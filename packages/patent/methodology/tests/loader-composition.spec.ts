@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as Methodology from '@deepseek-ai/dsh-methodology'
@@ -68,7 +68,7 @@ describe('methodology real Loader composition through cordis.yml', () => {
 
     const result = await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId('triz-lookup'),
+      callId: ToolCallId('triz-lookup'),
       name: 'triz',
       arguments: { improving: 9, worsening: 10 },
     })

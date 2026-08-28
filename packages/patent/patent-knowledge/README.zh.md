@@ -1,9 +1,25 @@
+---
+description: "knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全文检索、法规全文检索、wiki 卡片关键词查询、IPC 分类、知识图谱查询（基于 `node:sqlite`），以及从 Sati 移植的 `patent-knowledge:install` 数据引导。模型可见面全部由消费方负责；本包只解析并提供只读知识查询。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-knowledge
 
 [English](README.md) | 中文
 
+## 概述
+
 knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全文检索、法规全文检索、wiki 卡片关键词查询、IPC 分类、知识图谱查询（基于 `node:sqlite`），以及从 Sati 移植的 `patent-knowledge:install` 数据引导。模型可见面全部由消费方负责；本包只解析并提供只读知识查询。
 
+## 目录
+
+- [服务](#service)
+- [配置](#configuration)
+- [patent-knowledge:install](#patent-knowledgeinstall)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+
+<a id="service"></a>
 ## 服务
 
 `PatentKnowledge` 服务以只读方式打开解析得到的 `knowledge.db`（数据库缺失或版本不匹配时经 `KnowledgeDbVersionError` fail-loud），并委托给移植的引擎。引擎惰性打开，并在所属 fiber 卸载时关闭。
@@ -32,6 +48,7 @@ knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全�
 
 基于随包 `ipc-standards.yaml` 的审查标准卡片查询（按 IPC 部、按法条、按关键词）。
 
+<a id="configuration"></a>
 ## 配置
 
 | 键 | 默认值 | 含义 |
@@ -41,6 +58,7 @@ knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全�
 
 查询数据库按 `knowledgeDir/knowledge.db`、`knowledgeDir/knowledge-lite.db`、`sourceDbPath` 的顺序解析。
 
+<a id="patent-knowledgeinstall"></a>
 ## patent-knowledge:install
 
 安装逻辑为导出的 `installKnowledgeDb(options)` 函数加 `patent-knowledge-install` 可执行入口；插件加载时不会自动运行。它把本机源 `knowledge.db` 裁剪为 `knowledgeDir/knowledge-lite.db`：VACUUM 生成紧凑副本、gzip 压缩 `chunks.content` 长正文（读取端透明解压）、删除 embeddings 表。运行一次以准备数据：
@@ -53,6 +71,7 @@ patent-knowledge-install --from /path/to/knowledge.db --output ~/.dsh/knowledge/
 
 参数：`--from <path>`（源库）、`--output <path>`、`--no-compress-chunks`、`--keep-embeddings`、`--no-fts`、`--skip-verify`、`-h/--help`。
 
+<a id="model-experience"></a>
 ## Model Experience
 
 None, as the knowledge seam resolves and serves read-only knowledge queries to the tool layer; dsh-patent-tools owns every model-facing schema and result.
@@ -61,8 +80,13 @@ None, as the knowledge seam resolves and serves read-only knowledge queries to t
 
 Independent; the knowledge seam registers no prompt, tool schema, or result of its own.
 
+<a id="known-limitations-and-deferred-work"></a>
 ## Known Limitations and Deferred Work
 
 - **P1 无向量/语义检索** — embedding/向量路径（`knowledge-embeddings`、`wiki-card-vector-index`、三个 memory provider）未移植；wiki 卡片查询仅关键词路径，判例/法规/知识图谱检索仅 FTS5/LIKE。
 - **源数据库不随包分发** — 数据须经 `patent-knowledge:install` 本地准备，或经 `sourceDbPath`/`knowledgeDir` 直接指向；不提供任何公共下载点。
 - **`node:sqlite` 处于实验阶段** — 引擎运行在 Node 内置 SQLite 上，该模块在支持的 Node 版本线中仍为实验特性，可能随版本变更。
+
+### 开发备注
+
+无。

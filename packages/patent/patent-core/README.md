@@ -1,8 +1,29 @@
+---
+description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with its eleven builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the atomic technical-problem checks, the evidence closed-loop ledger and judgment engine, the structured reasoning primitives, the claim-chart engine, the Pregel-style graph engine with its four patentability domain subgraphs (novelty, inventiveness, enablement, citation-check), the constitutional rule protocol types plus text utilities, the IPC classifier and examination-standards lookup, and the persistence/path helpers."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-core
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with its eleven builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the atomic technical-problem checks, the evidence closed-loop ledger and judgment engine, the structured reasoning primitives, the claim-chart engine, the Pregel-style graph engine with its four patentability domain subgraphs (novelty, inventiveness, enablement, citation-check), the constitutional rule protocol types plus text utilities, the IPC classifier and examination-standards lookup, and the persistence/path helpers.
+
+## Table of Contents
+
+- [Atoms engines](#atoms-engines)
+- [ModelPort](#modelport)
+- [Checker (dual-track deterministic rule engine)](#checker-dual-track-deterministic-rule-engine)
+- [Problem (atomic technical-problem checks)](#problem-atomic-technical-problem-checks)
+- [Evidence (closed-loop ledger + judgment engine)](#evidence-closed-loop-ledger--judgment-engine)
+- [Reasoning (fact blackboard + syllogism)](#reasoning-fact-blackboard--syllogism)
+- [Claim-chart runtime](#claim-chart-runtime)
+- [Graph engine](#graph-engine)
+- [Rule protocol + IPC](#rule-protocol--ipc)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Atoms engines
 
@@ -56,3 +77,7 @@ Independent; the library contributes no model-visible content, so it never popul
 - **IPC data bundles as an asset** — `ipc-standards.yaml` ships at `assets/` and resolves through `import.meta.url` from both source and built lib.
 - **Checkpoint stays file-based** — `JsonFileCheckpointStore` persists per-superstep checkpoints through the shared `JsonFileStore`; the `ctx.storage` seam lands with workflow integration (P3.1).
 - **Graph is pure computation** — the superstep engine and the domain subgraphs run in-process with no `ctx`; LLM and search capabilities arrive through the injected `StageProvider`.
+
+### Dev Note
+
+None.

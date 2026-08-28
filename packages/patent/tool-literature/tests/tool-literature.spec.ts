@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as tool from '../src/index.ts'
@@ -35,7 +35,7 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 }
 
 function execute(ctx: Context, name: string, args: unknown, callLabel: string) {
-  return ctx.tools.execute({ signal: testToolSignal, callId: CallId(callLabel), name, arguments: args })
+  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(callLabel), name, arguments: args })
 }
 
 async function setupPlugin(): Promise<Context> {
@@ -254,7 +254,7 @@ describe('paper_search over an injected-fetchImpl registry', () => {
     const ctx = await setupRegistry(registry)
     const result = await ctx.tools.execute({
       signal: controller.signal,
-      callId: CallId('abort'),
+      callId: ToolCallId('abort'),
       name: 'paper_search',
       arguments: { db: 'stub', query: 'q' },
     })

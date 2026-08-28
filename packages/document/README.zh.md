@@ -1,8 +1,13 @@
+---
+description: "[文档智能体 preset](../preset/agent-presets/presets/document/preset.yml)的域插件：支撑交付工作室文件列表与质量门徽标的结构化交付登记。"
+kind: "package-group"
+---
+
 # document/ — 文档交付域插件
 
 [English](README.md) | 中文
 
-[文档智能体 preset](../../apps/cli/config/agent-presets/document/README.zh.md)的域插件：支撑交付工作室文件列表与质量门徽标的结构化交付登记。
+[文档智能体 preset](../preset/agent-presets/presets/document/preset.yml)的域插件：支撑交付工作室文件列表与质量门徽标的结构化交付登记。
 
 | 包 | 职责 | ctx key |
 |---|---|---|

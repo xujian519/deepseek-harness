@@ -1,8 +1,23 @@
+---
+description: "Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, and the plantask human-in-the-loop state machine, ported from Sati. The service appends durable `patent/plantask` and `patent/workflow-run` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-workflow
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, and the plantask human-in-the-loop state machine, ported from Sati. The service appends durable `patent/plantask` and `patent/workflow-run` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam.
+
+## Table of Contents
+
+- [Service](#service)
+- [Approval wiring](#approval-wiring)
+- [Configuration](#configuration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Service
 
@@ -46,3 +61,7 @@ Independent; the pipeline registers no prompt, tool schema, or result of its own
 - **Rule engine injected at runtime (P4.1)** — the output gate's `ruleGate` seam accepts a dsh-patent-rule `RuleOutputGate` structurally but the engine is injected at runtime; there is no compile-time dependency on dsh-patent-rule, and a rule check that requires an engine fails loud when none is injected.
 - **Storage optional via `ctx.get('storage')`** — file products (workflow-run and flexible-plan stores) use the caller-provided `JsonFileStore` backends; the service does not wire the storage-domain seam, so ctx.storage integration is deferred.
 - **Approval fails closed without an answerer** — with no approval service mounted (or no answerer composed), `runPlantask` rejects the plan to replanning instead of auto-approving.
+
+### Dev Note
+
+None.

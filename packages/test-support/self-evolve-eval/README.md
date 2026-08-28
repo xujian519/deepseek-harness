@@ -1,10 +1,25 @@
+---
+description: "The **P1-10 evaluation scaffold** for the self-evolve capability: deterministic 60-task subset selection, paired baseline/self-evolve result collection, net-win scoring, a percentiled-bootstrap 95% confidence interval, and the recorded continue/rollback decision that arms the CI stop switch."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-self-evolve-eval
 
 English | [中文](README.zh.md)
 
+## Summary
+
 The **P1-10 evaluation scaffold** for the self-evolve capability: deterministic 60-task subset selection, paired baseline/self-evolve result collection, net-win scoring, a percentiled-bootstrap 95% confidence interval, and the recorded continue/rollback decision that arms the CI stop switch.
 
 This is dev/test infrastructure, not a runtime plugin: it owns no service and no model-visible surface. The campaign runner takes the light-weight local path (per-task venv, local pytest verdict — no Docker); the official per-instance container verdict stays as a cross-check. The scaffold covers everything around the campaign and fails honest when the data is not there.
+
+## Table of Contents
+
+- [Usage](#usage)
+- [Result schema](#result-schema)
+- [Environment requirements](#environment-requirements)
+- [Honest status](#honest-status)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Usage
 
@@ -69,3 +84,7 @@ The scaffold is landed and unit-tested (subset determinism, scoring, interval, d
 - **Local reproduction, not official SWE-bench** — the P-B verdict is a local `python -m pytest` in the arm checkout; dependency and system drift can make it differ from the official per-instance verdict, which remains the formal evidence route.
 - **Install-vs-arm workspace caveat** — the dataset `install` command runs once into the shared venv from the base checkout, so for editable-package installs the package under test may resolve from the base checkout instead of the arm's prediction; verdicts are reported with that caveat.
 - **The keyed path has never run here** — no real SWE-bench task has been executed in this repository. The recorded `eval-decision.json` does not exist yet, so the CI stop switch is dormant.
+
+### Dev Note
+
+None.

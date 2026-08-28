@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -94,7 +94,7 @@ describe('patent_worker_validate', () => {
     const signal = new AbortController().signal
     const result = await ctx.tools.execute({
       signal,
-      callId: CallId('wv-1'),
+      callId: ToolCallId('wv-1'),
       name: 'patent_worker_validate',
       arguments: { workerName: 'patent-technical-analyzer', outputText: '技术问题' },
     })

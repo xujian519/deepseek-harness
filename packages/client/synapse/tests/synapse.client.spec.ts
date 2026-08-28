@@ -33,6 +33,7 @@ interface FakeRuntime {
   sessions: {
     list: SessionListFace
     open: (id: string) => void
+    create(opts?: { workspaceId?: unknown; cwd?: string }): Promise<string>
     scope(id: string): unknown
     sessionOf(scope: unknown): SessionSubscriber | undefined
     fork(opts: { sessionId: string; atSeq?: number; increaseTitle?: boolean }): Promise<string>
@@ -53,6 +54,7 @@ function makeRuntime(): FakeRuntime {
       subscribe: () => () => {},
     },
     open: vi.fn(),
+    create: vi.fn(async () => 's-new'),
     scope: () => undefined,
     sessionOf: () => undefined,
     fork: vi.fn(async () => 'child-1'),
@@ -130,9 +132,9 @@ describe('synapse browser half', () => {
     expect(document.querySelector('.dsh-synapse-switch')).toBeNull()
   })
 
-  it('handles create-session through the workspace startSession flow', async () => {
+  it('handles create-session through the sessions.create flow', async () => {
     const { runtime, dispose } = boot()
-    // A current change after startSession drives the resolved id.
+    // A current change after create() drives the resolved id.
     let current: string | undefined = undefined
     const listeners: Array<() => void> = []
     const sessions = runtime.sessions as { list: SessionListFace }
@@ -142,16 +144,17 @@ describe('synapse browser half', () => {
       current,
     })
     sessions.list.subscribe = (listener) => { listeners.push(listener); return () => {} }
-    (runtime.workspaces.startSession as ReturnType<typeof vi.fn>).mockImplementation(() => {
+    ;(runtime.sessions.create as ReturnType<typeof vi.fn>).mockImplementation(async () => {
       current = 's-new'
       for (const listener of listeners) listener()
+      return 's-new'
     })
     window.dispatchEvent(new MessageEvent('message', {
       origin: window.location.origin,
       data: { source: 'dsh-synapse', type: 'synapse:create-session', requestId: 'r-1', workspaceId: 'dsh-ungrouped' },
     }))
     await new Promise(resolve => setTimeout(resolve, 10))
-    expect(runtime.workspaces.startSession).toHaveBeenCalled()
+    expect(runtime.sessions.create).toHaveBeenCalled()
     dispose()
   })
 })

@@ -12,7 +12,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { roleContract } from '@deepseek-ai/dsh-patent-workflow'
 import { SESSION_FORMAT_VERSION, Session, SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
-import { SubagentError } from '@deepseek-ai/dsh-subagent'
+import { SUBAGENT_DESCRIPTOR_VERSION, SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 import {
   deliverToMember,
@@ -346,14 +346,14 @@ describe('installMemberSelectionRuntime', () => {
     const captain = makeCaptain('captain-1')
     const { contribution } = await setup()
     const foreign = childCtxFor(captain, '/tmp', 'child-1', {
-      version: 2, mode: 'one-shot', provider: 'spawn', label: 'some-other-label',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn', label: 'some-other-label',
     })
     expect(contribution!(foreign as never)).toBeTypeOf('function')
     contribution!(foreign as never)!()
     expect(foreign.on).not.toHaveBeenCalled()
 
     const oneShot = childCtxFor(captain, '/tmp', 'child-2', {
-      version: 2, mode: 'one-shot', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn', label: 'patent-teams:team1:alice',
     })
     expect(contribution!(oneShot as never)).toBeTypeOf('function')
     contribution!(oneShot as never)!()
@@ -363,13 +363,13 @@ describe('installMemberSelectionRuntime', () => {
   it('ignores children without a parent session or a well-formed identity', async () => {
     const { contribution } = await setup()
     const noParent = childCtxFor(makeCaptain('captain-1'), '/tmp', 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
     }, undefined, { parentSession: undefined })
     expect(contribution!(noParent as never)).toBeTypeOf('function')
     contribution!(noParent as never)!()
 
     const malformed = childCtxFor(makeCaptain('captain-1'), '/tmp', 'child-2', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:onlyteam',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:onlyteam',
     })
     expect(contribution!(malformed as never)).toBeTypeOf('function')
     contribution!(malformed as never)!()
@@ -381,7 +381,7 @@ describe('installMemberSelectionRuntime', () => {
     const captain = makeCaptain('captain-1')
     const selection: MemberLlmSelection = { provider: 'p', model: 'm', reasoningEffort: 'high' }
     const child = childCtxFor(captain, '/tmp', 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
     })
     let installed: (() => unknown) | undefined
     await runtime.withPending(captain.id, 'patent-teams:team1:alice', selection, async () => {
@@ -408,7 +408,7 @@ describe('installMemberSelectionRuntime', () => {
     })
     await createTeamDir(join(workspace, stateDir), state)
     const child = childCtxFor(captain, workspace, 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
       agentProvider: 'p', agentModel: 'm',
     })
     const installed = contribution!(child as never)
@@ -426,7 +426,7 @@ describe('installMemberSelectionRuntime', () => {
     })
     await createTeamDir(join(workspace, stateDir), state)
     const child = childCtxFor(captain, workspace, 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
       agentProvider: 'other', agentModel: 'other-model',
     })
     expect(() => contribution!(child as never)).toThrow(/saved model route for member "alice" does not match/)
@@ -443,7 +443,7 @@ describe('installMemberSelectionRuntime', () => {
     })
     await createTeamDir(join(workspace, stateDir), state)
     const child = childCtxFor(captain, workspace, 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
     })
     expect(contribution!(child as never)).toBeTypeOf('function')
     contribution!(child as never)!()
@@ -462,7 +462,7 @@ describe('installMemberSelectionRuntime', () => {
     })
     await createTeamDir(join(workspace, stateDir), state)
     const child = childCtxFor(captain, workspace, 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
     })
     const disposer = contribution!(child as never)
     expect(disposer).toBeTypeOf('function')
@@ -480,14 +480,14 @@ describe('installMemberSelectionRuntime', () => {
     })
     await createTeamDir(join(workspace, stateDir), state)
     const blank = childCtxFor(captain, workspace, 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
     })
     expect(contribution!(blank as never)).toBeTypeOf('function')
     contribution!(blank as never)!()
     expect(blank.on).not.toHaveBeenCalled()
 
     const noEffort = childCtxFor(captain, workspace, 'child-2', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
       agentProvider: 'p', agentModel: 'm',
     })
     // The member record keeps provider/model but has no reasoning effort.
@@ -504,7 +504,7 @@ describe('installMemberSelectionRuntime', () => {
     const { contribution } = await setup()
     const captain = makeCaptain('captain-1')
     const child = childCtxFor(captain, '/tmp', 'child-1', {
-      version: 2, mode: 'continuable', provider: 'spawn', label: 'patent-teams:missing:alice',
+      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:missing:alice',
     }, undefined, { parentSession: captain.id, cwd: undefined })
     const disposer = contribution!(child as never)
     expect(disposer).toBeTypeOf('function')
@@ -633,7 +633,9 @@ describe('spawnMember', () => {
   it('fails loud when the provider cannot apply a persona', async () => {
     const ctx = new Context()
     ctx.provide('subagents', makeSubagentsStub({
-      getProvider: () => provider({ capabilities: { persona: false, toolFilter: true, outputSchema: false, depthLimit: false } }),
+      getProvider: () => provider({
+        capabilities: { persona: false, toolFilter: true, outputSchema: false, depthLimit: false, agentOptions: false },
+      }),
     }) as never)
     const member: TeamMember = { ...validMember, id: '' }
     await expect(spawnMember(ctx, config, { withPending: async (_p, _l, _s, op) => op() }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
@@ -643,7 +645,9 @@ describe('spawnMember', () => {
   it('fails loud when the provider cannot restrict captain-only tools', async () => {
     const ctx = new Context()
     ctx.provide('subagents', makeSubagentsStub({
-      getProvider: () => provider({ capabilities: { persona: true, toolFilter: false, outputSchema: false, depthLimit: false } }),
+      getProvider: () => provider({
+        capabilities: { persona: true, toolFilter: false, outputSchema: false, depthLimit: false, agentOptions: true },
+      }),
     }) as never)
     const member: TeamMember = { ...validMember, id: '' }
     await expect(spawnMember(ctx, config, { withPending: async (_p, _l, _s, op) => op() }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))

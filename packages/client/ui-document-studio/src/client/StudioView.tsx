@@ -2,14 +2,14 @@
  * Document studio view: the session's produced files (from the
  * `documentDeliverables` target) as a selectable list with an HTML/text
  * preview pane and open / show-in-folder / print actions. Pure presentation:
- * file facts arrive through the session snapshot, file bytes through the
+ * file facts arrive through the conversation snapshot, file bytes through the
  * injected host read callback, and user actions through injected callbacks.
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { HostDescriptionSource } from '@deepseek-ai/dsh-client-connection/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { DocumentDeliverable } from './document-deliverables.ts'
 import { DOCUMENT_DELIVERABLES_TARGET } from './document-deliverables.ts'
 import css from './StudioView.module.css'
@@ -24,10 +24,6 @@ export type StudioViewProps =
 export interface StudioViewInjected {
   /** Whether the browser reaches the host over a loopback authority. */
   isLoopback: boolean
-  /** Reactive host facts; `canOpenPath` gates the folder action. */
-  hooks: {
-    hostDescription: HostDescriptionSource
-  }
   /** Open one produced file with the OS default application. */
   openFile: (path: string) => Promise<void>
   /** Reveal one produced file's containing folder in the OS file manager (only when supported). */
@@ -99,18 +95,18 @@ function printHtmlDocument(content: string): void {
  * @returns the studio view.
  */
 export function StudioView({
-  useSession,
+  useConversation,
   sessionId,
   isLoopback,
-  useHostDescription,
   openFile,
   showInFolder,
   readFileText,
   t,
 }: StudioViewProps): ReactNode {
-  const produced = useSession(snapshot => snapshot.views.get(DOCUMENT_DELIVERABLES_TARGET)?.produced ?? EMPTY_PRODUCED)
-  const hostCanOpenPath = useHostDescription(description => description?.canOpenPath === true)
-  const canShowInFolder = isLoopback && hostCanOpenPath
+  const produced = useConversation(snapshot => snapshot.views.get(DOCUMENT_DELIVERABLES_TARGET)?.produced ?? EMPTY_PRODUCED)
+  // No reactive host-capability probe survives the runtime removal; the folder
+  // action degrades to loopback-only.
+  const canShowInFolder = isLoopback
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [content, setContent] = useState<{ text: string; truncated: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)

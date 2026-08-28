@@ -1,15 +1,33 @@
+---
+description: "面向专利工作流的持久多智能体团队：一个由可续聊子代理组成的队长领导团队，配依赖感知任务、邮箱消息与事件驱动共享任务调度器。上游 `@nanmicoder/dsh-agent-teams` 插件的正式工作区移植版，重新定位于专利域（`patent_teams_*` 工具、`.patent-teams/` 状态目录、`patent-teams/*` 会话事件），并成形为服务定义（`ctx.patentTeams`），工具为其唯一 Consumer。"
+kind: "package-reference"
+---
+
 # dsh-patent-teams
 
 [English](README.md) | 中文
 
+## 概述
+
 面向专利工作流的持久多智能体团队：一个由可续聊子代理组成的队长领导团队，配依赖感知任务、邮箱消息与事件驱动共享任务调度器。上游 `@nanmicoder/dsh-agent-teams` 插件的正式工作区移植版，重新定位于专利域（`patent_teams_*` 工具、`.patent-teams/` 状态目录、`patent-teams/*` 会话事件），并成形为服务定义（`ctx.patentTeams`），工具为其唯一 Consumer。
 
+## 目录
+
+- [挂载内容](#what-it-mounts)
+- [配置](#configuration)
+- [状态模型](#state-model)
+- [会话事件](#session-events)
+- [Model Experience](#model-experience)
+- [已知限制与待办](#known-limitations-and-deferred-work)
+
+<a id="what-it-mounts"></a>
 ## 挂载内容
 
 - `ctx.patentTeams` — `PatentTeamsService`：团队增删改查、带 attempt 撤销的任务状态机、成员生命周期（spawn/interrupt/retire）、邮箱持久化、删除时归档、调度器 kick。
 - 十个 `patent_teams_*` 工具：`create`、`add_member`、`remove_member`、`create_task`、`reassign_task`、`claim_task`、`update_task`、`send_message`、`status`、`delete`。
 - 一段系统提示用法段落（`patent-teams:usage`，默认 order 117），教授队长协议。
 
+<a id="configuration"></a>
 ## 配置
 
 ```yaml
@@ -23,6 +41,7 @@
     promptSectionOrder: 117      # usage-section order
 ```
 
+<a id="state-model"></a>
 ## 状态模型
 
 团队状态存放于 `<workspace>/<stateDir>/<teamId>/`：
@@ -32,10 +51,12 @@
 
 所有变更都在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）。任务状态转换由 `TASK_TRANSITIONS` 校验；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查。
 
+<a id="session-events"></a>
 ## 会话事件
 
 每次状态变更都会向队长会话追加一条 `patent-teams/*` 事件（类型与载荷见 `event-types.ts`）：`team-created`、`member-added`、`member-removed`、`task-created`、`task-updated`、`message-sent`、`team-deleted`。包的 invariant 伴随插件在加载与追加时校验每个载荷。
 
+<a id="model-experience"></a>
 ## Model Experience
 
 ### 请求上下文与条件
@@ -67,9 +88,14 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 
 前缀稳定：用法段落对给定挂载恒定，不使系统提示前缀失效。会话事件与团队状态从不进入提示；仅按需以工具结果形式进入。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与待办
 
 - **Web UI 为独立投影** — 上游插件的活动面板与美术资源路由未移植；`dsh-client-ui-patent-teams` 将 `patent-teams/*` 会话事件折叠为对话卡片与"团队"视图，磁盘文件与 `patent_teams_status` 仍是权威查看路径。
 - **单进程串行** — 状态为文件持久化，在单个 DSH 进程内串行操作；多进程同时修改同一团队不保证一致。
 - **一队长一活跃团队** — 队长须先结束当前团队才能创建新团队。
 - **实时投递尽力而为** — 接收方代理离线时消息留存在邮箱，在下一状态边界重试。
+
+### 开发备注
+
+无。

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -137,7 +137,7 @@ describe('patent_plan_task', () => {
     const signal = new AbortController().signal
     const executing = await ctx.tools.execute({
       signal,
-      callId: CallId('pt-1'),
+      callId: ToolCallId('pt-1'),
       name: 'patent_plan_task',
       arguments: { action: 'transition', currentState: 'awaiting_approval', to: 'executing', tasks: [{ id: 'task-1' }] },
     })
@@ -147,7 +147,7 @@ describe('patent_plan_task', () => {
 
     const replanning = await ctx.tools.execute({
       signal,
-      callId: CallId('pt-2'),
+      callId: ToolCallId('pt-2'),
       name: 'patent_plan_task',
       arguments: { action: 'transition', currentState: 'awaiting_feedback', to: 'replanning', feedback: '补充检索' },
     })
@@ -157,7 +157,7 @@ describe('patent_plan_task', () => {
 
     const defaultFrom = await ctx.tools.execute({
       signal,
-      callId: CallId('pt-3'),
+      callId: ToolCallId('pt-3'),
       name: 'patent_plan_task',
       arguments: { action: 'transition', to: 'awaiting_approval' },
     })

@@ -1,3 +1,8 @@
+---
+description: "按 [docs/sati-as-dsh-plugins-plan.md](../../docs/sati-as-dsh-plugins-plan.md) 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。"
+kind: "package-group"
+---
+
 # patent/ — Sati 专利域能力族
 
 [English](README.md) | 中文

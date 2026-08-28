@@ -1157,4 +1157,5 @@ export class SessionStore extends Service {
 
 }
 
+export { decodeSeqRanges, encodeSeqRanges } from './seq-ranges.ts'
 export default SessionStore

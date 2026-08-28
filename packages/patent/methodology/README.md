@@ -1,8 +1,23 @@
+---
+description: "Function plugin porting the Sati reasoning-methodology layer into the DeepSeek Harness: the TRIZ 40 inventive principles and the classic 39x39 Altshuller contradiction matrix ship as package assets and reach the model through one `triz` tool plus a concise `tool:triz` system-prompt section. The full methodology registry (eight components, keyword matching, and prompt injection) also ships as a keyless library API for prompt-assembly consumers."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-methodology
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Function plugin porting the Sati reasoning-methodology layer into the DeepSeek Harness: the TRIZ 40 inventive principles and the classic 39x39 Altshuller contradiction matrix ship as package assets and reach the model through one `triz` tool plus a concise `tool:triz` system-prompt section. The full methodology registry (eight components, keyword matching, and prompt injection) also ships as a keyless library API for prompt-assembly consumers.
+
+## Table of Contents
+
+- [triz tool](#triz-tool)
+- [Methodology registry (library API)](#methodology-registry-library-api)
+- [Configuration](#configuration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## triz tool
 
@@ -63,3 +78,7 @@ Append-only; newly visible result text follows the reusable request prefix and d
 - **Registry is a library API, not a mounted section** — the eight methodology components ship for consumers to match and inject, but nothing registers them into the system prompt; a composition must call `injectMethodology` itself.
 - **Static section text** — the `tool:triz` section is fixed prose; it does not adapt to the loaded component set or a per-deployment parameter list.
 - **Classical matrix data only** — the shipped 39x39 matrix is the public Altshuller transcription; empty diagonal cells (physical contradictions) and any newer or derived matrices are not included.
+
+### Dev Note
+
+None.

@@ -7,9 +7,14 @@
  * @module @deepseek-ai/dsh-client-synapse
  */
 
-import type { ClientContext, SessionFace, SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+// Type-only: pulls the sessions-service Context merge (ctx.sessions).
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+// WorkspaceId import also pulls the workspaces-service Context merge (ctx.workspaces).
+import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
-/** Required client services: the session and workspace runtimes. */
+/** Required client services: the session and workspace services. */
 export const inject = ['sessions', 'workspaces']
 
 /** One canvas session row sent to `/synapse/api/sessions/sync`. */
@@ -84,11 +89,6 @@ export function apply(ctx: ClientContext): void {
     const result = await session.prompt([{ type: 'text', text }], 'queue')
     if (!result.ok) throw new Error(result.error.message)
   }
-  const bridgeText = (session: SessionFace | undefined): string => {
-    if (session === undefined) return ''
-    const snapshot = session.getSnapshot()
-    return snapshot.partial?.blocks.flatMap(block => block.kind === 'text' ? [block.text] : []).join('\n') ?? ''
-  }
   const style = document.createElement('style')
   style.textContent = '.dsh-synapse-switch{position:fixed;z-index:80;top:12px;left:50%;display:flex;gap:2px;transform:translateX(-50%);border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:3px;backdrop-filter:blur(10px)}.dsh-synapse-switch button{height:28px;border:0;border-radius:999px;background:transparent;padding:0 11px;color:#6b7280;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}.dsh-synapse-switch button:hover{background:#f3f4f6;color:#111827}.dsh-synapse-switch button.active{background:#111827;color:#fff}.dsh-synapse-switch button:focus-visible{outline:2px solid #111827;outline-offset:2px}body[data-ds-dark-theme] .dsh-synapse-switch{border-color:rgba(255,255,255,.14);background:rgba(21,21,23,.92)}body[data-ds-dark-theme] .dsh-synapse-switch button{color:#9ca3af}body[data-ds-dark-theme] .dsh-synapse-switch button:hover{background:rgba(255,255,255,.08);color:#e6e8eb}body[data-ds-dark-theme] .dsh-synapse-switch button.active{background:rgba(255,255,255,.14);color:#e6e8eb}body[data-ds-dark-theme] .dsh-synapse-switch button:focus-visible{outline-color:#5b8def}.dsh-synapse-overlay{position:fixed;z-index:100;inset:0;background:#f5f7fa}.dsh-synapse-overlay.is-opening{visibility:hidden}.dsh-synapse-overlay[hidden]{display:none}.dsh-synapse-overlay iframe{display:block;width:100%;height:100%;border:0}'
   document.head.append(style)
@@ -148,7 +148,10 @@ export function apply(ctx: ClientContext): void {
       if (session === undefined) continue
       const publish = (): void => {
         if (overlay.hidden) return
-        send('synapse:live-reply', { sessionId: id, running: session.getSnapshot().running, text: bridgeText(session) })
+        // SessionSnapshot carries no streaming text; the bridge publishes the
+        // running flag only (live reply text would need the conversation
+        // assembly).
+        send('synapse:live-reply', { sessionId: id, running: session.getSnapshot().running, text: '' })
       }
       liveUnsubscribers.set(id, session.subscribe(publish))
       publish()
@@ -279,33 +282,15 @@ export function apply(ctx: ClientContext): void {
     if (data.type === 'synapse:create-session') {
       const workspaceId = typeof data.workspaceId === 'string' && data.workspaceId !== '' && data.workspaceId !== 'dsh-ungrouped' ? data.workspaceId : undefined
       const cwd = typeof data.cwd === 'string' && data.cwd !== '' ? data.cwd : undefined
-      // New-session creation is workspace-owned (blank-session reuse): the
-      // browser half asks for the current selection, then prompts it.
-      const before = ctx.sessions.list.getSnapshot().current
-      const next = (): Promise<SessionId> => new Promise((resolve, reject) => {
-        const timer = window.setTimeout(() => {
-          unsub()
-          reject(new Error('DSH 会话创建超时'))
-        }, 5_000)
-        const unsub = ctx.sessions.list.subscribe(() => {
-          const current = ctx.sessions.list.getSnapshot().current
-          if (current !== undefined && current !== before) {
-            window.clearTimeout(timer)
-            unsub()
-            resolve(current)
-          }
-        })
-      })
+      // New-session creation is sessions-owned: create() resolves only once
+      // the child is in the list store, so the resolved id is addressable
+      // (and current) without waiting on a list tick.
       void (async () => {
-        if (workspaceId !== undefined) {
-          ctx.workspaces.startSession(workspaceId as WorkspaceId)
-        } else if (cwd !== undefined) {
-          const workspace = await ctx.workspaces.create({ path: cwd })
-          ctx.workspaces.startSession(workspace.workspaceId)
-        } else {
-          ctx.workspaces.startSession()
-        }
-        const id = await next()
+        const id = workspaceId !== undefined
+          ? await ctx.sessions.create({ workspaceId: workspaceId as WorkspaceId })
+          : cwd !== undefined
+            ? await ctx.sessions.create({ cwd })
+            : await ctx.sessions.create()
         send('synapse:created-session', {
           requestId: data.requestId,
           session: { id, title: ctx.sessions.list.getSnapshot().byId[id]?.displayTitle ?? '新会话', cwd: ctx.sessions.list.getSnapshot().byId[id]?.cwd ?? cwd ?? null },

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
@@ -83,7 +83,7 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
 
     const result = await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId('list-sources'),
+      callId: ToolCallId('list-sources'),
       name: 'paper_list_sources',
       arguments: {},
     })
@@ -101,7 +101,7 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
     try {
       const result = await ctx.tools.execute({
         signal: new AbortController().signal,
-        callId: CallId('search'),
+        callId: ToolCallId('search'),
         name: 'paper_search',
         arguments: { db: 'arxiv', query: 'attention is all you need' },
       })

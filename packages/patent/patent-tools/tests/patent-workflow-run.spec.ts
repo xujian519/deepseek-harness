@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -321,7 +321,7 @@ describe('patent_workflow_run', () => {
     const signal = new AbortController().signal
     const result = await ctx.tools.execute({
       signal,
-      callId: CallId('wfr-1'),
+      callId: ToolCallId('wfr-1'),
       name: 'patent_workflow_run',
       arguments: { manifestId: 'nope', input: 'x' },
     })

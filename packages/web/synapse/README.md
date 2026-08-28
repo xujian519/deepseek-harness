@@ -1,10 +1,25 @@
+---
+description: "Host half of the Synapse session map: the `/synapse` canvas page, its static assets, and the `/synapse/api` JSON API, mounted on the existing DSH Web Server; plus the projection store that turns committed DSH session events into canvas cards (workspaces, thread nodes, fork anchors, folded tool process)."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-host-synapse
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Host half of the Synapse session map: the `/synapse` canvas page, its static assets, and the `/synapse/api` JSON API, mounted on the existing DSH Web Server; plus the projection store that turns committed DSH session events into canvas cards (workspaces, thread nodes, fork anchors, folded tool process).
 
 The canvas is derived, reconstructable UI state: the DSH SessionStore stays the source of session truth. This package reads only committed session logs and never contributes to a model request.
+
+## Table of Contents
+
+- [Registration](#registration)
+- [Configuration](#configuration)
+- [Canvas data](#canvas-data)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Registration
 
@@ -41,3 +56,7 @@ None: it never changes request headers, system prompts, or tool registries, so a
 - The history endpoint pages the session log (`?limit`/`?beforeSeq`): the detail view opens with the most recent messages and loads earlier ones on request, so a very long conversation no longer loads in full.
 - Two `dsh web` instances sharing one profile still race at the same instant; the mtime conflict check serializes on the lock window, and a losing local delta is dropped with a warning rather than merged.
 - Legacy v3 data migrates tool cards by order (each call paired with the next result); live events pair by `callId`.
+
+### Dev Note
+
+None.

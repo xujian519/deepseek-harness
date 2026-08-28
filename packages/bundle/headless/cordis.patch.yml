@@ -11,18 +11,13 @@
 
       Language policy: Always respond to the user in Simplified Chinese (简体中文) — chat replies, summaries, and explanations. Think and reason in Simplified Chinese as well. Keep code, identifiers, tool names, file paths, API/property names, and quoted UI strings in their original form.
 
-# The shared module-reload HMR row stays off; the launcher's watch-only
-# fallback still keeps the user patch layers live until the run exits.
-- id: hmr
-  disabled: true
-
 - id: tools
   config:
-    # Keep the same temporary process-wide Code Mode opt-in as the Web surface.
+    # Keep the same temporary process-wide PTC mode opt-in as the Web surface.
     mode: !!js process.env.DSH_TOOLS_MODE
 
 - insert:
-    # Code Mode is a core execution capability, not a Web component.
+    # PTC mode is a core execution capability, not a Web component.
     - id: code-runtime
       name: '@deepseek-ai/dsh-code-runtime-worker-thread'
 

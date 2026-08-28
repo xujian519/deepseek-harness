@@ -19,7 +19,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineTool, type PreToolDecision } from '@deepseek-ai/dsh-tools'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import * as openviking from '../src/index.ts'
 
 let context: Context | undefined
@@ -129,7 +129,7 @@ describe('@deepseek-ai/dsh-openviking real Loader composition', () => {
       } as never)
       await context.tools.execute({
         signal,
-        callId: CallId(`comp-memcommit-${attempt}`),
+        callId: ToolCallId(`comp-memcommit-${attempt}`),
         name: 'memcommit',
         arguments: {},
         agent,
@@ -155,7 +155,7 @@ describe('@deepseek-ai/dsh-openviking real Loader composition', () => {
     const seenBefore = downstream.mock.calls.length
     const denied = await context.tools.execute({
       signal,
-      callId: CallId('comp-deny'),
+      callId: ToolCallId('comp-deny'),
       name: 'read',
       arguments: { file_path: 'viking://user/memories/x.md' },
       agent,

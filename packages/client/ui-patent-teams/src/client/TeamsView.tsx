@@ -1,7 +1,7 @@
 /**
  * The fixed Teams conversation view: every team folded from this session's
  * `patent-teams/*` events, read from the `patentTeams` view snapshot. Pure
- * presentation — team facts arrive through the session snapshot, live member
+ * presentation — team facts arrive through the conversation snapshot, live member
  * activity through the sessions list share, and the open-member action
  * through the injected callback. Sessions without team records get the empty
  * state.
@@ -11,7 +11,8 @@ import type { ReactNode } from 'react'
 import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { shallowEqual, type SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import { shallowEqual } from '@deepseek-ai/dsh-client-store'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { runningMemberIds } from './TeamsCard.tsx'
 import {
   STATUS_KEYS, TeamsMemberList, TeamsTaskList, teamDotState, type TeamsOpenSession,
@@ -85,8 +86,8 @@ function TeamBlock({ team, running, openSession, t }: {
  * @param props - session runtime share, injected open-member action, locale share.
  * @returns the Teams tab body.
  */
-export function TeamsView({ sessionId, useSession, useSessions, openSession, t }: TeamsViewProps): ReactNode {
-  const snapshot = useSession(state => state.views.get(PATENT_TEAMS_TARGET))
+export function TeamsView({ sessionId, useConversation, useSessions, openSession, t }: TeamsViewProps): ReactNode {
+  const snapshot = useConversation(state => state.views.get(PATENT_TEAMS_TARGET))
   const list = useMemo(() => snapshotTeams(snapshot), [snapshot])
   const running = useSessions(
     sessions => runningIdsFor(sessions, list, sessionId),

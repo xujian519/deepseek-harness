@@ -6,6 +6,8 @@
  */
 
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+// Loads tool-todo's SessionEventMap augmentation so 'todo/write' joins the union.
+import type {} from '@deepseek-ai/dsh-tool-todo'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { ProjectedMessage, ToolProcessEntry } from './types.ts'
 

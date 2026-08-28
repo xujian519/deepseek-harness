@@ -1,9 +1,24 @@
+---
+description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 24 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、撰写、分析报告、证据判定、规则检查以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-tools
 
 [English](README.md) | 中文
 
+## 概述
+
 函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 24 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、撰写、分析报告、证据判定、规则检查以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
 
+## 目录
+
+- [工具](#tools)
+- [配置](#configuration)
+- [Model Experience](#model-experience)
+- [已知局限与延后工作](#known-limitations-and-deferred-work)
+
+<a id="tools"></a>
 ## 工具
 
 | 工具 | 类别 | 数据源 / 引擎 |
@@ -24,6 +39,8 @@
 | `rule_check` | 质量 | `@deepseek-ai/dsh-patent-rule` 规则引擎 |
 | `analyze_patent_figure` | 分析 | ModelPort（按附图模型做图片输入门禁） |
 | `search_patent_figure` | 检索 | 附图索引关键词检索（索引由 `analyze_patent_figure` 写入，见 Config.figureIndexFile） |
+| `generate_patent_figure` | 撰写 | 附图 DOT 构建器 + Graphviz `dot` CLI 子进程（Config.graphvizExecutable / figureOutputDir / dotFont）；结果写入附图索引（Config.figureIndexFile） |
+| `add_patent_figure_references` | 撰写 | SVG 标号后处理（按 `<text>`/`<tspan>` 文本匹配追加 `(标号)`） |
 | `patent_pdf_download` | 文档 | browser-backend 冷决策：ego-browser 下载拦截（统一 ego 栈） |
 | `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包）；索引写入已接线（Config.chemistryIndexFile） |
 | `flexible_plan` | 工作流 | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
@@ -37,6 +54,7 @@
 
 `slop-gate` 是工作流原子，而非模型可见工具：`apply()` 将 `slopGateAtom` 与 `SlopGateHandler` 注册进全局注册表，因为该门依赖本包内联的反套话引擎。它基于 `state.claims_draft` 做确定性分析，写入 `slop_report` 与 `slop_score`；当草稿未达通过线时，额外写入仅含证据的 `slop_revision_hint`（命中短语与建议替换、结构性问题行级定位；绝不包含评分数字、总分或通过线）。`patent_disclosure_v1` manifest 的 `slop_clean` 阶段门控草稿，命中失败信号即回退到 `draft_claims`，使重写时注入该提示。库消费者同样获得 `slopGateAtom`、`SlopGateHandler`、`SLOP_GATE_PASS_THRESHOLD` 与提示构造器 `buildSlopRevisionHint`。
 
+<a id="configuration"></a>
 ## 配置
 
 Schemastery 配置，所有字段可选。
@@ -50,9 +68,13 @@ Schemastery 配置，所有字段可选。
 | `noteDir` | string | `<cwd>/99-知识库` | `knowledge_note_save` 的知识笔记目录（绝对或相对 cwd）。 |
 | `figureIndexFile` | string | `<cwd>/.sati/figures-index.json` | 附图索引文件：`analyze_patent_figure` 写入分析条目、`search_patent_figure` 检索（绝对或相对 cwd）。 |
 | `chemistryIndexFile` | string | `<cwd>/.sati/chemistry-index.json` | `recognize_chemical_structure` 写入的化学索引文件（绝对或相对 cwd）。 |
+| `graphvizExecutable` | string | 自动探测 | `dot` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_GRAPHVIZ_DOT` → 平台候选路径 → `PATH`。 |
+| `figureOutputDir` | string | `<cwd>/patent/figures` | `generate_patent_figure` 的输出目录（绝对或相对 cwd）。 |
+| `dotFont` | string | 平台相关 | DOT 字体名覆盖；默认 Helvetica，label 含 CJK 时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 |
 
 未设置 `provider`/ `model` 时，LLM 消费工具照常注册，但调用时 fail loud（`setup_required`）。知识类工具需要经 `patent-knowledge:install` 准备的 knowledge.db；缺失时 fail loud 并给出安装引导。
 
+<a id="model-experience"></a>
 ## Model Experience
 
 ### 工具 schema
@@ -69,6 +91,7 @@ Schemastery 配置，所有字段可选。
 
 在已注册工具集与其描述不变时前缀稳定；修改配置或注册集会使工具定义偏移，并从该点起失效复用。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知局限与延后工作
 
 - **`render_patent_document` 归属** — 该工具由 `@deepseek-ai/dsh-patent-document` 注册，而非本包；本包仅再导出其工厂。
@@ -76,6 +99,11 @@ Schemastery 配置，所有字段可选。
 - **图片模态门禁范围** — `analyze_patent_figure` 按解析出的附图模型路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；`search_patent_figure` 读取索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。索引由 `analyze_patent_figure` 写入 Config.figureIndexFile；索引缺失或为空时返回零命中并附引导提示，而非报错。
 - **化学引擎未移植** — `recognize_chemical_structure` 与 `validate_specification` 的化学表征检查降级为不可用，因为 `@rdkit/rdkit` 是未随包的可选原生依赖。
 - **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，附图/化学索引存储（`figure/index-store`、`chemistry/index-store`）已接线写+读。多图一致性、网表可视化与 SMILES（RDKit）解析延后。
+- **附图生成范围** — `generate_patent_figure` 经 Graphviz `dot` CLI 生成单图（无引线标号：标号内嵌组件标签，如 `Processor (20)`）；`semantic` 彩色填充仅当色彩承载技术内容时用（依据《专利审查指南》第一部分第一章 4.3，2023 修订；默认 `grayscale` 黑白）；`raw_dot`/`template` 模式无结构化组件/连接还原（索引条目残缺）；复合图（FIG. 1A/1B）与跨图自动记忆标号未实现（跨图续接请以 `numerals` 显式传入）。Graphviz 为系统依赖——缺失时工具 fail loud 并给出安装引导。
 - **知识笔记 / PDF 下载接线** — `knowledge_note_save` 将笔记写入 Config.noteDir 下的文件（knowledge.db 原生写 API 延后）；`patent_pdf_download` 经 browser-backend 冷决策（`@deepseek-ai/dsh-browser-backend`）解析批量运行器：统一 ego 栈让下载只路由到 ego-browser（挂载 patent-data 服务时经 `ctx.patentData.createEgoSession()`）；browseros-neo、playwright 与 browser-use 参与探测但从不参与下载。未挂载 patent-data 时 ego 通道以 setup 指引 fail-loud。ego-browser 下载拦截为尽力而为——浏览器无法保存的条目回退为对提取的 CDN URL 直接 fetch。
 - **移除语义召回** — `patent_case_search` 仅保留 FTS/LIKE；基于 embedding 的语义召回未移植（dsh 暂无向量基建）。
 - **证据规则资产** — `evaluate_evidence` 经 `@deepseek-ai/dsh-patent-rule` 的资产定位解析 `evidence-rules.yaml`；缺失时引擎降级为默认权重。
+
+### 开发备注
+
+无。

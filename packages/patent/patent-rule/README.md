@@ -1,8 +1,24 @@
+---
+description: "Function plugin porting the Sati constitutional rule engine into the DeepSeek Harness: it ships the YAML rule packs as package assets, evaluates text deterministically, registers the EVI-011 evidence-compliance guards as monotonic denies, and wires the RuleOutputGate onto tools/post-execute with review routed through ctx.approval."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-patent-rule
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Function plugin porting the Sati constitutional rule engine into the DeepSeek Harness: it ships the YAML rule packs as package assets, evaluates text deterministically, registers the EVI-011 evidence-compliance guards as monotonic denies, and wires the RuleOutputGate onto tools/post-execute with review routed through ctx.approval.
+
+## Table of Contents
+
+- [Output gate](#output-gate)
+- [EVI-011 evidence guards](#evi-011-evidence-guards)
+- [Rule engine (library API)](#rule-engine-library-api)
+- [Configuration](#configuration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Output gate
 
@@ -41,3 +57,7 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 - **Asset location differs from Sati** — rules resolve from the packaged `assets/rules/` via `import.meta.url` (with an optional `rulesDir` override); the `SATI_RULES_DIR` environment variable, cwd/workspace-root walking, and the project `.sati/rules.yaml` auto-discovery are dropped. `loadRulePack` accepts only an explicit `manifestPath`.
 - **Layered pack default is base only** — `loadRulePack` without a manifest loads only the packaged base pack; domain and override layers require an explicit manifest.
 - **Rule-set loading is fail-soft** — a missing or damaged asset degrades to an empty rule set (the gate passes through) rather than failing the deployment.
+
+### Dev Note
+
+None.

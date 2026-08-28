@@ -1,8 +1,23 @@
+---
+description: "Prompt-prefix cache for `SystemPrompt.assemble()`: the `ctx.promptCache` service caches a session's contiguous stable-prefix sections (TTL-bounded, in memory) so `system-prompt` skips re-evaluating stable providers on later assemblies. When the service is absent, assembly takes the pre-existing per-assembly path byte-for-byte."
+kind: "package-reference"
+---
+
 # dsh-prompt-cache
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Prompt-prefix cache for `SystemPrompt.assemble()`: the `ctx.promptCache` service caches a session's contiguous stable-prefix sections (TTL-bounded, in memory) so `system-prompt` skips re-evaluating stable providers on later assemblies. When the service is absent, assembly takes the pre-existing per-assembly path byte-for-byte.
+
+## Table of Contents
+
+- [Config](#config)
+- [Public API](#public-api)
+- [Relationship to provider caches](#relationship-to-provider-caches)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Config
 
@@ -34,3 +49,7 @@ Byte-stable prefixes preserve provider KV reuse across requests; a cache miss on
 - **In-memory only** — entries live in one process and expire on restart; there is no shared or persistent cache across runs.
 - **Uninterpolated text only** — variable interpolation still runs per request, so the cache cannot skip the final render step.
 - **Stale-prefix exposure** — a misdeclared `stable` provider (output that changes within the TTL) yields a stale prefix; TTL, explicit invalidation on `system-prompt/change`, and telemetry bound the damage rather than eliminate it.
+
+### Dev Note
+
+None.

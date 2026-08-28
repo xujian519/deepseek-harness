@@ -133,10 +133,17 @@ function anchorPathSpec(argument: string, cwd: string): string {
 function runPlugin(profile: string, args: readonly string[]): number {
   const dir = resolveProfileDir(profile)
   if (!existsSync(join(dir, 'package.json'))) {
-    initProfile(dir, PROFILE_TEMPLATES[profile] ?? DEFAULT_PROFILE_BUNDLES, { overrides: profileCoreOverrides(INSTALL_ANCHOR) })
+    const template = PROFILE_TEMPLATES[profile]
+    initProfile(
+      dir,
+      template?.bundles ?? DEFAULT_PROFILE_BUNDLES,
+      template?.patchReload,
+      { overrides: profileCoreOverrides(INSTALL_ANCHOR) },
+    )
     process.stderr.write(`${NAME}: initialized profile ${profile} at ${dir}\n`)
   }
-  const before = readProfileManifest(NAME, dir)  // Windows resolves pnpm through its .cmd shim, which spawn() refuses
+  const before = readProfileManifest(NAME, dir)
+  // Windows resolves pnpm through its .cmd shim, which spawn() refuses
   // without a shell since the CVE-2024-27980 hardening.
   const result = spawnSync('pnpm', args.map(argument => anchorPathSpec(argument, process.cwd())), {
     cwd: dir,
@@ -186,6 +193,7 @@ export async function runPluginCommand(profile: string, args: readonly string[])
   if (MARKET_VERBS.has(args[0] ?? '')) return runMarket(profile, args)
   return runPlugin(profile, args)
 }
+
 /**
  * Run one market verb against the profile: source registration, catalog
  * search, preview, and the managed install/uninstall pipeline.

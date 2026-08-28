@@ -6,24 +6,26 @@
  * type-only.
  */
 
+import { SESSION_CONTROLLER_REMOTE_EVENTS } from '@deepseek-ai/dsh-api-session-controller/remote-events'
+import type { TypertForwardableEventEntry } from '@deepseek-ai/dsh-typert-protocol'
+
 /**
- * Host events this application forwards to consumers verbatim: no projection,
- * no redaction, no renaming. The wire name is the Host cordis event name and
- * the payload is its argument list, so this array is simultaneously the whole
- * control point over what a consumer can receive and the legal key set of
- * `ctx.remote.$on`. Forwarding one more event is an entry here and nothing
- * else.
+ * Host events this application forwards without renaming. The explicit mode is
+ * both the Host dispatch strategy and the legal key set of `ctx.remote.$on`.
  */
 export const API_REMOTE_FORWARDED_EVENTS = [
-  'agent-preset/selected',
-  'commands/change',
-  'credentials/reference-updated',
-  '@deepseek-ai/cordis/request-run',
-  '@deepseek-ai/cordis/request-run-resolved',
-  '@deepseek-ai/cordis/dynamic-package',
-  '@deepseek-ai/cordis/dynamic-retract',
-  '@deepseek-ai/cordis/inspect-query',
-  '@deepseek-ai/cordis/inspect-query-resolved',
-  'llm/adapters-updated',
-  'settings/document-updated',
-] as const
+  { event: 'agent-preset/selected', mode: 'emit' },
+  { event: 'approval/request', mode: 'waterfall' },
+  ...SESSION_CONTROLLER_REMOTE_EVENTS.map(event => ({ event, mode: 'emit' as const })),
+  { event: 'commands/change', mode: 'emit' },
+  { event: 'credentials/reference-updated', mode: 'emit' },
+  { event: '@deepseek-ai/cordis/request-run', mode: 'emit' },
+  { event: '@deepseek-ai/cordis/request-run-resolved', mode: 'emit' },
+  { event: '@deepseek-ai/cordis/dynamic-package', mode: 'emit' },
+  { event: '@deepseek-ai/cordis/dynamic-retract', mode: 'emit' },
+  { event: '@deepseek-ai/cordis/inspect-query', mode: 'emit' },
+  { event: '@deepseek-ai/cordis/inspect-query-resolved', mode: 'emit' },
+  { event: 'llm/adapters-updated', mode: 'emit' },
+  { event: 'settings/document-updated', mode: 'emit' },
+  { event: 'user-questions/request', mode: 'waterfall' },
+] as const satisfies readonly TypertForwardableEventEntry[]

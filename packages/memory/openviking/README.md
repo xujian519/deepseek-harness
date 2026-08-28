@@ -1,10 +1,25 @@
+---
+description: "OpenViking context-database integration for DeepSeek Harness: auto-recall before model steps, session capture and auto-commit, the OpenViking tool surface, and the shared `openviking-memory` skill guidance. See the [upstream project](https://github.com/volcengine/OpenViking) and its [DeepSeek Harness Memory Bundle](https://github.com/volcengine/OpenViking/tree/main/examples/dsh-memory-plugin) for the service contract this package consumes."
+kind: "package-reference"
+---
+
 # `@deepseek-ai/dsh-openviking`
 
 English | [中文](README.zh.md)
 
+## Summary
+
 OpenViking context-database integration for DeepSeek Harness: auto-recall before model steps, session capture and auto-commit, the OpenViking tool surface, and the shared `openviking-memory` skill guidance. See the [upstream project](https://github.com/volcengine/OpenViking) and its [DeepSeek Harness Memory Bundle](https://github.com/volcengine/OpenViking/tree/main/examples/dsh-memory-plugin) for the service contract this package consumes.
 
 The plugin talks to a running OpenViking HTTP service only — it never shells out to the `ov` CLI and never starts a server. The service may be unreachable: the plugin still loads, ordinary conversation continues, and the automatic layers skip with deduplicated warnings while explicit tool calls throw clear errors.
+
+## Table of Contents
+
+- [Public API](#public-api)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
 ## Public API
 
@@ -93,3 +108,7 @@ The list joins the prompt prefix and changes only when the repository index chan
 - **`remember` scoping** — the OpenViking MCP `remember` tool stores into the server's own short-lived session, not the live `dsh-<session-id>` stream; automatic capture and `memcommit` record the conversation itself.
 - **No embedded server** — the plugin requires a reachable OpenViking service; deployments without one see one deduplicated warning at boot and silent automatic layers.
 - **Raw recall blocks are untrusted** — injected memory text is background data; the model-facing guidance forbids following instructions found only inside memory.
+
+### Dev Note
+
+None.

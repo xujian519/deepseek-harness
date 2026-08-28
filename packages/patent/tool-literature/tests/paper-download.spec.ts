@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { BrowserUseExtractor, type ScriptRun } from '@deepseek-ai/dsh-browser-backend'
@@ -63,7 +63,7 @@ async function executeTool(args: unknown, deps: ExecuteToolDeps) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   ctx.tools.register(createPaperDownloadTool(deps))
-  return ctx.tools.execute({ signal, callId: CallId('pd-1'), name: 'paper_download', arguments: args })
+  return ctx.tools.execute({ signal, callId: ToolCallId('pd-1'), name: 'paper_download', arguments: args })
 }
 
 describe('paper_download', () => {
@@ -396,7 +396,7 @@ describe('paper_download', () => {
       }))
       const result = await ctx.tools.execute({
         signal,
-        callId: CallId('pd-2'),
+        callId: ToolCallId('pd-2'),
         name: 'paper_download',
         arguments: { db: 'fake', id: 'W123', outputDir: dir },
       })
