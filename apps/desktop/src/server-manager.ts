@@ -47,8 +47,14 @@ export interface DesktopBackend {
 /** Default readiness wait; a hung backend should fail loud rather than leave a blank window. */
 const DEFAULT_READY_TIMEOUT_MS = 30_000
 
-/** The dsh web runtime's readiness line: `dsh web: http://127.0.0.1:PORT`. */
-const URL_LINE = /^dsh web: (https?:\/\/127\.0\.0\.1:\d+)/
+/**
+ * The dsh web runtime's readiness line: `dsh web: http://127.0.0.1:PORT`
+ * followed by a one-time auth token query (`?token=...`). Capture the whole
+ * loopback URL so the token survives; `main.ts` derives the navigation origin
+ * with `new URL(url).origin`, which ignores the query. Only loopback hosts are
+ * accepted; a readiness line for a non-loopback host is ignored.
+ */
+const URL_LINE = /^dsh web: (https?:\/\/127\.0\.0\.1:\d+\S*)/
 
 /**
  * Spawn a dsh backend and resolve once the readiness line names the bound
