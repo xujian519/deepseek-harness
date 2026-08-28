@@ -17,7 +17,7 @@ jobs:
   node-checks:
     if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
-    name: node 24 / lint + typecheck + test
+    name: node 24 / lint + typecheck + test + docs
     steps:
       - uses: actions/checkout@v6
         with:
@@ -41,6 +41,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm run test
+
+      - name: Documentation checks
+        run: pnpm run test:docs
 
   python-checks:
     if: github.repository == 'xujian519/deepseek-harness'

@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-一条 assistant 流若携带畸形 chunk，会把整棵会话树打崩而不是优雅降级。三类情况会到达渲染器：chunk 的 block 索引为负、小数或超大；`text-delta`/`reasoning-delta`/`tool-call-delta` 的载荷不是字符串；`block-end` 的 `block` 不是对象。partial 累加器（`packages/client/runtime/src/client/sessions/partial.ts`）把该索引直接写进稀疏 `blocks` 数组，projector（`packages/client/ui-conversation/src/client/conversation-nodes/assistant.ts`）在会话节点侧也这么做，而 `AssistantMarkdown` 原样把 `block.text` 喂给 markdown 渲染器。`block-end` 载荷为 null 会在 `toAssistantBlock` 抛错；非字符串 text 之后会到达 `MarkdownText`。在长时团队任务里，这表现为打开会话面板时白屏。
+一条 assistant 流若携带畸形 chunk，会把整棵会话树打崩而不是优雅降级。三类情况会到达渲染器：chunk 的 block 索引为负、小数或超大；`text-delta`/`reasoning-delta`/`tool-call-delta` 的载荷不是字符串；`block-end` 的 `block` 不是对象。partial 累加器（`packages/client/ui-chat/src/client/conversation-nodes/partial.ts`）把该索引直接写进稀疏 `blocks` 数组，projector（`packages/client/ui-chat/src/client/conversation-nodes/assistant.ts`）在会话节点侧也这么做，而 `AssistantMarkdown` 原样把 `block.text` 喂给 markdown 渲染器。`block-end` 载荷为 null 会在 `toAssistantBlock` 抛错；非字符串 text 之后会到达 `MarkdownText`。在长时团队任务里，这表现为打开会话面板时白屏。
 
 ## 决策
 
@@ -27,3 +27,5 @@ Status: implemented
 ## 影响
 
 畸形 assistant chunk 现在降级为被跳过的 block，而不是打崩会话树；打开团队任务会话面板的白屏不再复现。由于防御校验同时跑在累加器与 projector 上，无论 chunk 走哪条路径投影都能存活。代价是每个 chunk 一次索引/载荷检查，相比渲染工作可忽略。
+
+> 2026-08-28: the upstream v0.1.2-alpha.1 sync removed `packages/client/runtime` and refactored the fold; this hardening re-landed at the ui-chat paths above (see [2026-08-28-post-sync-debt-sweep](2026-08-28-post-sync-debt-sweep.zh.md)). The paths in the body now point there.

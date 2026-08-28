@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-27-hardening-stream-chunk-folding.md
-2026-08-27-hardening-stream-chunk-folding.md: d42a51c73d81b91b6ab787f0134613408839291c
-2026-08-27-hardening-stream-chunk-folding.zh.md: 7e9492695b666bf41ff11a36fcc8332783030f97
+2026-08-27-hardening-stream-chunk-folding.md: f70b9f3e769166a7cce3c45b558e703b049e6de8
+2026-08-27-hardening-stream-chunk-folding.zh.md: 10987cf6bb0c649d3a52f47e208e52d283f1c09a

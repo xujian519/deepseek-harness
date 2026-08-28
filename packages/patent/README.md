@@ -23,3 +23,7 @@ Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh
 | [`methodology/`](methodology/README.md) | TRIZ 40 principles + 39x39 contradiction matrix. | (section + tool) |
 
 Child READMEs own each package contract. All packages are scaffold-stage until their plan phase lands.
+
+## Related documentation
+
+- [Patent domain subsystem](../../docs/subsystems/patent.md) — domain model, evidence, and workflow contracts across the family.

@@ -22,6 +22,9 @@ export const GROUPS_WITHOUT_SUBSYSTEM_PAGE: Readonly<Record<string, string>> = {
   hooks: 'External hook-protocol bridges over existing interception points, not a new Harness service.',
   sdk: 'Out-of-process protocol and client packages whose package READMEs own the SDK contracts.',
   util: 'Low-level primitives whose business semantics remain with their consuming subsystems.',
+  browser: 'Browser automation backends behind one seam whose probing and routing contracts live in the browser package READMEs.',
+  document: 'Delivery-preset composition plus delivery skills and the studio; the owning package READMEs carry the contracts.',
+  memory: 'External memory integrations (OpenViking) whose integration contract lives in the openviking package README.',
 }
 
 /** Result of auditing package-group subsystem documentation. */

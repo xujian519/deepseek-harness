@@ -26,9 +26,13 @@ export interface AssistantMarkdownProps {
   t: ChatViewSlotProps['t']
 }
 
+/** Markdown renderers assume string bodies; a malformed block degrades to empty text. */
+function textOf(block: { readonly text: unknown }): string {
+  return typeof block.text === 'string' ? block.text : ''
+}
+
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
-export const AssistantMarkdown = memo(function AssistantMarkdown({
-  blocks, streaming, interrupted, renderMessageImages,
+export const AssistantMarkdown = memo(function AssistantMarkdown({  blocks, streaming, interrupted, renderMessageImages,
   reasoningHidden = false, revealProcess, mentions, t,
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
@@ -51,7 +55,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         rendered.push(
           <MarkdownText
             key={i}
-            text={block.text}
+            text={textOf(block)}
             streaming={streaming}
             labels={labels}
             fileMentions={mentions}
@@ -65,7 +69,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
             hidden={reasoningHidden}
             reveal={revealProcess}
           >
-            <ReasoningRow text={block.text} running={streaming && i === last} t={t} />
+            <ReasoningRow text={textOf(block)} running={streaming && i === last} t={t} />
           </ProcessReasoning>,
         )
         break

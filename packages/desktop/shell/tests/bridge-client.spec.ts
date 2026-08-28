@@ -124,6 +124,24 @@ describe('BridgeClient', () => {
     expect(controller.signal.aborted).toBe(true)
   })
 
+  it('settles a pending call when the synchronous write throws', async () => {
+    const socket = (client as unknown as { socket: Socket }).socket
+    const failure = new Error('write EPIPE')
+    const original = socket.write.bind(socket)
+    socket.write = () => { throw failure }
+    try {
+      const promise = client.call('echo', { value: 1 })
+      await expect(promise).rejects.toBe(failure)
+    } finally {
+      socket.write = original
+    }
+    // The failed write must not leave a pending entry behind.
+    const pending = (client as unknown as { pending: Map<number, unknown> }).pending
+    expect(pending.size).toBe(0)
+    // The client stays usable for the next call on the healthy socket.
+    await expect(client.call('echo', { after: true })).resolves.toEqual({ after: true })
+  })
+
   it('rejects pending calls and reports close when the server ends the socket', async () => {
     const promise = client.call('never-answered', {})
     serverSocket?.end()

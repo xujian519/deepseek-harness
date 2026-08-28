@@ -2,6 +2,21 @@
 
 > 探查日期:2026-08-17。方法:全仓静态扫描 + 三个并行深度探查 agent(core 组 / 能力包 / 基础设施包,合计覆盖 packages/ 全部 src 源码约 55k 行)。「已验证」条目经人工逐行复核;其余条目来自深度探查,行号以探查时为准。
 
+## 2026-08-28 更新(上游 v0.1.2-alpha.1 合并后的债务清扫)
+
+- **H1 证伪**:实测 cordis `resolveConfig` 走 schemastery `~standard.validate`,对缺失键返回 `{value:{}}` 无 issues(`vendor/cordis/src/fiber.ts:51-53`),schema 不拦省略、env 回退可达。不改 schema,已补 env 选择回归测试(`packages/web/web/tests/web.spec.ts`)。
+- **H2、H3 已修**(随上游 v0.1.2):llm-deepseek `parseWireChunk` 逐层结构化校验;settings `redactSecrets` 对含可达 secret 的不可展开节点 fail-closed。
+- **M5 已修**:`atomic-write` 现在把临时文件 fsync 于 rename 前、父目录条目 fsync 于 rename 后;目录 fsync 为 best-effort(Windows 无法打开目录句柄),平台差异收敛在 `src/fsync.ts`。Windows owner-only ACL 语义仍超范围。
+- **M6 部分消解**:`packages/host/apiproxy`(3744 行)已随上游删除,RPC 传输归 connection;`tools/src/code-mode.ts` 改名 `ptc.ts`。其余上帝文件仍在且继续增长(analyzer 3142、continuation 1569、coordinator 1439 行)。
+- **M7 已修**:两个 `describe.skip` 恢复(实测全套 <1s,「60s 超时」的跳过理由不成立),并修正滞后断言(service 方法模型新增 `kind` 判别字段)。
+- **M9 决策:保留**。消费者是已出货桌面构建(DSH Patent 0.1.1-rc.2)磁盘上的历史会话日志,无法证明无消费者;「不支持词汇 fail-loud + 旧形状迁移」是有意设计。首个 tagged release 或 SESSION_FORMAT_VERSION bump 时复审。
+- **L1 已修**:根 AGENTS.md 布局段收敛为指向 `packages/README.md`(唯一事实源),补 `apps/desktop` 与根 `examples/`;vitest coverage exclude 的 `packages/self-modification` 死条目删除。
+- **L2 已修**:lsp `finalExtension` 收敛为包内模块(`src/extension.ts`,不再公共导出);workflow `WorkflowEventName` 取消导出;subagent `'unsupported'` 死变体已随上游删除。
+- **L5 之 bridge-client 写路径泄漏已修**:同步 write 抛错现在 settle pending 条目并摘除 abort 监听(`packages/desktop/shell/src/bridge-client.ts`)。
+- **合并新增债已清**:vendor/README.md manifest 版本表刷新(commit 列标 not recorded,下次 sync 按程序补录);`docs/event-producer-consumer(.md/.zh)` 再生(apiproxy→remotes/tool-cordis);fork CI 增补 `test:docs` 门禁;coverage exclude 登记 patent/synapse/self-evolve/ui-agent-preset(hygiene-gate note 第 3 项);ui-chat 两处 `it.skip` 恢复(skip-hardening 移植进上游 fold,AssistantMarkdown 加 textOf 兜底);桌面打包链修复(REQUIRED_BACKEND_PATHS 移除 apiproxy,apps/cli 显式声明 deploy 会丢弃的 9 个 peer seam 包,`package:desktop:prepare` 端到端验证通过)。
+- **仍然开放**:H4、H5、H7(副本约 13 份)、M1、M2、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H5/H7/M1 按台账「先收原语、再收调用点、每项独立 PR」推进。
+- **hygiene 门禁现为红(既有,2026-08-28 确认)**:vendor rescope 的 6 处 exact-edit 漂移(agent-spine-demo README 双语 + cookbook 双语)、`ui-settings-models/onboarding-copy.ts` 的 6 条硬编码欢迎文案(需走 locale 字典)、3 个 client 包(synapse/ui-document-studio/ui-patent-teams)的 peer+dev 声明与 `verify-client-packages` 规则不一致。均为合并窗口遗留,文件未受本次清扫触碰,归入各自后续修复。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
@@ -131,7 +146,7 @@
 | `packages/extensions/cordis-host-runner/src/index.ts` | 1274 | Dynamic Plugin 服务 |
 | `packages/client/ui-slots/src/index.ts` | 1192 | — |
 | `packages/core/session/src/index.ts` | 1157 | session 服务 + 事件词汇 |
-| `packages/client/runtime/src/client/sessions/manager.ts` | 1131 | — |
+| `packages/api/session-controller/src/client/sessions/manager.ts` | 1131 | — |
 | `packages/session-query/session-query-sqlite/src/index.ts` | 1103 | — |
 | `packages/typert/generator/src/cordis-catalog.ts` | 1059 | — |
 | `packages/skill/skill-filesystem/src/index.ts` | 1041 | provider + watcher 状态机 + 发现/解析(`TODO(file-watch-service)` 自认应抽取) |

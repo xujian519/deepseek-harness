@@ -2,6 +2,7 @@
 
 /** STARTUPINFOW uses the standard input, output, and error handles. */
 export const STARTF_USESHOWWINDOW = 0x00000001
+/** STARTUPINFOW maps the standard handle entries. */
 export const STARTF_USESTDHANDLES = 0x00000100
 /** HandleInformation flag that permits child inheritance. */
 export const HANDLE_FLAG_INHERIT = 0x1

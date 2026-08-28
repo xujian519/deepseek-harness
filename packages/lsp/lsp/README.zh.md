@@ -84,14 +84,14 @@ seam 需要提供方与消费方才能发挥作用。最小组合挂载服务、
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`Lsp` 服务、`registerProvider`／`query`、`finalExtension`、`LspError` code |
+| [`src/index.ts`](src/index.ts) | 插件入口：`Lsp` 服务、`registerProvider`／`query`、`LspError` code |
 | [`src/types.ts`](src/types.ts) | seam 词汇：请求、结果、提供方与服务约定 |
 | [`src/brand.ts`](src/brand.ts) | `LspProviderId` 品牌化 id 类型与工厂 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；路由是私有原子状态） |
 
 ### 注册与选择生命周期
 
-注册与释放通过 `ctx.effect()` 执行，因此提供方路由随注册 fiber 一同存活与消亡。`finalExtension()` 按两种路径分隔符切分，对没有扩展名的名称或点开头的 dotfile 返回 `''`，任何路由都不会匹配。`LspError` 扩展 `HarnessError`，携带稳定的 code（`LSP_INVALID_PROVIDER`、`LSP_CONFLICT`、`LSP_UNAVAILABLE`、`LSP_DISPOSED`、`LSP_UNSUPPORTED_OPERATION`、`LSP_MALFORMED_RESPONSE`），调用方据此路由，而不是解析 `message`。
+注册与释放通过 `ctx.effect()` 执行，因此提供方路由随注册 fiber 一同存活与消亡。路由匹配把文件的最终扩展名归一化（小写、带点；无扩展名或点开头的 dotfile 不匹配任何路由）。`LspError` 扩展 `HarnessError`，携带稳定的 code（`LSP_INVALID_PROVIDER`、`LSP_CONFLICT`、`LSP_UNAVAILABLE`、`LSP_DISPOSED`、`LSP_UNSUPPORTED_OPERATION`、`LSP_MALFORMED_RESPONSE`），调用方据此路由，而不是解析 `message`。
 
 </details>
 

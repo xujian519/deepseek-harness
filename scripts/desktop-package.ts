@@ -78,7 +78,6 @@ const REQUIRED_BACKEND_PATHS = [
   'node_modules/@deepseek-ai/dsh-llm/package.json',
   'node_modules/@deepseek-ai/dsh-session/package.json',
   'node_modules/@deepseek-ai/dsh-host-webserver/package.json',
-  'node_modules/@deepseek-ai/dsh-host-apiproxy/package.json',
   'node_modules/@deepseek-ai/dsh-host-frontend-static/package.json',
   'node_modules/@deepseek-ai/dsh-subagent/package.json',
   'node_modules/@deepseek-ai/dsh-system-prompt/package.json',

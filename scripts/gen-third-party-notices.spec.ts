@@ -165,6 +165,12 @@ describe('parseVendoredRows', () => {
     expect(parseVendoredRows('| `cordis/` | `@deepseek-ai/cordis` | cordis | 4.0.0 | https://example.com | `abc123` |\n')).toEqual([])
   })
 
+  it('accepts a `pending` commit cell as a parseable row awaiting its next sync', () => {
+    expect(parseVendoredRows('| `cordis/` | `@deepseek-ai/cordis` | `cordis` | 4.0.1 | https://example.com | `pending` |\n')).toEqual([
+      { npmName: '@deepseek-ai/cordis', upstreamName: 'cordis', upstream: 'https://example.com' },
+    ])
+  })
+
   it('covers every vendored directory, so no package can drop out of the notices', () => {
     const parsed = new Set(parseVendoredRows(readFileSync(resolve(root, 'vendor/README.md'), 'utf8')).map(row => row.npmName))
     const onDisk = readdirSync(resolve(root, 'vendor'), { withFileTypes: true })

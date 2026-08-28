@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Lsp, {
-  finalExtension,
   LspError,
   LspProviderId,
   type LspProvider,
   type LspProviderQuery,
   type LspQueryResult,
 } from '@deepseek-ai/dsh-lsp'
+import { finalExtension } from '../src/extension.ts'
 
 /** A scripted provider that records the queries it receives. */
 function makeProvider(

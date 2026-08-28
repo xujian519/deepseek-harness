@@ -170,7 +170,14 @@ export class BridgeClient {
         signal.addEventListener('abort', onAbort, { once: true })
       }
       this.pending.set(id, pending)
-      socket.write(JSON.stringify(request) + '\n')
+      try {
+        socket.write(JSON.stringify(request) + '\n')
+      } catch (error) {
+        // A synchronous write failure (the main process died between the
+        // readyState check and the write) must settle the entry, or the call
+        // hangs until an abort that may never come.
+        this.settle(id, pending, error instanceof Error ? error : new Error(String(error)))
+      }
     })
   }
   /**

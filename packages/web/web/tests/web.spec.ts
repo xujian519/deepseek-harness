@@ -113,6 +113,22 @@ describe('WebRuntime execution resolution', () => {
     await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
   })
 
+  it('selects the provider pinned by the environment variables when config omits them', async () => {
+    process.env.DSH_WEB_SEARCH_PROVIDER = 'env-search'
+    process.env.DSH_WEB_FETCH_PROVIDER = 'env-fetch'
+    try {
+      const { web } = await mountWeb()
+      web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
+      web.registerSearchProvider(makeSearchProvider('env-search', available, () => Promise.resolve(searchResult('env'))))
+      web.registerFetchProvider(makeFetchProvider('env-fetch', available, fetchResult('env')))
+      await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'env' })
+      await expect(web.fetch({ url: 'https://example.com' })).resolves.toMatchObject({ body: { kind: 'text', content: 'env' } })
+    } finally {
+      delete process.env.DSH_WEB_SEARCH_PROVIDER
+      delete process.env.DSH_WEB_FETCH_PROVIDER
+    }
+  })
+
   it('ignores unusable providers when auto-selecting', async () => {
     const { web } = await mountWeb()
     web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))

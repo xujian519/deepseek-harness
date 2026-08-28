@@ -29,7 +29,10 @@ const TYPE_FALLBACK_CONFIDENCE = 0.5
 /** 独立权利要求（权 1）之外视为从属，从属需足够实质限定（≥ 该字数）才 medium。 */
 const DEPENDENT_SUBSTANTIAL_MIN = 20
 
-/** 依据技术关键词判定特征类型。 */
+/** 依据技术关键词判定特征类型。
+ * @param text - 特征原文。
+ * @returns 判定的特征类型；无关键词命中时为 `other`。
+ */
 export function determineFeatureType(text: string): AnalysisFeatureType {
   for (const { type, keywords } of TYPE_KEYWORDS) {
     if (keywords.some(kw => text.includes(kw))) return type
@@ -37,7 +40,11 @@ export function determineFeatureType(text: string): AnalysisFeatureType {
   return 'other'
 }
 
-/** 依据权利要求位置与实质限定长度判定重要性。 */
+/** 依据权利要求位置与实质限定长度判定重要性。
+ * @param claimNo - 权利要求编号（权 1 为独立权利要求）。
+ * @param text - 特征原文。
+ * @returns 判定的重要性档位。
+ */
 export function determineImportance(claimNo: number, text: string): FeatureImportance {
   if (claimNo === 1) return 'high'
   return text.length >= DEPENDENT_SUBSTANTIAL_MIN ? 'medium' : 'low'

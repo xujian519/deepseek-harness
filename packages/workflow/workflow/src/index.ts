@@ -91,7 +91,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** The full set of `workflow/*` event names {@link WorkflowEngine.emitWorkflowEvent} dispatches. */
-export type WorkflowEventName =
+type WorkflowEventName =
   | 'workflow/start'
   | 'workflow/phase'
   | 'workflow/log'

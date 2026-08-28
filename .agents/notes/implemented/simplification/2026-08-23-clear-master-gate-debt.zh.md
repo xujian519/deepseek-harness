@@ -31,4 +31,4 @@ master 带着 #23（synapse）、#24（ui-document-studio）、#26（self-evolve
 
 ## Consequences
 
-master 上 `hygiene` 组十三道门禁全部通过（此前七道），全仓 typecheck、CI oxlint、受影响包测试与覆盖率门禁均绿。`self-evolve-eval` 的 e2e 入口落地了 [knip-config-cleanup note](2026-08-19-knip-config-cleanup.zh.md) 中推迟的 "e2e entry folding" 开放项。
+master 上 `hygiene` 组十三道门禁全部通过（此前七道），全仓 typecheck、CI oxlint、受影响包测试与覆盖率门禁均绿。`self-evolve-eval` 的 e2e 入口落地了 [knip-config-cleanup note](../../archived/simplification/2026-08-19-knip-config-cleanup.md) 中推迟的 "e2e entry folding" 开放项。

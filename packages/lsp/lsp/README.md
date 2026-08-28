@@ -84,14 +84,14 @@ This section explains the design decisions behind the seam and where the code re
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `Lsp` service, `registerProvider`/`query`, `finalExtension`, `LspError` codes |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `Lsp` service, `registerProvider`/`query`, `LspError` codes |
 | [`src/types.ts`](src/types.ts) | Seam vocabulary: request, result, provider, and service contracts |
 | [`src/brand.ts`](src/brand.ts) | `LspProviderId` branded-id type and factory |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; routes are private atomic state) |
 
 ### Registration and selection lifecycle
 
-Registration and disposal run through `ctx.effect()`, so provider routes live and die with the registering fiber. `finalExtension()` splits on both path separators and returns `''` for names without an extension or leading-dot dotfiles, which no route matches. `LspError` extends `HarnessError` with stable codes (`LSP_INVALID_PROVIDER`, `LSP_CONFLICT`, `LSP_UNAVAILABLE`, `LSP_DISPOSED`, `LSP_UNSUPPORTED_OPERATION`, `LSP_MALFORMED_RESPONSE`) that callers route on instead of parsing `message`.
+Registration and disposal run through `ctx.effect()`, so provider routes live and die with the registering fiber. Route matching normalizes a file's final extension (lowercase, leading dot; names without an extension or leading-dot dotfiles match no route). `LspError` extends `HarnessError` with stable codes (`LSP_INVALID_PROVIDER`, `LSP_CONFLICT`, `LSP_UNAVAILABLE`, `LSP_DISPOSED`, `LSP_UNSUPPORTED_OPERATION`, `LSP_MALFORMED_RESPONSE`) that callers route on instead of parsing `message`.
 
 </details>
 

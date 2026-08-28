@@ -424,6 +424,9 @@ export interface VendoredRow {
 
 /**
  * Parse the vendored-package manifest table out of `vendor/README.md`.
+ * A Commit cell may read `pending` (an unrecorded upstream pin awaiting the
+ * next sync); it stays a parseable row so the package cannot vanish from the
+ * notices disclosure.
  * @param text - the complete `vendor/README.md` contents.
  * @returns one row per manifest-table entry, in table order.
  */
@@ -431,7 +434,7 @@ export function parseVendoredRows(text: string): VendoredRow[] {
   const rows: VendoredRow[] = []
   for (const line of text.split('\n')) {
     const match = new RegExp(String.raw`^\| \x60\S+\/\x60 \| \x60([^\x60]+)\x60 \| \x60([^\x60]+)\x60 \| \S+ \| `
-      + String.raw`(https:\/\/\S+?)(?: \([^)]*\))? \| \x60[0-9a-f]+\x60 \|$`).exec(line)
+      + String.raw`(https:\/\/\S+?)(?: \([^)]*\))? \| \x60(?:[0-9a-f]+|pending)\x60 \|$`).exec(line)
     if (match === null) continue
     const [, npmName, upstreamName, upstream] = match
     if (npmName === undefined || upstreamName === undefined || upstream === undefined) continue

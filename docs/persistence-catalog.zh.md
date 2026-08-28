@@ -65,6 +65,13 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
     /** Unix epoch milliseconds. */
     time: number
     data: SessionEventMap[K]
+    /**
+     * Envelope marker written via {@link AppendOptions.ignorable}; a reader
+     * that does not recognize `type` may safely skip the record. Absent means
+     * required: the read path refuses an unrecognized type without this
+     * marker instead of silently resuming a gutted session.
+     */
+    ignorable?: true
   } & (K extends SurfaceEventType ? {
     /**
      * Seq numbers of earlier events that this event cites as sources

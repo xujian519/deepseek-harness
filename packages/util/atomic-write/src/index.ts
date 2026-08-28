@@ -13,6 +13,7 @@
 import { randomBytes } from 'node:crypto'
 import { lstat, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { syncDirectoryDurably, syncFileDurably } from './fsync.ts'
 
 /**
  * Filesystem options for {@link writeFileAtomic}; `mode` is required so the
@@ -41,7 +42,10 @@ export interface WriteFileAtomicOptions {
  * race. The rename also replaces a symlinked target itself instead of writing
  * through to its referent, and the same-directory sibling keeps the rename on
  * one filesystem. On any failure the temp file is removed and the failure
- * rethrown. Crash durability (fsync) is out of scope.
+ * rethrown. Crash durability: the temp file is fsynced before the rename and
+ * the parent directory entry after it, so a crash leaves either the old
+ * content or the new complete content; the directory flush is best-effort
+ * (Windows cannot open a directory handle) and never fails the write.
  * @param filename - final path receiving the content.
  * @param content - complete next file content.
  * @param options - permission bits for the replacement inode.
@@ -51,12 +55,12 @@ export async function writeFileAtomic(filename: string, content: string, options
     recursive: true,
     ...options.dirMode === undefined ? {} : { mode: options.dirMode },
   })
-  // TODO(settings-atomic-durability): Use a replacement that fsyncs the file
-  // and parent directory and preserves owner-only permissions on Windows.
   const temp = `${filename}.${randomBytes(6).toString('hex')}.tmp`
   try {
     await writeFile(temp, content, { mode: options.mode, flag: 'wx' })
+    await syncFileDurably(temp)
     await rename(temp, filename)
+    await syncDirectoryDurably(dirname(filename))
   } catch (error) {
     await rm(temp, { force: true })
     throw error

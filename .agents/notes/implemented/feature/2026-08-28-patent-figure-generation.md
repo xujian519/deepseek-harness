@@ -17,11 +17,19 @@ Port the generation side natively into `packages/patent/patent-tools` (no Python
 - `figure/graphviz-renderer.ts` — `findDot` (override → `DSH_GRAPHVIZ_DOT` → platform candidates → PATH), `probeGraphviz` (`dot -V`), `renderWithGraphviz` (argv-only subprocess, stdin DOT, timeout/abort classification, install guidance on absence).
 - `tool/generate-patent-figure.ts` (+ `add_patent_figure_references.ts`) — registered in `apply()` with `Config.graphvizExecutable` / `figureOutputDir` / `dotFont`; numeral assignment runs once and drives both the DOT and the returned numeral map; `persist_index` (default on) upserts a deterministic `FigureAnalysisResult` (confidence 1, `modelUsed='graphviz-generator'`) into the existing figures-index, closing the loop: generate → search → analyze re-check.
 
-Rejected: the MCP bridge (duplicates the Sati-port decision — model-visible surfaces must be native to dsh), BigQuery/EPO/USPTO search, and the full plugin; the port is scoped to figures only.
+## Alternatives considered
+
+**Bridge Graphviz through MCP.** Rejected: it duplicates the Sati-port decision — model-visible surfaces must be native to dsh.
+
+**Tie generation to BigQuery/EPO/USPTO search, or port the full upstream plugin.** Rejected: the port is scoped to figures only.
 
 ## Verification
 
 Unit coverage: dot-builder (assign numeral series, conflict detection, black/white style, decision edge labels, template numerals 101-105), svg-annotate (safety rejection, multi-hit, warnings), graphviz-renderer (discovery order, exit/abort/render-failure classification via injected subprocess), tool level (input validation, error-code mapping, index upsert + silence on failure, search end-to-end over the real index store). New files hold 100% statement/branch/function/line coverage.
+
+## Consequences
+
+The drafting loop can now produce patent-style figures end to end, and a generated figure lands in the same index the existing `analyze_patent_figure` path re-checks. Graphviz becomes a system requirement of the figure feature: without `dot` the tool fails loud with `setup_required` instead of degrading silently.
 
 ## Notes
 

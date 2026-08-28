@@ -23,3 +23,7 @@ kind: "package-group"
 | [`methodology/`](methodology/README.zh.md) | TRIZ 40 原理 + 39×39 矛盾矩阵。 | （section + 工具） |
 
 各包契约由子 README 负责。在对应计划阶段落地前，所有包均处于脚手架阶段。
+
+## Related documentation
+
+- [Patent domain subsystem](../../docs/subsystems/patent.zh.md) — 本族的领域模型、证据与工作流契约。

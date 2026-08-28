@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-28-patent-figure-generation.md
-2026-08-28-patent-figure-generation.md: 4efb7223a695826d2b6088c97c6a6c543ba41dae
-2026-08-28-patent-figure-generation.zh.md: 4d4231d8ca9ff0a719bbc06474a90705793ae4b8
+2026-08-28-patent-figure-generation.md: 6e8d8c2fada177f42feb2b4cc513618653316600
+2026-08-28-patent-figure-generation.zh.md: 5aea94e7f4b1e5255287baa50758ab71817d9f48

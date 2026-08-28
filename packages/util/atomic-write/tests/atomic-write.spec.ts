@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { withFileLock, writeFileAtomic } from '../src/index.ts'
+import { syncDirectoryDurably, syncFileDurably } from '../src/fsync.ts'
 
 const state = vi.hoisted(() => ({ failLockCreateWithEPERM: false }))
 
@@ -145,5 +146,22 @@ describe('withFileLock', () => {
     release()
     await holder
     expect(await patient).toBe('patient')
+  })
+})
+
+describe('fsync durability helpers', () => {
+  it('fsyncs a written file and its parent directory without error', async () => {
+    const dir = await scratch()
+    const file = join(dir, 'durable.txt')
+    await writeFile(file, 'content\n', { mode: 0o600 })
+    await expect(syncFileDurably(file)).resolves.toBeUndefined()
+    await expect(syncDirectoryDurably(dir)).resolves.toBeUndefined()
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('skips the directory fsync when the directory handle cannot be opened', async () => {
+    // A nonexistent path refuses to open on every platform, exercising the
+    // best-effort skip the contract states for Windows and refused fsyncs.
+    await expect(syncDirectoryDurably(join(tmpdir(), `dsh-atomic-write-missing-${process.pid}`))).resolves.toBeUndefined()
   })
 })

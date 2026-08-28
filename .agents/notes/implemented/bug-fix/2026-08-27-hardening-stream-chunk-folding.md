@@ -6,7 +6,7 @@ English | [中文](2026-08-27-hardening-stream-chunk-folding.zh.md)
 
 ## Problem
 
-A session whose assistant stream carried a malformed chunk crashed the whole conversation tree instead of degrading. Three cases reached the renderer: a stream-chunk block index that was negative, fractional, or absurdly large; a `text-delta`/`reasoning-delta`/`tool-call-delta` whose payload was not a string; and a `block-end` whose `block` was not an object. The partial accumulator (`packages/client/runtime/src/client/sessions/partial.ts`) wrote the index straight into a sparse `blocks` array, the projector (`packages/client/ui-conversation/src/client/conversation-nodes/assistant.ts`) did the same on the conversation-node side, and `AssistantMarkdown` fed `block.text` into the markdown renderer unchanged. A null `block-end` payload throws in `toAssistantBlock`; a non-string text later reaches `MarkdownText`. On a long-running team task this surfaced as a white screen when the conversation panel was opened.
+A session whose assistant stream carried a malformed chunk crashed the whole conversation tree instead of degrading. Three cases reached the renderer: a stream-chunk block index that was negative, fractional, or absurdly large; a `text-delta`/`reasoning-delta`/`tool-call-delta` whose payload was not a string; and a `block-end` whose `block` was not an object. The partial accumulator (`packages/client/ui-chat/src/client/conversation-nodes/partial.ts`) wrote the index straight into a sparse `blocks` array, the projector (`packages/client/ui-chat/src/client/conversation-nodes/assistant.ts`) did the same on the conversation-node side, and `AssistantMarkdown` fed `block.text` into the markdown renderer unchanged. A null `block-end` payload throws in `toAssistantBlock`; a non-string text later reaches `MarkdownText`. On a long-running team task this surfaced as a white screen when the conversation panel was opened.
 
 ## Decision
 
@@ -27,3 +27,5 @@ A malformed chunk is skipped: the accumulated blocks stay as-is instead of eithe
 ## Consequences
 
 A malformed assistant chunk now degrades to a skipped block instead of crashing the conversation tree; the white screen on opening a team-task conversation panel no longer reproduces. Because the defensive checks run on both the accumulator and the projector, the projection survives whichever path the chunk arrives through. The cost is a per-chunk index/payload check, negligible next to the render work.
+
+> 2026-08-28: the upstream v0.1.2-alpha.1 sync removed `packages/client/runtime` and refactored the fold; this hardening re-landed at the ui-chat paths above (see [2026-08-28-post-sync-debt-sweep](2026-08-28-post-sync-debt-sweep.md)). The paths in the body now point there.

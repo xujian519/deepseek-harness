@@ -17,11 +17,19 @@ Status: implemented
 - `figure/graphviz-renderer.ts` — `findDot`（覆盖值 → `DSH_GRAPHVIZ_DOT` → 平台候选路径 → PATH）、`probeGraphviz`（`dot -V`）、`renderWithGraphviz`（argv 直传子进程、stdin 传 DOT、超时/取消分类、缺失时安装引导）。
 - `tool/generate-patent-figure.ts`（+ `add_patent_figure_references.ts`）— `apply()` 注册，新增 `Config.graphvizExecutable` / `figureOutputDir` / `dotFont`；标号一次分配驱动 DOT 与返回标号表；`persist_index`（默认开）把确定性 `FigureAnalysisResult`（置信度 1，`modelUsed='graphviz-generator'`）upsert 进既有附图索引，闭环：生成 → 检索 → 分析复核。
 
-否决：MCP 桥接（沿 Sati 移植决定——模型可见表面必须原生进 dsh）、BigQuery/EPO/USPTO 检索、整体插件；移植范围仅附图。
+## 已否决的替代方案
+
+**经 MCP 桥接 Graphviz。** 否决：沿 Sati 移植决定——模型可见表面必须原生进 dsh。
+
+**挂接 BigQuery/EPO/USPTO 检索，或整体移植上游插件。** 否决：移植范围仅附图。
 
 ## 验证
 
 单测覆盖：dot-builder（标号系列/冲突检测/黑白风格/决策边标签/模板 101-105 固定编号）、svg-annotate（安全拒绝/多次命中/警告）、graphviz-renderer（探测顺序/退出/取消/渲染失败分类，经注入子进程）、工具层（输入校验、错误码映射、索引 upsert 与失败静默、经真实索引存储的 search 端到端）。新文件 100% 语句/分支/函数/行覆盖。
+
+## 后果
+
+起草环节现在能端到端产出专利风格附图，生成的附图落入既有 `analyze_patent_figure` 路径可复核的同一索引。Graphviz 成为附图功能的系统依赖：缺 `dot` 时工具以 `setup_required` 响亮失败，而非静默降级。
 
 ## 备注
 

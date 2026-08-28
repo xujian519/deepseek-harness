@@ -65,7 +65,7 @@ kind: "package-reference"
 └── snapshots/v<version>.tar.gz # whole agent-state snapshot, excluding .vault.toml
 ```
 
-## Optimization loop(C1 + C3)
+## Optimization loop (C1 + C3)
 
 `optimizeLoop` 的每一轮都会铸造一个新的快照版本(版本只增不减、永不回收),打包当前 agent 状态,只基于公共 statement 面提出一个候选,应用它,评估完整矩阵,并且仅当候选分数严格高于参考时才接受该轮。被拒绝的候选回滚到其快照;被接受的候选成为新的参考,配置了 `targetScore` 时循环提前停止。
 

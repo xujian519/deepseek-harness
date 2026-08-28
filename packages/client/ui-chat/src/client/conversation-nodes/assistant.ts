@@ -95,6 +95,21 @@ function resetForRetry(state: AssistantState): AssistantState {
   }
 }
 
+/** A block index the projector may write into: a non-negative integer. */
+function isBlockIndex(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+/** Whether the delta payload is the string the text/reasoning accumulators concatenate. */
+function isDeltaText(value: unknown): value is string {
+  return typeof value === 'string'
+}
+
+/** Whether the block-end payload is an object that toAssistantBlock can classify. */
+function isBlockPayload(value: unknown): value is Parameters<typeof toAssistantBlock>[0] {
+  return typeof value === 'object' && value !== null
+}
+
 function updateChunk(state: AssistantState, match: ConversationMatch): AssistantState {
   if (match.event.type !== 'assistant/chunk') return state
   const chunk = match.event.data.chunk
@@ -102,12 +117,17 @@ function updateChunk(state: AssistantState, match: ConversationMatch): Assistant
   let changedIndex = -1
   let previousVisible = false
   switch (chunk.type) {
+    // The model boundary may lie: a chunk with an unusable index or payload
+    // degrades to a skip so one malformed delta cannot crash the conversation
+    // tree. `usage` carries no index and keeps its handling.
     case 'block-start':
+      if (!isBlockIndex(chunk.index)) return state
       changedIndex = chunk.index
       previousVisible = blockIsVisible(blocks[chunk.index])
       blocks[chunk.index] = emptyAssistantBlock(chunk.blockType)
       break
     case 'text-delta': {
+      if (!isBlockIndex(chunk.index) || !isDeltaText(chunk.text)) return state
       const previous = blocks[chunk.index]
       changedIndex = chunk.index
       previousVisible = blockIsVisible(previous)
@@ -115,6 +135,7 @@ function updateChunk(state: AssistantState, match: ConversationMatch): Assistant
       break
     }
     case 'reasoning-delta': {
+      if (!isBlockIndex(chunk.index) || !isDeltaText(chunk.text)) return state
       const previous = blocks[chunk.index]
       changedIndex = chunk.index
       previousVisible = blockIsVisible(previous)
@@ -122,6 +143,7 @@ function updateChunk(state: AssistantState, match: ConversationMatch): Assistant
       break
     }
     case 'tool-call-delta': {
+      if (!isBlockIndex(chunk.index) || !isDeltaText(chunk.argumentsDelta)) return state
       const previous = blocks[chunk.index]
       changedIndex = chunk.index
       previousVisible = blockIsVisible(previous)
@@ -137,6 +159,9 @@ function updateChunk(state: AssistantState, match: ConversationMatch): Assistant
       break
     }
     case 'block-end':
+      // toAssistantBlock switches on block.type; a non-object payload must
+      // never reach it.
+      if (!isBlockIndex(chunk.index) || !isBlockPayload(chunk.block)) return state
       changedIndex = chunk.index
       previousVisible = blockIsVisible(blocks[chunk.index])
       blocks[chunk.index] = toAssistantBlock(chunk.block)
@@ -199,6 +224,9 @@ function chunkRunBoundaries(
 }
 
 function updateChunkRun(state: AssistantState, event: ChunkRowEvent): AssistantState {
+  // Packed rows persist across sessions; a stale or corrupt index degrades to
+  // a skip under the same rule as the live chunk path.
+  if (!isBlockIndex(event.data.index)) return state
   const blocks = [...state.blocks]
   const previous = blocks[event.data.index]
   const previousVisible = blockIsVisible(previous)

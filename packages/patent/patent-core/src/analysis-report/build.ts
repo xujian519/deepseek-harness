@@ -62,7 +62,10 @@ const NEW_KNOWLEDGE_PENALTY = 70
 /** 单一质量维度评分的稳定顺序。 */
 const SCORE_ORDER: readonly QualityDomain[] = ['novelty', 'clarity', 'completeness', 'technical_strength']
 
-/** 权利要求清晰度评分：模糊限定词越少越高。 */
+/** 权利要求清晰度评分：模糊限定词越少越高。
+ * @param claims - 全部权利要求文本。
+ * @returns 清晰度维度的确定性评分。
+ */
 export function computeClarityScore(claims: readonly string[]): QualityScore {
   if (claims.length === 0) {
     return { domain: 'clarity', score: 0, basis: 'deterministic', rationale: '缺少权利要求文本' }
@@ -78,7 +81,11 @@ export function computeClarityScore(claims: readonly string[]): QualityScore {
   return { domain: 'clarity', score, basis: 'deterministic', rationale }
 }
 
-/** 完整性评分：权利要求与摘要要素覆盖。 */
+/** 完整性评分：权利要求与摘要要素覆盖。
+ * @param claims - 全部权利要求文本。
+ * @param abstract - 说明书摘要；缺省按缺失扣分。
+ * @returns 完整性维度的确定性评分。
+ */
 export function computeCompletenessScore(claims: readonly string[], abstract?: string): QualityScore {
   if (claims.length === 0) {
     return { domain: 'completeness', score: 0, basis: 'deterministic', rationale: '缺少权利要求文本' }
@@ -104,7 +111,11 @@ export function computeCompletenessScore(claims: readonly string[], abstract?: s
   return { domain: 'completeness', score: Math.max(0, score), basis: 'deterministic', rationale }
 }
 
-/** 合并确定性评分与 LLM 补分（LLM 覆盖同维度），按稳定顺序输出。 */
+/** 合并确定性评分与 LLM 补分（LLM 覆盖同维度），按稳定顺序输出。
+ * @param deterministic - 确定性评分集合。
+ * @param modelScores - 模型补分；同维度覆盖确定性结果。
+ * @returns 按 `SCORE_ORDER` 排序的合并评分。
+ */
 export function mergeScores(
   deterministic: readonly QualityScore[],
   modelScores?: Partial<Record<QualityDomain, ModelScoreEntry>>,
@@ -125,7 +136,10 @@ export function mergeScores(
   return result
 }
 
-/** 把 IPC 分类映射为报告摘要（name 自 IPC_DOMAINS 解析）。 */
+/** 把 IPC 分类映射为报告摘要（name 自 IPC_DOMAINS 解析）。
+ * @param classification - IPC 分类结果。
+ * @returns 报告使用的 IPC 摘要。
+ */
 export function toIpcSummary(classification: IpcClassification): IpcSummary {
   const domain = getIpcDomain(classification.section)
   const summary: IpcSummary = {

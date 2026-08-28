@@ -84,11 +84,7 @@ afterEach(() => {
 })
 
 describe('stream-chunk resilience', () => {
-  // FIXME(port): the removed fork runtime skipped malformed chunk folds (see
-  // .agents/notes/implemented/bug-fix/2026-08-27-hardening-stream-chunk-folding.md);
-  // the upstream ui-chat fold throws on them instead. Unskip once that
-  // skip-hardening is ported into the upstream chunk fold.
-  it.skip('projects malformed / extreme assistant chunks without crashing the conversation tree', () => {
+  it('projects malformed / extreme assistant chunks without crashing the conversation tree', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
       at(2, 'step/start', { turn: 1, step: 1 }),
@@ -121,9 +117,7 @@ describe('stream-chunk resilience', () => {
     expect(text?.text).toBe('好' + '内容'.repeat(5_000))
   })
 
-  // FIXME(port): same missing skip-hardening as above — the upstream
-  // AssistantMarkdown render path assumes well-formed blocks.
-  it.skip('renders malformed assistant blocks without throwing', () => {
+  it('renders malformed assistant blocks without throwing', () => {
     const t = makeTranslate(zh, commonZh)
     const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
     const blocks = [

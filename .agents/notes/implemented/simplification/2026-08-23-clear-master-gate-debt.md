@@ -31,4 +31,4 @@ Master carried five failing repository gates left by the #23 (synapse), #24 (ui-
 
 ## Consequences
 
-All thirteen `hygiene` gates pass on master (previously seven), with the full typecheck, CI oxlint, focused package suites, and the coverage gate green. The `self-evolve-eval` e2e entry realizes the deferred "e2e entry folding" item of the [knip-config-cleanup note](2026-08-19-knip-config-cleanup.md).
+All thirteen `hygiene` gates pass on master (previously seven), with the full typecheck, CI oxlint, focused package suites, and the coverage gate green. The `self-evolve-eval` e2e entry realizes the deferred "e2e entry folding" item of the [knip-config-cleanup note](../../archived/simplification/2026-08-19-knip-config-cleanup.md).
