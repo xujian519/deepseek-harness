@@ -7895,6 +7895,9 @@ importers:
       '@deepseek-ai/dsh-patent-workflow':
         specifier: workspace:^
         version: link:../patent-workflow
+      '@deepseek-ai/dsh-subprocess':
+        specifier: workspace:^
+        version: link:../../subprocess/subprocess
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../core/system-prompt
