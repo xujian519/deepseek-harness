@@ -96,6 +96,9 @@ describe('DiffTab cancelled guards', () => {
     await flushed()
 
     const failure = deferred<{ diff: string }>()
+    // The unmounted viewer attaches its catch a microtask late under load;
+    // keep this deliberate rejection out of Node's unhandled lane.
+    failure.promise.catch(() => {})
     vi.spyOn(api, 'gitDiff').mockReturnValue(failure.promise)
     const worktree = mountNode(createElement(DiffTab, {
       sessionId: 's1', cwd: '/ws', diff: { kind: 'worktree', path: 'b.ts', staged: true },
@@ -156,6 +159,8 @@ describe('PdfView aborted loads', () => {
       revokeObjectURL: vi.fn(),
     }))
     const failure = deferred<Response>()
+    // Same deliberate-rejection quarantine as above.
+    failure.promise.catch(() => {})
     vi.stubGlobal('fetch', vi.fn(() => failure.promise))
     const { container, unmount } = mountNode(createElement(PdfView, {
       scope: { sessionId: 's1', cwd: '/ws' }, path: '/ws/d.pdf', title: 'd.pdf',
@@ -218,6 +223,9 @@ describe('EditorHost cancelled guards and toolbar labels', () => {
     await act(async () => { loads.resolve('late data') })
     // A second viewer instance: rejection with a non-Error after unmount.
     const failure = deferred<string>()
+    // The unmounted viewer attaches its catch a microtask late under load;
+    // keep this deliberate rejection out of Node's unhandled lane.
+    failure.promise.catch(() => {})
     vi.spyOn(api, 'fsTree').mockResolvedValue({ path: '/', entries: [], truncated: false })
     service.registerFileViewer({
       id: 'test:custom2', exts: ['custom2'], fetchStrategy: 'custom',
@@ -247,6 +255,8 @@ describe('EditorHost cancelled guards and toolbar labels', () => {
     expect(container.isConnected).toBe(false)
 
     const failure = deferred<never>()
+    // Same deliberate-rejection quarantine as above.
+    failure.promise.catch(() => {})
     vi.spyOn(api, 'fsRead').mockReturnValue(failure.promise)
     service.openTab({ type: 'editor', title: 'z.fsr', path: '/tmp/z.fsr', id: 'editor:/tmp/z.fsr' })
     const second = hostFor(ctx, store, '/tmp/z.fsr')
