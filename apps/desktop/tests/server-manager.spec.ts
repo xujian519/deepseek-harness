@@ -83,6 +83,20 @@ describe('startDshBackend', () => {
     await backend.dispose()
   })
 
+  it('preserves the auth token query on the loopback URL', async () => {
+    const entry = fixture("console.log('dsh web: http://127.0.0.1:12345/?token=secret')\nsetInterval(() => {}, 1000)\n")
+    const backend = startDshBackend({
+      nodeBin: process.execPath,
+      entry,
+      loaderArgs: [],
+      profile: 'test',
+      args: [],
+      cwd: join(entry, '..'),
+    })
+    await expect(backend.ready).resolves.toBe('http://127.0.0.1:12345/?token=secret')
+    await backend.dispose()
+  })
+
   it('ignores a readiness line for a non-loopback host', async () => {
     const entry = fixture("console.log('dsh web: http://0.0.0.0:12345')\nsetInterval(() => {}, 1000)\n")
     const backend = startDshBackend({
