@@ -218,6 +218,8 @@ flowchart LR
   pkg_client_modules["client-modules"]
   pkg_client_hmr["client-hmr"]
   svc_clientModules["ctx.clientModules<br/>Client plugin graph host"]
+  pkg_better_sidebar["better-sidebar"]
+  svc_betterSidebar["ctx.betterSidebar<br/>Sidebar tab and file-viewer registry"]
   pkg_workflow["workflow"]
   svc_workflowEngine["ctx.workflowEngine<br/>Workflow script engine"]
   pkg_workflow_worker_thread["workflow-worker-thread"]
@@ -256,6 +258,7 @@ flowchart LR
   pkg_authorization --> svc_authorization
   pkg_bash_local --> svc_shell
   pkg_bash_sandbox --> svc_shell
+  pkg_better_sidebar --> svc_betterSidebar
   pkg_client_modules --> svc_clientModules
   pkg_code_runtime --> svc_codeRuntime
   pkg_code_runtime_worker_thread --> svc_codeRuntime
@@ -566,6 +569,7 @@ flowchart LR
 | `ctx.desktop` | `seam` | [`desktop`](../packages/desktop/desktop) | [`desktop-shell`](../packages/desktop/shell) | [`desktop-directory-picker`](../packages/desktop/directory-picker) | - | Electron 主进程拥有原生对话框、通知、菜单、全局快捷键、托盘与拖放；shell 提供方通过本地 socket 将它们桥接到后端，使渲染进程保持沙箱化。 |
 | `ctx.webServer` | `core` | [`host-webserver`](../packages/host/webserver) | - | [`client-connection`](../packages/client/connection), [`client-modules`](../packages/client/modules), [`client-hmr`](../packages/client/hmr) | - | 普通的 node:http 载体：具名路由注册表、索引转换 tap，以及静态 dist 回退；Web 传输插件注册自己的路由。 |
 | `ctx.clientModules` | `core` | [`client-modules`](../packages/client/modules) | - | [`client-hmr`](../packages/client/hmr) | - | 通过增量 `dsh.client` 扫描组合 __DSH_BOOT__ 入口图，提供插件组合包，并通知重建／图变更订阅方。 |
+| `ctx.betterSidebar` | `seam` | [`better-sidebar`](../packages/client/better-sidebar) | - | - | - | 以 ctx.betterSidebar 发布的 Service Definition：client 插件注册侧边栏标签页类型与文件查看器；better-sidebar 面板是按会话渲染已注册类型的 provider 宿主。 |
 | `ctx.workflowEngine` | `seam` | [`workflow`](../packages/workflow/workflow) | [`workflow-worker-thread`](../packages/workflow/workflow-worker-thread) | [`tool-workflow`](../packages/workflow/tool-workflow), [`tool-ralph`](../packages/workflow/tool-ralph) | - | 每个上下文使用一个引擎，与 bash 相同，且没有具名提供方注册表；通用工作流与固定 Ralph 消费方启动运行，其中的 agent() 调用通过 ctx.subagents 扇出。 |
 | `ctx.webhookRuntime` | `core` | [`webhook`](../packages/webhook/webhook) | - | [`webhook-github`](../packages/webhook/webhook-github) | - | 提供方适配器分派已认证交付；可信插件注册独立的进程本地规则，runtime 把非 null 结果转换为普通的 Workspace-backed Session，不保留交付或完成状态。 |
 | `ctx.lsp` | `seam` | [`lsp`](../packages/lsp/lsp) | [`lsp-stdio`](../packages/lsp/lsp-stdio) | [`tool-lsp`](../packages/lsp/tool-lsp) | - | 提供方注册与选择，加上恰好四种操作的标准化查询执行；该 seam 不提供协议逃生口，后端必须转换为标准化请求和结果。 |

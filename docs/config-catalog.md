@@ -404,6 +404,48 @@ Depends on: [`LocalConfig`](#deepseek-aidsh-bash-local)
 
 Source: [`packages/shell/bash-sandbox/src/index.ts:35`](../packages/shell/bash-sandbox/src/index.ts)
 
+<a id="deepseek-aidsh-better-sidebar"></a>
+
+## `@deepseek-ai/dsh-better-sidebar`
+
+Requires: `webServer` · `sessions` · `webRuntime` · `tools`
+
+```ts config-catalog
+/** Tunable sidebar host limits (every field optional; defaults fill in). */
+export interface SidebarConfig {
+  /** Read cap of one text file (bytes); larger files return truncated. */
+  readLimit?: number
+  /** Media route cap (bytes); larger binaries are refused. */
+  mediaLimit?: number
+  /** Upload route cap (bytes); larger files are refused without touching disk. */
+  uploadLimit?: number
+  /** Explorer row bound of one level. */
+  listLimit?: number
+  /** Terminals per session. */
+  terminalsPerSession?: number
+  /** How long a disconnected terminal process survives awaiting a reconnect. */
+  reconnectGraceMs?: number
+  /**
+   * Terminal shell (absolute path or bare executable name) for BOTH the UI
+   * terminal tabs and the model-facing `terminal_*` tools. Empty = auto:
+   * POSIX follows `$SHELL` then the account login shell; Windows follows
+   * `DSH_SIDEBAR_SHELL`, then probes for `pwsh.exe`, then falls back to the
+   * inbox `powershell.exe` (5.1). Set it from `cordis.patch.yml` / profile
+   * plugin config, e.g. `config: { shell: /bin/zsh }`.
+   */
+  shell?: string
+  /**
+   * Optional arguments passed to the shell executable. When non-empty these
+   * REPLACE the automatic platform defaults (POSIX `-l` / Windows none), so
+   * the deployment has full control over how the shell starts. When omitted
+   * the existing default behavior is kept.
+   */
+  shellArgs?: string[]
+}
+```
+
+Source: [`packages/client/better-sidebar/src/config.ts:38`](../packages/client/better-sidebar/src/config.ts)
+
 <a id="deepseek-aidsh-client-connection"></a>
 
 ## `@deepseek-ai/dsh-client-connection`
