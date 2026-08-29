@@ -337,7 +337,7 @@ describe('agent terminal WebSocket', () => {
     const drained = wsDrain(client)
     await until(() => drained.seen.some(text => text.includes('agent-live-input')))
     client.send(JSON.stringify({ type: 'close' }))
-    await until(() => registryExited(uuid))
+    await until(() => registryClosed(uuid))
     client.close()
     await wsClosed(client)
   }, 20_000)
@@ -362,7 +362,7 @@ describe('agent terminal WebSocket', () => {
     // Only the close FRAME kills the agent pty.
     const killer = await wsOpen(`${mounted.base}/sidebar/ws/terminal?uuid=${uuid}`)
     killer.send(JSON.stringify({ type: 'close' }))
-    await until(async () =>  (await registryExited(uuid)))
+    await until(async () => (await registryClosed(uuid)))
     killer.close()
     await wsClosed(killer)
   }, 20_000)
@@ -373,10 +373,11 @@ describe('agent terminal WebSocket', () => {
     const page = await read.execute({ uuid, count: 500 }, toolExec('agent-ws')) as { text: string }
     return page.text
   }
-  async function registryExited(uuid: string): Promise<boolean> {
+  /** A close frame kills the pty and drops the handle: the uuid leaves the list. */
+  async function registryClosed(uuid: string): Promise<boolean> {
     const list = toolOf(mounted.tools, 'terminal_list')
     const rows = await list.execute({}, toolExec('agent-ws')) as Array<{ uuid: string; exited: boolean }>
-    return rows.find(candidate => candidate.uuid === uuid)?.exited === true
+    return !rows.some(candidate => candidate.uuid === uuid)
   }
 })
 
@@ -442,11 +443,12 @@ describe('agent-opens push WebSocket', () => {
 
   it('detaches the view on an abrupt socket error', async () => {
     const client = await wsOpen(`${mounted.base}/sidebar/ws/agent-opens?sessionId=abrupt`)
-    await wsMessage(client).catch(() => undefined)
-    // No opens were queued, so no message arrives; reset the TCP connection.
+    // No opens are queued for a fresh session, so the attach pushes nothing;
+    // reset the TCP connection.
     const websocket = client as unknown as { _socket: { destroy: () => void } }
     websocket._socket.destroy()
     await until(() => client.readyState === WebSocket.CLOSED)
+    expect(client.seen).toEqual([])
   }, 20_000)
 })
 

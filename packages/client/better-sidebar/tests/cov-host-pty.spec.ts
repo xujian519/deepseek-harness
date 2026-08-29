@@ -245,10 +245,13 @@ describe('AgentPtyRegistry snapshot and read edges', () => {
       // Interactive signals ride the pty input pipeline (control bytes).
       expect(() =>{  registry.signal(uuid, 'SIGINT') }).not.toThrow()
       expect(() =>{  registry.signal(uuid, 'SIGTSTP') }).not.toThrow()
-      // The termination path must actually end the process.
-      registry.signal(uuid, 'SIGTERM')
+      // Termination signals ride pty.kill(); delivery must not throw. The
+      // observable death uses SIGKILL: POSIX lets an interactive shell
+      // discard SIGTERM, so SIGTERM cannot promise the process ends.
+      expect(() =>{  registry.signal(uuid, 'SIGTERM') }).not.toThrow()
+      registry.signal(uuid, 'SIGKILL')
       await until(() => registry.get(uuid)!.exited)
-      expect(registry.snapshot(uuid)).toMatchObject({ exited: true, exitSignal: 'SIGTERM' })
+      expect(registry.snapshot(uuid)).toMatchObject({ exited: true, exitSignal: 'SIGKILL' })
     } finally {
       registry.disposeAll()
     }
