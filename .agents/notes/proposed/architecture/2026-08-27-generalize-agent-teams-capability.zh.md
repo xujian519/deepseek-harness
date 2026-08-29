@@ -14,7 +14,7 @@ Status: proposed
 
 其余目标领域完全没有团队能力：`code` 与 `document` preset 只通过通用 `subagent`/`workflow` 工具组合智能体，自媒体领域位于用户的 ZCode 插件环境（video-agent-kit）、不在本仓库。今天要给第二个领域加上团队，就得复制 patent-teams（九个源文件、工具前缀、事件名、状态目录、UI 面板、preset 挂载），再改掉复制件里的领域导入。
 
-专利耦合点恰好只有三处，正是任何复制件都要重写的地方：[members.ts](../../../packages/patent/patent-teams/src/members.ts) 静态导入 `dsh-patent-workflow` 的 `RoleContract` 折叠（[决策](../../implemented/feature/2026-08-23-role-worker-contract-mapping.zh.md)）；[service.ts](../../../packages/patent/patent-teams/src/service.ts) 静态导入 `roleContract`/`validateWorkerOutput` 与 `evaluatePatentContent`；`patentRuleGate` 查找已经是可选的 `ctx.get`（[门禁](../../implemented/feature/2026-08-23-quality-gate-into-teams.zh.md)）——需要反转的静态导入只有两处，第三处已经是正确的接缝形状。
+专利耦合点恰好只有三处，正是任何复制件都要重写的地方：[members.ts](../../../../packages/patent/patent-teams/src/members.ts) 静态导入 `dsh-patent-workflow` 的 `RoleContract` 折叠（[决策](../../implemented/feature/2026-08-23-role-worker-contract-mapping.zh.md)）；[service.ts](../../../../packages/patent/patent-teams/src/service.ts) 静态导入 `roleContract`/`validateWorkerOutput` 与 `evaluatePatentContent`；`patentRuleGate` 查找已经是可选的 `ctx.get`（[门禁](../../implemented/feature/2026-08-23-quality-gate-into-teams.zh.md)）——需要反转的静态导入只有两处，第三处已经是正确的接缝形状。
 
 两边的特性集也已分叉：移植版删掉了上游的 staged 计划 + Approve & Run、`halted`/`escalated` 生命周期与 `agent_teams_resume`、结构化质量任务种类（`requirements`…`integration`，带 verdict、验收结果、修复循环）以及命名团队 profiles；experimental 那对则是无调度器的手工委派加 `waitForChange`。任何后续领域都会继承这种漂移，而不是收敛到同一个核心。
 
@@ -35,7 +35,7 @@ Status: proposed
 
 ### 包拓扑
 
-新增 `packages/teams/` 组，遵循[能力接缝](../../../docs/glossary.md#capability-seam)纪律（Service Definition 与 provider 角色齐备；Consumer 分离）：
+新增 `packages/teams/` 组，遵循[能力接缝](../../../../docs/glossary.zh.md#capability-seam)纪律（Service Definition 与 provider 角色齐备；Consumer 分离）：
 
 - `packages/teams/agent-teams`——Service Definition `ctx.agentTeams` 加参考文件态 provider：状态、调度器、邮箱、基于 continuable 子代理的成员生命周期、`agent_teams_*` 会话事件。从 patent-teams 泛化并移除专利导入；包名、工具前缀、事件命名空间与状态目录（`.agent-teams/`）全部去掉 `patent` 限定。
 - `packages/teams/tool-agent-teams`——工具 Consumer：`agent_teams_*` 工具、队长协议提示段，以及成员作用域的工具禁用策略（`MEMBER_DENIED_TOOLS` 泛化为禁用所挂载团队工具集中的队长专属工具）。

@@ -14,7 +14,7 @@ Multi-agent team functionality exists three times in this repository with two in
 
 The other target domains have no team capability at all: the `code` and `document` presets compose agents only through generic `subagent`/`workflow` tools, and the self-media domain lives in the user's ZCode plugin environment (video-agent-kit), not in this repo. Today, adding teams to a second domain means forking patent-teams (nine source files, tool prefix, event names, state directory, UI panel, preset mount) and editing the fork's domain imports.
 
-The patent couplings that a fork would have to rewrite are exactly three: [members.ts](../../../packages/patent/patent-teams/src/members.ts) statically imports `RoleContract` folding from `dsh-patent-workflow` ([decision](../../implemented/feature/2026-08-23-role-worker-contract-mapping.md)); [service.ts](../../../packages/patent/patent-teams/src/service.ts) statically imports `roleContract`/`validateWorkerOutput` and `evaluatePatentContent`; the `patentRuleGate` lookup is already an optional `ctx.get` ([gate](../../implemented/feature/2026-08-23-quality-gate-into-teams.md)) — two static imports to invert, one seam already shaped correctly.
+The patent couplings that a fork would have to rewrite are exactly three: [members.ts](../../../../packages/patent/patent-teams/src/members.ts) statically imports `RoleContract` folding from `dsh-patent-workflow` ([decision](../../implemented/feature/2026-08-23-role-worker-contract-mapping.md)); [service.ts](../../../../packages/patent/patent-teams/src/service.ts) statically imports `roleContract`/`validateWorkerOutput` and `evaluatePatentContent`; the `patentRuleGate` lookup is already an optional `ctx.get` ([gate](../../implemented/feature/2026-08-23-quality-gate-into-teams.md)) — two static imports to invert, one seam already shaped correctly.
 
 The feature sets have also diverged in both directions: the port dropped upstream's staged planning with Approve & Run, the `halted`/`escalated` lifecycle with `agent_teams_resume`, the structured quality task kinds (`requirements`…`integration` with verdicts, acceptance results, repair loops), and named team profiles; the experimental pair has scheduler-free manual delegation and `waitForChange` instead. Every subsequent domain would inherit this drift instead of one converging core.
 
@@ -35,7 +35,7 @@ Extract one domain-neutral agent-teams capability seam that all domains mount, w
 
 ### Package topology
 
-A new `packages/teams/` group following the [capability-seam](../../../docs/glossary.md#capability-seam) discipline (Service Definition + provider roles complete; Consumers separate):
+A new `packages/teams/` group following the [capability-seam](../../../../docs/glossary.md#capability-seam) discipline (Service Definition + provider roles complete; Consumers separate):
 
 - `packages/teams/agent-teams` — the Service Definition `ctx.agentTeams` plus the reference file-backed provider: state, scheduler, mailboxes, member lifecycle over continuable subagents, `agent_teams_*` session events. Generalized from patent-teams with the patent imports removed; package name, tool prefix, event namespace, and state directory (`.agent-teams/`) all drop the `patent` scope.
 - `packages/teams/tool-agent-teams` — the tool Consumer: `agent_teams_*` tools, the captain-protocol prompt section, and the member-scope tool-denial policy (`MEMBER_DENIED_TOOLS` generalized to deny the captain-only tools of whatever team toolset is mounted).

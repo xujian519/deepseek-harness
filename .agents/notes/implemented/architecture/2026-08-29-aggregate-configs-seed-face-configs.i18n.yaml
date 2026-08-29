@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-29-aggregate-configs-seed-face-configs.md
+2026-08-29-aggregate-configs-seed-face-configs.md: d7330080c1a3ec402720be936a7678d50bc149af
+2026-08-29-aggregate-configs-seed-face-configs.zh.md: 66259027acfe2e18668200f745e8311938d065cd
