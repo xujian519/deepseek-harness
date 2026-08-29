@@ -332,6 +332,5 @@ export default ((inlineConfig: Pick<UserConfig, 'env'>): UserConfig[] => {
   // skips the package entirely (shared clientLibrary contract).
   if (face === 'host') return [SKIP_WORKSPACE_BUILD]
   const browser = [clientBundleConfig(face), ...CHUNKS.map(name => chunkBundle(name, face))]
-  if (face === 'client') return browser
   return [...lib(inlineConfig), ...browser]
 }) satisfies FaceConfig

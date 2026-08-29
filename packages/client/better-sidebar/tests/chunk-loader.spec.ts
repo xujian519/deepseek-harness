@@ -409,7 +409,7 @@ describe('externals contract', () => {
       'react/jsx-runtime',
       'react-dom',
       'react-dom/client',
-      'cordis',
+      '@deepseek-ai/cordis',
       '@deepseek-ai/dsh-client-ui-slots',
       '@deepseek-ai/dsh-client-ui-primitives',
       '@deepseek-ai/dsh-client-runtime/client',

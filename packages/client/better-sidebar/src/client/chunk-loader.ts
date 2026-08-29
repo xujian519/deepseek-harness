@@ -80,7 +80,7 @@ export const CHUNK_EXTERNALS: readonly string[] = [
   'react/jsx-runtime',
   'react-dom',
   'react-dom/client',
-  'cordis',
+  '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-ui-primitives',
   '@deepseek-ai/dsh-client-runtime/client',
@@ -122,6 +122,7 @@ const MODULE_SYSTEM_GLOBAL = '__dshSidebarModuleSystem__'
  * Called by the client half's apply() with `ctx.modules` (rc.8+); pass
  * undefined to clear (tests). Survives {@link resetChunks} — the module
  * system is shell state, not chunk state, and stays live across HMR.
+ * @param system - the client module system, or undefined to clear the injection.
  */
 export function setChunkModuleSystem(system: ChunkModuleSystem | undefined): void {
   injectedModuleSystem = system
@@ -169,13 +170,23 @@ const defaultScriptLoader: ChunkScriptLoader = src => new Promise((resolve, reje
 
 let scriptLoader: ChunkScriptLoader = defaultScriptLoader
 
-/** Test hook: replace the chunk-script loader (pass null to restore the default). */
+/** Test hook: replace the chunk-script loader (pass null to restore the default).
+ * @param loader - the replacement loader, or null to restore the default.
+ */
 export function setChunkScriptLoaderForTests(loader: ChunkScriptLoader | null): void {
   scriptLoader = loader ?? defaultScriptLoader
 }
 
 /** Test/dev hook: resolve a chunk without fetching a script (e.g. vitest). */
 const testLoaders = new Map<ChunkName, () => Promise<ChunkExports>>()
+
+/**
+ * Register an in-memory loader answering {@link loadChunk} for one chunk,
+ * bypassing the script fetch (test fixtures). Cleared by {@link resetChunks}
+ * and every re-activation.
+ * @param name - the chunk the loader answers for.
+ * @param loader - resolves the chunk's exports.
+ */
 export function registerChunkForTests(name: ChunkName, loader: () => Promise<ChunkExports>): void {
   testLoaders.set(name, loader)
 }
@@ -245,6 +256,8 @@ async function recordEtag(name: ChunkName): Promise<void> {
  * entry so the next call retries (the script re-executes and overwrites its
  * global registry slot — assignments are idempotent).
  * @param name - the chunk to load.
+ * @returns a promise settling to the chunk's exports; rejects when the script
+ *   fails to load, the module system is unavailable, or no factory registered.
  */
 export async function loadChunk(name: ChunkName): Promise<ChunkExports> {
   // Barrier: never serve a cache entry that a pending revalidation is about
