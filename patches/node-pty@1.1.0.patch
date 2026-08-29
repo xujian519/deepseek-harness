@@ -1,10 +1,10 @@
 diff --git a/lib/unixTerminal.js b/lib/unixTerminal.js
-index 6966d24..18f1d25 100644
+index 1ec12f796a822c78fba9ad7f6448c3987e325c23..08d2eb694163a13770c6780e650d63ca72274ce4 100644
 --- a/lib/unixTerminal.js
 +++ b/lib/unixTerminal.js
-@@ -28,10 +28,23 @@ var terminal_1 = require("./terminal");
+@@ -26,10 +26,23 @@ var terminal_1 = require("./terminal");
  var utils_1 = require("./utils");
- var native = (0, utils_1.loadNativeModule)('pty');
+ var native = utils_1.loadNativeModule('pty');
  var pty = native.module;
 -var helperPath = native.dir + '/spawn-helper';
 -helperPath = path.resolve(__dirname, helperPath);

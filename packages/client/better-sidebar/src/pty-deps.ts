@@ -17,8 +17,10 @@
  * agent terminal tools are simply not registered.
  *
  * Version contract: the plugin must stay in sync with DSH core —
- * `@deepseek-ai/dsh-subprocess-local` declares `"node-pty": "^1.1.0"` in
- * its `dependencies`. Both sides then resolve the SAME pnpm store entry
+ * `@deepseek-ai/dsh-subprocess-local` declares the same `node-pty` range in
+ * its `dependencies` (the exact range lives in DSH_NODE_PTY_RANGE below and
+ * is contract-tested against the core declaration). Both sides then resolve
+ * the SAME pnpm store entry
  * (same range, same integrity → one native binding, no drift). Do NOT
  * switch to a fork (e.g. @lydell/node-pty) or a different range without
  * re-checking the core declaration.
@@ -39,7 +41,7 @@ export type NodePtyModule = typeof nodePtyNs
  * range DSH core declares (`@deepseek-ai/dsh-subprocess-local`): the same
  * range keeps pnpm resolving both to one physical package.
  */
-export const DSH_NODE_PTY_RANGE = '1.2.0-beta.15'
+export const DSH_NODE_PTY_RANGE = '1.1.0'
 
 /**
  * The WebSocket close-code-1011 reason the host sends when node-pty is
