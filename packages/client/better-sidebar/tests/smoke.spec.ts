@@ -37,6 +37,41 @@ const canCreateSymlink = (() => {
   }
 })()
 
+const FIXTURE_IDENTITY = {
+  GIT_AUTHOR_NAME: 'dsh-better-sidebar-test',
+  GIT_AUTHOR_EMAIL: 'test@dsh.invalid',
+  GIT_COMMITTER_NAME: 'dsh-better-sidebar-test',
+  GIT_COMMITTER_EMAIL: 'test@dsh.invalid',
+}
+
+const gitRun = (cwd: string, args: string[]): string => {
+  const result = spawnSync('git', ['-C', cwd, '--no-pager', '-c', 'color.ui=false', ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, ...FIXTURE_IDENTITY },
+  })
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `git ${args[0] ?? ''} exited with ${String(result.status)}`)
+  }
+  return result.stdout
+}
+
+/** A fresh repo on branch `main` with `commits` revisions of `a.txt`. */
+const makeScratchRepo = (commits = 1): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-sidebar-git-'))
+  gitRun(dir, ['init', '-q'])
+  gitRun(dir, ['checkout', '-q', '-b', 'main'])
+  // Repo-local identity: the plugin's git calls (revert, cherry-pick) commit
+  // with the inherited environment, which CI does not populate.
+  gitRun(dir, ['config', 'user.name', FIXTURE_IDENTITY.GIT_COMMITTER_NAME])
+  gitRun(dir, ['config', 'user.email', FIXTURE_IDENTITY.GIT_COMMITTER_EMAIL])
+  for (let i = 0; i < commits; i += 1) {
+    writeFileSync(join(dir, 'a.txt'), i === 0 ? 'one\ntwo\nthree\n' : `one\n${i}\nthree\n`)
+    gitRun(dir, ['add', '-A'])
+    gitRun(dir, ['commit', '-q', '-m', i === 0 ? 'base' : `change ${i}`])
+  }
+  return dir
+}
+
 interface FakeContext {
   webRuntime: { trustedHosts: readonly string[] }
   webServer: {
@@ -198,19 +233,24 @@ describe('host plugin smoke', () => {
   })
 
   it('pages the log lazily with skip/count', async () => {
-    const cwd = PLUGIN_ROOT
-    const first = await git.log(cwd, 5, 0)
-    expect(first).toHaveLength(5)
-    const second = await git.log(cwd, 5, 5)
-    expect(second).toHaveLength(5)
-    // The pages are disjoint windows over the same ordered history.
-    expect(first[0]!.hashFull).not.toBe(second[0]!.hashFull)
-    const all = await git.log(cwd, 10, 0)
-    expect(all.slice(0, 5)).toEqual(first)
-    expect(all.slice(5)).toEqual(second)
-    // A skip past the end returns an empty page (the lazy loader's stop sign).
-    // The hosting repository's history is far longer than upstream's 10k.
-    expect(await git.log(cwd, 5, 1_000_000)).toEqual([])
+    // A scratch repo pins the history length: CI checks out a shallow clone,
+    // whose single-commit history cannot feed the paged windows below.
+    const dir = makeScratchRepo(12)
+    try {
+      const first = await git.log(dir, 5, 0)
+      expect(first).toHaveLength(5)
+      const second = await git.log(dir, 5, 5)
+      expect(second).toHaveLength(5)
+      // The pages are disjoint windows over the same ordered history.
+      expect(first[0]!.hashFull).not.toBe(second[0]!.hashFull)
+      const all = await git.log(dir, 10, 0)
+      expect(all.slice(0, 5)).toEqual(first)
+      expect(all.slice(5)).toEqual(second)
+      // A skip past the end returns an empty page (the lazy loader's stop sign).
+      expect(await git.log(dir, 5, 1_000_000)).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('pty manager releases the quota on close and respawns after exit', async () => {
@@ -395,35 +435,6 @@ describe('host plugin smoke', () => {
  * test fixture).
  */
 describe('git destructive operations (scratch repository)', () => {
-  const FIXTURE_IDENTITY = {
-    GIT_AUTHOR_NAME: 'dsh-better-sidebar-test',
-    GIT_AUTHOR_EMAIL: 'test@dsh.invalid',
-    GIT_COMMITTER_NAME: 'dsh-better-sidebar-test',
-    GIT_COMMITTER_EMAIL: 'test@dsh.invalid',
-  }
-
-  const gitRun = (cwd: string, args: string[]): string => {
-    const result = spawnSync('git', ['-C', cwd, '--no-pager', '-c', 'color.ui=false', ...args], {
-      encoding: 'utf8',
-      env: { ...process.env, ...FIXTURE_IDENTITY },
-    })
-    if (result.status !== 0) {
-      throw new Error(result.stderr || `git ${args[0] ?? ''} exited with ${String(result.status)}`)
-    }
-    return result.stdout
-  }
-
-  /** A fresh repo on branch `main` with one committed file `a.txt`. */
-  const makeScratchRepo = (): string => {
-    const dir = mkdtempSync(join(tmpdir(), 'dsh-sidebar-git-'))
-    gitRun(dir, ['init', '-q'])
-    gitRun(dir, ['checkout', '-q', '-b', 'main'])
-    writeFileSync(join(dir, 'a.txt'), 'one\ntwo\nthree\n')
-    gitRun(dir, ['add', '-A'])
-    gitRun(dir, ['commit', '-q', '-m', 'base'])
-    return dir
-  }
-
   it('discard restores the worktree file from the index (staged changes kept)', async () => {
     const dir = makeScratchRepo()
     try {
