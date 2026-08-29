@@ -56,6 +56,12 @@
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-3);
+  /* Elevated surface: the card is layer-3 and its option lists scroll inside
+     it, so the thumb takes the l2 elevation tokens (ui-theme
+     styles/scrollbar.css rebinding contract); the custom properties inherit
+     down to the scrolling descendants. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 /* Group heading: 13/600 + the inventory count badge (the settings

@@ -22,12 +22,19 @@ import { SIDE_LABEL_PREFIX } from '../sidechat-core.ts'
  * ownership fence) but they are NOT subagent topology: they carry the
  * durable 'Side: ' label and live as sidebar tabs. Excluding them here
  * keeps the auto-open trigger and the Subagent page counts clean.
+ * @param summary - Session summary to test.
+ * @returns Whether the subagent-origin row carries the Side Chat label.
  */
 export function isSideThreadSummary(summary: SidebarSessionSummary): boolean {
   return summary.origin === 'subagent' && summary.displayTitle.startsWith(SIDE_LABEL_PREFIX)
 }
 
-/** Count the direct subagent children of one session (durable `origin` rows). */
+/**
+ * Count the direct subagent children of one session (durable `origin` rows).
+ * @param byId - Session summary map scanned for children.
+ * @param sessionId - Parent session id.
+ * @returns The number of direct subagent children, excluding Side Chat threads.
+ */
 export function directSubagentCount(
   byId: SidebarSessionList['byId'],
   sessionId: string,
@@ -46,6 +53,9 @@ export function directSubagentCount(
  * THIS root's full topology regardless of how deep the current selection is
  * (a session whose row is still hydrating, or a broken chain, degrades to
  * the session itself).
+ * @param byId - Session summary map providing the parent chain.
+ * @param sessionId - Session to walk upward from; undefined yields undefined.
+ * @returns The nearest non-subagent ancestor's id, or the session itself when the chain is broken or still hydrating.
  */
 export function rootAncestor(
   byId: SidebarSessionList['byId'],
@@ -66,6 +76,9 @@ export function rootAncestor(
  * Collect every catalog branch (an entry with `hasChildren`) reachable from
  * the root — the set of catalogs the always-expanded topology consumes.
  * Cycles fail soft.
+ * @param catalogs - Per-session subagent catalogs to descend.
+ * @param rootId - Catalog root to descend from; undefined yields an empty list.
+ * @returns Ids of every reachable child entry with children, depth-first; cycles stop the descent.
  */
 export function collectBranchIds(
   catalogs: Readonly<Record<string, SidebarSubagentCatalog>>,
@@ -92,6 +105,10 @@ export function collectBranchIds(
  * consecutive list snapshots (the count crossed 0 → >0). Switching to a
  * session that already has subagents yields `false` (its baseline starts at
  * the current count), so the auto-open never fights an existing layout.
+ * @param prev - Earlier list snapshot serving as the baseline.
+ * @param next - Later list snapshot.
+ * @param sessionId - Session whose direct subagent count is compared.
+ * @returns Whether the direct subagent count crossed 0 → >0 between the snapshots.
  */
 export function detectNewDirectSubagent(
   prev: SidebarSessionList,
@@ -112,6 +129,9 @@ export interface SubagentDescendantTotals {
  * Index every subagent descendant under each ancestor it reaches through an
  * uninterrupted subagent-origin chain (same semantics as the official
  * `indexSubagentDescendants`; cycles fail soft).
+ * @param byId - Session summary map indexed for descendants.
+ * @param sessionId - Ancestor session whose descendants are counted.
+ * @returns Total and running counts of the descendants reached through uninterrupted subagent-origin chains.
  */
 export function countSubagentDescendants(
   byId: SidebarSessionList['byId'],

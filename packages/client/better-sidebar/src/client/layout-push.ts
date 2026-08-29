@@ -5,6 +5,7 @@
  */
 import { PANEL_MIN } from './state.ts'
 
+/** Inputs of the layout-push computation: drawer/panel state and the sizes they claim. */
 export interface LayoutPushInput {
   narrow: boolean
   panelOpen: boolean
@@ -15,6 +16,7 @@ export interface LayoutPushInput {
   viewportHeight: number
 }
 
+/** The width and height the sidebar pushes onto the app content, in px. */
 export interface LayoutPushSize {
   width: number
   height: number
@@ -24,7 +26,10 @@ function finiteNonNegative(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0
 }
 
-/** Compute the live layout-push size. Narrow drawers float and push 0. */
+/** Compute the live layout-push size. Narrow drawers float and push 0.
+ * @param input - current drawer/panel state and claimed sizes.
+ * @returns the clamped width/height pushed onto the app content.
+ */
 export function layoutPushSize(input: LayoutPushInput): LayoutPushSize {
   if (input.narrow) return { width: 0, height: 0 }
   const viewportWidth = finiteNonNegative(input.viewportWidth)

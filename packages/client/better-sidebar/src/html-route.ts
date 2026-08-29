@@ -46,7 +46,12 @@ export type HtmlDecodeResult =
 /** The route prefix both encoders/decoders agree on. */
 export const HTML_ROUTE_PREFIX = '/sidebar/html/'
 
-/** Build the route URL for one absolute file path (client + tests). */
+/**
+ * Build the route URL for one absolute file path (client + tests).
+ * @param sessionId - session the preview belongs to.
+ * @param path - absolute file path (POSIX, Windows drive, or UNC form).
+ * @returns the `/sidebar/html/...` URL path with every segment percent-encoded.
+ */
 export function encodeHtmlUrl(sessionId: string, path: string): string {
   const unc = /^[\\/]{2}[^\\/]/.test(path)
   const segments = path.split(/[\\/]+/).filter(segment => segment !== '')
@@ -59,6 +64,8 @@ export function encodeHtmlUrl(sessionId: string, path: string): string {
  * missing sessionId or file path (400). The caller still must bound the
  * decoded path with the workspace real-path guard — a decoded `..`
  * segment resolves outside the cwd and is refused there.
+ * @param pathname - route pathname to decode.
+ * @returns the decoded reference, or `{ok: false}` with an HTTP status and client-error message.
  */
 export function decodeHtmlUrl(pathname: string): HtmlDecodeResult {
   if (!pathname.startsWith(HTML_ROUTE_PREFIX)) {

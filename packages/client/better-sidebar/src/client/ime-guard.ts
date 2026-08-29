@@ -25,7 +25,10 @@
  * legacy signal engines emit without isComposing.
  */
 
-/** The pure decision: is this keyboard event part of an IME composition? */
+/** The pure decision: is this keyboard event part of an IME composition?
+ * @param event - the keyboard event's `isComposing` flag and `keyCode`.
+ * @returns true when the event belongs to an in-progress composition (or carries the legacy 229 keyCode).
+ */
 export function isImeComposition(event: { isComposing: boolean; keyCode: number }): boolean {
   return event.isComposing || event.keyCode === 229
 }
@@ -33,6 +36,7 @@ export function isImeComposition(event: { isComposing: boolean; keyCode: number 
 /**
  * Register the document-level capture guard. Returns the disposer
  * (HMR-safe; call through `ctx.effect`).
+ * @returns the disposer removing both capture listeners.
  */
 export function registerImeGuard(): () => void {
   const onKey = (event: KeyboardEvent): void => {

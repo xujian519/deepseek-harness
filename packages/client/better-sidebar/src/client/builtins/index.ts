@@ -16,6 +16,10 @@ import { builtinViewers } from './viewers.tsx'
  * disposer that unregisters everything (cordis auto-invokes it on fiber
  * disposal). The `ctx` is threaded into tab descriptors that need it
  * (EditorHost reads `ctx.betterSidebar` for file-viewer matching).
+ * @param ctx - plugin context threaded into tab descriptors.
+ * @param service - the sidebar service the built-ins register through.
+ * @param options - tab wiring options (feature flags from the plugin config).
+ * @returns the disposer unregistering every built-in tab and viewer.
  */
 export function registerBuiltins(
   ctx: Context,

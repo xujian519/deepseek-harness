@@ -73,6 +73,11 @@ function normalizeLocalPath(path: string): string {
  * returned untouched. Shared by the markdown image rewriter below and by the
  * preview's raw-HTML sanitizer (`markdown-html.tsx`, which meets the same
  * allowlist when rendering `<img src="./x.png">` inside HTML blocks).
+ * @param dest - raw image destination from the markdown source.
+ * @param scope - session scope (sessionId + cwd) for the media route.
+ * @param filePath - absolute path of the opened `.md` file.
+ * @param origin - the GUI's own origin prefixed onto the media URL.
+ * @returns the absolute media URL for local paths; the input untouched for remote, anchor, and empty destinations.
  */
 export function resolveLocalMediaDest(
   dest: string,
@@ -93,6 +98,15 @@ export function resolveLocalMediaDest(
   return `${origin}/sidebar/file?${params.toString()}`
 }
 
+/**
+ * Rewrite a markdown document's local image destinations into absolute
+ * media URLs (inline images and referenced image definitions only).
+ * @param text - raw markdown source (inline + reference images).
+ * @param scope - session scope (sessionId + cwd) for the media route.
+ * @param filePath - absolute path of the opened `.md` file.
+ * @param origin - the GUI's own origin; injected so the rewrite stays pure.
+ * @returns the markdown with local image destinations rewritten in place.
+ */
 export function rewriteLocalImageUrls(
   text: string,
   scope: SessionScope,

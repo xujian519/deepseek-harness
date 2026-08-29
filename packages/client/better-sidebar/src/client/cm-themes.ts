@@ -117,12 +117,18 @@ function cmThemeExtensions(dark: boolean): Array<ReturnType<typeof EditorView.th
 export class CmThemeCompartment {
   private readonly compartment = new Compartment()
 
-  /** `of(...)` payload for EditorState.create. */
+  /** `of(...)` payload for EditorState.create.
+   * @param dark - the scheme the extensions are built for.
+   * @returns the compartment's initial extension payload.
+   */
   of(dark: boolean): ReturnType<Compartment['of']> {
     return this.compartment.of(cmThemeExtensions(dark))
   }
 
-  /** Reconfigure for a new scheme. */
+  /** Reconfigure for a new scheme.
+   * @param dark - the scheme the replacement extensions are built for.
+   * @returns the transaction spec patching the compartment's extensions.
+   */
   reconfigure(dark: boolean): ReturnType<Compartment['reconfigure']> {
     return this.compartment.reconfigure(cmThemeExtensions(dark))
   }

@@ -102,7 +102,11 @@ const MEDIA_TYPES: Record<string, string> = {
   '.htm': 'text/html',
 }
 
-/** Content type served by /sidebar/file (binary-safe fallback for unknowns). */
+/**
+ * Content type served by /sidebar/file (binary-safe fallback for unknowns).
+ * @param path - file path whose extension picks the type.
+ * @returns the MIME type, or `application/octet-stream` for unknown extensions.
+ */
 export function mediaTypeForPath(path: string): string {
   return MEDIA_TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream'
 }

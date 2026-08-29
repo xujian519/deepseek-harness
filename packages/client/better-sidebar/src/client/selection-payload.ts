@@ -32,6 +32,10 @@ export interface SelectionLines {
 /**
  * The fence info line: `rel[:start[-end]]` — lines are omitted entirely
  * when unknown (the preview reverse-search missed).
+ * @param path - Absolute file path.
+ * @param cwd - Session cwd making the path relative; unknown keeps the absolute path.
+ * @param lines - Selection line span, or undefined to omit line numbers.
+ * @returns The `rel[:start[-end]]` header line.
  */
 export function headerOf(path: string, cwd: string | undefined, lines?: SelectionLines): string {
   const rel = cwd !== undefined ? relativeTo(cwd, path) : path
@@ -44,6 +48,11 @@ export function headerOf(path: string, cwd: string | undefined, lines?: Selectio
  * The full text appended to the composer draft for one selection.
  * Over the limit the content is dropped: the plain path line is the whole
  * payload (an empty fenced block would just occupy the draft).
+ * @param path - Absolute file path.
+ * @param cwd - Session cwd making the path relative; unknown keeps the absolute path.
+ * @param lines - Selection line span, or undefined when unknown.
+ * @param selected - Selected text; over SELECTION_LIMIT only the header line is inserted.
+ * @returns The fenced code block, or the bare header line when the selection exceeds the limit.
  */
 export function buildSelectionInsert(
   path: string,
@@ -72,6 +81,9 @@ function lineAt(source: string, index: number): number {
  * stripped first (DOM block selections tend to carry one), and only an
  * EXACTLY-ONE occurrence yields lines — an ambiguous or missing match
  * returns null (the header then carries the path without line numbers).
+ * @param source - Full source text the preview rendered.
+ * @param selected - Selected text as taken from the DOM (one trailing newline is stripped).
+ * @returns The 1-based line span of the unique match, or null when the match is missing or ambiguous.
  */
 export function linesOfSelection(source: string, selected: string): SelectionLines | null {
   const text = selected.endsWith('\n') ? selected.slice(0, -1) : selected

@@ -91,7 +91,9 @@ function detach(): void {
   attached = false
 }
 
-/** Read the current snapshot (returns the frozen NONE when unavailable). */
+/** Read the current snapshot (returns the frozen NONE when unavailable).
+ * @returns the current overlay geometry.
+ */
 export function getWcoSnapshot(): WcoSnapshot {
   return snapshot
 }
@@ -100,6 +102,8 @@ export function getWcoSnapshot(): WcoSnapshot {
  * Subscribe to overlay geometry changes. Attaches to the real
  * `navigator.windowControlsOverlay` on first subscribe; the disposer
  * detaches the native listener when the last subscriber leaves.
+ * @param onChange - invoked on each geometry change and on subscribe.
+ * @returns the disposer removing this subscription.
  */
 export function subscribeWco(onChange: Listener): () => void {
   listeners.add(onChange)
@@ -110,7 +114,9 @@ export function subscribeWco(onChange: Listener): () => void {
   }
 }
 
-/** Test hook: swap the geometry source (undefined = API unavailable). */
+/** Test hook: swap the geometry source (undefined = API unavailable).
+ * @param next - the replacement source, or undefined to clear it.
+ */
 export function setWcoSourceForTests(next: WcoSource | undefined): void {
   detach()
   source = next

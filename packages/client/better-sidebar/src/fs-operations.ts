@@ -40,6 +40,8 @@ export interface WorkspaceUploadInput {
  * any level exists. The unique temp name keeps concurrent uploads to the same
  * target independent (each writes and renames its own file; the last rename
  * wins) and never blocks later uploads after a crashed process.
+ * @param input - session scope, upload directory, relative path, body stream, and byte cap.
+ * @returns the target path and the written byte count.
  *
  * @throws SidebarError with a wire code for containment, shape, and size
  * failures; the temp file is always removed on failure.

@@ -8,7 +8,11 @@
  */
 import { isAbsolutePath } from './paths.ts'
 
-/** Paths a tool-result view reports as produced, by render intent. */
+/**
+ * Paths a tool-result view reports as produced, by render intent.
+ * @param view - the tool result's call view (unknown-safe).
+ * @returns the reported paths in view order; empty for non-edit or malformed views.
+ */
 export function producedPaths(view: unknown): readonly string[] {
   if (view === null || typeof view !== 'object') return []
   const record = view as { card?: unknown; kind?: unknown; locations?: unknown }
@@ -110,6 +114,9 @@ export function selectProducedFiles(owner: unknown): readonly string[] | null {
  * Resolve a (possibly relative) path against the session cwd for the sidebar.
  * Absolute detection mirrors the host (see client/paths.isAbsolutePath):
  * POSIX roots, drive letters and UNC shares must not be joined onto the cwd.
+ * @param cwd - the session working directory; undefined or empty returns the path as-is.
+ * @param path - absolute or cwd-relative path to resolve.
+ * @returns the absolute path for the host media/open routes.
  */
 export function resolveSidebarPath(cwd: string | undefined, path: string): string {
   if (isAbsolutePath(path)) return path

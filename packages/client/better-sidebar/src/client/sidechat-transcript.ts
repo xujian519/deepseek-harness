@@ -45,7 +45,10 @@ export type SidechatTranscriptRow =
   }
 
 /** Extract the visible text of a content-block list (`text` blocks verbatim,
- *  joined by blank lines); empty reads `…` so rows never render blank. */
+ *  joined by blank lines); empty reads `…` so rows never render blank.
+ * @param content - content-block list from a message payload.
+ * @returns the joined text blocks, or `…` when none is present.
+ */
 export function blockText(content: readonly unknown[]): string {
   const parts: string[] = []
   for (const block of content) {
@@ -75,6 +78,8 @@ function flatTruncate(text: string): string {
  * One-line summary of a tool call's raw arguments JSON for the collapsed
  * row: the first identifying string field when the JSON parses, else the
  * flattened raw text; empty when there is nothing worth showing.
+ * @param args - raw arguments JSON as the model produced it.
+ * @returns the truncated one-line summary; '' when undefined.
  */
 export function toolArgsSummary(args: string | undefined): string {
   if (args === undefined) return ''
@@ -143,6 +148,8 @@ function lastSeedEnd(events: readonly { type: string }[]): number {
  * @param fetchPage - one history page (newest-first window ending at
  *   `beforeSeq`, exclusive; omit for the tail page).
  * @param pageCap - safety bound on backward pages.
+ * @returns the thread's own entries (oldest-first) and the seed marker's seq
+ *   (0 when no marker was found or the page cap was hit).
  */
 export async function collectOwnEvents(
   fetchPage: (beforeSeq?: number) => Promise<readonly SidebarHistoryEntry[]>,

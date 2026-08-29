@@ -62,6 +62,8 @@ let cached: LoadResult | undefined
  * Load node-pty once (synchronously) and cache the outcome. Returns null
  * when the package or its native binding cannot be loaded; the cause stays
  * queryable through {@link nodePtyLoadCause}. Never throws.
+ * @param requireImpl - require-compatible loader, injectable for tests.
+ * @returns the loaded module, or null when the load fails.
  */
 export function loadNodePty(requireImpl: NodePtyRequire = defaultRequire): NodePtyModule | null {
   if (cached === undefined) {
@@ -74,7 +76,10 @@ export function loadNodePty(requireImpl: NodePtyRequire = defaultRequire): NodeP
   return cached.ok ? cached.module : null
 }
 
-/** The recorded load failure (undefined when the load succeeded or never ran). */
+/**
+ * The recorded load failure (undefined when the load succeeded or never ran).
+ * @returns the cached require-time cause, or undefined when the module loaded or the load never ran.
+ */
 export function nodePtyLoadCause(): unknown {
   return cached !== undefined && !cached.ok ? cached.cause : undefined
 }
@@ -84,7 +89,10 @@ export function resetNodePtyCache(): void {
   cached = undefined
 }
 
-/** Load node-pty or throw the canonical degraded-mode error (class-constructor default). */
+/**
+ * Load node-pty or throw the canonical degraded-mode error (class-constructor default).
+ * @returns the loaded node-pty module.
+ */
 export function loadRequiredNodePty(): NodePtyModule {
   const module = loadNodePty()
   if (module === null) {
@@ -130,6 +138,8 @@ function isProfileRoot(dir: string): boolean {
  * and `pnpm-workspace.yaml` (the profile root; the plugin resolves from the
  * profile's node_modules). Falls back to `$DSH_HOME/profiles/web` (the
  * standard web profile), then null.
+ * @param fromFile - module path to walk up from (defaults to this module).
+ * @returns the profile directory path, or null when detection and the fallback both fail.
  */
 export function findProfileDir(fromFile: string = fileURLToPath(import.meta.url)): string | null {
   const detected = walkUp(realDir(fromFile), isProfileRoot)
@@ -153,7 +163,11 @@ function isPluginRoot(dir: string): boolean {
   }
 }
 
-/** The plugin package root (walk-up from the module; works for lib/ and src/ layouts). */
+/**
+ * The plugin package root (walk-up from the module; works for lib/ and src/ layouts).
+ * @param fromFile - module path to walk up from (defaults to this module).
+ * @returns the plugin root directory, or null when no ancestor's package.json names this plugin.
+ */
 export function findPluginRoot(fromFile: string = fileURLToPath(import.meta.url)): string | null {
   return walkUp(realDir(fromFile), isPluginRoot)
 }
@@ -174,6 +188,8 @@ export interface RepairCommandOptions {
  * profile's `allowBuilds: node-pty: true` and re-installs/rebuilds the
  * dependency). Falls back to DSH's plugin command when the scripts are not
  * shipped (exotic layouts).
+ * @param options - plugin and profile roots plus a platform override for tests.
+ * @returns the pasteable command, with a supplementary note when the fallback command is used.
  */
 export function buildRepairCommand(options: RepairCommandOptions): { command: string; note?: string } {
   const { pluginRoot, profileDir } = options
@@ -223,7 +239,11 @@ export type NodePtyDepsStatus =
     note?: string
   }
 
-/** Current node-pty dependency status (loaded vs degraded + repair info). */
+/**
+ * Current node-pty dependency status (loaded vs degraded + repair info).
+ * @param options - optional `fromFile` override for root detection (tests).
+ * @returns `{ok: true}` when the module loads, otherwise the cause, repair command, profile name, and optional note.
+ */
 export function depsStatus(options: { fromFile?: string } = {}): NodePtyDepsStatus {
   const module = loadNodePty()
   if (module !== null) return { ok: true }

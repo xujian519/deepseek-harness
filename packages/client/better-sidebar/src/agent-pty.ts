@@ -33,7 +33,12 @@ export const TERMINAL_DIM_MIN = 2
 /** Largest pty dimension the registry accepts (mirrors the tool contract). */
 export const TERMINAL_DIM_MAX = 1024
 
-/** Clamp one cols×rows pair into the supported pty range (flooring decimals). */
+/**
+ * Clamp one cols×rows pair into the supported pty range (flooring decimals).
+ * @param cols - requested column count.
+ * @param rows - requested row count.
+ * @returns the clamped pair, valid for `spawn` and `resize`.
+ */
 export function clampDims(cols: number, rows: number): { cols: number; rows: number } {
   const clamp = (value: number): number =>
     Math.min(TERMINAL_DIM_MAX, Math.max(TERMINAL_DIM_MIN, Math.floor(value)))
@@ -165,7 +170,11 @@ export type AgentTerminalWaitResult =
     exitSignal?: string | null
   }
 
-/** Snapshot projection of a handle (drops the pty reference and transcript). */
+/**
+ * Snapshot projection of a handle (drops the pty reference and transcript).
+ * @param handle - live or exited terminal handle.
+ * @returns the serialized view; exit fields stay absent until the process exits.
+ */
 export function snapshotOf(handle: AgentTerminalHandle): AgentTerminalSnapshot {
   const out: AgentTerminalSnapshot = {
     uuid: handle.uuid,
@@ -205,6 +214,14 @@ export class AgentPtyRegistry {
    * terminal stays alive after the command exits — the model can send more
    * input through `terminal_send` until it calls `terminal_close` or the
    * user closes the sidebar tab. An empty `command` spawns a bare shell.
+   * @param sessionId - owning conversation id.
+   * @param title - display title for the sidebar tab.
+   * @param command - command written to stdin right after spawn; '' spawns a bare shell.
+   * @param cwd - working directory the process is spawned with.
+   * @param cols - requested pty width (clamped).
+   * @param rows - requested pty height (clamped).
+   * @param shell - shell binary overriding the registry default.
+   * @param shellArgs - shell arguments overriding the registry default.
    * @returns the new handle's uuid (the model-facing opaque id).
    */
   create(
@@ -269,7 +286,11 @@ export class AgentPtyRegistry {
     return uuid
   }
 
-  /** All live agent terminals belonging to one conversation. */
+  /**
+   * All live agent terminals belonging to one conversation, in creation order.
+   * @param sessionId - conversation id to filter by.
+   * @returns snapshots of that conversation's terminals.
+   */
   list(sessionId: string): AgentTerminalSnapshot[] {
     const out: AgentTerminalSnapshot[] = []
     for (const handle of this.sessions.values()) {
@@ -292,6 +313,9 @@ export class AgentPtyRegistry {
    * The model-facing tools call this before every uuid-keyed operation: a
    * uuid from another session is indistinguishable from an unknown one, so a
    * model can never reach (or probe) a terminal it does not own.
+   * @param uuid - terminal handle id.
+   * @param sessionId - conversation that must own the terminal.
+   * @returns the live handle, for the caller's subsequent pty access.
    */
   assertOwned(uuid: string, sessionId: string): AgentTerminalHandle {
     const handle = this.expect(uuid)
@@ -301,13 +325,22 @@ export class AgentPtyRegistry {
     return handle
   }
 
-  /** Resolve a handle's snapshot, or undefined if it does not exist. */
+  /**
+   * Resolve a handle's snapshot, or undefined if it does not exist.
+   * @param uuid - terminal handle id.
+   * @returns the snapshot, or undefined for an unknown uuid.
+   */
   snapshot(uuid: string): AgentTerminalSnapshot | undefined {
     const handle = this.sessions.get(uuid)
     return handle === undefined ? undefined : snapshotOf(handle)
   }
 
-  /** Write raw text to a terminal's stdin (tmux `send-keys` semantics). */
+  /**
+   * Write raw text to a terminal's stdin (tmux `send-keys` semantics); throws
+   * `bad-request` when the terminal has exited.
+   * @param uuid - terminal handle id.
+   * @param text - bytes delivered to the pty verbatim.
+   */
   send(uuid: string, text: string): void {
     const handle = this.expect(uuid)
     if (handle.exited) {
@@ -322,6 +355,10 @@ export class AgentPtyRegistry {
    * `count` caps the page size (default 500). A negative `offset` reads
    * from the end (e.g. -50 reads the last 50 lines). Returns `totalLines`
    * so the model can paginate.
+   * @param uuid - terminal handle id.
+   * @param offset - 0-based start line; negative counts from the end; default 0.
+   * @param count - page size cap; default and maximum 500.
+   * @returns one transcript page plus `totalLines` for pagination.
    */
   read(uuid: string, offset?: number, count?: number): AgentTerminalReadResult {
     const handle = this.expect(uuid)
@@ -349,6 +386,9 @@ export class AgentPtyRegistry {
 
   /**
    * Resize a terminal's pty, clamped to the 2..1024 sane range.
+   * @param uuid - terminal handle id.
+   * @param cols - requested column count.
+   * @param rows - requested row count.
    * @returns the dimensions actually applied (the caller echoes these, so the
    * reported value always matches the pty).
    */
@@ -449,6 +489,10 @@ export class AgentPtyRegistry {
    *   which maps to the platform's process-termination path (POSIX
    *   `kill(2)`, Windows `TerminateProcess`). These cannot be faked with
    *   control characters.
+   *
+   * No-op when the terminal has already exited.
+   * @param uuid - terminal handle id.
+   * @param signal - signal name to deliver.
    */
   signal(uuid: string, signal: AgentTerminalSignal): void {
     const handle = this.expect(uuid)
@@ -485,6 +529,8 @@ export class AgentPtyRegistry {
    * Close a terminal and drop its state. Idempotent: a second close of the
    * same uuid is a no-op. Returns true iff a live handle was actually
    * dropped.
+   * @param uuid - terminal handle id.
+   * @returns true only when a live handle was dropped; false for an unknown uuid.
    */
   close(uuid: string): boolean {
     const handle = this.sessions.get(uuid)
@@ -499,7 +545,11 @@ export class AgentPtyRegistry {
     return true
   }
 
-  /** Resolve a live handle by uuid (for the WS attach path). */
+  /**
+   * Resolve a live handle by uuid (for the WS attach path).
+   * @param uuid - terminal handle id.
+   * @returns the live handle, or undefined for an unknown uuid.
+   */
   get(uuid: string): AgentTerminalHandle | undefined {
     return this.sessions.get(uuid)
   }
@@ -508,6 +558,8 @@ export class AgentPtyRegistry {
    * Subscribe to registry changes (create / close / exit). The sidebar push
    * endpoint uses this to forward snapshots to the connected view. Returns
    * the unsubscribe function.
+   * @param listener - callback fired after every registry change.
+   * @returns the unsubscribe function; call it to release the listener.
    */
   subscribe(listener: () => void): () => void {
     this.changeListeners.add(listener)

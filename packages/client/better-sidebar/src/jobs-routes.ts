@@ -194,6 +194,7 @@ function createJobOutputMirror(ctx: Context): { entries(sessionId: string): read
  * @param ctx - host plugin context.
  * @param outputLimit - response cap for one output replay in bytes; longer
  *   texts are sliced and flagged `truncated` (mirrors the fs.read cap).
+ * @returns the `output` and `kill` routes bound to the plugin context.
  */
 export function buildJobsApi(ctx: Context, outputLimit: number): SidebarJobsRoutes {
   const jobs = ctx.get('jobs')

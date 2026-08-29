@@ -52,7 +52,10 @@ const STRIP_ELEMENTS = new Set([
   'base',
 ])
 
-/** A parse failure keeps nothing of the input: the caller shows the error. */
+/** A parse failure keeps nothing of the input: the caller shows the error.
+ * @param svg - raw SVG string produced by the mermaid renderer.
+ * @returns the sanitized SVG markup, or '' when the XML parse fails or the root is not `<svg>`.
+ */
 export function sanitizeSvg(svg: string): string {
   if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') return ''
   let doc: Document

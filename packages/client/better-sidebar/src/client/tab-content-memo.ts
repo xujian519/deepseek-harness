@@ -38,7 +38,11 @@ export interface TabContentMemoKey {
  *  unchanged). Callback/context identities are deliberately ignored: their
  *  captured dependencies are stable or covered by the compared fields
  *  (onReferenceFile → sessionId/cwd, onSubagentJump/onToggleDir → stable
- *  refs/closures, onOpenDiff → paneId). */
+ *  refs/closures, onOpenDiff → paneId).
+ * @param prev - the memo key captured at the last render.
+ * @param next - the memo key of the pending render.
+ * @returns true when every render-affecting field is unchanged.
+ */
 export function tabContentCompare(prev: TabContentMemoKey, next: TabContentMemoKey): boolean {
   return (
     prev.tab === next.tab &&

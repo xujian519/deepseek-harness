@@ -22,6 +22,9 @@ export interface FrameBatcher {
   dispose(): void
 }
 
+/** Create one per-frame batcher (one pending frame, latest task wins).
+ * @returns the batcher; the caller owns its disposal.
+ */
 export function createFrameBatcher(): FrameBatcher {
   let frame: number | null = null
   let task: (() => void) | null = null

@@ -344,24 +344,63 @@ export interface OpenTabSeed {
  * The registry service published as `ctx.betterSidebar`.
  */
 export interface BetterSidebarService {
+  /**
+   * Register a tab type for the + menu and `openTab`. Throws when the
+   * descriptor id is already registered.
+   *
+   * @param descriptor - The tab type's display, enablement, and creation contract.
+   * @returns The disposer, which unregisters the type (no-op if replaced) and notifies subscribers.
+   */
   registerTab(descriptor: TabDescriptor): () => void
+  /**
+   * Register a file viewer consulted by `matchFileViewer`. Throws when the
+   * descriptor id is already registered.
+   *
+   * @param descriptor - The viewer's match contract (priority, detect, exts) and open callback.
+   * @returns The disposer, which unregisters the viewer (no-op if replaced) and notifies subscribers.
+   */
   registerFileViewer(descriptor: FileViewerDescriptor): () => void
+  /**
+   * Currently registered tab types (insertion-order snapshot).
+   * @returns The tab type descriptors.
+   */
   getTabs(): readonly TabDescriptor[]
+  /**
+   * Currently registered file viewers (insertion-order snapshot).
+   * @returns The file viewer descriptors.
+   */
   getFileViewers(): readonly FileViewerDescriptor[]
-  /** Find a tab descriptor by id (undefined if not registered). */
+  /**
+   * Find a tab descriptor by id (undefined if not registered).
+   *
+   * @param id - The tab descriptor id to look up.
+   * @returns The descriptor, or undefined when the id is not registered.
+   */
   getTab(id: string): TabDescriptor | undefined
   /**
    * Whether a tab type is enabled in the side card prefs. An absent
    * `tabsEnabled[id]` entry means enabled — only an explicit `false`
    * disables the type (hidden from the + menu, `openTab` refuses, and
    * derived flows gate on it).
+   *
+   * @param id - The tab descriptor id to check.
+   * @returns Whether the tab type is enabled.
    */
   isTabEnabled(id: string): boolean
-  /** Whether a file viewer is enabled (absent `viewersEnabled[id]` = enabled). */
+  /**
+   * Whether a file viewer is enabled (absent `viewersEnabled[id]` = enabled).
+   *
+   * @param id - The file viewer descriptor id to check.
+   * @returns Whether the viewer is enabled.
+   */
   isViewerEnabled(id: string): boolean
   /**
    * Find a file viewer for a path (priority desc; detect first, then exts).
    * Disabled viewers are skipped, so files fall through to the next match.
+   *
+   * @param path - The file path to match (extension extracted from the last dot).
+   * @param head - Leading file bytes for content-based `detect` matches; detection is skipped when absent.
+   * @returns The best matching enabled viewer descriptor, or undefined when none matches.
    */
   matchFileViewer(path: string, head?: Uint8Array): FileViewerDescriptor | undefined
   /**
@@ -387,6 +426,9 @@ export interface BetterSidebarService {
    *
    * Note: `available` gates the + menu's disabled state only — it does NOT
    * refuse `openTab` (only the settings disable switch does).
+   *
+   * @param seed - Which tab to open and its content seed (title/path/diff/url/meta overrides).
+   * @param scope - The session whose sidebar receives the open; defaults to the active session.
    */
   openTab(seed: OpenTabSeed, scope?: SessionScope): void
   /**
@@ -394,9 +436,17 @@ export interface BetterSidebarService {
    * strict no-op (no state churn, no callbacks). `scope` (v0.12.0+) rides
    * to the callback (its optional cwd included); absent, the callback gets
    * `{ sessionId }` of the active session.
+   *
+   * @param tabId - The open tab instance id to close.
+   * @param scope - The session whose sidebar closes the tab; defaults to the active session.
    */
   closeTab(tabId: string, scope?: SessionScope): void
-  /** Subscribe to registry changes (register/dispose). */
+  /**
+   * Subscribe to registry changes (register/dispose).
+   *
+   * @param listener - Invoked after every registry mutation.
+   * @returns The disposer that removes the listener.
+   */
   subscribe(listener: () => void): () => void
   /** The plugin version this service instance was built from ('0.12.0'). */
   readonly version: string
@@ -411,19 +461,40 @@ export interface BetterSidebarService {
    * The current sidebar snapshot: the active session id, its state (panel
    * geometry, open tabs, expansions), and the side card prefs (v0.12.0+).
    * `state`/`sessionId` are undefined until a session becomes active.
+   *
+   * @returns The current snapshot (active session id, its sidebar state, and the side card prefs).
    */
   getSnapshot(): SidebarSnapshot
-  /** Subscribe to snapshot changes (session switch, state changes, prefs changes). Returns the disposer. */
+  /**
+   * Subscribe to snapshot changes (session switch, state changes, prefs changes). Returns the disposer.
+   *
+   * @param listener - Invoked after every snapshot change.
+   * @returns The disposer that removes the listener.
+   */
   subscribeState(listener: () => void): () => void
-  /** Update an open tab's display fields (title / path / meta); a missing tab id is a no-op. */
+  /**
+   * Update an open tab's display fields (title / path / meta); a missing tab id is a no-op.
+   *
+   * @param tabId - The open tab instance id to update.
+   * @param patch - The display fields to overwrite; absent fields keep their value.
+   */
   updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void
   /**
    * Activate an open tab (the tab-bar activation path; fires
    * descriptor.onActivate). An unknown tab id is a strict no-op. `scope`
    * (v0.12.0+) rides to the callback like `closeTab`'s.
+   *
+   * @param tabId - The open tab instance id to activate.
+   * @param scope - The session whose sidebar activates the tab; defaults to the active session.
    */
   activateTab(tabId: string, scope?: SessionScope): void
-  /** Open a file in the sidebar editor of `scope`'s session (title defaults to the file name). */
+  /**
+   * Open a file in the sidebar editor of `scope`'s session (title defaults to the file name).
+   *
+   * @param scope - The session whose sidebar opens the file.
+   * @param path - The file path to open as the editor tab's content seed.
+   * @param title - The tab title; defaults to the file name.
+   */
   openFile(scope: SessionScope, path: string, title?: string): void
 }
 
@@ -452,6 +523,9 @@ function baseNameOf(path: string): string {
  * back to the built-in browser tab when nothing claims the URL (the
  * browser never declares `urlTarget` itself, so it can never shadow a
  * plugin claim).
+ * @param tabs - enabled tab descriptors in registration order.
+ * @param url - intercepted external-link URL.
+ * @returns the first claiming descriptor, or undefined when none matches.
  */
 export function matchUrlTarget(tabs: readonly TabDescriptor[], url: URL): TabDescriptor | undefined {
   for (const tab of tabs) {
@@ -518,6 +592,8 @@ function safeCall(fn: () => void): void {
  * Create one BetterSidebar service bound to a store. The service owns the
  * tab/viewer registries (Map + listener set) and proxies openTab/closeTab
  * to the store's reducer. One instance per client plugin activation.
+ * @param store - the sidebar store whose reducers own tab state.
+ * @returns the service instance for this plugin activation.
  */
 export function createBetterSidebarService(store: SidebarStore): BetterSidebarService {
   const tabs = new Map<string, TabDescriptor>()

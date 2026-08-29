@@ -65,6 +65,10 @@ export class AgentOpenRegistry {
   private subscribers = new Map<string, Set<Sender>>()
 
   /** Queue one open and deliver it immediately when a view is attached.
+   * @param sessionId - session whose sidebar the open is targeted at.
+   * @param kind - what to open: file, folder, or url.
+   * @param target - absolute local path (file/folder) or http(s) URL.
+   * @param title - tab title the client should use.
    * @returns the request id and whether a connected view received it now. */
   enqueue(sessionId: string, kind: AgentOpenKind, target: string, title: string): { id: string; delivered: boolean } {
     const request: AgentOpenRequest = { id: randomUUID(), sessionId, kind, target, title }
@@ -81,6 +85,8 @@ export class AgentOpenRegistry {
   }
 
   /** Attach one sidebar view (replays queued requests; consume-on-send).
+   * @param sessionId - session the view displays.
+   * @param send - push callback invoked for each delivered request.
    * @returns the disposer detaching the view. */
   attach(sessionId: string, send: Sender): () => void {
     let views = this.subscribers.get(sessionId)

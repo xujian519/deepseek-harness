@@ -53,14 +53,21 @@ export interface PinnedHomeScope {
 const PINNED_META_KEY = '__pinnedHome'
 const PINNED_VID_PREFIX = 'pinned:'
 
-/** Whether a tab id is a pinned virtual id (prefixed). */
+/**
+ * Whether a tab id is a pinned virtual id (prefixed).
+ * @param tabId - Tab id to test.
+ * @returns Whether the id carries the `pinned:` prefix.
+ */
 export function isPinnedVirtualId(tabId: string): boolean {
   return tabId.startsWith(PINNED_VID_PREFIX)
 }
 
 /** Parse a pinned virtual id into its home session id and original tab id.
  *  Format: `pinned:<homeSessionId>:<originalTabId>` — session ids are UUIDs
- *  (no colons), so the first colon after the prefix delimits the session. */
+ *  (no colons), so the first colon after the prefix delimits the session.
+ * @param tabId - Pinned virtual id to parse.
+ * @returns The home session id and original tab id; a missing separator yields an empty tab id.
+ */
 export function parsePinnedVirtualId(tabId: string): { homeSessionId: string; tabId: string } {
   const rest = tabId.slice(PINNED_VID_PREFIX.length)
   const sep = rest.indexOf(':')
@@ -69,20 +76,30 @@ export function parsePinnedVirtualId(tabId: string): { homeSessionId: string; ta
 }
 
 /** Extract the home scope from a pinned virtual tab's meta (undefined for
- *  regular tabs). */
+ *  regular tabs).
+ * @param tab - Tab whose meta is read.
+ * @returns The stored home scope, or undefined for a regular tab.
+ */
 export function getPinnedHomeScope(tab: SidebarTab): PinnedHomeScope | undefined {
   const meta = tab.meta as Record<string, unknown> | undefined
   return (meta?.[PINNED_META_KEY] as PinnedHomeScope | undefined) ?? undefined
 }
 
-/** Whether a tab is a pinned virtual tab (injected from another session). */
+/**
+ * Whether a tab is a pinned virtual tab (injected from another session).
+ * @param tab - Tab to test.
+ * @returns Whether the tab carries pinned-home meta.
+ */
 export function isPinnedVirtualTab(tab: SidebarTab): boolean {
   return getPinnedHomeScope(tab) !== undefined
 }
 
 /** Create a virtual SidebarTab for a pinned entry. The virtual id is unique
  *  (prefixed with home session) to avoid collision with the viewer's own
- *  tab ids; the original id is stored in meta for TerminalView. */
+ *  tab ids; the original id is stored in meta for TerminalView.
+ * @param entry - The pinned tab paired with its home session id.
+ * @returns A copy of the tab with the prefixed virtual id and the home scope in meta.
+ */
 export function createPinnedVirtualTab(entry: PinnedTabEntry): SidebarTab {
   const { tab, homeSessionId } = entry
   const home: PinnedHomeScope = {
@@ -99,7 +116,12 @@ export function createPinnedVirtualTab(entry: PinnedTabEntry): SidebarTab {
 
 /** Inject pinned virtual tabs into the first leaf of a split tree, and
  *  override that leaf's `active` when a pinned tab is activated. Returns
- *  the original tree when there are no pinned tabs and no active override. */
+ *  the original tree when there are no pinned tabs and no active override.
+ * @param tree - Split tree to update.
+ * @param pinned - Virtual tabs appended to the first leaf.
+ * @param activePinnedId - Pinned tab id overriding the first leaf's active tab, or null for no override.
+ * @returns The updated tree, or the original reference when there is nothing to change.
+ */
 export function injectPinnedIntoTree(
   tree: SplitNode,
   pinned: readonly SidebarTab[],
@@ -127,6 +149,9 @@ export function injectPinnedIntoTree(
  * unknown cwd: a `workspace` pin with no `homeCwd` is visible everywhere
  * (the pin was set before the home session's cwd resolved), and a viewer
  * whose cwd is unknown sees every workspace pin (avoids hydration flash).
+ * @param tab - Candidate pinned terminal tab; a tab without a pin is invisible.
+ * @param viewer - The viewing session's id and cwd.
+ * @returns Whether the tab's pin scope admits the viewer.
  */
 export function pinnedVisibleTo(tab: SidebarTab, viewer: PinnedViewer): boolean {
   const pin = tab.pin
@@ -146,6 +171,9 @@ export function pinnedVisibleTo(tab: SidebarTab, viewer: PinnedViewer): boolean 
  * tabs in tree order (splits → bottomSplits → floats) within each session
  * — the order tabs were opened/pinned, so the rail never reorders between
  * renders.
+ * @param bySession - Cached session states scanned for pinned terminals.
+ * @param viewer - The viewing session's id and cwd.
+ * @returns The visible pinned terminals paired with their home session ids, in stable cache order.
  */
 export function collectPinnedTabs(
   bySession: ReadonlyMap<string, SidebarState>,

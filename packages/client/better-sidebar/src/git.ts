@@ -77,7 +77,11 @@ export class GitCommandError extends Error {
   }
 }
 
-/** Parse porcelain v1 -z output into entries (rename/copy pairs collapse to one row). */
+/**
+ * Parse porcelain v1 -z output into entries (rename/copy pairs collapse to one row).
+ * @param output - raw stdout of `git status --porcelain=v1 -z`.
+ * @returns one entry per path, in output order.
+ */
 export function parsePorcelainZ(output: string): GitStatusEntry[] {
   const tokens = output.split('\0')
   const entries: GitStatusEntry[] = []
@@ -110,7 +114,10 @@ export interface GitWorktreeRecord {
 
 /** Parse `git worktree list --porcelain` records. Production requests use
  * `-z` so even newlines and non-ASCII bytes in checkout paths stay lossless;
- * newline framing remains accepted for small fixtures and older Git output. */
+ * newline framing remains accepted for small fixtures and older Git output.
+ * @param output - raw stdout of `git worktree list --porcelain`, NUL or newline framed.
+ * @returns one record per checkout, locked and prunable included.
+ */
 export function parseWorktreeList(output: string): GitWorktreeRecord[] {
   const rows: GitWorktreeRecord[] = []
   let path: string | undefined
@@ -142,7 +149,11 @@ export function parseWorktreeList(output: string): GitWorktreeRecord[] {
   return rows
 }
 
-/** Parse `git log --pretty=format:%h%x1f%s%x1f%an%x1f%ai%x1f%H%x1f%D` rows. */
+/**
+ * Parse `git log --pretty=format:%h%x1f%s%x1f%an%x1f%ai%x1f%H%x1f%D` rows.
+ * @param output - raw stdout of the `git log` format above, newline separated.
+ * @returns one entry per non-empty row; rows missing the hash or subject are skipped.
+ */
 export function parseLogLines(output: string): GitLogEntry[] {
   const rows: GitLogEntry[] = []
   for (const line of output.split('\n')) {
@@ -211,7 +222,10 @@ const repoRootsInFlight = new Map<string, Promise<string[]>>()
 
 /** Whether the directory is inside a git work tree (exit-0 `git rev-parse`).
  *  Probe timeout is short: a cwd on a stalled mount must not hold the panel
- *  hostage for the full command budget (issue #369). */
+ *  hostage for the full command budget (issue #369).
+ * @param cwd - directory probed via `git -C`.
+ * @returns true when `git rev-parse --is-inside-work-tree` answers `true`; false on any failure.
+ */
 export async function isGitRepo(cwd: string): Promise<boolean> {
   try {
     const out = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'], DISCOVERY_TIMEOUT_MS)
@@ -229,7 +243,11 @@ async function directRepoRoot(cwd: string): Promise<string> {
 
 /** Discover the current repository or direct child repositories. Results are
  *  cached per cwd and concurrent callers share one in-flight scan, so opening
- *  the panel (three parallel git.* requests) costs a single discovery pass. */
+ *  the panel (three parallel git.* requests) costs a single discovery pass.
+ * @param cwd - directory discovery starts from.
+ * @returns the containing repository's root when cwd is inside one, otherwise
+ *  the discovered direct child repositories; empty when neither applies.
+ */
 export function repoRoots(cwd: string): Promise<string[]> {
   const cached = repoRootsCache.get(cwd)
   if (cached !== undefined && cached.expires > Date.now()) return Promise.resolve(cached.roots)
@@ -271,7 +289,12 @@ async function discoverRepoRoots(cwd: string): Promise<string[]> {
   }
 }
 
-/** Resolve the selected repository, defaulting to the first discovered root. */
+/**
+ * Resolve the selected repository, defaulting to the first discovered root.
+ * @param cwd - session working directory used for discovery.
+ * @param selected - client-selected root, matched against discovery by platform identity.
+ * @returns the matched root, or the first discovered root; rejects with `not-repo` when none exists.
+ */
 export async function repoRoot(cwd: string, selected?: string): Promise<string> {
   const roots = await repoRoots(cwd)
   if (roots.length === 0) throw new GitCommandError('not a git repository', 'not-repo', 'rev-parse')
@@ -285,7 +308,11 @@ export async function repoRoot(cwd: string, selected?: string): Promise<string> 
   return roots[0] as string
 }
 
-/** The current branch name (`git rev-parse --abbrev-ref HEAD`; 'HEAD' when detached). */
+/**
+ * The current branch name (`git rev-parse --abbrev-ref HEAD`; 'HEAD' when detached).
+ * @param cwd - repository root or any directory inside it.
+ * @returns the branch name without `refs/heads/`.
+ */
 export async function currentBranch(cwd: string): Promise<string> {
   const out = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])
   return out.trim()
@@ -301,6 +328,9 @@ const GIT_STATUS_LIMIT = 2_000
  * Working-tree status (untracked included). `--untracked-files=all` lists
  * the contents of new directories as individual entries, while preserving
  * repository discovery and explicit repository selection for workspace roots.
+ * @param cwd - session working directory used for discovery.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ * @returns the panel snapshot; `isRepo: false` with no entries outside any repository.
  */
 export async function status(cwd: string, selected?: string): Promise<GitStatusResult> {
   const repositories = await repoRoots(cwd)
@@ -338,7 +368,10 @@ async function listedWorktrees(cwd: string): Promise<GitWorktreeRecord[]> {
 
 /** All linked checkouts of the repository containing `cwd`, enriched with a
  * live change count. The current checkout is first so a single-worktree repo
- * preserves the old UI ordering. */
+ * preserves the old UI ordering.
+ * @param cwd - session working directory used for discovery.
+ * @returns the checkouts with the containing one first; empty when cwd is not a repository.
+ */
 export async function worktrees(cwd: string): Promise<GitWorktree[]> {
   if (!await isGitRepo(cwd)) return []
   const currentRoot = await repoRoot(cwd)
@@ -356,7 +389,12 @@ export async function worktrees(cwd: string): Promise<GitWorktree[]> {
 
 /** Resolve an optional client-selected linked checkout. A caller may never use
  * this seam to point Git operations at an unrelated repository: the target
- * must occur in the authoritative session repository's worktree list. */
+ * must occur in the authoritative session repository's worktree list.
+ * @param cwd - session working directory whose repository validates the request.
+ * @param requested - client-selected checkout root; the session cwd when undefined or ''.
+ * @returns the canonical checkout path; rejects with `git-worktree` for a target
+ *  outside the session repository's worktree list.
+ */
 export async function resolveWorktree(cwd: string, requested?: string): Promise<string> {
   if (requested === undefined || requested === '') return cwd
   const identity = pathIdentity(requested)
@@ -367,7 +405,14 @@ export async function resolveWorktree(cwd: string, requested?: string): Promise<
   return match.path
 }
 
-/** Diff text of the worktree (unstaged) or the index (staged). */
+/**
+ * Diff text of the worktree (unstaged) or the index (staged).
+ * @param cwd - session working directory used for discovery.
+ * @param path - single path to diff; the whole tree when undefined.
+ * @param staged - true diffs the index against HEAD, false the worktree against the index.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ * @returns unified diff text with three context lines.
+ */
 export async function diff(cwd: string, path: string | undefined, staged: boolean, selected?: string): Promise<string> {
   const root = await repoRoot(cwd, selected)
   const args = ['diff', '--no-ext-diff', '--no-color', '-U3']
@@ -376,22 +421,43 @@ export async function diff(cwd: string, path: string | undefined, staged: boolea
   return runGit(root, args)
 }
 
-/** Stage paths (all when path is undefined). */
+/**
+ * Stage paths (all when path is undefined); rejects with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param path - path to stage; every change when undefined.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function stage(cwd: string, path: string | undefined, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['add', '-A', ...(path !== undefined ? ['--', path] : [])])
 }
 
-/** Unstage paths (all when path is undefined). */
+/**
+ * Unstage paths (all when path is undefined); rejects with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param path - path to unstage; every staged path when undefined.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function unstage(cwd: string, path: string | undefined, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['reset', '-q', ...(path !== undefined ? ['--', path] : [])])
 }
 
-/** Commit the staged changes with a message (global identity untouched). */
+/**
+ * Commit the staged changes with a message (global identity untouched); rejects
+ * with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param message - commit message, passed to `git commit -m` verbatim.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function commit(cwd: string, message: string, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['commit', '-m', message])
 }
 
-/** Branch names (current first). */
+/**
+ * Branch names (current first).
+ * @param cwd - session working directory used for discovery.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ * @returns local branch names with the current branch first.
+ */
 export async function branches(cwd: string, selected?: string): Promise<{ current: string; names: string[] }> {
   const root = await repoRoot(cwd, selected)
   const [current, raw] = await Promise.all([
@@ -402,12 +468,24 @@ export async function branches(cwd: string, selected?: string): Promise<{ curren
   return { current, names: names.includes(current) ? names : [current, ...names] }
 }
 
-/** Switch to an existing branch. */
+/**
+ * Switch to an existing branch; rejects with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param branch - existing local branch to check out.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function checkout(cwd: string, branch: string, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['checkout', branch])
 }
 
-/** Recent commit history (newest first), lazily pageable via skip/count. */
+/**
+ * Recent commit history (newest first), lazily pageable via skip/count.
+ * @param cwd - session working directory used for discovery.
+ * @param count - page size.
+ * @param skip - number of newer commits to skip.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ * @returns the requested page, newest first.
+ */
 export async function log(cwd: string, count = 30, skip = 0, selected?: string): Promise<GitLogEntry[]> {
   const raw = await runGit(await repoRoot(cwd, selected), [
     'log', '-n', String(count), '--skip', String(skip), '--decorate=short',
@@ -419,6 +497,11 @@ export async function log(cwd: string, count = 30, skip = 0, selected?: string):
 /**
  * Content of a file at a revision (`git show <rev>:<path>`), or null when the
  * revision has no such path (a new/untracked file has no HEAD side).
+ * @param cwd - session working directory used for discovery.
+ * @param rev - revision to read (e.g. `HEAD`, a commit hash).
+ * @param path - workspace path, made repository-relative before the lookup.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ * @returns the file content, or null when the path is absent at the revision (any git failure included).
  */
 export async function show(cwd: string, rev: string, path: string, selected?: string): Promise<string | null> {
   try {
@@ -441,22 +524,44 @@ export async function show(cwd: string, rev: string, path: string, selected?: st
 
 /** Full patch text of one commit (`git show` with the commit header suppressed).
  *  Merge commits show their diff against the first parent (`-m --first-parent`
- *  is a no-op for regular commits), so a history click always has content. */
+ *  is a no-op for regular commits), so a history click always has content.
+ * @param cwd - session working directory used for discovery.
+ * @param hash - commit to render.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ * @returns the patch text without the commit header.
+ */
 export async function commitDiff(cwd: string, hash: string, selected?: string): Promise<string> {
   return runGit(await repoRoot(cwd, selected), ['show', '--no-ext-diff', '--no-color', '--format=', '-m', '--first-parent', hash])
 }
 
-/** Discard the worktree changes of one path (`git checkout -- <path>`; the index is untouched). */
+/**
+ * Discard the worktree changes of one path (`git checkout -- <path>`; the index is
+ * untouched); rejects with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param path - path whose worktree changes are discarded.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function discard(cwd: string, path: string, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['checkout', '--', path])
 }
 
-/** Revert one commit onto the current branch with an auto-generated message. */
+/**
+ * Revert one commit onto the current branch with an auto-generated message; rejects
+ * with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param hash - commit to revert.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function revert(cwd: string, hash: string, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['revert', '--no-edit', hash])
 }
 
-/** Cherry-pick one commit onto the current branch. */
+/**
+ * Cherry-pick one commit onto the current branch; rejects with `GitCommandError` when git fails.
+ * @param cwd - session working directory used for discovery.
+ * @param hash - commit to cherry-pick.
+ * @param selected - client-selected repository root; defaults to the first discovered root.
+ */
 export async function cherryPick(cwd: string, hash: string, selected?: string): Promise<void> {
   await runGit(await repoRoot(cwd, selected), ['cherry-pick', hash])
 }

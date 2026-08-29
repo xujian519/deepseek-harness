@@ -12,6 +12,8 @@
  * header, or undefined when the directive is absent (or empty). The
  * directive is the only one with a source list; sources are space-separated
  * tokens (`'none'`, `'self'`, `*`, or origins).
+ * @param csp - raw Content-Security-Policy header value (null when absent).
+ * @returns the source-list tokens, or undefined when the directive is absent or empty.
  */
 export function extractFrameAncestors(csp: string | null): string[] | undefined {
   if (csp === null) return undefined

@@ -99,7 +99,11 @@ export class PtyManager {
     private readonly nodePty: NodePtyModule = loadRequiredNodePty(),
   ) {}
 
-  /** All live terminal keys of one session. */
+  /**
+   * All live terminal keys of one session.
+   * @param sessionId - conversation id whose terminals are listed.
+   * @returns the live terminal keys of that session, in spawn order.
+   */
   keysOf(sessionId: string): string[] {
     const keys: string[] = []
     for (const handle of this.sessions.values()) {
@@ -123,6 +127,8 @@ export class PtyManager {
    * @param cwd - initial working directory (the session's cwd).
    * @param cols - initial terminal width.
    * @param rows - initial terminal height.
+   * @param shell - shell executable overriding the configured one (undefined keeps the configured shell).
+   * @param shellArgs - shell arguments replacing the configured ones (undefined keeps the configured arguments).
    * @returns the live handle.
    * @throws {SidebarError} pty-error when the per-session cap is reached.
    */
@@ -184,6 +190,8 @@ export class PtyManager {
    * `open()` cancels any pending close. Clears the parked state — an explicit
    * close frame on a parked pty (the user switched back and closed the tab)
    * still kills it.
+   * @param key - terminal key (`${sessionId}:${tabId}`) whose process closes; unknown keys are ignored.
+   * @param delayMs - milliseconds before the close runs; a previous pending close is cancelled first.
    */
   scheduleClose(key: string, delayMs: number): void {
     const handle = this.sessions.get(key)
@@ -201,6 +209,7 @@ export class PtyManager {
    * reconnect-grace countdown — the pty stays alive until the user switches
    * back (a reconnecting view's `open()` clears this) or explicitly closes
    * the tab (a `{type:'close'}` frame's `scheduleClose` clears this).
+   * @param key - terminal key (`${sessionId}:${tabId}`) to park; unknown keys are ignored.
    */
   park(key: string): void {
     if (this.sessions.get(key) === undefined) return
@@ -208,14 +217,20 @@ export class PtyManager {
     this.parked.add(key)
   }
 
-  /** Whether this pty was parked (its view unmounted for a session switch). */
+  /**
+   * Whether this pty was parked (its view unmounted for a session switch).
+   * @param key - terminal key (`${sessionId}:${tabId}`) to test.
+   * @returns whether the key is currently parked.
+   */
   isParked(key: string): boolean {
     return this.parked.has(key)
   }
 
   /** Cancel a pending scheduled close (the terminal is being reopened).
    *  Also clears the parked state — a reconnecting view reattaches a parked
-   *  pty and resumes normal lifecycle. */
+   *  pty and resumes normal lifecycle.
+   * @param key - terminal key (`${sessionId}:${tabId}`) whose pending close is cancelled.
+   */
   cancelClose(key: string): void {
     const timer = this.pendingCloses.get(key)
     if (timer !== undefined) {
@@ -225,12 +240,19 @@ export class PtyManager {
     this.parked.delete(key)
   }
 
-  /** Resolve a live handle by key, or undefined. */
+  /**
+   * Resolve a live handle by key, or undefined.
+   * @param key - terminal key (`${sessionId}:${tabId}`) to look up.
+   * @returns the live handle, or undefined when no live terminal has that key.
+   */
   get(key: string): SidebarPty | undefined {
     return this.sessions.get(key)
   }
 
-  /** Close a terminal and drop its state (the owning tab was closed). */
+  /**
+   * Close a terminal and drop its state (the owning tab was closed).
+   * @param key - terminal key (`${sessionId}:${tabId}`) to close; unknown keys are ignored.
+   */
   close(key: string): void {
     this.cancelClose(key)
     const handle = this.sessions.get(key)
@@ -321,6 +343,8 @@ function windowsPwshCandidateDirs(env: NodeJS.ProcessEnv): string[] {
  * chain is now: explicit shell → `DSH_SIDEBAR_SHELL` env override → first
  * `pwsh.exe` found on PATH or in a known install directory → the 5.1
  * fallback (machines without PowerShell 7 keep working).
+ * @param options - resolution inputs overriding the live process; every field is optional.
+ * @returns the resolved shell path or name, never empty.
  */
 export function defaultShell(options: ShellResolutionOptions = {}): string {
   const platform = options.platform ?? process.platform
@@ -354,6 +378,8 @@ export function defaultShell(options: ShellResolutionOptions = {}): string {
  * A short display name for a shell executable, used as the terminal tab
  * title. `/bin/zsh` → `zsh`, `C:\...\powershell.exe` → `powershell`.
  * Falls back to the raw value when no basename can be derived.
+ * @param shell - shell path or bare executable name.
+ * @returns the basename without a Windows executable extension, or the input when no basename is derivable.
  */
 export function shellDisplayName(shell: string): string {
   const normalized = shell.replace(/\\/g, '/')
@@ -369,6 +395,8 @@ export function shellDisplayName(shell: string): string {
  *
  * When explicit `configured` args are supplied they REPLACE the platform
  * defaults entirely, giving deployments full control over shell startup.
+ * @param configured - explicit arguments replacing the platform defaults; empty keeps the defaults.
+ * @returns `['-l']` on POSIX (login shell), `[]` on Windows.
  */
 export function shellSpawnArgs(configured: string[] = []): string[] {
   if (configured.length > 0) return [...configured]

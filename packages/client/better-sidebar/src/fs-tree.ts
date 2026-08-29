@@ -30,7 +30,12 @@ export interface SidebarFsListing {
   truncated: boolean
 }
 
-/** Directory-first, case-insensitive name ordering (VSCode explorer order). */
+/**
+ * Directory-first, case-insensitive name ordering (VSCode explorer order).
+ * @param a - first entry.
+ * @param b - second entry.
+ * @returns negative when `a` sorts before `b`, positive when after, 0 when equal.
+ */
 export function compareEntries(a: SidebarFsEntry, b: SidebarFsEntry): number {
   if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
   return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
@@ -105,13 +110,21 @@ async function probeSymlinkTargets(rows: SidebarFsEntry[], concurrency = SYMLINK
   await Promise.all(workers)
 }
 
-/** The root row label of a listing: the last path segment (or the full path at the filesystem root). */
+/**
+ * The root row label of a listing: the last path segment (or the full path at the filesystem root).
+ * @param path - absolute path whose last segment becomes the label.
+ * @returns the last path segment, or the full path when the path is the filesystem root.
+ */
 export function rootLabel(path: string): string {
   const base = basename(path)
   return base !== '' ? base : path
 }
 
-/** Parent of a path, or undefined at the filesystem root (the explorer's "up" target). */
+/**
+ * Parent of a path, or undefined at the filesystem root (the explorer's "up" target).
+ * @param path - absolute path whose parent is resolved.
+ * @returns the parent directory, or undefined when the path is the filesystem root.
+ */
 export function parentOf(path: string): string | undefined {
   const parent = dirname(path)
   return parent === path ? undefined : parent
@@ -123,6 +136,9 @@ export function parentOf(path: string): string | undefined {
  * roots (`/...`), Windows drive letters (`C:\...`) and — on win32 — UNC
  * network shares (`\\server\share\...`); drive-relative forms (`C:foo`)
  * stay rejected.
+ * @param path - caller-supplied path, absolute or not.
+ * @returns the resolved absolute path.
+ * @throws {SidebarError} fs-error when the path is not absolute.
  */
 export function requireAbsolute(path: string): string {
   if (!isAbsolute(path)) {
@@ -137,6 +153,9 @@ export function requireAbsolute(path: string): string {
  * letter case. The media route uses this instead of a raw `startsWith` so a
  * case-mismatched or mixed-separator path can never be misclassified
  * (e.g. `C:\Users\Me` vs `c:/users/me/file.png`).
+ * @param base - directory the containment check is relative to.
+ * @param target - path tested for containment under `base`.
+ * @returns whether `target` equals or lies under `base`.
  * @param platform - filesystem semantics; injectable so both branches are
  * unit-testable on any host.
  */
@@ -152,7 +171,11 @@ export function isWithin(base: string, target: string, platform: NodeJS.Platform
   return t === b || t.startsWith(`${b}/`)
 }
 
-/** Message text of an unknown thrown value. */
+/**
+ * Message text of an unknown thrown value.
+ * @param error - the caught value of any type.
+ * @returns `error.message` for Error values, otherwise the string coercion.
+ */
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }

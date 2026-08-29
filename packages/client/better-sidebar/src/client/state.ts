@@ -62,6 +62,7 @@ export interface SidebarSplit {
   children: SplitNode[]
 }
 
+/** A workbench tree node: one leaf tab group or one recursive split. */
 export type SplitNode = SidebarLeaf | SidebarSplit
 
 /**
@@ -120,23 +121,30 @@ export interface SidebarState {
   floats: FloatWindow[]
 }
 
+/** Panel width floor in px (drags, restores, and defaults clamp to it). */
 export const PANEL_MIN = 280
+/** Panel width ceiling in px where no viewport is available (unit tests). */
 export const PANEL_MAX = 640
+/** Panel width a fresh session starts with when no preference applies. */
 export const PANEL_DEFAULT = 400
+/** Tab title width cap in px before the tab strip ellipsizes a tab. */
 export const TAB_MAX_WIDTH = 160
 /** Bottom panel geometry contract (mirrors the width contract; the upper
  *  bound is the viewport, enforced by {@link setBottomHeight}). */
 export const BOTTOM_MIN = 120
+/** Bottom panel height in px when no preference or persisted value applies. */
 export const BOTTOM_DEFAULT = 220
 /** Free-window geometry contract: the floor keeps the window usable (a
  *  header plus some content), the ceiling is the viewport. */
 export const FLOAT_MIN_W = 320
+/** Free-window height floor in px (the height half of the geometry contract). */
 export const FLOAT_MIN_H = 200
 /** Geometry a fresh free window starts with: a phone-like portrait ratio
  *  (390×780 ≈ 1:2). The creation path additionally caps the size to the
  *  viewport (minus a 24px margin), so a short viewport gets a shorter —
  *  not overflowing — window instead of an exact ratio. */
 export const FLOAT_DEFAULT_W = 390
+/** Height in px a fresh free window starts with (the 780 half of the 390×780 default). */
 export const FLOAT_DEFAULT_H = 780
 
 let nextIdCounter = 0
@@ -148,7 +156,9 @@ function uid(prefix: string): string {
 
 /** Mint a fresh uid-based tab id. The `'editor:' + path` convention only
  *  covers openSidebarFile opens (per-path dedupe); opens that must not
- *  dedupe (the tree's "open to the side") mint through here. */
+ *  dedupe (the tree's "open to the side") mint through here.
+ * @returns a fresh `tab:N` id unique for the module's lifetime.
+ */
 export function mintTabId(): string {
   return uid('tab')
 }
@@ -206,7 +216,13 @@ export type DefaultSeed = 'editor-home' | 'none'
  * (an editor tab with no path whose tree panel starts open,
  * `meta.treeOpen: true`) — in BOTH editorExplorer modes that window is the
  * file explorer page — and 'none' starts with an empty pane (the store
- * passes it when the user disabled the editor tab type in settings). */
+ * passes it when the user disabled the editor tab type in settings).
+ * @param width - preferred panel width in px.
+ * @param panelOpen - whether the panel starts expanded.
+ * @param seed - which tab (if any) the first pane is seeded with.
+ * @returns a fresh state: one seeded pane, a closed bottom panel with its
+ *          own empty pane, and no free windows.
+ */
 export function makeDefaultState(width = PANEL_DEFAULT, panelOpen = true, seed: DefaultSeed = 'editor-home'): SidebarState {
   const leaf: SidebarLeaf = { kind: 'leaf', id: uid('pane'), tabs: [], active: null }
   if (seed === 'editor-home') {
@@ -246,12 +262,22 @@ function treeHasId(node: SplitNode, id: string): boolean {
  *  bottom panel's tree, else 'splits' (the right panel's tree). Ids are
  *  globally unique (the shared uid counter), so an id in neither tree falls
  *  back to the right tree, where tree operations no-op on a missing node —
- *  the pre-bottom-panel behavior. */
+ *  the pre-bottom-panel behavior.
+ * @param state - the current per-session sidebar state.
+ * @param id - the pane or split id to locate.
+ * @returns the property key (`'splits'` or `'bottomSplits'`) holding that id.
+ */
 export function treeOf(state: SidebarState, id: string): 'splits' | 'bottomSplits' {
   return treeHasId(state.bottomSplits, id) ? 'bottomSplits' : 'splits'
 }
 
-/** Walk the tree and apply `visit` to the leaf with the given id. */
+/**
+ * Walk the tree and apply `visit` to the leaf with the given id.
+ * @param node - the tree root to walk.
+ * @param paneId - the leaf id to visit (no leaf, no visit).
+ * @param visit - in-place mutator applied to the matching leaf's clone.
+ * @returns the new tree; untouched subtrees keep their references.
+ */
 export function mapLeaf(node: SplitNode, paneId: string, visit: (leaf: SidebarLeaf) => void): SplitNode {
   if (node.kind === 'leaf') {
     if (node.id === paneId) {
@@ -269,7 +295,11 @@ export function mapLeaf(node: SplitNode, paneId: string, visit: (leaf: SidebarLe
   }
 }
 
-/** The first leaf of the tree (fallback pane when activePane is gone). */
+/**
+ * The first leaf of the tree (fallback pane when activePane is gone).
+ * @param node - the tree root to descend.
+ * @returns the first leaf in depth-first order.
+ */
 export function firstLeaf(node: SplitNode): SidebarLeaf {
   if (node.kind === 'leaf') return node
   return firstLeaf(node.children[0] as SplitNode)
@@ -294,6 +324,9 @@ function clearAllTabs(node: SplitNode): SplitNode {
  * same reference. Runs when the viewport enters narrow (see the Sidebar
  * shell); migrating is permanent for the session — the tabs now live in the
  * right tree, exactly like the user "threw them in".
+ * @param state - the current per-session sidebar state.
+ * @returns the merged state, or the same reference when there is nothing
+ *          to migrate (idempotent).
  */
 export function migrateBottomTabs(state: SidebarState): SidebarState {
   const bottomTabs = allLeaves(state.bottomSplits).flatMap(leaf => leaf.tabs)
@@ -313,7 +346,12 @@ export function migrateBottomTabs(state: SidebarState): SidebarState {
   }
 }
 
-/** Find the leaf containing a tab id, if any. */
+/**
+ * Find the leaf containing a tab id, if any.
+ * @param node - the tree root to search.
+ * @param tabId - the tab id to locate.
+ * @returns the leaf holding the tab, or undefined when the tab is absent.
+ */
 export function leafWithTab(node: SplitNode, tabId: string): SidebarLeaf | undefined {
   if (node.kind === 'leaf') {
     return node.tabs.some(tab => tab.id === tabId) ? node : undefined
@@ -325,31 +363,55 @@ export function leafWithTab(node: SplitNode, tabId: string): SidebarLeaf | undef
   return undefined
 }
 
-/** All leaves of the tree, depth-first. */
+/**
+ * All leaves of the tree, depth-first.
+ * @param node - the tree root to collect from.
+ * @returns every leaf in depth-first order.
+ */
 export function allLeaves(node: SplitNode): SidebarLeaf[] {
   if (node.kind === 'leaf') return [node]
   return node.children.flatMap(allLeaves)
 }
 
 /** Whether a tab exists anywhere in a state (either tree, any pane, or any
- *  free window — a floating tab is as open as a docked one). */
+ *  free window — a floating tab is as open as a docked one).
+ * @param state - the current per-session sidebar state.
+ * @param tabId - the tab id to look for.
+ * @returns whether the tab is open in a pane or a free window.
+ */
 export function tabOpenIn(state: SidebarState, tabId: string): boolean {
   return allLeaves(state.splits).some(leaf => leaf.tabs.some(tab => tab.id === tabId))
     || allLeaves(state.bottomSplits).some(leaf => leaf.tabs.some(tab => tab.id === tabId))
     || state.floats.some(float => float.tab.id === tabId)
 }
 
-/** The free window holding a tab id, if any. */
+/**
+ * The free window holding a tab id, if any.
+ * @param state - the current per-session sidebar state.
+ * @param tabId - the tab id to locate.
+ * @returns the window holding the tab, or undefined when it is docked or closed.
+ */
 export function floatWithTab(state: SidebarState, tabId: string): FloatWindow | undefined {
   return state.floats.find(float => float.tab.id === tabId)
 }
 
-/** The free window with the given window id, if any. */
+/**
+ * The free window with the given window id, if any.
+ * @param state - the current per-session sidebar state.
+ * @param floatId - the window id to locate.
+ * @returns the window, or undefined when the id is unknown.
+ */
 export function floatById(state: SidebarState, floatId: string): FloatWindow | undefined {
   return state.floats.find(float => float.id === floatId)
 }
 
-/** Replace a leaf with a split of it plus a fresh empty leaf. */
+/**
+ * Replace a leaf with a split of it plus a fresh empty leaf.
+ * @param node - the tree root containing the leaf.
+ * @param paneId - the leaf id to split.
+ * @param dir - split direction ('row' places the fresh leaf right, 'col' below).
+ * @returns the new tree; an absent paneId leaves every leaf unchanged.
+ */
 export function splitLeafAt(node: SplitNode, paneId: string, dir: 'row' | 'col'): SplitNode {
   const fresh: SidebarLeaf = { kind: 'leaf', id: uid('pane'), tabs: [], active: null }
   return mapLeaf(node, paneId, (leaf) => {
@@ -370,6 +432,11 @@ export function splitLeafAt(node: SplitNode, paneId: string, dir: 'row' | 'col')
  * VSCode drag-to-edge gesture. `dir` is the split direction ('row' for
  * left/right, 'col' for up/down); `front` places the new leaf first (left/
  * up) or second (right/down).
+ * @param node - the tree root containing the leaf to split.
+ * @param paneId - the leaf id to split beside.
+ * @param dir - the split direction ('row' or 'col').
+ * @param tab - the tab the fresh leaf starts with and activates.
+ * @param front - whether the fresh leaf takes the first position.
  * @returns the new tree plus the fresh leaf's id (the drop's active pane).
  */
 export function insertLeafAt(
@@ -405,6 +472,12 @@ export type DropZone = 'left' | 'right' | 'up' | 'down' | 'center'
  *
  * The panes may live in DIFFERENT trees (dragging a tab between the two
  * panels): the tab then leaves its own tree and lands in the other one.
+ * @param state - the current per-session sidebar state.
+ * @param fromPane - the pane the tab leaves.
+ * @param tabId - the tab to move.
+ * @param toPane - the pane receiving the drop.
+ * @param zone - where the drop lands: an edge splits the target, center merges.
+ * @returns the next state, or the same reference when the tab is missing.
  */
 export function moveTabToEdge(
   state: SidebarState,
@@ -474,6 +547,9 @@ export function moveTabToEdge(
 /**
  * Remove a leaf from the tree. A split left with one child promotes that
  * child; removing the last leaf yields an empty leaf.
+ * @param node - the tree root containing the leaf.
+ * @param paneId - the leaf id to remove.
+ * @returns the new tree; an absent paneId leaves every leaf unchanged.
  */
 export function removeLeafAt(node: SplitNode, paneId: string): SplitNode {
   if (node.kind === 'leaf') return node.id === paneId ? { ...node, tabs: [], active: null } : node
@@ -489,7 +565,13 @@ export function removeLeafAt(node: SplitNode, paneId: string): SplitNode {
   return { ...node, sizes: [...node.sizes], children }
 }
 
-/** Close a tab; an emptied leaf is removed (unless it is the only pane). */
+/**
+ * Close a tab; an emptied leaf is removed (unless it is the only pane).
+ * @param state - the current per-session sidebar state.
+ * @param paneId - the pane holding the tab.
+ * @param tabId - the tab to close.
+ * @returns the next state with the tab removed from its pane.
+ */
 export function closeTab(state: SidebarState, paneId: string, tabId: string): SidebarState {
   const key = treeOf(state, paneId)
   let emptied = false as boolean
@@ -501,7 +583,13 @@ export function closeTab(state: SidebarState, paneId: string, tabId: string): Si
   return { ...state, [key]: emptied ? removeLeafAt(splits, paneId) : splits }
 }
 
-/** Activate a tab in its pane (the pane's own tree). */
+/**
+ * Activate a tab in its pane (the pane's own tree).
+ * @param state - the current per-session sidebar state.
+ * @param paneId - the pane holding the tab; becomes the active pane.
+ * @param tabId - the tab to activate (absent ids leave the pane's active tab).
+ * @returns the next state with the pane and tab active.
+ */
 export function activateTab(state: SidebarState, paneId: string, tabId: string): SidebarState {
   const key = treeOf(state, paneId)
   return {
@@ -517,7 +605,12 @@ export function activateTab(state: SidebarState, paneId: string, tabId: string):
  *  re-opening it. The browser tab persists its current URL and hostname
  *  title through this reducer so a reload restores the visited page. A
  *  missing tab id is a no-op. The tab may live in either tree or a free
- *  window. */
+ *  window.
+ * @param state - the current per-session sidebar state.
+ * @param tabId - the tab to patch.
+ * @param patch - display fields to overwrite (absent fields are kept).
+ * @returns the next state, or the same reference when the tab is missing.
+ */
 export function patchTab(
   state: SidebarState,
   tabId: string,
@@ -632,6 +725,9 @@ export function setTabPin(
  * The active pane may live in EITHER tree (pane ids are globally unique):
  * a stale id that survives in neither tree falls back to the right tree's
  * first pane instead of swallowing the open.
+ * @param state - the current per-session sidebar state.
+ * @param tab - the tab to land (an existing same-id tab is focused instead).
+ * @returns the next state with the tab open and active in the target pane.
  */
 export function openTabInActivePane(state: SidebarState, tab: SidebarTab): SidebarState {
   let targetId = state.activePane ?? firstLeaf(state.splits).id
@@ -662,7 +758,14 @@ export function openTabInActivePane(state: SidebarState, tab: SidebarTab): Sideb
 
 /** Move a tab from one pane to another (insert at index; -1 appends).
  *  The panes may live in DIFFERENT trees — dragging a tab between the two
- *  panels removes it from its own tree and lands it in the other one. */
+ *  panels removes it from its own tree and lands it in the other one.
+ * @param state - the current per-session sidebar state.
+ * @param fromPane - the pane the tab leaves.
+ * @param tabId - the tab to move.
+ * @param toPane - the pane receiving the tab.
+ * @param index - insert position in the target pane (-1 appends).
+ * @returns the next state, or the same reference when the tab is missing.
+ */
 export function moveTab(state: SidebarState, fromPane: string, tabId: string, toPane: string, index = -1): SidebarState {
   const fromKey = treeOf(state, fromPane)
   const toKey = treeOf(state, toPane)
@@ -710,7 +813,12 @@ export function moveTab(state: SidebarState, fromPane: string, tabId: string, to
   return { ...state, [fromKey]: splits, activePane: toPane }
 }
 
-/** Split the active pane (or the pane containing the active tab). */
+/**
+ * Split the active pane (or the pane containing the active tab).
+ * @param state - the current per-session sidebar state.
+ * @param dir - split direction ('row' places the fresh leaf right, 'col' below).
+ * @returns the next state with the active pane split beside a fresh empty leaf.
+ */
 export function splitPane(state: SidebarState, dir: 'row' | 'col'): SidebarState {
   const paneId = state.activePane ?? firstLeaf(state.splits).id
   const key = treeOf(state, paneId)
@@ -729,6 +837,9 @@ export function splitPane(state: SidebarState, dir: 'row' | 'col'): SidebarState
  * check below is exactly that rule — the two agree by construction (asserted
  * in tests). Diff tabs minted by the Git view carry change-derived ids, so
  * the id check is the per-change dedupe.
+ * @param state - the current per-session sidebar state.
+ * @param sourcePaneId - the pane that splits when this is the layout's first diff.
+ * @param tab - the diff tab to open (its id is the per-change dedupe key).
  * @returns the new state, with the diff pane active.
  */
 export function openDiffTab(state: SidebarState, sourcePaneId: string, tab: SidebarTab): SidebarState {
@@ -755,18 +866,30 @@ export function openDiffTab(state: SidebarState, sourcePaneId: string, tab: Side
   return { ...state, splits: result.node, activePane: result.leafId }
 }
 
-/** Toggle the panel open/closed (opening restores the previous layout). */
+/**
+ * Toggle the panel open/closed (opening restores the previous layout).
+ * @param state - the current per-session sidebar state.
+ * @returns the next state with `panelOpen` flipped.
+ */
 export function togglePanel(state: SidebarState): SidebarState {
   return { ...state, panelOpen: !state.panelOpen }
 }
 
-/** Toggle the bottom panel open/closed (independent of the right panel). */
+/**
+ * Toggle the bottom panel open/closed (independent of the right panel).
+ * @param state - the current per-session sidebar state.
+ * @returns the next state with `bottomOpen` flipped.
+ */
 export function toggleBottomPanel(state: SidebarState): SidebarState {
   return { ...state, bottomOpen: !state.bottomOpen }
 }
 
 /** Set the panel width (clamped to the contract range; the upper bound is
- * the viewport so the fullscreen expansion can fill the window). */
+ * the viewport so the fullscreen expansion can fill the window).
+ * @param state - the current per-session sidebar state.
+ * @param width - requested width in px.
+ * @returns the next state with the width clamped to the floor and viewport.
+ */
 export function setWidth(state: SidebarState, width: number): SidebarState {
   const max = typeof window !== 'undefined' ? Math.max(PANEL_MIN, window.innerWidth) : PANEL_MAX
   return { ...state, width: Math.min(max, Math.max(PANEL_MIN, Math.round(width))) }
@@ -775,14 +898,23 @@ export function setWidth(state: SidebarState, width: number): SidebarState {
 /** Set the bottom panel height (clamped to the contract range). The upper
  * bound leaves the center column (the agent output area) at least PANEL_MIN
  * tall — without the cap the bottom panel could swallow the whole viewport
- * and squeeze the conversation to zero height. */
+ * and squeeze the conversation to zero height.
+ * @param state - the current per-session sidebar state.
+ * @param height - requested height in px.
+ * @returns the next state with the height clamped to the floor and the cap.
+ */
 export function setBottomHeight(state: SidebarState, height: number): SidebarState {
   const viewport = typeof window !== 'undefined' ? window.innerHeight : Infinity
   const max = Math.max(BOTTOM_MIN, viewport - PANEL_MIN)
   return { ...state, bottomHeight: Math.min(max, Math.max(BOTTOM_MIN, Math.round(height))) }
 }
 
-/** Toggle a directory in the explorer expansion set. */
+/**
+ * Toggle a directory in the explorer expansion set.
+ * @param state - the current per-session sidebar state.
+ * @param path - absolute directory path to expand or collapse.
+ * @returns the next state with the path added to or removed from the set.
+ */
 export function toggleExpanded(state: SidebarState, path: string): SidebarState {
   const expanded = state.expanded.includes(path)
     ? state.expanded.filter(item => item !== path)
@@ -822,7 +954,15 @@ export function revealPaths(state: SidebarState, cwd: string | undefined, files:
   return { ...state, expanded: [...expanded], revealed }
 }
 
-/** Adjust one split divider: `i` is the left/top child index, delta in fractions. */
+/**
+ * Adjust one split divider: `i` is the left/top child index, delta in fractions.
+ * @param node - the tree root containing the split.
+ * @param splitId - the split node whose divider moves.
+ * @param index - the left/top child index of the divider.
+ * @param delta - size fraction moved from the right/bottom child to the left/top.
+ * @returns the new tree with both adjoining sizes clamped to [0.08, 0.92];
+ *          an unknown splitId leaves every leaf unchanged.
+ */
 export function resizeSplit(node: SplitNode, splitId: string, index: number, delta: number): SplitNode {
   if (node.kind === 'leaf') return node
   if (node.id === splitId) {
@@ -841,7 +981,13 @@ export function resizeSplit(node: SplitNode, splitId: string, index: number, del
 }
 
 /** State-level {@link resizeSplit} route: the divider may live in either
- *  tree (split ids are globally unique). */
+ *  tree (split ids are globally unique).
+ * @param state - the current per-session sidebar state.
+ * @param splitId - the split node whose divider moves.
+ * @param index - the left/top child index of the divider.
+ * @param delta - size fraction moved between the two adjoining children.
+ * @returns the next state with the divider adjusted in its owning tree.
+ */
 export function resizeSplitIn(state: SidebarState, splitId: string, index: number, delta: number): SidebarState {
   const key = treeOf(state, splitId)
   return { ...state, [key]: resizeSplit(state[key], splitId, index, delta) }
@@ -861,7 +1007,13 @@ function viewportH(): number {
 
 /** Clamp free-window geometry: sizes respect the floor and the viewport, and
  *  the position keeps the whole window inside the viewport. Without a window
- *  (unit tests) only the floor applies — the caller's values pass through. */
+ *  (unit tests) only the floor applies — the caller's values pass through.
+ * @param x - requested top-left x in viewport px.
+ * @param y - requested top-left y in viewport px.
+ * @param w - requested width in px.
+ * @param h - requested height in px.
+ * @returns the clamped geometry, rounded to whole px.
+ */
 export function clampFloatGeometry(x: number, y: number, w: number, h: number): Pick<FloatWindow, 'x' | 'y' | 'w' | 'h'> {
   const vw = viewportW()
   const vh = viewportH()
@@ -881,6 +1033,12 @@ export function clampFloatGeometry(x: number, y: number, w: number, h: number): 
  * point, with the default size clamped to the viewport. The stacking order
  * is the array order, so a fresh window is born topmost. An unknown tab id
  * (or one already floating) is a strict no-op.
+ * @param state - the current per-session sidebar state.
+ * @param tabId - the docked tab to float.
+ * @param x - drop-point x in viewport px (the window centers on it).
+ * @param y - drop-point y in viewport px.
+ * @returns the next state, or the same reference when the tab is unknown
+ *          or already floating.
  */
 export function floatTab(state: SidebarState, tabId: string, x: number, y: number): SidebarState {
   let source: SidebarLeaf | undefined
@@ -920,7 +1078,15 @@ export function floatTab(state: SidebarState, tabId: string, x: number, y: numbe
   return next
 }
 
-/** Move a free window (clamped to the viewport); unknown ids are a no-op. */
+/**
+ * Move a free window (clamped to the viewport); unknown ids are a no-op.
+ * @param state - the current per-session sidebar state.
+ * @param floatId - the window to move.
+ * @param x - requested top-left x in viewport px.
+ * @param y - requested top-left y in viewport px.
+ * @returns the next state, or the same reference when the id is unknown
+ *          or the clamped position does not change.
+ */
 export function moveFloat(state: SidebarState, floatId: string, x: number, y: number): SidebarState {
   const float = floatById(state, floatId)
   if (float === undefined) return state
@@ -930,7 +1096,14 @@ export function moveFloat(state: SidebarState, floatId: string, x: number, y: nu
 }
 
 /** Resize a free window from its SE corner: the top-left corner stays
- *  anchored, sizes clamp to the floor and to the viewport's remaining room. */
+ *  anchored, sizes clamp to the floor and to the viewport's remaining room.
+ * @param state - the current per-session sidebar state.
+ * @param floatId - the window to resize.
+ * @param w - requested width in px.
+ * @param h - requested height in px.
+ * @returns the next state, or the same reference when the id is unknown
+ *          or the clamped size does not change.
+ */
 export function resizeFloat(state: SidebarState, floatId: string, w: number, h: number): SidebarState {
   const float = floatById(state, floatId)
   if (float === undefined) return state
@@ -943,7 +1116,12 @@ export function resizeFloat(state: SidebarState, floatId: string, w: number, h: 
 }
 
 /** Bring a free window to the top (the array's end). Already topmost (or the
- *  only window) returns the same reference — no persist churn on every click. */
+ *  only window) returns the same reference — no persist churn on every click.
+ * @param state - the current per-session sidebar state.
+ * @param floatId - the window to raise.
+ * @returns the next state, or the same reference when the window is already
+ *          topmost, alone, or unknown.
+ */
 export function raiseFloat(state: SidebarState, floatId: string): SidebarState {
   if (state.floats.length < 2) return state
   const index = state.floats.findIndex(f => f.id === floatId)
@@ -957,7 +1135,13 @@ export function raiseFloat(state: SidebarState, floatId: string): SidebarState {
 /** Dock a free window back into a pane (center merge): the tab joins the
  *  target pane and activates. `toPane` defaults to the active pane with the
  *  right tree's first leaf as the stale-id fallback (mirrors
- *  {@link openTabInActivePane}). Unknown window ids are a no-op. */
+ *  {@link openTabInActivePane}). Unknown window ids are a no-op.
+ * @param state - the current per-session sidebar state.
+ * @param floatId - the window to dock.
+ * @param toPane - target pane; defaults to the active pane.
+ * @returns the next state with the tab merged into the target pane, or the
+ *          same reference when the window id is unknown.
+ */
 export function dockFloat(state: SidebarState, floatId: string, toPane?: string): SidebarState {
   const float = floatById(state, floatId)
   if (float === undefined) return state
@@ -978,7 +1162,12 @@ export function dockFloat(state: SidebarState, floatId: string, toPane?: string)
 }
 
 /** Close the free window holding a tab (the tab closes WITH the window —
- *  the caller fires the descriptor's onClose lifecycle). */
+ *  the caller fires the descriptor's onClose lifecycle).
+ * @param state - the current per-session sidebar state.
+ * @param tabId - the tab whose window closes.
+ * @returns the next state without the window, or the same reference when
+ *          the tab is not floating.
+ */
 export function closeFloatByTab(state: SidebarState, tabId: string): SidebarState {
   if (!state.floats.some(f => f.tab.id === tabId)) return state
   return { ...state, floats: state.floats.filter(f => f.tab.id !== tabId) }
@@ -987,17 +1176,29 @@ export function closeFloatByTab(state: SidebarState, tabId: string): SidebarStat
 /** Prefix marking a tab id as an agent-owned terminal (suffix is the uuid). */
 export const AGENT_TAB_PREFIX = 'agent:'
 
-/** Whether a tab id refers to an agent-owned terminal. */
+/**
+ * Whether a tab id refers to an agent-owned terminal.
+ * @param tabId - the tab id to test.
+ * @returns whether the id carries the {@link AGENT_TAB_PREFIX} marker.
+ */
 export function isAgentTabId(tabId: string): boolean {
   return tabId.startsWith(AGENT_TAB_PREFIX)
 }
 
-/** Extract the agent terminal uuid from an `agent:<uuid>` tab id. */
+/**
+ * Extract the agent terminal uuid from an `agent:<uuid>` tab id.
+ * @param tabId - an agent tab id (per {@link isAgentTabId}).
+ * @returns the uuid suffix after the agent prefix.
+ */
 export function agentUuidOf(tabId: string): string {
   return tabId.slice(AGENT_TAB_PREFIX.length)
 }
 
-/** Build the sidebar tab id for one agent terminal uuid. */
+/**
+ * Build the sidebar tab id for one agent terminal uuid.
+ * @param uuid - the agent terminal uuid.
+ * @returns the `agent:<uuid>` tab id.
+ */
 export function agentTabId(uuid: string): string {
   return `${AGENT_TAB_PREFIX}${uuid}`
 }
@@ -1116,7 +1317,11 @@ export interface SidebarSnapshot {
 
 /** Default panel width for one viewport: the prefs percent of the window,
  * clamped to the panel floor (a tiny percent must stay usable) and to the
- * viewport (a large one must never cover the whole window). */
+ * viewport (a large one must never cover the whole window).
+ * @param viewport - window inner width in px.
+ * @param percent - preferred width as a percent of the viewport.
+ * @returns the clamped width in px (never below {@link PANEL_MIN}).
+ */
 export function defaultWidthFor(viewport: number, percent: number): number {
   return Math.min(viewport, Math.max(PANEL_MIN, Math.round(viewport * percent / 100)))
 }
@@ -1197,6 +1402,7 @@ function loadState(sessionId: string, prefs: SidebarPrefs): SidebarState {
  * of crashing the panel on every reload; the restored width is also clamped
  * to the current viewport so a stale fullscreen width can never crush the
  * app shell (margin-right larger than the window) or cover the whole screen.
+ * @param parsed - the JSON.parse result read from localStorage.
  * @returns a clean state, or undefined to fall back to the default.
  */
 export function sanitizeState(parsed: unknown): SidebarState | undefined {
@@ -1447,12 +1653,16 @@ export class SidebarStore {
   /**
    * Set the external-disable flag (from the settings route) and remember it
    * for the mount gate and the intercept predicates.
+   * @param suspended - whether the sidebar is externally disabled.
    */
   setSuspended(suspended: boolean): void {
     this.suspended = suspended
   }
 
-  /** Whether the sidebar is externally disabled (aionui-panel chosen). */
+  /**
+   * Whether the sidebar is externally disabled (aionui-panel chosen).
+   * @returns the current flag value.
+   */
   getSuspended(): boolean {
     return this.suspended
   }
@@ -1462,6 +1672,7 @@ export class SidebarStore {
    * write). Notifies like any store change: the snapshot carries the prefs,
    * so consumers that gate on enable switches (the + menu, derived flows)
    * re-render with the new values immediately.
+   * @param prefs - the side card prefs to install (copied, not aliased).
    */
   setPrefs(prefs: SidebarPrefs): void {
     this.prefs = { ...prefs }
@@ -1469,12 +1680,17 @@ export class SidebarStore {
     this.notify()
   }
 
-  /** The current side card prefs (seeds new sessions; persisted states win). */
+  /**
+   * The current side card prefs (seeds new sessions; persisted states win).
+   * @returns a copy of the current side card prefs.
+   */
   getPrefs(): SidebarPrefs {
     return { ...this.prefs }
   }
 
-  /** Select a session (or none); loads its persisted state. */
+  /** Select a session (or none); loads its persisted state.
+   * @param sessionId - the conversation id to select, or undefined for none.
+   */
   setSession(sessionId: string | undefined): void {
     if (this.snapshot.sessionId === sessionId) return
     if (sessionId === undefined) {
@@ -1502,16 +1718,31 @@ export class SidebarStore {
     this.notify()
   }
 
+  /**
+   * Register a listener notified on every snapshot replacement (in insertion
+   * order over a copy, so unsubscribing mid-notify is safe).
+   * @param listener - callback invoked on each store change.
+   * @returns disposer removing this listener.
+   */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
   }
 
+  /**
+   * Read the current snapshot (the selected session, its state, and the prefs).
+   * @returns the snapshot reference, replaced only on real changes.
+   */
   getSnapshot(): SidebarSnapshot {
     return this.snapshot
   }
 
-  /** Mutate the current session's state (no-op without a session). */
+  /**
+   * Mutate the current session's state (no-op without a session).
+   * @param mutator - in-place mutator applied to a structured clone of the
+   *        state; the clone becomes the next snapshot and is scheduled for
+   *        persist.
+   */
   update(mutator: (draft: SidebarState) => void): void {
     const sessionId = this.snapshot.sessionId
     const state = this.snapshot.state
@@ -1532,6 +1763,9 @@ export class SidebarStore {
    * Checks the session's own map entry (the current snapshot may already
    * point at another session when a conversation switch unmounts the old
    * one's tabs).
+   * @param sessionId - the session whose own state is checked.
+   * @param tabId - the tab id to look for.
+   * @returns whether the tab is still open in that session's state.
    */
   tabOpen(sessionId: string, tabId: string): boolean {
     const state = this.bySession.get(sessionId)
@@ -1547,12 +1781,18 @@ export class SidebarStore {
    * go through {@link reduce} / {@link reduceFor}). A session that has
    * never been visited in this run is absent (its pinned tabs are not
    * visible until first load — accepted as YAGNI by the design).
+   * @returns a Map copy of the cached sessions; the state values are the
+   *          live references.
    */
   getSessionStates(): ReadonlyMap<string, SidebarState> {
     return new Map(this.bySession)
   }
 
-  /** Apply a pure reducer (returns the next state). */
+  /**
+   * Apply a pure reducer (returns the next state).
+   * @param reducer - pure function over the current state; a same-reference
+   *        result skips persist and notify.
+   */
   reduce(reducer: (state: SidebarState) => SidebarState): void {
     const sessionId = this.snapshot.sessionId
     const state = this.snapshot.state
@@ -1575,6 +1815,9 @@ export class SidebarStore {
    * active snapshot or notifying (the UI must not follow along). Used by the
    * service's targeted `openTab(seed, scope)`: the open lands in the target
    * session's layout and is visible whenever the user switches to it.
+   * @param sessionId - the session whose state is reduced (loaded on demand).
+   * @param reducer - pure function over that session's state; a
+   *        same-reference result skips the persist.
    */
   reduceFor(sessionId: string, reducer: (state: SidebarState) => SidebarState): void {
     // The uid counter is SHARED across sessions, and the ACTIVE session's
@@ -1640,6 +1883,7 @@ export class SidebarStore {
  * prop); tests call it directly. No module-level singleton: the store's
  * lifetime belongs to the plugin activation, exactly like the official
  * `createXXXStore()` factory rule.
+ * @returns a new store with no session selected and default prefs.
  */
 export function createSidebarStore(): SidebarStore {
   return new SidebarStore()

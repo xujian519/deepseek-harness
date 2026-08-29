@@ -116,6 +116,8 @@ function isCustomEditor(value: unknown): value is CustomEditor {
  * to the defaults, malformed custom-editor rows are dropped, and pinned ids
  * are kept verbatim (unknown ids are pruned when the targets are resolved —
  * the menu is the only consumer of the resolved list).
+ * @param raw - The persisted value, verbatim.
+ * @returns The parsed configuration; malformed fields fall back to the defaults and malformed custom-editor rows are dropped.
  */
 export function parseOpenWithConfig(raw: unknown): OpenWithConfig {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return { ...OPEN_WITH_DEFAULTS }
@@ -140,6 +142,8 @@ function customIdOf(id: string): string {
  * In SSH mode the local-only targets (the OS file manager, Zed, custom
  * editors without the VSCode dialect) are dropped — they cannot reach a
  * remote path. Unknown pinned ids are pruned here too.
+ * @param config - The parsed open-with configuration.
+ * @returns The built-ins then the valid custom editors, with local-only targets dropped in SSH mode.
  */
 export function resolveOpenWithTargets(config: OpenWithConfig): OpenWithTarget[] {
   const ssh = config.sshHost.trim() !== ''
@@ -159,7 +163,11 @@ export function resolveOpenWithTargets(config: OpenWithConfig): OpenWithTarget[]
   return targets.filter(target => !(ssh && target.localOnly))
 }
 
-/** The SSH hint appended to a target's label in remote mode. */
+/**
+ * The SSH hint appended to a target's label in remote mode.
+ * @param config - The open-with configuration.
+ * @returns Whether a non-blank SSH host is configured (remote mode).
+ */
 export function openWithSshActive(config: OpenWithConfig): boolean {
   return config.sshHost.trim() !== ''
 }
@@ -170,6 +178,10 @@ export function openWithSshActive(config: OpenWithConfig): boolean {
  * RAW into the template (browsers percent-encode as needed; VSCode-family
  * URL parsers consume the absolute path with its leading slash, e.g.
  * `vscode://file//home/u/f.ts` or `vscode://file/C:/Users/u/f.ts`).
+ * @param target - A resolved open-with target.
+ * @param path - Absolute filesystem path to insert.
+ * @param config - Configuration providing the SSH host for VSCode-family remote URLs.
+ * @returns The URL to open, or undefined for reveal targets or malformed templates.
  */
 export function openWithUrl(target: OpenWithTarget, path: string, config: OpenWithConfig): string | undefined {
   if (target.kind !== 'url' || target.urlTemplate === undefined) return undefined
@@ -200,17 +212,28 @@ function schemeOf(template: string): string | undefined {
   return /^[a-z][a-z0-9+.-]*$/i.test(scheme) ? scheme : undefined
 }
 
-/** Normalize a filesystem path for embedding in a URL (backslashes → '/'). */
+/**
+ * Normalize a filesystem path for embedding in a URL (backslashes → '/').
+ * @param path - Filesystem path to normalize.
+ * @returns The path with backslashes replaced by forward slashes.
+ */
 export function normalizeUrlPath(path: string): string {
   return path.replace(/\\/g, '/')
 }
 
-/** A fresh custom-editor id (uuid when available, time-based fallback). */
+/**
+ * A fresh custom-editor id (uuid when available, time-based fallback).
+ * @returns A fresh id: base-36 timestamp plus a random suffix.
+ */
 export function newCustomEditorId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
 }
 
-/** Validate one custom-editor row before the settings panel accepts it. */
+/**
+ * Validate one custom-editor row before the settings panel accepts it.
+ * @param row - Custom-editor row to validate.
+ * @returns Whether the name is non-blank and the template carries `{path}` with a `scheme://` prefix.
+ */
 export function isValidCustomEditor(row: { name: string; urlTemplate: string }): boolean {
   return row.name.trim() !== ''
     && row.urlTemplate.includes('{path}')

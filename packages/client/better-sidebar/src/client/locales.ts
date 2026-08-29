@@ -748,6 +748,7 @@ let localeService: { getSnapshot(): { active: string } } | undefined
  * service rides this module-level holder: components keep calling the plain
  * `t()` function, and the Sidebar root's locale subscription re-renders the
  * whole tree on switches.
+ * @param service - the DSH locale service, or undefined to fall back to browser detection.
  */
 export function attachLocale(service: { getSnapshot(): { active: string } } | undefined): void {
   localeService = service
@@ -767,7 +768,11 @@ function activeLocale(): string {
 /** Translate a copy key in the active locale (zh → zh, else en). */
 export type CopyKey = keyof typeof zh
 
-/** Translate a copy key; `{name}` placeholders interpolate from `params`. */
+/** Translate a copy key; `{name}` placeholders interpolate from `params`.
+ * @param key - copy key from the plugin dictionary.
+ * @param params - placeholder values interpolated into the template.
+ * @returns the translated text, or the key itself when no dictionary defines it.
+ */
 export function t(key: CopyKey, params?: Record<string, string | number>): string {
   const dict: Record<CopyKey, string | undefined> = activeLocale().toLowerCase().startsWith('zh') ? zh : en
   let text = dict[key]
@@ -785,12 +790,17 @@ export function t(key: CopyKey, params?: Record<string, string | number>): strin
   return text
 }
 
-/** Whether the active locale is Chinese (used for selectors). */
+/** Whether the active locale is Chinese (used for selectors).
+ * @returns true when the active locale id starts with `zh`.
+ */
 export function isZh(): boolean {
   return activeLocale().toLowerCase().startsWith('zh')
 }
 
-/** Format an ISO 8601 author date relative to now (刚刚 / N 分钟前 / N 小时前 / 昨天 / date). */
+/** Format an ISO 8601 author date relative to now (刚刚 / N 分钟前 / N 小时前 / 昨天 / date).
+ * @param iso - ISO 8601 timestamp string.
+ * @returns the relative label, or the input unchanged when unparsable.
+ */
 export function relativeTime(iso: string): string {
   const then = Date.parse(iso)
   if (Number.isNaN(then)) return iso

@@ -22,6 +22,7 @@ export interface MarkdownBlock {
   text: string
 }
 
+/** One split result: markdown source or a lifted mermaid diagram. */
 export type MdBlock = MarkdownBlock | MermaidBlock
 
 /** Props of the chunk-resident `MermaidMarkdown` component (shared contract). */
@@ -37,7 +38,12 @@ export const OPEN_FENCE_RE = /^ {0,3}(`{3,}|~{3,})/
 /** A closing-fence line: 0-3 spaces indent + 3+ backticks/tildes + trailing spaces only. */
 export const CLOSE_FENCE_RE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/
 
-/** Parse the info string from the line tail after the fence run; null when invalid. */
+/**
+ * Parse the info string from the line tail after the fence run; null when invalid.
+ * @param rest - the opening line's tail after the fence run.
+ * @param fence - the matched fence run (backtick fences forbid backticks in the info string).
+ * @returns the info word, or null when the line is not a valid opening fence.
+ */
 export function fenceInfo(rest: string, fence: string): string | null {
   const info = rest.trimStart().split(/\s+/)[0] ?? ''
   // CommonMark: a backtick fence's info string may not contain backticks —
@@ -60,6 +66,8 @@ function isMermaidInfo(info: string): boolean {
  * character with at least as many characters as the opening fence. An
  * unterminated mermaid fence swallows the rest of the file (the same
  * recovery CommonMark applies to open fences).
+ * @param text - full markdown document source.
+ * @returns the document split into markdown and mermaid blocks in source order.
  */
 export function splitMermaidBlocks(text: string): MdBlock[] {
   if (text === '') return []

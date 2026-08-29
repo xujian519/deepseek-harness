@@ -20,6 +20,7 @@ import type { Context, SidebarHttpRequest, SidebarHttpResponse } from './context
 
 /** The chunk names the client may request (mirror of src/client/chunk-loader.ts). */
 export const CHUNK_NAMES = ['terminal', 'editor', 'mermaid'] as const
+/** One allowlisted lazy-chunk name servable from `/sidebar/bundle/`. */
 export type ChunkName = (typeof CHUNK_NAMES)[number]
 
 /** Directory of this host-half module (lib/ — the chunk scripts live next to it). */
@@ -65,6 +66,9 @@ async function etagOf(name: ChunkName, chunkDir: string): Promise<string | undef
  * Build the /sidebar/bundle route handler. `fence` is the shared browser-
  * trust check every /sidebar route applies; `chunkDir` is the directory the
  * chunk scripts live in (overridable for tests).
+ * @param fence - browser-trust predicate; requests failing it get 403.
+ * @param chunkDir - directory holding the `client-<name>.js` scripts (defaults to this module's directory).
+ * @returns the route handler serving chunk scripts with ETag revalidation.
  */
 export function createBundleRouteHandler(
   fence: (req: SidebarHttpRequest) => boolean,
@@ -119,7 +123,12 @@ export function createBundleRouteHandler(
   }
 }
 
-/** Register the /sidebar/bundle route (disposed with the fiber). */
+/**
+ * Register the /sidebar/bundle route (disposed with the fiber).
+ * @param ctx - Cordis context owning the web-server registration.
+ * @param fence - browser-trust predicate passed to the route handler.
+ * @returns the registration disposer.
+ */
 export function registerBundleRoute(ctx: Context, fence: (req: SidebarHttpRequest) => boolean): () => void {
   return ctx.webServer.register({
     kind: 'prefix',

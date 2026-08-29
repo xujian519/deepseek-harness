@@ -223,21 +223,28 @@ export interface SidebarPrefs {
 
 /** Range contract of {@link SidebarPrefs.defaultWidthPercent}. */
 export const WIDTH_PERCENT_MIN = 20
+/** Upper bound of {@link SidebarPrefs.defaultWidthPercent}. */
 export const WIDTH_PERCENT_MAX = 60
+/** Default value of {@link SidebarPrefs.defaultWidthPercent}. */
 export const WIDTH_PERCENT_DEFAULT = 35
 
 /** Range contract of {@link SidebarPrefs.terminalFontSize}. */
 export const TERMINAL_FONT_SIZE_MIN = 9
+/** Upper bound of {@link SidebarPrefs.terminalFontSize}. */
 export const TERMINAL_FONT_SIZE_MAX = 32
+/** Default value of {@link SidebarPrefs.terminalFontSize}. */
 export const TERMINAL_FONT_SIZE_DEFAULT = 13
 
 /** Range contract of {@link SidebarPrefs.titleBarStripPx}. */
 export const TITLE_BAR_STRIP_MIN = 0
+/** Upper bound of {@link SidebarPrefs.titleBarStripPx}. */
 export const TITLE_BAR_STRIP_MAX = 120
+/** Default value of {@link SidebarPrefs.titleBarStripPx}. */
 export const TITLE_BAR_STRIP_DEFAULT = 40
 
 /** The title-bar / shell compatibility schemes (see {@link SidebarPrefs.titleBarScheme}). */
 export const TITLE_BAR_SCHEMES = ['auto', 'web', 'preset', 'custom'] as const
+/** One {@link TITLE_BAR_SCHEMES} member naming the title-bar compatibility scheme. */
 export type TitleBarScheme = typeof TITLE_BAR_SCHEMES[number]
 
 /** Fallback prefs used whenever the settings document is unreachable or malformed. */
@@ -272,17 +279,29 @@ export const SIDEBAR_PREFS_DEFAULTS: SidebarPrefs = {
   pluginSettings: {},
 }
 
-/** Clamp one width percent into the contract range (shared by schema and client reads). */
+/**
+ * Clamp one width percent into the contract range (shared by schema and client reads).
+ * @param value - unclamped percent.
+ * @returns the value rounded to the nearest integer and clamped into `[WIDTH_PERCENT_MIN, WIDTH_PERCENT_MAX]`.
+ */
 export function clampWidthPercent(value: number): number {
   return Math.min(WIDTH_PERCENT_MAX, Math.max(WIDTH_PERCENT_MIN, Math.round(value)))
 }
 
-/** Clamp one terminal font size into the contract range (shared by schema and client reads). */
+/**
+ * Clamp one terminal font size into the contract range (shared by schema and client reads).
+ * @param value - unclamped font size in px.
+ * @returns the value rounded to the nearest integer and clamped into `[TERMINAL_FONT_SIZE_MIN, TERMINAL_FONT_SIZE_MAX]`.
+ */
 export function clampTerminalFontSize(value: number): number {
   return Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, Math.round(value)))
 }
 
-/** Clamp one title-bar strip height into the contract range (shared by schema and client reads). */
+/**
+ * Clamp one title-bar strip height into the contract range (shared by schema and client reads).
+ * @param value - unclamped strip height in px.
+ * @returns the value rounded to the nearest integer and clamped into `[TITLE_BAR_STRIP_MIN, TITLE_BAR_STRIP_MAX]`.
+ */
 export function clampTitleBarStrip(value: number): number {
   return Math.min(TITLE_BAR_STRIP_MAX, Math.max(TITLE_BAR_STRIP_MIN, Math.round(value)))
 }

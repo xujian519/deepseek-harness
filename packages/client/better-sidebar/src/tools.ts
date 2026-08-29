@@ -33,6 +33,9 @@ const READ_BYTE_LIMIT = 256 * 1024
  * the walk-back retreats to the sequence's leading byte so the retained
  * prefix decodes cleanly (a split would decode to U+FFFD).
  * @internal exported for the unit tests, like {@link snapshotOf}.
+ * @param text - string to bound.
+ * @param maxBytes - maximum UTF-8 byte length of the retained prefix.
+ * @returns the retained text (whole input when within the cap) and whether truncation happened.
  */
 export function boundBytes(text: string, maxBytes: number): { text: string; truncated: boolean } {
   const buf = Buffer.from(text, 'utf8')
@@ -77,6 +80,7 @@ function sessionIdOf(exec: ToolRunContext): string {
  *  the session header, the client-supplied cwd, and the persistence index
  *  before falling back to the host process cwd (production always provides
  *  persistence, so the fallback is reached only in tests / stripped-down hosts).
+ * @param readShellOverrides - live shell/shellArgs overrides applied when a tool spawns a terminal.
  * @returns a disposer that unregisters all eight tools (the caller gates
  * registration on the side-card setting and calls this to turn them off).
  */

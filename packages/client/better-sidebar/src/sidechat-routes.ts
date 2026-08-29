@@ -150,9 +150,13 @@ function liveThreadAgent(ctx: Context, childId: string): Agent | undefined {
   return agents?.get(childId)
 }
 
-/** Build the Side Chat routes (all optional services degrade to a wire
+/**
+ * Build the Side Chat routes (all optional services degrade to a wire
  *  error the tab surfaces inline). The record keys are the FULL wire method
- *  names the /sidebar/api dispatcher looks up (`api[method]`). */
+ *  names the /sidebar/api dispatcher looks up (`api[method]`).
+ * @param ctx - host plugin context the routes resolve services from.
+ * @returns the route record keyed by full wire method name.
+ */
 export function buildSidechatApi(ctx: Context): SidechatRoutes {
   return {
     'sidechat.start': async (payload: unknown) => {

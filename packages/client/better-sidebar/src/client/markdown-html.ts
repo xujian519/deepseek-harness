@@ -33,6 +33,7 @@ export interface MarkdownHtmlSegment {
   text: string
 }
 
+/** One segment of the split document: markdown source or a lifted HTML run. */
 export type MdHtmlSegment = MarkdownHtmlSegment | HtmlSegment
 
 /** The doc-wide analysis the preview consumes (all pure, unit-tested here). */
@@ -152,6 +153,8 @@ export interface HtmlSegmentShape {
  * wrapper level). A mismatched close pops through the matching open — the
  * HTML parser's implicit-close behavior. Runs with no structural tags reduce
  * to a single `html` part.
+ * @param source - raw text of one lifted HTML run.
+ * @returns the ordered structural parts of the run.
  */
 export function analyzeHtmlSegment(source: string): HtmlSegmentShape {
   const tokens = tokenizeHtml(source)
@@ -203,6 +206,8 @@ export function analyzeHtmlSegment(source: string): HtmlSegmentShape {
  * line inside any fenced code block is content, not a run start). Blank lines
  * terminate HTML runs and are dropped between segments (they carry no markdown
  * semantics the preview needs); everything else stays byte-identical.
+ * @param text - full markdown document source.
+ * @returns the document split into markdown and HTML runs in source order.
  */
 export function splitHtmlBlocks(text: string): MdHtmlSegment[] {
   if (text === '') return []
@@ -302,6 +307,8 @@ const REFERENCE_DEF_RE = /^ {0,3}\[((?:[^\][]|\[[^\]]*\])*)\]:\s*(?:<([^<>]*)>|(
 /**
  * Collect the reference definitions of every markdown run (HTML runs cannot
  * define them), in document order, newline-joined for appending.
+ * @param segments - document segments produced by {@link splitHtmlBlocks}.
+ * @returns the newline-joined reference definitions; empty when none exist.
  */
 export function collectReferenceDefinitions(segments: readonly MdHtmlSegment[]): string {
   const defs: string[] = []
@@ -319,6 +326,8 @@ export function collectReferenceDefinitions(segments: readonly MdHtmlSegment[]):
  * cheap source-level regex (code-fence content may false-positive; the inline
  * pass skips rendered code blocks anyway, so a false positive only costs the
  * enhanced render path, never a behavior change).
+ * @param text - full markdown document source.
+ * @returns the segments, HTML flags, and collected reference definitions.
  */
 export function analyzeMarkdownHtml(text: string): AnalyzedMarkdownHtml {
   const segments = splitHtmlBlocks(text)

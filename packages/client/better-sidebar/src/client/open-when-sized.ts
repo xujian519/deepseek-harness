@@ -16,6 +16,11 @@
  * immediately (idempotent).
  *
  * `raf`/`caf` are injectable so tests can drive the polling deterministically.
+ * @param host - the container element whose size gates the open.
+ * @param open - one-shot open + fit + resize callback.
+ * @param raf - frame scheduler (injectable for tests).
+ * @param caf - frame canceler (injectable for tests).
+ * @returns the cancel function dropping a pending frame; idempotent.
  */
 export function openWhenSized(
   host: HTMLElement,

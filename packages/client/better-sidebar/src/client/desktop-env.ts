@@ -32,7 +32,9 @@ export interface DesktopEnv {
 
 let cached: DesktopEnv | undefined
 
-/** Read the shell's desktop stamps (memoized per page; SSR-safe). */
+/** Read the shell's desktop stamps (memoized per page; SSR-safe).
+ * @returns the parsed environment; the empty environment outside a window.
+ */
 export function parseDesktopEnv(): DesktopEnv {
   if (cached !== undefined) return cached
   const hasWindow = typeof window !== 'undefined'

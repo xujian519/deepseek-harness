@@ -18,7 +18,11 @@
  *  DOM. `anchorHref` must be the ABSOLUTE href (`<a>.href` already is).
  *  The protocol/same-origin policy lives HERE; the prefs gates (master +
  *  protocol flags + target enablement) live in the caller's
- *  `takeoverEnabled(url)` callback. */
+ *  `takeoverEnabled(url)` callback.
+ * @param anchorHref - absolute href of the clicked anchor.
+ * @param selfOrigin - the GUI's own origin.
+ * @returns the absolute URL to open in the sidebar, or null to let the click fall through.
+ */
 export function shouldInterceptLink(anchorHref: string, selfOrigin: string): string | null {
   let url: URL
   try {
@@ -37,7 +41,10 @@ export function shouldInterceptLink(anchorHref: string, selfOrigin: string): str
   return url.href
 }
 
-/** Whether a left-click may be taken over (unmodified left click only). */
+/** Whether a left-click may be taken over (unmodified left click only).
+ * @param event - the mouse event's button and modifier state.
+ * @returns true for button 0 with no Ctrl/Cmd/Shift/Alt modifier.
+ */
 export function isPlainLeftClick(event: {
   button: number
   metaKey: boolean
@@ -51,6 +58,8 @@ export function isPlainLeftClick(event: {
 /**
  * Register the document-level click capture that funnels external links
  * into the sidebar. Returns the disposer (HMR-safe).
+ * @param opts - takeover gate, sidebar opener, and the GUI's own origin.
+ * @returns the disposer removing the capture listener.
  */
 export function registerLinkInterception(opts: {
   /** Whether the takeover may happen for THIS url (the caller's prefs

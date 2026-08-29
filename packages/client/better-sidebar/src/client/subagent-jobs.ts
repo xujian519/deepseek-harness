@@ -21,7 +21,11 @@ export interface TreeJob {
   job: SidebarJobView
 }
 
-/** Whether the registry still holds the job open (its duration ticks). */
+/**
+ * Whether the registry still holds the job open (its duration ticks).
+ * @param job - The job view to classify.
+ * @returns Whether the job is running or stopping.
+ */
 export function isJobLive(job: SidebarJobView): boolean {
   return job.status === 'running' || job.status === 'stopping'
 }
@@ -32,6 +36,9 @@ export function isJobLive(job: SidebarJobView): boolean {
  * lineage semantics as {@link countSubagentDescendants}; cycles fail soft).
  * Sessions outside the tree (orphans, other trees) are excluded, so the
  * jobs section never shows foreign work.
+ * @param byId - Session summary map walked for the lineage chains.
+ * @param rootId - Id of the tree's main-agent session; undefined yields an empty set.
+ * @returns The root id plus every session whose subagent-origin chain reaches it.
  */
 export function treeSessionIds(
   byId: SidebarSessionList['byId'],
@@ -64,6 +71,10 @@ export function treeSessionIds(
  * agent may start several jobs over a session, and each new one should
  * surface the Jobs page (a fresh page load never triggers — its baseline
  * starts at the current snapshot).
+ * @param prev - Earlier list snapshot serving as the baseline.
+ * @param next - Later list snapshot.
+ * @param sessionId - Session whose job list is compared.
+ * @returns Whether `next` holds a job id absent from `prev`.
  */
 export function detectNewJob(
   prev: SidebarSessionList,
@@ -78,6 +89,10 @@ export function detectNewJob(
  * Collect the background jobs of the whole current tree, owner-labeled.
  * Sessions without a mirror entry contribute nothing; an absent mirror
  * (runtime older than the jobs feed) yields an empty list.
+ * @param byId - Session summary map providing each owner's title.
+ * @param jobsBySession - Per-session job mirror; undefined yields an empty list.
+ * @param rootId - Id of the tree's main-agent session; undefined yields an empty list.
+ * @returns One row per tree job, labeled with its owning session.
  */
 export function collectTreeJobs(
   byId: SidebarSessionList['byId'],
@@ -99,6 +114,8 @@ export function collectTreeJobs(
  * Live rows first in start order, then settled rows newest-first (mirror of
  * the official ui-jobs ordering); a tie falls back to start order so the
  * sort never depends on the host's map iteration.
+ * @param rows - Rows to order; the input array is not mutated.
+ * @returns A sorted copy: live rows by start order, then settled rows newest-first.
  */
 export function orderJobs(rows: readonly TreeJob[]): TreeJob[] {
   return [...rows].sort((left, right) => {
@@ -117,6 +134,8 @@ export type JobDotState = 'ongoing' | 'warning' | 'done' | 'error'
  * Status marker semantics. `stopping` and `killed` share the attention
  * color: both mean the work ended (or is ending) on request rather than on
  * its own.
+ * @param status - One of the five wire job statuses.
+ * @returns The StateDot state the status maps to.
  */
 export function jobDotState(status: SidebarJobStatus): JobDotState {
   switch (status) {
@@ -128,7 +147,12 @@ export function jobDotState(status: SidebarJobStatus): JobDotState {
   }
 }
 
-/** Human status word of one wire status (localized through the passed translator). */
+/**
+ * Human status word of one wire status (localized through the passed translator).
+ * @param status - One of the five wire job statuses.
+ * @param t - Translator resolving the status's copy key.
+ * @returns The localized status word.
+ */
 export function jobStatusLabel(
   status: SidebarJobStatus,
   t: (key: CopyKey, params?: Record<string, string | number>) => string,
@@ -146,6 +170,9 @@ export function jobStatusLabel(
  * Elapsed time in at most two adjacent units (mirror of the official
  * ui-jobs duration wording). A background job that outlives an hour is
  * already exceptional, so hours is the widest unit.
+ * @param elapsedMs - Elapsed milliseconds; negative values clamp to zero.
+ * @param t - Translator resolving the duration copy keys.
+ * @returns The duration rendered in at most two adjacent units.
  */
 export function formatJobDuration(
   elapsedMs: number,

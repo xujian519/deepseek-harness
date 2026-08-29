@@ -49,7 +49,11 @@ import { vb } from '@codemirror/legacy-modes/mode/vb'
 import { vhdl } from '@codemirror/legacy-modes/mode/vhdl'
 import { stex } from '@codemirror/legacy-modes/mode/stex'
 
-/** The lowercased file extension of a path ('' when none). */
+/**
+ * The lowercased file extension of a path ('' when none).
+ * @param path - file path whose trailing segment is inspected.
+ * @returns the lowercased extension without the dot; '' when the path has none.
+ */
 export function extOf(path: string): string {
   const at = path.lastIndexOf('.')
   if (at === -1) return ''
@@ -57,7 +61,11 @@ export function extOf(path: string): string {
   return base.includes('/') || base.includes('\\') ? '' : base
 }
 
-/** Language key for an extension, or null for plain text. Pure (tested). */
+/**
+ * Language key for an extension, or null for plain text. Pure (tested).
+ * @param ext - lowercased file extension without the dot.
+ * @returns the language key, or null for extensions left unhighlighted.
+ */
 export function languageKeyForExt(ext: string): string | null {
   switch (ext) {
     case 'js': case 'mjs': case 'cjs': return 'js'
@@ -206,12 +214,18 @@ const FACTORIES: Record<string, () => Language | LanguageSupport> = {
   objectivecpp: () => StreamLanguage.define(objectiveCpp),
 }
 
-/** Every language key the extension table can produce (test seam). */
+/** Every language key the extension table can produce (test seam).
+ * @returns the language keys with a registered factory.
+ */
 export function supportedLanguageKeys(): readonly string[] {
   return Object.keys(FACTORIES)
 }
 
-/** The CodeMirror language support for a path, or null for plain text. */
+/**
+ * The CodeMirror language support for a path, or null for plain text.
+ * @param path - file path to highlight.
+ * @returns a fresh language support instance, or null when the extension is unmapped or its factory fails.
+ */
 export function languageForPath(path: string): Language | LanguageSupport | null {
   const key = languageKeyForExt(extOf(path))
   if (key === null) return null

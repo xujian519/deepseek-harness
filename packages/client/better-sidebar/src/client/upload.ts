@@ -48,7 +48,11 @@ function relativePathOf(file: File): string | undefined {
   return sanitizeRelativePath(file.webkitRelativePath || file.name || '')
 }
 
-/** Collect a picker selection (webkitdirectory folders carry relative paths). */
+/**
+ * Collect a picker selection (webkitdirectory folders carry relative paths).
+ * @param files - Picker selection to convert.
+ * @returns Items for the files whose relative paths sanitize cleanly; others are skipped.
+ */
 export function uploadItemsFromFiles(files: FileList | readonly File[]): UploadItem[] {
   const items: UploadItem[] = []
   for (const file of files) {
@@ -94,6 +98,8 @@ async function itemsFromEntry(entry: FileSystemEntry, prefix: string): Promise<U
  * mode once the event dispatch ends, while the captured entry handles stay
  * readable asynchronously. Falls back to the flat file list when the entry
  * API is unavailable; an entry that fails to read is skipped, not fatal.
+ * @param data - The drop event's DataTransfer; undefined yields an empty list.
+ * @returns Items for every dropped file with nested-folder trees preserved; never rejects.
  */
 export async function uploadItemsFromDrop(data: DataTransfer | undefined): Promise<UploadItem[]> {
   if (data === undefined) return []
@@ -120,6 +126,12 @@ export const UPLOAD_HINT_MS = 3500
  * One-line upload progress text: 'Uploading into {dir}…' while no file is in
  * flight, then 'Uploading {done}/{total}: {name}' per file. Shared by the tree
  * hint and the full-window upload overlay.
+ * @param done - Count of settled uploads.
+ * @param total - Total upload count.
+ * @param current - Relative path of the in-flight file ('' before the first upload).
+ * @param dir - Target directory shown while no file is in flight.
+ * @param t - Translator resolving the progress copy keys.
+ * @returns The one-line progress text.
  */
 export function uploadHintText(
   done: number,
@@ -136,6 +148,12 @@ export function uploadHintText(
  * sequentially, reporting progress as `(done, total, currentRelativePath)`.
  * Resolves with one result per item — never rejects; `signal.aborted` stops
  * the queue at the next item boundary (completed items stay uploaded).
+ * @param scope - Session whose workspace receives the files.
+ * @param dir - Absolute target directory inside the session workspace.
+ * @param items - Pending uploads, processed sequentially in input order.
+ * @param onProgress - Called per item with (done, total, current relative path), and once at the end with an empty path.
+ * @param signal - Stops the queue at the next item boundary and aborts the in-flight request.
+ * @returns One result per processed item, in input order; never rejects.
  */
 export async function uploadToDir(
   scope: SessionScope,
@@ -172,7 +190,12 @@ export async function uploadToDir(
   return results
 }
 
-/** Fold a result list into a one-line status for the tree hint. */
+/**
+ * Fold a result list into a one-line status for the tree hint.
+ * @param results - Settled upload results.
+ * @param t - Translator resolving the status copy keys.
+ * @returns A success line with the uploaded count, or the first failure's detail.
+ */
 export function summarizeResults(
   results: UploadResult[],
   t: (key: CopyKey, params?: Record<string, string | number>) => string,

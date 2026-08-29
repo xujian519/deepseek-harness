@@ -331,13 +331,22 @@ export const api = {
     call<{ started: boolean }>('open.external', payload),
 }
 
-/** Absolute URL of the media route for one path (images only). */
+/**
+ * Absolute URL of the media route for one path (images only).
+ * @param scope - session scope the file belongs to.
+ * @param path - workspace path served to the `<img>` element.
+ * @returns the absolute `/sidebar/file` media URL.
+ */
 export function mediaUrl(scope: SessionScope, path: string): string {
   return fileUrl(scope, path, false)
 }
 
 /** Absolute URL of the download route: serves raw bytes (binary-safe) with
- *  `Content-Disposition: attachment`, so the browser saves the file. */
+ *  `Content-Disposition: attachment`, so the browser saves the file.
+ * @param scope - session scope the file belongs to.
+ * @param path - workspace path offered as a download.
+ * @returns the absolute `/sidebar/file` download URL.
+ */
 export function downloadUrl(scope: SessionScope, path: string): string {
   return fileUrl(scope, path, true)
 }
@@ -357,6 +366,9 @@ function fileUrl(scope: SessionScope, path: string, download: boolean): string {
  * platform-neutral — the host's requireAbsolute resolves the decoded
  * forward-slash `//server/share/...` form on both win32 and POSIX — so no
  * client-side platform signal is needed.
+ * @param scope - session scope the file belongs to.
+ * @param path - workspace path previewed in the iframe.
+ * @returns the absolute encoded HTML preview URL.
  */
 export function htmlUrl(scope: SessionScope, path: string): string {
   return encodeHtmlUrl(scope.sessionId, path)

@@ -153,6 +153,9 @@ function openStepInTurn(events: readonly SidechatLogEvent[], turnStart: number):
  * `tool/result` in the CURRENT open step. Providers reject dangling
  * assistant calls, so such a turn cannot be honestly closed and the
  * inheritance must fall back to the snapshot.
+ * @param events - the session log, oldest first.
+ * @param turnStart - index of the open turn's `turn/start` event.
+ * @returns whether a call inside that turn lacks its paired result.
  */
 export function hasDanglingToolCall(events: readonly SidechatLogEvent[], turnStart: number): boolean {
   const pending = new Set<string>()
@@ -210,6 +213,8 @@ const SNAPSHOT_TOTAL_CAP = 8000
 /**
  * Build the side-thread inheritance for one parent log: the full event log
  * up to the click moment, honestly closed when it ends inside an open turn.
+ * @param events - the parent session log, oldest first.
+ * @returns the seed events plus, when the open turn could not be closed honestly, its structured text snapshot.
  */
 export function buildSidechatInheritance(events: readonly SidechatLogEvent[]): SidechatInheritance {
   if (events.length === 0) return { seed: [], snapshot: null }
@@ -245,7 +250,11 @@ export function buildSidechatInheritance(events: readonly SidechatLogEvent[]): S
   return { seed, snapshot: null }
 }
 
-/** The seed half of {@link buildSidechatInheritance} (test convenience). */
+/**
+ * The seed half of {@link buildSidechatInheritance} (test convenience).
+ * @param events - the parent session log, oldest first.
+ * @returns the child seed events.
+ */
 export function sidechatSeed(events: readonly SidechatLogEvent[]): SeedEvent[] {
   return buildSidechatInheritance(events).seed
 }
@@ -256,6 +265,8 @@ export function sidechatSeed(events: readonly SidechatLogEvent[]): SeedEvent[] {
  * (code blocks ride the raw deltas) and the tool activity — executed tools
  * with their result text, the still-executing one marked. Returns null when
  * there is no open turn or nothing to show.
+ * @param events - the parent session log, oldest first.
+ * @returns the snapshot text, or null when there is no open turn or nothing to show.
  */
 export function buildOpenTurnSnapshot(events: readonly SidechatLogEvent[]): string | null {
   const boundary = lastTurnBoundary(events)
@@ -338,6 +349,9 @@ export interface SideThreadRow {
  * carries the thread label prefix (our creation path pins it via
  * sessionTitle.rename; dsh-sidechain threads share the convention, so they
  * are visible here too).
+ * @param byId - client session list keyed by session id.
+ * @param sessionId - parent session id whose side threads are listed.
+ * @returns the matching threads, in `byId` value order.
  */
 export function sideThreadRows(
   byId: Readonly<Record<string, SidebarSessionSummary>>,
@@ -352,7 +366,11 @@ export function sideThreadRows(
   return rows
 }
 
-/** Truncate + prefix a question into a durable thread label. */
+/**
+ * Truncate + prefix a question into a durable thread label.
+ * @param question - the composer text the thread is created from.
+ * @returns `Side: ` plus the whitespace-collapsed question, ellipsized to {@link LABEL_MAX_CHARS} code points.
+ */
 export function sideLabel(question: string): string {
   const flat = question.replace(/\s+/g, ' ').trim()
   const max = Math.max(1, LABEL_MAX_CHARS - SIDE_LABEL_PREFIX.length)
@@ -366,6 +384,8 @@ export function sideLabel(question: string): string {
  * array or bare string) and to inherited seed messages (only an OWN
  * boundary message starts with the prefix; seed messages came from the
  * parent's log, which never contains one).
+ * @param events - the thread log, oldest first.
+ * @returns whether any thread user/message starts with the boundary prefix.
  */
 export function boundaryDelivered(events: readonly SidechatLogEvent[]): boolean {
   for (const event of events) {
@@ -394,6 +414,8 @@ function messageLeadText(data: Record<string, unknown>): string {
  * boundary+question in ONE 'user' message, recognized by the boundary
  * prefix. Both render as one collapsible injection row — never as a user
  * bubble.
+ * @param data - the user/message event's data record.
+ * @returns whether the message is a context injection rather than a real user message.
  */
 export function isContextInjectionMessage(data: Record<string, unknown>): boolean {
   const source = data.source as { kind?: unknown } | null | undefined
@@ -415,8 +437,12 @@ export interface SidechatThreadInfo {
   preset?: string
 }
 
-/** The events a thread produced itself: everything after the LAST
- *  `session/end-seed` marker (the fork-seed boundary). */
+/**
+ * The events a thread produced itself: everything after the LAST
+ * `session/end-seed` marker (the fork-seed boundary).
+ * @param entries - the thread's history entries, oldest first.
+ * @returns the events after the last `session/end-seed`, or all events when no marker exists.
+ */
 export function threadOwnEvents(entries: readonly SidebarHistoryEntry[]): SidechatLogEvent[] {
   const events = entries.map(entry => entry.event)
   for (let index = events.length - 1; index >= 0; index--) {
@@ -429,6 +455,8 @@ export function threadOwnEvents(entries: readonly SidebarHistoryEntry[]): Sidech
  * Whether the thread has at least one completed turn — the save-as-new-
  * session precondition (`session.fork` refuses to fork before the first
  * `turn/end`).
+ * @param entries - the thread's history entries, oldest first.
+ * @returns whether the thread's own events contain a `turn/end`.
  */
 export function threadHasCompletedTurn(entries: readonly SidebarHistoryEntry[]): boolean {
   return threadOwnEvents(entries).some(event => event.type === 'turn/end')
@@ -436,7 +464,10 @@ export function threadHasCompletedTurn(entries: readonly SidebarHistoryEntry[]):
 
 /** Whether the thread ends with a user message that no completed turn
  *  answered yet — such a pending follow-up is NOT carried into the saved
- *  session (the fork cut is the last `turn/end`). */
+ *  session (the fork cut is the last `turn/end`).
+ * @param entries - the thread's history entries, oldest first.
+ * @returns whether the newest user/message follows the newest `turn/end`.
+ */
 export function threadTrailingPending(entries: readonly SidebarHistoryEntry[]): boolean {
   const own = threadOwnEvents(entries)
   let lastUser = -1
@@ -453,6 +484,9 @@ export function threadTrailingPending(entries: readonly SidebarHistoryEntry[]): 
  * event wins, else the creation header (mirror of the dsh-agent-presets
  * resolveSessionPreset helper — replicated here to avoid a host dependency
  * on that package).
+ * @param header - the session creation header.
+ * @param events - the session log, oldest first.
+ * @returns the newest recorded preset id, else the header's, else undefined.
  */
 export function resolvePresetId(
   header: { agentPreset?: string },

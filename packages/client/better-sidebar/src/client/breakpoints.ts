@@ -15,11 +15,16 @@ import { useEffect, useState } from 'react'
 /** Viewport widths strictly below this are "mobile" (paired CSS: max-width: 767px). */
 export const NARROW_MAX_WIDTH = 768
 
-/** Whether a viewport width is narrow (mobile). */
+/**
+ * Whether a viewport width is narrow (mobile).
+ * @param width - viewport width in px.
+ * @returns true when the width is below {@link NARROW_MAX_WIDTH}.
+ */
 export function isNarrowWidth(width: number): boolean {
   return width < NARROW_MAX_WIDTH
 }
 
+/** The live viewport dimensions in px (0 outside a window). */
 export interface ViewportSize {
   width: number
   height: number
@@ -31,6 +36,7 @@ export interface ViewportSize {
  * Deliberately avoids `matchMedia` (jsdom does not implement it) — the
  * resize listener is equally exact for a breakpoint that never changes
  * while the page is open.
+ * @returns the current viewport size, re-measured on window resize.
  */
 export function useViewportSize(): ViewportSize {
   const [size, setSize] = useState<ViewportSize>(() => ({
@@ -56,6 +62,9 @@ export function useViewportSize(): ViewportSize {
   return size
 }
 
+/** Live narrow-viewport flag: true below the mobile breakpoint.
+ * @returns true while the viewport width is narrow.
+ */
 export function useNarrowViewport(): boolean {
   return isNarrowWidth(useViewportSize().width)
 }

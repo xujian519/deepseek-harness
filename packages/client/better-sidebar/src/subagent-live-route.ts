@@ -43,6 +43,7 @@ export const LIVE_WINDOW_MESSAGES = 12
 /**
  * Build the live-preview routes bound to the plugin context.
  * @param ctx - host plugin context.
+ * @returns the live-preview route record.
  */
 export function buildSubagentLiveApi(ctx: Context): SidebarSubagentLiveRoutes {
   return {

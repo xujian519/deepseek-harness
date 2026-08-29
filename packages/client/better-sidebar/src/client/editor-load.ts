@@ -34,7 +34,11 @@ export type EditorLoadAction =
   /** Call the viewer's load() and render with its return value. */
   | { kind: 'customLoad'; viewer: FileViewerDescriptor }
 
-/** Decode the host's base64 head bytes into the sniffing buffer. */
+/**
+ * Decode the host's base64 head bytes into the sniffing buffer.
+ * @param headBase64 - base64 head bytes from a binary fs.read result.
+ * @returns the decoded bytes for viewer `detect` probes.
+ */
 export function decodeHead(headBase64: string): Uint8Array {
   const binary = atob(headBase64)
   const bytes = new Uint8Array(binary.length)
@@ -47,6 +51,9 @@ export function decodeHead(headBase64: string): Uint8Array {
  * `binary-download` strategy both mean "no client-side renderer" → the
  * download UI. `mediaUrlOf` builds the media URL for `mediaUrl`/`none`
  * strategies (pure, but scope-bound — injected by the host).
+ * @param viewer - matched file viewer, or undefined when nothing claimed the path.
+ * @param mediaUrlOf - builds the media URL for `mediaUrl`/`none` render actions.
+ * @returns the action for the viewer's fetch strategy; `binary` when no renderer applies.
  */
 export function planFirstMatch(
   viewer: FileViewerDescriptor | undefined,
@@ -71,6 +78,11 @@ export function planFirstMatch(
  *   a plugin sniffing a binary format) may claim the file. `custom` viewers
  *   load their own bytes; `mediaUrl`/`none` viewers render the media route;
  *   an fsRead viewer or nothing cannot render binary → download UI.
+ * @param viewer - viewer from the first (extension-based) match.
+ * @param result - host fs.read outcome carrying text content or binary head bytes.
+ * @param rematch - re-matches the decoded head bytes against `detect` viewers.
+ * @param mediaUrlOf - builds the media URL for `mediaUrl`/`none` render actions.
+ * @returns the action for the resolved viewer; `binary` when nothing can render it.
  */
 export function planFsReadOutcome(
   viewer: FileViewerDescriptor,

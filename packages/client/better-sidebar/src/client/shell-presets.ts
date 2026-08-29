@@ -12,6 +12,7 @@
  */
 import type { DesktopEnv } from './desktop-env.ts'
 
+/** One desktop shell's compatibility-mode adaptation (strip values and optional CSS). */
 export interface ShellPreset {
   /** Stable preset id (persisted in `titleBarPresetId`). */
   readonly id: string
@@ -67,17 +68,26 @@ const PRESETS: readonly ShellPreset[] = [
   DSH_DESKTOP,
 ]
 
-/** All built-in shell presets (registration order = settings list order). */
+/** All built-in shell presets (registration order = settings list order).
+ * @returns the preset list; callers must not mutate it.
+ */
 export function getShellPresets(): readonly ShellPreset[] {
   return PRESETS
 }
 
-/** One preset by id, or undefined for an unknown/empty id. */
+/** One preset by id, or undefined for an unknown/empty id.
+ * @param id - persisted preset id from `titleBarPresetId`.
+ * @returns the matching preset, or undefined when unknown.
+ */
 export function getShellPreset(id: string): ShellPreset | undefined {
   return PRESETS.find(preset => preset.id === id)
 }
 
-/** The strip the active preset contributes for the given environment. */
+/** The strip the active preset contributes for the given environment.
+ * @param preset - active preset, or undefined when running unpresetted.
+ * @param env - detected desktop environment.
+ * @returns the reserved strip in px, or undefined when none applies.
+ */
 export function presetStripFor(preset: ShellPreset | undefined, env: DesktopEnv): number | undefined {
   return preset?.stripFor?.(env)
 }

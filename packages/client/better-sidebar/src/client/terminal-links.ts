@@ -94,6 +94,8 @@ function trimUnbalancedTrailingParens(url: string): string {
  * Resets the regex's `lastIndex` before and after the scan so a
  * previous partial iteration can't desynchronize a later one (the
  * regex carries the `g` flag and is module-shared).
+ * @param line - one line of terminal text.
+ * @returns matches in source order with 0-based offsets.
  */
 export function findTerminalUrlsInLine(line: string): TerminalUrlMatch[] {
   TERMINAL_URL_REGEX.lastIndex = 0
@@ -165,6 +167,8 @@ export function buildTerminalLinks(lineText: string, lineNumber: number): Termin
  * browser. The modifier is read off the activating `MouseEvent`, not
  * tracked separately, so a key-up between hover and click never
  * desynchronizes the gate.
+ * @param event - the activating mouse event.
+ * @returns true when Ctrl or Cmd is held.
  */
 export function shouldActivateTerminalLink(event: MouseEvent): boolean {
   return event.ctrlKey || event.metaKey
@@ -177,6 +181,7 @@ export function shouldActivateTerminalLink(event: MouseEvent): boolean {
  * on malformed input; the catch makes the function total so the xterm
  * handler never throws into the terminal's event loop.
  *
+ * @param uri - the matched URL text.
  * @returns `true` when the URL was dispatched to `window.open`, `false`
  *   when it was rejected (bad URL, disallowed scheme, no `window`).
  */

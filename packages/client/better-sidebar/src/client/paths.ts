@@ -19,6 +19,8 @@
  * both backslash (`\\server\share\...`) and forward-slash
  * (`//server/share/...`) form. Deliberately a superset — see the module
  * comment — so a produced UNC path is never joined onto the cwd.
+ * @param path - the path to test.
+ * @returns true for POSIX roots, drive letters, and UNC shares.
  */
 export function isAbsolutePath(path: string): boolean {
   return path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) || /^[\\/]{2}[^\\/]/.test(path)
@@ -52,6 +54,9 @@ export function relativeTo(cwd: string, path: string): string {
  * mirror of the host's `isWithin` (fs-tree.ts) used to decide whether a
  * git-derived path can be opened in the editor (a linked worktree outside
  * the session workspace cannot: the host's workspace fence would reject it).
+ * @param base - the workspace root (absolute).
+ * @param target - the candidate path (absolute).
+ * @returns true when target equals base or lies under it.
  */
 export function isWithinWorkspace(base: string, target: string): boolean {
   const norm = (value: string): string => value.replace(/[\\/]+/g, '/').replace(/\/$/, '')

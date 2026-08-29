@@ -47,7 +47,11 @@ export interface SidebarOk<T> { ok: true; value: T }
 /** Failure envelope of one API method. */
 export interface SidebarErr { ok: false; error: { code: SidebarErrorCode; message: string } }
 
-/** Read and parse the JSON request body (bounded; malformed → bad-request). */
+/**
+ * Read and parse the JSON request body (bounded; malformed → bad-request).
+ * @param req - streaming request whose chunks concatenate into the body.
+ * @returns the parsed JSON value, or `{}` for an empty body.
+ */
 export async function readJsonBody(req: SidebarHttpRequest): Promise<unknown> {
   const chunks: Buffer[] = []
   let total = 0
@@ -70,19 +74,32 @@ export async function readJsonBody(req: SidebarHttpRequest): Promise<unknown> {
   }
 }
 
-/** Write a JSON response with the given status. */
+/**
+ * Write a JSON response with the given status.
+ * @param res - response to write the head and serialized body onto.
+ * @param status - HTTP status code.
+ * @param body - value serialized to JSON.
+ */
 export function writeJson(res: SidebarHttpResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
   res.end(payload)
 }
 
-/** Write the success envelope. */
+/**
+ * Write the success envelope.
+ * @param res - response to write onto.
+ * @param value - payload carried in the `{ok: true, value}` envelope.
+ */
 export function writeOk(res: SidebarHttpResponse, value: unknown): void {
   writeJson(res, 200, { ok: true, value })
 }
 
-/** Write the failure envelope for any thrown value (unknown → internal 500). */
+/**
+ * Write the failure envelope for any thrown value (unknown → internal 500).
+ * @param res - response to write onto.
+ * @param error - thrown value; `SidebarError` keeps code and status, `GitCommandError` its wire code, else `internal` 500.
+ */
 export function writeError(res: SidebarHttpResponse, error: unknown): void {
   if (error instanceof SidebarError) {
     writeJson(res, error.status, { ok: false, error: { code: error.code, message: error.message } })
@@ -99,7 +116,12 @@ export function writeError(res: SidebarHttpResponse, error: unknown): void {
   writeJson(res, 500, { ok: false, error: { code: 'internal', message } })
 }
 
-/** Narrow an unknown payload value to a string, else throw bad-request. */
+/**
+ * Narrow an unknown payload value to a string, else throw bad-request.
+ * @param payload - parsed request body.
+ * @param key - property to read from the payload.
+ * @returns the non-empty string at `key`.
+ */
 export function requireString(payload: unknown, key: string): string {
   const record = payload as Record<string, unknown> | null
   const value = record?.[key]

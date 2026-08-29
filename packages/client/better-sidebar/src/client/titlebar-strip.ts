@@ -21,6 +21,16 @@ import type { TitleBarScheme } from '../prefs-shared.ts'
 import type { WcoSnapshot } from './wco.ts'
 import { presetStripFor, type ShellPreset } from './shell-presets.ts'
 
+/**
+ * Resolve the title-bar strip in px through the precedence chain (web → WCO
+ * geometry → shell inset URL parameter → preset → manual → 0).
+ * @param env - detected desktop environment (owns the inset URL parameter).
+ * @param wco - current Window Controls Overlay snapshot.
+ * @param scheme - the user's title-bar compatibility scheme.
+ * @param preset - the active shell preset, or undefined when none applies.
+ * @param customStripPx - the legacy manual strip value (scheme `custom`).
+ * @returns the strip in px the sidebar yields at the top.
+ */
 export function computeTitleBarStrip(
   env: DesktopEnv,
   wco: WcoSnapshot,

@@ -43,6 +43,8 @@ export type Embeddability = 'embeddable' | 'blocked' | 'unknown'
  * not allow `*` ('self' here means the SITE's own origin — never ours, so
  * it also blocks the sidebar). A site we could not reach yields 'unknown'
  * and the plain iframe stays.
+ * @param probe - browser.probe result fetched for the target URL.
+ * @returns `embeddable`, `blocked` on enforced frame signals, or `unknown` when unreachable.
  */
 export function embeddabilityOf(probe: BrowserProbeResult): Embeddability {
   if (!probe.reachable) return 'unknown'
@@ -52,7 +54,11 @@ export function embeddabilityOf(probe: BrowserProbeResult): Embeddability {
   return 'embeddable'
 }
 
-/** A loopback hostname (localhost, IPv6 ::1, 127.0.0.0/8, 0.0.0.0). */
+/**
+ * A loopback hostname (localhost, IPv6 ::1, 127.0.0.0/8, 0.0.0.0).
+ * @param hostname - host from a parsed URL; surrounding IPv6 brackets are tolerated.
+ * @returns whether the host names the local machine.
+ */
 export function isLoopbackHostname(hostname: string): boolean {
   const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
   if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true
@@ -83,7 +89,11 @@ const FORBIDDEN_SCHEMES = new Set([
   'chrome', 'chrome-extension', 'moz-extension', 'edge', 'opera', 'resource', 'view-source',
 ])
 
-/** Parse the loopback allowlist into a matcher predicate over host:port. */
+/**
+ * Parse the loopback allowlist into a matcher predicate over host:port.
+ * @param allowlist - comma-separated entries; bare hosts allow every port, `host:port` allows exactly that authority.
+ * @returns predicate answering whether one host and port satisfy the allowlist.
+ */
 export function parseLoopbackAllowlist(allowlist: string): (host: string, port: string) => boolean {
   const entries = allowlist.split(',').map(entry => entry.trim().toLowerCase()).filter(entry => entry !== '')
   const exact = new Set(entries)
@@ -104,6 +114,9 @@ export function parseLoopbackAllowlist(allowlist: string): (host: string, port: 
  * `allow-same-origin` in the sidebar iframe — needed for local dev servers
  * (Vite etc.) whose module/HMR/fetch pipeline requires a real origin, while
  * the page stays cross-origin to the GUI and to every other site.
+ * @param url - candidate absolute URL.
+ * @param allowlist - comma-separated loopback entries from the side card prefs.
+ * @returns whether the URL is loopback and matched by the allowlist; unparsable URLs return false.
  */
 export function isAllowedLoopbackUrl(url: string, allowlist: string): boolean {
   if (allowlist.trim() === '') return false
@@ -117,6 +130,14 @@ export function isAllowedLoopbackUrl(url: string, allowlist: string): boolean {
   return parseLoopbackAllowlist(allowlist)(parsed.hostname, parsed.port)
 }
 
+/**
+ * Normalize one address-bar input into a navigable http(s) URL under the
+ * sidebar navigation policy.
+ * @param input - raw user text from the address bar.
+ * @param selfOrigin - the GUI's own origin, allowed before the loopback gate.
+ * @param allowedLoopback - comma-separated allowlist lifting the loopback block for trusted local dev servers.
+ * @returns `ok` with the absolute URL, `blocked` with a scheme or loopback reason, or `invalid` for unparsable input.
+ */
 export function normalizeBrowserUrl(input: string, selfOrigin: string, allowedLoopback = ''): BrowserNavigateResult {
   const trimmed = input.trim()
   if (trimmed === '') return { kind: 'invalid' }

@@ -16,6 +16,7 @@
  * absent attribute is then LIGHT even when the OS prefers dark — the user
  * chose light). Before the presenter has run, fall back to the OS media
  * query as the best guess.
+ * @returns whether the resolved scheme is dark; true outside a document.
  */
 export function isDarkScheme(): boolean {
   if (typeof document === 'undefined') return true
@@ -24,7 +25,11 @@ export function isDarkScheme(): boolean {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-/** One token's computed value on <body> ('' while the theme has not applied). */
+/**
+ * One token's computed value on <body> ('' while the theme has not applied).
+ * @param name - CSS custom property name, e.g. `--dsw-alias-bg-base`.
+ * @returns the trimmed computed value, or '' outside a document.
+ */
 export function tokenValue(name: string): string {
   if (typeof document === 'undefined') return ''
   return getComputedStyle(document.body).getPropertyValue(name).trim()
@@ -43,7 +48,10 @@ const OPAQUE_ALPHA_MIN = 0.9
  *  not parseable (named colors, `color()`… — treated as opaque). Handles
  *  the shapes getComputedStyle actually returns: the rgb()/rgba() and
  *  hsl()/hsla() function forms (comma or space syntax, with or without the
- *  `/ alpha` slot) and the #rgb/#rgba/#rrggbb/#rrggbbaa hex family. */
+ *  `/ alpha` slot) and the #rgb/#rgba/#rrggbb/#rrggbbaa hex family.
+ * @param color - computed CSS color string.
+ * @returns the alpha channel in [0, 1]; 1 when no alpha slot exists; null for unparsable formats.
+ */
 export function colorAlpha(color: string): number | null {
   const s = color.trim()
   // #rgb / #rgba / #rrggbb / #rrggbbaa
@@ -78,6 +86,8 @@ export function colorAlpha(color: string): number | null {
  * the skin's backdrop. This returns '' for visually inert values (unset
  * keywords, transparent, and any color below the opacity floor) so the
  * caller's fallback chain engages; effectively opaque values pass through.
+ * @param name - CSS custom property name to read.
+ * @returns the token value when it paints, otherwise ''.
  */
 export function effectiveTokenValue(name: string): string {
   const raw = tokenValue(name)
@@ -100,6 +110,7 @@ export function effectiveTokenValue(name: string): string {
  * Subscribe to color-scheme flips (the presenter toggles the body
  * attribute). The callback fires after the attribute changed; re-read the
  * scheme inside it.
+ * @param callback - invoked on each body attribute flip.
  * @returns the disposer.
  */
 export function subscribeColorScheme(callback: () => void): () => void {

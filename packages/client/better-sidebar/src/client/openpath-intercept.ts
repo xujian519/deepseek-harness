@@ -40,6 +40,8 @@ export interface OpenPathInterceptDeps {
  * the chat view to `"<cwd>/."`); any path whose final segment is `.` is the
  * same gesture. A directory has no editor content, so these opens must reach
  * the explorer instead of an editor tab.
+ * @param path - the open request's path.
+ * @returns true when the path is the folder-reveal gesture.
  */
 export function isFolderRevealPath(path: string): boolean {
   if (path === '.' || path === './') return true

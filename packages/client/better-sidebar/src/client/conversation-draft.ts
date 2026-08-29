@@ -11,6 +11,10 @@ import type { Context } from '../context-types.ts'
  * Append `text` to the session's composer draft (space-separated, like the
  * @-mentions). Returns false — and logs — when the conversation service or
  * the session scope is unavailable.
+ * @param ctx - plugin context carrying the sessions and conversation services.
+ * @param sessionId - session whose composer draft is appended to.
+ * @param text - text appended to the existing draft.
+ * @returns true when the draft was updated; false when the service or scope is unavailable.
  */
 export function appendToDraft(ctx: Context, sessionId: string, text: string): boolean {
   try {
