@@ -14,13 +14,21 @@
  *    with its window.
  */
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 
 // The act() environment flag (React 18.2 reads it before flushing effects).
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
+beforeEach(() => {
+  // jsdom lacks pointer capture; the drag paths guard moves on it.
+  const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+  proto.setPointerCapture = () => {}
+  proto.releasePointerCapture = () => {}
+  proto.hasPointerCapture = () => true
+})
 
 import { Sidebar } from '../src/client/Sidebar.tsx'
 import { createSidebarStore, togglePanel, type SidebarStore, floatTab as floatTabReducer } from '../src/client/state.ts'

@@ -7,7 +7,7 @@
  * header menu's dock/close rows and outside dismissal.
  */
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
@@ -35,6 +35,14 @@ function pointer(type: string, x: number, y: number, button = 0): Event {
 const flushFrame = async (): Promise<void> => {
   await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() })) })
 }
+
+beforeEach(() => {
+  // jsdom lacks pointer capture; the drag paths guard moves on it.
+  const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+  proto.setPointerCapture = () => {}
+  proto.releasePointerCapture = () => {}
+  proto.hasPointerCapture = () => true
+})
 
 interface Harness {
   container: HTMLElement

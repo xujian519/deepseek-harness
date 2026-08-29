@@ -24,6 +24,10 @@ import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 const testShell = (): string => (process.platform === 'win32' ? 'powershell.exe' : '/bin/sh')
 
+// Pin the UI-tab registry's shell chain too: defaultShell() reads env.SHELL,
+// and the host user's interactive shell makes transcript timing nondeterministic.
+if (process.platform !== 'win32') process.env.SHELL = '/bin/sh'
+
 /** Wait until `poll` resolves true, or throw after the deadline. */
 async function until(poll: () => boolean | Promise<boolean>, timeoutMs = 8000): Promise<void> {
   const deadline = Date.now() + timeoutMs
@@ -117,10 +121,22 @@ function mountUpgrades(opts: MountOptions = {}): Mounted {
   }
 }
 
+/** A client socket that buffers every message from the moment the
+ *  handshake starts: the server pushes the replay (and the initial push
+ *  lists) inside the upgrade callback, so a listener attached after the
+ *  `open` event would miss them. */
+interface TrackedWebSocket extends WebSocket {
+  seen: string[]
+  cursor: number
+}
+
 /** Open a client WebSocket and resolve on a successful handshake. */
-function wsOpen(url: string): Promise<WebSocket> {
+function wsOpen(url: string): Promise<TrackedWebSocket> {
   return new Promise((resolvePromise, reject) => {
-    const ws = new WebSocket(url)
+    const ws = new WebSocket(url) as TrackedWebSocket
+    ws.seen = []
+    ws.cursor = 0
+    ws.on('message', (data: Buffer) => { ws.seen.push(data.toString('utf8')) })
     ws.once('open', () =>{  resolvePromise(ws) })
     ws.once('error', reject)
   })
@@ -135,18 +151,25 @@ function wsClosed(ws: WebSocket): Promise<{ code: number; reason: string }> {
   })
 }
 
-/** The next text message from the socket. */
-function wsMessage(ws: WebSocket): Promise<string> {
+/** The next text message from the socket (from the buffer, then live). */
+function wsMessage(ws: TrackedWebSocket): Promise<string> {
   return new Promise((resolvePromise) => {
-    ws.once('message', (data: Buffer) =>{  resolvePromise(data.toString('utf8')) })
+    const deliver = (): void => {
+      const value = ws.seen[ws.cursor]
+      if (value !== undefined) {
+        ws.cursor += 1
+        resolvePromise(value)
+        return
+      }
+      ws.once('message', () => { deliver() })
+    }
+    deliver()
   })
 }
 
 /** Collect every message until the socket closes. */
-function wsDrain(ws: WebSocket): { seen: string[] } {
-  const seen: string[] = []
-  ws.on('message', (data: Buffer) => { seen.push(data.toString('utf8')) })
-  return { seen }
+function wsDrain(ws: TrackedWebSocket): { seen: string[] } {
+  return { seen: ws.seen }
 }
 
 const toolOf = (tools: ToolDefinition[], name: string): ToolDefinition => {
@@ -221,7 +244,6 @@ describe('UI-tab terminal WebSocket', () => {
     // Reconnect: the marker replays before any live data.
     const second = await wsOpen(url)
     const replay = await wsMessage(second)
-    console.log('REPLAY_LEN', replay.length, JSON.stringify(replay.slice(-200)))
     expect(replay).toContain(marker)
 
     // Input is forwarded verbatim to the shell; the command echoes back.
@@ -278,7 +300,7 @@ describe('UI-tab terminal WebSocket', () => {
 
 describe('agent terminal WebSocket', () => {
   const workspace = mkdtempSync(join(tmpdir(), 'dsh-sidebar-ws-agent-'))
-  const mounted = mountUpgrades({ workspace, prefs: { agentTerminalTools: true } })
+  const mounted = mountUpgrades({ workspace, prefs: { agentTerminalTools: true, terminalShell: testShell() } })
 
   afterAll(() => {
     mounted.cleanup()
@@ -360,7 +382,7 @@ describe('agent terminal WebSocket', () => {
 
 describe('agent-terminals push WebSocket', () => {
   const workspace = mkdtempSync(join(tmpdir(), 'dsh-sidebar-ws-list-'))
-  const mounted = mountUpgrades({ workspace, prefs: { agentTerminalTools: true } })
+  const mounted = mountUpgrades({ workspace, prefs: { agentTerminalTools: true, terminalShell: testShell() } })
 
   afterAll(() => {
     mounted.cleanup()
@@ -437,7 +459,7 @@ describe('degraded mode (node-pty unavailable)', () => {
     // install; restored after the assertions.
     resetNodePtyCache()
     loadNodePty(() => { throw new Error('simulated broken node-pty install') })
-    mounted = mountUpgrades({ workspace, prefs: { agentTerminalTools: true } })
+    mounted = mountUpgrades({ workspace, prefs: { agentTerminalTools: true, terminalShell: testShell() } })
   })
 
   afterAll(() => {
