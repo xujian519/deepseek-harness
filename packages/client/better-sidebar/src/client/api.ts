@@ -124,8 +124,11 @@ async function call<T>(method: string, payload: Record<string, unknown>, signal?
   } catch (error) {
     throw new SidebarApiError('network', error instanceof Error ? error.message : String(error))
   }
-  const parsed: { ok?: boolean; value?: unknown; error?: { code?: string; message?: string } } | null
-    = await response.json().catch(() => null)
+  const parsed = (await response.json().catch(() => null)) as {
+    ok?: boolean
+    value?: unknown
+    error?: { code?: string; message?: string }
+  } | null
   if (!response.ok || parsed === null || parsed.ok !== true || parsed.value === undefined) {
     throw new SidebarApiError(
       parsed?.error?.code ?? 'http',
@@ -163,8 +166,11 @@ async function fetchUpload<T>(
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new SidebarApiError('network', error instanceof Error ? error.message : String(error))
   }
-  const parsed: { ok?: boolean; value?: unknown; error?: { code?: string; message?: string } } | null
-    = await response.json().catch(() => null)
+  const parsed = (await response.json().catch(() => null)) as {
+    ok?: boolean
+    value?: unknown
+    error?: { code?: string; message?: string }
+  } | null
   if (!response.ok || parsed === null || parsed.ok !== true || parsed.value === undefined) {
     throw new SidebarApiError(
       parsed?.error?.code ?? 'http',

@@ -75,7 +75,7 @@ const producedOwner = (paths: string[]): unknown => ({
 const emptyOwner = (): unknown => ({ nodes: [{ kind: 'assistant', seq: 1, turn: 1 }], seq: 1 })
 
 /** The minimal client-context fake the registration (and its seats) touch. */
-const clientCtx = (slots: unknown): Context => {
+const clientCtx = (slots: unknown): Context & { openTab: (seed: unknown) => void } => {
   const betterSidebar = { openTab: vi.fn() }
   return {
     slots,
@@ -84,7 +84,8 @@ const clientCtx = (slots: unknown): Context => {
     },
     betterSidebar,
     get: (name: string) => name === 'betterSidebar' ? betterSidebar : undefined,
-  } as unknown as Context
+    openTab: betterSidebar.openTab,
+  } as unknown as Context & { openTab: (seed: unknown) => void }
 }
 
 describe('turn-tail interception registration (issue #15)', () => {
@@ -180,7 +181,7 @@ describe('turn-tail interception registration (issue #15)', () => {
     const seat = inject('s1')
     expect(seat.openInSidebar).toBeTypeOf('function')
     seat.openInSidebar('/w/src/a.ts')
-    expect(ctx.betterSidebar.openTab).toHaveBeenCalledWith({
+    expect(ctx.openTab).toHaveBeenCalledWith({
       type: 'editor',
       title: 'a.ts',
       path: '/w/src/a.ts',
@@ -191,7 +192,7 @@ describe('turn-tail interception registration (issue #15)', () => {
     // (the editor home tab) — the panel expands and the rows highlight.
     expect(seat.onShowInFolder).toBeTypeOf('function')
     seat.onShowInFolder(['/w/src/a.ts'])
-    expect(ctx.betterSidebar.openTab).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(ctx.openTab).toHaveBeenLastCalledWith(expect.objectContaining({
       type: 'editor',
     }))
 

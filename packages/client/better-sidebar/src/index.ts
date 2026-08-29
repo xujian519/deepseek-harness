@@ -55,6 +55,13 @@ import { buildSubagentLiveApi, type SidebarSubagentLiveRoutes } from './subagent
 import { buildSidechatApi } from './sidechat-routes.ts'
 import { readJsonBody, requireString, SidebarError, writeError, writeJson, writeOk } from './wire.ts'
 
+/** The utf8 text of one ws message frame (a Buffer, a bare ArrayBuffer, or a frame array). */
+function frameText(data: WebSocket.RawData): string {
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
+  if (data instanceof Uint8Array) return data.toString('utf8')
+  return Buffer.from(data).toString('utf8')
+}
+
 export { Config }
 export type { SidebarConfig, ResolvedSidebarConfig }
 // Re-export the Context augmentation (`declare module '@deepseek-ai/cordis'`)
@@ -212,7 +219,7 @@ async function readText(path: string, readLimit: number): Promise<{
 }
 
 /** One API method dispatch table entry. */
-type ApiMethod = (payload: unknown) => Promise<unknown> | unknown
+type ApiMethod = (payload: unknown) => unknown
 
 /**
  * The live face of the side card settings namespace, bound to the settings
@@ -541,7 +548,7 @@ function buildApi(
       // from the sidebar (unless the user allowlisted it), so probing it would
       // leak nothing the tab could use.
       if (isLoopbackHostname(parsed.hostname)) {
-        const prefs = getSettings()?.get()?.value as SidebarPrefs | undefined
+        const prefs = getSettings()?.get().value as SidebarPrefs | undefined
         const allowlist = typeof prefs?.browserAllowedLoopback === 'string' ? prefs.browserAllowedLoopback : ''
         const allowed = allowlist.trim() !== ''
           && parseLoopbackAllowlist(allowlist)(parsed.hostname, parsed.port)
@@ -550,7 +557,7 @@ function buildApi(
         }
       }
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 8000)
+      const timer = setTimeout(() =>{  controller.abort() }, 8000)
       try {
         let response = await fetch(parsed, { method: 'HEAD', redirect: 'follow', signal: controller.signal })
         // Some servers answer HEAD with 405/501; retry once as GET (the
@@ -666,6 +673,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     const detail = status.ok
       ? 'unknown cause'
       : `${status.cause}. Repair: ${status.command}`
+    // oxlint-disable-next-line no-unnecessary-condition -- the logger rides the host-injected context and may be absent
     ctx.logger?.warn(`[dsh-better-sidebar] node-pty (${DSH_NODE_PTY_RANGE}) failed to load: ${detail}`)
   }
   const ptyManager = nodePty !== null
@@ -1020,7 +1028,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
         return
       }
       agentListWss.handleUpgrade(req as unknown as IncomingMessage, socket as unknown as Duplex, head as Buffer, (ws) => {
-        void attachAgentList(agentPtyRegistry, ws, sidebarRequest(req))
+        attachAgentList(agentPtyRegistry, ws, sidebarRequest(req))
       })
     },
   }), 'dsh-better-sidebar: agent-terminals push WebSocket')
@@ -1040,7 +1048,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
         return
       }
       agentOpenWss.handleUpgrade(req as unknown as IncomingMessage, socket as unknown as Duplex, head as Buffer, (ws) => {
-        void attachAgentOpen(agentOpenRegistry, ws, sidebarRequest(req))
+        attachAgentOpen(agentOpenRegistry, ws, sidebarRequest(req))
       })
     },
   }), 'dsh-better-sidebar: agent-opens push WebSocket')
@@ -1058,11 +1066,11 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
 }
 
 /** Push queued `sidebar_open` requests for one session to a connected view. */
-async function attachAgentOpen(
+function attachAgentOpen(
   registry: AgentOpenRegistry,
   ws: WebSocket,
   req: SidebarHttpRequest,
-): Promise<void> {
+): void {
   try {
     const url = new URL(req.url ?? '/', 'http://dsh.internal')
     const sessionId = url.searchParams.get('sessionId')
@@ -1087,11 +1095,11 @@ async function attachAgentOpen(
 }
 
 /** Push the live agent-terminal list for one session to a connected sidebar view. */
-async function attachAgentList(
+function attachAgentList(
   registry: AgentPtyRegistry | null,
   ws: WebSocket,
   req: SidebarHttpRequest,
-): Promise<void> {
+): void {
   try {
     const url = new URL(req.url ?? '/', 'http://dsh.internal')
     const sessionId = url.searchParams.get('sessionId')
@@ -1180,14 +1188,14 @@ async function attachTerminal(
     if (handle.transcript !== '') ws.send(handle.transcript)
     const { dataSub, exitSub } = pumpPtyOutput(handle.pty, ws)
     ws.on('message', (data) => {
-      const text = data.toString('utf8')
+      const text = frameText(data)
       // Control frames are JSON with a known shape; anything else (including
       // JSON that is not a recognized control) is terminal input, verbatim.
       let control: { type?: unknown; cols?: unknown; rows?: unknown } | null = null
       try {
         const parsed: unknown = JSON.parse(text)
         if (parsed !== null && typeof parsed === 'object') {
-          control = parsed as { type?: unknown; cols?: unknown; rows?: unknown }
+          control = parsed
         }
       } catch {
         // Not JSON: terminal input.
@@ -1273,12 +1281,12 @@ function pumpAgentTerminal(
   const { dataSub, exitSub } = pumpPtyOutput(handle.pty, ws)
   ws.on('message', (data) => {
     if (handle.exited) return
-    const text = data.toString('utf8')
+    const text = frameText(data)
     let control: { type?: unknown; cols?: unknown; rows?: unknown } | null = null
     try {
       const parsed: unknown = JSON.parse(text)
       if (parsed !== null && typeof parsed === 'object') {
-        control = parsed as { type?: unknown; cols?: unknown; rows?: unknown }
+        control = parsed
       }
     } catch {
       // Not JSON: terminal input.

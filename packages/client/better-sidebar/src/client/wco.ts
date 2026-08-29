@@ -47,7 +47,7 @@ function read(): WcoSnapshot {
     // visible=false). Only a genuinely visible overlay is authoritative —
     // otherwise the resolution chain would trust a zero rect and silently
     // skip the shell's real reserved space.
-    if (source.visible !== true) return { present: false, height: 0 }
+    if (!source.visible) return { present: false, height: 0 }
     const rect = source.getTitlebarAreaRect()
     const height = Math.round(rect.height)
     return Number.isFinite(height) && height > 0

@@ -64,7 +64,7 @@ function Divider(props: { dir: 'row' | 'col'; onResize: (deltaFrac: number) => v
   const [dragging, setDragging] = useState(false)
   const pendingDelta = useRef(0)
   const batcher = useRef(createFrameBatcher()).current
-  useEffect(() => () => batcher.dispose(), [batcher])
+  useEffect(() => () =>{  batcher.dispose() }, [batcher])
 
   return (
     <div

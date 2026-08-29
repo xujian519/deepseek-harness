@@ -315,8 +315,8 @@ describe('AgentPtyRegistry', () => {
       // SIGINT and SIGTSTP are delivered by writing \x03 / \x1a to the pty
       // stdin — the cross-platform way terminals send Ctrl+C / Ctrl+Z.
       // These must NOT throw (the old kill(SIGINT) path threw on Windows).
-      expect(() => registry.signal(uuid, 'SIGINT')).not.toThrow()
-      expect(() => registry.signal(uuid, 'SIGTSTP')).not.toThrow()
+      expect(() =>{  registry.signal(uuid, 'SIGINT') }).not.toThrow()
+      expect(() =>{  registry.signal(uuid, 'SIGTSTP') }).not.toThrow()
       // The control byte was written to the pty; the shell received it.
       // On POSIX the line discipline generates the signal; on Windows
       // ConPTY translates it. Either way the write path is exercised.
@@ -332,7 +332,7 @@ describe('AgentPtyRegistry', () => {
       // SIGKILL uses pty.kill() (TerminateProcess on Windows). Must not
       // throw even when the pty's kill() rejects named signals — the
       // fallback to the default kill ensures the signal takes effect.
-      expect(() => registry.signal(uuid, 'SIGKILL')).not.toThrow()
+      expect(() =>{  registry.signal(uuid, 'SIGKILL') }).not.toThrow()
     } finally {
       registry.disposeAll()
     }

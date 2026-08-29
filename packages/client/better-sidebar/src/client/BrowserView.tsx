@@ -95,7 +95,7 @@ export function BrowserView(props: TabComponentProps) {
   /** TEMPORARY sandbox unlock for THIS surface only (never writes the global
    *  side card setting; lasts until the tab unmounts or the user restores). */
   const [localUnlock, setLocalUnlock] = useState(false)
-  const noSandbox = store.getPrefs().browserNoSandbox === true || localUnlock
+  const noSandbox =  store.getPrefs().browserNoSandbox || localUnlock
   /** A site that refuses to be embedded (X-Frame-Options / frame-ancestors):
    *  the probe verdict shown instead of the blank iframe. */
   const [embedBlocked, setEmbedBlocked] = useState<string | null>(null)

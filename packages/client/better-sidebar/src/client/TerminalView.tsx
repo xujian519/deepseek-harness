@@ -400,7 +400,7 @@ export function TerminalDepsBanner(props: { deps: TerminalDepsInfo; onRetry: () 
     const written = await writeClipboard(deps.command)
     if (written) {
       setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
+      window.setTimeout(() =>{  setCopied(false) }, 2000)
     }
   }
   return (

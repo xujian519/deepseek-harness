@@ -181,7 +181,7 @@ function MermaidZoomModal({ svg, onClose }: { svg: SVGSVGElement; onClose: () =>
           type="button"
           className={css.mermaidModalButton}
           title={t('mermaidZoomOut')}
-          onClick={() => zoom(1 / 1.2)}
+          onClick={() =>{  zoom(1 / 1.2) }}
         >
           −
         </button>
@@ -189,7 +189,7 @@ function MermaidZoomModal({ svg, onClose }: { svg: SVGSVGElement; onClose: () =>
           type="button"
           className={css.mermaidModalButton}
           title={t('mermaidZoomIn')}
-          onClick={() => zoom(1.2)}
+          onClick={() =>{  zoom(1.2) }}
         >
           +
         </button>
@@ -257,7 +257,7 @@ function MermaidDiagram({ code }: { code: string }): React.ReactNode {
 
   const onCopy = useCallback(() => {
     if (copied) return
-    writeClipboard(code).then((ok) => {
+    void writeClipboard(code).then((ok) => {
       if (!ok) return
       setCopied(true)
       window.clearTimeout(copyTimer.current)
@@ -328,7 +328,7 @@ function isMermaidBlock(block: HTMLElement): boolean {
   const infostring = block.firstElementChild?.firstElementChild?.firstElementChild
   return infostring !== null
     && infostring !== undefined
-    && (infostring.textContent ?? '').trim() === 'mermaid'
+    && infostring.textContent.trim() === 'mermaid'
 }
 
 /**

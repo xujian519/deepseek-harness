@@ -196,7 +196,7 @@ function useSubagentLive(
   useEffect(() => {
     if (rootId === undefined || !active) return
     const targetRootId = rootId
-    let disposed = false
+    let disposed = false as boolean
     let timer: number | undefined
 
     const schedule = (): void => {
@@ -209,12 +209,12 @@ function useSubagentLive(
       controllerRef.current = controller
       try {
         const result = await api.subagentsLive(targetRootId, controller.signal)
-        if (!disposed) setLive(result.live)
+        if (!(disposed as boolean)) setLive(result.live)
       } catch {
         // Keep the last known live map; the next scheduled poll retries.
       } finally {
         if (controllerRef.current === controller) controllerRef.current = undefined
-        if (!disposed) schedule()
+        if (!(disposed as boolean)) schedule()
       }
     }
 

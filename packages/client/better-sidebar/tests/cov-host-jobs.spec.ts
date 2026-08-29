@@ -17,7 +17,7 @@ function ctxWith(sessions: unknown, jobs: unknown, agents: unknown, capture?: { 
       if (capture) capture.on = fn
       return () => {}
     },
-    effect: (fn: () => unknown | (() => void)) => { fn() },
+    effect: (fn: () => unknown) => { fn() },
   }
   return ctx as unknown as Context
 }
@@ -118,7 +118,7 @@ describe('jobs.output malformed envelopes', () => {
     // No session id: dropped before tracing.
     emit(null, callEvent(0, 'job_output', 'c0', '{"job_id":"j"}'))
     // Unrelated event types: ignored.
-    emit({ id: 's1' }, { type: 'turn/start', seq: 1, time: 1, data: {} } as SidebarSessionEvent)
+    emit({ id: 's1' }, { type: 'turn/start', seq: 1, time: 1, data: {} })
   })
 })
 

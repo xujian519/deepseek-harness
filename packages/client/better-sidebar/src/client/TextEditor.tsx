@@ -323,8 +323,8 @@ export function TextEditor(props: FileViewerProps) {
   // sandbox OFF the preview iframe drops its sandbox attribute entirely —
   // the previewed page then runs on the GUI's own origin with full session
   // access.
-  const [localUnlock, setLocalUnlock] = useState(() => props.store?.getPrefs().htmlViewerDefaultUnsafe === true)
-  const htmlNoSandbox = props.store?.getPrefs().htmlViewerNoSandbox === true || localUnlock
+  const [localUnlock, setLocalUnlock] = useState(() => props.store.getPrefs().htmlViewerDefaultUnsafe)
+  const htmlNoSandbox = props.store.getPrefs().htmlViewerNoSandbox || localUnlock
 
   // Host-toolbar mode (the merged editor header renders the controls): skip
   // the own toolbar row, report the state after every relevant render (the

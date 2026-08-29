@@ -7,6 +7,7 @@
  * failing agents registry, non-Error refusals, minimal live info).
  */
 import { describe, expect, it, vi } from 'vitest'
+import { anyString } from './matchers.ts'
 import { buildSidechatApi } from '../src/sidechat-routes.ts'
 import { SidebarError } from '../src/wire.ts'
 import {
@@ -117,7 +118,7 @@ describe('sidechat-core seed and snapshot edges', () => {
   })
 
   it('treats a torn (sparse) log as no open step and no dangling calls', () => {
-    const events: SidechatLogEvent[] = new Array(4)
+    const events: SidechatLogEvent[] = new Array<SidechatLogEvent>(4)
     events[0] = ev('turn/start', 0, { turn: 1 })
     events[3] = ev('assistant/chunk', 3, { chunk: { type: 'text-delta', text: 'x' } })
     // The holes must be skipped, not crash: no open step number, no dangling call.
@@ -219,7 +220,7 @@ describe('sidechat-core seed and snapshot edges', () => {
   })
 
   it('skips a torn log tail when folding the open turn', () => {
-    const events: SidechatLogEvent[] = new Array(3)
+    const events: SidechatLogEvent[] = new Array<SidechatLogEvent>(3)
     events[0] = ev('turn/start', 0, { turn: 1 })
     events[1] = ev('assistant/chunk', 1, { chunk: { type: 'text-delta', text: 'tail text' } })
     // events[2] is a hole; the fold must skip it and still emit the text.
@@ -237,7 +238,7 @@ describe('sidechat-core seed and snapshot edges', () => {
 
   it('isContextInjectionMessage recognizes plugin-sourced rows and boundary leads', () => {
     expect(isContextInjectionMessage({ source: { kind: 'plugin' } })).toBe(true)
-    expect(isContextInjectionMessage({ content: [{ type: 'text', text: `${SIDE_BOUNDARY_PROMPT}` }] })).toBe(true)
+    expect(isContextInjectionMessage({ content: [{ type: 'text', text: SIDE_BOUNDARY_PROMPT }] })).toBe(true)
     expect(isContextInjectionMessage({ content: 'plain user text' })).toBe(false)
   })
 
@@ -321,7 +322,7 @@ describe('sidechat routes optional-service degradation', () => {
       await expect(api['sidechat.start']({ sessionId: 'parent', question: 'q' })).rejects.toMatchObject({
         code: 'sidechat-error',
         status: 500,
-        message: expect.stringContaining(thrown instanceof Error ? 'registry exploded' : 'registry string failure'),
+        message: anyString(thrown instanceof Error ? 'registry exploded' : 'registry string failure'),
       })
     }
   })
@@ -345,7 +346,7 @@ describe('sidechat routes optional-service degradation', () => {
       const api = buildSidechatApi(ctxWith(table))
       await expect(api['sidechat.prompt']({ childId: 'child', text: 'hi' })).rejects.toMatchObject({
         status: 500,
-        message: expect.stringContaining(thrown instanceof Error ? 'resume exploded' : 'resume string failure'),
+        message: anyString(thrown instanceof Error ? 'resume exploded' : 'resume string failure'),
       })
     }
   })

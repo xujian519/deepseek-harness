@@ -34,7 +34,7 @@ function fakeRes(): FakeRes {
     end(body) {
       if (body !== undefined) this.body = body.toString()
     },
-  } as FakeRes
+  }
 }
 
 function req(
@@ -63,7 +63,7 @@ function mount(initialTrustedHosts: readonly string[] = []): {
   const runtime = { trustedHosts: [...initialTrustedHosts] }
   const routes: SidebarWebRoute[] = []
   const upgrades: SidebarWebUpgradeRoute[] = []
-  const effects: Array<() => unknown | (() => void)> = []
+  const effects: Array<() => unknown> = []
   const ctx = {
     webRuntime: runtime,
     webServer: {
@@ -72,7 +72,7 @@ function mount(initialTrustedHosts: readonly string[] = []): {
     },
     sessions: { get: () => undefined },
     tools: { register: () => () => {} },
-    effect: (fn: () => unknown | (() => void)) => {
+    effect: (fn: () => unknown) => {
       const cleanup = fn()
       if (typeof cleanup === 'function') effects.push(cleanup as () => void)
     },

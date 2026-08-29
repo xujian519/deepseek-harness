@@ -5,7 +5,7 @@
  * through `ctx.get` (the inject-free read the app's own plugins use); a
  * missing service or scope degrades to a logged no-op, never a crash.
  */
-import type { Context, SidebarConversation } from '../context-types.ts'
+import type { Context } from '../context-types.ts'
 
 /**
  * Append `text` to the session's composer draft (space-separated, like the
@@ -16,7 +16,7 @@ export function appendToDraft(ctx: Context, sessionId: string, text: string): bo
   try {
     const actx = ctx.sessions.scope(sessionId)
     if (actx === undefined) return false
-    const conversation = ctx.get('conversation') as SidebarConversation | undefined
+    const conversation = ctx.get('conversation')
     if (conversation === undefined) return false
     const input = conversation.input.for(actx)
     const draft = input.state.getSnapshot().draft

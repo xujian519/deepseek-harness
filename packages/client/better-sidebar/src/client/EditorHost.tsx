@@ -248,12 +248,13 @@ export function EditorHost(props: {
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const pendingWidthRef = useRef(0)
   const dragBatcher = useRef(createFrameBatcher()).current
-  useEffect(() => () => dragBatcher.dispose(), [dragBatcher])
+  useEffect(() => () =>{  dragBatcher.dispose() }, [dragBatcher])
   const treeWidth = dragWidth ?? treeWidthOf(tab)
 
   const onResizeStart = (event: React.PointerEvent): void => {
     event.preventDefault()
     // jsdom lacks setPointerCapture — the tests dispatch plain MouseEvents.
+    // oxlint-disable-next-line no-unnecessary-condition
     event.currentTarget.setPointerCapture?.(event.pointerId)
     dragRef.current = { startX: event.clientX, startWidth: treeWidth }
   }
@@ -261,7 +262,7 @@ export function EditorHost(props: {
     const drag = dragRef.current
     if (drag === null) return
     pendingWidthRef.current = clampTreeWidth(drag.startWidth + (drag.startX - event.clientX))
-    dragBatcher.schedule(() => setDragWidth(pendingWidthRef.current))
+    dragBatcher.schedule(() =>{  setDragWidth(pendingWidthRef.current) })
   }
   const onResizeEnd = (event: React.PointerEvent): void => {
     const drag = dragRef.current
@@ -402,7 +403,7 @@ export function EditorHost(props: {
                 // the preview renders the just-saved content. A dirty draft
                 // (or a failed save) suppresses the reload — the draft only
                 // lives in the editor instance and a remount would drop it.
-                if (toolbar.mode === 'edit' && toolbar.dirty !== true && toolbar.saveState !== 'failed') {
+                if (toolbar.mode === 'edit' && ! toolbar.dirty && toolbar.saveState !== 'failed') {
                   setReloadSeq(sequence => sequence + 1)
                 }
                 controlsRef.current?.setMode('preview')

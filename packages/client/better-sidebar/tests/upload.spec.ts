@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { anyInstanceOf } from './matchers.ts'
 import { api, SidebarApiError, type SessionScope } from '../src/client/api.ts'
 import {
   MAX_UPLOAD_BYTES, summarizeResults, uploadHintText, uploadItemsFromDrop, uploadItemsFromFiles,
@@ -27,12 +28,12 @@ afterEach(() => {
 
 describe('uploadItemsFromFiles', () => {
   it('keeps plain file names as their relative path', () => {
-    expect(uploadItemsFromFiles([fileOf('a.txt')])).toEqual([{ file: expect.any(File), relativePath: 'a.txt' }])
+    expect(uploadItemsFromFiles([fileOf('a.txt')])).toEqual([{ file: anyInstanceOf(File), relativePath: 'a.txt' }])
   })
 
   it('keeps the directory structure of folder entries', () => {
     expect(uploadItemsFromFiles([fileOf('a.txt', 'docs/nested/a.txt')]))
-      .toEqual([{ file: expect.any(File), relativePath: 'docs/nested/a.txt' }])
+      .toEqual([{ file: anyInstanceOf(File), relativePath: 'docs/nested/a.txt' }])
   })
 
   it('rejects absolute paths (POSIX, Windows separators, drive letters)', () => {

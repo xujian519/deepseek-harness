@@ -71,7 +71,7 @@ function completedTurn(seq: number, turn: number, over: {
 
 /** Assert the seed is contiguous from seq 0. */
 function expectContiguous(seed: readonly SeedEvent[]): void {
-  seed.forEach((event, index) => expect(event.seq).toBe(index))
+  seed.forEach((event, index) =>{  expect(event.seq).toBe(index) })
 }
 
 describe('buildSidechatInheritance', () => {

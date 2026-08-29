@@ -132,7 +132,7 @@ describe('layout-push variable cleanup', () => {
     // release, the shell animates margin-right 0 → width — the "expand to
     // the full page then bounce back" flash.
     const removalProps = removeSpy.mock.calls
-      .map(call => call[0] as string)
+      .map(call => call[0])
       .filter(prop => prop === '--dsh-sidebar-width' || prop === '--dsh-sidebar-height')
     expect(removalProps).toHaveLength(0)
     // Only unmounting may remove them (issue #31).

@@ -90,7 +90,7 @@ describe('useViewportSize throttling', () => {
     size(390, 800)
     window.dispatchEvent(new Event('resize'))
     await act(async () => {
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() }))
     })
     expect(observed.at(-1)).toBe(true)
     await act(async () => { root.unmount() })

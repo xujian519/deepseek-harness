@@ -32,7 +32,7 @@ function fakeRes(): FakeRes {
     end(body) {
       if (body !== undefined) this.body = body.toString()
     },
-  } as FakeRes
+  }
 }
 
 // The handler face is the src structural mirror (SidebarHttpRequest/

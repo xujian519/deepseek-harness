@@ -495,7 +495,7 @@ export function SideChatView(props: {
       // NOTE: fork must stay a METHOD call — `ctx.sessions.fork` is the
       // client-runtime sessions service, and an unbound reference loses
       // `this` (its fork reads this.list for the title bump).
-      if (ctx.sessions.fork === undefined) throw new Error('session fork is unavailable')
+      if ((ctx.sessions as { fork?: unknown }).fork === undefined) throw new Error('session fork is unavailable')
       const newId = await ctx.sessions.fork({ sessionId: threadId, increaseTitle: true })
       const title = summary === undefined ? '' : threadDisplayTitle(summary.displayTitle).trim()
       const binding = ctx.sessions.binding?.(newId)

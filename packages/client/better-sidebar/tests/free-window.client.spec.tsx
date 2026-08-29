@@ -126,7 +126,7 @@ function dispatchDrag(type: 'dragover' | 'drop', x: number, y: number, payload?:
 }
 
 const flushFrame = async (): Promise<void> => {
-  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())) })
+  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() })) })
 }
 
 const paneTabs = (store: SidebarStore): string[] => {

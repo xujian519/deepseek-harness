@@ -88,7 +88,7 @@ describe('PtyManager quota and lifecycle edges', () => {
 
   it('scheduleClose on an unknown key and disposeAll with a pending timer are safe', async () => {
     const manager = new PtyManager(testShell(), 1)
-    expect(() => manager.scheduleClose('ghost:tab', 0)).not.toThrow()
+    expect(() =>{  manager.scheduleClose('ghost:tab', 0) }).not.toThrow()
     const handle = manager.open('s1', 't1', process.cwd(), 80, 24)
     // A pending grace close must be cleared by disposeAll (no dangling timer).
     manager.scheduleClose(handle.key, 60_000)
@@ -203,7 +203,7 @@ describe('AgentPtyRegistry snapshot and read edges', () => {
       await until(() => registry.get(uuid)!.exited)
       expect(registry.snapshot(uuid)).toMatchObject({ exited: true })
       expect(registry.snapshot('no-such-uuid')).toBeUndefined()
-      expect(() => registry.send(uuid, 'more')).toThrow(
+      expect(() =>{  registry.send(uuid, 'more') }).toThrow(
         expect.objectContaining({ code: 'bad-request' }),
       )
       // Reads still work on the retained transcript of an exited terminal.
@@ -211,7 +211,7 @@ describe('AgentPtyRegistry snapshot and read edges', () => {
       // Resizing an exited terminal skips the pty call but echoes the dims.
       expect(registry.resize(uuid, 300, 9000)).toEqual({ cols: 300, rows: 1024 })
       // Signaling an exited terminal is a no-op.
-      expect(() => registry.signal(uuid, 'SIGTERM')).not.toThrow()
+      expect(() =>{  registry.signal(uuid, 'SIGTERM') }).not.toThrow()
     } finally {
       registry.disposeAll()
     }
@@ -243,8 +243,8 @@ describe('AgentPtyRegistry snapshot and read edges', () => {
       // Give the shell time to start the silent command before signalling.
       await new Promise(resolve => setTimeout(resolve, 300))
       // Interactive signals ride the pty input pipeline (control bytes).
-      expect(() => registry.signal(uuid, 'SIGINT')).not.toThrow()
-      expect(() => registry.signal(uuid, 'SIGTSTP')).not.toThrow()
+      expect(() =>{  registry.signal(uuid, 'SIGINT') }).not.toThrow()
+      expect(() =>{  registry.signal(uuid, 'SIGTSTP') }).not.toThrow()
       // The termination path must actually end the process.
       registry.signal(uuid, 'SIGTERM')
       await until(() => registry.get(uuid)!.exited)
@@ -332,7 +332,7 @@ describe('AgentPtyRegistry waitFor outcomes', () => {
       const uuid = registry.create('s1', 'abortable', '', process.cwd())
       const controller = new AbortController()
       const pending = registry.waitFor(uuid, 'never-appears-xyz', 30_000, controller.signal)
-      setTimeout(() => controller.abort(), 100)
+      setTimeout(() =>{  controller.abort() }, 100)
       await expect(pending).rejects.toThrow()
     } finally {
       registry.disposeAll()
@@ -344,7 +344,7 @@ describe('AgentPtyRegistry waitFor outcomes', () => {
     try {
       const uuid = registry.create('s1', 'late-exit', 'sleep 1', process.cwd())
       const pending = registry.waitFor(uuid, 'never-appears-xyz', 30_000)
-      setTimeout(() => registry.signal(uuid, 'SIGKILL'), 150)
+      setTimeout(() =>{  registry.signal(uuid, 'SIGKILL') }, 150)
       const result = await pending
       expect(result.kind).toBe('exited')
       if (result.kind !== 'exited') return

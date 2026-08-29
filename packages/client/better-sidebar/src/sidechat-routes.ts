@@ -41,7 +41,6 @@ import {
   SIDE_NEW_THREAD_TITLE,
   sideLabel,
   type SeedEvent,
-  type SidechatLogEvent,
   type SidechatThreadInfo,
 } from './sidechat-core.ts'
 import { requireString, SidebarError } from './wire.ts'
@@ -166,7 +165,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
       }
       const parentSession = parent.session
       const inheritance = buildSidechatInheritance(
-        parentSession.events as unknown as readonly SidechatLogEvent[],
+        parentSession.events,
       )
       const { agentPreset, setup } = await composeChildSetup(
         ctx,
@@ -267,7 +266,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
           throw new SidebarError('sidechat-error', `thread resume failed: ${error instanceof Error ? error.message : String(error)}`, 500)
         }
       }
-      if (boundaryDelivered(agent.session.events as unknown as readonly SidechatLogEvent[])) {
+      if (boundaryDelivered(agent.session.events)) {
         admitFollowup(agent, textPrompt(text))
       } else {
         // First message of an immediately-created thread: it carries the
@@ -290,13 +289,13 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
       return { accepted: true as const }
     },
 
-    'sidechat.cancel': async (payload: unknown) => {
+    'sidechat.cancel': (payload: unknown): Promise<{ accepted: true }> => {
       const childId = requireString(payload, 'childId')
       const agent = liveThreadAgent(ctx, childId)
       if (agent !== undefined) {
         agent.cancel({ kind: 'user' }, { keepInbox: true })
       }
-      return { accepted: true as const }
+      return Promise.resolve({ accepted: true })
     },
 
     'sidechat.dispose': async (payload: unknown) => {

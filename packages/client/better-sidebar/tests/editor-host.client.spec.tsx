@@ -241,7 +241,7 @@ describe('EditorHost (files window)', () => {
         handle.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 200 }))
       })
       await act(async () => {
-        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() }))
       })
       expect(dock.style.width).toBe('340px')
       // Release: the drag state clears and the width persists on the tab.
@@ -298,7 +298,7 @@ describe('EditorHost (files window)', () => {
 
   it('a folder tab (meta.dir) renders the tree rooted at the folder, no editor chrome', () => {
     const { store, ctx } = setup()
-    ctx.betterSidebar!.openTab({
+    ctx.betterSidebar.openTab({
       type: 'editor',
       title: 'src',
       path: '/work/src',

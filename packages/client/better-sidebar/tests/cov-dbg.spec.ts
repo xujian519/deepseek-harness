@@ -31,7 +31,7 @@ describe('dbg full ws flow', () => {
       },
       sessions: { get: () => ({ header: { cwd: workspace } }) },
       tools: { register: () => () => {} },
-      effect: (fn: () => unknown | (() => void)) => { fn() },
+      effect: (fn: () => unknown) => { fn() },
       inject: (deps: readonly string[], cb: (sctx: { settings: unknown }) => void) => {
         if (deps.includes('settings')) cb({ settings })
         return () => {}
@@ -44,7 +44,7 @@ describe('dbg full ws flow', () => {
     server.on('upgrade', (req, socket, head) => {
       const route = upgrades.find(candidate => (req.url ?? '/').startsWith(candidate.path))
       if (route === undefined) { socket.destroy(); return }
-      route.handler(req as never, socket as never, head)
+      void route.handler(req as never, socket, head)
     })
     server.listen(0)
     const base = `ws://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -57,7 +57,7 @@ describe('dbg full ws flow', () => {
     }
     const first = await new Promise<WebSocket>((res, rej) => {
       const ws = new WebSocket(url)
-      ws.once('open', () => res(ws))
+      ws.once('open', () =>{  res(ws) })
       ws.once('error', rej)
     })
     const d1 = drain(first)
@@ -73,7 +73,7 @@ describe('dbg full ws flow', () => {
 
     const second = await new Promise<WebSocket>((res, rej) => {
       const ws = new WebSocket(url)
-      ws.once('open', () => res(ws))
+      ws.once('open', () =>{  res(ws) })
       ws.once('error', rej)
     })
     const d2 = drain(second)

@@ -758,6 +758,7 @@ export function attachLocale(service: { getSnapshot(): { active: string } } | un
  * attached, else the browser language.
  */
 function activeLocale(): string {
+  // oxlint-disable-next-line no-unnecessary-condition -- tsc keeps the chain necessary: the service attaches later
   return localeService?.getSnapshot().active
     ?? (typeof navigator !== 'undefined' ? navigator.language : '')
     ?? 'en'
@@ -768,8 +769,8 @@ export type CopyKey = keyof typeof zh
 
 /** Translate a copy key; `{name}` placeholders interpolate from `params`. */
 export function t(key: CopyKey, params?: Record<string, string | number>): string {
-  const dict = activeLocale().toLowerCase().startsWith('zh') ? zh : en
-  let text: string | undefined = dict[key]
+  const dict: Record<CopyKey, string | undefined> = activeLocale().toLowerCase().startsWith('zh') ? zh : en
+  let text = dict[key]
   if (text === undefined) {
     // Key missing from every dict (should not happen — zh is the source of
     // truth and en is checked against it). Return the key itself so the

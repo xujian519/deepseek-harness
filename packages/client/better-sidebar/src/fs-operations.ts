@@ -62,9 +62,9 @@ export async function writeWorkspaceUpload(input: WorkspaceUploadInput): Promise
   const stream = createWriteStream(tmp, { flags: 'wx' })
   // Resolves once the stream fully closes; created up front so a stream that
   // already closed (successful end, later failure) cannot leave the wait hanging.
-  const closed = new Promise<void>((resolve) => { stream.once('close', () => resolve()) })
+  const closed = new Promise<void>((resolve) => { stream.once('close', () =>{  resolve() }) })
   let size = 0
-  let streamError: unknown
+  let streamError: Error | undefined
   // A permanent 'error' listener keeps a failing disk from crashing the host:
   // every await below surfaces the failure through the promise chain instead.
   stream.on('error', (error) => { streamError = error })
@@ -77,7 +77,10 @@ export async function writeWorkspaceUpload(input: WorkspaceUploadInput): Promise
       if (streamError !== undefined) throw streamError
     }
     await new Promise<void>((resolve, reject) => {
-      stream.end((error?: Error | null) => (error === undefined || error === null ? resolve() : reject(error)))
+      stream.end((error?: Error | null) => {
+        if (error === undefined || error === null) resolve()
+        else reject(error)
+      })
     })
     if (streamError !== undefined) throw streamError
     await rename(tmp, safeTarget)

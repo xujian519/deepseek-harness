@@ -134,7 +134,7 @@ describe('transcriptRows malformed input handling', () => {
     expect(assistant.text).toBe('ab')
     // The stale guard (row index no longer a live unsettled stream row)
     // swallowed the late delta instead of corrupting the settled text.
-    const reasoning = rows.filter(row => row.kind === 'reasoning') as Array<Extract<SidechatTranscriptRow, { kind: 'reasoning' }>>
+    const reasoning = rows.filter(row => row.kind === 'reasoning')
     expect(reasoning.map(row => row.text)).toEqual(['hmm'])
   })
 
@@ -145,7 +145,7 @@ describe('transcriptRows malformed input handling', () => {
       entry(ev('assistant/chunk', 2, { turn: 2, step: 1, chunk: { type: 'text-delta', index: 0, text: 'two' } })),
       entry(ev('assistant/message', 3, { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'one!' }] } })),
     ])
-    expect(rows.map(row => row.kind === 'assistant' ? (row as Extract<SidechatTranscriptRow, { kind: 'assistant' }>).text : '')).toEqual(['one!', 'two'])
+    expect(rows.map(row => row.kind === 'assistant' ? (row).text : '')).toEqual(['one!', 'two'])
   })
 })
 
@@ -236,7 +236,7 @@ describe('transcriptRows tool rows', () => {
         message: { source: { kind: 'tool', callId: 'c2' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'out' }] }] },
       })),
     ])
-    const bash = rows.find(row => row.kind === 'tool' && (row as Extract<SidechatTranscriptRow, { kind: 'tool' }>).name === 'bash') as Extract<SidechatTranscriptRow, { kind: 'tool' }>
+    const bash = rows.find(row => row.kind === 'tool' && (row).name === 'bash') as Extract<SidechatTranscriptRow, { kind: 'tool' }>
     // The stale index guard skipped the clobbered row: the call keeps its
     // executing state instead of painting the assistant row as a tool row.
     expect(bash.executing).toBe(true)

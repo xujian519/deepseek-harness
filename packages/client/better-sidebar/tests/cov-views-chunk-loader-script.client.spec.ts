@@ -7,6 +7,7 @@
  * so the next re-activation re-fetches).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { anyInstanceOf } from './matchers.ts'
 import {
   CHUNK_EXTERNALS,
   loadChunk,
@@ -39,6 +40,7 @@ describe('default chunk script loader', () => {
   it('injects a classic async script, then materializes after its load event', async () => {
     setChunkModuleSystem({ import: async spec => ({ seed: spec }) })
     const created: HTMLScriptElement[] = []
+    // oxlint-disable-next-line no-deprecated -- capture the real factory before spyOn; oxlint reads the legacy-tag overload as deprecated
     const originalCreate = document.createElement.bind(document)
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       const el = originalCreate(tag) as HTMLScriptElement
@@ -67,6 +69,7 @@ describe('default chunk script loader', () => {
   it('rejects on the script error event, and the retry re-injects from scratch', async () => {
     setChunkModuleSystem({ import: async spec => ({ seed: spec }) })
     const created: HTMLScriptElement[] = []
+    // oxlint-disable-next-line no-deprecated -- capture the real factory before spyOn; oxlint reads the legacy-tag overload as deprecated
     const originalCreate = document.createElement.bind(document)
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       const el = originalCreate(tag) as HTMLScriptElement
@@ -125,7 +128,7 @@ describe('ETag recording', () => {
     expect(head).toHaveBeenCalledWith('/sidebar/bundle/editor.js', {
       method: 'HEAD',
       cache: 'no-cache',
-      signal: expect.any(AbortSignal),
+      signal: anyInstanceOf(AbortSignal),
     })
     // Nothing recorded → the sweep cannot vouch for the chunk → re-execute.
     await revalidateChunksOnReactivate()

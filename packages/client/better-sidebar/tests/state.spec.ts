@@ -9,6 +9,9 @@ import {
   type SidebarLeaf, type SidebarState, type SidebarTab, type SplitNode,
 } from '../src/client/state.ts'
 
+/** A JSON round-trip clone: the persisted form sanitizeState reads back. */
+const jsonClone = (state: SidebarState): SidebarState => JSON.parse(JSON.stringify(state)) as SidebarState
+
 describe('sidebar state', () => {
   const state = (): SidebarState => makeDefaultState()
 
@@ -253,7 +256,7 @@ describe('sidebar state', () => {
     s = moveTabToEdge(s, paneA.id, tabId, paneB.id, 'right')
     const after = s.splits as Extract<SplitNode, { kind: 'split' }>
     // paneB 现在是 split(row) [旧leaf, 新leaf(tabId)]；其父 split 仍存在。
-    const bSplit = after.children.find(child => child.kind === 'split') as Extract<SplitNode, { kind: 'split' }> | undefined
+    const bSplit = after.children.find(child => child.kind === 'split')
     expect(bSplit).toBeDefined()
     expect(bSplit!.dir).toBe('row')
     const newLeaf = bSplit!.children[1] as { tabs: { id: string }[] }
@@ -676,14 +679,15 @@ describe('sidebar state', () => {
 describe('persisted state sanitization', () => {
   it('accepts a well-formed state unchanged (node environment: no width clamp)', () => {
     const state = makeDefaultState(400)
-    const clean = sanitizeState(JSON.parse(JSON.stringify(state)))
+    const clean = sanitizeState(jsonClone(state))
     expect(clean).toEqual(state)
   })
 
   it('accepts a subagent tab as a known type', () => {
-    const raw = JSON.parse(JSON.stringify(makeDefaultState(400)))
-    raw.splits.tabs.push({ id: 'tab:9', type: 'subagent', title: 'Subagents' })
-    raw.splits.active = 'tab:9'
+    const raw = jsonClone(makeDefaultState(400))
+    const rawLeaf = raw.splits as SidebarLeaf
+    rawLeaf.tabs.push({ id: 'tab:9', type: 'subagent', title: 'Subagents' })
+    rawLeaf.active = 'tab:9'
     const clean = sanitizeState(raw)
     expect(clean).toBeDefined()
     const tabs = (clean!.splits as { tabs: { type: string }[] }).tabs
@@ -703,22 +707,22 @@ describe('persisted state sanitization', () => {
     expect(sanitizeState({ ...makeDefaultState(400), width: 'wide' })).toBeUndefined()
     expect(sanitizeState({ ...makeDefaultState(400), panelOpen: 1 })).toBeUndefined()
     // A split whose sizes do not match its children is rejected.
-    const withSplit = JSON.parse(JSON.stringify(makeDefaultState(400)))
+    const withSplit = jsonClone(makeDefaultState(400))
     withSplit.splits = { kind: 'split', id: 's1', dir: 'row', sizes: [0.5], children: [] }
     expect(sanitizeState(withSplit)).toBeUndefined()
     // Unknown tab types (external plugins not yet loaded) are accepted —
     // they render as <OrphanedTab/> at view time and recover if the plugin
     // loads later. Only diff tabs are dropped (ephemeral).
-    const withExternalTab = JSON.parse(JSON.stringify(makeDefaultState(400)))
-    withExternalTab.splits.tabs[0].type = 'my-plugin:db'
+    const withExternalTab = jsonClone(makeDefaultState(400))
+    ;(withExternalTab.splits as SidebarLeaf).tabs[0]!.type = 'my-plugin:db'
     const externalClean = sanitizeState(withExternalTab)
     expect(externalClean).toBeDefined()
     if (externalClean !== undefined && externalClean.splits.kind === 'leaf') {
       expect(externalClean.splits.tabs[0]!.type).toBe('my-plugin:db')
     }
     // An active id that no tab carries is rejected.
-    const withBadActive = JSON.parse(JSON.stringify(makeDefaultState(400)))
-    withBadActive.splits.active = 'ghost-tab'
+    const withBadActive = jsonClone(makeDefaultState(400))
+    ;(withBadActive.splits as SidebarLeaf).active = 'ghost-tab'
     expect(sanitizeState(withBadActive)).toBeUndefined()
   })
 
@@ -726,7 +730,7 @@ describe('persisted state sanitization', () => {
     // The pre-seeding counter reset could mint a fresh "pane:1" beside the
     // persisted "pane:1": mapLeaf then hit BOTH leaves and every open landed
     // in both panes. Sanitize must give the repeat a fresh id.
-    const corrupted = JSON.parse(JSON.stringify(makeDefaultState(400)))
+    const corrupted = jsonClone(makeDefaultState(400))
     corrupted.activePane = 'pane:1'
     corrupted.splits = {
       kind: 'split',
@@ -1279,7 +1283,7 @@ describe('pinned terminals (v0.17.0)', () => {
       legal.splits.tabs.push({
         id: 'terminal:1', type: 'terminal', title: 'T',
         pin: { scope: 'workspace', homeCwd: '/proj' },
-      } as SidebarTab)
+      })
       legal.splits.active = 'terminal:1'
       const restored = sanitizeState(legal)!
       const tab = (restored.splits as { tabs: SidebarTab[] }).tabs.find(t => t.id === 'terminal:1')!
@@ -1316,7 +1320,7 @@ describe('pinned terminals (v0.17.0)', () => {
       const legacy = JSON.parse(JSON.stringify(makeDefaultState())) as {
         splits: { kind: 'leaf'; id: string; tabs: SidebarTab[]; active: string | null }
       }
-      legacy.splits.tabs.push({ id: 'terminal:4', type: 'terminal', title: 'T4' } as SidebarTab)
+      legacy.splits.tabs.push({ id: 'terminal:4', type: 'terminal', title: 'T4' })
       legacy.splits.active = 'terminal:4'
       const legacyRestored = sanitizeState(legacy)!
       const tab4 = (legacyRestored.splits as { tabs: SidebarTab[] }).tabs.find(t => t.id === 'terminal:4')!

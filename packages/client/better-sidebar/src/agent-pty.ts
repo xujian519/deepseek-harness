@@ -399,8 +399,11 @@ export class AgentPtyRegistry {
     const deadline = start + timeout
     // Fast path: already exited, or the needle is already in the transcript
     // (a `terminal_send` may have produced the expected output before this
-    // call even started).
-    if (handle.exited) {
+    // call even started). Reading through a local keeps the loop's live
+    // `handle.exited` reads un-narrowed — the exit callback flips it during
+    // the awaits below.
+    const exitedBefore = handle.exited
+    if (exitedBefore) {
       return { kind: 'exited', needle, exitCode: handle.exitCode ?? null, exitSignal: signalNameOf(handle.exitSignal) }
     }
     const firstHit = locateNeedle(handle.transcript, needle)

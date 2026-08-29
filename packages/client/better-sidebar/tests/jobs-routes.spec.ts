@@ -27,7 +27,7 @@ function ctxWithFeed(sessions: unknown): {
   let listener: ((session: unknown, event: SidebarSessionEvent) => void) | undefined
   const base = ctxWith(sessions, undefined, undefined) as unknown as {
     on: (event: string, fn: (session: unknown, event: SidebarSessionEvent) => void) => () => void
-    effect: (fn: () => unknown | (() => void)) => void
+    effect: (fn: () => unknown) => void
   }
   base.on = (_event: string, fn) => {
     listener = fn

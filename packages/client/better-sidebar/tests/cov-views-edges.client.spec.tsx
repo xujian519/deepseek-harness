@@ -156,7 +156,7 @@ describe('PdfView aborted loads', () => {
       revokeObjectURL: vi.fn(),
     }))
     const failure = deferred<Response>()
-    vi.stubGlobal('fetch', vi.fn(() => failure.promise as unknown as Promise<Response>))
+    vi.stubGlobal('fetch', vi.fn(() => failure.promise))
     const { container, unmount } = mountNode(createElement(PdfView, {
       scope: { sessionId: 's1', cwd: '/ws' }, path: '/ws/d.pdf', title: 'd.pdf',
     }))
@@ -247,7 +247,7 @@ describe('EditorHost cancelled guards and toolbar labels', () => {
     expect(container.isConnected).toBe(false)
 
     const failure = deferred<never>()
-    vi.spyOn(api, 'fsRead').mockReturnValue(failure.promise as never)
+    vi.spyOn(api, 'fsRead').mockReturnValue(failure.promise)
     service.openTab({ type: 'editor', title: 'z.fsr', path: '/tmp/z.fsr', id: 'editor:/tmp/z.fsr' })
     const second = hostFor(ctx, store, '/tmp/z.fsr')
     await flushed()
@@ -290,9 +290,9 @@ describe('EditorHost cancelled guards and toolbar labels', () => {
     })
     const { container, unmount } = hostFor(ctx, store, '/tmp/a.ts')
     const input = container.querySelector('input')!
-    const before = (input as HTMLInputElement).value
+    const before = (input).value
     act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true })) })
-    expect((input as HTMLInputElement).value).toBe(before)
+    expect((input).value).toBe(before)
     unmount()
   })
 })
@@ -367,10 +367,10 @@ describe('BrowserView raw-event guards', () => {
     const { mount } = browserSetup()
     const { container, unmount } = mount()
     navigate(container, 'https://example.com/')
-    const unlock = [...container.querySelectorAll('button')].find(button => button.textContent!.startsWith('Temporarily disable'))!
+    const unlock = [...container.querySelectorAll('button')].find(button => button.textContent.startsWith('Temporarily disable'))!
     act(() => { unlock.click() })
     expect(container.querySelector('iframe')!.getAttribute('sandbox')).toBeNull()
-    const restore = [...container.querySelectorAll('button')].find(button => button.textContent!.startsWith('Restore'))!
+    const restore = [...container.querySelectorAll('button')].find(button => button.textContent.startsWith('Restore'))!
     act(() => { restore.click() })
     expect(container.querySelector('iframe')!.getAttribute('sandbox')).toContain('allow-scripts')
     unmount()

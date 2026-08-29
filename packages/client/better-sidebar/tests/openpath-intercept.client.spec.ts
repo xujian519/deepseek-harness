@@ -77,10 +77,14 @@ describe('open-path interception', () => {
   it('restores the original method on dispose (HMR-safe)', async () => {
     const ws = service()
     const d = deps()
+    // Identity anchors: the references are only compared, never invoked.
+    // oxlint-disable-next-line unbound-method
     const original = ws.openPath
     const restore = wrapOpenPath(ws, d)
+    // oxlint-disable-next-line unbound-method
     expect(ws.openPath).not.toBe(original)
     restore()
+    // oxlint-disable-next-line unbound-method
     expect(ws.openPath).toBe(original)
     await ws.openPath('/abs/a.ts')
     expect(ws.opened).toEqual(['/abs/a.ts'])
@@ -114,6 +118,8 @@ describe('open-path interception wiring', () => {
         : undefined,
     } as unknown as Context
     const store = createSidebarStore()
+    // Identity anchor: compared at dispose time, never invoked.
+    // oxlint-disable-next-line unbound-method
     const original = ctx.workspaces.openPath
     const restore = registerOpenPathInterception(ctx, store)
 
@@ -143,6 +149,7 @@ describe('open-path interception wiring', () => {
 
     // Disposal restores the raw original method (HMR-safe).
     restore()
+    // oxlint-disable-next-line unbound-method
     expect(ctx.workspaces.openPath).toBe(original)
   })
 })

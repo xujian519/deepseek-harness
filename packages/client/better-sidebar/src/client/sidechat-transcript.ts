@@ -200,7 +200,7 @@ export function transcriptRows(entries: readonly SidebarHistoryEntry[]): Sidecha
     if (index <= seedEnd) continue
     const event = events[index]
     if (event === undefined) continue
-    const data = event.data as Record<string, unknown>
+    const data = event.data
     switch (event.type) {
       case 'user/message': {
         const text = blockText(Array.isArray(data.content) ? data.content : [])
@@ -228,7 +228,7 @@ export function transcriptRows(entries: readonly SidebarHistoryEntry[]): Sidecha
         break
       }
       case 'assistant/chunk': {
-        const chunk = data.chunk as { type?: unknown; text?: unknown } | undefined
+        const chunk = data.chunk as { type?: unknown; text?: unknown } | null | undefined
         if (chunk === null || typeof chunk !== 'object') break
         const kind = chunk.type === 'text-delta' ? 'assistant' : chunk.type === 'reasoning-delta' ? 'reasoning' : null
         if (kind === null || typeof chunk.text !== 'string' || chunk.text === '') break

@@ -124,7 +124,7 @@ export function apply(ctx: Context): void {
     // re-execute on HMR), changed ones are dropped for a clean re-fetch.
     void revalidateChunksOnReactivate()
     ctx.effect(() => {
-      let disposed = false
+      let disposed = false as boolean
       let root: Root | undefined
       let host: HTMLDivElement | undefined
       let mounted = false
@@ -227,15 +227,15 @@ export function apply(ctx: Context): void {
         // after the timeout and mounts on the defaults).
         const prefs = await Promise.race([
           loadPrefs(api),
-          new Promise<null>((resolve) => { window.setTimeout(() => resolve(null), 2000) }),
+          new Promise<null>((resolve) => { window.setTimeout(() =>{  resolve(null) }, 2000) }),
         ])
         if (prefs !== null) sidebarStore.setPrefs(prefs)
-        if (disposed) return
+        if ((disposed as boolean)) return
         // Mutual exclusion with the dsh-web-ui family right panel: while the
         // aionui-panel provider is selected, the sidebar must not mount at
         // all. Re-evaluated on every settings-document update (live switch).
         const suspended = await loadExternalDisable(api)
-        if (disposed) return
+        if ((disposed as boolean)) return
         sidebarStore.setSuspended(suspended)
         if (suspended) unmount()
         else mount()
@@ -297,10 +297,10 @@ export function apply(ctx: Context): void {
             takeoverEnabled: (url) => {
               if (sidebarStore.getSuspended()) return false
               const prefs = sidebarStore.getPrefs()
-              if (prefs.browserInterceptLinks === false) return false
+              if (!prefs.browserInterceptLinks) return false
               const protocolOn = url.protocol === 'https:'
-                ? prefs.browserInterceptHttps !== false
-                : prefs.browserInterceptHttp !== false
+                ?  prefs.browserInterceptHttps
+                :  prefs.browserInterceptHttp
               if (!protocolOn) return false
               // A plugin claim is the target (already enabled-filtered);
               // otherwise the built-in browser must be enabled.

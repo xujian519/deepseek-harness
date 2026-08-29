@@ -45,7 +45,7 @@ export type Embeddability = 'embeddable' | 'blocked' | 'unknown'
  * and the plain iframe stays.
  */
 export function embeddabilityOf(probe: BrowserProbeResult): Embeddability {
-  if (probe.reachable !== true) return 'unknown'
+  if (!probe.reachable) return 'unknown'
   const xfo = probe.xFrameOptions?.trim().toUpperCase()
   if (xfo === 'DENY' || xfo === 'SAMEORIGIN') return 'blocked'
   if (probe.frameAncestors !== undefined && !probe.frameAncestors.some(source => source === '*')) return 'blocked'

@@ -232,7 +232,7 @@ describe('BrowserView', () => {
     act(() => { container.querySelector<HTMLButtonElement>('button[aria-label="Refresh"]')!.click() })
     expect(container.querySelector('iframe')!.getAttribute('title')).toBe(keyBefore)
     // The status bar's unlock drops the sandbox attribute entirely.
-    const unlock = [...container.querySelectorAll('button')].find(button => button.textContent!.startsWith('Temporarily disable'))
+    const unlock = [...container.querySelectorAll('button')].find(button => button.textContent.startsWith('Temporarily disable'))
     act(() => { unlock!.click() })
     expect(container.querySelector('iframe')!.getAttribute('sandbox')).toBeNull()
     unmount()

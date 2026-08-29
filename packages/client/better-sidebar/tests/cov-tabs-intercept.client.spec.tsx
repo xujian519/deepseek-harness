@@ -106,7 +106,7 @@ describe('openSidebarFile + revealInExplorer', () => {
 
     const noCwdCtx = {
       sessions: { list: { getSnapshot: () => ({ current: 's1', byId: {} }) } },
-      get: ctx.get,
+      get: (name: string) => ctx.get(name) as unknown,
     } as unknown as Context
     const bare = createSidebarStore()
     bare.setSession('reveal-nocwd')
@@ -133,7 +133,7 @@ describe('openSidebarFile + revealInExplorer', () => {
     const { ctx, openTab } = clientCtx()
     const noCwdCtx = {
       sessions: { list: { getSnapshot: () => ({ current: 's1', byId: {} }) } },
-      get: ctx.get,
+      get: (name: string) => ctx.get(name) as unknown,
     } as unknown as Context
     // No cwd: the path passes through unresolved (no separator → whole path).
     openSidebarFile(noCwdCtx, 's1', 'bare.ts')
@@ -227,16 +227,16 @@ describe('turn-tail takeover declines', () => {
     const restoreOpen = registerOpenPathInterception(ctx, store)
     // The reveal gesture (the deliverables row passes '.') opens the files
     // window instead of an editor tab (no editor seed, panel reveal only).
-    await ctx.workspaces!.openPath('.')
+    await ctx.workspaces.openPath('.')
     expect(openTab).toHaveBeenCalledWith({ type: 'editor', title: 'Files' })
     // A plain path lands in the sidebar editor with the session-resolved id.
-    await ctx.workspaces!.openPath('/w/src/late.ts')
+    await ctx.workspaces.openPath('/w/src/late.ts')
     expect(openTab).toHaveBeenLastCalledWith({ type: 'editor', title: 'late.ts', path: '/w/src/late.ts', id: 'editor:/w/src/late.ts' })
     restoreOpen()
     // The raw funnel is restored: a later open reaches the original.
     const calls: string[] = []
     funnel.openPath = async (path) => { calls.push(path) }
-    await ctx.workspaces!.openPath('/w/late2.ts')
+    await ctx.workspaces.openPath('/w/late2.ts')
     expect(calls).toEqual(['/w/late2.ts'])
     expect(openTab).toHaveBeenCalledTimes(2)
   })

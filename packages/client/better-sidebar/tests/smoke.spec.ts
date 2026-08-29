@@ -4,6 +4,7 @@
  * actual repository, and a real directory listing. Runs with `pnpm test`.
  */
 import { describe, expect, it, vi } from 'vitest'
+import { anyInstanceOf } from './matchers.ts'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -44,7 +45,7 @@ interface FakeContext {
   }
   sessions: { get: (id: string) => { header: { cwd?: string } } | undefined }
   tools: { register: (tool: unknown) => () => void }
-  effect: (fn: () => unknown | (() => void), label?: string) => void
+  effect: (fn: () => unknown, label?: string) => void
   /** The settings service never appears in the smoke context: the inject
    *  callback must never run (mirror of cordis' service-less inject). */
   inject: (deps: readonly string[], callback: (sctx: never) => void) => () => void
@@ -87,7 +88,7 @@ describe('host plugin smoke', () => {
   it('mounts the fenced routes', () => {
     const routes: SidebarWebRoute[] = []
     const upgrades: SidebarWebUpgradeRoute[] = []
-    const effects: Array<() => unknown | (() => void)> = []
+    const effects: Array<() => unknown> = []
     const ctx: FakeContext = {
       webRuntime: { trustedHosts: [] },
       webServer: {
@@ -127,7 +128,7 @@ describe('host plugin smoke', () => {
     const source = Buffer.from('<div>排序算法可视化</div>', 'utf8')
     writeFileSync(path, source)
     const routes: SidebarWebRoute[] = []
-    const effects: Array<() => unknown | (() => void)> = []
+    const effects: Array<() => unknown> = []
     const ctx: FakeContext = {
       webRuntime: { trustedHosts: [] },
       webServer: {
@@ -322,7 +323,7 @@ describe('host plugin smoke', () => {
 
   it('pty manager: park on an unknown key is a no-op', () => {
     const manager = new PtyManager(defaultShell(), 3)
-    expect(() => manager.park('s2:nonexistent')).not.toThrow()
+    expect(() =>{  manager.park('s2:nonexistent') }).not.toThrow()
     expect(manager.isParked('s2:nonexistent')).toBe(false)
   })
 
@@ -506,7 +507,7 @@ describe('session cwd resolution over the API route', () => {
       sessions: overrides.sessions ?? { get: () => undefined },
       tools: { register: () => () => {} },
       // The vendored cordis runs registration effects immediately.
-      effect: (fn: () => unknown | (() => void)) => { fn() },
+      effect: (fn: () => unknown) => { fn() },
       // No settings service: the namespace registration never runs.
       inject: () => () => {},
       // No jobs/agents services in the smoke context: the routes degrade.
@@ -533,7 +534,7 @@ describe('session cwd resolution over the API route', () => {
     const out: { status: number; body: string } = { status: 200, body: '' }
     const res = {
       writeHead: (status: number) => { out.status = status },
-      end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+      end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
     } as never
     await route.handler(req, res)
     const parsed = JSON.parse(out.body) as { ok: boolean; value?: { cwd: string }; error?: { code?: string; message: string } }
@@ -545,7 +546,7 @@ describe('session cwd resolution over the API route', () => {
     const req = { method: 'GET', url, headers: { host: '127.0.0.1:3080' } } as never
     const res = {
       writeHead: (status: number) => { out.status = status },
-      end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+      end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
     } as never
     await route.handler(req, res)
     return out
@@ -872,7 +873,7 @@ describe('side card settings routes', () => {
       },
       sessions: { get: () => undefined },
       tools: { register: () => () => {} },
-      effect: (fn: () => unknown | (() => void)) => { fn() },
+      effect: (fn: () => unknown) => { fn() },
       inject: (deps: string[], callback: (sctx: { settings: unknown }) => void) => {
         if (deps.includes('settings') && settings !== undefined) callback({ settings })
         return () => {}
@@ -899,7 +900,7 @@ describe('side card settings routes', () => {
     const out: { status: number; body: string } = { status: 200, body: '' }
     const res = {
       writeHead: (status: number) => { out.status = status },
-      end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+      end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
     } as never
     await route.handler(req, res)
     return JSON.parse(out.body) as { ok: boolean; value?: unknown; error?: { code?: string; message: string } }
@@ -931,8 +932,8 @@ describe('side card settings routes', () => {
     const result = await invoke(route, 'shell.get', {})
     expect(result.ok).toBe(true)
     expect(result.value).toMatchObject({
-      shell: expect.any(String),
-      name: expect.any(String),
+      shell: anyInstanceOf(String),
+      name: anyInstanceOf(String),
     })
     expect(String((result.value as { name: unknown }).name).length).toBeGreaterThan(0)
   })
@@ -1096,7 +1097,7 @@ describe('agent terminal tool gating', () => {
       },
       sessions: { get: () => undefined },
       tools: { register: () => { registered += 1; return () => { disposed += 1 } } },
-      effect: (fn: () => unknown | (() => void)) => { fn() },
+      effect: (fn: () => unknown) => { fn() },
       inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
         if (deps.includes('settings')) callback({ settings })
         return () => {}
@@ -1153,7 +1154,7 @@ describe('agent sidebar-open tool gating', () => {
       },
       sessions: { get: () => undefined },
       tools: { register: () => { registered += 1; return () => { disposed += 1 } } },
-      effect: (fn: () => unknown | (() => void)) => { fn() },
+      effect: (fn: () => unknown) => { fn() },
       inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
         if (deps.includes('settings')) callback({ settings })
         return () => {}

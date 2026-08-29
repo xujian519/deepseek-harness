@@ -237,8 +237,10 @@ describe('updatePluginSettings queue', () => {
 
   it('serializes two writes so the second sees the first blob and adopts the returned document', async () => {
     const bodies: Array<Record<string, unknown>> = []
-    vi.stubGlobal('fetch', vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { patch: { pluginSettings: Record<string, Record<string, unknown>> } }
+    vi.stubGlobal('fetch', vi.fn(async (_input: string, init?: RequestInit) => {
+      const raw = init?.body
+      if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+      const body = JSON.parse(raw) as { patch: { pluginSettings: Record<string, Record<string, unknown>> } }
       bodies.push(body.patch)
       return jsonResponse({ value: body.patch, revision: 1 })
     }))
@@ -261,8 +263,10 @@ describe('updatePluginSettings queue', () => {
     expect(store.getPrefs().pluginSettings).toEqual({})
     expect(errorSpy).toHaveBeenCalledWith('open-with settings write failed', expect.any(Error))
     // The queue survived the failure: a later write still runs.
-    vi.stubGlobal('fetch', vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { patch: { pluginSettings: Record<string, Record<string, unknown>> } }
+    vi.stubGlobal('fetch', vi.fn(async (_input: string, init?: RequestInit) => {
+      const raw = init?.body
+      if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+      const body = JSON.parse(raw) as { patch: { pluginSettings: Record<string, Record<string, unknown>> } }
       return jsonResponse({ value: body.patch, revision: 1 })
     }))
     updatePluginSettings(store, 'other', blob => ({ ...blob, k: 1 }))

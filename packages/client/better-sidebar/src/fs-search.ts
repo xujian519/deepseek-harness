@@ -78,7 +78,7 @@ export async function searchFiles(root: string, query: string, opts: FsSearchOpt
 
   const matches: string[] = []
   let visited = 0
-  let truncated = false
+  let truncated = false as boolean
 
   const walk = async (dir: string): Promise<void> => {
     if (truncated) return
@@ -103,7 +103,9 @@ export async function searchFiles(root: string, query: string, opts: FsSearchOpt
       // up the tree (cycle).
       if (dirent.isDirectory() && !dirent.isSymbolicLink()) {
         await walk(join(dir, dirent.name))
-        if (truncated) return
+        // The recursive call above flips the flag; the assertion keeps the
+        // type-level value range from assuming the pre-await value.
+        if (truncated as boolean) return
       }
     }
   }

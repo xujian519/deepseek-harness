@@ -36,8 +36,8 @@ function jsonResponse(value: unknown): Response {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input)
+  vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+    const url = input
     if (url.startsWith('/sidebar/upload')) {
       const rel = new URL(url, 'http://localhost').searchParams.get('relativePath') ?? ''
       if (uploadHandler === undefined) return jsonResponse({ path: `/w/${rel}`, size: 1 })

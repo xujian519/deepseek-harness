@@ -93,7 +93,7 @@ export function createPinnedVirtualTab(entry: PinnedTabEntry): SidebarTab {
   return {
     ...tab,
     id: PINNED_VID_PREFIX + homeSessionId + ':' + tab.id,
-    meta: { ...(tab.meta as Record<string, unknown> | undefined ?? {}), [PINNED_META_KEY]: home },
+    meta: { ...(tab.meta ?? {}), [PINNED_META_KEY]: home },
   }
 }
 

@@ -22,6 +22,7 @@ if (g.localStorage === undefined) {
 
 import { createBetterSidebarService, matchUrlTarget, SIDEBAR_FEATURES, SIDEBAR_SERVICE_VERSION } from '../src/client/service.ts'
 import { createSidebarStore, allLeaves, floatTab, makeDefaultState, openDiffTab, openTabInActivePane, sanitizeState } from '../src/client/state.ts'
+import { readFileSync } from 'node:fs'
 
 describe('BetterSidebar service', () => {
   it('registerTab adds to the registry and dispose removes it', () => {
@@ -651,8 +652,7 @@ describe('service.openTab auto-expand for content opens', () => {
 
 describe('version and feature detection (v0.12.0)', () => {
   it('reports the plugin version in lockstep with package.json', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pkg = JSON.parse(require('node:fs').readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
     expect(SIDEBAR_SERVICE_VERSION).toBe(pkg.version)
     expect(createBetterSidebarService(createSidebarStore()).version).toBe(SIDEBAR_SERVICE_VERSION)
   })
@@ -864,9 +864,9 @@ describe('tab lifecycle callbacks (v0.12.0)', () => {
       component: () => null,
     })
     store.setSession('s1')
-    expect(() => service.openTab({ type: 'boom', title: 'Boom' })).not.toThrow()
+    expect(() =>{  service.openTab({ type: 'boom', title: 'Boom' }) }).not.toThrow()
     const tab = allLeaves(store.getSnapshot().state!.splits).flatMap(l => l.tabs).find(t => t.type === 'boom')!
-    expect(() => service.closeTab(tab.id)).not.toThrow()
+    expect(() =>{  service.closeTab(tab.id) }).not.toThrow()
   })
 
   it('a disabled tab type still refuses to open and fires no callbacks', () => {

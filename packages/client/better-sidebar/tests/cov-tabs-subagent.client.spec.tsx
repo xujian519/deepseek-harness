@@ -106,16 +106,18 @@ function topology(): SidebarSessionList {
 
 beforeEach(() => {
   Object.defineProperty(globalThis.navigator, 'language', { value: 'en-US', configurable: true })
-  vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-    const method = String(url).split('/').pop()
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    const method = url.split('/').pop()
     if (method === 'subagents.live') return jsonResponse({ live: {} })
     if (method === 'jobs.output') {
-      return jsonResponse({ text: `out-${(JSON.parse(String(init?.body)) as { id: string }).id}`, truncated: false, read: true })
+      const raw = init?.body
+      if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+      return jsonResponse({ text: `out-${(JSON.parse(raw) as { id: string }).id}`, truncated: false, read: true })
     }
     if (method === 'jobs.kill') {
       return jsonResponse({ ok: true, outcome: 'requested' })
     }
-    throw new Error(`unexpected fetch ${String(url)}`)
+    throw new Error(`unexpected fetch ${url}`)
   }))
 })
 
@@ -439,7 +441,7 @@ describe('SubagentView topology', () => {
   })
 
   it('an older snapshot WITHOUT the subagent seam degrades to the empty page', () => {
-    const store = makeStore({ current: 'root', byId: { root: { id: 'root', displayTitle: 'M' } }, jobsBySession: {} } as SidebarSessionList)
+    const store = makeStore({ current: 'root', byId: { root: { id: 'root', displayTitle: 'M' } }, jobsBySession: {} })
     const { ctx } = makeCtx(store)
     const { container, unmount } = mount(
       createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
@@ -517,8 +519,8 @@ describe('SubagentView topology', () => {
     vi.useFakeTimers()
     const store = makeStore(topology())
     let livePayload: Record<string, unknown> = {}
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
-      if (String(url).endsWith('subagents.live')) return jsonResponse({ live: livePayload })
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('subagents.live')) return jsonResponse({ live: livePayload })
       throw new Error('unexpected')
     }))
     const { ctx } = makeCtx(store)
@@ -559,14 +561,14 @@ describe('SubagentView jobs extras', () => {
   }
 
   it('a failed kill surfaces the inline error; multi-owner rows carry owner titles', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
-      const method = String(url).split('/').pop()
+    vi.stubGlobal('fetch', vi.fn(async (url: string, _init?: RequestInit) => {
+      const method = url.split('/').pop()
       if (method === 'jobs.kill') {
         // A wire failure (not an ok envelope): call() throws, kill() records it.
         return { ok: false, status: 500, json: async () => ({ ok: false, error: { code: 'busy', message: 'refused' } }) } as unknown as Response
       }
       if (method === 'jobs.output') return jsonResponse({ text: 'x', truncated: false, read: true })
-      throw new Error(`unexpected ${String(url)}`)
+      throw new Error(`unexpected ${url}`)
     }))
     const store = makeStore(jobsSnapshot([
       { id: 'j1', kind: 'bash', label: 'run', status: 'running', startedAt: 1_000, detail: 'cwd /w' },
@@ -600,10 +602,10 @@ describe('SubagentView jobs extras', () => {
   it('the output pane header carries the job detail; short tool args stay whole', async () => {
     vi.useFakeTimers()
     let livePayload: Record<string, unknown> = {}
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
-      if (String(url).endsWith('subagents.live')) return jsonResponse({ live: livePayload })
-      if (String(url).endsWith('jobs.output')) return jsonResponse({ text: 'out', truncated: false, read: true })
-      throw new Error(`unexpected ${String(url)}`)
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('subagents.live')) return jsonResponse({ live: livePayload })
+      if (url.endsWith('jobs.output')) return jsonResponse({ text: 'out', truncated: false, read: true })
+      throw new Error(`unexpected ${url}`)
     }))
     const store = makeStore({
       current: 'root',
@@ -637,12 +639,12 @@ describe('SubagentView jobs extras', () => {
   it('the output pane explains errors, unread jobs, truncation, and pins the tail', async () => {
     vi.useFakeTimers()
     let output: Response | Error = jsonResponse({ text: '', truncated: false, read: false })
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
-      if (String(url).endsWith('jobs.output')) {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('jobs.output')) {
         if (output instanceof Error) throw output
         return output
       }
-      throw new Error(`unexpected ${String(url)}`)
+      throw new Error(`unexpected ${url}`)
     }))
     const store = makeStore(jobsSnapshot([
       { id: 'j1', kind: 'bash', label: 'watch', status: 'running', startedAt: 1_000 },
@@ -673,9 +675,9 @@ describe('SubagentView jobs extras', () => {
   })
 
   it('a dock whose first load fails outright renders the error line', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
-      if (String(url).endsWith('jobs.output')) throw new Error('offline')
-      throw new Error(`unexpected ${String(url)}`)
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('jobs.output')) throw new Error('offline')
+      throw new Error(`unexpected ${url}`)
     }))
     const store = makeStore(jobsSnapshot([
       { id: 'j1', kind: 'bash', label: 'one-shot', status: 'completed', startedAt: 1_000, finishedAt: 2_000 },

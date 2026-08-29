@@ -38,10 +38,17 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** The JSON payload of the recorded request (the api surface posts stringified JSON). */
+function postedJson(init?: RequestInit): unknown {
+  const { body } = init ?? {}
+  if (typeof body !== 'string') throw new Error(`expected a stringified JSON body, got ${typeof body}`)
+  return JSON.parse(body)
+}
+
 /** Install the fetch stub returning `next` and recording the request. */
 function stubFetch(): void {
-  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-    lastUrl = String(input)
+  vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+    lastUrl = input
     lastInit = init
     if (next instanceof Reject) throw next.value
     return next
@@ -55,23 +62,23 @@ describe('api surface payload folding', () => {
     stubFetch()
     await api.sessionCwd(scope)
     expect(lastUrl).toBe('/sidebar/api/session.cwd')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ sessionId: 's1', cwd: '/w', repoRoot: '/w/repo' })
+    expect(postedJson(lastInit)).toEqual({ sessionId: 's1', cwd: '/w', repoRoot: '/w/repo' })
   })
 
   it('omits empty-string cwd/repoRoot from the payload', async () => {
     stubFetch()
     await api.sessionCwd({ sessionId: 's1', cwd: '', repoRoot: '' })
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ sessionId: 's1' })
+    expect(postedJson(lastInit)).toEqual({ sessionId: 's1' })
   })
 
   it('fsTree and fsSearch carry path/query', async () => {
     stubFetch()
     await api.fsTree(scope, '/w/src')
     expect(lastUrl).toBe('/sidebar/api/fs.tree')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ sessionId: 's1', cwd: '/w', path: '/w/src' })
+    expect(postedJson(lastInit)).toMatchObject({ sessionId: 's1', cwd: '/w', path: '/w/src' })
     await api.fsSearch(scope, 'needle')
     expect(lastUrl).toBe('/sidebar/api/fs.search')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ query: 'needle' })
+    expect(postedJson(lastInit)).toMatchObject({ query: 'needle' })
   })
 
   it('fsRead and fsWrite carry the path (write adds the content)', async () => {
@@ -80,17 +87,17 @@ describe('api surface payload folding', () => {
     expect(lastUrl).toBe('/sidebar/api/fs.read')
     await api.fsWrite(scope, '/w/a.ts', 'body')
     expect(lastUrl).toBe('/sidebar/api/fs.write')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ path: '/w/a.ts', content: 'body' })
+    expect(postedJson(lastInit)).toMatchObject({ path: '/w/a.ts', content: 'body' })
   })
 
   it('git methods fold the worktree in only when non-empty', async () => {
     stubFetch()
     await api.gitStatus(scope)
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('worktree')
+    expect(postedJson(lastInit)).not.toHaveProperty('worktree')
     await api.gitStatus(scope, '')
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('worktree')
+    expect(postedJson(lastInit)).not.toHaveProperty('worktree')
     await api.gitStatus(scope, 'wt')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ worktree: 'wt' })
+    expect(postedJson(lastInit)).toMatchObject({ worktree: 'wt' })
     await api.gitWorktrees(scope)
     expect(lastUrl).toBe('/sidebar/api/git.worktrees')
   })
@@ -98,41 +105,41 @@ describe('api surface payload folding', () => {
   it('gitDiff carries the path only when given, plus the staged flag', async () => {
     stubFetch()
     await api.gitDiff(scope, undefined, true, 'wt')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ sessionId: 's1', cwd: '/w', repoRoot: '/w/repo', worktree: 'wt', staged: true })
+    expect(postedJson(lastInit)).toEqual({ sessionId: 's1', cwd: '/w', repoRoot: '/w/repo', worktree: 'wt', staged: true })
     await api.gitDiff(scope, '/w/a.ts', false)
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ path: '/w/a.ts', staged: false })
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('worktree')
+    expect(postedJson(lastInit)).toMatchObject({ path: '/w/a.ts', staged: false })
+    expect(postedJson(lastInit)).not.toHaveProperty('worktree')
   })
 
   it('gitStage/gitUnstage/gitCommit/gitCheckout/gitBranch thread the scope', async () => {
     stubFetch()
     await api.gitStage(scope, '/w/a.ts', 'wt')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ path: '/w/a.ts', worktree: 'wt' })
+    expect(postedJson(lastInit)).toMatchObject({ path: '/w/a.ts', worktree: 'wt' })
     await api.gitUnstage(scope)
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('path')
+    expect(postedJson(lastInit)).not.toHaveProperty('path')
     await api.gitCommit(scope, 'msg', 'wt')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ message: 'msg', worktree: 'wt' })
+    expect(postedJson(lastInit)).toMatchObject({ message: 'msg', worktree: 'wt' })
     await api.gitBranch(scope)
     expect(lastUrl).toBe('/sidebar/api/git.branch')
     await api.gitCheckout(scope, 'main')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ branch: 'main' })
+    expect(postedJson(lastInit)).toMatchObject({ branch: 'main' })
     await api.gitStage(scope)
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('path')
+    expect(postedJson(lastInit)).not.toHaveProperty('path')
     await api.gitUnstage(scope, '/w/a.ts', 'wt')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ path: '/w/a.ts', worktree: 'wt' })
+    expect(postedJson(lastInit)).toMatchObject({ path: '/w/a.ts', worktree: 'wt' })
     await api.subagentsLive('root-session')
     expect(lastUrl).toBe('/sidebar/api/subagents.live')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ rootSessionId: 'root-session' })
+    expect(postedJson(lastInit)).toEqual({ rootSessionId: 'root-session' })
   })
 
   it('gitLog omits unset paging, gitCommitDiff/gitDiscard/gitRevert/gitCherryPick carry their target', async () => {
     stubFetch()
     await api.gitLog(scope)
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('count')
+    expect(postedJson(lastInit)).not.toHaveProperty('count')
     await api.gitLog(scope, 10, 5, 'wt')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ count: 10, skip: 5, worktree: 'wt' })
+    expect(postedJson(lastInit)).toMatchObject({ count: 10, skip: 5, worktree: 'wt' })
     await api.gitCommitDiff(scope, 'abc')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ hash: 'abc' })
+    expect(postedJson(lastInit)).toMatchObject({ hash: 'abc' })
     await api.gitDiscard(scope, '/w/a.ts')
     expect(lastUrl).toBe('/sidebar/api/git.discard')
     await api.gitRevert(scope, 'abc')
@@ -145,26 +152,26 @@ describe('api surface payload folding', () => {
     stubFetch()
     await api.ptyClose(scope, 'tab-1')
     expect(lastUrl).toBe('/sidebar/api/pty.close')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ tab: 'tab-1' })
+    expect(postedJson(lastInit)).toMatchObject({ tab: 'tab-1' })
     await api.agentPtyClose('uuid-1')
     expect(lastUrl).toBe('/sidebar/api/agent-pty.close')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ uuid: 'uuid-1' })
+    expect(postedJson(lastInit)).toEqual({ uuid: 'uuid-1' })
     await api.terminalDeps()
     expect(lastUrl).toBe('/sidebar/api/terminal.deps')
     await api.jobOutput(scope, 'job-1')
     expect(lastUrl).toBe('/sidebar/api/jobs.output')
     await api.jobKill(scope, 'job-1')
-    expect(JSON.parse(String(lastInit?.body))).not.toHaveProperty('reason')
+    expect(postedJson(lastInit)).not.toHaveProperty('reason')
     await api.jobKill(scope, 'job-1', 'user')
-    expect(JSON.parse(String(lastInit?.body))).toMatchObject({ reason: 'user' })
+    expect(postedJson(lastInit)).toMatchObject({ reason: 'user' })
   })
 
   it('sidechat helpers post thread payloads; start defaults the question to empty', async () => {
     stubFetch()
     await api.sidechatStart('s1')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ sessionId: 's1', question: '' })
+    expect(postedJson(lastInit)).toEqual({ sessionId: 's1', question: '' })
     await api.sidechatStart('s1', 'hello')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ sessionId: 's1', question: 'hello' })
+    expect(postedJson(lastInit)).toEqual({ sessionId: 's1', question: 'hello' })
     await api.sidechatPrompt('c1', 'text')
     expect(lastUrl).toBe('/sidebar/api/sidechat.prompt')
     await api.sidechatCancel('c1')
@@ -182,16 +189,16 @@ describe('api surface payload folding', () => {
     await api.settingsGet()
     expect(lastUrl).toBe('/sidebar/api/settings.get')
     await api.settingsUpdate({ openByDefault: true })
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ patch: { openByDefault: true } })
+    expect(postedJson(lastInit)).toEqual({ patch: { openByDefault: true } })
     await api.settingsUpdate({ openByDefault: true }, 7)
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ patch: { openByDefault: true }, expectedRevision: 7 })
+    expect(postedJson(lastInit)).toEqual({ patch: { openByDefault: true }, expectedRevision: 7 })
     await api.browserProbe('https://example.com/')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ url: 'https://example.com/' })
+    expect(postedJson(lastInit)).toEqual({ url: 'https://example.com/' })
     await api.openExternal({ action: 'reveal', path: '/w/a.ts' })
     expect(lastUrl).toBe('/sidebar/api/open.external')
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ action: 'reveal', path: '/w/a.ts' })
+    expect(postedJson(lastInit)).toEqual({ action: 'reveal', path: '/w/a.ts' })
     await api.openExternal({ action: 'url', url: 'vscode://file//w/a.ts' })
-    expect(JSON.parse(String(lastInit?.body))).toEqual({ action: 'url', url: 'vscode://file//w/a.ts' })
+    expect(postedJson(lastInit)).toEqual({ action: 'url', url: 'vscode://file//w/a.ts' })
   })
 
   it('passes an AbortSignal through to fetch when given', async () => {
@@ -220,10 +227,7 @@ describe('api failure mapping', () => {
     next = wireResponse({ ok: false, error: { code: 'forbidden', message: 'nope' } }, false, 403)
     const failure = api.shellGet()
     await expect(failure).rejects.toBeInstanceOf(SidebarApiError)
-    await failure.catch((error: SidebarApiError) => {
-      expect(error.code).toBe('forbidden')
-      expect(error.message).toBe('nope')
-    })
+    await expect(failure).rejects.toMatchObject({ code: 'forbidden', message: 'nope' })
   })
 
   it('a non-ok response without a JSON body falls back to code "http" + the status', async () => {

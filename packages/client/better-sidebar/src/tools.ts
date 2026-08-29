@@ -46,8 +46,8 @@ export function boundBytes(text: string, maxBytes: number): { text: string; trun
 }
 
 /** Pure text projection helper (the canonical value is already structured). */
-function textRender<T>(fn: (value: T) => string): (_args: unknown, value: unknown) => ContentBlock[] {
-  return (_args, value) => [{ type: 'text', text: fn(value as T) }]
+function textRender(fn: (value: never) => string): (_args: unknown, value: unknown) => ContentBlock[] {
+  return (_args, value) => [{ type: 'text', text: fn(value as never) }]
 }
 
 /** Extract the calling agent or throw the canonical "no agent" error. */
@@ -263,7 +263,7 @@ export function registerTools(
         },
       },
       render: (_args, value) => {
-        const v = value as { text: string; totalLines: number; lineBegin: number; lineEnd: number; truncated: boolean }
+        const v = value
         const head = `[lines ${v.lineBegin}..${v.lineEnd} of ${v.totalLines}${v.truncated ? '; truncated to 256KiB' : ''}]`
         return [{ type: 'text', text: `${head}\n${v.text}` }]
       },
@@ -418,7 +418,7 @@ export function registerTools(
       signal: {
         type: 'string',
         required: true,
-        enum: ALLOWED_SIGNALS as readonly string[],
+        enum: ALLOWED_SIGNALS,
         description: 'Signal to deliver: SIGINT (Ctrl+C) | SIGTERM | SIGKILL | SIGHUP | SIGTSTP (Ctrl+Z).',
       },
     },

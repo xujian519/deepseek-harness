@@ -94,9 +94,11 @@ function baseSnapshot(): SidebarSessionList {
 beforeEach(() => {
   outputCalls.length = 0
   killCalls.length = 0
-  vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
-    const method = String(url).split('/').pop()
-    const body = JSON.parse(String(init?.body)) as { sessionId?: string; id?: string; rootSessionId?: string }
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    const method = url.split('/').pop()
+    const raw = init?.body
+    if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+    const body = JSON.parse(raw) as { sessionId?: string; id?: string; rootSessionId?: string }
     if (method === 'subagents.live') {
       return jsonResponse({ ok: true, value: { live: {} } })
     }
@@ -116,7 +118,7 @@ beforeEach(() => {
       killCalls.push({ sessionId: body.sessionId ?? '', id: body.id ?? '' })
       return jsonResponse({ ok: true, value: { ok: true, outcome: 'requested' } })
     }
-    throw new Error(`unexpected fetch ${String(url)}`)
+    throw new Error(`unexpected fetch ${url}`)
   })
   Object.defineProperty(globalThis.navigator, 'language', { value: 'zh-CN', configurable: true })
 })

@@ -226,10 +226,10 @@ describe('state reducers: remaining branch tails', () => {
     // A split id deeper in the tree: recursion adjusts the inner divider.
     const nested = split('outer', 'row', [tree, leaf('p3', [])])
     const out = resizeSplit(nested, 's', 0, 0.2) as { children: Array<{ sizes?: number[] }> }
-    expect((out.children[0] as { sizes: number[] }).sizes![0]).toBeCloseTo(0.7)
+    expect((out.children[0] as { sizes: number[] }).sizes[0]).toBeCloseTo(0.7)
     // resizeSplitIn routes by id through the state.
     const state = { ...makeDefaultState(), splits: nested }
-    const routed = resizeSplitIn(state, 's', 0, -0.05) as SidebarState
+    const routed = resizeSplitIn(state, 's', 0, -0.05)
     expect((routed.splits as { children: SplitNode[] }).children[0]!.kind).toBe('split')
   })
 
@@ -287,7 +287,7 @@ describe('state reducers: remaining branch tails', () => {
 
   it('insertLeafAt places the fresh leaf first on front=true', () => {
     const s = { ...makeDefaultState(400, true, 'none'), splits: leaf('pa', [editorTab('a1')]) }
-    const out = insertLeafAt(s.splits, 'pa', 'row', terminalTab('t1'), true) as { node: SplitNode; leafId: string }
+    const out = insertLeafAt(s.splits, 'pa', 'row', terminalTab('t1'), true)
     const node = out.node as { kind: 'split'; children: Array<{ tabs: SidebarTab[] }> }
     expect(node.children[0]!.tabs.map(t => t.id)).toEqual(['t1'])
     expect(out.leafId).toBe((node.children[0] as { id: string; tabs: SidebarTab[] }).id)

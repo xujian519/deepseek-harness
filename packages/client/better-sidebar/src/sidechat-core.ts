@@ -274,7 +274,7 @@ export function buildOpenTurnSnapshot(events: readonly SidechatLogEvent[]): stri
       continue
     }
     if (event.type === 'assistant/chunk') {
-      const chunk = data.chunk as { type?: unknown; text?: unknown } | undefined
+      const chunk = data.chunk as { type?: unknown; text?: unknown } | null | undefined
       if (chunk === null || typeof chunk !== 'object') continue
       if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
       else if (chunk.type === 'reasoning-delta' && typeof chunk.text === 'string') reasoning += chunk.text
@@ -378,11 +378,11 @@ export function boundaryDelivered(events: readonly SidechatLogEvent[]): boolean 
 /** The leading text of a user/message's content (block array or bare string). */
 function messageLeadText(data: Record<string, unknown>): string {
   const content = data.content
-  const first = Array.isArray(content) ? content[0] : content
+  const first: unknown = Array.isArray(content) ? content[0] : content
   return typeof first === 'string'
     ? first
     : (typeof first === 'object' && first !== null && 'text' in first
-      ? String((first as { text: unknown }).text)
+      ? String(first.text)
       : '')
 }
 

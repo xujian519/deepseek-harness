@@ -367,7 +367,7 @@ describe('side card preferences', () => {
     }
     ;(globalThis as Record<string, unknown>).localStorage = {
       getItem: (k: string) => storage.get(k) ?? null,
-      setItem: (k: string, v: string) => { storage.set(k, String(v)) },
+      setItem: (k: string, v: string) => { storage.set(k, v) },
       removeItem: (k: string) => { storage.delete(k) },
       key: () => null,
       get length() { return storage.size },

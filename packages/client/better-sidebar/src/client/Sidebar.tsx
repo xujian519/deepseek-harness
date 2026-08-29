@@ -91,6 +91,8 @@ const AUTO_OPEN_DEBOUNCE_MS = 500
  * propagate exactly as before.
  */
 const swallowOsFileDrag = (event: ReactDragEvent): void => {
+  // jsdom lets the tests dispatch drag events with no dataTransfer.
+  // oxlint-disable-next-line no-unnecessary-condition
   if (!(event.dataTransfer?.types.includes('Files') ?? false)) return
   event.preventDefault()
   event.stopPropagation()
@@ -201,7 +203,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   useEffect(() => {
     const service = ctx.get('betterSidebar')
     if (service === undefined) return
-    return service.subscribe(() => setTabsVersion(version => version + 1))
+    return service.subscribe(() =>{  setTabsVersion(version => version + 1) })
   }, [ctx])
 
   // Narrow (mobile) viewports collapse the two panels into one: the right
@@ -229,6 +231,8 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   const [visualViewportHeight, setVisualViewportHeight] = useState<number | null>(null)
   useEffect(() => {
     const vv = window.visualViewport
+    // jsdom has no window.visualViewport; the undefined check keeps its effects off.
+    // oxlint-disable-next-line no-unnecessary-condition
     if (vv === null || vv === undefined) return
     let frame: number | null = null
     const measure = (): void => {
@@ -460,11 +464,11 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       socket.onmessage = (event) => {
         if (typeof event.data !== 'string') return
         try {
-          const request = JSON.parse(event.data) as { kind?: unknown; target?: unknown; title?: unknown }
+          const request = JSON.parse(event.data) as { kind?: unknown; target?: unknown; title?: unknown } | null
           if (request === null || typeof request !== 'object') return
           if (request.kind !== 'file' && request.kind !== 'folder' && request.kind !== 'url') return
           if (typeof request.target !== 'string' || request.target === '') return
-          if (store.getPrefs().agentOpenTools !== true) return
+          if (!store.getPrefs().agentOpenTools) return
           const scope = { sessionId }
           const title = typeof request.title === 'string' && request.title !== '' ? request.title : undefined
           if (request.kind === 'url') {
@@ -885,7 +889,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     bottomWasOpenRef.current = state.bottomOpen
     if (wasOpen === undefined || wasOpen || !state.bottomOpen) return
     if (state.bottomOpenedOnce) return
-    if (store.getPrefs().bottomPanelAutoTerminal === false) return
+    if (!store.getPrefs().bottomPanelAutoTerminal) return
     if (ctx.get('betterSidebar')?.isTabEnabled('terminal') === false) return
     // Land the tab in the bottom panel's first pane; the once-flag is set
     // atomically so later expansions never repeat the auto-open.
@@ -1395,7 +1399,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       return null
     }
     if (value === null || value === undefined || value === '') return null
-    const text = typeof value === 'number' ? (value > 99 ? '99+' : String(value)) : String(value)
+    const text = typeof value === 'number' ? (value > 99 ? '99+' : String(value)) : value
     return <span className={css.tabBadge}>{text}</span>
   }
 
@@ -1427,7 +1431,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
         sessionId={home?.sessionId ?? sessionId}
         cwd={home?.cwd ?? cwd}
         expanded={state.expanded}
-        revealed={state.revealed ?? []}
+        revealed={state.revealed}
         onToggleDir={(path) => { store.reduce(s => toggleExpanded(s, path)) }}
         onReferenceFile={referenceInChat}
         ctx={ctx}
@@ -1541,8 +1545,8 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
               commitDrag(width, height, s => setWidth(s, width))
               setDraggingWidth(false)
             }}
-            onPointerCancel={(event) => { abortDrag(() => setDraggingWidth(false), event) }}
-            onLostPointerCapture={() => { abortDrag(() => setDraggingWidth(false)) }}
+            onPointerCancel={(event) => { abortDrag(() =>{  setDraggingWidth(false) }, event) }}
+            onLostPointerCapture={() => { abortDrag(() =>{  setDraggingWidth(false) }) }}
           />
         )}
         <div className={css.panelBody}>
@@ -1604,8 +1608,8 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
               commitDrag(width, height, s => setBottomHeight(setWidth(s, width), height))
               setDraggingCorner(false)
             }}
-            onPointerCancel={(event) => { abortDrag(() => setDraggingCorner(false), event) }}
-            onLostPointerCapture={() => { abortDrag(() => setDraggingCorner(false)) }}
+            onPointerCancel={(event) => { abortDrag(() =>{  setDraggingCorner(false) }, event) }}
+            onLostPointerCapture={() => { abortDrag(() =>{  setDraggingCorner(false) }) }}
           />
         )}
       </div>
@@ -1682,8 +1686,8 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
               commitDrag(Math.min(state.width, window.innerWidth), height, s => setBottomHeight(s, height))
               setDraggingBottom(false)
             }}
-            onPointerCancel={(event) => { abortDrag(() => setDraggingBottom(false), event) }}
-            onLostPointerCapture={() => { abortDrag(() => setDraggingBottom(false)) }}
+            onPointerCancel={(event) => { abortDrag(() =>{  setDraggingBottom(false) }, event) }}
+            onLostPointerCapture={() => { abortDrag(() =>{  setDraggingBottom(false) }) }}
           />
           {/*
           The bottom panel's own close control at its tab strip's right end
@@ -1732,7 +1736,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
           onMove={(x, y) => { store.reduce(s => moveFloat(s, float.id, x, y)) }}
           onResize={(w, h) => { store.reduce(s => resizeFloat(s, float.id, w, h)) }}
           onDock={(paneId) => { store.reduce(s => dockFloat(s, float.id, paneId ?? undefined)) }}
-          onClose={() => { ctx.get('betterSidebar')?.closeTab(float.tab.id, sessionId === undefined ? undefined : { sessionId, cwd }) }}
+          onClose={() => { ctx.get('betterSidebar')?.closeTab(float.tab.id, { sessionId, cwd }) }}
         />
       ))}
       {/*

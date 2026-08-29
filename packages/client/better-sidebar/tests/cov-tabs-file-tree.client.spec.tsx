@@ -20,7 +20,7 @@ import type { UploadItem } from '../src/client/upload.ts'
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 // Controllable fs.tree (per-test behavior) + a stable download URL.
-const fsTree = vi.hoisted(() => vi.fn())
+const fsTree = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<unknown>>())
 vi.mock('../src/client/api.ts', () => ({
   api: { fsTree: (...args: unknown[]) => fsTree(...args) },
   downloadUrl: () => '/sidebar/file?download=1',
@@ -180,8 +180,8 @@ describe('FileTree levels', () => {
   })
 
   it('a freshly expanded level renders its transient loading row, then the level', async () => {
-    fsTree.mockImplementation(async (_scope: unknown, path: string) =>
-      path === ROOT ? { entries } : { entries: subEntries })
+    fsTree.mockImplementation(async (...args: unknown[]) =>
+      String(args[1]) === ROOT ? { entries } : { entries: subEntries })
     harness = await mountTree()
     // The render pass that OPENS a directory runs before its level effect
     // stores the placeholder: the level body renders the transient loading
@@ -205,8 +205,8 @@ describe('FileTree levels', () => {
   })
 
   it('hidden rows render dimmed; symlink and broken files carry their markers', async () => {
-    fsTree.mockImplementation(async (_scope: unknown, path: string) =>
-      path === ROOT ? { entries } : { entries: subEntries })
+    fsTree.mockImplementation(async (...args: unknown[]) =>
+      String(args[1]) === ROOT ? { entries } : { entries: subEntries })
     harness = await mountTree({ expanded: ['/tmp/src'] })
     await act(async () => {})
     expect(rowByName(harness.container, '.env').className).toContain('explorerHidden')
@@ -229,8 +229,8 @@ describe('FileTree levels', () => {
   })
 
   it('an expanded directory loads its level once and renders nested rows', async () => {
-    fsTree.mockImplementation(async (_scope: unknown, path: string) =>
-      path === ROOT ? { entries } : { entries: subEntries })
+    fsTree.mockImplementation(async (...args: unknown[]) =>
+      String(args[1]) === ROOT ? { entries } : { entries: subEntries })
     harness = await mountTree()
     await act(async () => {})
     harness.rerender({ expanded: ['/tmp/src'] })
@@ -268,8 +268,8 @@ describe('FileTree rows: reveal + reference + copy', () => {
   })
 
   it('a revealed row scrolls into view and carries the reveal marker', async () => {
+    // jsdom lacks scrollIntoView: the assignment creates it, the delete uncreates it.
     const scrollIntoView = vi.fn()
-    const original = HTMLElement.prototype.scrollIntoView
     HTMLElement.prototype.scrollIntoView = scrollIntoView
     harness = await mountTree({ revealed: ['/tmp/a.ts'] })
     try {
@@ -278,7 +278,7 @@ describe('FileTree rows: reveal + reference + copy', () => {
       expect(row.className).toContain('explorerRowRevealed')
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' })
     } finally {
-      HTMLElement.prototype.scrollIntoView = original
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
     }
   })
 
@@ -467,15 +467,12 @@ describe('FileTree keyboard + busy drag surfaces', () => {
   it('an unmeasurable body rect anchors no drop zone', async () => {
     harness = await mountTree()
     const body = harness.container.firstElementChild as HTMLElement
-    const original = HTMLElement.prototype.getBoundingClientRect
-    HTMLElement.prototype.getBoundingClientRect = function () {
-      return undefined as unknown as DOMRect
-    }
+    const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => undefined as unknown as DOMRect)
     try {
       fire(body, 'dragenter')
       expect(dropZone()).toBeNull()
     } finally {
-      HTMLElement.prototype.getBoundingClientRect = original
+      measure.mockRestore()
     }
   })
 
@@ -544,8 +541,8 @@ describe('FileTree keyboard + busy drag surfaces', () => {
   })
 
   it('a directory row renders the symlink marker and drop-target class only while hovered', async () => {
-    fsTree.mockImplementation(async (_scope: unknown, path: string) =>
-      path === ROOT
+    fsTree.mockImplementation(async (...args: unknown[]) =>
+      String(args[1]) === ROOT
         ? { entries: [...entries, { name: 'slink', path: '/tmp/slink', isDir: true, hidden: false, isSymlink: true, broken: false }] }
         : { entries: subEntries })
     harness = await mountTree()
@@ -629,7 +626,6 @@ describe('FileTree keyboard + busy drag surfaces', () => {
 
   it('a hidden or revealed DIRECTORY row carries the dim / highlight classes', async () => {
     const scrollIntoView = vi.fn()
-    const originalScroll = HTMLElement.prototype.scrollIntoView
     HTMLElement.prototype.scrollIntoView = scrollIntoView
     fsTree.mockResolvedValue({ entries: [
       { name: 'hid', path: '/tmp/hid', isDir: true, hidden: true, isSymlink: false, broken: false },
@@ -643,7 +639,7 @@ describe('FileTree keyboard + busy drag surfaces', () => {
     const revealedDir = rowByName(harness.container, 'src')
     expect(revealedDir.className).toContain('explorerRowRevealed')
     expect(revealedDir.getAttribute('data-dsh-revealed')).toBe('true')
-    HTMLElement.prototype.scrollIntoView = originalScroll
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
   })
 
   it('an unrelated key on a directory row does not toggle', async () => {
@@ -753,10 +749,7 @@ describe('FileTree keyboard + busy drag surfaces', () => {
   it('a wide body rect renders the chat-side invitation beside the tree', async () => {
     harness = await mountTree()
     const body = harness.container.firstElementChild as HTMLElement
-    const original = HTMLElement.prototype.getBoundingClientRect
-    HTMLElement.prototype.getBoundingClientRect = function () {
-      return { top: 0, left: 260, width: 300, height: 200 } as DOMRect
-    }
+    const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ top: 0, left: 260, width: 300, height: 200 }) as DOMRect)
     try {
       fire(body, 'dragenter')
       expect(dropZone()).not.toBeNull()
@@ -764,7 +757,7 @@ describe('FileTree keyboard + busy drag surfaces', () => {
       expect(hint).not.toBeNull()
       expect(hint!.textContent).toContain('chat')
     } finally {
-      HTMLElement.prototype.getBoundingClientRect = original
+      measure.mockRestore()
     }
   })
 })

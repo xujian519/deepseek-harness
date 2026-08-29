@@ -26,7 +26,7 @@ export function registerSettingsNavIcon(label: () => string): () => void {
     const currentLabel = label().trim()
     const buttons = document.querySelectorAll<HTMLButtonElement>('[role="dialog"] nav button')
     for (const button of buttons) {
-      const matches = currentLabel.length > 0 && button.textContent?.trim() === currentLabel
+      const matches = currentLabel.length > 0 && button.textContent.trim() === currentLabel
       if (matches) button.setAttribute(SETTINGS_NAV_MARKER, '')
       else button.removeAttribute(SETTINGS_NAV_MARKER)
     }

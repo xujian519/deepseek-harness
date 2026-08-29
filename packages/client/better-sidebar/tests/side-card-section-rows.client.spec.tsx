@@ -42,6 +42,7 @@ function mount(node: ReactNode): { container: HTMLDivElement; rerender: (node: R
  *  focusout). The native setter bypasses React's value tracker so the
  *  change is actually seen. */
 function typeAndBlur(input: HTMLInputElement, value: string): void {
+  // oxlint-disable-next-line unbound-method -- the native value setter, invoked with the input via call() below
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
   act(() => {
     setter.call(input, value)

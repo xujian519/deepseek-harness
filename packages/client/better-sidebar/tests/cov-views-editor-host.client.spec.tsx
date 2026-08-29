@@ -21,9 +21,13 @@ import { resetChunks } from '../src/client/chunk-loader.ts'
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
+/** The viewer's prop text (payloads are strings; truncated flags are booleans). */
+const propText = (value: unknown): string =>
+  typeof value === 'string' ? value : typeof value === 'boolean' ? String(value) : ''
+
 /** A viewer component that prints its payload and (optionally) hoists a toolbar. */
 const Marker = (label: string): ((props: Record<string, unknown>) => ReactNode) =>
-  props => createElement('div', { 'data-testid': 'viewer' }, `${label}:${String(props.content ?? props.customData ?? '')}:${String(props.truncated ?? false)}`)
+  props => createElement('div', { 'data-testid': 'viewer' }, `${label}:${propText(props.content ?? props.customData)}:${propText(props.truncated ?? false)}`)
 
 function setup(): {
   store: ReturnType<typeof createSidebarStore>
@@ -489,15 +493,15 @@ describe('EditorHost path input edges', () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'typed but abandoned')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    expect((input as HTMLInputElement).value).toBe('typed but abandoned')
+    expect((input).value).toBe('typed but abandoned')
     act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
-    expect((input as HTMLInputElement).value).toBe('a.ts')
+    expect((input).value).toBe('a.ts')
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'typed again')
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
     })
-    expect((input as HTMLInputElement).value).toBe('a.ts')
+    expect((input).value).toBe('a.ts')
     s.mounted.unmount()
   })
 })

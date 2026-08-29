@@ -15,7 +15,7 @@ class ManualMutationObserver {
   callback: () => void
   disconnect = vi.fn()
   constructor(callback: MutationCallback) {
-    this.callback = () => callback([], this as unknown as MutationObserver)
+    this.callback = () =>{  callback([], this as unknown as MutationObserver) }
     ManualMutationObserver.instances.push(this)
   }
   observe(): void {}

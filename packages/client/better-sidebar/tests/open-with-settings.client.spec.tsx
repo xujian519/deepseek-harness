@@ -60,7 +60,9 @@ describe('OpenWithSettings', () => {
     harness = mountSettings(baseConfig)
     const input = harness.container.querySelector<HTMLInputElement>('input:not([type])')
     expect(input?.value).toBe('dev')
-    // The native value setter (React's value tracker must see the change).
+    // The native value setter (React's value tracker must see the change);
+    // invoked with the input via call() below.
+    // oxlint-disable-next-line unbound-method
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
     act(() => {
       setter.call(input, 'prod')

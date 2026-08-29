@@ -9,6 +9,7 @@
  * branches).
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { anyString } from './matchers.ts'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -78,7 +79,7 @@ function mount(opts: MountOptions = {}): Mounted {
     },
     sessions: { get: opts.sessions ?? (() => undefined) },
     tools: { register: () => () => {} },
-    effect: (fn: () => unknown | (() => void)) => {
+    effect: (fn: () => unknown) => {
       const cleanup = fn()
       if (typeof cleanup === 'function') cleanups.push(cleanup as () => void)
     },
@@ -121,9 +122,9 @@ async function invoke(route: SidebarWebRoute, method: string, payload: unknown, 
   const out: { status: number; body: string } = { status: 200, body: '' }
   const res = {
     writeHead: (status: number) => { out.status = status },
-    end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+    end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
   }
-  await route.handler(req as never, res as never)
+  await route.handler(req, res as never)
   return { ...JSON.parse(out.body) as Record<string, unknown>, status: out.status } as never
 }
 
@@ -133,7 +134,7 @@ async function invokeGet(route: SidebarWebRoute, url: string, method = 'GET', he
   const req = { method, url, headers }
   const res = {
     writeHead: (status: number, headersRecord?: Record<string, string>) => { out.status = status; out.headers = headersRecord ?? {} },
-    end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+    end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
   }
   await route.handler(req as never, res as never)
   return out
@@ -192,7 +193,7 @@ describe('session cwd and workspace API edges', () => {
     const missing = await invoke(api, 'fs.read', { sessionId: 'ws', path: join(workspace, 'nope.txt') })
     expect(missing).toMatchObject({ ok: false, status: 400, error: { code: 'fs-error' } })
     const directory = await invoke(api, 'fs.read', { sessionId: 'ws', path: workspace })
-    expect(directory).toMatchObject({ ok: false, status: 400, error: { message: expect.stringContaining('is a directory') } })
+    expect(directory).toMatchObject({ ok: false, status: 400, error: { message: anyString('is a directory') } })
     const locked = join(workspace, 'locked.txt')
     writeFileSync(locked, 'secret')
     chmodSync(locked, 0o000)
@@ -333,7 +334,7 @@ describe('session cwd and workspace API edges', () => {
     expect((await invokeGet(api, '/not-the-api/session.cwd', 'POST')).status).toBe(404)
     expect((await invokeGet(api, '/sidebar/api/a/b', 'POST')).status).toBe(404)
     const unknown = await invoke(api, 'no.such.method', {})
-    expect(unknown).toMatchObject({ ok: false, status: 404, error: { message: expect.stringContaining('unknown sidebar API method') } })
+    expect(unknown).toMatchObject({ ok: false, status: 404, error: { message: anyString('unknown sidebar API method') } })
   })
 })
 
@@ -489,9 +490,9 @@ describe('raw upload, media, and HTML routes', () => {
     const out = { status: 200, body: '' }
     const res = {
       writeHead: (status: number) => { out.status = status },
-      end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+      end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
     }
-    await route.handler(req as never, res as never)
+    await route.handler(req, res as never)
     return out
   }
 
@@ -582,9 +583,9 @@ describe('workspace symlink discipline on the raw routes', () => {
       const out = { status: 200, body: '' }
       const res = {
         writeHead: (status: number) => { out.status = status },
-        end: (chunk: unknown) => { out.body += String(chunk ?? '') },
+        end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
       }
-      await upload.handler(req as never, res as never)
+      await upload.handler(req, res as never)
       expect(out.status).toBe(403)
     } finally {
       mounted.cleanup()

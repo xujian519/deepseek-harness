@@ -62,7 +62,7 @@ export function sanitizeSvg(svg: string): string {
     return ''
   }
   if (doc.querySelector('parsererror') !== null) return ''
-  if (doc.documentElement === null || doc.documentElement.localName !== 'svg') return ''
+  if (doc.documentElement.localName !== 'svg') return ''
   doc.querySelectorAll('*').forEach((node) => {
     // XML element names preserve case; the string is later re-parsed as HTML
     // whose parser normalizes tag casing — so mixed-case spellings of the

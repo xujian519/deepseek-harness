@@ -214,7 +214,7 @@ describe('production path (script injection + global registry + externals requir
 
   it('resetChunks is a safe no-op without a module system', () => {
     resetChunks()
-    expect(() => resetChunks()).not.toThrow()
+    expect(() =>{  resetChunks() }).not.toThrow()
   })
 })
 
@@ -340,7 +340,7 @@ describe('revalidateChunksOnReactivate (HMR re-activation keeps unchanged chunks
     const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
     vi.stubGlobal('fetch', vi.fn(async (_input, init?: RequestInit) => {
       await new Promise<void>((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'AbortError')))
+        init?.signal?.addEventListener('abort', () =>{  reject(new DOMException('timed out', 'AbortError')) })
       })
     }))
     const revalidating = revalidateChunksOnReactivate()

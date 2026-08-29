@@ -82,7 +82,7 @@ function mountUpgrades(opts: MountOptions = {}): Mounted {
     },
     sessions: { get: () => ({ header: opts.headerlessCwd === true ? {} : { cwd: opts.workspace ?? process.cwd() } }) },
     tools: { register: (tool: unknown) => { tools.push(tool as ToolDefinition); return () => {} } },
-    effect: (fn: () => unknown | (() => void)) => {
+    effect: (fn: () => unknown) => {
       const cleanup = fn()
       if (typeof cleanup === 'function') cleanups.push(cleanup as () => void)
     },
@@ -101,7 +101,7 @@ function mountUpgrades(opts: MountOptions = {}): Mounted {
       socket.destroy()
       return
     }
-    route.handler(req as never, socket as never, head)
+    void route.handler(req as never, socket, head)
   })
   server.listen(0)
   return {
@@ -121,7 +121,7 @@ function mountUpgrades(opts: MountOptions = {}): Mounted {
 function wsOpen(url: string): Promise<WebSocket> {
   return new Promise((resolvePromise, reject) => {
     const ws = new WebSocket(url)
-    ws.once('open', () => resolvePromise(ws))
+    ws.once('open', () =>{  resolvePromise(ws) })
     ws.once('error', reject)
   })
 }
@@ -131,14 +131,14 @@ function wsOpen(url: string): Promise<WebSocket> {
 /** The first close event of the socket (code + reason). */
 function wsClosed(ws: WebSocket): Promise<{ code: number; reason: string }> {
   return new Promise((resolvePromise) => {
-    ws.once('close', (code: number, reason: Buffer) => resolvePromise({ code, reason: reason.toString('utf8') }))
+    ws.once('close', (code: number, reason: Buffer) =>{  resolvePromise({ code, reason: reason.toString('utf8') }) })
   })
 }
 
 /** The next text message from the socket. */
 function wsMessage(ws: WebSocket): Promise<string> {
   return new Promise((resolvePromise) => {
-    ws.once('message', (data: Buffer) => resolvePromise(data.toString('utf8')))
+    ws.once('message', (data: Buffer) =>{  resolvePromise(data.toString('utf8')) })
   })
 }
 
@@ -164,9 +164,9 @@ describe('upgrade trust fences', () => {
     try {
       for (const route of mounted.upgrades) {
         const destroyed: boolean[] = []
-        route.handler(
+        void route.handler(
           { url: `${route.path}?sessionId=s&tab=t`, headers: { host: 'evil.example' } } as never,
-          { destroy: () => { destroyed.push(true) } } as never,
+          { destroy: () => { destroyed.push(true) } },
           Buffer.alloc(0),
         )
         expect(destroyed, route.path).toEqual([true])
@@ -340,7 +340,7 @@ describe('agent terminal WebSocket', () => {
     // Only the close FRAME kills the agent pty.
     const killer = await wsOpen(`${mounted.base}/sidebar/ws/terminal?uuid=${uuid}`)
     killer.send(JSON.stringify({ type: 'close' }))
-    await until(async () => (await registryExited(uuid)) === true)
+    await until(async () =>  (await registryExited(uuid)))
     killer.close()
     await wsClosed(killer)
   }, 20_000)

@@ -6,7 +6,8 @@
  * pointerdown, unblock on dragend/drop/pointerup/pointercancel/blur, and the
  * non-Element pointer target guard).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { anyInstanceOf } from './matchers.ts'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
@@ -35,16 +36,19 @@ const unmount = (container: HTMLDivElement, root: Root): void => {
   container.remove()
 }
 
+let revokeObjectURL: Mock
+
 beforeEach(() => {
   let objectUrls = 0
+  revokeObjectURL = vi.fn()
   vi.stubGlobal('URL', Object.assign(Object.create(URL), {
     createObjectURL: vi.fn(() => `blob:pdf-${++objectUrls}`),
-    revokeObjectURL: vi.fn(),
+    revokeObjectURL,
   }))
   vi.stubGlobal('fetch', vi.fn((_url: unknown, init?: RequestInit) => new Promise((resolve, reject) => {
     init?.signal?.addEventListener('abort', () => { reject(new DOMException('aborted', 'AbortError')) })
     respond = ({ ok = true, status = 200, bytes = new ArrayBuffer(8) }) => {
-      resolve({ ok, status, arrayBuffer: async () => bytes } as unknown as Response)
+      resolve({ ok, status, arrayBuffer: async () => bytes })
     }
     rejectWith = reject
   })))
@@ -62,7 +66,7 @@ describe('PdfView load pipeline', () => {
   it('fetches the media route and renders the blob-backed frame when ready', async () => {
     const { container, root } = mount()
     expect(container.textContent).toContain('Download to view')
-    expect(fetch).toHaveBeenCalledWith(mediaUrl(SCOPE, '/ws/doc.pdf'), { signal: expect.any(AbortSignal) })
+    expect(fetch).toHaveBeenCalledWith(mediaUrl(SCOPE, '/ws/doc.pdf'), { signal: anyInstanceOf(AbortSignal) })
     await act(async () => { respond?.({}) })
     await act(async () => {})
     const frame = container.querySelector('iframe')!
@@ -70,7 +74,7 @@ describe('PdfView load pipeline', () => {
     expect(frame.title).toBe('doc.pdf')
     unmount(container, root)
     // Teardown revokes the object URL.
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:pdf-1')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:pdf-1')
   })
 
   it('a non-OK response renders the HTTP status as the error message', async () => {

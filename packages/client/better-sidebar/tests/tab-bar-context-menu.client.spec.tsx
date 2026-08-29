@@ -41,7 +41,7 @@ function mountBar(tabs: SidebarTab[], opts: { onPinTab?: (tabId: string, scope: 
 } {
   const container = document.createElement('div')
   document.body.append(container)
-  const onClose = vi.fn()
+  const onClose = vi.fn<(tabId: string) => void>()
   const onActivate = vi.fn()
   const onFloatTab = vi.fn()
   const onPinTab = opts.onPinTab
@@ -150,7 +150,7 @@ describe('TabBar right-click context menu', () => {
     try {
       act(() => { rightClick(tabEls[1]!) })
       act(() => { menuItems()[2]!.click() })
-      expect(onClose.mock.calls.map(call => call[0])).toEqual(['t1', 't3', 't4'])
+      expect(onClose.mock.calls.map((call: string[]) => call[0])).toEqual(['t1', 't3', 't4'])
       expect(onClose).not.toHaveBeenCalledWith('t2')
       expect(menuItems()).toHaveLength(0)
     } finally {
@@ -164,7 +164,7 @@ describe('TabBar right-click context menu', () => {
     try {
       act(() => { rightClick(tabEls[2]!) })
       act(() => { menuItems()[3]!.click() })
-      expect(onClose.mock.calls.map(call => call[0])).toEqual(['t1', 't2'])
+      expect(onClose.mock.calls.map((call: string[]) => call[0])).toEqual(['t1', 't2'])
       expect(menuItems()).toHaveLength(0)
     } finally {
       unmount()
@@ -177,7 +177,7 @@ describe('TabBar right-click context menu', () => {
     try {
       act(() => { rightClick(tabEls[1]!) })
       act(() => { menuItems()[4]!.click() })
-      expect(onClose.mock.calls.map(call => call[0])).toEqual(['t3', 't4'])
+      expect(onClose.mock.calls.map((call: string[]) => call[0])).toEqual(['t3', 't4'])
       expect(menuItems()).toHaveLength(0)
     } finally {
       unmount()

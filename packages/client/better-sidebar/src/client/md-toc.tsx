@@ -51,7 +51,7 @@ export function MdToc(): ReactNode {
     const scan = (): void => {
       const found: TocEntry[] = []
       for (const el of container.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')) {
-        const text = (el.textContent ?? '').trim()
+        const text = el.textContent.trim()
         if (text === '') continue
         found.push({ level: Number(el.tagName.charAt(1)), text, el })
       }

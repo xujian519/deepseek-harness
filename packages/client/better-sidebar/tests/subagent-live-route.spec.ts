@@ -51,15 +51,14 @@ function ctxWith(subagents: unknown, sessions: unknown): Context {
 
 describe('subagents.live route', () => {
   it('returns non-empty activity for running children only', async () => {
-    const subagents: SidebarSubagentsService = {
-      listDescendants: vi.fn(async () => [
-        child('running-a', { label: 'A' }),
-        child('running-b', { label: 'B' }),
-        child('inactive', { activity: 'inactive', label: 'C' }),
-        child('side-chat', { label: 'Side: chat' }),
-        diagnostic('corrupt-row'),
-      ]),
-    }
+    const listDescendants = vi.fn(async () => [
+      child('running-a', { label: 'A' }),
+      child('running-b', { label: 'B' }),
+      child('inactive', { activity: 'inactive', label: 'C' }),
+      child('side-chat', { label: 'Side: chat' }),
+      diagnostic('corrupt-row'),
+    ])
+    const subagents: SidebarSubagentsService = { listDescendants }
     const sessions = {
       get: (id: string) => {
         if (id === 'running-a') {
@@ -82,7 +81,7 @@ describe('subagents.live route', () => {
         'running-b': { tool: { name: 'bash', args: '{"command":"ls"}' } },
       },
     })
-    expect(subagents.listDescendants).toHaveBeenCalledWith('root')
+    expect(listDescendants).toHaveBeenCalledWith('root')
   })
 
   it('omits children with no text/tool yet', async () => {

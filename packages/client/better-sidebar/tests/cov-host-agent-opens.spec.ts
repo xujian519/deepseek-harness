@@ -115,7 +115,7 @@ describe('sidebar_open classifier edges', () => {
 describe('sidebar_open render projections', () => {
   it('renders the delivered and queued outcomes differently', () => {
     const tool = mountOpenTool(new AgentOpenRegistry())
-    const render = tool.output?.render
+    const render = tool.output?.render?.bind(tool.output)
     if (render === undefined) throw new Error('sidebar_open has no render')
     const delivered = render({}, { kind: 'file', target: '/tmp/a.ts', title: 'a.ts', delivered: true })
     expect(delivered).toEqual([{ type: 'text', text: 'Opened file "a.ts" (/tmp/a.ts) in the sidebar.' }])

@@ -145,14 +145,16 @@ describe('SubagentView live polling', () => {
     vi.useFakeTimers()
     const historySpy = vi.fn()
     const liveCalls: string[] = []
-    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
-      const method = String(url).split('/').pop()
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      const method = url.split('/').pop()
       if (method === 'subagents.live') {
-        const body = JSON.parse(String(init?.body)) as { rootSessionId?: string }
+        const raw = init?.body
+        if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+        const body = JSON.parse(raw) as { rootSessionId?: string }
         liveCalls.push(body.rootSessionId ?? '')
         return jsonResponse({ ok: true, value: { live: {} } })
       }
-      throw new Error(`unexpected fetch ${String(url)}`)
+      throw new Error(`unexpected fetch ${url}`)
     })
 
     const store = makeStore(runningSnapshot())
@@ -176,14 +178,16 @@ describe('SubagentView live polling', () => {
     const historySpy = vi.fn()
     const liveCalls: string[] = []
     let resolveFirst: ((response: Response) => void) | undefined
-    vi.stubGlobal('fetch', (url: string | URL | Request, init?: RequestInit) => {
-      const method = String(url).split('/').pop()
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      const method = url.split('/').pop()
       if (method === 'subagents.live') {
-        const body = JSON.parse(String(init?.body)) as { rootSessionId?: string }
+        const raw = init?.body
+        if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+        const body = JSON.parse(raw) as { rootSessionId?: string }
         liveCalls.push(body.rootSessionId ?? '')
         return new Promise<Response>((resolve) => { resolveFirst = resolve })
       }
-      throw new Error(`unexpected fetch ${String(url)}`)
+      throw new Error(`unexpected fetch ${url}`)
     })
 
     const store = makeStore(runningSnapshot())
@@ -214,14 +218,16 @@ describe('SubagentView live polling', () => {
     const historySpy = vi.fn()
     const liveCalls: string[] = []
     let resolveFirst: ((response: Response) => void) | undefined
-    vi.stubGlobal('fetch', (url: string | URL | Request, init?: RequestInit) => {
-      const method = String(url).split('/').pop()
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      const method = url.split('/').pop()
       if (method === 'subagents.live') {
-        const body = JSON.parse(String(init?.body)) as { rootSessionId?: string }
+        const raw = init?.body
+        if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+        const body = JSON.parse(raw) as { rootSessionId?: string }
         liveCalls.push(body.rootSessionId ?? '')
         return new Promise<Response>((resolve) => { resolveFirst = resolve })
       }
-      throw new Error(`unexpected fetch ${String(url)}`)
+      throw new Error(`unexpected fetch ${url}`)
     })
 
     const store = makeStore(runningSnapshot())
@@ -252,15 +258,17 @@ describe('SubagentView live polling', () => {
     vi.useFakeTimers()
     const historySpy = vi.fn()
     const liveCalls: string[] = []
-    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
-      const method = String(url).split('/').pop()
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      const method = url.split('/').pop()
       if (method === 'subagents.live') {
-        const body = JSON.parse(String(init?.body)) as { rootSessionId?: string }
+        const raw = init?.body
+        if (typeof raw !== 'string') throw new Error('expected a stringified JSON body')
+        const body = JSON.parse(raw) as { rootSessionId?: string }
         liveCalls.push(body.rootSessionId ?? '')
         const live = body.rootSessionId === 'root' ? { a: { text: 'hello' } } : {}
         return jsonResponse({ ok: true, value: { live } })
       }
-      throw new Error(`unexpected fetch ${String(url)}`)
+      throw new Error(`unexpected fetch ${url}`)
     })
 
     const store = makeStore(runningSnapshot())

@@ -22,7 +22,9 @@ vi.mock('../src/client/sidebar.module.css', () => ({
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-Element.prototype.scrollIntoView = vi.fn()
+/** The scrollIntoView stub every mount installs on the prototype. */
+const scrollIntoView = vi.fn()
+Element.prototype.scrollIntoView = scrollIntoView
 
 interface HeadingSpec {
   tag: string
@@ -55,7 +57,7 @@ async function unmount(root: Root): Promise<void> {
 
 beforeEach(() => {
   document.body.innerHTML = ''
-  vi.mocked(Element.prototype.scrollIntoView).mockClear()
+  scrollIntoView.mockClear()
 })
 
 describe('MdToc scan and popover edges', () => {
@@ -103,7 +105,7 @@ describe('MdToc scan and popover edges', () => {
     const item = [...container.querySelectorAll<HTMLButtonElement>('[data-dsh-md-toc-panel] button')]
       .find(candidate => candidate.textContent?.includes('A'))!
     await act(async () => { item.click() })
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
     expect(target.className, 'no flash class exists to add').toBe('')
     await unmount(root)
   })

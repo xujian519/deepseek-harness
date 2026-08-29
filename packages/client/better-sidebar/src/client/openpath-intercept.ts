@@ -61,6 +61,7 @@ export function wrapOpenPath(workspaces: OpenPathService, deps: OpenPathIntercep
   // The RAW method reference (never a bound copy): restore must put back the
   // exact original so a chain of wrappers (other plugins wrapping the same
   // method) keeps working across disposals in any order.
+  // oxlint-disable-next-line unbound-method -- identity anchor for restore; never invoked through this reference
   const original = workspaces.openPath
   workspaces.openPath = (path: string): Promise<void> => {
     if (deps.takeoverEnabled()) {

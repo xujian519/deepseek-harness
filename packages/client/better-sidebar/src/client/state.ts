@@ -425,7 +425,7 @@ export function moveTabToEdge(
     const source = leafWithTab(state[key], tabId)
     if (source === undefined) return state
     const tab = source.tabs.find(candidate => candidate.id === tabId) as SidebarTab
-    let emptied = false
+    let emptied = false as boolean
     let sourceNode = mapLeaf(state[key], source.id, (leaf) => {
       leaf.tabs = leaf.tabs.filter(candidate => candidate.id !== tabId)
       if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
@@ -452,7 +452,7 @@ export function moveTabToEdge(
   const source = leafWithTab(node, tabId)
   if (source === undefined) return state
   const tab = source.tabs.find(candidate => candidate.id === tabId) as SidebarTab
-  let emptied = false
+  let emptied = false as boolean
   let splits = mapLeaf(node, source.id, (leaf) => {
     leaf.tabs = leaf.tabs.filter(candidate => candidate.id !== tabId)
     if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
@@ -492,7 +492,7 @@ export function removeLeafAt(node: SplitNode, paneId: string): SplitNode {
 /** Close a tab; an emptied leaf is removed (unless it is the only pane). */
 export function closeTab(state: SidebarState, paneId: string, tabId: string): SidebarState {
   const key = treeOf(state, paneId)
-  let emptied = false
+  let emptied = false as boolean
   const splits = mapLeaf(state[key], paneId, (leaf) => {
     leaf.tabs = leaf.tabs.filter(tab => tab.id !== tabId)
     if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
@@ -523,7 +523,7 @@ export function patchTab(
   tabId: string,
   patch: { title?: string; path?: string; meta?: unknown },
 ): SidebarState {
-  let changed = false
+  let changed = false as boolean
   const apply = (tab: SidebarTab): SidebarTab => {
     changed = true
     return {
@@ -567,7 +567,7 @@ export function setTabPin(
   tabId: string,
   pin: { scope: 'workspace' | 'global'; homeCwd?: string | undefined } | null,
 ): SidebarState {
-  let changed = false
+  let changed = false as boolean
   const apply = (tab: SidebarTab): SidebarTab => {
     // Pin is terminal-only (design YAGNI): a defensive guard keeps the
     // invariant even if a caller accidentally targets a non-terminal tab.
@@ -668,7 +668,7 @@ export function moveTab(state: SidebarState, fromPane: string, tabId: string, to
   const toKey = treeOf(state, toPane)
   if (fromKey !== toKey) {
     let moved: SidebarTab | undefined
-    let emptied = false
+    let emptied = false as boolean
     const source = mapLeaf(state[fromKey], fromPane, (leaf) => {
       const found = leaf.tabs.find(tab => tab.id === tabId)
       if (found === undefined) return
@@ -691,7 +691,7 @@ export function moveTab(state: SidebarState, fromPane: string, tabId: string, to
     }
   }
   let moved: SidebarTab | undefined
-  let emptied = false
+  let emptied = false as boolean
   let splits = mapLeaf(state[fromKey], fromPane, (leaf) => {
     const found = leaf.tabs.find(tab => tab.id === tabId)
     if (found === undefined) return
@@ -891,7 +891,7 @@ export function floatTab(state: SidebarState, tabId: string, x: number, y: numbe
   }
   if (key === undefined || source === undefined) return state
   const tab = source.tabs.find(candidate => candidate.id === tabId) as SidebarTab
-  let emptied = false
+  let emptied = false as boolean
   let node = mapLeaf(state[key], source.id, (leaf) => {
     leaf.tabs = leaf.tabs.filter(candidate => candidate.id !== tabId)
     if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
@@ -1365,7 +1365,7 @@ function sanitizePersistedTab(tab: unknown): SidebarTab | 'diff' | undefined {
   // silently (the tab survives, just unpinned — the legacy behavior).
   // Pin is terminal-only: a non-terminal tab carrying a persisted pin
   // (e.g. from a hand-edited state) has it stripped here.
-  const pin = (candidate as Record<string, unknown>).pin
+  const pin = (candidate).pin
   if (pin !== null && typeof pin === 'object' && !Array.isArray(pin) && result.type === 'terminal') {
     const pinRecord = pin as Record<string, unknown>
     if (pinRecord.scope === 'workspace' || pinRecord.scope === 'global') {

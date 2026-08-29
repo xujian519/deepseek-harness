@@ -36,7 +36,7 @@ export function OpenWithSettings(props: {
     updatePluginSetting('openWith', next)
   }
 
-  const setSshHost = (sshHost: string): void => commit({ ...draft, sshHost })
+  const setSshHost = (sshHost: string): void =>{  commit({ ...draft, sshHost }) }
 
   const patchCustom = (id: string, patch: Partial<CustomEditor>): void => {
     commit({

@@ -198,7 +198,7 @@ describe('visual viewport inset', () => {
         vv.height = 200
         await act(async () => {
           for (const [type, fn] of listeners) if (type === 'resize') fn()
-          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+          await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() }))
         })
         expect(h.container.querySelector<HTMLElement>('[data-dsh-bottom-panel]')!.style.bottom).toBe('558px')
       } finally {
@@ -243,12 +243,12 @@ describe('title-bar scheme', () => {
 
 describe('session cwd fetch', () => {
   it('asks the host once when the summary has no cwd yet', async () => {
-    const fetchMock = vi.fn(async (_url: string | URL | Request) => new Response(JSON.stringify({ ok: true, value: { cwd: '/resolved', root: '/', parent: null } }), { headers: { 'content-type': 'application/json' } }))
+    const fetchMock = vi.fn(async (_url: string) => new Response(JSON.stringify({ ok: true, value: { cwd: '/resolved', root: '/', parent: null } }), { headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
     const h = mountShell({ cwd: undefined })
     try {
       await act(async () => { await new Promise<void>((resolve) => { setTimeout(resolve, 0) }) })
-      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/sidebar/api/session.cwd'))).toBe(true)
+      expect(fetchMock.mock.calls.some(([url]) => url.includes('/sidebar/api/session.cwd'))).toBe(true)
       // The resolved cwd reaches the tab scope (the explorer root seam).
       act(() => { h.service.openTab({ type: 'notes', title: 'N' }) })
       expect(h.container.querySelector('[data-probe="notes"]')!.textContent).toContain('|/resolved')
@@ -286,7 +286,7 @@ describe('narrow-viewport merge', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
       await act(async () => {
         window.dispatchEvent(new Event('resize'))
-        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() }))
       })
       const state = h.store.getSnapshot().state!
       expect(state.bottomOpen).toBe(false)
@@ -562,7 +562,7 @@ describe('subagent and job auto-openers', () => {
       h.pushList({ ...withChild, byId: { ...withChild.byId, c2: summary('c2') } })
       expect(pending).toHaveLength(1)
       // The settled recheck opens the page (panel + single subagent tab).
-      act(() => { pending.splice(0).forEach(fn => fn()) })
+      act(() => { pending.splice(0).forEach((fn) =>{  fn() }) })
       expect(h.store.getSnapshot().state!.panelOpen).toBe(true)
       expect(h.container.querySelector('[data-probe="subagent"]')).not.toBeNull()
     } finally {
@@ -584,7 +584,7 @@ describe('subagent and job auto-openers', () => {
       // the recheck sees no direct subagent and cancels the open.
       h.pushList({ ...base, byId: { ...base.byId, th: summary('th', { origin: 'subagent', parentId: base.current!, displayTitle: 'Side: chat' }) } })
       expect(pending).toHaveLength(1)
-      act(() => { pending.splice(0).forEach(fn => fn()) })
+      act(() => { pending.splice(0).forEach((fn) =>{  fn() }) })
       expect(h.container.querySelector('[data-probe="subagent"]')).toBeNull()
     } finally {
       h.unmount()
@@ -598,7 +598,7 @@ describe('subagent and job auto-openers', () => {
     try {
       const baseOff = off.list()
       off.pushList({ ...baseOff, byId: { ...baseOff.byId, c: summary('c', { origin: 'subagent', parentId: baseOff.current! }) } })
-      act(() => { pendingOff.splice(0).forEach(fn => fn()) })
+      act(() => { pendingOff.splice(0).forEach((fn) =>{  fn() }) })
       expect(off.container.querySelector('[data-probe="subagent"]')).toBeNull()
       off.unmount()
 
@@ -607,7 +607,7 @@ describe('subagent and job auto-openers', () => {
       try {
         const baseDis = disabled.list()
         disabled.pushList({ ...baseDis, byId: { ...baseDis.byId, c: summary('c', { origin: 'subagent', parentId: baseDis.current! }) } })
-        act(() => { pendingDis.splice(0).forEach(fn => fn()) })
+        act(() => { pendingDis.splice(0).forEach((fn) =>{  fn() }) })
         expect(disabled.container.querySelector('[data-probe="subagent"]')).toBeNull()
       } finally {
         disabled.unmount()

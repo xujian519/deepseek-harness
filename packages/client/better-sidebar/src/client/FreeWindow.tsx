@@ -56,16 +56,19 @@ function paneAt(x: number, y: number): HTMLElement | null {
  *  the optional calls keep them driving the drag; real browsers always have
  *  it and a missing pointerId can never occur there). */
 const capturePointer = (element: HTMLElement, pointerId: number): void => {
+  // oxlint-disable-next-line no-unnecessary-condition -- jsdom lacks the API
   element.setPointerCapture?.(pointerId)
 }
 
 const releasePointer = (element: HTMLElement, pointerId: number): void => {
+  // oxlint-disable-next-line no-unnecessary-condition -- jsdom lacks the API
   element.releasePointerCapture?.(pointerId)
 }
 
 /** Whether the element holds the pointer (assumed true without the API). */
 const holdsPointer = (element: HTMLElement, pointerId: number): boolean => {
-  return element.hasPointerCapture?.(pointerId) !== false
+  // oxlint-disable-next-line no-unnecessary-condition -- jsdom lacks the API
+  return element.hasPointerCapture?.(pointerId)
 }
 
 export function FreeWindow(props: {

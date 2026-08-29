@@ -12,7 +12,7 @@ import type { SidebarTab } from '../src/client/state.ts'
 
 function makeKey(overrides: Partial<TabContentMemoKey> = {}): TabContentMemoKey {
   return {
-    tab: { id: 'tab:1', type: 'git', title: 'Git' } as SidebarTab,
+    tab: { id: 'tab:1', type: 'git', title: 'Git' },
     paneId: 'pane:a',
     sessionId: 'session:1',
     cwd: '/workspace',

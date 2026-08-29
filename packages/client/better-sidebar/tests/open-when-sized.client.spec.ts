@@ -131,7 +131,7 @@ describe('openWhenSized', () => {
       calls += 1
       throw new Error('boom')
     }, raf, caf)
-    expect(() => tick()).toThrow('boom')
+    expect(() =>{  tick() }).toThrow('boom')
     expect(calls).toBe(1)
     cancel()
   })

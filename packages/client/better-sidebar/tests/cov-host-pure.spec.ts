@@ -8,6 +8,7 @@
  * degradation branches those specs do not reach.
  */
 import { describe, expect, it } from 'vitest'
+import { anyString } from './matchers.ts'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -79,7 +80,7 @@ describe('workspace write-path guard failures', () => {
       // which must surface as the fs-error branch instead of walking ancestors.
       await expect(ensureWorkspaceWritePath(cwd, join(cwd, 'bad\0name'))).rejects.toMatchObject({
         code: 'fs-error',
-        message: expect.stringContaining('cannot resolve target'),
+        message: anyString('cannot resolve target'),
       })
     } finally {
       rmSync(cwd, { recursive: true, force: true })
@@ -91,7 +92,7 @@ describe('explorer listing errors and bounds', () => {
   it('reports an unreadable level as fs-error (missing path)', async () => {
     await expect(listDirectory(join(tmpdir(), 'dsh-sidebar-no-such-dir-xyz'))).rejects.toMatchObject({
       code: 'fs-error',
-      message: expect.stringContaining('cannot list'),
+      message: anyString('cannot list'),
     })
   })
 
@@ -202,7 +203,7 @@ describe('live-activity parser malformed rows', () => {
   it('lastActivity skips array holes and non-string tool fields', () => {
     // A sparse leading hole exercises the undefined-event guard in the
     // backward scan (a torn log read).
-    const events: SidebarSessionEvent[] = new Array(3)
+    const events: SidebarSessionEvent[] = new Array<SidebarSessionEvent>(3)
     events[1] = { type: 'assistant/message', seq: 1, time: 1, data: { message: { content: [{ type: 'text', text: 'answer' }] } } }
     events[2] = { type: 'tool/call', seq: 2, time: 2, data: { callId: 'c1', name: 42, arguments: { raw: true } } }
     const activity = lastActivity(events)
@@ -224,7 +225,7 @@ describe('subagent live route degradation', () => {
     await expect(api.live({ rootSessionId: 'root' })).rejects.toMatchObject({
       code: 'subagents-unavailable',
       status: 503,
-      message: expect.stringContaining('subagent catalog read failed: catalog disk gone'),
+      message: anyString('subagent catalog read failed: catalog disk gone'),
     })
   })
 
@@ -267,7 +268,7 @@ describe('invariant companion', () => {
         register: (packageName: string, install: (ctx: unknown, fail: (message: string) => never) => void) => {
           registered.push({ name: packageName, install })
           // Activation runs the (empty) install body inside the service fiber.
-          install({} as never, () => { throw new Error('unused') })
+          install({}, () => { throw new Error('unused') })
           return () => { disposed += 1 }
         },
       },

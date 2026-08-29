@@ -65,6 +65,7 @@ describe('lazyChunkView edge paths', () => {
   })
 
   it('a non-Error rejection surfaces its string form', async () => {
+    // oxlint-disable-next-line prefer-promise-reject-errors -- a non-Error rejection string is the subject under test
     registerChunkForTests('terminal', () => Promise.reject('plain failure'))
     const Wrapper = lazyChunkComponent<Record<string, never>>('terminal', mod => mod.TerminalView as ComponentType<Record<string, never>> | undefined)
     const { container, unmount } = mount(createElement(Wrapper, {}))

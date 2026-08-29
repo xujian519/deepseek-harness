@@ -122,7 +122,7 @@ export function PluginListBody(props: { service: BetterSidebarService; kind: Plu
             type="button"
             className={css.pluginCopyBtn}
             aria-label={`${t('copyInstall')}: ${entry.name}`}
-            onClick={() => { copy(entry) }}
+            onClick={() => { void copy(entry) }}
           >
             {copiedId === entry.id ? t('copied') : t('copy')}
           </button>

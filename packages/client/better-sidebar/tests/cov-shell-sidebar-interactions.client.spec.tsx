@@ -135,7 +135,7 @@ function mountShell(opts: { cwd?: string | undefined; withConversation?: boolean
 }
 
 const flushFrame = async (): Promise<void> => {
-  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())) })
+  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() })) })
 }
 
 function tabEls(h: Harness): HTMLElement[] {
@@ -174,7 +174,7 @@ beforeEach(() => {
   proto.hasPointerCapture = () => true
   // Debounced persists must never fire mid-test: a late global-width write
   // would leak one mount's committed width into the next mount's seed.
-  vi.stubGlobal('setTimeout', (() => 0) as unknown as typeof setTimeout)
+  vi.stubGlobal('setTimeout', (() => 0))
   vi.stubGlobal('clearTimeout', () => {})
 })
 
@@ -313,14 +313,14 @@ describe('pinned virtual tabs', () => {
       // The descriptor component sees the ORIGINAL tab id and the HOME scope,
       // and the virtual tab's cell is the VISIBLE one in its pane.
       const virtualCell = [...h.container.querySelectorAll('[data-probe="terminal"]')]
-        .find(el => el.textContent!.includes('term-home@home-1:/tmp'))!
+        .find(el => el.textContent.includes('term-home@home-1:/tmp'))!
         .closest('[class*="paneTab"]') as HTMLElement
       expect(virtualCell.className).not.toContain('paneTabHidden')
       // A regular click clears the pinned activation again.
       const seeded = (h.store.getSnapshot().state!.splits as { tabs: SidebarTab[] }).tabs[0]!
       act(() => { tabByTitle(h, seeded.title).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
       const deactivatedCell = [...h.container.querySelectorAll('[data-probe="terminal"]')]
-        .find(el => el.textContent!.includes('term-home@home-1:/tmp'))!
+        .find(el => el.textContent.includes('term-home@home-1:/tmp'))!
         .closest('[class*="paneTab"]') as HTMLElement
       expect(deactivatedCell.className).toContain('paneTabHidden')
     } finally {

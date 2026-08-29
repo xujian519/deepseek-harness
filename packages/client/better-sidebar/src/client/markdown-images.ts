@@ -110,7 +110,7 @@ export function rewriteLocalImageUrls(
     .replace(/```[\s\S]*?```/g, (block) => { masks.push(block); return `\u0000${masks.length - 1}\u0000` })
     .replace(/`[^`\n]*`/g, (span) => { masks.push(span); return `\u0000${masks.length - 1}\u0000` })
 
-  const inline = masked.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_match, alt, dest) => {
+  const inline = masked.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_match: string, alt: string, dest: string) => {
     return `![${alt}](${resolve(dest)})`
   })
 

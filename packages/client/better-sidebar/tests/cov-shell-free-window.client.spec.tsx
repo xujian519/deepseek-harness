@@ -33,7 +33,7 @@ function pointer(type: string, x: number, y: number, button = 0): Event {
 }
 
 const flushFrame = async (): Promise<void> => {
-  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())) })
+  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() })) })
 }
 
 interface Harness {
@@ -100,7 +100,7 @@ function pane(id: string, left: number, top: number, size = 100): HTMLElement {
   el.setAttribute('data-dsh-pane', id)
   el.getBoundingClientRect = () => ({
     x: left, y: top, left, top, right: left + size, bottom: top + size, width: size, height: size, toJSON: () => ({}),
-  } as DOMRect)
+  })
   return el
 }
 

@@ -42,7 +42,7 @@ describe('createFrameBatcher', () => {
     // Caller pattern: compose into a ref, schedule a reader of that ref.
     for (const value of [1, 2, 3, 4]) {
       pending = value
-      batcher.schedule(() => apply(pending))
+      batcher.schedule(() =>{  apply(pending) })
     }
     expect(calls).toEqual([])
     stepFrame()
@@ -51,7 +51,7 @@ describe('createFrameBatcher', () => {
 
     // The next burst starts a fresh frame.
     pending = 7
-    batcher.schedule(() => apply(pending))
+    batcher.schedule(() =>{  apply(pending) })
     stepFrame()
     expect(calls).toEqual([4, 7])
   })

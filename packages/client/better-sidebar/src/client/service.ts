@@ -106,7 +106,7 @@ export interface SidebarSettingsRenderProps {
   /** This descriptor's own persisted settings blob (from `pluginSettings[id]`). */
   pluginSettings: Record<string, unknown>
   /** Persist one plugin-owned setting of this descriptor. */
-  updatePluginSetting(key: string, value: unknown): void
+  updatePluginSetting: (key: string, value: unknown) => void
   /** Close the settings popup. */
   close(): void
 }
@@ -458,7 +458,7 @@ export function matchUrlTarget(tabs: readonly TabDescriptor[], url: URL): TabDes
     if (tab.urlTarget === undefined) continue
     let claimed = false
     try {
-      claimed = tab.urlTarget(url) === true
+      claimed =  tab.urlTarget(url)
     } catch (error) {
       console.error('[dsh-better-sidebar] urlTarget error:', error)
       continue

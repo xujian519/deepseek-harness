@@ -59,6 +59,9 @@ function parentOf(path: string): string {
  *  split zones) must pass through untouched to the pane's tab-drop handling
  *  (mirror of Sidebar.tsx's panel-host shield gate). */
 function isFileDrag(event: DragEvent): boolean {
+  // jsdom lets the tests dispatch drag events with no dataTransfer; the
+  // optional read keeps them out of the upload surface.
+  // oxlint-disable-next-line no-unnecessary-condition
   return event.dataTransfer?.types.includes('Files') ?? false
 }
 

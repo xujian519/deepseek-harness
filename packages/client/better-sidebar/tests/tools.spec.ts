@@ -225,7 +225,8 @@ describe('boundBytes', () => {
 describe('agent terminal tool renders and execution guards', () => {
   /** The render blocks for one tool's canonical value. */
   const renderOf = (name: string, value: unknown): Array<{ type: string; text: string }> => {
-    const render = toolOf(mount().captured, name).output?.render
+    const owner = toolOf(mount().captured, name)
+    const render = owner.output?.render?.bind(owner.output)
     if (render === undefined) throw new Error(`tool "${name}" has no render`)
     return render({}, value as never) as Array<{ type: string; text: string }>
   }

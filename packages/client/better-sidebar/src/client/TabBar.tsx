@@ -302,11 +302,11 @@ export function TabBar(props: {
             const isTerminal = targetTab?.type === 'terminal'
             const isPinnedVirtual = targetTab !== undefined && isPinnedVirtualTab(targetTab)
             const pinEntries = isTerminal && onPinTab !== undefined
-              ? (targetTab as SidebarTab).pin !== undefined
+              ? (targetTab).pin !== undefined
                 ? [{ id: 'unpin', label: t('unpinTerminal') }]
                 : [{
                   id: 'pin',
-                  label: isAgentTabId((targetTab as SidebarTab).id) ? t('pinAgentTerminal') : t('pinTerminal'),
+                  label: isAgentTabId((targetTab).id) ? t('pinAgentTerminal') : t('pinTerminal'),
                   submenu: [
                     { id: 'pinWorkspace', label: t('pinToWorkspace') },
                     { id: 'pinGlobal', label: t('pinToGlobal') },

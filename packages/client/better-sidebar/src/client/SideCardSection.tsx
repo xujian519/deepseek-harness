@@ -95,6 +95,11 @@ function messageOf(error: unknown): string {
 }
 
 /** Resolve an i18n-friendly string-or-function value. */
+/** The stored scalar as display text (preference values are string/number/boolean; anything else reads as empty). */
+function scalarText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : ''
+}
+
 function textOf(value: string | (() => string) | undefined): string {
   if (value === undefined) return ''
   return typeof value === 'function' ? value() : value
@@ -268,7 +273,7 @@ export function FeatureSettingsRows(props: {
             </div>
           )
         }
-        const value = String(read(toggle.key) ?? '')
+        const value = scalarText(read(toggle.key))
         // Keyed by the committed value: a failed commit reverts prefs, the
         // key changes, and the row remounts with the stored value (typing
         // never changes the key, so mid-edit drafts survive re-renders).
@@ -401,7 +406,7 @@ function SelectMenu(props: {
       setOpen(false)
       return
     }
-    const current = Array.isArray(value) ? [...value] : []
+    const current = Array.isArray(value) ? [...(value as unknown[])] : []
     const at = current.indexOf(option.value)
     if (at >= 0) current.splice(at, 1)
     else current.push(option.value)
@@ -652,7 +657,7 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
     inFlightRef.current = run.then(() => undefined, () => undefined)
     return run.then(
       next => ({ ok: true, prefs: next }),
-      (caught) => {
+      (caught: unknown) => {
         setError(messageOf(caught))
         return { ok: false, prefs }
       },
@@ -669,11 +674,11 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
   /** Optimistically apply one pref patch, then commit (revert on failure). */
   const applyPref = (patch: Record<string, unknown>): void => {
     const previous = optimisticRef.current
-    const next = { ...previous, ...patch } as SidebarPrefs
+    const next = { ...previous, ...patch }
     optimisticRef.current = next
     setPrefs(next)
     setError(null)
-    void commit(patch).then(outcome => applyOutcome(previous, outcome))
+    void commit(patch).then((outcome) =>{  applyOutcome(previous, outcome) })
   }
 
   const onToggle = (next: boolean): void => {
@@ -711,7 +716,7 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
   const onCommitSetting = (toggle: SidebarSettingToggle, raw: string): string => {
     if (toggle.type === 'number') {
       const parsed = Number(raw)
-      const fallback = String((prefs as unknown as Record<string, unknown>)[toggle.key] ?? '')
+      const fallback = scalarText(prefs[toggle.key as keyof SidebarPrefs])
       if (!Number.isFinite(parsed)) return fallback
       let clamped = Math.round(parsed)
       if (toggle.min !== undefined) clamped = Math.max(toggle.min, clamped)
@@ -769,8 +774,8 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
   const onPluginCommitSetting = (descriptorId: string, toggle: SidebarSettingToggle, raw: string): string => {
     if (toggle.type === 'number') {
       const parsed = Number(raw)
-      const blob = prefs.pluginSettings[descriptorId] ?? {}
-      const fallback = String(blob[toggle.key] ?? '')
+      const blob: Record<string, unknown> = prefs.pluginSettings[descriptorId] ?? {}
+      const fallback = scalarText(blob[toggle.key])
       if (!Number.isFinite(parsed)) return fallback
       let clamped = Math.round(parsed)
       if (toggle.min !== undefined) clamped = Math.max(toggle.min, clamped)
@@ -793,7 +798,7 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
     setPrefs({ ...previous, defaultWidthPercent: clamped })
     setWidthDraft(String(clamped))
     setError(null)
-    void commit({ defaultWidthPercent: clamped }).then(outcome => applyOutcome(previous, outcome))
+    void commit({ defaultWidthPercent: clamped }).then((outcome) =>{  applyOutcome(previous, outcome) })
   }
 
   /**

@@ -43,7 +43,7 @@ function withRect(el: HTMLElement, rect: Partial<DOMRect>): void {
   el.getBoundingClientRect = () => ({
     x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}),
     ...rect,
-  } as DOMRect)
+  })
 }
 
 /** DragEvent-like helper (jsdom has no DragEvent). */
@@ -65,7 +65,7 @@ function pointer(type: string, x: number, y: number, button = 0): Event {
 
 /** The flushFrame idiom from the free-window spec. */
 const flushFrame = async (): Promise<void> => {
-  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())) })
+  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() =>{  resolve() })) })
 }
 
 describe('Workbench presentation', () => {

@@ -18,7 +18,7 @@ import { allLeaves, createSidebarStore, type SidebarTab } from '../src/client/st
 // The act() environment flag (React 18.2 reads it before flushing effects).
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-const fsRead = vi.fn()
+const fsRead = vi.fn<(...args: unknown[]) => Promise<unknown>>()
 vi.mock('../src/client/api.ts', () => ({
   api: { fsRead: (...args: unknown[]) => fsRead(...args) },
   mediaUrl: () => '',

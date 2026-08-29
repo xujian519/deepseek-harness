@@ -127,8 +127,8 @@ function sessionIdOf(exec: ToolRunContext): string {
 }
 
 /** Pure text projection helper (the canonical value is already structured). */
-function textRender<T>(fn: (value: T) => string): (_args: unknown, value: unknown) => ContentBlock[] {
-  return (_args, value) => [{ type: 'text', text: fn(value as T) }]
+function textRender(fn: (value: never) => string): (_args: unknown, value: unknown) => ContentBlock[] {
+  return (_args, value) => [{ type: 'text', text: fn(value as never) }]
 }
 
 /** Classify a raw target: http(s) URL or a local path (stat-driven). */
