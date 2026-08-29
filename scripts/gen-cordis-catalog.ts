@@ -131,6 +131,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   workspaceRegistry: 'workspace.md',
   workspaceController: 'workspace.md',
   directoryPickerController: 'workspace.md',
+  betterSidebar: 'web-client.md',
 }
 
 /**
@@ -777,6 +778,11 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   PatentKgSearchOptions: 'service-local knowledge-graph search options are owned by packages/patent/patent-knowledge/src/patent/patent-kg-adapter.ts',
   RelevantHit: 'service-local knowledge-graph search result is owned by packages/patent/patent-knowledge/src/patent/patent-kg-adapter.ts',
   PatentTeamsStatus: 'team snapshot payload is owned by packages/patent/patent-teams/src/service.ts',
+  TabDescriptor: 'sidebar tab type contract is owned by packages/client/better-sidebar/src/client/service.ts',
+  FileViewerDescriptor: 'sidebar file-viewer contract is owned by packages/client/better-sidebar/src/client/service.ts',
+  OpenTabSeed: 'sidebar open-tab seed contract is owned by packages/client/better-sidebar/src/client/service.ts',
+  SessionScope: 'sidebar session-scope pointer is owned by packages/client/better-sidebar/src/client/api.ts',
+  SidebarSnapshot: 'sidebar snapshot payload is owned by packages/client/better-sidebar/src/client/state.ts',
 }
 
 /** Repository data policy consumed by the Cordis catalog projector. */

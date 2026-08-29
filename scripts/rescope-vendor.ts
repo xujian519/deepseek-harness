@@ -138,6 +138,12 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'packages/extensions/ui-cordis/src/client/CordisPanel.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/CordisRunRow.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/locales.ts', upstream: ['cordis'] },
+  // The inspector runtime-tree topics (`cordis/tree`, `cordis-tree/get`) are
+  // wire ids, not package references; the package imports are already scoped.
+  { file: 'packages/experimental/inspector/src/shared/bridge/messages/cordis.ts', upstream: ['cordis'] },
+  { file: 'packages/experimental/inspector/tests/cordis-query.host.spec.ts', upstream: ['cordis'] },
+  { file: 'packages/experimental/inspector/tests/cordis-tree.host.spec.ts', upstream: ['cordis'] },
+  { file: 'packages/experimental/inspector/tests/plugin.client.spec.ts', upstream: ['cordis'] },
 ]
 
 /** A string that must appear exactly `count` times once the rescope has run. */
@@ -261,15 +267,15 @@ const EXACT_EDITS: readonly ExactEdit[] = [
     // A plain fence listing the bundle's mounted tree: a bare token, no quotes.
     id: 'agent-spine-demo-mounted-tree',
     file: 'packages/examples/agent-spine-demo/README.md',
-    find: '@cordisjs/plugin-timer            timer service',
-    replace: '@deepseek-ai/cordis-plugin-timer  timer service',
+    find: '@cordisjs/plugin-timer                timer service',
+    replace: '@deepseek-ai/cordis-plugin-timer      timer service',
     expect: 1,
   },
   {
     id: 'agent-spine-demo-mounted-tree-zh',
     file: 'packages/examples/agent-spine-demo/README.zh.md',
-    find: '@cordisjs/plugin-timer            timer service',
-    replace: '@deepseek-ai/cordis-plugin-timer  timer service',
+    find: '@cordisjs/plugin-timer                timer service',
+    replace: '@deepseek-ai/cordis-plugin-timer      timer service',
     expect: 1,
   },
   {
@@ -313,14 +319,14 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
     id: 'vendoring-cookbook-tree-comment',
     file: 'docs/cookbook/adding-a-vendored-package.md',
     find: '  package.json     # from upstream; set "private": true, keep name/exports/type',
-    replace: '  package.json     # from upstream; set "private": true, rescope the name, keep exports/type',
+    replace: '  package.json     # from upstream; rescope the name, keep exports/type (publishable release member, no private flag)',
     expect: 1,
   },
   {
     id: 'vendoring-cookbook-tree-comment-zh',
     file: 'docs/cookbook/adding-a-vendored-package.zh.md',
     find: '  package.json     # from upstream; set "private": true, keep name/exports/type',
-    replace: '  package.json     # from upstream; set "private": true, rescope the name, keep exports/type',
+    replace: '  package.json     # from upstream; rescope the name, keep exports/type (publishable release member, no private flag)',
     expect: 1,
   },
   {
@@ -328,14 +334,14 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
     id: 'vendoring-cookbook-name-invariant',
     file: 'docs/cookbook/adding-a-vendored-package.md',
     find: "keep upstream's `name`/`version`/`exports`/`type`",
-    replace: "rescope the `name` ([mapping](../rescope.md)) while keeping upstream's `version`/`exports`/`type`",
+    replace: "rescope the `name` ([mapping](../rescope.md)) while keeping upstream's `exports`/`type`",
     expect: 1,
   },
   {
     id: 'vendoring-cookbook-name-invariant-zh',
     file: 'docs/cookbook/adding-a-vendored-package.zh.md',
     find: '保留上游的 `name`/`version`/`exports`/`type`',
-    replace: '改写 `name` 的 scope（[映射](../rescope.zh.md)），保留上游的 `version`/`exports`/`type`',
+    replace: '改写 `name` 的 scope（[映射](../rescope.zh.md)），保留上游的 `exports`/`type`',
     expect: 1,
   },
   {
@@ -377,7 +383,7 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
     if (npmName === undefined || upstream === undefined) continue
     rows.push({ npmName, upstream })`,
     replace: `    const match = new RegExp(String.raw\`^\\| \\x60\\S+\\/\\x60 \\| \\x60([^\\x60]+)\\x60 \\| \\x60([^\\x60]+)\\x60 \\| \\S+ \\| \`
-      + String.raw\`(https:\\/\\/\\S+?)(?: \\([^)]*\\))? \\| \\x60[0-9a-f]+\\x60 \\|$\`).exec(line)
+      + String.raw\`(https:\\/\\/\\S+?)(?: \\([^)]*\\))? \\| \\x60(?:[0-9a-f]+|pending)\\x60 \\|$\`).exec(line)
     if (match === null) continue
     const [, npmName, upstreamName, upstream] = match
     if (npmName === undefined || upstreamName === undefined || upstream === undefined) continue

@@ -78,7 +78,7 @@ When `provider`/ `model` are unset the LLM-consuming tools register but fail lou
 
 #### What the model sees
 
-23 registered tool definitions (see the table above), each with a description, parameter schema, and an `output.render` that renders the canonical result as Markdown prose. Exact descriptions and parameters are in the generated [`patent-tools` schema](../../../docs/tool-catalog.md#deepseek-aidsh-patent-tools).
+25 registered tool definitions (see the table above), each with a description, parameter schema, and an `output.render` that renders the canonical result as Markdown prose. Exact descriptions and parameters are in the generated [`patent-tools` schema](../../../docs/tool-catalog.md#deepseek-aidsh-patent-tools).
 
 #### Token effect
 

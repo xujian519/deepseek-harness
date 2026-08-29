@@ -8,7 +8,7 @@
  * @module @deepseek-ai/dsh-browser-backend/browser-use-extractor
  */
 
-import { spawn } from 'node:child_process'
+import { lastMarkerValue, runScriptCommand } from './run-script.ts'
 
 /** Marker line prefix emitted by the extraction script. */
 export const BU_EXTRACT_MARKER = 'BU_EXTRACT:'
@@ -79,58 +79,7 @@ export function buildBrowserUseExtractScript(url: string, jsExpr: string): strin
 
 /** Default script runner: spawn the CLI, write the script to stdin, collect capped output. */
 function defaultRun(commandName: string): ScriptRun {
-  return (script, options) =>
-    new Promise((resolve) => {
-      const controller = new AbortController()
-      let timedOut = false
-      const timer = setTimeout(() => {
-        timedOut = true
-        controller.abort()
-      }, options.timeoutMs)
-      timer.unref()
-      const onCallerAbort = (): void => { controller.abort() }
-      options.signal?.addEventListener('abort', onCallerAbort, { once: true })
-      if (options.signal?.aborted === true) controller.abort()
-      const child = spawn(commandName, [], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        signal: controller.signal,
-      })
-      let stdout = ''
-      let stderr = ''
-      child.stdout.on('data', (chunk: Buffer) => {
-        if (stdout.length < options.maxOutputBytes) {
-          stdout += chunk.toString('utf8').slice(0, options.maxOutputBytes - stdout.length)
-        }
-      })
-      child.stderr.on('data', (chunk: Buffer) => {
-        if (stderr.length < options.maxOutputBytes) {
-          stderr += chunk.toString('utf8').slice(0, options.maxOutputBytes - stderr.length)
-        }
-      })
-      child.on('error', (error: Error) => {
-        clearTimeout(timer)
-        options.signal?.removeEventListener('abort', onCallerAbort)
-        resolve({ exitCode: null, stdout, stderr: stderr || error.message, timedOut })
-      })
-      child.on('close', (code) => {
-        clearTimeout(timer)
-        options.signal?.removeEventListener('abort', onCallerAbort)
-        resolve({ exitCode: code, stdout, stderr, timedOut })
-      })
-      // stdin write after the child exited would throw EPIPE; the close result already carries the failure.
-      child.stdin.on('error', () => {})
-      child.stdin.write(script + '\n')
-      child.stdin.end()
-    })
-}
-
-/** Last marker value in the stdout; absent marker → undefined. */
-function markerValue(stdout: string): string | null | undefined {
-  let value: string | null | undefined
-  for (const line of stdout.split('\n')) {
-    if (line.startsWith(BU_EXTRACT_MARKER)) value = line.slice(BU_EXTRACT_MARKER.length)
-  }
-  return value
+  return (script, options) => runScriptCommand(commandName, [], script, options)
 }
 
 /**
@@ -161,7 +110,7 @@ export class BrowserUseExtractor implements PageExtractor {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       maxOutputBytes: options.maxOutputBytes ?? 1_000_000,
     })
-    const value = markerValue(result.stdout)
+    const value = lastMarkerValue(result.stdout, BU_EXTRACT_MARKER)
     if (value !== undefined) return { ok: true, value: value === '' ? null : value }
     if (result.timedOut) return { ok: false, error: 'browser-use timed out', timedOut: true }
     const detail = result.stderr.trim()

@@ -70,6 +70,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-message-feedback/`](ui-message-feedback/README.md) | Contributes per-message feedback controls to the assistant-message action strip | — |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.md) | In-app directory browsing surface for the workspace directory flow | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.md) | Native directory-picker surface driving the host's OS chooser | — |
+| [`better-sidebar/`](better-sidebar/README.md) | Presents the per-session workspace right sidebar: explorer, editor, terminal, git, side chat, subagent, and browser tabs | `ctx.betterSidebar` (client) |
 
 -----
 

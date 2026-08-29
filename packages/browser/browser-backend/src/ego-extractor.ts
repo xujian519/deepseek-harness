@@ -7,9 +7,9 @@
  * @module @deepseek-ai/dsh-browser-backend/ego-extractor
  */
 
-import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { lastMarkerValue, pathDelimiter, runScriptCommand } from './run-script.ts'
 import type { ExtractOptions, ExtractResult, PageExtractor, ScriptRun } from './browser-use-extractor.ts'
 
 /** Marker line prefix emitted by the extraction cliLog. */
@@ -49,73 +49,24 @@ export function buildEgoExtractScript(url: string, jsExpr: string, timeoutMs: nu
   ].join('\n')
 }
 
-/** PATH delimiter per platform (Windows ';', elsewhere ':'). */
-function pathDelimiter(platform: NodeJS.Platform): string {
-  return platform === 'win32' ? ';' : ':'
+/** Child environment with `<homeDir>/.local/bin` prepended to PATH when absent. */
+function commandEnv(homeDir: string, platform: NodeJS.Platform): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  const basePath = env.PATH ?? ''
+  const segments = basePath.length > 0 ? basePath.split(pathDelimiter(platform)) : []
+  const localBin = join(homeDir, '.local', 'bin')
+  if (!segments.includes(localBin)) {
+    env.PATH = [...segments, localBin].join(pathDelimiter(platform))
+  }
+  return env
 }
 
 /** Default script runner: spawn the CLI, inject ~/.local/bin into PATH, write the script to stdin. */
 function defaultRun(commandName: string, homeDir: string): ScriptRun {
-  return (script, options) =>
-    new Promise((resolve) => {
-      const env = { ...process.env }
-      const basePath = env.PATH ?? ''
-      const segments = basePath.length > 0 ? basePath.split(pathDelimiter(process.platform)) : []
-      const localBin = join(homeDir, '.local', 'bin')
-      if (!segments.includes(localBin)) {
-        env.PATH = [...segments, localBin].join(pathDelimiter(process.platform))
-      }
-      const controller = new AbortController()
-      let timedOut = false
-      const timer = setTimeout(() => {
-        timedOut = true
-        controller.abort()
-      }, options.timeoutMs)
-      timer.unref()
-      const onCallerAbort = (): void => { controller.abort() }
-      options.signal?.addEventListener('abort', onCallerAbort, { once: true })
-      if (options.signal?.aborted === true) controller.abort()
-      const child = spawn(commandName, ['nodejs'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        signal: controller.signal,
-        env,
-      })
-      let stdout = ''
-      let stderr = ''
-      child.stdout.on('data', (chunk: Buffer) => {
-        if (stdout.length < options.maxOutputBytes) {
-          stdout += chunk.toString('utf8').slice(0, options.maxOutputBytes - stdout.length)
-        }
-      })
-      child.stderr.on('data', (chunk: Buffer) => {
-        if (stderr.length < options.maxOutputBytes) {
-          stderr += chunk.toString('utf8').slice(0, options.maxOutputBytes - stderr.length)
-        }
-      })
-      child.on('error', (error: Error) => {
-        clearTimeout(timer)
-        options.signal?.removeEventListener('abort', onCallerAbort)
-        resolve({ exitCode: null, stdout, stderr: stderr || error.message, timedOut })
-      })
-      child.on('close', (code) => {
-        clearTimeout(timer)
-        options.signal?.removeEventListener('abort', onCallerAbort)
-        resolve({ exitCode: code, stdout, stderr, timedOut })
-      })
-      // stdin write after the child exited would throw EPIPE; the close result already carries the failure.
-      child.stdin.on('error', () => {})
-      child.stdin.write(script + '\n')
-      child.stdin.end()
-    })
-}
-
-/** Last marker value in the stdout; absent marker → undefined. */
-function markerValue(stdout: string): string | null | undefined {
-  let value: string | null | undefined
-  for (const line of stdout.split('\n')) {
-    if (line.startsWith(EGO_EXTRACT_MARKER)) value = line.slice(EGO_EXTRACT_MARKER.length)
-  }
-  return value
+  return (script, options) => runScriptCommand(commandName, ['nodejs'], script, {
+    ...options,
+    env: commandEnv(homeDir, process.platform),
+  })
 }
 
 /**
@@ -147,7 +98,7 @@ export class EgoExtractor implements PageExtractor {
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       maxOutputBytes: options.maxOutputBytes ?? 1_000_000,
     })
-    const value = markerValue(result.stdout)
+    const value = lastMarkerValue(result.stdout, EGO_EXTRACT_MARKER)
     if (value !== undefined) return { ok: true, value: value === '' ? null : value }
     if (result.timedOut) return { ok: false, error: 'ego-browser timed out', timedOut: true }
     const detail = result.stderr.trim()

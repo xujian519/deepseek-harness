@@ -86,6 +86,7 @@ const REQUIRED_BACKEND_PATHS = [
   'node_modules/@deepseek-ai/dsh-llm-deepseek/package.json',
   'node_modules/@deepseek-ai/dsh-openviking/package.json',
   'node_modules/@deepseek-ai/dsh-desktop-directory-picker/package.json',
+  'node_modules/@deepseek-ai/dsh-better-sidebar/package.json',
   'node_modules/@deepseek-ai/dsh-client-ui-directory-picker-native/package.json',
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
   'node_modules/js-yaml/package.json',

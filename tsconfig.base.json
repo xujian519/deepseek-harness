@@ -280,6 +280,8 @@
       "@deepseek-ai/dsh-bash-local/invariant": ["./packages/shell/bash-local/src/invariant.ts"],
       "@deepseek-ai/dsh-bash-sandbox": ["./packages/shell/bash-sandbox/src"],
       "@deepseek-ai/dsh-bash-sandbox/invariant": ["./packages/shell/bash-sandbox/src/invariant.ts"],
+      "@deepseek-ai/dsh-better-sidebar": ["./packages/client/better-sidebar/src"],
+      "@deepseek-ai/dsh-better-sidebar/invariant": ["./packages/client/better-sidebar/src/invariant.ts"],
       "@deepseek-ai/dsh-brand": ["./packages/util/brand/src"],
       "@deepseek-ai/dsh-brand/invariant": ["./packages/util/brand/src/invariant.ts"],
       "@deepseek-ai/dsh-browser-backend": ["./packages/browser/browser-backend/src"],

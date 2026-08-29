@@ -70,6 +70,7 @@ kind: "package-group"
 | [`ui-message-feedback/`](ui-message-feedback/README.zh.md) | 向助手消息操作条贡献逐消息反馈控件 | — |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.zh.md) | 面向工作区目录流程的应用内目录浏览界面 | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.zh.md) | 驱动宿主 OS 选择器的原生目录选择界面 | — |
+| [`better-sidebar/`](better-sidebar/README.zh.md) | 呈现按会话隔离的工作区右侧边栏：explorer、editor、terminal、git、side chat、subagent 与 browser 标签页 | `ctx.betterSidebar`（客户端） |
 
 -----
 

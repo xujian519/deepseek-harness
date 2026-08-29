@@ -135,6 +135,45 @@ function checkBuild(
   }
 }
 
+/**
+ * Strip line and block comments the way TypeScript reads tsconfig files
+ * (JSONC): comment openers inside string literals are left alone.
+ */
+function stripJsoncComments(source: string): string {
+  let out = ''
+  let inString = false
+  let at = 0
+  while (at < source.length) {
+    const char = source.charAt(at)
+    const next = at + 1 < source.length ? source.charAt(at + 1) : ''
+    if (inString) {
+      out += char
+      if (char === '\\' && next !== '') {
+        out += next
+        at += 2
+        continue
+      }
+      if (char === '"') inString = false
+      at += 1
+      continue
+    }
+    if (char === '/' && next === '/') {
+      while (at < source.length && source.charAt(at) !== '\n') at += 1
+      continue
+    }
+    if (char === '/' && next === '*') {
+      at += 2
+      while (at < source.length && !(source.charAt(at) === '*' && source.charAt(at + 1) === '/')) at += 1
+      at += 2
+      continue
+    }
+    if (char === '"') inString = true
+    out += char
+    at += 1
+  }
+  return out
+}
+
 function projectReferencesInvariants(root: string, ownerDir: string, entryPath: string): boolean {
   const ownerRoot = resolve(root, ownerDir)
   const target = resolve(root, 'packages/runtime-diagnostics/invariants')
@@ -145,7 +184,7 @@ function projectReferencesInvariants(root: string, ownerDir: string, entryPath: 
     if (configPath === undefined) break
     if (visited.has(configPath)) continue
     visited.add(configPath)
-    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+    const config = JSON.parse(stripJsoncComments(readFileSync(configPath, 'utf8'))) as {
       references?: Array<{ path?: string }>
     }
     for (const reference of config.references ?? []) {
