@@ -254,8 +254,8 @@ describe('AgentRegistry', () => {
     expect(heard).toEqual(['contained'])
     expect(warnings).toEqual([
       'agent "contained": agent/created listener rejected: Error: created async',
-      'agent "contained": agent/disposed listener threw: Error: disposed sync',
-      'agent "contained": agent/disposed listener rejected: Error: disposed async',
+      'agent "contained": agent/disposed listener threw: disposed sync',
+      'agent "contained": agent/disposed listener rejected: disposed async',
     ])
   })
 
@@ -317,8 +317,8 @@ describe('agentEvents()', () => {
     await Promise.resolve()
     expect(heard).toEqual(['running'])
     expect(warnings).toEqual([
-      'agent event "agent/status" listener threw: Error: sync listener',
-      'agent event "agent/status" listener rejected: Error: async listener',
+      'agent event "agent/status" listener threw: sync listener',
+      'agent event "agent/status" listener rejected: async listener',
     ])
   })
 

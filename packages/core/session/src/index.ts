@@ -8,10 +8,11 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
+import { invokeContained } from '@deepseek-ai/dsh-contained-emit'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
-import { deepFreeze } from '@deepseek-ai/dsh-value'
+import { deepFreeze, errorMessage } from '@deepseek-ai/dsh-value'
 import { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { AppendOptions, CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts'
@@ -386,16 +387,7 @@ function invokeContainedSessionObservers(
   args: unknown[],
   callbacks: SessionCallback[],
 ): void {
-  for (const callback of callbacks) {
-    try {
-      const returned: unknown = callback(...args)
-      void Promise.resolve(returned).catch((error: unknown) => {
-        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${String(error)}`)
-      })
-    } catch (error: unknown) {
-      ctx.logger.warn(`session "${id}": ${name} listener threw: ${String(error)}`)
-    }
-  }
+  invokeContained(ctx, `session "${id}": ${name}`, callbacks, args, errorMessage)
 }
 
 /** All mutable lifecycle state for one exact store entry. */

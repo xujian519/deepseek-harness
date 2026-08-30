@@ -11,6 +11,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer } from '@deepseek-ai/dsh-scope'
@@ -649,16 +650,7 @@ export class SkillRegistry extends Service {
 
   /** Notify catalog observers without making their refresh work load-bearing. */
   private notifyChange(): void {
-    for (const callback of this.ctx.events.dispatch('emit', ['skills/change'])) {
-      try {
-        const returned: unknown = callback()
-        void Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`skills/change listener rejected: ${errorMessage(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`skills/change listener threw: ${errorMessage(error)}`)
-      }
-    }
+    emitContained(this.ctx, 'skills/change', ['skills/change'], errorMessage)
   }
 }
 

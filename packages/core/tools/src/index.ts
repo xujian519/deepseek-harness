@@ -6,6 +6,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
@@ -1647,20 +1648,9 @@ export class ToolRuntime extends Service {
     // WeakMap-keyable view.
     Object.freeze(exec)
     const { name: toolName, callId } = exec
-    const reportFailure = (error: unknown): void => {
-      this.ctx.logger.warn(`tool "${toolName}" (${callId}): tools/result observer failed: ${errorMessage(error)}`)
-    }
-    const callbacks = this.ctx.events.dispatch('emit', [
+    emitContained(this.ctx, `tool "${toolName}" (${callId}): tools/result`, [
       scopeTarget(this, exec.agent), 'tools/result', exec, result,
-    ])
-    for (const callback of callbacks) {
-      try {
-        const returned: unknown = callback(exec, result)
-        void Promise.resolve(returned).catch(reportFailure)
-      } catch (error: unknown) {
-        reportFailure(error)
-      }
-    }
+    ], errorMessage)
   }
 
   /**

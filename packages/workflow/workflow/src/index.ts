@@ -5,6 +5,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import type {
@@ -174,16 +175,7 @@ export abstract class WorkflowEngine extends Service {
    * @param args - the event's payload, matching its declared signature.
    */
   protected emitWorkflowEvent(name: WorkflowEventName, ...args: unknown[]): void {
-    for (const callback of this.ctx.events.dispatch('emit', [name, ...args])) {
-      try {
-        const returned: unknown = (callback as (...payload: unknown[]) => unknown)(...args)
-        void Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`workflow: ${name} listener rejected: ${errorMessage(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`workflow: ${name} listener threw: ${errorMessage(error)}`)
-      }
-    }
+    emitContained(this.ctx, `workflow: ${name}`, [name, ...args], errorMessage)
   }
 }
 

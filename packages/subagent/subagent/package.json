@@ -49,6 +49,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-contained-emit": "workspace:^",
     "@deepseek-ai/dsh-value": "workspace:^",
     "zod": "^4.4.3"
   },

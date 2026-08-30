@@ -4,6 +4,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { AttachmentError, admitEncodedImages } from '@deepseek-ai/dsh-attachment'
@@ -432,19 +433,8 @@ export class CommandRuntime extends TypertRemoteService {
 
   /** Notify every registry observer without making UI refresh load-bearing. */
   private notifyChange(): void {
-    // Cordis emit uses Array.map: one synchronous throw starves later listeners,
-    // and returned promises are discarded. Registry notifications are
-    // non-vetoing, so contain each callback independently.
-    for (const callback of this.ctx.events.dispatch('emit', ['commands/change'])) {
-      try {
-        const returned: unknown = callback()
-        void Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`commands/change listener rejected: ${errorMessage(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`commands/change listener threw: ${errorMessage(error)}`)
-      }
-    }
+    // Registry notifications are non-vetoing.
+    emitContained(this.ctx, 'commands/change', ['commands/change'], errorMessage)
   }
 }
 

@@ -7,6 +7,9 @@
   "include": ["src"],
   "references": [
     {
+      "path": "../../util/contained-emit"
+    },
+    {
       "path": "../../util/timeout"
     },
     {

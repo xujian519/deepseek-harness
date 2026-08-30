@@ -355,7 +355,7 @@ describe('LocalJobRegistry reads and settlement', () => {
     await tick()
 
     expect(seen).toEqual([id])
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('onJobDone listener rejected'))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(`onJobDone for ${id} listener rejected`))
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('async listener boom'))
   })
 

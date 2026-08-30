@@ -7,9 +7,11 @@
  */
 
 import type { Context, Events } from '@deepseek-ai/cordis'
+import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { AssembleContext } from '@deepseek-ai/dsh-system-prompt'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { Agent } from './types.ts'
 
 /** Extract the parameter tuple from an event handler type (its `this` is not part of the tuple). */
@@ -118,22 +120,10 @@ export function agentEvents(ctx: Context, agent: Agent, carrier: Scoped<Agent> =
     ({ ...payload, agent } as PayloadOf<K>)
   return {
     emit(name, payload) {
-      // Cordis emit invokes callbacks through Array.map: one synchronous throw
-      // starves later listeners, and returned promises are discarded. Agent
-      // notifications are non-vetoing, so resolve the same filtered callback
-      // set ourselves and contain both failure modes independently.
+      // Agent notifications are non-vetoing: every listener runs and each
+      // failure is contained to one log line.
       const args: unknown[] = [carrier, name, fused(payload)]
-      const callbacks = ctx.events.dispatch('emit', args)
-      for (const callback of callbacks) {
-        try {
-          const returned: unknown = callback(...args)
-          void Promise.resolve(returned).catch((error: unknown) => {
-            ctx.logger.warn(`agent event "${name}" listener rejected: ${String(error)}`)
-          })
-        } catch (error: unknown) {
-          ctx.logger.warn(`agent event "${name}" listener threw: ${String(error)}`)
-        }
-      }
+      emitContained(ctx, `agent event "${name}"`, args, errorMessage)
     },
     async serial(name, payload) {
       // oxlint-disable-next-line typescript/unbound-method -- the events mixin accessor returns a pre-bound function

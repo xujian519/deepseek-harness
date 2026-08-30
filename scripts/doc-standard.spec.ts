@@ -77,6 +77,7 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/typert/protocol': 'Compiler-independent protocol declarations.',
   'packages/util/atomic-write': 'Zero-dependency filesystem write utility.',
   'packages/util/brand': 'Type-only branding primitive erased at compile time.',
+  'packages/util/contained-emit': 'Zero-dependency contained event-dispatch utility.',
   'packages/util/crypto': 'Zero-dependency identifier minting utility.',
   'packages/util/home-paths': 'Zero-dependency harness-home path resolver.',
   'packages/util/launch-environment': 'Zero-dependency environment resolver.',

@@ -10,11 +10,13 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import { invokeContained, type ContainedListener } from '@deepseek-ai/dsh-contained-emit'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { AnonymousEntries, ScopedLayers, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeLayer } from '@deepseek-ai/dsh-scope'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { JobRegistry, JobId } from '@deepseek-ai/dsh-jobs'
 import type {
   JobDoneListener, JobKind, JobOutcome, JobRead, JobSnapshot, JobStart, JobStatus,
@@ -396,13 +398,14 @@ export class LocalJobRegistry extends JobRegistry {
    * so an observer cannot break a lifecycle commit that already happened.
    */
   private notifyChanged(owner: Agent | undefined): void {
-    for (const listener of this.changedFor(owner)) {
-      try {
-        listener(owner)
-      } catch (error: unknown) {
-        this.selfCtx.logger.warn(`jobs: onJobsChanged listener threw: ${String(error)}`)
-      }
-    }
+    // JobsChangedListener is narrower than ContainedListener; this call site owns the exact argument list.
+    invokeContained(
+      this.selfCtx,
+      'jobs: onJobsChanged',
+      this.changedFor(owner) as Iterable<ContainedListener>,
+      [owner],
+      errorMessage,
+    )
   }
 
   /**
@@ -427,16 +430,13 @@ export class LocalJobRegistry extends JobRegistry {
     job.markSettled()
     this.notifyChanged(job.owner)
     if (this.listenersClosed) return
-    for (const listener of this.listenersFor(job.owner)) {
-      try {
-        const returned = listener(snapshot, job.owner)
-        void Promise.resolve(returned).catch((error: unknown) => {
-          this.selfCtx.logger.warn(`jobs: onJobDone listener rejected for ${job.id}: ${String(error)}`)
-        })
-      } catch (error: unknown) {
-        this.selfCtx.logger.warn(`jobs: onJobDone listener threw for ${job.id}: ${String(error)}`)
-      }
-    }
+    invokeContained(
+      this.selfCtx,
+      `jobs: onJobDone for ${job.id}`,
+      this.listenersFor(job.owner) as Iterable<ContainedListener>,
+      [snapshot, job.owner],
+      errorMessage,
+    )
   }
 
   /**

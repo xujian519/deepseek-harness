@@ -14,7 +14,7 @@
 - **L2 已修**:lsp `finalExtension` 收敛为包内模块(`src/extension.ts`,不再公共导出);workflow `WorkflowEventName` 取消导出;subagent `'unsupported'` 死变体已随上游删除。
 - **L5 之 bridge-client 写路径泄漏已修**:同步 write 抛错现在 settle pending 条目并摘除 abort 监听(`packages/desktop/shell/src/bridge-client.ts`)。
 - **合并新增债已清**:vendor/README.md manifest 版本表刷新(commit 列标 not recorded,下次 sync 按程序补录);`docs/event-producer-consumer(.md/.zh)` 再生(apiproxy→remotes/tool-cordis);fork CI 增补 `test:docs` 门禁;coverage exclude 登记 patent/synapse/self-evolve/ui-agent-preset(hygiene-gate note 第 3 项);ui-chat 两处 `it.skip` 恢复(skip-hardening 移植进上游 fold,AssistantMarkdown 加 textOf 兜底);桌面打包链修复(REQUIRED_BACKEND_PATHS 移除 apiproxy,apps/cli 显式声明 deploy 会丢弃的 9 个 peer seam 包,`package:desktop:prepare` 端到端验证通过)。
-- **仍然开放**:H4、H5、H7(副本约 13 份)、M1、M2、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H5/H7/M1 按台账「先收原语、再收调用点、每项独立 PR」推进。
+- **仍然开放**:H4、H5、M2、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H7(监听器 containment)与 M1(util 小工具)已于 2026-08-30 全部收敛;原语清单 5 项已落地 3(emitContained、abort-race、util 下沉),余 recovery-vocabulary(H6)与 ResolvedConfig(M2)。
 - **hygiene 门禁现为红(既有,2026-08-28 确认)**:vendor rescope 的 6 处 exact-edit 漂移(agent-spine-demo README 双语 + cookbook 双语)、`ui-settings-models/onboarding-copy.ts` 的 6 条硬编码欢迎文案(需走 locale 字典)、3 个 client 包(synapse/ui-document-studio/ui-patent-teams)的 peer+dev 声明与 `verify-client-packages` 规则不一致。均为合并窗口遗留,文件未受本次清扫触碰,归入各自后续修复。
 
 ## 总体评估
@@ -77,8 +77,8 @@
 ### H7. 监听器 containment 派发循环复制 9+ 份
 
 - **位置**:core 5 份(`agent/src/dispatch.ts:126-136`、`session/src/index.ts:382-399`、`session/index.ts:989-1005`、`agent/index.ts:534-537,569`、`tools/src/index.ts:1312,1672`)+ 能力包 4 份(`workflow/src/index.ts:175-186`、`skill/src/index.ts:649-660`、`subagent/src/lifecycle.ts:112-121`、`schedule/runtime.ts`)
-- **问题**:每包手写同一算法:绕过 Cordis 派发、逐回调 try/catch + `Promise.resolve(returned).catch(warn)`。告警文案三种风格(`listener rejected/threw`、`observer failed`、`dispatch threw`)。任何一版漏掉 async-rejection 分支,监听器异常即击穿事件循环——这是 defensive-patterns 规则 5 要求的关键安全模式。
-- **修复**:cordis 层提供 `emitContained(ctx, name, args)` 原语,9 处收敛为 1 处。
+- **问题**:每包手写同一算法:绕过 Cordis 派发、逐回调 try/catch + `Promise.resolve(returned).catch(warn)`。告警文案三种风格(`listener rejected/threw`、`observer failed`、`dispatch threw`)。任何一版漏掉 async-rejection 分支,监听器异常即击穿事件循环——这是 defensive-patterns 规则 5 要求的关键安全模式。jobs-local 的 `onJobsChanged` 就是漏掉 async 臂的实例。
+- **修复**:**已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-contained-emit`,`emitContained`/`invokeContained` 双入口,渲染器由调用点注入——`errorMessage` 为常规、agent-loop 注入 `errorChain` 保 cause 链、subagent 注入 `renderThrown` 保类名)。10 个循环收敛;保留特例:agent/session 的 created 公告(veto 契约:同步 throw 传播以否决发布,只 contain 异步拒绝)、schedule durable-change(单回调非列表)、gateway remote-events/client-connection/webworker-vfs(console.error 客户端宿主,无 ctx.logger)。文案变化:`String(error)`→`errorMessage(error)`(Error 输入等价)、tools `observer failed` 单句式→`listener rejected/threw` 双句式、jobs `onJobDone ... for ${id}` 语序调整。
 
 ---
 
@@ -235,7 +235,7 @@
 
 按「先收原语、再收调用点」的顺序推进,每项都是独立可评审的 PR:
 
-1. **cordis 层 `emitContained(ctx, name, args)`** — 收敛 H7 的 9+ 份 containment 循环
+1. **cordis 层 `emitContained(ctx, name, args)`** — 收敛 H7 的 containment 循环(2026-08-30 已落地 `@deepseek-ai/dsh-contained-emit`;未动 vendor,渲染器由调用点注入)
 2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 abort-race 包装器(2026-08-30 已落地 `abortable`;候选名 promise-vs-abort 见台账 M1 行)
 3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已全部落地 `@deepseek-ai/dsh-value`)
 4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6)

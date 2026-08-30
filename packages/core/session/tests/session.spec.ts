@@ -1443,8 +1443,8 @@ describe('SessionStore', () => {
     await Promise.resolve()
 
     expect(warnings).toEqual([
-      'session "contained-event": session/event listener threw: Error: sync event observer',
-      'session "contained-event": session/event listener rejected: Error: async event observer',
+      'session "contained-event": session/event listener threw: sync event observer',
+      'session "contained-event": session/event listener rejected: async event observer',
     ])
   })
 
@@ -1571,7 +1571,7 @@ describe('SessionStore', () => {
     expect(session.events).toEqual([appended])
     expect(heard).toEqual([appended])
     expect(warnings).toEqual([
-      'session "reentrant-observer": session/event listener threw: Error: session append cannot reenter while another append is being published',
+      'session "reentrant-observer": session/event listener threw: session append cannot reenter while another append is being published',
     ])
   })
 
@@ -1648,8 +1648,8 @@ describe('SessionStore', () => {
 
     expect(heard).toEqual(['contained-disposal'])
     expect(warnings).toEqual([
-      'session "contained-disposal": session/disposed listener threw: Error: sync disposed',
-      'session "contained-disposal": session/disposed listener rejected: Error: async disposed',
+      'session "contained-disposal": session/disposed listener threw: sync disposed',
+      'session "contained-disposal": session/disposed listener rejected: async disposed',
     ])
   })
 

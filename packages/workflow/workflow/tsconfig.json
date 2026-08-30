@@ -24,6 +24,9 @@
       "path": "../../util/brand"
     },
     {
+      "path": "../../util/contained-emit"
+    },
+    {
       "path": "../../util/value"
     },
     {

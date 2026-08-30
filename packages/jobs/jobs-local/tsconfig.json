@@ -24,7 +24,13 @@
       "path": "../../core/scope"
     },
     {
+      "path": "../../util/contained-emit"
+    },
+    {
       "path": "../../util/timeout"
+    },
+    {
+      "path": "../../util/value"
     },
     {
       "path": "../jobs"

@@ -17,6 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
@@ -109,16 +110,7 @@ export function createLifecycleEmitter(
     const dispatchArgs: unknown[] = parent === undefined
       ? [name, info]
       : [carrier(parent), name, info]
-    for (const callback of ctx.events.dispatch('emit', dispatchArgs)) {
-      try {
-        const returned: unknown = callback(info)
-        void Promise.resolve(returned).catch((error: unknown) => {
-          ctx.logger.warn(`subagent: ${name} listener rejected: ${renderThrown(error)}`)
-        })
-      } catch (error: unknown) {
-        ctx.logger.warn(`subagent: ${name} listener threw: ${renderThrown(error)}`)
-      }
-    }
+    emitContained(ctx, `subagent: ${name}`, dispatchArgs, renderThrown)
   }
 }
 

@@ -5096,6 +5096,13 @@ importers:
         version: link:../../core/system-prompt
 
   packages/core/agent:
+    dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -5146,6 +5153,9 @@ importers:
 
   packages/core/agent-loop:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
@@ -5248,6 +5258,9 @@ importers:
 
   packages/core/session:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
@@ -5295,6 +5308,9 @@ importers:
 
   packages/core/tools:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
@@ -7010,6 +7026,9 @@ importers:
 
   packages/interaction/commands:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-util-crypto':
         specifier: workspace:^
         version: link:../../util/crypto
@@ -7185,6 +7204,12 @@ importers:
 
   packages/jobs/jobs-local:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -9659,6 +9684,9 @@ importers:
 
   packages/skill/skill:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-timeout':
         specifier: workspace:^
         version: link:../../util/timeout
@@ -9907,6 +9935,9 @@ importers:
 
   packages/subagent/subagent:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
@@ -11088,6 +11119,15 @@ importers:
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
 
+  packages/util/contained-emit:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+
   packages/util/crypto:
     devDependencies:
       '@deepseek-ai/cordis':
@@ -11530,6 +11570,9 @@ importers:
 
   packages/workflow/workflow:
     dependencies:
+      '@deepseek-ai/dsh-contained-emit':
+        specifier: workspace:^
+        version: link:../../util/contained-emit
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
