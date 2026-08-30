@@ -1721,25 +1721,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
-        signature: 'runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
+        signature: 'runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
         description: 'Run the full benchmark against the current agent state and persist the entry.',
         parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Evaluation options.' }],
         returns: 'The aggregated scoreboard entry.',
       },
       {
-        signature: 'establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
+        signature: 'establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
         description: 'Establish a single-run baseline score for a benchmark.',
         parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Evaluation options.' }],
         returns: 'The baseline scoreboard entry.',
       },
       {
-        signature: 'optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult>',
+        signature: 'optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult>',
         description: 'Optimize a benchmark under strict improve-or-rollback.',
         parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Optimization options.' }],
         returns: 'The loop outcome.',
       },
       {
-        signature: 'readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]>',
+        signature: 'readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]>',
         description: 'Read all persisted scoreboard entries for a benchmark.',
         parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }],
         returns: 'Persisted entries, oldest first.',
@@ -4109,7 +4109,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BenchmarkEngineCore',
-    declaration: 'export class BenchmarkEngineCore {\n    constructor(private readonly options: BenchmarkEngineOptions);\n    readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]>;\n    async runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    async optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult>;\n}',
+    declaration: 'export class BenchmarkEngineCore {\n    constructor(private readonly options: BenchmarkEngineOptions);\n    readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]>;\n    async runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    async optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult>;\n}',
   },
   {
     name: 'BenchmarkEngineOptions',
@@ -4117,7 +4117,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BenchmarkId',
-    declaration: 'export type BenchmarkId = string;',
+    declaration: 'export type BenchmarkId = Branded<\'BenchmarkId\'>;',
   },
   {
     name: 'BetterSidebarService',
@@ -4145,7 +4145,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CaseId',
-    declaration: 'export type CaseId = string;',
+    declaration: 'export type CaseId = Branded<\'CaseId\'>;',
   },
   {
     name: 'CaseLawDocType',

@@ -79,7 +79,7 @@ Benchmark-driven self-evolve provider. Registers as `ctx.selfEvolveBenchmark` on
  * @param options Evaluation options.
  * @returns The aggregated scoreboard entry.
  */
-runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>
+runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>
 
 /**
  * Establish a single-run baseline score for a benchmark.
@@ -88,7 +88,7 @@ runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<Scorebo
  * @param options Evaluation options.
  * @returns The baseline scoreboard entry.
  */
-establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry>
+establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>
 
 /**
  * Optimize a benchmark under strict improve-or-rollback.
@@ -97,7 +97,7 @@ establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<Sc
  * @param options Optimization options.
  * @returns The loop outcome.
  */
-optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult>
+optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult>
 
 /**
  * Read all persisted scoreboard entries for a benchmark.
@@ -105,7 +105,7 @@ optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<Optimiz
  * @param benchmarkId Benchmark id.
  * @returns Persisted entries, oldest first.
  */
-readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]>
+readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]>
 ```
 
 Source: [`packages/self-evolve/self-evolve-benchmark/src/index.ts`](../../packages/self-evolve/self-evolve-benchmark/src/index.ts)

@@ -741,6 +741,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   Sandbox: 'external E2B SDK handle is owned by packages/e2b/e2b/README.md',
   SessionForkSource: 'service-local fork input is owned by packages/core/session/src/index.ts',
   SelfEvolveRunId: 'self-evolve run identity is owned by packages/self-evolve/self-evolve/src/brand.ts',
+  BenchmarkId: 'benchmark identity is owned by packages/self-evolve/self-evolve-benchmark/src/brand.ts',
   EvolveTrigger: 'self-evolve trigger vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
   EvolveLevel: 'self-evolve edit-surface vocabulary is owned by packages/self-evolve/self-evolve/src/types.ts',
   SelfEvolveAgentContext: 'self-evolve service input is owned by packages/self-evolve/self-evolve/src/types.ts',
