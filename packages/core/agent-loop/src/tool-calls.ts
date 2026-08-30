@@ -14,7 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { assertNever, createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext, type ToolRuntimeScheduler } from '@deepseek-ai/dsh-tools'
+import { TOOL_RUNTIME_SCHEDULER, toolAbortedBeforeDispatchResult, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext, type ToolRuntimeScheduler } from '@deepseek-ai/dsh-tools'
 
 /**
  * The loop's scheduler slot on the tool registry, or a diagnostic error when
@@ -275,14 +275,7 @@ async function runGroup(
 /** Append the durable call/result pair for a model call skipped after cancellation. */
 function appendSkippedToolCall(session: Session, turn: number, step: number, block: ToolCallBlock): void {
   const callSeq = appendToolCall(session, turn, step, block)
-  appendToolResult(session, turn, step, block, {
-    content: [{ type: 'text', text: 'Error: tool call aborted before dispatch' }],
-    isError: true,
-    error: {
-      message: 'tool call aborted before dispatch',
-      info: { name: 'AbortError', code: TOOL_ABORTED_BEFORE_DISPATCH },
-    },
-  }, callSeq)
+  appendToolResult(session, turn, step, block, toolAbortedBeforeDispatchResult(), callSeq)
 }
 
 /** Append a started call and return the event seq that its result must cite. */

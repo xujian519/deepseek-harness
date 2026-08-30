@@ -1907,8 +1907,13 @@ function toolAbortedResult(prior?: ToolExecutionResult): ToolExecutionResult {
   }
 }
 
-/** Canonical result when cancellation prevents tool body invocation. */
-function toolAbortedBeforeDispatchResult(prior?: ToolExecutionResult): ToolExecutionResult {
+/**
+ * Canonical result when cancellation prevents tool body invocation.
+ *
+ * @param prior - a result already produced for the call, whose additional contexts carry over.
+ * @returns the model-visible `ABORTED_BEFORE_DISPATCH` synthetic result.
+ */
+export function toolAbortedBeforeDispatchResult(prior?: ToolExecutionResult): ToolExecutionResult {
   const additionalContexts = prior?.additionalContexts ?? []
   return {
     content: [{ type: 'text', text: 'Error: tool call aborted before dispatch' }],

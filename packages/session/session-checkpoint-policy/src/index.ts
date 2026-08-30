@@ -7,7 +7,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
-import { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import { toolAbortedBeforeDispatchResult, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 
@@ -37,18 +37,6 @@ function afterCheckpoint(
   })()
 }
 
-/** Materialize the canonical result for a call cancelled before tool dispatch. */
-function abortedBeforeDispatchResult(): ToolExecutionResult {
-  return {
-    content: [{ type: 'text', text: 'Error: tool call aborted before dispatch' }],
-    isError: true,
-    error: {
-      message: 'tool call aborted before dispatch',
-      info: { name: 'AbortError', code: TOOL_ABORTED_BEFORE_DISPATCH },
-    },
-  }
-}
-
 /**
  * Install semantic checkpoint listeners. Loop-built model calls checkpoint the
  * logged request before adapter dispatch; top-level tool calls checkpoint their
@@ -70,7 +58,7 @@ export function apply(ctx: Context): void {
   ctx.on('tools/execute', async (exec, next): Promise<ToolExecutionResult> => {
     if (exec.agent === undefined || exec.parent !== undefined) return next()
     await ctx.sessions.flush(exec.agent.session)
-    if (exec.signal.aborted) return abortedBeforeDispatchResult()
+    if (exec.signal.aborted) return toolAbortedBeforeDispatchResult()
     return next()
   })
 

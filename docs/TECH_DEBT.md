@@ -14,7 +14,7 @@
 - **L2 已修**:lsp `finalExtension` 收敛为包内模块(`src/extension.ts`,不再公共导出);workflow `WorkflowEventName` 取消导出;subagent `'unsupported'` 死变体已随上游删除。
 - **L5 之 bridge-client 写路径泄漏已修**:同步 write 抛错现在 settle pending 条目并摘除 abort 监听(`packages/desktop/shell/src/bridge-client.ts`)。
 - **合并新增债已清**:vendor/README.md manifest 版本表刷新(commit 列标 not recorded,下次 sync 按程序补录);`docs/event-producer-consumer(.md/.zh)` 再生(apiproxy→remotes/tool-cordis);fork CI 增补 `test:docs` 门禁;coverage exclude 登记 patent/synapse/self-evolve/ui-agent-preset(hygiene-gate note 第 3 项);ui-chat 两处 `it.skip` 恢复(skip-hardening 移植进上游 fold,AssistantMarkdown 加 textOf 兜底);桌面打包链修复(REQUIRED_BACKEND_PATHS 移除 apiproxy,apps/cli 显式声明 deploy 会丢弃的 9 个 peer seam 包,`package:desktop:prepare` 端到端验证通过)。
-- **仍然开放**:H4、H5、M2、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H7(监听器 containment)与 M1(util 小工具)已于 2026-08-30 全部收敛;原语清单 5 项已落地 3(emitContained、abort-race、util 下沉),余 recovery-vocabulary(H6)与 ResolvedConfig(M2)。
+- **仍然开放**:H4、H5、M2、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H6(恢复/中止文案)、H7(监听器 containment)与 M1(util 小工具)已于 2026-08-30 全部收敛;原语清单 5 项已落地 4(emitContained、abort-race、util 下沉、recovery-vocabulary),余 ResolvedConfig(M2)。
 - **hygiene 门禁现为红(既有,2026-08-28 确认)**:vendor rescope 的 6 处 exact-edit 漂移(agent-spine-demo README 双语 + cookbook 双语)、`ui-settings-models/onboarding-copy.ts` 的 6 条硬编码欢迎文案(需走 locale 字典)、3 个 client 包(synapse/ui-document-studio/ui-patent-teams)的 peer+dev 声明与 `verify-client-packages` 规则不一致。均为合并窗口遗留,文件未受本次清扫触碰,归入各自后续修复。
 
 ## 总体评估
@@ -72,7 +72,7 @@
 
 - **位置**:`packages/core/session/src/repair.ts:104-106` vs `packages/core/agent-loop/src/tool-calls.ts:291-293`;`packages/core/tools/src/index.ts:1945-1949` vs `tool-calls.ts:266-272`
 - **问题**:同一错误码 `TOOL_OUTCOME_UNKNOWN` 对应两段相似但不相同的模型可见文案(「interrupted after it was recorded」vs「failed while this call was executing」);`'Error: tool call aborted before dispatch'` 字面量双份,tool-calls.ts 还手工重构了 tools 包已有的 `toolAbortedBeforeDispatchResult()` 形状。违反「pin stable model-visible text verbatim」,模型对恢复语义的认知会随微调漂移。
-- **修复**:共享 recovery-vocabulary 模块(错误码 + 逐字文案 + 合成结果工厂),快照锁定文本。
+- **修复**:**已收敛**(2026-08-30)。`TOOL_OUTCOME_UNKNOWN` 双文案已随上游消失(session/repair.ts 持唯一现实定义,README 逐字钉住);`'tool call aborted before dispatch'` 合成结果改为导出 tools 包 canonical 工厂 `toolAbortedBeforeDispatchResult()`,agent-loop 的 `appendSkippedToolCall` 与 session-checkpoint-policy 的 `tools/execute` 中止臂删手抄形状改调工厂,输出逐字节不变。`toolAbortedResult` 保持私有(无手抄面)。
 
 ### H7. 监听器 containment 派发循环复制 9+ 份
 
@@ -238,7 +238,7 @@
 1. **cordis 层 `emitContained(ctx, name, args)`** — 收敛 H7 的 containment 循环(2026-08-30 已落地 `@deepseek-ai/dsh-contained-emit`;未动 vendor,渲染器由调用点注入)
 2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 abort-race 包装器(2026-08-30 已落地 `abortable`;候选名 promise-vs-abort 见台账 M1 行)
 3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已全部落地 `@deepseek-ai/dsh-value`)
-4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6)
+4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6;2026-08-30 已落地:`TOOL_OUTCOME_UNKNOWN` 文案已随上游坍缩为 session 单点,导出 tools 的 `toolAbortedBeforeDispatchResult` 工厂并收敛两份手抄)
 5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast)
 6. **announcement 状态机原语** — 收敛 H5 的双份 entry 生命周期
 
