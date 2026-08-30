@@ -95,7 +95,7 @@
 | `isENOENT` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;同批折叠同族 `isEEXIST` 3 份) | 0 剩余 |
 | `isPlainObject` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;实际 3 份——台账漏记 inspector/shared/json.ts 的导出副本,一并折叠,包内 14 处导入走 re-export) | 0 剩余 |
 | `deepFreeze` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;`dsh-llm` 公开导出移除,9 个导入包改指 `dsh-value`;settings 递归副本由共享迭代版替代,配置数据上行为不变) | 0 剩余 |
-| abort-race 包装器 | 5 份,三种语义 | e2b `withinMs`(哨兵)、e2b `waitWithSignal`(哨兵)、skill `waitWithAbort`(reject)、terminal-bash `initializeSession`(reject)、subprocess-local `waitForExit`(resolve false) |
+| abort-race 包装器 | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-timeout` `abortable`,标准语义原样 `reject(signal.reason)`;原记 5 份中 e2b `withinMs`/`waitWithSignal` 两份已随上游更新消失) | 保留特例:skill `waitWithAbort`(4 行适配,公开契约要求中止以 `Error` 形态逃逸,测试钉点 `instanceof Error` + hostile reason)、terminal-bash `startupSession` 的 pwsh deadline(内联 timer+`startupOperation.cancel()`,是超时语义非取消)、subprocess-local `waitForExit`(resolve false 是「等待退出 vs 放弃等待」查询语义,非取消) |
 
 - **影响**:日志/诊断格式漂移(运维无法依赖统一格式)、helper 语义各自微调、任何一处的 bug 修复要同步多处。
 - **修复**:下沉 `util/`;`dsh-timeout` 补通用的 promise-vs-abort race 原语(明确一种语义并文档化)。注意 `snapshotJsonValue` 已做了正确示范(全部消费方 import 自 dsh-session)。
@@ -176,7 +176,7 @@
 
 - **acp prompt 结算链无 rejection 处理**:`acp/acp/src/index.ts:322` `void record.agent.whenIdle().then(...)`——whenIdle reject 时(结算期间 agent 被 dispose)成为 unhandledRejection,而 `boot/app-boot:578-654` 的 installFailLoud 会把 unhandledRejection 当 fatal `exit(1)`;同文件其他路径(notify/quiesce)均带 `.catch`,此处风格不一致
 - **sdk client settleStreams 定时器泄漏**:`sdk/client/src/client.ts:444-449`——race 获胜方不清理 timer,每次对已死 runtime 的 request 挂一个 100ms 未清且未 unref 的定时器
-- **e2b abort/timeout 语义分叉**(与 M1 的 abort-race 同源):reject/哨兵/resolve-false 三种,调用方须逐处记住
+- **e2b abort/timeout 语义分叉**(与 M1 的 abort-race 同源):reject/哨兵/resolve-false 三种,调用方须逐处记住——2026-08-30 大部收敛:两份哨兵已随上游消失,reject 包装收敛进 `dsh-timeout` `abortable`,余下 resolve-false 是查询语义保留
 - **hook 双桥镜像复制**:hooks-claude-code vs hooks-codex 各 ~250 行几乎相同接线(runPoint 循环、payload 构造、decision 映射、4 个镜像 TODO),tests/coverage-cases.ts 也成对重复(691/583 行)
 - **llm-deepseek vs llm-pi-ai 平行重建**:`DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000`(adapter.ts:89 与 config.ts:35)等相同 plumbing 各一份
 - **api/gateway 内部循环重复**:`index.ts:117-134` collectSrcClaims 与 `:233-260` resolveSrcDescriptor 两段 ~25 行同构扫描循环
@@ -236,7 +236,7 @@
 按「先收原语、再收调用点」的顺序推进,每项都是独立可评审的 PR:
 
 1. **cordis 层 `emitContained(ctx, name, args)`** — 收敛 H7 的 9+ 份 containment 循环
-2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 5 份 abort-race 包装器(明确单一语义)
+2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 abort-race 包装器(2026-08-30 已落地 `abortable`;候选名 promise-vs-abort 见台账 M1 行)
 3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已全部落地 `@deepseek-ai/dsh-value`)
 4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6)
 5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast)

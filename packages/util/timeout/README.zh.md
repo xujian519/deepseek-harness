@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-timeout` 让能力在调用方可见的超时下运行一个工作单元，之后能把超时与取消区分开。调用方的可选提示会按后端默认值补齐、并按后端上限封顶，上游取消与截止时间融合为一个 `AbortSignal`。deadline 信号只负责通知——停止工作的机制由各能力自己拥有，因此没有任何共享层需要知道如何停止任何东西。对于流式传输，空闲 watchdog 只在提供方读取尚未完成时启动超时，因此消费方的思考时间绝不计入空闲。`timeoutMs` 为 0 是后端自有后台工作使用的内部「无超时」哨兵值，绝不是公开的禁用开关；这个零依赖库由 bash、web、subprocess 与 timeout-guard 消费方共享。
+`dsh-timeout` 让能力在调用方可见的超时下运行一个工作单元，之后能把超时与取消区分开。调用方的可选提示会按后端默认值补齐、并按后端上限封顶，上游取消与截止时间融合为一个 `AbortSignal`。deadline 信号只负责通知——停止工作的机制由各能力自己拥有，因此没有任何共享层需要知道如何停止任何东西。对于流式传输，空闲 watchdog 只在提供方读取尚未完成时启动超时，因此消费方的思考时间绝不计入空闲。`abortable` 竞速会在信号中止的瞬间拒绝被等待的 promise，原样转发信号自身的原因，并吸收落败工作迟到的结算。`timeoutMs` 为 0 是后端自有后台工作使用的内部「无超时」哨兵值，绝不是公开的禁用开关；这个零依赖库由 bash、web、subprocess 与 timeout-guard 消费方共享。
 
 ## 目录
 
@@ -73,6 +73,19 @@ const next = await watchdog.next(providerIterator)    // timer runs only while t
 
 timer 只在某个迭代器 `next()` 尚未完成时启动，并会因不产生值的传输活动通过 `pulse()` 重新启动，因此读取之间的消费方思考时间绝不计入空闲。间隔必须为正有限数，且不得大于 `MAX_TIMER_DELAY_MS`。
 
+### 在取消下竞速等待一个 promise
+
+```ts
+import { abortable } from '@deepseek-ai/dsh-timeout'
+
+declare const work: Promise<unknown>
+declare const signal: AbortSignal | undefined
+
+const result = await abortable(work, signal)
+```
+
+`abortable` 在信号中止的瞬间以 `signal.reason` 拒绝——与 `throwIfAborted` 在同一信号上抛出的值完全相同，绝不包装——因此调用方用同一套中止检查来分类。竞速落败时被丢弃的是落败方的结算，而不是工作本身：被包装的操作必须自己观察 `signal` 才会停止，其迟到的结算会被吸收，而不是以未处理 rejection 的形式浮现。
+
 ### 哪些操作不设置超时
 
 本地文件 `read`/`write`/`edit` 不接受 `timeoutMs`：文件 IO 不设时限地运行，因为截止时间会中止操作系统仍会完成的工作。
@@ -91,7 +104,7 @@ timer 只在某个迭代器 `next()` 尚未完成时启动，并会因不产生�
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `clampTimeout`、`deadline`、`idleWatchdog`、`timeoutOf`、`TimeoutReason`、`MAX_TIMER_DELAY_MS` |
+| [`src/index.ts`](src/index.ts) | `abortable`、`clampTimeout`、`deadline`、`idleWatchdog`、`timeoutOf`、`TimeoutReason`、`MAX_TIMER_DELAY_MS` |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；时序运算由单元测试覆盖） |
 
 ### deadline 如何融合来源
@@ -105,6 +118,10 @@ timer 只在某个迭代器 `next()` 尚未完成时启动，并会因不产生�
 ### 空闲 watchdog 为何重新启动
 
 `idleWatchdog` 保持一个稳定的融合信号，只在 `next()` 尚未完成时启动 timer；完成后停止，后续需求或 `pulse()` 重新启动，dispose（资源释放）时清除，并发需求被拒绝。只有传输层观察该信号，因此提供方的真实读取必须监听它——DeepSeek 与 pi-ai 适配器会在中止时关闭响应正文或 SDK 请求。
+
+### abortable 为何原样转发原因
+
+`abortable` 注册一个 `once` 中止监听器，让先到的一方结算；被包装 promise 的 rejection 总是通过配对的处理器被消费，因此迟到的 rejection 与中止时的 rejection 都不会以未处理 rejection 的形式到达进程。转发 `signal.reason` 而不做包装，使该 rejection 与 `throwIfAborted` 在同一信号上抛出的值完全一致，调用方只需维护一套中止分类词汇。
 
 </details>
 

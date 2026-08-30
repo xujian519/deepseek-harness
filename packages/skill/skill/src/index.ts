@@ -14,6 +14,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer } from '@deepseek-ai/dsh-scope'
+import { abortable } from '@deepseek-ai/dsh-timeout'
 import { assertPositiveInteger, errorMessage, toError } from '@deepseek-ai/dsh-value'
 import z from '@deepseek-ai/schemastery'
 import type Schema from '@deepseek-ai/schemastery'
@@ -813,26 +814,10 @@ function compareIndexedCandidates(left: IndexedCandidate, right: IndexedCandidat
 
 function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (signal === undefined) return promise
-  throwIfAborted(signal)
-  return new Promise<T>((resolve, reject) => {
-    const cleanup = (): void => {
-      signal.removeEventListener('abort', onAbort)
-    }
-    const onAbort = (): void => {
-      cleanup()
-      reject(toError(signal.reason))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    void promise.then(
-      (value) => {
-        cleanup()
-        resolve(value)
-      },
-      (error: unknown) => {
-        cleanup()
-        reject(toError(error))
-      },
-    )
+  // Skill's public contract: everything this helper escapes settles as an
+  // Error, even a hostile abort reason or a contract-violating provider rejection.
+  return abortable(promise, signal).catch((error: unknown): never => {
+    throw toError(error)
   })
 }
 

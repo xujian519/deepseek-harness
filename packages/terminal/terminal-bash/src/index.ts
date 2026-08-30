@@ -13,6 +13,7 @@ import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@dee
 import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
 import { effectiveSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { ENCODING_PREAMBLE } from '@deepseek-ai/dsh-pwsh-local'
+import { abortable } from '@deepseek-ai/dsh-timeout'
 import { type Config, type ResolvedConfig, resolveConfig, type ShellDialect, validateConfig } from './config.ts'
 import { LocalPtySession } from './session.ts'
 import { CONTROLLED_PROMPT } from './sanitize.ts'
@@ -136,29 +137,22 @@ async function startupSession(
     }
     session.motd = viewport
   }
-  const races: Promise<void>[] = []
-  let onAbort: (() => void) | undefined
-  if (signal !== undefined) {
-    const aborted = Promise.withResolvers<never>()
-    onAbort = () => { aborted.reject(signal.reason) }
-    signal.addEventListener('abort', onAbort, { once: true })
-    races.push(aborted.promise)
-  }
   let deadlineTimer: NodeJS.Timeout | undefined
-  if (dialect === 'pwsh') {
-    const deadline = Promise.withResolvers<never>()
-    deadlineTimer = setTimeout(() => {
-      startupOperation?.cancel()
-      deadline.reject(new Error('PTY shell did not reach readiness before startup timeout'))
-    }, timeoutMs)
-    races.push(deadline.promise)
-  }
   try {
     signal?.throwIfAborted()
-    await Promise.race([start(), ...races])
+    let startup = start()
+    if (dialect === 'pwsh') {
+      const deadline = new Promise<never>((_, reject) => {
+        deadlineTimer = setTimeout(() => {
+          startupOperation?.cancel()
+          reject(new Error('PTY shell did not reach readiness before startup timeout'))
+        }, timeoutMs)
+      })
+      startup = Promise.race([startup, deadline])
+    }
+    await abortable(startup, signal)
   } finally {
     if (deadlineTimer !== undefined) clearTimeout(deadlineTimer)
-    if (signal !== undefined && onAbort !== undefined) signal.removeEventListener('abort', onAbort)
   }
 }
 

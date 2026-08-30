@@ -173,6 +173,44 @@ export function idleWatchdog(
 }
 
 /**
+ * Await `promise` while rejecting as soon as `signal` aborts. Losing the race
+ * drops the loser's settlement, not the work: the wrapped operation must
+ * observe `signal` itself to stop, and its late settlement is absorbed. The
+ * abort path rejects with the signal's own reason — the same value
+ * `throwIfAborted` throws — so callers classify it with the usual abort checks.
+ *
+ * @param promise The work to await.
+ * @param signal Cancellation signal; `undefined` returns `promise` unchanged.
+ * @returns `promise`'s settlement, or a rejection carrying `signal.reason`.
+ */
+export async function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return promise
+  signal.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = (): void => {
+      signal.removeEventListener('abort', onAbort)
+    }
+    const onAbort = (): void => {
+      cleanup()
+      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the contract passes the signal's own reason through verbatim.
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error: unknown) => {
+        cleanup()
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the loser's rejection is forwarded verbatim.
+        reject(error)
+      },
+    )
+  })
+}
+
+/**
  * Recover a timeout reason from a reason-bearing object. Supplying `code`
  * distinguishes this deadline from a nested upstream deadline; a foreign code
  * follows the ordinary cancellation path.

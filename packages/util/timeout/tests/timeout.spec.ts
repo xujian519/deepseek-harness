@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  abortable,
   clampTimeout,
   deadline,
   idleWatchdog,
@@ -287,5 +288,57 @@ describe('idleWatchdog', () => {
     void watchdog.next(iterator)
     await expect(watchdog.next(iterator)).rejects.toThrow(/already outstanding/)
     pending.resolve({ done: true, value: undefined })
+  })
+})
+
+describe('abortable', () => {
+  it('passes the promise through when the signal is undefined', async () => {
+    await expect(abortable(Promise.resolve('value'), undefined)).resolves.toBe('value')
+  })
+
+  it('resolves with the promise value when no abort fires', async () => {
+    await expect(abortable(Promise.resolve(7), new AbortController().signal)).resolves.toBe(7)
+  })
+
+  it('rejects with the signal reason when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    const reason = new Error('already gone')
+    controller.abort(reason)
+    await expect(abortable(Promise.resolve('ignored'), controller.signal)).rejects.toBe(reason)
+  })
+
+  it('rejects a non-Error abort reason verbatim, like throwIfAborted', async () => {
+    const controller = new AbortController()
+    controller.abort('string reason')
+    await expect(abortable(Promise.resolve('ignored'), controller.signal)).rejects.toBe('string reason')
+  })
+
+  it('rejects with the signal reason when abort fires while awaiting', async () => {
+    const controller = new AbortController()
+    const reason = new Error('cancelled')
+    const pending = Promise.withResolvers<string>()
+    const settled = abortable(pending.promise, controller.signal).then(
+      () => 'resolved',
+      (error: unknown) => error === reason ? 'aborted' : 'other-error',
+    )
+    controller.abort(reason)
+    expect(await settled).toBe('aborted')
+    // The losing promise's late settlement is absorbed, never unhandled.
+    pending.resolve('late value')
+  })
+
+  it('resolves when the promise wins the race, and a later abort is a no-op', async () => {
+    const controller = new AbortController()
+    const pending = Promise.withResolvers<string>()
+    const settled = abortable(pending.promise, controller.signal)
+    pending.resolve('value')
+    await expect(settled).resolves.toBe('value')
+    controller.abort(new Error('too late'))
+  })
+
+  it('forwards the promise rejection verbatim when it wins the race', async () => {
+    const controller = new AbortController()
+    const failure = new Error('provider failed')
+    await expect(abortable(Promise.reject(failure), controller.signal)).rejects.toBe(failure)
   })
 })

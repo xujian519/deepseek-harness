@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/dsh-value": "workspace:^"
   },
   "devDependencies": {

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-timeout` lets a capability run one unit of work under a caller-visible timeout and later tell a timeout apart from a cancellation. A caller's optional hint is clamped against a backend default and cap, and upstream cancellation fuses with the deadline into one `AbortSignal`. The deadline signal only notifies — each capability owns the mechanism that stops its work, so no shared layer needs to know how to stop anything. For streamed transports an idle watchdog arms a timeout only while a provider read is outstanding, so consumer think time never counts as idle. A `timeoutMs` of zero is the internal no-timeout sentinel for backend-owned background work, never a public disable switch; the zero-dependency library is shared by the bash, web, subprocess, and timeout-guard consumers.
+`dsh-timeout` lets a capability run one unit of work under a caller-visible timeout and later tell a timeout apart from a cancellation. A caller's optional hint is clamped against a backend default and cap, and upstream cancellation fuses with the deadline into one `AbortSignal`. The deadline signal only notifies — each capability owns the mechanism that stops its work, so no shared layer needs to know how to stop anything. For streamed transports an idle watchdog arms a timeout only while a provider read is outstanding, so consumer think time never counts as idle. An `abortable` race rejects an awaited promise the moment its signal aborts, forwarding the signal's own reason verbatim and absorbing the losing work's late settlement. A `timeoutMs` of zero is the internal no-timeout sentinel for backend-owned background work, never a public disable switch; the zero-dependency library is shared by the bash, web, subprocess, and timeout-guard consumers.
 
 ## Table of Contents
 
@@ -73,6 +73,19 @@ const next = await watchdog.next(providerIterator)    // timer runs only while t
 
 The timer is armed only while an iterator `next()` is outstanding and rearms on `pulse()` for transport activity that yields no value, so consumer think time between reads never counts as idle. The interval must be positive, finite, and no greater than `MAX_TIMER_DELAY_MS`.
 
+### Racing an await against an abort
+
+```ts
+import { abortable } from '@deepseek-ai/dsh-timeout'
+
+declare const work: Promise<unknown>
+declare const signal: AbortSignal | undefined
+
+const result = await abortable(work, signal)
+```
+
+`abortable` rejects with `signal.reason` the moment the signal aborts — the same value `throwIfAborted` throws, never a wrapper — so callers classify it with the usual abort checks. Losing the race drops the loser's settlement, not the work: the wrapped operation must observe `signal` itself to stop, and its late settlement is absorbed rather than surfacing as an unhandled rejection.
+
 ### What does not get a timeout
 
 Local file `read`/`write`/`edit` take no `timeoutMs`: file IO runs untimed because a deadline would kill work the OS will still finish.
@@ -91,7 +104,7 @@ The library is built on one boundary: share the timing and classification, keep 
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `clampTimeout`, `deadline`, `idleWatchdog`, `timeoutOf`, `TimeoutReason`, `MAX_TIMER_DELAY_MS` |
+| [`src/index.ts`](src/index.ts) | `abortable`, `clampTimeout`, `deadline`, `idleWatchdog`, `timeoutOf`, `TimeoutReason`, `MAX_TIMER_DELAY_MS` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the timing algebra is exercised by unit tests) |
 
 ### How a deadline fuses sources
@@ -105,6 +118,10 @@ The library is built on one boundary: share the timing and classification, keep 
 ### Why an idle watchdog rearms
 
 `idleWatchdog` keeps one stable fused signal and arms the timer only while `next()` is outstanding; resolution disarms, later demand or `pulse()` rearms, disposal clears, and concurrent demand rejects. Only the transport observes the signal, so the provider's real read must listen to it — the DeepSeek and pi-ai adapters close their response body or SDK request on abort.
+
+### Why abortable forwards the reason verbatim
+
+`abortable` registers one `once` abort listener and settles with whichever side wins first; the wrapped promise's rejection is always consumed through a paired handler, so neither a late rejection nor an abort-time rejection can reach the process as unhandled. Forwarding `signal.reason` without wrapping keeps the rejection identical to what `throwIfAborted` throws at the same signal, so callers need one abort-classification vocabulary.
 
 </details>
 
