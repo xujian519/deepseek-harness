@@ -7,27 +7,28 @@
  * The Sati figure ENGINE (src/patent/figure/*: two-step PatentVision/PatentLMM
  * analysis, multi-figure consistency, electrical netlist) was not ported into
  * any dsh package. This tool ports the wrapper (input/output schema,
- * description, render) and drives a minimal single-step analysis through the
- * injected PatentModelPort.
+ * description, render) and drives a single-step analysis on the figure-model
+ * route with the image attached.
  *
  * The image-modal capability gate (P3.3) preflights the resolved figure-model
- * route's declared input modalities before the file is read: a model without
+ * route's declared input modalities before any file IO: a route without
  * 'image' input is denied (PatentToolError code model_cannot_accept_image).
- * The PatentModelPort is text-only in this build, so image bytes are NOT sent
- * to the model and execute runs a text-only figure-analysis prompt from the
- * figure number, claim context, and invention name — the modality gate is
- * therefore not enforced here (it would deny the usable text-only path); the
- * gate helpers stay exported for the future image-sending build.
+ * The image bytes are admitted through the harness attachment store and the
+ * request carries the durable ref, so the session-log reconstruction rule
+ * (model-visible ⟺ logged) holds: the tool arguments log the image path and
+ * the analysis result, the bytes live in the durable store.
  * @module @deepseek-ai/dsh-patent-tools/tool/analyze-patent-figure
  */
 
-import { access } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { access, readFile } from 'node:fs/promises'
+import { basename, extname, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { collectPortText, tryParseJson } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import type { ModelModality } from '@deepseek-ai/dsh-llm'
+import { checkImageCapability } from '../figure/image-capability.ts'
 import { PatentToolError } from '../error.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
 
@@ -146,21 +147,34 @@ export type AnalyzePatentFigureInput = {
   invention_name?: string
 }
 
-/** Injected figure-analysis dependencies (model is required; cwd defaults to process.cwd()). */
+/**
+ * Injected figure-analysis dependencies. The figure route and its port come
+ * from the composition site (Config.imageModel override, else the main
+ * route); both are optional so an unconfigured deployment fails loud at
+ * execute with setup guidance instead of at load.
+ */
 export type AnalyzePatentFigureDeps = {
-  /** Text-only model port the single-step analysis prompt is sent to. */
-  model: PatentModelPort
+  /**
+   * Figure-model port built on the gated figure route; the analysis request
+   * (prompt + image ref) is sent through it.
+   */
+  imageModel?: PatentModelPort
+  /** Admit one image into the harness attachment store (ctx 'attachments'). */
+  saveImage?: (input: SaveImageAttachment) => Promise<ImageAttachmentRef>
   /** Working directory used to resolve a relative image_path. */
   cwd?: string
-  /** Label reported in the result's modelUsed field (default "patent-model-port"). */
+  /** Label reported in the result's modelUsed field (default "provider/model" of the gated route). */
   modelUsed?: string
+  /**
+   * The Config figure-model route the image is gated and sent on
+   * (imageModel override, else the main provider/model route).
+   */
+  gateModel?: { provider: string; model: string }
   /**
    * Resolve one provider/model route's declared input modalities for the image
    * gate. Absent means the gate is not wired and the tool runs un-gated.
    */
   resolveImageInputModalities?: (provider: string, model: string) => Promise<readonly ModelModality[] | undefined>
-  /** Config figure-model fallback gated when the calling agent's model is unreachable. */
-  gateModel?: { provider: string; model: string }
   /**
    * Persist the analysis into the figure index (figureIndexStore.upsert).
    * Optional enhancement: a throwing upsert is swallowed so the analysis result
@@ -169,13 +183,43 @@ export type AnalyzePatentFigureDeps = {
   upsertIndex?: (entry: FigureIndexEntry) => Promise<void>
 }
 
+/** 附图扩展名 → 附件媒体类型（入库时按字节校验，声明不符即拒绝）。 */
+const FIGURE_MEDIA_TYPES: Record<string, ImageMediaType> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+}
+
 /**
- * Resolve the model route the image gate checks: the calling agent's active
- * model when both provider and model are set, otherwise the Config figure-model
- * fallback. An empty active route (the agent loop fills the default model via
- * the request waterfall later) is not treated as an authoritative route.
- * @param agentModel - the calling agent's provider/model (both may be absent).
- * @param fallback - the Config figure-model route when the active model is unreachable.
+ * Resolve the attachment media type from the image extension.
+ * @param imagePath - the user-supplied image path.
+ * @returns the attachment media type.
+ */
+function figureMediaType(imagePath: string): ImageMediaType {
+  const extension = extname(imagePath).toLowerCase()
+  const mediaType = FIGURE_MEDIA_TYPES[extension]
+  if (mediaType === undefined) {
+    throw new PatentToolError(
+      'invalid_tool_input',
+      `不支持的附图格式：${extension === '' ? '（无扩展名）' : extension}；仅支持 jpg/png/gif/webp。`,
+      { tool: 'analyze_patent_figure' },
+    )
+  }
+  return mediaType
+}
+
+/**
+ * Resolve the model route the image gate checks. A caller-supplied route wins
+ * when both provider and model are set; otherwise the given fallback is used.
+ * An empty active route is not treated as an authoritative route.
+ * The analyze_patent_figure tool wires this with only the Config figure-model
+ * route (deps.gateModel), so its gate verdict and send path always follow that
+ * route; the caller-supplied branch stays available for a future caller that
+ * names an active model.
+ * @param agentModel - a caller's provider/model (both may be absent).
+ * @param fallback - the figure-model route when no active route is provided.
  * @returns the route to gate, or undefined when neither source names one.
  */
 export function resolveGateRoute(
@@ -297,7 +341,7 @@ function formatContext(claimContext: string | undefined): string {
     : '\n【权利要求/技术方案上下文】\n（未提供）'
 }
 
-/** Build the single-step figure-analysis prompt (text-only; image bytes are not sent — the figure engine is not ported). */
+/** Build the single-step figure-analysis prompt (the image travels with the request). */
 function buildFigureAnalysisPrompt(
   figureNumber: number,
   claimContext: string | undefined,
@@ -305,12 +349,12 @@ function buildFigureAnalysisPrompt(
   imagePath: string,
 ): string {
   return [
-    `你是一位资深专利代理师与专利审查专家。请分析一张专利说明书附图（图${figureNumber}）。`,
+    `你是一位资深专利代理师与专利审查专家。请分析这张专利说明书附图（图${figureNumber}），图片已随本请求提供。`,
     '',
-    `附图图片路径：${imagePath}`,
+    `附图文件：${imagePath}`,
     `发明名称：${inventionName?.trim() || '（未提供）'}`,
     '',
-    '当前环境尚未接入图片多模态分析引擎，图片像素未随本提示传递。请基于权利要求/技术方案上下文与附图编号，尽力推断附图类型、组件、连接关系与附图说明；无法从上下文确认的信息请在 warnings 中注明，不要臆造。',
+    '请严格依据图面可见内容识别：附图类型、组件及其附图标记、组件间连接关系。权利要求/技术方案上下文仅用于图文对齐与术语校正，不得用于补充图面不存在的信息；图面与上下文冲突时以图面为准并在 warnings 中注明。',
     '',
     '【专利附图规范要点】',
     FIGURE_SPEC_GUIDE,
@@ -318,6 +362,7 @@ function buildFigureAnalysisPrompt(
     '',
     '【输出要求】',
     '- 组件标号与图面阿拉伯数字一致；无标号部件用 U1/U2… 编号并在 warnings 注明"未标注"；',
+    '- 图面可见但标号模糊、被遮挡或无法确认的部件，不得臆造编号，在 warnings 注明"无法确认"；',
     '- 附图说明使用专利格式：图N是本发明实施例提供的{发明名称}的{附图类型}；图中：1-…；2-…；',
     '- 发明名称未知时用「装置」代替。',
     '',
@@ -377,7 +422,7 @@ function normalizeFigureAnalysis(
   opts: { imagePath: string; figureNumber: number; inventionName: string | undefined; modelUsed: string },
 ): FigureAnalysisResult {
   const parsed = tryParseJson(raw)
-  const warnings: string[] = ['图片多模态分析尚未接入，本次为文本态最小路径（仅基于上下文推断）']
+  const warnings: string[] = []
 
   // Extract raw fields once so subsequent narrowing operates on locals, not
   // on a possibly-undefined record's property chain.
@@ -451,9 +496,7 @@ export function renderFigureAnalysis(value: FigureAnalysisResult): string {
 }
 
 const DESCRIPTION = [
-  '分析专利说明书附图：识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文提升识别准确率。',
-  '',
-  '当前为文本态最小路径：图片多模态分析引擎尚未接入，分析基于附图编号与权利要求/技术方案上下文推断，结果置信度与可用性相应降低。',
+  '分析专利说明书附图（多模态）：把图片随请求发送给配置的附图模型（imageModel，须声明图片输入），识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文，提升图文对齐准确率。',
 ].join('\n')
 const COMPONENT_SCHEMA = {
   type: 'object',
@@ -478,12 +521,12 @@ const CONNECTION_SCHEMA = {
 } as const
 
 /**
- * Build the `analyze_patent_figure` tool over an injected model port.
- * @param deps - the model port plus optional working directory and model label.
+ * Build the `analyze_patent_figure` tool over the injected figure route, its
+ * port, and the attachment-admission seam.
+ * @param deps - the figure-model route/port, the store admission seam, and optional working directory.
  * @returns a registry-ready tool definition.
  */
 export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): ToolDefinition {
-  const modelUsed = deps.modelUsed ?? 'patent-model-port'
   return defineTool({
     name: 'analyze_patent_figure',
     description: DESCRIPTION,
@@ -514,22 +557,65 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
       render: (_args, value) => [{ type: 'text', text: renderFigureAnalysis(value) }],
     },
     async execute(args, exec) {
-      // 本构建的 PatentModelPort 是纯文本接缝，从不发送图片字节；execute 走
-      // 文本态最小路径（图号+权利要求+发明名称）。模态门禁预留给未来真正
-      // 发送图片字节的构建——当前对文本模型拒绝会拦掉本来可用的文本态路径，
-      // 因此不执行。resolveGateRoute/checkImageCapability 仍导出供该构建接线。
+      // The route the image is gated and sent on: the composition site's
+      // figure route (Config.imageModel override, else the main route). The
+      // tool wires no active-agent model, so the gate verdict and the send path
+      // always share this Config source; the port and the store admission seam
+      // ride on the same sources, so one missing piece is a deployment
+      // misconfiguration, not a per-call error source — fail loud with setup
+      // guidance.
+      const route = resolveGateRoute(undefined, deps.gateModel)
+      if (route === undefined || deps.imageModel === undefined) {
+        throw new PatentToolError(
+          'setup_required',
+          '未配置附图分析模型路由：请在 cordis.yml 为专利工具配置 imageModel（声明图片输入的模型，如 deepseek-official 的 vision 模型），'
+          + '或配置可用的 provider/model。',
+          { tool: 'analyze_patent_figure' },
+        )
+      }
+      if (deps.resolveImageInputModalities !== undefined) {
+        const modalities = await deps.resolveImageInputModalities(route.provider, route.model)
+        const decision = checkImageCapability(modalities, `${route.provider}/${route.model}`)
+        if (!decision.allowed) {
+          throw new PatentToolError('model_cannot_accept_image', decision.reason, {
+            tool: 'analyze_patent_figure',
+            route: `${route.provider}/${route.model}`,
+          })
+        }
+      }
+      if (deps.saveImage === undefined) {
+        throw new PatentToolError(
+          'setup_required',
+          '附件服务不可用（未挂载 dsh-attachment），无法把附图图片送入模型。',
+          { tool: 'analyze_patent_figure' },
+        )
+      }
+
       const cwd = deps.cwd ?? process.cwd()
+      const mediaType = figureMediaType(args.image_path)
       const absPath = resolve(cwd, args.image_path)
       try {
         await access(absPath)
       } catch {
         throw new PatentToolError('file_not_found', `附图图片不存在：${args.image_path}`, { tool: 'analyze_patent_figure' })
       }
+      let ref: ImageAttachmentRef
+      try {
+        ref = await deps.saveImage({ data: await readFile(absPath), mediaType, name: basename(absPath) })
+      } catch (error) {
+        if (error instanceof PatentToolError) throw error
+        throw new PatentToolError(
+          'invalid_tool_input',
+          `附图图片无法写入附件服务：${error instanceof Error ? error.message : String(error)}`,
+          { tool: 'analyze_patent_figure' },
+        )
+      }
+
       const figureNumber = args.figure_number ?? 1
       const prompt = buildFigureAnalysisPrompt(figureNumber, args.claim_context, args.invention_name, args.image_path)
       let raw: string
       try {
-        raw = await collectPortText(deps.model, prompt, exec.signal)
+        raw = await collectPortText(deps.imageModel, prompt, exec.signal, { images: [ref] })
       } catch (error) {
         if (exec.signal.aborted) {
           throw new PatentToolError('tool_aborted', 'analyze_patent_figure aborted', { tool: 'analyze_patent_figure' })
@@ -544,7 +630,7 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
         imagePath: args.image_path,
         figureNumber,
         inventionName: args.invention_name,
-        modelUsed,
+        modelUsed: deps.modelUsed ?? `${route.provider}/${route.model}`,
       })
       if (deps.upsertIndex !== undefined) {
         try {

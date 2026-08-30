@@ -96,7 +96,7 @@ Schemastery 配置，所有字段可选。
 
 - **`render_patent_document` 归属** — 该工具由 `@deepseek-ai/dsh-patent-document` 注册，而非本包；本包仅再导出其工厂。
 - **`flexible_plan` 命名** — Sati 的 `patentFlexiblePlanTool.ts` 声明名为 `flexible_plan`（非 `patent_flexible_plan`）；dsh 工具信任 Sati 的 name 字段。
-- **图片模态门禁范围** — `analyze_patent_figure` 按解析出的附图模型路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；`search_patent_figure` 读取索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。索引由 `analyze_patent_figure` 写入 Config.figureIndexFile；索引缺失或为空时返回零命中并附引导提示，而非报错。
+- **图片模态门禁范围** — `analyze_patent_figure` 把附图发送给解析出的附图模型路由，并按该路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；图片字节经 harness 附件服务入库后以持久引用随请求发送，附件服务或路由缺失时以 `setup_required` 显式报错。`search_patent_figure` 读取索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。索引由 `analyze_patent_figure` 写入 Config.figureIndexFile；索引缺失或为空时返回零命中并附引导提示，而非报错。
 - **化学引擎未移植** — `recognize_chemical_structure` 与 `validate_specification` 的化学表征检查降级为不可用，因为 `@rdkit/rdkit` 是未随包的可选原生依赖。
 - **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，附图/化学索引存储（`figure/index-store`、`chemistry/index-store`）已接线写+读。多图一致性、网表可视化与 SMILES（RDKit）解析延后。
 - **附图生成范围** — `generate_patent_figure` 经 Graphviz `dot` CLI 生成单图（无引线标号：标号内嵌组件标签，如 `Processor (20)`）；`semantic` 彩色填充仅当色彩承载技术内容时用（依据《专利审查指南》第一部分第一章 4.3，2023 修订；默认 `grayscale` 黑白）；`raw_dot`/`template` 模式无结构化组件/连接还原（索引条目残缺）；复合图（FIG. 1A/1B）与跨图自动记忆标号未实现（跨图续接请以 `numerals` 显式传入）。Graphviz 为系统依赖——缺失时工具 fail loud 并给出安装引导。

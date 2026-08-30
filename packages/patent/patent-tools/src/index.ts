@@ -15,6 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createLlmModelPort, globalAtomRegistry, globalStageHandlerRegistry, registerBuiltinAtoms } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
+import type { ImageAttachmentRef, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { KgStore, PatentKgAdapter, WikiCardLoader } from '@deepseek-ai/dsh-patent-knowledge'
 import { candidateRuleDirs } from '@deepseek-ai/dsh-patent-rule'
 import { createRenderPatentDocumentTool, renderDocumentResult } from '@deepseek-ai/dsh-patent-document'
@@ -199,18 +200,21 @@ function resolveModelRoute(ctx: Context, config: Config): { provider: string; mo
   return undefined
 }
 
+/** The harness llm streaming service, when mounted. */
+function resolveLlm(ctx: Context): { stream: (o: GenerateOptions) => AsyncIterable<StreamChunk> } | undefined {
+  return ctx.get('llm')
+}
+
 /** Build a ModelPort from Config + ctx.llm, or a fail-loud stub when not configured. */
 function buildModelPort(ctx: Context, config: Config): PatentModelPort {
   const route = resolveModelRoute(ctx, config)
-  if (route !== undefined) {
-    const llm = ctx.get('llm') as { stream: (o: GenerateOptions) => AsyncIterable<StreamChunk> } | undefined
-    if (llm !== undefined) {
-      return createLlmModelPort(o => llm.stream(o), {
-        provider: route.provider,
-        model: route.model,
-        ...(config.maxTokens !== undefined ? { maxTokens: config.maxTokens } : {}),
-      })
-    }
+  const llm = resolveLlm(ctx)
+  if (route !== undefined && llm !== undefined) {
+    return createLlmModelPort(o => llm.stream(o), {
+      provider: route.provider,
+      model: route.model,
+      ...(config.maxTokens !== undefined ? { maxTokens: config.maxTokens } : {}),
+    })
   }
   return {
     // oxlint-disable-next-line typescript/require-await -- PatentModelPort.stream contract returns AsyncIterable
@@ -218,6 +222,28 @@ function buildModelPort(ctx: Context, config: Config): PatentModelPort {
       throw new PatentToolError('setup_required', '未配置 LLM provider/model（Config.provider/model 或部署默认路由不可用），无法执行 LLM 工具。', {})
     },
   }
+}
+
+/**
+ * Build the figure-model port the image analysis is sent on: same route the
+ * image gate checks ({@link figureRoute}), so the gate verdict and the wire
+ * route can never diverge. Undefined when the route or the llm service is
+ * absent — the tool fails loud with setup guidance at execute.
+ */
+function buildFigureModelPort(ctx: Context, config: Config): PatentModelPort | undefined {
+  const route = figureRoute(ctx, config)
+  const llm = resolveLlm(ctx)
+  if (route === undefined || llm === undefined) return undefined
+  return createLlmModelPort(o => llm.stream(o), {
+    provider: route.provider,
+    model: route.model,
+    ...(config.maxTokens !== undefined ? { maxTokens: config.maxTokens } : {}),
+  })
+}
+
+/** The harness attachment store (ctx 'attachments'), when mounted. */
+function resolveAttachments(ctx: Context): { saveImage: (input: SaveImageAttachment) => Promise<ImageAttachmentRef> } | undefined {
+  return ctx.get('attachments')
 }
 
 /** Resolve the Config figure-model route for the image gate: imageModel override, else provider/model, else the deployment default. */
@@ -237,9 +263,10 @@ function figureRoute(ctx: Context, config: Config): { provider: string; model: s
 export function buildImageGateResolver(
   ctx: Context,
 ): ((provider: string, model: string) => Promise<readonly ModelModality[] | undefined>) | undefined {
-  const llm = ctx.get('llm') as { resolveModelInfo: (provider: string, model: string) => Promise<LlmResolvedModelInfo> } | undefined
-  if (llm === undefined) return undefined
-  return (provider, model) => resolveImageInputModalities(llm.resolveModelInfo.bind(llm), provider, model)
+  const llm = ctx.get('llm') as { resolveModelInfo?: (provider: string, model: string) => Promise<LlmResolvedModelInfo> } | undefined
+  const resolveModelInfo = llm?.resolveModelInfo
+  if (resolveModelInfo === undefined) return undefined
+  return (provider, model) => resolveImageInputModalities(resolveModelInfo.bind(llm), provider, model)
 }
 
 /** Resolve the knowledge-note directory: Config.noteDir (absolute or relative to cwd), else <cwd>/99-知识库. */
@@ -315,7 +342,7 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
- * Register the 24 patent tools.
+ * Register the 26 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */
@@ -328,6 +355,8 @@ export function apply(ctx: Context, config: Config): void {
   globalStageHandlerRegistry.register(new SlopGateHandler())
   const model = buildModelPort(ctx, config)
   const gateModel = figureRoute(ctx, config)
+  const imageModel = buildFigureModelPort(ctx, config)
+  const attachments = resolveAttachments(ctx)
   const resolveImageInputModalitiesFor = buildImageGateResolver(ctx)
   const figureIndexFile = resolveFigureIndexFile(config)
   const chemistryIndexFile = resolveChemistryIndexFile(config)
@@ -381,8 +410,9 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createPatentWorkflowRunTool({ model }))
   ctx.tools.register(createFlexiblePlanTool({ model }))
   ctx.tools.register(createAnalyzePatentFigureTool({
-    model,
+    ...(imageModel === undefined ? {} : { imageModel }),
     ...(gateModel === undefined ? {} : { gateModel }),
+    ...(attachments === undefined ? {} : { saveImage: input => attachments.saveImage(input) }),
     ...(resolveImageInputModalitiesFor === undefined ? {} : { resolveImageInputModalities: resolveImageInputModalitiesFor }),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
   }))

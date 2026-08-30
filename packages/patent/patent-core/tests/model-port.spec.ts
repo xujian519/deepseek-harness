@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { collectPortText, createLlmModelPort } from '@deepseek-ai/dsh-patent-core'
 
@@ -47,6 +48,26 @@ describe('createLlmModelPort', () => {
     expect(captured!.messages[0]!.role).toBe('user')
     expect(captured!.messages[0]!.content).toEqual([{ type: 'text', text: '你好' }])
     expect(captured!.messages[0]!.source).toEqual({ kind: 'user' })
+  })
+
+  it('maps message image refs into image content blocks on the user message', async () => {
+    captured = undefined
+    const port = createLlmModelPort(streamOf([{ type: 'finish', reason: { kind: 'stop' } }]), {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+    })
+    const ref = {
+      attachmentId: AttachmentId('sha256:feed'),
+      mediaType: 'image/png' as const,
+      bytes: 10,
+      width: 1,
+      height: 1,
+    }
+    await collectPortText(port, '分析这张图', undefined, { images: [ref] })
+    expect(captured!.messages[0]!.content).toEqual([
+      { type: 'text', text: '分析这张图' },
+      { type: 'image', attachment: ref },
+    ])
   })
 
   it('collapses system-role messages into GenerateOptions.system', async () => {

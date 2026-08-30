@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
@@ -55,6 +57,25 @@ function failingModel(error: Error): PatentModelPort {
   }
 }
 
+const FIGURE_ROUTE = { provider: 'p', model: 'vision' }
+
+const IMAGE_REF: ImageAttachmentRef = {
+  attachmentId: AttachmentId('sha256:feed'),
+  mediaType: 'image/png',
+  bytes: 10,
+  width: 1,
+  height: 1,
+}
+
+/** Vision-path deps over the fixture route: no resolver is wired, so the tool runs un-gated. */
+function visionDeps(model: PatentModelPort) {
+  return {
+    imageModel: model,
+    saveImage: async (): Promise<ImageAttachmentRef> => IMAGE_REF,
+    gateModel: FIGURE_ROUTE,
+  }
+}
+
 const fullJson = JSON.stringify({
   figure_type: 'structure',
   overall_description: '整体结构示意图',
@@ -100,7 +121,7 @@ describe('analyze_patent_figure execute', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-'))
     try {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
-      const tool = createAnalyzePatentFigureTool({ model: jsonModel(fullJson), cwd: dir, modelUsed: 'test-model' })
+      const tool = createAnalyzePatentFigureTool({ ...visionDeps(jsonModel(fullJson)), cwd: dir, modelUsed: 'test-model' })
       const ctx = await ctxWith(tool)
       const result = await execute(ctx, 'analyze_patent_figure', {
         image_path: 'fig1.png', figure_number: 1, claim_context: '权利要求上下文', invention_name: '一种装置',
@@ -121,7 +142,7 @@ describe('analyze_patent_figure execute', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-'))
     try {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
-      const tool = createAnalyzePatentFigureTool({ model: jsonModel('not json at all'), cwd: dir })
+      const tool = createAnalyzePatentFigureTool({ ...visionDeps(jsonModel('not json at all')), cwd: dir })
       const ctx = await ctxWith(tool)
       const result = await execute(ctx, 'analyze_patent_figure', { image_path: 'fig1.png' }, 'f-2')
       expect(result.isError).toBe(false)
@@ -138,7 +159,7 @@ describe('analyze_patent_figure execute', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-'))
     try {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
-      const tool = createAnalyzePatentFigureTool({ model: jsonModel(edgeJson), cwd: dir })
+      const tool = createAnalyzePatentFigureTool({ ...visionDeps(jsonModel(edgeJson)), cwd: dir })
       const ctx = await ctxWith(tool)
       const result = await execute(ctx, 'analyze_patent_figure', {
         image_path: 'fig1.png', figure_number: 2, invention_name: '   ',
@@ -164,7 +185,7 @@ describe('analyze_patent_figure execute', () => {
         components: [{ ref_number: '5', name: '步骤五', kind: 'software', description: '处理' }],
         connections: [],
       }))
-      const tool = createAnalyzePatentFigureTool({ model, cwd: dir })
+      const tool = createAnalyzePatentFigureTool({ ...visionDeps(model), cwd: dir })
       const ctx = await ctxWith(tool)
       const result = await execute(ctx, 'analyze_patent_figure', { image_path: 'fig1.png', invention_name: '方法' }, 'f-4')
       expect(result.isError).toBe(false)
@@ -180,7 +201,7 @@ describe('analyze_patent_figure execute', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-'))
     try {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
-      const tool = createAnalyzePatentFigureTool({ model: failingModel(new Error('boom')), cwd: dir })
+      const tool = createAnalyzePatentFigureTool({ ...visionDeps(failingModel(new Error('boom'))), cwd: dir })
       await expect(tool.execute({ image_path: 'fig1.png' }, { signal } as never)).rejects.toMatchObject({
         name: 'PatentToolError',
         code: 'tool_execution_failed',
@@ -195,11 +216,11 @@ describe('analyze_patent_figure execute', () => {
     try {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
       const tool = createAnalyzePatentFigureTool({
-        model: {
+        ...visionDeps({
           stream: async function* () {
             throw 'boom-string'
           },
-        },
+        }),
         cwd: dir,
       })
       await expect(tool.execute({ image_path: 'fig1.png' }, { signal } as never)).rejects.toMatchObject({
@@ -217,7 +238,7 @@ describe('analyze_patent_figure execute', () => {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
       const controller = new AbortController()
       controller.abort()
-      const tool = createAnalyzePatentFigureTool({ model: failingModel(new Error('aborted')), cwd: dir })
+      const tool = createAnalyzePatentFigureTool({ ...visionDeps(failingModel(new Error('aborted'))), cwd: dir })
       await expect(tool.execute({ image_path: 'fig1.png' }, { signal: controller.signal } as never)).rejects.toMatchObject({
         code: 'tool_aborted',
       })
@@ -232,7 +253,7 @@ describe('analyze_patent_figure execute', () => {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
       const written: FigureIndexEntry[] = []
       const tool = createAnalyzePatentFigureTool({
-        model: jsonModel(fullJson),
+        ...visionDeps(jsonModel(fullJson)),
         cwd: dir,
         modelUsed: 'test-model',
         upsertIndex: (entry) => { written.push(entry); return Promise.resolve() },
@@ -254,7 +275,7 @@ describe('analyze_patent_figure execute', () => {
     try {
       await writeFile(join(dir, 'fig1.png'), 'fake-image')
       const tool = createAnalyzePatentFigureTool({
-        model: jsonModel(fullJson),
+        ...visionDeps(jsonModel(fullJson)),
         cwd: dir,
         upsertIndex: () => Promise.reject(new Error('disk full')),
       })

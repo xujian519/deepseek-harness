@@ -5,6 +5,8 @@
  * @module @deepseek-ai/dsh-patent-core/types
  */
 
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+
 /** One canonical model request the patent engines issue. */
 export interface PatentModelRequest {
   /** The message list to send, in patent-domain canonical form. */
@@ -29,6 +31,13 @@ export interface PatentModelRequest {
 export interface PatentModelMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
+  /**
+   * Durable image references sent with the message; only user messages carry
+   * images. The refs point into the harness attachment store, so the port
+   * maps them straight into image content blocks and the provider path
+   * (normalization, per-route policy, upload/encode) stays the session one.
+   */
+  images?: readonly ImageAttachmentRef[]
 }
 
 /** One streamed canonical model event. */

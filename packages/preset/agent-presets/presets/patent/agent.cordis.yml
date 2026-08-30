@@ -249,6 +249,13 @@
 
     - id: patent-tools
       name: '@deepseek-ai/dsh-patent-tools'
+      config:
+        # analyze_patent_figure sends the drawing to this route, so it must
+        # declare image input (the gate denies text-only routes). Falls back
+        # to provider/model when unset.
+        imageModel:
+          provider: deepseek-official
+          model: deepseek-v4-flash-vision-exp
 
     - id: patent-teams
       name: '@deepseek-ai/dsh-patent-teams'

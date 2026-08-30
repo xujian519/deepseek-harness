@@ -1,16 +1,41 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { PatentModelPort, PatentModelRequest } from '@deepseek-ai/dsh-patent-core'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { FigureAnalysisResult } from '../src/tool/analyze-patent-figure.ts'
+import type { FigureIndexEntry } from '../src/figure/index-store.ts'
 import { createAnalyzePatentFigureTool, resolveGateRoute } from '../src/tool/analyze-patent-figure.ts'
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
-/** The gate denies or the file is missing before the model is ever called. */
-const stubModel: PatentModelPort = {
-  async *stream() {
-    yield { type: 'done' as const }
-  },
+const ref: ImageAttachmentRef = {
+  attachmentId: AttachmentId('sha256:feed'),
+  mediaType: 'image/png',
+  bytes: 10,
+  width: 1,
+  height: 1,
+}
+
+/** A port that records each request and answers with `text`. */
+function capturingModel(text: string, seen: PatentModelRequest[]): PatentModelPort {
+  return {
+    stream: async function* (request: PatentModelRequest) {
+      seen.push(request)
+      yield { type: 'delta' as const, text }
+      yield { type: 'done' as const }
+    },
+  }
+}
+
+const visionDeps = {
+  imageModel: capturingModel('{}', []),
+  saveImage: async () => ref,
+  gateModel: { provider: 'p', model: 'vision' },
 }
 
 describe('resolveGateRoute', () => {
@@ -33,56 +58,141 @@ describe('resolveGateRoute', () => {
 })
 
 describe('analyze_patent_figure image gate', () => {
-  it('does not deny a text-only model: the build never sends image bytes, so the text path proceeds', async () => {
+  it('denies a text-only model before any file IO', async () => {
     const tool = createAnalyzePatentFigureTool({
-      model: stubModel,
-      gateModel: { provider: 'p', model: 'text-only' },
+      ...visionDeps,
       resolveImageInputModalities: async () => ['text'],
     })
-    // 文本态最小路径：模态门禁不执行（见 execute 注释），直接走到文件访问。
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
       name: 'PatentToolError',
-      code: 'file_not_found',
+      code: 'model_cannot_accept_image',
     })
   })
 
-  it('does not deny when the model discloses no modalities (unknown defaults to text-only)', async () => {
+  it('denies when the model discloses no modalities (unknown defaults to text-only)', async () => {
     const tool = createAnalyzePatentFigureTool({
-      model: stubModel,
-      gateModel: { provider: 'p', model: 'm' },
+      ...visionDeps,
       resolveImageInputModalities: async () => undefined,
     })
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
-      code: 'file_not_found',
+      code: 'model_cannot_accept_image',
     })
   })
 
-  it('does not deny an empty modality list', async () => {
+  it('denies an empty modality list', async () => {
     const tool = createAnalyzePatentFigureTool({
-      model: stubModel,
-      gateModel: { provider: 'p', model: 'm' },
+      ...visionDeps,
       resolveImageInputModalities: async () => [],
     })
     await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
+      code: 'model_cannot_accept_image',
+    })
+  })
+
+  it('runs un-gated when no resolver is wired, proceeding to file access', async () => {
+    const tool = createAnalyzePatentFigureTool({ ...visionDeps })
+    await expect(tool.execute({ image_path: 'does-not-exist.png' }, exec)).rejects.toMatchObject({
       code: 'file_not_found',
     })
   })
 
-  it('allows when image is declared and proceeds to file access', async () => {
+  it('fails loud with setup guidance when no figure route is configured', async () => {
+    const tool = createAnalyzePatentFigureTool({ saveImage: async () => ref })
+    await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
+      code: 'setup_required',
+    })
+  })
+
+  it('fails loud when the attachment store is absent', async () => {
     const tool = createAnalyzePatentFigureTool({
-      model: stubModel,
-      gateModel: { provider: 'p', model: 'vision' },
-      resolveImageInputModalities: async () => ['text', 'image'],
+      imageModel: visionDeps.imageModel,
+      gateModel: visionDeps.gateModel,
     })
-    await expect(tool.execute({ image_path: 'does-not-exist.png' }, exec)).rejects.toMatchObject({
-      code: 'file_not_found',
+    await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
+      code: 'setup_required',
+    })
+  })
+})
+
+describe('analyze_patent_figure vision path', () => {
+  it('saves the image, sends the ref with the prompt, and reports the gated route', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-gate-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const seen: PatentModelRequest[] = []
+      const saved: unknown[] = []
+      const upserts: unknown[] = []
+      const tool = createAnalyzePatentFigureTool({
+        imageModel: capturingModel(JSON.stringify({
+          figure_type: 'structure',
+          overall_description: '整体结构示意图',
+          confidence: 0.9,
+          components: [{ ref_number: '1', name: '壳体', kind: 'mechanical', description: '外壳' }],
+          connections: [],
+          figure_description: '图1是本发明实施例提供的装置的结构示意图；图中：1-壳体；',
+          warnings: [],
+        }), seen),
+        saveImage: async (input) => {
+          saved.push(input)
+          return ref
+        },
+        gateModel: { provider: 'deepseek-official', model: 'vision' },
+        resolveImageInputModalities: async () => ['text', 'image'],
+        upsertIndex: async (entry) => {
+          upserts.push(entry)
+        },
+        cwd: dir,
+      })
+      const result = (await tool.execute(
+        { image_path: 'fig1.png', figure_number: 1, claim_context: '权利要求上下文', invention_name: '一种装置' },
+        exec,
+      )) as FigureAnalysisResult
+      expect(result.modelUsed).toBe('deepseek-official/vision')
+      expect(result.usable).toBe(true)
+      expect(result.warnings).toHaveLength(0)
+      expect(saved).toHaveLength(1)
+      const savedInput = saved[0] as { data: Uint8Array; mediaType: string; name: string }
+      expect(savedInput.mediaType).toBe('image/png')
+      expect(savedInput.name).toBe('fig1.png')
+      expect(savedInput.data.length).toBeGreaterThan(0)
+      expect(seen).toHaveLength(1)
+      const request = seen[0] ?? { messages: [] }
+      expect(request.messages).toHaveLength(1)
+      expect(request.messages[0]?.images).toEqual([ref])
+      expect(request.messages[0]?.content).toContain('图1')
+      expect(request.messages[0]?.content).toContain('图片已随本请求提供')
+      expect(request.messages[0]?.content).not.toContain('尚未接入')
+      expect(upserts).toHaveLength(1)
+      const entry = upserts[0] as FigureIndexEntry
+      expect(entry.imagePath).toBe('fig1.png')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects unsupported extensions before file access', async () => {
+    const tool = createAnalyzePatentFigureTool({ ...visionDeps })
+    await expect(tool.execute({ image_path: 'x.bmp' }, exec)).rejects.toMatchObject({
+      code: 'invalid_tool_input',
     })
   })
 
-  it('does not gate when no resolver is wired', async () => {
-    const tool = createAnalyzePatentFigureTool({ model: stubModel, gateModel: { provider: 'p', model: 'm' } })
-    await expect(tool.execute({ image_path: 'does-not-exist.png' }, exec)).rejects.toMatchObject({
-      code: 'file_not_found',
-    })
+  it('maps a store admission failure to invalid_tool_input', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-gate-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const tool = createAnalyzePatentFigureTool({
+        ...visionDeps,
+        saveImage: async () => {
+          throw new Error('not a real png')
+        },
+        cwd: dir,
+      })
+      await expect(tool.execute({ image_path: 'fig1.png' }, exec)).rejects.toMatchObject({
+        code: 'invalid_tool_input',
+      })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

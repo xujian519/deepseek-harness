@@ -9,7 +9,8 @@
  */
 
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { PatentModelEvent, PatentModelMessage, PatentModelPort, PatentModelRequest } from './types.ts'
 
 /** Fixed route and optional call controls the adapter fills into each request. */
@@ -78,7 +79,12 @@ function translateRequest(
 
 /** One canonical message → one dsh message. */
 function toDshMessage(message: PatentModelMessage, options: CreateLlmModelPortOptions): Message {
-  const content = [{ type: 'text' as const, text: message.content }]
+  const content: ContentBlock[] = [{ type: 'text', text: message.content }]
+  if (message.role === 'user') {
+    for (const ref of message.images ?? []) {
+      content.push({ type: 'image', attachment: ref })
+    }
+  }
   if (message.role === 'assistant') {
     return createAssistantMessage({ content, source: { provider: options.provider, model: options.model } })
   }
@@ -148,18 +154,22 @@ async function* mapChunks(chunks: AsyncIterable<StreamChunk>): AsyncGenerator<Pa
  * @param port - the patent-domain port to consume.
  * @param prompt - the user prompt text.
  * @param signal - optional cancellation.
- * @param options - optional per-call temperature and advisory schema.
+ * @param options - optional per-call temperature, advisory schema, and image refs.
  * @returns the concatenated visible text.
  */
 export async function collectPortText(
   port: PatentModelPort,
   prompt: string,
   signal?: AbortSignal,
-  options: { temperature?: number; schema?: unknown } = {},
+  options: { temperature?: number; schema?: unknown; images?: readonly ImageAttachmentRef[] } = {},
 ): Promise<string> {
   let text = ''
   for await (const event of port.stream({
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{
+      role: 'user',
+      content: prompt,
+      ...(options.images === undefined ? {} : { images: options.images }),
+    }],
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(options.schema === undefined ? {} : { schema: options.schema }),
   }, signal)) {

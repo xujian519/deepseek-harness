@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as tool from '../src/index.ts'
@@ -151,6 +152,15 @@ describe('patent-tools plugin wiring', () => {
         yield { type: 'text-delta', text: JSON.stringify({ figure_type: 'structure', overall_description: '结构', components: [{ ref_number: '1', name: '壳体', kind: 'mechanical', description: '外壳' }], connections: [], figure_description: '图1', warnings: [] }) }
         yield { type: 'finish', reason: { kind: 'stop' } }
       },
+    })
+    ctx.provide('attachments', {
+      saveImage: async () => ({
+        attachmentId: AttachmentId('sha256:feed'),
+        mediaType: 'image/png' as const,
+        bytes: 10,
+        width: 1,
+        height: 1,
+      }),
     })
     await ctx.plugin(tool, { figureIndexFile: indexFile, provider: 'p', model: 'm' })
     const imagePath = join(temp, 'fig1.png')
