@@ -4,7 +4,7 @@
 >
 > 本文件是 `docs/patent-workbench-plan.md`（母计划）的可执行拆解，二者一一对应；执行时如发现冲突，以母计划为准并向用户提出。
 >
-> **收敛记录（2026-08-25）**：本清单的落地对象已由用户级 `~/.dsh/.agent-presets/patent/` 改为仓库**正本 `apps/cli/config/agent-presets/patent/`**（git 跟踪；桌面打包部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 user 版（含 `patent-matter`/`patent-fact-check`/`patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow`。目录口径统一为「七级业务子目录（00-交底书/01-检索/02-对比文件/03-分析/04-撰写/05-答复/99-知识库）+ `_case-registry.md` + `_matter-log.md` 两个跟踪文件」。下文建档/修改目标路径如仍写 `~/.dsh/...`，属历史期目标，现均以正本为准。阶段 5 仍为未完成项。
+> **收敛记录（2026-08-25）**：本清单的落地对象已由用户级 `~/.dsh/.agent-presets/patent/` 改为仓库**正本 `packages/preset/agent-presets/presets/patent/`**（git 跟踪；桌面打包部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 user 版（含 `patent-matter`/`patent-fact-check`/`patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow`。目录口径统一为「七级业务子目录（00-交底书/01-检索/02-对比文件/03-分析/04-撰写/05-答复/99-知识库）+ `_case-registry.md` + `_matter-log.md` 两个跟踪文件」。下文建档/修改目标路径如仍写 `~/.dsh/...`，属历史期目标，现均以正本为准。阶段 5 仍为未完成项。
 
 **Goal:** 在 deepseek-harness 上落地专利律师工作台：patent preset → 案件管理 + 双闸门 → docx 交付 → 专家协作 → 全流程打磨，五阶段各自独立验收。
 

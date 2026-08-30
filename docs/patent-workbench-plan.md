@@ -2,7 +2,7 @@
 
 - 创建日期：2026-08-19
 - 状态：**已实施（阶段 1–4）**——2026-08-19 评审通过「可落地」后落地；团队机制定为 `dsh-patent-teams` + `patent-team-composition`；阶段 5（打磨与验证）待完成。
-- 收敛记录（2026-08-25）：两套 patent 预设已收敛为一套。**正本 = 仓库 `apps/cli/config/agent-presets/patent/`**（git 跟踪；桌面打包把它部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 `~/.dsh/.agent-presets/patent/`（含 `patent-matter` / `patent-fact-check` / `patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow` 路线。
+- 收敛记录（2026-08-25）：两套 patent 预设已收敛为一套。**正本 = 仓库 `packages/preset/agent-presets/presets/patent/`**（git 跟踪；桌面打包把它部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 `~/.dsh/.agent-presets/patent/`（含 `patent-matter` / `patent-fact-check` / `patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow` 路线。
 - 前置文档：`docs/patent-mode-design.md`（预设设计）、`docs/sati-as-dsh-plugins-plan.md`（插件移植计划，已实施完毕，本计划的插件层即其产物）
 - 评审修订：workspace 包数 10→9 勘误、规则数口径、G5 缺口表述（规则门禁已实例化，缺口为事实核验闸门与审计链整合）、阶段 1 补技能发现接线、阶段 2 状态机定案、阶段 4 落地边界
 - 调研输入：开源社区专利/法律 AI 项目横向扫描（star 经 GitHub API 核验，2026-08-19）
@@ -30,7 +30,7 @@
 | **插件层** | `packages/patent/` 9 个 workspace 包：`patent-core`（纯库：atoms 引擎、ModelPort、双轨 checker、evidence 引擎、claim-chart、图引擎，不单独挂载）、`patent-data`（nuo-patent 检索/元数据/法律状态）、`patent-knowledge`（knowledge.db：判例 FTS/法规/wiki/图谱）、`patent-workflow`（workflow/flexible-plan/plantask 状态机 + HITL 审批）、`patent-tools`（23 个模型可见工具）、`patent-rule`（规则引擎 + post-execute 门禁 + 证据守卫）、`patent-document`（render_patent_document：5 个文书模板 → HTML/PDF）、`tool-literature`、`methodology`（TRIZ） | ✅ 已移植（P0–P3 落地，git log 可查） |
 | **数据层** | `vendor/nuo-patent` v2.3.1（MIT 数据引擎）、本机 `knowledge.db`（21.5 万节点图谱/7.4 万判例/1500+ wiki 卡片，私有分发）、ego-browser 反爬接缝 | ✅ 就绪 |
 | **技能层（用户级）** | `~/.agents/skills/`：`patent-legal`（撰写四领域/检索/CNIPA 查询/下载/比对）、`document-processing`、`officecli`、`ego-browser`、`browserclaw` | ✅ 就绪，任何会话自动发现 |
-| **预设设计** | `docs/patent-mode-design.md`：五层架构（人设/工具面/技能层/流程层/知识库）、五大流水线 L1–L5、三大 HITL 确认点、七道幻觉防线、证据链契约 | ✅ 已落地（正本 `apps/cli/config/agent-presets/patent/`） |
+| **预设设计** | `docs/patent-mode-design.md`：五层架构（人设/工具面/技能层/流程层/知识库）、五大流水线 L1–L5、三大 HITL 确认点、七道幻觉防线、证据链契约 | ✅ 已落地（正本 `packages/preset/agent-presets/presets/patent/`） |
 
 ### 2.2 缺口（对照开源调研发现）
 
