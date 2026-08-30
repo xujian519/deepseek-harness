@@ -140,7 +140,7 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 40))
 // Positive durable-write assertions poll instead: the write chain fsyncs
 // twice, and its tail latency under the full suite's parallel workers
 // exceeds any fixed sleep.
-const eventuallyDurable = (assertion: () => Promise<void>): Promise<void> =>
+const eventuallyDurable = (assertion: () => Promise<void> | void): Promise<void> =>
   vi.waitFor(assertion, { timeout: 10_000, interval: 10 })
 
 afterEach(async () => {
@@ -186,10 +186,11 @@ describe('SessionProjectionCache write policy', () => {
       session = inner.sessions.create(SessionId('detach'))
     }, { inject: ['sessions'] }))
     if (session === undefined) throw new Error('session was not created')
+    const detachId = session.id
     mark(session, ['live'])
     await owner.dispose()
     await eventuallyDurable(async () => {
-      expect((await storedRows(root, session.id))?.['cache-test/marks']?.val).toEqual({ marks: ['live'] })
+      expect((await storedRows(root, detachId))?.['cache-test/marks']?.val).toEqual({ marks: ['live'] })
     })
   })
 
