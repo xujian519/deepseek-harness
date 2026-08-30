@@ -51,4 +51,11 @@ describe('searchBuiltinCatalog', () => {
   it('clamps to the requested page size', () => {
     expect(searchBuiltinCatalog({ limit: 1 }).items).toHaveLength(1)
   })
+
+  it('clamps a negative limit to an empty page instead of a bogus truncated slice', () => {
+    // slice(0, -n) would return a wrong-length tail on a catalog larger than the
+    // absolute value; clamp to 0 so a model-passed negative limit degrades to a
+    // deterministic empty page rather than a silently wrong count.
+    expect(searchBuiltinCatalog({ limit: -3 }).items).toEqual([])
+  })
 })

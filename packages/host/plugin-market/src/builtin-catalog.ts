@@ -106,7 +106,7 @@ export function searchBuiltinCatalog(query: CatalogQuery = {}): CatalogPage {
     if (capability !== undefined && capability !== '' && !(item.capability ?? []).some(c => c.toLowerCase() === capability)) return false
     return true
   })
-  const limit = query.limit ?? 20
+  const limit = Math.max(0, query.limit ?? 20)
   return {
     items: matches.slice(0, limit).map(item => ({ ...item, source: BUILTIN_SOURCE.providerId })),
   }

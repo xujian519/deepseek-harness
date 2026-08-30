@@ -32,7 +32,7 @@ The bundled catalog is a release snapshot served by the host (`builtin-deepseek`
 
 ### Composition
 
-It is agent-plane and scoped to the preset's tool layer. The standard agent preset mounts `@deepseek-ai/dsh-tool-plugin-market`; the host provider row lives in the base composition. The Cordis config is a registered function plugin (named-export `name` / `inject` / `apply`, no default export) and its cargo is the same three tools the CLI reaches.
+It is agent-plane and scoped to the preset's tool layer. The standard agent preset mounts `@deepseek-ai/dsh-tool-plugin-market`; the host provider row lives in the base composition. The Cordis config is a registered function plugin (named-export `name` / `inject` / `apply`, no default export) and its cargo wraps the same search/preview verbs the CLI drives.
 
 ## What was rejected
 

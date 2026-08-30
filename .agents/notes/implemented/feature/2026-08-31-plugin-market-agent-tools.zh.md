@@ -32,7 +32,7 @@ Status: implemented
 
 ### 组合
 
-它属 agent 平面并作用域到 preset 的工具层。standard agent preset 挂载 `@deepseek-ai/dsh-tool-plugin-market`；宿主 provider 行属于 base 组合。这是注册成 function plugin 的 cordis 配置（named-export `name` / `inject` / `apply`，无默认导出），其装载物即 CLI 所触及的同样的三个工具。
+它属 agent 平面并作用域到 preset 的工具层。standard agent preset 挂载 `@deepseek-ai/dsh-tool-plugin-market`；宿主 provider 行属于 base 组合。这是注册成 function plugin 的 cordis 配置（named-export `name` / `inject` / `apply`，无默认导出），其装载物即包装了 CLI 所驱动的同样的搜索/预检动作。
 
 ## 被否决的选项
 
