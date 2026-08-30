@@ -259,3 +259,14 @@
   config:
     fetch: true
     searchTimeoutMs: 60000
+
+# ── plugin catalog discovery ────────────────────────────────────────────────
+
+# Read-only plugin catalog tools: list the registered catalog sources, search
+# one catalog, and preview a package against the npm registry before install.
+# They register into this preset's scoped tool and system-prompt layers and read
+# the host `pluginMarket` service the base composition mounts in DISCOVERY mode.
+# Installation stays on the `dsh plugin` CLI, so these tools never write a
+# profile — they only discover and evaluate.
+- id: tool-plugin-market
+  name: '@deepseek-ai/dsh-tool-plugin-market'

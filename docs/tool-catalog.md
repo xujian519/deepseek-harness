@@ -21,6 +21,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled. |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The pwsh tool is the PowerShell-dialect consumer of the bash executor seam for Windows compositions (a PowerShell executor such as `@deepseek-ai/dsh-pwsh-local` backs `ctx.shell`); it mirrors the bash tool call-for-call minus sandbox controls — `run_in_background` runs register with the generic `ctx.jobs` runtime and are collected/stopped through the `job_*` tools, and the managed `DSH_*` environment comes from `@deepseek-ai/dsh-shell-env`. Each call runs in a fresh process (no persistent PTY session), with native `C:\...` paths and `$env:NAME` variables. |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_define`, `cordis_inspect_list`, `cordis_inspect_query`, `cordis_inspect_self`, `cordis_run`, `cordis_stop`, `cordis_undefine` | `ctx.tools`, `ctx.dynamicCordisRunner` | `tool/call`, `tool/result`, `process-local dynamic package lifecycle` | - | Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes. |
+| `@deepseek-ai/dsh-tool-plugin-market` | `market_plugin_preview`, `market_plugin_search`, `market_source_list` | `ctx.tools`, `ctx.systemPrompt`, `ctx.pluginMarket` | `tool/call`, `tool/result` | - | The market toolset reads `ctx.pluginMarket` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market's restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call. |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent bash tool; deployment composition supplies the PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent pwsh tool, the Windows counterpart of the persistent bash tool; deployment composition supplies a pwsh-dialect PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`, `ctx.fs` | `tool/call`, `fs/observed after view presence/absence, edit absence, or successful mutation`, `tool/result` | - | Standalone view/create/unique literal replace/line insert tool over the filesystem seam; it composes with any shell or terminal API. |
@@ -507,6 +508,80 @@ Permanently remove a dynamic Plugin owned by the current Session. If it is runni
 Source: [`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)
 
 Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes.
+
+<a id="deepseek-aidsh-tool-plugin-market"></a>
+
+## `@deepseek-ai/dsh-tool-plugin-market`
+
+### `market_plugin_preview`
+
+Preview a package reference (`name@version`) against the npm registry without touching any profile. It reports whether the reference resolved to a real, non-deprecated release; any rejection reasons; the lifecycle scripts the package declares; and whether its engines constraints accept the running Node. Call this Tool before recommending an install, and when a search entry carries a pinned version use exactly that version string. Preview is read-only and never installs.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "ref": {
+      "type": "string",
+      "description": "Package reference as `name@version`, e.g. @deepseek-ai/dsh-tool-bash@0.1.2-alpha.1."
+    }
+  },
+  "required": [
+    "ref"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-plugin-market/src/index.ts`](../packages/extensions/tool-plugin-market/src/index.ts)
+
+### `market_plugin_search`
+
+Search one catalog source for plugins. When sourceId is omitted the bundled DeepSeek catalog is queried; pass an explicit source id from market_source_list to search a user-registered catalog. Filter with q (free text), category, and capability. The result is a page of entries, each with the exact npm package name, pinned version, description, capability labels, and the source it came from. Search is read-only: use market_plugin_preview to check a package against the registry, and keep installation on the dsh plugin CLI — do not claim a package was installed.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "sourceId": {
+      "type": "string",
+      "description": "Source id from market_source_list; defaults to the bundled catalog."
+    },
+    "q": {
+      "type": "string",
+      "description": "Free-text search term."
+    },
+    "category": {
+      "type": "string",
+      "description": "Exact category label to filter by."
+    },
+    "capability": {
+      "type": "string",
+      "description": "Exact capability label to filter by."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Maximum entries to return (the source may clamp it)."
+    }
+  }
+}
+```
+
+Source: [`packages/extensions/tool-plugin-market/src/index.ts`](../packages/extensions/tool-plugin-market/src/index.ts)
+
+### `market_source_list`
+
+List every catalog source currently available to the plugin market, including the host-bundled DeepSeek catalog and any user-registered HTTPS catalogs. Each entry shows its stable source id, provider id, display name, whether it is the bundled offline catalog, and the query parameters it accepts. Call this Tool before market_plugin_search when you do not already know a valid source id; a source id is required by search unless you rely on the bundled catalog default.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/extensions/tool-plugin-market/src/index.ts`](../packages/extensions/tool-plugin-market/src/index.ts)
+
+The market toolset reads `ctx.pluginMarket` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market's restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call.
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 

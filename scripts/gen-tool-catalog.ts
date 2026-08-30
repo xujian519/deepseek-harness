@@ -7,7 +7,8 @@
  */
 
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { basename, join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
@@ -47,6 +48,8 @@ import * as ToolBashPersistent from '@deepseek-ai/dsh-tool-bash-persistent'
 import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
 import CordisHostRunner from '@deepseek-ai/dsh-cordis-host-runner'
 import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
+import * as HostPluginMarketProvider from '@deepseek-ai/dsh-host-plugin-market/provider'
+import * as ToolPluginMarket from '@deepseek-ai/dsh-tool-plugin-market'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
@@ -280,6 +283,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-plugin-market',
+    dir: 'tool-plugin-market',
+    source: 'packages/extensions/tool-plugin-market/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.pluginMarket'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(HostPluginMarketProvider, {
+        sourceFile: join(tmpdir(), 'dsh-tool-catalog-plugin-market-sources.json'),
+      })
+      await ctx.plugin(ToolPluginMarket)
+    },
+    note:
+      'The market toolset reads `ctx.pluginMarket` from `@deepseek-ai/dsh-host-plugin-market`, which always serves a bundled offline catalog (`builtin-deepseek`) from memory and a user-registered HTTPS source through the market\'s restricted fetch. In the standard preset the tools are visible to every agent session; installation stays an operator action on the `dsh plugin` CLI, never a model call.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-bash-persistent',

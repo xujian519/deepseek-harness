@@ -62,7 +62,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`document/`](document/README.md) | Document-delivery preset, its six delivery skills, and the delivery studio |
 | [`guard/`](guard/README.md) | Loop-hygiene guards: advisory repeat-call reminders + the `tools/execute` deadline enforcer |
 | [`bundle/`](bundle/README.md) | Installable `dsh --profile` patch layers |
-| [`extensions/`](extensions/README.md) | Agent runtime self-modification: live plugin/service inspection and model-written mount/unmount |
+| [`extensions/`](extensions/README.md) | Agent runtime self-modification and plugin discovery: live plugin/service inspection and model-written mount/unmount + read-only plugin-catalog discovery tools |
 | [`self-evolve/`](self-evolve/README.md) | Campaign-based self-evaluation and plugin evolution: durable service, agent-loop provider, benchmark runner, model-facing tools |
 | [`hooks/`](hooks/README.md) | Hook bridges + the shared Claude Code / Codex wire-protocol library |
 | [`mcp/`](mcp/README.md) | Attach external Model Context Protocol servers so their tools are callable as native tools |

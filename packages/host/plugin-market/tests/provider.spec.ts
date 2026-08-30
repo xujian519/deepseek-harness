@@ -24,6 +24,9 @@ let dir: string
 let provider: MarketProvider
 let runPnpm: ReturnType<typeof vi.fn<Runner>>
 
+/** The user-registered sources only — the bundled source is always present. */
+const persisted = async () => (await provider.listSources()).filter(source => !source.builtin)
+
 /** A fetch stub routing by URL prefix: manifests, catalog pages, registry. */
 function stubRoutes(): void {
   const routes: Record<string, () => unknown> = {
@@ -65,16 +68,16 @@ describe('source persistence', () => {
   it('adds, lists, and removes sources', async () => {
     const added = await provider.addSource('https://example.dev/manifest.json')
     expect(added.providerId).toBe('example.dev')
-    expect((await provider.listSources())).toHaveLength(1)
+    expect(await persisted()).toHaveLength(1)
     await provider.removeSource(added.id)
-    expect(await provider.listSources()).toEqual([])
+    expect(await persisted()).toEqual([])
   })
 
   it('updates an existing source in place', async () => {
     const first = await provider.addSource('https://example.dev/manifest.json')
     const again = await provider.addSource('https://example.dev/manifest.json')
     expect(again.id).toBe(first.id)
-    expect(await provider.listSources()).toHaveLength(1)
+    expect(await persisted()).toHaveLength(1)
   })
 
   it('keeps unrelated sources when re-adding one of several', async () => {
@@ -85,7 +88,7 @@ describe('source persistence', () => {
     const path = join(dir, '.dsh-plugin-market', 'sources.json')
     writeSources(path, [first, other])
     await provider.addSource('https://example.dev/manifest.json')
-    expect((await provider.listSources()).map(source => source.providerId).sort())
+    expect((await persisted()).map(source => source.providerId).sort())
       .toEqual(['example.dev', 'other.dev'])
   })
 
@@ -197,7 +200,7 @@ describe('install pipeline', () => {
 
   it('mounts through the apply function with defaulted configuration', async () => {
     const ctx = new Context()
-    const { default: apply } = await import('../src/provider.ts')
+    const { apply } = await import('../src/provider.ts')
     await ctx.plugin(apply, { profileDir: dir })
     const added = await ctx.pluginMarket.addSource('https://example.dev/manifest.json')
     expect(added.providerId).toBe('example.dev')
@@ -231,7 +234,7 @@ describe('install pipeline', () => {
 
   it('mounts through the apply function with explicit overrides', async () => {
     const ctx = new Context()
-    const { default: apply } = await import('../src/provider.ts')
+    const { apply } = await import('../src/provider.ts')
     const sourceFile = join(dir, 'override-sources.json')
     await ctx.plugin(apply, { profileDir: dir, sourceFile, registry: 'https://mirror.example' })
     await ctx.pluginMarket.addSource('https://example.dev/manifest.json')
@@ -250,5 +253,50 @@ describe('install pipeline', () => {
     }), { status: 200 })))
     await expect(bare.install(added.id, 'dsh-p1@1.0.0')).rejects.toMatchObject({ code: 'install-failed' })
     await expect(bare.uninstall('missing')).rejects.toMatchObject({ code: 'receipt-mismatch' })
+  })
+})
+
+describe('read-only discovery mode', () => {
+  it('works without a profileDir for list/search/preview', async () => {
+    const sourceFile = join(dir, 'readonly-sources.json')
+    const ro = new MarketProvider(new Context(), { sourceFile })
+    const added = await ro.addSource('https://example.dev/manifest.json')
+    expect((await ro.listSources()).filter(source => !source.builtin)).toHaveLength(1)
+    const page = await ro.search(added.id, { q: 'plugin' })
+    expect(page.items[0]).toMatchObject({ package: 'dsh-p1' })
+    const preview = await ro.preview('dsh-p1@1.0.0')
+    expect(preview.verified).toBe(true)
+  })
+
+  it('rejects install/uninstall/list as install-unavailable without a profileDir', async () => {
+    const sourceFile = join(dir, 'readonly-sources.json')
+    const ro = new MarketProvider(new Context(), { sourceFile })
+    const added = await ro.addSource('https://example.dev/manifest.json')
+    writeFileSync(join(dir, 'package.json'), '{ "name": "profile" }')
+    await expect(ro.install(added.id, 'dsh-p1@1.0.0')).rejects.toMatchObject({ code: 'install-unavailable' })
+    await expect(ro.uninstall('missing')).rejects.toMatchObject({ code: 'install-unavailable' })
+    await expect(ro.listInstallations()).rejects.toMatchObject({ code: 'install-unavailable' })
+  })
+
+  it('fails loud when neither a sourceFile nor a profileDir is configured', () => {
+    expect(() => new MarketProvider(new Context(), {})).toThrow(/sourceFile or a profileDir/)
+  })
+
+  it('treats an empty profileDir string as omitted for a read-only row', async () => {
+    // The Loader emits '' for an unset field; a hand-built row normalizes it
+    // to undefined so the provider stays read-only and honors the sourceFile.
+    const sourceFile = join(dir, 'empty-profile-sources.json')
+    const ro = new MarketProvider(new Context(), { profileDir: '', sourceFile })
+    expect((await ro.listSources()).map(source => source.providerId)).toEqual(['builtin-deepseek'])
+    await expect(ro.install('missing', 'x@1.0.0')).rejects.toMatchObject({ code: 'install-unavailable' })
+  })
+
+  it('forwards a custom runner through apply', async () => {
+    const ctx = new Context()
+    const { apply } = await import('../src/provider.ts')
+    await ctx.plugin(apply, { profileDir: dir, runPnpm })
+    const added = await ctx.pluginMarket.addSource('https://example.dev/manifest.json')
+    expect(added.providerId).toBe('example.dev')
+    await ctx.fiber.dispose()
   })
 })

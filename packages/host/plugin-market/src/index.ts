@@ -35,6 +35,8 @@ export interface PluginMarketSource {
   endpoint: string
   /** The query parameters this provider supports (subset of the protocol vocabulary). */
   query: { supported: readonly string[] }
+  /** A host-bundled catalog served from memory, never reached over the network. */
+  builtin?: boolean
 }
 
 /** One catalog search query; only the parameters the source supports are sent. */
@@ -123,6 +125,7 @@ export type PluginMarketErrorCode =
   | 'source-not-found'
   | 'preview-failed'
   | 'install-failed'
+  | 'install-unavailable'
   | 'receipt-mismatch'
   | 'network'
 

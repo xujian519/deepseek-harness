@@ -70,6 +70,17 @@
     - id: plugin-package-inventory-deepseek
       name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
 
+    # Open plugin catalog seam (ctx.pluginMarket): source registration, catalog
+    # search, and npm preview. Mounted in read-only DISCOVERY mode here —
+    # registered sources persist under $DSH_HOME, while install/uninstall reject
+    # with install-unavailable and stay on the `dsh plugin` CLI, whose
+    # profile-managed runner owns the write path (no profileDir is supplied to
+    # the row, so the provider never drives a package manager from this process).
+    - id: plugin-market
+      name: '@deepseek-ai/dsh-host-plugin-market/provider'
+      config:
+        sourceFile: !!js dshHomePath('plugin-market/sources.json')
+
     # The transport-independent default for Agents created by entry points.
     # Settings may supply a saved selection; consumers read it at creation time.
     - id: agent-default-model
