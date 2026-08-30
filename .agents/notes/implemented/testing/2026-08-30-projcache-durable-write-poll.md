@@ -15,3 +15,9 @@ Positive durable-write assertions now poll with `vi.waitFor` (10 s budget, 10 ms
 ## Consequences
 
 The spec no longer depends on wall-clock luck: the two previously flaky assertions retry until the atomic rename publishes the row, and a real regression still fails loudly with the assertion's own message after the 10 s budget.
+
+## Alternatives considered
+
+**Drive the write chain with fake timers, as the interval test does.** Rejected: fake timers advance the clock but cannot signal real IO completion — the assertion observes an fsync-and-rename chain, not a timer. The interval test is deterministic because it spies `write` to a resolved mock; these tests assert the real durability protocol, which is the point under test.
+
+**Hand-roll a poll loop over `storedRows` instead of `vi.waitFor`.** Equivalent in effect; `vi.waitFor` was chosen because it is built in and already the convention in the neighboring session-persistence tests, so the spec gains no helper beyond the thin budget wrapper.

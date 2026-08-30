@@ -15,3 +15,9 @@ Status: implemented
 ## 后果
 
 该 spec 不再依赖墙钟运气：两个曾经 flaky 的断言会重试到原子 rename 发布该行为止，而真实回归在 10 秒预算后仍以断言自身的消息响亮失败。
+
+## 落选方案
+
+**像 interval 测试那样用 fake timers 驱动写链。** 拒绝：fake timers 推进时钟但无法给出真实 IO 完成的信号——断言观察的是 fsync-and-rename 链，不是计时器。interval 测试之所以确定，是因为它把 `write` spy 成了已解决的 mock；这些测试断言的是真实耐久协议，而这正是被测对象。
+
+**手写对 `storedRows` 的轮询循环而非用 `vi.waitFor`。** 效果等价；选 `vi.waitFor` 因为它是内置的、且是相邻 session-persistence 测试的既有惯例，spec 除薄薄的预算包装外不新增 helper。
