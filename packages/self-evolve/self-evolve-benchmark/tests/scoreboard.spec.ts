@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
+import { BenchmarkId } from '../src/brand.ts'
 import {
   BENCHMARK_ROOT,
   SCOREBOARD_FILENAME,
@@ -18,7 +19,7 @@ import type { ScoreboardEntry } from '../src/types.ts'
 
 describe('scoreboard path and rounding helpers', () => {
   it('builds the scoreboard path from the data root and benchmark id', () => {
-    expect(scoreboardPath('/root', 'b1')).toBe(join('/root', BENCHMARK_ROOT, 'b1', SCOREBOARD_FILENAME))
+    expect(scoreboardPath('/root', BenchmarkId('b1'))).toBe(join('/root', BENCHMARK_ROOT, 'b1', SCOREBOARD_FILENAME))
   })
 
   it('rounds scores to two decimals and costs to six', () => {
@@ -50,11 +51,11 @@ describe('scoreboard path and rounding helpers', () => {
 
 describe('scoreboard persistence', () => {
   let dir: string
-  let benchmarkId: string
+  let benchmarkId: BenchmarkId
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-scoreboard-'))
-    benchmarkId = 'summarizer'
+    benchmarkId = BenchmarkId('summarizer')
   })
 
   afterEach(async () => {

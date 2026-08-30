@@ -13,6 +13,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import type { BenchmarkId } from './brand.ts'
 import type { CaseAggregate, CaseRunRecord, ScoreboardEntry } from './types.ts'
 
 /** File name of the per-benchmark scoreboard. */
@@ -28,7 +29,7 @@ export const BENCHMARK_ROOT = 'benchmarks'
  * @param benchmarkId Benchmark id.
  * @returns Absolute path of the scoreboard file.
  */
-export function scoreboardPath(baseDir: string, benchmarkId: string): string {
+export function scoreboardPath(baseDir: string, benchmarkId: BenchmarkId): string {
   return join(baseDir, BENCHMARK_ROOT, benchmarkId, SCOREBOARD_FILENAME)
 }
 
@@ -87,7 +88,7 @@ export function aggregateRuns(runs: CaseRunRecord[]): Omit<CaseAggregate, 'caseI
  * @param benchmarkId Benchmark id.
  * @returns Persisted entries, oldest first.
  */
-export async function readScoreboard(baseDir: string, benchmarkId: string): Promise<ScoreboardEntry[]> {
+export async function readScoreboard(baseDir: string, benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]> {
   const path = scoreboardPath(baseDir, benchmarkId)
   let raw: string
   try {
@@ -108,7 +109,7 @@ export async function readScoreboard(baseDir: string, benchmarkId: string): Prom
  * @param benchmarkId Benchmark id.
  * @param entry Entry to append.
  */
-export async function appendScoreboard(baseDir: string, benchmarkId: string, entry: ScoreboardEntry): Promise<void> {
+export async function appendScoreboard(baseDir: string, benchmarkId: BenchmarkId, entry: ScoreboardEntry): Promise<void> {
   const entries = await readScoreboard(baseDir, benchmarkId)
   entries.push(entry)
   await writeFile(scoreboardPath(baseDir, benchmarkId), stringifyYaml(entries), 'utf8')

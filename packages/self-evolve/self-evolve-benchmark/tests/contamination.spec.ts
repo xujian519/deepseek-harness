@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { BenchmarkId, CaseId } from '../src/brand.ts'
 import {
   ContaminationError,
   PRIVATE_FIELD_NAMES,
@@ -10,19 +11,19 @@ import type { BoundBenchmark } from '../src/types.ts'
 describe('public benchmark view', () => {
   it('drops every private rubric from the optimizer-facing surface', () => {
     const benchmark: BoundBenchmark = {
-      id: 'b',
+      id: BenchmarkId('b'),
       title: 'Bench',
       cases: [
-        { caseId: 'c1', statement: 'Task', rubric: 'secret rubric' },
-        { caseId: 'c2', statement: 'Task two' },
+        { caseId: CaseId('c1'), statement: 'Task', rubric: 'secret rubric' },
+        { caseId: CaseId('c2'), statement: 'Task two' },
       ],
     }
     expect(publicBenchmarkView(benchmark)).toEqual({
-      id: 'b',
+      id: BenchmarkId('b'),
       title: 'Bench',
       cases: [
-        { caseId: 'c1', statement: 'Task' },
-        { caseId: 'c2', statement: 'Task two' },
+        { caseId: CaseId('c1'), statement: 'Task' },
+        { caseId: CaseId('c2'), statement: 'Task two' },
       ],
     })
   })

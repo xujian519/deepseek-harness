@@ -25,6 +25,7 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SubagentResult, SubagentRuntime } from '@deepseek-ai/dsh-subagent'
+import type { BenchmarkId } from './brand.ts'
 import { BenchmarkEngineCore } from './engine.ts'
 import { restoreSnapshot } from './snapshot.ts'
 import type {
@@ -300,7 +301,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @param options Evaluation options.
    * @returns The aggregated scoreboard entry.
    */
-  runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
+  runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
     return this.core.runBenchmark(benchmarkId, this.runDefaults(options))
   }
 
@@ -311,7 +312,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @param options Evaluation options.
    * @returns The baseline scoreboard entry.
    */
-  establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
+  establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
     return this.core.establishBaseline(benchmarkId, this.runDefaults(options))
   }
 
@@ -322,7 +323,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @param options Optimization options.
    * @returns The loop outcome.
    */
-  optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult> {
+  optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult> {
     return this.core.optimizeLoop(benchmarkId, this.loopDefaults(options))
   }
 
@@ -332,7 +333,7 @@ export class BenchmarkEvolveEngine extends Service {
    * @param benchmarkId Benchmark id.
    * @returns Persisted entries, oldest first.
    */
-  readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]> {
+  readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]> {
     return this.core.readScoreboard(benchmarkId)
   }
 }

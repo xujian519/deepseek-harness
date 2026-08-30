@@ -44,7 +44,7 @@ function parseArguments(raw: string): Record<string, unknown> {
       return parsed as Record<string, unknown>
     }
   } catch {
-    // fall through
+    // Unparsable argument JSON is a tolerated model malformation; {} below is the fallback.
   }
   return {}
 }

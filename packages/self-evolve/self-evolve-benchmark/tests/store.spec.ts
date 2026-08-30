@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { BenchmarkId, CaseId } from '../src/brand.ts'
 import {
   CONFIG_FILENAME,
   RUBRIC_FILENAME,
@@ -23,21 +24,21 @@ describe('benchmark store path helpers', () => {
   it('builds paths under the benchmarks root', () => {
     const base = '/root'
     expect(benchmarkRoot(base)).toBe(join(base, 'benchmarks'))
-    expect(benchmarkDir(base, 'b')).toBe(join(base, 'benchmarks', 'b'))
-    expect(caseDir(base, 'b', 'c')).toBe(join(base, 'benchmarks', 'b', 'c'))
-    expect(statementPath(base, 'b', 'c')).toBe(join(base, 'benchmarks', 'b', 'c', STATEMENT_FILENAME))
-    expect(rubricPath(base, 'b', 'c')).toBe(join(base, 'benchmarks', 'b', 'c', RUBRIC_FILENAME))
-    expect(benchmarkConfigPath(base, 'b')).toBe(join(base, 'benchmarks', 'b', CONFIG_FILENAME))
+    expect(benchmarkDir(base, BenchmarkId('b'))).toBe(join(base, 'benchmarks', 'b'))
+    expect(caseDir(base, BenchmarkId('b'), CaseId('c'))).toBe(join(base, 'benchmarks', 'b', 'c'))
+    expect(statementPath(base, BenchmarkId('b'), CaseId('c'))).toBe(join(base, 'benchmarks', 'b', 'c', STATEMENT_FILENAME))
+    expect(rubricPath(base, BenchmarkId('b'), CaseId('c'))).toBe(join(base, 'benchmarks', 'b', 'c', RUBRIC_FILENAME))
+    expect(benchmarkConfigPath(base, BenchmarkId('b'))).toBe(join(base, 'benchmarks', 'b', CONFIG_FILENAME))
   })
 })
 
 describe('benchmark store persistence', () => {
   let dir: string
-  let benchmarkId: string
+  let benchmarkId: BenchmarkId
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-store-'))
-    benchmarkId = 'summarizer'
+    benchmarkId = BenchmarkId('summarizer')
   })
 
   afterEach(async () => {
@@ -72,8 +73,8 @@ describe('benchmark store persistence', () => {
 
   it('writes a case statement with and without a rubric', async () => {
     await ensureBenchmark(dir, benchmarkId, 'Summarizer')
-    await writeCase(dir, benchmarkId, 'c1', { statement: 'Task one', rubric: 'Rubric one' })
-    await writeCase(dir, benchmarkId, 'c2', { statement: 'Task two' })
+    await writeCase(dir, benchmarkId, CaseId('c1'), { statement: 'Task one', rubric: 'Rubric one' })
+    await writeCase(dir, benchmarkId, CaseId('c2'), { statement: 'Task two' })
 
     const loaded = await loadBenchmark(dir, benchmarkId)
     expect(loaded.id).toBe(benchmarkId)
@@ -86,8 +87,8 @@ describe('benchmark store persistence', () => {
 
   it('lists case directories in lexical order, ignoring files', async () => {
     await ensureBenchmark(dir, benchmarkId, 'Summarizer')
-    await writeCase(dir, benchmarkId, 'b', { statement: 'B' })
-    await writeCase(dir, benchmarkId, 'a', { statement: 'A' })
+    await writeCase(dir, benchmarkId, CaseId('b'), { statement: 'B' })
+    await writeCase(dir, benchmarkId, CaseId('a'), { statement: 'A' })
     await writeFile(join(benchmarkDir(dir, benchmarkId), 'README'), 'not a case', 'utf8')
     await expect(listCaseIds(dir, benchmarkId)).resolves.toEqual(['a', 'b'])
   })
@@ -108,14 +109,14 @@ describe('benchmark store persistence', () => {
 
   it('fails loud when a case directory lacks its statement file', async () => {
     await ensureBenchmark(dir, benchmarkId, 'Broken')
-    await mkdir(caseDir(dir, benchmarkId, 'c1'), { recursive: true })
+    await mkdir(caseDir(dir, benchmarkId, CaseId('c1')), { recursive: true })
     await expect(loadBenchmark(dir, benchmarkId)).rejects.toThrow()
   })
 
   it('fails loud when a rubric cannot be read for a non-missing reason', async () => {
     await ensureBenchmark(dir, benchmarkId, 'Broken rubric')
-    await writeCase(dir, benchmarkId, 'c1', { statement: 'Task one' })
-    await mkdir(rubricPath(dir, benchmarkId, 'c1'), { recursive: true })
+    await writeCase(dir, benchmarkId, CaseId('c1'), { statement: 'Task one' })
+    await mkdir(rubricPath(dir, benchmarkId, CaseId('c1')), { recursive: true })
     await expect(loadBenchmark(dir, benchmarkId)).rejects.toThrow()
   })
 })

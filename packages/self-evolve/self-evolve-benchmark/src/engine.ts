@@ -14,6 +14,7 @@
  */
 
 import { assertNoPrivateLeak, publicBenchmarkView } from './contamination.ts'
+import type { BenchmarkId } from './brand.ts'
 import { aggregateRuns, appendScoreboard, mean, readScoreboard, roundCost, roundScore } from './scoreboard.ts'
 import { createSnapshot, nextVersion } from './snapshot.ts'
 import { loadBenchmark } from './store.ts'
@@ -46,7 +47,7 @@ export class BenchmarkEngineCore {
    * @param benchmarkId Benchmark id.
    * @returns Persisted entries, oldest first.
    */
-  readScoreboard(benchmarkId: string): Promise<ScoreboardEntry[]> {
+  readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]> {
     return readScoreboard(this.options.baseDir, benchmarkId)
   }
 
@@ -58,7 +59,7 @@ export class BenchmarkEngineCore {
    * @param options Evaluation options.
    * @returns The aggregated scoreboard entry.
    */
-  async runBenchmark(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
+  async runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
     const cases = await this.evaluateCases(benchmarkId, {
       agentStatePath: this.options.agentStateDir,
       signal: options.signal,
@@ -78,7 +79,7 @@ export class BenchmarkEngineCore {
    * @param options Evaluation options.
    * @returns The baseline scoreboard entry.
    */
-  establishBaseline(benchmarkId: string, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
+  establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry> {
     return this.runBenchmark(benchmarkId, options)
   }
 
@@ -97,7 +98,7 @@ export class BenchmarkEngineCore {
    * @param options Optimization options.
    * @returns The loop outcome, including every evaluated entry.
    */
-  async optimizeLoop(benchmarkId: string, options: OptimizeLoopOptions): Promise<OptimizeResult> {
+  async optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult> {
     const maxRounds = options.maxRounds ?? 1
     const reference = options.reference ?? (await readScoreboard(this.options.baseDir, benchmarkId)).at(-1)
     if (reference === undefined) {
@@ -172,7 +173,7 @@ export class BenchmarkEngineCore {
 
   /** Execute then score every case of a benchmark `runsPerCase` times under one agent state. */
   private async evaluateCases(
-    benchmarkId: string,
+    benchmarkId: BenchmarkId,
     opts: {
       agentStatePath: string
       runsPerCase?: number
@@ -223,7 +224,7 @@ export class BenchmarkEngineCore {
 
   /** Aggregate and persist one candidate evaluation under a snapshot version. */
   private async evaluateCandidate(
-    benchmarkId: string,
+    benchmarkId: BenchmarkId,
     opts: {
       agentStatePath: string
       version: number

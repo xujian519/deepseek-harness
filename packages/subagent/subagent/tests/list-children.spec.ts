@@ -352,6 +352,8 @@ describe('SubagentRuntime.listChildren', () => {
     const observe = ctx.sessionQuery.observeSession.bind(ctx.sessionQuery)
     vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation((id, options) => {
       if (id === childId) {
+        // The rejection is a bare string on purpose: the diagnostic must
+        // classify ANY rejection shape as 'unavailable', not unwrap Errors only.
         return Promise.reject('backend unavailable') // oxlint-disable-line typescript/prefer-promise-reject-errors
       }
       return observe(id, options)

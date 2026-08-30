@@ -214,6 +214,10 @@ export default defineConfig({
         'packages/web/synapse/src/**/*.{ts,tsx}',
         'packages/self-evolve/*/src/**/*.{ts,tsx}',
         'packages/client/ui-agent-preset/src/**/*.{ts,tsx}',
+        // The webserver Host module ships its own suite, but request-failure
+        // and WebSocket-upgrade error branches remain uncovered. TODO(cov):
+        // close the branch gaps and remove the entry.
+        'packages/host/webserver/src/*',
         // A killed executable lint-contract test can leave a non-product source probe behind.
         'packages/*/*/src/oxlint-contract-*.ts',
         // Client/web UI files whose remaining branches need a browser-grade
@@ -255,7 +259,6 @@ export default defineConfig({
         'packages/client/ui-slots/src/*',
         'packages/client/ui-layout/src/*',
         'packages/client/web/src/*',
-        'packages/host/webserver/src/*',
         // The browser-worker runtime and its image packer: the executing
         // composition is a real dedicated Worker driven by the web browser lane
         // (apps/web/tests/preview-boot.e2e.ts), which unit-process V8 coverage

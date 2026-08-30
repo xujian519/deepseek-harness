@@ -19,6 +19,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { CaseId, type BenchmarkId } from './brand.ts'
 import type { BoundBenchmark, CaseSpec } from './types.ts'
 
 /** File name of the public case task text. */
@@ -47,7 +48,7 @@ export function benchmarkRoot(baseDir: string): string {
  * @param benchmarkId Benchmark id.
  * @returns Absolute path of the benchmark directory.
  */
-export function benchmarkDir(baseDir: string, benchmarkId: string): string {
+export function benchmarkDir(baseDir: string, benchmarkId: BenchmarkId): string {
   return join(benchmarkRoot(baseDir), benchmarkId)
 }
 
@@ -59,7 +60,7 @@ export function benchmarkDir(baseDir: string, benchmarkId: string): string {
  * @param caseId Case id.
  * @returns Absolute path of the case directory.
  */
-export function caseDir(baseDir: string, benchmarkId: string, caseId: string): string {
+export function caseDir(baseDir: string, benchmarkId: BenchmarkId, caseId: CaseId): string {
   return join(benchmarkDir(baseDir, benchmarkId), caseId)
 }
 
@@ -71,7 +72,7 @@ export function caseDir(baseDir: string, benchmarkId: string, caseId: string): s
  * @param caseId Case id.
  * @returns Absolute path of the statement file.
  */
-export function statementPath(baseDir: string, benchmarkId: string, caseId: string): string {
+export function statementPath(baseDir: string, benchmarkId: BenchmarkId, caseId: CaseId): string {
   return join(caseDir(baseDir, benchmarkId, caseId), STATEMENT_FILENAME)
 }
 
@@ -83,7 +84,7 @@ export function statementPath(baseDir: string, benchmarkId: string, caseId: stri
  * @param caseId Case id.
  * @returns Absolute path of the rubric file.
  */
-export function rubricPath(baseDir: string, benchmarkId: string, caseId: string): string {
+export function rubricPath(baseDir: string, benchmarkId: BenchmarkId, caseId: CaseId): string {
   return join(caseDir(baseDir, benchmarkId, caseId), RUBRIC_FILENAME)
 }
 
@@ -94,7 +95,7 @@ export function rubricPath(baseDir: string, benchmarkId: string, caseId: string)
  * @param benchmarkId Benchmark id.
  * @returns Absolute path of the title document.
  */
-export function benchmarkConfigPath(baseDir: string, benchmarkId: string): string {
+export function benchmarkConfigPath(baseDir: string, benchmarkId: BenchmarkId): string {
   return join(benchmarkDir(baseDir, benchmarkId), CONFIG_FILENAME)
 }
 
@@ -107,7 +108,7 @@ export function benchmarkConfigPath(baseDir: string, benchmarkId: string): strin
  * @param benchmarkId Benchmark id.
  * @param title Benchmark title.
  */
-export async function ensureBenchmark(baseDir: string, benchmarkId: string, title: string): Promise<void> {
+export async function ensureBenchmark(baseDir: string, benchmarkId: BenchmarkId, title: string): Promise<void> {
   await mkdir(benchmarkDir(baseDir, benchmarkId), { recursive: true })
   await writeFile(benchmarkConfigPath(baseDir, benchmarkId), stringifyYaml({ title }), 'utf8')
 }
@@ -119,7 +120,7 @@ export async function ensureBenchmark(baseDir: string, benchmarkId: string, titl
  * @param benchmarkId Benchmark id.
  * @returns The title, or the benchmark id when no title is recorded.
  */
-export async function readBenchmarkTitle(baseDir: string, benchmarkId: string): Promise<string> {
+export async function readBenchmarkTitle(baseDir: string, benchmarkId: BenchmarkId): Promise<string> {
   let raw: string
   try {
     raw = await readFile(benchmarkConfigPath(baseDir, benchmarkId), 'utf8')
@@ -141,8 +142,8 @@ export async function readBenchmarkTitle(baseDir: string, benchmarkId: string): 
  */
 export async function writeCase(
   baseDir: string,
-  benchmarkId: string,
-  caseId: string,
+  benchmarkId: BenchmarkId,
+  caseId: CaseId,
   spec: { statement: string; rubric?: string },
 ): Promise<void> {
   await mkdir(caseDir(baseDir, benchmarkId, caseId), { recursive: true })
@@ -159,7 +160,7 @@ export async function writeCase(
  * @param benchmarkId Benchmark id.
  * @returns Case ids in lexical order.
  */
-export async function listCaseIds(baseDir: string, benchmarkId: string): Promise<string[]> {
+export async function listCaseIds(baseDir: string, benchmarkId: BenchmarkId): Promise<CaseId[]> {
   const dir = benchmarkDir(baseDir, benchmarkId)
   let entries
   try {
@@ -170,7 +171,7 @@ export async function listCaseIds(baseDir: string, benchmarkId: string): Promise
   }
   return entries
     .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
+    .map(entry => CaseId(entry.name))
     .sort()
 }
 
@@ -183,7 +184,7 @@ export async function listCaseIds(baseDir: string, benchmarkId: string): Promise
  * @param benchmarkId Benchmark id.
  * @returns The benchmark title and its bound case set.
  */
-export async function loadBenchmark(baseDir: string, benchmarkId: string): Promise<BoundBenchmark> {
+export async function loadBenchmark(baseDir: string, benchmarkId: BenchmarkId): Promise<BoundBenchmark> {
   const title = await readBenchmarkTitle(baseDir, benchmarkId)
   const caseIds = await listCaseIds(baseDir, benchmarkId)
   const cases: CaseSpec[] = []

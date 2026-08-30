@@ -12,7 +12,7 @@ import { createRoot } from 'react-dom/client'
 import { act } from 'react'
 import type { Context } from '../src/context-types.ts'
 import { EditorHost } from '../src/client/EditorHost.tsx'
-import { createBetterSidebarService, type FileViewerProps } from '../src/client/service.ts'
+import { createBetterSidebarService, type EditorToolbarControls, type EditorToolbarState, type FileViewerProps } from '../src/client/service.ts'
 import { allLeaves, createSidebarStore, type SidebarTab } from '../src/client/state.ts'
 
 // The act() environment flag (React 18.2 reads it before flushing effects).
@@ -32,10 +32,8 @@ function reads(): number {
 interface MockViewerProps {
   initialMode?: 'preview' | 'edit'
   dirty?: boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onToolbarState?: ((state: any) => void) | undefined
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onToolbarControls?: ((controls: any) => void) | undefined
+  onToolbarState?: ((state: EditorToolbarState) => void) | undefined
+  onToolbarControls?: ((controls: EditorToolbarControls | null) => void) | undefined
 }
 
 /** A viewer that hoists a real toolbar (mode toggle + save state). */

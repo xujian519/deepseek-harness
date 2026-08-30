@@ -4,6 +4,8 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url))
+// The SQL-verb scan stays one regex literal, so the line length is inherent
+// to listing every statement verb.
 const SQL_LITERAL = /^\s*(?:ALTER|ATTACH|BEGIN|COMMIT|CREATE|DELETE|DETACH|DROP|INSERT|PRAGMA|REINDEX|RELEASE|ROLLBACK|SAVEPOINT|SELECT|UPDATE|VACUUM|WITH)\s/iu // eslint-disable-line @stylistic/max-len
 
 async function filesUnder(path: string): Promise<string[]> {

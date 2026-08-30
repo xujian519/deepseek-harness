@@ -377,6 +377,12 @@ describe.skipIf(!isWin32 || !pwshAvailable())('windows-acl runner', () => {
     // The committed suites never probed it — this pins the ambient boundary
     // end to end with the real restricted token.
     if (publicProbeDir === undefined) {
+      // The windows-coverage job is advisory, so a quiet skip would let this
+      // ambient-boundary regression test degrade away unnoticed when a CI
+      // runner image loses a usable Public tree. On CI, a `::warning::` line
+      // becomes a run annotation; locally it is a plain stderr warning.
+      const skipReason = `ambient-writable escape regression skipped: no writable probe directory under ${process.env.PUBLIC ?? 'C:\\Users\\Public'}`
+      console.warn(process.env.CI ? `::warning::${skipReason}` : skipReason)
       ctx.skip() // Public unavailable/unwritable on this host
       return
     }

@@ -5,7 +5,7 @@
  */
 
 import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { loadavg, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -26,9 +26,15 @@ const NAME = 'dsh-test-bin'
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'dsh-user-patches-'))
 
 async function eventually(test: () => boolean, message: string, budgetMs = 10_000): Promise<void> {
-  const deadline = Date.now() + budgetMs
+  const start = Date.now()
+  const deadline = start + budgetMs
   while (!test()) {
-    if (Date.now() >= deadline) throw new Error(message)
+    if (Date.now() >= deadline) {
+      // HMR delivery lags under full machine load; the load average in the
+      // failure distinguishes a load-starved runner from a real regression.
+      const load = loadavg().map(value => value.toFixed(2)).join(' ')
+      throw new Error(`${message} (waited ${Date.now() - start}ms, loadavg ${load})`)
+    }
     await new Promise(resolve => setTimeout(resolve, 10))
   }
 }

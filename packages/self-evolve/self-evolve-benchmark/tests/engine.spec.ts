@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BenchmarkId, CaseId } from '../src/brand.ts'
 import { BenchmarkEngineCore } from '../src/engine.ts'
 import { appendScoreboard } from '../src/scoreboard.ts'
 import { ensureBenchmark, writeCase } from '../src/store.ts'
@@ -25,12 +26,12 @@ function candidate() {
 describe('BenchmarkEngineCore', () => {
   let dir: string
   let agentDir: string
-  let benchmarkId: string
+  let benchmarkId: BenchmarkId
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-engine-'))
     agentDir = await mkdtemp(join(tmpdir(), 'dsh-engine-agent-'))
-    benchmarkId = 'summarizer'
+    benchmarkId = BenchmarkId('summarizer')
   })
 
   afterEach(async () => {
@@ -52,8 +53,8 @@ describe('BenchmarkEngineCore', () => {
   }
 
   async function prepareBenchmark(
-    cases: { caseId: string; statement: string; rubric?: string }[] = [
-      { caseId: 'c1', statement: 'Task one', rubric: 'Rubric one' },
+    cases: { caseId: CaseId; statement: string; rubric?: string }[] = [
+      { caseId: CaseId('c1'), statement: 'Task one', rubric: 'Rubric one' },
     ],
   ): Promise<void> {
     await ensureBenchmark(dir, benchmarkId, 'Summarizer')
@@ -63,8 +64,8 @@ describe('BenchmarkEngineCore', () => {
   describe('runBenchmark', () => {
     it('runs every case against the current agent state and persists one entry', async () => {
       await prepareBenchmark([
-        { caseId: 'c1', statement: 'Task one', rubric: 'R1' },
-        { caseId: 'c2', statement: 'Task two' },
+        { caseId: CaseId('c1'), statement: 'Task one', rubric: 'R1' },
+        { caseId: CaseId('c2'), statement: 'Task two' },
       ])
       const evaluateCase = vi.fn(async (request: EvaluateCaseRequest) => ({
         score: request.caseId === 'c1' ? 70 : 80,
@@ -87,8 +88,8 @@ describe('BenchmarkEngineCore', () => {
 
     it('executes each case before scoring and threads the deliverable into evaluation', async () => {
       await prepareBenchmark([
-        { caseId: 'c1', statement: 'Task one', rubric: 'R1' },
-        { caseId: 'c2', statement: 'Task two' },
+        { caseId: CaseId('c1'), statement: 'Task one', rubric: 'R1' },
+        { caseId: CaseId('c2'), statement: 'Task two' },
       ])
       const order: string[] = []
       const executeCase = vi.fn(async (request: ExecuteCaseRequest) => {
@@ -172,7 +173,7 @@ describe('BenchmarkEngineCore', () => {
       expect(entry.cost).toBe(0.1)
       expect(entry.durationMs).toBe(100)
       expect(entry.cases[0]).toMatchObject({
-        caseId: 'c1',
+        caseId: CaseId('c1'),
         score: 60,
         cost: 0.1,
         durationMs: 100,

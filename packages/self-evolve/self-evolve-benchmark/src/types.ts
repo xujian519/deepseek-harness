@@ -14,11 +14,9 @@
  * @module @deepseek-ai/dsh-self-evolve-benchmark/types
  */
 
-/** Opaque identifier for a benchmark. */
-export type BenchmarkId = string
+import type { BenchmarkId, CaseId } from './brand.ts'
 
-/** Opaque identifier for one benchmark case. */
-export type CaseId = string
+export type { BenchmarkId, CaseId } from './brand.ts'
 
 /** One benchmark case: `statement` is public, `rubric` is private. */
 export interface CaseSpec {

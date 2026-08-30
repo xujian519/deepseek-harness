@@ -6,6 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import BenchmarkEvolveEngine, { BenchmarkEvolveEngine as NamedBenchmarkEvolveEngine } from '../src/index.ts'
+import { BenchmarkId, CaseId } from '../src/brand.ts'
 import { appendScoreboard } from '../src/scoreboard.ts'
 import { ensureBenchmark, writeCase } from '../src/store.ts'
 
@@ -44,12 +45,12 @@ function provideRuntime(ctx: Context, start: ForkStart, agentsGet: () => unknown
 describe('BenchmarkEvolveEngine service wiring', () => {
   let dir: string
   let agentDir: string
-  let benchmarkId: string
+  let benchmarkId: BenchmarkId
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-index-'))
     agentDir = await mkdtemp(join(tmpdir(), 'dsh-index-agent-'))
-    benchmarkId = 'summarizer'
+    benchmarkId = BenchmarkId('summarizer')
   })
 
   afterEach(async () => {
@@ -63,7 +64,7 @@ describe('BenchmarkEvolveEngine service wiring', () => {
 
   async function prepareBenchmark(): Promise<void> {
     await ensureBenchmark(dir, benchmarkId, 'Summarizer')
-    await writeCase(dir, benchmarkId, 'c1', { statement: 'Task one', rubric: 'Rubric one' })
+    await writeCase(dir, benchmarkId, CaseId('c1'), { statement: 'Task one', rubric: 'Rubric one' })
   }
 
   it('default-exports the named engine class and registers as ctx.selfEvolveBenchmark', () => {
@@ -245,7 +246,7 @@ describe('BenchmarkEvolveEngine service wiring', () => {
       provideRuntime(ctx, async () => stubRun([textBlock('{"score": 70}')]))
       const engine = makeEngine(ctx)
       await ensureBenchmark(dir, benchmarkId, 'No rubric')
-      await writeCase(dir, benchmarkId, 'c1', { statement: 'Task one' })
+      await writeCase(dir, benchmarkId, CaseId('c1'), { statement: 'Task one' })
 
       const entry = await engine.runBenchmark(benchmarkId, {
         signal: new AbortController().signal,
