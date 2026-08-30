@@ -21,6 +21,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import { toError } from '@deepseek-ai/dsh-value'
 
 /** Fixed response to child permission requests: reject by default, or select the first allow option. */
 export type PermissionPolicy = 'allow' | 'reject'
@@ -254,15 +255,6 @@ export function toAcpPrompt(prompt: ContentBlock[]): AcpContentBlock[] {
     if (block.type === 'text') blocks.push({ type: 'text', text: block.text })
   }
   return blocks
-}
-
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
-function toError(value: unknown): Error {
-  // The catch only sees rejections from the ACP SDK RPCs and the spawn `error`
-  // event, which are always `Error`s; the `String(value)` arm is a defensive
-  // fallback for a non-Error throw that the typed APIs cannot produce.
-  /* v8 ignore next */
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 /** Report an original Host failure without letting the observation sink replace it. */

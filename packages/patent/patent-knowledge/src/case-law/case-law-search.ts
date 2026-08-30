@@ -17,7 +17,7 @@ import { type StatementSync } from 'node:sqlite'
 import { KnowledgeFtsSearchBase, type KnowledgeSearchEngineOptions } from '../shared/knowledge-fts.ts'
 import { escapeFtsPhrase, joinFtsOrTerms } from '../shared/fts.ts'
 import { decompressChunk } from '../shared/chunk-compression.ts'
-import { errorMessage } from '../shared/errors.ts'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { CaseLawChunk, CaseLawHit, CaseLawSearchOptions } from './types.ts'
 
 /** 引擎构造选项（全部可选；不传时行为与旧签名完全一致）。 */

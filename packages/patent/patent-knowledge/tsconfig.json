@@ -18,6 +18,9 @@
       "path": "../../patent/patent-core"
     },
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

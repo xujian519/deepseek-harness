@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-value",
-  "description": "Zero-dependency value primitives for unknown inputs: object guards, fail-loud positive-number assertions, filesystem errno tests, and a cycle-safe deep freeze (classification, narrowing, validation, and immutability, no I/O)",
+  "description": "Zero-dependency value primitives for unknown inputs: object guards, fail-loud positive-number assertions, filesystem errno tests, thrown-value normalization and rendering, and a cycle-safe deep freeze (classification, narrowing, validation, rendering, and immutability, no I/O)",
   "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"

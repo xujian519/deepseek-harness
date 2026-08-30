@@ -8,6 +8,7 @@ import type {
 } from '@deepseek-ai/dsh-session-persistence'
 import type { ProjectionSnapshot } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { SessionQueryError } from './config.ts'
 
 /** One exact immutable Session cut retained for the caller's read lifetime. */
@@ -204,9 +205,6 @@ function notFound(sessionId: SessionId, cause?: unknown): SessionQueryError {
   )
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unknown error'
-}
 
 function hasErrorName(error: unknown, name: string): error is Error {
   return error instanceof Error && error.name === name

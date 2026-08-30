@@ -19,7 +19,7 @@ import { type StatementSync } from 'node:sqlite'
 import { KnowledgeFtsSearchBase, type KnowledgeSearchEngineOptions } from '../shared/knowledge-fts.ts'
 import { escapeFtsPhrase, joinFtsOrTerms } from '../shared/fts.ts'
 import { decompressChunk } from '../shared/chunk-compression.ts'
-import { errorMessage } from '../shared/errors.ts'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { LawCategory, LawRecord, LawSearchResult, LegalSearchSource } from './types.ts'
 
 /** Engine constructor options (all optional). */

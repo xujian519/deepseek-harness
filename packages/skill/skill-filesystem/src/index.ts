@@ -32,7 +32,7 @@ import {
   type SkillProviderObservation,
   type SkillSource,
 } from '@deepseek-ai/dsh-skill'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, errorMessage } from '@deepseek-ai/dsh-value'
 
 const PROJECT_DSH_RANK = 100
 const PROJECT_AGENTS_RANK = 200
@@ -1029,8 +1029,4 @@ function optionalMetadata(data: Record<string, unknown>): { metadata?: Record<st
     return { metadata: value as Record<string, unknown> }
   }
   return {}
-}
-
-function errorMessage(error: unknown): string {
-  return String(error)
 }

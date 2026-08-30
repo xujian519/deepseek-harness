@@ -680,7 +680,7 @@ describe('ToolRuntime', () => {
       callId: ToolCallId('hostile'), name: 'hostile-throw', arguments: {},
     })).resolves.toMatchObject({
       isError: true,
-      content: [{ type: 'text', text: 'Error: <unprintable thrown value>' }],
+      content: [{ type: 'text', text: 'Error: [unrenderable thrown value]' }],
     })
   })
 

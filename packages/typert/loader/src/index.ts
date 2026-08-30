@@ -34,6 +34,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry/types'
+import { toError } from '@deepseek-ai/dsh-value'
 
 /** The package.json exports key naming a package's host-face typert artifact. */
 export const TYPERT_HOST_EXPORT = './typert'
@@ -434,9 +435,4 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       `typert-loader: ${String(failures.length)} typert contributor(s) failed to register:\n${failures.map(e => `  - ${e.message}`).join('\n')}`,
     )
   }
-}
-
-/** Normalize an arbitrary import or manifest failure to an Error. */
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
 }

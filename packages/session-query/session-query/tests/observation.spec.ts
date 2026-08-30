@@ -134,7 +134,7 @@ describe('SessionObservationReader', () => {
 
     await expect(new SessionObservationReader(ctx).read(SessionId('failed'))).rejects.toMatchObject({
       code: 'SESSION_QUERY_PERSISTENCE_FAILED',
-      message: expect.stringContaining('unknown error') as string,
+      message: expect.stringContaining('offline') as string,
     })
     await ctx.fiber.dispose()
   })

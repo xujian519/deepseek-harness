@@ -14,6 +14,7 @@
 import { accessSync, constants, statSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import { toError } from '@deepseek-ai/dsh-value'
 import type { SubagentCapabilities, SubagentResult, SubagentRun, SubagentStopReason } from './types.ts'
 
 /** Maximum UTF-8 size of {@link SubagentResult.diagnostic}. */
@@ -150,15 +151,6 @@ export function resolveChildCwd(prefix: string, configured: string | undefined, 
     throw new Error(`${prefix}: no working directory for the child — configure \`cwd\` or delegate from a parent session that has one`)
   }
   return assertUsableCwd(prefix, 'parent session cwd', parentCwd)
-}
-
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
-function toError(value: unknown): Error {
-  // The rejecting surfaces (wire clients, spawn failures) only throw
-  // `Error`s; the `String(value)` arm is a defensive fallback for a non-Error
-  // throw the typed surfaces cannot produce.
-  /* v8 ignore next */
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 /** Inputs to {@link settleRunResult}. */

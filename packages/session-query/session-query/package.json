@@ -54,6 +54,9 @@
       "optional": true
     }
   },
+  "dependencies": {
+    "@deepseek-ai/dsh-value": "workspace:^"
+  },
   "devDependencies": {
     "@deepseek-ai/dsh-brand": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",

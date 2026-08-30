@@ -24,6 +24,7 @@ import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/d
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
+import { toError } from '@deepseek-ai/dsh-value'
 
 /** Resolved spawn spec for an SDK runtime child process (no defaults — see Config). */
 export interface SdkRunSpec {
@@ -178,15 +179,6 @@ export function sdkChildOutcome(
         diagnostic: failureDiagnostic({ stage: 'session-run', category: 'child-unknown' }),
       }
   }
-}
-
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
-function toError(value: unknown): Error {
-  // The catch only sees rejections from the SDK client, which are always
-  // `Error`s; the `String(value)` arm is a defensive fallback for a non-Error
-  // throw that the typed surfaces cannot produce.
-  /* v8 ignore next */
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 /** Report an original Host failure without letting the observation sink replace it. */

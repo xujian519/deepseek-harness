@@ -14,6 +14,7 @@ import type {
   SessionPersistenceRevision,
   SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import SessionQueryEngine, {
   SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY,
   SESSION_QUERY_READ_WINDOW_MAX,
@@ -1092,9 +1093,6 @@ function asError(error: unknown): Error {
     : new Error('session-search dependency rejected with a non-Error value', { cause: error })
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unknown error'
-}
 
 function isRuntimeArray(value: unknown): boolean {
   return Array.isArray(value)

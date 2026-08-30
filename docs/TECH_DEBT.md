@@ -90,8 +90,8 @@
 |---|---|---|
 | `assertPositiveInteger`/`assertPositiveFinite` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`) | 保留 2 个语义特例:subagent-acp 的 `assertPositiveFinite`(钉 `MAX_TIMER_DELAY_MS` 上限,timer 域契约)、session-query-sqlite 的包装(抛 `SessionQueryError`,配置错误聚合契约) |
 | `isRecord` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;sdk/client 公开导出改为再导出;mcp-client 的 JsonValue 谓词由调用点显式收窄替代) | 0 剩余 |
-| `toError` | 5 份 | skill/index.ts:850、subagent-acp/run.ts:182、subagent/out-of-process.ts:123 等(skill 版有 hostile-proxy 防护,其他没有) |
-| `errorMessage`/`renderThrown` | 6 份 | 占位文案已分叉:`[unrenderable thrown value]`(workflow:199、skill:864)vs `<unrenderable thrown value>`(subagent/lifecycle.ts:263、schedule/runtime.ts:72)vs 纯 `String(value)`(skill-filesystem:1039)vs `` `${name}: ${message}` ``(llm/adapter-failure.ts:91) |
+| `toError` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`,采用 skill 的 hostile-proxy 加固形式;gateway/remote-events 的 `(reason, message, cause)` 变体是同名不同契约,保留本地) | 0 剩余 |
+| `errorMessage`/`renderThrown` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value` 短格式:`.message` → string-message 探针 → `String` → 固定占位符 `[unrenderable thrown value]`;占位文案统一,`<unrenderable…>`/`<unprintable…>`/`unknown error` 消失。保留特例:subagent lifecycle(带类名行)、workflow-worker-thread realm(栈优先报告)、agent-team(inspect 有界描述)、llm adapter-failure(`Error` 入参的 SDK getter 防御)——四者是不同契约而非副本;tool-ralph/tool-workflow 的 `?? 'unknown error'` 是结果字段缺省值,不属本族) | 0 剩余 |
 | `isENOENT` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;同批折叠同族 `isEEXIST` 3 份) | 0 剩余 |
 | `isPlainObject` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;实际 3 份——台账漏记 inspector/shared/json.ts 的导出副本,一并折叠,包内 14 处导入走 re-export) | 0 剩余 |
 | `deepFreeze` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;`dsh-llm` 公开导出移除,9 个导入包改指 `dsh-value`;settings 递归副本由共享迭代版替代,配置数据上行为不变) | 0 剩余 |
@@ -237,7 +237,7 @@
 
 1. **cordis 层 `emitContained(ctx, name, args)`** — 收敛 H7 的 9+ 份 containment 循环
 2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 5 份 abort-race 包装器(明确单一语义)
-3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已落地 `@deepseek-ai/dsh-value`,余 `toError`、`errorMessage`)
+3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已全部落地 `@deepseek-ai/dsh-value`)
 4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6)
 5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast)
 6. **announcement 状态机原语** — 收敛 H5 的双份 entry 生命周期

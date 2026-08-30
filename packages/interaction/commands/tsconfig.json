@@ -39,6 +39,9 @@
       "path": "../../typert/protocol"
     },
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../../util/crypto"
     }
   ]

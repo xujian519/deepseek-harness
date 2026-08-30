@@ -21,7 +21,7 @@ import {
   type SessionPromptParams,
   type SdkPromptContentBlock,
 } from '@deepseek-ai/dsh-sdk-protocol'
-import { isRecord } from '@deepseek-ai/dsh-value'
+import { errorMessage, isRecord } from '@deepseek-ai/dsh-value'
 import { disposeRuntimeProcess } from './dispose.ts'
 import { resolveDshLaunch, type RuntimeProcessOptions } from './launch.ts'
 import type { HarnessClientOptions, HarnessNotification, NotificationFilter } from './types.ts'
@@ -482,9 +482,3 @@ export function createProcessHarnessClient(options: RuntimeProcessOptions): Harn
  * @returns `true` iff `value` is a non-null, non-array object.
  */
 export { isRecord }
-
-/** The message of a thrown value (the transport only throws `Error`s; `String` covers the rest). */
-function errorMessage(error: unknown): string {
-  /* v8 ignore next -- the transport and dispose ladder reject only with Errors */
-  return error instanceof Error ? error.message : String(error)
-}

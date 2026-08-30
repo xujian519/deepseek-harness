@@ -6,6 +6,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { EveryScheduleRecord, OneShotScheduleRecord } from './types.ts'
 import {
   foldScheduleEvents,
@@ -69,9 +70,6 @@ function dueDecision(folded: FoldedSchedules, now: number): DueDecision {
 }
 
 /** Render an unknown value for process-local diagnostics only. */
-function renderThrown(value: unknown): string {
-  return value instanceof Error ? value.message : String(value)
-}
 
 /** One process-local, disposable projection of an exact agent's durable schedules. */
 export class ScheduleRuntime {
@@ -110,7 +108,7 @@ export class ScheduleRuntime {
       run = this.ctx.agents.withoutInitiator(() => this.runRequested())
     } catch (error: unknown) {
       if (this.isLive()) {
-        this.ctx.logger.warn(`schedule: could not start runtime for agent "${this.agent.id}": ${renderThrown(error)}`)
+        this.ctx.logger.warn(`schedule: could not start runtime for agent "${this.agent.id}": ${errorMessage(error)}`)
       }
       return
     }
@@ -119,7 +117,7 @@ export class ScheduleRuntime {
       () => { this.retire(run) },
       (error: unknown) => {
         if (this.isLive()) {
-          this.ctx.logger.warn(`schedule: runtime failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+          this.ctx.logger.warn(`schedule: runtime failed for agent "${this.agent.id}": ${errorMessage(error)}`)
         }
         this.faulted = true
         this.retire(run)
@@ -196,7 +194,7 @@ export class ScheduleRuntime {
       (error: unknown) => {
         this.idleWait = undefined
         if (this.isLive()) {
-          this.ctx.logger.warn(`schedule: idle wait failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+          this.ctx.logger.warn(`schedule: idle wait failed for agent "${this.agent.id}": ${errorMessage(error)}`)
         }
       },
     )
@@ -211,7 +209,7 @@ export class ScheduleRuntime {
       )
     } catch (error: unknown) {
       this.faulted = true
-      const detail = error instanceof ScheduleLogError ? error.message : renderThrown(error)
+      const detail = error instanceof ScheduleLogError ? error.message : errorMessage(error)
       this.ctx.logger.warn(`schedule: corrupt schedule log for agent "${this.agent.id}": ${detail}`)
       return undefined
     }
@@ -222,7 +220,7 @@ export class ScheduleRuntime {
     try {
       return dueDecision(folded, now)
     } catch (error: unknown) {
-      this.ctx.logger.warn(`schedule: fixed-rate decision failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+      this.ctx.logger.warn(`schedule: fixed-rate decision failed for agent "${this.agent.id}": ${errorMessage(error)}`)
       return undefined
     }
   }
@@ -235,7 +233,7 @@ export class ScheduleRuntime {
       await flushSchedulePersistence(this.ctx, this.agent.session)
     } catch (error: unknown) {
       if (this.isLive()) {
-        this.ctx.logger.warn(`schedule: preflight failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+        this.ctx.logger.warn(`schedule: preflight failed for agent "${this.agent.id}": ${errorMessage(error)}`)
       }
       return
     }
@@ -275,7 +273,7 @@ export class ScheduleRuntime {
           this.agent.followup(message)
         } catch (error: unknown) {
           if (this.isLive()) {
-            this.ctx.logger.warn(`schedule: framing or followup failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+            this.ctx.logger.warn(`schedule: framing or followup failed for agent "${this.agent.id}": ${errorMessage(error)}`)
           }
           return Promise.resolve(false)
         }
@@ -299,7 +297,7 @@ export class ScheduleRuntime {
         } catch (error: unknown) {
           this.faulted = true
           this.clearTimer()
-          this.ctx.logger.warn(`schedule: dispatch append failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+          this.ctx.logger.warn(`schedule: dispatch append failed for agent "${this.agent.id}": ${errorMessage(error)}`)
           return Promise.resolve(false)
         }
         return Promise.resolve(true)
@@ -315,7 +313,7 @@ export class ScheduleRuntime {
       await flushSchedulePersistence(this.ctx, this.agent.session)
     } catch (error: unknown) {
       if (this.isLive()) {
-        this.ctx.logger.warn(`schedule: dispatch barrier failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+        this.ctx.logger.warn(`schedule: dispatch barrier failed for agent "${this.agent.id}": ${errorMessage(error)}`)
       }
       return
     }

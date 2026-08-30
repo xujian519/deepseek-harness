@@ -6,6 +6,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type {
   WorkflowAgentEndInfo,
   WorkflowAgentInfo,
@@ -177,27 +178,14 @@ export abstract class WorkflowEngine extends Service {
       try {
         const returned: unknown = (callback as (...payload: unknown[]) => unknown)(...args)
         void Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`workflow: ${name} listener rejected: ${renderListenerError(error)}`)
+          this.ctx.logger.warn(`workflow: ${name} listener rejected: ${errorMessage(error)}`)
         })
       } catch (error: unknown) {
-        this.ctx.logger.warn(`workflow: ${name} listener threw: ${renderListenerError(error)}`)
+        this.ctx.logger.warn(`workflow: ${name} listener threw: ${errorMessage(error)}`)
       }
     }
   }
 }
 
-/**
- * Render any thrown value without violating listener containment.
- * @param error - any thrown value.
- * @returns `String(error)`, or a fixed label when even coercion throws.
- */
-function renderListenerError(error: unknown): string {
-  try {
-    return String(error)
-  } catch {
-    // String coercion itself may throw.
-    return '[unrenderable thrown value]'
-  }
-}
 
 export default WorkflowEngine

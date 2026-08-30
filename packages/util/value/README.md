@@ -1,5 +1,5 @@
 ---
-description: "Shared unknown-value primitives: object guards, fail-loud positive-number assertions, filesystem errno tests, and a cycle-safe deep freeze for parser and config boundaries."
+description: "Shared unknown-value primitives: object guards, fail-loud positive-number assertions, filesystem errno tests, thrown-value normalization and rendering, and a cycle-safe deep freeze for parser and config boundaries."
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `isENOENT` and `isEEXIST` classify filesystem errno errors, and `deepFreeze` renders a value immutably in place. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
+`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `isENOENT` and `isEEXIST` classify filesystem errno errors, `errorMessage` and `toError` render and normalize arbitrary thrown values without letting hostile coercion escape, and `deepFreeze` renders a value immutably in place. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
 
 ## Table of Contents
 
@@ -107,6 +107,32 @@ const snapshot = deepFreeze({ request, defaults })
 
 The traversal is iterative and cycle-safe, so arbitrarily deep values freeze without touching the call stack. `AbortSignal` objects are skipped: they are the live cancellation channel, and freezing one breaks abort.
 
+### Rendering a thrown value
+
+```ts
+import { errorMessage } from '@deepseek-ai/dsh-value'
+
+try {
+  await payload.dispatch()
+} catch (error) {
+  ctx.logger.warn(`dispatch failed: ${errorMessage(error)}`)
+}
+```
+
+The renderer is total: `Error` instances render `.message`, non-Error objects carrying a string `message` property render it, everything else is stringified, and a hostile value that traps coercion yields the fixed `[unrenderable thrown value]` placeholder. Diagnostics therefore keep one format harness-wide instead of forking per plugin.
+
+### Normalizing a thrown value
+
+```ts
+import { toError } from '@deepseek-ai/dsh-value'
+
+function settle(caught: unknown): Error {
+  return toError(caught) // real Errors pass through; everything else becomes one
+}
+```
+
+Real `Error` instances keep their identity; every other caught value becomes an `Error` carrying the rendered message. The `instanceof` probe is itself guarded, so a trapping value cannot throw from inside the handler and mask the original failure.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -121,7 +147,7 @@ The library is built on one boundary: the predicate and the failure message belo
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the predicate algebra is exercised by unit tests) |
 
 ### Why the guard is shape-only
@@ -164,6 +190,7 @@ These limits define what the library deliberately does not do. They are current 
 - **Positive values only** — the assertions cover `>= 1` and positive finite numbers; ranges, upper bounds, and non-integer floors (other than 1) stay with their owning capability.
 - **Freeze owns named properties** — `deepFreeze` cannot make TypedArray elements or internal slots (a `Date`'s time value) immutable; values relying on those need owner-side care.
 - **Errno tests are strict** — `isENOENT`/`isEEXIST` reject non-`Error` lookalikes by design; a synthetic value carrying `code` surfaces instead of being classified.
+- **Rendering is short-form** — `errorMessage` yields `.message` without the error-class prefix for structured records; name-inclusive lines, stack-first reports, and `inspect`-based bounded descriptions stay with their owning consumers.
 
 <a id="dev-note"></a>
 ### Dev Note

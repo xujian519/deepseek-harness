@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { parseDocument } from 'yaml'
-import { errorMessage } from '../shared/errors.ts'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 
 /**
  * Wiki 卡片加载器（数据源：src/knowledge/patent/wiki/，对齐 Mady WikiLoader + CardIndex）。

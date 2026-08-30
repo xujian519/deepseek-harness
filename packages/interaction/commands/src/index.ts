@@ -11,6 +11,7 @@ import type { EncodedImageAttachment } from '@deepseek-ai/dsh-attachment/types'
 import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import { NamedEntries, ScopedLayers } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer } from '@deepseek-ai/dsh-scope'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { Session, SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { CommandId } from './brand.ts'
@@ -135,14 +136,6 @@ function cancellationOf(signal: AbortSignal): Error | undefined {
 }
 
 /** Render arbitrary thrown values without trusting their string coercion. */
-function renderThrown(value: unknown): string {
-  try {
-    return String(value)
-  } catch {
-    return '<unrenderable thrown value>'
-  }
-}
-
 /** Stop awaiting an uncooperative handler once its owning UI request aborts. */
 function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(abortError(signal))
@@ -161,7 +154,7 @@ function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
         signal.removeEventListener('abort', onAbort)
         reject(error instanceof Error
           ? error
-          : new Error(`command handler rejected with a non-Error value: ${renderThrown(error)}`, { cause: error }))
+          : new Error(`command handler rejected with a non-Error value: ${errorMessage(error)}`, { cause: error }))
       },
     )
   })
@@ -401,10 +394,10 @@ export class CommandRuntime extends TypertRemoteService {
     try {
       this.appendLifecycle(session, 'command/done', {
         commandId, kind: 'error',
-        text: error instanceof Error ? error.message : renderThrown(error),
+        text: error instanceof Error ? error.message : errorMessage(error),
       })
     } catch (appendError: unknown) {
-      this.ctx.logger.warn(`command "${command}": command/done append failed: ${renderThrown(appendError)}`)
+      this.ctx.logger.warn(`command "${command}": command/done append failed: ${errorMessage(appendError)}`)
     }
   }
 
@@ -446,10 +439,10 @@ export class CommandRuntime extends TypertRemoteService {
       try {
         const returned: unknown = callback()
         void Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`commands/change listener rejected: ${renderThrown(error)}`)
+          this.ctx.logger.warn(`commands/change listener rejected: ${errorMessage(error)}`)
         })
       } catch (error: unknown) {
-        this.ctx.logger.warn(`commands/change listener threw: ${renderThrown(error)}`)
+        this.ctx.logger.warn(`commands/change listener threw: ${errorMessage(error)}`)
       }
     }
   }

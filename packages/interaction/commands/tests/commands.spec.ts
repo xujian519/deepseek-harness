@@ -146,8 +146,8 @@ describe('CommandRuntime', () => {
     expect(ctx.commands.find(agent, 'contained')).toBeDefined()
     expect(afterFailures).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => {
-      expect(warn).toHaveBeenCalledWith('commands/change listener threw: Error: observer threw')
-      expect(warn).toHaveBeenCalledWith('commands/change listener rejected: Error: observer rejected')
+      expect(warn).toHaveBeenCalledWith('commands/change listener threw: observer threw')
+      expect(warn).toHaveBeenCalledWith('commands/change listener rejected: observer rejected')
     })
     removeContained()
     expect(ctx.commands.find(agent, 'contained')).toBeUndefined()
@@ -245,7 +245,7 @@ describe('CommandRuntime', () => {
     })
     await expect(ctx.commands.execute(agent, '/reject-hostile', [], new AbortController().signal))
       .rejects.toMatchObject({
-        message: 'command handler rejected with a non-Error value: <unrenderable thrown value>',
+        message: 'command handler rejected with a non-Error value: [unrenderable thrown value]',
         cause: hostile,
       })
   })

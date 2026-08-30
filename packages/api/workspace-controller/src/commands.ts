@@ -9,6 +9,7 @@ import {
   WorkspaceUnknownSessionError,
 } from '@deepseek-ai/dsh-workspace'
 import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { workspaceView } from './feed.ts'
 import type {
   WorkspaceArchiveSessionRequest,
@@ -189,8 +190,4 @@ function failure(
   details: object,
 ): TypertRemoteFailure {
   return new TypertRemoteFailure({ code, message, details })
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

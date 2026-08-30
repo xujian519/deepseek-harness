@@ -10,6 +10,8 @@ import {
   isENOENT,
   isPlainObject,
   isRecord,
+  errorMessage,
+  toError,
 } from '@deepseek-ai/dsh-value'
 
 /** Resolve with the caught rejection, failing the test when nothing rejects. */
@@ -209,5 +211,46 @@ describe('deepFreeze', () => {
       cursor = cursor[0] as unknown[]
     }
     expect(Object.isFrozen(cursor)).toBe(true)
+  })
+})
+
+describe('errorMessage', () => {
+  it('renders Error instances as their message', () => {
+    expect(errorMessage(new TypeError('boom'))).toBe('boom')
+    expect(errorMessage(new Error(''))).toBe('')
+  })
+
+  it('renders non-Error values through their string-message property first', () => {
+    expect(errorMessage({ message: 'denied' })).toBe('denied')
+    expect(errorMessage({ message: 42 })).toBe('[object Object]')
+    expect(errorMessage('offline')).toBe('offline')
+    expect(errorMessage(42)).toBe('42')
+    expect(errorMessage(undefined)).toBe('undefined')
+  })
+
+  it('is total: a trapping thrown value yields the fixed placeholder', () => {
+    expect(errorMessage({ toString: () => { throw new Error('coercion trap') } })).toBe('[unrenderable thrown value]')
+    expect(errorMessage(new Proxy({}, { get() { throw new Error('getter trap') } }))).toBe('[unrenderable thrown value]')
+  })
+})
+
+describe('toError', () => {
+  it('passes real Error instances through untouched', () => {
+    const error = new TypeError('boom')
+    expect(toError(error)).toBe(error)
+  })
+
+  it('wraps non-Error values in an Error carrying the rendered message', () => {
+    const error = toError('offline')
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe('offline')
+    expect(toError({ message: 'denied' }).message).toBe('denied')
+  })
+
+  it('survives a thrown value that traps instanceof', () => {
+    const trap = new Proxy({}, { getPrototypeOf() { throw new Error('instanceof trap') } })
+    const error = toError(trap)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe('[unrenderable thrown value]')
   })
 })

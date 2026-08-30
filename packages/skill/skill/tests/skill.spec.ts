@@ -780,8 +780,8 @@ describe('SkillRegistry registry', () => {
     await Promise.resolve()
     expect(observed).toBe(1)
     expect(warnings).toEqual([
-      'skills/change listener threw: Error: observer threw',
-      'skills/change listener rejected: Error: observer rejected',
+      'skills/change listener threw: observer threw',
+      'skills/change listener rejected: observer rejected',
     ])
 
     disposeThrowing()

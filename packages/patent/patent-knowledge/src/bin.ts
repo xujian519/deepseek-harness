@@ -8,7 +8,7 @@
 
 import { parseArgs } from 'node:util'
 import { installKnowledgeDb } from './install.ts'
-import { errorMessage } from './shared/errors.ts'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 
 const { values } = parseArgs({
   options: {

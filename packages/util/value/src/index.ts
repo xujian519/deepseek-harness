@@ -1,8 +1,9 @@
 /**
- * Shared value primitives for classifying, validating, and freezing `unknown`
- * inputs at parser and config boundaries: object guards, fail-loud positive
- * number assertions, filesystem errno tests, and a cycle-safe deep freeze.
- * Pure predicates and pure operations only — no I/O, no dependency.
+ * Shared value primitives for classifying, validating, rendering, and
+ * freezing `unknown` inputs at parser and config boundaries: object guards,
+ * fail-loud positive number assertions, filesystem errno tests, thrown-value
+ * normalization, and a cycle-safe deep freeze. Pure predicates and pure
+ * operations only — no I/O, no dependency.
  * @module @deepseek-ai/dsh-value
  */
 
@@ -124,4 +125,49 @@ export function deepFreeze<T>(value: T): T {
     }
   }
   return value
+}
+
+/**
+ * Render an arbitrary thrown value as a short human-readable message without
+ * letting coercion escape: `Error` instances render `.message`, non-Error
+ * objects carrying a string `message` property (e.g. `throw { message:
+ * 'denied' }`) render it, everything else is stringified. The renderer is
+ * total — a hostile thrown value that traps `instanceof`, property access, or
+ * string coercion yields the fixed `[unrenderable thrown value]` placeholder,
+ * so diagnostics keep a consistent format across the harness.
+ *
+ * @param value The caught value to render.
+ * @returns The rendered message.
+ */
+export function errorMessage(value: unknown): string {
+  try {
+    if (value instanceof Error) return value.message
+    if (typeof value === 'object' && value !== null && 'message' in value) {
+      const message: unknown = value.message
+      if (typeof message === 'string') return message
+    }
+    return String(value)
+  } catch {
+    return '[unrenderable thrown value]'
+  }
+}
+
+/**
+ * Normalize an arbitrary thrown value to a total `Error` without trusting
+ * coercion: real `Error` instances pass through untouched, everything else
+ * becomes an `Error` carrying the {@link errorMessage} rendering. The
+ * `instanceof` probe is itself guarded — a hostile thrown value that traps it
+ * falls through to the total renderer instead of throwing from the catch
+ * handler and masking the original failure.
+ *
+ * @param value The caught value to normalize.
+ * @returns The value as an `Error`.
+ */
+export function toError(value: unknown): Error {
+  try {
+    if (value instanceof Error) return value
+  } catch {
+    // A hostile proxy may throw during instanceof; fall through to the total renderer.
+  }
+  return new Error(errorMessage(value))
 }

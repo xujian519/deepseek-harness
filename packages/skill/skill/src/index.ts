@@ -14,7 +14,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer } from '@deepseek-ai/dsh-scope'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, errorMessage, toError } from '@deepseek-ai/dsh-value'
 import z from '@deepseek-ai/schemastery'
 import type Schema from '@deepseek-ai/schemastery'
 
@@ -839,25 +839,6 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined):
 /** Throw a total Error for an already-aborted lookup. */
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) throw toError(signal.reason)
-}
-
-/** Normalize an arbitrary abort or provider failure without trusting coercion. */
-function toError(error: unknown): Error {
-  try {
-    if (error instanceof Error) return error
-  } catch {
-    // A hostile proxy may throw during instanceof; fall through to the total renderer.
-  }
-  return new Error(errorMessage(error))
-}
-
-/** Render an arbitrary provider failure without letting coercion escape containment. */
-function errorMessage(error: unknown): string {
-  try {
-    return String(error)
-  } catch {
-    return '[unrenderable thrown value]'
-  }
 }
 
 export default SkillRegistry

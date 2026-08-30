@@ -1,5 +1,5 @@
 ---
-description: "共享的未知值原语：面向解析与配置边界的对象守卫、fail-loud 正数断言、文件系统 errno 测试与循环安全的深冻结。"
+description: "共享的未知值原语：面向解析与配置边界的对象守卫、fail-loud 正数断言、文件系统 errno 测试、抛出值规范化与渲染及循环安全的深冻结。"
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`deepFreeze` 就地让值不可变。这份零依赖库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致,而不是按插件各自分叉。
+`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下渲染并规范化任意抛出值,`deepFreeze` 就地让值不可变。这份零依赖库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致,而不是按插件各自分叉。
 
 ## 目录
 
@@ -107,6 +107,32 @@ const snapshot = deepFreeze({ request, defaults })
 
 遍历为迭代式且循环安全,任意深度的值都能冻结而不触及调用栈。`AbortSignal` 对象被刻意跳过:它们是存活的取消通道,冻结会破坏 abort。
 
+### 渲染抛出值
+
+```ts
+import { errorMessage } from '@deepseek-ai/dsh-value'
+
+try {
+  await payload.dispatch()
+} catch (error) {
+  ctx.logger.warn(`dispatch failed: ${errorMessage(error)}`)
+}
+```
+
+渲染是全防御的:`Error` 实例渲染 `.message`,携带 string `message` 属性的非 Error 对象渲染该属性,其余值走字符串化,而陷阱式的敌意值会得到固定的 `[unrenderable thrown value]` 占位符。诊断因此全 harness 单一格式,而不是按插件分叉。
+
+### 规范化抛出值
+
+```ts
+import { toError } from '@deepseek-ai/dsh-value'
+
+function settle(caught: unknown): Error {
+  return toError(caught) // real Errors pass through; everything else becomes one
+}
+```
+
+真实 `Error` 实例保持原身份;其余被捕获值都变成携带渲染消息的 `Error`。`instanceof` 探针本身也有防护,陷阱值不能从 handler 内部抛出而掩盖原始失败。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -121,7 +147,7 @@ const snapshot = deepFreeze({ request, defaults })
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
 | [`src/invariant.ts`](src/invariant.ts) | 不变量伴随(无运行时不变量;谓词代数由单元测试覆盖) |
 
 ### 为什么守卫只看形状
@@ -164,6 +190,7 @@ const snapshot = deepFreeze({ request, defaults })
 - **只覆盖正值** — 断言只管 `>= 1` 与正有限数;区间、上限与 1 以外的非整数下界留在各归属能力内。
 - **冻结只管具名属性** — `deepFreeze` 无法让 TypedArray 元素或内部槽(如 `Date` 的时间值)不可变;依赖这些的值需要属主自行处理。
 - **errno 测试从严** — `isENOENT`/`isEEXIST` 刻意拒绝非 `Error` 同形值;携带 `code` 的伪造值会向上浮出而不是被分类。
+- **渲染为短格式** — `errorMessage` 产出不带错误类名前缀的 `.message`,面向结构化记录;带类名的行、栈优先的报告与基于 `inspect` 的有界描述留在各属主消费方。
 
 <a id="dev-note"></a>
 ### 开发备注

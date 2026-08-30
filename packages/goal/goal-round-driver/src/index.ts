@@ -11,6 +11,7 @@ import type { GoalMessageSource, GoalRef, GoalView } from '@deepseek-ai/dsh-goal
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { renderGoalRoundPrompt } from './prompt.ts'
 
 export { renderGoalRoundPrompt } from './prompt.ts'
@@ -67,11 +68,6 @@ function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
-/** Human-readable unexpected values for logs. */
-function renderThrown(value: unknown): string {
-  return value instanceof Error ? value.message : String(value)
-}
-
 /** Install automatic same-session continuation and its race fences. */
 export function apply(ctx: Context): void {
   const states = new Map<Agent, DriverState>()
@@ -119,7 +115,7 @@ export function apply(ctx: Context): void {
       const goal = currentGoal(state)
       if (goal?.activation === 'armed') ctx.goals.disarm(state.agent)
     } catch (error: unknown) {
-      ctx.logger.warn(`goal-round-driver: could not disarm agent "${state.agent.id}": ${renderThrown(error)}`)
+      ctx.logger.warn(`goal-round-driver: could not disarm agent "${state.agent.id}": ${errorMessage(error)}`)
     }
   }
 
@@ -144,7 +140,7 @@ export function apply(ctx: Context): void {
       try {
         await ctx.sessions.flush(agent.session)
       } catch (error: unknown) {
-        ctx.logger.warn(`goal-round-driver: durability checkpoint failed for agent "${agent.id}": ${renderThrown(error)}`)
+        ctx.logger.warn(`goal-round-driver: durability checkpoint failed for agent "${agent.id}": ${errorMessage(error)}`)
         disarm(state)
         return
       }
@@ -192,13 +188,13 @@ export function apply(ctx: Context): void {
       agent.followup(message)
     } catch (error: unknown) {
       state.attempt = undefined
-      ctx.logger.warn(`goal-round-driver: could not queue round ${round} for agent "${agent.id}": ${renderThrown(error)}`)
+      ctx.logger.warn(`goal-round-driver: could not queue round ${round} for agent "${agent.id}": ${errorMessage(error)}`)
       const latest = currentGoal(state)
       if (latest !== undefined && latest.id === goal.id && latest.revision === goal.revision
         && latest.phase === 'active' && latest.activation === 'armed') {
         ctx.goals.block(agent, goalRef(latest), {
           code: 'queue-failed',
-          message: `Could not queue goal round ${round}: ${renderThrown(error)}`,
+          message: `Could not queue goal round ${round}: ${errorMessage(error)}`,
         })
       }
     }
@@ -218,13 +214,13 @@ export function apply(ctx: Context): void {
           try {
             await drive(state)
           } catch (error: unknown) {
-            ctx.logger.warn(`goal-round-driver: driver failed for agent "${state.agent.id}": ${renderThrown(error)}`)
+            ctx.logger.warn(`goal-round-driver: driver failed for agent "${state.agent.id}": ${errorMessage(error)}`)
             disarm(state)
           }
         }
       })
     } catch (error: unknown) {
-      ctx.logger.warn(`goal-round-driver: could not start driver for agent "${state.agent.id}": ${renderThrown(error)}`)
+      ctx.logger.warn(`goal-round-driver: could not start driver for agent "${state.agent.id}": ${errorMessage(error)}`)
       disarm(state)
       return
     }
@@ -234,7 +230,7 @@ export function apply(ctx: Context): void {
       if (state.requested && !state.stopping) requestDrive(state)
     }
     void run.then(retire, (error: unknown) => {
-      ctx.logger.warn(`goal-round-driver: driver task rejected for agent "${state.agent.id}": ${renderThrown(error)}`)
+      ctx.logger.warn(`goal-round-driver: driver task rejected for agent "${state.agent.id}": ${errorMessage(error)}`)
       disarm(state)
       retire()
     })
@@ -268,7 +264,7 @@ export function apply(ctx: Context): void {
           try {
             ctx.goals.pause(agent, goalRef(goal))
           } catch (error: unknown) {
-            ctx.logger.warn(`goal-round-driver: could not pause cancelled goal for agent "${agent.id}": ${renderThrown(error)}`)
+            ctx.logger.warn(`goal-round-driver: could not pause cancelled goal for agent "${agent.id}": ${errorMessage(error)}`)
             disarm(state)
           }
         }
@@ -356,7 +352,7 @@ export function apply(ctx: Context): void {
       try {
         valid = validReservation(state, content, source)
       } catch (error: unknown) {
-        ctx.logger.warn(`goal-round-driver: pre-step check failed for agent "${agent.id}": ${renderThrown(error)}`)
+        ctx.logger.warn(`goal-round-driver: pre-step check failed for agent "${agent.id}": ${errorMessage(error)}`)
         disarm(state)
       }
       if (!valid) {
@@ -400,7 +396,7 @@ export function apply(ctx: Context): void {
       try {
         valid = validReservation(state, content, source)
       } catch (error: unknown) {
-        ctx.logger.warn(`goal-round-driver: post-decision check failed for agent "${agent.id}": ${renderThrown(error)}`)
+        ctx.logger.warn(`goal-round-driver: post-decision check failed for agent "${agent.id}": ${errorMessage(error)}`)
         disarm(state)
         valid = false
       }

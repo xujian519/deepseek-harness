@@ -7,7 +7,7 @@
 
 import { FTS_MIN_RUNES } from './fts.ts'
 import { extractLawKeywords } from '../legal/keywords.ts'
-import { errorMessage } from './errors.ts'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 
 /**
  * 执行一次 FTS 优先、LIKE 兜底的检索（含切词降级阶梯）。

@@ -712,7 +712,7 @@ describe('scoped execution dispatch', () => {
     expect(dispatchModes).toEqual(['emit'])
     expect(warn).toHaveBeenCalledTimes(2)
     expect(warn.mock.calls.map(call => String(call[0]))).toEqual(expect.arrayContaining([
-      expect.stringContaining('<unprintable thrown value>'),
+      expect.stringContaining('[unrenderable thrown value]'),
       expect.stringContaining('async observer failure'),
     ]))
   })
