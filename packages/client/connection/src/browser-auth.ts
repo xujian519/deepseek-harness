@@ -3,6 +3,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import type { CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type {
   ConnectionIndexRequest,
   ConnectionIndexResponse,
@@ -29,10 +30,6 @@ interface BrowserCookiePayload {
   readonly authority: string
   readonly issuedAt: number
   readonly expiresAt: number
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function encodeBase64Url(value: Uint8Array): string {

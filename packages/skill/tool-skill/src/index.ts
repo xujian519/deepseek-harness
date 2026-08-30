@@ -11,6 +11,7 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import {
   escapeText,
   isModelInvocable,
@@ -76,7 +77,10 @@ export const Config: z<Config> = z.object({
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const catalogDescriptionMaxLength = config.catalogDescriptionMaxLength ?? DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH
-  assertPositiveInteger('catalogDescriptionMaxLength', catalogDescriptionMaxLength, 3)
+  assertPositiveInteger('tool-skill: catalogDescriptionMaxLength', catalogDescriptionMaxLength)
+  if (catalogDescriptionMaxLength < 3) {
+    throw new Error('tool-skill: catalogDescriptionMaxLength must be an integer greater than or equal to 3')
+  }
 
   const skillTool = defineTool({
     name: 'skill',
@@ -390,12 +394,6 @@ function catalogMessage(
 function catalogDescription(value: string, maxLength: number): string {
   const normalized = value.replaceAll(/\s+/g, ' ').trim()
   return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 3)}...`
-}
-
-function assertPositiveInteger(name: string, value: number, minimum = 1): void {
-  if (!Number.isInteger(value) || value < minimum) {
-    throw new Error(`tool-skill: ${name} must be an integer greater than or equal to ${minimum}`)
-  }
 }
 
 /**

@@ -6,6 +6,8 @@
  * 证据闭环"自动收集"阶段的基础。设计对齐 Mady agentcore/evidence/receipt.go。
  */
 
+import { isRecord } from '@deepseek-ai/dsh-value'
+
 export type SatiEvidenceReceipt = {
   /** 工具调用 id（与 SatiToolResult.toolCallId 对应） */
   toolCallId: string
@@ -58,10 +60,6 @@ function isWriteTool(toolName: string, args: Record<string, unknown>): boolean {
     if (typeof cmd === 'string' && /(>|>>|tee|sed\s+-i|mv|cp|rm|mkdir|touch)/.test(cmd)) return true
   }
   return false
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

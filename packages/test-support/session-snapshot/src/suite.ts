@@ -21,6 +21,7 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { isSurfaceEligibleType } from '@deepseek-ai/dsh-session/surface'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { describe, expect, it } from 'vitest'
 import { type AgentUnderTest, type HarvestedLog, type InputScript, runScenario } from './harness.ts'
 import { parseSnapshotManifest } from './manifest.ts'
@@ -843,11 +844,6 @@ function preservePackedMemberTimes(
   const gaps = memberTimes.slice(1).map((time, index) => time - (memberTimes[index] as number))
   if (gaps.some(gap => !Number.isSafeInteger(gap))) return
   row.data.dt = gaps
-}
-
-/** Whether a parsed JSON value is a non-array object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 /**

@@ -22,6 +22,7 @@ import { isImageAdmissionError } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { assertSupportedJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { JsonSchemaNode, JsonValue } from '@deepseek-ai/dsh-tools'
 
@@ -363,11 +364,6 @@ function createExecutor(
 /** Whether an untrusted MCP content array contains a declared image block. */
 function containsImage(content: JsonValue[]): boolean {
   return content.some(value => isRecord(value) && value.type === 'image')
-}
-
-/** Narrow one JSON value to a string-keyed object. */
-function isRecord(value: JsonValue): value is { [key: string]: JsonValue } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Narrow a declared MIME string to the durable image vocabulary. */

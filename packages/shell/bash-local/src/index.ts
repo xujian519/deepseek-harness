@@ -16,6 +16,7 @@ import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, S
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
+import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
 
 /**
  * Model-friendly environment overrides: disable colors, pagers, and
@@ -66,12 +67,6 @@ function finalOutput(reader: SubprocessOutputReader): CollectedOutput {
   }
 }
 
-function assertPositiveFinite(name: string, value: number): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`bash-local: ${name} must be a positive finite number`)
-  }
-}
-
 /**
  * Reject a resolved section this executor could not run with. The schema
  * expresses neither "positive and finite" nor the timer bound `graceMs` has to
@@ -82,11 +77,11 @@ function assertPositiveFinite(name: string, value: number): void {
  */
 export function assertServiceableBashConfig(config: Config): void {
   const resolved = config as ResolvedConfig
-  assertPositiveFinite('timeoutMs', resolved.timeoutMs)
-  assertPositiveFinite('maxTimeoutMs', resolved.maxTimeoutMs)
-  assertPositiveFinite('maxOutputBytes', resolved.maxOutputBytes)
-  assertPositiveFinite('maxSpillBytes', resolved.maxSpillBytes)
-  assertPositiveFinite('graceMs', resolved.graceMs)
+  assertPositiveFinite('bash-local: timeoutMs', resolved.timeoutMs)
+  assertPositiveFinite('bash-local: maxTimeoutMs', resolved.maxTimeoutMs)
+  assertPositiveFinite('bash-local: maxOutputBytes', resolved.maxOutputBytes)
+  assertPositiveFinite('bash-local: maxSpillBytes', resolved.maxSpillBytes)
+  assertPositiveFinite('bash-local: graceMs', resolved.graceMs)
   if (resolved.graceMs > MAX_TIMER_DELAY_MS) {
     throw new Error(`bash-local: graceMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
   }
@@ -151,7 +146,7 @@ export class LocalBashExecutor extends ShellExecutor {
       'bash-local: request.timeoutMs',
     )
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes
-    assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
+    assertPositiveFinite('bash-local: request.stdoutMaxBytes', stdoutMaxBytes)
     return {
       command: request.command,
       workdir: request.workdir ?? this.config.cwd ?? process.cwd(),

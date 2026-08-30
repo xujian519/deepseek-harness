@@ -27,6 +27,7 @@ import type {
   TokenUsage,
 } from '@deepseek-ai/dsh-llm'
 import { LlmAdapter, LlmError, ReasoningEffortId, assertNever, requestImageHandleText, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
+import { isRecord } from '@deepseek-ai/dsh-value'
 
 const PACKED_CHUNK_ROW_TYPES = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks'])
 
@@ -470,10 +471,6 @@ function inferStartedSubagents(
       liveSessionIds[index] = id
     }
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

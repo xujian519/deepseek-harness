@@ -13,6 +13,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { LspError } from '@deepseek-ai/dsh-lsp'
 import type {} from '@deepseek-ai/dsh-lsp'
@@ -97,8 +98,8 @@ const LSP_RANGE_OUTPUT_SCHEMA = {
  */
 export function apply(ctx: Context, config: Config): void {
   const resolved = config as ResolvedConfig
-  assertPositiveInteger('maxLocations', resolved.maxLocations)
-  assertPositiveInteger('maxResultChars', resolved.maxResultChars)
+  assertPositiveInteger('tool-lsp: maxLocations', resolved.maxLocations)
+  assertPositiveInteger('tool-lsp: maxResultChars', resolved.maxResultChars)
   assertTimer('timeoutMs', resolved.timeoutMs)
 
   ctx.systemPrompt.section({
@@ -230,13 +231,6 @@ export function apply(ctx: Context, config: Config): void {
     },
     presentCall: presentLspCall,
   }))
-}
-
-/** Reject a non-positive-integer config value at load, so misconfiguration fails loud. */
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`tool-lsp: ${name} must be a positive integer`)
-  }
 }
 
 /** Reject a timer value Node would clamp instead of scheduling as configured. */

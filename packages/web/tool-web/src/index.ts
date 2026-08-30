@@ -9,6 +9,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import type {} from '@deepseek-ai/dsh-web'
 import { applyWebSearchTool, WEB_SEARCH_MAX_QUERIES, WEB_SEARCH_MAX_RESULTS } from './search.ts'
 import { applyWebFetchTool } from './fetch.ts'
@@ -65,13 +66,6 @@ export const Config: z<Config> = z.object({
 /** Complete config after schemastery applies every field default. */
 type ResolvedConfig = Required<Config>
 
-/** Configured count, timeout, and character caps must be positive integers. */
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`tool-web: ${name} must be a positive integer`)
-  }
-}
-
 /**
  * Register the enabled web tools. `search`/`fetch` default to true; a product
  * that wants only one disables the other in config. Each tool's cooperative
@@ -84,11 +78,11 @@ function assertPositiveInteger(name: string, value: number): void {
 export function apply(ctx: Context, config: Config): void {
   // schemastery (Config) has already filled every defaulted field.
   const resolved = config as ResolvedConfig
-  assertPositiveInteger('searchMaxResults', resolved.searchMaxResults)
-  assertPositiveInteger('searchMaxQueries', resolved.searchMaxQueries)
-  assertPositiveInteger('fetchTimeoutMs', resolved.fetchTimeoutMs)
-  assertPositiveInteger('searchTimeoutMs', resolved.searchTimeoutMs)
-  assertPositiveInteger('fetchMaxOutputChars', resolved.fetchMaxOutputChars)
+  assertPositiveInteger('tool-web: searchMaxResults', resolved.searchMaxResults)
+  assertPositiveInteger('tool-web: searchMaxQueries', resolved.searchMaxQueries)
+  assertPositiveInteger('tool-web: fetchTimeoutMs', resolved.fetchTimeoutMs)
+  assertPositiveInteger('tool-web: searchTimeoutMs', resolved.searchTimeoutMs)
+  assertPositiveInteger('tool-web: fetchMaxOutputChars', resolved.fetchMaxOutputChars)
   if (resolved.search) {
     applyWebSearchTool(ctx, resolved.searchMaxResults, resolved.searchMaxQueries, resolved.searchTimeoutMs, resolved.fetch)
   }

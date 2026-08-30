@@ -548,6 +548,8 @@
       "@deepseek-ai/dsh-timeout-guard/invariant": ["./packages/guard/timeout-guard/src/invariant.ts"],
       "@deepseek-ai/dsh-tmux-context": ["./packages/context/tmux-context/src"],
       "@deepseek-ai/dsh-tmux-context/invariant": ["./packages/context/tmux-context/src/invariant.ts"],
+      "@deepseek-ai/dsh-value": ["./packages/util/value/src"],
+      "@deepseek-ai/dsh-value/invariant": ["./packages/util/value/src/invariant.ts"],
       "@deepseek-ai/dsh-token-meter": ["./packages/llm/token-meter/src"],
       "@deepseek-ai/dsh-token-meter/invariant": ["./packages/llm/token-meter/src/invariant.ts"],
       "@deepseek-ai/dsh-tool-ask-user": ["./packages/interaction/tool-ask-user/src"],

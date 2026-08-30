@@ -19,6 +19,9 @@
   ],
   "references": [
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../../attachment/attachment"
     },
     {

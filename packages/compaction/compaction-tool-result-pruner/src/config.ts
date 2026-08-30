@@ -2,6 +2,7 @@
 
 import { deepFreeze } from '@deepseek-ai/dsh-llm'
 import type { ResolvedConfig, ToolResultPruneConfig } from './types.ts'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 
 /** Fixed marker substituted for every removed middle span. */
 export const PRUNE_MARKER = '\n\n[... tool result middle pruned ...]\n\n'
@@ -48,7 +49,7 @@ export function resolveConfig(config: ToolResultPruneConfig = {}): ResolvedConfi
     headChars: config.headChars ?? DEFAULTS.headChars,
     tailChars: config.tailChars ?? DEFAULTS.tailChars,
   }
-  assertPositiveInteger('thresholdChars', resolved.thresholdChars)
+  assertPositiveInteger('ToolResultPruneConfig: thresholdChars', resolved.thresholdChars)
   assertNonNegativeInteger('headChars', resolved.headChars)
   assertNonNegativeInteger('tailChars', resolved.tailChars)
 
@@ -62,12 +63,6 @@ export function resolveConfig(config: ToolResultPruneConfig = {}): ResolvedConfi
     )
   }
   return deepFreeze(structuredClone(resolved))
-}
-
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`ToolResultPruneConfig: ${name} (${value}) must be a positive integer`)
-  }
 }
 
 function assertNonNegativeInteger(name: string, value: number): void {

@@ -1,5 +1,7 @@
 /** Relationship-preserving identity redaction for committed session snapshots. */
 
+import { isRecord } from '@deepseek-ai/dsh-value'
+
 const UUID_FRAGMENT_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 const LEGACY_TOKEN_RE = /^\{\{(?:sessionId|messageId)\}\}$/
 const CANONICAL_TOKEN_RE = /^\{\{(session|message|approval|workflow|command|rpc|retry|id):([1-9]\d*)\}\}$/
@@ -10,10 +12,6 @@ type IdentityKind = 'session' | 'message' | 'approval' | 'workflow' | 'command' 
 interface ParsedLog {
   readonly records: Record<string, unknown>[]
   readonly trailingNewline: boolean
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 function parseLog(log: string): ParsedLog {

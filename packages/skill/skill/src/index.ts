@@ -14,6 +14,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer } from '@deepseek-ai/dsh-scope'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import z from '@deepseek-ai/schemastery'
 import type Schema from '@deepseek-ai/schemastery'
 
@@ -374,7 +375,7 @@ export class SkillRegistry extends Service {
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'skills')
     this.collectCacheMaxEntries = config.collectCacheMaxEntries ?? DEFAULT_COLLECT_CACHE_ENTRIES
-    assertPositiveInteger('collectCacheMaxEntries', this.collectCacheMaxEntries)
+    assertPositiveInteger('skill: collectCacheMaxEntries', this.collectCacheMaxEntries)
   }
 
   /**
@@ -808,12 +809,6 @@ function compareIndexedCandidates(left: IndexedCandidate, right: IndexedCandidat
   return left.candidate.rank - right.candidate.rank
     || left.providerOrder - right.providerOrder
     || left.localOrder - right.localOrder
-}
-
-function assertPositiveInteger(name: string, value: number, minimum = 1): void {
-  if (!Number.isInteger(value) || value < minimum) {
-    throw new Error(`skill: ${name} must be an integer greater than or equal to ${minimum}`)
-  }
 }
 
 function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {

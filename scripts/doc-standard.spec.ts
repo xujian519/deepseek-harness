@@ -83,6 +83,7 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/util/native-command': 'Host-side subprocess runner utility.',
   'packages/util/output-retention': 'Zero-dependency retention utility.',
   'packages/util/timeout': 'Zero-dependency timeout utility.',
+  'packages/util/value': 'Zero-dependency unknown-value classification utility.',
   'packages/util/workspace-path': 'Zero-dependency Workspace path formatter.',
 }
 

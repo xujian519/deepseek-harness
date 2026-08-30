@@ -86,6 +86,9 @@
   ],
   "references": [
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../../util/brand"
     },
     {

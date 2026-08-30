@@ -7,6 +7,7 @@ import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
+import { isRecord } from '@deepseek-ai/dsh-value'
 
 interface ProducedPath {
   readonly seq: number
@@ -95,11 +96,6 @@ function editorMutationPath(args: Readonly<Record<string, unknown>>): string | n
 /** A non-blank path preserves the exact spelling supplied to the tool. */
 function pathValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
-}
-
-/** Narrow parsed JSON to an argument object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

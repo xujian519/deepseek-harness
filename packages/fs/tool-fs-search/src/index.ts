@@ -29,6 +29,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import { GLOB_MAX_RESULTS, applyGlobTool } from './glob.ts'
 import { GREP_MAX_LINE_BYTES, GREP_MAX_MATCHES, applyGrepTool } from './grep.ts'
 import { RAW_OUTPUT_MAX_BYTES, SEARCH_GRACE_MS, SEARCH_META_MAX_BYTES, SEARCH_STDERR_MAX_BYTES, SEARCH_TIMEOUT_MS } from './search-core.ts'
@@ -109,13 +110,6 @@ export const Config: z<Config> = z.object({
 /** The shape after schemastery applied the defaults. */
 type ResolvedConfig = Required<Config>
 
-/** Every search cap counts items/bytes/milliseconds — a positive integer, or retention and timeout arithmetic misbehaves silently. */
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`tool-fs-search: ${name} must be a positive integer`)
-  }
-}
-
 /**
  * Register the `glob`/`grep` filesystem discovery tool suite. The packaged
  * ripgrep binary is always available (an npm dependency), so registration is
@@ -128,17 +122,17 @@ function assertPositiveInteger(name: string, value: number): void {
 export async function apply(ctx: Context, config: Config): Promise<void> {
   // schemastery (Config) has already filled every defaulted field.
   const resolved = config as ResolvedConfig
-  assertPositiveInteger('globMaxResults', resolved.globMaxResults)
-  assertPositiveInteger('grepMaxMatches', resolved.grepMaxMatches)
-  assertPositiveInteger('grepMaxLineBytes', resolved.grepMaxLineBytes)
-  assertPositiveInteger('searchMetaMaxBytes', resolved.searchMetaMaxBytes)
-  assertPositiveInteger('rawOutputMaxBytes', resolved.rawOutputMaxBytes)
-  assertPositiveInteger('graceMs', resolved.graceMs)
+  assertPositiveInteger('tool-fs-search: globMaxResults', resolved.globMaxResults)
+  assertPositiveInteger('tool-fs-search: grepMaxMatches', resolved.grepMaxMatches)
+  assertPositiveInteger('tool-fs-search: grepMaxLineBytes', resolved.grepMaxLineBytes)
+  assertPositiveInteger('tool-fs-search: searchMetaMaxBytes', resolved.searchMetaMaxBytes)
+  assertPositiveInteger('tool-fs-search: rawOutputMaxBytes', resolved.rawOutputMaxBytes)
+  assertPositiveInteger('tool-fs-search: graceMs', resolved.graceMs)
   if (resolved.graceMs > MAX_TIMER_DELAY_MS) {
     throw new Error(`tool-fs-search: graceMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
   }
-  assertPositiveInteger('stderrMaxBytes', resolved.stderrMaxBytes)
-  assertPositiveInteger('timeoutMs', resolved.timeoutMs)
+  assertPositiveInteger('tool-fs-search: stderrMaxBytes', resolved.stderrMaxBytes)
+  assertPositiveInteger('tool-fs-search: timeoutMs', resolved.timeoutMs)
   applyGlobTool(ctx, {
     sampleOverCapGlobResults: resolved.sampleOverCapGlobResults,
     maxResults: resolved.globMaxResults,

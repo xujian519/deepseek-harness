@@ -31,6 +31,9 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-value": "workspace:^"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-compaction": "workspace:^",
     "@deepseek-ai/dsh-deepseek-llm-api-extensions": "workspace:^",

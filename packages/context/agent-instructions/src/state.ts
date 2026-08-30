@@ -9,6 +9,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Message } from '@deepseek-ai/dsh-llm'
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
 import type { FileSystem, FsVersion } from '@deepseek-ai/dsh-fs'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type { ResolvedConfig } from './config.ts'
 import { instructionContentSha1, trimmedInstructionDigest } from './digest.ts'
 import {
@@ -103,10 +104,6 @@ function isWorkspaceContextSource(
   return typeof source === 'object' && source !== null
     && 'kind' in source && source.kind === 'agent-instructions'
     && 'changes' in source && Array.isArray(source.changes)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function workspaceInstructionChanges(source: { changes: unknown[] }): AgentInstructionChange[] {

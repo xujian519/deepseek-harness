@@ -6,6 +6,7 @@
 
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { isRecord } from '@deepseek-ai/dsh-value'
 
 /* jscpd:ignore-start -- schema 19 deliberately owns a frozen physical codec;
  * importing or sharing the JSONL codec would let that format mutate this database interpreter. */
@@ -44,10 +45,6 @@ export const MIN_PACKED_ROW_MEMBERS = 3
 export const MAX_PACKED_ROW_MEMBERS = 1_024
 /** Maximum UTF-8 bytes in one packed physical record's data column. */
 export const MAX_PACKED_DATA_BYTES = 1_048_576
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 function hasExactKeys(value: object, keys: readonly string[]): boolean {
   return Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))

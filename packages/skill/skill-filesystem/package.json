@@ -41,6 +41,7 @@
   "dependencies": {
     "chokidar": "^5.0.0",
     "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/dsh-value": "workspace:^",
     "yaml": "^2.4.2"
   },
   "devDependencies": {

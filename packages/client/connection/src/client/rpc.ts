@@ -1,5 +1,6 @@
 /** Browser caller for generic Connection unary RPC channels. */
 
+import { isRecord } from '@deepseek-ai/dsh-value'
 import {
   RpcId,
   type ClientRequest,
@@ -99,10 +100,6 @@ function parseConnectionResponse(value: unknown): {
       error: { code: error.code, message: error.message, details: error.details },
     },
   }
-}
-
-function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function resolveBase(): string {

@@ -10,6 +10,7 @@
  * the packer's job, so nothing here parses JavaScript.
  * @module @deepseek-ai/dsh-experimental-webworker-runtime/src/module-system/module-loader
  */
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { createAlsRuntime, type AlsCausality, type AlsRuntime } from '../polyfill/async-context/als-runtime.ts'
 import { dirname, fileUrlToPath, isAbsolute, join, pathToFileUrl, resolve as resolvePath } from './posix-path.ts'
 import { WRAPPER_PARAMS } from '../image-layout.ts'
@@ -103,10 +104,6 @@ export interface WorkerModuleLoaderOptions {
    * read only when that route is the configured {@link lowering}.
    */
   readonly alsCausality?: AlsCausality
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Loader for one VFS mount; construct once per worker. */

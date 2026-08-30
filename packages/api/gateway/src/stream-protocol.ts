@@ -1,6 +1,7 @@
 /** Wire messages for Gateway-owned Remote streams and event-result RPCs. */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import { isRecord } from '@deepseek-ai/dsh-value'
 
 /** Exact WebSocket route carrying every Typert Remote stream. */
 export const REMOTE_STREAM_MUX_PATH = '/api/remote.mux'
@@ -321,12 +322,6 @@ function parseMessage<T>(text: string, validate: (value: Record<string, unknown>
   }
   if (!isRecord(decoded)) throw new Error('api gateway: Remote stream message must be an object')
   return validate(decoded)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

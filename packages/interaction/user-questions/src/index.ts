@@ -11,6 +11,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
+import { isRecord } from '@deepseek-ai/dsh-value'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -44,10 +45,6 @@ function abortedQuestion(cause?: unknown): UserQuestionError {
     'ASK_ABORTED',
     cause === undefined ? undefined : { cause },
   )
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function restoreUserQuestionError(reason: unknown): unknown {

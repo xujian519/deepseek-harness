@@ -21,6 +21,7 @@
 
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type { SessionEvent } from './types.ts'
 
 /** The chunk kinds that may pack; block boundaries, usage, and finish chunks always stay one event per line. */
@@ -96,10 +97,6 @@ export function chunkRowLength(row: ChunkRow): number {
  * decode identically, so changing it never invalidates stored logs.
  */
 const MIN_RUN = 3
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 /** Exact-key check: `value` has every key in `keys` and nothing else. */
 function hasExactKeys(value: object, keys: readonly string[]): boolean {

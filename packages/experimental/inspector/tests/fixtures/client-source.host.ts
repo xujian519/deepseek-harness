@@ -1,6 +1,7 @@
 /** Host-side controller for the isolated Client test fixture. */
 
 import { Worker } from 'node:worker_threads'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type { InspectorClientBootstrap } from '../../src/shared/bridge/messages/control.ts'
 import type { CordisRuntimeTree } from '../../src/shared/cordis/model.ts'
 import type { InspectorJsonValue } from '../../src/shared/json.ts'
@@ -149,8 +150,4 @@ export class InspectorClientFixture {
     for (const pending of this.pending.values()) pending.reject(error)
     this.pending.clear()
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

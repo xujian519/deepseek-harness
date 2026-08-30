@@ -15,6 +15,7 @@ import type {
 } from '@deepseek-ai/dsh-session'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
 import type {} from '@deepseek-ai/dsh-session-projection'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 // The `title` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
@@ -250,13 +251,6 @@ interface SessionTitleWorkState {
   active?: ActiveProviderWork
 }
 
-/** Validate one positive integer configuration field. */
-function assertPositiveInteger(name: keyof Config, value: number): void {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`session-title: ${name} must be a positive integer`)
-  }
-}
-
 /** Log-backed title fold plus asynchronous fallback generation. */
 export class SessionTitleService extends Service {
   static inject = ['sessions']
@@ -281,9 +275,9 @@ export class SessionTitleService extends Service {
       throw new Error('session-title: configuration is required')
     }
     const value = candidate as Config
-    assertPositiveInteger('fallbackMaxWords', value.fallbackMaxWords)
-    assertPositiveInteger('fallbackMaxBytes', value.fallbackMaxBytes)
-    assertPositiveInteger('maxTitleBytes', value.maxTitleBytes)
+    assertPositiveInteger('session-title: fallbackMaxWords', value.fallbackMaxWords)
+    assertPositiveInteger('session-title: fallbackMaxBytes', value.fallbackMaxBytes)
+    assertPositiveInteger('session-title: maxTitleBytes', value.maxTitleBytes)
     if (value.fallbackMaxBytes > value.maxTitleBytes) {
       throw new Error('session-title: fallbackMaxBytes must not exceed maxTitleBytes')
     }

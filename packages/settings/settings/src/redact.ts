@@ -7,6 +7,7 @@
  * @module @deepseek-ai/dsh-settings/redact
  */
 
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type z from '@deepseek-ai/schemastery'
 
 /**
@@ -42,11 +43,6 @@ export interface RedactedValue {
    * value has them.
    */
   secrets: RedactedSecret[]
-}
-
-/** Whether a value is a plain data object the walker may recurse into. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Assign an own data property without triggering the `__proto__` prototype setter. */

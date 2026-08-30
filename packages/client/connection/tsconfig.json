@@ -2,6 +2,9 @@
   "files": [],
   "references": [
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "./tsconfig.host.json"
     },
     {

@@ -21,6 +21,7 @@ import {
   type SessionPromptParams,
   type SdkPromptContentBlock,
 } from '@deepseek-ai/dsh-sdk-protocol'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { disposeRuntimeProcess } from './dispose.ts'
 import { resolveDshLaunch, type RuntimeProcessOptions } from './launch.ts'
 import type { HarnessClientOptions, HarnessNotification, NotificationFilter } from './types.ts'
@@ -480,9 +481,7 @@ export function createProcessHarnessClient(options: RuntimeProcessOptions): Harn
  * @param value - the wire value to probe.
  * @returns `true` iff `value` is a non-null, non-array object.
  */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+export { isRecord }
 
 /** The message of a thrown value (the transport only throws `Error`s; `String` covers the rest). */
 function errorMessage(error: unknown): string {

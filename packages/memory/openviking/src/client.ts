@@ -8,6 +8,7 @@
  * @module @deepseek-ai/dsh-openviking/client
  */
 
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { OpenVikingAbortError, OpenVikingError, OpenVikingTimeoutError } from './errors.ts'
 
 /** OpenViking service identity headers. Empty values omit the header. */
@@ -99,11 +100,6 @@ export type FetchLike = (input: string, init: {
 export interface ResponseLike {
   readonly status: number
   text(): Promise<string>
-}
-
-/** True when `value` is a plain object usable as an OpenViking envelope. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Extract the string code and message from the OpenViking or FastAPI error shape. */

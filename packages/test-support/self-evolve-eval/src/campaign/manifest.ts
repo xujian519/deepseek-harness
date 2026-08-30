@@ -8,6 +8,7 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { isRecord } from '@deepseek-ai/dsh-value'
 
 /** The raw manifest row fields the campaign consumes. */
 export interface SwebenchRow {
@@ -43,10 +44,6 @@ export async function readManifestRows(path: string): Promise<Record<string, unk
     if (isRecord(parsed)) rows.push(parsed)
   }
   return rows
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

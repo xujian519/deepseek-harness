@@ -11,6 +11,7 @@
  * first-seen ordered list.
  */
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type {
   ConversationNodeDefinition, ConversationTimelineSnapshot, ConversationViewBuilder,
   ConversationViewDefinition, ConversationViewNode,
@@ -197,10 +198,6 @@ function pathValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
-/** Narrow parsed JSON to an argument object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 /* jscpd:ignore-end */
 
 function registeredEntries(seq: number, registration: DeliverRegistration): DocumentDeliverable[] {

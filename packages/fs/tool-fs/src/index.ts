@@ -8,6 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from './read.ts'
 import { applyWriteTool } from './write.ts'
 import { applyEditTool } from './edit.ts'
@@ -43,21 +44,14 @@ export const Config: z<Config> = z.object({
 /** The shape after schemastery applied the defaults. */
 type ResolvedConfig = Required<Config>
 
-/** Every read cap counts lines/chars/bytes — a positive integer, or windowing arithmetic misbehaves silently. */
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`tool-fs: ${name} must be a positive integer`)
-  }
-}
-
 /** Register the full `read`/`write`/`edit` filesystem tool suite, plus `read_image` while `attachments` is mounted. */
 export function apply(ctx: Context, config: Config): void {
   // schemastery (Config) has already filled every defaulted field.
   const resolved = config as ResolvedConfig
-  assertPositiveInteger('readLimit', resolved.readLimit)
-  assertPositiveInteger('readMaxLineLength', resolved.readMaxLineLength)
-  assertPositiveInteger('readMaxBytes', resolved.readMaxBytes)
-  assertPositiveInteger('readStreamMinSize', resolved.readStreamMinSize)
+  assertPositiveInteger('tool-fs: readLimit', resolved.readLimit)
+  assertPositiveInteger('tool-fs: readMaxLineLength', resolved.readMaxLineLength)
+  assertPositiveInteger('tool-fs: readMaxBytes', resolved.readMaxBytes)
+  assertPositiveInteger('tool-fs: readStreamMinSize', resolved.readStreamMinSize)
   applyReadTool(ctx, {
     limit: resolved.readLimit,
     maxLineLength: resolved.readMaxLineLength,

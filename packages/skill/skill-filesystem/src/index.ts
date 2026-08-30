@@ -32,6 +32,7 @@ import {
   type SkillProviderObservation,
   type SkillSource,
 } from '@deepseek-ai/dsh-skill'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 
 const PROJECT_DSH_RANK = 100
 const PROJECT_AGENTS_RANK = 200
@@ -609,9 +610,9 @@ function resolveWatchConfig(config: Config): ResolvedWatchConfig {
   const stabilityThresholdMs = config.watchStabilityThresholdMs ?? DEFAULT_WATCH_STABILITY_THRESHOLD_MS
   const pollIntervalMs = config.watchPollIntervalMs ?? DEFAULT_WATCH_POLL_INTERVAL_MS
   const maxProjects = config.watchMaxProjects ?? DEFAULT_WATCH_MAX_PROJECTS
-  assertPositiveInteger('watchStabilityThresholdMs', stabilityThresholdMs)
-  assertPositiveInteger('watchPollIntervalMs', pollIntervalMs)
-  assertPositiveInteger('watchMaxProjects', maxProjects)
+  assertPositiveInteger('skill-filesystem: watchStabilityThresholdMs', stabilityThresholdMs)
+  assertPositiveInteger('skill-filesystem: watchPollIntervalMs', pollIntervalMs)
+  assertPositiveInteger('skill-filesystem: watchMaxProjects', maxProjects)
   return {
     enabled: config.watch ?? true,
     usePolling: config.watchUsePolling ?? false,
@@ -694,12 +695,6 @@ function mutationToolName(actor: object | undefined): 'edit' | 'write' | undefin
   if (actor === undefined || !('name' in actor)) return undefined
   const value = actor.name
   return value === 'edit' || value === 'write' ? value : undefined
-}
-
-function assertPositiveInteger(field: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new TypeError(`skill-filesystem: ${field} must be a positive integer`)
-  }
 }
 
 function isAbsentPathError(error: unknown): boolean {

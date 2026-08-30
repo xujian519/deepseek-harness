@@ -10,6 +10,7 @@
 
 import { ToolCallId, EMPTY_RESPONSE_CODE, LlmError, assertNever } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { DONE } from './sse.ts'
 import type { WireChunk, WireUsage } from './types.ts'
 
@@ -21,11 +22,6 @@ interface OpenBlock {
   /** tool-call only */
   callId?: string
   name?: string
-}
-
-/** Whether a parsed JSON value is a plain data object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Reject a payload that parsed as JSON but violates the wire chunk structure. */

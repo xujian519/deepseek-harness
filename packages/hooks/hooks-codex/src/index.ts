@@ -21,6 +21,7 @@ import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { PostToolDecision, PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import {
   appendHookInvoked,
   appendHookResult,
@@ -71,17 +72,10 @@ function nextHandlerId(point: string): string {
 
 const PLUGIN_SOURCE: MessageSource = { kind: 'plugin', plugin: 'hooks-codex' }
 
-/** The summary cap bounds a persisted event field — a positive integer or the slice misbehaves silently. */
-function assertPositiveInteger(name: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`hooks-codex: ${name} must be a positive integer`)
-  }
-}
-
 export function apply(ctx: Context, config: Config): void {
   // Validate before config parsing so a bad value cannot be hidden by its early return.
   const stderrSummaryMaxChars = config.stderrSummaryMaxChars ?? DEFAULT_STDERR_SUMMARY_MAX_CHARS
-  assertPositiveInteger('stderrSummaryMaxChars', stderrSummaryMaxChars)
+  assertPositiveInteger('hooks-codex: stderrSummaryMaxChars', stderrSummaryMaxChars)
   const defaultTimeoutMs = config.defaultTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS
   let parsed: CodexHookConfig = {}
   try {

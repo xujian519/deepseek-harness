@@ -88,8 +88,8 @@
 
 | 函数 | 份数 | 分布(部分) |
 |---|---|---|
-| `assertPositiveInteger`/`assertPositiveFinite` | 15-16 包 | bash-local:69、pwsh-local:97、subagent-acp:78、web-fetch-http:62、tool-lsp:232、tool-fs:47、compaction-basic/config.ts:294 等 |
-| `isRecord` | 10+ 处 | context/agent-instructions/src/state.ts:108、sdk/client/src/client.ts:465、settings/redact.ts:46、acp-snapshot/suite.ts:810、llm-replay:386、core/session 等 |
+| `assertPositiveInteger`/`assertPositiveFinite` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`) | 保留 2 个语义特例:subagent-acp 的 `assertPositiveFinite`(钉 `MAX_TIMER_DELAY_MS` 上限,timer 域契约)、session-query-sqlite 的包装(抛 `SessionQueryError`,配置错误聚合契约) |
+| `isRecord` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;sdk/client 公开导出改为再导出;mcp-client 的 JsonValue 谓词由调用点显式收窄替代) | 0 剩余 |
 | `toError` | 5 份 | skill/index.ts:850、subagent-acp/run.ts:182、subagent/out-of-process.ts:123 等(skill 版有 hostile-proxy 防护,其他没有) |
 | `errorMessage`/`renderThrown` | 6 份 | 占位文案已分叉:`[unrenderable thrown value]`(workflow:199、skill:864)vs `<unrenderable thrown value>`(subagent/lifecycle.ts:263、schedule/runtime.ts:72)vs 纯 `String(value)`(skill-filesystem:1039)vs `` `${name}: ${message}` ``(llm/adapter-failure.ts:91) |
 | `isENOENT` | 5 处 | credentials-local:125、settings-file、session-persistence-jsonl/win32.ts 等 |

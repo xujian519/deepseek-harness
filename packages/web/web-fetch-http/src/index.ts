@@ -10,6 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-web'
 import { HttpFetchProvider } from './provider.ts'
 import type { HttpFetchLimits } from './provider.ts'
+import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 
@@ -53,16 +54,9 @@ export const Config: z<Config> = z.object({
 /** Complete config after schemastery applies every field default. */
 type ResolvedConfig = Required<Config>
 
-/** A resource limit (byte/char/length/timeout cap) must be a positive finite number. */
-function assertPositiveFinite(name: string, value: number): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`web-fetch-http: ${name} must be a positive finite number`)
-  }
-}
-
 /** Node coerces larger timer delays to 1 ms, so reject them at configuration time. */
 function assertTimeoutMs(value: number): void {
-  assertPositiveFinite('timeoutMs', value)
+  assertPositiveFinite('web-fetch-http: timeoutMs', value)
   if (value > MAX_NODE_TIMER_DELAY_MS) {
     throw new Error(`web-fetch-http: timeoutMs must be no greater than ${MAX_NODE_TIMER_DELAY_MS}`)
   }
@@ -79,8 +73,8 @@ function assertNonNegativeInteger(name: string, value: number): void {
 export function apply(ctx: Context, config: Config): void {
   // schemastery (Config) has already filled every defaulted field.
   const resolved = config as ResolvedConfig
-  assertPositiveFinite('maxResponseBytes', resolved.maxResponseBytes)
-  assertPositiveFinite('maxBodyChars', resolved.maxBodyChars)
+  assertPositiveFinite('web-fetch-http: maxResponseBytes', resolved.maxResponseBytes)
+  assertPositiveFinite('web-fetch-http: maxBodyChars', resolved.maxBodyChars)
   assertTimeoutMs(resolved.timeoutMs)
   assertNonNegativeInteger('maxRedirects', resolved.maxRedirects)
   const limits: HttpFetchLimits = {

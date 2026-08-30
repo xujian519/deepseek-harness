@@ -20,6 +20,7 @@ import type {
   LspQueryResult,
 } from '@deepseek-ai/dsh-lsp'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import { abortable, abortError } from './abort.ts'
 import { canonicalizeWorkspace, readHostSource } from './host.ts'
 import type { HostWorkspace } from './host.ts'
@@ -194,22 +195,15 @@ function validateServerConfig(providerId: string, resolved: ResolvedServerConfig
   // Byte caps must be positive: a nonpositive stderr cap defeats the retained-tail bound
   // (`slice(-0)` keeps everything), `maxMessageBytes: 0` makes every response fatal, and a bad
   // document cap fails later in the read path instead of at load.
-  assertPositiveInteger(providerId, 'maxStderrBytes', resolved.maxStderrBytes)
-  assertPositiveInteger(providerId, 'maxMessageBytes', resolved.maxMessageBytes)
-  assertPositiveInteger(providerId, 'maxDocumentBytes', resolved.maxDocumentBytes)
+  assertPositiveInteger(`lsp-stdio: servers.${providerId}.maxStderrBytes`, resolved.maxStderrBytes)
+  assertPositiveInteger(`lsp-stdio: servers.${providerId}.maxMessageBytes`, resolved.maxMessageBytes)
+  assertPositiveInteger(`lsp-stdio: servers.${providerId}.maxDocumentBytes`, resolved.maxDocumentBytes)
 }
 
 /** Reject a timer value Node would clamp instead of scheduling as configured. */
 function assertTimer(providerId: string, name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > MAX_TIMER_DELAY_MS) {
     throw new Error(`lsp-stdio: servers.${providerId}.${name} must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
-  }
-}
-
-/** Reject a nonpositive or non-integer config value at load, so misconfiguration fails loud. */
-function assertPositiveInteger(providerId: string, name: string, value: number): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`lsp-stdio: servers.${providerId}.${name} must be a positive integer`)
   }
 }
 

@@ -6,6 +6,7 @@
 
 import { deepFreeze } from '@deepseek-ai/dsh-llm'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import type {
   BasicCompactionConfig,
   CompactionPolicyConfig,
@@ -288,12 +289,6 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
 function assertNonEmptyString(name: string, value: unknown): asserts value is string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`${name} must be a non-empty string`)
-  }
-}
-
-function assertPositiveInteger(name: string, value: unknown): asserts value is number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-    throw new Error(`${name} (${String(value)}) must be a positive integer`)
   }
 }
 

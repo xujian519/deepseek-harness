@@ -24,6 +24,7 @@ import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
 /* jscpd:ignore-end */
 import { resolvePwshPath } from './resolve.ts'
+import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
 
 /* jscpd:ignore-start -- deliberate call-for-call mirror of dsh-bash-local (Agent Note: pwsh-tool-and-executor). */
 /**
@@ -94,12 +95,6 @@ function finalOutput(reader: SubprocessOutputReader): CollectedOutput {
   }
 }
 
-function assertPositiveFinite(name: string, value: number): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`pwsh-local: ${name} must be a positive finite number`)
-  }
-}
-
 /**
  * Reject a resolved section this executor could not run with. The schema
  * expresses neither "positive and finite" nor the timer bound `graceMs` has to
@@ -110,11 +105,11 @@ function assertPositiveFinite(name: string, value: number): void {
  */
 export function assertServiceablePwshConfig(config: Config): void {
   const resolved = config as ResolvedConfig
-  assertPositiveFinite('timeoutMs', resolved.timeoutMs)
-  assertPositiveFinite('maxTimeoutMs', resolved.maxTimeoutMs)
-  assertPositiveFinite('maxOutputBytes', resolved.maxOutputBytes)
-  assertPositiveFinite('maxSpillBytes', resolved.maxSpillBytes)
-  assertPositiveFinite('graceMs', resolved.graceMs)
+  assertPositiveFinite('pwsh-local: timeoutMs', resolved.timeoutMs)
+  assertPositiveFinite('pwsh-local: maxTimeoutMs', resolved.maxTimeoutMs)
+  assertPositiveFinite('pwsh-local: maxOutputBytes', resolved.maxOutputBytes)
+  assertPositiveFinite('pwsh-local: maxSpillBytes', resolved.maxSpillBytes)
+  assertPositiveFinite('pwsh-local: graceMs', resolved.graceMs)
   if (resolved.graceMs > MAX_TIMER_DELAY_MS) {
     throw new Error(`pwsh-local: graceMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
   }
@@ -194,7 +189,7 @@ export class PwshLocalExecutor extends ShellExecutor {
       'pwsh-local: request.timeoutMs',
     )
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes
-    assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
+    assertPositiveFinite('pwsh-local: request.stdoutMaxBytes', stdoutMaxBytes)
     return {
       command: request.command,
       workdir: request.workdir ?? this.config.cwd ?? process.cwd(),

@@ -4,6 +4,7 @@
  */
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type {
   AfterScheduleRecord,
   AtInput,
@@ -109,11 +110,6 @@ export interface EveryOccurrence {
  */
 export function ScheduleId(value: string): ScheduleIdType {
   return value as ScheduleIdType
-}
-
-/** Whether an unknown value is a non-array object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Require exactly the named durable object keys. */

@@ -17,6 +17,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type { TaskStatus, TeamMember, TeamMessage, TeamState, TeamTask } from './types.ts'
 
 /** Mailbox key of the captain. */
@@ -702,11 +703,6 @@ async function atomicWriteText(file: string, content: string): Promise<void> {
     writeFile: (target, payload) => writeFile(target, payload, 'utf8'),
     remove: path => rm(path, { force: true }),
   })
-}
-
-/** Whether a parsed JSON value is a plain record. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Whether a value is an optional string. */
