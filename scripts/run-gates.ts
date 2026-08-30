@@ -271,6 +271,8 @@ export function gatesForMode(selected: Mode): Gate[] {
     case 'doc-quick':
       return docQuickLeafGates()
   }
+  // A missed Mode case must fail the type check here, not return undefined gates.
+  return selected satisfies never
 }
 
 function ciSharedStaticGates(): Gate[] {

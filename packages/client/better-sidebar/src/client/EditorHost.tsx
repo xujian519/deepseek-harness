@@ -360,6 +360,29 @@ export function EditorHost(props: {
       : toolbar.saveState === 'saved' ? t('saved')
         : toolbar.saveState === 'failed' ? t('saveFailed') : ''
 
+  // The tree panel renders twice — the standalone explorer / folder window
+  // (full) and the editor chrome's right dock — with the same open-with
+  // plumbing; one builder keeps that wiring in a single place.
+  const renderTreePanel = (full: boolean, cwd: string | undefined) => (
+    <TreePanel
+      full={full}
+      sessionId={scope.sessionId}
+      cwd={cwd}
+      expanded={expanded}
+      revealed={revealed}
+      onToggle={onToggleDir}
+      onOpenFile={openFile}
+      onOpenFileNewTab={openFileNewTab}
+      onOpenFileSide={openFileSide}
+      openWithTargets={openWithTargets}
+      openWithPinned={openWithConfig.pinned}
+      openWithSsh={openWithSshActive(openWithConfig)}
+      onOpenWith={openWith}
+      onToggleOpenWithPin={toggleOpenWithPin}
+      onReferenceFile={onReferenceFile}
+    />
+  )
+
   // Split mode: the path-less window IS the standalone explorer — the tree
   // panel fills the whole tab (search + FileTree, full form), no editor
   // chrome. File opens land in new per-path tabs through openFile above.
@@ -368,23 +391,7 @@ export function EditorHost(props: {
   if (treeOnly || folderRoot !== undefined) {
     return (
       <div className={css.editor}>
-        <TreePanel
-          full
-          sessionId={scope.sessionId}
-          cwd={folderRoot ?? scope.cwd}
-          expanded={expanded}
-          revealed={revealed}
-          onToggle={onToggleDir}
-          onOpenFile={openFile}
-          onOpenFileNewTab={openFileNewTab}
-          onOpenFileSide={openFileSide}
-          openWithTargets={openWithTargets}
-          openWithPinned={openWithConfig.pinned}
-          openWithSsh={openWithSshActive(openWithConfig)}
-          onOpenWith={openWith}
-          onToggleOpenWithPin={toggleOpenWithPin}
-          onReferenceFile={onReferenceFile}
-        />
+        {renderTreePanel(true, folderRoot ?? scope.cwd)}
       </div>
     )
   }
@@ -488,22 +495,7 @@ export function EditorHost(props: {
               onPointerUp={onResizeEnd}
               onPointerCancel={onResizeEnd}
             />
-            <TreePanel
-              sessionId={scope.sessionId}
-              cwd={scope.cwd}
-              expanded={expanded}
-              revealed={revealed}
-              onToggle={onToggleDir}
-              onOpenFile={openFile}
-              onOpenFileNewTab={openFileNewTab}
-              onOpenFileSide={openFileSide}
-              openWithTargets={openWithTargets}
-              openWithPinned={openWithConfig.pinned}
-              openWithSsh={openWithSshActive(openWithConfig)}
-              onOpenWith={openWith}
-              onToggleOpenWithPin={toggleOpenWithPin}
-              onReferenceFile={onReferenceFile}
-            />
+            {renderTreePanel(false, scope.cwd)}
           </div>
         )}
       </div>

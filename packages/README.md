@@ -63,7 +63,10 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`guard/`](guard/README.md) | Loop-hygiene guards: advisory repeat-call reminders + the `tools/execute` deadline enforcer |
 | [`bundle/`](bundle/README.md) | Installable `dsh --profile` patch layers |
 | [`extensions/`](extensions/README.md) | Agent runtime self-modification: live plugin/service inspection and model-written mount/unmount |
+| [`self-evolve/`](self-evolve/README.md) | Campaign-based self-evaluation and plugin evolution: durable service, agent-loop provider, benchmark runner, model-facing tools |
 | [`hooks/`](hooks/README.md) | Hook bridges + the shared Claude Code / Codex wire-protocol library |
+| [`mcp/`](mcp/README.md) | Attach external Model Context Protocol servers so their tools are callable as native tools |
+| [`patent/`](patent/README.md) | Patent domain plugins ported from Sati: engines, tools, rule gates, and knowledge access as workspace packages |
 | [`session/`](session/README.md) | Durable session data plane: persistence seam + backends, projection seam, log-backed titles, session reporting |
 | [`session-query/`](session-query/README.md) | Session retrieval family: logical corpus, bounded reads, lineage, semantic filtering, SQLite full-text search |
 | [`settings/`](settings/README.md) | User-settings seam + file-backed provider |
@@ -77,10 +80,11 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`browser/`](browser/README.md) | Browser automation backend family: capability probing, cascade routing, link extraction |
 | [`host/`](host/README.md) | Web-GUI host half: API gateway + HTTP route server |
 | [`client/`](client/README.md) | Web-GUI browser half: shell, wire, object services, slots, `ui-*` plugins |
+| [`desktop/`](desktop/README.md) | Desktop OS integration: Service Definition + Electron shell provider + sandboxed directory-picker bridge |
 | [`examples/`](examples/README.md) | Reusable composition bundles for tests and custom deployments |
 | [`test-support/`](test-support/README.md) | Support infrastructure (testkits, invariants, replay, Loader smokes) |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.md) | Runtime diagnostics: package-owned invariant checks and reports |
-| [`util/`](util/README.md) | Low-level zero-dependency utilities shared across groups (`Branded<B>`, home/path helpers, timeout, retention) |
+| [`util/`](util/README.md) | Low-level shared utilities (`Branded<B>`, home/path helpers, timeout, retention); no runtime dependencies, invariant-companion peer only |
 
 -----
 

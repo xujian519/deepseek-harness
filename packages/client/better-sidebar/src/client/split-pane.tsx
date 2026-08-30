@@ -15,6 +15,7 @@ import clsx from 'clsx'
 import type { SidebarState, SidebarTab, SplitNode } from './state.ts'
 import type { DropZone } from './state.ts'
 import { TabBar, type NewTabOption, parseDrag, type TabDragPayload } from './TabBar.tsx'
+import { useWindowDragClear } from './drag-clear.ts'
 import { createFrameBatcher } from './frame-batcher.ts'
 import css from './sidebar.module.css'
 
@@ -146,31 +147,26 @@ function PaneEmptyCards(props: {
   )
 }
 
-/** A leaf: tab strip + active content + VSCode-style drop target for tabs. */
-function LeafView(props: {
-  leaf: { id: string; tabs: SidebarTab[]; active: string | null }
+/** Props every split-pane view forwards unchanged to its children. */
+interface PaneChildProps {
   newTabOptions: NewTabOption[]
   actions: WorkbenchActions
   onNewTab: (optionId: string) => void
   renderTab: (tab: SidebarTab, active: boolean, paneId: string) => ReactNode
   getTabIcon?: ((tab: SidebarTab) => ReactNode) | undefined
   getTabBadge?: ((tab: SidebarTab) => ReactNode) | undefined
+}
+
+/** A leaf: tab strip + active content + VSCode-style drop target for tabs. */
+function LeafView(props: PaneChildProps & {
+  leaf: { id: string; tabs: SidebarTab[]; active: string | null }
 }) {
-  const { leaf, newTabOptions, actions, onNewTab, renderTab, getTabIcon, getTabBadge } = props
+  const { leaf, actions, newTabOptions, onNewTab, renderTab, getTabIcon, getTabBadge } = props
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
   const activeTab = leaf.tabs.find(tab => tab.id === leaf.active) ?? leaf.tabs[leaf.tabs.length - 1]
 
-  useEffect(() => {
-    const clear = (): void => { setDropZone(null) }
-    window.addEventListener('dragend', clear, true)
-    window.addEventListener('drop', clear, true)
-    window.addEventListener('blur', clear)
-    return () => {
-      window.removeEventListener('dragend', clear, true)
-      window.removeEventListener('drop', clear, true)
-      window.removeEventListener('blur', clear)
-    }
-  }, [])
+  // A drag that ends anywhere (window-level) clears the drop overlay.
+  useWindowDragClear(() => { setDropZone(null) })
 
   return (
     <div
@@ -245,29 +241,14 @@ function LeafView(props: {
 }
 
 /** Recursive node renderer. */
-function NodeView(props: {
+function NodeView(props: PaneChildProps & {
   node: SplitNode
   state: SidebarState
-  newTabOptions: NewTabOption[]
-  actions: WorkbenchActions
-  onNewTab: (optionId: string) => void
-  renderTab: (tab: SidebarTab, active: boolean, paneId: string) => ReactNode
-  getTabIcon?: ((tab: SidebarTab) => ReactNode) | undefined
-  getTabBadge?: ((tab: SidebarTab) => ReactNode) | undefined
 }) {
-  const { node, state, newTabOptions, actions, onNewTab, renderTab, getTabIcon, getTabBadge } = props
+  const { node, state, ...paneProps } = props
+  // The pane-level props every child view forwards unchanged.
   if (node.kind === 'leaf') {
-    return (
-      <LeafView
-        leaf={node}
-        newTabOptions={newTabOptions}
-        actions={actions}
-        onNewTab={onNewTab}
-        renderTab={renderTab}
-        getTabIcon={getTabIcon}
-        getTabBadge={getTabBadge}
-      />
-    )
+    return <LeafView leaf={node} {...paneProps} />
   }
   const isRow = node.dir === 'row'
   return (
@@ -277,23 +258,14 @@ function NodeView(props: {
           {index > 0 && (
             <Divider
               dir={node.dir}
-              onResize={(deltaFrac) => { actions.resizeSplit(node.id, index - 1, deltaFrac) }}
+              onResize={(deltaFrac) => { props.actions.resizeSplit(node.id, index - 1, deltaFrac) }}
             />
           )}
           <div
             className={css.splitChild}
             style={{ flexGrow: node.sizes[index], flexBasis: 0, minWidth: 0, minHeight: 0 }}
           >
-            <NodeView
-              node={child}
-              state={state}
-              newTabOptions={newTabOptions}
-              actions={actions}
-              onNewTab={onNewTab}
-              renderTab={renderTab}
-              getTabIcon={getTabIcon}
-              getTabBadge={getTabBadge}
-            />
+            <NodeView node={child} state={state} {...paneProps} />
           </div>
         </Fragment>
       ))}
@@ -305,29 +277,14 @@ function NodeView(props: {
  *  which tree renders (the right panel's by default; the bottom panel passes
  *  `state.bottomSplits` — the actions route by pane id, so one action set
  *  serves both). */
-export function Workbench(props: {
+export function Workbench(props: PaneChildProps & {
   state: SidebarState
   tree?: SplitNode | undefined
-  newTabOptions: NewTabOption[]
-  actions: WorkbenchActions
-  onNewTab: (optionId: string) => void
-  renderTab: (tab: SidebarTab, active: boolean, paneId: string) => ReactNode
-  getTabIcon?: ((tab: SidebarTab) => ReactNode) | undefined
-  getTabBadge?: ((tab: SidebarTab) => ReactNode) | undefined
 }) {
-  const { state, tree, newTabOptions, actions, onNewTab, renderTab, getTabIcon, getTabBadge } = props
+  const { state, tree, ...paneProps } = props
   return (
     <div className={css.workbench}>
-      <NodeView
-        node={tree ?? state.splits}
-        state={state}
-        newTabOptions={newTabOptions}
-        actions={actions}
-        onNewTab={onNewTab}
-        renderTab={renderTab}
-        getTabIcon={getTabIcon}
-        getTabBadge={getTabBadge}
-      />
+      <NodeView node={tree ?? state.splits} state={state} {...paneProps} />
     </div>
   )
 }

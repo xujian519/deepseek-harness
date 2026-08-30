@@ -20,6 +20,7 @@
  */
 import type { Context, SidebarSessionEvent } from './context-types.ts'
 import { requireString, SidebarError } from './wire.ts'
+import { toolResultTextBlocks } from './tool-result-text.ts'
 
 /** The two background-job routes of the sidebar API. */
 export interface SidebarJobsRoutes {
@@ -48,22 +49,7 @@ interface ToolResultBlockLike {
  * non-text blocks contribute nothing.
  */
 function resultText(message: ToolResultMessageLike): string | undefined {
-  if (!Array.isArray(message.content)) return undefined
-  const parts: string[] = []
-  for (const block of message.content) {
-    if (block === null || typeof block !== 'object') continue
-    const candidate = block as ToolResultBlockLike
-    if (candidate.type !== 'tool-result') continue
-    const inner = candidate.content
-    if (!Array.isArray(inner)) continue
-    for (const item of inner) {
-      if (item === null || typeof item !== 'object') continue
-      const textItem = item as { type?: unknown; text?: unknown }
-      if (textItem.type === 'text' && typeof textItem.text === 'string') {
-        parts.push(textItem.text)
-      }
-    }
-  }
+  const parts = toolResultTextBlocks(message.content)
   return parts.length > 0 ? parts.join('\n') : undefined
 }
 

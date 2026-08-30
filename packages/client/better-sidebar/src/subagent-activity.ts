@@ -10,14 +10,15 @@
 import type { SidebarSessionEvent } from './context-types.ts'
 
 /**
- * Extract the concatenated plain text of a content-block list (the durable
+ * Extract the `text` payloads of a content-block list, in order (the durable
  * `ContentBlock[]` shape, structurally: blocks with `type: 'text'` carry
- * `text`; anything else — tool_use, image, … — contributes nothing).
+ * `text`; anything else — tool_use, image, … — contributes nothing). Shared
+ * by {@link contentText} and the Side Chat transcript's display rows.
  * @param content - the raw `content` field of a message event.
- * @returns the joined text, or undefined when the message carries no text.
+ * @returns the text blocks, in order (empty when none).
  */
-export function contentText(content: unknown): string | undefined {
-  if (!Array.isArray(content)) return undefined
+export function textBlockParts(content: unknown): string[] {
+  if (!Array.isArray(content)) return []
   const parts: string[] = []
   for (const block of content) {
     if (block === null || typeof block !== 'object') continue
@@ -26,6 +27,16 @@ export function contentText(content: unknown): string | undefined {
       parts.push(candidate.text)
     }
   }
+  return parts
+}
+
+/**
+ * Extract the concatenated plain text of a content-block list.
+ * @param content - the raw `content` field of a message event.
+ * @returns the joined text, or undefined when the message carries no text.
+ */
+export function contentText(content: unknown): string | undefined {
+  const parts = textBlockParts(content)
   return parts.length > 0 ? parts.join('\n') : undefined
 }
 

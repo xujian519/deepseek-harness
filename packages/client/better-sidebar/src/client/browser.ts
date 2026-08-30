@@ -12,6 +12,9 @@
  * it in an opaque origin with no same-origin privileges, exactly like any
  * other site.
  */
+import { parseLoopbackAllowlist } from '../loopback-allowlist.ts'
+
+export { parseLoopbackAllowlist }
 
 /** Why a navigation attempt was refused. */
 export type BrowserBlockReason = 'scheme' | 'loopback'
@@ -88,25 +91,6 @@ const FORBIDDEN_SCHEMES = new Set([
   'mailto', 'tel', 'ftp', 'ftps', 'ws', 'wss', 'sftp', 'ssh',
   'chrome', 'chrome-extension', 'moz-extension', 'edge', 'opera', 'resource', 'view-source',
 ])
-
-/**
- * Parse the loopback allowlist into a matcher predicate over host:port.
- * @param allowlist - comma-separated entries; bare hosts allow every port, `host:port` allows exactly that authority.
- * @returns predicate answering whether one host and port satisfy the allowlist.
- */
-export function parseLoopbackAllowlist(allowlist: string): (host: string, port: string) => boolean {
-  const entries = allowlist.split(',').map(entry => entry.trim().toLowerCase()).filter(entry => entry !== '')
-  const exact = new Set(entries)
-  const hosts = new Set<string>()
-  for (const entry of entries) {
-    if (!entry.includes(':')) hosts.add(entry.replace(/^\[|\]$/g, ''))
-  }
-  return (host, port) => {
-    const key = `${host}:${port}`
-    if (exact.has(key) || exact.has(host)) return true
-    return port !== '' && hosts.has(host)
-  }
-}
 
 /**
  * Whether a loopback URL is explicitly allowlisted by the side card prefs

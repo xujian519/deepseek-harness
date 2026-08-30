@@ -78,6 +78,64 @@ const FAILURE_LIMIT = 3
 const AUTO_OPEN_DEBOUNCE_MS = 500
 
 /**
+ * One reconnecting sidebar push subscription (agent terminals / agent opens):
+ * opens `/sidebar/ws/<path>?sessionId=...`, hands messages to `onMessage`,
+ * and reconnects with a fixed 2 s backoff until FAILURE_LIMIT consecutive
+ * failures stop the loop (the next session switch restarts it). Returns the
+ * teardown: it marks the subscription closed so late retries never fire and
+ * closes the live socket.
+ */
+function subscribeSessionPush(
+  path: string,
+  sessionId: string,
+  label: string,
+  onMessage: (event: MessageEvent) => void,
+): () => void {
+  let socket: WebSocket | null = null
+  let retry: number | undefined
+  let closed = false
+  let failures = 0
+  const connect = (): void => {
+    if (closed) return
+    const url = new URL(path, location.origin)
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    url.search = new URLSearchParams({ sessionId }).toString()
+    socket = new WebSocket(url.toString())
+    socket.onmessage = onMessage
+    socket.onclose = () => {
+      if (closed) return
+      failures += 1
+      if (failures >= FAILURE_LIMIT) {
+        console.error(`[dsh-better-sidebar] ${label} connection failed; stopping reconnect loop`, sessionId)
+        return
+      }
+      retry = window.setTimeout(connect, 2000)
+    }
+    socket.onerror = () => { socket?.close() }
+  }
+  connect()
+  return () => {
+    closed = true
+    window.clearTimeout(retry)
+    socket?.close()
+  }
+}
+
+/**
+ * Reveal the Subagent page: expand the panel (if collapsed), pin the landing
+ * to the right panel's first pane, and focus the single-instance tab. Shared
+ * by the auto-open trigger, the job trigger, and the topology jump-back.
+ */
+function revealSubagentPage(store: SidebarStore, ctx: Context): void {
+  store.reduce(s => s.panelOpen ? s : togglePanel(s))
+  // Pin the landing to the right panel: the auto-opened Subagent page must
+  // appear where the panel just expanded, not in a bottom-panel pane the
+  // user last touched.
+  store.reduce(s => ({ ...s, activePane: firstLeaf(s.splits).id }))
+  ctx.get('betterSidebar')?.openTab({ type: 'subagent', title: t('subagent') })
+}
+
+/**
  * OS file drags over the sidebar belong to the sidebar, not to the chat:
  * DSH's composer (InputBar) listens for file drags on the DOCUMENT and
  * answers with a full-screen "drop image here" mask plus image intake on
@@ -394,45 +452,18 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
    */
   useEffect(() => {
     if (sessionId === undefined) return
-    let socket: WebSocket | null = null
-    let retry: number | undefined
-    let closed = false
-    let failures = 0
-    const connect = (): void => {
-      if (closed) return
-      const url = new URL('/sidebar/ws/agent-terminals', location.origin)
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-      url.search = new URLSearchParams({ sessionId }).toString()
-      socket = new WebSocket(url.toString())
-      socket.onmessage = (event) => {
-        if (typeof event.data !== 'string') return
-        try {
-          const list = JSON.parse(event.data) as Array<{ uuid: string; title: string; command: string; exited: boolean }>
-          if (!Array.isArray(list)) return
-          store.reduce(s => ctx.get('betterSidebar')?.isTabEnabled('terminal') === false
-            ? s
-            : reconcileAgentTerminals(s, list))
-        } catch {
-          // Malformed push: ignore (the next push will reconcile).
-        }
+    return subscribeSessionPush('/sidebar/ws/agent-terminals', sessionId, 'agent-terminals', (event) => {
+      if (typeof event.data !== 'string') return
+      try {
+        const list = JSON.parse(event.data) as Array<{ uuid: string; title: string; command: string; exited: boolean }>
+        if (!Array.isArray(list)) return
+        store.reduce(s => ctx.get('betterSidebar')?.isTabEnabled('terminal') === false
+          ? s
+          : reconcileAgentTerminals(s, list))
+      } catch {
+        // Malformed push: ignore (the next push will reconcile).
       }
-      socket.onclose = () => {
-        if (closed) return
-        failures += 1
-        if (failures >= FAILURE_LIMIT) {
-          console.error('[dsh-better-sidebar] agent-terminals connection failed; stopping reconnect loop', sessionId)
-          return
-        }
-        retry = window.setTimeout(connect, 2000)
-      }
-      socket.onerror = () => { socket?.close() }
-    }
-    connect()
-    return () => {
-      closed = true
-      window.clearTimeout(retry)
-      socket?.close()
-    }
+    })
   }, [sessionId, store])
 
   /**
@@ -451,60 +482,33 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
    */
   useEffect(() => {
     if (sessionId === undefined) return
-    let socket: WebSocket | null = null
-    let retry: number | undefined
-    let closed = false
-    let failures = 0
-    const connect = (): void => {
-      if (closed) return
-      const url = new URL('/sidebar/ws/agent-opens', location.origin)
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-      url.search = new URLSearchParams({ sessionId }).toString()
-      socket = new WebSocket(url.toString())
-      socket.onmessage = (event) => {
-        if (typeof event.data !== 'string') return
-        try {
-          const request = JSON.parse(event.data) as { kind?: unknown; target?: unknown; title?: unknown } | null
-          if (request === null || typeof request !== 'object') return
-          if (request.kind !== 'file' && request.kind !== 'folder' && request.kind !== 'url') return
-          if (typeof request.target !== 'string' || request.target === '') return
-          if (!store.getPrefs().agentOpenTools) return
-          const scope = { sessionId }
-          const title = typeof request.title === 'string' && request.title !== '' ? request.title : undefined
-          if (request.kind === 'url') {
-            ctx.get('betterSidebar')?.openTab({ type: 'browser', url: request.target, title }, scope)
-          } else if (request.kind === 'folder') {
-            ctx.get('betterSidebar')?.openTab({
-              type: 'editor',
-              title,
-              path: request.target,
-              id: `editor:${request.target}`,
-              meta: { dir: true },
-            }, scope)
-          } else {
-            ctx.get('betterSidebar')?.openFile(scope, request.target, title)
-          }
-        } catch {
-          // Malformed push: ignore (the next push carries its own request).
+    return subscribeSessionPush('/sidebar/ws/agent-opens', sessionId, 'agent-opens', (event) => {
+      if (typeof event.data !== 'string') return
+      try {
+        const request = JSON.parse(event.data) as { kind?: unknown; target?: unknown; title?: unknown } | null
+        if (request === null || typeof request !== 'object') return
+        if (request.kind !== 'file' && request.kind !== 'folder' && request.kind !== 'url') return
+        if (typeof request.target !== 'string' || request.target === '') return
+        if (!store.getPrefs().agentOpenTools) return
+        const scope = { sessionId }
+        const title = typeof request.title === 'string' && request.title !== '' ? request.title : undefined
+        if (request.kind === 'url') {
+          ctx.get('betterSidebar')?.openTab({ type: 'browser', url: request.target, title }, scope)
+        } else if (request.kind === 'folder') {
+          ctx.get('betterSidebar')?.openTab({
+            type: 'editor',
+            title,
+            path: request.target,
+            id: `editor:${request.target}`,
+            meta: { dir: true },
+          }, scope)
+        } else {
+          ctx.get('betterSidebar')?.openFile(scope, request.target, title)
         }
+      } catch {
+        // Malformed push: ignore (the next push carries its own request).
       }
-      socket.onclose = () => {
-        if (closed) return
-        failures += 1
-        if (failures >= FAILURE_LIMIT) {
-          console.error('[dsh-better-sidebar] agent-opens connection failed; stopping reconnect loop', sessionId)
-          return
-        }
-        retry = window.setTimeout(connect, 2000)
-      }
-      socket.onerror = () => { socket?.close() }
-    }
-    connect()
-    return () => {
-      closed = true
-      window.clearTimeout(retry)
-      socket?.close()
-    }
+    })
   }, [sessionId, store])
 
   /**
@@ -538,12 +542,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       if (!detectNewDirectSubagent(baseline, ctx.sessions.list.getSnapshot(), sessionId)) return
       if (!store.getPrefs().autoOpenSubagent) return
       if (ctx.get('betterSidebar')?.isTabEnabled('subagent') === false) return
-      store.reduce(s => s.panelOpen ? s : togglePanel(s))
-      // Pin the landing to the right panel: the auto-opened Subagent page must
-      // appear where the panel just expanded, not in a bottom-panel pane the
-      // user last touched.
-      store.reduce(s => ({ ...s, activePane: firstLeaf(s.splits).id }))
-      ctx.get('betterSidebar')?.openTab({ type: 'subagent', title: t('subagent') })
+      revealSubagentPage(store, ctx)
     }, AUTO_OPEN_DEBOUNCE_MS)
     autoOpenPendingRef.current = { baseline, timer }
   }, [sessionList, sessionId, store, ctx])
@@ -572,9 +571,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     if (!detectNewJob(prev, sessionList, sessionId)) return
     if (!store.getPrefs().autoOpenJobs) return
     if (ctx.get('betterSidebar')?.isTabEnabled('subagent') === false) return
-    store.reduce(s => s.panelOpen ? s : togglePanel(s))
-    store.reduce(s => ({ ...s, activePane: firstLeaf(s.splits).id }))
-    ctx.get('betterSidebar')?.openTab({ type: 'subagent', title: t('subagent') })
+    revealSubagentPage(store, ctx)
   }, [sessionList, sessionId, store, ctx])
 
   /**
@@ -593,9 +590,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     const pending = subagentJumpRef.current
     if (pending === undefined || sessionId !== pending) return
     subagentJumpRef.current = undefined
-    store.reduce(s => s.panelOpen ? s : togglePanel(s))
-    store.reduce(s => ({ ...s, activePane: firstLeaf(s.splits).id }))
-    ctx.get('betterSidebar')?.openTab({ type: 'subagent', title: t('subagent') })
+    revealSubagentPage(store, ctx)
   }, [sessionId, store, ctx])
 
   /**

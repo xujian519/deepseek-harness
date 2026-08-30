@@ -147,22 +147,19 @@ describe('translate: tool calls', () => {
     ])
   })
 
-  it('treats an empty wire id and name as absent (no empty fields on deltas)', async () => {
-    const chunks = await collect(translate(feed(
-      firstChunk,
-      { choices: [{ delta: { tool_calls: [{ index: 0, id: '', type: 'function', function: { name: '', arguments: '{}' } }] } }] },
-      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
-      DONE,
-    )))
-    expect(chunks).toEqual([
+  it('keeps delta-level empty-id leniency but rejects the closed block', async () => {
+    const seen: StreamChunk[] = []
+    await expect((async () => {
+      for await (const chunk of translate(feed(
+        firstChunk,
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: '', type: 'function', function: { name: '', arguments: '{}' } }] } }] },
+        { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+        DONE,
+      ))) seen.push(chunk)
+    })()).rejects.toThrow(/tool-call block closed without a wire id/)
+    expect(seen).toEqual([
       { type: 'block-start', index: 0, blockType: 'tool-call' },
       { type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' },
-      {
-        type: 'block-end',
-        index: 0,
-        block: { type: 'tool-call', id: '', name: '', arguments: '{}' },
-      },
-      { type: 'finish', reason: { kind: 'tool-calls' } },
     ])
   })
 
@@ -380,20 +377,14 @@ describe('mapUsage', () => {
 })
 
 describe('translate: defensive tool-call branches', () => {
-  it('handles deltas that never carry id or name (empty-string fallbacks)', async () => {
-    const chunks = await collect(translate(feed(
+  it('rejects at DONE when deltas never carry id (delta stream itself stays lenient)', async () => {
+    await expect(collect(translate(feed(
       firstChunk,
       // Hypothetical lenient wire: argument fragments with no id/name at all.
       { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{}' } }] } }] },
       { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
       DONE,
-    )))
-    expect(chunks).toEqual([
-      { type: 'block-start', index: 0, blockType: 'tool-call' },
-      { type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' },
-      { type: 'block-end', index: 0, block: { type: 'tool-call', id: '', name: '', arguments: '{}' } },
-      { type: 'finish', reason: { kind: 'tool-calls' } },
-    ])
+    )))).rejects.toThrow(/tool-call block closed without a wire id/)
   })
 
   it('handles tool_call deltas with a function object but no arguments field', async () => {

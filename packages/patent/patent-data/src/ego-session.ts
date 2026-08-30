@@ -206,6 +206,8 @@ function pathDelimiter(platform: NodeJS.Platform): string {
   return platform === 'win32' ? ';' : ':'
 }
 
+/* jscpd:ignore-start — platform command resolution kept per-domain (browser-backend
+   carries its own copy); the shared home is a future util-group extraction. */
 /** File names a command may resolve to on the platform. */
 function commandNames(command: string, platform: NodeJS.Platform): string[] {
   return platform === 'win32' ? [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`] : [command]
@@ -221,6 +223,7 @@ function isUsableFile(path: string, platform: NodeJS.Platform): boolean {
     return false
   }
 }
+/* jscpd:ignore-end */
 
 /**
  * Normalize a patent number: trim, upper-case, and strip whitespace/separators.

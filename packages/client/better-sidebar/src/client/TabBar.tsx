@@ -16,6 +16,7 @@ import {
 import type { SidebarTab } from './state.ts'
 import { isAgentTabId } from './state.ts'
 import { isPinnedVirtualTab } from './pinned.ts'
+import { useWindowDragClear } from './drag-clear.ts'
 import { IconPinOutline16 } from './icons.tsx'
 import { t } from './locales.ts'
 import css from './sidebar.module.css'
@@ -148,17 +149,8 @@ export function TabBar(props: {
     return () => { el.removeEventListener('wheel', onWheel) }
   }, [])
 
-  useEffect(() => {
-    const clear = (): void => { setTabDragging(false); setDragOver(false) }
-    window.addEventListener('dragend', clear, true)
-    window.addEventListener('drop', clear, true)
-    window.addEventListener('blur', clear)
-    return () => {
-      window.removeEventListener('dragend', clear, true)
-      window.removeEventListener('drop', clear, true)
-      window.removeEventListener('blur', clear)
-    }
-  }, [])
+  // A drag that ends anywhere (window-level) settles the strip's drag state.
+  useWindowDragClear(() => { setTabDragging(false); setDragOver(false) })
 
   return (
     <div

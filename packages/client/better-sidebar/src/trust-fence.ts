@@ -1,9 +1,12 @@
 /**
- * Browser-trust fence for the sidebar routes, behaviorally identical to the
- * /api gateway's fence in @deepseek-ai/dsh-client-connection
+ * Browser-trust fence for the sidebar routes, forked from the /api gateway's
+ * fence in @deepseek-ai/dsh-client-connection
  * (src/api-request-trust.ts + src/loopback-hostname.ts, BSD-3-Clause,
  * copied here because the package does not export these helpers and the
- * plugin must not depend on its internals). Host-header loopback or a
+ * plugin must not depend on its internals). The fork has drifted on purpose:
+ * this Origin fence compares hostname only, because some Chromium builds
+ * (Edge 151) serialize a non-default-port loopback page's Origin without the
+ * port, while the /api fence compares host:port. Host-header loopback or a
  * configured trusted authority passes; cross-site browser markers refuse.
  * This is a DNS-rebinding / cross-site defense, not authentication.
  */
@@ -28,6 +31,8 @@ function parseAuthority(authority: string): URL | undefined {
   }
 }
 
+/* jscpd:ignore-start — a documented fork of the /api fence (see file header),
+   kept behaviorally separate from it rather than re-merged across packages. */
 /**
  * Whether a normalized URL hostname names the local loopback authority.
  * @param hostname - WHATWG URL hostname (IPv6 literals retain brackets).
@@ -86,3 +91,4 @@ export function isTrustedApiRequest(request: ApiTrustRequest, trustedHosts: read
     return false
   }
 }
+/* jscpd:ignore-end */

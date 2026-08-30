@@ -45,6 +45,8 @@ export type EgoBackendOptions = {
   runConnectionProbe?: () => EgoConnectionProbe
 }
 
+/* jscpd:ignore-start — platform command resolution kept per-domain (patent-data
+   carries its own copy); the shared home is a future util-group extraction. */
 /** File names a command may resolve to on the platform. */
 function commandNames(command: string, platform: NodeJS.Platform): string[] {
   return platform === 'win32' ? [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`] : [command]
@@ -60,6 +62,7 @@ function isUsableFile(path: string, platform: NodeJS.Platform): boolean {
     return false
   }
 }
+/* jscpd:ignore-end */
 
 /** Platforms the ego lite CLI supports. */
 const SUPPORTED_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(['darwin', 'win32'])

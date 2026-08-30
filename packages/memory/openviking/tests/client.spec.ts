@@ -1,7 +1,5 @@
-/* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-member-access,
-   typescript/no-unsafe-call, typescript/no-unsafe-return, typescript/no-unsafe-argument,
-   typescript/unbound-method -- Vitest mocks are structurally untyped dynamic shapes;
-   only the executed code paths are asserted. */
+/* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-member-access -- Vitest mocks
+   are structurally untyped dynamic shapes; only the executed code paths are asserted. */
 
 /* oxlint-disable typescript/no-base-to-string -- Stub fetch bodies arrive as vitest-typed any and are stringified for assertions. */
 

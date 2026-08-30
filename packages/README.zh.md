@@ -63,7 +63,10 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`guard/`](guard/README.zh.md) | 循环卫生守卫：建议性重复调用提醒 + `tools/execute` 截止时间强制执行器 |
 | [`bundle/`](bundle/README.zh.md) | 可安装的 `dsh --profile` 补丁层 |
 | [`extensions/`](extensions/README.zh.md) | agent 运行时自修改：实时插件/服务检查与模型所写挂载/卸载 |
+| [`self-evolve/`](self-evolve/README.zh.md) | 基于战役的自我评估与插件演化：持久服务、agent 循环提供方、基准运行器、模型可见工具 |
 | [`hooks/`](hooks/README.zh.md) | 钩子桥接 + 共享的 Claude Code / Codex 线协议库 |
+| [`mcp/`](mcp/README.zh.md) | 挂接外部 Model Context Protocol 服务器，使其工具可作为原生工具调用 |
+| [`patent/`](patent/README.zh.md) | 从 Sati 移植的专利领域插件：引擎、工具、规则门与知识访问，均为工作区包 |
 | [`session/`](session/README.zh.md) | 持久会话数据平面：持久化 seam + 后端、投影 seam、基于日志的标题、会话上报 |
 | [`session-query/`](session-query/README.zh.md) | 会话检索系列：逻辑语料库、有界读取、血缘、语义过滤、SQLite 全文搜索 |
 | [`settings/`](settings/README.zh.md) | 用户设置 seam + 基于文件的提供方 |
@@ -77,10 +80,11 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`browser/`](browser/README.zh.md) | 浏览器自动化后端能力族：能力探测、级联路由、链接提取 |
 | [`host/`](host/README.zh.md) | web GUI 宿主半侧：API 网关 + HTTP 路由服务器 |
 | [`client/`](client/README.zh.md) | web GUI 浏览器半侧：shell、协议层、对象服务、slot、`ui-*` 插件 |
+| [`desktop/`](desktop/README.zh.md) | 桌面操作系统集成：Service Definition + Electron shell 提供方 + 沙盒化目录选择桥 |
 | [`examples/`](examples/README.zh.md) | 供测试与自定义部署复用的组合包 |
 | [`test-support/`](test-support/README.zh.md) | 支持基础设施（testkit、不变式、回放、Loader 冒烟测试） |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.zh.md) | 运行时诊断：按包归属的运行时不变式检查与报告 |
-| [`util/`](util/README.zh.md) | 组间共享的低层零依赖工具（`Branded<B>`、home/路径辅助函数、超时、留存） |
+| [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；无运行时依赖，仅不变量伴随 peer |
 
 -----
 

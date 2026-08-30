@@ -9,7 +9,11 @@
 import { encodeHtmlUrl } from '../html-route.ts'
 import type { LastActivity } from '../subagent-activity.ts'
 import type { SidechatThreadInfo } from '../sidechat-core.ts'
+import type { GitLogEntry, GitStatusEntry, GitStatusResult, GitWorktree } from '../git.ts'
 import type { BrowserProbeResult } from './browser.ts'
+
+/** Git wire shapes (the host's git.ts contracts, mirrored over /sidebar/api). */
+export type { GitLogEntry, GitStatusEntry, GitStatusResult, GitWorktree }
 
 /** One wire failure. */
 export class SidebarApiError extends Error {
@@ -31,46 +35,6 @@ export interface FsEntry {
   isSymlink: boolean
   /** For symlinks: the target is missing or unreadable (stat failed). */
   broken: boolean
-}
-
-/** Git status entry (host git shape). */
-export interface GitStatusEntry {
-  path: string
-  xy: string
-}
-
-/** Git status snapshot. */
-export interface GitStatusResult {
-  isRepo: boolean
-  branch?: string
-  entries: GitStatusEntry[]
-  /** True when the host capped `entries` (huge untracked set); the panel
-   *  shows a truncation notice instead of freezing (#369). */
-  truncated?: boolean
-  root?: string
-  repositories?: string[]
-}
-
-/** One linked Git checkout. */
-export interface GitWorktree {
-  path: string
-  branch: string
-  current: boolean
-  changes: number
-}
-
-/** One git log row. */
-export interface GitLogEntry {
-  /** Short hash (7+ chars, display). */
-  hash: string
-  /** Full 40-char hash (advanced operations). */
-  hashFull: string
-  subject: string
-  author: string
-  /** ISO 8601 author date (`%ai`). */
-  date: string
-  /** Ref decorations (--decorate=short), e.g. `HEAD -> main, origin/main`; '' when none. */
-  refs: string
 }
 
 /** Text read result. */
@@ -112,18 +76,12 @@ export type TerminalDepsStatus =
     note?: string
   }
 
-async function call<T>(method: string, payload: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(`/sidebar/api/${method}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-      ...(signal !== undefined ? { signal } : {}),
-    })
-  } catch (error) {
-    throw new SidebarApiError('network', error instanceof Error ? error.message : String(error))
-  }
+/**
+ * Unwrap one `/sidebar` JSON envelope: malformed JSON, a non-2xx status, or
+ * an error envelope surfaces as {@link SidebarApiError} with the wire code;
+ * success resolves the envelope's value.
+ */
+async function unwrapResponse<T>(response: Response): Promise<T> {
   const parsed = (await response.json().catch(() => null)) as {
     ok?: boolean
     value?: unknown
@@ -136,6 +94,21 @@ async function call<T>(method: string, payload: Record<string, unknown>, signal?
     )
   }
   return parsed.value as T
+}
+
+async function call<T>(method: string, payload: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`/sidebar/api/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      ...(signal !== undefined ? { signal } : {}),
+    })
+  } catch (error) {
+    throw new SidebarApiError('network', error instanceof Error ? error.message : String(error))
+  }
+  return unwrapResponse<T>(response)
 }
 
 /**
@@ -166,18 +139,7 @@ async function fetchUpload<T>(
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new SidebarApiError('network', error instanceof Error ? error.message : String(error))
   }
-  const parsed = (await response.json().catch(() => null)) as {
-    ok?: boolean
-    value?: unknown
-    error?: { code?: string; message?: string }
-  } | null
-  if (!response.ok || parsed === null || parsed.ok !== true || parsed.value === undefined) {
-    throw new SidebarApiError(
-      parsed?.error?.code ?? 'http',
-      parsed?.error?.message ?? `HTTP ${response.status}`,
-    )
-  }
-  return parsed.value as T
+  return unwrapResponse<T>(response)
 }
 
 /** One request's session scope: the conversation id plus its cwd when known. */

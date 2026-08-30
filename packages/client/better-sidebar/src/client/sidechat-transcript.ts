@@ -16,6 +16,8 @@
  */
 import type { SidebarHistoryEntry } from '../context-types.ts'
 import { isContextInjectionMessage, SIDE_BOUNDARY_PROMPT } from '../sidechat-core.ts'
+import { textBlockParts } from '../subagent-activity.ts'
+import { toolResultTextBlocks } from '../tool-result-text.ts'
 
 /** One compact transcript row rendered in the thread view. `seq` is the
  *  source event's log sequence — stable row identity for React keys across
@@ -50,15 +52,7 @@ export type SidechatTranscriptRow =
  * @returns the joined text blocks, or `…` when none is present.
  */
 export function blockText(content: readonly unknown[]): string {
-  const parts: string[] = []
-  for (const block of content) {
-    if (block === null || typeof block !== 'object') continue
-    const candidate = block as { type?: unknown; text?: unknown }
-    if (candidate.type === 'text' && typeof candidate.text === 'string') {
-      parts.push(candidate.text)
-    }
-  }
-  const text = parts.join('\n\n')
+  const text = textBlockParts(content).join('\n\n')
   return text === '' ? '…' : text
 }
 
@@ -101,24 +95,7 @@ export function toolArgsSummary(args: string | undefined): string {
  *  `tool-result` content block). */
 function resultTextOf(data: Record<string, unknown>): string {
   const message = data.message as { content?: unknown } | undefined
-  const content = message?.content
-  if (!Array.isArray(content)) return ''
-  const parts: string[] = []
-  for (const block of content) {
-    if (block === null || typeof block !== 'object') continue
-    const candidate = block as { type?: unknown; content?: unknown }
-    if (candidate.type !== 'tool-result') continue
-    const inner = candidate.content
-    if (!Array.isArray(inner)) continue
-    for (const item of inner) {
-      if (item === null || typeof item !== 'object') continue
-      const textItem = item as { type?: unknown; text?: unknown }
-      if (textItem.type === 'text' && typeof textItem.text === 'string') {
-        parts.push(textItem.text)
-      }
-    }
-  }
-  return parts.join('\n')
+  return toolResultTextBlocks(message?.content).join('\n')
 }
 
 /** Index of the last `session/end-seed` event (fork seed marker), or -1. */

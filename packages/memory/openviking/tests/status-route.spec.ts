@@ -1,7 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-member-access,
-   typescript/no-unsafe-call, typescript/no-unsafe-return, typescript/no-unsafe-argument,
-   typescript/unbound-method -- Vitest mocks are structurally untyped dynamic shapes;
-   only the executed code paths are asserted. */
 
 /* oxlint-disable typescript/prefer-promise-reject-errors -- The degraded-health case is the rejection scenario under test. */
 

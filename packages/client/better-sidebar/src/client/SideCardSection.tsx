@@ -260,17 +260,13 @@ export function FeatureSettingsRows(props: {
         }
         if ((toggle.type ?? 'switch') === 'switch') {
           return (
-            <div key={toggle.key} className={css.popupRow}>
-              <span className={css.rowText}>
-                <span className={css.title}>{title}</span>
-                {textOf(toggle.desc) !== '' && <span className={css.desc}>{textOf(toggle.desc)}</span>}
-              </span>
+            <SettingRow key={toggle.key} title={title} desc={toggle.desc}>
               <Switch
                 label={title}
                 checked={read(toggle.key) === true}
                 onChange={(next) => { onToggle(toggle, next) }}
               />
-            </div>
+            </SettingRow>
           )
         }
         const value = scalarText(read(toggle.key))
@@ -312,32 +308,49 @@ function TypedRow(props: {
   const number = toggle.type === 'number'
   const inputClass = number ? css.typedInputNumber : css.typedInput
   return (
+    <SettingRow title={title} desc={toggle.desc}>
+      <Input
+        type={number ? 'number' : 'text'}
+        {...(inputClass === undefined ? {} : { className: inputClass })}
+        value={draft}
+        {...(toggle.min === undefined ? {} : { min: toggle.min })}
+        {...(toggle.max === undefined ? {} : { max: toggle.max })}
+        step={1}
+        {...(toggle.placeholder === undefined ? {} : { placeholder: toggle.placeholder })}
+        aria-label={title}
+        onChange={(event) => { setDraft(event.currentTarget.value) }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+        }}
+      />
+      {toggle.unit !== undefined && <span className={css.suffix}>{toggle.unit}</span>}
+    </SettingRow>
+  )
+}
+
+/**
+ * One declarative settings row: the title/description column plus the
+ * control column. Shared by the switch, typed-input (TypedRow), and select
+ * (SelectRow) rows so the row chrome lives in one place.
+ */
+function SettingRow(props: {
+  title: string
+  desc: string | (() => string) | undefined
+  children: ReactNode
+}) {
+  const { title, desc, children } = props
+  return (
     <div className={css.popupRow}>
       <span className={css.rowText}>
         <span className={css.title}>{title}</span>
-        {textOf(toggle.desc) !== '' && <span className={css.desc}>{textOf(toggle.desc)}</span>}
+        {textOf(desc) !== '' && <span className={css.desc}>{textOf(desc)}</span>}
       </span>
-      <span className={css.control}>
-        <Input
-          type={number ? 'number' : 'text'}
-          {...(inputClass === undefined ? {} : { className: inputClass })}
-          value={draft}
-          {...(toggle.min === undefined ? {} : { min: toggle.min })}
-          {...(toggle.max === undefined ? {} : { max: toggle.max })}
-          step={1}
-          {...(toggle.placeholder === undefined ? {} : { placeholder: toggle.placeholder })}
-          aria-label={title}
-          onChange={(event) => { setDraft(event.currentTarget.value) }}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
-          }}
-        />
-        {toggle.unit !== undefined && <span className={css.suffix}>{toggle.unit}</span>}
-      </span>
+      <span className={css.control}>{children}</span>
     </div>
   )
 }
+
 /**
  * The multi-line custom-CSS input (scheme `custom`): a monospace textarea
  * whose draft is local state, committed on blur or Cmd/Ctrl+Enter through
@@ -477,21 +490,15 @@ function SelectRow(props: {
 }) {
   const { toggle, title, value, onSelectValue } = props
   return (
-    <div className={css.popupRow}>
-      <span className={css.rowText}>
-        <span className={css.title}>{title}</span>
-        {textOf(toggle.desc) !== '' && <span className={css.desc}>{textOf(toggle.desc)}</span>}
-      </span>
-      <span className={css.control}>
-        <SelectMenu
-          label={title}
-          value={value}
-          options={toggle.options ?? []}
-          multi={toggle.multi === true}
-          onSelect={(next) => { onSelectValue?.(toggle, next) }}
-        />
-      </span>
-    </div>
+    <SettingRow title={title} desc={toggle.desc}>
+      <SelectMenu
+        label={title}
+        value={value}
+        options={toggle.options ?? []}
+        multi={toggle.multi === true}
+        onSelect={(next) => { onSelectValue?.(toggle, next) }}
+      />
+    </SettingRow>
   )
 }
 

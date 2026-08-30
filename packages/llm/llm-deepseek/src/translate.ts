@@ -8,7 +8,7 @@
  * @module dsh-llm-deepseek/translate
  */
 
-import { ToolCallId, EMPTY_RESPONSE_CODE, LlmError } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, EMPTY_RESPONSE_CODE, LlmError, assertNever } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { DONE } from './sse.ts'
 import type { WireChunk, WireUsage } from './types.ts'
@@ -141,12 +141,21 @@ function closeBlock(block: OpenBlock): ContentBlock {
   switch (block.kind) {
     case 'text': return { type: 'text', text: block.text }
     case 'reasoning': return { type: 'reasoning', text: block.text }
-    case 'tool-call': return {
-      type: 'tool-call',
-      id: ToolCallId(block.callId ?? ''),
-      name: block.name ?? '',
-      arguments: block.text,
-    }
+    case 'tool-call':
+      // Downstream correlates tool results by this id; an empty branded id
+      // would poison that correlation silently. Delta-level absence stays
+      // lenient — a closed block without one is a malformed response.
+      if (block.callId === undefined || block.callId === '') {
+        throw new LlmError('tool-call block closed without a wire id', 'MALFORMED_RESPONSE')
+      }
+      return {
+        type: 'tool-call',
+        id: ToolCallId(block.callId),
+        name: block.name ?? '',
+        arguments: block.text,
+      }
+    default:
+      return assertNever(block.kind, 'tool-call block kind')
   }
 }
 

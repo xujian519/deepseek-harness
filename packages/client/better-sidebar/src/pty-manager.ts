@@ -21,7 +21,7 @@ const TRANSCRIPT_LIMIT = 1 << 20
  * Restore the executable bit pnpm strips from node-pty's prebuilt
  * spawn-helper (the macOS helper that forks and sets up the pty). Without it
  * every spawn fails with `posix_spawnp failed`. Idempotent; mirrors
- * @deepseek-ai/dsh-terminal-bash's ensure-spawn-helper postinstall, run at
+ * @deepseek-ai/dsh-subprocess-local's ensure-spawn-helper postinstall, run at
  * plugin activation so link-installed deployments get the fix too.
  */
 export function ensureSpawnHelper(): void {

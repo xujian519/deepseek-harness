@@ -17,6 +17,7 @@
  * snapshot inside the boundary prompt.
  */
 import type { SidebarHistoryEntry, SidebarSessionSummary } from './context-types.ts'
+import { toolResultTextBlocks } from './tool-result-text.ts'
 
 /** The durable thread-label prefix (also the row filter in the client list). */
 export const SIDE_LABEL_PREFIX = 'Side: '
@@ -185,24 +186,7 @@ export function hasDanglingToolCall(events: readonly SidechatLogEvent[], turnSta
  *  `tool-result` content block). */
 function toolResultText(data: Record<string, unknown>): string {
   const message = data.message as { content?: unknown } | undefined
-  const content = message?.content
-  if (!Array.isArray(content)) return ''
-  const parts: string[] = []
-  for (const block of content) {
-    if (block === null || typeof block !== 'object') continue
-    const candidate = block as { type?: unknown; content?: unknown }
-    if (candidate.type !== 'tool-result') continue
-    const inner = candidate.content
-    if (!Array.isArray(inner)) continue
-    for (const item of inner) {
-      if (item === null || typeof item !== 'object') continue
-      const textItem = item as { type?: unknown; text?: unknown }
-      if (textItem.type === 'text' && typeof textItem.text === 'string') {
-        parts.push(textItem.text)
-      }
-    }
-  }
-  return parts.join('\n')
+  return toolResultTextBlocks(message?.content).join('\n')
 }
 
 /** Cap applied to one tool-result's text inside a snapshot (prompt budget). */

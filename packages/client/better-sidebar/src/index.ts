@@ -18,7 +18,7 @@ import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { WebSocket, WebSocketServer } from 'ws'
-import type { Context, SidebarHttpRequest } from './context-types.ts'
+import type { Context, SidebarHttpRequest, SidebarHttpResponse } from './context-types.ts'
 import {
   Config,
   PrefsSchema,
@@ -35,6 +35,7 @@ import { ensureWorkspacePath, ensureWorkspaceWritePath } from './path-security.t
 import { searchFiles } from './fs-search.ts'
 import { decodeHtmlUrl } from './html-route.ts'
 import { extractFrameAncestors } from './browser-probe.ts'
+import { parseLoopbackAllowlist } from './loopback-allowlist.ts'
 import { isTrustedApiRequest, isLoopbackHostname } from './trust-fence.ts'
 import { registerBundleRoute } from './bundle-route.ts'
 import { launchExternal } from './open-external.ts'
@@ -60,6 +61,45 @@ function frameText(data: WebSocket.RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
   if (data instanceof Uint8Array) return data.toString('utf8')
   return Buffer.from(data).toString('utf8')
+}
+
+/** One terminal control frame (JSON object; `close`, `park`, or `resize`). */
+type TerminalControlFrame = { type?: unknown; cols?: unknown; rows?: unknown }
+
+/**
+ * Decode one terminal ws frame: control frames are JSON objects (the
+ * resize/close/park shape); anything else — including JSON that is not a
+ * recognized control — is terminal input, verbatim.
+ */
+function controlFrameOf(data: WebSocket.RawData): { text: string; control: TerminalControlFrame | null } {
+  const text = frameText(data)
+  let control: TerminalControlFrame | null = null
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (parsed !== null && typeof parsed === 'object') {
+      control = parsed
+    }
+  } catch {
+    // Not JSON: terminal input.
+  }
+  return { text, control }
+}
+
+/**
+ * Apply a `resize` control frame to the pty (dims clamped).
+ * @returns whether the frame was a resize; the caller treats everything else as raw input.
+ */
+function resizeFromControl(control: TerminalControlFrame | null, pty: { resize(cols: number, rows: number): void }): boolean {
+  if (
+    control !== null
+    && control.type === 'resize'
+    && typeof control.cols === 'number' && typeof control.rows === 'number'
+  ) {
+    const dims = clampDims(control.cols, control.rows)
+    pty.resize(dims.cols, dims.rows)
+    return true
+  }
+  return false
 }
 
 export { Config }
@@ -270,26 +310,6 @@ function shellOverridesOf(
   return {
     shell: shell === '' ? undefined : shell,
     shellArgs: args === '' ? undefined : args.split(/\s+/).filter(Boolean),
-  }
-}
-
-/**
- * Parse the browser tab's `browserAllowedLoopback` allowlist into a matcher
- * over host:port (same contract as the client-side helper in
- * src/client/browser.ts — kept in sync). Bare hosts (`localhost`,
- * `127.0.0.1`) match every port; `host:port` entries match exactly.
- */
-function parseLoopbackAllowlist(allowlist: string): (host: string, port: string) => boolean {
-  const entries = allowlist.split(',').map(entry => entry.trim().toLowerCase()).filter(entry => entry !== '')
-  const exact = new Set(entries)
-  const hosts = new Set<string>()
-  for (const entry of entries) {
-    if (!entry.includes(':')) hosts.add(entry.replace(/^\[|\]$/g, ''))
-  }
-  return (host, port) => {
-    const key = `${host}:${port}`
-    if (exact.has(key) || exact.has(host)) return true
-    return port !== '' && hosts.has(host)
   }
 }
 
@@ -643,6 +663,53 @@ function sidebarRequest(req: SidebarHttpRequest | IncomingMessage): SidebarHttpR
 }
 
 /**
+ * JSON route gate (the /sidebar/api and /sidebar/upload handlers): an
+ * un-trusted request is answered with the JSON 403 envelope, a non-POST
+ * method with the JSON 405 envelope.
+ * @returns whether the handler may proceed.
+ */
+function gatePostRoute(
+  req: SidebarHttpRequest | IncomingMessage,
+  res: SidebarHttpResponse,
+  fence: (req: SidebarHttpRequest | IncomingMessage) => boolean,
+): boolean {
+  if (!fence(req)) {
+    writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
+    return false
+  }
+  if (req.method !== 'POST') {
+    writeJson(res, 405, { ok: false, error: { code: 'method-error', message: 'method not allowed' } })
+    return false
+  }
+  return true
+}
+
+/**
+ * Byte-route gate (the /sidebar/file and /sidebar/html handlers): an
+ * un-trusted request is answered with a plain-text 403, a non-GET method
+ * with a bare 405 (these URLs are fetched directly by the browser, never
+ * through the JSON envelope).
+ * @returns whether the handler may proceed.
+ */
+function gateGetRoute(
+  req: SidebarHttpRequest | IncomingMessage,
+  res: SidebarHttpResponse,
+  fence: (req: SidebarHttpRequest | IncomingMessage) => boolean,
+): boolean {
+  if (!fence(req)) {
+    res.writeHead(403)
+    res.end('forbidden')
+    return false
+  }
+  if (req.method !== 'GET') {
+    res.writeHead(405)
+    res.end()
+    return false
+  }
+  return true
+}
+
+/**
  * Plugin body: mount the fenced routes and the pty lifecycle.
  * @param ctx - host plugin context (webServer, sessions, webRuntime).
  * @param config - deployment-provided limits; the Loader validates against
@@ -813,14 +880,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     kind: 'prefix',
     path: '/sidebar/api',
     handler: async (req, res) => {
-      if (!fence(req)) {
-        writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
-        return
-      }
-      if (req.method !== 'POST') {
-        writeJson(res, 405, { ok: false, error: { code: 'method-error', message: 'method not allowed' } })
-        return
-      }
+      if (!gatePostRoute(req, res, fence)) return
       const pathname = new URL(req.url ?? '/', 'http://dsh.internal').pathname
       const method = pathname.startsWith('/sidebar/api/') ? pathname.slice('/sidebar/api/'.length) : undefined
       if (method === undefined || method.includes('/')) {
@@ -850,14 +910,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     kind: 'exact',
     path: '/sidebar/upload',
     handler: async (req, res) => {
-      if (!fence(req)) {
-        writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
-        return
-      }
-      if (req.method !== 'POST') {
-        writeJson(res, 405, { ok: false, error: { code: 'method-error', message: 'method not allowed' } })
-        return
-      }
+      if (!gatePostRoute(req, res, fence)) return
       try {
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
         const sessionId = url.searchParams.get('sessionId')
@@ -892,16 +945,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     kind: 'prefix',
     path: '/sidebar/file',
     handler: async (req, res) => {
-      if (!fence(req)) {
-        res.writeHead(403)
-        res.end('forbidden')
-        return
-      }
-      if (req.method !== 'GET') {
-        res.writeHead(405)
-        res.end()
-        return
-      }
+      if (!gateGetRoute(req, res, fence)) return
       try {
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
         const sessionId = url.searchParams.get('sessionId')
@@ -943,16 +987,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     kind: 'prefix',
     path: '/sidebar/html',
     handler: async (req, res) => {
-      if (!fence(req)) {
-        res.writeHead(403)
-        res.end('forbidden')
-        return
-      }
-      if (req.method !== 'GET') {
-        res.writeHead(405)
-        res.end()
-        return
-      }
+      if (!gateGetRoute(req, res, fence)) return
       try {
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
         const decoded = decodeHtmlUrl(url.pathname)
@@ -1069,11 +1104,16 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
   }, 'dsh-better-sidebar: teardown')
 }
 
-/** Push queued `sidebar_open` requests for one session to a connected view. */
-function attachAgentOpen(
-  registry: AgentOpenRegistry,
+/**
+ * Wire one sidebar push socket: resolves `?sessionId` (closing the socket
+ * 1008 when missing), builds an OPEN-guarded JSON sender, and hands both to
+ * `subscribe`, whose return detaches the view; the detach runs on
+ * close/error, and any wiring throw closes 1011 with the error message.
+ */
+function attachSessionPush(
   ws: WebSocket,
   req: SidebarHttpRequest,
+  subscribe: (sessionId: string, sendJson: (payload: unknown) => void) => (() => void) | undefined,
 ): void {
   try {
     const url = new URL(req.url ?? '/', 'http://dsh.internal')
@@ -1082,20 +1122,31 @@ function attachAgentOpen(
       ws.close(1008, 'sessionId is required')
       return
     }
-    const send = (request: AgentOpenRequest): void => {
+    const sendJson = (payload: unknown): void => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(request))
+        ws.send(JSON.stringify(payload))
       }
     }
-    // Attach replays the queued (undelivered) requests for this session; the
-    // disposer detaches the view on socket close/error so later opens queue
-    // instead of accumulating on a dead socket.
-    const unsubscribe = registry.attach(sessionId, send)
-    ws.on('close', () => { unsubscribe() })
-    ws.on('error', () => { unsubscribe() })
+    const unsubscribe = subscribe(sessionId, sendJson)
+    ws.on('close', () => { unsubscribe?.() })
+    ws.on('error', () => { unsubscribe?.() })
   } catch (error) {
     ws.close(1011, error instanceof Error ? error.message : String(error))
   }
+}
+
+/** Push queued `sidebar_open` requests for one session to a connected view. */
+function attachAgentOpen(
+  registry: AgentOpenRegistry,
+  ws: WebSocket,
+  req: SidebarHttpRequest,
+): void {
+  attachSessionPush(ws, req, (sessionId, sendJson) => {
+    // Attach replays the queued (undelivered) requests for this session; the
+    // disposer detaches the view on socket close/error so later opens queue
+    // instead of accumulating on a dead socket.
+    return registry.attach(sessionId, (request: AgentOpenRequest) => { sendJson(request) })
+  })
 }
 
 /** Push the live agent-terminal list for one session to a connected sidebar view. */
@@ -1104,27 +1155,15 @@ function attachAgentList(
   ws: WebSocket,
   req: SidebarHttpRequest,
 ): void {
-  try {
-    const url = new URL(req.url ?? '/', 'http://dsh.internal')
-    const sessionId = url.searchParams.get('sessionId')
-    if (sessionId === null) {
-      ws.close(1008, 'sessionId is required')
-      return
+  attachSessionPush(ws, req, (sessionId, sendJson) => {
+    const push = (): void => {
+      // Degraded mode (node-pty unavailable): no agent terminal can exist,
+      // so the honest push is the empty list.
+      sendJson(registry?.list(sessionId) ?? [])
     }
-    const send = (): void => {
-      if (ws.readyState === WebSocket.OPEN) {
-        // Degraded mode (node-pty unavailable): no agent terminal can exist,
-        // so the honest push is the empty list.
-        ws.send(JSON.stringify(registry?.list(sessionId) ?? []))
-      }
-    }
-    send()
-    const unsubscribe = registry?.subscribe(send)
-    ws.on('close', () => { unsubscribe?.() })
-    ws.on('error', () => { unsubscribe?.() })
-  } catch (error) {
-    ws.close(1011, error instanceof Error ? error.message : String(error))
-  }
+    push()
+    return registry?.subscribe(push)
+  })
 }
 
 /**
@@ -1192,18 +1231,9 @@ async function attachTerminal(
     if (handle.transcript !== '') ws.send(handle.transcript)
     const { dataSub, exitSub } = pumpPtyOutput(handle.pty, ws)
     ws.on('message', (data) => {
-      const text = frameText(data)
+      const { text, control } = controlFrameOf(data)
       // Control frames are JSON with a known shape; anything else (including
       // JSON that is not a recognized control) is terminal input, verbatim.
-      let control: { type?: unknown; cols?: unknown; rows?: unknown } | null = null
-      try {
-        const parsed: unknown = JSON.parse(text)
-        if (parsed !== null && typeof parsed === 'object') {
-          control = parsed
-        }
-      } catch {
-        // Not JSON: terminal input.
-      }
       if (control !== null && control.type === 'close') {
         // The owning tab was closed: release the quota immediately.
         ptyManager.scheduleClose(handle.key, 0)
@@ -1220,14 +1250,7 @@ async function attachTerminal(
         return
       }
       if (handle.exited) return
-      if (
-        control !== null
-        && control.type === 'resize'
-        && typeof control.cols === 'number' && typeof control.rows === 'number'
-      ) {
-        const dims = clampDims(control.cols, control.rows)
-        handle.pty.resize(dims.cols, dims.rows)
-      } else {
+      if (!resizeFromControl(control, handle.pty)) {
         handle.pty.write(text)
       }
     })
@@ -1285,30 +1308,14 @@ function pumpAgentTerminal(
   const { dataSub, exitSub } = pumpPtyOutput(handle.pty, ws)
   ws.on('message', (data) => {
     if (handle.exited) return
-    const text = frameText(data)
-    let control: { type?: unknown; cols?: unknown; rows?: unknown } | null = null
-    try {
-      const parsed: unknown = JSON.parse(text)
-      if (parsed !== null && typeof parsed === 'object') {
-        control = parsed
-      }
-    } catch {
-      // Not JSON: terminal input.
-    }
+    const { text, control } = controlFrameOf(data)
     if (control !== null && control.type === 'close') {
       // The user closed the sidebar tab: kill the pty immediately. The
       // agent's next terminal_list / terminal_send will see it gone.
       registry.close(handle.uuid)
       return
     }
-    if (
-      control !== null
-      && control.type === 'resize'
-      && typeof control.cols === 'number' && typeof control.rows === 'number'
-    ) {
-      const dims = clampDims(control.cols, control.rows)
-      handle.pty.resize(dims.cols, dims.rows)
-    } else if (control === null) {
+    if (!resizeFromControl(control, handle.pty) && control === null) {
       // Raw text input (a JSON-looking string the pty would have received
       // verbatim is reachable in theory but is exotic for an agent terminal;
       // preserve the UI-tab semantics and forward as input).

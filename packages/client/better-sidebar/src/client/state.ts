@@ -714,6 +714,23 @@ export function setTabPin(
 }
 
 /**
+ * Resolve the pane a landing tab targets: an explicit pane, else the active
+ * pane, else the right tree's first leaf. A stale id that survived in
+ * neither tree falls back to the first pane instead of swallowing the open
+ * (shared by {@link openTabInActivePane} and {@link dockFloat}).
+ * @param state - the current per-session sidebar state.
+ * @param requested - the caller's preferred pane, when it has one.
+ * @returns the resolved pane id and its tree key.
+ */
+function landingPaneOf(state: SidebarState, requested?: string): { paneId: string; key: 'splits' | 'bottomSplits' } {
+  let paneId = requested ?? state.activePane ?? firstLeaf(state.splits).id
+  if (!allLeaves(state[treeOf(state, paneId)]).some(leaf => leaf.id === paneId)) {
+    paneId = firstLeaf(state.splits).id
+  }
+  return { paneId, key: treeOf(state, paneId) }
+}
+
+/**
  * Land a tab in the active pane (or focus its existing instance by id).
  * Dedup strategies (single-instance, per-path, per-change) are owned by the
  * tab descriptor through {@link BetterSidebarService.openTab} / `dedupeKey`;
@@ -730,14 +747,7 @@ export function setTabPin(
  * @returns the next state with the tab open and active in the target pane.
  */
 export function openTabInActivePane(state: SidebarState, tab: SidebarTab): SidebarState {
-  let targetId = state.activePane ?? firstLeaf(state.splits).id
-  // A stale activePane (its pane was closed since) must not swallow the
-  // open: fall back to the first pane of the right tree instead of dropping
-  // the tab.
-  if (!allLeaves(state[treeOf(state, targetId)]).some(leaf => leaf.id === targetId)) {
-    targetId = firstLeaf(state.splits).id
-  }
-  const targetKey = treeOf(state, targetId)
+  const { paneId: targetId, key: targetKey } = landingPaneOf(state)
   // Id-based safety net: if a tab with the same id exists, focus it — in a
   // pane (activate) or in a free window (raise, no panel switch).
   for (const leaf of allLeaves(state.splits).concat(allLeaves(state.bottomSplits))) {
@@ -756,6 +766,29 @@ export function openTabInActivePane(state: SidebarState, tab: SidebarTab): Sideb
   }
 }
 
+/**
+ * Remove one tab from a leaf in place (the mapLeaf mutator); clears `active`
+ * when it pointed at the removed tab.
+ * @returns the removed tab, or undefined when the leaf does not hold it.
+ */
+function takeTab(leaf: SidebarLeaf, tabId: string): SidebarTab | undefined {
+  const found = leaf.tabs.find(tab => tab.id === tabId)
+  if (found === undefined) return undefined
+  leaf.tabs = leaf.tabs.filter(tab => tab.id !== tabId)
+  if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
+  return found
+}
+
+/**
+ * Insert a tab into a leaf in place (the mapLeaf mutator) at `index`
+ * (-1 appends) and activate it.
+ */
+function putTab(leaf: SidebarLeaf, tab: SidebarTab, index: number): void {
+  const insertAt = index >= 0 && index <= leaf.tabs.length ? index : leaf.tabs.length
+  leaf.tabs = [...leaf.tabs.slice(0, insertAt), tab, ...leaf.tabs.slice(insertAt)]
+  leaf.active = tab.id
+}
+
 /** Move a tab from one pane to another (insert at index; -1 appends).
  *  The panes may live in DIFFERENT trees — dragging a tab between the two
  *  panels removes it from its own tree and lands it in the other one.
@@ -769,48 +802,29 @@ export function openTabInActivePane(state: SidebarState, tab: SidebarTab): Sideb
 export function moveTab(state: SidebarState, fromPane: string, tabId: string, toPane: string, index = -1): SidebarState {
   const fromKey = treeOf(state, fromPane)
   const toKey = treeOf(state, toPane)
-  if (fromKey !== toKey) {
-    let moved: SidebarTab | undefined
-    let emptied = false as boolean
-    const source = mapLeaf(state[fromKey], fromPane, (leaf) => {
-      const found = leaf.tabs.find(tab => tab.id === tabId)
-      if (found === undefined) return
-      moved = found
-      leaf.tabs = leaf.tabs.filter(tab => tab.id !== tabId)
-      if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
-      if (leaf.tabs.length === 0) emptied = true
-    })
-    if (moved === undefined) return state
-    const target = mapLeaf(state[toKey], toPane, (leaf) => {
-      const insertAt = index >= 0 && index <= leaf.tabs.length ? index : leaf.tabs.length
-      leaf.tabs = [...leaf.tabs.slice(0, insertAt), moved as SidebarTab, ...leaf.tabs.slice(insertAt)]
-      leaf.active = (moved as SidebarTab).id
-    })
-    return {
-      ...state,
-      [fromKey]: emptied ? removeLeafAt(source, fromPane) : source,
-      [toKey]: target,
-      activePane: toPane,
-    }
-  }
   let moved: SidebarTab | undefined
   let emptied = false as boolean
-  let splits = mapLeaf(state[fromKey], fromPane, (leaf) => {
-    const found = leaf.tabs.find(tab => tab.id === tabId)
-    if (found === undefined) return
-    moved = found
-    leaf.tabs = leaf.tabs.filter(tab => tab.id !== tabId)
-    if (leaf.active === tabId) leaf.active = leaf.tabs[leaf.tabs.length - 1]?.id ?? null
+  const removed = mapLeaf(state[fromKey], fromPane, (leaf) => {
+    moved = takeTab(leaf, tabId)
     if (leaf.tabs.length === 0) emptied = true
   })
   if (moved === undefined) return state
-  if (emptied) splits = removeLeafAt(splits, fromPane)
-  splits = mapLeaf(splits, toPane, (leaf) => {
-    const insertAt = index >= 0 && index <= leaf.tabs.length ? index : leaf.tabs.length
-    leaf.tabs = [...leaf.tabs.slice(0, insertAt), moved as SidebarTab, ...leaf.tabs.slice(insertAt)]
-    leaf.active = (moved as SidebarTab).id
+  const nextFrom = emptied ? removeLeafAt(removed, fromPane) : removed
+  if (fromKey === toKey) {
+    const splits = mapLeaf(nextFrom, toPane, (leaf) => {
+      putTab(leaf, moved as SidebarTab, index)
+    })
+    return { ...state, [fromKey]: splits, activePane: toPane }
+  }
+  const target = mapLeaf(state[toKey], toPane, (leaf) => {
+    putTab(leaf, moved as SidebarTab, index)
   })
-  return { ...state, [fromKey]: splits, activePane: toPane }
+  return {
+    ...state,
+    [fromKey]: nextFrom,
+    [toKey]: target,
+    activePane: toPane,
+  }
 }
 
 /**
@@ -1134,8 +1148,8 @@ export function raiseFloat(state: SidebarState, floatId: string): SidebarState {
 
 /** Dock a free window back into a pane (center merge): the tab joins the
  *  target pane and activates. `toPane` defaults to the active pane with the
- *  right tree's first leaf as the stale-id fallback (mirrors
- *  {@link openTabInActivePane}). Unknown window ids are a no-op.
+ *  right tree's first leaf as the stale-id fallback (the {@link landingPaneOf}
+ *  rule shared with openTabInActivePane). Unknown window ids are a no-op.
  * @param state - the current per-session sidebar state.
  * @param floatId - the window to dock.
  * @param toPane - target pane; defaults to the active pane.
@@ -1145,11 +1159,7 @@ export function raiseFloat(state: SidebarState, floatId: string): SidebarState {
 export function dockFloat(state: SidebarState, floatId: string, toPane?: string): SidebarState {
   const float = floatById(state, floatId)
   if (float === undefined) return state
-  let targetId = toPane ?? state.activePane ?? firstLeaf(state.splits).id
-  if (!allLeaves(state[treeOf(state, targetId)]).some(leaf => leaf.id === targetId)) {
-    targetId = firstLeaf(state.splits).id
-  }
-  const targetKey = treeOf(state, targetId)
+  const { paneId: targetId, key: targetKey } = landingPaneOf(state, toPane)
   return {
     ...state,
     floats: state.floats.filter(f => f.id !== floatId),

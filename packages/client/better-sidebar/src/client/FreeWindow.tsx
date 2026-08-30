@@ -40,6 +40,25 @@ interface DragState {
   committed: boolean
 }
 
+/**
+ * Open a drag on one handle: the header (move) and the SE corner (resize)
+ * snapshot the same values — the window geometry as the start reference, the
+ * pointer origin, and the last-applied geometry fallback.
+ */
+function beginDrag(mode: DragState['mode'], float: FloatWindow, event: React.PointerEvent): DragState {
+  return {
+    mode,
+    pointerX: event.clientX,
+    pointerY: event.clientY,
+    startX: float.x,
+    startY: float.y,
+    startW: float.w,
+    startH: float.h,
+    applied: { x: float.x, y: float.y, w: float.w, h: float.h },
+    committed: false,
+  }
+}
+
 /** The pane under a viewport point, if any (rect hit-test; the dragged
  *  window itself is not a pane, so it cannot shadow the targets). */
 function paneAt(x: number, y: number): HTMLElement | null {
@@ -217,17 +236,7 @@ export function FreeWindow(props: {
           if (event.target instanceof Element && event.target.closest('button') !== null) return
           event.preventDefault()
           capturePointer(event.currentTarget, event.pointerId)
-          dragRef.current = {
-            mode: 'move',
-            pointerX: event.clientX,
-            pointerY: event.clientY,
-            startX: float.x,
-            startY: float.y,
-            startW: float.w,
-            startH: float.h,
-            applied: { x: float.x, y: float.y, w: float.w, h: float.h },
-            committed: false,
-          }
+          dragRef.current = beginDrag('move', float, event)
           setDragging('move')
         }}
         onPointerMove={(event) => {
@@ -301,17 +310,7 @@ export function FreeWindow(props: {
           if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return
           event.preventDefault()
           capturePointer(event.currentTarget, event.pointerId)
-          dragRef.current = {
-            mode: 'resize',
-            pointerX: event.clientX,
-            pointerY: event.clientY,
-            startX: float.x,
-            startY: float.y,
-            startW: float.w,
-            startH: float.h,
-            applied: { x: float.x, y: float.y, w: float.w, h: float.h },
-            committed: false,
-          }
+          dragRef.current = beginDrag('resize', float, event)
           setDragging('resize')
         }}
         onPointerMove={(event) => {
