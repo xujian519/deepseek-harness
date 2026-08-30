@@ -7,7 +7,7 @@ import { Context, FiberState, Service, type Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { z as zod } from 'zod'
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import { assertNever, deepFreeze, isAgentLoopRequest } from '@deepseek-ai/dsh-llm'
+import { assertNever, isAgentLoopRequest } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type {
   Session,
@@ -15,7 +15,7 @@ import type {
 } from '@deepseek-ai/dsh-session'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
 import type {} from '@deepseek-ai/dsh-session-projection'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, deepFreeze } from '@deepseek-ai/dsh-value'
 // The `title` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the

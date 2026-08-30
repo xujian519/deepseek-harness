@@ -6,12 +6,13 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { BlockAssembler, deepFreeze } from '@deepseek-ai/dsh-llm'
+import { BlockAssembler } from '@deepseek-ai/dsh-llm'
 import type { LlmImageRequestPricing, Message, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { EpochHeader, Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { canonicalHeader, headerEquals, isSurfaceEvent } from '@deepseek-ai/dsh-session'
 // Type-only: resolves the optional projection registry Context declaration.
 import type {} from '@deepseek-ai/dsh-session-projection'
+import { deepFreeze } from '@deepseek-ai/dsh-value'
 import type {
   TokenMeasurement,
   TokenMeasurementBaseline,

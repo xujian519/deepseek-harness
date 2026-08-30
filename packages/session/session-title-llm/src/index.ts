@@ -6,10 +6,10 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { createUserMessage, BlockAssembler, deepFreeze } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, BlockAssembler } from '@deepseek-ai/dsh-llm'
 import type { FinishReason, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, deepFreeze } from '@deepseek-ai/dsh-value'
 import {
   normalizeSessionTitle,
   SessionTitleProviderId,

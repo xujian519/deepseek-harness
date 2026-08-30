@@ -92,9 +92,9 @@
 | `isRecord` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;sdk/client 公开导出改为再导出;mcp-client 的 JsonValue 谓词由调用点显式收窄替代) | 0 剩余 |
 | `toError` | 5 份 | skill/index.ts:850、subagent-acp/run.ts:182、subagent/out-of-process.ts:123 等(skill 版有 hostile-proxy 防护,其他没有) |
 | `errorMessage`/`renderThrown` | 6 份 | 占位文案已分叉:`[unrenderable thrown value]`(workflow:199、skill:864)vs `<unrenderable thrown value>`(subagent/lifecycle.ts:263、schedule/runtime.ts:72)vs 纯 `String(value)`(skill-filesystem:1039)vs `` `${name}: ${message}` ``(llm/adapter-failure.ts:91) |
-| `isENOENT` | 5 处 | credentials-local:125、settings-file、session-persistence-jsonl/win32.ts 等 |
-| `isPlainObject` | 2 处 | api/gateway:675、settings:186(参数签名已漂移:`object` vs `unknown`) |
-| `deepFreeze` | 2 处 | llm/call-config.ts:88(导出)、settings:308(私有复制) |
+| `isENOENT` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;同批折叠同族 `isEEXIST` 3 份) | 0 剩余 |
+| `isPlainObject` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;实际 3 份——台账漏记 inspector/shared/json.ts 的导出副本,一并折叠,包内 14 处导入走 re-export) | 0 剩余 |
+| `deepFreeze` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;`dsh-llm` 公开导出移除,9 个导入包改指 `dsh-value`;settings 递归副本由共享迭代版替代,配置数据上行为不变) | 0 剩余 |
 | abort-race 包装器 | 5 份,三种语义 | e2b `withinMs`(哨兵)、e2b `waitWithSignal`(哨兵)、skill `waitWithAbort`(reject)、terminal-bash `initializeSession`(reject)、subprocess-local `waitForExit`(resolve false) |
 
 - **影响**:日志/诊断格式漂移(运维无法依赖统一格式)、helper 语义各自微调、任何一处的 bug 修复要同步多处。
@@ -237,7 +237,7 @@
 
 1. **cordis 层 `emitContained(ctx, name, args)`** — 收敛 H7 的 9+ 份 containment 循环
 2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 5 份 abort-race 包装器(明确单一语义)
-3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份)
+3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已落地 `@deepseek-ai/dsh-value`,余 `toError`、`errorMessage`)
 4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6)
 5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast)
 6. **announcement 状态机原语** — 收敛 H5 的双份 entry 生命周期

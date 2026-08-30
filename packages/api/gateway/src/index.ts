@@ -10,6 +10,7 @@ import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { isPlainObject } from '@deepseek-ai/dsh-value'
 import z from '@deepseek-ai/schemastery'
 import {
   remoteMethods,
@@ -1201,12 +1202,6 @@ function assertJsonValue(value: unknown, ancestors: Set<object>): void {
   } finally {
     ancestors.delete(value)
   }
-}
-
-function isPlainObject(value: object): value is Record<string, unknown> {
-  if (Array.isArray(value)) return false
-  const prototype = Object.getPrototypeOf(value) as object | null
-  return prototype === null || prototype === Object.prototype
 }
 
 function isObject(value: unknown): value is object {

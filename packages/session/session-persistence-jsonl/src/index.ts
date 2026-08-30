@@ -24,6 +24,7 @@ import {
   type StoredPrefix,
 } from '@deepseek-ai/dsh-session-persistence'
 import type { Session, SessionEvent, SessionId, SessionHeader, SessionPreparation } from '@deepseek-ai/dsh-session'
+import { isENOENT } from '@deepseek-ai/dsh-value'
 import {
   encodeSegment, eventLines, logPath, logSuffix, parseHeaderMeta, projectDir, scanLog, sessionDir,
   SessionLogScanner, toHeaderLine,
@@ -107,11 +108,6 @@ function fileRevision(identity: FileRevisionIdentity): PersistenceRevision {
     identity.mtimeNs,
     identity.ctimeNs,
   ].join(':'))
-}
-
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }
 
 /**

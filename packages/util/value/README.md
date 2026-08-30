@@ -1,5 +1,5 @@
 ---
-description: "Shared unknown-value primitives: an object guard and a fail-loud positive-integer assertion for parser and config boundaries."
+description: "Shared unknown-value primitives: object guards, fail-loud positive-number assertions, filesystem errno tests, and a cycle-safe deep freeze for parser and config boundaries."
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `assertPositiveInteger` rejects anything that is not an integer >= 1 while narrowing `unknown` to `number`, and `assertPositiveFinite` does the same for positive finite numbers. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
+`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `isENOENT` and `isEEXIST` classify filesystem errno errors, and `deepFreeze` renders a value immutably in place. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Reach for `isRecord` before reading properties off an `unknown` value, and for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer.
+Reach for `isRecord` before reading properties off an `unknown` value, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, and for `deepFreeze` when a handed-out value must stay immutable.
 
 ### Guarding an untrusted object
 
@@ -67,6 +67,46 @@ assertPositiveFinite('bash-local: timeoutMs', raw)
 
 Same shape as the integer assertion: the caller owns the label, the shared library owns the decision and the failure message. The value need not be an integer, but it must be finite and greater than 0.
 
+### Classifying a plain data object
+
+```ts
+import { isPlainObject } from '@deepseek-ai/dsh-value'
+
+declare const payload: unknown
+
+if (isPlainObject(payload)) {
+  // payload: Record<string, unknown> — arrays, class instances, and null-prototype lookalikes
+  // other than true plain objects were rejected.
+}
+```
+
+`isPlainObject` is the prototype-strict sibling of `isRecord`: it accepts only objects whose prototype is `Object.prototype` or `null`. Use it at wire and protocol boundaries where a foreign class instance must not pass for data.
+
+### Testing a filesystem errno error
+
+```ts
+import { isENOENT, isEEXIST } from '@deepseek-ai/dsh-value'
+
+try {
+  await open(filename)
+} catch (error) {
+  if (!isENOENT(error)) throw error // every non-ENOENT failure surfaces
+}
+```
+
+The tests accept only real `Error` instances carrying the code, so a lookalike value can never masquerade as absence or as an existing target.
+
+### Freezing a value in place
+
+```ts
+import { deepFreeze } from '@deepseek-ai/dsh-value'
+
+const snapshot = deepFreeze({ request, defaults })
+// every nested object is frozen; the request's AbortSignal is deliberately left unfrozen
+```
+
+The traversal is iterative and cycle-safe, so arbitrarily deep values freeze without touching the call stack. `AbortSignal` objects are skipped: they are the live cancellation channel, and freezing one breaks abort.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -81,7 +121,7 @@ The library is built on one boundary: the predicate and the failure message belo
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `assertPositiveInteger`, `assertPositiveFinite` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `deepFreeze` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the predicate algebra is exercised by unit tests) |
 
 ### Why the guard is shape-only
@@ -120,8 +160,10 @@ No direct invalidation; the validating consumers own any request-prefix changes.
 
 These limits define what the library deliberately does not do. They are current package constraints, not a task backlog.
 
-- **Shape-only object guard** — `isRecord` accepts class instances and `Date`; consumers needing prototype discrimination own that check themselves.
+- **Shape-only object guard** — `isRecord` accepts class instances and `Date`; `isPlainObject` is the prototype-strict alternative when a consumer needs that discrimination.
 - **Positive values only** — the assertions cover `>= 1` and positive finite numbers; ranges, upper bounds, and non-integer floors (other than 1) stay with their owning capability.
+- **Freeze owns named properties** — `deepFreeze` cannot make TypedArray elements or internal slots (a `Date`'s time value) immutable; values relying on those need owner-side care.
+- **Errno tests are strict** — `isENOENT`/`isEEXIST` reject non-`Error` lookalikes by design; a synthetic value carrying `code` surfaces instead of being classified.
 
 <a id="dev-note"></a>
 ### Dev Note

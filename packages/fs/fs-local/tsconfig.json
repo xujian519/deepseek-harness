@@ -22,6 +22,9 @@
       "path": "../fs"
     },
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

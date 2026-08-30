@@ -7,6 +7,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import { deepFreeze, isPlainObject } from '@deepseek-ai/dsh-value'
 import type z from '@deepseek-ai/schemastery'
 import { redactSecrets } from './redact.ts'
 import type { RedactedSecret } from './redact.ts'
@@ -182,13 +183,6 @@ export class SettingsConflictError extends Error {
   }
 }
 
-/** Whether a value is a plain data object (not an array, null, or class instance). */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const proto: unknown = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
-
 /**
  * One path-addressed edit to a namespace's user section. Path mutation exists
  * for a caller holding an INCOMPLETE view of the section — a configuration UI
@@ -305,13 +299,6 @@ function mergeLayers(under: unknown, over: unknown): unknown {
     setDataProperty(merged, key, key in merged ? mergeLayers(merged[key], value) : value)
   }
   return merged
-}
-
-/** Recursively freeze one resolved value so handed-out snapshots stay immutable. */
-function deepFreeze<T>(value: T): T {
-  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value
-  for (const entry of Object.values(value)) deepFreeze(entry)
-  return Object.freeze(value)
 }
 
 /** One registered watcher and its serialized invocation chain. */

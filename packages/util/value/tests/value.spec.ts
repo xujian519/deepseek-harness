@@ -1,5 +1,26 @@
+import { open, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { assertPositiveFinite, assertPositiveInteger, isRecord } from '@deepseek-ai/dsh-value'
+import {
+  assertPositiveFinite,
+  assertPositiveInteger,
+  deepFreeze,
+  isEEXIST,
+  isENOENT,
+  isPlainObject,
+  isRecord,
+} from '@deepseek-ai/dsh-value'
+
+/** Resolve with the caught rejection, failing the test when nothing rejects. */
+async function caught(probe: Promise<unknown>): Promise<unknown> {
+  try {
+    await probe
+  } catch (error) {
+    return error
+  }
+  throw new Error('expected the probe to reject')
+}
 
 describe('isRecord', () => {
   it('accepts plain objects and nested records', () => {
@@ -69,5 +90,124 @@ describe('assertPositiveFinite', () => {
       expect(() => { assertPositiveFinite('graceMs', bad) }).toThrow(TypeError)
       expect(() => { assertPositiveFinite('graceMs', bad) }).toThrow('graceMs must be a positive finite number')
     }
+  })
+})
+
+describe('isPlainObject', () => {
+  it('accepts object-prototype and null-prototype records', () => {
+    expect(isPlainObject({})).toBe(true)
+    expect(isPlainObject({ kind: 'response' })).toBe(true)
+    const nullPrototype = Object.create(null) as Record<string, unknown>
+    nullPrototype.kind = 'bare'
+    expect(isPlainObject(nullPrototype)).toBe(true)
+  })
+
+  it('rejects null, arrays, primitives, and class instances', () => {
+    expect(isPlainObject(null)).toBe(false)
+    expect(isPlainObject(undefined)).toBe(false)
+    expect(isPlainObject([])).toBe(false)
+    expect(isPlainObject(42)).toBe(false)
+    expect(isPlainObject('text')).toBe(false)
+    expect(isPlainObject(new Date())).toBe(false)
+    expect(isPlainObject(new Map())).toBe(false)
+    class InstanceBox { value = 1 }
+    expect(isPlainObject(new InstanceBox())).toBe(false)
+  })
+
+  it('narrows the value so properties can be read as unknown', () => {
+    const value: unknown = { kind: 'response' }
+    if (!isPlainObject(value)) throw new Error('expected a plain object')
+    expect(value.kind).toBe('response')
+  })
+})
+
+describe('isENOENT', () => {
+  it('accepts a real filesystem absence error', async () => {
+    const error = await caught(open(join(tmpdir(), `dsh-value-enoent-missing-${process.pid}`)))
+    expect(isENOENT(error)).toBe(true)
+  })
+
+  it('rejects non-ENOENT errors and non-error lookalikes so they surface', () => {
+    expect(isENOENT(new Error('other failure'))).toBe(false)
+    expect(isENOENT(Object.assign(new Error('denied'), { code: 'EACCES' }))).toBe(false)
+    expect(isENOENT({ code: 'ENOENT' })).toBe(false)
+    expect(isENOENT(null)).toBe(false)
+    expect(isENOENT(undefined)).toBe(false)
+    expect(isENOENT('ENOENT')).toBe(false)
+  })
+})
+
+describe('isEEXIST', () => {
+  it('accepts a real exclusive-create collision error', async () => {
+    const probe = join(tmpdir(), `dsh-value-eexist-${process.pid}`)
+    await writeFile(probe, '')
+    try {
+      const error = await caught(writeFile(probe, '', { flag: 'wx' }))
+      expect(isEEXIST(error)).toBe(true)
+    } finally {
+      await rm(probe, { force: true })
+    }
+  })
+
+  it('rejects non-EEXIST errors and non-error lookalikes so they surface', () => {
+    expect(isEEXIST(new Error('other failure'))).toBe(false)
+    expect(isEEXIST({ code: 'EEXIST' })).toBe(false)
+    expect(isEEXIST(null)).toBe(false)
+    expect(isEEXIST(undefined)).toBe(false)
+  })
+})
+
+describe('deepFreeze', () => {
+  it('freezes nested structure in place and returns the same reference', () => {
+    const value = { a: { b: [1, { c: 'x' }] } }
+    const frozen = deepFreeze(value)
+    expect(frozen).toBe(value)
+    expect(Object.isFrozen(value)).toBe(true)
+    expect(Object.isFrozen(value.a)).toBe(true)
+    expect(Object.isFrozen(value.a.b)).toBe(true)
+    expect(Object.isFrozen(value.a.b[1])).toBe(true)
+    // ESM runs in strict mode: mutation throws rather than silently failing.
+    expect(() => { (value.a.b[1] as { c: string }).c = 'y' }).toThrow(TypeError)
+  })
+
+  it('never freezes an AbortSignal: the live cancellation channel keeps working', () => {
+    const controller = new AbortController()
+    const request = deepFreeze({ model: 'm', signal: controller.signal })
+    expect(Object.isFrozen(request)).toBe(true)
+    expect(Object.isFrozen(controller.signal)).toBe(false)
+    let fired = false
+    controller.signal.addEventListener('abort', () => { fired = true }, { once: true })
+    controller.abort('stop')
+    expect(fired).toBe(true)
+    expect(controller.signal.aborted).toBe(true)
+  })
+
+  it('passes primitives through and terminates on cycles', () => {
+    expect(deepFreeze(42)).toBe(42)
+    expect(deepFreeze(null)).toBeNull()
+    const cyclic = { self: undefined as unknown }
+    cyclic.self = cyclic
+    deepFreeze(cyclic)
+    expect(Object.isFrozen(cyclic)).toBe(true)
+  })
+
+  it('freezes nesting deeper than the JavaScript call stack', () => {
+    const depth = 5_000
+    const root: unknown[] = []
+    let cursor = root
+    for (let index = 0; index < depth; index++) {
+      const child: unknown[] = []
+      cursor.push(child)
+      cursor = child
+    }
+
+    deepFreeze(root)
+
+    cursor = root
+    for (let index = 0; index < depth; index++) {
+      expect(Object.isFrozen(cursor)).toBe(true)
+      cursor = cursor[0] as unknown[]
+    }
+    expect(Object.isFrozen(cursor)).toBe(true)
   })
 })

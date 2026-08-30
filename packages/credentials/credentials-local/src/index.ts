@@ -56,6 +56,7 @@ import type {
   ResolvedCredential,
 } from '@deepseek-ai/dsh-credentials'
 import type { LaunchEnvironmentEntry } from '@deepseek-ai/dsh-launch-environment'
+import { isENOENT } from '@deepseek-ai/dsh-value'
 
 /** Basename of the credentials document inside the harness home. */
 export const CREDENTIALS_FILENAME = '.credentials.yaml'
@@ -143,11 +144,6 @@ async function assertOwnerOnly(filename: string): Promise<void> {
     + ` run "chmod 600 ${filename}" before starting again`,
   )
   /* v8 ignore stop */
-}
-
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }
 
 /**

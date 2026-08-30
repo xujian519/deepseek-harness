@@ -1,5 +1,9 @@
 /** JSON values admitted by every Inspector cross-realm message. */
 
+import { isPlainObject } from '@deepseek-ai/dsh-value'
+
+export { isPlainObject }
+
 /** JSON scalar accepted by Inspector transports. */
 export type InspectorJsonPrimitive = null | boolean | number | string
 
@@ -43,17 +47,6 @@ export function requireJsonObject(value: unknown, label: string): InspectorJsonO
  */
 export function jsonByteLength(value: InspectorJsonValue): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength
-}
-
-/**
- * Test whether a value is a plain object with string own keys.
- * @param value - Candidate object.
- * @returns Whether the value has `Object.prototype` or a null prototype.
- */
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const prototype = Reflect.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
 }
 
 function visitJson(value: unknown, ancestors: Set<object>): value is InspectorJsonValue {

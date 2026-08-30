@@ -12,19 +12,12 @@ import type { BigIntStats, Dirent, Stats } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { TextDecoder } from 'node:util'
 import { FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
+import { isEEXIST, isENOENT } from '@deepseek-ai/dsh-value'
 import { copyFileDaclWin32, replaceFileWin32 } from './win32.ts'
 
 const BINARY_SAMPLE_BYTES = 8192
 // Bound one non-abortable FileHandle.read so cancellation is observed between chunks.
 const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024
-
-function isENOENT(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
-}
-
-function isEEXIST(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'EEXIST'
-}
 
 /**
  * A path component that is expected to be a directory is a regular file (e.g.

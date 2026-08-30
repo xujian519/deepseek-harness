@@ -49,6 +49,9 @@
     "@deepseek-ai/dsh-session-title": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"
   },
+  "dependencies": {
+    "@deepseek-ai/dsh-value": "workspace:^"
+  },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/cordis-plugin-include": "workspace:^",

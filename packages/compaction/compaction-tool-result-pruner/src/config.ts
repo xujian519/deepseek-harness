@@ -1,8 +1,7 @@
 /** Configuration resolution for deterministic tool-result pruning. */
 
-import { deepFreeze } from '@deepseek-ai/dsh-llm'
 import type { ResolvedConfig, ToolResultPruneConfig } from './types.ts'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, deepFreeze } from '@deepseek-ai/dsh-value'
 
 /** Fixed marker substituted for every removed middle span. */
 export const PRUNE_MARKER = '\n\n[... tool result middle pruned ...]\n\n'
