@@ -24,7 +24,7 @@ import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
 /* jscpd:ignore-end */
 import { resolvePwshPath } from './resolve.ts'
-import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
+import { assertPositiveFinite, assertResolvedConfig } from '@deepseek-ai/dsh-value'
 
 /* jscpd:ignore-start -- deliberate call-for-call mirror of dsh-bash-local (Agent Note: pwsh-tool-and-executor). */
 /**
@@ -104,7 +104,7 @@ function finalOutput(reader: SubprocessOutputReader): CollectedOutput {
  * @throws Error naming the field that cannot be used.
  */
 export function assertServiceablePwshConfig(config: Config): void {
-  const resolved = config as ResolvedConfig
+  const resolved = assertResolvedConfig<Config, 'cwd' | 'pwshPath'>('pwsh-local', config, ['cwd', 'pwshPath'])
   assertPositiveFinite('pwsh-local: timeoutMs', resolved.timeoutMs)
   assertPositiveFinite('pwsh-local: maxTimeoutMs', resolved.maxTimeoutMs)
   assertPositiveFinite('pwsh-local: maxOutputBytes', resolved.maxOutputBytes)
@@ -154,8 +154,7 @@ export class PwshLocalExecutor extends ShellExecutor {
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // Schemastery fills these fields before construction; the type does not encode that step.
-    const entry = config as ResolvedConfig
+    const entry = assertResolvedConfig<Config, 'cwd' | 'pwshPath'>('pwsh-local', config, ['cwd', 'pwshPath'])
     assertServiceablePwshConfig(entry)
     this.source = () => entry
     this.declaredPwshPath = entry.pwshPath

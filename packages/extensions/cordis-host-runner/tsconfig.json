@@ -18,6 +18,9 @@
       "path": "../../../vendor/timer"
     },
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../../../vendor/schemastery"
     },
     {

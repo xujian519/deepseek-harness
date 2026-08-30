@@ -36,6 +36,7 @@
     "@deepseek-ai/dsh-invariants": "workspace:^"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-value": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
     "compression": "^1.8.1",
     "negotiator": "^1.0.0"

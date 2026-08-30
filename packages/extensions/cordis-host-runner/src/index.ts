@@ -11,6 +11,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
+import { assertResolvedConfig, type ResolvedConfig as ResolvedShape } from '@deepseek-ai/dsh-value'
 import { isPlugin, normalizeHandler } from './guard.ts'
 import { CordisInspectRegistryService } from './inspect-registry.ts'
 import { missingServices, startHostHalf } from './lifecycle.ts'
@@ -90,7 +91,7 @@ export interface Config {
   vmTimeoutMs?: number
 }
 
-type ResolvedConfig = Required<Config>
+type ResolvedConfig = ResolvedShape<Config>
 
 /** Host-only snapshot consumed by inspect and tool result rendering. */
 export interface DynamicCordisSnapshotRow {
@@ -139,7 +140,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   constructor(ctx: Context, config: Config) {
     super(ctx, 'dynamicCordisRunner')
     this.rootCtx = ctx
-    this.resolved = config as ResolvedConfig
+    this.resolved = assertResolvedConfig<Config>('cordis-host-runner', config)
     this.inspectRegistry = new CordisInspectRegistryService(ctx)
   }
 

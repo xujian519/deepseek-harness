@@ -13,6 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type { PostToolDecision, ToolExecution } from '@deepseek-ai/dsh-tools'
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
 
 export const name = 'repeat-tool-reminder'
 
@@ -160,12 +161,12 @@ interface Chain {
  * @param config - validated {@link Config}; `thresholds` is re-checked fail-loud here.
  */
 export function apply(ctx: Context, config: Config): void {
-  // schemastery's .default() guarantees the fields are set after validation.
-  const thresholds = validateThresholds(config.thresholds as number[])
+  const resolved = assertResolvedConfig<Config>('guard/repeat-tool-reminder', config)
+  const thresholds = validateThresholds(resolved.thresholds)
   const thresholdSet = new Set(thresholds)
-  const includePatterns = (config.include as string[]).map(wildcardToRegExp)
-  const excludePatterns = (config.exclude as string[]).map(wildcardToRegExp)
-  const argumentsPreviewChars = config.argumentsPreviewChars as number
+  const includePatterns = resolved.include.map(wildcardToRegExp)
+  const excludePatterns = resolved.exclude.map(wildcardToRegExp)
+  const argumentsPreviewChars = resolved.argumentsPreviewChars
   if (!Number.isInteger(argumentsPreviewChars) || argumentsPreviewChars < 1) {
     throw new Error(`repeat-tool-reminder: invalid argumentsPreviewChars ${argumentsPreviewChars} — must be an integer >= 1`)
   }

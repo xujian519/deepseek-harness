@@ -12,6 +12,7 @@ import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { assertResolvedConfig, type ResolvedConfig as ResolvedShape } from '@deepseek-ai/dsh-value'
 import compressionMiddleware from 'compression'
 import Negotiator from 'negotiator'
 import { renderIndexInjections, type IndexInjection } from './injections.ts'
@@ -73,11 +74,8 @@ const DEFAULT_COMPRESSION = 'none' as const
 const DEFAULT_COMPRESSION_LEVEL = 1
 const DEFAULT_COMPRESSION_THRESHOLD_BYTES = 1024
 
-interface ResolvedConfig extends Config {
-  compression: 'none' | 'gzip'
-  compressionLevel: number
-  compressionThresholdBytes: number
-}
+/** The config shape once the compression defaults have been applied. */
+type ResolvedConfig = ResolvedShape<Config>
 
 type NodeMiddleware = (
   req: IncomingMessage,
@@ -142,7 +140,7 @@ export class WebServer extends Service {
 
   constructor(ctx: Context, private config: Config) {
     super(ctx, 'webServer')
-    const resolved = config as ResolvedConfig
+    const resolved = assertResolvedConfig<Config>('host/webserver', config)
     this.gzip = resolved.compression === 'gzip' ? createGzipMiddleware(resolved) : undefined
   }
 

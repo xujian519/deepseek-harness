@@ -16,7 +16,7 @@ import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, S
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
-import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
+import { assertPositiveFinite, assertResolvedConfig } from '@deepseek-ai/dsh-value'
 
 /**
  * Model-friendly environment overrides: disable colors, pagers, and
@@ -76,7 +76,7 @@ function finalOutput(reader: SubprocessOutputReader): CollectedOutput {
  * @throws Error naming the field that cannot be used.
  */
 export function assertServiceableBashConfig(config: Config): void {
-  const resolved = config as ResolvedConfig
+  const resolved = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
   assertPositiveFinite('bash-local: timeoutMs', resolved.timeoutMs)
   assertPositiveFinite('bash-local: maxTimeoutMs', resolved.maxTimeoutMs)
   assertPositiveFinite('bash-local: maxOutputBytes', resolved.maxOutputBytes)
@@ -116,8 +116,7 @@ export class LocalBashExecutor extends ShellExecutor {
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // Schemastery fills these fields before construction; the type does not encode that step.
-    const entry = config as ResolvedConfig
+    const entry = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
     assertServiceableBashConfig(entry)
     this.source = () => entry
     installSettingsSection(ctx, SHELL_SETTINGS_NAMESPACE, LocalBashExecutor.Config, entry, {

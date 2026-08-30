@@ -16,7 +16,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { AnonymousEntries, ScopedLayers, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeLayer } from '@deepseek-ai/dsh-scope'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
-import { errorMessage } from '@deepseek-ai/dsh-value'
+import { assertResolvedConfig, errorMessage } from '@deepseek-ai/dsh-value'
 import { JobRegistry, JobId } from '@deepseek-ai/dsh-jobs'
 import type {
   JobDoneListener, JobKind, JobOutcome, JobRead, JobSnapshot, JobStart, JobStatus,
@@ -124,8 +124,7 @@ export class LocalJobRegistry extends JobRegistry {
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // Schemastery validates and fills the default before constructing the service.
-    this.maxConcurrentJobsPerOwner = (config as Required<Config>).maxConcurrentJobsPerOwner
+    this.maxConcurrentJobsPerOwner = assertResolvedConfig<Config>('jobs-local', config).maxConcurrentJobsPerOwner
     this.selfCtx = ctx
     ctx.effect(() => () => this.disposeAll(), 'jobs teardown')
   }

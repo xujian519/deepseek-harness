@@ -34,7 +34,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry/types'
-import { toError } from '@deepseek-ai/dsh-value'
+import { assertResolvedConfig, toError } from '@deepseek-ai/dsh-value'
 
 /** The package.json exports key naming a package's host-face typert artifact. */
 export const TYPERT_HOST_EXPORT = './typert'
@@ -54,8 +54,6 @@ export interface Config {
 export const Config: z<Config> = z.object({
   packages: z.array(z.string().min(1)).default([]),
 })
-
-type ResolvedConfig = Required<Config>
 
 const MEMBER_KINDS = new Set(['property', 'method', 'getter', 'setter', 'call', 'construct', 'index'])
 
@@ -291,7 +289,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     throw new Error('typert-loader: ctx.baseUrl is unset — the loader needs the config-tree anchor to resolve plugin packages')
   }
   const require = createRequire(ctx.baseUrl)
-  const configured = new Set((config as ResolvedConfig).packages)
+  const configured = new Set(assertResolvedConfig<Config>('typert/loader', config).packages)
 
   // Registered contributions by entry name; the disposer withdraws the entry's registration.
   const registered = new Map<string, () => Promise<void>>()

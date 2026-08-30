@@ -1,6 +1,7 @@
 /** Validated configuration for the local PTY backend. */
 
 import z from '@deepseek-ai/schemastery'
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
 import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
 
 /** One supported interactive shell dialect. */
@@ -69,7 +70,7 @@ export const DEFAULT_PWSH_ARGS = ['-NoLogo', '-NoProfile']
 export function resolveConfig(config: Config): ResolvedConfig {
   const shellDialect = config.shellDialect ?? 'bash'
   return {
-    ...(config as Required<Config>),
+    ...assertResolvedConfig<Config, 'shellPath' | 'shellArgs'>('terminal-bash', config, ['shellPath', 'shellArgs']),
     shellDialect,
     shellPath: config.shellPath !== undefined && config.shellPath.length > 0
       ? config.shellPath

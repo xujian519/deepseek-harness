@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `isENOENT` and `isEEXIST` classify filesystem errno errors, `errorMessage` and `toError` render and normalize arbitrary thrown values without letting hostile coercion escape, and `deepFreeze` renders a value immutably in place. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
+`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `assertResolvedConfig` pins the plugin-config boundary once schema defaults have run, `isENOENT` and `isEEXIST` classify filesystem errno errors, `errorMessage` and `toError` render and normalize arbitrary thrown values without letting hostile coercion escape, and `deepFreeze` renders a value immutably in place. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Reach for `isRecord` before reading properties off an `unknown` value, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, and for `deepFreeze` when a handed-out value must stay immutable.
+Reach for `isRecord` before reading properties off an `unknown` value, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, for `assertResolvedConfig` where a plugin receives its schemastery-resolved config, and for `deepFreeze` when a handed-out value must stay immutable.
 
 ### Guarding an untrusted object
 
@@ -66,6 +66,17 @@ assertPositiveFinite('bash-local: timeoutMs', raw)
 ```
 
 Same shape as the integer assertion: the caller owns the label, the shared library owns the decision and the failure message. The value need not be an integer, but it must be finite and greater than 0.
+
+### Asserting the resolved config boundary
+
+```ts
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
+
+const resolved = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
+// resolved.cwd stays optional; every other field is typed as required
+```
+
+Schemastery fills every schema default before a plugin sees its config, but the type system cannot encode that fact, so each plugin restated a local resolved alias and cast. `assertResolvedConfig` is the single assertion point: a default-backed field that is still `undefined` — a bypassed or drifted schema — throws at load with the field named, and the returned value keeps only the declared defaultless keys optional. Key presence is not reconstructed, so a hand-built config must still go through its schema.
 
 ### Classifying a plain data object
 
@@ -147,7 +158,7 @@ The library is built on one boundary: the predicate and the failure message belo
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the predicate algebra is exercised by unit tests) |
 
 ### Why the guard is shape-only

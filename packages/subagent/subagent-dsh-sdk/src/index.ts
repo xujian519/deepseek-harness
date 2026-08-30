@@ -16,6 +16,7 @@ import { statSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
 import type { SubagentCapabilities, SubagentProvider, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, validateConfiguredCwd } from '@deepseek-ai/dsh-subagent'
 import {
@@ -176,8 +177,9 @@ class SdkSubagentProvider implements SubagentProvider {
 }
 
 export function apply(ctx: Context, config: Config): void {
-  // schemastery (Config) has already filled every defaulted field.
-  const resolved = config as ResolvedConfig
+  const resolved = assertResolvedConfig<Config, 'cwd' | 'maxTokens' | 'dshBin'>(
+    'subagent-dsh-sdk', config, ['cwd', 'maxTokens', 'dshBin'],
+  )
   assertPositiveFinite('subagent-dsh-sdk', 'shutdownTimeoutMs', resolved.shutdownTimeoutMs)
   assertPositiveFinite('subagent-dsh-sdk', 'disposeEofGraceMs', resolved.disposeEofGraceMs)
   assertPositiveFinite('subagent-dsh-sdk', 'disposeGraceMs', resolved.disposeGraceMs)

@@ -50,6 +50,44 @@ export function assertPositiveFinite(label: string, value: unknown): asserts val
 }
 
 /**
+ * The plugin-config shape after schemastery applied the schema defaults: every
+ * field is present except the keys the caller declares as defaultless.
+ */
+export type ResolvedConfig<C extends object, K extends keyof C & string = never> = Required<Omit<C, K>> & Pick<C, K>
+
+/**
+ * Assert the plugin-config boundary where the schema has already run: fields
+ * backed by a schema default are present, and only the declared defaultless
+ * keys may be `undefined`. The type system cannot encode that fact (the schema
+ * output type is unconditional, and the hand-written `Config` interface is all
+ * optional), which is why every consumer previously restated a local resolved
+ * alias and cast. This is the single assertion point: a bypassed schema or a
+ * dropped default fails loud here at load instead of surfacing as `undefined`
+ * at a read site. Key presence is not reconstructed — an object omitting the
+ * key entirely passes, so callers constructing configs by hand must still go
+ * through their schema.
+ *
+ * @param label Diagnostic label naming the config owner; it prefixes the thrown message.
+ * @param config The config value as delivered by the schema boundary.
+ * @param defaultlessKeys The fields the schema leaves optional (no default).
+ * @returns The same object, typed at its resolved shape.
+ * @throws Error when a non-defaultless field is `undefined`.
+ */
+export function assertResolvedConfig<C extends object, K extends keyof C & string = never>(
+  label: string,
+  config: C,
+  defaultlessKeys: readonly K[] = [],
+): ResolvedConfig<C, K> {
+  const defaultless = new Set<string>(defaultlessKeys)
+  for (const [key, value] of Object.entries(config)) {
+    if (value === undefined && !defaultless.has(key)) {
+      throw new Error(`${label}: config field "${key}" is undefined after schema resolution; a schema default did not run`)
+    }
+  }
+  return config as ResolvedConfig<C, K>
+}
+
+/**
  * Test whether a value is a plain data object: a non-array object whose
  * prototype is `Object.prototype` or `null`. Primitives, `null`, arrays, and
  * class instances are rejected.

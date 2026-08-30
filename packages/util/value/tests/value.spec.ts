@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   assertPositiveFinite,
   assertPositiveInteger,
+  assertResolvedConfig,
   deepFreeze,
   isEEXIST,
   isENOENT,
@@ -92,6 +93,35 @@ describe('assertPositiveFinite', () => {
       expect(() => { assertPositiveFinite('graceMs', bad) }).toThrow(TypeError)
       expect(() => { assertPositiveFinite('graceMs', bad) }).toThrow('graceMs must be a positive finite number')
     }
+  })
+})
+
+describe('assertResolvedConfig', () => {
+  interface Config { cwd?: string; timeoutMs?: number; graceMs?: number }
+
+  it('returns the same object typed at the resolved shape when every field is present', () => {
+    const config = { cwd: '/tmp', timeoutMs: 120_000, graceMs: 3_000 }
+    const resolved = assertResolvedConfig<Config>('bash-local', config)
+    expect(resolved).toBe(config)
+    expect(resolved.timeoutMs).toBe(120_000)
+  })
+
+  it('throws naming the label and field when a default-backed field is undefined', () => {
+    const config = Object.assign({ cwd: '/tmp', graceMs: 3_000 }, { timeoutMs: undefined })
+    expect(() => { assertResolvedConfig('bash-local', config, ['cwd']) })
+      .toThrow('bash-local: config field "timeoutMs" is undefined after schema resolution; a schema default did not run')
+  })
+
+  it('allows undefined only for the declared defaultless keys', () => {
+    const config = { timeoutMs: 120_000, graceMs: 3_000 }
+    const resolved = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
+    expect(resolved.cwd).toBeUndefined()
+    expect(resolved.timeoutMs).toBe(120_000)
+  })
+
+  it('passes an object that omits fields entirely (key presence is not reconstructed)', () => {
+    expect(assertResolvedConfig<Config, 'cwd' | 'timeoutMs' | 'graceMs'>('bash-local', {}, ['cwd', 'timeoutMs', 'graceMs']))
+      .toEqual({})
   })
 })
 

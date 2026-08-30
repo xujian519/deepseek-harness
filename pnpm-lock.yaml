@@ -6076,6 +6076,9 @@ importers:
 
   packages/extensions/cordis-host-runner:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -6673,6 +6676,9 @@ importers:
 
   packages/guard/repeat-tool-reminder:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -6986,6 +6992,9 @@ importers:
 
   packages/host/webserver:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -9919,6 +9928,9 @@ importers:
 
   packages/storage/storage-sqlite:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -10648,6 +10660,9 @@ importers:
       '@deepseek-ai/dsh-timeout':
         specifier: workspace:^
         version: link:../../util/timeout
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery

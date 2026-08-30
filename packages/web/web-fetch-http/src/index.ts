@@ -10,7 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-web'
 import { HttpFetchProvider } from './provider.ts'
 import type { HttpFetchLimits } from './provider.ts'
-import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
+import { assertPositiveFinite, assertResolvedConfig } from '@deepseek-ai/dsh-value'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 
@@ -51,9 +51,6 @@ export const Config: z<Config> = z.object({
   userAgent: z.string().default(DEFAULT_USER_AGENT),
 })
 
-/** Complete config after schemastery applies every field default. */
-type ResolvedConfig = Required<Config>
-
 /** Node coerces larger timer delays to 1 ms, so reject them at configuration time. */
 function assertTimeoutMs(value: number): void {
   assertPositiveFinite('web-fetch-http: timeoutMs', value)
@@ -71,8 +68,7 @@ function assertNonNegativeInteger(name: string, value: number): void {
 
 /** Register the local HTTP(S) fetch provider with `ctx.web`. */
 export function apply(ctx: Context, config: Config): void {
-  // schemastery (Config) has already filled every defaulted field.
-  const resolved = config as ResolvedConfig
+  const resolved = assertResolvedConfig<Config>('web/web-fetch-http', config)
   assertPositiveFinite('web-fetch-http: maxResponseBytes', resolved.maxResponseBytes)
   assertPositiveFinite('web-fetch-http: maxBodyChars', resolved.maxBodyChars)
   assertTimeoutMs(resolved.timeoutMs)

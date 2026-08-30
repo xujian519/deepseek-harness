@@ -9,7 +9,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, assertResolvedConfig } from '@deepseek-ai/dsh-value'
 import type {} from '@deepseek-ai/dsh-web'
 import { applyWebSearchTool, WEB_SEARCH_MAX_QUERIES, WEB_SEARCH_MAX_RESULTS } from './search.ts'
 import { applyWebFetchTool } from './fetch.ts'
@@ -63,9 +63,6 @@ export const Config: z<Config> = z.object({
   fetchMaxOutputChars: z.number().default(DEFAULT_FETCH_MAX_OUTPUT_CHARS),
 })
 
-/** Complete config after schemastery applies every field default. */
-type ResolvedConfig = Required<Config>
-
 /**
  * Register the enabled web tools. `search`/`fetch` default to true; a product
  * that wants only one disables the other in config. Each tool's cooperative
@@ -76,8 +73,7 @@ type ResolvedConfig = Required<Config>
  * teardown is needed.
  */
 export function apply(ctx: Context, config: Config): void {
-  // schemastery (Config) has already filled every defaulted field.
-  const resolved = config as ResolvedConfig
+  const resolved = assertResolvedConfig<Config>('web/tool-web', config)
   assertPositiveInteger('tool-web: searchMaxResults', resolved.searchMaxResults)
   assertPositiveInteger('tool-web: searchMaxQueries', resolved.searchMaxQueries)
   assertPositiveInteger('tool-web: fetchTimeoutMs', resolved.fetchTimeoutMs)

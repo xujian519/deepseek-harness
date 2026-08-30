@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { DatabaseSync } from 'node:sqlite'
 import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from '@deepseek-ai/dsh-storage'
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
 import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepseek-ai/dsh-storage'
 import { openDatabase, recordTableName, type JournalMode } from './schema.ts'
 import { SqliteKvUnit } from './unit.ts'
@@ -65,7 +66,8 @@ export class SqliteStorageBackend implements StorageBackend {
    * @param config - Validated plugin configuration.
    */
   constructor(config: Config) {
-    this.ready = openDatabase(config.path, (config as Required<Config>).journalMode)
+    const resolved = assertResolvedConfig<Config, 'path'>('storage-sqlite', config, ['path'])
+    this.ready = openDatabase(resolved.path, resolved.journalMode)
     // Mark the rejection handled: every primitive re-awaits `ready`, so an
     // open failure still surfaces to each caller; this guard only prevents an
     // unhandled-rejection crash when the failure precedes the first use.

@@ -14,7 +14,7 @@
 - **L2 已修**:lsp `finalExtension` 收敛为包内模块(`src/extension.ts`,不再公共导出);workflow `WorkflowEventName` 取消导出;subagent `'unsupported'` 死变体已随上游删除。
 - **L5 之 bridge-client 写路径泄漏已修**:同步 write 抛错现在 settle pending 条目并摘除 abort 监听(`packages/desktop/shell/src/bridge-client.ts`)。
 - **合并新增债已清**:vendor/README.md manifest 版本表刷新(commit 列标 not recorded,下次 sync 按程序补录);`docs/event-producer-consumer(.md/.zh)` 再生(apiproxy→remotes/tool-cordis);fork CI 增补 `test:docs` 门禁;coverage exclude 登记 patent/synapse/self-evolve/ui-agent-preset(hygiene-gate note 第 3 项);ui-chat 两处 `it.skip` 恢复(skip-hardening 移植进上游 fold,AssistantMarkdown 加 textOf 兜底);桌面打包链修复(REQUIRED_BACKEND_PATHS 移除 apiproxy,apps/cli 显式声明 deploy 会丢弃的 9 个 peer seam 包,`package:desktop:prepare` 端到端验证通过)。
-- **仍然开放**:H4、H5、M2、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H6(恢复/中止文案)、H7(监听器 containment)与 M1(util 小工具)已于 2026-08-30 全部收敛;原语清单 5 项已落地 4(emitContained、abort-race、util 下沉、recovery-vocabulary),余 ResolvedConfig(M2)。
+- **仍然开放**:H4、H5、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H6(恢复/中止文案)、H7(监听器 containment)、M1(util 小工具)与 M2(ResolvedConfig)已于 2026-08-30 全部收敛;**原语清单 5 项已全部落地**(emitContained、abort-race、util 下沉、recovery-vocabulary、ResolvedConfig)。
 - **hygiene 门禁现为红(既有,2026-08-28 确认)**:vendor rescope 的 6 处 exact-edit 漂移(agent-spine-demo README 双语 + cookbook 双语)、`ui-settings-models/onboarding-copy.ts` 的 6 条硬编码欢迎文案(需走 locale 字典)、3 个 client 包(synapse/ui-document-studio/ui-patent-teams)的 peer+dev 声明与 `verify-client-packages` 规则不一致。均为合并窗口遗留,文件未受本次清扫触碰,归入各自后续修复。
 
 ## 总体评估
@@ -108,7 +108,7 @@
   - `tools/src/code-mode.ts:670`:`as unknown as Record<string, unknown>`——强类型投影塞回弱类型
   - `config as ResolvedConfig`:`e2b/index.ts:93`、`subprocess-e2b/index.ts:69`、`bash-local:84,125`、`pwsh-local`、`lsp-stdio:144`、`workflow-worker-thread:130`、`fs-local:81`、`repeat-tool-reminder:164-168`(`config.thresholds as number[]`)
 - **问题**:每处都注释「schemastery 已填默认值」,但类型系统不编码该事实;任何一处未来绕过 schema 手动构造 config 就静默拿到 undefined。
-- **修复**:提供 `ResolvedConfig = Required<Config>` + 单一断言 helper;「保留省略」的 schema 用显式原语;ToolDefinition.parameters 改用 JsonSchemaNode 类型。
+- **修复**:**已收敛**(2026-08-30)。dsh-value 新增 `assertResolvedConfig`(单一断言点:带默认值字段仍为 `undefined` 即加载期抛错,返回 `ResolvedConfig<C,K>` 形状)+ 13 文件 cast 收敛(gateway、subagent-dsh-sdk、typert/loader、cordis-host-runner、tool-web、webserver、web-fetch-http、pwsh-local×2、bash-local×2、terminal-bash、storage-sqlite、jobs-local、repeat-tool-reminder×4,含清点出的 `as Required<Config>` 同族)。**保留**(2026-08-30 复核):`default(undefined as unknown as T)`(system-prompt、tool-subagent)表达 schemastery「缺省不物化」语义,需 vendor 级显式原语,单独评估;agent-loop `as z<Config>`(实为 313 行)是 schema↔接口对齐检查绕过,非边界 cast,单独评估;`ToolDefinition.parameters` 弱类型(实为 ptc.ts:679 与 schema.ts:572,code-mode.ts 已并入 ptc.ts)是公共类型面改造,单独评估。
 
 ### M3. settings 三个文档化竞态(真实缺陷,非待办优化)
 
@@ -239,7 +239,7 @@
 2. **`dsh-timeout` promise-vs-abort race 原语** — 收敛 abort-race 包装器(2026-08-30 已落地 `abortable`;候选名 promise-vs-abort 见台账 M1 行)
 3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已全部落地 `@deepseek-ai/dsh-value`)
 4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6;2026-08-30 已落地:`TOOL_OUTCOME_UNKNOWN` 文案已随上游坍缩为 session 单点,导出 tools 的 `toolAbortedBeforeDispatchResult` 工厂并收敛两份手抄)
-5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast)
+5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast;2026-08-30 已落地 `dsh-value` `assertResolvedConfig`,13 文件收敛)
 6. **announcement 状态机原语** — 收敛 H5 的双份 entry 生命周期
 
 ## 修复优先级路线图

@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下渲染并规范化任意抛出值,`deepFreeze` 就地让值不可变。这份零依赖库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致,而不是按插件各自分叉。
+`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置边界,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下渲染并规范化任意抛出值,`deepFreeze` 就地让值不可变。这份零依赖库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致,而不是按插件各自分叉。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在从 `unknown` 值上读属性之前用 `isRecord`;在配置边界上遇到必须是正整数的数值选项时用 `assertPositiveInteger`,遇到必须是正有限数的选项时用 `assertPositiveFinite`;需要交付出去的值保持不可变时用 `deepFreeze`。
+在从 `unknown` 值上读属性之前用 `isRecord`;在配置边界上遇到必须是正整数的数值选项时用 `assertPositiveInteger`,遇到必须是正有限数的选项时用 `assertPositiveFinite`;插件接收到 schemastery 已解析配置时用 `assertResolvedConfig`;需要交付出去的值保持不可变时用 `deepFreeze`。
 
 ### 守卫不可信对象
 
@@ -66,6 +66,17 @@ assertPositiveFinite('bash-local: timeoutMs', raw)
 ```
 
 与整数断言共用同一形态:调用方拥有标签,共享库拥有判定与失败消息。数值不必为整数,但必须是有限的且大于 0。
+
+### 断言已解析的配置边界
+
+```ts
+import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
+
+const resolved = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
+// resolved.cwd stays optional; every other field is typed as required
+```
+
+schemastery 在插件看到配置之前就会填好每一个 schema 默认值,但类型系统无法表达这一事实,于是每个插件各自重写一份 resolved 别名加 cast。`assertResolvedConfig` 是唯一断言点:仍为 `undefined` 的带默认值字段——schema 被绕过或漂移——在加载时以字段名抛错,返回值只保留声明为无默认值的键可选。键的存在性不做重建,手工构造的配置仍必须经过 schema。
 
 ### 分类普通数据对象
 
@@ -147,7 +158,7 @@ function settle(caught: unknown): Error {
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
 | [`src/invariant.ts`](src/invariant.ts) | 不变量伴随(无运行时不变量;谓词代数由单元测试覆盖) |
 
 ### 为什么守卫只看形状

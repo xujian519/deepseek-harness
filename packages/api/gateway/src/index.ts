@@ -10,7 +10,7 @@ import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { isPlainObject } from '@deepseek-ai/dsh-value'
+import { assertResolvedConfig, isPlainObject } from '@deepseek-ai/dsh-value'
 import z from '@deepseek-ai/schemastery'
 import {
   remoteMethods,
@@ -120,10 +120,6 @@ export interface Config {
   readonly websocketHeartbeatIntervalMs?: number
 }
 
-interface ResolvedConfig extends Config {
-  readonly websocketHeartbeatIntervalMs: number
-}
-
 /** Dispatch failure produced outside the invoked business method. */
 export class TypertGatewayError extends Error {
   /** Machine-readable failure category. */
@@ -196,7 +192,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
    */
   constructor(ctx: Context, config: Config) {
     super(ctx, 'typertGateway')
-    const resolved = config as ResolvedConfig
+    const resolved = assertResolvedConfig<Config>('api/gateway', config)
     ctx.on('internal/service', () => {
       this.srcClaims = undefined
     })
