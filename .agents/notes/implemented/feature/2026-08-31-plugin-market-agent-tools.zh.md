@@ -34,12 +34,16 @@ Status: implemented
 
 它属 agent 平面并作用域到 preset 的工具层。standard agent preset 挂载 `@deepseek-ai/dsh-tool-plugin-market`；宿主 provider 行属于 base 组合。这是注册成 function plugin 的 cordis 配置（named-export `name` / `inject` / `apply`，无默认导出），其装载物即包装了 CLI 所驱动的同样的搜索/预检动作。
 
-## 被否决的选项
+## 备选方案
 
 - **不提供模型侧安装/卸载。** 写入 profile 需要审批与持久 receipt；它留在 CLI。模型的工作是发现并推荐精确钉定，而不是落地它。
 - **不重复声明契约。** 工具复用 `plugin-market` 服务类型来表达 `CatalogPage` / `CatalogItem` / `InstallPreview`，而不是重新声明一遍，因此 wire schema 的改动不会漂移出一份镜像。
-- **不并入浏览器 UI。** 发现面板留待独立面；本包只是面向模型的那一半。
+- **不并入浏览器 UI。** 发现面板留作[独立面](2026-08-31-plugin-market-discovery-ui.zh.md)；本包只是面向模型的那一半。
 
 ## 生成的目录
 
 三个工具 schema 被渲染进[生成的工具目录](../../../../docs/tool-catalog.zh.md)下的 `#deepseek-aidsh-tool-plugin-market`，与每个生成产物一样由同一新鲜度检查把关。
+
+## 结果与代价
+
+模型现在能在会话内回答发现流程的三个问题，因此「加一个能做 X 的插件」的请求不再退化为猜包名。复用 `plugin-market` 服务类型意味着 wire schema 变更不会让镜像漂移，且每个动词都保持只读，Agent 绝不会在缺少操作者决策的情况下提交包。代价是标准 preset 的工具层多了三个工具和一个 system-prompt section，且这个只读面把安装/卸载留在 CLI 上，所以推荐的钉定仍需要那第二步、由操作者驱动的操作。没有注册源的会话会明确、可执行地报错，而不是静默地搜索一个错误的目录。

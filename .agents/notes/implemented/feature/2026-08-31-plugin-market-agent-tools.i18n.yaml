@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-plugin-market-agent-tools.md
-2026-08-31-plugin-market-agent-tools.md: b9b178eddbecfaadb523024bfd6c5c663822429e
-2026-08-31-plugin-market-agent-tools.zh.md: 4c3b689017b82491492187238b334e3a7b4b8f16
+2026-08-31-plugin-market-agent-tools.md: f7704d41a854452668845cf24a51292cbc969570
+2026-08-31-plugin-market-agent-tools.zh.md: 340605516a8612260f5b786533fdb4f18afcf336

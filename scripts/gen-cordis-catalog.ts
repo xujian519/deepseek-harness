@@ -784,6 +784,10 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   OpenTabSeed: 'sidebar open-tab seed contract is owned by packages/client/better-sidebar/src/client/service.ts',
   SessionScope: 'sidebar session-scope pointer is owned by packages/client/better-sidebar/src/client/api.ts',
   SidebarSnapshot: 'sidebar snapshot payload is owned by packages/client/better-sidebar/src/client/state.ts',
+  PluginMarketSource: 'catalog source record is owned by packages/host/plugin-market/README.md',
+  CatalogQuery: 'catalog query contract is owned by packages/host/plugin-market/README.md',
+  CatalogPage: 'catalog page contract is owned by packages/host/plugin-market/README.md',
+  InstallPreview: 'install preview contract is owned by packages/host/plugin-market/README.md',
 }
 
 /** Repository data policy consumed by the Cordis catalog projector. */

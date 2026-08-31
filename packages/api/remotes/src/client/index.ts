@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import agentPresetsRemote from '@deepseek-ai/dsh-agent-presets/remote'
 import commandsRemote from '@deepseek-ai/dsh-commands/remote'
 import settingsControllerRemote from '@deepseek-ai/dsh-api-settings-controller/remote'
+import pluginMarketRemote from '@deepseek-ai/dsh-api-plugin-market-controller/remote'
 import goalsRemote from '@deepseek-ai/dsh-goal/remote'
 import llmRemote from '@deepseek-ai/dsh-llm/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
@@ -20,6 +21,12 @@ export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inven
 export type {} from '@deepseek-ai/dsh-agent-presets/remote'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-api-settings-controller/remote'
+export type {} from '@deepseek-ai/dsh-api-plugin-market-controller/remote'
+export type {
+  CatalogItem, CatalogPage, CatalogQuery, InstallPreview, InstallReceipt,
+  PluginMarketSource, ReceiptId, SourceId,
+} from '@deepseek-ai/dsh-api-plugin-market-controller/types'
+export type { PluginMarketError } from '@deepseek-ai/dsh-api-plugin-market-controller/types'
 export type {} from '@deepseek-ai/dsh-goal/remote'
 export type {} from '@deepseek-ai/dsh-llm/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
@@ -127,6 +134,7 @@ export type ClientFailure =
   | import('@deepseek-ai/dsh-api-session-controller/types').SessionError
   | import('@deepseek-ai/dsh-api-settings-controller/types').CredentialError
   | import('@deepseek-ai/dsh-api-settings-controller/types').SettingsError
+  | import('@deepseek-ai/dsh-api-plugin-market-controller/types').PluginMarketError
   | import('@deepseek-ai/dsh-llm/types').LlmModelDiscoveryError
   | import('@deepseek-ai/dsh-subagent/client').SubagentControlError
   | import('@deepseek-ai/dsh-api-workspace-controller/types').WorkspaceError
@@ -155,7 +163,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const disposers: Array<() => Promise<void>> = []
   try {
     for (const contribution of [
-      agentPresetsRemote, commandsRemote, settingsControllerRemote, goalsRemote, llmRemote, dynamicRemote,
+      agentPresetsRemote, commandsRemote, settingsControllerRemote, pluginMarketRemote, goalsRemote, llmRemote, dynamicRemote,
       pluginInventoryRemote, messageFeedbackRemote, sessionReferencesRemote,
       subagentsRemote, sessionRemote, workspaceRemote,
     ]) {

@@ -34,12 +34,16 @@ The bundled catalog is a release snapshot served by the host (`builtin-deepseek`
 
 It is agent-plane and scoped to the preset's tool layer. The standard agent preset mounts `@deepseek-ai/dsh-tool-plugin-market`; the host provider row lives in the base composition. The Cordis config is a registered function plugin (named-export `name` / `inject` / `apply`, no default export) and its cargo wraps the same search/preview verbs the CLI drives.
 
-## What was rejected
+## Alternatives considered
 
 - **No model-facing install/uninstall.** Writing to a profile needs approval and durable receipts; it stays on the CLI. The model's job is discovery and recommending an exact pin, not committing one.
 - **No re-declared contracts.** The tools reuse the `plugin-market` service types for `CatalogPage` / `CatalogItem` / `InstallPreview` rather than restating them, so a wire-schema change cannot drift a mirror.
-- **Not part of the browser UI.** A discovery panel deferred to a separate surface; this package is the model-facing half only.
+- **Not part of the browser UI.** A discovery panel deferred to the [separate surface](2026-08-31-plugin-market-discovery-ui.md); this package is the model-facing half only.
 
 ## Generated catalog
 
 The three tool schemas render into the [generated tool catalog](../../../../docs/tool-catalog.md) under `#deepseek-aidsh-tool-plugin-market`, gated by the same freshness check as every generated artifact.
+
+## Consequences
+
+The model can now answer the three discovery questions inside a session, so a "add a plugin that does X" request no longer degrades to guessing a package name. Reusing the `plugin-market` service types means a wire-schema change cannot drift a mirror, and every verb stays read-only so an Agent never commits a package without an operator decision. The cost is three new tools plus a system-prompt section in the standard preset's tool layer, and the read-only surface leaves install/uninstall on the CLI, so a recommended pin still needs that second, operator-driven step. A session with no registered source fails loud with an actionable message rather than silently searching a wrong catalog.

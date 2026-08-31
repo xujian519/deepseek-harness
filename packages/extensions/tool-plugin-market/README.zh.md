@@ -89,7 +89,7 @@ kind: "package-reference"
 
 当包级约定不够用时阅读以下页面。
 
-- [插件市场](../host/plugin-market/README.zh.md)——工具读取所经过的 `ctx.pluginMarket` 服务间隔、wire schema、受限 fetch 与 npm 预检。
+- [插件市场](../../host/plugin-market/README.zh.md)——工具读取所经过的 `ctx.pluginMarket` 服务间隔、wire schema、受限 fetch 与 npm 预检。
 - [内置目录](../../../packages/host/plugin-market/src/builtin-catalog.ts)——搜索默认命中的始终可用的离线目录快照。
 - [工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-plugin-market)——模型收到的确切工具 schema。
 

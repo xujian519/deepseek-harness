@@ -89,7 +89,7 @@ Each tool's `execute` first asserts an Agent-backed session, then reads the sour
 
 Read these pages when the package-level contract is not enough.
 
-- [Plugin market](../host/plugin-market/README.md) — the `ctx.pluginMarket` service seam, the wire schema, the restricted fetch, and npm preview the tools read through.
+- [Plugin market](../../host/plugin-market/README.md) — the `ctx.pluginMarket` service seam, the wire schema, the restricted fetch, and npm preview the tools read through.
 - [Bundled catalog](../../../packages/host/plugin-market/src/builtin-catalog.ts) — the always-available offline catalog snapshot search defaults to.
 - [Tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-plugin-market) — the exact tool schemas the model receives.
 
