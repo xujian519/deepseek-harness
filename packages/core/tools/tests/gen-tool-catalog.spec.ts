@@ -34,7 +34,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'followup_task',
       'generate_patent_figure', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
       'job_kill', 'job_list', 'job_output', 'knowledge_note_save', 'list_agents', 'list_agents',
-      'list_subagent_models', 'lsp', 'paper_download', 'paper_list_sources', 'paper_search', 'patent_analysis_report', 'patent_case_search', 'patent_eval',
+      'list_subagent_models', 'lsp', 'market_plugin_preview', 'market_plugin_search', 'market_source_list', 'paper_download', 'paper_list_sources', 'paper_search', 'patent_analysis_report', 'patent_case_search', 'patent_eval',
       'patent_kg_query', 'patent_legal_status', 'patent_metadata', 'patent_pdf_download',
       'patent_plan_task', 'patent_search', 'patent_teams_add_member', 'patent_teams_claim_task',
       'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete', 'patent_teams_reassign_task',
