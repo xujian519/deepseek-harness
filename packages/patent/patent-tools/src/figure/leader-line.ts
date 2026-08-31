@@ -1,9 +1,11 @@
 /**
  * SVG 引线标号后处理（纯函数，无 IO）。
  *
- * 解析 Graphviz SVG 的节点组（结构由 Phase 0 双引擎采样固化：`<g
+ * 解析 Graphviz SVG 的节点组（结构经 Graphviz 输出采样确认：`<g
  * class="node">` + `<title>`=DOT 节点 id + `<polygon>`/`<ellipse>` 轮廓
- * + `<text>` 标签），把参考标号绘制在节点轮廓之外并用 `<line>` 引线
+ * + `<text>` 标签；节点组内不嵌套 `<g>`——若出现则组解析在首个 `</g>`
+ * 截断，退化为内嵌标号告警，不会越界），把参考标号绘制在节点轮廓之外
+ * 并用 `<line>` 引线
  * 指向节点。候选锚点按右/左/上/下尝试，取第一个与任何节点轮廓或已
  * 放置标号都不相交的位置；无可用位置或节点缺轮廓时退化为在匹配文本
  * 尾部内嵌标号并输出警告，绝不画出压盖图面的引线。
@@ -234,9 +236,12 @@ export function annotateSvgWithLeaderLines(
     while ((textMatch = textPattern.exec(raw)) !== null) textParts.push(textElementContent(textMatch[0]))
     const polygonMatch = /<polygon\b[^>]*\bpoints="([^"]*)"/.exec(raw)
     const ellipseMatch = /<ellipse\b[^>]*>/.exec(raw)
-    const bbox = polygonMatch !== null
-      ? polygonBBox(polygonMatch[1] as string)
-      : ellipseMatch !== null ? ellipseBBox(ellipseMatch[0]) : undefined
+    let bbox: Rect | undefined
+    if (polygonMatch !== null) {
+      bbox = polygonBBox(polygonMatch[1] as string)
+    } else if (ellipseMatch !== null) {
+      bbox = ellipseBBox(ellipseMatch[0])
+    }
     const text = textParts.join('').toLowerCase()
     const referenceIndex = references.findIndex(ref => text.includes(ref.label.trim().toLowerCase()))
     groups.push({

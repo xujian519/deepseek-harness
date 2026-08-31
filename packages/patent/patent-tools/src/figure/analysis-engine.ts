@@ -89,6 +89,7 @@ const STRUCTURE_SCHEMA = {
     },
     warnings: { type: 'array', items: { type: 'string' }, description: '无法识别或标号异常的区域' },
   },
+  required: ['figure_type', 'overall_description', 'confidence', 'components', 'connections', 'warnings'],
 } as const
 
 /** 第一步（结构抽取）提示词：只要结构与标号，不要附图说明文字。 */

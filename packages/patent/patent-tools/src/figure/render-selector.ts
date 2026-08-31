@@ -1,8 +1,8 @@
 /**
  * 附图渲染器选择器（`figureRenderer: 'wasm' | 'cli'`，默认 wasm）。
  *
- * wasm 路径走内置 @viz-js/viz 渲染器（无系统依赖）；Phase 0 实测 WASM
- * 构建仅含文本格式插件，png/pdf 由本选择器路由到 CLI 兜底（显式 cli 亦
+ * wasm 路径走内置 @viz-js/viz 渲染器（无系统依赖）。WASM 构建仅含文本
+ * 格式插件，png/pdf 由本选择器路由到 CLI 兜底（显式 cli 亦
  * 走同一 CLI 函数）。CLI 路径需要 subprocess 服务与 dot 可执行文件，未
  * 挂载/未安装时返回 `not_installed`，由工具层归并为 setup_required。
  *
@@ -25,7 +25,7 @@ export type FigureRendererSelectorDeps = {
   graphvizExecutable?: string
 }
 
-/** WASM 引擎无法产出的格式（Phase 0 实测：png/pdf 无插件），一律走 CLI 兜底。 */
+/** WASM 引擎无法产出的格式（png/pdf 无插件），一律走 CLI 兜底。 */
 const CLI_FALLBACK_FORMATS: readonly string[] = ['png', 'pdf']
 
 /**

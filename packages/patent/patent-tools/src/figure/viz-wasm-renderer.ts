@@ -2,11 +2,10 @@
  * 内置 WASM Graphviz 渲染器（@viz-js/viz，无系统二进制依赖）。
  *
  * 引擎经动态 import() 惰性加载（ESM 入口约 1.2MB，WASM 内联；实例进程内
- * 缓存，加载失败不缓存以便依赖修复后重试），在内存完成渲染后写盘。Phase 0
- * 实测（research/phase-0-pre-research.md）：WASM 构建仅含文本格式插件，
- * svg 可渲染而 png/pdf 抛 "Format not recognized"——这两个格式由
- * render-selector 路由到 CLI 兜底，本渲染器不做回退。加载失败映射 outcome
- * `not_installed`（文案指明内置引擎，工具层既有映射归并为 setup_required），
+ * 缓存，加载失败不缓存以便依赖修复后重试），在内存完成渲染后写盘。WASM
+ * 构建仅含文本格式插件：svg 可渲染而 png/pdf 抛 "Format not recognized"，
+ * 因此这两个格式由 render-selector 路由到 CLI 兜底，本渲染器不做回退。加载失败映射
+ * outcome `not_installed`（文案指明内置引擎，工具层既有映射归并为 setup_required），
  * 渲染失败 `render_failed`，调用方取消 `aborted`，与 CLI 渲染器共用
  * GraphvizRenderOutcome 契约。
  *
