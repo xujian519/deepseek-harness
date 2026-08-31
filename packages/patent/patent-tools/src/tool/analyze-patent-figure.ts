@@ -305,40 +305,45 @@ function checkReferenceNumbers(components: FigureComponent[]): string[] {
   return warnings
 }
 
+/** 单步/两步分析共用的附图字段 JSON Schema（不含 figure_description 与 warnings）。 */
+export const FIGURE_SCHEMA_CORE = {
+  figure_type: { type: 'string', enum: FIGURE_TYPES, description: '附图类型' },
+  overall_description: { type: 'string', description: '附图整体内容的一句话描述' },
+  confidence: { type: 'number', description: '分类置信度 0-1' },
+  components: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        ref_number: { type: 'string', description: '附图标记号' },
+        name: { type: 'string', description: '组件名称' },
+        kind: { type: 'string', enum: FIGURE_COMPONENT_KINDS, description: '组件类型' },
+        description: { type: 'string', description: '组件功能描述' },
+      },
+    },
+  },
+  connections: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        source: { type: 'string', description: '源组件标号' },
+        target: { type: 'string', description: '目标组件标号' },
+        kind: { type: 'string', enum: FIGURE_CONNECTION_KINDS, description: '连接类型' },
+        description: { type: 'string', description: '连接关系描述' },
+      },
+    },
+  },
+} as const
+
 /** 单步分析输出 JSON Schema（合并 Sati 的 Step1+Step2）。 */
 const COMBINED_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    figure_type: { type: 'string', enum: FIGURE_TYPES, description: '附图类型' },
-    overall_description: { type: 'string', description: '附图整体内容的一句话描述' },
-    confidence: { type: 'number', description: '分类置信度 0-1' },
-    components: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          ref_number: { type: 'string', description: '附图标记号' },
-          name: { type: 'string', description: '组件名称' },
-          kind: { type: 'string', enum: FIGURE_COMPONENT_KINDS, description: '组件类型' },
-          description: { type: 'string', description: '组件功能描述' },
-        },
-      },
-    },
-    connections: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          source: { type: 'string', description: '源组件标号' },
-          target: { type: 'string', description: '目标组件标号' },
-          kind: { type: 'string', enum: FIGURE_CONNECTION_KINDS, description: '连接类型' },
-          description: { type: 'string', description: '连接关系描述' },
-        },
-      },
-    },
+    ...FIGURE_SCHEMA_CORE,
     figure_description: { type: 'string', description: '附图说明文字（专利格式）' },
     warnings: { type: 'array', items: { type: 'string' }, description: '无法识别或标号异常的区域' },
   },

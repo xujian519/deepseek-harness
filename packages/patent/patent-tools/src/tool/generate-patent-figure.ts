@@ -516,51 +516,41 @@ type FigureDotParams = {
   leaderLinesActive: boolean
 }
 
+/** 单图 DOT 构建共用选项（flowchart/block/hierarchy 共用数值/样式/页面/引线开关）。 */
+function buildDotOptions(params: FigureDotParams) {
+  const { figureNumber, numeralsForBuilder, numeralStep, style, fontName, pageBundle, leaderLinesActive } = params
+  return {
+    figureNumber,
+    numerals: numeralsForBuilder,
+    ...(numeralStep === undefined ? {} : { numeralStep }),
+    style,
+    fontName,
+    ...(pageBundle === undefined ? {} : { page: pageBundle }),
+    ...(leaderLinesActive ? { embedNumerals: false } : {}),
+  }
+}
+
 /** 构建单图 DOT（单图与面板共用；DotBuildError 由调用方映射，面板路径追加面板后缀上下文）。 */
 function buildFigureDot(input: StructuralFigureInput, params: FigureDotParams): string {
-  const { figureNumber, numeralsForBuilder, numeralStep, style, fontName, pageBundle, leaderLinesActive } = params
+  const { figureNumber, style, fontName, pageBundle, leaderLinesActive } = params
   switch (input.figure_type) {
     case 'flowchart': {
       if (input.steps.length === 0) {
         throw new DotBuildError('empty_input', 'flowchart 需要 steps')
       }
-      return buildFlowchartDOT(input.steps, {
-        figureNumber,
-        numerals: numeralsForBuilder,
-        ...(numeralStep === undefined ? {} : { numeralStep }),
-        style,
-        fontName,
-        ...(pageBundle === undefined ? {} : { page: pageBundle }),
-        ...(leaderLinesActive ? { embedNumerals: false } : {}),
-      })
+      return buildFlowchartDOT(input.steps, buildDotOptions(params))
     }
     case 'block_diagram': {
       if (input.blocks.length === 0) {
         throw new DotBuildError('empty_input', 'block_diagram 需要 blocks')
       }
-      return buildBlockDiagramDOT(input.blocks, input.connections, {
-        figureNumber,
-        numerals: numeralsForBuilder,
-        ...(numeralStep === undefined ? {} : { numeralStep }),
-        style,
-        fontName,
-        ...(pageBundle === undefined ? {} : { page: pageBundle }),
-        ...(leaderLinesActive ? { embedNumerals: false } : {}),
-      })
+      return buildBlockDiagramDOT(input.blocks, input.connections, buildDotOptions(params))
     }
     case 'component_hierarchy': {
       if (input.tree.length === 0) {
         throw new DotBuildError('empty_input', 'component_hierarchy 需要 tree')
       }
-      return buildComponentHierarchyDOT(input.tree, {
-        figureNumber,
-        numerals: numeralsForBuilder,
-        ...(numeralStep === undefined ? {} : { numeralStep }),
-        style,
-        fontName,
-        ...(pageBundle === undefined ? {} : { page: pageBundle }),
-        ...(leaderLinesActive ? { embedNumerals: false } : {}),
-      })
+      return buildComponentHierarchyDOT(input.tree, buildDotOptions(params))
     }
     case 'template': {
       if (input.template === undefined) {

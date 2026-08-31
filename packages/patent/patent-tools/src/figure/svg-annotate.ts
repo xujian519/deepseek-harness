@@ -100,6 +100,22 @@ export function textElementContent(textElement: string): string {
 }
 
 /**
+ * 校验参考标号列表：每个参考的 label 与 numeral 均不得为空（trim 后）。
+ * @param references - 参考标号列表。
+ * @throws SvgAnnotateError 任一参考的 label 或 numeral 为空。
+ */
+export function validateSvgReferences(references: readonly SvgAnnotateReference[]): void {
+  for (const ref of references) {
+    if (ref.label.trim() === '') {
+      throw new SvgAnnotateError('invalid_reference', '参考 label 不能为空')
+    }
+    if (ref.numeral.trim() === '') {
+      throw new SvgAnnotateError('invalid_reference', `参考 "${ref.label}" 的 numeral 不能为空`)
+    }
+  }
+}
+
+/**
  * 在 SVG 文本元素的匹配文本末尾追加参考标号。
  *
  * 每个 `<text>` 元素至多命中一个参考（按 references 传入顺序取首个匹配），
@@ -115,14 +131,7 @@ export function annotateSvg(
   maxBytes: number = DEFAULT_SVG_MAX_BYTES,
 ): SvgAnnotateResult {
   assertSafeSvg(svgText, maxBytes)
-  for (const ref of references) {
-    if (ref.label.trim() === '') {
-      throw new SvgAnnotateError('invalid_reference', '参考 label 不能为空')
-    }
-    if (ref.numeral.trim() === '') {
-      throw new SvgAnnotateError('invalid_reference', `参考 "${ref.label}" 的 numeral 不能为空`)
-    }
-  }
+  validateSvgReferences(references)
   if (references.length === 0) return { svg: svgText, warnings: [] }
 
   const matched = new Set<number>()

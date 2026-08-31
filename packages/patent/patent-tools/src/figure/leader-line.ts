@@ -14,7 +14,13 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/leader-line
  */
 
-import { DEFAULT_SVG_MAX_BYTES, SvgAnnotateError, assertSafeSvg, escapeXmlText, textElementContent } from './svg-annotate.ts'
+import {
+  DEFAULT_SVG_MAX_BYTES,
+  assertSafeSvg,
+  escapeXmlText,
+  textElementContent,
+  validateSvgReferences,
+} from './svg-annotate.ts'
 import type { SvgAnnotateReference } from './svg-annotate.ts'
 
 /** 引线标号选项。 */
@@ -214,14 +220,7 @@ export function annotateSvgWithLeaderLines(
 ): LeaderLineResult {
   const maxBytes = options.maxBytes ?? DEFAULT_SVG_MAX_BYTES
   assertSafeSvg(svgText, maxBytes)
-  for (const ref of references) {
-    if (ref.label.trim() === '') {
-      throw new SvgAnnotateError('invalid_reference', '参考 label 不能为空')
-    }
-    if (ref.numeral.trim() === '') {
-      throw new SvgAnnotateError('invalid_reference', `参考 "${ref.label}" 的 numeral 不能为空`)
-    }
-  }
+  validateSvgReferences(references)
   if (references.length === 0) return { svg: svgText, warnings: [] }
 
   const groups: ParsedNodeGroup[] = []
