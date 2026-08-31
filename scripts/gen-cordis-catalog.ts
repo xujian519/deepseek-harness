@@ -87,6 +87,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   lsp: 'lsp.md',
   messageFeedback: 'feedback.md',
   permissionPresets: 'permission-presets.md',
+  pluginMarketController: 'extensions.md',
   planMode: 'plan.md',
   terminals: 'terminal.md',
   sandbox: 'sandbox.md',

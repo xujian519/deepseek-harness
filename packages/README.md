@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The harness is assembled from npm packages under `packages/`, grouped by capability family: sessions and the agent loop, model-facing tools, shell and filesystem execution, web access, subagents, and the rest. Use this page as the top-level map: find the owning group, then open its README for the package list. Every package is scoped `@deepseek-ai/dsh-*` and lives in exactly one group; each group README is the authoritative package map for its family.
+The harness is assembled from npm packages under `packages/`, grouped by capability family: sessions and the agent loop, model-facing tools, shell and filesystem execution, web access, and subagents. Use this page as the top-level map: find the owning group, then open its README for the package list. Every package is scoped `@deepseek-ai/dsh-*` and lives in exactly one group; each group README owns its family's package list.
 
 ## Table of Contents
 
@@ -62,7 +62,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`document/`](document/README.md) | Document-delivery preset, its six delivery skills, and the delivery studio |
 | [`guard/`](guard/README.md) | Loop-hygiene guards: advisory repeat-call reminders + the `tools/execute` deadline enforcer |
 | [`bundle/`](bundle/README.md) | Installable `dsh --profile` patch layers |
-| [`extensions/`](extensions/README.md) | Agent runtime self-modification and plugin discovery: live plugin/service inspection and model-written mount/unmount + read-only plugin-catalog discovery tools |
+| [`extensions/`](extensions/README.md) | Agent runtime self-modification and plugin discovery: live inspection, model-written mount/unmount, read-only catalog discovery tools |
 | [`self-evolve/`](self-evolve/README.md) | Campaign-based self-evaluation and plugin evolution: durable service, agent-loop provider, benchmark runner, model-facing tools |
 | [`hooks/`](hooks/README.md) | Hook bridges + the shared Claude Code / Codex wire-protocol library |
 | [`mcp/`](mcp/README.md) | Attach external Model Context Protocol servers so their tools are callable as native tools |

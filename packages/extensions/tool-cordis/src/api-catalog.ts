@@ -1621,6 +1621,34 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'pluginMarketController',
+    summary: 'Host service backing the generated `ctx.remote.pluginMarket` namespace.',
+    description: 'Host service backing the generated `ctx.remote.pluginMarket` namespace. Every method is a read-only projection of the `ctx.pluginMarket` seam: the catalog stays discoverable from a browser while installs and uninstalls remain the profile CLI\'s owner.',
+    methods: [
+      {
+        signature: '@Remote async listSources(): Promise<readonly PluginMarketSource[]>',
+        description: 'List the registered catalog sources.',
+        parameters: [],
+        returns: 'every registered source.',
+        throws: ['TypertRemoteFailure when the source listing fails or no provider is mounted.'],
+      },
+      {
+        signature: '@Remote async search(sourceId: string, query: CatalogQuery | undefined): Promise<CatalogPage>',
+        description: 'Query one source\'s catalog.',
+        parameters: [{ name: 'sourceId', description: 'the source to query.' }, { name: 'query', description: 'search parameters; unsupported ones are dropped by the provider.' }],
+        returns: 'one page of provenance-stamped entries.',
+        throws: ['TypertRemoteFailure when the source query fails or no provider is mounted.'],
+      },
+      {
+        signature: '@Remote async preview(ref: string): Promise<InstallPreview>',
+        description: 'Preview an installation against the npm registry without touching the profile.',
+        parameters: [{ name: 'ref', description: '`name@version` package reference.' }],
+        returns: 'the verification result.',
+        throws: ['TypertRemoteFailure when the preview fails or no provider is mounted.'],
+      },
+    ],
+  },
+  {
     key: 'promptCache',
     summary: 'The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`.',
     description: 'The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`. Delegates to MemoryPromptCacheStrategy; a future persistent strategy replaces the strategy selection without changing the service surface.',
@@ -5241,7 +5269,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PatentModelMessage',
-    declaration: 'export interface PatentModelMessage {\n    role: \'system\' | \'user\' | \'assistant\';\n    content: string;\n}',
+    declaration: 'export interface PatentModelMessage {\n    role: \'system\' | \'user\' | \'assistant\';\n    content: string;\n    images?: readonly ImageAttachmentRef[];\n}',
   },
   {
     name: 'PatentModelPort',

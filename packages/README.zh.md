@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会话与 agent 循环、面向模型的工具、shell 与文件系统执行、Web 访问、subagent 等等。把本页当作顶层地图使用：先找到拥有某能力的组，再打开其 README 查看包列表。每个包都以 `@deepseek-ai/dsh-*` 为作用域、只属于一个组；每个组的 README 都是该能力系列的权威包映射。
+harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会话与 agent 循环、面向模型的工具、shell 与文件系统执行、Web 访问，以及 subagent。把本页当作顶层地图使用：先找到拥有某能力的组，再打开其 README 查看包列表。每个包都以 `@deepseek-ai/dsh-*` 为作用域、只属于一个组；每个组的 README 持有该能力系列的包列表。
 
 ## 目录
 
@@ -62,7 +62,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`document/`](document/README.zh.md) | 文档交付 preset、其六个交付技能与交付工作室 |
 | [`guard/`](guard/README.zh.md) | 循环卫生守卫：建议性重复调用提醒 + `tools/execute` 截止时间强制执行器 |
 | [`bundle/`](bundle/README.zh.md) | 可安装的 `dsh --profile` 补丁层 |
-| [`extensions/`](extensions/README.zh.md) | agent 运行时自修改：实时插件/服务检查与模型所写挂载/卸载 |
+| [`extensions/`](extensions/README.zh.md) | agent 运行时自修改与插件发现：实时检查、模型所写挂载/卸载、只读目录发现工具 |
 | [`self-evolve/`](self-evolve/README.zh.md) | 基于战役的自我评估与插件演化：持久服务、agent 循环提供方、基准运行器、模型可见工具 |
 | [`hooks/`](hooks/README.zh.md) | 钩子桥接 + 共享的 Claude Code / Codex 线协议库 |
 | [`mcp/`](mcp/README.zh.md) | 挂接外部 Model Context Protocol 服务器，使其工具可作为原生工具调用 |

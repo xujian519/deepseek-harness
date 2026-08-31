@@ -274,6 +274,40 @@ publish(topic: string, payload: InspectorJsonValue, monotonicMs?: number): void
 
 Source: [`packages/experimental/inspector/src/index.ts`](../../packages/experimental/inspector/src/index.ts)
 
+<a id="ctxpluginmarketcontroller--pluginmarketcontroller"></a>
+
+### `ctx.pluginMarketController` — `PluginMarketController`
+
+Host service backing the generated `ctx.remote.pluginMarket` namespace. Every method is a read-only projection of the `ctx.pluginMarket` seam: the catalog stays discoverable from a browser while installs and uninstalls remain the profile CLI's owner.
+
+```ts cordis-catalog
+/**
+ * List the registered catalog sources.
+ * @returns every registered source.
+ * @throws TypertRemoteFailure when the source listing fails or no provider is mounted.
+ */
+@Remote async listSources(): Promise<readonly PluginMarketSource[]>
+
+/**
+ * Query one source's catalog.
+ * @param sourceId - the source to query.
+ * @param query - search parameters; unsupported ones are dropped by the provider.
+ * @returns one page of provenance-stamped entries.
+ * @throws TypertRemoteFailure when the source query fails or no provider is mounted.
+ */
+@Remote async search(sourceId: string, query: CatalogQuery | undefined): Promise<CatalogPage>
+
+/**
+ * Preview an installation against the npm registry without touching the profile.
+ * @param ref - `name@version` package reference.
+ * @returns the verification result.
+ * @throws TypertRemoteFailure when the preview fails or no provider is mounted.
+ */
+@Remote async preview(ref: string): Promise<InstallPreview>
+```
+
+Source: [`packages/api/plugin-market-controller/src/index.ts`](../../packages/api/plugin-market-controller/src/index.ts)
+
 <a id="deepseek-ai-events"></a>
 
 ### `@deepseek-ai/*` events
