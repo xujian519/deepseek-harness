@@ -1165,6 +1165,10 @@ importers:
         version: 4.4.3
 
   packages/api/plugin-market-controller:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
