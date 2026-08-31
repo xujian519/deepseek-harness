@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-desktop-electron",
   "description": "DSH Patent desktop shell: Electron main/preload around the dsh backend and the web UI",
-  "version": "0.1.2-alpha.1",
+  "version": "0.1.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
