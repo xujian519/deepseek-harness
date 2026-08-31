@@ -201,8 +201,12 @@ describe('SessionProjectionCache write policy', () => {
     const session = ctx.sessions.create(SessionId('count'))
     mark(session, ['1'])
     mark(session, ['2'])
-    await settle()
-    expect((await storedRows(root, session.id))?.['cache-test/marks']?.seq).toBe(-1) // still the creation cut
+    // Two marks stay below the threshold, so once the creation cut lands the
+    // stored row is still the creation-time one. The landing is a positive
+    // durable-write assertion, so poll instead of settling.
+    await eventuallyDurable(async () => {
+      expect((await storedRows(root, session.id))?.['cache-test/marks']?.seq).toBe(-1)
+    }) // still the creation cut
     mark(session, ['3'])
     await eventuallyDurable(async () => {
       expect((await storedRows(root, session.id))?.['cache-test/marks']?.val).toEqual({ marks: ['3'] })
