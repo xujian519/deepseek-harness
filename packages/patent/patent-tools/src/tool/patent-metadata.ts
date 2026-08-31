@@ -5,7 +5,8 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { scrapePatent as scrapePatentImpl, validatePatentNumber } from '@deepseek-ai/nuo-patent'
 import type { ScrapeResult } from '@deepseek-ai/nuo-patent'
 import { cachedScrapePatent, mapPatentData } from '@deepseek-ai/dsh-patent-data'

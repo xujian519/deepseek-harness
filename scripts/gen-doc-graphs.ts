@@ -192,6 +192,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns Workspace commands and reconnect-safe Workspace state delivery through the generated Remote namespace.',
   },
   {
+    key: 'pluginMarketController',
+    pkg: 'api-plugin-market-controller',
+    title: 'Host plugin-market Remote controller',
+    mode: 'core',
+    note: 'Read-only Remote projection of the plugin-market discovery seam (sources, search, preview); installs stay with the profile CLI.',
+  },
+  {
     key: 'directoryPickerController',
     pkg: 'api-workspace-controller',
     title: 'Host directory-picking Remote controller',
@@ -1055,11 +1062,21 @@ export class EventRelationCollector {
   private visitSource(source: PackageSource): void {
     const visit = (node: ts.Node): void => {
       if (ts.isCallExpression(node)) {
-        if (this.isAgentEventEmitter(node.expression)) {
+        const emitter = this.agentEventEmitterKind(node.expression)
+        if (emitter === 'emitAgentEvent') {
           const event = node.arguments[2]
           if (event) {
             for (const name of this.finiteStringValues(event) ?? []) {
               this.addDispatcher(name, source.pkg, 'emitAgentEvent')
+            }
+          }
+        } else if (emitter === 'emitContained') {
+          // emitContained(ctx, label, [carrier?, name, ...payload], renderer):
+          // the event names ride the dispatch argument array.
+          const argumentList = node.arguments[2]
+          if (argumentList) {
+            for (const event of this.eventNamesFromArgumentList(argumentList, new Set())) {
+              this.addDispatcher(event, source.pkg, 'emitContained')
             }
           }
         } else if (ts.isPropertyAccessExpression(node.expression) && EVENT_API_METHODS.has(node.expression.name.text)) {
@@ -1092,20 +1109,26 @@ export class EventRelationCollector {
     visit(source.sourceFile)
   }
 
-  /** Match the exported contained-notification helper by declaration identity. */
-  private isAgentEventEmitter(expression: ts.Expression): boolean {
-    if (!ts.isIdentifier(expression)) return false
+  /** Match a contained-notification helper by declaration identity. */
+  private agentEventEmitterKind(expression: ts.Expression): 'emitAgentEvent' | 'emitContained' | undefined {
+    if (!ts.isIdentifier(expression)) return undefined
     const local = this.project.checker.getSymbolAtLocation(expression)
-    if (!local) return false
+    if (!local) return undefined
     const symbol = local.flags & ts.SymbolFlags.Alias
       ? this.project.checker.getAliasedSymbol(local)
       : local
     const declarations = symbol.declarations ?? []
-    return declarations.some((declaration) => {
-      return ts.isFunctionDeclaration(declaration)
-        && declaration.name?.text === 'emitAgentEvent'
-        && this.project.relativePath(declaration.getSourceFile()) === 'packages/core/agent/src/dispatch.ts'
-    })
+    for (const declaration of declarations) {
+      if (!ts.isFunctionDeclaration(declaration) || declaration.name === undefined) continue
+      const path = this.project.relativePath(declaration.getSourceFile())
+      if (declaration.name.text === 'emitAgentEvent' && path === 'packages/core/agent/src/dispatch.ts') {
+        return 'emitAgentEvent'
+      }
+      if (declaration.name.text === 'emitContained' && path === 'packages/util/contained-emit/src/index.ts') {
+        return 'emitContained'
+      }
+    }
+    return undefined
   }
 
   /** Classify a receiver using assignability to the repository's actual event API types. */

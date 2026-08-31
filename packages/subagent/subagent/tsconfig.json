@@ -21,6 +21,9 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../attachment/attachment"
+    },
+    {
       "path": "../../core/agent"
     },
     {
@@ -64,6 +67,9 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../util/time"
     },
     {
       "path": "../../runtime-diagnostics/invariants"

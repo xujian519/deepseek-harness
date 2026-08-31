@@ -1,5 +1,4 @@
-<!-- 英文源文件由 scripts/gen-persistence-catalog.ts 生成；本中文文件是通过双语配对维护的经评审对侧。
-     更新时先运行 `pnpm run gen-persistence-catalog` 更新英文，再更新本文件并运行 `pnpm run verify-translation-pairing --write docs/persistence-catalog.md` 重新记录配对。 -->
+<!-- 英文源文件由 scripts/gen-persistence-catalog.ts 生成；本中文文件是通过双语配对维护的经评审对侧。更新时先运行 `pnpm run gen-persistence-catalog` 更新英文，再更新本文件并运行 `pnpm run verify-translation-pairing --write docs/persistence-catalog.md` 重新记录配对。 -->
 
 # 会话持久化事件目录
 
@@ -9,7 +8,7 @@
 
 英文源文件根据源码生成（`scripts/gen-persistence-catalog.ts`），并由 `pnpm run verify-persistence-catalog`（`doc-sync`（文档同步门禁）的一部分）验证新鲜度；本中文文件作为经评审对侧通过双语配对维护。声明块保留源码声明和嵌套属性的 JSDoc，只移除其所在接口／模块带来的缩进，并使用 `ts persistence-catalog` 围栏（doc-typecheck 会跳过这些围栏，因为声明引用了其所属模块中的类型）。payload 中的类型名称会链接到记录该类型的页面。参见 [persistence-log-catalog Agent Note](../.agents/notes/archived/process/2026-07-04-persistence-log-catalog.md)。
 
-以下信封声明组合了每个事件的 `type`、单调递增的 `seq`、以 epoch 毫秒表示的 `time`、`data`，以及条件字段 `surfaceOp`／`sourceEventSeqs`。**surface** 表示 `SurfaceEventType` 成员：它会生成一条 LLM（大语言模型）消息，并声明该事件如何加入 surface 列表。**log-only** 表示其他所有事件：这类记录可持久化、可回放，但不参与派生历史。每个 payload 均可进行 JSON 序列化（在 `Session.append` 处强制执行），整个格式固定为 `SESSION_FORMAT_VERSION = 0`：这是预发布格式，不暗示任何兼容性（参见[版本立场](subsystems/persistence.zh.md)）。范围仅限本仓库中的包；下游插件可以继续合并其他事件类型，而这些类型按设计不属于本目录。
+以下信封声明组合了每个事件的 `type`、单调递增的 `seq`、以 epoch 毫秒表示的 `time`、`data`、可选的未知类型跳过标记 `ignorable`，以及条件字段 `surfaceOp`／`sourceEventSeqs`。**surface** 表示 `SurfaceEventType` 成员：它会生成一条 LLM（大语言模型）消息，并声明该事件如何加入 surface 列表。**log-only** 表示其他所有事件：这类记录可持久化、可回放，但不参与派生历史。每个 payload 均可进行 JSON 序列化（在 `Session.append` 处强制执行），整个格式固定为 `SESSION_FORMAT_VERSION = 0`：这是预发布格式，不暗示任何兼容性（参见[版本立场](subsystems/persistence.zh.md)）。范围仅限本仓库中的包；下游插件可以继续合并其他事件类型，而这些类型按设计不属于本目录。
 
 ## 事件信封
 
@@ -66,10 +65,14 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
     time: number
     data: SessionEventMap[K]
     /**
-     * Envelope marker written via {@link AppendOptions.ignorable}; a reader
-     * that does not recognize `type` may safely skip the record. Absent means
-     * required: the read path refuses an unrecognized type without this
-     * marker instead of silently resuming a gutted session.
+     * Marks an event a reader may safely skip when it does not recognize
+     * `type`. Absent means required: a reader meeting an unrecognized type
+     * without this marker MUST refuse to reconstruct the session instead of
+     * silently dropping the event, because an unrecognized required event may
+     * change how the rest of the log is interpreted. A writer sets `true` only
+     * on purely informational records whose loss cannot affect reconstruction;
+     * defaulting to required means a forgotten marker over-refuses (an
+     * inconvenience) rather than silently resuming a gutted session.
      */
     ignorable?: true
   } & (K extends SurfaceEventType ? {
@@ -88,7 +91,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-来源：[`packages/core/session/src/types.ts:321`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:328`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:357`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:389`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:323`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:330`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:359`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:391`](../packages/core/session/src/types.ts)
 
 ## 事件
 
@@ -113,11 +116,9 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/core/agent/src/types.ts:38`](../packages/core/agent/src/types.ts)
+来源：[`packages/core/agent/src/types.ts:58`](../packages/core/agent/src/types.ts)
 
-<a id="agentrequest-error--log-only"></a>
-
-#### `agent/request-error` — log-only
+#### `agent/request-error` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -137,7 +138,8 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:190`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:190`](../packages/self-evolve/self-evolve/src/types.ts)
+
 ### `agent-preset/*`
 
 <a id="agent-presetselected--log-only"></a>
@@ -236,7 +238,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[StreamChunk](subsystems/llm-streaming.zh.md)
 
-来源：[`packages/core/session/src/types.ts:249`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:246`](../packages/core/session/src/types.ts)
 
 <a id="assistantmessage--surface"></a>
 
@@ -258,7 +260,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TokenUsage](subsystems/llm-streaming.zh.md)
 
-来源：[`packages/core/session/src/types.ts:260`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:257`](../packages/core/session/src/types.ts)
 
 ### `command/*`
 
@@ -533,13 +535,13 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'model/selection': ModelSelection
 ```
 
-来源：[`packages/api/session-controller/src/types.ts:39`](../packages/api/session-controller/src/types.ts)
+来源：[`packages/api/session-controller/src/types.ts:41`](../packages/api/session-controller/src/types.ts)
 
 ### `patent/*`
 
 <a id="patentplantask--log-only"></a>
 
-#### `patent/plantask` — log-only
+#### `patent/plantask` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -553,11 +555,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent/plantask': PatentPlantaskEvent
 ```
 
-来源：[`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
+Source: [`packages/patent/patent-workflow/src/types.ts:23`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentworkflow-run--log-only"></a>
 
-#### `patent/workflow-run` — log-only
+#### `patent/workflow-run` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -569,13 +571,13 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent/workflow-run': PatentWorkflowRunEvent
 ```
 
-来源：[`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
+Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/patent-workflow/src/types.ts)
 
 ### `patent-teams/*`
 
 <a id="patent-teamsmember-added--log-only"></a>
 
-#### `patent-teams/member-added` — log-only
+#### `patent-teams/member-added` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -585,11 +587,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/member-added': PatentTeamsMemberAddedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:105`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:105`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmember-removed--log-only"></a>
 
-#### `patent-teams/member-removed` — log-only
+#### `patent-teams/member-removed` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -599,11 +601,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/member-removed': PatentTeamsMemberRemovedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:110`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:110`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmessage-sent--log-only"></a>
 
-#### `patent-teams/message-sent` — log-only
+#### `patent-teams/message-sent` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -613,11 +615,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/message-sent': PatentTeamsMessageSentData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:135`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:135`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-created--log-only"></a>
 
-#### `patent-teams/task-created` — log-only
+#### `patent-teams/task-created` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -627,11 +629,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/task-created': PatentTeamsTaskCreatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:115`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:115`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-gated--log-only"></a>
 
-#### `patent-teams/task-gated` — log-only
+#### `patent-teams/task-gated` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -641,11 +643,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/task-gated': PatentTeamsTaskGatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:130`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:130`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-updated--log-only"></a>
 
-#### `patent-teams/task-updated` — log-only
+#### `patent-teams/task-updated` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -655,11 +657,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/task-updated': PatentTeamsTaskUpdatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:120`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:120`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-validated--log-only"></a>
 
-#### `patent-teams/task-validated` — log-only
+#### `patent-teams/task-validated` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -669,11 +671,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/task-validated': PatentTeamsTaskValidatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:125`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:125`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-created--log-only"></a>
 
-#### `patent-teams/team-created` — log-only
+#### `patent-teams/team-created` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -683,11 +685,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/team-created': PatentTeamsTeamCreatedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:100`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:100`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-deleted--log-only"></a>
 
-#### `patent-teams/team-deleted` — log-only
+#### `patent-teams/team-deleted` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -697,7 +699,8 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'patent-teams/team-deleted': PatentTeamsTeamDeletedData
 ```
 
-来源：[`packages/patent/patent-teams/src/event-types.ts:140`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:140`](../packages/patent/patent-teams/src/event-types.ts)
+
 ### `permission/*`
 
 <a id="permissionpreset--log-only"></a>
@@ -708,13 +711,13 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 /**
  * Records the selected preset as durable, log-only user intent. The knob
  * events follow in the same turn and control execution; this event stays
- * out of the model transcript and lets {@link effectivePermissionPreset}
+ * out of the model transcript and lets the permission projection unit
  * preserve a selection when bundles match.
  */
 'permission/preset': { preset: string }
 ```
 
-来源：[`packages/interaction/permission-presets/src/index.ts:50`](../packages/interaction/permission-presets/src/index.ts)
+来源：[`packages/interaction/permission-presets/src/index.ts:53`](../packages/interaction/permission-presets/src/index.ts)
 
 ### `plan/*`
 
@@ -726,12 +729,12 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 /**
  * Whether plan mode is in force from this point on: log-only, non-surface,
  * whole-value replace. The last `plan/mode` wins; a log with none folds to
- * inactive through {@link foldPlanMode}.
+ * inactive through the projection unit's fold.
  */
 'plan/mode': { active: boolean }
 ```
 
-来源：[`packages/plan/plan-mode/src/index.ts:53`](../packages/plan/plan-mode/src/index.ts)
+来源：[`packages/plan/plan-mode/src/index.ts:46`](../packages/plan/plan-mode/src/index.ts)
 
 ### `request/*`
 
@@ -747,7 +750,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'request/context': RequestContext
 ```
 
-来源：[`packages/core/session/src/types.ts:294`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:296`](../packages/core/session/src/types.ts)
 
 <a id="requestheader--log-only"></a>
 
@@ -766,7 +769,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/core/session/src/types.ts:289`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:286`](../packages/core/session/src/types.ts)
 
 ### `sandbox/*`
 
@@ -779,7 +782,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
  * The session's sandbox mode was switched — log-only (like `approval/*`;
  * NOT a surface event, carries no `surfaceOp`): durable and replayable,
  * never in the model transcript. The LAST such event is the session's
- * override ({@link effectiveSandboxMode}). `source: 'delegation'` marks
+ * override (folded by the sandboxMode projection unit). `source: 'delegation'` marks
  * an override seeded into a child; an absent source is a runtime switch.
  */
 'sandbox/mode': {
@@ -813,7 +816,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 <a id="self-evolvecommit--log-only"></a>
 
-#### `self-evolve/commit` — log-only
+#### `self-evolve/commit` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -827,11 +830,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:251`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:251`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveend--log-only"></a>
 
-#### `self-evolve/end` — log-only
+#### `self-evolve/end` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -846,11 +849,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:274`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvemined--log-only"></a>
 
-#### `self-evolve/mined` — log-only
+#### `self-evolve/mined` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -869,11 +872,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:221`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolveproposed--log-only"></a>
 
-#### `self-evolve/proposed` — log-only
+#### `self-evolve/proposed` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -887,11 +890,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:232`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:232`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvereflection--log-only"></a>
 
-#### `self-evolve/reflection` — log-only
+#### `self-evolve/reflection` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -911,11 +914,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:261`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:261`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvestart--log-only"></a>
 
-#### `self-evolve/start` — log-only
+#### `self-evolve/start` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -935,11 +938,11 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:203`](../packages/self-evolve/self-evolve/src/types.ts)
 
 <a id="self-evolvevalidated--log-only"></a>
 
-#### `self-evolve/validated` — log-only
+#### `self-evolve/validated` — 仅日志
 
 ```ts persistence-catalog
 /**
@@ -954,7 +957,8 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-evolve/self-evolve/src/types.ts)
+Source: [`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-evolve/self-evolve/src/types.ts)
+
 ### `session/*`
 
 <a id="sessionend-seed--log-only"></a>
@@ -987,7 +991,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'session/end-seed': Record<string, never>
 ```
 
-来源：[`packages/core/session/src/types.ts:317`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:319`](../packages/core/session/src/types.ts)
 
 <a id="sessiontitle--log-only"></a>
 
@@ -1003,7 +1007,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[SessionTitleEventData](subsystems/session-title.zh.md)
 
-来源：[`packages/session/session-title/src/index.ts:100`](../packages/session/session-title/src/index.ts)
+来源：[`packages/session/session-title/src/index.ts:76`](../packages/session/session-title/src/index.ts)
 
 <a id="sessiontitle-llm-request--log-only"></a>
 
@@ -1016,7 +1020,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[SessionTitleLlmRequestEventData](subsystems/session-title.zh.md)
 
-来源：[`packages/session/session-title-llm/src/index.ts:43`](../packages/session/session-title-llm/src/index.ts)
+来源：[`packages/session/session-title-llm/src/index.ts:44`](../packages/session/session-title-llm/src/index.ts)
 
 ### `session-log-deepseek/*`
 
@@ -1047,7 +1051,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'step/end': { turn: number; step: number }
 ```
 
-来源：[`packages/core/session/src/types.ts:239`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:236`](../packages/core/session/src/types.ts)
 
 <a id="stepstart--log-only"></a>
 
@@ -1058,7 +1062,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'step/start': { turn: number; step: number }
 ```
 
-来源：[`packages/core/session/src/types.ts:237`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:234`](../packages/core/session/src/types.ts)
 
 ### `subagent/*`
 
@@ -1096,7 +1100,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/subagent/tool-subagent/src/model-selection-state.ts:14`](../packages/subagent/tool-subagent/src/model-selection-state.ts)
+来源：[`packages/subagent/tool-subagent/src/model-selection-state.ts:17`](../packages/subagent/tool-subagent/src/model-selection-state.ts)
 
 ### `team/*`
 
@@ -1189,7 +1193,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[ToolCallId](subsystems/core.zh.md)
 
-来源：[`packages/core/session/src/types.ts:266`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:263`](../packages/core/session/src/types.ts)
 
 <a id="toolcode-dispatch--log-only"></a>
 
@@ -1264,7 +1268,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }
 ```
 
-来源：[`packages/core/session/src/types.ts:278`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:275`](../packages/core/session/src/types.ts)
 
 ### `tool-workflow/*`
 
@@ -1344,7 +1348,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TurnEndReason](subsystems/session.zh.md)
 
-来源：[`packages/core/session/src/types.ts:235`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:232`](../packages/core/session/src/types.ts)
 
 <a id="turnstart--log-only"></a>
 
@@ -1360,7 +1364,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'turn/start': { turn: number }
 ```
 
-来源：[`packages/core/session/src/types.ts:226`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:223`](../packages/core/session/src/types.ts)
 
 ### `user/*`
 
@@ -1379,7 +1383,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'user/message': UserMessage
 ```
 
-来源：[`packages/core/session/src/types.ts:247`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:244`](../packages/core/session/src/types.ts)
 
 ### `web/*`
 

@@ -1,9 +1,8 @@
 /**
  * Model-facing `web_search` and `web_fetch` tools over `ctx.web`. This package owns schemas,
  * validation, prompt guidance, limits, and presentation, never concrete providers. Enablement
- * controls tool registration; `web_search` remains visible when no search provider is available
- * and fails with a structured error at execution time, while `fetch: true` without a usable
- * fetch provider fails at load.
+ * controls tool registration. Both tools stay registered regardless of provider availability
+ * and fail with a structured error at execution time when no provider serves them.
  * @module @deepseek-ai/dsh-tool-web
  */
 
@@ -83,17 +82,6 @@ export function apply(ctx: Context, config: Config): void {
     applyWebSearchTool(ctx, resolved.searchMaxResults, resolved.searchMaxQueries, resolved.searchTimeoutMs, resolved.fetch)
   }
   if (resolved.fetch) {
-    // A fetch-enabled composition must mount a usable fetch provider: without
-    // one every web_fetch call fails with WEB_PROVIDER_UNAVAILABLE. Enablement
-    // is a load-time fact, so the composition fails here rather than shipping
-    // a tool that cannot run; the provider must be mounted (or configured)
-    // before tool-web. Shipped profiles keep fetch disabled until the
-    // SSRF-protected web-fetch-http provider lands.
-    if (ctx.web.resolveFetchProvider() === undefined) {
-      throw new Error(
-        'tool-web: fetch is enabled but no usable fetch provider is mounted; mount or configure one before tool-web, or set fetch: false',
-      )
-    }
     applyWebFetchTool(ctx, resolved.fetchTimeoutMs, resolved.fetchMaxOutputChars)
   }
 }

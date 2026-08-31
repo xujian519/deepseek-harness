@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { TypertRemoteFailure, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import { PluginMarket, PluginMarketError } from '@deepseek-ai/dsh-host-plugin-market'
 import type {
   CatalogPage, CatalogQuery, InstallPreview, InstallReceipt, PluginMarketSource,
@@ -110,12 +111,10 @@ describe('the plugin-market Remote namespace a discovery page calls', () => {
     market.listSourcesError = new PluginMarketError('source-invalid', 'sources file is malformed')
     const { ctx } = await boot(market)
     const failure = await ctx.pluginMarketController.listSources().catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    expect((failure as TypertRemoteFailure).failure).toEqual({
-      code: 'source-invalid',
-      message: 'sources file is malformed',
-      details: {},
-    })
+    const remote = remoteErrorOf(failure)
+    expect(remote?.code).toBe('source-invalid')
+    expect(remote?.message).toBe('sources file is malformed')
+    expect(remote?.details).toEqual({})
   })
 
   it('forwards search and normalizes an absent query to an empty object', async () => {
@@ -143,12 +142,10 @@ describe('the plugin-market Remote namespace a discovery page calls', () => {
     market.searchError = new PluginMarketError('source-not-found', 'no source source-1')
     const { ctx } = await boot(market)
     const failure = await ctx.pluginMarketController.search('source-1', {}).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    expect((failure as TypertRemoteFailure).failure).toEqual({
-      code: 'source-not-found',
-      message: 'no source source-1',
-      details: { subject: 'source-1' },
-    })
+    const remote = remoteErrorOf(failure)
+    expect(remote?.code).toBe('source-not-found')
+    expect(remote?.message).toBe('no source source-1')
+    expect(remote?.details).toEqual({ subject: 'source-1' })
   })
 
   it('projects a foreign refusal to an internal-code Remote failure', async () => {
@@ -156,9 +153,9 @@ describe('the plugin-market Remote namespace a discovery page calls', () => {
     market.previewError = new Error('registry is down')
     const { ctx } = await boot(market)
     const failure = await ctx.pluginMarketController.preview('@acme/tool@1.0.0').catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    expect((failure as TypertRemoteFailure).failure.code).toBe('internal')
-    expect((failure as TypertRemoteFailure).failure.message).toBe('registry is down')
+    const remote = remoteErrorOf(failure)
+    expect(remote?.code).toBe('gateway/internal')
+    expect(remote?.message).toBe('registry is down')
   })
 
   it('stringifies a non-Error throw as the internal failure message', async () => {
@@ -166,18 +163,17 @@ describe('the plugin-market Remote namespace a discovery page calls', () => {
     market.searchError = 'boom'  // thrown as a bare value, not an Error instance
     const { ctx } = await boot(market)
     const failure = await ctx.pluginMarketController.search('source-1', {}).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    expect((failure as TypertRemoteFailure).failure.code).toBe('internal')
-    expect((failure as TypertRemoteFailure).failure.message).toBe('boom')
+    const remote = remoteErrorOf(failure)
+    expect(remote?.code).toBe('gateway/internal')
+    expect(remote?.message).toBe('boom')
   })
 
   it('reports the actionable configuration error while no provider is mounted', async () => {
     const ctx = new Context()
     await ctx.plugin(PluginMarketController)
     const failure = await ctx.pluginMarketController.listSources().catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    const remote = failure as TypertRemoteFailure
-    expect(remote.failure.code).toBe('internal')
-    expect(remote.failure.message).toContain('plugin-market service is absent')
+    const remote = remoteErrorOf(failure)
+    expect(remote?.code).toBe('gateway/internal')
+    expect(remote?.message).toContain('plugin-market service is absent')
   })
 })

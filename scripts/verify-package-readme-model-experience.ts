@@ -32,11 +32,12 @@ interface SentenceContract {
 const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
   'packages/core/scope': 'The package is a model-agnostic registration and lifecycle primitive; model-facing consumers own any context selection.',
   'packages/browser/browser-backend': 'The package is a model-agnostic browser-backend capability library; model-facing download tools own the rendered behavior.',
-  'packages/util/brand': 'The package is a type-only primitive erased at compile time.',
+  'packages/util/brand': 'The package only constructs plain string values and registers nothing model-facing.',
   'packages/util/home-paths': 'The package only resolves harness-owned host paths; model-facing consumers own any rendered use.',
   'packages/util/launch-environment': 'The package only resolves host environment values; model-facing consumers own any rendered use.',
   'packages/util/workspace-path': 'The package only formats Workspace paths for browser UI; it never constructs model input.',
   'packages/test-support/self-evolve-eval': 'The P1-10 evaluation scaffold owns no service and no model-visible surface; the self-evolve runner and its tool consumers own every model-facing effect.',
+  'packages/util/values': 'The package only validates, snapshots, compares, freezes, or rejects caller-owned values; consumers own every model-facing use.',
 }
 
 /**
@@ -59,6 +60,8 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/util/crypto': { kind: 'indirect', reason: 'Pure identifier minting; the ids consumers mint with it never enter prompts as semantic content.' },
   'packages/util/value': { kind: 'indirect', reason: 'Pure unknown-value classification and validation; consumers own any model-facing rendering of a rejected input.' },
   'packages/util/contained-emit': { kind: 'indirect', reason: 'Dispatched notifications are log-only; failure lines never reach a model request.' },
+  'packages/util/deque': { kind: 'none', reason: 'In-process collection primitive; registers nothing model-facing.' },
+  'packages/util/time': { kind: 'indirect', reason: 'Pure zone validation; the consumer that records a canonical zone owns the model-visible line derived from it.' },
   'packages/core/agent-default-model': { kind: 'indirect', reason: 'The service supplies a ModelSelection; request assembly and adapters own the model-visible request.' },
   'packages/llm/deepseek-llm-api-extensions': { kind: 'indirect', reason: 'The registry contributes model-hidden provider fields; dsh-llm-deepseek owns their wire placement.' },
   'packages/core/prompt-cache': { kind: 'indirect', reason: 'The cache reuses already-resolved stable-prefix text; system-prompt owns every model-visible assembly decision.' },
@@ -91,6 +94,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/client/ui-message-feedback': { kind: 'none', reason: 'Browser-side controls over the message-feedback sidecar; ratings and notes never enter the Session log, model context, or telemetry.' },
   'packages/client/ui-tool': { kind: 'none', reason: 'Browser-side Tool presentation layer; renders logged calls without changing model context.' },
   'packages/client/ui-jobs': { kind: 'none', reason: 'Browser-side read-only projection of ctx.jobs records; dsh-tool-jobs owns the model-facing behavior.' },
+  'packages/client/ui-schedule': { kind: 'none', reason: 'Browser-side read-only projection of active Schedule records; dsh-schedule owns the model-facing tools and delivery.' },
   'packages/client/ui-workflow-run': { kind: 'none', reason: 'Browser-side UI plugin layer; renders durable workflow records without changing model context.' },
   'packages/client/ui-patent-teams': { kind: 'none', reason: 'Browser-side UI plugin layer; folds durable patent-teams session events into views without changing model context.' },
   'packages/client/ui-input-trigger': { kind: 'none', reason: 'Browser-side UI plugin layer; registers nothing model-facing.' },

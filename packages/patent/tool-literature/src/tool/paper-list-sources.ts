@@ -6,7 +6,8 @@
  * @module @deepseek-ai/dsh-tool-literature/tool/paper-list-sources
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { CatalogEntry } from '../protocol/types.ts'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 

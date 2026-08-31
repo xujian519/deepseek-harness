@@ -202,10 +202,14 @@ type SessionEvent<T extends SessionEventType = SessionEventType> = {
     time: number
     data: SessionEventMap[K]
     /**
-     * Envelope marker written via {@link AppendOptions.ignorable}; a reader
-     * that does not recognize `type` may safely skip the record. Absent means
-     * required: the read path refuses an unrecognized type without this
-     * marker instead of silently resuming a gutted session.
+     * Marks an event a reader may safely skip when it does not recognize
+     * `type`. Absent means required: a reader meeting an unrecognized type
+     * without this marker MUST refuse to reconstruct the session instead of
+     * silently dropping the event, because an unrecognized required event may
+     * change how the rest of the log is interpreted. A writer sets `true` only
+     * on purely informational records whose loss cannot affect reconstruction;
+     * defaulting to required means a forgotten marker over-refuses (an
+     * inconvenience) rather than silently resuming a gutted session.
      */
     ignorable?: true
   } & (K extends SurfaceEventType ? {
@@ -425,13 +429,13 @@ declare class Session {
    * @param type - The event type (key of {@link SessionEventMap}).
    * @param data - The event payload; must be JSON-serializable.
    * @param opts - Write options for the event. Surface events REQUIRE a
-   *   {@link SurfaceIntent}: `surfaceOp` controls how the event enters the
-   *   ordered surface and `sourceEventSeqs` lists the seq numbers of earlier
-   *   events this one derives from — the sole source of derived model
-   *   history. Non-surface events accept an optional {@link AppendOptions}
-   *   carrying the `ignorable` skip marker for out-of-repo plugin telemetry.
-   *   The compiler rejects the wrong shape for each kind: surface options on
-   *   log-only types, and append options on message-producing types.
+   * {@link SurfaceIntent}: `surfaceOp` controls how the event enters the
+   * ordered surface and `sourceEventSeqs` lists the seq numbers of earlier
+   * events this one derives from — the sole source of derived model
+   * history. Non-surface events accept an optional {@link AppendOptions}
+   * carrying the `ignorable` skip marker for out-of-repo plugin telemetry.
+   * The compiler rejects the wrong shape for each kind: surface options on
+   * log-only types, and append options on message-producing types.
    * @returns the logged event — its assigned `seq`/`time` plus the SNAPSHOT of
    *   `data` that entered the log, so reading `event.data` back sees the logged
    *   value, never the caller's still-mutable input.
@@ -441,7 +445,7 @@ declare class Session {
    *   Map/Set/Date/class instance), or when the candidate violates the
    *   canonical surface contract (marker shape and eligibility, unique
    *   earlier source-event references, positional replacement validity, and complete
-   *   shadowed-node coverage). One recursive pass reads, validates, and
+   *   shadowed-node coverage). One iterative pass reads, validates, and
    *   copies each nested value once, so a stateful getter cannot supply one value
    *   to validation and another to storage. The event log is the durable source
    *   of truth, so a bad event fails at the append site rather than later during
@@ -667,7 +671,7 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<{ meta: SessionH
  * @param request - path after best-effort Session workspace resolution.
  * @param signal - caller lifetime; abort terminates the native command.
  * @returns confirmation after the native opener accepts the path.
- * @throws TypertRemoteFailure when the request is invalid, cancelled, or the opener fails.
+ * @throws RemoteError when the request is invalid, cancelled, or the opener fails.
  */
 @Remote('openWorkspacePath') async openWorkspacePath( request: SessionOpenWorkspacePathRequest, signal: AbortSignal, ): Promise<SessionOpenWorkspacePathValue>
 

@@ -32,6 +32,7 @@ Cordis 的 `emit` 通过 `Array.map` 遍历监听器：一次同步抛出会让�
 ```ts
 import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { errorMessage } from '@deepseek-ai/dsh-value'
+import type { Context } from '@deepseek-ai/cordis'
 
 declare const ctx: Context
 declare const session: { id: string }
@@ -45,6 +46,8 @@ emitContained(ctx, `session "${session.id}": session/event`, ['session/event', {
 
 ```ts
 import { invokeContained } from '@deepseek-ai/dsh-contained-emit'
+import { errorMessage } from '@deepseek-ai/dsh-value'
+import type { Context } from '@deepseek-ai/cordis'
 
 declare const ctx: Context
 declare const listeners: Array<(owner: unknown) => unknown>

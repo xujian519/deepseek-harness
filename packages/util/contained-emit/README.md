@@ -32,6 +32,7 @@ Use `emitContained` where `ctx.emit` would be called for a non-vetoing notificat
 ```ts
 import { emitContained } from '@deepseek-ai/dsh-contained-emit'
 import { errorMessage } from '@deepseek-ai/dsh-value'
+import type { Context } from '@deepseek-ai/cordis'
 
 declare const ctx: Context
 declare const session: { id: string }
@@ -45,6 +46,8 @@ The log label appears verbatim in both failure kinds: `… listener threw: …` 
 
 ```ts
 import { invokeContained } from '@deepseek-ai/dsh-contained-emit'
+import { errorMessage } from '@deepseek-ai/dsh-value'
+import type { Context } from '@deepseek-ai/cordis'
 
 declare const ctx: Context
 declare const listeners: Array<(owner: unknown) => unknown>

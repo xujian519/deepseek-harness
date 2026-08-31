@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-value",
-  "description": "Zero-dependency value primitives for unknown inputs: object guards, fail-loud positive-number assertions, filesystem errno tests, thrown-value normalization and rendering, and a cycle-safe deep freeze (classification, narrowing, validation, rendering, and immutability, no I/O)",
-  "version": "0.1.2-alpha.1",
+  "description": "Value primitives for unknown inputs: object guards, fail-loud positive-number assertions, filesystem errno tests, thrown-value normalization and rendering (classification, narrowing, validation, and rendering, no I/O); the deep freeze is re-exported from @deepseek-ai/dsh-util-values",
+  "version": "0.1.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -31,6 +31,9 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-util-values": "workspace:^"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^"

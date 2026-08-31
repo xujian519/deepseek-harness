@@ -9,7 +9,8 @@ import z from '@deepseek-ai/schemastery'
 import { createUserMessage, BlockAssembler } from '@deepseek-ai/dsh-llm'
 import type { FinishReason, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { assertPositiveInteger, deepFreeze } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import {
   normalizeSessionTitle,
   SessionTitleProviderId,

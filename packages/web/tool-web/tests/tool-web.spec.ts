@@ -486,12 +486,6 @@ describe('tool-web registration', () => {
     await fiber.dispose()
   })
 
-  it('fails loud when fetch is enabled but no fetch provider is mounted', async () => {
-    await expect(mountTools({ config: { search: false, fetch: true }, fetchProvider: null })).rejects.toThrow(
-      'fetch is enabled but no usable fetch provider is mounted',
-    )
-  })
-
   it('registers web_search even when no provider is available (schema follows enablement, not availability)', async () => {
     const { fiber, ctx, call } = await mountTools()
     expect(ctx.tools.schemas().map(s => s.name)).toContain('web_search')

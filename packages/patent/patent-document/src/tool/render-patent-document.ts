@@ -6,7 +6,8 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { DocumentRenderError } from '../document/errors.ts'
 import { renderPatentDocument } from '../document/renderPatentDocument.ts'

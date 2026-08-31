@@ -6,7 +6,8 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { ClaimChartHandler } from '@deepseek-ai/dsh-patent-core'
 import type { ChartMode, ChartTarget, ClaimChart, PatentModelPort, StageProvider } from '@deepseek-ai/dsh-patent-core'
 import { PatentToolError } from '../error.ts'

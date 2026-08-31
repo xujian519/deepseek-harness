@@ -8,6 +8,7 @@
 
 import { isRecord } from '@deepseek-ai/dsh-value'
 
+/** One evidence receipt produced by a SATI tool call, keyed by its tool-call id. */
 export type SatiEvidenceReceipt = {
   /** 工具调用 id（与 SatiToolResult.toolCallId 对应） */
   toolCallId: string

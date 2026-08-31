@@ -17,7 +17,6 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { PreToolDecision } from '@deepseek-ai/dsh-tools'
-import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 
 import { OpenVikingClient } from './client.ts'
 import type { ClientCredentials } from './client.ts'
@@ -91,14 +90,16 @@ export function apply(ctx: Context, config: Config): void {
   // Optional-settings consumer wiring. No-op when no settings service is
   // mounted (headless profiles, tests). `validate` refuses an endpoint that
   // is not an absolute http(s) URL at the seam boundary.
-  installSettingsSection(ctx, SETTINGS_NAMESPACE, Config, config, {
-    setSource(next) {
-      current = next
-    },
-    onChange() {
-      client.reconfigure(credentialsOf(current()))
-    },
-    validate: (value) => { assertValidEndpoint(value.endpoint) },
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+      setSource(next) {
+        current = next
+      },
+      onChange() {
+        client.reconfigure(credentialsOf(current()))
+      },
+      validate: (value) => { assertValidEndpoint(value.endpoint) },
+    })
   })
 
   // Fail-soft boot: probe the service once in the background and warn once;

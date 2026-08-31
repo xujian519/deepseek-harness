@@ -9,10 +9,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import '@deepseek-ai/dsh-host-plugin-market'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { PLUGIN_MARKET_SYSTEM_PROMPT } from './prompt.ts'
 
 export const name = 'tool-plugin-market'
@@ -47,7 +46,7 @@ async function resolveSource(ctx: Context, sourceId?: string): Promise<string> {
 export function apply(ctx: Context): void {
   ctx.systemPrompt.section({
     name: 'tool:plugin-market',
-    order: FIRST_PARTY_SECTION_ORDER.TOOL_PLUGIN_MARKET,
+    order: ctx.systemPrompt.getSectionOrder('TOOL_PLUGIN_MARKET'),
     text: PLUGIN_MARKET_SYSTEM_PROMPT,
   })
 
