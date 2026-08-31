@@ -317,7 +317,7 @@
 # directory, so a real docket or knowledge base can never be snapshotted or
 # rewritten by the optimize loop. The default seams fork children over the host
 # `subagents` registry, which stays visible from inside the realm.
-- id: self-evolve-benchmark
+- id: self-evolve
   name: cordis:group
   group: true
   isolate:
