@@ -37,6 +37,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-util-values": "workspace:^",
     "@deepseek-ai/dsh-value": "workspace:^"
   },
   "peerDependencies": {
@@ -52,8 +53,5 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^"
-  },
-  "dependencies": {
-    "@deepseek-ai/dsh-util-values": "workspace:^"
   }
 }

@@ -2475,6 +2475,9 @@ importers:
       '@deepseek-ai/dsh-credentials':
         specifier: workspace:^
         version: link:../../credentials/credentials
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -2518,9 +2521,6 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:^
         version: link:../../util/values
-      '@deepseek-ai/dsh-value':
-        specifier: workspace:^
-        version: link:../../util/value
 
   packages/client/hmr:
     dependencies:
@@ -5509,6 +5509,9 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:^
         version: link:../../util/values
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -8698,6 +8701,9 @@ importers:
 
   packages/schedule/schedule:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -9121,6 +9127,9 @@ importers:
 
   packages/session-query/session-query-sqlite:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -9678,6 +9687,9 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:^
         version: link:../../util/values
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -11406,6 +11418,9 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:^
         version: link:../../util/values
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
