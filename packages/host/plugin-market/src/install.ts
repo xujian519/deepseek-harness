@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { InstallPreview, InstallReceipt, ReceiptId } from './index.ts'
+import type { InstallPreview, InstallReceipt, ReceiptId } from './types.ts'
 import { restrictedFetchJson, type RestrictedFetchOptions } from './restricted-fetch.ts'
 
 /** The lifecycle script names a preview reports. */

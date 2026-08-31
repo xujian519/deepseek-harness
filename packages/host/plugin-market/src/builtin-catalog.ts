@@ -7,7 +7,7 @@
  * @module @deepseek-ai/dsh-host-plugin-market/builtin-catalog
  */
 
-import type { CatalogItem, CatalogPage, CatalogQuery, PluginMarketSource, SourceId } from './index.ts'
+import type { CatalogItem, CatalogPage, CatalogQuery, PluginMarketSource, SourceId } from './types.ts'
 
 /** Stable identity of the bundled catalog (host-issued, never a provider's claim). */
 export const BUILTIN_SOURCE_ID = 'builtin-deepseek' as SourceId

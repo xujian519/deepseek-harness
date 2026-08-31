@@ -6,7 +6,7 @@
  * @module @deepseek-ai/dsh-host-plugin-market/catalog
  */
 
-import type { CatalogItem, CatalogPage, CatalogQuery, PluginMarketSource, SourceId } from './index.ts'
+import type { CatalogItem, CatalogPage, CatalogQuery, PluginMarketSource, SourceId } from './types.ts'
 import { catalogProviderPageSchema, catalogSourceManifestSchema } from './catalog-schema.ts'
 import { restrictedFetchJson, type RestrictedFetchOptions } from './restricted-fetch.ts'
 

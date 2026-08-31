@@ -30,6 +30,10 @@
       "types": "./lib/types/provider.d.ts",
       "default": "./lib/types/provider.js"
     },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
     "./restricted-fetch": {
       "types": "./lib/types/restricted-fetch.d.ts",
       "default": "./lib/types/restricted-fetch.js"
