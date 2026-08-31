@@ -49,7 +49,9 @@ function isFigureIndexEntry(value: unknown): value is FigureIndexEntry {
     // 数组字段必须为数组：否则下游检索（components.map 等）会以裸 TypeError 崩溃
     Array.isArray(analysis.components) &&
     Array.isArray(analysis.connections) &&
-    Array.isArray(analysis.warnings)
+    Array.isArray(analysis.warnings) &&
+    // figureFamily 可缺省（旧条目）；存在时必须为字符串，否则跨图续号按名称匹配会拿到非字符串键
+    (analysis.figureFamily === undefined || typeof analysis.figureFamily === 'string')
   )
 }
 

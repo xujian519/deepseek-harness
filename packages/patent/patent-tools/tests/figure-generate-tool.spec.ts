@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -318,6 +318,7 @@ describe('generate_patent_figure tool', () => {
         figure_type: 'component_hierarchy',
         tree: [{ id: 'a', label: 'A', children: [{ id: 'b', label: 'B' }] }],
         numeral_step: 10,
+        leader_lines: false,
       }, 'hs1')
       expect(result.isError).toBe(false)
       expect(calls[0]?.dot).toContain('"a" [label="A (100)"];')
@@ -487,6 +488,542 @@ describe('add_patent_figure_references tool', () => {
       writeFileSync(join(dir, 'bad.svg'), '<!ENTITY x "y"><svg></svg>')
       await expect(tool.execute({ svg_path: 'bad.svg', references: [{ label: 'x', numeral: '1' }] }, exec))
         .rejects.toMatchObject({ code: 'invalid_tool_input' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('leader_lines:true 时改用引线模式（数字外置 + 引线），默认仍内嵌', async () => {
+    const dir = tempDir()
+    const svg = join(dir, 'graph.svg')
+    writeFileSync(svg, [
+      '<svg xmlns="http://www.w3.org/2000/svg">',
+      '<g id="node1" class="node"><title>a</title><polygon points="10,10 10,50 110,50 110,10"/><text text-anchor="middle" x="60" y="34">Input Sensor</text></g>',
+      '</svg>',
+    ].join('\n'))
+    const tool = createAddPatentFigureReferencesTool({ cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const leader = await execute(ctx, 'add_patent_figure_references', {
+        svg_path: 'graph.svg',
+        references: [{ label: 'Input Sensor', numeral: '20' }],
+        leader_lines: true,
+      }, 'a2')
+      expect(leader.isError).toBe(false)
+      const leaderOut = readFileSync(join(dir, 'graph_annotated.svg'), 'utf8')
+      expect(leaderOut).toContain('<line ')
+      expect(leaderOut).toContain('>20</text>')
+      expect(leaderOut).toContain('>Input Sensor<')
+      expect(leaderOut).not.toContain('(20)')
+      expect((valueOf(leader) as { warnings: string[] }).warnings).toEqual([])
+
+      const inline = await execute(ctx, 'add_patent_figure_references', {
+        svg_path: 'graph.svg',
+        references: [{ label: 'Input Sensor', numeral: '20' }],
+      }, 'a3')
+      expect(inline.isError).toBe(false)
+      expect(readFileSync(join(dir, 'graph_annotated.svg'), 'utf8')).toContain('Input Sensor (20)')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure submission layout', () => {
+  it('未配置页面参数时 DOT 不含布局属性（零回归）', async () => {
+    const dir = tempDir()
+    try {
+      const { render, calls } = okRenderer(dir)
+      const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+      await tool.execute({ figure_type: 'flowchart', steps: flowSteps, persist_index: false }, exec)
+      const dot = calls[0]?.dot ?? ''
+      expect(dot).not.toContain('page=')
+      expect(dot).not.toContain('dpi=')
+      expect(dot).not.toContain('orientation=')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('依赖默认值（Config 通路）写入 page/size/margin/dpi', async () => {
+    const dir = tempDir()
+    try {
+      const { render, calls } = okRenderer(dir)
+      const tool = createGeneratePatentFigureTool({
+        render,
+        outputDir: dir,
+        cwd: dir,
+        pageSize: 'a4',
+        dpi: 300,
+        marginCm: 2.5,
+      })
+      await tool.execute({ figure_type: 'flowchart', steps: flowSteps, persist_index: false }, exec)
+      const dot = calls[0]?.dot ?? ''
+      expect(dot).toContain('page="8.27,11.69";')
+      expect(dot).toContain('size="6.3,9.72";')
+      expect(dot).toContain('margin="0.98,0.98";')
+      expect(dot).toContain('dpi=300;')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('per-call 覆盖逐项优先于依赖默认值', async () => {
+    const dir = tempDir()
+    try {
+      const { render, calls } = okRenderer(dir)
+      const tool = createGeneratePatentFigureTool({
+        render,
+        outputDir: dir,
+        cwd: dir,
+        pageSize: 'a4',
+        dpi: 300,
+        marginCm: 2.5,
+        orientation: 'portrait',
+      })
+      await tool.execute({
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        persist_index: false,
+        page_size: 'letter',
+        dpi: 600,
+        margin: 1.27,
+        orient: 'landscape',
+      }, exec)
+      const dot = calls[0]?.dot ?? ''
+      expect(dot).toContain('page="11,8.5";')
+      expect(dot).toContain('orientation=landscape;')
+      expect(dot).toContain('dpi=600;')
+      expect(dot).toContain('margin="0.5,0.5";')
+      expect(dot).not.toContain('dpi=300;')
+      expect(dot).not.toContain('"8.27')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('per-call 部分覆盖：仅 orient 时页面尺寸沿用默认', async () => {
+    const dir = tempDir()
+    try {
+      const { render, calls } = okRenderer(dir)
+      const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir, pageSize: 'a4' })
+      await tool.execute({ figure_type: 'block_diagram', blocks: [{ id: 'a', label: 'A' }], connections: [], orient: 'landscape', persist_index: false }, exec)
+      const dot = calls[0]?.dot ?? ''
+      expect(dot).toContain('page="11.69,8.27";')
+      expect(dot).toContain('orientation=landscape;')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('非法 dpi 在工具层映射 invalid_tool_input', async () => {
+    const dir = tempDir()
+    try {
+      const { render } = okRenderer(dir)
+      const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ figure_type: 'flowchart', steps: flowSteps, dpi: -5, persist_index: false }, exec))
+        .rejects.toMatchObject({ code: 'invalid_tool_input' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure leader lines', () => {
+  const blockInput = {
+    figure_type: 'block_diagram',
+    blocks: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+    connections: [{ from: 'a', to: 'b' }],
+    persist_index: false,
+  } as const
+
+  /** fake renderer：SVG 输出带 Graphviz 节点组结构（title/polygon/ellipse/text），供引线解析。 */
+  function graphSvgRenderer(): { render: (spec: GraphvizRenderSpec) => Promise<GraphvizRenderOutcome>; calls: GraphvizRenderSpec[] } {
+    const calls: GraphvizRenderSpec[] = []
+    return {
+      calls,
+      render: (spec) => {
+        calls.push(spec)
+        const out = join(spec.outputDir, `${spec.filename}.${spec.format}`)
+        if (spec.format === 'svg') {
+          writeFileSync(out, [
+            '<svg xmlns="http://www.w3.org/2000/svg">',
+            '<g id="node1" class="node"><title>a</title><polygon points="10,10 10,50 110,50 110,10"/><text text-anchor="middle" x="60" y="34">A</text></g>',
+            '<g id="node2" class="node"><title>b</title><ellipse cx="60" cy="85" rx="45" ry="18"/><text text-anchor="middle" x="60" y="89">B</text></g>',
+            '</svg>',
+          ].join('\n'))
+        } else {
+          writeFileSync(out, 'png-bytes')
+        }
+        return Promise.resolve({ ok: true, path: out })
+      },
+    }
+  }
+
+  it('框图 SVG 默认改用引线标号：DOT 无内嵌标号，SVG 含 <line> 与图外数字', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render, calls } = graphSvgRenderer()
+      const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', blockInput, 'll1')
+      expect(result.isError).toBe(false)
+      const dot = calls[0]?.dot ?? ''
+      expect(dot).toContain('"a" [label="A", shape=box];')
+      expect(dot).not.toContain('(100)')
+      const svg = readFileSync(join(outDir, 'fig1.svg'), 'utf8')
+      expect(svg).toContain('<line ')
+      expect(svg).toContain('>100</text>')
+      expect(svg).toContain('>A<')
+      expect(svg).not.toContain('(100)')
+      expect((valueOf(result) as { warnings: string[] }).warnings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('流程图默认保持内嵌 NNN. 前缀且无引线', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render, calls } = graphSvgRenderer()
+      const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: flowSteps,
+        persist_index: false,
+      }, 'll2')
+      expect(result.isError).toBe(false)
+      expect(calls[0]?.dot).toContain('"start" [label="100. 开始", shape=ellipse];')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).not.toContain('<line ')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('leader_lines:false 显式关闭框图引线，恢复内嵌标号', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render, calls } = graphSvgRenderer()
+      const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', { ...blockInput, leader_lines: false }, 'll3')
+      expect(result.isError).toBe(false)
+      expect(calls[0]?.dot).toContain('"a" [label="A (100)", shape=box];')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).not.toContain('<line ')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('流程图显式 leader_lines:true 时去除前缀并画引线', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render, calls } = graphSvgRenderer()
+      const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'flowchart',
+        steps: [
+          { id: 'start', label: 'A', shape: 'ellipse' as const, next: ['s1'] },
+          { id: 's1', label: 'B', next: [] },
+        ],
+        leader_lines: true,
+        persist_index: false,
+      }, 'll4')
+      expect(result.isError).toBe(false)
+      expect(calls[0]?.dot).toContain('"start" [label="A", shape=ellipse];')
+      expect(calls[0]?.dot).not.toContain('100. ')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('<line ')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('非 SVG 格式请求引线时返回警告且照常产出工件', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render } = graphSvgRenderer()
+      const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', { ...blockInput, format: 'png', leader_lines: true }, 'll5')
+      expect(result.isError).toBe(false)
+      const value = (valueOf(result) as { path: string; warnings: string[] })
+      expect(value.warnings).toEqual(['引线标号仅支持 SVG 矢量输出；本次 png 保持内嵌标号'])
+      expect(value.path).toBe('figs/fig1.png')
+      expect(readFileSync(join(outDir, 'fig1.png'), 'utf8')).toBe('png-bytes')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('标注校验被拒时降级为警告（不吞掉渲染产物）', async () => {
+    const dir = tempDir()
+    try {
+      const render = (spec: GraphvizRenderSpec) => {
+        const out = join(spec.outputDir, `${spec.filename}.${spec.format}`)
+        writeFileSync(out, '<!ENTITY x "y"><svg></svg>')
+        return Promise.resolve({ ok: true, path: out } as const)
+      }
+      const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'block_diagram',
+        blocks: [{ id: 'a', label: 'A' }],
+        connections: [],
+        leader_lines: true,
+        persist_index: false,
+      }, 'll6')
+      expect(result.isError).toBe(false)
+      expect((valueOf(result) as { warnings: string[] }).warnings).toEqual(['引线标注被跳过：SVG 包含 ENTITY/CDATA 等不安全结构，拒绝处理'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('渲染产物缺失（无法读回标注）时保持 loud 失败', async () => {
+    const dir = tempDir()
+    try {
+      const render = (spec: GraphvizRenderSpec) =>
+        Promise.resolve({ ok: true, path: join(spec.outputDir, `${spec.filename}.${spec.format}`) } as const)
+      const tool = createGeneratePatentFigureTool({ render, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ ...blockInput, leader_lines: true }, exec)).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure figure type inference', () => {
+  it('从唯一结构输入推断图型（steps/blocks/tree/dot/template）', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({ render: okRenderer(outDir).render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const cases = [
+        [{ steps: flowSteps }, 'flowchart'],
+        [{ blocks: [{ id: 'a', label: 'A' }] }, 'block_diagram'],
+        [{ tree: [{ id: 'root', label: '根' }] }, 'structure'],
+        [{ dot: 'digraph { a -> b }' }, 'unknown'],
+        [{ template: 'simple_flowchart' }, 'schematic'],
+      ] as const
+      for (const [index, [args, expected]] of cases.entries()) {
+        const result = await execute(ctx, 'generate_patent_figure', args, `infer-${index}`)
+        expect(result.isError).toBe(false)
+        expect((valueOf(result) as { figureType: string }).figureType).toBe(expected)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('多结构输入或无输入且缺省 figure_type 时报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const tool = createGeneratePatentFigureTool({ render: okRenderer(dir).render, outputDir: dir, cwd: dir })
+    try {
+      await expect(tool.execute({ steps: flowSteps, blocks: [{ id: 'a', label: 'A' }] }, exec)).rejects.toThrow('请显式传入 figure_type')
+      await expect(tool.execute({}, exec)).rejects.toThrow('请显式传入 figure_type')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure panels', () => {
+  const twoPanels = {
+    panels: [
+      { suffix: 'A', blocks: [{ id: 'sensor', label: '温度传感器' }, { id: 'controller', label: '控制器' }] },
+      { suffix: 'B', blocks: [{ id: 'alarm', label: '报警器' }] },
+    ],
+    invention_name: '一种监控系统',
+  }
+
+  it('两面板共享连续标号系列并写 fig1A/fig1B', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const { render, calls } = okRenderer(outDir)
+    const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', twoPanels, 'panels-1')
+      expect(result.isError).toBe(false)
+      const value = valueOf(result) as {
+        path: string
+        panels: { suffix: string; path: string }[]
+        numeralMap: { numeral: string; label: string }[]
+        figureDescription: string
+      }
+      expect(value.panels.map(p => p.path)).toEqual(['figs/fig1A.svg', 'figs/fig1B.svg'])
+      expect(value.path).toBe('figs/fig1A.svg')
+      const numeralByLabel = Object.fromEntries(value.numeralMap.map(m => [m.label, m.numeral]))
+      expect(numeralByLabel['温度传感器']).toBe('100')
+      expect(numeralByLabel['控制器']).toBe('102')
+      expect(numeralByLabel['报警器']).toBe('104')
+      expect(new Set(value.numeralMap.map(m => m.numeral)).size).toBe(value.numeralMap.length)
+      expect(value.figureDescription).toContain('图1A是')
+      expect(value.figureDescription).toContain('图1B是')
+      expect(value.figureDescription).toContain('图中：100-温度传感器，102-控制器，104-报警器。')
+      expect(existsSync(join(outDir, 'fig1A.svg'))).toBe(true)
+      expect(existsSync(join(outDir, 'fig1B.svg'))).toBe(true)
+      expect(calls.map(c => c.filename)).toEqual(['fig1A', 'fig1B'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('panels 与顶层结构输入/空列表/非法后缀/filename/歧义面板图型均拒绝', async () => {
+    const dir = tempDir()
+    const tool = createGeneratePatentFigureTool({ render: okRenderer(dir).render, outputDir: dir, cwd: dir })
+    try {
+      await expect(tool.execute({ ...twoPanels, steps: flowSteps }, exec)).rejects.toThrow('顶层结构输入')
+      await expect(tool.execute({ panels: [] }, exec)).rejects.toThrow('不能为空列表')
+      await expect(tool.execute({ panels: [{ suffix: '../x', blocks: [{ id: 'a', label: 'A' }] }] }, exec)).rejects.toThrow('面板后缀')
+      await expect(tool.execute({ ...twoPanels, filename: 'custom' }, exec)).rejects.toThrow('filename')
+      await expect(tool.execute({
+        panels: [{ suffix: 'A', steps: flowSteps, blocks: [{ id: 'a', label: 'A' }] }],
+      }, exec)).rejects.toThrow('面板 A')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_patent_figure figure family continuation', () => {
+  const blocksOf = (...ids: { id: string; label: string }[]) => ({
+    figure_type: 'block_diagram' as const,
+    leader_lines: false,
+    blocks: ids,
+  })
+
+  function familyTool(dir: string, outDir: string, entries: FigureIndexEntry[]) {
+    const { render } = okRenderer(outDir)
+    return createGeneratePatentFigureTool({
+      render,
+      outputDir: outDir,
+      cwd: dir,
+      upsertIndex: async entry => void entries.push(entry),
+      loadIndex: () => Promise.resolve([...entries]),
+    })
+  }
+
+  function numeralOf(value: unknown, label: string): string {
+    const map = (value as { numeralMap: { numeral: string; label: string }[] }).numeralMap
+    const match = map.find(m => m.label === label)
+    expect(match, `组件 ${label} 应在标号表中`).toBeDefined()
+    return match?.numeral ?? ''
+  }
+
+  it('声明家族后同名组件沿用标号、新组件续接空闲号', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const entries: FigureIndexEntry[] = []
+    const tool = familyTool(dir, outDir, entries)
+    const ctx = await ctxWith(tool)
+    try {
+      const gen1 = await execute(ctx, 'generate_patent_figure', {
+        ...blocksOf({ id: 'sensor', label: '温度传感器' }, { id: 'controller', label: '控制器' }),
+        figure_family: 'acme',
+      }, 'fam-1')
+      expect(gen1.isError).toBe(false)
+      const v1 = valueOf(gen1) as { numeralMap: unknown[] }
+      expect(numeralOf(v1, '温度传感器')).toBe('100')
+      expect(numeralOf(v1, '控制器')).toBe('102')
+      expect(entries[0]?.analysis.figureFamily).toBe('acme')
+
+      const gen2 = await execute(ctx, 'generate_patent_figure', {
+        ...blocksOf({ id: 'controller', label: '控制器' }, { id: 'alarm', label: '报警器' }),
+        figure_number: 2,
+        figure_family: 'acme',
+      }, 'fam-2')
+      expect(gen2.isError).toBe(false)
+      const v2 = valueOf(gen2) as { numeralMap: unknown[] }
+      // 同名组件沿用既有标号；新组件取本图系列起点（200），不与家族保留号（100）冲突。
+      expect(numeralOf(v2, '控制器')).toBe('102')
+      expect(numeralOf(v2, '报警器')).toBe('200')
+      expect(entries[1]?.analysis.figureFamily).toBe('acme')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未声明家族时全新编号，旧索引不生效', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const entries: FigureIndexEntry[] = []
+    const tool = familyTool(dir, outDir, entries)
+    const ctx = await ctxWith(tool)
+    try {
+      const gen1 = await execute(ctx, 'generate_patent_figure', {
+        ...blocksOf({ id: 'sensor', label: '温度传感器' }),
+        figure_family: 'acme',
+      }, 'fam-3')
+      expect(gen1.isError).toBe(false)
+      const gen2 = await execute(ctx, 'generate_patent_figure', {
+        ...blocksOf({ id: 'sensor', label: '温度传感器' }),
+      }, 'fam-4')
+      expect(gen2.isError).toBe(false)
+      // 第二次调用未声明家族：即使索引里已有同名组件，也按本图系列全新编号。
+      expect(numeralOf(valueOf(gen2), '温度传感器')).toBe('100')
+      expect(entries[1]?.analysis.figureFamily).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('旧索引条目（无 figureFamily）不参与续号也不报错', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const legacy: FigureIndexEntry = {
+      imagePath: 'figs/fig1.svg',
+      analyzedAt: '2024-01-01T00:00:00.000Z',
+      analysis: {
+        imagePath: 'figs/fig1.svg',
+        figureNumber: 1,
+        figureType: 'block_diagram',
+        overallDescription: '整体结构',
+        components: [{ refNumber: '100', name: '温度传感器', kind: 'sensor', description: '测温' }],
+        connections: [],
+        figureDescription: '图1是本发明实施例提供的装置的方框图；图中：100-温度传感器。',
+        confidence: 1,
+        warnings: [],
+        usable: true,
+        modelUsed: 'm',
+      },
+    }
+    const tool = createGeneratePatentFigureTool({
+      render: okRenderer(outDir).render,
+      outputDir: outDir,
+      cwd: dir,
+      loadIndex: () => Promise.resolve([legacy]),
+    })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        ...blocksOf({ id: 'sensor', label: '温度传感器' }),
+        figure_family: 'acme',
+      }, 'fam-5')
+      expect(result.isError).toBe(false)
+      // 旧条目属于「无家族」：即使组件同名也不沿用，按本图系列全新编号。
+      expect(numeralOf(valueOf(result), '温度传感器')).toBe('100')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('声明 figure_family 而宿主未注入 loadIndex 时报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const tool = createGeneratePatentFigureTool({ render: okRenderer(dir).render, outputDir: dir, cwd: dir })
+    try {
+      await expect(tool.execute({
+        ...blocksOf({ id: 'sensor', label: '温度传感器' }),
+        figure_family: 'acme',
+      }, exec)).rejects.toThrow('loadIndex')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

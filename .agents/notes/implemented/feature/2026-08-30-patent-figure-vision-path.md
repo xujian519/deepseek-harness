@@ -21,7 +21,7 @@ Model-visible ⟺ logged holds without new session events: the logged tool argum
 
 ## Alternatives considered
 
-**Port the two-step Sati PatentVision/PatentLMM engine.** Deferred as before: single-step through the harness route covers the figure-description workflow; multi-figure consistency and electrical netlists stay out of scope.
+**Port the two-step Sati PatentVision/PatentLMM engine.** The mode now exists behind the [FigureAnalysisEngine seam](2026-08-31-patent-figure-rendering-pipeline.md) (`Config.figureAnalysisMode`, default `single`); multi-figure consistency ships as multi-panel output plus family continuation in the same change; electrical netlists remain deferred.
 
 **Inline base64 in the patent request vocabulary.** Rejected: it would fork a second image path beside the attachment pipeline and lose admission, normalization, and per-route policy.
 

@@ -2488,7 +2488,7 @@ document_deliver records the delivered files (path + format), the P0/P1 quality-
 
 ### `add_patent_figure_references`
 
-为已有 SVG 附图追加专利参考标号：按组件文本匹配，在匹配文本末尾追加「 (标号)」，输出 *_annotated.svg（不改动原图）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。
+为已有 SVG 附图追加专利参考标号：按组件文本匹配标注，输出 *_annotated.svg（不改动原图）。默认在匹配文本末尾内嵌「 (标号)」；leader_lines=true 时改用引线模式，标号置于组件外侧并以引线相连（仅 Graphviz/同构节点组 SVG 支持）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。
 
 匹配规则：子串匹配（大小写不敏感）；每个文本元素至多命中一个参考；同名组件出现在多个位置时全部同号标注；未命中的参考列为警告返回。
 
@@ -2525,6 +2525,10 @@ document_deliver records the delivered files (path + format), the P0/P1 quality-
     "output_filename": {
       "type": "string",
       "description": "输出文件名（不含扩展名，默认 <原名>_annotated）"
+    },
+    "leader_lines": {
+      "type": "boolean",
+      "description": "true 时改用引线模式（标号置于组件外侧并以引线相连）；默认 false 内嵌「 (标号)」"
     }
   },
   "required": [
@@ -3074,9 +3078,15 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 生成专利风格附图：流程图（方法步骤）、系统框图（组件+连接）、组件层级图、内置模板或原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。
 
-标号体系：每图独立 100 系列（FIG.1=100-199、FIG.2=200-299，默认步进 2，可调）；同一组件跨图出现时用 numerals 显式传入沿用同号。
+标号体系：每图独立 100 系列（FIG.1=100-199、FIG.2=200-299，默认步进 2，可调）；同一组件跨图出现时用 numerals 显式传入沿用同号，或声明 figure_family 自动续号（同名组件沿用既有标号、新组件取空闲号；缺省每图独立编号）。
+
+图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。
+
+多面板：panels 一次生成 FIG.1A/1B 等多张面板（每面板独立文件 figN+后缀，如 A → fig1A.svg），全部面板组件共享一条连续标号系列，附图说明合并输出。
 
 色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用墨色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用。
+
+引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。
 
 本机未安装 Graphviz 时返回 setup_required 与安装引导。
 
@@ -3086,7 +3096,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   "properties": {
     "figure_type": {
       "type": "string",
-      "description": "图型。",
+      "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、blocks→block_diagram、tree→component_hierarchy、dot→raw_dot、template→template），多输入或无输入须显式指定",
       "enum": [
         "flowchart",
         "block_diagram",
@@ -3254,6 +3264,198 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
       "type": "string",
       "description": "原始 Graphviz DOT（figure_type=raw_dot）"
     },
+    "panels": {
+      "type": "array",
+      "description": "多面板模式：一次生成多张共享标号系列的面板（fig1A/fig1B…）；与顶层结构输入互斥，列表不可为空",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "suffix": {
+            "type": "string",
+            "description": "面板后缀（字母/数字/下划线/连字符；写入 figN+后缀，如 A → fig1A.svg）"
+          },
+          "figure_type": {
+            "type": "string",
+            "description": "面板图型；缺省从该面板唯一结构输入推断",
+            "enum": [
+              "flowchart",
+              "block_diagram",
+              "component_hierarchy",
+              "raw_dot",
+              "template"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "description": "面板流程步骤",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "步骤标识（[A-Za-z0-9_-]，自动清洗）"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "步骤显示文本"
+                },
+                "shape": {
+                  "type": "string",
+                  "description": "box（默认）/ellipse/diamond/parallelogram/cylinder",
+                  "enum": [
+                    "box",
+                    "ellipse",
+                    "diamond",
+                    "parallelogram",
+                    "cylinder"
+                  ]
+                },
+                "next": {
+                  "type": "array",
+                  "description": "后继：字符串 id，或 {id,label}（判断分支必须带边标签）",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "next"
+              ]
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "description": "面板框图块",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "块名（\\n 换行）"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "input/output/process/storage/decision/default",
+                  "enum": [
+                    "input",
+                    "output",
+                    "process",
+                    "storage",
+                    "decision",
+                    "default"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "connections": {
+            "type": "array",
+            "description": "面板框图连接（blocks 面板）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "数据流说明（可选）"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            }
+          },
+          "tree": {
+            "type": "array",
+            "description": "面板组件层级树",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "template": {
+            "type": "string",
+            "description": "面板内置模板",
+            "enum": [
+              "simple_flowchart",
+              "system_block",
+              "method_steps",
+              "component_hierarchy"
+            ]
+          },
+          "dot": {
+            "type": "string",
+            "description": "面板原始 DOT"
+          },
+          "numerals": {
+            "type": "object",
+            "description": "面板显式标号（组件 id → 标号；优先于顶层 numerals）",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "suffix"
+        ]
+      }
+    },
     "figure_number": {
       "type": "integer",
       "description": "图号，默认 1（决定标号系列起点）"
@@ -3274,6 +3476,10 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "numeral_step": {
       "type": "integer",
       "description": "标号步进，默认 2"
+    },
+    "figure_family": {
+      "type": "string",
+      "description": "发明家族标识（跨图续号）：声明后同名组件沿用既有标号、新组件续接空闲号；缺省每图独立编号"
     },
     "style": {
       "type": "string",
@@ -3308,14 +3514,39 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
         "sfdp"
       ]
     },
+    "page_size": {
+      "type": "string",
+      "description": "页面尺寸（提交规格）；默认取部署配置",
+      "enum": [
+        "a4",
+        "letter"
+      ]
+    },
+    "orient": {
+      "type": "string",
+      "description": "页面方向；默认 portrait，取部署配置",
+      "enum": [
+        "portrait",
+        "landscape"
+      ]
+    },
+    "dpi": {
+      "type": "integer",
+      "description": "渲染分辨率（png 栅格生效）；默认取部署配置"
+    },
+    "margin": {
+      "type": "number",
+      "description": "页边距（厘米，四边同值）；默认取部署配置"
+    },
+    "leader_lines": {
+      "type": "boolean",
+      "description": "引线标号（数字置于部件外侧并以引线相连，仅 SVG 生效）；默认框图/层级图开启、流程图关闭"
+    },
     "persist_index": {
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
     }
-  },
-  "required": [
-    "figure_type"
-  ]
+  }
 }
 ```
 

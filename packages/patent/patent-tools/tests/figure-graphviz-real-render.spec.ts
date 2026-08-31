@@ -7,7 +7,9 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { buildBlockDiagramDOT, buildFlowchartDOT, getDiagramTemplate } from '../src/figure/dot-builder.ts'
 import { findDot, renderWithGraphviz } from '../src/figure/graphviz-renderer.ts'
+import { renderWithVizWasm } from '../src/figure/viz-wasm-renderer.ts'
 import { annotateSvg } from '../src/figure/svg-annotate.ts'
+import { annotateSvgWithLeaderLines } from '../src/figure/leader-line.ts'
 
 /**
  * 真实 Graphviz 端到端 smoke：仅在本机装有 dot 时运行（无 dot 环境全组跳过）。
@@ -174,5 +176,80 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
 
   afterAll(() => {
     rmSync(outDir, { recursive: true, force: true })
+  })
+})
+
+/** 内置 WASM 引擎可用性（随依赖打包，正常恒可用；资产损坏时整组跳过）。 */
+const vizAvailable = await import('@viz-js/viz')
+  .then(async (module) => { await module.instance(); return true })
+  .catch(() => false)
+
+describe.skipIf(!vizAvailable)('real WASM rendering (bundled @viz-js/viz, no `dot` binary needed)', () => {
+  // 独立临时目录：上方 CLI describe 的 afterAll 会删除它自己的 outDir。
+  const wasmOutDir = mkdtempSync(join(tmpdir(), 'dsh-figwasm-'))
+  it('renders a CJK block diagram to SVG through the bundled engine and annotates it', async () => {
+    const outcome = await renderWithVizWasm({
+      dot: buildBlockDiagramDOT(
+        [
+          { id: 'sensor', label: '温度传感器', type: 'input' },
+          { id: 'ctrl', label: '控制单元', type: 'process' },
+          { id: 'out', label: '显示装置', type: 'output' },
+        ],
+        [
+          { from: 'sensor', to: 'ctrl', label: '信号' },
+          { from: 'ctrl', to: 'out', label: '结果' },
+        ],
+        { figureNumber: 1, fontName: CJK_FONT },
+      ),
+      filename: 'wasm_cjk_block',
+      format: 'svg',
+      engine: 'dot',
+      outputDir: wasmOutDir,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    const svg = readFileSync(outcome.path, 'utf8')
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('温度传感器 (100)')
+    expect(statSync(outcome.path).size).toBeGreaterThan(1000)
+    // 与 CLI 渲染同一链路：SVG 后处理标注在 WASM 输出上同样可用（Phase 0：两引擎结构一致）。
+    const annotated = annotateSvg(svg, [
+      { label: '控制单元', numeral: '20' },
+    ])
+    expect(annotated.svg).toContain('控制单元 (102) (20)')
+    expect(annotated.warnings).toEqual([])
+  })
+
+  it('draws leader-line numerals on a real WASM-rendered figure (embedNumerals:false pipeline)', async () => {
+    const outcome = await renderWithVizWasm({
+      dot: buildBlockDiagramDOT(
+        [
+          { id: 'sensor', label: '温度传感器', type: 'input' },
+          { id: 'ctrl', label: '控制单元', type: 'process' },
+        ],
+        [{ from: 'sensor', to: 'ctrl', label: '信号' }],
+        { figureNumber: 1, fontName: CJK_FONT, embedNumerals: false },
+      ),
+      filename: 'wasm_leader_block',
+      format: 'svg',
+      engine: 'dot',
+      outputDir: wasmOutDir,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    const annotated = annotateSvgWithLeaderLines(readFileSync(outcome.path, 'utf8'), [
+      { label: '温度传感器', numeral: '100' },
+      { label: '控制单元', numeral: '102' },
+    ])
+    expect(annotated.svg).toContain('<line ')
+    expect(annotated.svg).toContain('>100</text>')
+    expect(annotated.svg).toContain('>102</text>')
+    expect(annotated.svg).toContain('>温度传感器<')
+    expect(annotated.svg).not.toContain('(100)')
+    expect(annotated.warnings).toEqual([])
+  })
+
+  afterAll(() => {
+    rmSync(wasmOutDir, { recursive: true, force: true })
   })
 })

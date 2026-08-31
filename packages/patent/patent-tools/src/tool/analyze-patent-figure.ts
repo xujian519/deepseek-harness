@@ -29,6 +29,7 @@ import { collectPortText, tryParseJson } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import type { ModelModality } from '@deepseek-ai/dsh-llm'
 import { checkImageCapability } from '../figure/image-capability.ts'
+import type { FigureAnalysisEngine } from '../figure/analysis-engine.ts'
 import { PatentToolError } from '../error.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
 
@@ -60,7 +61,7 @@ export const FIGURE_TYPE_NAMES: Record<FigureType, string> = {
 }
 
 /** 组件类型（PatentVision ComponentType 对齐）。 */
-const FIGURE_COMPONENT_KINDS = [
+export const FIGURE_COMPONENT_KINDS = [
   'mechanical',
   'electrical',
   'software',
@@ -75,7 +76,7 @@ const FIGURE_COMPONENT_KINDS = [
 export type FigureComponentKind = (typeof FIGURE_COMPONENT_KINDS)[number]
 
 /** 组件连接关系类型。 */
-const FIGURE_CONNECTION_KINDS = ['electrical', 'mechanical', 'data_flow', 'unknown'] as const
+export const FIGURE_CONNECTION_KINDS = ['electrical', 'mechanical', 'data_flow', 'unknown'] as const
 
 /** Connection kind (electrical / mechanical / data_flow / unknown). */
 export type FigureConnectionKind = (typeof FIGURE_CONNECTION_KINDS)[number]
@@ -133,6 +134,8 @@ export type FigureAnalysisResult = {
   usable: boolean
   /** 实际使用的模型标识。 */
   modelUsed: string
+  /** 发明家族标识（generate_patent_figure 声明 figure_family 时记录，跨图续号的检索键；旧条目可缺省）。 */
+  figureFamily?: string
 }
 
 /** Input for the analyze_patent_figure tool. */
@@ -181,6 +184,12 @@ export type AnalyzePatentFigureDeps = {
    * still returns.
    */
   upsertIndex?: (entry: FigureIndexEntry) => Promise<void>
+  /**
+   * Analysis engine implementing the FigureAnalysisEngine seam (figure mode
+   * selection lives at the composition site). Absent → the default single-step
+   * engine wraps the existing single-pass logic unchanged.
+   */
+  analysisEngine?: FigureAnalysisEngine
 }
 
 /** 附图扩展名 → 附件媒体类型（入库时按字节校验，声明不符即拒绝）。 */
@@ -335,7 +344,12 @@ const COMBINED_SCHEMA = {
   },
 } as const
 
-function formatContext(claimContext: string | undefined): string {
+/**
+ * Format the claim-context block shared by the single- and two-step prompts.
+ * @param claimContext - the user-supplied claim/solution text (may be absent).
+ * @returns the formatted prompt block (absent → an explicit "not provided" placeholder).
+ */
+export function formatContext(claimContext: string | undefined): string {
   return claimContext && claimContext.trim().length > 0
     ? `\n【权利要求/技术方案上下文】\n${claimContext.trim().slice(0, 4000)}`
     : '\n【权利要求/技术方案上下文】\n（未提供）'
@@ -416,8 +430,13 @@ function normalizeConnections(raw: unknown, refNumbers: Set<string>): FigureConn
   return connections
 }
 
-/** Parse + normalize the model's raw text into a FigureAnalysisResult (degraded path never throws). */
-function normalizeFigureAnalysis(
+/**
+ * Parse + normalize the model's raw text into a FigureAnalysisResult (degraded path never throws).
+ * @param raw - the model's raw text output for one analysis pass.
+ * @param opts - image path / figure number / invention name / model label for the result.
+ * @returns the normalized result; unparseable output degrades to unknown type + empty components + a warning.
+ */
+export function normalizeFigureAnalysis(
   raw: string,
   opts: { imagePath: string; figureNumber: number; inventionName: string | undefined; modelUsed: string },
 ): FigureAnalysisResult {
@@ -467,6 +486,23 @@ function normalizeFigureAnalysis(
     warnings: [...new Set(warnings)],
     usable: components.length > 0,
     modelUsed: opts.modelUsed,
+  }
+}
+
+/** 默认单步分析引擎：包装既有单步逻辑（一次模型调用），未注入引擎时零行为变化。 */
+function singleStepAnalysisEngine(model: PatentModelPort): FigureAnalysisEngine {
+  return {
+    kind: 'single-step',
+    async analyze(request, signal) {
+      const prompt = buildFigureAnalysisPrompt(request.figureNumber, request.claimContext, request.inventionName, request.imagePath)
+      const raw = await collectPortText(model, prompt, signal, { images: [request.image] })
+      return normalizeFigureAnalysis(raw, {
+        imagePath: request.imagePath,
+        figureNumber: request.figureNumber,
+        inventionName: request.inventionName,
+        modelUsed: request.modelUsed,
+      })
+    },
   }
 }
 
@@ -612,10 +648,22 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
       }
 
       const figureNumber = args.figure_number ?? 1
-      const prompt = buildFigureAnalysisPrompt(figureNumber, args.claim_context, args.invention_name, args.image_path)
-      let raw: string
+      // 分析引擎按部署模式在组合点注入（figureAnalysisMode）；缺省为包装既有
+      // 单步逻辑的默认引擎。门控与附件入库在引擎之前完成，与模式无关。
+      const engine = deps.analysisEngine ?? singleStepAnalysisEngine(deps.imageModel)
+      let result: FigureAnalysisResult
       try {
-        raw = await collectPortText(deps.imageModel, prompt, exec.signal, { images: [ref] })
+        result = await engine.analyze(
+          {
+            image: ref,
+            figureNumber,
+            imagePath: args.image_path,
+            ...(args.claim_context === undefined ? {} : { claimContext: args.claim_context }),
+            inventionName: args.invention_name,
+            modelUsed: deps.modelUsed ?? `${route.provider}/${route.model}`,
+          },
+          exec.signal,
+        )
       } catch (error) {
         if (exec.signal.aborted) {
           throw new PatentToolError('tool_aborted', 'analyze_patent_figure aborted', { tool: 'analyze_patent_figure' })
@@ -626,12 +674,6 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
           { tool: 'analyze_patent_figure' },
         )
       }
-      const result = normalizeFigureAnalysis(raw, {
-        imagePath: args.image_path,
-        figureNumber,
-        inventionName: args.invention_name,
-        modelUsed: deps.modelUsed ?? `${route.provider}/${route.model}`,
-      })
       if (deps.upsertIndex !== undefined) {
         try {
           await deps.upsertIndex({

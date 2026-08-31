@@ -43,8 +43,12 @@ export type SvgAnnotateResult = {
 /** 默认 SVG 输入大小上限（字节）。 */
 export const DEFAULT_SVG_MAX_BYTES = 2_000_000
 
-/** 转义 XML 文本（插入内容仅允许出现在文本节点）。 */
-function escapeXmlText(text: string): string {
+/**
+ * 转义 XML 文本（插入内容仅允许出现在文本节点）。
+ * @param text - 待转义原文。
+ * @returns 文本节点安全的转义结果。
+ */
+export function escapeXmlText(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -63,8 +67,14 @@ function decodeEntities(text: string): string {
     .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
 }
 
-/** 检查 SVG 文本中的不安全结构（实体定义/CDATA）。 */
-function assertSafeSvg(svgText: string, maxBytes: number): void {
+/**
+ * 检查 SVG 文本中的不安全结构（实体定义/CDATA）、大小与根元素——
+ * SVG 后处理模块（annotateSvg / leader-line）共享的输入安全校验。
+ * @param svgText - 原始 SVG 文本。
+ * @param maxBytes - 输入大小上限（字节）。
+ * @throws SvgAnnotateError 校验不通过时（unsafe_svg / too_large / invalid_svg）。
+ */
+export function assertSafeSvg(svgText: string, maxBytes: number): void {
   const lower = svgText.toLowerCase()
   // Graphviz 自带标准 <!DOCTYPE svg PUBLIC ...>（无实体声明）；本模块不做 XML
   // 解析，实体不会展开，因此只拒绝实体定义与 CDATA（未来接解析器时的防线）。
@@ -77,6 +87,16 @@ function assertSafeSvg(svgText: string, maxBytes: number): void {
   if (!/<svg[\s>]/i.test(svgText) || !/<\/svg>/i.test(svgText)) {
     throw new SvgAnnotateError('invalid_svg', '非 SVG 文档：缺少 <svg> 根元素')
   }
+}
+
+/**
+ * 提取文本元素的可见文本（实体解码、子标签剥离），供匹配比较——
+ * annotateSvg 与 leader-line 共用的匹配规范化。
+ * @param textElement - 单个 `<text>...</text>` 片段。
+ * @returns 可见文本（未做大小写归一）。
+ */
+export function textElementContent(textElement: string): string {
+  return decodeEntities(stripTags(textElement))
 }
 
 /**
@@ -113,7 +133,7 @@ export function annotateSvg(
   while ((match = textPattern.exec(svgText)) !== null) {
     const whole = match[0]
     /* v8 ignore start -- the regex group always matches (empty text allowed); ?? guards only against hypothetical undefined */
-    const content = decodeEntities(stripTags(match[1] ?? '')).toLowerCase()
+    const content = textElementContent(match[1] ?? '').toLowerCase()
     /* v8 ignore stop */
     let hit: number | undefined
     for (let i = 0; i < references.length; i += 1) {

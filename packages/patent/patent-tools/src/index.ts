@@ -23,9 +23,10 @@ import type { GenerateOptions, LlmResolvedModelInfo, ModelModality, StreamChunk 
 import { resolveBrowserBackend } from '@deepseek-ai/dsh-browser-backend'
 import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
 import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
+import { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
-import { renderWithGraphviz } from './figure/graphviz-renderer.ts'
-import type { GraphvizRenderOutcome, GraphvizRenderSpec } from './figure/graphviz-renderer.ts'
+import { pickRenderer } from './figure/render-selector.ts'
+import type { FigureRendererMode } from './figure/render-selector.ts'
 import { PatentToolError } from './error.ts'
 import { createPatentSearchTool } from './tool/patent-search.ts'
 import { createPatentMetadataTool } from './tool/patent-metadata.ts'
@@ -101,13 +102,20 @@ export type {
   GeneratePatentFigureDeps,
   GeneratePatentFigureIndexEntry,
   GenerateFigureType,
+  GeneratePatentFigurePanelInput,
+  GeneratePatentFigurePanelOutput,
 } from './tool/generate-patent-figure.ts'
 export { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 export type { AddPatentFigureReferencesInput, AddPatentFigureReferencesOutput, AddPatentFigureReferencesDeps } from './tool/add-patent-figure-references.ts'
 export { figureIndexStore, FIGURE_INDEX_VERSION, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 export type { FigureIndexEntry, LoadFigureIndexResult } from './figure/index-store.ts'
 export { findDot, probeGraphviz, renderWithGraphviz, sanitizeDotFilename, graphvizInstallMessage, DOT_CANDIDATES } from './figure/graphviz-renderer.ts'
+export { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
+export type { FigureAnalysisEngine, FigureAnalysisRequest } from './figure/analysis-engine.ts'
 export type { GraphvizProbeResult, GraphvizRenderOutcome, GraphvizRenderSpec, GraphvizRenderErrorCode } from './figure/graphviz-renderer.ts'
+export { renderWithVizWasm, vizLoadFailureMessage } from './figure/viz-wasm-renderer.ts'
+export { pickRenderer } from './figure/render-selector.ts'
+export type { FigureRendererMode } from './figure/render-selector.ts'
 export { chemistryIndexStore, CHEMISTRY_INDEX_VERSION, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './chemistry/index-store.ts'
 export type { ChemistryIndexEntry } from './chemistry/index-store.ts'
 export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
@@ -158,6 +166,18 @@ export interface Config {
   chemistryIndexFile?: string
   /** Graphviz dot 可执行路径覆盖；默认自动探测（候选路径 + PATH）。 */
   graphvizExecutable?: string
+  /** 附图渲染引擎：wasm=内置 @viz-js/viz（默认，SVG 零系统依赖）；cli=系统 dot 子进程。png/pdf 在 wasm 模式下自动回退 CLI。 */
+  figureRenderer?: FigureRendererMode
+  /** 附图分析模式：single=单步（默认，一次模型调用）；two-step=结构抽取+说明生成两次模型调用（成本翻倍，准确率可能更高）。 */
+  figureAnalysisMode?: 'single' | 'two-step'
+  /** 附图页面尺寸（提交规格）；缺省不输出页面属性。 */
+  figurePageSize?: 'a4' | 'letter'
+  /** 附图页面方向；缺省 portrait。 */
+  figureOrientation?: 'portrait' | 'landscape'
+  /** 附图渲染 DPI（png 栅格生效）；缺省不输出 dpi 属性。 */
+  figureDpi?: number
+  /** 附图页边距（厘米，四边同值）；与 figurePageSize 同给时收缩绘图区 size。 */
+  figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
@@ -182,6 +202,12 @@ export const Config: z<Config> = z.object({
   figureIndexFile: z.string(),
   chemistryIndexFile: z.string(),
   graphvizExecutable: z.string(),
+  figureRenderer: z.union(['wasm', 'cli']),
+  figureAnalysisMode: z.union(['single', 'two-step']),
+  figurePageSize: z.union(['a4', 'letter']),
+  figureOrientation: z.union(['portrait', 'landscape']),
+  figureDpi: z.number(),
+  figureMargin: z.number(),
   figureOutputDir: z.string(),
   dotFont: z.string(),
 })
@@ -414,6 +440,10 @@ export function apply(ctx: Context, config: Config): void {
     ...(attachments === undefined ? {} : { saveImage: input => attachments.saveImage(input) }),
     ...(resolveImageInputModalitiesFor === undefined ? {} : { resolveImageInputModalities: resolveImageInputModalitiesFor }),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
+    // 两步分析引擎在组合点按 Config 选择注入；缺省 single 由工具内部构造默认单步引擎。
+    ...(config.figureAnalysisMode === 'two-step' && imageModel !== undefined
+      ? { analysisEngine: createTwoStepAnalysisEngine({ model: imageModel }) }
+      : {}),
   }))
 
   // Evidence + rule-asset + recap + figure-index + notes.
@@ -426,18 +456,24 @@ export function apply(ctx: Context, config: Config): void {
     loadIndex: () => figureIndexStore.load(figureIndexFile),
   }))
 
-  // Figure generation: render through the dot CLI via ctx.subprocess (pdfRenderer
-  // pattern), fail loud with install guidance when Graphviz/subprocess is absent.
+  // Figure generation: default renderer is the bundled WASM engine (SVG with no
+  // system dependency); PNG/PDF and figureRenderer="cli" go through the dot CLI
+  // via ctx.subprocess, failing loud with install guidance when absent.
   const subprocess = ctx.get('subprocess')
-  const renderDot = (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> =>
-    subprocess === undefined
-      ? Promise.resolve({ ok: false, code: 'not_installed', error: 'subprocess 服务不可用（未挂载 @deepseek-ai/dsh-subprocess）' })
-      : renderWithGraphviz(subprocess, spec, config.graphvizExecutable)
+  const renderDot = pickRenderer(config.figureRenderer, {
+    ...(subprocess === undefined ? {} : { subprocess }),
+    ...(config.graphvizExecutable === undefined ? {} : { graphvizExecutable: config.graphvizExecutable }),
+  })
   ctx.tools.register(createGeneratePatentFigureTool({
     render: renderDot,
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
+    loadIndex: async () => (await figureIndexStore.load(figureIndexFile)).entries,
     resolveFont: labels => resolveDotFont(config, labels),
+    ...(config.figurePageSize === undefined ? {} : { pageSize: config.figurePageSize }),
+    ...(config.figureOrientation === undefined ? {} : { orientation: config.figureOrientation }),
+    ...(config.figureDpi === undefined ? {} : { dpi: config.figureDpi }),
+    ...(config.figureMargin === undefined ? {} : { marginCm: config.figureMargin }),
   }))
   ctx.tools.register(createAddPatentFigureReferencesTool({}))
 

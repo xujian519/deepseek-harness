@@ -1810,6 +1810,18 @@ export interface Config {
   chemistryIndexFile?: string
   /** Graphviz dot 可执行路径覆盖；默认自动探测（候选路径 + PATH）。 */
   graphvizExecutable?: string
+  /** 附图渲染引擎：wasm=内置 @viz-js/viz（默认，SVG 零系统依赖）；cli=系统 dot 子进程。png/pdf 在 wasm 模式下自动回退 CLI。 */
+  figureRenderer?: FigureRendererMode
+  /** 附图分析模式：single=单步（默认，一次模型调用）；two-step=结构抽取+说明生成两次模型调用（成本翻倍，准确率可能更高）。 */
+  figureAnalysisMode?: 'single' | 'two-step'
+  /** 附图页面尺寸（提交规格）；缺省不输出页面属性。 */
+  figurePageSize?: 'a4' | 'letter'
+  /** 附图页面方向；缺省 portrait。 */
+  figureOrientation?: 'portrait' | 'landscape'
+  /** 附图渲染 DPI（png 栅格生效）；缺省不输出 dpi 属性。 */
+  figureDpi?: number
+  /** 附图页边距（厘米，四边同值）；与 figurePageSize 同给时收缩绘图区 size。 */
+  figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
@@ -1823,6 +1835,9 @@ export interface ImageModelConfig {
   /** LLM model id for figure/image analysis. */
   model?: string
 }
+
+/** 渲染器模式：wasm=内置引擎（默认，SVG 零系统依赖）；cli=系统 dot 子进程。 */
+export type FigureRendererMode = 'wasm' | 'cli'
 ```
 
 Source: [`packages/patent/patent-tools/src/index.ts:144`](../packages/patent/patent-tools/src/index.ts)

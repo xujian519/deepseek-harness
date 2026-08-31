@@ -37,10 +37,10 @@ kind: "package-reference"
 | `validate_specification` | 质量 | 确定性 |
 | `evaluate_evidence` | 证据 | `@deepseek-ai/dsh-patent-core` 证据引擎 |
 | `rule_check` | 质量 | `@deepseek-ai/dsh-patent-rule` 规则引擎 |
-| `analyze_patent_figure` | 分析 | ModelPort（按附图模型做图片输入门禁） |
+| `analyze_patent_figure` | 分析 | 经 `FigureAnalysisEngine` 走视觉 ModelPort（Config.figureAnalysisMode：`single`=一次调用，默认；`two-step`=结构抽取+说明生成两次调用）；按附图模型做图片输入门禁 |
 | `search_patent_figure` | 检索 | 附图索引关键词检索（索引由 `analyze_patent_figure` 写入，见 Config.figureIndexFile） |
-| `generate_patent_figure` | 撰写 | 附图 DOT 构建器 + Graphviz `dot` CLI 子进程（Config.graphvizExecutable / figureOutputDir / dotFont）；结果写入附图索引（Config.figureIndexFile） |
-| `add_patent_figure_references` | 撰写 | SVG 标号后处理（按 `<text>`/`<tspan>` 文本匹配追加 `(标号)`） |
+| `generate_patent_figure` | 撰写 | 附图 DOT 构建器 + Graphviz 渲染：SVG 默认内置 `@viz-js/viz` WASM，png/pdf 与 `figureRenderer: 'cli'` 走 `dot` CLI（Config.graphvizExecutable / figureOutputDir / dotFont）；提交规格 page/dpi/margin/orientation；框图/层级图 SVG 默认引线标号；`panels` 多面板输出与 `figure_family` 跨图标号续接；结果写入附图索引（Config.figureIndexFile） |
+| `add_patent_figure_references` | 撰写 | SVG 标号后处理：内嵌模式按 `<text>`/`<tspan>` 文本匹配追加 `(标号)`；`leader_lines: true` 绘制引线并放置独立标号 |
 | `patent_pdf_download` | 文档 | browser-backend 冷决策：ego-browser 下载拦截（统一 ego 栈） |
 | `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包）；索引写入已接线（Config.chemistryIndexFile） |
 | `flexible_plan` | 工作流 | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
@@ -71,6 +71,12 @@ Schemastery 配置，所有字段可选。
 | `graphvizExecutable` | string | 自动探测 | `dot` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_GRAPHVIZ_DOT` → 平台候选路径 → `PATH`。 |
 | `figureOutputDir` | string | `<cwd>/patent/figures` | `generate_patent_figure` 的输出目录（绝对或相对 cwd）。 |
 | `dotFont` | string | 平台相关 | DOT 字体名覆盖；默认 Helvetica，label 含 CJK 时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 |
+| `figureRenderer` | `'wasm' \| 'cli'` | `wasm` | `generate_patent_figure` 的 Graphviz 渲染器：`wasm` 为内置 `@viz-js/viz`（SVG，无系统依赖）；`cli` 走 `dot` 子进程。png/pdf 一律路由到 CLI。 |
+| `figureAnalysisMode` | `'single' \| 'two-step'` | `single` | `analyze_patent_figure` 模式：`single` 为一次视觉调用；`two-step` 在同一路由先做结构抽取再做说明生成（模型成本翻倍）。 |
+| `figurePageSize` | `'a4' \| 'letter'` | — | 提交规格页面尺寸；设置时输出 DOT `page`/`size` 属性（per-call `page_size` 覆盖）。 |
+| `figureOrientation` | `'portrait' \| 'landscape'` | portrait | 提交规格页面方向（per-call `orient` 覆盖）。 |
+| `figureDpi` | number | — | 提交规格渲染 DPI（栅格输出生效；per-call `dpi` 覆盖）。 |
+| `figureMargin` | number（厘米） | — | 四边同值页边距；与 `figurePageSize` 同给时收缩绘图区 `size`（per-call `margin` 覆盖）。 |
 
 未设置 `provider`/ `model` 时，LLM 消费工具照常注册，但调用时 fail loud（`setup_required`）。知识类工具需要经 `patent-knowledge:install` 准备的 knowledge.db；缺失时 fail loud 并给出安装引导。
 
@@ -98,8 +104,9 @@ Schemastery 配置，所有字段可选。
 - **`flexible_plan` 命名** — Sati 的 `patentFlexiblePlanTool.ts` 声明名为 `flexible_plan`（非 `patent_flexible_plan`）；dsh 工具信任 Sati 的 name 字段。
 - **图片模态门禁范围** — `analyze_patent_figure` 把附图发送给解析出的附图模型路由，并按该路由声明的图片输入做准入（缺失时以错误码 `model_cannot_accept_image` 拒绝）；图片字节经 harness 附件服务入库后以持久引用随请求发送，附件服务或路由缺失时以 `setup_required` 显式报错。`search_patent_figure` 读取索引，刻意不做门禁（与 Sati 一致，仅门禁 analyze）。索引由 `analyze_patent_figure` 写入 Config.figureIndexFile；索引缺失或为空时返回零命中并附引导提示，而非报错。
 - **化学引擎未移植** — `recognize_chemical_structure` 与 `validate_specification` 的化学表征检查降级为不可用，因为 `@rdkit/rdkit` 是未随包的可选原生依赖。
-- **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，附图/化学索引存储（`figure/index-store`、`chemistry/index-store`）已接线写+读。多图一致性、网表可视化与 SMILES（RDKit）解析延后。
-- **附图生成范围** — `generate_patent_figure` 经 Graphviz `dot` CLI 生成单图（无引线标号：标号内嵌组件标签，如 `Processor (20)`）；`semantic` 彩色填充仅当色彩承载技术内容时用（依据《专利审查指南》第一部分第一章 4.3，2023 修订；默认 `grayscale` 黑白）；`raw_dot`/`template` 模式无结构化组件/连接还原（索引条目残缺）；复合图（FIG. 1A/1B）与跨图自动记忆标号未实现（跨图续接请以 `numerals` 显式传入）。Graphviz 为系统依赖——缺失时工具 fail loud 并给出安装引导。
+- **附图/化学引擎未移植** — Sati 的 `src/patent/figure` 与 `src/patent/chemistry` 引擎不在任何 dsh 包内；附图工具仅实现最小 ModelPort 路径与关键词检索，附图/化学索引存储（`figure/index-store`、`chemistry/index-store`）已接线写+读。网表可视化与 SMILES（RDKit）解析延后。
+- **附图生成范围** — `generate_patent_figure` 的 SVG 默认经内置 `@viz-js/viz` WASM 引擎渲染（Config.figureRenderer）；png/pdf 与 `figureRenderer: 'cli'` 走 `dot` 子进程，后者仍是系统依赖——这些路径缺失时 fail loud 并给出安装引导。引线标号对框图/层级图 SVG 默认开启（流程图与 `raw_dot`/`template` 默认关闭；per-call `leader_lines` 覆盖）：标号置于部件外侧并以 `<line>` 引线相连，替代内嵌标签后缀；非 SVG 格式保持内嵌标号并返回警告。`panels` 渲染多面板组合（`fig1A`/`fig1B`，…）并共用同一标号系列；per-call `figure_family` 对附图索引中同一家族记录的组件跨代续接标号——未声明家族即逐图独立编号，索引中无 `figureFamily` 的条目永不参与。`semantic` 彩色填充仅当色彩承载技术内容时使用（依据《专利审查指南》第一部分第一章 4.3，2023 修订；默认 `grayscale` 黑白）；`raw_dot`/`template` 模式无结构化组件/连接还原（索引条目残缺）。
+- **两步分析降级** — `figureAnalysisMode: 'two-step'` 下，结构抽取趟不可解析时按空组件返回尽力结果并附警告，跳过说明生成趟；图片门禁与结果形状与 `single` 一致。
 - **知识笔记 / PDF 下载接线** — `knowledge_note_save` 将笔记写入 Config.noteDir 下的文件（knowledge.db 原生写 API 延后）；`patent_pdf_download` 经 browser-backend 冷决策（`@deepseek-ai/dsh-browser-backend`）解析批量运行器：统一 ego 栈让下载只路由到 ego-browser（挂载 patent-data 服务时经 `ctx.patentData.createEgoSession()`）；browseros-neo、playwright 与 browser-use 参与探测但从不参与下载。未挂载 patent-data 时 ego 通道以 setup 指引 fail-loud。ego-browser 下载拦截为尽力而为——浏览器无法保存的条目回退为对提取的 CDN URL 直接 fetch。
 - **移除语义召回** — `patent_case_search` 仅保留 FTS/LIKE；基于 embedding 的语义召回未移植（dsh 暂无向量基建）。
 - **证据规则资产** — `evaluate_evidence` 经 `@deepseek-ai/dsh-patent-rule` 的资产定位解析 `evidence-rules.yaml`；缺失时引擎降级为默认权重。

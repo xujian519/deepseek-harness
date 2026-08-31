@@ -9,6 +9,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { FigureAnalysisResult } from '../src/tool/analyze-patent-figure.ts'
 import type { FigureIndexEntry } from '../src/figure/index-store.ts'
 import { createAnalyzePatentFigureTool, resolveGateRoute } from '../src/tool/analyze-patent-figure.ts'
+import { createTwoStepAnalysisEngine } from '../src/figure/analysis-engine.ts'
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as Parameters<ToolDefinition['execute']>[1]
@@ -194,5 +195,110 @@ describe('analyze_patent_figure vision path', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+})
+
+/** A port that answers the n-th call with the n-th text (last text repeats). */
+function scriptedModel(texts: string[], seen: PatentModelRequest[]): PatentModelPort {
+  let call = 0
+  return {
+    stream: async function* (request: PatentModelRequest) {
+      seen.push(request)
+      const text = texts[Math.min(call, texts.length - 1)] ?? ''
+      call++
+      yield { type: 'delta' as const, text }
+      yield { type: 'done' as const }
+    },
+  }
+}
+
+const STRUCTURE_PASS = JSON.stringify({
+  figure_type: 'structure',
+  overall_description: '整体结构示意图',
+  confidence: 0.9,
+  components: [{ ref_number: '1', name: '壳体', kind: 'mechanical', description: '外壳' }],
+  connections: [],
+  warnings: [],
+})
+
+describe('figure analysis engine seam', () => {
+  it('exposes the two-step engine factory with the seam contract', () => {
+    const engine = createTwoStepAnalysisEngine({ model: capturingModel('', []) })
+    expect(engine.kind).toBe('two-step')
+    expect(typeof engine.analyze).toBe('function')
+  })
+})
+
+describe('analyze_patent_figure two-step mode', () => {
+  function twoStepTool(dir: string, texts: string[], seen: PatentModelRequest[]) {
+    const model = scriptedModel(texts, seen)
+    return createAnalyzePatentFigureTool({
+      imageModel: model,
+      analysisEngine: createTwoStepAnalysisEngine({ model }),
+      saveImage: async () => ref,
+      gateModel: { provider: 'p', model: 'vision' },
+      resolveImageInputModalities: async () => ['text', 'image'],
+      cwd: dir,
+    })
+  }
+
+  it('performs two model passes and reports the second-pass description', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-2step-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const seen: PatentModelRequest[] = []
+      const description = '图1是本发明实施例提供的装置的结构示意图；图中：1-壳体；'
+      const tool = twoStepTool(dir, [STRUCTURE_PASS, description], seen)
+      const result = (await tool.execute({ image_path: 'fig1.png', figure_number: 1, invention_name: '一种装置' }, exec)) as FigureAnalysisResult
+      expect(seen).toHaveLength(2)
+      expect(seen[0]?.messages[0]?.content).toContain('结构抽取')
+      expect(seen[0]?.messages[0]?.images).toEqual([ref])
+      expect(seen[1]?.messages[0]?.content).toContain('附图说明')
+      expect(seen[1]?.messages[0]?.content).toContain('壳体')
+      expect(seen[1]?.messages[0]?.images).toEqual([ref])
+      // 第二步生成的说明文字成为最终 figureDescription。
+      expect(result.figureDescription).toBe(description)
+      // 结果形状与单步一致：同字段、组件/置信度来自第一步结构。
+      expect(result.figureType).toBe('structure')
+      expect(result.components).toHaveLength(1)
+      expect(result.components[0]?.refNumber).toBe('1')
+      expect(result.confidence).toBe(0.9)
+      expect(result.usable).toBe(true)
+      expect(result.modelUsed).toBe('p/vision')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('degrades to a best-effort result with a warning when the first pass is unparseable', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-2step-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const seen: PatentModelRequest[] = []
+      const tool = twoStepTool(dir, ['这不是 JSON 输出'], seen)
+      const result = (await tool.execute({ image_path: 'fig1.png', figure_number: 1 }, exec)) as FigureAnalysisResult
+      // 调用不失败；空组件 best-effort + 警告；第二步被跳过（仅一次模型调用）。
+      expect(result.components).toEqual([])
+      expect(result.usable).toBe(false)
+      expect(result.figureType).toBe('unknown')
+      expect(result.warnings.join('\n')).toContain('结构抽取')
+      expect(seen).toHaveLength(1)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies a text-only route in two-step mode with the same image-capability error', async () => {
+    const model = capturingModel('{}', [])
+    const tool = createAnalyzePatentFigureTool({
+      imageModel: model,
+      analysisEngine: createTwoStepAnalysisEngine({ model }),
+      saveImage: async () => ref,
+      gateModel: { provider: 'p', model: 'vision' },
+      resolveImageInputModalities: async () => ['text'],
+    })
+    await expect(tool.execute({ image_path: 'x.png' }, exec)).rejects.toMatchObject({
+      code: 'model_cannot_accept_image',
+    })
   })
 })

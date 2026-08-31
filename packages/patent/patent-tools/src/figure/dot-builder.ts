@@ -11,7 +11,9 @@
  *   「必要时可以提交彩色附图」。
  * - 参考标号内嵌节点 label：框图/层级图追加 ` (20)`，流程图以 `101. `
  *   前缀——与该域的附图说明惯例（analyze_patent_figure 的 refNumber、
- *   figure-description 的 100 系列）一致，标号经 assignNumerals 分配。
+ *   figure-description 的 100 系列）一致，标号经 assignNumerals 分配；
+ *   `embedNumerals: false` 时标签不含标号，供 SVG 引线标号通路
+ *   （leader-line）改为图外标注。
  * - 决策菱形（diamond）分支必须携带边标签，否则图面歧义（移植自
  *   Claude-Patent-Creator issue #60 的教训，MIT 许可，见 README 归属）。
  *
@@ -63,6 +65,7 @@ export type DotBuildErrorCode =
   | 'invalid_id'
   | 'invalid_shape'
   | 'invalid_template'
+  | 'invalid_page'
 
 /** DOT 构建错误（引擎层受检查错误；工具层映射为 PatentToolError('invalid_input', ...)）。 */
 export class DotBuildError extends Error {
@@ -153,6 +156,8 @@ export type AssignNumeralsOptions = {
   step?: number
   /** 显式标号（跨图同件同号续接）；与自动分配冲突时以显式为准并跳过占用号。 */
   explicit?: NumeralMap
+  /** 既有占用号（家族中未出现在本图的组件标号）：不分配给任何组件，仅约束自动分配；与 explicit 同号时以 explicit 为准。 */
+  reserved?: readonly string[]
 }
 
 /** 标号分配结果。 */
@@ -176,9 +181,9 @@ export function numeralSeriesStart(figureNumber: number): number {
  * 为组件分配参考标号。
  *
  * 分配次序：按 ids 顺序；已有 explicit 的组件用显式标号（跨图同号），
- * 其余从系列起点起按 step 递增，并跳过已占用号码（显式占用）。
+ * 其余从系列起点起按 step 递增，并跳过已占用号码（显式占用与 reserved 占用）。
  * @param ids - 组件 id 列表（图内出现顺序）。
- * @param options - 图号 / 起点 / 步进 / 显式标号。
+ * @param options - 图号 / 起点 / 步进 / 显式标号 / 保留占用号。
  * @returns 按 ids 顺序的标号分配。
  */
 export function assignNumerals(ids: readonly string[], options: AssignNumeralsOptions = {}): NumeralAssignment[] {
@@ -199,11 +204,12 @@ export function assignNumerals(ids: readonly string[], options: AssignNumeralsOp
     used.set(value, explicit[0])
     next.set(explicit[0], value)
   }
+  const reserved = new Set(options.reserved ?? [])
   let candidate = start
   for (const id of ids) {
     if (next.has(id)) continue
     let numeral = String(candidate)
-    while (used.has(numeral)) {
+    while (used.has(numeral) || reserved.has(numeral)) {
       candidate += step
       numeral = String(candidate)
     }
@@ -225,6 +231,98 @@ export function sanitizeId(id: string): string {
   return cleaned
 }
 
+/** 提交规格页面尺寸白名单。 */
+export type DotPageSize = 'a4' | 'letter'
+
+/** 提交规格页面方向。 */
+export type DotOrientation = 'portrait' | 'landscape'
+
+/** 提交规格页面参数（字段全部可选；经 buildDotHeader 输出为 DOT graph 属性，WASM/CLI 渲染器同等生效）。 */
+export type DotPageBundle = {
+  /** 页面尺寸；缺省不输出 page/size 属性。 */
+  pageSize?: DotPageSize
+  /** 页面方向，缺省按 portrait（不输出 orientation 属性）。 */
+  orientation?: DotOrientation
+  /** 渲染分辨率（raster 输出生效）。 */
+  dpi?: number
+  /** 页边距（厘米，四边同值）；与 pageSize 同给时据此收缩 size。 */
+  marginCm?: number
+}
+
+/** resolvePageBundle 输入：字段显式允许 undefined（exactOptionalPropertyTypes 下调用方以 `??` 合成 per-call 与部署默认）。 */
+export type DotPageInput = {
+  pageSize?: DotPageSize | undefined
+  orientation?: DotOrientation | undefined
+  dpi?: number | undefined
+  marginCm?: number | undefined
+}
+
+/** 页面物理尺寸（英寸，portrait）。 */
+const PAGE_SIZE_INCHES: Record<DotPageSize, { w: number; h: number }> = {
+  a4: { w: 8.27, h: 11.69 },
+  letter: { w: 8.5, h: 11 },
+}
+
+/** 英寸/厘米换算。 */
+const CM_PER_INCH = 2.54
+
+/**
+ * 汇总配置默认与 per-call 覆盖后的页面参数。
+ * @param input - 四项页面参数（全部缺省时不输出任何布局属性，行为与现状一致）。
+ * @returns 传入 buildDotHeader 的 bundle；全部缺省时 undefined。
+ * @throws DotBuildError('invalid_page') dpi/marginCm 非正或 dpi 非整数。
+ */
+export function resolvePageBundle(input: DotPageInput): DotPageBundle | undefined {
+  const { pageSize, orientation, dpi, marginCm } = input
+  if (pageSize === undefined && orientation === undefined && dpi === undefined && marginCm === undefined) return undefined
+  if (dpi !== undefined && (!Number.isInteger(dpi) || dpi < 1)) {
+    throw new DotBuildError('invalid_page', `dpi 必须为正整数：${String(dpi)}`)
+  }
+  if (marginCm !== undefined && marginCm <= 0) {
+    throw new DotBuildError('invalid_page', `页边距必须为正（厘米）：${String(marginCm)}`)
+  }
+  return {
+    ...(pageSize === undefined ? {} : { pageSize }),
+    ...(orientation === undefined ? {} : { orientation }),
+    ...(dpi === undefined ? {} : { dpi }),
+    ...(marginCm === undefined ? {} : { marginCm }),
+  }
+}
+
+/** 英寸值格式化（2 位小数）。 */
+function formatInches(value: number): string {
+  return String(Math.round(value * 100) / 100)
+}
+
+/**
+ * 将页面 bundle 转为 DOT graph 属性行。
+ * page 恒随 pageSize；margin 恒随 marginCm；size（可用绘图区）仅当二者同给；
+ * orientation=landscape 仅在横向时输出（portrait 隐式）。
+ * @param page - 页面 bundle。
+ * @returns DOT 属性行（已缩进、带分号）。
+ */
+function pageAttributeLines(page: DotPageBundle): string[] {
+  const lines: string[] = []
+  if (page.pageSize !== undefined) {
+    const { w, h } = PAGE_SIZE_INCHES[page.pageSize]
+    const landscape = page.orientation === 'landscape'
+    const pageW = landscape ? h : w
+    const pageH = landscape ? w : h
+    lines.push(`    page="${formatInches(pageW)},${formatInches(pageH)}";`)
+    if (page.marginCm !== undefined) {
+      const marginIn = page.marginCm / CM_PER_INCH
+      lines.push(`    size="${formatInches(pageW - 2 * marginIn)},${formatInches(pageH - 2 * marginIn)}";`)
+      lines.push(`    margin="${formatInches(marginIn)},${formatInches(marginIn)}";`)
+    }
+  } else if (page.marginCm !== undefined) {
+    const marginIn = formatInches(page.marginCm / CM_PER_INCH)
+    lines.push(`    margin="${marginIn},${marginIn}";`)
+  }
+  if (page.dpi !== undefined) lines.push(`    dpi=${String(page.dpi)};`)
+  if (page.orientation === 'landscape') lines.push('    orientation=landscape;')
+  return lines
+}
+
 /**
  * 转义 DOT 双引号 label 文本（换行保留为 \n；控制字符替换为空格）。
  * @param text - 原始 label。
@@ -238,20 +336,21 @@ export function escapeDotLabel(text: string): string {
 }
 
 /**
- * 构建 DOT 头（图形名、rankdir、node/edge 默认属性）。
+ * 构建 DOT 头（图形名、rankdir、页面属性、node/edge 默认属性）。
  * @param graphName - 图形名（自动清洗为合法 id）。
- * @param options - rankdir 方向、字体名、是否填充（semantic 模式）。
+ * @param options - rankdir 方向、字体名、是否填充（semantic 模式）、可选提交规格页面 bundle。
  * @returns DOT 头行列表。
  */
 export function buildDotHeader(
   graphName: string,
-  options: { rankdir: string; fontName: string; filled: boolean },
+  options: { rankdir: string; fontName: string; filled: boolean; page?: DotPageBundle },
 ): string[] {
   const nodeAttrs = [`fontname="${escapeDotLabel(options.fontName)}"`, 'fontsize=10']
   if (options.filled) nodeAttrs.push('style=filled')
   return [
     `digraph ${sanitizeId(graphName)} {`,
     `    rankdir=${options.rankdir};`,
+    ...(options.page === undefined ? [] : pageAttributeLines(options.page)),
     `    node [${nodeAttrs.join(', ')}];`,
     `    edge [fontname="${escapeDotLabel(options.fontName)}", fontsize=9];`,
     '',
@@ -270,6 +369,10 @@ export type BuildFlowchartOptions = {
   numerals?: NumeralMap
   /** 自动标号步进。 */
   numeralStep?: number
+  /** 提交规格页面 bundle（缺省不输出布局属性）。 */
+  page?: DotPageBundle
+  /** 标号内嵌步骤 label（默认 true）；false 时供引线标号通路图外标注。 */
+  embedNumerals?: boolean
 }
 
 /**
@@ -289,6 +392,7 @@ export function buildFlowchartDOT(steps: readonly FlowchartStep[], options: Buil
     rankdir: 'TB',
     fontName: options.fontName ?? 'Helvetica',
     filled: false,
+    ...(options.page === undefined ? {} : { page: options.page }),
   })
   const ALLOWED_SHAPES: readonly FlowchartShape[] = ['box', 'ellipse', 'diamond', 'parallelogram', 'cylinder']
   for (const step of steps) {
@@ -298,9 +402,11 @@ export function buildFlowchartDOT(steps: readonly FlowchartStep[], options: Buil
       throw new DotBuildError('invalid_shape', `未知节点形状：${shape}`)
     }
     // 标号由 assignNumerals 对全部组件分配，id->numeral 恒存在。
-    /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the ?? and ternary empty branches are unreachable */
+    /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the empty-numeral branch is unreachable */
     const numeral = numeralOf.get(id) ?? ''
-    const label = numeral === '' ? escapeDotLabel(step.label) : `${escapeDotLabel(numeral)}. ${escapeDotLabel(step.label)}`
+    const label = numeral === '' || options.embedNumerals === false
+      ? escapeDotLabel(step.label)
+      : `${escapeDotLabel(numeral)}. ${escapeDotLabel(step.label)}`
     /* v8 ignore stop */
     lines.push(`    "${id}" [label="${label}", shape=${shape}];`)
   }
@@ -343,6 +449,10 @@ export type BuildBlockDiagramOptions = {
   numerals?: NumeralMap
   /** 自动标号步进。 */
   numeralStep?: number
+  /** 提交规格页面 bundle（缺省不输出布局属性）。 */
+  page?: DotPageBundle
+  /** 标号内嵌块 label（默认 true）；false 时供引线标号通路图外标注。 */
+  embedNumerals?: boolean
 }
 
 /** semantic 模式的块类型填充色（移植自 Claude-Patent-Creator block_styles；grayscale 模式不输出）。 */
@@ -388,15 +498,18 @@ export function buildBlockDiagramDOT(
     rankdir: 'LR',
     fontName: options.fontName ?? 'Helvetica',
     filled: semantic,
+    ...(options.page === undefined ? {} : { page: options.page }),
   })
   for (const block of blocks) {
     const id = sanitizeId(block.id)
     const type = block.type ?? 'default'
     const shape = BLOCK_SHAPE[type]
     // 同 buildFlowchartDOT：标号恒存在。
-    /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the ?? and ternary empty branches are unreachable */
+    /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the empty-numeral branch is unreachable */
     const numeral = numeralOf.get(id) ?? ''
-    const labelText = numeral === '' ? escapeDotLabel(block.label) : `${escapeDotLabel(block.label)} (${numeral})`
+    const labelText = numeral === '' || options.embedNumerals === false
+      ? escapeDotLabel(block.label)
+      : `${escapeDotLabel(block.label)} (${numeral})`
     /* v8 ignore stop */
     const stylePart = semantic ? `, shape=${shape}, fillcolor=${BLOCK_FILLCOLOR[type]}` : `, shape=${shape}`
     lines.push(`    "${id}" [label="${labelText}"${stylePart}];`)
@@ -426,6 +539,10 @@ export type BuildHierarchyOptions = {
   numerals?: NumeralMap
   /** 自动标号步进。 */
   numeralStep?: number
+  /** 提交规格页面 bundle（缺省不输出布局属性）。 */
+  page?: DotPageBundle
+  /** 标号内嵌节点 label（默认 true）；false 时供引线标号通路图外标注。 */
+  embedNumerals?: boolean
 }
 
 /**
@@ -457,12 +574,15 @@ export function buildComponentHierarchyDOT(
     rankdir: 'TB',
     fontName: options.fontName ?? 'Helvetica',
     filled: false,
+    ...(options.page === undefined ? {} : { page: options.page }),
   })
   for (const id of ids) {
     // 同 buildFlowchartDOT：标号恒存在。
-    /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the ?? and ternary empty branches are unreachable */
+    /* v8 ignore start -- assignNumerals guarantees every id has a numeral; the empty-numeral branch is unreachable */
     const numeral = numeralOf.get(id) ?? ''
-    const labelText = numeral === '' ? escapeDotLabel(labels.get(id) ?? '') : `${escapeDotLabel(labels.get(id) ?? '')} (${numeral})`
+    const labelText = numeral === '' || options.embedNumerals === false
+      ? escapeDotLabel(labels.get(id) ?? '')
+      : `${escapeDotLabel(labels.get(id) ?? '')} (${numeral})`
     /* v8 ignore stop */
     lines.push(`    "${id}" [label="${labelText}"];`)
   }

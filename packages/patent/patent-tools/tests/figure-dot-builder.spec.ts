@@ -10,6 +10,7 @@ import {
   escapeDotLabel,
   getDiagramTemplate,
   numeralSeriesStart,
+  resolvePageBundle,
   sanitizeId,
 } from '../src/figure/dot-builder.ts'
 
@@ -62,6 +63,21 @@ describe('assignNumerals', () => {
 
   it('显式标号重复占用时抛冲突', () => {
     expect(() => assignNumerals(['a', 'b'], { explicit: { a: '100', b: '100' } })).toThrow(/重复占用/)
+  })
+
+  it('reserved 占用号被自动分配跳过（家族未出现组件的既有标号）', () => {
+    expect(assignNumerals(['a', 'b', 'c'], { reserved: ['100', '104'] })).toEqual([
+      { id: 'a', numeral: '102' },
+      { id: 'b', numeral: '106' },
+      { id: 'c', numeral: '108' },
+    ])
+  })
+
+  it('reserved 与 explicit 同号时以 explicit 为准（同件沿用，不再视为占用）', () => {
+    expect(assignNumerals(['a', 'b'], { explicit: { a: '100' }, reserved: ['100'] })).toEqual([
+      { id: 'a', numeral: '100' },
+      { id: 'b', numeral: '102' },
+    ])
   })
 })
 
@@ -231,5 +247,110 @@ describe('getDiagramTemplate', () => {
 
   it('未知模板抛错', () => {
     expect(() => getDiagramTemplate('nope' as never)).toThrow(/未知模板/)
+  })
+})
+
+describe('resolvePageBundle', () => {
+  it('四项全缺省返回 undefined（零回归）', () => {
+    expect(resolvePageBundle({})).toBeUndefined()
+  })
+
+  it('部分字段缺省时按显式字段构造 bundle', () => {
+    expect(resolvePageBundle({ dpi: 300 })).toEqual({ dpi: 300 })
+    expect(resolvePageBundle({ pageSize: 'a4' })).toEqual({ pageSize: 'a4' })
+  })
+
+  it('非法 dpi/页边距抛 invalid_page', () => {
+    expect(() => resolvePageBundle({ dpi: 0 })).toThrow(DotBuildError)
+    expect(() => resolvePageBundle({ dpi: -300 })).toThrow(DotBuildError)
+    expect(() => resolvePageBundle({ dpi: 2.5 })).toThrow(/正整数/)
+    expect(() => resolvePageBundle({ marginCm: -1 })).toThrow(DotBuildError)
+    try {
+      resolvePageBundle({ dpi: 0 })
+    } catch (error) {
+      expect((error as DotBuildError).code).toBe('invalid_page')
+    }
+  })
+})
+
+describe('page attributes in DOT header', () => {
+  it('缺省时输出与现状一致的头部（无任何布局属性）', () => {
+    const lines = buildDotHeader('Flowchart', { rankdir: 'TB', fontName: 'Helvetica', filled: false })
+    const header = lines.join('\n')
+    expect(header).not.toContain('page="')
+    expect(header).not.toContain('size="')
+    expect(header).not.toContain('margin="')
+    expect(header).not.toContain('dpi=')
+    expect(header).not.toContain('orientation=')
+  })
+
+  it('A4 纵向 + 300DPI + 2.5cm 边距输出 page/size/margin/dpi', () => {
+    const lines = buildDotHeader('Flowchart', {
+      rankdir: 'TB',
+      fontName: 'Helvetica',
+      filled: false,
+      page: { pageSize: 'a4', orientation: 'portrait', dpi: 300, marginCm: 2.5 },
+    })
+    const header = lines.join('\n')
+    expect(header).toContain('page="8.27,11.69";')
+    expect(header).toContain('size="6.3,9.72";')
+    expect(header).toContain('margin="0.98,0.98";')
+    expect(header).toContain('dpi=300;')
+    expect(header).not.toContain('orientation=')
+  })
+
+  it('letter 横向输出对调 page 尺寸与 orientation=landscape；size 仅随边距', () => {
+    const lines = buildDotHeader('BlockDiagram', {
+      rankdir: 'LR',
+      fontName: 'Helvetica',
+      filled: false,
+      page: { pageSize: 'letter', orientation: 'landscape' },
+    })
+    const header = lines.join('\n')
+    expect(header).toContain('page="11,8.5";')
+    expect(header).toContain('orientation=landscape;')
+    expect(header).not.toContain('size="')
+    expect(header).not.toContain('margin="')
+  })
+
+  it('仅边距（无页面尺寸）输出独立 margin 行', () => {
+    const lines = buildDotHeader('Flowchart', {
+      rankdir: 'TB',
+      fontName: 'Helvetica',
+      filled: false,
+      page: { marginCm: 1.27 },
+    })
+    const header = lines.join('\n')
+    expect(header).toContain('margin="0.5,0.5";')
+    expect(header).not.toContain('page=')
+  })
+
+  it('流程图/框图/层级图/模板构建器透传页面属性', () => {
+    const page = { pageSize: 'a4', dpi: 600 } as const
+    expect(buildFlowchartDOT([{ id: 'a', label: 'A', next: [] }], { page })).toContain('page="8.27,11.69";')
+    expect(buildBlockDiagramDOT([{ id: 'a', label: 'A' }], [], { page })).toContain('dpi=600;')
+    expect(buildComponentHierarchyDOT([{ id: 'a', label: 'A' }], { page })).toContain('page="8.27,11.69";')
+    expect(getDiagramTemplate('simple_flowchart', { page })).toContain('page="8.27,11.69";')
+  })
+})
+
+describe('embedNumerals', () => {
+  it('缺省保持内嵌标号：框图/层级图 ` (NN)`、流程图 `NNN. `', () => {
+    expect(buildFlowchartDOT([{ id: 'a', label: 'A', next: [] }])).toContain('"a" [label="100. A", shape=box];')
+    expect(buildBlockDiagramDOT([{ id: 'a', label: 'A' }], [])).toContain('"a" [label="A (100)", shape=box];')
+    expect(buildComponentHierarchyDOT([{ id: 'a', label: 'A' }])).toContain('"a" [label="A (100)"];')
+  })
+
+  it('embedNumerals:false 时三个构建器的标签均不含标号（引线通路构建输入）', () => {
+    const flow = buildFlowchartDOT(
+      [{ id: 'a', label: 'A', next: [{ id: 'b', label: '至 B' }] }, { id: 'b', label: 'B', next: [] }],
+      { embedNumerals: false },
+    )
+    expect(flow).toContain('"a" [label="A", shape=box];')
+    expect(flow).not.toContain('100. ')
+    expect(buildBlockDiagramDOT([{ id: 'a', label: 'A' }], [], { embedNumerals: false })).toContain('"a" [label="A", shape=box];')
+    expect(buildComponentHierarchyDOT([{ id: 'a', label: 'A' }], { embedNumerals: false })).toContain('"a" [label="A"];')
+    expect(getDiagramTemplate('system_block', { embedNumerals: false })).not.toContain(' (100)')
+    expect(getDiagramTemplate('method_steps', { embedNumerals: false })).not.toContain('101. ')
   })
 })

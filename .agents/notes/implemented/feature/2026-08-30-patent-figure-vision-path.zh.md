@@ -21,7 +21,7 @@ Status: implemented
 
 ## 已考虑的替代方案
 
-**移植 Sati 两步 PatentVision/PatentLMM 引擎。** 继续延后：经 harness 路由的单步分析已覆盖附图说明工作流；多图一致性与电路网表仍不在范围内。
+**移植 Sati 两步 PatentVision/PatentLMM 引擎。** 该模式现已落在 [FigureAnalysisEngine 接缝](2026-08-31-patent-figure-rendering-pipeline.zh.md)之后（`Config.figureAnalysisMode`，默认 `single`）；多图一致性以同批变更中的多面板输出与家族续号落地；电路网表仍延后。
 
 **在专利请求词表里内联 base64。** 拒绝：这会在附件管线之外另立一条图片通路，丢掉入库校验、归一化与按路由策略。
 

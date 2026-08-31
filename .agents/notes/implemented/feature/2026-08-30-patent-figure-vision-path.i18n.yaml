@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-patent-figure-vision-path.md
-2026-08-30-patent-figure-vision-path.md: fdd60c66ca5569bcc19843dc4004e2cfcf3bea0f
-2026-08-30-patent-figure-vision-path.zh.md: c0aab7d031110d92137da166d7538eba0efec4d3
+2026-08-30-patent-figure-vision-path.md: dda8ee72939dc2bc16a127fc5e17da8270871e93
+2026-08-30-patent-figure-vision-path.zh.md: 2441be663e830288ed38d9029de4c0cc134d1d17

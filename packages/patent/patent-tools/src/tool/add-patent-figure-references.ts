@@ -15,6 +15,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 import { SvgAnnotateError, annotateSvg } from '../figure/svg-annotate.ts'
+import { annotateSvgWithLeaderLines } from '../figure/leader-line.ts'
 import type { SvgAnnotateReference } from '../figure/svg-annotate.ts'
 
 /** 依赖注入。cwd 为路径基准，默认 process.cwd()。 */
@@ -30,6 +31,8 @@ export type AddPatentFigureReferencesInput = {
   references: SvgAnnotateReference[]
   /** 输出文件名（不含扩展名，默认 <原名>_annotated）。 */
   output_filename?: string
+  /** true 时改用引线模式：标号置于组件外侧并以引线相连；默认 false 内嵌「 (标号)」。 */
+  leader_lines?: boolean
 }
 
 /** 输出：标注后路径 + 未命中警告。 */
@@ -43,7 +46,7 @@ export type AddPatentFigureReferencesOutput = {
 }
 
 const DESCRIPTION = [
-  '为已有 SVG 附图追加专利参考标号：按组件文本匹配，在匹配文本末尾追加「 (标号)」，输出 *_annotated.svg（不改动原图）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。',
+  '为已有 SVG 附图追加专利参考标号：按组件文本匹配标注，输出 *_annotated.svg（不改动原图）。默认在匹配文本末尾内嵌「 (标号)」；leader_lines=true 时改用引线模式，标号置于组件外侧并以引线相连（仅 Graphviz/同构节点组 SVG 支持）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。',
   '',
   '匹配规则：子串匹配（大小写不敏感）；每个文本元素至多命中一个参考；同名组件出现在多个位置时全部同号标注；未命中的参考列为警告返回。',
 ].join('\n')
@@ -73,6 +76,7 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
         description: '参考标号表',
       },
       output_filename: { type: 'string', description: '输出文件名（不含扩展名，默认 <原名>_annotated）' },
+      leader_lines: { type: 'boolean', description: 'true 时改用引线模式（标号置于组件外侧并以引线相连）；默认 false 内嵌「 (标号)」' },
     },
     output: {
       schema: {
@@ -102,7 +106,9 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
       }
       let result
       try {
-        result = annotateSvg(svg, args.references)
+        result = args.leader_lines === true
+          ? annotateSvgWithLeaderLines(svg, args.references)
+          : annotateSvg(svg, args.references)
       } catch (error) {
         /* v8 ignore start -- annotateSvg only throws SvgAnnotateError; the rethrow keeps unknown failures loud */
         if (error instanceof SvgAnnotateError) {

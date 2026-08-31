@@ -9,7 +9,7 @@ import type { ChemicalStructureResult } from '../src/tool/recognize-chemical-str
 import type { FigureIndexEntry } from '../src/figure/index-store.ts'
 import type { ChemistryIndexEntry } from '../src/chemistry/index-store.ts'
 
-function figureEntry(over: { imagePath: string } & Partial<{ figureNumber: number }>): FigureIndexEntry {
+function figureEntry(over: { imagePath: string } & Partial<{ figureNumber: number; figureFamily: string }>): FigureIndexEntry {
   return {
     imagePath: over.imagePath,
     analyzedAt: '2024-01-01T00:00:00.000Z',
@@ -25,6 +25,7 @@ function figureEntry(over: { imagePath: string } & Partial<{ figureNumber: numbe
       warnings: [],
       usable: true,
       modelUsed: 'm',
+      ...(over.figureFamily === undefined ? {} : { figureFamily: over.figureFamily }),
     },
   }
 }
@@ -112,6 +113,44 @@ describe('figureIndexStore.load', () => {
       const { entries, warning } = await figureIndexStore.load(file)
       expect(entries).toEqual([])
       expect(warning).toContain('损坏')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('tolerates legacy entries without figureFamily and keeps well-formed family markers', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-family-'))
+    try {
+      const file = join(dir, 'index.json')
+      await writeFile(
+        file,
+        JSON.stringify({
+          version: FIGURE_INDEX_VERSION,
+          updatedAt: '',
+          entries: [figureEntry({ imagePath: 'legacy.png' }), figureEntry({ imagePath: 'family.png', figureFamily: 'acme' })],
+        }),
+      )
+      const { entries, warning } = await figureIndexStore.load(file)
+      expect(warning).toBeUndefined()
+      expect(entries.map(e => e.analysis.figureFamily)).toEqual([undefined, 'acme'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('drops entries whose figureFamily is not a string', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-fig-family-'))
+    try {
+      const file = join(dir, 'index.json')
+      const bad = figureEntry({ imagePath: 'bad.png' })
+      ;(bad.analysis as { figureFamily: unknown }).figureFamily = 42
+      await writeFile(
+        file,
+        JSON.stringify({ version: FIGURE_INDEX_VERSION, updatedAt: '', entries: [bad] }),
+      )
+      const { entries, warning } = await figureIndexStore.load(file)
+      expect(entries).toEqual([])
+      expect(warning).toContain('1 条无效条目')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
