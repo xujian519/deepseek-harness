@@ -30,7 +30,8 @@ describe('dsh-tool-web real-load-path guard', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(WebRuntime, {})
-    // fetch defaults to true and fails at load without a usable provider.
+    // fetch defaults to true; web_fetch registers with or without a provider, so this stub
+    // keeps a provider present while the unwrapped module boots.
     ctx.web.registerFetchProvider({
       id: 'stub-fetch',
       available: () => true,

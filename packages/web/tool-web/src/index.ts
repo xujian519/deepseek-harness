@@ -1,9 +1,8 @@
 /**
  * Model-facing `web_search` and `web_fetch` tools over `ctx.web`. This package owns schemas,
  * validation, prompt guidance, limits, and presentation, never concrete providers. Enablement
- * controls tool registration; `web_search` remains visible when no search provider is available
- * and fails with a structured error at execution time, while `fetch: true` without a usable
- * fetch provider fails at load.
+ * controls tool registration. Both tools stay registered regardless of provider availability
+ * and fail with a structured error at execution time when no provider serves them.
  * @module @deepseek-ai/dsh-tool-web
  */
 
