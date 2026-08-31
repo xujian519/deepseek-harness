@@ -163,10 +163,12 @@ describe('SessionProjectionCache write policy', () => {
     const { ctx, root } = await harness()
     const session = ctx.sessions.create(SessionId('turn-end'))
     mark(session, ['a'])
-    // Creation already wrote the init cut; the mark is throttled, so the
-    // stored row is still the creation-time cut (no marks folded).
-    await settle()
-    expect((await storedRows(root, session.id))?.['cache-test/marks']?.seq).toBe(-1)
+    // The mark is throttled, so once the creation cut lands the stored row
+    // is still the creation-time one (no marks folded). The landing is a
+    // positive durable-write assertion, so poll instead of settling.
+    await eventuallyDurable(async () => {
+      expect((await storedRows(root, session.id))?.['cache-test/marks']?.seq).toBe(-1)
+    })
     const end = endTurn(session)
     await eventuallyDurable(async () => {
       expect((await storedRows(root, session.id))?.['cache-test/marks']).toEqual({ ver: 1, seq: end.seq, val: { marks: ['a'] } })
@@ -208,8 +210,12 @@ describe('SessionProjectionCache write policy', () => {
     const session = ctx.sessions.create(SessionId('count'))
     mark(session, ['1'])
     mark(session, ['2'])
-    await settle()
-    expect((await storedRows(root, session.id))?.['cache-test/marks']?.seq).toBe(-1) // still the creation cut
+    // Two marks stay below the threshold, so once the creation cut lands the
+    // stored row is still the creation-time one. The landing is a positive
+    // durable-write assertion, so poll instead of settling.
+    await eventuallyDurable(async () => {
+      expect((await storedRows(root, session.id))?.['cache-test/marks']?.seq).toBe(-1)
+    }) // still the creation cut
     mark(session, ['3'])
     await eventuallyDurable(async () => {
       expect((await storedRows(root, session.id))?.['cache-test/marks']?.val).toEqual({ marks: ['3'] })
