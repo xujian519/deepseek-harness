@@ -7,8 +7,6 @@
  * @module @deepseek-ai/dsh-api-plugin-market-controller/types
  */
 
-import type { PluginMarketErrorCode } from '@deepseek-ai/dsh-host-plugin-market/types'
-
 export type {
   CatalogItem,
   CatalogPage,
@@ -21,9 +19,19 @@ export type {
   SourceId,
 } from '@deepseek-ai/dsh-host-plugin-market/types'
 
-/** Plugin-market business failure carried by a rejected Remote call. */
-export type PluginMarketError = {
-  readonly code: PluginMarketErrorCode
-  readonly message: string
-  readonly details: object
+/**
+ * Every seam business code this controller can carry onto the wire as a
+ * Remote failure; `subject` names the source id or package ref the call
+ * addressed when one exists.
+ */
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'source-invalid': { readonly subject?: string }
+    'source-not-found': { readonly subject?: string }
+    'preview-failed': { readonly subject?: string }
+    'install-failed': { readonly subject?: string }
+    'install-unavailable': { readonly subject?: string }
+    'receipt-mismatch': { readonly subject?: string }
+    'network': { readonly subject?: string }
+  }
 }

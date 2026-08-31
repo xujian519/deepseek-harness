@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react'
 /**
  * Subscribe once to the window-level drag-end events, calling `clear` on
  * each. The latest callback wins; the subscription never re-attaches.
+ * @param clear - drag-clear callback invoked for every window-level drag end.
  */
 export function useWindowDragClear(clear: () => void): void {
   const clearRef = useRef(clear)

@@ -10,7 +10,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { CatalogPage, CatalogQuery, InstallPreview, PluginMarketSource } from '@deepseek-ai/dsh-host-plugin-market/types'
 import { PluginMarketError } from '@deepseek-ai/dsh-host-plugin-market'
 import type { PluginMarket } from '@deepseek-ai/dsh-host-plugin-market'
@@ -44,7 +44,7 @@ export class PluginMarketController extends TypertRemoteService {
   /**
    * List the registered catalog sources.
    * @returns every registered source.
-   * @throws TypertRemoteFailure when the source listing fails or no provider is mounted.
+   * @throws RemoteError when the source listing fails or no provider is mounted.
    */
   @Remote
   async listSources(): Promise<readonly PluginMarketSource[]> {
@@ -60,7 +60,7 @@ export class PluginMarketController extends TypertRemoteService {
    * @param sourceId - the source to query.
    * @param query - search parameters; unsupported ones are dropped by the provider.
    * @returns one page of provenance-stamped entries.
-   * @throws TypertRemoteFailure when the source query fails or no provider is mounted.
+   * @throws RemoteError when the source query fails or no provider is mounted.
    */
   @Remote
   async search(sourceId: string, query: CatalogQuery | undefined): Promise<CatalogPage> {
@@ -75,7 +75,7 @@ export class PluginMarketController extends TypertRemoteService {
    * Preview an installation against the npm registry without touching the profile.
    * @param ref - `name@version` package reference.
    * @returns the verification result.
-   * @throws TypertRemoteFailure when the preview fails or no provider is mounted.
+   * @throws RemoteError when the preview fails or no provider is mounted.
    */
   @Remote
   async preview(ref: string): Promise<InstallPreview> {
@@ -90,11 +90,11 @@ export class PluginMarketController extends TypertRemoteService {
   private market(): PluginMarket {
     const market = this.ctx.get('pluginMarket')
     if (market === undefined) {
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: 'plugin-market service is absent: this deployment does not mount a catalog provider (e.g. @deepseek-ai/dsh-host-plugin-market/provider) in its composition',
-        details: {},
-      })
+      throw new RemoteError(
+        'gateway/internal',
+        'plugin-market service is absent: this deployment does not mount a catalog provider (e.g. @deepseek-ai/dsh-host-plugin-market/provider) in its composition',
+        {},
+      )
     }
     return market
   }
@@ -109,16 +109,17 @@ export class PluginMarketController extends TypertRemoteService {
  * when no single subject exists, as for a source-listing call.
  * @returns the failure to raise.
  */
-function marketFailure(error: unknown, subject?: string): TypertRemoteFailure {
-  const details = subject === undefined ? {} : { subject }
+function marketFailure(error: unknown, subject?: string): RemoteError {
   if (error instanceof PluginMarketError) {
-    return new TypertRemoteFailure({ code: error.code, message: error.message, details })
+    const details = subject === undefined ? {} : { subject }
+    return new RemoteError(error.code, error.message, details)
   }
-  return new TypertRemoteFailure({
-    code: 'internal',
-    message: error instanceof Error ? error.message : String(error),
-    details,
-  })
+  return new RemoteError(
+    'gateway/internal',
+    error instanceof Error ? error.message : String(error),
+    {},
+    { cause: error },
+  )
 }
 
 export default PluginMarketController

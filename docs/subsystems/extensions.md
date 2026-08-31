@@ -284,7 +284,7 @@ Host service backing the generated `ctx.remote.pluginMarket` namespace. Every me
 /**
  * List the registered catalog sources.
  * @returns every registered source.
- * @throws TypertRemoteFailure when the source listing fails or no provider is mounted.
+ * @throws RemoteError when the source listing fails or no provider is mounted.
  */
 @Remote async listSources(): Promise<readonly PluginMarketSource[]>
 
@@ -293,7 +293,7 @@ Host service backing the generated `ctx.remote.pluginMarket` namespace. Every me
  * @param sourceId - the source to query.
  * @param query - search parameters; unsupported ones are dropped by the provider.
  * @returns one page of provenance-stamped entries.
- * @throws TypertRemoteFailure when the source query fails or no provider is mounted.
+ * @throws RemoteError when the source query fails or no provider is mounted.
  */
 @Remote async search(sourceId: string, query: CatalogQuery | undefined): Promise<CatalogPage>
 
@@ -301,7 +301,7 @@ Host service backing the generated `ctx.remote.pluginMarket` namespace. Every me
  * Preview an installation against the npm registry without touching the profile.
  * @param ref - `name@version` package reference.
  * @returns the verification result.
- * @throws TypertRemoteFailure when the preview fails or no provider is mounted.
+ * @throws RemoteError when the preview fails or no provider is mounted.
  */
 @Remote async preview(ref: string): Promise<InstallPreview>
 ```

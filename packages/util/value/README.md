@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `assertResolvedConfig` pins the plugin-config boundary once schema defaults have run, `isENOENT` and `isEEXIST` classify filesystem errno errors, `errorMessage` and `toError` render and normalize arbitrary thrown values without letting hostile coercion escape, and `deepFreeze` renders a value immutably in place. The zero-dependency library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
+`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers while narrowing `unknown` to `number`, `assertResolvedConfig` pins the plugin-config boundary once schema defaults have run, `isENOENT` and `isEEXIST` classify filesystem errno errors, and `errorMessage` and `toError` render and normalize arbitrary thrown values without letting hostile coercion escape; `deepFreeze` is re-exported from `dsh-util-values`, the harness-wide owner of the shared deep-freeze implementation. The library owns the predicate and the failure, so a package's diagnostics stay word-for-word consistent across the harness instead of forking per plugin.
 
 ## Table of Contents
 
@@ -72,6 +72,9 @@ Same shape as the integer assertion: the caller owns the label, the shared libra
 ```ts
 import { assertResolvedConfig } from '@deepseek-ai/dsh-value'
 
+interface Config { readonly enabled: boolean; readonly cwd?: string }
+declare const config: Config
+
 const resolved = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
 // resolved.cwd stays optional; every other field is typed as required
 ```
@@ -98,6 +101,9 @@ if (isPlainObject(payload)) {
 ```ts
 import { isENOENT, isEEXIST } from '@deepseek-ai/dsh-value'
 
+declare const filename: string
+declare const open: (path: string) => Promise<void>
+
 try {
   await open(filename)
 } catch (error) {
@@ -112,6 +118,9 @@ The tests accept only real `Error` instances carrying the code, so a lookalike v
 ```ts
 import { deepFreeze } from '@deepseek-ai/dsh-value'
 
+declare const request: { signal: AbortSignal }
+declare const defaults: Record<string, unknown>
+
 const snapshot = deepFreeze({ request, defaults })
 // every nested object is frozen; the request's AbortSignal is deliberately left unfrozen
 ```
@@ -122,6 +131,9 @@ The traversal is iterative and cycle-safe, so arbitrarily deep values freeze wit
 
 ```ts
 import { errorMessage } from '@deepseek-ai/dsh-value'
+
+declare const payload: { dispatch(): Promise<void> }
+declare const ctx: { logger: { warn(message: string): void } }
 
 try {
   await payload.dispatch()

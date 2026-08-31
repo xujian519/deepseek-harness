@@ -5,7 +5,8 @@
  */
 
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
-import { assertPositiveInteger, deepFreeze } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
   BasicCompactionConfig,
   CompactionPolicyConfig,

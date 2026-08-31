@@ -83,17 +83,6 @@ export function apply(ctx: Context, config: Config): void {
     applyWebSearchTool(ctx, resolved.searchMaxResults, resolved.searchMaxQueries, resolved.searchTimeoutMs, resolved.fetch)
   }
   if (resolved.fetch) {
-    // A fetch-enabled composition must mount a usable fetch provider: without
-    // one every web_fetch call fails with WEB_PROVIDER_UNAVAILABLE. Enablement
-    // is a load-time fact, so the composition fails here rather than shipping
-    // a tool that cannot run; the provider must be mounted (or configured)
-    // before tool-web. Shipped profiles keep fetch disabled until the
-    // SSRF-protected web-fetch-http provider lands.
-    if (ctx.web.resolveFetchProvider() === undefined) {
-      throw new Error(
-        'tool-web: fetch is enabled but no usable fetch provider is mounted; mount or configure one before tool-web, or set fetch: false',
-      )
-    }
     applyWebFetchTool(ctx, resolved.fetchTimeoutMs, resolved.fetchMaxOutputChars)
   }
 }

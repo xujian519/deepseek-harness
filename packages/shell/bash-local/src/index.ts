@@ -14,7 +14,7 @@ import z from '@deepseek-ai/schemastery'
 import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult, CollectedOutput } from '@deepseek-ai/dsh-shell'
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
-import { installSettingsSection } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { assertPositiveFinite, assertResolvedConfig } from '@deepseek-ai/dsh-value'
 
@@ -119,14 +119,16 @@ export class LocalBashExecutor extends ShellExecutor {
     const entry = assertResolvedConfig<Config, 'cwd'>('bash-local', config, ['cwd'])
     assertServiceableBashConfig(entry)
     this.source = () => entry
-    installSettingsSection(ctx, SHELL_SETTINGS_NAMESPACE, LocalBashExecutor.Config, entry, {
-      validate: assertServiceableBashConfig,
-      setSource: (current) => {
-        this.source = current as () => ResolvedConfig
-      },
-      // Every field is read through the getter at each command, so nothing
-      // derived from the source needs rebuilding when the document changes.
-      onChange: () => {},
+    ctx.inject(['settings'], (settingsCtx) => {
+      settingsCtx.settings.installSection(ctx, SHELL_SETTINGS_NAMESPACE, LocalBashExecutor.Config, entry, {
+        validate: assertServiceableBashConfig,
+        setSource: (current) => {
+          this.source = current as () => ResolvedConfig
+        },
+        // Every field is read through the getter at each command, so nothing
+        // derived from the source needs rebuilding when the document changes.
+        onChange: () => {},
+      })
     })
   }
 

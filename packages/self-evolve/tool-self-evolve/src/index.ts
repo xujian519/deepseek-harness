@@ -22,7 +22,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { EvolveLevel, FailurePattern, SelfEvolveResult } from '@deepseek-ai/dsh-self-evolve'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
 const SECTION_NAME = 'tool:self-evolve'
