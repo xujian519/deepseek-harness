@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   IconSearchOutline16,
+  LoadFailure,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   CatalogItem,
@@ -120,10 +121,7 @@ export function PluginMarketTab({ t, listSources, search, preview }: PluginMarke
       ) : null}
 
       {state.status === 'error' ? (
-        <div className={css.failure}>
-          <p role="alert">{t('error')}</p>
-          <button type="button" onClick={retry}>{t('retry')}</button>
-        </div>
+        <LoadFailure message={t('error')} retryLabel={t('retry')} onRetry={retry} />
       ) : null}
 
       {state.status === 'ready' ? (

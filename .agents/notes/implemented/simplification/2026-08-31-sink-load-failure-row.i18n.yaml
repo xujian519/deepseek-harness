@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-31-sink-load-failure-row.md
+2026-08-31-sink-load-failure-row.md: 9ba4b19d9c40b8798b74ad06e667234a93917c4d
+2026-08-31-sink-load-failure-row.zh.md: 9370ea8b5dde0060c16b851d19ce37c5ad8240d1

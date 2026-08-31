@@ -3,6 +3,7 @@ import type { PluginInventorySnapshot } from '@deepseek-ai/dsh-api-remotes/clien
 import {
   IconChevronDownOutline14,
   IconSearchOutline16,
+  LoadFailure,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginInventoryLocaleKey } from './locales.ts'
@@ -100,10 +101,7 @@ export function PluginInventorySettingsTab({ list, t }: PluginInventorySettingsT
     <div className={css.section} aria-busy={state.status === 'loading'}>
       {state.status === 'loading' ? <p className={css.status}>{t('loading')}</p> : null}
       {state.status === 'error' ? (
-        <div className={css.failure}>
-          <p role="alert">{t('error')}</p>
-          <button type="button" onClick={retry}>{t('retry')}</button>
-        </div>
+        <LoadFailure message={t('error')} retryLabel={t('retry')} onRetry={retry} />
       ) : null}
       {state.status === 'ready' ? (
         <div className={css.catalog}>
