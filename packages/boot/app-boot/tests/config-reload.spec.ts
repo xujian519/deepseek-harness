@@ -429,3 +429,54 @@ describe('shipped builtins', () => {
     }
   })
 })
+
+describe('loader entry id collisions', () => {
+  it('rejects a nested row that reuses its containing group row id, keeping the last good tree', async () => {
+    // The store keys entries by raw row id, so a child row sharing its group
+    // row's id used to adopt the group's own entry in `create()`, closing the
+    // entry's parent chain into a cycle and hanging every later disabled walk
+    // at full CPU. The pre-apply validation turns that shape into this
+    // rejection instead, before any entry is created or adopted.
+    const { ctx, dir, include } = await bootTree('- id: noop\n  name: ./noop.mjs\n')
+    try {
+      writeFileSync(join(dir, 'cordis.yml'), [
+        '- id: grp',
+        '  name: cordis:group',
+        '  group: true',
+        '  config:',
+        '    - id: grp',
+        '      name: ./noop.mjs',
+        '',
+      ].join('\n'))
+      await expect(include.refresh()).rejects.toThrow('duplicate loader entry id: grp')
+      expect(entryById(ctx, 'noop').fiber).toBeDefined()
+      expect([...ctx.loader.entries()].some(entry => entry.options.id === 'grp')).toBe(false)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('rejects moving a group entry under its own subtree', async () => {
+    const { ctx, include } = await bootTree([
+      '- id: outer',
+      '  name: cordis:group',
+      '  group: true',
+      '  config:',
+      '    - id: inner',
+      '      name: cordis:group',
+      '      group: true',
+      '      config:',
+      '        - id: deep',
+      '          name: ./noop.mjs',
+      '',
+    ].join('\n'))
+    try {
+      await expect(include.update('outer', {}, 'inner'))
+        .rejects.toThrow('cannot move loader entry outer under group inner')
+      expect(entryById(ctx, 'deep').fiber).toBeDefined()
+      expect(entryById(ctx, 'outer').parent).toBe(include.root)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+})

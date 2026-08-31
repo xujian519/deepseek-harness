@@ -118,6 +118,12 @@ export abstract class EntryTree {
     let target = source
     if (parent !== undefined) {
       target = this.resolveGroup(parent)
+      const container = target.ctx.fiber.entry
+      if (container && entry.contains(container)) {
+        throw new TypeError(
+          `cannot move loader entry ${id} under group ${parent}: the target group sits inside the entry's own subtree`,
+        )
+      }
       source.unlink(entry.options)
       target.data.splice(position ?? Infinity, 0, entry.options)
       entry.parent = target

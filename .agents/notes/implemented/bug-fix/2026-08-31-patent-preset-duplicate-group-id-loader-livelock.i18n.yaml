@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-31-patent-preset-duplicate-group-id-loader-livelock.md
-2026-08-31-patent-preset-duplicate-group-id-loader-livelock.md: 81618944d67f5b0c042f1a1713ba52aacdbd336c
-2026-08-31-patent-preset-duplicate-group-id-loader-livelock.zh.md: 4d5e1946508df273beb5af9a54c098d6e0c506d1
+2026-08-31-patent-preset-duplicate-group-id-loader-livelock.md: be2ac055e6bacf4677c86a74c4428d46b9459234
+2026-08-31-patent-preset-duplicate-group-id-loader-livelock.zh.md: c1265fdf21574934290cd7c36c01d673cd049c06

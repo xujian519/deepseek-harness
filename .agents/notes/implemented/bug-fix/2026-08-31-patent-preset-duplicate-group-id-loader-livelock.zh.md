@@ -16,9 +16,7 @@ group 行改名为 `self-evolve`；子行保留 `self-evolve-benchmark`，符合
 
 ## 已否决的替代方案
 
-**给 loader 加守护。** 在 `_disabled()` 加环路检查（或在 `create()` 里拒绝子行 id 命中现存祖先条目）能把未来的冲突变成响亮失败。本次未做：loader 是 vendored（`vendor/`），守护需要走同步流程、登记本地修改并自带测试。它仍是正确的后续项。
-
-**在创作期扫描预设文件。** 对组合文本做校验会重复 vendored loader 已有的解析。与 loader 守护一并再议。
+**给 loader 加守护。** 已随预设修复一并落地：vendored loader 现在在应用前校验组合树（id 在各嵌套层级唯一、不得与同 store 的容器条目 id 冲突）、拒绝把条目移进自己的子树，并在变更点保留创建期收养判定（vendor 登记第 22 条）。未来的冲突会响亮报错而非静默挂起。
 
 ## 后果
 

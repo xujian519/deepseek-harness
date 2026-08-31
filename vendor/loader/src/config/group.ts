@@ -20,6 +20,13 @@ export class EntryGroup {
   async create(options: Omit<EntryOptions, 'id'>) {
     const id = this.tree.ensureId(options)
     const existing = this.tree.store[id]
+    const container = this.ctx.fiber.entry
+    if (existing && container && existing.contains(container)) {
+      throw new TypeError(
+        `loader entry id ${id} (${options.name}) would adopt its containing entry ${container.id}:`
+        + ' a nested row must not reuse the id of a group row containing it',
+      )
+    }
     const entry: Entry = existing ?? (this.tree.store[id] = new Entry(this.ctx.loader))
     const previousParent = entry.parent
     // Entry may be moved from another group,
@@ -58,12 +65,31 @@ export class EntryGroup {
 
   async update(config: EntryOptions[]) {
     const oldConfig = this.data as EntryOptions[]
+    // The store keys entries by raw row id, so one id must be unique across
+    // the whole incoming tree, not just one list: a nested row reusing an
+    // ancestor group row's id would adopt that entry when created and cycle
+    // its parent chain. Rows whose id matches a same-store containing entry
+    // are rejected for the same reason — adoption is only impossible from
+    // outside this tree's store (an include boundary). Validation runs before
+    // any entry is created or adopted, so the rejection cannot strand a
+    // half-applied tree.
     const seen = new Set<string>()
-    for (const options of config) {
-      const id = this.tree.ensureId(options)
-      if (seen.has(id)) throw new TypeError(`duplicate loader entry id: ${id}`)
-      seen.add(id)
+    const containerIds = new Set<string>()
+    let owner = this.ctx.fiber.entry
+    while (owner) {
+      if (owner.parent.tree === this.tree) containerIds.add(owner.options.id)
+      owner = owner.parent.ctx.fiber.entry
     }
+    const validate = (rows: EntryOptions[]) => {
+      for (const options of rows) {
+        const id = this.tree.ensureId(options)
+        if (seen.has(id)) throw new TypeError(`duplicate loader entry id: ${id}`)
+        if (containerIds.has(id)) throw new TypeError(`loader entry id ${id} collides with its containing entry`)
+        seen.add(id)
+        if (options.group && Array.isArray(options.config)) validate(options.config as EntryOptions[])
+      }
+    }
+    validate(config)
     const oldMap = Object.fromEntries(oldConfig.map(options => [options.id, options]))
     const newMap = Object.fromEntries(config.map(options => [options.id, options]))
 

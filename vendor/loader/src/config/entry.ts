@@ -80,6 +80,25 @@ export class Entry {
     return id
   }
 
+  /**
+   * Whether `container` is this entry or sits inside this entry's subtree.
+   * <p>
+   * Assigning this entry under a group whose fiber hosts `container` would
+   * point this entry's parent chain back into itself, so every caller that
+   * assigns `parent` rejects that shape through this predicate; the loader's
+   * disabled walks assume an acyclic parent chain.
+   * @param container - the entry whose fiber hosts the destination group.
+   * @returns whether moving or adopting this entry under that group would close a parent-chain cycle.
+   */
+  contains(container: Entry | undefined): boolean {
+    let owner = container
+    while (owner) {
+      if (owner === this) return true
+      owner = owner.parent.ctx.fiber.entry
+    }
+    return false
+  }
+
   /** True when this entry or any owning parent entry is disabled. */
   get disabled() {
     return this._disabled(this.options)

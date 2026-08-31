@@ -16,9 +16,7 @@ The group row is renamed to `self-evolve`; the child keeps `self-evolve-benchmar
 
 ## Alternatives considered
 
-**Guard the loader.** A cycle check in `_disabled()` (or rejecting a child whose id resolves to an existing ancestor entry in `create()`) would turn any future collision into a loud failure. Rejected for this change: the loader is vendored (`vendor/`), so the guard needs the sync procedure, logged local modifications, and its own tests. It remains the right follow-up.
-
-**Scan preset files at authoring time.** A validation over composition text duplicates parsing the vendored loader already owns. Revisit together with the loader guard.
+**Guard the loader.** Done alongside the preset fix: the vendored loader now validates a composition tree before applying it (ids unique across nesting levels, no row id colliding with a same-store containing entry), refuses programmatic moves under an entry's own subtree, and keeps a create-time adoption predicate at the mutation site (vendor log entry 22). A future collision fails loud instead of hanging.
 
 ## Consequences
 
