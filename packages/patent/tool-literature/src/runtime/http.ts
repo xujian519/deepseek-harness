@@ -13,7 +13,7 @@
  * 本层服务的全部是免费、公开、无 API key 的数据源；需要鉴权的源应在连接器
  * 内显式叠加，不写在这里。
  */
-import { networkFetch, type NetworkRetryOptions } from '../internal/network-fetch.ts'
+import { networkFetch, type NetworkRetryOptions } from '../network-fetch.ts'
 
 /** per-host 礼貌限速（最小间隔与最大并发）。 */
 export interface LiteratureRateLimit {

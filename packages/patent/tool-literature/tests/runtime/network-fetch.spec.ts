@@ -4,7 +4,7 @@ import {
   isRetryableNetworkCode,
   networkFetch,
   normalizeNetworkError,
-} from '../../src/internal/network-fetch.ts'
+} from '../../src/network-fetch.ts'
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } })

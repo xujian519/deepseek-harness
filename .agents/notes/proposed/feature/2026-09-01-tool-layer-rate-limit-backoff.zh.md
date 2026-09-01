@@ -2,6 +2,8 @@
 
 Status: proposed
 
+**部分实现（2026-09-01）：** `patent_pdf_download` 的 fetch 兜底已按 Retry-After 退避重试 429/503，并返回类型化限流提示（`networkErrorCode` / `retryAfterMs`）。按提供方区分的限流信号检测，以及取消/退避上界的测试仍属前瞻。
+
 [English](2026-09-01-tool-layer-rate-limit-backoff.md) | 中文
 
 ## 问题

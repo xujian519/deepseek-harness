@@ -2,6 +2,8 @@
 
 Status: proposed
 
+**Partial implementation (2026-09-01):** the `patent_pdf_download` fetch fallback retries 429/503 with Retry-After-aware backoff and surfaces a typed rate-limit hint (`networkErrorCode` / `retryAfterMs`). Per-provider throttle-signal detection and the cancellation/backoff-bound tests remain prospective.
+
 English | [中文](2026-09-01-tool-layer-rate-limit-backoff.zh.md)
 
 ## Problem

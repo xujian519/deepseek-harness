@@ -1,7 +1,8 @@
 /**
  * `patent_pdf_download` tool: batch-download patent PDFs from Google Patents
- * through an injected ego-browser runner, with a plain-fetch fallback for the
- * extracted CDN URL. Ported from Sati's patentPdfDownload.ts.
+ * through an injected ego-browser runner, with a fetch fallback (bounded retry/
+ * timeout, Retry-After-aware backoff) for the extracted CDN URL. Ported from
+ * Sati's patentPdfDownload.ts.
  *
  * The ego-browser script construction (buildDownloadScript) and the Sati
  * session (EgoBrowserSession.runScript) are NOT ported here — the integrator
@@ -413,7 +414,7 @@ const DESCRIPTION = [
   'Usage notes:',
   '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下',
   '  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）',
-  '  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍限流时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试',
+  '  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍 429 时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试',
 ].join('\n')
 /**
  * Build the `patent_pdf_download` tool over an injected ego-browser runner.

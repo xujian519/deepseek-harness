@@ -10,7 +10,7 @@
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
 import { getText, type LiteratureFetchOptions, type LiteratureRateLimit } from '../http.ts'
-import type { NetworkRetryOptions } from '../../internal/network-fetch.ts'
+import type { NetworkRetryOptions } from '../../network-fetch.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 import { xmlAttr, xmlBlocks, xmlSelfClosing, xmlText } from '../shared/xml.ts'
 

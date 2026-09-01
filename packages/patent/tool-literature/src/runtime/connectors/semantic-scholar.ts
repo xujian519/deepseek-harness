@@ -7,7 +7,7 @@
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
 import { getJSON, type LiteratureRateLimit } from '../http.ts'
-import type { NetworkRetryOptions } from '../../internal/network-fetch.ts'
+import type { NetworkRetryOptions } from '../../network-fetch.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
