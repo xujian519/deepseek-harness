@@ -72,7 +72,10 @@ function result(seq: number, callId: string, isError = false, turn = 1): Session
 }
 
 function assembler(entries: readonly SessionLiveEventEntry[]): ConversationNodeAssembler {
-  const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+  const views = new TestViewDefinitions()
+  const value = new ConversationNodeAssembler(new TestEventDefinitions(), views)
+  // Snapshot building is lazy: activate every view before the first flush.
+  for (const view of views.entries()) value.activateTarget(view.target)
   value.replaceWindow(entries, false)
   value.flush()
   return value

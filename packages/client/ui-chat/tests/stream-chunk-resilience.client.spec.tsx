@@ -49,7 +49,10 @@ function at(seq: number, type: string, data: unknown, extra: Record<string, unkn
 }
 
 function assembler(entries: readonly SessionEventLikeEntry[] = []): ConversationNodeAssembler {
-  const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+  const views = new TestViewDefinitions()
+  const value = new ConversationNodeAssembler(new TestEventDefinitions(), views)
+  // Snapshot building is lazy: activate every view before the first flush.
+  for (const view of views.entries()) value.activateTarget(view.target)
   value.replaceWindow(entries, false)
   value.flush()
   return value

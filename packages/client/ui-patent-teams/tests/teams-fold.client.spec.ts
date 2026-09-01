@@ -61,8 +61,16 @@ function at(seq: number, type: string, data: unknown): SessionLiveEventEntry {
   return { type: 'event', event: { seq, time: seq * 100, type, data } as SessionEvent }
 }
 
+/** The assembler only builds snapshots for activated targets; activate every test view. */
+function createAssembler(): ConversationNodeAssembler {
+  const definitions = new TestViewDefinitions()
+  const value = new ConversationNodeAssembler(new TestEventDefinitions(), definitions)
+  for (const view of definitions.entries()) value.activateTarget(view.target)
+  return value
+}
+
 function assembler(entries: readonly SessionLiveEventEntry[], hasMore = false): ConversationNodeAssembler {
-  const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+  const value = createAssembler()
   value.replaceWindow(entries, hasMore)
   value.flush()
   return value
@@ -167,7 +175,7 @@ describe('chat card Definition', () => {
 
   it('holds an update-only tail pending until the start arrives', () => {
     const events = teamEvents()
-    const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+    const value = createAssembler()
     // The window covers only search-team updates: no team-created inside it.
     value.replaceWindow(events.slice(2, 13), true)
     value.flush()
@@ -180,7 +188,7 @@ describe('chat card Definition', () => {
   it('produces the same fold through live append as complete replay', () => {
     const events = teamEvents()
     const replay = assembler(events)
-    const live = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+    const live = createAssembler()
     live.replaceWindow(events.slice(0, 2), false)
     for (const event of events.slice(2)) live.append(event)
     live.flush()
@@ -192,7 +200,7 @@ describe('chat card Definition', () => {
 describe('Teams view target', () => {
   it('keeps team-creation order across incremental upserts', () => {
     const events = teamEvents()
-    const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+    const value = createAssembler()
     value.replaceWindow(events.slice(0, 2), false)
     value.flush()
     expect(viewSnapshot(value).teams.map(team => team.teamId)).toEqual(['search-team'])
