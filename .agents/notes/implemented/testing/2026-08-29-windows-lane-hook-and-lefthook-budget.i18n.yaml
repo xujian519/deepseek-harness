@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-29-windows-lane-hook-and-lefthook-budget.md
-2026-08-29-windows-lane-hook-and-lefthook-budget.md: ba288ab4ac703d92cad6b2eb387010a04825efd4
-2026-08-29-windows-lane-hook-and-lefthook-budget.zh.md: 171b2792ce1652eec48696e98fa307e1ffc80c41
+2026-08-29-windows-lane-hook-and-lefthook-budget.md: 504902ee2fb0be987e281b9d2aff5dc906981285
+2026-08-29-windows-lane-hook-and-lefthook-budget.zh.md: ce673546e35b3c087d5357c6979fbd052fe11891
