@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-tool-layer-rate-limit-backoff.md
+2026-09-01-tool-layer-rate-limit-backoff.md: 4332200a2ca97f4a058481895dbd0546c716f3ae
+2026-09-01-tool-layer-rate-limit-backoff.zh.md: 72d28e6a508563102767b8628c7b214308e2c437
