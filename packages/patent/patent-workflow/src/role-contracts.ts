@@ -56,7 +56,7 @@ export function defaultRoleContracts(): RoleContract[] {
       role: 'researcher',
       name: '检索员',
       stance: 'neutral',
-      description: '证据/现有技术检索与核实：公开内容、参数数值、来源可得性；覆盖度评估；可专利性初判',
+      description: '证据/现有技术检索与核实：先调用 patent_analysis_report 做 IPC 分类并取得建议检索策略，据此构造含 IPC 限定的布尔检索式以收窄结果（避免命中过多），再核实公开内容、参数数值、来源可得性；覆盖度评估；可专利性初判',
       workers: ['patent-search-commander'],
       forbiddenActions: ['不擅自下新颖性/创造性实体结论（检索只提供证据与初判）'],
       triggersHITL: false,

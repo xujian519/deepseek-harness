@@ -247,13 +247,14 @@ export function defaultPatentWorkers(): WorkerContract[] {
     {
       name: 'patent-search-commander',
       tier: 'domain',
-      description: '制定检索策略并执行专利检索，输出检索报告',
+      description: '制定检索策略并执行专利检索：先经 patent_analysis_report 做 IPC 分类并取得建议检索策略，再据此构造含 IPC 限定的布尔检索式，输出检索报告',
       allowedTools: [
         'patent_search',
         'patent_metadata',
         'patent_legal_status',
         'web_search',
         'web_fetch',
+        'patent_analysis_report',
         'patent_eval',
       ],
       outputs: [
