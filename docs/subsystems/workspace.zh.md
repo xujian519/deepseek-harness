@@ -153,7 +153,7 @@ Source: [`packages/host/directory-picker/src/index.ts`](../../packages/host/dire
 
 ### `ctx.directoryPickerController` — `DirectoryPickerController`
 
-Host service backing the generated `ctx.remote.directoryPicker` namespace. The seam it exports is abstract and therefore never a Loader entry of its own, so this controller carries the wire verbs: one composed backend serves either the native chooser or the browse primitives, and a verb the composition cannot serve is refused rather than approximated.
+Host service backing the generated `ctx.remote.directoryPicker` namespace. The seam it exports is abstract and therefore never a Loader entry of its own, so this controller carries the wire verbs: one composed backend serves either the native chooser or the browse primitives, and a verb the composition does not provide is refused rather than approximated. Each verb gates on the presence of the primitive it forwards to, so any backend serving that primitive is served alike — including a kind merged into the seam by another program.
 
 ```ts cordis-catalog
 /**

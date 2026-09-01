@@ -7,7 +7,7 @@
 
 本矩阵展示哪些包会派发各个 harness 自有事件，以及哪些包会监听这些事件。事件之间存在多对多关系，因此密集的关系数据以表格而非一张大型关系图呈现。接收方和事件名称类型还涵盖有意绕过 `ctx.emit` 的内含派发位置，例如 subagent 生命周期封装。
 
-| Event | Mode | Declared in | Dispatchers | Listeners |
+| 事件 | 模式 | 声明位置 | 派发方 | 监听方 |
 | --- | --- | --- | --- | --- |
 | `@deepseek-ai/cordis/dynamic-package` | `emit` | [`packages/extensions/cordis-host-runner/src/types.ts:411`](../packages/extensions/cordis-host-runner/src/types.ts) | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) (`emit`) | `remotes` |
 | `@deepseek-ai/cordis/dynamic-retract` | `emit` | [`packages/extensions/cordis-host-runner/src/types.ts:417`](../packages/extensions/cordis-host-runner/src/types.ts) | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) (`emit`) | `remotes` |
@@ -63,10 +63,10 @@
 | `settings/document-updated` | `emit` | [`packages/settings/settings/src/types.ts:105`](../packages/settings/settings/src/types.ts) | [`settings`](../packages/settings/settings) (`events.dispatch`) | `remotes` |
 | `settings/updated` | `emit` | [`packages/settings/settings/src/types.ts:92`](../packages/settings/settings/src/types.ts) | [`settings`](../packages/settings/settings) (`events.dispatch`) | [`settings`](../packages/settings/settings) |
 | `skills/change` | `emit` | [`packages/skill/skill/src/index.ts:301`](../packages/skill/skill/src/index.ts) | [`skill`](../packages/skill/skill) (`emitContained`) | - |
-| `subagent/end` | `emit` | [`packages/subagent/subagent/src/index.ts:178`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emitContained`) | [`hooks-claude-code`](../packages/hooks/hooks-claude-code), `server`, [`subagent`](../packages/subagent/subagent) |
-| `subagent/provider-added` | `emit` | [`packages/subagent/subagent/src/index.ts:152`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emit`) | [`subagent`](../packages/subagent/subagent), [`tool-subagent`](../packages/subagent/tool-subagent) |
-| `subagent/provider-removed` | `emit` | [`packages/subagent/subagent/src/index.ts:158`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emitContained`) | [`subagent`](../packages/subagent/subagent), [`tool-subagent`](../packages/subagent/tool-subagent) |
-| `subagent/start` | `emit` | [`packages/subagent/subagent/src/index.ts:169`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emitContained`) | [`hooks-claude-code`](../packages/hooks/hooks-claude-code), [`subagent`](../packages/subagent/subagent) |
+| `subagent/end` | `emit` | [`packages/subagent/subagent/src/index.ts:179`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emitContained`) | [`hooks-claude-code`](../packages/hooks/hooks-claude-code), `server`, [`subagent`](../packages/subagent/subagent) |
+| `subagent/provider-added` | `emit` | [`packages/subagent/subagent/src/index.ts:153`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emit`) | [`subagent`](../packages/subagent/subagent), [`tool-subagent`](../packages/subagent/tool-subagent) |
+| `subagent/provider-removed` | `emit` | [`packages/subagent/subagent/src/index.ts:159`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emitContained`) | [`subagent`](../packages/subagent/subagent), [`tool-subagent`](../packages/subagent/tool-subagent) |
+| `subagent/start` | `emit` | [`packages/subagent/subagent/src/index.ts:170`](../packages/subagent/subagent/src/index.ts) | [`subagent`](../packages/subagent/subagent) (`emitContained`) | [`hooks-claude-code`](../packages/hooks/hooks-claude-code), [`subagent`](../packages/subagent/subagent) |
 | `system-prompt/assemble` | `waterfall` | [`packages/core/system-prompt/src/index.ts:53`](../packages/core/system-prompt/src/index.ts) | [`system-prompt`](../packages/core/system-prompt) (`waterfall`) | [`agent`](../packages/core/agent), [`agent-presets`](../packages/preset/agent-presets), [`system-prompt`](../packages/core/system-prompt) |
 | `system-prompt/change` | `emit` | [`packages/core/system-prompt/src/index.ts:59`](../packages/core/system-prompt/src/index.ts) | [`system-prompt`](../packages/core/system-prompt) (`emit`) | [`prompt-cache`](../packages/core/prompt-cache) |
 | `tools/change` | `emit` | [`packages/core/tools/src/index.ts:201`](../packages/core/tools/src/index.ts) | [`agent-presets`](../packages/preset/agent-presets) (`emit`), [`tools`](../packages/core/tools) (`emit`) | [`tool-subagent`](../packages/subagent/tool-subagent) |
@@ -86,7 +86,7 @@
 
 ## 包源码中出现的非 harness 或未声明事件字符串
 
-| Event string | Dispatchers | Listeners |
+| 事件字符串 | 派发方 | 监听方 |
 | --- | --- | --- |
 | `internal/dispatch` | - | `agent-team`, [`commands`](../packages/interaction/commands), [`compaction`](../packages/compaction/compaction), [`fs`](../packages/fs/fs), [`goal`](../packages/goal/goal), [`goal-round-driver`](../packages/goal/goal-round-driver), [`hook-protocol`](../packages/hooks/hook-protocol), [`llm-retry`](../packages/llm/llm-retry), [`patent-teams`](../packages/patent/patent-teams), [`patent-workflow`](../packages/patent/patent-workflow), [`permission-presets`](../packages/interaction/permission-presets), [`plan-mode`](../packages/plan/plan-mode), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`schedule`](../packages/schedule/schedule), [`scope`](../packages/core/scope), [`self-evolve`](../packages/self-evolve/self-evolve), [`session`](../packages/core/session), [`session-log-deepseek`](../packages/session/session-log-deepseek), [`session-title`](../packages/session/session-title), [`subagent`](../packages/subagent/subagent), [`terminal-bash`](../packages/terminal/terminal-bash), [`time-context`](../packages/context/time-context), [`tool-todo`](../packages/todo/tool-todo), [`tool-workflow`](../packages/workflow/tool-workflow), [`tools`](../packages/core/tools), [`user-approval`](../packages/interaction/user-approval), [`webhook`](../packages/webhook/webhook), [`workflow`](../packages/workflow/workflow) |
 | `internal/plugin` | - | `inspector`, `loader`, [`lsp-stdio`](../packages/lsp/lsp-stdio), `modules`, `webserver` |
