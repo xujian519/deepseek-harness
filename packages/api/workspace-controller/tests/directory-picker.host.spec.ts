@@ -76,6 +76,17 @@ describe('directoryPicker pick Remote', () => {
     expect(await cancelled.pick(new AbortController().signal)).toBeNull()
   })
 
+  it('serves a merge-extended pick-capable backend the Host program cannot name', async () => {
+    // The desktop `electron` kind declaration-merges into the seam inside the
+    // desktop program only, so this Host-side program has no type for it. The
+    // cast reproduces what the desktop composition puts on `ctx.directoryPicker`
+    // at runtime: a capability whose kind this program never sees, serving the
+    // same `pick` verb as `native`.
+    const electron = { kind: 'electron', pick: async () => '/tmp/desktop' } as unknown as DirectoryPickerCapability
+    const picker = await harness(electron)
+    expect(await picker.pick(new AbortController().signal)).toBe('/tmp/desktop')
+  })
+
   it('reports an aborted chooser as cancelled and any other failure as internal', async () => {
     const picker = await harness({
       kind: 'native',
@@ -98,7 +109,7 @@ describe('directoryPicker pick Remote', () => {
     const picker = await harness(BROWSE_STUB)
     const failure = await refused(picker.pick(new AbortController().signal))
     expect(failure.code).toBe('directory-picker/unavailable')
-    expect(failure.message).toContain('needs the native capability')
+    expect(failure.message).toContain('does not provide directoryPicker.pick')
     expect(failure.details).toEqual({ capability: 'browse' })
   })
 })

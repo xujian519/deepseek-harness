@@ -28,8 +28,8 @@ Two edits in `desktop-app/cordis.patch.yml` plus one in the host RPC:
         name: '@deepseek-ai/dsh-client-ui-directory-picker-native'
   ```
 
-  The electron provider is inserted under a new id (the disabled auto row keeps its id, so reusing it would be ambiguous to later id-based patches). The client surface is the existing `ui-directory-picker-native` browser half — it drives `host.pickDirectory` and branches on no capability kind, so the desktop reuses it to occupy the directory-flow holes.
-- `host.pickDirectory` gates on the capability shape instead of the `native` literal: `if (!('pick' in capability))`. The seam is merge-extensible and the `electron` kind is merged only into the desktop program, which the host type-checker cannot see; a structure check fails closed for browse-only and unknown kinds while serving native and electron alike.
+  The electron provider is inserted under a new id (the disabled auto row keeps its id, so reusing it would be ambiguous to later id-based patches). The client surface is the existing `ui-directory-picker-native` browser half — it drives the `directoryPicker/pick` verb and branches on no capability kind, so the desktop reuses it to occupy the directory-flow holes.
+- The Host pick verb gates on the capability's own verbs instead of the `native` literal: `if (!('pick' in capability))`. The seam is merge-extensible and the `electron` kind is merged only into the desktop program, which the Host type-checker cannot see; a presence check fails closed for browse-only and unknown kinds while serving native and electron alike. The verb now lives at `DirectoryPickerController.requireCapability` (`packages/api/workspace-controller/src/directory-picker.ts`) after the Remote migration retired `host.pickDirectory`; see [2026-09-01](2026-09-01-directory-picker-verb-gating-regression.md) for the regression that migration introduced and the test that now guards it.
 
 ## Alternatives considered
 

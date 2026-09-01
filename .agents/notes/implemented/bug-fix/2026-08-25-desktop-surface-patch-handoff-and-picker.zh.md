@@ -28,8 +28,8 @@ Status: implemented
         name: '@deepseek-ai/dsh-client-ui-directory-picker-native'
   ```
 
-  Electron provider 用新 id 插入（被禁用的 auto 行保留其 id，复用会造成后续按 id 的 patch 与查找歧义）。客户端表面复用现有 `ui-directory-picker-native` 浏览器半面——它只驱动 `host.pickDirectory`，不按 capability kind 分支，故桌面复用它来占用两个 directory-flow 洞。
-- `host.pickDirectory` 改为按 capability 形状而非 `native` 字面量判断：`if (!('pick' in capability))`。该缝是 merge-extensible，`electron` kind 只在桌面程序里声明合并，host 类型检查器看不到它；结构检查对仅浏览类与未知 kind 保守拒绝，同时同等服务 native 与 electron。
+  Electron provider 用新 id 插入（被禁用的 auto 行保留其 id，复用会造成后续按 id 的 patch 与查找歧义）。客户端表面复用现有 `ui-directory-picker-native` 浏览器半面——它只驱动 `directoryPicker/pick` 动词，不按 capability kind 分支，故桌面复用它来占用两个 directory-flow 洞。
+- Host 的 pick 动词改为按 capability 自身提供的动词而非 `native` 字面量判定：`if (!('pick' in capability))`。该缝是 merge-extensible，`electron` kind 只在桌面程序里声明合并，Host 类型检查器看不到它；存在性检查对仅浏览类与未知 kind 保守拒绝，同时同等服务 native 与 electron。Remote 迁移废除 `host.pickDirectory` 后，该动词现位于 `DirectoryPickerController.requireCapability`（`packages/api/workspace-controller/src/directory-picker.ts`）；该次迁移引入的回归及现在守住它的用例见 [2026-09-01](2026-09-01-directory-picker-verb-gating-regression.zh.md)。
 
 ## 备选方案
 

@@ -35,8 +35,10 @@ declare module '@deepseek-ai/cordis' {
  * Host service backing the generated `ctx.remote.directoryPicker` namespace. The
  * seam it exports is abstract and therefore never a Loader entry of its own, so
  * this controller carries the wire verbs: one composed backend serves either the
- * native chooser or the browse primitives, and a verb the composition cannot
- * serve is refused rather than approximated.
+ * native chooser or the browse primitives, and a verb the composition does not
+ * provide is refused rather than approximated. Each verb gates on the presence
+ * of the primitive it forwards to, so any backend serving that primitive is
+ * served alike — including a kind merged into the seam by another program.
  */
 export class DirectoryPickerController extends TypertRemoteService {
   static inject = ['directoryPicker']
@@ -53,7 +55,7 @@ export class DirectoryPickerController extends TypertRemoteService {
    */
   @Remote('pick')
   async pick(signal: AbortSignal): Promise<string | null> {
-    const capability = this.requireCapability('native', 'pick')
+    const capability = this.requireCapability<'native'>('pick')
     try {
       return await capability.pick(signal)
     } catch (error: unknown) {
@@ -70,7 +72,7 @@ export class DirectoryPickerController extends TypertRemoteService {
    */
   @Remote('list')
   async list(path: string | undefined, signal: AbortSignal): Promise<DirectoryListing> {
-    const capability = this.requireCapability('browse', 'list')
+    const capability = this.requireCapability<'browse'>('list')
     try {
       return await capability.list(path, signal)
     } catch (error: unknown) {
@@ -94,7 +96,7 @@ export class DirectoryPickerController extends TypertRemoteService {
         { issues: request.error.issues },
       )
     }
-    const capability = this.requireCapability('browse', 'createDirectory')
+    const capability = this.requireCapability<'browse'>('createDirectory')
     try {
       return await capability.createDirectory(request.data.path, request.data.name)
     } catch (error: unknown) {
@@ -102,19 +104,28 @@ export class DirectoryPickerController extends TypertRemoteService {
     }
   }
 
-  /** Resolve the capability one wire verb needs, or refuse with the kind this backend serves. */
+  /**
+   * Resolve the capability one wire verb needs, or refuse naming the kind this
+   * backend serves. The gate is the verb's presence, not the kind: the seam's
+   * capability map is merge-extensible, and a kind merged by another program
+   * (the desktop `electron` chooser) is invisible to this Host program's
+   * checker, so comparing kinds would refuse a backend that serves the verb.
+   * @param method - the verb, constrained to the named interaction's own members
+   *   so the runtime presence check cannot drift from the name it gates.
+   */
   private requireCapability<Kind extends keyof DirectoryPickerCapabilities>(
-    kind: Kind,
-    method: string,
+    method: Exclude<keyof DirectoryPickerCapabilities[Kind], 'kind'> & string,
   ): DirectoryPickerCapabilities[Kind] {
     const capability = this.ctx.directoryPicker.capability()
-    if (capability.kind !== kind) {
+    if (!(method in capability)) {
       throw new RemoteError(
         'directory-picker/unavailable',
-        `directoryPicker.${method} needs the ${kind} capability; the composed picker serves "${capability.kind}"`,
+        `the composed picker serves "${capability.kind}", which does not provide directoryPicker.${method}`,
         { capability: capability.kind },
       )
     }
+    // The verb is present, so the backend serves this interaction. A merge-extended
+    // kind is not in this program's union at all, which is why the cast is needed.
     return capability as DirectoryPickerCapabilities[Kind]
   }
 }

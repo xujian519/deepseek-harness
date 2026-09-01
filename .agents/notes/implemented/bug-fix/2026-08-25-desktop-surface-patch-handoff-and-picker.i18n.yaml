@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-25-desktop-surface-patch-handoff-and-picker.md
-2026-08-25-desktop-surface-patch-handoff-and-picker.md: 9e0e8ffbcefef7c841673783a27e0db83a9c7af8
-2026-08-25-desktop-surface-patch-handoff-and-picker.zh.md: 251a103a86d5f11c3b59a8110f3b22262e1478f8
+2026-08-25-desktop-surface-patch-handoff-and-picker.md: 195026f64bab57b8d091f05eeba938755957b0c4
+2026-08-25-desktop-surface-patch-handoff-and-picker.zh.md: d3c5aa1850440bc0c21850d6ca0cbf323b5dd9c4
