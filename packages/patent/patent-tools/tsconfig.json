@@ -39,6 +39,9 @@
       "path": "../patent-document"
     },
     {
+      "path": "../tool-literature"
+    },
+    {
       "path": "../../browser/browser-backend"
     }
   ]

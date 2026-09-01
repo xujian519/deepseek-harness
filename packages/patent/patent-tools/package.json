@@ -35,6 +35,7 @@
     "@deepseek-ai/nuo-patent": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
     "@deepseek-ai/dsh-browser-backend": "workspace:^",
+    "@deepseek-ai/dsh-tool-literature": "workspace:^",
     "@viz-js/viz": "^3.29.0"
   },
   "peerDependencies": {

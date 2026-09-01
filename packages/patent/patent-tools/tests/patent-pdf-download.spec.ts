@@ -295,6 +295,7 @@ describe('patent_pdf_download', () => {
       const defaultFetch = createPatentPdfDownloadTool({
         runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'http://127.0.0.1:1/x.pdf' }] }),
         resolveOutputDir: () => dir,
+        fetchFallbackRetry: { maxRetries: 0 },
       })
       const ctxB = await ctxWith(defaultFetch)
       const resultB = await execute(ctxB, 'patent_pdf_download', { patents: ['US1A'] }, 'pf-6b')
@@ -438,6 +439,7 @@ describe('patent_pdf_download', () => {
         runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf', error: 'intercept failed' }] }),
         resolveOutputDir: () => dirB,
         fetchImpl: throws,
+        fetchFallbackRetry: { maxRetries: 0 },
       })
       const ctxB = await ctxWith(toolB)
       const resultB = await execute(ctxB, 'patent_pdf_download', { patents: ['US1A'] }, 'p-19')
@@ -552,6 +554,77 @@ describe('patent_pdf_download', () => {
         resolveOutputDir: () => dir,
       })
       await expect(tool.execute({ patents: ['US1A'] }, { signal } as never)).rejects.toMatchObject({ code: 'tool_execution_failed' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('retries a rate-limited fetch fallback and recovers', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      let calls = 0
+      const body = '%PDF-1.4 ' + 'x'.repeat(600)
+      const fetchImpl = (async () => {
+        calls += 1
+        if (calls === 1) return new Response('', { status: 429, headers: { 'retry-after': '0' } })
+        return new Response(body, { status: 200, headers: { 'content-type': 'application/pdf' } })
+      }) as unknown as typeof fetch
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        resolveOutputDir: () => dir,
+        fetchImpl,
+        fetchFallbackRetry: { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 5 },
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'patent_pdf_download', { patents: ['US1A'] }, 'p-ratelimit-retry')
+      expect(calls).toBe(2)
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      expect(text(result)).toContain('（fetch 兜底）')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles a non-Error thrown while reading the fallback body', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const badBody = (async () => ({ ok: true, status: 200, statusText: 'OK', headers: { get: () => 'application/pdf' }, arrayBuffer: async () => { throw 'body-boom' } })) as unknown as typeof fetch
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        resolveOutputDir: () => dir,
+        fetchImpl: badBody,
+        fetchFallbackRetry: { maxRetries: 0 },
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'patent_pdf_download', { patents: ['US1A'] }, 'p-bodyboom')
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      expect(text(result)).toContain('fetch fallback failed: body-boom')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('surfaces a rate-limit wait hint when the fetch fallback stays rate-limited', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const rateLimited = (async () => ({ ok: false, status: 429, statusText: 'Too Many Requests', headers: { get: (name: string) => (name.toLowerCase() === 'retry-after' ? '5' : null) }, arrayBuffer: async () => new ArrayBuffer(0) })) as unknown as typeof fetch
+      const tool = createPatentPdfDownloadTool({
+        runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+        resolveOutputDir: () => dir,
+        fetchImpl: rateLimited,
+        fetchFallbackRetry: { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 5 },
+      })
+      const value = (await tool.execute({ patents: ['US1A'] }, { signal } as never)) as {
+        results: Array<{ status: string; networkErrorCode?: string; retryAfterMs?: number; error?: string }>
+      }
+      const [first] = value.results
+      expect(first?.status).toBe('failed')
+      expect(first?.networkErrorCode).toBe('network_rate_limited')
+      expect(first?.retryAfterMs).toBe(5000)
+      expect(first?.error).toContain('rate limited')
+      expect(first?.error).toContain('等待约 5s 后重试')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

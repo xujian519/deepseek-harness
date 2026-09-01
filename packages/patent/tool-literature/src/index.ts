@@ -28,6 +28,10 @@ export type {
 } from './protocol/types.ts'
 export { LiteratureToolError } from './error.ts'
 export type { LiteratureToolErrorCode } from './error.ts'
+// Shared network-fetch primitive (timeout / retry / Retry-After-aware backoff):
+// re-exported so sibling packages can reuse it without importing the internal path.
+export { networkFetch, NetworkFetchError, normalizeNetworkError, isRetryableNetworkCode, parseRetryAfterHeader } from './internal/network-fetch.ts'
+export type { NetworkErrorCode, NetworkRetryOptions, NetworkFetchOptions } from './internal/network-fetch.ts'
 export { createPaperSearchTool } from './tool/paper-search.ts'
 export { createPaperListSourcesTool } from './tool/paper-list-sources.ts'
 export { createPaperDownloadTool } from './tool/paper-download.ts'

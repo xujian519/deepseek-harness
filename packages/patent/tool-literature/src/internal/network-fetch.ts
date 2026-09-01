@@ -205,7 +205,12 @@ function resolveRetryDelay(attempt: number, retry: NetworkRetryOptions, retryAft
   return Math.min(cap, exponential + jitter)
 }
 
-function parseRetryAfterHeader(headerValue: string | null | undefined): number | undefined {
+/**
+ * 解析 `Retry-After` 头（秒数或 HTTP-date）为建议等待毫秒数；无法解析返回 undefined。
+ * @param headerValue - 响应头的 `Retry-After` 值。
+ * @returns 建议等待毫秒数；缺失或不可解析时为 undefined。
+ */
+export function parseRetryAfterHeader(headerValue: string | null | undefined): number | undefined {
   if (!headerValue) return undefined
   const seconds = Number(headerValue.trim())
   if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000)

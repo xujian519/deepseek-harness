@@ -17,6 +17,12 @@ import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import {
+  networkFetch,
+  NetworkFetchError,
+  parseRetryAfterHeader,
+  type NetworkRetryOptions,
+} from '@deepseek-ai/dsh-tool-literature'
 import { PatentToolError } from '../error.ts'
 
 const MAX_PATENTS = 50
@@ -36,6 +42,13 @@ const PDF_MAGIC = '%PDF-'
 const MIN_PDF_BYTES = 500
 /** 断点续传 MANIFEST 文件名（`<outputDir>/.MANIFEST.jsonl`，append 追加式）。 */
 const MANIFEST_FILE = '.MANIFEST.jsonl'
+/** fetch 兜底重试策略：吸收瞬时失败与限流（429/503），按 Retry-After 退避，上限 30s。 */
+const DEFAULT_FETCH_FALLBACK_RETRY: NetworkRetryOptions = { maxRetries: 2, baseDelayMs: 250, maxDelayMs: 30_000 }
+
+/** 限流重试提示（模型可见，用于替代盲 sleep）。 */
+function rateLimitHint(retryAfterMs: number): string {
+  return `，等待约 ${Math.max(1, Math.round(retryAfterMs / 1000))}s 后重试`
+}
 
 /** Input for the patent_pdf_download tool. */
 export type PatentPdfDownloadInput = {
@@ -69,6 +82,10 @@ export type PatentDownloadItem = {
   method?: 'browser' | 'http' | 'skip'
   /** fetch 兜底路径的下载耗时（毫秒）。 */
   durationMs?: number
+  /** 网络层错误码（network_rate_limited / network_timeout 等），供按码路由与诊断。 */
+  networkErrorCode?: string
+  /** 限流建议等待时长（毫秒，由 Retry-After 推测），供模型决定何时重试。 */
+  retryAfterMs?: number
 }
 
 /** Output of the patent_pdf_download tool. */
@@ -130,6 +147,8 @@ export type PatentPdfDownloadDeps = {
   resolveOutputDir?: (outputDir: string | undefined, cwd: string) => string
   /** fetch implementation for the CDN fallback (defaults to globalThis.fetch). */
   fetchImpl?: typeof fetch
+  /** Override the CDN fallback retry policy (defaults to DEFAULT_FETCH_FALLBACK_RETRY). */
+  fetchFallbackRetry?: NetworkRetryOptions
   /** Resolve the batch runner from a browser-backend cold decision (defaults to runEgo). */
   resolveRunner?: () => Promise<RunEgo> | RunEgo
 }
@@ -251,13 +270,15 @@ async function sha1OfFile(path: string): Promise<string> {
  * 浏览器拦截条目兜底：脚本返回 fallback（已提取 CDN URL）时，用 fetch 直接
  * 下载落盘。成功升格为 ok（method=http）；失败标记 failed（保留 pdfUrl 供重试）。
  *
- * 与 Sati 的差异：Sati 经 networkFetch 带重试且流式写盘；本端口用注入的
- * fetchImpl 单次下载整读入内存（20MB 级 PDF），重试与流式写盘留待集成期补齐。
+ * 与 Sati 的差异：Sati 经 networkFetch 流式写盘；本端口用注入的 fetchImpl
+ * 整读入内存（20MB 级 PDF）落盘。fetch 兜底经 networkFetch 带超时/重试/
+ * Retry-After 退避；重试耗尽仍限流时，在失败项给出 networkErrorCode 与
+ * retryAfterMs，并把建议等待时长写入 error，让模型据此重试而非盲 sleep。
  */
 async function fetchPdfFallback(
   item: EgoDownloadItem,
   outputDir: string,
-  options: { signal?: AbortSignal; fetchImpl?: typeof fetch },
+  options: { signal?: AbortSignal; fetchImpl?: typeof fetch; fetchRetry?: NetworkRetryOptions },
 ): Promise<PatentDownloadItem> {
   if (item.status === 'ok') {
     return {
@@ -271,28 +292,56 @@ async function fetchPdfFallback(
   if (!item.pdfUrl) {
     return { patent: item.patent, status: 'failed', ...(item.error === undefined ? {} : { error: item.error }) }
   }
+  // 闭包须捕获已收窄的 URL；属性访问在闭包内不被窄化。
+  const pdfUrl: string = item.pdfUrl
   const start = Date.now()
   const target = join(outputDir, `${item.patent}.pdf`)
   const tmp = `${target}.tmp`
+  const base = item.error ? `${item.error}; ` : ''
+  let networkErrorCode: string | undefined
+  let retryAfterMs: number | undefined
+  const failed = (reason: string): PatentDownloadItem => ({
+    patent: item.patent,
+    status: 'failed',
+    pdfUrl,
+    ...(networkErrorCode === undefined ? {} : { networkErrorCode }),
+    ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+    error: `${base}fetch fallback failed: ${reason}`,
+    durationMs: Date.now() - start,
+  })
+  const fetchFn = options.fetchImpl ?? globalThis.fetch
+  if (typeof fetchFn !== 'function') {
+    return failed('no fetch implementation available')
+  }
   try {
-    const fetchFn = options.fetchImpl ?? globalThis.fetch
-    if (typeof fetchFn !== 'function') throw new Error('no fetch implementation available')
-    const res = await fetchFn(item.pdfUrl, {
-      headers: { 'User-Agent': PATENT_DOWNLOAD_USER_AGENT, Accept: 'application/pdf' },
-      /* v8 ignore next -- execute always passes exec.signal through. */
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+    const res = await networkFetch(
+      pdfUrl,
+      { headers: { 'User-Agent': PATENT_DOWNLOAD_USER_AGENT, Accept: 'application/pdf' } },
+      {
+        /* v8 ignore next -- execute always passes exec.signal through. */
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        fetchImpl: fetchFn,
+        retry: options.fetchRetry ?? DEFAULT_FETCH_FALLBACK_RETRY,
+      },
+    )
+    if (!res.ok) {
+      if (res.status === 429) {
+        networkErrorCode = 'network_rate_limited'
+        retryAfterMs = parseRetryAfterHeader(res.headers.get('retry-after'))
+        return failed(`HTTP 429 (rate limited)${retryAfterMs === undefined ? '' : rateLimitHint(retryAfterMs)}`)
+      }
+      return failed(`HTTP ${res.status} ${res.statusText}`)
+    }
     const contentType = res.headers.get('content-type') ?? ''
     if (contentType.toLowerCase().includes('text/html')) {
-      throw new Error(`unexpected Content-Type: ${contentType}`)
+      return failed(`unexpected Content-Type: ${contentType}`)
     }
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length < MIN_PDF_BYTES) {
-      throw new Error(`response too small (${buf.length} bytes), likely an error page`)
+      return failed(`response too small (${buf.length} bytes), likely an error page`)
     }
     if (buf.subarray(0, PDF_MAGIC.length).toString() !== PDF_MAGIC) {
-      throw new Error(`invalid PDF magic: ${JSON.stringify(buf.subarray(0, PDF_MAGIC.length).toString())}`)
+      return failed(`invalid PDF magic: ${JSON.stringify(buf.subarray(0, PDF_MAGIC.length).toString())}`)
     }
     await writeFile(tmp, buf)
     await rename(tmp, target)
@@ -300,21 +349,14 @@ async function fetchPdfFallback(
       patent: item.patent,
       status: 'ok',
       path: target,
-      pdfUrl: item.pdfUrl,
+      pdfUrl,
       method: 'http',
       durationMs: Date.now() - start,
     }
   } catch (fetchErr) {
     await unlink(tmp).catch(() => {})
-    const reason = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-    const base = item.error ? `${item.error}; ` : ''
-    return {
-      patent: item.patent,
-      status: 'failed',
-      pdfUrl: item.pdfUrl,
-      error: `${base}fetch fallback failed: ${reason}`,
-      durationMs: Date.now() - start,
-    }
+    networkErrorCode = fetchErr instanceof NetworkFetchError ? fetchErr.code : undefined
+    return failed(fetchErr instanceof Error ? fetchErr.message : String(fetchErr))
   }
 }
 
@@ -360,6 +402,8 @@ const ITEM_SCHEMA = {
     error: { type: 'string' },
     method: { type: 'string', enum: ['browser', 'http', 'skip'] },
     durationMs: { type: 'number' },
+    networkErrorCode: { type: 'string' },
+    retryAfterMs: { type: 'number' },
   },
 } as const
 
@@ -369,6 +413,7 @@ const DESCRIPTION = [
   'Usage notes:',
   '  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下',
   '  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）',
+  '  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍限流时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试',
 ].join('\n')
 /**
  * Build the `patent_pdf_download` tool over an injected ego-browser runner.
@@ -486,6 +531,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
           fetchPdfFallback(item, outputDir, {
             signal: exec.signal,
             ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
+            ...(deps.fetchFallbackRetry === undefined ? {} : { fetchRetry: deps.fetchFallbackRetry }),
           }),
         ),
       )
