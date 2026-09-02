@@ -119,7 +119,10 @@ async function waitGone(pid: number, timeoutMs = 5_000): Promise<void> {
         const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3)
         if (state === 'Z' || state === 'X') return
       } catch (error: unknown) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+        const code = (error as NodeJS.ErrnoException).code
+        // The task can be reaped between opening /proc/<pid>/stat and the read;
+        // the read then fails with ESRCH, which like ENOENT means the pid is gone.
+        if (code === 'ENOENT' || code === 'ESRCH') return
         throw error
       }
     }
