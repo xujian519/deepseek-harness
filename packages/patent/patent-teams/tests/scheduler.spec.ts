@@ -2,7 +2,7 @@
 // task dispatch with rollback) and the member status observer. Real team state
 // files under temp directories; ctx.agents / ctx.subagents are stubs.
 import { Context } from '@deepseek-ai/cordis'
-import { chmod, mkdtemp } from 'node:fs/promises'
+import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,7 +15,6 @@ import {
   createTeamDir,
   readMailbox,
   readTeam,
-  removeTeamDir,
   teamLockKey,
   withTeamLock,
   writeTeam,
@@ -273,7 +272,7 @@ describe('installTeamScheduler kickMember', () => {
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const holder = withTeamLock(teamLockKey(stateRoot, 'team1'), async () => {
       await promise
-      await removeTeamDir(stateRoot, 'team1')
+      await rm(join(stateRoot, 'team1'), { recursive: true, force: true })
     })
     const kick = scheduler.kickMember(workspace, 'team1', 'alice', fakeAgent('captain-1', workspace))
     resolve(undefined)
@@ -299,7 +298,7 @@ describe('installTeamScheduler kickMember', () => {
   it('skips the rollback when the whole team vanished during delivery', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
       sendMessage: async () => {
-        await removeTeamDir(join(workspace, stateDir), 'team1')
+        await rm(join(workspace, stateDir, 'team1'), { recursive: true, force: true })
         throw new Error('delivery failed')
       },
     })
@@ -446,7 +445,7 @@ describe('member status observer', () => {
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const holder = withTeamLock(teamLockKey(stateRoot, 'team1'), async () => {
       await promise
-      await removeTeamDir(stateRoot, 'team1')
+      await rm(join(stateRoot, 'team1'), { recursive: true, force: true })
     })
     const alice = fakeAgent('member-1', workspace)
     ctx.emit('agent/status', { agent: alice, status: 'idle' })

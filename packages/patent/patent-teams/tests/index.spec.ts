@@ -94,6 +94,7 @@ describe('apply', () => {
       'patent_teams_update_task',
       'patent_teams_send_message',
       'patent_teams_status',
+      'patent_teams_archive',
       'patent_teams_delete',
     ]) {
       expect(registered.some(tool => tool.name === toolName)).toBe(true)

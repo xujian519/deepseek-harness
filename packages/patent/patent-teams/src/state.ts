@@ -14,7 +14,6 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isRecord } from '@deepseek-ai/dsh-value'
@@ -232,26 +231,6 @@ function parseTeamRecord(raw: string, teamId: string): TeamState {
 export async function readTeam(stateRoot: string, teamId: string): Promise<TeamState | undefined> {
   try {
     return parseTeamRecord(await readFile(join(stateRoot, teamId, 'team.json'), 'utf8'), teamId)
-  } catch (error: unknown) {
-    if (isEnoent(error)) {
-      return undefined
-    }
-    throw error
-  }
-}
-
-/**
- * Synchronously read one team record while a continuable child is being
- * composed. Harness requires child setup contributions to be synchronous;
- * this narrow boundary lets a cold-resumed member restore its durable model
- * selection before its first request can be published.
- * @param stateRoot - resolved absolute state root directory.
- * @param teamId - the team's sanitized id.
- * @returns the team record, or `undefined` when absent.
- */
-export function readTeamSync(stateRoot: string, teamId: string): TeamState | undefined {
-  try {
-    return parseTeamRecord(readFileSync(join(stateRoot, teamId, 'team.json'), 'utf8'), teamId)
   } catch (error: unknown) {
     if (isEnoent(error)) {
       return undefined
@@ -804,15 +783,6 @@ function isTeamMessage(value: unknown): value is TeamMessage {
 }
 
 /**
- * Remove a team's whole directory (members should be interrupted first).
- * @param stateRoot - resolved absolute state root directory.
- * @param teamId - the team id.
- */
-export async function removeTeamDir(stateRoot: string, teamId: string): Promise<void> {
-  await rm(join(stateRoot, teamId), { recursive: true, force: true })
-}
-
-/**
  * `rename` with the same transient retry policy as the state-file atomic
  * write, for paths (like archiving a whole team directory) where there is no
  * content-equivalent direct-write degradation on Windows. A short-lived
@@ -915,63 +885,4 @@ export async function listArchivedTeamIds(stateRoot: string): Promise<string[]> 
     }
     throw error
   }
-}
-
-// ── activity snapshot (server-side, like the Claude Code desktop watcher) ──
-
-/** Visual task state for the activity panel. */
-export type VisualTaskState = 'blocked' | 'open' | 'running' | 'completed'
-
-/**
- * The visual state of one task: `running` while in_progress, `completed`
- * when done, `blocked` while any dependency is unfinished, else `open`.
- * @param status - the task's current status.
- * @param dependencies - the task's dependency ids.
- * @param tasks - the team's tasks, for dependency lookup.
- * @returns the visual task state.
- */
-export function taskVisualState(
-  status: string,
-  dependencies: readonly string[],
-  tasks: readonly TeamTask[],
-): VisualTaskState {
-  if (status === 'completed') return 'completed'
-  if (status === 'in_progress') return 'running'
-  const byId = new Map(tasks.map(task => [task.id, task]))
-  const openDependency = dependencies.some((dependencyId) => {
-    const dependency = byId.get(dependencyId)
-    return dependency !== undefined && dependency.status !== 'completed'
-  })
-  return openDependency ? 'blocked' : 'open'
-}
-
-/**
- * Longest dependency path depth per task id (each depth = one lane column).
- * @param tasks - the team's tasks.
- * @returns the longest dependency-path depth per task id.
- */
-export function taskDepthsById(tasks: readonly TeamTask[]): Map<string, number> {
-  const byId = new Map(tasks.map(task => [task.id, task]))
-  const depths = new Map<string, number>()
-  const visiting = new Set<string>()
-  const depthOf = (taskId: string): number => {
-    const cached = depths.get(taskId)
-    if (cached !== undefined) return cached
-    if (visiting.has(taskId)) return 0
-    const task = byId.get(taskId)
-    // v8 ignore next -- recursion is only entered for ids filtered through byId.has
-    if (task === undefined) return 0
-    visiting.add(taskId)
-    const dependencies = task.dependencies
-      .filter(dependencyId => byId.has(dependencyId))
-      .sort()
-    const depth = dependencies.length === 0
-      ? 0
-      : 1 + Math.max(...dependencies.map(depthOf))
-    visiting.delete(taskId)
-    depths.set(taskId, depth)
-    return depth
-  }
-  for (const task of tasks) depthOf(task.id)
-  return depths
 }

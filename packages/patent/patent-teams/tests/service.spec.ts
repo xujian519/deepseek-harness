@@ -4,7 +4,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -695,6 +695,66 @@ describe('delete', () => {
   })
 })
 
+describe('archive', () => {
+  it('lists archived teams and shows one team in detail', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain, 'Alpha', 'goal')
+    await addMember(h, captain, 'alice', { role: 'researcher' })
+    await h.ctx.patentTeams.createTask(captain, { subject: 'search prior art' })
+    await h.ctx.patentTeams.delete(captain, new AbortController().signal)
+
+    const listing = await h.ctx.patentTeams.archive(captain)
+    if (listing.mode !== 'list') throw new Error('expected an archive listing')
+    const row = listing.teams[0]
+    if (row === undefined) throw new Error('expected one archived team row')
+    const { created_at: listedAt, ...summary } = row
+    expect(typeof listedAt).toBe('number')
+    expect(summary).toEqual({
+      team_id: 'alpha',
+      team_name: 'Alpha',
+      members: 1,
+      tasks: 1,
+      completed_tasks: 0,
+    })
+
+    const detail = await h.ctx.patentTeams.archive(captain, 'alpha')
+    if (detail.mode !== 'detail') throw new Error('expected an archive detail record')
+    const { created_at: detailAt, ...record } = detail.team
+    expect(typeof detailAt).toBe('number')
+    expect(record).toEqual({
+      team_id: 'alpha',
+      team_name: 'Alpha',
+      description: 'goal',
+      members: [{ name: 'alice', role: 'researcher' }],
+      tasks: [{
+        id: 't1',
+        subject: 'search prior art',
+        status: 'pending',
+        assignee: '',
+        dependencies: [],
+      }],
+    })
+  })
+
+  it('is workspace-scoped and empty before any archive exists', async () => {
+    const h = await makeService()
+    const stranger = fakeAgent('stranger', h.workspace)
+    expect(await h.ctx.patentTeams.archive(stranger)).toEqual({ mode: 'list', teams: [] })
+    await expect(h.ctx.patentTeams.archive(stranger, 'alpha'))
+      .rejects.toThrow('no archived team "alpha" in this workspace — archived teams: none')
+  })
+
+  it('fails loud naming the available archives for an unknown id', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await h.ctx.patentTeams.delete(captain, new AbortController().signal)
+    await expect(h.ctx.patentTeams.archive(captain, 'ghost'))
+      .rejects.toThrow('no archived team "ghost" in this workspace — archived teams: alpha')
+  })
+})
+
 describe('authorization and edge branches', () => {
   it('falls back to the process cwd and rejects agents outside any team', async () => {
     const h = await makeService()
@@ -840,9 +900,8 @@ describe('authorization and edge branches', () => {
     await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
     // The scheduler kick after the handoff deletes the whole team, so the
     // post-reassignment read finds no team.
-    const { removeTeamDir } = await import('../src/state.ts')
     h.setFollowup(async () => {
-      await removeTeamDir(join(h.workspace, h.stateDir), 'alpha')
+      await rm(join(h.workspace, h.stateDir, 'alpha'), { recursive: true, force: true })
       return 'msg'
     })
     await expect(h.ctx.patentTeams.reassignTask(captain, { task_id: 't1', assignee: 'alice' }, new AbortController().signal))
@@ -882,12 +941,12 @@ describe('authorization and edge branches', () => {
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
     await addMember(h, captain, 'alice')
-    const { removeTeamDir, teamLockKey, withTeamLock } = await import('../src/state.ts')
+    const { teamLockKey, withTeamLock } = await import('../src/state.ts')
     const stateRoot = join(h.workspace, h.stateDir)
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const holder = withTeamLock(teamLockKey(stateRoot, 'alpha'), async () => {
       await promise
-      await removeTeamDir(stateRoot, 'alpha')
+      await rm(join(stateRoot, 'alpha'), { recursive: true, force: true })
     })
     const claiming = h.ctx.patentTeams.claimTask(fakeAgent('captain-1', h.workspace), { task_id: 't1' })
       .catch((error: unknown) => error)

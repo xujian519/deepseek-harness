@@ -84,7 +84,7 @@ function usageSectionText(toolNames: string): string {
 4. Lead by delegation: monitor with patent_teams_status, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
 6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Poll status until every required task is terminal and every member is idle/ready.
-7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it.
+7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
 Tools: ${toolNames}`
 }
@@ -122,6 +122,7 @@ export function apply(ctx: Context, config: Config): void {
     'patent_teams_update_task',
     'patent_teams_send_message',
     'patent_teams_status',
+    'patent_teams_archive',
     'patent_teams_delete',
   ].join(', ')
   ctx.systemPrompt.section({

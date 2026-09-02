@@ -1,6 +1,6 @@
 // Composition and HMR-safety test: mounts the plugin's apply() on a real
 // Context with the real tools registry and system-prompt service, asserts the
-// service, all ten patent_teams_* tools, and the usage section are live, then
+// service, all eleven patent_teams_* tools, and the usage section are live, then
 // disposes the fiber and observes every registration removed and the retired-
 // member guard restored. This is the disposal proof required by
 // packages/AGENTS.md for registry contributions.

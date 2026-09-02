@@ -32,6 +32,8 @@ import {
   findTeamByCaptain,
   findTeamByParticipant,
   invalidateTaskAttempt,
+  listArchivedTeamIds,
+  readArchivedTeam,
   readTeam,
   readUnreadMailbox,
   recordRetiredMemberIds,
@@ -1105,6 +1107,60 @@ export class PatentTeamsService extends Service {
     })
     return { deleted: true, team_name: team.name }
   }
+
+  /**
+   * Read this workspace's archived teams: one team's full record in detail,
+   * or a summary row per archived team. Archived records are immutable after
+   * {@link PatentTeamsService.delete}; this method only reads them.
+   * @param agent - any calling agent in the workspace (the archive is workspace-scoped).
+   * @param teamId - optional archived team id to show in detail.
+   * @returns the archive listing, or the one team's detail record.
+   */
+  async archive(agent: Agent, teamId?: string): Promise<PatentTeamsArchive> {
+    const stateRoot = stateRootOf(workspaceOf(agent), this.config.stateDir)
+    if (teamId !== undefined) {
+      const team = await readArchivedTeam(stateRoot, teamId)
+      if (team === undefined) {
+        const available = (await listArchivedTeamIds(stateRoot)).join(', ') || 'none'
+        throw new Error(`no archived team "${teamId}" in this workspace — archived teams: ${available}`)
+      }
+      return {
+        mode: 'detail',
+        team: {
+          team_id: team.id,
+          team_name: team.name,
+          created_at: team.createdAt,
+          ...team.description !== undefined ? { description: team.description } : {},
+          members: team.members.map(member => ({
+            name: member.name,
+            role: member.role ?? '',
+          })),
+          tasks: team.tasks.map(task => ({
+            id: task.id,
+            subject: task.subject,
+            status: task.status,
+            assignee: task.assignee ?? '',
+            dependencies: task.dependencies,
+            ...task.output !== undefined ? { output: task.output } : {},
+          })),
+        },
+      }
+    }
+    const teams: PatentTeamsArchiveSummary[] = []
+    for (const archivedId of await listArchivedTeamIds(stateRoot)) {
+      const team = await readArchivedTeam(stateRoot, archivedId)
+      if (team === undefined) continue
+      teams.push({
+        team_id: team.id,
+        team_name: team.name,
+        created_at: team.createdAt,
+        members: team.members.length,
+        tasks: team.tasks.length,
+        completed_tasks: team.tasks.filter(task => task.status === 'completed').length,
+      })
+    }
+    return { mode: 'list', teams }
+  }
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -1246,6 +1302,31 @@ export interface PatentTeamsStatus {
   mailbox_warnings: string[]
   mailbox_warning_count: number
 }
+
+/** One archived-team summary row. */
+export interface PatentTeamsArchiveSummary {
+  team_id: string
+  team_name: string
+  created_at: number
+  members: number
+  tasks: number
+  completed_tasks: number
+}
+
+/** One archived team's detail record (members and tasks as archived). */
+export interface PatentTeamsArchiveDetail {
+  team_id: string
+  team_name: string
+  created_at: number
+  description?: string
+  members: { name: string; role: string }[]
+  tasks: { id: string; subject: string; status: string; assignee: string; dependencies: string[]; output?: string }[]
+}
+
+/** The payload returned by {@link PatentTeamsService.archive}: the listing or one team's detail. */
+export type PatentTeamsArchive =
+  | { mode: 'list'; teams: PatentTeamsArchiveSummary[] }
+  | { mode: 'detail'; team: PatentTeamsArchiveDetail }
 
 /**
  * The calling agent from a tool exec, for the tools Consumer.

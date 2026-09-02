@@ -24,7 +24,7 @@ kind: "package-reference"
 ## 挂载内容
 
 - `ctx.patentTeams` — `PatentTeamsService`：团队增删改查、带 attempt 撤销的任务状态机、成员生命周期（spawn/interrupt/retire）、邮箱持久化、删除时归档、调度器 kick。
-- 十个 `patent_teams_*` 工具：`create`、`add_member`、`remove_member`、`create_task`、`reassign_task`、`claim_task`、`update_task`、`send_message`、`status`、`delete`。
+- 十一个 `patent_teams_*` 工具：`create`、`add_member`、`remove_member`、`create_task`、`reassign_task`、`claim_task`、`update_task`、`send_message`、`status`、`archive`、`delete`。
 - 一段系统提示用法段落（`patent-teams:usage`，默认 order 117），教授队长协议。
 
 <a id="configuration"></a>
@@ -49,7 +49,7 @@ kind: "package-reference"
 - `team.json` — 持久 `TeamState` 记录（成员、任务、任务序号）。
 - `inbox/<agentKey>.jsonl` — 每代理一个 JSONL 邮箱（`captain` 或成员名）。
 
-所有变更都在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）。任务状态转换由 `TASK_TRANSITIONS` 校验；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查。
+所有变更都在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）。任务状态转换由 `TASK_TRANSITIONS` 校验；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查；`patent_teams_archive` 只读地读回归档（工作区级列表 + 单团队详情）。
 
 <a id="session-events"></a>
 ## 会话事件
@@ -63,7 +63,7 @@ kind: "package-reference"
 
 #### 模型所见
 
-插件挂载时，用法段落是固定的系统提示贡献，另加[工具目录](../../../docs/tool-catalog.zh.md)中的十个工具 schema。
+插件挂载时，用法段落是固定的系统提示贡献，另加[工具目录](../../../docs/tool-catalog.zh.md)中的十一个工具 schema。
 
 ##### 本字段逐字文本（如需）
 
@@ -75,14 +75,14 @@ When the user asks to run something with PatentTeams (e.g. "use PatentTeams to d
 4. Lead by delegation: monitor with patent_teams_status, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
 6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Poll status until every required task is terminal and every member is idle/ready.
-7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it.
+7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
-Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_status, patent_teams_delete
+Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_status, patent_teams_archive, patent_teams_delete
 ```
 
 #### Token 影响
 
-固定：一个用法段落（约 0.9 KB）加十个工具 schema。数据相关部分（团队状态载荷、任务指派提示、成员报告）有界：状态渲染最多 10 条邮箱警告，任务输出截断至 300 字符，收件箱预览 200。
+固定：一个用法段落（约 2.4 KB）加十一个工具 schema。数据相关部分（团队状态载荷、任务指派提示、成员报告）有界：状态渲染最多 10 条邮箱警告，任务输出在状态与归档渲染中截断至 300 字符，收件箱预览 200。
 
 #### KV Cache 影响
 

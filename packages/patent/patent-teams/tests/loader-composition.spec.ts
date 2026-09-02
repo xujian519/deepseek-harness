@@ -62,7 +62,7 @@ async function boot(): Promise<Context> {
 }
 
 describe('dsh-patent-teams real Loader composition', () => {
-  it('mounts the service, all ten tools, and the usage section', async () => {
+  it('mounts the service, all eleven tools, and the usage section', async () => {
     const ctx = await boot()
     expect(ctx.get('patentTeams')).toBeDefined()
     for (const name of [
@@ -75,6 +75,7 @@ describe('dsh-patent-teams real Loader composition', () => {
       'patent_teams_update_task',
       'patent_teams_send_message',
       'patent_teams_status',
+      'patent_teams_archive',
       'patent_teams_delete',
     ]) {
       expect(ctx.tools.get(name), `tool ${name} should be registered`).toBeDefined()

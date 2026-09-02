@@ -23,7 +23,7 @@ Durable multi-agent teams for patent workflow: one captain-led team of continuab
 ## What it mounts
 
 - `ctx.patentTeams` — the `PatentTeamsService`: team CRUD, task state machine with attempt revocation, member lifecycle (spawn/interrupt/retire), mailbox persistence, archive-on-delete, and scheduler kicks.
-- Ten `patent_teams_*` tools: `create`, `add_member`, `remove_member`, `create_task`, `reassign_task`, `claim_task`, `update_task`, `send_message`, `status`, `delete`.
+- Eleven `patent_teams_*` tools: `create`, `add_member`, `remove_member`, `create_task`, `reassign_task`, `claim_task`, `update_task`, `send_message`, `status`, `archive`, `delete`.
 - One system-prompt usage section (`patent-teams:usage`, default order 117) teaching the captain protocol.
 
 ## Configuration
@@ -46,7 +46,7 @@ Team state lives under `<workspace>/<stateDir>/<teamId>/`:
 - `team.json` — the durable `TeamState` record (members, tasks, task sequence).
 - `inbox/<agentKey>.jsonl` — one JSONL mailbox per agent (`captain` or a member name).
 
-All mutations run inside an in-process per-team lock and persist atomically (same-directory temp + rename, with a direct-write fallback for Windows `EPERM`). Task status transitions are validated by `TASK_TRANSITIONS`; every claim carries an `attempt_id` capability that becomes stale after retry or reassignment, so late member updates are rejected. `patent_teams_delete` archives the team directory under `archive/` instead of deleting it, retaining tasks and mailboxes for later review.
+All mutations run inside an in-process per-team lock and persist atomically (same-directory temp + rename, with a direct-write fallback for Windows `EPERM`). Task status transitions are validated by `TASK_TRANSITIONS`; every claim carries an `attempt_id` capability that becomes stale after retry or reassignment, so late member updates are rejected. `patent_teams_delete` archives the team directory under `archive/` instead of deleting it, retaining tasks and mailboxes for later review; `patent_teams_archive` reads that archive back (workspace-wide listing plus one-team detail, read-only).
 
 ## Session events
 
@@ -58,7 +58,7 @@ Every state mutation appends one `patent-teams/*` event to the captain's session
 
 #### What the model sees
 
-The usage section is a fixed system-prompt contribution whenever this plugin is mounted, plus the ten tool schemas in the [generated tool catalog](../../../docs/tool-catalog.md).
+The usage section is a fixed system-prompt contribution whenever this plugin is mounted, plus the eleven tool schemas in the [generated tool catalog](../../../docs/tool-catalog.md).
 
 ##### Verbatim text for this field, when needed
 
@@ -70,14 +70,14 @@ When the user asks to run something with PatentTeams (e.g. "use PatentTeams to d
 4. Lead by delegation: monitor with patent_teams_status, send guidance with patent_teams_send_message, and let idle teammates execute ready work. Do not duplicate a teammate's work merely because its turn is slow.
 5. If work is blocked, stale, or needs takeover, always call patent_teams_reassign_task first. Reassign to another idle member, or use assignee=captain before doing it yourself. Reassignment revokes the old attempt and waits for that member to quiesce, preventing late results from overwriting the new attempt.
 6. Tasks carry attempt_id capabilities. Members must use the current attempt_id for updates; stale-attempt errors mean ownership changed. Poll status until every required task is terminal and every member is idle/ready.
-7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it.
+7. Present the team's results to the user, then patent_teams_delete the team unless the user wants to keep working with it. Deleted teams stay reviewable read-only through patent_teams_archive.
 
-Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_status, patent_teams_delete
+Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member, patent_teams_create_task, patent_teams_reassign_task, patent_teams_claim_task, patent_teams_update_task, patent_teams_send_message, patent_teams_status, patent_teams_archive, patent_teams_delete
 ```
 
 #### Token effect
 
-Fixed: one usage section (approximately 0.9 KB) plus the ten tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings, task output is truncated to 300 characters, inbox previews to 200.
+Fixed: one usage section (approximately 2.4 KB) plus the eleven tool schemas. Data-dependent parts (team status payloads, assignment prompts, member reports) are bounded: status renders up to 10 mailbox warnings, task output is truncated to 300 characters in status and archive renders, inbox previews to 200.
 
 #### KV Cache effect
 

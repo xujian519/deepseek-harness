@@ -12,7 +12,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { callingAgent, type PatentTeamsService, type PatentTeamsStatus } from './service.ts'
+import { callingAgent, type PatentTeamsArchive, type PatentTeamsService, type PatentTeamsStatus } from './service.ts'
 
 /** Render the status snapshot as compact text for the model. */
 function renderStatus(team: PatentTeamsStatus): string {
@@ -55,6 +55,40 @@ function renderStatus(team: PatentTeamsStatus): string {
     )
   }
   return lines.join('\n')
+}
+
+/** Exhaustiveness guard for the closed archive payload union. */
+function assertNever(value: never): never {
+  throw new Error(`unreachable patent-teams archive payload: ${String(value)}`)
+}
+
+/** Render the archive payload as compact text for the model. */
+function renderArchive(archive: PatentTeamsArchive): string {
+  switch (archive.mode) {
+    case 'list': {
+      if (archive.teams.length === 0) return 'No archived teams in this workspace.'
+      return [
+        `Archived teams (${archive.teams.length}):`,
+        ...archive.teams.map(team =>
+          `  - ${team.team_id} "${team.team_name}" (${team.completed_tasks}/${team.tasks} tasks completed, ${team.members} members)`),
+      ].join('\n')
+    }
+    case 'detail': {
+      const team = archive.team
+      return [
+        `Archived team "${team.team_name}" (id ${team.team_id})`,
+        `Members (${team.members.length}):`,
+        ...team.members.map(member => `  - ${member.name}${member.role === '' ? '' : ` [${member.role}]`}`),
+        `Tasks (${team.tasks.length}):`,
+        ...team.tasks.map((task) => {
+          const deps = task.dependencies.length > 0 ? ` (deps: ${task.dependencies.join(',')})` : ''
+          const output = task.output !== undefined ? `\n      output: ${task.output.slice(0, 300)}` : ''
+          return `  - ${task.id} [${task.status}] ${task.subject} → ${task.assignee || 'unassigned'}${deps}${output}`
+        }),
+      ].join('\n')
+    }
+  }
+  return assertNever(archive)
 }
 
 /**
@@ -328,6 +362,30 @@ export function registerPatentTeamsTools(ctx: Context): void {
       // The schema stays open (additionalProperties) while the service type
       // keeps every field named; the cast bridges the open-output contract.
       return (await teams.status(callingAgent(exec), exec.signal)) as unknown as Record<string, JsonValue>
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'patent_teams_archive',
+    description: 'List this workspace\'s archived teams (kept by patent_teams_delete), or show one archived team\'s members and tasks in detail. Read-only.',
+    parameters: {
+      team_id: { type: 'string', description: 'Optional archived team id to show in detail; omit to list archived teams.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {},
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: renderArchive(value as unknown as PatentTeamsArchive),
+      }],
+    },
+    async execute(args, exec) {
+      // Same open-schema bridge as patent_teams_status: the service type keeps
+      // every field named while the catalog schema stays open.
+      return (await teams.archive(callingAgent(exec), args.team_id)) as unknown as Record<string, JsonValue>
     },
   }))
 

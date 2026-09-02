@@ -1,4 +1,4 @@
-// Tool registration: all ten patent_teams_* tools register through a stub
+// Tool registration: all eleven patent_teams_* tools register through a stub
 // tools registry and route parsed args to a fake service; render output is
 // asserted directly, including the rich status snapshot text.
 import { Context } from '@deepseek-ai/cordis'
@@ -6,7 +6,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
 import { registerPatentTeamsTools } from '../src/tools.ts'
-import type { PatentTeamsStatus } from '../src/service.ts'
+import type { PatentTeamsArchive, PatentTeamsStatus } from '../src/service.ts'
 
 interface ToolDefinition {
   name: string
@@ -27,7 +27,27 @@ function makeService() {
     updateTask: vi.fn(async () => ({ task_id: 't1', status: 'completed', output: 'done', attempt: 1, attempt_id: 'a1' })),
     sendMessage: vi.fn(async () => ({ message_id: 'm1', from: 'alice', to: 'captain', delivered: 'mailbox' })),
     status: vi.fn(async () => sampleStatus()),
+    archive: vi.fn(async () => sampleArchiveDetail()),
     delete: vi.fn(async () => ({ deleted: true, team_name: 'Alpha' })),
+  }
+}
+
+function sampleArchiveDetail(): PatentTeamsArchive {
+  return {
+    mode: 'detail',
+    team: {
+      team_id: 'alpha',
+      team_name: 'Alpha',
+      created_at: 1000,
+      members: [
+        { name: 'alice', role: 'researcher' },
+        { name: 'bob', role: '' },
+      ],
+      tasks: [
+        { id: 't1', subject: 'search prior art', status: 'completed', assignee: 'alice', dependencies: [], output: 'z'.repeat(400) },
+        { id: 't2', subject: 'draft claims', status: 'cancelled', assignee: '', dependencies: ['t1'] },
+      ],
+    },
   }
 }
 
@@ -87,6 +107,7 @@ describe('registerPatentTeamsTools', () => {
       'patent_teams_update_task',
       'patent_teams_send_message',
       'patent_teams_status',
+      'patent_teams_archive',
       'patent_teams_delete',
     ])
     expect(tools.get('patent_teams_create')!.description).toContain('Create a new PatentTeams team')
@@ -124,6 +145,11 @@ describe('registerPatentTeamsTools', () => {
 
     await tools.get('patent_teams_status')!.execute({} as never, exec)
     expect(service.status).toHaveBeenCalledWith(exec.agent, exec.signal)
+
+    await tools.get('patent_teams_archive')!.execute({ team_id: 'alpha' } as never, exec)
+    expect(service.archive).toHaveBeenCalledWith(exec.agent, 'alpha')
+    await tools.get('patent_teams_archive')!.execute({} as never, exec)
+    expect(service.archive).toHaveBeenCalledWith(exec.agent, undefined)
 
     await tools.get('patent_teams_delete')!.execute({} as never, exec)
     expect(service.delete).toHaveBeenCalledWith(exec.agent, exec.signal)
@@ -172,6 +198,26 @@ describe('registerPatentTeamsTools', () => {
       .toContain('Task t2 attempt 1 → failed')
     expect(render('patent_teams_send_message', { message_id: 'm1', from: 'alice', to: 'captain', delivered: 'mailbox' }))
       .toContain('Message m1 alice → captain delivered via mailbox.')
+    expect(render('patent_teams_archive', { mode: 'list', teams: [] }))
+      .toBe('No archived teams in this workspace.')
+    expect(render('patent_teams_archive', {
+      mode: 'list',
+      teams: [
+        { team_id: 'alpha', team_name: 'Alpha', created_at: 1, members: 2, tasks: 3, completed_tasks: 1 },
+        { team_id: 'beta', team_name: 'Beta', created_at: 2, members: 1, tasks: 0, completed_tasks: 0 },
+      ],
+    }))
+      .toContain('  - alpha "Alpha" (1/3 tasks completed, 2 members)')
+    expect(render('patent_teams_archive', sampleArchiveDetail()))
+      .toContain('Archived team "Alpha" (id alpha)')
+    expect(render('patent_teams_archive', sampleArchiveDetail()))
+      .toContain('  - alice [researcher]')
+    expect(render('patent_teams_archive', sampleArchiveDetail()))
+      .toContain('  - bob')
+    expect(render('patent_teams_archive', sampleArchiveDetail()))
+      .toContain('  - t1 [completed] search prior art → alice')
+    expect(render('patent_teams_archive', sampleArchiveDetail()))
+      .toContain(`output: ${'z'.repeat(300)}`)
     expect(render('patent_teams_delete', { deleted: true, team_name: 'Alpha' }))
       .toBe('Team "Alpha" deleted.')
   })

@@ -24,17 +24,13 @@ import {
   readMailbox,
   readRetiredMemberIds,
   readTeam,
-  readTeamSync,
   readUnreadMailbox,
   recordRetiredMemberIds,
   releaseMailboxDelivery,
-  removeTeamDir,
   replaceFileAtomicOrDirect,
   sanitizeKey,
   TASK_TRANSITIONS,
   stateRootOf,
-  taskDepthsById,
-  taskVisualState,
   teamLockKey,
   transitionError,
   unsatisfiedDependencies,
@@ -235,25 +231,21 @@ describe('team directory persistence', () => {
     const state = makeState()
     await createTeamDir(root, state)
     expect(await readTeam(root, 'alpha')).toEqual(state)
-    expect(readTeamSync(root, 'alpha')).toEqual(state)
     // The team file is the authoritative copy.
     const raw = await readFile(join(root, 'alpha', 'team.json'), 'utf8')
     expect(JSON.parse(raw)).toEqual(state)
   })
 
-  it('readTeam and readTeamSync return undefined for absent teams and throw on corrupt state', async () => {
+  it('readTeam returns undefined for absent teams and throws on corrupt state', async () => {
     const root = await tmpRoot()
     expect(await readTeam(root, 'missing')).toBeUndefined()
-    expect(readTeamSync(root, 'missing')).toBeUndefined()
 
     await mkdir(join(root, 'bad'), { recursive: true })
     await writeFile(join(root, 'bad', 'team.json'), 'not json {')
     await expect(readTeam(root, 'bad')).rejects.toThrow()
-    await expect(async () => readTeamSync(root, 'bad')).rejects.toThrow()
 
     await writeFile(join(root, 'bad', 'team.json'), JSON.stringify({ id: 'other' }))
     await expect(readTeam(root, 'bad')).rejects.toThrow('invalid PatentTeams state in team "bad"')
-    await expect(async () => readTeamSync(root, 'bad')).rejects.toThrow('invalid PatentTeams state in team "bad"')
   })
 
   it('readTeam strips a leading UTF-8 BOM from the durable file', async () => {
@@ -262,7 +254,6 @@ describe('team directory persistence', () => {
     await createTeamDir(root, state)
     await writeFile(join(root, 'alpha', 'team.json'), '\uFEFF' + JSON.stringify(state))
     expect(await readTeam(root, 'alpha')).toEqual(state)
-    expect(readTeamSync(root, 'alpha')).toEqual(state)
   })
 
   it('writeTeam persists a replacement record', async () => {
@@ -305,13 +296,6 @@ describe('team directory persistence', () => {
     await mkdir(join(root, 'alpha', 'team.json'))
     await expect(writeTeam(root, makeState())).rejects.toThrow(AggregateError)
   })
-
-  it('removeTeamDir removes the whole team directory', async () => {
-    const root = await tmpRoot()
-    await createTeamDir(root, makeState())
-    await removeTeamDir(root, 'alpha')
-    expect(await readTeam(root, 'alpha')).toBeUndefined()
-  })
 })
 
 describe('durable record validation', () => {
@@ -337,7 +321,6 @@ describe('durable record validation', () => {
     })
     await createTeamDir(root, state)
     expect(await readTeam(root, 'alpha')).toEqual(state)
-    expect(readTeamSync(root, 'alpha')).toEqual(state)
   })
 
   it('rejects malformed member records', async () => {
@@ -945,64 +928,6 @@ describe('withTeamLock', () => {
     })
     await Promise.all([slowA, withTeamLock('b', async () => { order.push('b') })])
     expect(order).toEqual(['a', 'b'])
-  })
-})
-
-describe('visual task state', () => {
-  const tasks = [
-    makeTask({ id: 't1', status: 'completed' }),
-    makeTask({ id: 't2', status: 'in_progress' }),
-    makeTask({ id: 't3', status: 'pending' }),
-    makeTask({ id: 't4', status: 'pending', dependencies: ['t1'] }),
-    makeTask({ id: 't5', status: 'pending', dependencies: ['t3'] }),
-  ]
-
-  it('ranks completed and running states above dependency analysis', () => {
-    expect(taskVisualState('completed', ['t3'], tasks)).toBe('completed')
-    expect(taskVisualState('in_progress', ['t3'], tasks)).toBe('running')
-  })
-
-  it('is blocked while any dependency is unfinished and open otherwise', () => {
-    expect(taskVisualState('pending', ['t3'], tasks)).toBe('blocked')
-    expect(taskVisualState('pending', ['t1', 't2'], tasks)).toBe('blocked')
-    expect(taskVisualState('pending', ['t1'], tasks)).toBe('open')
-    expect(taskVisualState('pending', [], tasks)).toBe('open')
-    // Unknown dependencies are treated as satisfied (open), not blocking.
-    expect(taskVisualState('pending', ['ghost'], tasks)).toBe('open')
-  })
-})
-
-describe('taskDepthsById', () => {
-  it('computes the longest dependency path per task', () => {
-    const tasks = [
-      makeTask({ id: 'a' }),
-      makeTask({ id: 'b', dependencies: ['a'] }),
-      makeTask({ id: 'c', dependencies: ['b'] }),
-      makeTask({ id: 'd', dependencies: ['b', 'c'] }),
-    ]
-    expect([...taskDepthsById(tasks).entries()]).toEqual([
-      ['a', 0],
-      ['b', 1],
-      ['c', 2],
-      ['d', 3],
-    ])
-  })
-
-  it('ignores missing dependencies and survives cycles', () => {
-    const tasks = [
-      makeTask({ id: 'x', dependencies: ['ghost'] }),
-      makeTask({ id: 'y', dependencies: ['x'] }),
-      makeTask({ id: 'z', dependencies: ['z'] }),
-    ]
-    const depths = taskDepthsById(tasks)
-    expect(depths.get('x')).toBe(0)
-    expect(depths.get('y')).toBe(1)
-    // A self-loop cannot run away; the visiting guard bounds it to one edge.
-    expect(depths.get('z')).toBe(1)
-  })
-
-  it('handles an empty task list', () => {
-    expect(taskDepthsById([]).size).toBe(0)
   })
 })
 

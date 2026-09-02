@@ -12,7 +12,7 @@ Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs
 - `@deepseek-ai/dsh-patent-knowledge` — the knowledge.db query service (ctx.patentKnowledge: caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify).
 - `@deepseek-ai/dsh-patent-workflow` — the execution-pipeline service (ctx.patentWorkflow: runWorkflow / runPlantask / approve / reject).
 - `@deepseek-ai/dsh-patent-tools` — 23 model-facing tools: search, metadata, legal status, case/wiki/kg queries, drafting, claim chart, workflow recap, figure analysis, PDF download, knowledge notes.
-- `@deepseek-ai/dsh-patent-teams` — the durable multi-agent team service (ctx.patentTeams) surfacing the ten `patent_teams_*` tools; with `qualityGate: true` it runs the composite completion gate.
+- `@deepseek-ai/dsh-patent-teams` — the durable multi-agent team service (ctx.patentTeams) surfacing the eleven `patent_teams_*` tools; with `qualityGate: true` it runs the composite completion gate.
 - `@deepseek-ai/dsh-patent-rule` — the rule engine, the output gate on tools/post-execute, and the EVI-011 evidence guards.
 - `@deepseek-ai/dsh-patent-document` — render_patent_document.
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources.
