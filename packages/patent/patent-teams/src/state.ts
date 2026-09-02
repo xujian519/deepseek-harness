@@ -14,7 +14,8 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import type { FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isRecord } from '@deepseek-ai/dsh-value'
 import type { TaskStatus, TeamMember, TeamMessage, TeamState, TeamTask } from './types.ts'
@@ -376,7 +377,8 @@ export function createMessage(from: string, to: string, content: string): TeamMe
 }
 
 /**
- * Append one message to an agent's mailbox (JSONL).
+ * Append one message to an agent's mailbox (JSONL) with a single `O_APPEND`
+ * write, so a long mailbox no longer rewrites its whole history per message.
  * @param stateRoot - resolved absolute state root directory.
  * @param teamId - the team id.
  * @param agentKey - `captain` or a member name.
@@ -390,16 +392,38 @@ export async function appendMailbox(
 ): Promise<void> {
   const file = join(stateRoot, teamId, 'inbox', `${sanitizeKey(agentKey)}.jsonl`)
   await mkdir(join(stateRoot, teamId, 'inbox'), { recursive: true })
-  let existing = ''
+  await appendFile(file, `${await missingTrailingNewline(file)}${JSON.stringify(message)}\n`, 'utf8')
+}
+
+/**
+ * `'\n'` when the mailbox exists, is non-empty, and does not end with a line
+ * terminator, so the appended record cannot glue onto a truncated tail;
+ * `''` otherwise. A missing file starts fresh; other open failures (for
+ * example a directory in the mailbox path) propagate like every read.
+ * @param file - the mailbox file.
+ * @returns the separator to prepend to the appended line.
+ */
+async function missingTrailingNewline(file: string): Promise<string> {
+  let handle: FileHandle
   try {
-    existing = await readFile(file, 'utf8')
+    handle = await open(file, 'r')
   } catch (error: unknown) {
-    if (!isEnoent(error)) {
-      throw error
+    if (isEnoent(error)) {
+      return ''
     }
+    throw error
   }
-  const separator = existing !== '' && !existing.endsWith('\n') ? '\n' : ''
-  await atomicWriteText(file, `${existing}${separator}${JSON.stringify(message)}\n`)
+  try {
+    const { size } = await handle.stat()
+    if (size === 0) return ''
+    const buffer = Buffer.alloc(1)
+    const { bytesRead } = await handle.read(buffer, 0, 1, size - 1)
+    // v8 ignore next -- a non-empty stat guarantees one readable byte
+    if (bytesRead === 0) return ''
+    return buffer[0] === 0x0A ? '' : '\n'
+  } finally {
+    await handle.close()
+  }
 }
 
 /**

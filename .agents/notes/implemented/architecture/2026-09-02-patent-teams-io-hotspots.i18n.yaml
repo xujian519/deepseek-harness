@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-02-patent-teams-io-hotspots.md
+2026-09-02-patent-teams-io-hotspots.md: a426e7834c8ef1b88bf8f2f6f1e3fc18aa372cc2
+2026-09-02-patent-teams-io-hotspots.zh.md: 544a65e408b80d1ca0c9ea000a4ac56d26004e54

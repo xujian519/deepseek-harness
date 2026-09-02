@@ -399,6 +399,23 @@ describe('member status observer', () => {
     expect(team!.members[0]!.status).toBe('idle')
   })
 
+  it('does not rescan for an agent already known to be outside every team', async () => {
+    const { ctx, workspace, stateDir } = await makeHarness()
+    await createTeamDir(join(workspace, stateDir), makeState())
+    const stranger = fakeAgent('stranger', workspace)
+    ctx.emit('agent/status', { agent: stranger, status: 'idle' })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // Membership changes flow through addMember (which tracks the member), so
+    // an out-of-band roster edit after the scan is deliberately not picked up.
+    const team = await readTeam(join(workspace, stateDir), 'team1')
+    team!.members.push({ id: 'stranger', name: 'stranger', joinedAt: 1, status: 'idle' })
+    await writeTeam(join(workspace, stateDir), team!)
+    ctx.emit('agent/status', { agent: stranger, status: 'running' })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const after = await readTeam(join(workspace, stateDir), 'team1')
+    expect(after?.members.find(member => member.id === 'stranger')?.status).toBe('idle')
+  })
+
   it('skips removed members and redundant status writes', async () => {
     const { ctx, workspace, stateDir } = await makeHarness()
     await createTeamDir(join(workspace, stateDir), makeState({

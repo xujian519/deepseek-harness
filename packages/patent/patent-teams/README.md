@@ -46,7 +46,7 @@ Team state lives under `<workspace>/<stateDir>/<teamId>/`:
 - `team.json` — the durable `TeamState` record (members, tasks, task sequence).
 - `inbox/<agentKey>.jsonl` — one JSONL mailbox per agent (`captain` or a member name).
 
-All mutations run inside an in-process per-team lock and persist atomically (same-directory temp + rename, with a direct-write fallback for Windows `EPERM`). Task status transitions are validated by `TASK_TRANSITIONS`; every claim carries an `attempt_id` capability that becomes stale after retry or reassignment, so late member updates are rejected. `patent_teams_delete` archives the team directory under `archive/` instead of deleting it, retaining tasks and mailboxes for later review; `patent_teams_archive` reads that archive back (workspace-wide listing plus one-team detail, read-only).
+Team-record mutations run inside an in-process per-team lock and persist atomically (same-directory temp + rename, with a direct-write fallback for Windows `EPERM`); mailbox appends are single-line `O_APPEND` writes, and `add_member` resolves the member route and starts the child outside the lock (state admission and persistence revalidate inside it) so one spawn never stalls the team's tools. Task status transitions are validated by `TASK_TRANSITIONS`; every claim carries an `attempt_id` capability that becomes stale after retry or reassignment, so late member updates are rejected. `patent_teams_delete` archives the team directory under `archive/` instead of deleting it, retaining tasks and mailboxes for later review; `patent_teams_archive` reads that archive back (workspace-wide listing plus one-team detail, read-only).
 
 ## Session events
 
@@ -86,7 +86,7 @@ Prefix-stable: the usage section is constant for a given mount, so it does not i
 ## Known Limitations and Deferred Work
 
 - **Web UI is a separate projection** — the upstream plugin's activity-panel and artwork routes are not ported; `dsh-client-ui-patent-teams` folds the `patent-teams/*` session events into a chat card and the Teams view, and the on-disk files plus `patent_teams_status` remain the authoritative inspection paths.
-- **Single-process serialization** — state is file-backed and serialized within one DSH process; concurrent processes editing the same team are not coordinated.
+- **Single-process serialization** — state is file-backed and serialized within one DSH process; concurrent processes editing the same team are not coordinated. The member status observer keeps an in-process membership index (fed by `add_member`, `remove_member`, and `delete`) so unrelated agents' status events do not rescan the state directory.
 - **One active team per captain** — a captain must end its current team before creating another.
 - **Live delivery is best-effort** — if the recipient agent is offline, messages stay durable in the mailbox and are retried at the next status boundary.
 

@@ -49,7 +49,7 @@ kind: "package-reference"
 - `team.json` — 持久 `TeamState` 记录（成员、任务、任务序号）。
 - `inbox/<agentKey>.jsonl` — 每代理一个 JSONL 邮箱（`captain` 或成员名）。
 
-所有变更都在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）。任务状态转换由 `TASK_TRANSITIONS` 校验；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查；`patent_teams_archive` 只读地读回归档（工作区级列表 + 单团队详情）。
+团队记录的变更在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）；信箱追加为单行 `O_APPEND` 写入，`add_member` 在锁外解析成员路由并启动子代理（状态准入与持久化仍在锁内复验），单次 spawn 不会阻塞团队的其他工具。任务状态转换由 `TASK_TRANSITIONS` 校验；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查；`patent_teams_archive` 只读地读回归档（工作区级列表 + 单团队详情）。
 
 <a id="session-events"></a>
 ## 会话事件
@@ -92,7 +92,7 @@ Tools: patent_teams_create, patent_teams_add_member, patent_teams_remove_member,
 ## 已知限制与待办
 
 - **Web UI 为独立投影** — 上游插件的活动面板与美术资源路由未移植；`dsh-client-ui-patent-teams` 将 `patent-teams/*` 会话事件折叠为对话卡片与"团队"视图，磁盘文件与 `patent_teams_status` 仍是权威查看路径。
-- **单进程串行** — 状态为文件持久化，在单个 DSH 进程内串行操作；多进程同时修改同一团队不保证一致。
+- **单进程串行** — 状态为文件持久化，在单个 DSH 进程内串行操作；多进程同时修改同一团队不保证一致。成员状态观察者维护进程内成员索引（由 `add_member`、`remove_member`、`delete` 维护），无关代理的状态事件不再触发状态目录全量扫描。
 - **一队长一活跃团队** — 队长须先结束当前团队才能创建新团队。
 - **实时投递尽力而为** — 接收方代理离线时消息留存在邮箱，在下一状态边界重试。
 

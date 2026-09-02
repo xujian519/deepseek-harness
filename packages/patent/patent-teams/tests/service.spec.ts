@@ -4,10 +4,11 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
 import { PatentTeamsService, callingAgent } from '../src/service.ts'
 import {
   appendMailbox,
@@ -51,6 +52,7 @@ interface Harness {
   stateDir: string
   agents: Map<string, Agent>
   sendMessage: ReturnType<typeof vi.fn>
+  startContinuable: Mock<(spec: never) => Promise<{ childId: SessionId; messageId: string }>>
   interrupted: string[]
   steered: unknown[]
   setFollowup(impl: (...args: never[]) => Promise<unknown>): void
@@ -78,15 +80,16 @@ async function makeService(options: {
     start: async () => { throw new Error('unused') },
     prepareContinuable: async () => ({}),
   }
+  const startContinuable = vi.fn(async (spec: never) => {
+    started.push(spec)
+    return { childId: SessionId(`member-${++childSeq}`), messageId: 'msg' }
+  })
   ctx.provide('agents', { get: (id: string) => agents.get(id) } as never)
   ctx.provide('llm', { resolveCallConfig: async (config: unknown) => config } as never)
   ctx.provide('subagents', {
     getProvider: (name: string) => (name === 'spawn' ? provider : undefined),
     list: () => ['spawn'],
-    startContinuable: async (spec: never) => {
-      started.push(spec)
-      return { childId: SessionId(`member-${++childSeq}`), messageId: 'msg' }
-    },
+    startContinuable,
     sendMessage,
     interrupt: (id: string) => { interrupted.push(id) },
     listChildren: async () => [],
@@ -106,6 +109,7 @@ async function makeService(options: {
     stateDir,
     agents,
     sendMessage,
+    startContinuable,
     interrupted,
     steered: [],
     setFollowup(impl) {
@@ -221,6 +225,55 @@ describe('addMember', () => {
       await chmod(join(h.workspace, h.stateDir, 'alpha'), 0o755)
     }
     expect(h.interrupted).toContain('member-1')
+  })
+
+  it('keeps the team lock free while the member spawn is in flight', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    h.startContinuable.mockImplementationOnce(async () => {
+      // From inside the spawn: the team lock must be free for other callers.
+      const task = await h.ctx.patentTeams.createTask(captain, { subject: 'concurrent work' })
+      expect(task.task_id).toBe('t1')
+      return { childId: SessionId('member-1'), messageId: 'msg' }
+    })
+    const member = await addMember(h, captain, 'alice')
+    expect(member.member_id).toBe('member-1')
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks.map(task => task.id)).toEqual(['t1'])
+    expect(team?.members[0]?.name).toBe('alice')
+  })
+
+  it('retires the spawned orphan when the team ends while the spawn is in flight', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    h.startContinuable.mockImplementationOnce(async () => {
+      await rm(join(h.workspace, h.stateDir, 'alpha'), { recursive: true, force: true })
+      return { childId: SessionId('member-1'), messageId: 'msg' }
+    })
+    await expect(addMember(h, captain, 'alice')).rejects.toThrow('team "alpha" is no longer active')
+    expect(h.interrupted).toContain('member-1')
+    const retired: unknown = JSON.parse(await readFile(join(h.workspace, h.stateDir, 'retired-members.json'), 'utf8'))
+    expect(retired).toContain('member-1')
+  })
+
+  it('still schedules a member that first reported status during its own spawn', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    h.startContinuable.mockImplementationOnce(async () => {
+      // The child goes live before its team record is persisted; the observer
+      // scans, finds nothing, and caches the id as outside every team.
+      h.ctx.emit('agent/status', { agent: fakeAgent('member-1', h.workspace), status: 'running' })
+      await new Promise(resolve => setTimeout(resolve, 20))
+      return { childId: SessionId('member-1'), messageId: 'msg' }
+    })
+    await addMember(h, captain, 'alice')
+    h.ctx.emit('agent/status', { agent: fakeAgent('member-1', h.workspace), status: 'running' })
+    await vi.waitFor(async () => {
+      expect((await readTeam(join(h.workspace, h.stateDir), 'alpha'))?.members[0]?.status).toBe('working')
+    })
   })
 })
 

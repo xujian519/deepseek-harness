@@ -125,6 +125,24 @@ function requireTask(team: TeamState, taskId: string): TeamTask {
 }
 
 /**
+ * Admit one new member name into fresh state (inside the team lock). Runs
+ * before the spawn and again before the persist, so a concurrent winner is
+ * still rejected after its loser has already spawned.
+ * @param team - the fresh team record.
+ * @param rawName - the caller-supplied member name, for error text.
+ * @param memberKey - the sanitized member key.
+ * @param maxMembers - the configured team size cap.
+ */
+function requireAddableMember(team: TeamState, rawName: string, memberKey: string, maxMembers: number): void {
+  if (team.members.some(candidate => sanitizeKey(candidate.name) === memberKey)) {
+    throw new Error(`member name "${rawName}" has already been used in team "${team.name}"`)
+  }
+  if (team.members.filter(candidate => candidate.status !== 'removed').length >= maxMembers) {
+    throw new Error(`team "${team.name}" is at its member cap (${maxMembers})`)
+  }
+}
+
+/**
  * Project one task's mutation result row. The optional fields carry values on
  * every call path whose fallbacks are unreachable (v8 ignore).
  */
@@ -313,7 +331,10 @@ export class PatentTeamsService extends Service {
   /**
    * Add a durable continuable member. By default it snapshots the captain's
    * current LLM route and effort; supply provider/model only for an explicitly
-   * requested role-specific route.
+   * requested role-specific route. The route resolution and the child spawn
+   * run outside the team lock so one add never stalls the team's other tools;
+   * admission and persistence revalidate inside the lock, and a spawn that
+   * loses a concurrent race is retired before its failure surfaces.
    * @param agent - the calling captain.
    * @param args - member name, role, optional route/effort.
    * @param signal - caller cancellation, forwarded to the spawn.
@@ -338,79 +359,93 @@ export class PatentTeamsService extends Service {
     status: string
   }> {
     const { workspace, stateRoot, team } = await this.captainTeam(agent)
-    const created = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
+    const memberName = args.name.trim()
+    if (memberName === '') throw new Error('member name must not be empty')
+    const memberKey = sanitizeKey(memberName)
+    if (memberKey === CAPTAIN_KEY) {
+      throw new Error(`member name "${args.name}" is reserved for the captain`)
+    }
+    const snapshot = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
       const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      const memberName = args.name.trim()
-      if (memberName === '') throw new Error('member name must not be empty')
-      const memberKey = sanitizeKey(memberName)
-      if (memberKey === CAPTAIN_KEY) {
-        throw new Error(`member name "${args.name}" is reserved for the captain`)
-      }
-      if (fresh.members.some(candidate => sanitizeKey(candidate.name) === memberKey)) {
-        throw new Error(`member name "${args.name}" has already been used in team "${fresh.name}"`)
-      }
-      if (fresh.members.filter(candidate => candidate.status !== 'removed').length >= this.config.maxMembers) {
-        throw new Error(`team "${fresh.name}" is at its member cap (${this.config.maxMembers})`)
-      }
-      const selection = await resolveMemberLlmSelection(this.ctx, agent, {
-        ...args.provider === undefined ? {} : { provider: args.provider },
-        ...args.model === undefined ? {} : { model: args.model },
-        ...this.config.memberModel === undefined ? {} : { defaultModel: this.config.memberModel },
-        ...args.reasoning_effort === undefined ? {} : { reasoningEffort: args.reasoning_effort },
-      }, signal)
-      const member: TeamMember = {
-        id: '',
-        name: memberName,
-        ...args.role === undefined ? {} : { role: args.role },
-        provider: selection.provider,
-        model: selection.model,
-        ...selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort },
-        joinedAt: Date.now(),
-        status: 'idle',
-      }
-      const memberContract = args.role === undefined ? undefined : roleContract(args.role)
-      await spawnMember(
-        this.ctx,
-        memberRuntime(this.config),
-        selection,
-        agent,
-        fresh,
-        member,
-        this.config.stateDir,
-        signal,
-        memberContract,
-      )
-      fresh.members.push(member)
-      try {
-        await writeTeam(stateRoot, fresh)
-      } catch (error: unknown) {
-        // The continuable child is already live, but the durable team record
-        // never saw it. Retire the orphan so it disappears from subagent
-        // listings and cannot be resumed, then surface the write failure.
-        // v8 ignore next -- spawnMember fills the id before this try block can be reached
-        if (member.id !== '') {
-          await recordRetiredMemberIds(stateRoot, [member.id]).catch(() => undefined)
-          interruptMember(this.ctx, agent, member.id)
-        }
-        throw error
-      }
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/member-added', {
-        teamId: fresh.id,
-        memberId: member.id,
-        name: member.name,
-        ...member.role !== undefined ? { role: member.role } : {},
-      })
-      return {
-        member_name: member.name,
-        member_id: member.id,
-        provider: selection.provider,
-        model: selection.model,
-        ...selection.reasoningEffort === undefined
-          ? {}
-          : { reasoning_effort: selection.reasoningEffort },
-        status: member.status,
-      }
+      requireAddableMember(fresh, args.name, memberKey, this.config.maxMembers)
+      // Read-only spawn view: the persona reads immutable team identity; a
+      // concurrent task change can only stale the welcome's task count.
+      return fresh
     })
+    const selection = await resolveMemberLlmSelection(this.ctx, agent, {
+      ...args.provider === undefined ? {} : { provider: args.provider },
+      ...args.model === undefined ? {} : { model: args.model },
+      ...this.config.memberModel === undefined ? {} : { defaultModel: this.config.memberModel },
+      ...args.reasoning_effort === undefined ? {} : { reasoningEffort: args.reasoning_effort },
+    }, signal)
+    const member: TeamMember = {
+      id: '',
+      name: memberName,
+      ...args.role === undefined ? {} : { role: args.role },
+      provider: selection.provider,
+      model: selection.model,
+      ...selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort },
+      joinedAt: Date.now(),
+      status: 'idle',
+    }
+    const memberContract = args.role === undefined ? undefined : roleContract(args.role)
+    await spawnMember(
+      this.ctx,
+      memberRuntime(this.config),
+      selection,
+      agent,
+      snapshot,
+      member,
+      this.config.stateDir,
+      signal,
+      memberContract,
+    )
+    let created: {
+      member_name: string
+      member_id: string
+      provider: string
+      model: string
+      reasoning_effort?: string
+      status: string
+    }
+    try {
+      created = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
+        const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
+        requireAddableMember(fresh, args.name, memberKey, this.config.maxMembers)
+        fresh.members.push(member)
+        await writeTeam(stateRoot, fresh)
+        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/member-added', {
+          teamId: fresh.id,
+          memberId: member.id,
+          name: member.name,
+          ...member.role !== undefined ? { role: member.role } : {},
+        })
+        return {
+          member_name: member.name,
+          member_id: member.id,
+          provider: selection.provider,
+          model: selection.model,
+          ...selection.reasoningEffort === undefined
+            ? {}
+            : { reasoning_effort: selection.reasoningEffort },
+          status: member.status,
+        }
+      })
+    } catch (error: unknown) {
+      // v8 ignore next -- spawnMember fills the id before this lock is entered
+      if (member.id !== '') {
+        // The continuable child is already live, but the durable team record
+        // never saw it: every throwing statement inside the lock callback
+        // precedes writeTeam (appendTeamEvent contains its own failure
+        // handling), so reaching this catch means the persist never landed.
+        // Retire the orphan so it disappears from subagent listings and
+        // cannot be resumed, then surface the failure.
+        await recordRetiredMemberIds(stateRoot, [member.id]).catch(() => undefined)
+        interruptMember(this.ctx, agent, member.id)
+      }
+      throw error
+    }
+    this.scheduler.trackMember(member.id, team.id, member.name)
     await this.scheduler.kickMember(workspace, team.id, created.member_name, agent, signal)
     return created
   }
@@ -450,6 +485,7 @@ export class PatentTeamsService extends Service {
     })
     // v8 ignore next -- every persisted member was spawned, so the id is never empty
     if (revoked.member.id !== '') {
+      this.scheduler.untrackMember(revoked.member.id)
       await recordRetiredMemberIds(stateRoot, [revoked.member.id])
       interruptMember(this.ctx, agent, revoked.member.id)
       await waitForMemberIdle(this.ctx, revoked.member, signal)
@@ -1084,6 +1120,9 @@ export class PatentTeamsService extends Service {
       return roster
     })
     await recordRetiredMemberIds(stateRoot, members.map(member => member.id))
+    for (const member of members) {
+      this.scheduler.untrackMember(member.id)
+    }
     // v8 ignore start -- every persisted member was spawned, so ids are never empty
     for (const member of members) {
       if (member.id === '') continue

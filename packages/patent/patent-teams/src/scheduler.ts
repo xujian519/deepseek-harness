@@ -40,6 +40,19 @@ export interface TeamScheduler {
   kickTeam(workspace: string, teamId: string, captain?: Agent, signal?: AbortSignal): Promise<void>
   /** Try to flush fallback mail or give one member one ready task. */
   kickMember(workspace: string, teamId: string, memberName: string, captain?: Agent, signal?: AbortSignal): Promise<void>
+  /**
+   * Record a freshly persisted member so its status events skip the state
+   * directory scan (spawning is the only way a live agent becomes a member).
+   * @param memberId - the member's durable child session id.
+   * @param teamId - the member's team id.
+   * @param memberName - the member's display name.
+   */
+  trackMember(memberId: string, teamId: string, memberName: string): void
+  /**
+   * Drop a member's observer fast-path entry so its next event rescans.
+   * @param memberId - the member's durable child session id.
+   */
+  untrackMember(memberId: string): void
 }
 
 interface DispatchTicket {
@@ -120,6 +133,18 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
       if (memberQueues.get(key) === tail) memberQueues.delete(key)
     }
   }
+
+  /**
+   * Observer fast path: agent session id → the team it works for. `null`
+   * marks an agent already proven to captain or lie outside every team, so
+   * its status events stop rescanning the whole state directory; only
+   * `addMember` turns a live agent into a member, and it tracks itself.
+   * Null entries insert only when no entry exists: a scan that started
+   * before `addMember` persisted must resolve without clobbering the
+   * positive entry the spawn path recorded, while the positive set always
+   * overwrites a transient null.
+   */
+  const memberIndex = new Map<string, { teamId: string; memberName: string } | null>()
 
   const runtime: TeamScheduler = {
     async kickTeam(workspace, teamId, suppliedCaptain, signal) {
@@ -239,19 +264,26 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
         })
       })
     },
+
+    trackMember(memberId, teamId, memberName) {
+      memberIndex.set(memberId, { teamId, memberName })
+    },
+
+    untrackMember(memberId) {
+      memberIndex.delete(memberId)
+    },
   }
 
-  const syncMemberStatus = async (agent: Agent, status: AgentStatus): Promise<void> => {
+  /** Mirror one agent status edge into its member record and kick it idle. */
+  const syncKnownMember = async (
+    agent: Agent,
+    status: AgentStatus,
+    member: { teamId: string; memberName: string },
+  ): Promise<void> => {
     const workspace = agent.session.header.cwd ?? process.cwd()
     const stateRoot = stateRootOf(workspace, config.stateDir)
-    const located = await findTeamByParticipant(stateRoot, agent.id)
-    if (located === undefined || located.captainSessionId === agent.id) return
-    // v8 ignore start -- findTeamByParticipant only matches surviving members, so this guard is defensive
-    const member = located.members.find(candidate => candidate.id === agent.id && candidate.status !== 'removed')
-    if (member === undefined) return
-    await withTeamLock(teamLockKey(stateRoot, located.id), async () => {
-    // v8 ignore stop
-      const fresh = await readTeam(stateRoot, located.id)
+    await withTeamLock(teamLockKey(stateRoot, member.teamId), async () => {
+      const fresh = await readTeam(stateRoot, member.teamId)
       const current = fresh?.members.find(candidate => candidate.id === agent.id && candidate.status !== 'removed')
       if (fresh === undefined || current === undefined) return
       const next = status === 'running' ? 'working' : 'idle'
@@ -259,7 +291,31 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
       current.status = next
       await writeTeam(stateRoot, fresh)
     })
-    if (status === 'idle') await runtime.kickMember(workspace, located.id, member.name)
+    if (status === 'idle') await runtime.kickMember(workspace, member.teamId, member.memberName)
+  }
+
+  const syncMemberStatus = async (agent: Agent, status: AgentStatus): Promise<void> => {
+    const cached = memberIndex.get(agent.id)
+    if (cached !== undefined) {
+      if (cached !== null) await syncKnownMember(agent, status, cached)
+      return
+    }
+    const workspace = agent.session.header.cwd ?? process.cwd()
+    const stateRoot = stateRootOf(workspace, config.stateDir)
+    const located = await findTeamByParticipant(stateRoot, agent.id)
+    if (located === undefined || located.captainSessionId === agent.id) {
+      if (!memberIndex.has(agent.id)) memberIndex.set(agent.id, null)
+      return
+    }
+    // v8 ignore next 3 -- findTeamByParticipant only matches surviving members, so this guard is defensive
+    const member = located.members.find(candidate => candidate.id === agent.id && candidate.status !== 'removed')
+    if (member === undefined) {
+      if (!memberIndex.has(agent.id)) memberIndex.set(agent.id, null)
+      return
+    }
+    const entry = { teamId: located.id, memberName: member.name }
+    memberIndex.set(agent.id, entry)
+    await syncKnownMember(agent, status, entry)
   }
 
   ctx.on('agent/status', ({ agent, status }) => {
