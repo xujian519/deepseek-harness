@@ -15,7 +15,7 @@
  * the tag after the commit merges. CI never writes to the repository.
  */
 
-import { globSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, globSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, matchesGlob } from 'node:path'
 import { parseArgs } from 'node:util'
 import { releaseFamily, type ReleaseFamily, type ReleaseMember } from './families.ts'
@@ -56,6 +56,80 @@ interface PrivateDshVersion {
   readonly label: string
   /** Current manifest version. */
   readonly version: string
+}
+
+/**
+ * A file that carries the dsh family version outside a package manifest.
+ * The bump rewrites it in the same commit as the manifests it mirrors, so the
+ * copies cannot stay stale for a test to catch ([lockstep test in
+ * packages/client/better-sidebar/tests/service.spec.ts]).
+ */
+interface VersionMirror {
+  /** Repository-relative path of the file carrying a mirrored version. */
+  readonly path: string
+  /** Rewrite a line carrying the old version; return undefined to leave it. */
+  readonly rewrite: (line: string, version: string) => string | undefined
+}
+
+/**
+ * The dsh family's version mirrors, one entry per mirrored file.
+ *
+ * The side panel reports the plugin version this package ships; the reported
+ * constant is a second copy of the package version that consumers read, so
+ * only the manifest should move without it.
+ */
+const VERSION_MIRRORS: readonly VersionMirror[] = [
+  {
+    path: 'packages/client/better-sidebar/src/client/service.ts',
+    rewrite(line, version) {
+      const before = /^(\s*export const SIDEBAR_SERVICE_VERSION = )(['"])[^'"]*\2(\s*)$/u.exec(line)
+      if (before === null) return undefined
+      return `${before[1]}${before[2]}${version}${before[2]}${before[3]}`
+    },
+  },
+]
+
+/**
+ * Read the mirror files whose content `version` would change.
+ * @param root - repository root.
+ * @param version - the dsh family version the bump targets.
+ * @returns The changed mirror paths, repository-relative.
+ */
+export function changedVersionMirrors(root: string, version: string): string[] {
+  const changed: string[] = []
+  for (const mirror of VERSION_MIRRORS) {
+    const path = join(root, mirror.path)
+    if (!existsSync(path)) continue
+    const text = readFileSync(path, 'utf8')
+    if (text.split('\n').some((line) => {
+      const replacement = mirror.rewrite(line, version)
+      return replacement !== undefined && replacement !== line
+    })) {
+      changed.push(mirror.path)
+    }
+  }
+  return changed
+}
+
+/**
+ * Rewrite every version mirror to `version`, in place.
+ * @param root - repository root.
+ * @param version - the dsh family version the bump targets.
+ * @returns The mirror paths rewritten, repository-relative.
+ */
+export function syncVersionMirrors(root: string, version: string): string[] {
+  const rewritten: string[] = []
+  for (const mirror of VERSION_MIRRORS) {
+    const path = join(root, mirror.path)
+    if (!existsSync(path)) continue
+    const text = readFileSync(path, 'utf8')
+    const next = text.split('\n').map(line => mirror.rewrite(line, version) ?? line)
+    if (next.join('\n') !== text) {
+      writeFileSync(path, next.join('\n'))
+      rewritten.push(mirror.path)
+    }
+  }
+  return rewritten
 }
 
 /**
@@ -390,6 +464,9 @@ function main(): void {
   }
 
   const dryRun = values['dry-run']
+  const mirrorFiles = family.id === 'dsh' && sharedVersion !== undefined
+    ? (dryRun ? changedVersionMirrors(root, sharedVersion) : syncVersionMirrors(root, sharedVersion))
+    : []
   if (!dryRun) {
     for (const entry of planned) writeVersion(root, entry.manifestPath, entry.from, entry.to)
     capture('pnpm', ['install', '--lockfile-only'])
@@ -399,12 +476,15 @@ function main(): void {
     ?? planned.map(entry => `${entry.label.replace('vendor/', '')} ${entry.to}`).join(', ')
   console.log(`release bump: family ${family.id} -> ${summary}`)
   for (const entry of planned) console.log(`  ${entry.label}: ${entry.from} -> ${entry.to}`)
+  for (const mirrorPath of mirrorFiles) {
+    console.log(`  ${mirrorPath}: version mirror -> ${sharedVersion}`)
+  }
 
   if (dryRun) {
     console.log('release bump: dry run, nothing written')
     return
   }
-  capture('git', ['add', 'pnpm-lock.yaml', ...planned.map(entry => entry.manifestPath)])
+  capture('git', ['add', 'pnpm-lock.yaml', ...planned.map(entry => entry.manifestPath), ...mirrorFiles])
   capture('git', ['commit', '-m', `release(${family.id}): ${summary}`])
   console.log('release bump: committed. After this merges to master, tag it:')
   for (const tag of [...new Set(planned.map(entry => entry.tag).filter(tag => tag !== undefined))]) {

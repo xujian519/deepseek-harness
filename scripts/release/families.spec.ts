@@ -1,12 +1,19 @@
 /** Release family discovery, publish order, tag naming, and the bump judgements. */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { officialClientBuildEnvironment, writeClientBuildRecord } from '../client-build-environment.ts'
 import { releaseFamily, type ReleaseMember } from './families.ts'
-import { compareVersions, nextVendorVersion, planShared, reachesPayload } from './bump.ts'
+import {
+  changedVersionMirrors,
+  compareVersions,
+  nextVendorVersion,
+  planShared,
+  reachesPayload,
+  syncVersionMirrors,
+} from './bump.ts'
 
 /**
  * A release member standing in for a manifest on disk.
@@ -362,5 +369,34 @@ describe('payload change judgement', () => {
     expect(reachesPayload(sourceShipping, 'vendor/cosmokit/README.i18n.yaml')).toBe(true)
     expect(reachesPayload(member('packages/a/library', '@deepseek-ai/dsh-library', { files: ['lib/index.js'] }),
       'packages/a/library/tests/library.spec.ts')).toBe(false)
+  })
+})
+
+describe('dsh version mirrors', () => {
+  const mirrorPath = 'packages/client/better-sidebar/src/client/service.ts'
+
+  it('rewrites the reported better-sidebar version in the same bump', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-release-mirror-'))
+    roots.push(root)
+    const path = join(root, mirrorPath)
+    write(path,
+      "export const SIDEBAR_SERVICE_VERSION = '0.1.2-alpha.3'\n"
+      + 'const unrelated = 1\n')
+
+    expect(changedVersionMirrors(root, '0.1.2-alpha.4')).toEqual([mirrorPath])
+    expect(syncVersionMirrors(root, '0.1.2-alpha.4')).toEqual([mirrorPath])
+    expect(readFileSync(path, 'utf8'))
+      .toBe("export const SIDEBAR_SERVICE_VERSION = '0.1.2-alpha.4'\nconst unrelated = 1\n")
+    // The mirror is in sync now: the bump rewrites it once, not twice.
+    expect(changedVersionMirrors(root, '0.1.2-alpha.4')).toEqual([])
+    expect(syncVersionMirrors(root, '0.1.2-alpha.4')).toEqual([])
+  })
+
+  it('skips an absent fork-local mirror without failing the release', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-release-mirror-missing-'))
+    roots.push(root)
+
+    expect(changedVersionMirrors(root, '0.1.2-alpha.4')).toEqual([])
+    expect(syncVersionMirrors(root, '0.1.2-alpha.4')).toEqual([])
   })
 })
