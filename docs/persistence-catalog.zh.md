@@ -1174,7 +1174,7 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-e
 
 类型：[TodoItem](subsystems/todo.zh.md)
 
-来源：[`packages/todo/tool-todo/src/types.ts:34`](../packages/todo/tool-todo/src/types.ts)
+来源：[`packages/todo/tool-todo/src/types.ts:38`](../packages/todo/tool-todo/src/types.ts)
 
 ### `tool/*`
 

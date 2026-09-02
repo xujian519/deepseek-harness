@@ -25,7 +25,11 @@ interface TodoItem {
   content: string
   /** Lifecycle state. `in_progress` marks a task being worked now; parallel work may mark several. */
   status: 'pending' | 'in_progress' | 'completed'
-  /** Optional short category labels (e.g. `docs`, `release`); trimmed, non-empty, unique per item. `| undefined` mirrors the wire schema's zod-optional inference. */
+  /**
+   * Optional short category labels (e.g. `docs`, `release`); trimmed,
+   * non-empty, unique per item. `| undefined` mirrors the wire schema's
+   * zod-optional inference.
+   */
   tags?: string[] | undefined
 }
 ```

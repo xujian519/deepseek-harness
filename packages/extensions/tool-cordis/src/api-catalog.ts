@@ -1484,7 +1484,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async addMember( agent: Agent, args: { name: string role?: string provider?: string model?: string reasoning_effort?: string }, signal: AbortSignal, ): Promise<{ member_name: string member_id: string provider: string model: string reasoning_effort?: string status: string }>',
-        description: 'Add a durable continuable member. By default it snapshots the captain\'s current LLM route and effort; supply provider/model only for an explicitly requested role-specific route.',
+        description: 'Add a durable continuable member. By default it snapshots the captain\'s current LLM route and effort; supply provider/model only for an explicitly requested role-specific route. The route resolution and the child spawn run outside the team lock so one add never stalls the team\'s other tools; admission and persistence revalidate inside the lock, and a spawn that loses a concurrent race is retired before its failure surfaces.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'member name, role, optional route/effort.' }, { name: 'signal', description: 'caller cancellation, forwarded to the spawn.' }],
         returns: 'the created member\'s identity.',
       },
@@ -1535,6 +1535,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'End the team: interrupt all members (best effort), archive the team\'s state directory (team file, tasks, mailboxes) under `archive/`.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'signal', description: 'caller cancellation, forwarded to quiescence waits.' }],
         returns: 'whether the team was archived.',
+      },
+      {
+        signature: 'async archive(agent: Agent, teamId?: string): Promise<PatentTeamsArchive>',
+        description: 'Read this workspace\'s archived teams: one team\'s full record in detail, or a summary row per archived team. Archived records are immutable after PatentTeamsService.delete; this method only reads them.',
+        parameters: [{ name: 'agent', description: 'any calling agent in the workspace (the archive is workspace-scoped).' }, { name: 'teamId', description: 'optional archived team id to show in detail.' }],
+        returns: 'the archive listing, or the one team\'s detail record.',
       },
     ],
   },
@@ -5318,6 +5324,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PatentModelRequest',
     declaration: 'export interface PatentModelRequest {\n    messages: PatentModelMessage[];\n    temperature?: number;\n    schema?: unknown;\n}',
+  },
+  {
+    name: 'PatentTeamsArchive',
+    declaration: 'export type PatentTeamsArchive = {\n    mode: \'list\';\n    teams: PatentTeamsArchiveSummary[];\n} | {\n    mode: \'detail\';\n    team: PatentTeamsArchiveDetail;\n};',
+  },
+  {
+    name: 'PatentTeamsArchiveDetail',
+    declaration: 'export interface PatentTeamsArchiveDetail {\n    team_id: string;\n    team_name: string;\n    created_at: number;\n    description?: string;\n    members: {\n        name: string;\n        role: string;\n    }[];\n    tasks: {\n        id: string;\n        subject: string;\n        status: string;\n        assignee: string;\n        dependencies: string[];\n        output?: string;\n    }[];\n}',
+  },
+  {
+    name: 'PatentTeamsArchiveSummary',
+    declaration: 'export interface PatentTeamsArchiveSummary {\n    team_id: string;\n    team_name: string;\n    created_at: number;\n    members: number;\n    tasks: number;\n    completed_tasks: number;\n}',
   },
   {
     name: 'PatentTeamsStatus',

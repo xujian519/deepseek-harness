@@ -786,6 +786,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   PatentKgSearchOptions: 'service-local knowledge-graph search options are owned by packages/patent/patent-knowledge/src/patent/patent-kg-adapter.ts',
   RelevantHit: 'service-local knowledge-graph search result is owned by packages/patent/patent-knowledge/src/patent/patent-kg-adapter.ts',
   PatentTeamsStatus: 'team snapshot payload is owned by packages/patent/patent-teams/src/service.ts',
+  PatentTeamsArchive: 'team archive payload is owned by packages/patent/patent-teams/src/service.ts',
   TabDescriptor: 'sidebar tab type contract is owned by packages/client/better-sidebar/src/client/service.ts',
   FileViewerDescriptor: 'sidebar file-viewer contract is owned by packages/client/better-sidebar/src/client/service.ts',
   OpenTabSeed: 'sidebar open-tab seed contract is owned by packages/client/better-sidebar/src/client/service.ts',

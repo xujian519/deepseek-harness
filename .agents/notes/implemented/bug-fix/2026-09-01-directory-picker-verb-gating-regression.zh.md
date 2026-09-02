@@ -26,7 +26,7 @@ directory picker failed: directoryPicker.pick needs the native capability; the c
 
 `requireCapability` 只接收动词，其类型收窄到该交互自身的成员；调用方通过显式类型参数点明交互：
 
-```ts
+```ts ignore-check
 private requireCapability<Kind extends keyof DirectoryPickerCapabilities>(
   method: Exclude<keyof DirectoryPickerCapabilities[Kind], 'kind'> & string,
 ): DirectoryPickerCapabilities[Kind] {

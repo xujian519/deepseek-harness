@@ -26,7 +26,7 @@ Each wire verb gates on the presence of the primitive it forwards to, not on a k
 
 `requireCapability` takes only the verb, typed as that interaction's own members, and its caller names the interaction through an explicit type argument:
 
-```ts
+```ts ignore-check
 private requireCapability<Kind extends keyof DirectoryPickerCapabilities>(
   method: Exclude<keyof DirectoryPickerCapabilities[Kind], 'kind'> & string,
 ): DirectoryPickerCapabilities[Kind] {

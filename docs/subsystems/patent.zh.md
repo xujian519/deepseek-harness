@@ -147,7 +147,10 @@ async create(agent: Agent, name: string, description?: string): Promise<{ team_i
 /**
  * Add a durable continuable member. By default it snapshots the captain's
  * current LLM route and effort; supply provider/model only for an explicitly
- * requested role-specific route.
+ * requested role-specific route. The route resolution and the child spawn
+ * run outside the team lock so one add never stalls the team's other tools;
+ * admission and persistence revalidate inside the lock, and a spawn that
+ * loses a concurrent race is retired before its failure surfaces.
  * @param agent - the calling captain.
  * @param args - member name, role, optional route/effort.
  * @param signal - caller cancellation, forwarded to the spawn.
@@ -238,6 +241,16 @@ async status(agent: Agent, signal?: AbortSignal): Promise<PatentTeamsStatus>
  * @returns whether the team was archived.
  */
 async delete(agent: Agent, signal: AbortSignal): Promise<{ deleted: boolean; team_name: string }>
+
+/**
+ * Read this workspace's archived teams: one team's full record in detail,
+ * or a summary row per archived team. Archived records are immutable after
+ * {@link PatentTeamsService.delete}; this method only reads them.
+ * @param agent - any calling agent in the workspace (the archive is workspace-scoped).
+ * @param teamId - optional archived team id to show in detail.
+ * @returns the archive listing, or the one team's detail record.
+ */
+async archive(agent: Agent, teamId?: string): Promise<PatentTeamsArchive>
 ```
 
 Types: [Agent](core.zh.md)

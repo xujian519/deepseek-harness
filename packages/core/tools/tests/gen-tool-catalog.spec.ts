@@ -39,7 +39,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'paper_list_sources', 'paper_search', 'patent_analysis_report', 'patent_case_search',
       'patent_eval', 'patent_kg_query', 'patent_legal_status', 'patent_metadata',
       'patent_pdf_download', 'patent_plan_task', 'patent_search', 'patent_teams_add_member',
-      'patent_teams_claim_task', 'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete',
+      'patent_teams_archive', 'patent_teams_claim_task', 'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete',
       'patent_teams_reassign_task', 'patent_teams_remove_member', 'patent_teams_send_message', 'patent_teams_status',
       'patent_teams_update_task', 'patent_wiki_search', 'patent_worker_validate', 'patent_workflow',
       'patent_workflow_run', 'pwsh', 'pwsh', 'ralph',
