@@ -37,12 +37,6 @@
     },
     {
       "path": "../../session/session-projection-cache"
-    },
-    {
-      "path": "../../util/value"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

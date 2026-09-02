@@ -31,12 +31,6 @@
     },
     {
       "path": "../../session/session-projection"
-    },
-    {
-      "path": "../../util/value"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

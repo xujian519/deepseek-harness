@@ -25,9 +25,6 @@
     },
     {
       "path": "../protocol"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

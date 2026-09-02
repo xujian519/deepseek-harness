@@ -4,7 +4,9 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
     {
       "path": "../../util/contained-emit"
@@ -32,9 +34,6 @@
     },
     {
       "path": "../../util/values"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

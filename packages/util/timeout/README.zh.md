@@ -105,7 +105,7 @@ const result = await abortable(work, signal)
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `abortable`、`clampTimeout`、`deadline`、`idleWatchdog`、`timeoutOf`、`TimeoutReason`、`MAX_TIMER_DELAY_MS` |
-| [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；时序运算由单元测试覆盖） |
+| — | 不发布运行时不变式伴生入口；时序运算由单元测试覆盖。 |
 
 ### deadline 如何融合来源
 

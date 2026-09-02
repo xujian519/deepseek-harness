@@ -29,7 +29,6 @@
     "src/host/inspection/realm.ts",
     "src/host/plugin.ts",
     "src/index.ts",
-    "src/invariant.ts",
     "src/shared/bridge/buffer.ts",
     "src/shared/bridge/codec.ts",
     "src/shared/bridge/control-codec.ts",
@@ -149,9 +148,6 @@
     },
     {
       "path": "../../host/webserver"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     },
     {
       "path": "../../util/crypto"

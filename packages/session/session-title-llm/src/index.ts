@@ -11,6 +11,7 @@ import type { FinishReason, GenerateOptions, Message } from '@deepseek-ai/dsh-ll
 import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
+import type { SessionSeq } from '@deepseek-ai/dsh-session'
 import {
   normalizeSessionTitle,
   SessionTitleProviderId,
@@ -28,7 +29,7 @@ export interface SessionTitleLlmRequestEventData {
   /** Registered title-provider identity responsible for the request. */
   readonly titleProvider: SessionTitleProviderId
   /** Exact human `user/message` seqs represented in `messages`. */
-  readonly messageSeqs: number[]
+  readonly messageSeqs: SessionSeq[]
   /** Exact auxiliary LLM route. */
   readonly route: SessionTitleModelProvenance
   /** Exact auxiliary system prompt. */

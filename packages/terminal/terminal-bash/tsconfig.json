@@ -9,9 +9,6 @@
   ],
   "references": [
     {
-      "path": "../../util/timeout"
-    },
-    {
       "path": "../../../vendor/cosmokit"
     },
     {
@@ -40,12 +37,6 @@
     },
     {
       "path": "../../subprocess/subprocess"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
-      "path": "../../util/value"
     }
   ]
 }

@@ -93,13 +93,13 @@ describe('agent/request-error', () => {
         code: 'SERVICE_UNAVAILABLE',
       },
     ])
-    expect(agent.session.events.filter(event => event.type === 'turn/start')).toHaveLength(1)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(1)
     expect(seen.map(item => item.retryPolicy)).toEqual([
       expect.objectContaining({ mode: 'normal' }),
       expect.objectContaining({ mode: 'normal' }),
     ])
     expect(statuses).toEqual(['running', 'idle'])
-    expect(agent.session.events.flatMap(event =>
+    expect(agent.session.snapshotEvents().flatMap(event =>
       event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial'])
   })
 
@@ -116,8 +116,8 @@ describe('agent/request-error', () => {
     await agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(1)
-    expect(agent.session.events.filter(event => event.type === 'turn/start')).toHaveLength(1)
-    expect(agent.session.events.find(event => event.type === 'turn/end')).toMatchObject({
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(1)
+    expect(agent.session.snapshotEvents().find(event => event.type === 'turn/end')).toMatchObject({
       type: 'turn/end',
       data: { reason: { kind: 'aborted', reason: { kind: 'user' } } },
     })
@@ -138,8 +138,8 @@ describe('agent/request-error', () => {
     await agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(1)
-    expect(agent.session.events.filter(event => event.type === 'turn/start')).toHaveLength(1)
-    expect(agent.session.events.find(event => event.type === 'turn/end')).toMatchObject({
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(1)
+    expect(agent.session.snapshotEvents().find(event => event.type === 'turn/end')).toMatchObject({
       type: 'turn/end',
       data: { reason: { kind: 'error' } },
     })
