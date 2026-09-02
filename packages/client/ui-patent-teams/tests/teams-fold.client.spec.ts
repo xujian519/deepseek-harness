@@ -192,7 +192,11 @@ describe('chat card Definition', () => {
     live.replaceWindow(events.slice(0, 2), false)
     for (const event of events.slice(2)) live.append(event)
     live.flush()
-    expect(chatNodes(live)).toEqual(chatNodes(replay))
+    // Node projections carry mode-local branded seqs after the session
+    // seq/log-offset split; the stable contract is identity plus card data.
+    const identity = (nodes: readonly ChatConversationViewNode[]) =>
+      nodes.map(node => ({ id: node.id, anchorSeq: node.anchorSeq, data: node.data }))
+    expect(identity(chatNodes(live))).toEqual(identity(chatNodes(replay)))
     expect(viewSnapshot(live)).toEqual(viewSnapshot(replay))
   })
 })

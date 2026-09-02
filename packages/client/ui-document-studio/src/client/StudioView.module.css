@@ -48,7 +48,7 @@
   gap: 6px;
   max-width: 280px;
   padding: 4px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: var(--dsw-alias-bg-base);
   font-size: 12px;
@@ -98,7 +98,7 @@
 .action {
   flex: 0 0 auto;
   padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 4px;
   background: var(--dsw-alias-bg-base);
   font-size: 12px;
@@ -115,7 +115,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid var(--dsw-alias-border-l3);
+  border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -127,7 +127,7 @@
   padding: 6px 12px;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .frame {

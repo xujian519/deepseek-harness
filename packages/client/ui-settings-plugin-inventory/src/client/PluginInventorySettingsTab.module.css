@@ -41,7 +41,7 @@
 .search input {
   width: 100%;
   height: 36px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 0 34px 0 36px;
   outline: none;
@@ -93,13 +93,14 @@
 .card {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
   background: var(--dsw-alias-bg-layer-3);
 }
 
 .card[data-open='true'] {
-  border-color: var(--dsw-alias-border-l1);
+  border-color: transparent;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   box-shadow: var(--dsw-shadow-lv1);
 }
 
@@ -155,6 +156,9 @@
   flex: none;
   border-radius: 999px;
   background: var(--dsw-alias-label-tertiary);
+  corner-shape: round;
+
+
 }
 
 .statusDot[data-phase='active'] {
@@ -216,7 +220,7 @@
 }
 
 .group + .group {
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
   padding-top: 14px;
 }
 
@@ -374,7 +378,7 @@
 }
 
 .cardDetails {
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
   padding: 10px 14px 12px;
   background: var(--dsw-alias-bg-module-platform);
 }

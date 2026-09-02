@@ -53,7 +53,7 @@
   gap: 8px;
   padding: 20px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-3);
   /* Elevated surface: the card is layer-3 and its option lists scroll inside
@@ -88,6 +88,9 @@
   font-weight: 500;
   color: var(--dsw-alias-label-secondary);
   font-variant-numeric: tabular-nums;
+  corner-shape: round;
+
+
 }
 
 /* Responsive inventory: as many small cards per row as the width allows. */
@@ -108,7 +111,7 @@
   min-height: 106px;
   overflow: hidden;
   border-radius: 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   background: transparent;
   font: inherit;
   color: inherit;
@@ -173,7 +176,7 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-tertiary);
 }
@@ -219,7 +222,7 @@
   box-sizing: border-box;
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
@@ -230,6 +233,9 @@
   border-radius: 50%;
   background: var(--dsw-alias-label-tertiary);
   transition: transform 0.15s ease, background 0.15s ease;
+  corner-shape: round;
+
+
 }
 
 .cardOn .cardSwitchTrack {
@@ -299,7 +305,7 @@
   width: 100%;
   padding: 6px 12px;
   border: 0;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -330,7 +336,7 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -353,7 +359,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 2px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .row:last-child {
@@ -404,7 +410,7 @@
   padding: 2px;
   box-sizing: border-box;
   border-radius: 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-2);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -416,6 +422,9 @@
   border-radius: 50%;
   background: var(--dsw-alias-label-tertiary);
   transition: transform 0.15s ease, background 0.15s ease;
+  corner-shape: round;
+
+
 }
 
 .switch:hover .switchTrack {
@@ -468,7 +477,7 @@
   gap: 6px;
   max-width: 220px;
   padding: 4px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-primary);
@@ -525,7 +534,7 @@
   box-sizing: border-box;
   min-height: 120px;
   padding: 8px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-primary);
@@ -592,7 +601,7 @@
   gap: 16px;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-3);
   transition: border-color 0.16s, background 0.16s;
@@ -650,7 +659,7 @@
 .pluginTopicBtn {
   width: 100%;
   appearance: none;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 6px 12px;
   font: inherit;
@@ -687,7 +696,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -712,7 +721,7 @@
 .pluginJumpBtn {
   flex: none;
   appearance: none;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 3px 12px;
   font: inherit;
@@ -775,7 +784,7 @@
   line-height: 16px;
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 8px;
   overflow-x: auto;
   white-space: nowrap;
@@ -828,10 +837,13 @@
   align-self: flex-start;
   padding: 4px 12px 4px 14px;
   border-radius: 999px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-2);
   font-size: 12px;
   line-height: 18px;
+  corner-shape: round;
+
+
 }
 
 .versionBadgeName {
@@ -845,6 +857,9 @@
   background: var(--dsw-alias-accent-soft, var(--dsw-alias-border-l2));
   color: var(--dsw-alias-label-secondary);
   font-variant-numeric: tabular-nums;
+  corner-shape: round;
+
+
 }
 
 /* Catalog search input: a compact text field above the list (token-driven).
@@ -854,7 +869,7 @@
   width: 100%;
   box-sizing: border-box;
   appearance: none;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 6px 10px;
   font: inherit;
@@ -916,7 +931,7 @@
   min-width: 0;
   box-sizing: border-box;
   padding: 5px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-primary);

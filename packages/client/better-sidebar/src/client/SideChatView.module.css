@@ -46,6 +46,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  corner-shape: round;
+
+
 }
 
 .sidechatIconBtn {
@@ -113,6 +116,9 @@
   font: var(--dsw-font-s-13);
   cursor: pointer;
   transition: opacity 100ms ease-out;
+  corner-shape: round;
+
+
 }
 
 .sidechatPrimaryBtn:hover:not(:disabled) {
@@ -333,7 +339,8 @@
   gap: 4px;
   margin: 0 8px 8px;
   padding: 8px 8px 6px 14px;
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, var(--dsw-alias-hairline));
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2-darkmode-thin, var(--dsw-alias-hairline));
   border-radius: 16px;
   background: var(--dsw-specific-input-major, var(--dsw-alias-bg-base));
   box-shadow: var(--dsw-shadow-lv2, none);
@@ -391,6 +398,9 @@
   /* send ⇄ stop swap: keyed remount plays this, hover only fades. */
   animation: sidechatBtnIn 120ms ease-out;
   transition: opacity 100ms ease-out;
+  corner-shape: round;
+
+
 }
 
 .sidechatSendBtn:hover:not(:disabled) {

@@ -103,6 +103,9 @@
   transition:
     background var(--ds-transition-duration-slow) var(--ds-ease-in-out),
     color var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+    corner-shape: round;
+
+
 }
 
 .toggleButton:hover:not(:disabled):not([aria-disabled='true']) {
@@ -142,7 +145,7 @@
      app's own left nav and a panel consuming it loses its fill or clashes
      with labels (#60/#105/#106). */
   background: var(--dsw-alias-bg-layer-1);
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
   /* Bottom safe-area (notched phones): the drawer's bottom content clears
      the home indicator; 0 on desktops. */
   padding-bottom: env(safe-area-inset-bottom);
@@ -210,7 +213,7 @@
   display: flex;
   flex-direction: column;
   background: var(--dsw-alias-bg-layer-1);
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
   /* Re-enable interaction inside the click-transparent panel host. */
   pointer-events: auto;
   /* Bottom safe-area (notched phones); 0 on desktops. */
@@ -291,6 +294,9 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
   flex: none;
+  corner-shape: round;
+
+
 }
 
 .bottomClose:hover:not(:disabled) {
@@ -322,7 +328,8 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   /* Re-enable interaction inside the click-transparent panel host. */
   pointer-events: auto;
   background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   border-radius: 8px;
   box-shadow: var(--dsw-shadow-lv3);
   overflow: hidden;
@@ -345,7 +352,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-1);
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
   cursor: grab;
   user-select: none;
 }
@@ -443,7 +450,10 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  corner-shape: round;
+
+
 }
 
 /* ── Desktop drag-region opt-out ──────────────────────────────────────── */
@@ -525,6 +535,9 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
   flex: none;
+  corner-shape: round;
+
+
 }
 
 .iconButton:hover:not(:disabled) {
@@ -722,7 +735,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   gap: 6px;
   min-width: 0;
   padding: 12px 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-secondary);
@@ -749,7 +762,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   display: flex;
   align-items: stretch;
   height: 34px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-layer-1);
 }
 
@@ -780,7 +793,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   padding: 0 4px 0 10px;
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-secondary);
-  border-right: 1px solid var(--dsw-alias-border-l1);
+  border-right: 0.5px solid var(--dsw-alias-border-l1);
   background: transparent;
   cursor: pointer;
   user-select: none;
@@ -993,12 +1006,15 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   height: 20px;
   padding: 0 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 999px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xxxs-strong-11);
   cursor: pointer;
+  corner-shape: round;
+
+
 }
 
 .explorerRef:hover {
@@ -1088,12 +1104,16 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   gap: 6px;
   max-width: 100%;
   padding: 6px 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   border-radius: 999px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv2);
   color: var(--dsw-alias-label-primary);
   font: var(--dsw-font-xxs-strong-12);
+  corner-shape: round;
+
+
 }
 
 .uploadDropZoneText {
@@ -1156,7 +1176,8 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   min-width: 280px;
   max-width: min(420px, calc(100% - 48px));
   padding: 20px 24px;
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-inverted);
   border-radius: 24px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
@@ -1209,7 +1230,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-self: flex-end;
   height: 28px;
   padding: 0 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -1242,7 +1263,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .editorTitle {
@@ -1263,7 +1284,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   box-sizing: border-box;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
@@ -1304,7 +1325,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   flex: none;
   min-height: 0;
   display: flex;
-  border-left: 1px solid var(--dsw-alias-border-l1);
+  border-left: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .editorTreeResize {
@@ -1345,7 +1366,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .editorSearchInput {
@@ -1353,7 +1374,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   min-width: 0;
   height: 26px;
   padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
@@ -1406,6 +1427,9 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   border-radius: 50%;
   background: var(--dsw-alias-state-warn-primary);
   flex: none;
+  corner-shape: round;
+
+
 }
 
 .editorPlaceholder {
@@ -1451,7 +1475,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
@@ -1498,7 +1522,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 .sandboxStatusOn {
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-1);
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .sandboxStatusOff {
@@ -1513,6 +1537,9 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   height: 6px;
   border-radius: 50%;
   background: var(--dsw-alias-state-success-primary);
+  corner-shape: round;
+
+
 }
 
 .sandboxStatusOff .sandboxDot {
@@ -1530,7 +1557,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 .sandboxAction {
   flex: none;
   padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: transparent;
   font: inherit;
@@ -1568,7 +1595,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .browserInput {
@@ -1576,7 +1603,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   min-width: 0;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
@@ -1650,7 +1677,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 
 .browserBlockedButton {
   padding: 4px 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
@@ -1696,7 +1723,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -1756,7 +1783,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 
 .mermaidWrap {
   margin: 6px 0;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
   overflow: hidden;
@@ -1768,7 +1795,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   justify-content: space-between;
   gap: 6px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-layer-2);
 }
 
@@ -1813,7 +1840,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 
 .mermaidError {
   padding: 6px 10px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-state-error-primary);
   font: var(--dsw-font-xxxs-11);
 }
@@ -1868,7 +1895,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
   font: var(--dsw-font-xs-strong-13);
@@ -1931,7 +1958,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: center;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
@@ -1957,7 +1984,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   display: flex;
   justify-content: flex-end;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .editorPdfStage {
@@ -2055,7 +2082,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   align-items: flex-start;
   padding: 16px;
   background: var(--dsw-alias-bg-layer-1);
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-state-error-primary);
   overflow: auto;
@@ -2064,12 +2091,15 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 .terminalRetry {
   flex: none;
   padding: 1px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-xxxs-strong-11);
   cursor: pointer;
+  corner-shape: round;
+
+
 }
 
 .terminalRetry:hover {
@@ -2120,7 +2150,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   user-select: text;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 4px;
   max-height: 160px;
   overflow: auto;
@@ -2194,7 +2224,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   min-width: 0;
   height: 26px;
   padding: 0 6px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
@@ -2202,7 +2232,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 }
 
 .gitSection {
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .gitSectionHeader {
@@ -2309,7 +2339,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 }
 
 .gitDiff {
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
   padding: 8px;
 }
 
@@ -2332,7 +2362,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   gap: 8px;
   height: 36px;
   padding: 0 8px 0 12px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .gitDiffTabTitle {
@@ -2398,10 +2428,13 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 .gitDiffFileTag {
   flex: none;
   padding: 0 6px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
   font: var(--dsw-font-xxxs-strong-11);
   color: var(--dsw-alias-label-secondary);
+  corner-shape: round;
+
+
 }
 
 .gitDiffHunk {
@@ -2502,7 +2535,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   display: flex;
   gap: 6px;
   padding: 8px 12px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
   align-items: center;
 }
 
@@ -2571,11 +2604,14 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 .gitLogRef {
   flex: none;
   padding: 0 5px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
   font: var(--dsw-font-xxxs-strong-11);
   color: var(--dsw-alias-brand-primary);
   white-space: nowrap;
+  corner-shape: round;
+
+
 }
 
 .gitLogSubject {
@@ -2598,7 +2634,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   width: calc(100% - 24px);
   margin: 4px 12px 8px;
   padding: 6px 0;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: transparent;
   font: var(--dsw-font-xxs-12);
@@ -2637,13 +2673,16 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   gap: 4px;
   max-width: 200px;
   padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-xxs-12);
   cursor: pointer;
   overflow: hidden;
+  corner-shape: round;
+
+
 }
 
 .producedChip:hover {
@@ -2835,7 +2874,7 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   height: 26px;
   margin: 4px 2px 0 0;
   padding: 0;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-secondary);
@@ -2859,7 +2898,8 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   max-height: 60vh;
   overflow-y: auto;
   padding: 4px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv2);

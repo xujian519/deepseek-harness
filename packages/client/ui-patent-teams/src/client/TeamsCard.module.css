@@ -75,6 +75,9 @@
   height: 2px;
   border-radius: 50%;
   background: var(--dsw-alias-label-tertiary);
+  corner-shape: round;
+
+
 }
 
 .body {
