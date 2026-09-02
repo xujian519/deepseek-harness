@@ -144,10 +144,13 @@ function runPlugin(profile: string, args: readonly string[]): number {
   }
   const before = readProfileManifest(NAME, dir)
   // Windows resolves pnpm through its .cmd shim, which spawn() refuses
-  // without a shell since the CVE-2024-27980 hardening.
+  // without a shell since the CVE-2024-27980 hardening. stdout stays
+  // inherited so progress and interactive pnpm flows keep their live
+  // rendering; stderr is captured, echoed back verbatim, and kept for the
+  // hint classification in {@link pnpmFailureHints}.
   const result = spawnSync('pnpm', args.map(argument => anchorPathSpec(argument, process.cwd())), {
     cwd: dir,
-    stdio: 'inherit',
+    stdio: ['inherit', 'inherit', 'pipe'],
     shell: process.platform === 'win32',
   })
   if (result.error !== undefined) {
@@ -158,6 +161,8 @@ function runPlugin(profile: string, args: readonly string[]): number {
     }
     throw result.error
   }
+  const stderr = result.stderr.toString()
+  if (stderr.length > 0) process.stderr.write(stderr)
   const exitCode = result.status ?? 1
   if (exitCode === 0) {
     reconcilePlugins(before, dir)
@@ -168,18 +173,38 @@ function runPlugin(profile: string, args: readonly string[]): number {
       )
     }
   } else {
-    // pnpm's own diagnostics name pnpm-workspace.yaml without saying WHICH
-    // one; the profile owns it, and the commonest failure here is pnpm ≥10
-    // blocking a git dependency's prepare (build) script until allowlisted.
     process.stderr.write(`${NAME}: pnpm failed in profile directory ${dir}\n`)
-    if (args.some(argument => /^git\+|^github:|\.git(?:#|$)/.test(argument))) {
-      process.stderr.write(
-        `${NAME}: git-hosted plugins build on install via their prepare script, which pnpm blocks until allowed — `
-        + `add the exact key pnpm printed above under allowBuilds in ${join(dir, 'pnpm-workspace.yaml')}, then re-run\n`,
-      )
-    }
+    for (const line of pnpmFailureHints(stderr, dir)) process.stderr.write(`${line}\n`)
   }
   return exitCode
+}
+
+/**
+ * Build the orientation lines printed after a failed pnpm run in a profile
+ * directory. pnpm's own stderr is echoed verbatim before these lines; each
+ * hint adds only what the diagnostics cannot know: which config home pnpm
+ * 10.x actually enforces the git-hosted build allowlist from, and how a
+ * store relocation is resolved. Failures matching neither class get no hint
+ * — the forwarded spec's shape says nothing reliable about the cause.
+ * @param stderr - the captured pnpm stderr text.
+ * @param dir - the profile directory the pnpm run happened in.
+ * @returns one complete stderr line per hint, without trailing newlines.
+ */
+export function pnpmFailureHints(stderr: string, dir: string): readonly string[] {
+  if (stderr.includes('ERR_PNPM_UNEXPECTED_STORE')) {
+    return [
+      `${NAME}: this profile's node_modules was linked by a different pnpm major (the store location moved) — `
+      + `run the pnpm major that installed the profile, or run 'pnpm install' in ${dir} to migrate the store, then re-run`,
+    ]
+  }
+  if (stderr.includes('ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED')) {
+    return [
+      `${NAME}: git-hosted packages build via their prepare script, which pnpm blocks until allowlisted — add the exact `
+      + `key pnpm printed above (name@<tarball-url-or-git-ref>) to "pnpm.onlyBuiltDependencies" in ${join(dir, 'package.json')}, `
+      + 'then re-run (pnpm 10 enforces this from the package.json field even though its own output points at pnpm-workspace.yaml)',
+    ]
+  }
+  return []
 }
 
 /**
