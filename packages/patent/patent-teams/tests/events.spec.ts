@@ -20,7 +20,7 @@ describe('appendTeamEvent', () => {
     const ctx = makeContext()
     const session = Session.create(SessionId('captain-1'))
     appendTeamEvent(ctx, session, TEAM_CREATED, data)
-    const event = session.events.find(candidate => candidate.type === TEAM_CREATED)
+    const event = session.snapshotEvents().find(candidate => candidate.type === TEAM_CREATED)
     expect(event).toBeDefined()
     expect(event!.data).toEqual(data)
     expect(event!.ignorable).toBe(true)

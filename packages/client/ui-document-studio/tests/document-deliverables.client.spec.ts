@@ -159,8 +159,8 @@ describe('documentDeliverables turn data', () => {
     const match = matched(at(1, 'turn/start', { turn: 1 }), 'start')
     const start = documentDeliverablesDefinition.start?.({} as never, match, {} as never)
     const state = start === undefined ? undefined : { ...start, produced: [{ seq: 3, path: 'a.html' }] }
-    const turn = documentDeliverablesDefinition.buildLocationData?.({ state } as never, 'turn')
-    const step = documentDeliverablesDefinition.buildLocationData?.({ state } as never, 'step')
+    const turn = documentDeliverablesDefinition.buildLocationData?.({ state } as never, 'turn', null)
+    const step = documentDeliverablesDefinition.buildLocationData?.({ state } as never, 'step', null)
     expect(turn).toEqual({ kind: 'turn', turn: 1, key: 'documentDeliverables', value: { produced: [{ seq: 3, path: 'a.html' }] } })
     expect(step).toBeNull()
   })

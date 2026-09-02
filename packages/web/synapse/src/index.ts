@@ -153,7 +153,9 @@ export function apply(ctx: Context, config: SynapseConfig): void {
           ...(title === null ? {} : { title }),
           ...(snapshot.header.parentSession === undefined ? {} : { parentId: snapshot.header.parentSession }),
           header: {
-            ...(snapshot.header.seedLength === undefined ? {} : { seedLength: snapshot.header.seedLength }),
+            // A restored header no longer carries the seed length; the durable
+            // end-seed marker in the log is the stored inherited-event cut.
+            ...(snapshot.header.isSeeded ? { seedLength: sessionLiveStart(events) } : {}),
             ...(snapshot.header.parentSession === undefined ? {} : { parentSession: snapshot.header.parentSession }),
           },
         }, snapshot.header.cwd ?? UNSPECIFIED_CWD, events, replayAt, projectionWorkspaceTitle)

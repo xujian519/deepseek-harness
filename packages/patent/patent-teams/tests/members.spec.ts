@@ -11,12 +11,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { roleContract } from '@deepseek-ai/dsh-patent-workflow'
-import { SESSION_FORMAT_VERSION, Session, SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
-import { SUBAGENT_DESCRIPTOR_VERSION, SubagentError } from '@deepseek-ai/dsh-subagent'
+import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
+import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 import {
   deliverToMember,
-  installMemberSelectionRuntime,
   installRetiredMemberGuard,
   interruptMember,
   memberActivity,
@@ -26,11 +25,9 @@ import {
   spawnMember,
 } from '../src/members.ts'
 import type {
-  MemberLlmSelection,
   MemberRuntimeConfig,
-  MemberSelectionRuntime,
 } from '../src/members.ts'
-import { createTeamDir, recordRetiredMemberIds } from '../src/state.ts'
+import { recordRetiredMemberIds } from '../src/state.ts'
 import type { TeamMember, TeamState } from '../src/types.ts'
 
 const tmpRoots: string[] = []
@@ -47,6 +44,7 @@ function fakeSession(id: string, cwd: string): Session {
     id: SessionId(id),
     createdAt: Date.now(),
     cwd,
+    isSeeded: false,
   })
 }
 
@@ -89,11 +87,10 @@ const validMember: TeamMember = {
 
 function makeSubagentsStub(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    registerContinuableSetup: () => () => {},
     getProvider: () => undefined,
     list: () => [],
     startContinuable: async () => ({ childId: SessionId('child-1'), messageId: 'msg-1' }),
-    followup: async () => 'followup-1',
+    sendMessage: async () => 'message-1',
     interrupt: () => {},
     listChildren: async () => [],
     listDescendants: async () => [],
@@ -272,259 +269,6 @@ describe('memberPersona and memberWelcome', () => {
   })
 })
 
-describe('installMemberSelectionRuntime', () => {
-  interface Setup {
-    ctx: Context
-    stateDir: string
-    runtime: MemberSelectionRuntime
-    contribution: ((childCtx: never) => (() => unknown) | undefined) | undefined
-    listenerNames: string[]
-  }
-
-  async function setup(): Promise<Setup> {
-    const ctx = new Context()
-    const stateDir = '.patent-teams-members'
-    const listenerNames: string[] = []
-    let contribution: Setup['contribution']
-    ctx.provide('subagents', {
-      registerContinuableSetup: (fn: never) => {
-        contribution = fn
-        return () => {}
-      },
-    } as never)
-    const runtime = installMemberSelectionRuntime(ctx, stateDir)
-    const result: Setup = {
-      ctx,
-      stateDir,
-      runtime,
-      listenerNames,
-      get contribution() {
-        return contribution
-      },
-    }
-    return result
-  }
-
-  function childCtxFor(
-    captain: Agent,
-    workspace: string,
-    childId = 'child-1',
-    descriptor?: Record<string, unknown>,
-    setupExtra?: (session: Session) => void,
-    headerOverrides: { parentSession?: string | undefined; cwd?: string | undefined } = { parentSession: captain.id },
-  ): { agent: Agent; on: ReturnType<typeof vi.fn>; childSession: Session } {
-    const header = {
-      version: SESSION_FORMAT_VERSION,
-      id: SessionId(childId),
-      createdAt: Date.now(),
-      ...(Object.hasOwn(headerOverrides, 'cwd') ? {} : { cwd: workspace }),
-      ...(headerOverrides.parentSession === undefined ? {} : { parentSession: headerOverrides.parentSession }),
-    } as unknown as SessionHeader
-    const childSession = Session.create(SessionId(childId), [], header)
-    if (descriptor !== undefined) {
-      childSession.append('subagent/descriptor', descriptor as never)
-    }
-    setupExtra?.(childSession)
-    const on = vi.fn(() => () => {})
-    const childAgent = {
-      id: SessionId(childId),
-      session: childSession,
-      options: { provider: 'spawn', model: 'deepseek-v4' },
-      status: 'idle',
-    } as unknown as Agent
-    return { agent: childAgent, on, childSession }
-  }
-
-  it('ignores children without an agent', async () => {
-    const { contribution } = await setup()
-    const disposer = contribution!({ agent: undefined } as never)
-    expect(disposer).toBeTypeOf('function')
-    disposer!()
-  })
-
-  it('ignores non-patent-teams and non-continuable descriptors', async () => {
-    const captain = makeCaptain('captain-1')
-    const { contribution } = await setup()
-    const foreign = childCtxFor(captain, '/tmp', 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn', label: 'some-other-label',
-    })
-    expect(contribution!(foreign as never)).toBeTypeOf('function')
-    contribution!(foreign as never)!()
-    expect(foreign.on).not.toHaveBeenCalled()
-
-    const oneShot = childCtxFor(captain, '/tmp', 'child-2', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn', label: 'patent-teams:team1:alice',
-    })
-    expect(contribution!(oneShot as never)).toBeTypeOf('function')
-    contribution!(oneShot as never)!()
-    expect(oneShot.on).not.toHaveBeenCalled()
-  })
-
-  it('ignores children without a parent session or a well-formed identity', async () => {
-    const { contribution } = await setup()
-    const noParent = childCtxFor(makeCaptain('captain-1'), '/tmp', 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-    }, undefined, { parentSession: undefined })
-    expect(contribution!(noParent as never)).toBeTypeOf('function')
-    contribution!(noParent as never)!()
-
-    const malformed = childCtxFor(makeCaptain('captain-1'), '/tmp', 'child-2', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:onlyteam',
-    })
-    expect(contribution!(malformed as never)).toBeTypeOf('function')
-    contribution!(malformed as never)!()
-    expect(malformed.on).not.toHaveBeenCalled()
-  })
-
-  it('applies the pending selection to a freshly created child', async () => {
-    const { runtime, contribution } = await setup()
-    const captain = makeCaptain('captain-1')
-    const selection: MemberLlmSelection = { provider: 'p', model: 'm', reasoningEffort: 'high' }
-    const child = childCtxFor(captain, '/tmp', 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-    })
-    let installed: (() => unknown) | undefined
-    await runtime.withPending(captain.id, 'patent-teams:team1:alice', selection, async () => {
-      installed = contribution!(child as never)
-    })
-    expect(installed).toBeTypeOf('function')
-    const listenerNames = (child.on.mock.calls as Array<[string]>).map(call => call[0])
-    expect(listenerNames).toEqual(['system-prompt/assemble', 'agent/request'])
-  })
-
-  it('restores the selection from the durable team record on cold resume', async () => {
-    const { contribution, stateDir } = await setup()
-    const workspace = await tmpWorkspace()
-    const captain = makeCaptain('captain-1', workspace)
-    const state = makeTeam({
-      id: 'team1',
-      members: [{
-        ...validMember,
-        id: 'child-1',
-        provider: 'p',
-        model: 'm',
-        reasoningEffort: 'high',
-      }],
-    })
-    await createTeamDir(join(workspace, stateDir), state)
-    const child = childCtxFor(captain, workspace, 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-      agentProvider: 'p', agentModel: 'm',
-    })
-    const installed = contribution!(child as never)
-    expect(installed).toBeTypeOf('function')
-    expect(child.on).toHaveBeenCalled()
-  })
-
-  it('fails loud when the saved route does not match the subagent descriptor', async () => {
-    const { contribution, stateDir } = await setup()
-    const workspace = await tmpWorkspace()
-    const captain = makeCaptain('captain-1', workspace)
-    const state = makeTeam({
-      id: 'team1',
-      members: [{ ...validMember, id: 'child-1', provider: 'p', model: 'm' }],
-    })
-    await createTeamDir(join(workspace, stateDir), state)
-    const child = childCtxFor(captain, workspace, 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-      agentProvider: 'other', agentModel: 'other-model',
-    })
-    expect(() => contribution!(child as never)).toThrow(/saved model route for member "alice" does not match/)
-  })
-
-  it('leaves legacy members without a saved route alone', async () => {
-    const { contribution, stateDir } = await setup()
-    const workspace = await tmpWorkspace()
-    const captain = makeCaptain('captain-1', workspace)
-    const { provider: _omittedProvider, model: _omittedModel, ...noRouteMember } = validMember
-    const state = makeTeam({
-      id: 'team1',
-      members: [{ ...noRouteMember, id: 'child-1' }],
-    })
-    await createTeamDir(join(workspace, stateDir), state)
-    const child = childCtxFor(captain, workspace, 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-    })
-    expect(contribution!(child as never)).toBeTypeOf('function')
-    contribution!(child as never)!()
-    expect(child.on).not.toHaveBeenCalled()
-  })
-
-  it('leaves a cold-resumed member without a saved route alone even with a mismatched captain', async () => {
-    const { contribution, stateDir } = await setup()
-    const workspace = await tmpWorkspace()
-    const captain = makeCaptain('captain-1', workspace)
-    // The team exists but belongs to a different captain.
-    const state = makeTeam({
-      id: 'team1',
-      captainSessionId: 'someone-else',
-      members: [{ ...validMember, id: 'child-1', provider: 'p', model: 'm' }],
-    })
-    await createTeamDir(join(workspace, stateDir), state)
-    const child = childCtxFor(captain, workspace, 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-    })
-    const disposer = contribution!(child as never)
-    expect(disposer).toBeTypeOf('function')
-    disposer!()
-    expect(child.on).not.toHaveBeenCalled()
-  })
-
-  it('restores selections whose provider/model are blank or lack an effort', async () => {
-    const { contribution, stateDir } = await setup()
-    const workspace = await tmpWorkspace()
-    const captain = makeCaptain('captain-1', workspace)
-    const state = makeTeam({
-      id: 'team1',
-      members: [{ ...validMember, id: 'child-1', provider: '  ', model: 'm' }],
-    })
-    await createTeamDir(join(workspace, stateDir), state)
-    const blank = childCtxFor(captain, workspace, 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-    })
-    expect(contribution!(blank as never)).toBeTypeOf('function')
-    contribution!(blank as never)!()
-    expect(blank.on).not.toHaveBeenCalled()
-
-    const noEffort = childCtxFor(captain, workspace, 'child-2', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:team1:alice',
-      agentProvider: 'p', agentModel: 'm',
-    })
-    // The member record keeps provider/model but has no reasoning effort.
-    const { reasoningEffort: _omittedEffort, ...noEffortMember } = validMember
-    const member = { ...noEffortMember, id: 'child-2', provider: 'p', model: 'm' }
-    await createTeamDir(join(workspace, stateDir), { ...state, members: [member] })
-    const disposer = contribution!(noEffort as never)
-    expect(disposer).toBeTypeOf('function')
-    disposer!()
-    expect(noEffort.on).toHaveBeenCalled()
-  })
-
-  it('resolves the workspace from the process cwd when the child has no cwd', async () => {
-    const { contribution } = await setup()
-    const captain = makeCaptain('captain-1')
-    const child = childCtxFor(captain, '/tmp', 'child-1', {
-      version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'patent-teams:missing:alice',
-    }, undefined, { parentSession: captain.id, cwd: undefined })
-    const disposer = contribution!(child as never)
-    expect(disposer).toBeTypeOf('function')
-    disposer!()
-    expect(child.on).not.toHaveBeenCalled()
-  })
-
-  it('rejects a duplicate pending selection and clears it afterwards', async () => {
-    const { runtime } = await setup()
-    const selection: MemberLlmSelection = { provider: 'p', model: 'm' }
-    await runtime.withPending('parent-1', 'patent-teams:team1:alice', selection, async () => {
-      await expect(runtime.withPending('parent-1', 'patent-teams:team1:alice', selection, async () => {}))
-        .rejects.toThrow('member model selection is already pending for "patent-teams:team1:alice"')
-    })
-    // The pending entry was released after the first operation.
-    await expect(runtime.withPending('parent-1', 'patent-teams:team1:alice', selection, async () => 'ok'))
-      .resolves.toBe('ok')
-  })
-})
-
 describe('spawnMember', () => {
   function provider(overrides: Partial<SubagentProvider> = {}): SubagentProvider {
     return {
@@ -550,18 +294,10 @@ describe('spawnMember', () => {
         return { childId: SessionId('child-1'), messageId: 'msg-1' }
       },
     }) as never)
-    const selections: MemberSelectionRuntime = {
-      withPending: vi.fn(async (
-        _parent: string,
-        _label: string,
-        _selection: MemberLlmSelection,
-        operation: () => Promise<unknown>,
-      ) => operation()) as unknown as MemberSelectionRuntime['withPending'],
-    }
     const captain = makeCaptain('captain-1')
     const team = makeTeam()
     const member: TeamMember = { ...validMember, id: '' }
-    await spawnMember(ctx, config, selections, { provider: 'p', model: 'm' }, captain, team, member, '.patent-teams', new AbortController().signal)
+    await spawnMember(ctx, config, { provider: 'p', model: 'm' }, captain, team, member, '.patent-teams', new AbortController().signal)
     expect(member.id).toBe('child-1')
     const spec = started[0] as {
       label: string
@@ -585,13 +321,6 @@ describe('spawnMember', () => {
     expect(spec.request.agentOptions).toEqual({ provider: 'p', model: 'm' })
     expect(spec.request.prompt).toHaveLength(1)
     expect(spec.request.maxDepth).toBeUndefined()
-    // oxlint-disable-next-line typescript/unbound-method -- jest-style spy assertion on a method reference
-    expect(selections.withPending).toHaveBeenCalledWith(
-      'captain-1',
-      'patent-teams:team1:alice',
-      { provider: 'p', model: 'm' },
-      expect.any(Function),
-    )
   })
 
   it('passes the configured maxDepth through', async () => {
@@ -604,11 +333,8 @@ describe('spawnMember', () => {
         return { childId: SessionId('child-1'), messageId: 'msg-1' }
       },
     }) as never)
-    const selections: MemberSelectionRuntime = {
-      withPending: async (_p, _l, _s, operation) => operation(),
-    }
     const member: TeamMember = { ...validMember, id: '' }
-    await spawnMember(ctx, { provider: 'spawn', maxDepth: 2 }, selections, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal)
+    await spawnMember(ctx, { provider: 'spawn', maxDepth: 2 }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal)
     expect(captured!.request.maxDepth).toBe(2)
   })
 
@@ -616,7 +342,7 @@ describe('spawnMember', () => {
     const ctx = new Context()
     ctx.provide('subagents', makeSubagentsStub({ getProvider: () => undefined, list: () => [] }) as never)
     const member: TeamMember = { ...validMember, id: '' }
-    await expect(spawnMember(ctx, config, { withPending: async (_p, _l, _s, op) => op() }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
+    await expect(spawnMember(ctx, config, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
       .rejects.toThrow(/no subagent provider "spawn" is registered/)
   })
 
@@ -626,7 +352,7 @@ describe('spawnMember', () => {
     delete (p as Partial<SubagentProvider>).prepareContinuable
     ctx.provide('subagents', makeSubagentsStub({ getProvider: () => p }) as never)
     const member: TeamMember = { ...validMember, id: '' }
-    await expect(spawnMember(ctx, config, { withPending: async (_p, _l, _s, op) => op() }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
+    await expect(spawnMember(ctx, config, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
       .rejects.toThrow(/does not support continuable members/)
   })
 
@@ -638,7 +364,7 @@ describe('spawnMember', () => {
       }),
     }) as never)
     const member: TeamMember = { ...validMember, id: '' }
-    await expect(spawnMember(ctx, config, { withPending: async (_p, _l, _s, op) => op() }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
+    await expect(spawnMember(ctx, config, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
       .rejects.toThrow(/cannot apply a member persona/)
   })
 
@@ -650,36 +376,37 @@ describe('spawnMember', () => {
       }),
     }) as never)
     const member: TeamMember = { ...validMember, id: '' }
-    await expect(spawnMember(ctx, config, { withPending: async (_p, _l, _s, op) => op() }, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
+    await expect(spawnMember(ctx, config, { provider: 'p', model: 'm' }, makeCaptain('captain-1'), makeTeam(), member, 'state', new AbortController().signal))
       .rejects.toThrow(/cannot restrict captain-only tools/)
   })
 })
 
 describe('deliverToMember and interruptMember', () => {
-  it('delivers a follow-up and reports success', async () => {
+  it('delivers a message and reports success', async () => {
     const ctx = new Context()
-    const followup = vi.fn(async () => 'followup-id')
-    ctx.provide('subagents', { followup } as never)
+    const sendMessage = vi.fn(async () => 'message-id')
+    ctx.provide('subagents', { sendMessage } as never)
     const captain = makeCaptain('captain-1')
-    const accepted = await deliverToMember(ctx, captain, 'child-1', 'work', new AbortController().signal)
+    const signal = new AbortController().signal
+    const accepted = await deliverToMember(ctx, captain, 'child-1', 'work', signal)
     expect(accepted).toBe(true)
-    expect(followup).toHaveBeenCalledWith(
+    expect(sendMessage).toHaveBeenCalledWith(
       captain,
       SessionId('child-1'),
       [{ type: 'text', text: 'work' }],
-      expect.objectContaining({ source: { kind: 'plugin', plugin: 'dsh-patent-teams' } }),
+      { signal },
     )
   })
 
-  it('reports false and warns when the follow-up fails', async () => {
+  it('reports false and warns when the send fails', async () => {
     const ctx = new Context()
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     ctx.provide('subagents', {
-      followup: async () => { throw new Error('member gone') },
+      sendMessage: async () => { throw new Error('member gone') },
     } as never)
     const accepted = await deliverToMember(ctx, makeCaptain('captain-1'), 'child-1', 'work', new AbortController().signal)
     expect(accepted).toBe(false)
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('followup to member child-1 failed'))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('send to member child-1 failed'))
   })
 
   it('interrupts a member and swallows failures with a warning', () => {
@@ -701,7 +428,7 @@ describe('installRetiredMemberGuard', () => {
   interface GuardRuntime {
     listChildren: (parentId: SessionId, signal?: AbortSignal) => Promise<Array<{ id: string }>>
     listDescendants: (rootId: SessionId, signal?: AbortSignal) => Promise<Array<{ id: string }>>
-    followup: (parent: Agent, childId: SessionId, content: unknown, options?: unknown) => Promise<unknown>
+    sendMessage: (sender: Agent, targetId: SessionId, content: unknown, options?: unknown) => Promise<unknown>
   }
 
   async function setupGuard(parent?: Agent): Promise<{
@@ -720,7 +447,7 @@ describe('installRetiredMemberGuard', () => {
         { kind: 'child', id: 'retired-1', mode: 'continuable', label: 'x', activity: 'inactive', hasChildren: false, parentId: SessionId('root'), depth: 1 },
         { kind: 'child', id: 'live-1', mode: 'continuable', label: 'y', activity: 'inactive', hasChildren: false, parentId: SessionId('root'), depth: 1 },
       ]),
-      followup: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
+      sendMessage: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
     }
     ctx.provide('subagents', runtime)
     ctx.provide('agents', {
@@ -746,18 +473,18 @@ describe('installRetiredMemberGuard', () => {
     expect(descendants.map(entry => entry.id)).toEqual(['live-1'])
   })
 
-  it('rejects followups to retired members with a NOT_RESUMABLE error', async () => {
+  it('rejects sends to retired members with a NOT_RESUMABLE error', async () => {
     const workspace = await tmpWorkspace()
     const captain = makeCaptain('captain-1', workspace)
     await recordRetiredMemberIds(join(workspace, '.patent-teams-guard'), ['retired-1'])
     const { runtime } = await setupGuard(captain)
 
-    await expect(runtime.followup(captain, SessionId('retired-1'), [{ type: 'text', text: 'x' }], {}))
+    await expect(runtime.sendMessage(captain, SessionId('retired-1'), [{ type: 'text', text: 'x' }], {}))
       .rejects.toThrow(SubagentError)
-    await expect(runtime.followup(captain, SessionId('retired-1'), [{ type: 'text', text: 'x' }], {}))
+    await expect(runtime.sendMessage(captain, SessionId('retired-1'), [{ type: 'text', text: 'x' }], {}))
       .rejects.toMatchObject({ code: 'NOT_RESUMABLE' })
 
-    await expect(runtime.followup(captain, SessionId('live-1'), [{ type: 'text', text: 'x' }], {})).resolves.toBe('msg')
+    await expect(runtime.sendMessage(captain, SessionId('live-1'), [{ type: 'text', text: 'x' }], {})).resolves.toBe('msg')
   })
 
   it('does not filter when the parent is offline (no retired index to read)', async () => {
@@ -769,7 +496,7 @@ describe('installRetiredMemberGuard', () => {
   it('reads the retired index from the process cwd when the parent has none', async () => {
     // A live parent without a cwd in its session header: the guard falls back
     // to process.cwd(), where no retired index exists, so nothing is filtered
-    // and a followup still delegates.
+    // and a send still delegates.
     const parent = makeCaptain('parent-1')
     const cwdless = {
       ...parent,
@@ -777,12 +504,13 @@ describe('installRetiredMemberGuard', () => {
         version: SESSION_FORMAT_VERSION,
         id: parent.id,
         createdAt: Date.now(),
+        isSeeded: false,
       }),
     }
     const { runtime } = await setupGuard(cwdless)
     const children = await runtime.listChildren(cwdless.id)
     expect(children.map(entry => entry.id)).toEqual(['retired-1', 'live-1'])
-    await expect(runtime.followup(cwdless, SessionId('anything'), [], {})).resolves.toBe('msg')
+    await expect(runtime.sendMessage(cwdless, SessionId('anything'), [], {})).resolves.toBe('msg')
   })
 
   it('restores the original implementations when the owning fiber disposes', async () => {
@@ -791,15 +519,15 @@ describe('installRetiredMemberGuard', () => {
     const runtime: {
       listChildren: unknown
       listDescendants: unknown
-      followup: unknown
+      sendMessage: unknown
     } = {
       listChildren: vi.fn(async () => []),
       listDescendants: vi.fn(async () => []),
-      followup: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
+      sendMessage: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
     }
     const originalChildren = runtime.listChildren
     const originalDescendants = runtime.listDescendants
-    const originalFollowup = runtime.followup
+    const originalSend = runtime.sendMessage
     // The guard installs its wrappers through ctx.effect, so the originals are
     // restored when that fiber unloads.
     const fiber = ctx.plugin((scope: Context) => {
@@ -810,11 +538,11 @@ describe('installRetiredMemberGuard', () => {
     await fiber
     expect(runtime.listChildren).not.toBe(originalChildren)
     expect(runtime.listDescendants).not.toBe(originalDescendants)
-    expect(runtime.followup).not.toBe(originalFollowup)
+    expect(runtime.sendMessage).not.toBe(originalSend)
     await fiber.dispose()
     expect(runtime.listChildren).toBe(originalChildren)
     expect(runtime.listDescendants).toBe(originalDescendants)
-    expect(runtime.followup).toBe(originalFollowup)
+    expect(runtime.sendMessage).toBe(originalSend)
   })
 
   it('leaves foreign replacements alone when the owning fiber disposes', async () => {
@@ -823,11 +551,11 @@ describe('installRetiredMemberGuard', () => {
     const runtime: {
       listChildren: unknown
       listDescendants: unknown
-      followup: unknown
+      sendMessage: unknown
     } = {
       listChildren: vi.fn(async () => []),
       listDescendants: vi.fn(async () => []),
-      followup: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
+      sendMessage: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
     }
     const replacement = vi.fn(async () => [])
     const fiber = ctx.plugin((scope: Context) => {
@@ -840,11 +568,11 @@ describe('installRetiredMemberGuard', () => {
     // unloads; the guard must not clobber the foreign replacement.
     runtime.listChildren = replacement
     runtime.listDescendants = replacement
-    runtime.followup = replacement
+    runtime.sendMessage = replacement
     await fiber.dispose()
     expect(runtime.listChildren).toBe(replacement)
     expect(runtime.listDescendants).toBe(replacement)
-    expect(runtime.followup).toBe(replacement)
+    expect(runtime.sendMessage).toBe(replacement)
   })
 })
 

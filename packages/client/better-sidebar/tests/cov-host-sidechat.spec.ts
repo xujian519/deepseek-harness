@@ -45,7 +45,7 @@ function agent(id: string, over: { events?: SidechatLogEvent[]; header?: Record<
     session: {
       id,
       header: { delegationDepth: 0, ...over.header },
-      events: over.events ?? [],
+      snapshotEvents: () => over.events ?? [],
     },
     inject: vi.fn(),
     followup: vi.fn(),
@@ -272,7 +272,7 @@ describe('sidechat routes optional-service degradation', () => {
     }
     expect(options.meta).toEqual({
       parentSession: 'parent',
-      seedLength: 1,
+      isSeeded: true,
       origin: 'subagent',
       delegationDepth: 1,
     })

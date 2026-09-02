@@ -3792,6 +3792,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 Usage notes:
   - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下
   - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）
+  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍 429 时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试
 
 ```json
 {

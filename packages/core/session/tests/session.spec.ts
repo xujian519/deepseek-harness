@@ -96,17 +96,17 @@ describe('Session', () => {
     session.append('turn/start', { turn: 1 })
     const event = session.append('plugin/telemetry', { note: 'switch' }, { ignorable: true })
     expect(event).toMatchObject({ type: 'plugin/telemetry', ignorable: true })
-    expect(session.events.at(-1)).toMatchObject({ type: 'plugin/telemetry', ignorable: true })
+    expect(session.snapshotEvents().at(-1)).toMatchObject({ type: 'plugin/telemetry', ignorable: true })
     // The marker is an ordinary envelope field: survives serialization and replay.
-    const replayed = Session.create(SessionId('ignorable-replay'), structuredClone(session.events))
-    expect(replayed.events.find(e => e.type === 'plugin/telemetry'))
+    const replayed = Session.create(SessionId('ignorable-replay'), structuredClone(session.snapshotEvents()))
+    expect(replayed.snapshotEvents().find(e => e.type === 'plugin/telemetry'))
       .toMatchObject({ type: 'plugin/telemetry', ignorable: true })
   })
 
   it('leaves the ignorable marker absent when a non-surface event does not opt in', () => {
     const session = Session.create(SessionId('required'))
     session.append('turn/start', { turn: 1 })
-    expect(session.events[0]).not.toHaveProperty('ignorable')
+    expect(session.snapshotEvents()[0]).not.toHaveProperty('ignorable')
   })
 
   it('rejects append options on surface events at compile time', () => {

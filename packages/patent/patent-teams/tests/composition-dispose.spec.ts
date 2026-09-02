@@ -21,16 +21,15 @@ function makeSubagentsStub(): Record<string, unknown> {
   const guardProbe = {
     listChildren: async () => [],
     listDescendants: async () => [],
-    followup: async () => 'msg',
+    sendMessage: async () => 'msg',
   }
   return {
-    registerContinuableSetup: () => () => {},
     getProvider: () => undefined,
     list: () => [],
     startContinuable: async () => { throw new Error('unused') },
     listChildren: guardProbe.listChildren,
     listDescendants: guardProbe.listDescendants,
-    followup: guardProbe.followup,
+    sendMessage: guardProbe.sendMessage,
     guardProbe,
   }
 }

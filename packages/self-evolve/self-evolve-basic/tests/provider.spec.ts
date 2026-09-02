@@ -47,7 +47,7 @@ function pattern(text: string, tier: FailurePattern['verifierTier'], occurrences
 /** Project a session's events into the failure-patterns state (as the registry would). */
 function projectedState(session: Session): Record<string, unknown> {
   let state = failurePatternsProjectionDefinition.init()
-  for (const event of session.events) state = failurePatternsProjectionDefinition.apply(state, event)
+  for (const event of session.snapshotEvents()) state = failurePatternsProjectionDefinition.apply(state, event)
   return { values: { 'failure-patterns': state } }
 }
 
@@ -484,7 +484,7 @@ describe('commit bracket integrity', () => {
       const engine = new AcceptingEngine(ctx, baseConfig())
       const result = await engine.evolveNow(agentFor(session), new AbortController().signal)
 
-      const commitEvents = session.events.filter(e => e.type === 'self-evolve/commit')
+      const commitEvents = session.snapshotEvents().filter(e => e.type === 'self-evolve/commit')
       expect(commitEvents).toHaveLength(1)
       const commitData = commitEvents[0]?.data as { commit: { proposal: { proposalId: string }; commitSeq?: number } }
       expect(commitData.commit.proposal.proposalId).toBe(result.commits[0]?.proposal.proposalId)
@@ -608,7 +608,7 @@ describe('agent/request-error producer (G1)', () => {
       return undefined
     })
     expect(nextCalled).toBe(true)
-    const event = session.events.find(e => e.type === 'agent/request-error')
+    const event = session.snapshotEvents().find(e => e.type === 'agent/request-error')
     expect(event).toBeDefined()
     const data = event?.data as { turn?: unknown; step?: unknown; provider?: unknown; statusCode?: unknown; error?: { code?: unknown } }
     expect(data.turn).toBe(1)
@@ -1027,7 +1027,7 @@ describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () =
     const before = pattern!.occurrences
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'check cwd first' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    const event = session.events.find(e => e.type === 'self-evolve/reflection')
+    const event = session.snapshotEvents().find(e => e.type === 'self-evolve/reflection')
     expect(event).toBeDefined()
     const [after] = await engine.readPatterns(session.id)
     expect(after!.occurrences).toBe(before + 1)
@@ -1042,7 +1042,7 @@ describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () =
     const engine = new ProbeEngine(ctx, baseConfig())
     fakeLlm(ctx, JSON.stringify({ confidence: 0.4, patternId: 'L1-skill:nope', suggestion: 'x' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('the reflection throttle limits reflections to one per turn (P3.1)', async () => {
@@ -1056,7 +1056,7 @@ describe('Phase 3/4 (reflection, LLM proposer, freeze, budget, global KB)', () =
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     await engine.reflect(reflectAgent(session), 1, 2, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
   })
 
   it('the LLM proposer parses generated proposals with the CSR context (P3.2)', async () => {
@@ -1200,7 +1200,7 @@ describe('review fixes (M1 request-error reflection, M3 L4 cleanup)', () => {
     })
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'retry later' }))
     await engine.reflect(reflectAgent(session), 1, 3, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
   })
 
   it('an L4 run refusal undefines the orphaned plugin definition (M3)', async () => {
@@ -1285,7 +1285,7 @@ describe('LLM output parser edges (P3.1/P3.2/P1.4)', () => {
     fakeLlm(ctx, '"plain string"')
     const engine = new ProbeEngine(ctx, baseConfig())
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('reflection with no match or unparseable JSON is dropped', async () => {
@@ -1294,7 +1294,7 @@ describe('LLM output parser edges (P3.1/P3.2/P1.4)', () => {
     const engine = new ProbeEngine(ctx, baseConfig())
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     await engine.reflect(reflectAgent(session), 2, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('reflection with non-numeric confidence or non-string patternId is dropped', async () => {
@@ -1307,7 +1307,7 @@ describe('LLM output parser edges (P3.1/P3.2/P1.4)', () => {
     ])
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     await engine.reflect(reflectAgent(session), 1, 2, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('reflection with a non-string suggestion appends an empty suggestion', async () => {
@@ -1316,7 +1316,7 @@ describe('LLM output parser edges (P3.1/P3.2/P1.4)', () => {
     const [pattern] = await engine.readPatterns(session.id)
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 42 }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    const event = session.events.find(e => e.type === 'self-evolve/reflection')
+    const event = session.snapshotEvents().find(e => e.type === 'self-evolve/reflection')
     expect((event?.data as { suggestion?: unknown }).suggestion).toBe('')
   })
 
@@ -1509,7 +1509,7 @@ describe('constructor lifecycle listeners', () => {
       const { ctx, session } = turnEndSetup('idle')
       ctx.emit('session/event', session, { type: 'turn/end', seq: 0 } as never)
       await vi.waitFor(() => {
-        expect(session.events.some(e => e.type === 'self-evolve/end')).toBe(true)
+        expect(session.snapshotEvents().some(e => e.type === 'self-evolve/end')).toBe(true)
       })
     } finally {
       vi.unstubAllEnvs()
@@ -2118,7 +2118,7 @@ describe('applyCommit across candidate kinds', () => {
 
   it('L1 candidates honor a session cwd and a whenToUse value in the frontmatter', async () => {
     const ctx = new Context()
-    const session = Session.create(SessionId('cwd-session'), [], { version: 0, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj' })
+    const session = Session.create(SessionId('cwd-session'), [], { version: 0, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj', isSeeded: false })
     const writes: { content: string }[] = []
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
@@ -2162,7 +2162,7 @@ describe('applyCommit across candidate kinds', () => {
       candidate: { kind: 'L3-workflow', scriptName: 'audit', scriptBody: 'return 1' },
     }))
     expect(result.commitSeq).toBeGreaterThanOrEqual(0)
-    expect(session.events.some(e => e.type === 'self-evolve/commit')).toBe(true)
+    expect(session.snapshotEvents().some(e => e.type === 'self-evolve/commit')).toBe(true)
   })
 
   it('L3 candidates without a workflow engine fail the commit loudly', async () => {
@@ -2262,7 +2262,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     const { ctx, session } = reflectSetup()
     const engine = new ProbeEngine(ctx, baseConfig())
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('returns early without provider and model options', async () => {
@@ -2270,7 +2270,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     const engine = new ProbeEngine(ctx, baseConfig())
     fakeLlm(ctx, '{}')
     await engine.reflect({ session, options: {} } as Agent, 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('returns early when the turn has no failure surface', async () => {
@@ -2287,7 +2287,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     // The same events at a different turn also skip every event.
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     await engine.reflect(reflectAgent(session), 5, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('returns early when the projection has no patterns yet', async () => {
@@ -2299,7 +2299,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     fakeLlm(ctx, '{}')
     const engine = new ProbeEngine(ctx, baseConfig())
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('a request-error recorded first drives the reflection path', async () => {
@@ -2316,7 +2316,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     const [pattern] = await engine.readPatterns(session.id)
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'retry later' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(1)
   })
 
   it('a second turn resets the per-turn reflection count', async () => {
@@ -2331,7 +2331,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     await engine.reflect(reflectAgent(session), 2, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(2)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(2)
   })
 
   it('a raised per-turn budget reflects twice in the same turn', async () => {
@@ -2341,7 +2341,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: pattern!.patternId, suggestion: 'x' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
     await engine.reflect(reflectAgent(session), 1, 2, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(2)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(2)
   })
 
   it('a reflection naming an unknown pattern id is dropped', async () => {
@@ -2349,7 +2349,7 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     const engine = new ProbeEngine(ctx, baseConfig())
     fakeLlm(ctx, JSON.stringify({ confidence: 0.9, patternId: 'L1-skill:ghost', suggestion: 'x' }))
     await engine.reflect(reflectAgent(session), 1, 1, new AbortController().signal)
-    expect(session.events.filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
+    expect(session.snapshotEvents().filter(e => e.type === 'self-evolve/reflection')).toHaveLength(0)
   })
 
   it('an invalid JSON judge payload degrades to structural scores', async () => {
@@ -2386,7 +2386,7 @@ describe('full-loop integration edges', () => {
     const signal = new AbortController()
     signal.abort()
     await expect(engine.evolveNow(agentFor(session), signal.signal)).rejects.toThrow(/aborted/)
-    const end = session.events.find(e => e.type === 'self-evolve/end')
+    const end = session.snapshotEvents().find(e => e.type === 'self-evolve/end')
     expect((end?.data as { error?: string }).error).toContain('aborted')
   })
 
@@ -2412,7 +2412,7 @@ describe('full-loop integration edges', () => {
       // The proposal is conservatively rejected on the weak verifier path.
       expect(result.commits).toHaveLength(0)
       expect(result.proposals).toHaveLength(1)
-      expect(session.events.some(e => e.type === 'self-evolve/end')).toBe(true)
+      expect(session.snapshotEvents().some(e => e.type === 'self-evolve/end')).toBe(true)
     } finally {
       vi.unstubAllEnvs()
     }
@@ -2508,7 +2508,7 @@ describe('full-loop integration edges', () => {
         { name: 'c', purpose: 'd', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L2-context', sectionName: 'c', sectionText: 'c', order: 260 } },
       ]))
       await expect(engine.evolveNow(agentFor(session), new AbortController().signal)).rejects.toThrow('boom')
-      const ends = session.events.filter(e => e.type === 'self-evolve/end')
+      const ends = session.snapshotEvents().filter(e => e.type === 'self-evolve/end')
       const errorEnd = ends.find(e => (e.data as { error?: string }).error !== undefined)
       expect((errorEnd?.data as { error?: string }).error).toBe('boom')
       const errorEndData = errorEnd?.data as { committedProposalIds?: string[] }
@@ -2554,7 +2554,7 @@ describe('full-loop integration edges', () => {
         { name: 'c', purpose: 'd', addressesPatternIds: ['L1-skill:abc'], candidate: { kind: 'L2-context', sectionName: 'c', sectionText: 'c', order: 260 } },
       ]))
       await expect(engine.evolveNow(agentFor(session), new AbortController().signal)).rejects.toThrow('boom')
-      const errorEnd = session.events.find(e => e.type === 'self-evolve/end' && (e.data as { error?: string }).error !== undefined)
+      const errorEnd = session.snapshotEvents().find(e => e.type === 'self-evolve/end' && (e.data as { error?: string }).error !== undefined)
       expect((errorEnd?.data as { error?: string }).error).toBe('boom')
     } finally {
       vi.unstubAllEnvs()
@@ -2656,7 +2656,7 @@ describe('workspace verifier (P1.9b)', () => {
 
   function sessionAt(dir: string): Session {
     const id = SessionId(`ws-${Math.random().toString(36).slice(2, 10)}`)
-    const header: SessionHeader = { version: 0, id, createdAt: Date.now(), cwd: dir }
+    const header: SessionHeader = { version: 0, id, createdAt: Date.now(), cwd: dir, isSeeded: false }
     return Session.create(id, undefined, header)
   }
 

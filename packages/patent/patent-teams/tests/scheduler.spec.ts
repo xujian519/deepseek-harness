@@ -38,6 +38,7 @@ function fakeAgent(id: string, cwd: string, status: 'idle' | 'running' = 'idle')
       id: SessionId(id),
       createdAt: Date.now(),
       cwd,
+      isSeeded: false,
     }),
     options: { provider: 'spawn', model: 'm' },
     status,
@@ -77,18 +78,18 @@ function makeState(overrides: Partial<TeamState> = {}): TeamState {
 
 async function makeHarness(options?: {
   live?: Map<string, Agent>
-  followup?: (captain: Agent, childId: SessionId) => Promise<unknown>
+  sendMessage?: (captain: Agent, childId: SessionId) => Promise<unknown>
 }) {
   const ctx = new Context()
   const stateDir = '.patent-teams-scheduler'
   const workspace = await tmpWorkspace()
   const live = options?.live ?? new Map<string, Agent>()
-  const followup = options?.followup ?? (async () => 'msg')
+  const sendMessage = options?.sendMessage ?? (async () => 'msg')
   ctx.provide('agents', {
     get: (id: string) => live.get(id),
   } as never)
   ctx.provide('subagents', {
-    followup,
+    sendMessage,
     interrupt: () => {},
   } as never)
   const scheduler = installTeamScheduler(ctx, { stateDir })
@@ -189,7 +190,7 @@ describe('installTeamScheduler kickMember', () => {
 
   it('releases the lease when mailbox delivery is rejected', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
-      followup: async () => { throw new Error('member busy') },
+      sendMessage: async () => { throw new Error('member busy') },
     })
     await createTeamDir(join(workspace, stateDir), makeState())
     const message = createMessage('captain', 'alice', 'please respond')
@@ -232,7 +233,7 @@ describe('installTeamScheduler kickMember', () => {
 
   it('rolls back the dispatch when the member inbox rejects the assignment', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
-      followup: async () => { throw new Error('delivery failed') },
+      sendMessage: async () => { throw new Error('delivery failed') },
     })
     await createTeamDir(join(workspace, stateDir), makeState({
       tasks: [makeTask({ assignee: 'alice' })],
@@ -249,7 +250,7 @@ describe('installTeamScheduler kickMember', () => {
 
   it('clears the assignee when an unassigned dispatch is rolled back', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
-      followup: async () => { throw new Error('delivery failed') },
+      sendMessage: async () => { throw new Error('delivery failed') },
     })
     await createTeamDir(join(workspace, stateDir), makeState({
       tasks: [makeTask()],
@@ -297,7 +298,7 @@ describe('installTeamScheduler kickMember', () => {
 
   it('skips the rollback when the whole team vanished during delivery', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
-      followup: async () => {
+      sendMessage: async () => {
         await removeTeamDir(join(workspace, stateDir), 'team1')
         throw new Error('delivery failed')
       },
@@ -309,7 +310,7 @@ describe('installTeamScheduler kickMember', () => {
 
   it('rolls back the task but not the member state when the member was removed', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
-      followup: async () => {
+      sendMessage: async () => {
         const current = await readTeam(join(workspace, stateDir), 'team1')
         current!.members[0]!.status = 'removed'
         await writeTeam(join(workspace, stateDir), current!)
@@ -327,7 +328,7 @@ describe('installTeamScheduler kickMember', () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
       // The delivery rejects AFTER a concurrent handoff already replaced the
       // capability; the rollback must not clobber the newer attempt.
-      followup: async () => {
+      sendMessage: async () => {
         const current = await readTeam(join(workspace, stateDir), 'team1')
         const task = current!.tasks[0]!
         task.status = 'claimed'
@@ -427,6 +428,7 @@ describe('member status observer', () => {
         version: SESSION_FORMAT_VERSION,
         id: SessionId('member-1'),
         createdAt: Date.now(),
+        isSeeded: false,
       }),
     }
     // No team lives under process.cwd()/.patent-teams-scheduler, so nothing
@@ -455,7 +457,7 @@ describe('member status observer', () => {
 
   it('rolls back the dispatch when the caller signal aborts the delivery', async () => {
     const { workspace, stateDir, scheduler } = await makeHarness({
-      followup: async () => { throw new Error('aborted') },
+      sendMessage: async () => { throw new Error('aborted') },
     })
     await createTeamDir(join(workspace, stateDir), makeState({
       tasks: [makeTask({ assignee: 'alice' })],

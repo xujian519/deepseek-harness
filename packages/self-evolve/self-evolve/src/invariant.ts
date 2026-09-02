@@ -163,7 +163,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
 
   const seed = (session: Session): Map<string, OpenRun> => {
     const trace = new Map<string, OpenRun>()
-    for (const event of session.events) {
+    for (const event of session.snapshotEvents()) {
       const transition = validateEvent(trace, event, fail)
       if (transition !== undefined) applyTransition(trace, transition)
     }

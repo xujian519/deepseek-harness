@@ -57,7 +57,7 @@ describe('patent-teams invariant companion', () => {
       failures.push(message)
       throw new Error(message)
     }
-    ctx.provide('sessions', { list: () => [{ events: [good] }] })
+    ctx.provide('sessions', { list: () => [{ snapshotEvents: () => [good] }] })
     expect(() => installer(ctx, fail)).not.toThrow()
     expect(failures).toEqual([])
 
@@ -65,7 +65,7 @@ describe('patent-teams invariant companion', () => {
     const otherHolder = captureInstaller(other)
     await apply(other)
     const otherInstaller = otherHolder.installer!
-    other.provide('sessions', { list: () => [{ events: [bad] }] })
+    other.provide('sessions', { list: () => [{ snapshotEvents: () => [bad] }] })
     expect(() => otherInstaller(other, fail)).toThrow(/team-created teamId must be a non-empty string/)
     expect(failures[0]).toContain('team-created teamId must be a non-empty string')
   })

@@ -149,7 +149,7 @@ function candidateText(proposal: EvolveProposal): string {
 
 /** Compact event-type window around a failure seq, for the replay prompt. */
 function caseContextText(session: Session, lastSeq: number): string {
-  const events = session.events
+  const events = session.snapshotEvents()
   const index = events.findIndex(event => event.seq === lastSeq)
   if (index < 0) return `失败事件 seq ${lastSeq}`
   const window = events.slice(Math.max(0, index - 2), index + 3)
@@ -160,7 +160,7 @@ function caseContextText(session: Session, lastSeq: number): string {
 function classifyChildSession(session: Session): string[] {
   let state = failurePatternsProjectionDefinition.init()
   let afterSeed = false
-  for (const event of session.events) {
+  for (const event of session.snapshotEvents()) {
     if (event.type === 'session/end-seed') {
       afterSeed = true
       continue
@@ -1535,7 +1535,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
 
   /** Whether the current turn contains a durable failure surface (P3.1 trigger). */
   private turnHasFailure(session: Session, turn: number): boolean {
-    for (const event of session.events) {
+    for (const event of session.snapshotEvents()) {
       const data = event.data as { turn?: unknown; message?: { content?: unknown }; error?: unknown }
       if (data.turn !== turn) continue
       if (event.type === 'agent/request-error') return true

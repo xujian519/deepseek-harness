@@ -169,11 +169,11 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
       }
       const parentSession = parent.session
       const inheritance = buildSidechatInheritance(
-        parentSession.events,
+        parentSession.snapshotEvents(),
       )
       const { agentPreset, setup } = await composeChildSetup(
         ctx,
-        resolvePresetId(parentSession.header, parentSession.events),
+        resolvePresetId(parentSession.header, parentSession.snapshotEvents()),
       )
       const childId = `session-${randomUUID()}` as SessionId
       const label = question === '' ? SIDE_NEW_THREAD_TITLE : sideLabel(question)
@@ -201,7 +201,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
         meta: {
           ...(parentSession.header.cwd === undefined ? {} : { cwd: parentSession.header.cwd }),
           parentSession: parentSession.id,
-          seedLength: seed.length,
+          isSeeded: true,
           origin: 'subagent',
           delegationDepth: (parentSession.header.delegationDepth ?? 0) + 1,
           ...(agentPreset === undefined ? {} : { agentPreset }),
@@ -270,7 +270,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
           throw new SidebarError('sidechat-error', `thread resume failed: ${error instanceof Error ? error.message : String(error)}`, 500)
         }
       }
-      if (boundaryDelivered(agent.session.events)) {
+      if (boundaryDelivered(agent.session.snapshotEvents())) {
         admitFollowup(agent, textPrompt(text))
       } else {
         // First message of an immediately-created thread: it carries the

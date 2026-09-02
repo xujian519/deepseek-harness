@@ -245,6 +245,7 @@
       "@deepseek-ai/dsh-host-plugin-market/provider": ["./packages/host/plugin-market/src/provider.ts"],
       "@deepseek-ai/dsh-host-plugin-market/types": ["./packages/host/plugin-market/src/types.ts"],
       "@deepseek-ai/dsh-host-synapse": ["./packages/web/synapse/src"],
+      "@deepseek-ai/dsh-system-prompt/prompt-cache": ["./packages/core/system-prompt/src/prompt-cache.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],

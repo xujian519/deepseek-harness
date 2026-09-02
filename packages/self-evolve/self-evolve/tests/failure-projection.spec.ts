@@ -48,7 +48,7 @@ function appendShellResult(session: Session, callId: string, toolName: string, t
 }
 
 function folded(session: Session, state = failurePatternsProjectionDefinition.init()): ReturnType<typeof foldEvent> {
-  for (const event of session.events) state = foldEvent(state, event)
+  for (const event of session.snapshotEvents()) state = foldEvent(state, event)
   return state
 }
 
@@ -65,7 +65,7 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
     let state: FailurePatternsState = failurePatternsProjectionDefinition.init()
-    for (const event of session.events) state = failurePatternsProjectionDefinition.apply(state, event)
+    for (const event of session.snapshotEvents()) state = failurePatternsProjectionDefinition.apply(state, event)
     expect(state.discoveryOrder).toHaveLength(1)
   })
 
@@ -73,7 +73,7 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
     let state: FailurePatternsState = failurePatternsProjectionDefinition.init()
-    for (const event of session.events) state = foldEvent(state, event)
+    for (const event of session.snapshotEvents()) state = foldEvent(state, event)
     expect(state.discoveryOrder).toHaveLength(1)
     const parsed = STATE_ZOD.safeParse(state)
     expect(parsed.success).toBe(true)
@@ -85,7 +85,7 @@ describe('SIG-1 FailurePattern round-trip & stateVersion', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', 'failing\n[exit code: 3]')
     let state: FailurePatternsState = failurePatternsProjectionDefinition.init()
-    for (const event of session.events) state = failurePatternsProjectionDefinition.apply(state, event)
+    for (const event of session.snapshotEvents()) state = failurePatternsProjectionDefinition.apply(state, event)
     const view = failurePatternsView(state)
     expect(view).not.toHaveProperty('toolCalls')
     expect(failurePatternsViewSchema.safeParse(view).success).toBe(true)
@@ -398,7 +398,7 @@ describe('fold stability for repeated events', () => {
   it('re-folding the same failure event keeps supportingSeqs stable and bumps occurrences', () => {
     const session = sessionFactory()
     appendShellResult(session, 'c1', 'bash', '[stderr]\nboom\n[exit code: 1]')
-    const resultEvent = session.events.at(-1)!
+    const resultEvent = session.snapshotEvents().at(-1)!
     const state = folded(session)
     expect(patternsOf(state)[0]?.supportingSeqs).toHaveLength(1)
     const [pattern] = patternsOf(foldEvent(state, resultEvent))
@@ -417,7 +417,7 @@ describe('fold stability for repeated events', () => {
       confidence: 0.9,
       suggestion: 'x',
     })
-    const reflectionEvent = session.events.at(-1)!
+    const reflectionEvent = session.snapshotEvents().at(-1)!
     const state = folded(session)
     const [after] = patternsOf(foldEvent(state, reflectionEvent))
     expect(after!.occurrences).toBe(before!.occurrences + 2)
@@ -449,7 +449,7 @@ describe('tool-call identity folding', () => {
   it('re-folding the identical tool/call event returns the same state', () => {
     const session = sessionFactory()
     session.append('tool/call', { turn: 1, step: 1, callId: 'dup' as never, name: 'bash', arguments: '{}' })
-    const event = session.events[0]!
+    const event = session.snapshotEvents()[0]!
     const state = folded(session)
     expect(foldEvent(state, event)).toBe(state)
   })
@@ -467,7 +467,7 @@ describe('tool-call identity folding', () => {
     session.append('tool/call', { turn: 1, step: 1, callId: 'c1' as never, name: 'bash', arguments: '{}' })
     session.append('tool/call', { turn: 2, step: 1, callId: 'c1' as never, name: 'bash', arguments: '{}' })
     const state = folded(session)
-    expect(state.toolCalls['c1']?.seq).toBe(session.events[1]!.seq)
+    expect(state.toolCalls['c1']?.seq).toBe(session.snapshotEvents()[1]!.seq)
   })
 
   it('tool-call identity tracking prunes the oldest entry past 64 calls', () => {

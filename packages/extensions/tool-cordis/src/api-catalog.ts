@@ -549,6 +549,114 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'betterSidebar',
+    summary: 'The registry service published as `ctx.betterSidebar`.',
+    description: 'The registry service published as `ctx.betterSidebar`.',
+    methods: [
+      {
+        signature: 'registerTab(descriptor: TabDescriptor): () => void',
+        description: 'Register a tab type for the + menu and `openTab`. Throws when the descriptor id is already registered.',
+        parameters: [{ name: 'descriptor', description: 'The tab type\'s display, enablement, and creation contract.' }],
+        returns: 'The disposer, which unregisters the type (no-op if replaced) and notifies subscribers.',
+      },
+      {
+        signature: 'registerFileViewer(descriptor: FileViewerDescriptor): () => void',
+        description: 'Register a file viewer consulted by `matchFileViewer`. Throws when the descriptor id is already registered.',
+        parameters: [{ name: 'descriptor', description: 'The viewer\'s match contract (priority, detect, exts) and open callback.' }],
+        returns: 'The disposer, which unregisters the viewer (no-op if replaced) and notifies subscribers.',
+      },
+      {
+        signature: 'getTabs(): readonly TabDescriptor[]',
+        description: 'Currently registered tab types (insertion-order snapshot).',
+        parameters: [],
+        returns: 'The tab type descriptors.',
+      },
+      {
+        signature: 'getFileViewers(): readonly FileViewerDescriptor[]',
+        description: 'Currently registered file viewers (insertion-order snapshot).',
+        parameters: [],
+        returns: 'The file viewer descriptors.',
+      },
+      {
+        signature: 'getTab(id: string): TabDescriptor | undefined',
+        description: 'Find a tab descriptor by id (undefined if not registered).',
+        parameters: [{ name: 'id', description: 'The tab descriptor id to look up.' }],
+        returns: 'The descriptor, or undefined when the id is not registered.',
+      },
+      {
+        signature: 'isTabEnabled(id: string): boolean',
+        description: 'Whether a tab type is enabled in the side card prefs. An absent `tabsEnabled[id]` entry means enabled — only an explicit `false` disables the type (hidden from the + menu, `openTab` refuses, and derived flows gate on it).',
+        parameters: [{ name: 'id', description: 'The tab descriptor id to check.' }],
+        returns: 'Whether the tab type is enabled.',
+      },
+      {
+        signature: 'isViewerEnabled(id: string): boolean',
+        description: 'Whether a file viewer is enabled (absent `viewersEnabled[id]` = enabled).',
+        parameters: [{ name: 'id', description: 'The file viewer descriptor id to check.' }],
+        returns: 'Whether the viewer is enabled.',
+      },
+      {
+        signature: 'matchFileViewer(path: string, head?: Uint8Array): FileViewerDescriptor | undefined',
+        description: 'Find a file viewer for a path (priority desc; detect first, then exts). Disabled viewers are skipped, so files fall through to the next match.',
+        parameters: [{ name: 'path', description: 'The file path to match (extension extracted from the last dot).' }, { name: 'head', description: 'Leading file bytes for content-based `detect` matches; detection is skipped when absent.' }],
+        returns: 'The best matching enabled viewer descriptor, or undefined when none matches.',
+      },
+      {
+        signature: 'openTab(seed: OpenTabSeed, scope?: SessionScope): void',
+        description: 'Open a tab (used by external tabs and the + menu). `title` overrides the descriptor\'s title when given (the editor tab shows the file name); when the descriptor provides `createTab` it mints the tab itself and `title`/`path`/`id` are ignored. `url` lands the tab with its `path` pre-set to the URL (the browser tab\'s navigation seed; the caller usually pairs it with a hostname `title`). A disabled tab type is a no-op.\n\n`scope` (v0.12.0+) targets a specific session: when given, the open lands in THAT session\'s sidebar state (loading it if it has none yet) without switching the UI\'s active session; when absent the open lands in the currently active session (the pre-0.12 behavior).\n\nA CONTENT open (a `path` or `url` seed) must land in sight: when the panel hosting the landing pane is collapsed, it is expanded automatically (the right panel by default, the bottom panel when the active pane lives there; on narrow viewports the merged drawer opens). Type-only opens (the + menu, agent-terminal auto-tabs) never expand — the panel behavior is their caller\'s business.\n\nNote: `available` gates the + menu\'s disabled state only — it does NOT refuse `openTab` (only the settings disable switch does).',
+        parameters: [{ name: 'seed', description: 'Which tab to open and its content seed (title/path/diff/url/meta overrides).' }, { name: 'scope', description: 'The session whose sidebar receives the open; defaults to the active session.' }],
+      },
+      {
+        signature: 'closeTab(tabId: string, scope?: SessionScope): void',
+        description: 'Close a tab by id (fires descriptor.onClose). An unknown tab id is a strict no-op (no state churn, no callbacks). `scope` (v0.12.0+) rides to the callback (its optional cwd included); absent, the callback gets `{ sessionId }` of the active session.',
+        parameters: [{ name: 'tabId', description: 'The open tab instance id to close.' }, { name: 'scope', description: 'The session whose sidebar closes the tab; defaults to the active session.' }],
+      },
+      {
+        signature: 'subscribe(listener: () => void): () => void',
+        description: 'Subscribe to registry changes (register/dispose).',
+        parameters: [{ name: 'listener', description: 'Invoked after every registry mutation.' }],
+        returns: 'The disposer that removes the listener.',
+      },
+      {
+        signature: 'readonly version: string',
+        description: 'The plugin version this service instance was built from (\'0.12.0\').',
+        parameters: [],
+      },
+      {
+        signature: 'readonly features: readonly string[]',
+        description: 'Monotonic capability list (v0.12.0+): \'badge\' | \'tabLifecycle\' | \'updateTab\' | \'openFile\' | \'targetedOpen\' | \'stateSubscription\' | \'tabMeta\' | \'pluginSettings\'. Features are never removed — consumers gate new API usage on membership.',
+        parameters: [],
+      },
+      {
+        signature: 'getSnapshot(): SidebarSnapshot',
+        description: 'The current sidebar snapshot: the active session id, its state (panel geometry, open tabs, expansions), and the side card prefs (v0.12.0+). `state`/`sessionId` are undefined until a session becomes active.',
+        parameters: [],
+        returns: 'The current snapshot (active session id, its sidebar state, and the side card prefs).',
+      },
+      {
+        signature: 'subscribeState(listener: () => void): () => void',
+        description: 'Subscribe to snapshot changes (session switch, state changes, prefs changes). Returns the disposer.',
+        parameters: [{ name: 'listener', description: 'Invoked after every snapshot change.' }],
+        returns: 'The disposer that removes the listener.',
+      },
+      {
+        signature: 'updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void',
+        description: 'Update an open tab\'s display fields (title / path / meta); a missing tab id is a no-op.',
+        parameters: [{ name: 'tabId', description: 'The open tab instance id to update.' }, { name: 'patch', description: 'The display fields to overwrite; absent fields keep their value.' }],
+      },
+      {
+        signature: 'activateTab(tabId: string, scope?: SessionScope): void',
+        description: 'Activate an open tab (the tab-bar activation path; fires descriptor.onActivate). An unknown tab id is a strict no-op. `scope` (v0.12.0+) rides to the callback like `closeTab`\'s.',
+        parameters: [{ name: 'tabId', description: 'The open tab instance id to activate.' }, { name: 'scope', description: 'The session whose sidebar activates the tab; defaults to the active session.' }],
+      },
+      {
+        signature: 'openFile(scope: SessionScope, path: string, title?: string): void',
+        description: 'Open a file in the sidebar editor of `scope`\'s session (title defaults to the file name).',
+        parameters: [{ name: 'scope', description: 'The session whose sidebar opens the file.' }, { name: 'path', description: 'The file path to open as the editor tab\'s content seed.' }, { name: 'title', description: 'The tab title; defaults to the file name.' }],
+      },
+    ],
+  },
+  {
     key: 'clientModules',
     summary: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows.',
     description: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows. Construction runs the activation scan synchronously — a malformed declaration or missing bundle among the already-loaded entries aggregates into one loud throw (FAILED fiber; the boot activation audit reports it).',
@@ -776,6 +884,48 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'desktop',
+    summary: 'Abstract desktop-integration service.',
+    description: 'Abstract desktop-integration service. Subclass, implement the methods, and load the subclass as a plugin — it registers as `ctx.desktop`.',
+    methods: [
+      {
+        signature: 'abstract showOpenDialog(options: OpenDialogOptions, signal?: AbortSignal): Promise<string[] | undefined>',
+        description: 'Show a native open-file / open-directory dialog.',
+        parameters: [{ name: 'options', description: 'dialog options.' }, { name: 'signal', description: 'caller/connection lifetime; abort rejects the call and discards the dialog result. The native dialog itself stays open until the operator acts because Electron exposes no programmatic close.' }],
+        returns: 'selected paths, or undefined when the operator cancels.',
+      },
+      {
+        signature: 'abstract showSaveDialog(options: SaveDialogOptions, signal?: AbortSignal): Promise<string | undefined>',
+        description: 'Show a native save-file dialog.',
+        parameters: [{ name: 'options', description: 'dialog options.' }, { name: 'signal', description: 'caller/connection lifetime; abort rejects the call and discards the dialog result. The native dialog itself stays open until the operator acts because Electron exposes no programmatic close.' }],
+        returns: 'the chosen absolute path, or undefined when the operator cancels.',
+      },
+      {
+        signature: 'abstract sendNotification(notification: DesktopNotification): void',
+        description: 'Show a system notification.',
+        parameters: [{ name: 'notification', description: 'notification content.' }],
+      },
+      {
+        signature: 'abstract registerMenuItem(group: string, item: DesktopMenuItem): Promise<() => void>',
+        description: 'Register a menu item under a named group. Items in the tray\'s configured menu group (`\'tray\'` by default) join the tray context menu; other groups become top-level application menus.',
+        parameters: [{ name: 'group', description: 'named menu group (e.g., `file`, `view`, `tray`).' }, { name: 'item', description: 'menu item to register.' }],
+        returns: 'a promise resolving to a disposer that removes the item; rejects when the bridge cannot place the item.',
+      },
+      {
+        signature: 'abstract registerGlobalShortcut(accelerator: string, handler: () => void): Promise<() => void>',
+        description: 'Register a global keyboard shortcut.',
+        parameters: [{ name: 'accelerator', description: 'Electron accelerator string.' }, { name: 'handler', description: 'callback invoked when the shortcut fires.' }],
+        returns: 'a promise resolving to a disposer that unregisters the shortcut; rejects when the accelerator is already claimed.',
+      },
+      {
+        signature: 'abstract setTray(config: DesktopTrayConfig): Promise<() => void>',
+        description: 'Configure the host tray icon.',
+        parameters: [{ name: 'config', description: 'tray configuration.' }],
+        returns: 'a promise resolving to a disposer that removes the tray configuration; rejects when no tray is available.',
+      },
+    ],
+  },
+  {
     key: 'directoryPicker',
     summary: 'Abstract directory-picking service.',
     description: 'Abstract directory-picking service. Subclass, implement `capability()`, and load the subclass as a plugin — it registers as `ctx.directoryPicker` (one implementation per context; loading a second throws, cordis\' standard duplicate-service behavior). The capability object must be stable for the service lifetime: consumers may capture it across calls.',
@@ -791,7 +941,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'directoryPickerController',
     summary: 'Host service backing the generated `ctx.remote.directoryPicker` namespace.',
-    description: 'Host service backing the generated `ctx.remote.directoryPicker` namespace. The seam it exports is abstract and therefore never a Loader entry of its own, so this controller carries the wire verbs: one composed backend serves either the native chooser or the browse primitives, and a verb the composition cannot serve is refused rather than approximated.',
+    description: 'Host service backing the generated `ctx.remote.directoryPicker` namespace. The seam it exports is abstract and therefore never a Loader entry of its own, so this controller carries the wire verbs: one composed backend serves either the native chooser or the browse primitives, and a verb the composition does not provide is refused rather than approximated. Each verb gates on the presence of the primitive it forwards to, so any backend serving that primitive is served alike — including a kind merged into the seam by another program.',
     methods: [
       {
         signature: '@Remote(\'pick\') async pick(signal: AbortSignal): Promise<string | null>',
@@ -1231,6 +1381,195 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'patentData',
+    summary: 'PatentData service: the patent data seam (ctx.patentData).',
+    description: 'PatentData service: the patent data seam (ctx.patentData). It exposes the nuo search provider factory and the ego-browser session runner over the injected subprocess service.',
+    methods: [
+      {
+        signature: 'createSearchProvider(options?: CreateNuoSearchProviderOptions): StageProvider',
+        description: 'Build a nuo-backed search provider (default: LRU-cached nuo searchPatents).',
+        parameters: [{ name: 'options', description: 'optional search-function injection.' }],
+        returns: 'the StageProvider for the workflow atoms\' search stage.',
+      },
+      {
+        signature: 'createEgoSession(options?: EgoSessionOptions): EgoBrowserSession',
+        description: 'Build an ego-browser session runner backed by the injected subprocess service.',
+        parameters: [{ name: 'options', description: 'session options; runner overrides the subprocess-backed default.' }],
+        returns: 'the ego-browser session.',
+      },
+    ],
+  },
+  {
+    key: 'patentKnowledge',
+    summary: 'PatentKnowledge service: the knowledge.db query seam (ctx.patentKnowledge).',
+    description: 'PatentKnowledge service: the knowledge.db query seam (ctx.patentKnowledge). It lazily opens the resolved knowledge.db read-only and delegates to the ported engines; the engines close when the owning fiber unloads.',
+    methods: [
+      {
+        signature: 'readonly paths: KnowledgePaths',
+        description: 'Resolved on-disk paths (query db, wiki dir, install source).',
+        parameters: [],
+      },
+      {
+        signature: 'caseLawSearch(query: string, options?: CaseLawSearchOptions): CaseLawHit[]',
+        description: 'Case-law full-text search over documents/chunks/docs_fts (FTS5 BM25 first, LIKE fallback for short queries or a missing FTS index).',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and doc_type/court/excludeSource filters.' }],
+        returns: 'the de-duplicated hits in rank order.',
+      },
+      {
+        signature: 'legalSearch(query: string, options?: KnowledgeLawSearchOptions): LawSearchResult[]',
+        description: 'Legal full-text search over the law_article documents of knowledge.db.',
+        parameters: [{ name: 'query', description: 'the search text.' }, { name: 'options', description: 'result cap and level filter.' }],
+        returns: 'the de-duplicated hits in rank order.',
+      },
+      {
+        signature: 'wikiCards(query: string, limit: number = 10): WikiCardMeta[]',
+        description: 'Keyword lookup over the wiki-card directory (title/concept/domain).',
+        parameters: [{ name: 'query', description: 'the keyword.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'matching card metadata.',
+      },
+      {
+        signature: 'ipcClassify(text: string): IpcClassification[]',
+        description: 'IPC classification of a patent-domain text.',
+        parameters: [{ name: 'text', description: 'the patent-domain text to classify.' }],
+        returns: 'classification results in confidence order.',
+      },
+      {
+        signature: 'kgSearch(query: string, options?: PatentKgSearchOptions): RelevantHit[]',
+        description: 'Knowledge-graph keyword search with relation expansion.',
+        parameters: [{ name: 'query', description: 'the keyword.' }, { name: 'options', description: 'keyword/expand limits and phrase-or-OR match mode.' }],
+        returns: 'keyword hits plus expanded neighbors.',
+      },
+      {
+        signature: 'kgGetNode(id: string): KgNode | undefined',
+        description: 'Knowledge-graph node lookup by id.',
+        parameters: [{ name: 'id', description: 'the node id.' }],
+        returns: 'the node, or undefined when absent.',
+      },
+      {
+        signature: 'kgListByType(nodeType: string, limit: number = 50): KgNode[]',
+        description: 'Knowledge-graph nodes by type.',
+        parameters: [{ name: 'nodeType', description: 'the node type to list.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'the matching nodes.',
+      },
+      {
+        signature: 'ipcStandards(section: string): IpcStandardCard[]',
+        description: 'IPC examination-standard cards for one section.',
+        parameters: [{ name: 'section', description: 'the IPC section (A-H).' }],
+        returns: 'the matching cards.',
+      },
+      {
+        signature: 'ipcStandardsByArticle(article: string): IpcStandardCard[]',
+        description: 'IPC examination-standard cards for one law article.',
+        parameters: [{ name: 'article', description: 'the law article id (e.g. patent-law-a22.3).' }],
+        returns: 'the matching cards.',
+      },
+      {
+        signature: 'ipcStandardsSearch(keyword: string, limit: number = 10): IpcStandardCard[]',
+        description: 'Keyword search over the shipped IPC examination-standard cards.',
+        parameters: [{ name: 'keyword', description: 'the search keyword.' }, { name: 'limit', description: 'result cap.' }],
+        returns: 'the matching cards.',
+      },
+    ],
+  },
+  {
+    key: 'patentTeams',
+    summary: 'The durable team capability service.',
+    description: 'The durable team capability service.\n\nOne captain leads one active team at a time; every mutation runs inside the per-team in-process lock and is persisted atomically before any notification fires. Members are continuable subagents whose durable session ids are recorded in the team file, so a team survives harness restarts.',
+    methods: [
+      {
+        signature: 'async create(agent: Agent, name: string, description?: string): Promise<{ team_id: string team_name: string state_dir: string }>',
+        description: 'Create a team: the calling agent becomes its captain. A captain leads one team at a time.',
+        parameters: [{ name: 'agent', description: 'the calling agent (the new captain).' }, { name: 'name', description: 'team name, sanitized into the stable team id.' }, { name: 'description', description: 'team purpose / goal.' }],
+        returns: 'the created team\'s id, name, and state directory.',
+      },
+      {
+        signature: 'async addMember( agent: Agent, args: { name: string role?: string provider?: string model?: string reasoning_effort?: string }, signal: AbortSignal, ): Promise<{ member_name: string member_id: string provider: string model: string reasoning_effort?: string status: string }>',
+        description: 'Add a durable continuable member. By default it snapshots the captain\'s current LLM route and effort; supply provider/model only for an explicitly requested role-specific route.',
+        parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'member name, role, optional route/effort.' }, { name: 'signal', description: 'caller cancellation, forwarded to the spawn.' }],
+        returns: 'the created member\'s identity.',
+      },
+      {
+        signature: 'async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<{ member_name: string status: string requeued_tasks: string[] }>',
+        description: 'Remove a member safely: revoke its current attempts, return all unfinished owned tasks to the shared pending pool, interrupt its live turn, and mark it removed.',
+        parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'name', description: 'member name to remove.' }, { name: 'signal', description: 'caller cancellation, forwarded to quiescence waits.' }],
+        returns: 'the removed member and requeued task ids.',
+      },
+      {
+        signature: 'async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string worker?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }>',
+        description: 'Create a task in the team\'s task list. Tasks can depend on other tasks; a task is only claimable once every dependency is completed.',
+        parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'subject, description, dependencies, optional assignee.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling.' }],
+        returns: 'the created task\'s identity.',
+      },
+      {
+        signature: 'async reassignTask( agent: Agent, args: { task_id: string; assignee: string; reason?: string }, signal: AbortSignal, ): Promise<{ task_id: string previous_assignee: string assignee: string status: string attempt: number attempt_id?: string }>',
+        description: 'Atomically retry, reassign, or let the captain take over any unfinished or failed task. The old attempt is revoked before its member is interrupted, so late updates cannot overwrite the new owner.',
+        parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'task id, target assignee ("captain" for takeover), reason.' }, { name: 'signal', description: 'caller cancellation, forwarded to quiescence waits.' }],
+        returns: 'the task\'s post-handoff state.',
+      },
+      {
+        signature: 'async claimTask( agent: Agent, args: { task_id: string; assignee?: string }, ): Promise<{ task_id: string; status: string; assignee: string; attempt: number; attempt_id?: string }>',
+        description: 'Claim one ready task for a member (or yourself). A member cannot own a second unfinished task. The returned attempt_id is required for that member\'s updates and becomes stale after retry/reassignment.',
+        parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'args', description: 'task id, optional assignee (captain only).' }],
+        returns: 'the claimed task\'s capability.',
+      },
+      {
+        signature: 'async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string status: string output?: string attempt: number attempt_id?: string gated?: boolean gate_feedback?: string }>',
+        description: 'Update a task status/output. Members must supply the current attempt_id returned by claim_task; stale attempts are rejected after takeover or reassignment. Terminal results are immutable.',
+        parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'args', description: 'task id, status, output, attempt_id.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling.' }],
+        returns: 'the task\'s updated state.',
+      },
+      {
+        signature: 'async sendMessage( agent: Agent, args: { to: string; content: string; from?: string }, signal: AbortSignal, ): Promise<{ message_id: string from: string to: string delivered: \'live\' | \'wake\' | \'mailbox\' }>',
+        description: 'Send a message to the captain or to a teammate. Messages go straight into the recipient\'s mailbox; when the recipient agent is online the service also schedules live delivery.',
+        parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'args', description: 'recipient ("captain" or a member name), content, optional from.' }, { name: 'signal', description: 'caller cancellation, forwarded to live delivery.' }],
+        returns: 'the message identity and delivery path.',
+      },
+      {
+        signature: 'async status(agent: Agent, signal?: AbortSignal): Promise<PatentTeamsStatus>',
+        description: 'Team snapshot: members with live activity and tasks with status, assignee, dependencies, and output. Captains also see every team mailbox; members see only their own inbox. Reading as captain acknowledges the captain inbox and schedules idle members.',
+        parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling and the team lock.' }],
+        returns: 'the full team status payload.',
+      },
+      {
+        signature: 'async delete(agent: Agent, signal: AbortSignal): Promise<{ deleted: boolean; team_name: string }>',
+        description: 'End the team: interrupt all members (best effort), archive the team\'s state directory (team file, tasks, mailboxes) under `archive/`.',
+        parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'signal', description: 'caller cancellation, forwarded to quiescence waits.' }],
+        returns: 'whether the team was archived.',
+      },
+    ],
+  },
+  {
+    key: 'patentWorkflow',
+    summary: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow).',
+    description: 'PatentWorkflow service: the patent execution pipeline (ctx.patentWorkflow). Approval is an optional seam read via ctx.get(\'approval\'); storage-backed file products are caller-provided stores (see the package README).',
+    methods: [
+      {
+        signature: 'async runWorkflow( manifest: WorkflowManifest, wctx: WorkflowContext, executor?: StageExecutor, options?: WorkflowRunOptions, agent?: PatentAgent, ): Promise<WorkflowRunResult>',
+        description: 'Run a workflow manifest via the ported executor. When an agent is given, the run result is appended to its session as a patent/workflow-run event.',
+        parameters: [{ name: 'manifest', description: 'the workflow to run.' }, { name: 'wctx', description: 'the workflow context (caseId/input + stage state).' }, { name: 'executor', description: 'fallback stage executor for stages without an atom.' }, { name: 'options', description: 'handlers/atoms/provider/persist/approvalGrants/runId.' }, { name: 'agent', description: 'optional agent whose session records the run.' }],
+        returns: 'the run result (also persisted via options.persist when given).',
+      },
+      {
+        signature: 'async runPlantask( agent: PatentAgent, caseId: string, planSteps: string[], options?: PlantaskRunOptions, ): Promise<PlantaskRunResult>',
+        description: 'Drive a plantask plan through planning → awaiting_approval → executing. The awaiting_approval gate resolves through ctx.get(\'approval\'); without an approval service the plan fails closed (replanning with a feedback) rather than auto-approving. Set options.autoApprove to false to leave the plan pending for an out-of-band approve/reject.',
+        parameters: [{ name: 'agent', description: 'the agent whose session records the patent/plantask events.' }, { name: 'caseId', description: 'case identity keying the tracked pending plantask.' }, { name: 'planSteps', description: 'the ordered plan steps to sync into tasks.' }, { name: 'options', description: 'autoApprove and approvalReason.' }],
+        returns: 'the final plantask state plus tasks and the approval outcome.',
+      },
+      {
+        signature: 'approve(caseId: string): PlantaskRunResult',
+        description: 'Decision entry: approve a pending plantask (resume to executing). Single-session single-case semantics: one pending plantask per caseId; concurrent runs of the same caseId are rejected by runPlantask.',
+        parameters: [{ name: 'caseId', description: 'the case keying the parked plantask.' }],
+        returns: 'the final plantask state, tasks, and approval outcome.',
+      },
+      {
+        signature: 'reject(caseId: string, feedback?: string): PlantaskRunResult',
+        description: 'Decision entry: reject a pending plantask and roll back to replanning.',
+        parameters: [{ name: 'caseId', description: 'the case keying the parked plantask.' }, { name: 'feedback', description: 'optional rejection feedback driving the replanning transition.' }],
+        returns: 'the final plantask state, tasks, and approval outcome.',
+      },
+    ],
+  },
+  {
     key: 'permissionPresets',
     summary: 'Owns the deployment\'s permission presets and their write path.',
     description: 'Owns the deployment\'s permission presets and their write path. Requires a confining `ctx.shell` executor and `ctx.approval`; unmatched knob values are reported as CUSTOM_PRESET, not an error.',
@@ -1288,6 +1627,57 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'pluginMarketController',
+    summary: 'Host service backing the generated `ctx.remote.pluginMarket` namespace.',
+    description: 'Host service backing the generated `ctx.remote.pluginMarket` namespace. Every method is a read-only projection of the `ctx.pluginMarket` seam: the catalog stays discoverable from a browser while installs and uninstalls remain the profile CLI\'s owner.',
+    methods: [
+      {
+        signature: '@Remote async listSources(): Promise<readonly PluginMarketSource[]>',
+        description: 'List the registered catalog sources.',
+        parameters: [],
+        returns: 'every registered source.',
+        throws: ['RemoteError when the source listing fails or no provider is mounted.'],
+      },
+      {
+        signature: '@Remote async search(sourceId: string, query: CatalogQuery | undefined): Promise<CatalogPage>',
+        description: 'Query one source\'s catalog.',
+        parameters: [{ name: 'sourceId', description: 'the source to query.' }, { name: 'query', description: 'search parameters; unsupported ones are dropped by the provider.' }],
+        returns: 'one page of provenance-stamped entries.',
+        throws: ['RemoteError when the source query fails or no provider is mounted.'],
+      },
+      {
+        signature: '@Remote async preview(ref: string): Promise<InstallPreview>',
+        description: 'Preview an installation against the npm registry without touching the profile.',
+        parameters: [{ name: 'ref', description: '`name@version` package reference.' }],
+        returns: 'the verification result.',
+        throws: ['RemoteError when the preview fails or no provider is mounted.'],
+      },
+    ],
+  },
+  {
+    key: 'promptCache',
+    summary: 'The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`.',
+    description: 'The `ctx.promptCache` service: a TTL-bounded in-memory store keyed by `(scope, signature, configFingerprint)`. Delegates to MemoryPromptCacheStrategy; a future persistent strategy replaces the strategy selection without changing the service surface.',
+    methods: [
+      {
+        signature: 'get(key: PromptCacheKey): Promise<CachedPromptSection[] | undefined>',
+        description: 'Resolve one stable prefix.',
+        parameters: [{ name: 'key', description: 'the cache identity.' }],
+        returns: 'the cached stable sections, or `undefined` on a miss.',
+      },
+      {
+        signature: 'set(key: PromptCacheKey, sections: readonly CachedPromptSection[]): Promise<void>',
+        description: 'Persist one stable prefix.',
+        parameters: [{ name: 'key', description: 'the cache identity.' }, { name: 'sections', description: 'the resolved stable sections, in prefix order.' }],
+      },
+      {
+        signature: 'invalidate(scope: ScopeKey | undefined): Promise<void>',
+        description: 'Drop every entry belonging to one scope (`undefined` = the global layer).',
+        parameters: [{ name: 'scope', description: 'the scope whose entries to clear.' }],
+      },
+    ],
+  },
+  {
     key: 'sandbox',
     summary: 'Abstract process-sandbox service.',
     description: 'Abstract process-sandbox service. confine must return enforcing argv or fail closed at wrap or runner-execution time; silent unconfined passthrough is forbidden. Functional probes arbitrate multi-runner chains and may be skipped for a sole candidate, whose own refusal remains the fail-closed end.',
@@ -1326,6 +1716,67 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read the session override without applying the deployment default.',
         parameters: [{ name: 'session', description: 'session whose log supplies the override.' }],
         returns: 'the last logged mode, or `undefined` without one.',
+      },
+    ],
+  },
+  {
+    key: 'selfEvolve',
+    summary: 'Abstract self-evolve service.',
+    description: 'Abstract self-evolve service. Implementations own trigger policy, rate limiting, verifier grounding, the proposal model route, and held-in/held-out regression execution. A successful run commits its proposals through the target seam for each level (skill register, systemPrompt.section, workflow engine, dynamicCordisRunner).\n\nLoad exactly one implementation per context; later providers shadow earlier ones so the base provider can be swapped for L4 harness-safe variants.',
+    methods: [
+      {
+        signature: 'abstract evolveIfNeeded( agent: SelfEvolveAgentContext, trigger: EvolveTrigger, signal: AbortSignal, levels?: EvolveLevel[], ): Promise<SelfEvolveResult | null>',
+        description: 'Consider running an evolution loop for an explicit trigger. Idle and pressure triggers are rate-limited by the implementation; `user-command` always initiates a loop (subject to approval defaults). Return `null` when the policy decides no run is needed. `runMaintenance` on the agent owns idle-gating; callers do not double-check it.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner; also supplies the routed provider/model target so proposals use the same route.' }, { name: 'trigger', description: 'Why this call is asking for a run.' }, { name: 'signal', description: 'Cancels the loop as early as possible; cancellation records a `self-evolve/end` error rather than leaving the log open.' }, { name: 'levels', description: 'Restrict the edit surfaces this loop may propose against. Defaults to `[\'L1-skill\', \'L2-context\']` for safety.' }],
+        returns: 'the loop result, or `null` when policy decides no run is needed.',
+      },
+      {
+        signature: 'abstract evolveNow( agent: SelfEvolveAgentContext, signal: AbortSignal, levels?: EvolveLevel[], ): Promise<SelfEvolveResult>',
+        description: 'Explicitly run an evolution loop now, regardless of pressure policy. Enforces the same approval and validation gates as an idle loop.',
+        parameters: [{ name: 'agent', description: 'Owner session and maintenance runner.' }, { name: 'signal', description: 'Cancels the loop as early as possible.' }, { name: 'levels', description: 'Restrict the edit surfaces this loop may propose against.' }],
+        returns: 'the loop result.',
+      },
+      {
+        signature: 'abstract readPatterns(sessionId: string): Promise<FailurePattern[]>',
+        description: 'Read the latest projected failure-pattern state for a session, or the empty state if the projection has not folded yet. Implementations may return a stale view; callers do not rely on synchronous freshness.',
+        parameters: [{ name: 'sessionId', description: 'opaque session identity.' }],
+        returns: 'ranked failure patterns for the session.',
+      },
+    ],
+  },
+  {
+    key: 'selfEvolveBenchmark',
+    summary: 'Benchmark-driven self-evolve provider.',
+    description: 'Benchmark-driven self-evolve provider. Registers as `ctx.selfEvolveBenchmark` on instantiation and routes all work through a `BenchmarkEngineCore` whose seams default to the `fork` subagent provider.',
+    methods: [
+      {
+        signature: 'readonly core: BenchmarkEngineCore',
+        description: 'The orchestration core whose seams this provider wires to the subagent runtime.',
+        parameters: [],
+      },
+      {
+        signature: 'runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
+        description: 'Run the full benchmark against the current agent state and persist the entry.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Evaluation options.' }],
+        returns: 'The aggregated scoreboard entry.',
+      },
+      {
+        signature: 'establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>',
+        description: 'Establish a single-run baseline score for a benchmark.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Evaluation options.' }],
+        returns: 'The baseline scoreboard entry.',
+      },
+      {
+        signature: 'optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult>',
+        description: 'Optimize a benchmark under strict improve-or-rollback.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }, { name: 'options', description: 'Optimization options.' }],
+        returns: 'The loop outcome.',
+      },
+      {
+        signature: 'readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]>',
+        description: 'Read all persisted scoreboard entries for a benchmark.',
+        parameters: [{ name: 'benchmarkId', description: 'Benchmark id.' }],
+        returns: 'Persisted entries, oldest first.',
       },
     ],
   },
@@ -2689,6 +3140,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'request', description: 'the URL plus retrieval options.' }, { name: 'signal', description: 'optional cancellation signal forwarded to the provider.' }],
         returns: 'the retrieval outcome; non-2xx responses resolve descriptively.',
       },
+      {
+        signature: 'resolveFetchProvider(): WebFetchProvider | undefined',
+        description: 'Resolve the fetch provider under the same selection rules as fetch without throwing: the provider that call would use, or `undefined` when the selection is missing, unavailable, or ambiguous. Tool enablement consults this at load time; fetch itself throws the descriptive WebError.',
+        parameters: [],
+        returns: 'the usable fetch provider, or `undefined`.',
+      },
     ],
   },
   {
@@ -2875,6 +3332,54 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
 /** Every harness event, sorted by name. */
 export const EVENT_API: readonly EventApiEntry[] = [
   {
+    name: '@deepseek-ai/cordis/dynamic-package',
+    mode: 'emit',
+    signature: '\'@deepseek-ai/cordis/dynamic-package\'(pkg: DynamicCordisPackage): void',
+    summary: 'One exact Plugin/Package activation is now live in the Host.',
+    description: 'One exact Plugin/Package activation is now live in the Host.',
+    parameters: [{ name: 'pkg', description: 'stable plugin, immutable package, run identity, and label.' }],
+  },
+  {
+    name: '@deepseek-ai/cordis/dynamic-retract',
+    mode: 'emit',
+    signature: '\'@deepseek-ai/cordis/dynamic-retract\'(retracted: DynamicCordisRetracted): void',
+    summary: 'One exact activation was withdrawn.',
+    description: 'One exact activation was withdrawn.',
+    parameters: [{ name: 'retracted', description: 'plugin, package, and run identity.' }],
+  },
+  {
+    name: '@deepseek-ai/cordis/inspect-query',
+    mode: 'emit',
+    signature: '\'@deepseek-ai/cordis/inspect-query\'(request: CordisInspectQueryRequest): void',
+    summary: 'Request a live read-only query from the Client inspect registry.',
+    description: 'Request a live read-only query from the Client inspect registry.',
+    parameters: [{ name: 'request', description: 'correlation, Session, provider, method, and JSON input.' }],
+  },
+  {
+    name: '@deepseek-ai/cordis/inspect-query-resolved',
+    mode: 'emit',
+    signature: '\'@deepseek-ai/cordis/inspect-query-resolved\'(resolved: CordisInspectQueryResolved): void',
+    summary: 'Notify every Client that an inspect query has settled or been cancelled.',
+    description: 'Notify every Client that an inspect query has settled or been cancelled.',
+    parameters: [{ name: 'resolved', description: 'exact query identity that is no longer answerable.' }],
+  },
+  {
+    name: '@deepseek-ai/cordis/request-run',
+    mode: 'emit',
+    signature: '\'@deepseek-ai/cordis/request-run\'(request: DynamicCordisRunRequest): void',
+    summary: 'A Client-bearing activation needs a browser page, and may require a user decision.',
+    description: 'A Client-bearing activation needs a browser page, and may require a user decision.',
+    parameters: [{ name: 'request', description: 'correlation identity, owner, target version, mode, and approval requirement.' }],
+  },
+  {
+    name: '@deepseek-ai/cordis/request-run-resolved',
+    mode: 'emit',
+    signature: '\'@deepseek-ai/cordis/request-run-resolved\'(resolved: DynamicCordisRequestResolved): void',
+    summary: 'A pending Client activation request left the answerable state.',
+    description: 'A pending Client activation request left the answerable state.',
+    parameters: [{ name: 'resolved', description: 'request identity and outcome.' }],
+  },
+  {
     name: 'agent-loop/config-start-failed',
     mode: 'emit',
     signature: '\'agent-loop/config-start-failed\'(payload: { sessionId: SessionId; error: unknown }): void',
@@ -3051,52 +3556,12 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
-    name: 'cordis/dynamic-package',
-    mode: 'emit',
-    signature: '\'cordis/dynamic-package\'(pkg: DynamicCordisPackage): void',
-    summary: 'One exact Plugin/Package activation is now live in the Host.',
-    description: 'One exact Plugin/Package activation is now live in the Host.',
-    parameters: [{ name: 'pkg', description: 'stable plugin, immutable package, run identity, and label.' }],
-  },
-  {
-    name: 'cordis/dynamic-retract',
-    mode: 'emit',
-    signature: '\'cordis/dynamic-retract\'(retracted: DynamicCordisRetracted): void',
-    summary: 'One exact activation was withdrawn.',
-    description: 'One exact activation was withdrawn.',
-    parameters: [{ name: 'retracted', description: 'plugin, package, and run identity.' }],
-  },
-  {
-    name: 'cordis/inspect-query',
-    mode: 'emit',
-    signature: '\'cordis/inspect-query\'(request: CordisInspectQueryRequest): void',
-    summary: 'Request a live read-only query from the Client inspect registry.',
-    description: 'Request a live read-only query from the Client inspect registry.',
-    parameters: [{ name: 'request', description: 'correlation, Session, provider, method, and JSON input.' }],
-  },
-  {
-    name: 'cordis/inspect-query-resolved',
-    mode: 'emit',
-    signature: '\'cordis/inspect-query-resolved\'(resolved: CordisInspectQueryResolved): void',
-    summary: 'Notify every Client that an inspect query has settled or been cancelled.',
-    description: 'Notify every Client that an inspect query has settled or been cancelled.',
-    parameters: [{ name: 'resolved', description: 'exact query identity that is no longer answerable.' }],
-  },
-  {
-    name: 'cordis/request-run',
-    mode: 'emit',
-    signature: '\'cordis/request-run\'(request: DynamicCordisRunRequest): void',
-    summary: 'A Client-bearing activation needs a browser page, and may require a user decision.',
-    description: 'A Client-bearing activation needs a browser page, and may require a user decision.',
-    parameters: [{ name: 'request', description: 'correlation identity, owner, target version, mode, and approval requirement.' }],
-  },
-  {
-    name: 'cordis/request-run-resolved',
-    mode: 'emit',
-    signature: '\'cordis/request-run-resolved\'(resolved: DynamicCordisRequestResolved): void',
-    summary: 'A pending Client activation request left the answerable state.',
-    description: 'A pending Client activation request left the answerable state.',
-    parameters: [{ name: 'resolved', description: 'request identity and outcome.' }],
+    name: 'cordis/before-approval',
+    mode: 'waterfall',
+    signature: '\'cordis/before-approval\'( info: DynamicCordisApprovalInfo, next: () => Promise<boolean>, ): Promise<boolean>',
+    summary: 'Waterfall consulted before a Client-bearing activation request is armed.',
+    description: 'Waterfall consulted before a Client-bearing activation request is armed. Listeners receive the pending request facts and the base approval requirement; they MUST call `next()` and may return `true` to force re-approval even when the base requirement is `false` (e.g. a stale `approveFutureVersions` grant). The runner treats the outermost result as the effective requirement. Emitted on the runner\'s context without scope routing; the payload carries the owning `agentId` for listeners that need agent isolation.',
+    parameters: [{ name: 'info', description: 'the pending activation request facts and base requirement.' }, { name: 'next', description: 'delegate to the remaining listeners; resolves with their effective requirement.' }],
   },
   {
     name: 'credentials/record-updated',
@@ -3113,6 +3578,54 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Committed change to a provider-managed credential source: a `set`, an `unset`, or an external edit observed in storage.',
     description: 'Committed change to a provider-managed credential source: a `set`, an `unset`, or an external edit observed in storage. Ambient process-environment changes are not observable and never emit. Listener failures are contained and logged — a sync throw and an async rejection alike — without changing the committed operation\'s outcome, except `INVARIANT`-coded failures, which rethrow after every listener ran; that rethrow reaches the emitter only from synchronous listeners, so invariant checks on this event must not be async functions.',
     parameters: [{ name: 'ref', description: 'the reference whose stored value changed.' }],
+  },
+  {
+    name: 'desktop/bridge-lost',
+    mode: 'emit',
+    signature: '\'desktop/bridge-lost\'(): void',
+    summary: 'The bridge to Electron Main was lost.',
+    description: 'The bridge to Electron Main was lost.',
+    parameters: [],
+  },
+  {
+    name: 'desktop/file-dropped',
+    mode: 'emit',
+    signature: '\'desktop/file-dropped\'(payload: { paths: string[] }): void',
+    summary: 'Files were dropped on the renderer window.',
+    description: 'Files were dropped on the renderer window.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/menu-activated',
+    mode: 'emit',
+    signature: '\'desktop/menu-activated\'(payload: { menuId: string }): void',
+    summary: 'A registered menu item was activated.',
+    description: 'A registered menu item was activated.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/notification-clicked',
+    mode: 'emit',
+    signature: '\'desktop/notification-clicked\'(payload: { notificationId: string }): void',
+    summary: 'A notification was clicked.',
+    description: 'A notification was clicked.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/shortcut-triggered',
+    mode: 'emit',
+    signature: '\'desktop/shortcut-triggered\'(payload: { accelerator: string }): void',
+    summary: 'A registered global shortcut was pressed.',
+    description: 'A registered global shortcut was pressed.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
+  },
+  {
+    name: 'desktop/tray-clicked',
+    mode: 'emit',
+    signature: '\'desktop/tray-clicked\'(payload: { button: \'left\' | \'right\' }): void',
+    summary: 'The tray icon was clicked.',
+    description: 'The tray icon was clicked.',
+    parameters: [{ name: 'payload', description: 'event payload.' }],
   },
   {
     name: 'domain/changed',
@@ -3169,6 +3682,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Waterfall around every streaming model call (retry, replay, routing).',
     description: 'Waterfall around every streaming model call (retry, replay, routing). Bound to the LlmRuntime; call `next()` to reach the resolved adapter\'s stream, or yield your own chunks to short-circuit.',
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; their messages already obey the immutable creation contract.' }],
+  },
+  {
+    name: 'self-evolve-loop/end',
+    mode: 'emit',
+    signature: '\'self-evolve-loop/end\'(info: { runId: SelfEvolveRunId; error?: string }): void',
+    summary: 'An evolution loop settled.',
+    description: 'An evolution loop settled. Every `start` event emits exactly one end event, including cancelled runs and rejected proposals.',
+    parameters: [{ name: 'info', description: 'run identity and the loop error, when the loop failed.' }],
+  },
+  {
+    name: 'self-evolve-loop/start',
+    mode: 'emit',
+    signature: '\'self-evolve-loop/start\'(info: { runId: SelfEvolveRunId; trigger: EvolveTrigger }): void',
+    summary: 'An evolution loop started.',
+    description: 'An evolution loop started. Paired with `self-evolve-loop/end`.',
+    parameters: [{ name: 'info', description: 'run identity and the trigger that initiated the loop.' }],
   },
   {
     name: 'session-telemetry/record',
@@ -3475,6 +4004,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ApiSessionAgentResult = {\n    readonly agent: Agent;\n} | {\n    readonly error: ApiSessionAgentError;\n};',
   },
   {
+    name: 'AppendOptions',
+    declaration: 'export interface AppendOptions {\n    readonly ignorable?: true;\n}',
+  },
+  {
+    name: 'ApplyCandidate',
+    declaration: 'export type ApplyCandidate = (options: ApplyCandidateOptions) => Promise<{\n    agentStatePath: string;\n}>;',
+  },
+  {
+    name: 'ApplyCandidateOptions',
+    declaration: 'export interface ApplyCandidateOptions {\n    benchmarkId: BenchmarkId;\n    candidate: CandidateProposal;\n    agentStateDir: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
     name: 'ApprovalOutcome',
     declaration: 'export type ApprovalOutcome = \'allowed-once\' | \'rejected\' | \'cancelled\' | \'unavailable\';',
   },
@@ -3537,6 +4078,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AssistantProvenance',
     declaration: 'export interface AssistantProvenance {\n    provider: string;\n    model: string;\n    replayState?: unknown;\n}',
+  },
+  {
+    name: 'Atom',
+    declaration: 'export type Atom = {\n    name: string;\n    description: string;\n    category: AtomCategory;\n    inputSchema: string[];\n    outputSchema: string[];\n};',
+  },
+  {
+    name: 'AtomCategory',
+    declaration: 'export type AtomCategory = \'search\' | \'extract\' | \'compare\' | \'reason\' | \'gate\';',
+  },
+  {
+    name: 'AtomRegistry',
+    declaration: 'export class AtomRegistry {\n    register(atom: Atom): void;\n    lookup(name: string): Atom | undefined;\n    list(): Atom[];\n    listByCategory(category: AtomCategory): Atom[];\n}',
   },
   {
     name: 'AttachmentId',
@@ -3607,6 +4160,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
   },
   {
+    name: 'BenchmarkEngineCore',
+    declaration: 'export class BenchmarkEngineCore {\n    constructor(private readonly options: BenchmarkEngineOptions);\n    readScoreboard(benchmarkId: BenchmarkId): Promise<ScoreboardEntry[]>;\n    async runBenchmark(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    establishBaseline(benchmarkId: BenchmarkId, options: RunBenchmarkOptions): Promise<ScoreboardEntry>;\n    async optimizeLoop(benchmarkId: BenchmarkId, options: OptimizeLoopOptions): Promise<OptimizeResult>;\n}',
+  },
+  {
+    name: 'BenchmarkEngineOptions',
+    declaration: 'export interface BenchmarkEngineOptions {\n    baseDir: string;\n    agentStateDir: string;\n    executeCase: ExecuteCase;\n    evaluateCase: EvaluateCase;\n    proposeCandidate: ProposeCandidate;\n    applyCandidate: ApplyCandidate;\n    restoreSnapshot: RestoreSnapshot;\n}',
+  },
+  {
+    name: 'BenchmarkId',
+    declaration: 'export type BenchmarkId = Branded<\'BenchmarkId\'>;',
+  },
+  {
+    name: 'BetterSidebarService',
+    declaration: 'export interface BetterSidebarService {\n    registerTab(descriptor: TabDescriptor): () => void;\n    registerFileViewer(descriptor: FileViewerDescriptor): () => void;\n    getTabs(): readonly TabDescriptor[];\n    getFileViewers(): readonly FileViewerDescriptor[];\n    getTab(id: string): TabDescriptor | undefined;\n    isTabEnabled(id: string): boolean;\n    isViewerEnabled(id: string): boolean;\n    matchFileViewer(path: string, head?: Uint8Array): FileViewerDescriptor | undefined;\n    openTab(seed: OpenTabSeed, scope?: SessionScope): void;\n    closeTab(tabId: string, scope?: SessionScope): void;\n    subscribe(listener: () => void): () => void;\n    readonly version: string;\n    readonly features: readonly string[];\n    getSnapshot(): SidebarSnapshot;\n    subscribeState(listener: () => void): () => void;\n    updateTab(tabId: string, patch: {\n        title?: string;\n        path?: string;\n        meta?: unknown;\n    }): void;\n    activateTab(tabId: string, scope?: SessionScope): void;\n    openFile(scope: SessionScope, path: string, title?: string): void;\n}',
+  },
+  {
     name: 'BorrowedSessionSource',
     declaration: 'export type BorrowedSessionSource = Disposable & ({\n    readonly source: \'prepared\';\n    readonly inspection: SessionInspection;\n    readonly revision: SessionPersistenceRevision;\n    readonly preparedSession: Session;\n} | {\n    readonly source: \'live\';\n    readonly inspection: SessionInspection;\n});',
   },
@@ -3617,6 +4186,42 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BrandedNumber',
     declaration: 'export type BrandedNumber<B extends string> = number & {\n    readonly [BRAND]: B;\n};',
+  },
+  {
+    name: 'CachedPromptSection',
+    declaration: 'export interface CachedPromptSection {\n    name: string;\n    text: string;\n}',
+  },
+  {
+    name: 'CandidateProposal',
+    declaration: 'export interface CandidateProposal {\n    name: string;\n    description: string;\n    prediction: string;\n}',
+  },
+  {
+    name: 'CaseAggregate',
+    declaration: 'export interface CaseAggregate {\n    caseId: CaseId;\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    runs: CaseRunRecord[];\n}',
+  },
+  {
+    name: 'CaseId',
+    declaration: 'export type CaseId = Branded<\'CaseId\'>;',
+  },
+  {
+    name: 'CaseLawDocType',
+    declaration: 'export type CaseLawDocType = \'case\' | \'judgment\';',
+  },
+  {
+    name: 'CaseLawHit',
+    declaration: 'export type CaseLawHit = CaseLawRecord & {\n    chunkIndex: number;\n    snippet: string;\n    ftsRank?: number | null;\n    via: \'fts\' | \'like\';\n};',
+  },
+  {
+    name: 'CaseLawRecord',
+    declaration: 'export type CaseLawRecord = {\n    documentId: string;\n    docType: string;\n    title: string;\n    decisionNumber?: string | undefined;\n    caseNumber?: string | undefined;\n    court?: string | undefined;\n    source?: string | undefined;\n    module?: string | undefined;\n    charCount: number;\n};',
+  },
+  {
+    name: 'CaseLawSearchOptions',
+    declaration: 'export type CaseLawSearchOptions = {\n    limit?: number;\n    docType?: CaseLawDocType;\n    court?: string;\n    excludeSource?: string;\n};',
+  },
+  {
+    name: 'CaseRunRecord',
+    declaration: 'export interface CaseRunRecord {\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    note?: string;\n}',
   },
   {
     name: 'ChunkRow',
@@ -3727,6 +4332,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ContentBlockType = keyof ContentBlockMap;',
   },
   {
+    name: 'Context',
+    declaration: 'export type Context = CordisContext & SidebarContextShape;',
+  },
+  {
     name: 'ContextFormed',
     declaration: 'export type ContextFormed = {\n    readonly form?: never;\n} | {\n    readonly form: \'instructions\';\n} | {\n    readonly form: \'catalog\';\n} | {\n    readonly form: \'snapshot\';\n    readonly sections: readonly ContextSnapshotSection[];\n} | {\n    readonly form: \'notice\';\n    readonly summary: string;\n} | {\n    readonly form: \'relay\';\n} | {\n    readonly form: \'recall\';\n};',
   },
@@ -3835,6 +4444,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CreateGoalResult {\n    readonly ref: GoalRef;\n}',
   },
   {
+    name: 'CreateNuoSearchProviderOptions',
+    declaration: 'export interface CreateNuoSearchProviderOptions {\n    search?: (query: string, options?: {\n        limit?: number;\n    }) => Promise<PatentSearchResult>;\n}',
+  },
+  {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
   },
@@ -3881,6 +4494,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'DeepSeekLlmApiJson',
     declaration: 'export type DeepSeekLlmApiJson = null | boolean | number | string | DeepSeekLlmApiJson[] | {\n    [key: string]: DeepSeekLlmApiJson;\n};',
+  },
+  {
+    name: 'DesktopMenuItem',
+    declaration: 'export interface DesktopMenuItem {\n    id: string;\n    label: string;\n    accelerator?: string;\n}',
+  },
+  {
+    name: 'DesktopNotification',
+    declaration: 'export interface DesktopNotification {\n    title: string;\n    body?: string;\n    id?: string;\n}',
+  },
+  {
+    name: 'DesktopTrayConfig',
+    declaration: 'export interface DesktopTrayConfig {\n    tooltip?: string;\n    menuGroup?: string;\n}',
   },
   {
     name: 'DiffCallView',
@@ -3971,6 +4596,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`;',
   },
   {
+    name: 'DynamicCordisApprovalInfo',
+    declaration: 'export interface DynamicCordisApprovalInfo {\n    requestId: ApprovalRequestId;\n    agentId: SessionId;\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    mode: CordisDynamicRunMode;\n    name: string;\n    purpose: string;\n    requiresApproval: boolean;\n}',
+  },
+  {
     name: 'DynamicCordisPackage',
     declaration: 'export interface DynamicCordisPackage {\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    pluginRunId: CordisDynamicPluginRunId;\n    name: string;\n}',
   },
@@ -3991,12 +4620,96 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EditGoalRequest {\n    readonly objective?: string;\n    readonly maxGoalRounds?: number;\n}',
   },
   {
+    name: 'EditorToolbarControls',
+    declaration: 'export interface EditorToolbarControls {\n    setMode(mode: \'preview\' | \'edit\'): void;\n    save(): void;\n}',
+  },
+  {
+    name: 'EditorToolbarState',
+    declaration: 'export interface EditorToolbarState {\n    modes: boolean;\n    mode: \'preview\' | \'edit\';\n    dirty: boolean;\n    editable: boolean;\n    saveState: \'idle\' | \'saving\' | \'saved\' | \'failed\';\n}',
+  },
+  {
+    name: 'EgoAvailability',
+    declaration: 'export type EgoAvailability = {\n    ok: true;\n} | {\n    ok: false;\n    code: \'unavailable\' | \'setup_required\';\n    reason: string;\n};',
+  },
+  {
+    name: 'EgoBrowserSession',
+    declaration: 'export class EgoBrowserSession {\n    constructor(options: EgoSessionOptions = {});\n    checkAvailability(env?: NodeJS.ProcessEnv): EgoAvailability;\n    async runConnectionProbe(timeoutMs?: number): Promise<boolean>;\n    taskSpaceName(domain: string, sessionId?: string): string;\n    async runScript(script: string, options: EgoRunOptions): Promise<EgoScriptResult>;\n    extractTaggedJson<T>(output: string, tag: string): T | null;\n    ensureDir(dir: string): void;\n}',
+  },
+  {
+    name: 'EgoRunOptions',
+    declaration: 'export interface EgoRunOptions {\n    cwd: string;\n    timeoutMs?: number;\n    env?: NodeJS.ProcessEnv;\n    signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'EgoScriptResult',
+    declaration: 'export interface EgoScriptResult {\n    output: string;\n    stdout: string;\n    stderr: string;\n    exitCode: number | null;\n    timedOut: boolean;\n    durationMs: number;\n}',
+  },
+  {
+    name: 'EgoSessionOptions',
+    declaration: 'export interface EgoSessionOptions {\n    commandName?: string;\n    defaultTimeoutMs?: number;\n    maxTimeoutMs?: number;\n    homeDir?: string;\n    pathEntries?: string[];\n    maxOutputBytes?: number;\n    platform?: NodeJS.Platform;\n    env?: NodeJS.ProcessEnv;\n    runner?: EgoSpawnRunner;\n}',
+  },
+  {
+    name: 'EgoSpawnResult',
+    declaration: 'export interface EgoSpawnResult {\n    exitCode: number | null;\n    stdout: string;\n    stderr: string;\n    timedOut: boolean;\n    durationMs: number;\n}',
+  },
+  {
+    name: 'EgoSpawnRunner',
+    declaration: 'export interface EgoSpawnRunner {\n    spawn(spec: EgoSpawnSpec): Promise<EgoSpawnResult>;\n}',
+  },
+  {
+    name: 'EgoSpawnSpec',
+    declaration: 'export interface EgoSpawnSpec {\n    argv: readonly string[];\n    stdinData?: string;\n    cwd: string;\n    env?: NodeJS.ProcessEnv;\n    timeoutMs: number;\n    signal?: AbortSignal;\n}',
+  },
+  {
     name: 'EncodedImageAttachment',
     declaration: 'export interface EncodedImageAttachment {\n    mediaType: ImageMediaType;\n    data: string;\n    name?: string;\n}',
   },
   {
     name: 'EpochHeader',
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
+  },
+  {
+    name: 'EvaluateCase',
+    declaration: 'export type EvaluateCase = (request: EvaluateCaseRequest) => Promise<EvaluateCaseResult>;',
+  },
+  {
+    name: 'EvaluateCaseRequest',
+    declaration: 'export interface EvaluateCaseRequest {\n    caseId: CaseId;\n    statement: string;\n    rubric?: string;\n    agentStatePath: string;\n    attempt: ExecuteCaseResult;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
+    name: 'EvaluateCaseResult',
+    declaration: 'export interface EvaluateCaseResult {\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    note?: string;\n}',
+  },
+  {
+    name: 'EvolveCommit',
+    declaration: 'export interface EvolveCommit {\n    proposal: EvolveProposal;\n    validation: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    commitSeq?: number;\n}',
+  },
+  {
+    name: 'EvolveLevel',
+    declaration: 'export type EvolveLevel = \'L1-skill\' | \'L2-context\' | \'L3-workflow\' | \'L4-harness\';',
+  },
+  {
+    name: 'EvolveProposal',
+    declaration: 'export interface EvolveProposal {\n    proposalId: string;\n    runId: SelfEvolveRunId;\n    level: EvolveLevel;\n    name: string;\n    purpose: string;\n    addressesPatternIds: string[];\n    preliminaryValidation?: Extract<ProposalValidationOutcome, {\n        kind: \'accepted\';\n    }>;\n    candidate: {\n        kind: \'L1-skill\';\n        skillName: string;\n        content: string;\n        whenToUse?: string;\n    } | {\n        kind: \'L2-context\';\n        sectionName: string;\n        sectionText: string;\n        order: number;\n        estimatedBytes: number;\n    } | {\n        kind: \'L3-workflow\';\n        scriptName: string;\n        scriptBody: string;\n    } | {\n        kind: \'L4-harness\';\n        pluginIdPrefix: string;\n        hostCode?: string;\n        clientCode?: string;\n    };\n}',
+  },
+  {
+    name: 'EvolveTrigger',
+    declaration: 'export type EvolveTrigger = \'idle-maintenance\' | \'pressure\' | \'user-command\' | \'validation-retry\';',
+  },
+  {
+    name: 'ExecuteCase',
+    declaration: 'export type ExecuteCase = (request: ExecuteCaseRequest) => Promise<ExecuteCaseResult>;',
+  },
+  {
+    name: 'ExecuteCaseRequest',
+    declaration: 'export interface ExecuteCaseRequest {\n    caseId: CaseId;\n    statement: string;\n    agentStatePath: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
+    name: 'ExecuteCaseResult',
+    declaration: 'export interface ExecuteCaseResult {\n    output: string;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n}',
+  },
+  {
+    name: 'FailurePattern',
+    declaration: 'export interface FailurePattern {\n    patternId: string;\n    verifierTier: \'tool-runtime\' | \'subprocess-exit\' | \'llm-provider\' | \'agent-loop\';\n    causalSignature: string;\n    level: EvolveLevel;\n    summary: string;\n    supportingSeqs: number[];\n    occurrences: number;\n    verifierMeta: Record<string, unknown>;\n}',
   },
   {
     name: 'FiberState',
@@ -4007,6 +4720,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface FileDiff {\n    path: string;\n    oldText: string | null;\n    newText: string;\n}',
   },
   {
+    name: 'FileFetchStrategy',
+    declaration: 'export type FileFetchStrategy = \'none\' | \'fsRead\' | \'mediaUrl\' | \'custom\' | \'binary-download\';',
+  },
+  {
     name: 'FileLocation',
     declaration: 'export interface FileLocation {\n    path: string;\n    line?: number;\n}',
   },
@@ -4015,12 +4732,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface FileReferenceCandidate {\n    path: string;\n    kind: \'file\' | \'directory\';\n}',
   },
   {
+    name: 'FileViewerDescriptor',
+    declaration: 'export interface FileViewerDescriptor {\n    id: string;\n    title?: string | (() => string);\n    icon?: ReactNode | ((size: number) => ReactNode);\n    exts: readonly string[];\n    priority?: number;\n    fetchStrategy: FileFetchStrategy;\n    detect?: (path: string, head: Uint8Array) => boolean;\n    load?: (path: string, scope: SessionScope, signal?: AbortSignal) => Promise<unknown>;\n    settings?: SidebarSettingsDeclaration;\n    component: (props: FileViewerProps) => ReactNode;\n}',
+  },
+  {
+    name: 'FileViewerProps',
+    declaration: 'export interface FileViewerProps {\n    ctx: Context;\n    store: SidebarStore;\n    scope: SessionScope;\n    path: string;\n    title: string;\n    viewerId: string;\n    content?: string | undefined;\n    truncated?: boolean | undefined;\n    mediaUrl?: string | undefined;\n    customData?: unknown;\n    toolbar?: \'self\' | \'host\';\n    onToolbarState?: (state: EditorToolbarState) => void;\n    onToolbarControls?: (controls: EditorToolbarControls | null) => void;\n}',
+  },
+  {
     name: 'FinishReason',
     declaration: 'export type FinishReason = FinishReasonMap[keyof FinishReasonMap];',
   },
   {
     name: 'FinishReasonMap',
     declaration: 'export interface FinishReasonMap {\n    \'stop\': {\n        kind: \'stop\';\n    };\n    \'tool-calls\': {\n        kind: \'tool-calls\';\n    };\n    \'max-tokens\': {\n        kind: \'max-tokens\';\n    };\n    \'aborted\': {\n        kind: \'aborted\';\n        failure: LlmFailure;\n    };\n    \'error\': {\n        kind: \'error\';\n        failure: LlmFailure;\n    };\n}',
+  },
+  {
+    name: 'FloatWindow',
+    declaration: 'export interface FloatWindow {\n    id: string;\n    tab: SidebarTab;\n    x: number;\n    y: number;\n    w: number;\n    h: number;\n}',
   },
   {
     name: 'FsDirEntry',
@@ -4191,6 +4920,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface InvokeRemoteRequest {\n    readonly namespace: string;\n    readonly method: string;\n    readonly args: Readonly<Record<string, unknown>>;\n    readonly signal?: AbortSignal;\n}',
   },
   {
+    name: 'IpcClassification',
+    declaration: 'export type IpcClassification = {\n    section: string;\n    confidence: number;\n    matchedKeywords: string[];\n    detail?: string;\n    detailConfidence?: number;\n    noveltyImplications?: string[];\n};',
+  },
+  {
+    name: 'IpcStandardCard',
+    declaration: 'export type IpcStandardCard = {\n    id: string;\n    article: string;\n    ipcSection: string;\n    ipcDetail?: string | undefined;\n    name: string;\n    keyPoints: string[];\n    tips: string[];\n    source: string;\n};',
+  },
+  {
     name: 'JobDoneListener',
     declaration: 'export type JobDoneListener = (snapshot: JobSnapshot, owner: Agent | undefined) => void | PromiseLike<void>;',
   },
@@ -4251,8 +4988,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type JsonValue = null | boolean | number | string | JsonValue[] | {\n    [key: string]: JsonValue;\n};',
   },
   {
+    name: 'KgNode',
+    declaration: 'export type KgNode = {\n    id: string;\n    nodeType: string;\n    name?: string | undefined;\n    title?: string | undefined;\n    content?: string | undefined;\n    lawRefsCount?: number | undefined;\n    source?: string | undefined;\n    fullRef?: string | undefined;\n    chapter?: string | undefined;\n    articleNumber?: string | undefined;\n    version?: string | undefined;\n};',
+  },
+  {
     name: 'KnobState',
     declaration: 'export interface KnobState {\n    preset: string | null;\n    sandbox: SandboxMode | null;\n    approval: ApprovalPolicy | null;\n}',
+  },
+  {
+    name: 'KnowledgeLawSearchOptions',
+    declaration: 'export type KnowledgeLawSearchOptions = {\n    limit?: number;\n    level?: string;\n    category?: string;\n};',
+  },
+  {
+    name: 'KnowledgePaths',
+    declaration: 'export interface KnowledgePaths {\n    dataDir: string;\n    queryDbPath: string;\n    wikiDir: string;\n    sourceDbPath: string;\n}',
   },
   {
     name: 'KvFacet',
@@ -4269,6 +5018,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KvUnitDescriptor',
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n    readonly layout?: \'single\' | \'per-record\';\n}',
+  },
+  {
+    name: 'LawRecord',
+    declaration: 'export type LawRecord = {\n    id: string;\n    level: string;\n    name: string;\n    filename?: string | undefined;\n    publish?: string | undefined;\n    expired: number;\n    categoryId: number;\n    subtitle?: string | undefined;\n    validFrom?: string | undefined;\n    content?: string | undefined;\n    categoryName?: string | undefined;\n};',
+  },
+  {
+    name: 'LawSearchResult',
+    declaration: 'export type LawSearchResult = LawRecord & {\n    score: number;\n    snippet?: string;\n};',
   },
   {
     name: 'LlmAdapter',
@@ -4515,12 +5272,96 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OneShotSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n}',
   },
   {
+    name: 'OpenDialogOptions',
+    declaration: 'export interface OpenDialogOptions {\n    title?: string;\n    defaultPath?: string;\n    properties?: (\'openFile\' | \'openDirectory\' | \'multiSelections\')[];\n}',
+  },
+  {
+    name: 'OpenTabSeed',
+    declaration: 'export interface OpenTabSeed {\n    type: string;\n    title?: string | undefined;\n    path?: string | undefined;\n    diff?: SidebarTab[\'diff\'] | undefined;\n    id?: string | undefined;\n    url?: string | undefined;\n    meta?: unknown;\n}',
+  },
+  {
+    name: 'OptimizeLoopOptions',
+    declaration: 'export interface OptimizeLoopOptions {\n    reference?: ScoreboardEntry;\n    targetScore?: number;\n    maxRounds?: number;\n    runsPerCase?: number;\n    provider?: string;\n    modelId?: string;\n    thinkingLevel?: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
+  },
+  {
+    name: 'OptimizeResult',
+    declaration: 'export interface OptimizeResult {\n    benchmarkId: BenchmarkId;\n    referenceScore: number;\n    bestScore: number;\n    rounds: number;\n    accepted: boolean;\n    acceptedVersion?: number;\n    entries: ScoreboardEntry[];\n}',
+  },
+  {
     name: 'OptionalSessionSeq',
     declaration: 'export type OptionalSessionSeq = SessionSeq | null;',
   },
   {
+    name: 'PatentAgent',
+    declaration: 'export interface PatentAgent {\n    session: Session;\n}',
+  },
+  {
+    name: 'PatentApprovalOutcome',
+    declaration: 'export type PatentApprovalOutcome = \'allowed-once\' | \'rejected\' | \'cancelled\' | \'unavailable\';',
+  },
+  {
+    name: 'PatentKgSearchOptions',
+    declaration: 'export type PatentKgSearchOptions = {\n    keywordLimit?: number;\n    expandLimit?: number;\n    mode?: \'phrase\' | \'or\';\n};',
+  },
+  {
+    name: 'PatentModelEvent',
+    declaration: 'export type PatentModelEvent = {\n    type: \'delta\';\n    text: string;\n} | {\n    type: \'done\';\n    usage?: {\n        inputTokens?: number;\n        outputTokens?: number;\n    };\n};',
+  },
+  {
+    name: 'PatentModelMessage',
+    declaration: 'export interface PatentModelMessage {\n    role: \'system\' | \'user\' | \'assistant\';\n    content: string;\n    images?: readonly ImageAttachmentRef[];\n}',
+  },
+  {
+    name: 'PatentModelPort',
+    declaration: 'export interface PatentModelPort {\n    stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>;\n}',
+  },
+  {
+    name: 'PatentModelRequest',
+    declaration: 'export interface PatentModelRequest {\n    messages: PatentModelMessage[];\n    temperature?: number;\n    schema?: unknown;\n}',
+  },
+  {
+    name: 'PatentTeamsStatus',
+    declaration: 'export interface PatentTeamsStatus {\n    team_id: string;\n    team_name: string;\n    description: string;\n    viewer: string;\n    members: PatentTeamsStatusMember[];\n    tasks: PatentTeamsStatusTask[];\n    captain_inbox: PatentTeamsStatusMessage[];\n    member_inboxes: Record<string, {\n        count: number;\n        latest: string;\n    }>;\n    mailbox_warnings: string[];\n    mailbox_warning_count: number;\n}',
+  },
+  {
+    name: 'PatentTeamsStatusMember',
+    declaration: 'export interface PatentTeamsStatusMember {\n    name: string;\n    role: string;\n    provider: string;\n    model: string;\n    reasoning_effort: string;\n    status: string;\n    activity: string;\n    role_contract?: {\n        stance: string;\n        deliverables: string;\n    };\n}',
+  },
+  {
+    name: 'PatentTeamsStatusMessage',
+    declaration: 'export interface PatentTeamsStatusMessage {\n    from: string;\n    content: string;\n    ts: number;\n}',
+  },
+  {
+    name: 'PatentTeamsStatusTask',
+    declaration: 'export interface PatentTeamsStatusTask {\n    id: string;\n    subject: string;\n    status: string;\n    assignee: string;\n    dependencies: string[];\n    attempt: number;\n    attempt_id: string;\n    reassigning: boolean;\n    output?: string;\n    worker?: string;\n    contract_validation?: {\n        valid: boolean;\n        missing_hard_fields: string[];\n        degraded: boolean;\n    };\n    gate_feedback?: {\n        score: number;\n        satisfied: boolean;\n        failures: string[];\n        feedback: string;\n    };\n}',
+  },
+  {
     name: 'PermissionSelect',
     declaration: 'export interface PermissionSelect {\n    options: PresetOption[];\n    currentValue: string;\n}',
+  },
+  {
+    name: 'PipelineState',
+    declaration: 'export type PipelineState = Record<string, unknown>;',
+  },
+  {
+    name: 'PlanTask',
+    declaration: 'export type PlanTask = {\n    id: string;\n    description: string;\n    hash: string;\n    status: PlanTaskStatus;\n    blockedBy?: string[] | undefined;\n};',
+  },
+  {
+    name: 'PlantaskRunOptions',
+    declaration: 'export interface PlantaskRunOptions {\n    autoApprove?: boolean;\n    approvalReason?: string;\n}',
+  },
+  {
+    name: 'PlantaskRunResult',
+    declaration: 'export interface PlantaskRunResult {\n    caseId: string;\n    state: PlanTaskState;\n    tasks: PlanTask[];\n    toRun: string[];\n    approvalOutcome?: PatentApprovalOutcome;\n    feedback?: string;\n}',
+  },
+  {
+    name: 'PlanTaskState',
+    declaration: 'export type PlanTaskState = \'planning\' | \'awaiting_approval\' | \'executing\' | \'awaiting_feedback\' | \'replanning\' | \'finished\';',
+  },
+  {
+    name: 'PlanTaskStatus',
+    declaration: 'export type PlanTaskStatus = \'pending\' | \'in_progress\' | \'completed\';',
   },
   {
     name: 'PostToolDecision',
@@ -4595,6 +5436,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PromptAssembly {\n    sections: AssembledSection[];\n    contexts: AssembledContext[];\n    tools: ToolSchema[];\n    variables: Record<string, string | undefined>;\n}',
   },
   {
+    name: 'PromptCacheKey',
+    declaration: 'export interface PromptCacheKey {\n    scope: ScopeKey | undefined;\n    signature: string;\n    configFingerprint: string;\n}',
+  },
+  {
     name: 'PromptContext',
     declaration: 'export interface PromptContext {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n}',
   },
@@ -4604,11 +5449,23 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PromptSection',
-    declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n}',
+    declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n    readonly stable?: boolean;\n}',
   },
   {
     name: 'PromptSectionOrderName',
     declaration: 'export type PromptSectionOrderName = keyof typeof SECTION_ORDERS;',
+  },
+  {
+    name: 'ProposalValidationOutcome',
+    declaration: 'export type ProposalValidationOutcome = {\n    kind: \'accepted\';\n    heldInPassed: number;\n    heldOutPassed: number;\n    regressions: [\n    ];\n    deconstructedScores: ValidationScores;\n    confidence: number;\n    replayEvidence: ReplayEvidence[];\n    nextRoundSuggestion: string;\n} | {\n    kind: \'rejected\';\n    reason: \'held-in-failed\' | \'held-out-regression\' | \'apply-failed\' | \'approval-denied\' | \'rate-limited\' | \'low-confidence\';\n    heldInPassed?: number;\n    heldOutPassed?: number;\n    regressions: string[];\n    diagnostic: string;\n    deconstructedScores?: Partial<ValidationScores>;\n    confidence?: number;\n    replayEvidence?: ReplayEvidence[];\n    nextRoundSuggestion: string;\n};',
+  },
+  {
+    name: 'ProposeCandidate',
+    declaration: 'export type ProposeCandidate = (options: ProposeCandidateOptions) => Promise<CandidateProposal>;',
+  },
+  {
+    name: 'ProposeCandidateOptions',
+    declaration: 'export interface ProposeCandidateOptions {\n    benchmarkId: BenchmarkId;\n    reference: ScoreboardEntry;\n    statement: string;\n    round: number;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
   },
   {
     name: 'ProviderRequestId',
@@ -4647,6 +5504,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RedactedSecret {\n    path: string[];\n    set: boolean;\n}',
   },
   {
+    name: 'RelevantHit',
+    declaration: 'export type RelevantHit = {\n    node: KgNode;\n    via: \'keyword\' | \'similar\' | \'cites\';\n    relation?: string;\n};',
+  },
+  {
     name: 'RemoteError',
     declaration: 'export class RemoteError<Code extends RemoteErrorCode = RemoteErrorCode> extends Error {\n    readonly isDSHRemoteError: true;\n    constructor(readonly code: Code, message: string, readonly details: RemoteErrorDetailsMap[Code], options?: ErrorOptions);\n}',
   },
@@ -4665,6 +5526,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ReplayEnvelope',
     declaration: 'export interface ReplayEnvelope {\n    response: unknown;\n    blocks?: readonly unknown[];\n}',
+  },
+  {
+    name: 'ReplayEvidence',
+    declaration: 'export interface ReplayEvidence {\n    kind: \'held-in\' | \'held-out\';\n    coversPatternIds: string[];\n    passed: boolean;\n    verifierSignal?: string;\n    note?: string;\n}',
   },
   {
     name: 'RequestContext',
@@ -4715,8 +5580,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RestoredSessionOptions {\n    readonly seed: SessionEvent[];\n    readonly meta: SessionHeader;\n    readonly inheritedEventCount: SessionLogOffset;\n    readonly seedSource: \'persistence\';\n}',
   },
   {
+    name: 'RestoreSnapshot',
+    declaration: 'export type RestoreSnapshot = (options: {\n    version: number;\n    signal: AbortSignal;\n}) => Promise<void>;',
+  },
+  {
     name: 'ResumeAgentOptions',
     declaration: 'export interface ResumeAgentOptions {\n    readonly resumeSessionId: SessionId;\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+  },
+  {
+    name: 'RunBenchmarkOptions',
+    declaration: 'export interface RunBenchmarkOptions {\n    version?: number;\n    runsPerCase?: number;\n    provider?: string;\n    modelId?: string;\n    thinkingLevel?: string;\n    sessionId?: string;\n    signal: AbortSignal;\n}',
   },
   {
     name: 'RunnerFailureRule',
@@ -4743,6 +5616,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SandboxPolicyRequest {\n    session?: Session;\n    mode?: SandboxMode;\n}',
   },
   {
+    name: 'SaveDialogOptions',
+    declaration: 'export interface SaveDialogOptions {\n    title?: string;\n    defaultPath?: string;\n}',
+  },
+  {
     name: 'SaveImageAttachment',
     declaration: 'export interface SaveImageAttachment {\n    data: Uint8Array;\n    mediaType: ImageMediaType;\n    name?: string;\n}',
   },
@@ -4767,6 +5644,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ScopeKey = object;',
   },
   {
+    name: 'ScoreboardEntry',
+    declaration: 'export interface ScoreboardEntry {\n    version: number;\n    provider?: string;\n    modelId?: string;\n    thinkingLevel?: string;\n    score: number;\n    cost?: number;\n    durationMs?: number;\n    sessionId?: string;\n    cases: CaseAggregate[];\n    summaryTitle?: string;\n    summary?: string;\n}',
+  },
+  {
     name: 'SearchFileMatches',
     declaration: 'export interface SearchFileMatches {\n    path: string;\n    matches: SearchLineMatch[];\n}',
   },
@@ -4787,6 +5668,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SearchResultView = SearchMatchesResultView | SearchPathsResultView;',
   },
   {
+    name: 'SelfEvolveAgentContext',
+    declaration: 'export interface SelfEvolveAgentContext {\n    sessionId: SessionId;\n    options: {\n        provider?: string;\n        model?: string;\n    };\n    runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;\n}',
+  },
+  {
+    name: 'SelfEvolveResult',
+    declaration: 'export interface SelfEvolveResult {\n    runId: SelfEvolveRunId;\n    trigger: EvolveTrigger;\n    patterns: FailurePattern[];\n    proposals: EvolveProposal[];\n    commits: EvolveCommit[];\n    startSeq: number;\n    endSeq: number;\n}',
+  },
+  {
+    name: 'SelfEvolveRunId',
+    declaration: 'export type SelfEvolveRunId = Branded<\'SelfEvolveRunId\'>;',
+  },
+  {
     name: 'SendTeamMessageRequest',
     declaration: 'export interface SendTeamMessageRequest {\n    readonly target: string;\n    readonly content: ContentBlock[];\n    readonly delivery: \'quiet\' | \'wakeup\';\n    readonly signal: AbortSignal;\n}',
   },
@@ -4796,7 +5689,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Session',
-    declaration: 'export class Session {\n    get surface(): SessionSurface;\n    readonly header: SessionHeader;\n    readonly inheritedEventCount: SessionLogOffset;\n    get id(): SessionId;\n    readonly firstLiveSeq: SessionLogOffset;\n    static create(id: SessionId, seed?: readonly SessionEvent[], header?: SessionHeader, inheritedEventCount?: SessionLogOffset): Session;\n    static fromRestore(id: SessionId, seed: readonly SessionEvent[], header: SessionHeader, inheritedEventCount: SessionLogOffset): Session;\n    eventAt(seq: SessionSeq): SessionEvent | undefined;\n    snapshotEvents(fromSeq: SessionLogOffset = SessionLogOffset(0), toSeqExclusive: SessionLogOffset = this.seq): readonly SessionEvent[];\n    ownEvents(): readonly SessionEvent[];\n    isOwnSeq(seq: SessionSeq): boolean;\n    get seq(): SessionLogOffset;\n    append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [\n        opts: SurfaceIntent\n    ] : [\n    ]): SessionEvent<T>;\n    requestHeader(): EpochHeader | undefined;\n    requestContext(): RequestContext | undefined;\n    deriveMessages(): Message[];\n    deriveEventMessage(event: SessionEvent): Message | null;\n}',
+    declaration: 'export class Session {\n    get surface(): SessionSurface;\n    readonly header: SessionHeader;\n    readonly inheritedEventCount: SessionLogOffset;\n    get id(): SessionId;\n    readonly firstLiveSeq: SessionLogOffset;\n    static create(id: SessionId, seed?: readonly SessionEvent[], header?: SessionHeader, inheritedEventCount?: SessionLogOffset): Session;\n    static fromRestore(id: SessionId, seed: readonly SessionEvent[], header: SessionHeader, inheritedEventCount: SessionLogOffset): Session;\n    eventAt(seq: SessionSeq): SessionEvent | undefined;\n    snapshotEvents(fromSeq: SessionLogOffset = SessionLogOffset(0), toSeqExclusive: SessionLogOffset = this.seq): readonly SessionEvent[];\n    ownEvents(): readonly SessionEvent[];\n    isOwnSeq(seq: SessionSeq): boolean;\n    get seq(): SessionLogOffset;\n    append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [\n        opts: SurfaceIntent\n    ] : [\n        opts?: AppendOptions\n    ]): SessionEvent<T>;\n    requestHeader(): EpochHeader | undefined;\n    requestContext(): RequestContext | undefined;\n    deriveMessages(): Message[];\n    deriveEventMessage(event: SessionEvent): Message | null;\n}',
   },
   {
     name: 'SessionAddress',
@@ -5103,6 +5996,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionResultRange {\n    from?: number;\n    to?: number;\n}',
   },
   {
+    name: 'SessionScope',
+    declaration: 'export interface SessionScope {\n    sessionId: string;\n    cwd?: string | undefined;\n    repoRoot?: string | undefined;\n}',
+  },
+  {
     name: 'SessionSearchCursor',
     declaration: 'export type SessionSearchCursor = Branded<\'SessionSearchCursor\'>;',
   },
@@ -5319,6 +6216,230 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ShellSandboxInfo {\n    mode: SandboxMode;\n    denied: boolean;\n    enforcement?: SandboxEnforcement;\n    runnerFailed?: boolean;\n}',
   },
   {
+    name: 'SidebarAgent',
+    declaration: 'export interface SidebarAgent {\n    readonly id: string;\n    readonly session: {\n        readonly header: {\n            readonly cwd?: string;\n        };\n    };\n}',
+  },
+  {
+    name: 'SidebarAgentPresetsService',
+    declaration: 'export interface SidebarAgentPresetsService {\n    resolve(presetId?: string): Promise<{\n        id: string;\n    }>;\n    mount(agentCtx: unknown, presetId: string): Promise<void>;\n}',
+  },
+  {
+    name: 'SidebarAgentsService',
+    declaration: 'export interface SidebarAgentsService {\n    get(id: string): SidebarAgent | undefined;\n    create?(options: unknown): Promise<{\n        agent: SidebarAgent;\n        dispose(): Promise<void>;\n    }>;\n    resume?(options: unknown): Promise<{\n        agent: SidebarAgent;\n        dispose(): Promise<void>;\n    }>;\n}',
+  },
+  {
+    name: 'SidebarConnectionHandle',
+    declaration: 'export interface SidebarConnectionHandle {\n    api: {\n        sessions: SidebarSessionHistoryRpc;\n        subagents: {\n            history(payload: SidebarSubagentAddress & {\n                beforeSeq?: number;\n                maxMessages?: number;\n            }, signal?: AbortSignal): Promise<SidebarRpcResponse<{\n                events: SidebarHistoryEntry[];\n                hasMore: boolean;\n            }>>;\n        };\n    };\n}',
+  },
+  {
+    name: 'SidebarContextShape',
+    declaration: 'export interface SidebarContextShape {\n    webServer: SidebarWebServer;\n    sessions: SidebarSessionStore & SidebarSessionsService;\n    connection: SidebarConnectionHandle;\n    webRuntime: SidebarWebRuntime;\n    slots: SidebarSlotsService;\n    workspaces: SidebarWorkspacesService;\n    settings: SidebarSettingsService;\n    invariants: SidebarInvariantsService;\n    tools: SidebarToolsService;\n    locale: SidebarLocaleService;\n    modules: {\n        import(specifier: string): Promise<unknown>;\n    };\n    jobs: SidebarJobsService;\n    agents: SidebarAgentsService;\n    subagents: SidebarSubagentsService;\n    agentPresets: SidebarAgentPresetsService;\n    sessionTitle: SidebarSessionTitleService;\n    sessionPersistence: SidebarSessionPersistenceService;\n    conversation: SidebarConversation;\n    betterSidebar: BetterSidebarService;\n    on(event: string, listener: (session: unknown, event: SidebarSessionEvent) => void): () => void;\n}',
+  },
+  {
+    name: 'SidebarConversation',
+    declaration: 'export interface SidebarConversation {\n    input: {\n        for(actx: Context): SidebarSessionInput;\n    };\n}',
+  },
+  {
+    name: 'SidebarDiffRef',
+    declaration: 'export type SidebarDiffRef = {\n    kind: \'worktree\';\n    path: string;\n    staged: boolean;\n    untracked?: boolean | undefined;\n    worktree?: string | undefined;\n    repoRoot?: string | undefined;\n} | {\n    kind: \'commit\';\n    hash: string;\n    hashFull: string;\n    subject: string;\n    worktree?: string | undefined;\n    repoRoot?: string | undefined;\n};',
+  },
+  {
+    name: 'SidebarHistoryEntry',
+    declaration: 'export interface SidebarHistoryEntry {\n    event: SidebarSessionEvent;\n    view?: unknown;\n}',
+  },
+  {
+    name: 'SidebarHttpRequest',
+    declaration: 'export interface SidebarHttpRequest {\n    url?: string;\n    method?: string;\n    headers: Record<string, string | string[] | undefined>;\n    [Symbol.asyncIterator](): AsyncIterator<string | Uint8Array>;\n}',
+  },
+  {
+    name: 'SidebarHttpResponse',
+    declaration: 'export interface SidebarHttpResponse {\n    statusCode: number;\n    writeHead(status: number, headers?: Record<string, string>): void;\n    end(body?: string | Uint8Array): void;\n}',
+  },
+  {
+    name: 'SidebarInvariantsService',
+    declaration: 'export interface SidebarInvariantsService {\n    register(packageName: string, installer: (ctx: Context, fail: (message: string) => never) => void | Promise<void>): () => void;\n}',
+  },
+  {
+    name: 'SidebarJobsService',
+    declaration: 'export interface SidebarJobsService {\n    kill(id: string, caller?: SidebarAgent, reason?: string): \'requested\' | \'already-finished\';\n}',
+  },
+  {
+    name: 'SidebarJobStatus',
+    declaration: 'export type SidebarJobStatus = \'running\' | \'stopping\' | \'completed\' | \'killed\' | \'failed\';',
+  },
+  {
+    name: 'SidebarJobView',
+    declaration: 'export interface SidebarJobView {\n    id: string;\n    kind: string;\n    label: string;\n    status: SidebarJobStatus;\n    detail?: string;\n    startedAt: number;\n    finishedAt?: number;\n}',
+  },
+  {
+    name: 'SidebarLeaf',
+    declaration: 'export interface SidebarLeaf {\n    kind: \'leaf\';\n    id: string;\n    tabs: SidebarTab[];\n    active: string | null;\n}',
+  },
+  {
+    name: 'SidebarLocaleService',
+    declaration: 'export interface SidebarLocaleService {\n    getSnapshot(): {\n        active: string;\n    };\n    subscribe(fn: () => void): () => void;\n    register(ns: string, locale: string, dict: Record<string, string>): () => void;\n}',
+  },
+  {
+    name: 'SidebarPrefs',
+    declaration: 'export interface SidebarPrefs {\n    openByDefault: boolean;\n    defaultWidthPercent: number;\n    autoOpenSubagent: boolean;\n    autoOpenJobs: boolean;\n    agentTerminalTools: boolean;\n    agentOpenTools: boolean;\n    terminalFontFamily: string;\n    terminalFontSize: number;\n    bottomPanelAutoTerminal: boolean;\n    interceptOpenPath: boolean;\n    editorExplorer: boolean;\n    terminalShell: string;\n    terminalShellArgs: string;\n    titleBarScheme: TitleBarScheme;\n    titleBarPresetId: string;\n    customCss: string;\n    titleBarCompat: boolean;\n    titleBarStripPx: number;\n    htmlViewerNoSandbox: boolean;\n    htmlViewerDefaultUnsafe: boolean;\n    browserNoSandbox: boolean;\n    browserInterceptLinks: boolean;\n    browserInterceptHttp: boolean;\n    browserInterceptHttps: boolean;\n    browserAllowedLoopback: string;\n    tabsEnabled: Record<string, boolean>;\n    viewersEnabled: Record<string, boolean>;\n    pluginSettings: Record<string, Record<string, unknown>>;\n}',
+  },
+  {
+    name: 'SidebarRpcResponse',
+    declaration: 'export interface SidebarRpcResponse<T> {\n    rpcId: unknown;\n    result: SidebarRpcResult<T>;\n}',
+  },
+  {
+    name: 'SidebarRpcResult',
+    declaration: 'export type SidebarRpcResult<T> = {\n    ok: true;\n    value: T;\n} | {\n    ok: false;\n    error: {\n        code: string;\n        message: string;\n    };\n};',
+  },
+  {
+    name: 'SidebarSessionEvent',
+    declaration: 'export interface SidebarSessionEvent {\n    type: string;\n    seq: number;\n    time: number;\n    data: Record<string, unknown>;\n}',
+  },
+  {
+    name: 'SidebarSessionHeader',
+    declaration: 'export interface SidebarSessionHeader {\n    cwd?: string;\n}',
+  },
+  {
+    name: 'SidebarSessionHistoryRpc',
+    declaration: 'export interface SidebarSessionHistoryRpc {\n    history(payload: {\n        sessionId: string;\n        beforeSeq?: number;\n        maxMessages?: number;\n    }, signal?: AbortSignal): Promise<SidebarRpcResponse<{\n        events: SidebarHistoryEntry[];\n        hasMore: boolean;\n    }>>;\n}',
+  },
+  {
+    name: 'SidebarSessionInput',
+    declaration: 'export interface SidebarSessionInput {\n    state: {\n        getSnapshot(): {\n            draft: string;\n        };\n    };\n    setDraft(text: string): void;\n}',
+  },
+  {
+    name: 'SidebarSessionList',
+    declaration: 'export interface SidebarSessionList {\n    current: string | undefined;\n    byId: Record<string, SidebarSessionSummary>;\n    subagentsByParent?: Readonly<Record<string, SidebarSubagentCatalog>>;\n    jobsBySession?: Readonly<Record<string, readonly SidebarJobView[]>>;\n}',
+  },
+  {
+    name: 'SidebarSessionPersistenceService',
+    declaration: 'export interface SidebarSessionPersistenceService {\n    inspect(sessionId: string): Promise<{\n        meta: {\n            cwd?: string;\n            agentPreset?: string;\n        };\n        events: readonly SidebarSessionEvent[];\n    }>;\n}',
+  },
+  {
+    name: 'SidebarSessionsService',
+    declaration: 'export interface SidebarSessionsService {\n    list: {\n        getSnapshot(): SidebarSessionList;\n        subscribe(fn: () => void): () => void;\n    };\n    open?(id: string): void;\n    fork?(opts: {\n        sessionId: string;\n        atSeq?: number;\n        increaseTitle?: boolean;\n    }): Promise<string>;\n    binding?(id: string): {\n        session: {\n            rename(title: string): Promise<unknown>;\n        };\n    } | undefined;\n    scope(id: string): Context | undefined;\n    openSubagent?(address: SidebarSubagentAddress): void;\n    subagentAddress?(id: string): SidebarSubagentAddress | undefined;\n    setSubagentCatalogOpen?(parentSessionId: string, open: boolean): void;\n    refreshSubagents?(parentSessionId: string): Promise<void>;\n}',
+  },
+  {
+    name: 'SidebarSessionStore',
+    declaration: 'export interface SidebarSessionStore {\n    get(id: string): {\n        header: SidebarSessionHeader;\n        events?: readonly SidebarSessionEvent[];\n    } | undefined;\n}',
+  },
+  {
+    name: 'SidebarSessionSummary',
+    declaration: 'export interface SidebarSessionSummary {\n    id: string;\n    cwd?: string;\n    displayTitle: string;\n    origin?: \'subagent\';\n    parentId?: string;\n    running?: boolean;\n}',
+  },
+  {
+    name: 'SidebarSessionTitleService',
+    declaration: 'export interface SidebarSessionTitleService {\n    rename(session: unknown, title: string): {\n        title: string;\n        eventSeq: number;\n    };\n}',
+  },
+  {
+    name: 'SidebarSettingsDeclaration',
+    declaration: 'export interface SidebarSettingsDeclaration {\n    toggles?: readonly SidebarSettingToggle[];\n    pluginToggles?: readonly SidebarSettingToggle[];\n    render?: (props: SidebarSettingsRenderProps) => ReactNode;\n}',
+  },
+  {
+    name: 'SidebarSettingSelectOption',
+    declaration: 'export interface SidebarSettingSelectOption {\n    value: string | number | boolean;\n    title: string | (() => string);\n    desc?: string | (() => string);\n    icon?: ReactNode | ((size: number) => ReactNode);\n}',
+  },
+  {
+    name: 'SidebarSettingsRenderProps',
+    declaration: 'export interface SidebarSettingsRenderProps {\n    store: SidebarStore;\n    service: BetterSidebarService;\n    prefs: SidebarPrefs;\n    pluginSettings: Record<string, unknown>;\n    updatePluginSetting: (key: string, value: unknown) => void;\n    close(): void;\n}',
+  },
+  {
+    name: 'SidebarSettingsService',
+    declaration: 'export interface SidebarSettingsService {\n    register<T>(ns: string, schema: unknown, options?: {\n        base?: Partial<T>;\n        applies?: \'live\' | \'restart\';\n    }): {\n        get(): T;\n        watch(callback: (next: T, prev: T) => void | Promise<void>): () => void;\n        update(patch: object): Promise<void>;\n        replace(section: object): Promise<void>;\n    };\n    describe(options?: {\n        redactSecrets?: boolean;\n    }): Array<{\n        ns: string;\n        value?: unknown;\n        base?: unknown;\n        user?: unknown;\n        applies: \'live\' | \'restart\';\n        revision: number;\n    }>;\n    update(ns: string, patch: object, expectedRevision?: number): Promise<void>;\n}',
+  },
+  {
+    name: 'SidebarSettingToggle',
+    declaration: 'export interface SidebarSettingToggle {\n    key: string;\n    title: string | (() => string);\n    desc?: string | (() => string);\n    type?: SidebarSettingToggleType;\n    min?: number;\n    max?: number;\n    placeholder?: string;\n    unit?: string;\n    options?: readonly SidebarSettingSelectOption[];\n    multi?: boolean;\n}',
+  },
+  {
+    name: 'SidebarSettingToggleType',
+    declaration: 'export type SidebarSettingToggleType = \'switch\' | \'text\' | \'number\' | \'select\';',
+  },
+  {
+    name: 'SidebarSlotRegisterOptions',
+    declaration: 'export interface SidebarSlotRegisterOptions {\n    name: string;\n    key?: string;\n    id?: string;\n    order?: number;\n    label?: string | (() => string);\n    select?: (owner: unknown) => unknown;\n    priority?: number;\n    locale?: string;\n    registrant?: string;\n    inject?: (...args: never[]) => Record<string, unknown>;\n    children?: Record<string, unknown>;\n}',
+  },
+  {
+    name: 'SidebarSlotsService',
+    declaration: 'export interface SidebarSlotsService {\n    register(options: SidebarSlotRegisterOptions, component: unknown): () => void;\n    inject(key: string, callback: () => () => void): () => void;\n}',
+  },
+  {
+    name: 'SidebarSnapshot',
+    declaration: 'export interface SidebarSnapshot {\n    sessionId: string | undefined;\n    state: SidebarState | undefined;\n    prefs: SidebarPrefs;\n}',
+  },
+  {
+    name: 'SidebarSplit',
+    declaration: 'export interface SidebarSplit {\n    kind: \'split\';\n    id: string;\n    dir: \'row\' | \'col\';\n    sizes: number[];\n    children: SplitNode[];\n}',
+  },
+  {
+    name: 'SidebarState',
+    declaration: 'export interface SidebarState {\n    panelOpen: boolean;\n    width: number;\n    activePane: string | null;\n    nextTerminal: number;\n    nextBrowser: number;\n    expanded: string[];\n    revealed: string[];\n    splits: SplitNode;\n    bottomOpen: boolean;\n    bottomHeight: number;\n    bottomOpenedOnce: boolean;\n    bottomSplits: SplitNode;\n    floats: FloatWindow[];\n}',
+  },
+  {
+    name: 'SidebarStore',
+    declaration: 'export class SidebarStore {\n    setSuspended(suspended: boolean): void;\n    getSuspended(): boolean;\n    setPrefs(prefs: SidebarPrefs): void;\n    getPrefs(): SidebarPrefs;\n    setSession(sessionId: string | undefined): void;\n    subscribe(listener: () => void): () => void;\n    getSnapshot(): SidebarSnapshot;\n    update(mutator: (draft: SidebarState) => void): void;\n    tabOpen(sessionId: string, tabId: string): boolean;\n    getSessionStates(): ReadonlyMap<string, SidebarState>;\n    reduce(reducer: (state: SidebarState) => SidebarState): void;\n    reduceFor(sessionId: string, reducer: (state: SidebarState) => SidebarState): void;\n}',
+  },
+  {
+    name: 'SidebarSubagentAddress',
+    declaration: 'export interface SidebarSubagentAddress {\n    parentSessionId: string;\n    childSessionId: string;\n    mode: \'one-shot\' | \'continuable\';\n}',
+  },
+  {
+    name: 'SidebarSubagentCatalog',
+    declaration: 'export interface SidebarSubagentCatalog {\n    entries: Array<SidebarSubagentChildEntry | SidebarSubagentDiagnosticEntry>;\n    parentAvailable: boolean;\n    state: \'loading\' | \'ready\' | \'error\';\n    error: {\n        code?: string;\n        message?: string;\n    } | null;\n}',
+  },
+  {
+    name: 'SidebarSubagentChildEntry',
+    declaration: 'export interface SidebarSubagentChildEntry {\n    kind: \'child\';\n    id: string;\n    activity: \'running\' | \'inactive\';\n    hasChildren: boolean;\n    mode: \'one-shot\' | \'continuable\';\n    label?: string;\n}',
+  },
+  {
+    name: 'SidebarSubagentDescendantEntry',
+    declaration: 'export type SidebarSubagentDescendantEntry = {\n    kind: \'child\';\n    id: string;\n    activity: \'running\' | \'inactive\';\n    hasChildren: boolean;\n    mode: \'one-shot\' | \'continuable\';\n    label?: string;\n    parentId: string;\n    depth: number;\n} | {\n    kind: \'diagnostic\';\n    id: string;\n    reason: \'corrupt\' | \'unsupported\' | \'unavailable\';\n    parentId: string;\n    depth: number;\n};',
+  },
+  {
+    name: 'SidebarSubagentDiagnosticEntry',
+    declaration: 'export interface SidebarSubagentDiagnosticEntry {\n    kind: \'diagnostic\';\n    id: string;\n    reason: \'corrupt\' | \'unsupported\' | \'unavailable\';\n}',
+  },
+  {
+    name: 'SidebarSubagentsService',
+    declaration: 'export interface SidebarSubagentsService {\n    listDescendants(rootSessionId: string, signal?: AbortSignal): Promise<SidebarSubagentDescendantEntry[]>;\n}',
+  },
+  {
+    name: 'SidebarTab',
+    declaration: 'export interface SidebarTab {\n    id: string;\n    type: TabType;\n    title: string;\n    path?: string;\n    diff?: SidebarDiffRef;\n    meta?: unknown;\n    pin?: {\n        scope: \'workspace\' | \'global\';\n        homeCwd?: string | undefined;\n    };\n}',
+  },
+  {
+    name: 'SidebarToolsService',
+    declaration: 'export interface SidebarToolsService {\n    register(tool: unknown): () => void;\n}',
+  },
+  {
+    name: 'SidebarUpgradeHead',
+    declaration: 'export type SidebarUpgradeHead = Uint8Array;',
+  },
+  {
+    name: 'SidebarUpgradeSocket',
+    declaration: 'export interface SidebarUpgradeSocket {\n    destroy(): void;\n}',
+  },
+  {
+    name: 'SidebarWebRoute',
+    declaration: 'export interface SidebarWebRoute {\n    kind: \'exact\' | \'prefix\';\n    path: string;\n    handler: (req: SidebarHttpRequest, res: SidebarHttpResponse) => void | Promise<void>;\n}',
+  },
+  {
+    name: 'SidebarWebRuntime',
+    declaration: 'export interface SidebarWebRuntime {\n    trustedHosts: readonly string[];\n}',
+  },
+  {
+    name: 'SidebarWebServer',
+    declaration: 'export interface SidebarWebServer {\n    register(route: SidebarWebRoute): () => void;\n    registerUpgrade(route: SidebarWebUpgradeRoute): () => void;\n}',
+  },
+  {
+    name: 'SidebarWebUpgradeRoute',
+    declaration: 'export interface SidebarWebUpgradeRoute {\n    path: string;\n    handler: (req: SidebarHttpRequest, socket: SidebarUpgradeSocket, head: SidebarUpgradeHead) => void | Promise<void>;\n}',
+  },
+  {
+    name: 'SidebarWorkspacesService',
+    declaration: 'export interface SidebarWorkspacesService {\n    openPath(path: string): Promise<void>;\n}',
+  },
+  {
     name: 'SkillCandidate',
     declaration: 'export interface SkillCandidate extends SkillSummary {\n    readonly rank: number;\n    readonly locator: unknown;\n    readonly path?: string;\n    readonly metadata?: Readonly<Record<string, unknown>>;\n}',
   },
@@ -5405,6 +6526,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SpillSource',
     declaration: 'export interface SpillSource {\n    toolName: string;\n    callId: ToolCallId;\n    label: string;\n}',
+  },
+  {
+    name: 'SplitNode',
+    declaration: 'export type SplitNode = SidebarLeaf | SidebarSplit;',
+  },
+  {
+    name: 'StageExecuteInput',
+    declaration: 'export type StageExecuteInput = {\n    state: PipelineState;\n    provider?: StageProvider;\n    signal?: AbortSignal;\n};',
+  },
+  {
+    name: 'StageExecutor',
+    declaration: 'export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>;',
+  },
+  {
+    name: 'StageHandler',
+    declaration: 'export interface StageHandler {\n    name: string;\n    category: AtomCategory;\n    execute(input: StageExecuteInput): Promise<PipelineState>;\n}',
+  },
+  {
+    name: 'StageHandlerRegistry',
+    declaration: 'export class StageHandlerRegistry {\n    register(handler: StageHandler): void;\n    lookup(name: string): StageHandler | undefined;\n    list(): StageHandler[];\n}',
+  },
+  {
+    name: 'StageProvider',
+    declaration: 'export interface StageProvider {\n    caseId?: string;\n    callLLM?: (prompt: string, opts?: {\n        jsonSchema?: unknown;\n        temperature?: number;\n    }, signal?: AbortSignal) => Promise<string>;\n    llm?: PatentModelPort;\n    search?: (query: string, opts?: {\n        maxResults?: number;\n    }) => Promise<StageSearchHit[]>;\n}',
+  },
+  {
+    name: 'StageSearchHit',
+    declaration: 'export interface StageSearchHit {\n    title: string;\n    snippet?: string;\n    url?: string;\n}',
   },
   {
     name: 'StorageBackend',
@@ -5583,12 +6732,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
   },
   {
+    name: 'TabComponentProps',
+    declaration: 'export interface TabComponentProps {\n    ctx: Context;\n    store: SidebarStore;\n    scope: SessionScope;\n    tab: SidebarTab;\n    visible: boolean;\n    expanded?: string[];\n    revealed?: string[];\n    onToggleDir?: (path: string) => void;\n    onReferenceFile?: (path: string) => void;\n    onOpenFile?: (path: string) => void;\n    onOpenDiff?: (tab: SidebarTab) => void;\n    onSubagentJump?: (childSessionId: string) => void;\n}',
+  },
+  {
+    name: 'TabDescriptor',
+    declaration: 'export interface TabDescriptor {\n    id: string;\n    title: string | (() => string);\n    icon?: ReactNode | ((size: number) => ReactNode);\n    order?: number;\n    hidden?: boolean;\n    available?: (ctx: Context, scope: SessionScope, state: SidebarState) => boolean;\n    single?: boolean;\n    dedupeKey?: (tab: SidebarTab) => string | undefined;\n    createTab?: (state: SidebarState) => {\n        tab: SidebarTab;\n        patch?: Partial<SidebarState>;\n    } | null;\n    urlTarget?: (url: URL) => boolean;\n    settings?: SidebarSettingsDeclaration;\n    badge?: (ctx: Context, scope: SessionScope, state: SidebarState) => string | number | null | undefined;\n    onOpen?: (tab: SidebarTab, scope: SessionScope) => void;\n    onActivate?: (tab: SidebarTab, scope: SessionScope) => void;\n    onClose?: (tab: SidebarTab, scope: SessionScope) => void;\n    component: (props: TabComponentProps) => ReactNode;\n}',
+  },
+  {
     name: 'TableKeyOf',
     declaration: 'export type TableKeyOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<infer K> ? K : never;',
   },
   {
     name: 'TableValueOf',
     declaration: 'export type TableValueOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<string, infer V> ? V : never;',
+  },
+  {
+    name: 'TabType',
+    declaration: 'export type TabType = string;',
   },
   {
     name: 'TeamId',
@@ -5713,6 +6874,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TerminalWaitReason',
     declaration: 'export type TerminalWaitReason = \'stdin_read\' | \'inferred_idle\' | \'timeout\' | \'session_exit\';',
+  },
+  {
+    name: 'TitleBarScheme',
+    declaration: 'export type TitleBarScheme = typeof TITLE_BAR_SCHEMES[number];',
   },
   {
     name: 'TokenMeasurement',
@@ -5955,6 +7120,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface UserMessage extends Message {\n    readonly role: \'user\';\n}',
   },
   {
+    name: 'ValidationScores',
+    declaration: 'export interface ValidationScores {\n    activatesWhenCorrect: number;\n    clarity: number;\n    noRegressionIntroduced: number;\n    safety: number;\n}',
+  },
+  {
     name: 'VerifiedWebhookDelivery',
     declaration: 'export interface VerifiedWebhookDelivery<K extends string = string> {\n    readonly kind: K;\n    readonly source: WebhookSourceId;\n    readonly deliveryId: WebhookDeliveryId;\n    readonly event: WebhookEventOf<K>;\n    readonly receivedAt: number;\n}',
   },
@@ -6067,6 +7236,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WebUpgradeRoute {\n    path: string;\n    handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>;\n}',
   },
   {
+    name: 'WikiCardMeta',
+    declaration: 'export type WikiCardMeta = {\n    id: string;\n    title: string;\n    relativePath: string;\n    concept?: string | undefined;\n    domain?: string | undefined;\n    quality?: number | undefined;\n    relatedConcepts?: string[] | undefined;\n};',
+  },
+  {
     name: 'WorkflowAgentEndInfo',
     declaration: 'export interface WorkflowAgentEndInfo extends WorkflowAgentInfo {\n    outcome: WorkflowAgentOutcome;\n}',
   },
@@ -6077,6 +7250,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkflowAgentOutcome',
     declaration: 'export type WorkflowAgentOutcome = \'completed\' | \'failed\' | \'cancelled\';',
+  },
+  {
+    name: 'WorkflowContext',
+    declaration: 'export type WorkflowContext = {\n    caseId?: string;\n    input?: string;\n    [key: string]: unknown;\n};',
+  },
+  {
+    name: 'WorkflowInterrupt',
+    declaration: 'export type WorkflowInterrupt = {\n    stageId: string;\n    message: string;\n    data: Record<string, unknown>;\n};',
+  },
+  {
+    name: 'WorkflowManifest',
+    declaration: 'export type WorkflowManifest = {\n    id: string;\n    name: string;\n    caseType: string;\n    stages: WorkflowStage[];\n    validation?: {\n        requireAllSteps?: boolean;\n        maxRetries?: number;\n    };\n};',
   },
   {
     name: 'WorkflowMeta',
@@ -6107,6 +7292,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WorkflowRunInfo {\n    id: WorkflowRunId;\n    meta: WorkflowMeta;\n}',
   },
   {
+    name: 'WorkflowRunOptions',
+    declaration: 'export type WorkflowRunOptions = {\n    handlers?: StageHandlerRegistry;\n    atoms?: AtomRegistry;\n    provider?: StageProvider;\n    approvalGrants?: string[];\n    persist?: WorkflowRunStore;\n    runId?: string;\n    maxParallelStages?: number;\n    signal?: AbortSignal;\n};',
+  },
+  {
+    name: 'WorkflowRunResult',
+    declaration: 'export type WorkflowRunResult = {\n    manifestId: string;\n    caseType: string;\n    completed: boolean;\n    stages: WorkflowStageResult[];\n    degradedSteps: string[];\n    summary: string;\n    interrupted?: WorkflowInterrupt;\n    persistWarning?: string;\n};',
+  },
+  {
+    name: 'WorkflowRunStore',
+    declaration: 'export interface WorkflowRunStore {\n    saveRun(result: WorkflowRunResult, runId?: string): Promise<void>;\n    loadRun(runId: string): Promise<WorkflowRunResult | undefined>;\n    listRuns(): Promise<string[]>;\n}',
+  },
+  {
+    name: 'WorkflowStage',
+    declaration: 'export type WorkflowStage = {\n    id: string;\n    strategy: WorkflowStrategy;\n    description: string;\n    atom?: string;\n    params?: Record<string, unknown>;\n    retry?: {\n        whenOutputMatches: string;\n        rewindTo?: string;\n        maxRetries?: number;\n    };\n};',
+  },
+  {
+    name: 'WorkflowStageResult',
+    declaration: 'export type WorkflowStageResult = {\n    stageId: string;\n    strategy: WorkflowStrategy;\n    output: string;\n    degraded: boolean;\n    retries: number;\n    atom?: string;\n};',
+  },
+  {
     name: 'WorkflowStartRequest',
     declaration: 'export interface WorkflowStartRequest {\n    script: string;\n    meta: WorkflowMeta;\n    args?: unknown;\n    subagentProvider?: string;\n    maxTotalAgents?: number;\n    parent: Agent;\n    signal?: AbortSignal;\n}',
   },
@@ -6115,8 +7320,8 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type WorkflowStopReason = \'completed\' | \'cancelled\' | \'error\';',
   },
   {
-    name: 'Workspace',
-    declaration: 'export interface Workspace {\n    readonly id: WorkspaceId;\n    readonly path: string;\n    readonly title: string;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n    readonly sessionIds: readonly SessionId[];\n    setTitle(title: string): Promise<void>;\n    attachSession(sessionId: SessionId): Promise<void>;\n    insertSessionBefore(sessionId: SessionId, beforeSessionId?: SessionId): Promise<void>;\n    detachSession(sessionId: SessionId): Promise<void>;\n    status(): Promise<\'ok\' | \'missing-dir\'>;\n}',
+    name: 'WorkflowStrategy',
+    declaration: 'export type WorkflowStrategy = \'chain\' | \'react\' | \'sub_agent\';',
   },
   {
     name: 'WorkspaceArchiveSessionRequest',
@@ -6125,10 +7330,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceArchiveValue',
     declaration: 'export interface WorkspaceArchiveValue {\n    readonly archivedSessionIds: readonly SessionId[];\n}',
-  },
-  {
-    name: 'WorkspaceBaseline',
-    declaration: 'export interface WorkspaceBaseline {\n    readonly items: readonly WorkspaceView[];\n    readonly archivedSessionIds: readonly SessionId[];\n}',
   },
   {
     name: 'WorkspaceCreateRequest',

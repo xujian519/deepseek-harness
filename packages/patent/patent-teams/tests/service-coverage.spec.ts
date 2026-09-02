@@ -27,6 +27,7 @@ function fakeAgent(id: string, cwd: string): Agent {
     id: SessionId(id),
     createdAt: Date.now(),
     cwd,
+    isSeeded: false,
   })
   return {
     id: SessionId(id),
@@ -43,7 +44,7 @@ interface Harness {
   workspace: string
   stateDir: string
   agents: Map<string, Agent>
-  followup: ReturnType<typeof vi.fn>
+  sendMessage: ReturnType<typeof vi.fn>
 }
 
 async function makeService(options: {
@@ -57,11 +58,10 @@ async function makeService(options: {
   const stateDir = '.patent-teams'
   const workspace = await tmpWorkspace()
   const agents = new Map<string, Agent>()
-  const followup = vi.fn(async () => 'msg')
+  const sendMessage = vi.fn(async () => 'msg')
   ctx.provide('agents', { get: (id: string) => agents.get(id) } as never)
   ctx.provide('llm', { resolveCallConfig: async (config: unknown) => config } as never)
   ctx.provide('subagents', {
-    registerContinuableSetup: () => () => {},
     getProvider: () => ({
       name: 'spawn',
       capabilities: { persona: true, toolFilter: true },
@@ -74,7 +74,7 @@ async function makeService(options: {
       let seq = 0
       return async () => ({ childId: SessionId(`member-${++seq}`), messageId: 'msg' })
     })(),
-    followup,
+    sendMessage,
     interrupt: () => {},
     listChildren: async () => [],
     listDescendants: async () => [],
@@ -88,7 +88,7 @@ async function makeService(options: {
     qualityGate: options.qualityGate ?? false,
     passThreshold: options.passThreshold ?? 0.7,
   })
-  return { ctx, workspace, stateDir, agents, followup }
+  return { ctx, workspace, stateDir, agents, sendMessage }
 }
 
 
@@ -187,7 +187,7 @@ describe('coverage completion', () => {
     // The captain is live but the follow-up fails: the delivery constructs the
     // member-sender prefix and then falls back to the durable mailbox.
     h.agents.set('captain-1', captain)
-    h.followup.mockImplementation(() => { throw new Error('offline') })
+    h.sendMessage.mockImplementation(() => { throw new Error('offline') })
     const sent = await h.ctx.patentTeams.sendMessage(
       alice,
       { to: 'bob', content: 'ping' },

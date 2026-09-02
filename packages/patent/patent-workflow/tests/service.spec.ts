@@ -38,13 +38,13 @@ describe('PatentWorkflow service', () => {
       expect(result.approvalOutcome).toBe('allowed-once')
       expect(result.tasks).toHaveLength(2)
 
-      const states = agent.session.events
+      const states = agent.session.snapshotEvents()
         .filter(e => e.type === 'patent/plantask')
         .map(e => e.data.state)
       expect(states).toEqual(['awaiting_approval', 'executing'])
 
-      expect(agent.session.events.some(e => e.type === 'approval/asked')).toBe(true)
-      expect(agent.session.events.some(e => e.type === 'approval/decided')).toBe(true)
+      expect(agent.session.snapshotEvents().some(e => e.type === 'approval/asked')).toBe(true)
+      expect(agent.session.snapshotEvents().some(e => e.type === 'approval/decided')).toBe(true)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -60,7 +60,7 @@ describe('PatentWorkflow service', () => {
 
       expect(result.state).toBe('replanning')
       expect(result.approvalOutcome).toBe('unavailable')
-      const states = agent.session.events
+      const states = agent.session.snapshotEvents()
         .filter(e => e.type === 'patent/plantask')
         .map(e => e.data.state)
       expect(states).toEqual(['awaiting_approval', 'replanning'])
@@ -94,7 +94,7 @@ describe('PatentWorkflow service', () => {
       const result = await ctx.patentWorkflow.runWorkflow(patentNoveltyManifest, { input: '一种装置' }, okExecutor, { approvalGrants: ['approval'] }, agent)
 
       expect(result.completed).toBe(true)
-      const events = agent.session.events.filter(e => e.type === 'patent/workflow-run')
+      const events = agent.session.snapshotEvents().filter(e => e.type === 'patent/workflow-run')
       expect(events).toHaveLength(1)
       expect(events[0]!.data.manifestId).toBe('patent_novelty_v1')
       expect(events[0]!.data.summary).toContain('专利新颖性分析')
@@ -118,7 +118,7 @@ describe('PatentWorkflow service', () => {
         { runId: 'run-42', approvalGrants: ['approval'] }, agent,
       )
       expect(withRunId.completed).toBe(true)
-      const events = agent.session.events.filter(e => e.type === 'patent/workflow-run')
+      const events = agent.session.snapshotEvents().filter(e => e.type === 'patent/workflow-run')
       expect(events).toHaveLength(1)
       expect(events[0]!.data.runId).toBe('run-42')
     } finally {
@@ -149,7 +149,7 @@ describe('PatentWorkflow service', () => {
       expect(result.approvalOutcome).toBe('unavailable')
       // 拒绝反馈未显式传入 → 结果不含 feedback 字段（驱动迁移的默认文案不进结果）。
       expect(result.feedback).toBeUndefined()
-      const states = agent.session.events
+      const states = agent.session.snapshotEvents()
         .filter(e => e.type === 'patent/plantask')
         .map(e => e.data.state)
       expect(states).toEqual(['awaiting_approval', 'replanning'])

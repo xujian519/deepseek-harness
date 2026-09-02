@@ -50,7 +50,14 @@ function makeResponse(): {
 }
 
 function sessionStub(id: string, events: unknown[], header: Record<string, unknown> = {}): Record<string, unknown> {
-  return { id, header: { version: 0, id, createdAt: 0, ...header }, firstLiveSeq: 0, events, seq: events.length }
+  return {
+    id,
+    header: { version: 0, id, createdAt: 0, ...header },
+    firstLiveSeq: 0,
+    events,
+    seq: events.length,
+    snapshotEvents: () => events,
+  }
 }
 
 function boot(

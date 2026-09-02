@@ -221,7 +221,7 @@ describe('self-evolve invariant payload validation', () => {
     session.append('turn/start', { turn: 1 })
     // A non-self-evolve event neither stages nor fails the invariant.
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('self-evolve event published without pre-commit validation'))
-    const turnStart = session.events.find(event => event.type === 'turn/start')
+    const turnStart = session.snapshotEvents().find(event => event.type === 'turn/start')
     expect(() => {
       ctx.emit('internal/dispatch', 'emit', 'session/event', [session, turnStart], undefined)
     }).not.toThrow()
@@ -235,7 +235,7 @@ describe('self-evolve invariant payload validation', () => {
     // the closing end event already sealed the bracket during seed, so the
     // re-emitted start event validates cleanly against the empty trace.
     expect(() => {
-      ctx.emit('internal/dispatch', 'emit', 'session/event', [raw, raw.events[0]!], undefined)
+      ctx.emit('internal/dispatch', 'emit', 'session/event', [raw, raw.snapshotEvents()[0]!], undefined)
     }).not.toThrow()
   })
 })

@@ -32,6 +32,7 @@ function fakeAgent(id: string, cwd: string, overrides: Partial<Agent> = {}): Age
     id: SessionId(id),
     createdAt: Date.now(),
     cwd,
+    isSeeded: false,
   })
   return {
     id: SessionId(id),
@@ -49,7 +50,7 @@ interface Harness {
   workspace: string
   stateDir: string
   agents: Map<string, Agent>
-  followup: ReturnType<typeof vi.fn>
+  sendMessage: ReturnType<typeof vi.fn>
   interrupted: string[]
   steered: unknown[]
   setFollowup(impl: (...args: never[]) => Promise<unknown>): void
@@ -68,8 +69,8 @@ async function makeService(options: {
   const interrupted: string[] = []
   let childSeq = 0
   const started: unknown[] = []
-  let followupImpl: (...args: never[]) => Promise<unknown> = async () => 'msg'
-  const followup = vi.fn((...args: never[]) => followupImpl(...args))
+  let sendMessageImpl: (...args: never[]) => Promise<unknown> = async () => 'msg'
+  const sendMessage = vi.fn((...args: never[]) => sendMessageImpl(...args))
   const provider = {
     name: 'spawn',
     capabilities: { persona: true, toolFilter: true },
@@ -80,14 +81,13 @@ async function makeService(options: {
   ctx.provide('agents', { get: (id: string) => agents.get(id) } as never)
   ctx.provide('llm', { resolveCallConfig: async (config: unknown) => config } as never)
   ctx.provide('subagents', {
-    registerContinuableSetup: () => () => {},
     getProvider: (name: string) => (name === 'spawn' ? provider : undefined),
     list: () => ['spawn'],
     startContinuable: async (spec: never) => {
       started.push(spec)
       return { childId: SessionId(`member-${++childSeq}`), messageId: 'msg' }
     },
-    followup,
+    sendMessage,
     interrupt: (id: string) => { interrupted.push(id) },
     listChildren: async () => [],
     listDescendants: async () => [],
@@ -105,11 +105,11 @@ async function makeService(options: {
     workspace,
     stateDir,
     agents,
-    followup,
+    sendMessage,
     interrupted,
     steered: [],
     setFollowup(impl) {
-      followupImpl = impl
+      sendMessageImpl = impl
     },
   }
 }
@@ -578,7 +578,7 @@ describe('sendMessage', () => {
     await addMember(h, captain, 'alice')
     const result = await h.ctx.patentTeams.sendMessage(captain, { to: 'alice', content: 'start' }, new AbortController().signal)
     expect(result.delivered).toBe('wake')
-    expect(h.followup).toHaveBeenCalled()
+    expect(h.sendMessage).toHaveBeenCalled()
     const unread = await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'alice')
     expect(unread).toHaveLength(0)
   })
@@ -707,6 +707,7 @@ describe('authorization and edge branches', () => {
         version: SESSION_FORMAT_VERSION,
         id: cwdless.id,
         createdAt: Date.now(),
+        isSeeded: false,
       }),
     }
     await expect(h.ctx.patentTeams.claimTask(noCwd, { task_id: 't1' }))

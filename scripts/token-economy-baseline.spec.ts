@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMessage } from '@deepseek-ai/dsh-llm'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { analyzeUsage, formatReport, loadBaseline, parseLog } from './token-economy-baseline.ts'
 
 const usage = (over: Partial<TokenUsage>): TokenUsage => ({
@@ -15,13 +15,13 @@ const resetSeq = (): void => { seq = 0 }
 const time = (): number => 1728000000000 + seq
 const chunk = (turn: number, step: number, u: TokenUsage): SessionEvent<'assistant/chunk'> => ({
   type: 'assistant/chunk',
-  seq: seq++,
+  seq: SessionSeq(seq++),
   time: time(),
   data: { turn, step, chunk: { type: 'usage', usage: u } },
 })
 const message = (turn: number, step: number, u: TokenUsage): SessionEvent<'assistant/message'> => ({
   type: 'assistant/message',
-  seq: seq++,
+  seq: SessionSeq(seq++),
   time: time(),
   data: {
     turn,
@@ -36,7 +36,7 @@ const message = (turn: number, step: number, u: TokenUsage): SessionEvent<'assis
 })
 const turnStart = (turn: number): SessionEvent<'turn/start'> => ({
   type: 'turn/start',
-  seq: seq++,
+  seq: SessionSeq(seq++),
   time: time(),
   data: { turn },
 })
@@ -123,7 +123,7 @@ describe('formatReport', () => {
   it('prints per-turn and total lines', () => {
     resetSeq()
     const baseline = analyzeUsage([turnStart(1), chunk(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))])
-    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 0, delegationDepth: 0 }, baseline)
+    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 0, delegationDepth: 0, isSeeded: false }, baseline)
     expect(report).toContain('Session s1')
     expect(report).toContain('Turn 1: hit 90.00%')
     expect(report).toContain('Total: hit 90.00%')

@@ -20,6 +20,7 @@ function session(id: string, events: unknown[], header: Record<string, unknown> 
     header: { version: 0, id, createdAt: 0, ...header },
     firstLiveSeq: 0,
     events,
+    snapshotEvents: () => events,
     seq: events.length,
   } as unknown as Session
 }
@@ -49,7 +50,7 @@ describe('WorkspaceStore', () => {
       { type: 'tool/result', seq: 3, time: 4, data: { turn: 1, step: 1, message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: 'ok' }] } } },
     ])
     await store.projectSession(parent)
-    await store.projectEvent(parent, (parent.events[2] as unknown as Parameters<WorkspaceStore['projectEvent']>[1]))
+    await store.projectEvent(parent, (parent.snapshotEvents()[2] as unknown as Parameters<WorkspaceStore['projectEvent']>[1]))
     const child = session('session-child', [], { parentSession: 'session-parent' })
     ;(child as unknown as { firstLiveSeq: number }).firstLiveSeq = 4
     await store.projectSession(child, child.firstLiveSeq)

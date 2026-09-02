@@ -288,7 +288,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'useProjection: UseProjection',
       'useTrajectory: UseTrajectory',
     ],
-    keyDomain: 'fixed by the owner\'s key table { [Kind in ChatNodeKind]: { node: ChatNode<Kind> } }, already taken: assistant-step, command, command-input, compaction, context, manual-compaction, model-retry, steering, system-prompt, tool-call, turn-error, turn-max-tokens, turn-process, turn-tail, unknown, user, workflow-run',
+    keyDomain: 'fixed by the owner\'s key table { [Kind in ChatNodeKind]: { node: ChatNode<Kind> } }, already taken: assistant-step, command, command-input, compaction, context, manual-compaction, model-retry, patent-teams, steering, system-prompt, tool-call, turn-error, turn-max-tokens, turn-process, turn-tail, unknown, user, workflow-run',
     hookContext: 'ConversationLocationDataStore<ConversationTurnDataMap> | undefined',
     slotInject: 'ChatNodeTurnDataInjected',
     declaredBy: 'an entry in \'conversation.view\' (client-ui-chat), so it exists while that entry is mounted',
@@ -308,6 +308,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-chat TurnTailNodeView key \'turn-tail\'',
       'client-ui-chat UnknownNodeView key \'unknown\'',
       'client-ui-goal GoalCommandInputView key \'command-input\'',
+      'client-ui-patent-teams TeamsCard key \'patent-teams\'',
       'client-ui-tool ToolCallTree key \'tool-call\'',
       'client-ui-workflow-run WorkflowRunPanel key \'workflow-run\'',
     ],
@@ -354,6 +355,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'conversation.chat.node\' (client-ui-chat), so it exists while that entry is mounted',
     occupants: [
+      'better-sidebar SidebarProducedFiles',
       'client-ui-deliverables ProducedFiles',
     ],
     replaceRisk: 'none',
@@ -419,9 +421,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ownerProps: [
       '/** Owner share of the resident composer bar. */\nexport interface ComposerBarOwnerProps {\n  /** Hero uses centered placement; composer uses the active bottom placement. */\n  variant: \'hero\' | \'composer\'\n  /** A feature-owned reason that makes message input inert while leaving model selection live. */\n  blocked?: { readonly reason: string }\n  /** Lock all message actions while preserving the resident composer surface. */\n  disabled?: boolean\n  /** Whether the shared Workspace picker is expanded. */\n  workspacePickerOpen?: boolean\n  /** Open the Workspace picker from the inert composer surface. */\n  onRequestWorkspace?: () => void\n  placeholder?: string\n  /** Optional content rendered above the composer surface. */\n  accessory?: ReactNode\n}',
     ],
-    ownerPropsReferences: [
-      'Workspace',
-    ],
+    ownerPropsReferences: [],
     standardProps: [
       'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
       'useSessions: UseSessions',
@@ -598,9 +598,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ownerProps: [
       '/** Owner share common to blank-session Workspace pickers. */\nexport interface EmptyWorkspaceOwnerProps {\n  open: boolean\n  anchorRef?: RefObject<HTMLElement>\n  /** Currently selected Workspace, when available. */\n  selectedId?: WorkspaceId | undefined\n  onPick: (workspaceId: WorkspaceId) => void\n  onClose: () => void\n}',
     ],
-    ownerPropsReferences: [
-      'Workspace',
-    ],
+    ownerPropsReferences: [],
     standardProps: [
       'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
       'useSessions: UseSessions',
@@ -1323,6 +1321,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'conversation.session\' (client-ui-conversation), so it exists while that entry is mounted',
     occupants: [
       'client-ui-chat ChatView id \'chat\'',
+      'client-ui-document-studio StudioView id \'document\'',
+      'client-ui-patent-teams TeamsView id \'teams\'',
       'client-ui-trajectory TrajectoryView id \'trajectory\'',
     ],
     replaceRisk: 'none',
@@ -1755,6 +1755,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'settings.section\' (client-ui-settings-plugins), so it exists while that entry is mounted',
     occupants: [
+      'client-ui-plugin-market PluginMarketTab id \'market\'',
       'client-ui-settings-plugin-inventory PluginInventorySettingsTab id \'all\'',
       'client-ui-settings-plugins ConfigurablePluginsTab id \'configurable\'',
     ],
@@ -1803,6 +1804,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'sidebar.settings\' (client-ui-settings-general), so it exists while that entry is mounted',
     occupants: [
+      'better-sidebar SideCardSection id \'better-sidebar\'',
       'client-ui-agent-preset AgentPresetSection id \'agent-presets\'',
       'client-ui-settings-general GeneralSection id \'general\'',
       'client-ui-settings-models ModelsSection id \'models\'',

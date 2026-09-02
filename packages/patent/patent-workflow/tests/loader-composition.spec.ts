@@ -91,7 +91,7 @@ describe('patent-workflow real Loader composition through cordis.yml', () => {
     const result = await ctx.patentWorkflow.runWorkflow(manifest, { text: '交底书' }, undefined, { provider }, agent)
 
     expect(result.completed).toBe(true)
-    const events = session.events.filter(e => e.type === 'patent/workflow-run')
+    const events = session.snapshotEvents().filter(e => e.type === 'patent/workflow-run')
     expect(events).toHaveLength(1)
     expect(events[0]!.data.manifestId).toBe('comp_test')
     expect(events[0]!.data.stages.some(s => s.stageId === 'extract' && !s.degraded)).toBe(true)

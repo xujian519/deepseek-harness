@@ -68,7 +68,6 @@ describe('apply', () => {
         return () => {}
       },
     } as never)
-    ctx.provide('subagents', { registerContinuableSetup: () => () => {} } as never)
     ctx.provide('llm', { resolveCallConfig: async (c: unknown) => c } as never)
     ctx.provide('agents', { get: () => undefined } as never)
     apply(ctx, Config(config))
@@ -114,7 +113,6 @@ describe('apply', () => {
     const sections: Array<{ name: string; order: number; text: string }> = []
     ctx.provide('tools', { register: () => () => {} } as never)
     ctx.provide('systemPrompt', { section: (section: { name: string; order: number; text: string }) => { sections.push(section); return () => {} } } as never)
-    ctx.provide('subagents', { registerContinuableSetup: () => () => {} } as never)
     ctx.provide('llm', { resolveCallConfig: async (c: unknown) => c } as never)
     ctx.provide('agents', { get: () => undefined } as never)
     // A raw partial config bypasses the schema defaults.

@@ -76,13 +76,13 @@ interface BranchInput {
 
 /** Fold a live Session into the minimal facts the canvas projection needs. */
 function threadSource(session: Session): ThreadSource {
-  const title = sessionTitle(session.events)
+  const title = sessionTitle(session.snapshotEvents())
   return {
     id: session.id,
     ...(title === null ? {} : { title }),
     ...(session.header.parentSession === undefined ? {} : { parentId: session.header.parentSession }),
     header: {
-      ...(session.header.seedLength === undefined ? {} : { seedLength: session.header.seedLength }),
+      ...(session.header.isSeeded ? { seedLength: session.inheritedEventCount } : {}),
       ...(session.header.parentSession === undefined ? {} : { parentSession: session.header.parentSession }),
     },
   }
@@ -336,7 +336,7 @@ export class WorkspaceStore {
    * @param workspaceTitleFallback Title for sessions without a cwd.
    * @returns The projected thread, or null when the session was archived. */
   async projectSession(session: Session, replayFrom = 0, workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
-    return this.projectPersisted(threadSource(session), sessionCwd(session), session.events, replayFrom, workspaceTitleFallback)
+    return this.projectPersisted(threadSource(session), sessionCwd(session), session.snapshotEvents(), replayFrom, workspaceTitleFallback)
   }
 
   /** Replay a persisted session log (cold restore or a live snapshot).

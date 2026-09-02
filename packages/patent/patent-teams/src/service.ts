@@ -46,13 +46,11 @@ import {
 } from './state.ts'
 import {
   deliverToMember,
-  installMemberSelectionRuntime,
   interruptMember,
   memberActivity,
   resolveMemberLlmSelection,
   spawnMember,
   type MemberRuntimeConfig,
-  type MemberSelectionRuntime,
 } from './members.ts'
 import { TERMINAL_TASK_STATUSES, type TaskContractValidation, type TaskGateFeedback, type TeamMember, type TeamState, type TeamTask } from './types.ts'
 import { installTeamScheduler, type TeamScheduler } from './scheduler.ts'
@@ -200,12 +198,10 @@ function steerCaptainReport(captain: Pick<Agent, 'steer'>, from: string, content
 export class PatentTeamsService extends Service {
   private readonly config: PatentTeamsConfig
   private readonly scheduler: TeamScheduler
-  private readonly memberSelections: MemberSelectionRuntime
 
   constructor(ctx: Context, config: PatentTeamsConfig) {
     super(ctx, 'patentTeams')
     this.config = config
-    this.memberSelections = installMemberSelectionRuntime(ctx, config.stateDir)
     this.scheduler = installTeamScheduler(ctx, { stateDir: config.stateDir })
   }
 
@@ -374,7 +370,6 @@ export class PatentTeamsService extends Service {
       await spawnMember(
         this.ctx,
         memberRuntime(this.config),
-        this.memberSelections,
         selection,
         agent,
         fresh,

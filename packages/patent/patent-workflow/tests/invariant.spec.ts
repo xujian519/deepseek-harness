@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
-import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { Session, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 import * as Inv from '@deepseek-ai/dsh-patent-workflow/invariant'
 
 /** 合法 plantask 载荷（每条断言基于该基线作单字段变异）。 */
@@ -52,7 +52,7 @@ describe('patent-workflow invariant companion', () => {
       const session = ctx.sessions.create()
       session.append('patent/plantask', plantask() as never)
       session.append('patent/workflow-run', workflowRun() as never)
-      expect(session.events).toHaveLength(2)
+      expect(session.snapshotEvents()).toHaveLength(2)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -90,7 +90,7 @@ describe('patent-workflow invariant companion', () => {
       const session = ctx.sessions.create()
       session.append('patent/plantask', { caseId: 'case-1', state: 'finished' } as never)
       session.append('patent/plantask', { caseId: 'case-2', state: 'awaiting_feedback' } as never)
-      expect(session.events).toHaveLength(2)
+      expect(session.snapshotEvents()).toHaveLength(2)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -121,7 +121,7 @@ describe('patent-workflow invariant companion', () => {
       const session = ctx.sessions.create()
       session.append('turn/start', { turn: 1 })
       session.append('turn/start', { turn: 2 })
-      expect(session.events).toHaveLength(2)
+      expect(session.snapshotEvents()).toHaveLength(2)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -133,9 +133,9 @@ describe('patent-workflow invariant companion', () => {
     await ctx.plugin(SessionStore)
     try {
       const session = ctx.sessions.create(SessionId('seeded'), {
-        seed: [{ type: 'patent/plantask', seq: 0, time: 0, data: plantask({ state: 'bogus' }) as never }],
+        seed: [{ type: 'patent/plantask', seq: SessionSeq(0), time: 0, data: plantask({ state: 'bogus' }) as never }],
       })
-      expect(session.events[0]!.type).toBe('patent/plantask')
+      expect(session.snapshotEvents()[0]!.type).toBe('patent/plantask')
       await expect(ctx.plugin(Inv)).rejects.toThrow(/state is not a known PlanTaskState/)
     } finally {
       await ctx.fiber.dispose()
@@ -148,7 +148,7 @@ describe('patent-workflow invariant companion', () => {
     await ctx.plugin(SessionStore)
     try {
       ctx.sessions.create(SessionId('seeded-run'), {
-        seed: [{ type: 'patent/workflow-run', seq: 0, time: 0, data: workflowRun({ completed: 'yes' }) as never }],
+        seed: [{ type: 'patent/workflow-run', seq: SessionSeq(0), time: 0, data: workflowRun({ completed: 'yes' }) as never }],
       })
       await expect(ctx.plugin(Inv)).rejects.toThrow(/completed must be a boolean/)
     } finally {
@@ -163,8 +163,8 @@ describe('patent-workflow invariant companion', () => {
     try {
       ctx.sessions.create(SessionId('clean'), {
         seed: [
-          { type: 'patent/plantask', seq: 0, time: 0, data: plantask() as never },
-          { type: 'patent/workflow-run', seq: 1, time: 0, data: workflowRun() as never },
+          { type: 'patent/plantask', seq: SessionSeq(0), time: 0, data: plantask() as never },
+          { type: 'patent/workflow-run', seq: SessionSeq(1), time: 0, data: workflowRun() as never },
         ],
       })
       await ctx.plugin(Inv)
@@ -179,7 +179,7 @@ describe('patent-workflow invariant companion', () => {
     try {
       const loose = Session.create(SessionId('loose'))
       loose.append('patent/plantask', { caseId: 7, state: 'bogus' } as never)
-      expect(loose.events).toHaveLength(1)
+      expect(loose.snapshotEvents()).toHaveLength(1)
     } finally {
       await ctx.fiber.dispose()
     }

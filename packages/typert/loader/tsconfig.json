@@ -21,6 +21,9 @@
       "path": "../../../vendor/schemastery"
     },
     {
+      "path": "../../util/value"
+    },
+    {
       "path": "../registry"
     }
   ]
