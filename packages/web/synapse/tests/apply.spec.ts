@@ -2,7 +2,7 @@
  * Plugin apply contract: route registration, the /synapse/api handlers over a
  * real WorkspaceStore, the Host check, and live-session projection wiring.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -160,23 +160,28 @@ describe('host apply', () => {
     ])
     const { ctx, routes } = boot({}, [live])
     const api = route(routes, 'prefix', '/synapse/api')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const list = makeResponse()
-    await api.handler(makeRequest('GET', '/synapse/api/workspaces'), list.res)
-    const workspaces = (list.json() as { workspaces: { kind: string; threadCount: number }[] }).workspaces
-    expect(workspaces.find(w => w.kind === 'dsh')?.threadCount).toBe(1)
+    // The baseline projection is fire-and-forget: poll the API until the
+    // projected workspace appears instead of assuming a settle window.
+    let ws: { kind: string; threadCount: number; id: string } | undefined
+    await vi.waitFor(async () => {
+      const list = makeResponse()
+      await api.handler(makeRequest('GET', '/synapse/api/workspaces'), list.res)
+      const workspaces = (list.json() as { workspaces: { kind: string; threadCount: number }[] }).workspaces
+      ws = workspaces.find(w => w.kind === 'dsh') as typeof ws
+      expect(ws?.threadCount).toBe(1)
+    }, { timeout: 5_000, interval: 20 })
 
     const later = sessionStub('s-live', [
       { type: 'user/message', seq: 0, time: 1, data: { content: [{ type: 'text', text: '看看目录' }] } },
       { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '回话' }] } } },
     ])
     ctx.emit('session/event', later as never, { type: 'assistant/message', seq: 1, time: 2, data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: '回话' }] } } } as never)
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const detail = makeResponse()
-    const ws = workspaces.find(w => w.kind === 'dsh') as { kind: string; threadCount: number; id: string } | undefined
-    await api.handler(makeRequest('GET', `/synapse/api/workspaces/${ws?.id ?? ''}`), detail.res)
-    const messages = (detail.json() as { workspace: { threads: { messages: unknown[] }[] } }).workspace.threads[0]?.messages ?? []
-    expect(messages.some(m => (m as { kind: string }).kind === 'assistant')).toBe(true)
+    await vi.waitFor(async () => {
+      const detail = makeResponse()
+      await api.handler(makeRequest('GET', `/synapse/api/workspaces/${ws!.id}`), detail.res)
+      const messages = (detail.json() as { workspace: { threads: { messages: unknown[] }[] } }).workspace.threads[0]?.messages ?? []
+      expect(messages.some(m => (m as { kind: string }).kind === 'assistant')).toBe(true)
+    }, { timeout: 5_000, interval: 20 })
     expect(WorkspaceStore).toBeDefined()
   })
 
@@ -191,12 +196,15 @@ describe('host apply', () => {
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const list = makeResponse()
-    await api.handler(makeRequest('GET', '/synapse/api/workspaces'), list.res)
-    const summaries = (list.json() as { workspaces: { kind: string; threadCount: number }[] }).workspaces
-    const ws = summaries.find(w => w.kind === 'dsh') as { id: string } | undefined
-    expect(ws).toBeDefined()
+    // Same fire-and-forget baseline: poll until the cold session is projected.
+    let ws: { id: string } | undefined
+    await vi.waitFor(async () => {
+      const list = makeResponse()
+      await api.handler(makeRequest('GET', '/synapse/api/workspaces'), list.res)
+      const summaries = (list.json() as { workspaces: { kind: string; threadCount: number }[] }).workspaces
+      ws = summaries.find(w => w.kind === 'dsh') as { id: string } | undefined
+      expect(ws).toBeDefined()
+    }, { timeout: 5_000, interval: 20 })
     const detail = makeResponse()
     await api.handler(makeRequest('GET', '/synapse/api/workspaces/' + (ws?.id ?? '')), detail.res)
     const messages = (detail.json() as { workspace: { threads: { messages: { kind: string }[] }[] } }).workspace.threads[0]?.messages ?? []
