@@ -1,0 +1,11 @@
+filter=All,demo,planning
+---
+Pending1
+card=Fixture 历史会话
+---
+In Progress2
+card=Fixture 历史会话
+card=Fixture 历史会话
+---
+Completed1
+card=Fixture 历史会话

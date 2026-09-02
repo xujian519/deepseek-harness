@@ -816,11 +816,12 @@ function buildAlphaLog(): SessionEvent[] {
   // todo/write snapshot event feeding the TodoPanel plan strip. Two items are
   // in_progress: this fixture chooses the parallel policy, so both surfaces
   // must render a parallel plan rather than the first active item alone.
+  // A tagged/untagged mix exercises the board's tag chips and filter bar.
   const fixtureTodos = [
-    { content: '梳理需求', status: 'completed' },
-    { content: '实现 fixture 样本', status: 'in_progress' },
+    { content: '梳理需求', status: 'completed', tags: ['planning'] },
+    { content: '实现 fixture 样本', status: 'in_progress', tags: ['demo'] },
     { content: '跑后台构建', status: 'in_progress' },
-    { content: '浏览器验收', status: 'pending' },
+    { content: '浏览器验收', status: 'pending', tags: ['demo'] },
   ]
   // Turn 66: the terminal sample turn 60's two clean prompt rows cannot cover —
   // ANSI SGR coloring, output past the terminal card's height cap, a nested cwd
@@ -1266,6 +1267,8 @@ function projectionValuesOf(log: readonly SessionEvent[]): Record<string, unknow
   }
   // Always present (tool-todo unit composed): null when no plan stands.
   values['todos'] = backscanTodos(log) ?? null
+  // Always present (tool-todo board unit composed): whole-log last-wins, never cleared.
+  values['todosLatest'] = backscanTodos(log) ?? null
   // Always present (permission service composed): the whole select.
   values['permissions'] = permissionSelectOf(log)
   // Always present (plan-mode unit composed): the {active, pending} view.
@@ -1395,14 +1398,21 @@ function projectionFramesOf(
     return [{ type: 'projection', sessionId: id, key: 'goal', value: backscanGoal(log), seq: event.seq }]
   }
   // Standing-plan fold: writes replace the list; turn/start clears it (null).
+  // The board fold shares the write frame (both keys change on todo/write);
+  // turn/start changes only the standing plan, so only that key re-fires.
   if (type === 'todo/write' || type === 'turn/start') {
-    return [{
+    const latest = backscanTodos(log) ?? null
+    const frames: { type: 'projection'; sessionId: SessionId; key: string; value: TodoItem[] | null; seq: number }[] = [{
       type: 'projection',
       sessionId: id,
       key: 'todos',
-      value: backscanTodos(log) ?? null,
+      value: type === 'todo/write' ? latest : null,
       seq: event.seq,
     }]
+    if (type === 'todo/write') {
+      frames.push({ type: 'projection', sessionId: id, key: 'todosLatest', value: latest, seq: event.seq })
+    }
+    return frames
   }
   // Knob fold: any of the three whole-value knob events advances the select.
   if (type === 'permission/preset' || type === 'sandbox/mode' || type === 'approval/policy') {

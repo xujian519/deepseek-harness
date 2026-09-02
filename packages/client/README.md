@@ -50,6 +50,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-workflow-run/`](ui-workflow-run/README.md) | Replays durable workflow runs as nested chat disclosures | — |
 | [`ui-goal/`](ui-goal/README.md) | Presents and manages the current goal | — |
 | [`ui-trajectory/`](ui-trajectory/README.md) | Presents alternate views of agent activity | — |
+| [`ui-todo-board/`](ui-todo-board/README.md) | Presents the cross-session todo board as a conversation view tab, with model-authored tag filtering | — |
 | [`ui-commands/`](ui-commands/README.md) | Provides session-aware command discovery and dispatch | — |
 | [`ui-input-trigger/`](ui-input-trigger/README.md) | Coordinates inline command and reference suggestions | — |
 | [`ui-skill/`](ui-skill/README.md) | Adds skill references to inline suggestions | — |

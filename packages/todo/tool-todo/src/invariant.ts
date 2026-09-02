@@ -26,7 +26,7 @@ function validateTodos(value: unknown, fail: InvariantFailure): void {
   const seen = new Set<string>()
   for (const item of value) {
     if (typeof item !== 'object' || item === null) fail('todo/write entries must be objects')
-    const { content, status } = item as Record<string, unknown>
+    const { content, status, tags } = item as Record<string, unknown>
     if (typeof content !== 'string' || content.length === 0 || content.trim() !== content) {
       fail('todo/write content must be non-empty and already trimmed')
     }
@@ -35,6 +35,26 @@ function validateTodos(value: unknown, fail: InvariantFailure): void {
     if (typeof status !== 'string' || !TODO_STATUSES.has(status)) {
       fail(`todo/write carries unknown status ${JSON.stringify(status)}`)
     }
+    validateTags(tags, fail)
+  }
+}
+
+/**
+ * Validate one item's optional tags against the durable contract: present
+ * means a non-empty array of non-empty already-trimmed strings, unique per
+ * item. Absence and empty arrays are the same untagged state, mirroring the
+ * tool's normalization.
+ */
+function validateTags(value: unknown, fail: InvariantFailure): void {
+  if (value === undefined) return
+  if (!Array.isArray(value) || value.length === 0) fail('todo/write tags must be a non-empty array when present')
+  const seen = new Set<string>()
+  for (const tag of value) {
+    if (typeof tag !== 'string' || tag.length === 0 || tag.trim() !== tag) {
+      fail('todo/write tags must be non-empty and already trimmed')
+    }
+    if (seen.has(tag)) fail(`todo/write repeats tag ${JSON.stringify(tag)}`)
+    seen.add(tag)
   }
 }
 

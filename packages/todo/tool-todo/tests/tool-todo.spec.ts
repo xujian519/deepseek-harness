@@ -53,17 +53,21 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 }
 
 describe('dsh-tool-todo', () => {
-  it('registers a `todo_write` tool whose schema is an array of {content,status}', async () => {
+  it('registers a `todo_write` tool whose schema is an array of {content,status,tags?}', async () => {
     const ctx = await setup(true)
     const schema = ctx.tools.schemas().find(s => s.name === 'todo_write')
     expect(schema).toBeDefined()
     const props = (schema!.parameters as { properties?: Record<string, unknown> }).properties ?? {}
     expect(Object.keys(props)).toEqual(['todos'])
-    const todos = props.todos as { type: string; items?: { properties?: Record<string, { type: string; enum?: string[] }> } }
+    const todos = props.todos as {
+      type: string
+      items?: { properties?: Record<string, { type: string; enum?: string[]; required?: boolean }> }
+    }
     expect(todos.type).toBe('array')
     const itemProps = todos.items?.properties ?? {}
-    expect(Object.keys(itemProps).sort()).toEqual(['content', 'status'])
+    expect(Object.keys(itemProps).sort()).toEqual(['content', 'status', 'tags'])
     expect(itemProps.status?.enum).toEqual(['pending', 'in_progress', 'completed'])
+    expect(itemProps.tags?.required).toBeUndefined()
   })
 
   it('appends a todo/write event carrying the whole list to the calling session', async () => {
@@ -94,6 +98,48 @@ describe('dsh-tool-todo', () => {
 
     const event = agent.session.snapshotEvents().findLast(e => e.type === 'todo/write')!
     expect(event.data.todos).toEqual([{ content: 'plan the work', status: 'pending' }])
+  })
+
+  it('stores trimmed unique tags and echoes them, and drops an empty tags array', async () => {
+    const ctx = await setup(true)
+    const agent = agentWithSession('tags')
+    const result = await callTodo(ctx, { todos: [
+      { content: 'write docs', status: 'pending', tags: ['  docs  ', 'release'] },
+      { content: 'take a break', status: 'pending', tags: [] },
+    ] }, { agent })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected todo_write success')
+    // The registry validates the echo against the declared output schema
+    // (additionalProperties: false at every level), so this success also pins
+    // the output schema's optional tags declaration.
+    expect(result.value).toEqual({
+      todos: [
+        { content: 'write docs', status: 'pending', tags: ['docs', 'release'] },
+        { content: 'take a break', status: 'pending' },
+      ],
+      counts: { pending: 2, inProgress: 0, completed: 0 },
+    })
+
+    const event = agent.session.snapshotEvents().findLast(e => e.type === 'todo/write')!
+    expect(event.data.todos).toEqual([
+      { content: 'write docs', status: 'pending', tags: ['docs', 'release'] },
+      { content: 'take a break', status: 'pending' },
+    ])
+  })
+
+  it('rejects empty and duplicate tags per item', async () => {
+    const ctx = await setup(true)
+    const agent = agentWithSession('tags-invalid')
+    const blank = await callTodo(ctx, { todos: [{ content: 'x', status: 'pending', tags: ['  '] }] }, { agent })
+    expect(blank.isError).toBe(true)
+    expect(text(blank)).toContain('`tags` entries must be non-empty')
+
+    const duplicate = await callTodo(ctx, { todos: [{ content: 'y', status: 'pending', tags: ['docs', 'docs'] }] }, { agent })
+    expect(duplicate.isError).toBe(true)
+    expect(text(duplicate)).toContain('duplicate tag')
+
+    // A rejected call must not reach the durable log.
+    expect(agent.session.snapshotEvents().some(e => e.type === 'todo/write')).toBe(false)
   })
 
   it('replaces the list on a second call (last-write-wins on the log)', async () => {

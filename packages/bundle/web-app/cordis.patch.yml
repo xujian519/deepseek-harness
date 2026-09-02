@@ -345,6 +345,11 @@
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
 
+    # Cross-session todo board: a view-ring tab over the todosLatest
+    # projection column, scoped to the current session's workspace.
+    - id: ui-todo-board
+      name: '@deepseek-ai/dsh-client-ui-todo-board'
+
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:

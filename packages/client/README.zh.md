@@ -50,6 +50,7 @@ kind: "package-group"
 | [`ui-workflow-run/`](ui-workflow-run/README.zh.md) | 把持久工作流运行回放为嵌套对话折叠项 | — |
 | [`ui-goal/`](ui-goal/README.zh.md) | 展示与管理当前目标 | — |
 | [`ui-trajectory/`](ui-trajectory/README.zh.md) | 提供 agent（智能体）活动的其他视图 | — |
+| [`ui-todo-board/`](ui-todo-board/README.zh.md) | 以会话视图 tab 的形式呈现跨会话任务看板，支持模型写入标签的筛选 | — |
 | [`ui-commands/`](ui-commands/README.zh.md) | 提供会话感知的命令发现与分发 | — |
 | [`ui-input-trigger/`](ui-input-trigger/README.zh.md) | 协调内联命令与引用建议 | — |
 | [`ui-skill/`](ui-skill/README.zh.md) | 向内联建议添加 skill（技能）引用 | — |

@@ -1175,7 +1175,7 @@ Source: [`packages/experimental/agent-team/src/types.ts:225`](../packages/experi
 
 Types: [TodoItem](subsystems/todo.md)
 
-Source: [`packages/todo/tool-todo/src/types.ts:31`](../packages/todo/tool-todo/src/types.ts)
+Source: [`packages/todo/tool-todo/src/types.ts:34`](../packages/todo/tool-todo/src/types.ts)
 
 ### `tool/*`
 

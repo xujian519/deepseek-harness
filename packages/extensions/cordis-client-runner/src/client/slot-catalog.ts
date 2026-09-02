@@ -1323,6 +1323,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-chat ChatView id \'chat\'',
       'client-ui-document-studio StudioView id \'document\'',
       'client-ui-patent-teams TeamsView id \'teams\'',
+      'client-ui-todo-board BoardView id \'board\'',
       'client-ui-trajectory TrajectoryView id \'trajectory\'',
     ],
     replaceRisk: 'none',

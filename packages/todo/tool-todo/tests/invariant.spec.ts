@@ -35,6 +35,16 @@ describe('todo snapshot invariants', () => {
     expect(() => { session.append('todo/write', { todos: [...todos] }) }).not.toThrow()
   })
 
+  it('accepts tagged snapshots and untagged-and-tagged mixes', async () => {
+    const ctx = await setup()
+    const session = ctx.sessions.create()
+    session.append('turn/start', { turn: 1 })
+    expect(() => { session.append('todo/write', { todos: [
+      { content: 'Write docs', status: 'pending', tags: ['docs'] },
+      { content: 'Take a break', status: 'pending' },
+    ] }) }).not.toThrow()
+  })
+
   it.each([
     ['not-an-array', /must be an array/],
     [[null], /entries must be objects/],
@@ -45,6 +55,11 @@ describe('todo snapshot invariants', () => {
     [[{ content: 'same', status: 'pending' }, { content: 'same', status: 'completed' }], /repeats content/],
     [[{ content: 'task', status: 42 }], /unknown status/],
     [[{ content: 'task', status: 'paused' }], /unknown status/],
+    [[{ content: 'task', status: 'pending', tags: 'docs' }], /tags must be a non-empty array/],
+    [[{ content: 'task', status: 'pending', tags: [] }], /tags must be a non-empty array/],
+    [[{ content: 'task', status: 'pending', tags: [42] }], /tags must be non-empty and already trimmed/],
+    [[{ content: 'task', status: 'pending', tags: [' padded '] }], /tags must be non-empty and already trimmed/],
+    [[{ content: 'task', status: 'pending', tags: ['docs', 'docs'] }], /repeats tag/],
   ])('rejects an incoherent durable todo snapshot', async (todos, message) => {
     const ctx = await setup()
     const session = ctx.sessions.create()
