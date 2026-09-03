@@ -63,7 +63,13 @@ function sessionStub(id: string, events: unknown[], header: Record<string, unkno
 function boot(
   config: Record<string, unknown>,
   sessions: Record<string, unknown>[],
-  persistence: { listSnapshots: () => Promise<unknown[]>; inspect: (id: string) => Promise<unknown> } = { listSnapshots: async () => [], inspect: async () => ({ meta: { id: '' }, events: [] }) },
+  persistence: {
+    list: () => Promise<unknown[]>
+    open: (id: string, access: string) => Promise<{ read: () => Promise<unknown[]>; close: () => Promise<void> }>
+  } = {
+    list: async () => [],
+    open: async () => ({ read: async () => [], close: async () => {} }),
+  },
 ): { ctx: Context; routes: WebRoute[] } {
   const ctx = new Context()
   const routes: WebRoute[] = []
@@ -191,8 +197,8 @@ describe('host apply', () => {
       { type: 'user/message', seq: 1, time: 2, data: { content: [{ type: 'text', text: '<system-reminder> workspace instructions' }], source: { kind: 'agent-instructions' } } },
     ]
     const persistence = {
-      listSnapshots: async () => [{ header: { id: 's-cold', cwd: '/tmp/cold', parentSession: undefined, seedLength: undefined }, revision: 'r1' }],
-      inspect: async () => ({ meta: { id: 's-cold', cwd: '/tmp/cold' }, events }),
+      list: async () => [{ header: { id: 's-cold', cwd: '/tmp/cold', parentSession: undefined, seedLength: undefined }, revision: 'r1' }],
+      open: async () => ({ read: async () => events, close: async () => {} }),
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')
@@ -221,8 +227,8 @@ describe('host apply', () => {
       { type: 'user/message', seq: 4, time: 5, data: { content: [{ type: 'text', text: '<system-reminder> busy' }], source: { kind: 'skill-catalog' } } },
     ]
     const persistence = {
-      listSnapshots: async () => [],
-      inspect: async () => ({ meta: { id: 's-hist', cwd: '/tmp/h' }, events }),
+      list: async () => [],
+      open: async () => ({ read: async () => events, close: async () => {} }),
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')
@@ -242,8 +248,8 @@ describe('host apply', () => {
       { type: 'assistant/message', seq: 3, time: 4, data: { turn: 3, step: 1, message: { content: [{ type: 'text', text: '答三' }] } } },
     ]
     const persistence = {
-      listSnapshots: async () => [],
-      inspect: async () => ({ meta: { id: 's-page', cwd: '/tmp/h' }, events }),
+      list: async () => [],
+      open: async () => ({ read: async () => events, close: async () => {} }),
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')
