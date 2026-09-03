@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。它以 `standard` preset 为基础，加入专利域插件、7 个预设内技能，以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。
+`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。它以 `standard` preset 为基础，加入专利域插件、12 个预设内技能，以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。法条/审查指南/判例核验优先走本机 cnlaw REST 法律底座（semantica-cnlaw，见「前置条件」），保留 source_path 溯源，不可用时回退 patent_case_search / patent_kg_query。
 
 ## 挂载内容
 
@@ -24,7 +24,7 @@
 
 ## 技能
 
-skills/ 下随附 8 个技能：
+skills/ 下随附 12 个技能：
 
 - patent-disclosure-understanding
 - patent-prior-art-search
@@ -34,6 +34,10 @@ skills/ 下随附 8 个技能：
 - patent-quality-gate
 - patent-workspace-layout
 - patent-team-composition
+- inventive-step-analysis
+- patent-matter
+- patent-fact-check
+- patent-compliance-review
 
 `patent-team-composition` 是持久团队组建模板：本会话已挂载 dsh-patent-teams 插件（patent_teams_* 工具），案件按覆盖专利全生命周期的七个场景角色包选择——立案包（案件管理员 / 检索员 / 技术专家 / 撰写员）、撰写包（检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理）、答复审查意见包（同撰写五角色）、补正包（撰写员 / 形式审查员）、复审包（检索员 / 撰写员 / 对立审查员 / 申请人代理 / 合议组）、无效宣告包（检索员 / 撰写员 / 技术专家 / 无效请求人 / 专利权人 / 合议组）、侵权诉讼包（检索员 / 撰写员 / 技术专家 / 专利权人 / 被告代理人 / 裁判，另可选技术调查官），由当前会话任 captain 统一调度；仅当插件被禁用时回退单会话 + subagent_fork 专家互评。复审、无效与诉讼包采用"立场配对 + 中立裁判"的对抗结构。
 
@@ -41,7 +45,7 @@ skills/ 下随附 8 个技能：
 
 ## 知识库策略
 
-按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文经 patent_case_search 加 web_fetch（挂载 fetch provider 时）核验权威来源。工作目录 `99-知识库/` 仍为项目级沉淀，用 fs-search / grep 先查本地再上网。
+按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文优先经本机 cnlaw REST（:8100 /search，source_path 溯源）核验权威来源，cnlaw 不可用时经 patent_case_search 加 web_fetch（挂载 fetch provider 时）核验。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
 
 这修订了 docs/patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
 
@@ -49,13 +53,15 @@ skills/ 下随附 8 个技能：
 
 知识工具需要 knowledge.db。用 patent-knowledge-install bin 安装，或将 Config.sourceDbPath 指向已有 knowledge.db；见 packages/patent/patent-knowledge/README.md。缺库时知识工具在执行期 fail-loud。
 
+cnlaw 法律底座为可选增强：本机运行 semantica-cnlaw 的 REST 服务（:8100 检索、:8001 图谱/案件 API）与 Neo4j（7687）时，法条/审查指南/判例核验走 cnlaw 并保留 source_path 溯源；未运行时纪律回退 patent_case_search / patent_kg_query（见 Known Limitations）。
+
 ## Model Experience
 
 模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、带强制免责声明的输出纪律）、专利计划模式段落、7 个预设内技能，以及专利工具加标准编码工具。人设要求先验证后引用（挂载时每个事实用 web_fetch）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
 
 ## Known Limitations and Deferred Work
 
-- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文经 patent_case_search 加 web_fetch（挂载 fetch provider 时）与 `99-知识库/` 基线核验。发货 profile 不挂 fetch provider（SSRF 防护延后），未添加前 web_fetch 会以 WEB_PROVIDER_UNAVAILABLE 失败。
+- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文优先经本机 cnlaw REST 核验（可选底座，见前置条件），cnlaw 不可用时经 patent_case_search 加 web_fetch（挂载 fetch provider 时）与 `99-知识库/` 基线核验。发货 profile 不挂 fetch provider（SSRF 防护延后），未添加前 web_fetch 会以 WEB_PROVIDER_UNAVAILABLE 失败。
 - patent_pdf_download 需要宿主机可用的 ego-browser（ego lite）：ego-browser CLI 必须安装并在 PATH 上（仅 macOS），否则工具以 setup 指引 fail-loud。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；法条原文在使用时核验。

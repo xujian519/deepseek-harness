@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, seven preset skills, and a patent-specific persona and plan-mode discipline, assembled per docs/patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md.
+The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, twelve preset skills, and a patent-specific persona and plan-mode discipline, assembled per docs/patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md. Law text, examination guidelines, and case decisions are verified preferentially against the local cnlaw REST legal base (semantica-cnlaw, see Prerequisites) with source_path provenance, falling back to patent_case_search / patent_kg_query when it is unavailable.
 
 ## What it mounts
 
@@ -24,7 +24,7 @@ The preset also mounts `@deepseek-ai/dsh-self-evolve-benchmark` behind its own i
 
 ## Skills
 
-Eight skills ship in skills/:
+Twelve skills ship in skills/:
 
 - patent-disclosure-understanding
 - patent-prior-art-search
@@ -34,6 +34,10 @@ Eight skills ship in skills/:
 - patent-quality-gate
 - patent-workspace-layout
 - patent-team-composition
+- inventive-step-analysis
+- patent-matter
+- patent-fact-check
+- patent-compliance-review
 
 `patent-team-composition` is the durable-team template: this session mounts the `dsh-patent-teams` plugin (`patent_teams_*` tools), so cases pick one of seven scenario role packs covering the full patent lifecycle — case intake (case-manager / researcher / technical-expert / drafter), drafting (researcher / drafter / adversarial-reviewer / technical-expert / applicant-counsel), office-action response (same five), correction (drafter / formal-examiner), reexamination (researcher / drafter / adversarial-reviewer / applicant-counsel / adjudicator), invalidation (researcher / drafter / technical-expert / invalidity-petitioner / patentee-defender / adjudicator), and infringement litigation (researcher / drafter / technical-expert / patentee-defender / defendant-counsel / adjudicator, plus optional tech-investigator) — led by the current session as captain; only when the plugin is disabled does it fall back to single-session `subagent_fork` expert review. The reexamination, invalidation, and litigation packs use the adversarial structure of paired positions plus a neutral adjudicator.
 
@@ -41,7 +45,7 @@ The novelty/inventiveness, infringement, and invalidity skills are rewritten fro
 
 ## Knowledge-base strategy
 
-Per plan P4.4, system knowledge reads dsh-patent-knowledge: case law, wiki cards, and the knowledge graph through patent_case_search / patent_wiki_search / patent_kg_query, with law text verified through patent_case_search plus web_fetch on authoritative sources when a fetch provider is mounted. The workspace `99-知识库/` directory stays project-level accumulation, recalled with fs-search / grep before going online.
+Per plan P4.4, system knowledge reads dsh-patent-knowledge: case law, wiki cards, and the knowledge graph through patent_case_search / patent_wiki_search / patent_kg_query, with law text verified preferentially against the local cnlaw REST base (:8100 /search, source_path provenance) and, when cnlaw is unavailable, through patent_case_search plus web_fetch on authoritative sources when a fetch provider is mounted. The workspace `99-知识库/` directory stays project-level accumulation, recalled with fs-search / grep before going online.
 
 This revises docs/patent-mode-design.md §9, which described a no-engine file library. `99-知识库/` remains project accumulation; the change is that system knowledge now has an engine.
 
@@ -49,13 +53,15 @@ This revises docs/patent-mode-design.md §9, which described a no-engine file li
 
 The knowledge tools require a knowledge.db. Install one with the patent-knowledge-install bin, or point Config.sourceDbPath at an existing knowledge.db; see packages/patent/patent-knowledge/README.md. Without a database the knowledge tools fail loud at execute time.
 
+The cnlaw legal base is an optional enhancement: when the local semantica-cnlaw REST services (:8100 search, :8001 graph/case API) and Neo4j (7687) run on the host, law text, examination guidelines, and case decisions are verified through cnlaw with source_path provenance; without them the discipline falls back to patent_case_search / patent_kg_query (see Known Limitations).
+
 ## Model Experience
 
 The model sees the Chinese patent-agent persona (professional identity, seven work disciplines, the standard workflow, and the output discipline with its mandatory disclaimer), the patent plan-mode section, the seven preset skills, and the patent tools plus the standard coding tools. The persona requires verify-before-cite (web_fetch on every fact when mounted), separate comparison, per-feature comparison with citations, and a mandatory disclaimer on every analysis output.
 
 ## Known Limitations and Deferred Work
 
-- Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified through patent_case_search plus web_fetch (when a fetch provider is mounted) and the `99-知识库/` baseline. Shipped profiles mount no fetch provider (SSRF protection is deferred), so web_fetch fails with WEB_PROVIDER_UNAVAILABLE until one is added.
+- Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified preferentially against the local cnlaw REST base (an optional deployment enhancement, see Prerequisites) and otherwise through patent_case_search plus web_fetch (when a fetch provider is mounted) and the `99-知识库/` baseline. Shipped profiles mount no fetch provider (SSRF protection is deferred), so web_fetch fails with WEB_PROVIDER_UNAVAILABLE until one is added.
 - patent_pdf_download requires a working ego-browser (ego lite) on the host: the ego-browser CLI must be installed and on the PATH (macOS only), or the tool fails loud with setup guidance. knowledge_note_save writes files under the workspace `99-知识库/` directory (a native knowledge.db write API is deferred).
 - The 4 rewritten analysis skills inherit Sati's methodology but have not yet been reviewed against current Chinese patent practice; cross-check their checklists against the user's patent-legal baseline before relying on them.
 - The design doc's `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` is a Sati user-level asset not shipped here; law text is verified at use time instead.
