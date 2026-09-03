@@ -33,9 +33,6 @@
       "path": "../../core/session"
     },
     {
-      "path": "../../session/session-persistence"
-    },
-    {
       "path": "../../llm/llm"
     },
     {

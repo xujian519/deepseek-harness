@@ -2,7 +2,7 @@
   // Host aggregate (one of the two check units; see tsconfig.json). packages/client
   // type-checks in tsconfig.client.json: the two sides merge cordis Context under
   // the same keys, one program cannot see both.
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.base.host.json",
   "compilerOptions": {
     "noEmit": true,
     "rewriteRelativeImportExtensions": false
@@ -128,6 +128,7 @@
     { "path": "./vendor/hmr" },
     { "path": "./vendor/logger-console" },
     { "path": "./packages/util/brand" },
+    { "path": "./packages/util/http-proxy" },
     { "path": "./packages/util/launch-environment" },
     { "path": "./packages/util/native-command" },
     { "path": "./packages/util/home-paths" },

@@ -15,7 +15,7 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 // Type-only import: activates the webServer Context merge (ctx.webServer) below.
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-session-persistence'
+import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import {
   UNSPECIFIED_CWD,
   projectHistory,
@@ -24,6 +24,16 @@ import {
   sessionTitle,
 } from './projection.ts'
 import { WorkspaceStore, InputError, NotFoundError, MAX_TITLE_LENGTH, type SessionRow } from './store.ts'
+
+/** Read a stored session's full event log via a read handle. */
+async function readPersistedEvents(persistence: SessionPersistence, id: SessionId): Promise<readonly SessionEvent[]> {
+  const handle = await persistence.open(id, 'read')
+  try {
+    return await handle.read()
+  } finally {
+    await handle.close()
+  }
+}
 
 const MAX_BODY_BYTES = 32 * 1024
 
@@ -135,12 +145,12 @@ export function apply(ctx: Context, config: SynapseConfig): void {
   const projectedRevisions = new Map<string, string>()
   const replayPersistedBaseline = async (): Promise<void> => {
     try {
-      const snapshots = await ctx.sessionPersistence.listSnapshots()
+      const snapshots = await ctx.sessionPersistence.list()
       for (const snapshot of snapshots) {
         const key = String(snapshot.header.id)
         const revision = String(snapshot.revision)
         if (projectedRevisions.get(key) === revision) continue
-        const { events } = await ctx.sessionPersistence.inspect(snapshot.header.id)
+        const events = await readPersistedEvents(ctx.sessionPersistence, snapshot.header.id)
         // Blank sessions stay out of the canvas (the browser list skips them
         // too). For a forked child the persisted log carries the parent seed;
         // only that prefix is skipped — a root session's end-seed is the
@@ -300,7 +310,7 @@ export function apply(ctx: Context, config: SynapseConfig): void {
         const limit = positiveInt(url.searchParams.get('limit'))
         const beforeSeq = positiveInt(url.searchParams.get('beforeSeq'))
         if (limit === null || beforeSeq === null) throw new InputError('limit 与 beforeSeq 必须是正整数')
-        const { events } = await ctx.sessionPersistence.inspect(history[1] as SessionId)
+        const events = await readPersistedEvents(ctx.sessionPersistence, history[1] as SessionId)
         const filtered = projectHistory(events, beforeSeq === undefined ? {} : { beforeSeq })
         const messages = limit === undefined ? filtered : filtered.slice(-limit)
         sendJson(res, 200, { messages, hasMore: filtered.length > messages.length })

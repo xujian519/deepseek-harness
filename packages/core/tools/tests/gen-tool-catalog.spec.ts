@@ -31,7 +31,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'cordis_inspect_query', 'cordis_inspect_self', 'cordis_run', 'cordis_stop',
       'cordis_undefine', 'create_goal', 'document_deliver', 'draft_claims',
       'draft_specification', 'edit', 'evaluate_evidence', 'exit_plan_mode',
-      'flexible_plan', 'followup_task', 'generate_patent_figure', 'get_goal',
+      'flexible_plan', 'generate_patent_figure', 'get_goal',
       'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
       'job_kill', 'job_list', 'job_output', 'knowledge_note_save',
       'list_agents', 'list_agents', 'list_subagent_models', 'lsp',

@@ -21,9 +21,9 @@ interface OpenBlock {
   index: number
   kind: 'text' | 'reasoning' | 'tool-call'
   text: string
-  /** tool-call only */
-  callId?: string
-  name?: string
+  /** tool-call only, absent until a delta carries a non-empty value. */
+  callId?: string | undefined
+  name?: string | undefined
 }
 
 /** Reject a payload that parsed as JSON but violates the wire chunk structure. */
@@ -62,15 +62,15 @@ function parseWireChunk(payload: string): WireChunk {
           if (call.index !== undefined && typeof call.index !== 'number') {
             throw malformedPayload(payload, 'a tool-call index is not a number')
           }
-          if (call.id !== undefined && typeof call.id !== 'string') {
+          if (call.id !== undefined && call.id !== null && typeof call.id !== 'string') {
             throw malformedPayload(payload, 'a tool-call id is not a string')
           }
           if (call.function !== undefined && call.function !== null) {
             if (!isRecord(call.function)) throw malformedPayload(payload, 'a tool-call function is not an object')
-            if (call.function.name !== undefined && typeof call.function.name !== 'string') {
+            if (call.function.name !== undefined && call.function.name !== null && typeof call.function.name !== 'string') {
               throw malformedPayload(payload, 'a tool-call name is not a string')
             }
-            if (call.function.arguments !== undefined && typeof call.function.arguments !== 'string') {
+            if (call.function.arguments !== undefined && call.function.arguments !== null && typeof call.function.arguments !== 'string') {
               throw malformedPayload(payload, 'a tool-call arguments fragment is not a string')
             }
           }
@@ -132,6 +132,21 @@ export function mapUsage(usage: WireUsage): TokenUsage {
     ...cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {},
     ...reasoning !== undefined ? { reasoningTokens: reasoning } : {},
   }
+}
+
+/**
+ * Accept one streamed identity field for a tool call. `id` and `name` are
+ * identity, not accumulation: the wire sends each once, on the call's first
+ * delta. A continuation delta that re-sends the field empty — or `null`, which
+ * some OpenAI-compatible gateways fill in — means "no update", never "clear".
+ * @param current - the identity established by an earlier delta of this call.
+ * @param incoming - the field as parsed from this delta. The wire type is a
+ *   claim about a remote encoder, so anything but a non-empty string leaves the
+ *   established value alone rather than overwriting it.
+ * @returns the identity in force after this delta.
+ */
+function acceptIdentity(current: string | undefined, incoming: unknown): string | undefined {
+  return typeof incoming === 'string' && incoming.length > 0 ? incoming : current
 }
 
 /** Assemble the final ContentBlock for one open block. */
@@ -233,8 +248,8 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
           toolBlocks.set(call.index, block)
           yield { type: 'block-start', index: block.index, blockType: 'tool-call' }
         }
-        if (call.id) block.callId = call.id
-        if (call.function?.name) block.name = call.function.name
+        block.callId = acceptIdentity(block.callId, call.id)
+        block.name = acceptIdentity(block.name, call.function?.name)
         const fragment = call.function?.arguments ?? ''
         block.text += fragment
         yield {

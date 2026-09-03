@@ -105,7 +105,12 @@ function cardProps(
     openSession,
     t: makeTranslate(zh),
     ...runtimeShare,
-  } as TeamsCardProps
+  } as unknown as TeamsCardProps
+}
+
+interface ViewHarness {
+  readonly loadOlder: ReturnType<typeof vi.fn<() => Promise<void>>>
+  readonly hasMore: { current: boolean }
 }
 
 interface ViewHarness {
