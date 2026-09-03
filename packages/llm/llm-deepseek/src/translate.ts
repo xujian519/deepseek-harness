@@ -62,15 +62,15 @@ function parseWireChunk(payload: string): WireChunk {
           if (call.index !== undefined && typeof call.index !== 'number') {
             throw malformedPayload(payload, 'a tool-call index is not a number')
           }
-          if (call.id !== undefined && typeof call.id !== 'string') {
+          if (call.id !== undefined && call.id !== null && typeof call.id !== 'string') {
             throw malformedPayload(payload, 'a tool-call id is not a string')
           }
           if (call.function !== undefined && call.function !== null) {
             if (!isRecord(call.function)) throw malformedPayload(payload, 'a tool-call function is not an object')
-            if (call.function.name !== undefined && typeof call.function.name !== 'string') {
+            if (call.function.name !== undefined && call.function.name !== null && typeof call.function.name !== 'string') {
               throw malformedPayload(payload, 'a tool-call name is not a string')
             }
-            if (call.function.arguments !== undefined && typeof call.function.arguments !== 'string') {
+            if (call.function.arguments !== undefined && call.function.arguments !== null && typeof call.function.arguments !== 'string') {
               throw malformedPayload(payload, 'a tool-call arguments fragment is not a string')
             }
           }
