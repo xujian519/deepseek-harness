@@ -1799,6 +1799,10 @@ export interface Config {
   figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
+  /** 个人工作台 API 基址覆盖；缺省在 web 组合内自动取本进程 webServer 端口。 */
+  workbenchBaseUrl?: string
+  /** 案件根目录（相对或绝对路径，其下每案一个 <案号>/ 目录）；默认 <cwd>/patent-workspace。 */
+  workbenchCaseRoot?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
   dotFont?: string
 }
@@ -1815,7 +1819,7 @@ export interface ImageModelConfig {
 export type FigureRendererMode = 'wasm' | 'cli'
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:152`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:169`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 

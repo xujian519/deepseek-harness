@@ -53,7 +53,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'terminal_list', 'terminal_open', 'terminal_read', 'terminal_send',
       'terminal_signal', 'todo_write', 'triz', 'update_goal',
       'validate_specification', 'wait_agent', 'web_fetch', 'web_search',
-      'workflow', 'write',
+      'workbench_link_patent_case', 'workflow', 'write',
     ])
     // Every tool carries a JSON-Schema `parameters` object (what the model sees).
     for (const entry of catalog) {

@@ -8,7 +8,7 @@
   gap: 14px;
   min-width: 0;
   padding: 18px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -31,8 +31,9 @@
 .countChip {
   flex: none;
   padding: 1px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
+  corner-shape: round;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   font-weight: 510;
@@ -106,6 +107,7 @@
   gap: 6px;
   padding: 0 10px;
   border-radius: 999px;
+  corner-shape: round;
   background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
   color: var(--dsw-alias-state-business-primary);
   font-size: 11px;
@@ -119,6 +121,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--dsw-alias-state-business-primary);
 }
 
@@ -150,7 +153,7 @@
   gap: 2px;
   min-width: 76px;
   padding: 8px 12px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 10px;
   background: var(--dsw-alias-bg-layer-2);
 }
@@ -210,6 +213,7 @@
   gap: 3px;
   height: 10px;
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-border-l1);
   overflow: hidden;
 }
@@ -219,6 +223,7 @@
   flex-basis: 8px;
   min-width: 8px;
   border-radius: 999px;
+  corner-shape: round;
   transition: flex-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -304,7 +309,7 @@
   align-items: flex-start;
   min-width: 0;
   padding: 11px 12px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2);
 }
@@ -316,7 +321,7 @@
   width: 100%;
   min-width: 0;
   padding: 11px 12px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2);
   color: inherit;
@@ -375,8 +380,9 @@
 .roleChip {
   flex: none;
   padding: 1px 7px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
+  corner-shape: round;
   color: var(--dsw-alias-label-secondary);
   font-size: 10.5px;
   font-weight: 510;
@@ -391,6 +397,7 @@
   margin-left: auto;
   padding: 2px 9px;
   border-radius: 999px;
+  corner-shape: round;
   font-size: 10.5px;
   font-weight: 620;
   line-height: 15px;
@@ -459,6 +466,10 @@
 .dagScroll {
   overflow-x: auto;
   padding: 4px 2px 10px;
+  /* Scrolls on the layer-2 DAG panel, so the thumb takes the l2 elevation
+     pair (ui-theme styles/scrollbar.css rebinding contract). */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 .dagScroll::-webkit-scrollbar {
@@ -467,7 +478,8 @@
 
 .dagScroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: var(--dsw-alias-scrollbar-bg-l2, var(--dsw-alias-border-l2));
+  corner-shape: round;
+  background: var(--dsh-scrollbar-thumb);
 }
 
 .dagCanvas {
@@ -507,7 +519,7 @@
   width: 140px;
   min-height: 52px;
   padding: 6px 9px 6px 11px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--dsw-alias-bg-base) 30%, transparent);
@@ -552,6 +564,7 @@
   height: 8px;
   margin-left: auto;
   border-radius: 50%;
+  corner-shape: round;
 }
 
 .nodeStateCompleted {
@@ -602,6 +615,7 @@
   gap: 3px;
   padding: 0 6px;
   border-radius: 999px;
+  corner-shape: round;
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
   color: var(--dsw-alias-state-error-primary);
   font-size: 9.5px;

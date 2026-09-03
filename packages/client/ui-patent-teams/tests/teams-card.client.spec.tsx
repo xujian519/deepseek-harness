@@ -113,6 +113,11 @@ interface ViewHarness {
   readonly hasMore: { current: boolean }
 }
 
+interface ViewHarness {
+  readonly loadOlder: ReturnType<typeof vi.fn<() => Promise<void>>>
+  readonly hasMore: { current: boolean }
+}
+
 function viewProps(
   snapshot: PatentTeamsViewSnapshot | undefined,
   sessions: SessionListState = listState(),
@@ -174,10 +179,9 @@ describe('TeamsCard', () => {
   })
 
   it('renders the bare hero and empty-list fallbacks for a team without content', () => {
-    const team = { ...TEAM }
-    delete team.description
+    const { description: _description, ...bareTeam } = TEAM
     render(<TeamsCard {...cardProps({
-      ...team,
+      ...bareTeam,
       status: 'completed',
       members: [],
       tasks: [],
@@ -466,19 +470,22 @@ describe('plugin lifecycle', () => {
     expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID])
     // The view entry resolves its drain verb from the session face and fails
     // loud when the session binding is absent.
-    const viewEntry = ctx.slots.entries('conversation.view')[0]!
-    const viewOptions = (viewEntry as unknown as { options: { label?: () => string } }).options
+    const viewEntry = ctx.slots.entries('conversation.view')[0]! as unknown as {
+      options: { label?: () => string }
+      inject?: (sessionId: SessionId) => {
+        openSession: (id: SessionId) => void
+        loadOlder: () => Promise<void>
+      }
+    }
     // The label thunk reads through the bound locale; the ambient test
     // environment resolves to the English dictionary.
-    expect(viewOptions.label?.()).toBe(en['view.teams'])
-    const viewFace = viewEntry.inject?.() as unknown as {
-      openSession: (id: SessionId) => void
-      loadOlder: () => Promise<void>
-    }
+    expect(viewEntry.options.label?.()).toBe(en['view.teams'])
+    const viewFace = viewEntry.inject?.(PARENT_ID)
+    if (viewFace === undefined) throw new Error('expected the view inject to bind a session')
     await viewFace.loadOlder()
     viewFace.openSession(CHILD_ID)
     expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID, CHILD_ID])
-    expect(() => viewEntry.inject?.()).toThrow(/unavailable/)
+    expect(() => viewEntry.inject?.('ghost' as SessionId)).toThrow(/unavailable/)
     await fiber.dispose()
     expect(ctx.slots.entries('conversation.chat.node')).toEqual([])
     expect(ctx.slots.entries('conversation.view')).toEqual([])
