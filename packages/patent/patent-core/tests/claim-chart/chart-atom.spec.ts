@@ -78,6 +78,28 @@ it('合法 chart 产出 claim_chart_doc + gap_list', async () => {
   expect(gaps.length).toBe(1)
 })
 
+it('拆分要求含 MTU 原子性与方法/结构权利要求注意项', async () => {
+  const prompts: string[] = []
+  const provider: StageProvider = {
+    callLLM: async (prompt: string) => {
+      prompts.push(prompt)
+      return JSON.stringify(goodChart())
+    },
+  }
+  const handler = new ClaimChartHandler()
+  await handler.execute({
+    state: {
+      claim: CLAIM,
+      chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1' }]),
+      chart_mode: 'invalidity',
+    },
+    provider,
+  })
+  expect(prompts[0]).toContain('最小技术单元')
+  expect(prompts[0]).toContain('方法权利要求注意各步骤的逻辑顺序与执行主体')
+  expect(prompts[0]).toContain('结构权利要求注意部件的连接关系与空间位置')
+})
+
 it('非法要素打回重做：第一次坏输出 + 第二次好输出 = 成功且重做 prompt 含错误', async () => {
   const prompts: string[] = []
   let calls = 0

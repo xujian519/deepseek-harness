@@ -124,6 +124,28 @@ describe('builtin handlers', () => {
     expect(out.features).toBeUndefined()
   })
 
+  it('ExtractHandler：特征抽取注入 MTU 拆分与 [待确认] 规则；问题抽取不注入', async () => {
+    const prompts: string[] = []
+    const capture: StageProvider = {
+      callLLM: async (prompt) => {
+        prompts.push(prompt)
+        return JSON.stringify({ features: ['特征A'] })
+      },
+    }
+    const h = LookupStageHandler('extract')!
+    await h.execute({
+      state: { text: '一种分拣装置', extraction_type: '技术特征抽取', output_key: 'features' },
+      provider: capture,
+    })
+    expect(prompts[0]).toContain('MTU 拆分规则')
+    expect(prompts[0]).toContain('[待确认]')
+    await h.execute({
+      state: { text: 'x', extraction_type: '提取待解决的技术问题（严格输出 problems 数组）', output_key: 'problems' },
+      provider: capture,
+    })
+    expect(prompts[1]).not.toContain('MTU 拆分规则')
+  })
+
   it('CompareHandler：产出 claim_chart 与 diff_features', async () => {
     const h = LookupStageHandler('compare')!
     const out = await h.execute({
@@ -233,6 +255,20 @@ describe('groundedness / keywords / novelty', () => {
     await expect(
       h.execute({ state: { features: ['F1'], source_text: 'x' }, provider: failing }),
     ).rejects.toThrow(/未配置 LLM/)
+  })
+
+  it('GroundednessHandler：打分规则含 [待确认] 特征的 <0.6 规则', async () => {
+    const prompts: string[] = []
+    const capture: StageProvider = {
+      callLLM: async (prompt) => {
+        prompts.push(prompt)
+        return JSON.stringify({ scores: [{ feature: 'F1', score: 1 }] })
+      },
+    }
+    const h = LookupStageHandler('groundedness')!
+    await h.execute({ state: { features: ['F1'], source_text: '原文' }, provider: capture })
+    expect(prompts[0]).toContain('[待确认]')
+    expect(prompts[0]).toContain('<0.6')
   })
 
   it('KeywordsHandler：生成检索关键词写入 keywords 键', async () => {

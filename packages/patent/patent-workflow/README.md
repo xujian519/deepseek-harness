@@ -21,7 +21,7 @@ Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the
 
 ## Service
 
-The `PatentWorkflow` service exposes the pipeline entry points and re-exports the pure pipeline API (workflow, workflow-dag, workflow-store, flexible-plan, flexible-plan-store, plantask, worker-contract, approval, output-gate, quality-gate) from this package's root export.
+The `PatentWorkflow` service exposes the pipeline entry points and re-exports the pure pipeline API (workflow, workflow-dag, workflow-store, flexible-plan, flexible-plan-store, plantask, worker-contract, checker-verdict, approval, output-gate, quality-gate) from this package's root export. `CheckerVerdict` is the structured review-outcome schema for checker-tier workers (`pass`/`needs_revision`/`blocked` + per-issue severity); `parseCheckerVerdict` validates model JSON on that boundary.
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 

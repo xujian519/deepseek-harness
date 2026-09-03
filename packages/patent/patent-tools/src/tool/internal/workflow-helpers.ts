@@ -317,6 +317,8 @@ export function createChainStageExecutor(
     const prompt = [
       '你是资深专利代理师。请完成当前工作流阶段，输出阶段成果文本：',
       stage.description,
+      // 阶段法律指引（法条操作框架/输出要求）紧跟阶段描述，先于材料注入。
+      ...(stage.guidance !== undefined ? [stage.guidance] : []),
       '```',
       material,
       '```',

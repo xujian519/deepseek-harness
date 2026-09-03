@@ -35,6 +35,9 @@ export function validateWorkflowManifest(
     if (stage.atom !== undefined && !stage.atom.trim()) {
       throw new WorkflowError(`阶段 ${stage.id} 的 atom 不能为空字符串`)
     }
+    if (stage.guidance !== undefined && !stage.guidance.trim()) {
+      throw new WorkflowError(`阶段 ${stage.id} 的 guidance 不能为空字符串`)
+    }
     if (options?.atomNames && stage.atom !== undefined && !options.atomNames.has(stage.atom)) {
       throw new WorkflowError(`阶段 ${stage.id} 声明了未知 atom: ${stage.atom}`)
     }
