@@ -48,6 +48,7 @@ Function plugin porting the Sati patent-domain tool set into the DeepSeek Harnes
 | `patent_plan_task` | workflow | `@deepseek-ai/dsh-patent-workflow` plantask state machine |
 | `patent_worker_validate` | quality | `@deepseek-ai/dsh-patent-workflow` worker contract |
 | `knowledge_note_save` | knowledge | file writer under Config.noteDir (default `<cwd>/99-知识库`) |
+| `workbench_link_patent_case` | workflow | personal-workbench loopback HTTP API: idempotent case bridge (patent_* dictionary seeding, root + L1–L5 stage tasks with `source='patent'`, `_matter-log.md` status projection; never writes the case dir, never patches the root task status) |
 
 `render_patent_document` is owned by `@deepseek-ai/dsh-patent-document` (its `apply()` registers it); this package re-exports `createRenderPatentDocumentTool` and `renderDocumentResult` for library consumers but does not register it, so composing both plugins does not produce a duplicate-name error.
 
@@ -68,6 +69,8 @@ Schemastery configuration, every field optional.
 | `chemistryIndexFile` | string | `<cwd>/.sati/chemistry-index.json` | Chemistry index file for `recognize_chemical_structure` upserts (absolute or relative to cwd). |
 | `graphvizExecutable` | string | auto-probe | `dot` executable path override; discovery order: override → `DSH_GRAPHVIZ_DOT` → platform candidate paths → `PATH`. |
 | `figureOutputDir` | string | `<cwd>/patent/figures` | Output directory for `generate_patent_figure` (absolute or relative to cwd). |
+| `workbenchBaseUrl` | string | in-process webServer port | Personal-workbench API base for `workbench_link_patent_case`; explicit override wins, otherwise `http://127.0.0.1:<webServer port>` inside a web composition. Absent (non-web profiles) → the tool fails at execute with `setup_required`. |
+| `workbenchCaseRoot` | string | `<cwd>/patent-workspace` | Case root directory for `workbench_link_patent_case`: each case lives at `<root>/<案号>/` with its `_matter-log.md`. |
 | `dotFont` | string | platform-dependent | DOT font name override; default Helvetica, platform CJK candidates (PingFang SC / Microsoft YaHei / Noto Sans CJK SC) when labels contain CJK. |
 | `figureRenderer` | `'wasm' \| 'cli'` | `wasm` | Graphviz renderer for `generate_patent_figure`: `wasm` is the bundled `@viz-js/viz` engine (SVG, no system dependency); `cli` runs the `dot` subprocess. png/pdf always route to the CLI. |
 | `figureAnalysisMode` | `'single' \| 'two-step'` | `single` | `analyze_patent_figure` mode: `single` is one vision call; `two-step` runs structure extraction, then description generation, over the same route (doubles model cost). |

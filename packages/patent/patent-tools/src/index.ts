@@ -1,11 +1,12 @@
 /**
- * Function plugin registering the 26 model-facing patent tools ported from Sati:
+ * Function plugin registering the 27 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * drafting, specification validation, evidence judgment, rule check, figure
  * analysis + generation, PDF download, chemical recognition, knowledge notes,
- * and the workflow/plan state machines. `render_patent_document` is owned by
- * @deepseek-ai/dsh-patent-document (its apply() registers it); this package
- * re-exports its factory but does not register it.
+ * the workflow/plan state machines, and the personal-workbench case bridge.
+ * `render_patent_document` is owned by @deepseek-ai/dsh-patent-document (its
+ * apply() registers it); this package re-exports its factory but does not
+ * register it.
  * @module @deepseek-ai/dsh-patent-tools
  */
 
@@ -53,6 +54,7 @@ import { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
 import { createPatentWorkflowTool } from './tool/patent-workflow.ts'
 import { createPatentWorkflowRunTool } from './tool/patent-workflow-run.ts'
 import { createPatentPlanTaskTool } from './tool/patent-plan-task.ts'
+import { createWorkbenchLinkPatentCaseTool } from './tool/workbench-link-patent-case.ts'
 import { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts'
 import { createKnowledgeNoteSaveTool } from './tool/knowledge-note-save.ts'
 import { createNoteFileWriter } from './tool/knowledge-note-file-writer.ts'
@@ -130,6 +132,21 @@ export type { PatentWorkflowInput, PatentWorkflowOutput, PatentWorkflowToolDeps 
 export { createPatentWorkflowRunTool } from './tool/patent-workflow-run.ts'
 export type { PatentWorkflowRunInput, PatentWorkflowRunOutput, PatentWorkflowRunDeps, PatentWorkflowRunGraph } from './tool/patent-workflow-run.ts'
 export { createPatentPlanTaskTool } from './tool/patent-plan-task.ts'
+export {
+  createWorkbenchLinkPatentCaseTool,
+  parseMatterLogStages,
+  PATENT_TYPE_DICTIONARIES,
+  STAGE_NAME,
+  STAGE_TYPE_CODE,
+  WORKBENCH_STAGES,
+} from './tool/workbench-link-patent-case.ts'
+export type {
+  WorkbenchLinkPatentCaseDeps,
+  WorkbenchLinkPatentCaseInput,
+  WorkbenchLinkPatentCaseOutput,
+  WorkbenchStage,
+  WorkbenchTaskStatusCode,
+} from './tool/workbench-link-patent-case.ts'
 export type { PatentPlanTaskInput, PatentPlanTaskOutput, PatentPlanTaskAction } from './tool/patent-plan-task.ts'
 export { createPatentWorkerValidateTool } from './tool/patent-worker-validate.ts'
 export type { PatentWorkerValidateInput, PatentWorkerValidateOutput } from './tool/patent-worker-validate.ts'
@@ -180,6 +197,10 @@ export interface Config {
   figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
+  /** 个人工作台 API 基址覆盖；缺省在 web 组合内自动取本进程 webServer 端口。 */
+  workbenchBaseUrl?: string
+  /** 案件根目录（相对或绝对路径，其下每案一个 <案号>/ 目录）；默认 <cwd>/patent-workspace。 */
+  workbenchCaseRoot?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
   dotFont?: string
 }
@@ -209,6 +230,8 @@ export const Config: z<Config> = z.object({
   figureDpi: z.number(),
   figureMargin: z.number(),
   figureOutputDir: z.string(),
+  workbenchBaseUrl: z.string(),
+  workbenchCaseRoot: z.string(),
   dotFont: z.string(),
 })
 
@@ -422,6 +445,19 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createRuleCheckTool())
   ctx.tools.register(createPatentWorkerValidateTool())
   ctx.tools.register(createPatentPlanTaskTool())
+  // Workbench case bridge: talk to the personal-workbench plugin's loopback
+  // HTTP API. Base URL: explicit config wins; otherwise the in-process
+  // webServer port (web profile); absent → the tool fails loud at execute.
+  // The service is read dynamically: this package's tsconfig does not
+  // reference the host-webserver project, so no declaration merge is pulled in.
+  const workbenchWebServer = ctx.get('webServer') as { port: number } | undefined
+  const workbenchWebServerPort = workbenchWebServer?.port
+  ctx.tools.register(createWorkbenchLinkPatentCaseTool({
+    ...(config.workbenchBaseUrl === undefined && workbenchWebServerPort === undefined
+      ? {}
+      : { baseUrl: config.workbenchBaseUrl ?? `http://127.0.0.1:${workbenchWebServerPort}` }),
+    caseRoot: config.workbenchCaseRoot ?? './patent-workspace',
+  }))
   ctx.tools.register(createRecognizeChemicalStructureTool({
     // 识别引擎不可用（RDKit 未安装）时 usable 恒 false，该写入闭包不可达；
     // RDKit 接入并产出 usable 结果后移除 ignore（与 recognize 工具内注释呼应）。
