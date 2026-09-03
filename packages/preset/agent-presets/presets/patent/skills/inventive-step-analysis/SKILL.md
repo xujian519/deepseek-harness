@@ -17,7 +17,7 @@ description: 创造性（A22.3）三步法的证据搜集例程：调用 cnlaw_i
 - 每条证据：`case_number/发明名称 + 法条 reference + source_path + citation_verified`。
 
 ## 1. 例程步骤
-1. **取证据包**：调用 `cnlaw_inventive_step(claim=<技术方案>, field=<IPC前缀>, k=<每步条数,默认5>)`。IPC 尽量给全（用 ipc 树 `:8001/api/cnlaw/ipc/*` 定位），证据才精准。
+1. **取证据包**：调用 `cnlaw_inventive_step(claim=<技术方案>, field=<IPC前缀>, k=<每步条数,默认5>)`。IPC 尽量给全（用 ipc 树 `:8001/api/cnlaw/ipc/sections 与 .../tree?parent=<IPC 代码>（如 H01M）` 定位），证据才精准。
 2. **按步吃透**：对每步，先看 `excerpt`（判例/指南片段），再核 `source_path` 对应的原文（可 `web_fetch` 本地路径或打开判例核验，**不信摘要**）。
 3. **标引用**：论证里每步的论断，挂上对应证据的 `case_number + 法条/指南 + source_path`。`citation_verified=false` 的条目标注「来源待核」，不得当作确证引用。
 4. **补强/筛掉**：若某步证据不足（如技术问题缺指南表述），用 `cnlaw_graph_ground(article=专利法第22条第3款, ipc=<领域>)` 补 `based_on` 判例，或 `cnlaw_case_similar(scenario)` 找相似审理场景。
