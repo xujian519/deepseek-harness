@@ -31,7 +31,7 @@
     "package:desktop:win": "npm run build:desktop && npm run package:desktop:prepare && pnpm --filter @deepseek-ai/dsh-desktop-electron exec electron-builder --config electron-builder.yml --win",
     "clean": "tsx scripts/clean.ts",
     "change-scope": "tsx scripts/change-scope.ts",
-    "typecheck": "npm run typecheck:contracts-ready && npm run build:lib:host",
+    "typecheck": "npm run build:lib:host && npm run typecheck:contracts-ready",
     "typecheck:contracts-ready": "tsc -b tsconfig.client.json",
     "lint": "npm run build:lib:host && npm run lint:contracts-ready",
     "lint:contracts-ready": "tsx scripts/run-oxlint.ts .",
