@@ -49,7 +49,36 @@ export interface TeamsTeamState {
   readonly members: readonly TeamsMemberState[]
   readonly tasks: readonly TeamsTaskState[]
   readonly messageCount: number
+  readonly activity: readonly TeamsActivityEntry[]
 }
+
+/** Kind of one capped recent-activity record kept for the Teams-tab feed. */
+export type TeamsActivityKind =
+  | 'task-created'
+  | 'task-updated'
+  | 'task-validated'
+  | 'task-gated'
+  | 'message-sent'
+
+/**
+ * One recent task/message transition projected for the activity feed. Only
+ * fields the kind carries are present; `subject` resolves from the folded
+ * task when the event itself does not name it.
+ */
+export interface TeamsActivityEntry {
+  readonly kind: TeamsActivityKind
+  readonly seq: number
+  readonly taskId?: string
+  readonly subject?: string
+  readonly status?: string
+  readonly valid?: boolean
+  readonly missingHardFields?: readonly string[]
+  readonly from?: string
+  readonly to?: string
+}
+
+/** Newest activity entries kept per team; older transitions age out. */
+export const TEAMS_ACTIVITY_LIMIT = 8
 
 /**
  * Extract the owning team id from one event.
@@ -101,6 +130,8 @@ export interface PatentTeamsCardData {
   readonly tasks: readonly PatentTeamsCardTask[]
   readonly completedTasks: number
   readonly messageCount: number
+  /** Newest-first capped activity feed (the fold's latest transitions). */
+  readonly activity: readonly TeamsActivityEntry[]
 }
 
 /**
@@ -120,7 +151,28 @@ export function startTeamsState(event: SessionEvent): TeamsTeamState {
     members: [],
     tasks: [],
     messageCount: 0,
+    activity: [],
   }
+}
+
+/**
+ * Append one activity entry to the capped newest-last feed.
+ * @param state - current fold state.
+ * @param entry - the resolved entry to record.
+ * @returns the next state.
+ */
+function withActivity(state: TeamsTeamState, entry: TeamsActivityEntry): TeamsTeamState {
+  return { ...state, activity: [...state.activity, entry].slice(-TEAMS_ACTIVITY_LIMIT) }
+}
+
+/**
+ * Resolve the subject of one folded task.
+ * @param state - current fold state.
+ * @param taskId - the task id.
+ * @returns the subject when the task record exists.
+ */
+function taskSubject(state: TeamsTeamState, taskId: string): string | undefined {
+  return state.tasks.find(task => task.taskId === taskId)?.subject
 }
 
 /**
@@ -167,7 +219,7 @@ export function applyTeamsEvent(state: TeamsTeamState, event: SessionEventLike):
     }
   }
   if (event.type === 'patent-teams/task-created') {
-    return {
+    return withActivity({
       ...state,
       tasks: [...state.tasks, {
         taskId: event.data.taskId,
@@ -176,10 +228,16 @@ export function applyTeamsEvent(state: TeamsTeamState, event: SessionEventLike):
         ...event.data.assignee === undefined ? {} : { assignee: event.data.assignee },
         gated: false,
       }],
-    }
+    }, {
+      kind: 'task-created',
+      seq: event.seq,
+      taskId: event.data.taskId,
+      subject: event.data.subject,
+    })
   }
   if (event.type === 'patent-teams/task-updated') {
-    return {
+    const subject = taskSubject(state, event.data.taskId)
+    return withActivity({
       ...state,
       tasks: state.tasks.map(task => task.taskId === event.data.taskId
         ? {
@@ -188,26 +246,51 @@ export function applyTeamsEvent(state: TeamsTeamState, event: SessionEventLike):
           ...event.data.assignee === undefined ? {} : { assignee: event.data.assignee },
         }
         : task),
-    }
+    }, {
+      kind: 'task-updated',
+      seq: event.seq,
+      taskId: event.data.taskId,
+      ...subject === undefined ? {} : { subject },
+      status: event.data.status,
+    })
   }
   if (event.type === 'patent-teams/task-validated') {
-    return {
+    const subject = taskSubject(state, event.data.taskId)
+    return withActivity({
       ...state,
       tasks: state.tasks.map(task => task.taskId === event.data.taskId
         ? applyValidationVerdict(task, event.data.valid, event.data.missingHardFields)
         : task),
-    }
+    }, {
+      kind: 'task-validated',
+      seq: event.seq,
+      taskId: event.data.taskId,
+      ...subject === undefined ? {} : { subject },
+      valid: event.data.valid,
+      ...event.data.valid ? {} : { missingHardFields: event.data.missingHardFields },
+    })
   }
   if (event.type === 'patent-teams/task-gated') {
-    return {
+    const subject = taskSubject(state, event.data.taskId)
+    return withActivity({
       ...state,
       tasks: state.tasks.map(task => task.taskId === event.data.taskId
         ? { ...task, gated: true }
         : task),
-    }
+    }, {
+      kind: 'task-gated',
+      seq: event.seq,
+      taskId: event.data.taskId,
+      ...subject === undefined ? {} : { subject },
+    })
   }
   if (event.type === 'patent-teams/message-sent') {
-    return { ...state, messageCount: state.messageCount + 1 }
+    return withActivity({ ...state, messageCount: state.messageCount + 1 }, {
+      kind: 'message-sent',
+      seq: event.seq,
+      from: event.data.from,
+      to: event.data.to,
+    })
   }
   if (event.type === 'patent-teams/team-deleted') {
     return { ...state, deleted: true }
@@ -248,6 +331,7 @@ export function projectTeamsCard(state: TeamsTeamState): PatentTeamsCardData {
     })),
     completedTasks: state.tasks.filter(task => task.status === 'completed').length,
     messageCount: state.messageCount,
+    activity: [...state.activity].reverse(),
   }
 }
 

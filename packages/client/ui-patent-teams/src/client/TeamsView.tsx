@@ -1,29 +1,40 @@
 /**
  * The fixed Teams conversation view: every team folded from this session's
- * `patent-teams/*` events, read from the `patentTeams` view snapshot. Pure
- * presentation — team facts arrive through the conversation snapshot, live member
- * activity through the sessions list share, and the open-member action
- * through the injected callback. Sessions without team records get the empty
- * state.
+ * `patent-teams/*` events, read from the `patentTeams` view snapshot, rendered
+ * as one dashboard per team. Because the fold needs each team's
+ * `team-created` start event, an open with only the tail history window keeps
+ * paging backwards while no team has materialized yet — otherwise long
+ * sessions whose teams predate the loaded window would forever show the empty
+ * state. Sessions without team records still get the empty state.
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { shallowEqual } from '@deepseek-ai/dsh-client-store'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { runningMemberIds } from './TeamsCard.tsx'
-import {
-  STATUS_KEYS, TeamsMemberList, TeamsTaskList, teamDotState, type TeamsOpenSession,
-} from './TeamsSections.tsx'
+import { TeamsDashboard } from './TeamsDashboard.tsx'
+import type { TeamsOpenSession } from './TeamsSections.tsx'
 import type { PatentTeamsCardData } from './teams-model.ts'
 import type { PatentTeamsViewSnapshot } from './teams-view.ts'
 import { PATENT_TEAMS_TARGET } from './teams-view.ts'
 import css from './TeamsView.module.css'
 
-/** Teams view props: runtime session share + injected callback + locale. */
-export type TeamsViewProps = ConvViewProps & PropsLocale<'patentTeams'> & TeamsOpenSession
+/** Teams view props: runtime session share, injected actions, and copy. */
+export type TeamsViewProps = ConvViewProps
+  & PropsLocale<'patentTeams'>
+  & TeamsOpenSession
+  & TeamsViewInjected
+
+/** Business callbacks injected by the plugin's slot registration. */
+export interface TeamsViewInjected {
+  /** Page the session history backwards by one window (the Session face's `loadOlder`). */
+  readonly loadOlder: () => Promise<void>
+}
+
+/** Safety bound on backwards paging while hunting for team start events. */
+const DRAIN_PAGE_LIMIT = 400
 
 /** Stable empty list so the selector never allocates per store tick. */
 const EMPTY_TEAMS: readonly PatentTeamsCardData[] = []
@@ -44,55 +55,35 @@ function runningIdsFor(
   return result
 }
 
-function TeamBlock({ team, running, openSession, t }: {
-  readonly team: PatentTeamsCardData
-  readonly running: ReadonlySet<string>
-  readonly openSession: TeamsOpenSession['openSession']
-  readonly t: TeamsViewProps['t']
-}): ReactNode {
-  const tasks = team.tasks.length === 0
-    ? t('card.noTasks')
-    : t('card.tasks', { done: team.completedTasks, total: team.tasks.length })
-  return (
-    <section className={css.team} data-patent-teams-team={team.teamId} data-team-status={team.status}>
-      <header className={css.teamHeader}>
-        <span className={css.teamName}>{team.name}</span>
-        <span className={css.teamMeta}>
-          {t('card.members', { count: team.members.length })} · {tasks}
-        </span>
-        <span className={css.statusTail} data-status={team.status}>
-          <StateDot state={teamDotState(team.status)} />
-          <span>{t(STATUS_KEYS[team.status])}</span>
-        </span>
-      </header>
-      {team.description === undefined ? null : <p className={css.teamDescription}>{team.description}</p>}
-      <h4 className={css.sectionLabel}>{t('section.members')}</h4>
-      {team.members.length === 0
-        ? <span className={css.empty}>{t('card.members', { count: 0 })}</span>
-        : <TeamsMemberList team={team} runningMemberIds={running} openSession={openSession} t={t} />}
-      <h4 className={css.sectionLabel}>{t('section.tasks')}</h4>
-      {team.tasks.length === 0
-        ? <span className={css.empty}>{t('card.noTasks')}</span>
-        : <TeamsTaskList team={team} t={t} />}
-      {team.messageCount === 0 ? null : (
-        <span className={css.empty}>{t('card.messages', { count: team.messageCount })}</span>
-      )}
-    </section>
-  )
-}
-
 /**
- * Render the session's folded teams.
- * @param props - session runtime share, injected open-member action, locale share.
+ * Render the session's folded teams as dashboards.
+ * @param props - session runtime share, injected actions, and locale share.
  * @returns the Teams tab body.
  */
-export function TeamsView({ sessionId, useConversation, useSessions, openSession, t }: TeamsViewProps): ReactNode {
+export function TeamsView({
+  sessionId, useConversation, useSessions, useSession, openSession, loadOlder, t,
+}: TeamsViewProps): ReactNode {
   const snapshot = useConversation(state => state.views.get(PATENT_TEAMS_TARGET))
   const list = useMemo(() => snapshotTeams(snapshot), [snapshot])
   const running = useSessions(
     sessions => runningIdsFor(sessions, list, sessionId),
     shallowEqual,
   )
+  const hasMore = useSession(state => state.hasMore)
+
+  // Drain history while no team has started: each loadOlder prepends one
+  // window into the fold, so the snapshot re-evaluates between pages.
+  const [drainTick, setDrainTick] = useState(0)
+  const drainAttempts = useRef(0)
+  useEffect(() => {
+    if (list.length > 0 || !hasMore || drainAttempts.current >= DRAIN_PAGE_LIMIT) return
+    drainAttempts.current += 1
+    let cancelled = false
+    void loadOlder().finally(() => {
+      if (!cancelled) setDrainTick(tick => tick + 1)
+    })
+    return () => { cancelled = true }
+  }, [list.length, hasMore, loadOlder, drainTick])
 
   if (list.length === 0) {
     return <p className={css.emptyState} data-patent-teams-empty>{t('view.empty')}</p>
@@ -100,7 +91,13 @@ export function TeamsView({ sessionId, useConversation, useSessions, openSession
   return (
     <div className={css.root}>
       {list.map(team => (
-        <TeamBlock key={team.teamId} team={team} running={running} openSession={openSession} t={t} />
+        <TeamsDashboard
+          key={team.teamId}
+          team={team}
+          running={running}
+          openSession={openSession}
+          t={t}
+        />
       ))}
     </div>
   )

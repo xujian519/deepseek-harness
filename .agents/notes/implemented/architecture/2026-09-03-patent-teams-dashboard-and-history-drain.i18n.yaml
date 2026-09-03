@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-patent-teams-dashboard-and-history-drain.md
+2026-09-03-patent-teams-dashboard-and-history-drain.md: cf75cc801c86171bbdbef3201aea404b27084b4a
+2026-09-03-patent-teams-dashboard-and-history-drain.zh.md: c37e835e113ceb7a7b764504ec9bcec91b59ab27
