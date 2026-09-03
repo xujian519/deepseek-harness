@@ -31,7 +31,7 @@ description: 可复用现有技术检索例程：构建检索式、按通道策�
 | **CNIPA** | 中国官方审查信息 / 法律状态 | `cnipa-query` / CNIPA PSS（`pss-system.cponline.cnipa.gov.cn`） | 官方；用于**法律状态 / 著录项权威核验**，作为双源交叉的一源 |
 | **Google Patents** | 外国 / 全球专利 | `google-patents-search`（ego_browser，免代理） | **外国/全球**；结果落盘 md；补充 CNIPR 未覆盖的外国专利 |
 | **web_search** | 期刊 / 论文 / 非专利文献（NPL） | `web_search` | 辅助现有技术 |
-| **patent_search** | 本地专利库（nuo 引擎） | `patent_search` / `patent_metadata` | 备选；Google 不可达时可能空，如实标注 |
+| **patent_search** | 本地专利库（nuo 引擎，与 Google Patents 不同通道） | `patent_search` / `patent_metadata` | 备选；本地库不可达/无数据时可能空，如实标注 |
 
 **主路径**：CN 发明/实用新型 → **CNIPR**；官方核验 → **CNIPA**；外国/全球 → **Google Patents**；文献 → web_search；本地补充 → patent_search。
 任一通道空或不可达 → **明示该通道未覆盖**；不得据其空结果下新颖性/创造性结论。

@@ -53,7 +53,7 @@
       交底书理解（PFE 三元组：技术问题/技术特征/技术效果）→ 现有技术检索 → 新颖性分析（单独对比）→ 创造性分析（三步法）→ 权利要求布局与撰写 → 说明书撰写（五部分）→ 形式与质量自检 → HITL 确认 → 输出成品。
 
       ## 工具与技能
-      - 检索：现有技术检索优先走可复用例程 `patent-prior-art-search` 技能——CN 专利用 `cnipr-search-download`（search.cnipr.com，CNIPR，ego_browser，全文 PDF 直链必须 `http://` 前缀）、官方法律状态用 `cnipa-query`/CNIPA PSS、外国/全球用 `google-patents-search`、文献用 `web_search`、本地备选用 `patent_search`/`patent_metadata`；法条/审查指南/判例核验走 cnlaw REST（见下）。
+      - 检索：现有技术检索优先走可复用例程 `patent-prior-art-search` 技能——CN 专利用 `cnipr-search-download`（search.cnipr.com，CNIPR，ego_browser，全文 PDF 直链必须 `http://` 前缀）、官方法律状态用 `cnipa-query`/CNIPA PSS、外国/全球用 `google-patents-search`、文献用 `web_search`、本地备选用 `patent_search`/`patent_metadata`（本地 nuo 引擎，与 google-patents-search 不同通道）；法条/审查指南/判例核验走 cnlaw REST（见下）。
       - 法条/审查指南/判例核验（权威法律底座，本地）：优先走 cnlaw REST——curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…" --data-urlencode "k=5" 返回 {full_name, number, text, status, domain, category, tier, source_path}；IPC 浏览用 :8001/api/cnlaw/ipc/sections 与 .../tree?parent=<IPC 代码>（如 H01M）。每处法条断言必须带 full_name（+条号）与 source_path；命中为空的检索不得下任何结论。检索/引用次序：先法条法规(tier=1) → 再审查指南(tier=2) → 再判例(复审无效决定 /search/decisions、判决 /search/judgments，判例=tier 3) → 最后书籍(tier=4)。
       - 判例按理由定向检索：curl -sG "http://127.0.0.1:8100/search/decisions" --data-urlencode "q=区别技术特征 显而易见" --data-urlencode "ground=第22条第3款" --data-urlencode "ipc=B05C" --data-urlencode "result=维持专利权有效" --data-urlencode "case_type=无效" --data-urlencode "k=5"；判决用 /search/judgments（ground/result/case_type）。ground=法条片断（如 第22条第3款 / 第26条第4款）、ipc=分类前缀（仅决定）、result=结论、case_type=类型（复审/无效/民事/行政）。判例引用格式：<决定号/案号> + <结论> + <法律依据> + <IPC> + <决定要点(若有)> + <source_path>，来源标注 cnlaw(:8100)。
       - 图谱定向检索（精确集合，Neo4j 支撑）：按引用关系精确导航，比语义 top-k 更全更准——
