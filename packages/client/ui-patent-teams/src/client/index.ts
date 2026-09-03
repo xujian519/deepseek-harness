@@ -56,8 +56,17 @@ export function apply(ctx: ClientContext): void {
     order: 30,
     locale: NS,
     label: () => ctx.locale.bind(NS)('view.teams'),
-    inject: (): { openSession: (id: SessionId) => void } => ({
-      openSession: (id: SessionId) => { ctx.sessions.open(id) },
-    }),
+    inject: (sessionId: SessionId) => {
+      // The dashboard's backwards drain pages through the Session face, the
+      // same verb the trajectory view uses for its scroll history.
+      const session = ctx.sessions.binding(sessionId)?.session
+      if (session === undefined) {
+        throw new Error(`ui-patent-teams: session "${sessionId}" is unavailable`)
+      }
+      return {
+        openSession: (id: SessionId) => { ctx.sessions.open(id) },
+        loadOlder: () => session.loadOlder(),
+      }
+    },
   }, TeamsView))
 }
