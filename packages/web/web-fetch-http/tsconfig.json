@@ -25,6 +25,9 @@
     },
     {
       "path": "../web"
+    },
+    {
+      "path": "../../util/http-proxy"
     }
   ]
 }

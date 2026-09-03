@@ -105,7 +105,7 @@ function cardProps(
     openSession,
     t: makeTranslate(zh),
     ...runtimeShare,
-  } as TeamsCardProps
+  } as unknown as TeamsCardProps
 }
 
 interface ViewHarness {
@@ -174,9 +174,10 @@ describe('TeamsCard', () => {
   })
 
   it('renders the bare hero and empty-list fallbacks for a team without content', () => {
+    const team = { ...TEAM }
+    delete team.description
     render(<TeamsCard {...cardProps({
-      ...TEAM,
-      description: undefined,
+      ...team,
       status: 'completed',
       members: [],
       tasks: [],
@@ -470,14 +471,14 @@ describe('plugin lifecycle', () => {
     // The label thunk reads through the bound locale; the ambient test
     // environment resolves to the English dictionary.
     expect(viewOptions.label?.()).toBe(en['view.teams'])
-    const viewFace = viewEntry.inject?.(PARENT_ID) as unknown as {
+    const viewFace = viewEntry.inject?.() as unknown as {
       openSession: (id: SessionId) => void
       loadOlder: () => Promise<void>
     }
     await viewFace.loadOlder()
     viewFace.openSession(CHILD_ID)
     expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID, CHILD_ID])
-    expect(() => viewEntry.inject?.('ghost' as SessionId)).toThrow(/unavailable/)
+    expect(() => viewEntry.inject?.()).toThrow(/unavailable/)
     await fiber.dispose()
     expect(ctx.slots.entries('conversation.chat.node')).toEqual([])
     expect(ctx.slots.entries('conversation.view')).toEqual([])

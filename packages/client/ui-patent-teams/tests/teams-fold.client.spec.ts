@@ -263,9 +263,10 @@ describe('Teams view target', () => {
       data,
     })
     const created = projectTeamsCard(startTeamsState(teamEvents()[1]!.event))
-    builder.replace({ nodes: [teamNode(created), teamNode({ ...created, teamId: 'other', name: '其他' })] })
-    builder.apply({ upserts: [teamNode(viewSnapshot(assembler(teamEvents().slice(0, 10))).teams[0]!)] })
-    const snapshot = builder.apply({ upserts: [] })
+    const timeline = { turnOrder: [] as number[], turns: new Map() }
+    builder.replace({ nodes: [teamNode(created), teamNode({ ...created, teamId: 'other', name: '其他' })], timeline })
+    builder.apply({ upserts: [teamNode(viewSnapshot(assembler(teamEvents().slice(0, 10))).teams[0]!)] , timeline })
+    const snapshot = builder.apply({ upserts: [], timeline })
     expect(snapshot.teams).toHaveLength(2)
     expect(snapshot.teams.map(team => team.teamId)).toEqual(['search-team', 'other'])
     expect(snapshot.teams[0]!.messageCount).toBe(1)

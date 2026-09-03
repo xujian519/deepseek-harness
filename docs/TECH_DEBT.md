@@ -142,7 +142,6 @@
 | `packages/typert/generator/src/analyzer.ts` | 3113 | TypeScript 项目分析器(53 个顶层符号) |
 | `packages/core/tools/src/index.ts` | 1955 | ToolRuntime + registry + 调度器 + 水印 + 守卫 + Config 投影 |
 | `packages/subagent/subagent/src/continuation.ts` | 1483 | ChildLock、Activation/Materialization、drain、coldResume、dispose 全挤在一个类 |
-| `packages/session/session-persistence/src/coordinator.ts` | 1367 | PersistenceCoordinator 类体约 780 行 |
 | `packages/extensions/cordis-host-runner/src/index.ts` | 1274 | Dynamic Plugin 服务 |
 | `packages/client/ui-slots/src/index.ts` | 1192 | — |
 | `packages/core/session/src/index.ts` | 1157 | session 服务 + 事件词汇 |
@@ -169,7 +168,7 @@
 
 ### M9. 残留 shim 待验证消费者
 
-- **位置**:`packages/session/session-persistence/src/coordinator.ts:314-538` — `legacyMessageId`/`migrateLegacySteeringEvent`/`migrateLegacyTurnStartEvent`/`migrateLegacyTurnEndEvent`/`migrateLegacyMessageEvent` 约 225 行 legacy 事件迁移;`api/remotes/src/agent-lookup.ts:83` legacy agent-busy fence
+- **位置**:`api/remotes/src/agent-lookup.ts:83` — legacy agent-busy fence
 - **问题**:SESSION_FORMAT_VERSION 仍是 0 且「无兼容承诺」,这些迁移是否还有真实生产消费者需要验证;无消费者则应删除(对照 pre-release stance:foundation over blast radius)。
 
 ### M10. 其他中危

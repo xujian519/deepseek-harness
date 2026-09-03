@@ -8,7 +8,7 @@
  */
 import type {
   ConversationViewBuilder, ConversationViewDefinition, ConversationViewNode,
-  ConversationNodeDefinition,
+  ConversationNodeDefinition, ConversationTimelineSnapshot,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { projectTeamsCard, teamsNodeDefinition, type PatentTeamsCardData, type TeamsTeamState } from './teams-model.ts'
 
@@ -48,6 +48,7 @@ class PatentTeamsViewBuilder implements ConversationViewBuilder<ConversationView
 
   replace(input: {
     readonly nodes: readonly ConversationViewNode[]
+    readonly timeline: ConversationTimelineSnapshot
   }): PatentTeamsViewSnapshot {
     this.teams = input.nodes.map(node => node.data as PatentTeamsCardData)
     return { teams: this.teams }
@@ -55,6 +56,7 @@ class PatentTeamsViewBuilder implements ConversationViewBuilder<ConversationView
 
   apply(input: {
     readonly upserts: readonly ConversationViewNode[]
+    readonly timeline: ConversationTimelineSnapshot
   }): PatentTeamsViewSnapshot {
     for (const node of input.upserts) {
       const next = node.data as PatentTeamsCardData
