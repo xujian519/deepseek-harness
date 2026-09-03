@@ -6,7 +6,7 @@ import {
   ConversationNodeAssembler,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  ConversationNodeDefinition, ConversationViewDefinition,
+  ConversationNodeDefinition, ConversationViewDefinition, ConversationViewNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatConversationViewNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -94,7 +94,7 @@ function teamEvents(): readonly SessionLiveEventEntry[] {
     at(3, 'patent-teams/member-added', { teamId: 'search-team', memberId: 'child-1', name: 'alice', role: 'researcher' }),
     at(4, 'patent-teams/member-added', { teamId: 'search-team', memberId: 'child-2', name: 'bob' }),
     at(5, 'patent-teams/task-created', { teamId: 'search-team', taskId: 't1', subject: '检索 A', dependencies: [] }),
-    at(6, 'patent-teams/task-created', { teamId: 'search-team', taskId: 't2', subject: '综述', dependencies: ['t1'] }),
+    at(6, 'patent-teams/task-created', { teamId: 'search-team', taskId: 't2', subject: '综述', dependencies: ['t1'], assignee: 'bob' }),
     at(7, 'patent-teams/task-updated', { teamId: 'search-team', taskId: 't1', status: 'in_progress', assignee: 'alice' }),
     at(8, 'patent-teams/message-sent', { teamId: 'search-team', messageId: 'm1', from: 'captain', to: 'alice', content: 'go', ts: 1 }),
     at(9, 'patent-teams/task-updated', { teamId: 'search-team', taskId: 't1', status: 'completed', assignee: 'alice' }),
@@ -136,6 +136,32 @@ describe('fold reducer', () => {
     state = applyTeamsEvent(state, at(4, 'patent-teams/task-validated', { teamId: 't', taskId: 't1', worker: 'w', valid: true, missingHardFields: [], degraded: false }).event)
     expect(projectTeamsCard(state).tasks[0]!.missingHardFields).toBeUndefined()
   })
+
+  it('records updates, verdicts, and gates for unknown tasks without a subject', () => {
+    let state = startTeamsState(at(1, 'patent-teams/team-created', { teamId: 't', captainSessionId: 'c', name: 'n' }).event)
+    state = applyTeamsEvent(state, at(2, 'patent-teams/task-updated', { teamId: 't', taskId: 't9', status: 'in_progress' }).event)
+    expect(state.tasks).toEqual([])
+    state = applyTeamsEvent(state, at(3, 'patent-teams/task-validated', { teamId: 't', taskId: 't9', worker: 'w', valid: true, missingHardFields: [], degraded: false }).event)
+    state = applyTeamsEvent(state, at(4, 'patent-teams/task-gated', { teamId: 't', taskId: 't9', score: 0.2, failures: ['x'], feedback: 'f' }).event)
+    expect(projectTeamsCard(state).activity).toEqual([
+      { kind: 'task-gated', seq: 4, taskId: 't9' },
+      { kind: 'task-validated', seq: 3, taskId: 't9', valid: true },
+      { kind: 'task-updated', seq: 2, taskId: 't9', status: 'in_progress' },
+    ])
+  })
+
+  it('keeps a capped newest-first activity feed', () => {
+    let state = startTeamsState(at(1, 'patent-teams/team-created', { teamId: 't', captainSessionId: 'c', name: 'n' }).event)
+    state = applyTeamsEvent(state, at(2, 'patent-teams/task-created', { teamId: 't', taskId: 't1', subject: 's', dependencies: [] }).event)
+    state = applyTeamsEvent(state, at(3, 'patent-teams/message-sent', { teamId: 't', messageId: 'm', from: 'captain', to: 'alice', content: 'go', ts: 1 }).event)
+    for (let seq = 4; seq <= 13; seq += 1) {
+      state = applyTeamsEvent(state, at(seq, 'patent-teams/task-updated', { teamId: 't', taskId: 't1', status: 'in_progress', attempt: seq }).event)
+    }
+    const activity = projectTeamsCard(state).activity
+    expect(activity).toHaveLength(8)
+    expect(activity[0]).toMatchObject({ kind: 'task-updated', seq: 13, taskId: 't1', subject: 's', status: 'in_progress' })
+    expect(activity[7]).toMatchObject({ kind: 'task-updated', seq: 6 })
+  })
 })
 
 describe('chat card Definition', () => {
@@ -154,6 +180,15 @@ describe('chat card Definition', () => {
     expect(first.members).toEqual([
       { memberId: 'child-1', name: 'alice', role: 'researcher', removed: false },
       { memberId: 'child-2', name: 'bob', removed: true },
+    ])
+    expect(first.activity).toEqual([
+      { kind: 'task-gated', seq: 11, taskId: 't1', subject: '检索 A' },
+      { kind: 'task-validated', seq: 10, taskId: 't1', subject: '检索 A', valid: false, missingHardFields: ['sources'] },
+      { kind: 'task-updated', seq: 9, taskId: 't1', subject: '检索 A', status: 'completed' },
+      { kind: 'message-sent', seq: 8, from: 'captain', to: 'alice' },
+      { kind: 'task-updated', seq: 7, taskId: 't1', subject: '检索 A', status: 'in_progress' },
+      { kind: 'task-created', seq: 6, taskId: 't2', subject: '综述' },
+      { kind: 'task-created', seq: 5, taskId: 't1', subject: '检索 A' },
     ])
     expect(first.tasks[0]).toMatchObject({
       taskId: 't1', status: 'completed', assignee: 'alice', missingHardFields: ['sources'], gated: true,
@@ -216,5 +251,23 @@ describe('Teams view target', () => {
 
   it('starts each session builder from the empty snapshot', () => {
     expect(patentTeamsViewDefinition.create().empty).toEqual({ teams: [] })
+  })
+
+  it('upserts an existing team in place instead of appending a twin', () => {
+    const builder = patentTeamsViewDefinition.create()
+    const teamNode = (data: ReturnType<typeof projectTeamsCard>): ConversationViewNode => ({
+      key: '12:patent-teams' + data.teamId,
+      kind: 'patent-teams-view',
+      id: data.teamId,
+      target: PATENT_TEAMS_TARGET,
+      data,
+    })
+    const created = projectTeamsCard(startTeamsState(teamEvents()[1]!.event))
+    builder.replace({ nodes: [teamNode(created), teamNode({ ...created, teamId: 'other', name: '其他' })] })
+    builder.apply({ upserts: [teamNode(viewSnapshot(assembler(teamEvents().slice(0, 10))).teams[0]!)] })
+    const snapshot = builder.apply({ upserts: [] })
+    expect(snapshot.teams).toHaveLength(2)
+    expect(snapshot.teams.map(team => team.teamId)).toEqual(['search-team', 'other'])
+    expect(snapshot.teams[0]!.messageCount).toBe(1)
   })
 })

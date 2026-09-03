@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Context, Service } from '@deepseek-ai/cordis'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -10,10 +10,11 @@ import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-c
 import { makeTranslate, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { TeamsCard, type TeamsCardProps } from '../src/client/TeamsCard.tsx'
 import { TeamsView, type TeamsViewProps } from '../src/client/TeamsView.tsx'
+import { avatarGradient } from '../src/client/teams-avatar.ts'
 import type { PatentTeamsCardData } from '../src/client/teams-model.ts'
 import { PATENT_TEAMS_TARGET, type PatentTeamsViewSnapshot } from '../src/client/teams-view.ts'
 import { apply, inject } from '../src/client/index.ts'
-import { zh } from '../src/client/locales.ts'
+import { en, zh } from '../src/client/locales.ts'
 import { apply as applyNode } from '../src/index.ts'
 import { apply as applyInvariant } from '../src/invariant.ts'
 
@@ -37,6 +38,7 @@ const TEAM: PatentTeamsCardData = {
   ],
   completedTasks: 1,
   messageCount: 2,
+  activity: [],
 }
 
 function listState(overrides: Partial<SessionListState> = {}): SessionListState {
@@ -106,10 +108,16 @@ function cardProps(
   } as TeamsCardProps
 }
 
+interface ViewHarness {
+  readonly loadOlder: ReturnType<typeof vi.fn<() => Promise<void>>>
+  readonly hasMore: { current: boolean }
+}
+
 function viewProps(
   snapshot: PatentTeamsViewSnapshot | undefined,
   sessions: SessionListState = listState(),
   openSession = vi.fn(),
+  harness: ViewHarness = { loadOlder: vi.fn(async () => {}), hasMore: { current: false } },
 ): TeamsViewProps {
   return {
     ...runtimeShare,
@@ -117,7 +125,9 @@ function viewProps(
     useConversation: (selector: (state: { views: Map<string, unknown> }) => unknown) =>
       selector({ views: new Map(snapshot === undefined ? [] : [[PATENT_TEAMS_TARGET, snapshot]]) }),
     useSessions: (selector: (state: SessionListState) => unknown) => selector(sessions),
+    useSession: (selector: (state: { hasMore: boolean }) => unknown) => selector({ hasMore: harness.hasMore.current }),
     openSession,
+    loadOlder: harness.loadOlder,
     t: makeTranslate(zh),
   } as unknown as TeamsViewProps
 }
@@ -163,6 +173,43 @@ describe('TeamsCard', () => {
     expect(screen.getByText('2 条消息')).toBeTruthy()
   })
 
+  it('renders the bare hero and empty-list fallbacks for a team without content', () => {
+    render(<TeamsCard {...cardProps({
+      ...TEAM,
+      description: undefined,
+      status: 'completed',
+      members: [],
+      tasks: [],
+      completedTasks: 0,
+      messageCount: 0,
+    })} />)
+    expect(screen.getByText('全部完成')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /检索团队/ }))
+    expect(screen.getByText('0 名成员')).toBeTruthy()
+    expect(screen.getAllByText('暂无任务').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/条消息/)).toBeNull()
+  })
+
+  it('renders every task dot state, unknown statuses, and contract flags', () => {
+    render(<TeamsCard {...cardProps({
+      ...TEAM,
+      tasks: [
+        { taskId: 't1', subject: '检索 A', dependencies: [], status: 'claimed', gated: false },
+        { taskId: 't2', subject: '综述', dependencies: [], status: 'failed', gated: true },
+        { taskId: 't3', subject: '核对', dependencies: [], status: 'cancelled', gated: false },
+        { taskId: 't4', subject: '定稿', dependencies: [], assignee: 'alice', status: 'curated', gated: false, missingHardFields: ['sources'] },
+        { taskId: 't5', subject: '补件', dependencies: [], status: 'pending', gated: false },
+      ],
+    })} />)
+    expect(screen.getByText('已认领')).toBeTruthy()
+    expect(screen.getByText('待领取')).toBeTruthy()
+    expect(screen.getByText('失败')).toBeTruthy()
+    expect(screen.getByText('已取消')).toBeTruthy()
+    expect(screen.getByText('curated')).toBeTruthy()
+    expect(screen.getByText('未过质量门')).toBeTruthy()
+    expect(screen.getByText('契约缺字段：sources')).toBeTruthy()
+  })
+
   it('demotes the open button when the member row stops running', () => {
     const view = render(<TeamsCard {...cardProps(TEAM)} />)
     expect(screen.getByRole('button', { name: '打开 alice' })).toBeTruthy()
@@ -176,24 +223,206 @@ describe('TeamsCard', () => {
   })
 })
 
-describe('TeamsView', () => {
+describe('TeamsView shell', () => {
   it('renders the empty state without team records', () => {
     render(<TeamsView {...viewProps(undefined)} />)
     expect(screen.getByText(zh['view.empty'])).toBeTruthy()
   })
 
-  it('renders every folded team block from the view snapshot', () => {
-    render(<TeamsView {...viewProps({ teams: [TEAM] })} />)
-    expect(screen.getByText('检索团队')).toBeTruthy()
-    expect(screen.getByRole('button', { name: '打开 alice' })).toBeTruthy()
-    expect(screen.getByText('检索 A')).toBeTruthy()
+  it('drains backwards history while the fold holds no team and pages remain', async () => {
+    const harness: ViewHarness = {
+      loadOlder: vi.fn(async () => {}),
+      hasMore: { current: true },
+    }
+    // The stub exhausts the window on the second page, like the real host.
+    let pages = 0
+    harness.loadOlder.mockImplementation(async () => {
+      pages += 1
+      if (pages >= 2) harness.hasMore.current = false
+    })
+    const view = render(<TeamsView {...viewProps(undefined, listState(), vi.fn(), harness)} />)
+    await act(async () => { await Promise.resolve() })
+    expect(pages).toBe(2)
+    harness.hasMore.current = false
+    view.rerender(<TeamsView {...viewProps(undefined, listState(), vi.fn(), harness)} />)
+    await act(async () => { await Promise.resolve() })
+    expect(pages).toBe(2)
+    expect(screen.getByText(zh['view.empty'])).toBeTruthy()
   })
 
-  it('opens a running member session from a team block', () => {
+  it('stops draining once a team is on the page', async () => {
+    const harness: ViewHarness = { loadOlder: vi.fn(async () => {}), hasMore: { current: true } }
+    render(<TeamsView {...viewProps({ teams: [TEAM] }, listState(), vi.fn(), harness)} />)
+    await act(async () => { await Promise.resolve() })
+    expect(harness.loadOlder).not.toHaveBeenCalled()
+    expect(screen.getByText('检索团队')).toBeTruthy()
+  })
+
+  it('drops a late drain completion after unmount', async () => {
+    let resolve!: () => void
+    const loadOlder = vi.fn((): Promise<void> => new Promise((done) => { resolve = done }))
+    const view = render(<TeamsView {...viewProps(undefined, listState(), vi.fn(), {
+      loadOlder,
+      hasMore: { current: true },
+    })} />)
+    view.unmount()
+    resolve()
+    await act(async () => { await Promise.resolve() })
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('TeamsDashboard', () => {
+  it('renders the hero, segmented progress, and roster for one folded team', () => {
+    render(<TeamsView {...viewProps({ teams: [TEAM] })} />)
+    const team = document.querySelector('[data-patent-teams-team="search-team"]')
+    expect(team).not.toBeNull()
+    expect(team!.getAttribute('data-team-status')).toBe('active')
+    expect(screen.getByText('总进度')).toBeTruthy()
+    expect(screen.getByText('1/2')).toBeTruthy()
+    expect(screen.getByText('已完成')).toBeTruthy()
+    // The proven running member is the only navigation button on the roster.
+    expect(screen.getByRole('button', { name: '打开 alice' })).toBeTruthy()
+    expect(screen.getByText('已离队')).toBeTruthy()
+    expect(screen.getByText('队长')).toBeTruthy()
+  })
+
+  it('binds a working member to its current task and an idle one to its last', () => {
+    render(<TeamsView {...viewProps({ teams: [TEAM] })} />)
+    // alice is running but t1 is completed and t2 is unassigned: no current task line.
+    expect(screen.queryByText(/当前任务/)).toBeNull()
+  })
+
+  it('traces the dependency chain on hover and pins on click', () => {
+    render(<TeamsView {...viewProps({ teams: [TEAM] })} />)
+    const t2 = screen.getByRole('button', { name: /综述/ })
+    fireEvent.mouseEnter(t2)
+    expect(t2.getAttribute('data-dag-hot')).toBe('true')
+    expect(screen.queryByRole('button', { name: /检索 A/ })!.getAttribute('data-dag-hot')).toBe('true')
+    fireEvent.click(t2)
+    expect(t2.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(t2)
+    expect(t2.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.mouseLeave(t2)
+  })
+
+  it('flags a gate-rejected task in the DAG and the activity feed', () => {
+    const gated: PatentTeamsCardData = {
+      ...TEAM,
+      tasks: [
+        { ...TEAM.tasks[0]!, gated: true },
+        ...TEAM.tasks.slice(1),
+      ],
+      activity: [
+        { kind: 'task-created', seq: 5, taskId: 't1', subject: '检索 A' },
+        { kind: 'task-gated', seq: 9, taskId: 't1', subject: '检索 A' },
+        { kind: 'task-validated', seq: 10, taskId: 't1', subject: '检索 A', valid: false, missingHardFields: ['sources'] },
+        { kind: 'message-sent', seq: 11, from: 'alice', to: 'captain' },
+      ],
+    }
+    render(<TeamsView {...viewProps({ teams: [gated] })} />)
+    const t1 = screen.getByRole('button', { name: /检索 A/ })
+    expect(t1.textContent).toContain('未过质量门')
+    expect(screen.getByText('t1「检索 A」未过质量门')).toBeTruthy()
+    expect(screen.getByText('t1「检索 A」契约缺字段：sources')).toBeTruthy()
+    expect(screen.getByText('alice → captain')).toBeTruthy()
+    expect(screen.getByText('创建任务 t1「检索 A」')).toBeTruthy()
+  })
+
+  it('shows the empty activity note for a team without transitions', () => {
+    render(<TeamsView {...viewProps({ teams: [{ ...TEAM, activity: [] }] })} />)
+    expect(screen.getByText('暂无动态')).toBeTruthy()
+  })
+
+  it('hides the DAG section entirely for a team without tasks', () => {
+    render(<TeamsView {...viewProps({ teams: [{ ...TEAM, tasks: [], completedTasks: 0 }] })} />)
+    expect(screen.queryByRole('button', { name: /综述/ })).toBeNull()
+    expect(screen.getByText('暂无动态')).toBeTruthy()
+  })
+
+  it('opens a running member session from the dashboard', () => {
     const openSession = vi.fn()
     render(<TeamsView {...viewProps({ teams: [TEAM] }, listState(), openSession)} />)
     fireEvent.click(screen.getByRole('button', { name: '打开 alice' }))
     expect(openSession).toHaveBeenCalledWith('child-1')
+  })
+
+  it('renders non-active pills and sparse activity fallbacks', () => {
+    const sparse: PatentTeamsCardData = {
+      ...TEAM,
+      status: 'deleted',
+      activity: [
+        { kind: 'task-created', seq: 1 },
+        { kind: 'task-updated', seq: 2, status: 'completed' },
+        { kind: 'task-validated', seq: 3, valid: false },
+        { kind: 'task-validated', seq: 4, valid: true },
+        { kind: 'task-gated', seq: 5 },
+        { kind: 'message-sent', seq: 6 },
+      ],
+    }
+    render(<TeamsView {...viewProps({ teams: [sparse, { ...TEAM, teamId: 'anon', name: '' }] })} />)
+    expect(screen.getAllByText('已解散').length).toBeGreaterThan(0)
+    const feed = document.querySelector('[data-patent-teams-activity="true"]')
+    expect(feed).not.toBeNull()
+    expect(feed!.textContent).toContain('创建任务 「」')
+    expect(feed!.textContent).toContain('「」→ 已完成')
+    expect(feed!.textContent).toContain('「」契约缺字段：')
+    expect(feed!.textContent).toContain('「」通过契约校验')
+    expect(feed!.textContent).toContain('「」未过质量门')
+    expect(feed!.textContent).toContain('→')
+  })
+
+  it('derives a stable avatar gradient from the member id', () => {
+    expect(avatarGradient('child-1')).toBe(avatarGradient('child-1'))
+    expect(avatarGradient('child-1')).not.toBe(avatarGradient('child-2'))
+    expect(avatarGradient('child-1')).toMatch(/^linear-gradient/)
+  })
+
+  it('renders every node status, the idle binding, and the feed kinds for a rich team', () => {
+    const rich: PatentTeamsCardData = {
+      teamId: 'review-team',
+      name: '评审团队',
+      status: 'active',
+      members: [
+        { memberId: 'child-1', name: 'alice', role: 'examiner', removed: false },
+        { memberId: 'child-3', name: 'carol', removed: false },
+      ],
+      tasks: [
+        { taskId: 't1', subject: '检索 A', dependencies: [], assignee: 'alice', status: 'completed', gated: false },
+        { taskId: 't2', subject: '比对', dependencies: ['t1'], assignee: 'alice', status: 'in_progress', gated: false },
+        { taskId: 't3', subject: '认领件', dependencies: ['t1'], assignee: 'carol', status: 'claimed', gated: false },
+        { taskId: 't4', subject: '失败件', dependencies: ['t2'], status: 'failed', gated: false },
+        { taskId: 't5', subject: '待办件', dependencies: [], gated: false },
+        { taskId: 't6', subject: '旁支', dependencies: ['t3'], assignee: 'carol', status: 'completed', gated: false },
+      ],
+      completedTasks: 2,
+      messageCount: 3,
+      activity: [
+        { kind: 'task-updated', seq: 12, taskId: 't2', subject: '比对', status: 'in_progress' },
+        { kind: 'task-validated', seq: 11, taskId: 't1', subject: '检索 A', valid: true },
+        { kind: 'message-sent', seq: 10, from: 'captain', to: 'carol' },
+      ],
+    }
+    render(<TeamsView {...viewProps({ teams: [rich] })} />)
+    // The running member binds to its open assignment; the idle one to its last.
+    expect(screen.getByText(/当前任务 · 比对/)).toBeTruthy()
+    expect(screen.getByText(/上一任务 · 旁支/)).toBeTruthy()
+    expect(screen.getByText('t2「比对」→ 进行中')).toBeTruthy()
+    expect(screen.getByText('t1「检索 A」通过契约校验')).toBeTruthy()
+    expect(screen.getAllByText('未分配').length).toBe(2)
+    // Hover traces one chain and dims the off-chain branch edges.
+    const t2 = screen.getByRole('button', { name: /比对/ })
+    fireEvent.focus(t2)
+    expect(t2.getAttribute('data-dag-hot')).toBe('true')
+    const offBranch = screen.getByRole('button', { name: /旁支/ })
+    expect(offBranch.getAttribute('data-dag-dim')).toBe('true')
+    // The SVG edges follow the same chain: on-path hot, off-path dimmed.
+    const edgeClasses = [...document.querySelectorAll('path')].map(path => path.getAttribute('class') ?? '')
+    expect(edgeClasses.some(name => name.includes('dagEdgeHot'))).toBe(true)
+    expect(edgeClasses.some(name => name.includes('dagEdgeDim'))).toBe(true)
+    fireEvent.blur(t2)
+    expect(t2.getAttribute('data-dag-hot')).toBeNull()
+    expect(offBranch.getAttribute('data-dag-dim')).toBeNull()
   })
 })
 
@@ -201,6 +430,10 @@ class TestSessions extends Service {
   readonly opened: SessionId[] = []
   constructor(ctx: Context) { super(ctx, 'sessions') }
   open(id: SessionId): void { this.opened.push(id) }
+  binding(id: SessionId): { session: { loadOlder: () => Promise<void> } } | undefined {
+    if (id !== PARENT_ID) return undefined
+    return { session: { loadOlder: async () => {} } }
+  }
 }
 
 describe('plugin lifecycle', () => {
@@ -230,6 +463,21 @@ describe('plugin lifecycle', () => {
     const cardFace = cardEntry.inject?.() as unknown as { openSession: (id: SessionId) => void }
     cardFace.openSession(CHILD_ID)
     expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID])
+    // The view entry resolves its drain verb from the session face and fails
+    // loud when the session binding is absent.
+    const viewEntry = ctx.slots.entries('conversation.view')[0]!
+    const viewOptions = (viewEntry as unknown as { options: { label?: () => string } }).options
+    // The label thunk reads through the bound locale; the ambient test
+    // environment resolves to the English dictionary.
+    expect(viewOptions.label?.()).toBe(en['view.teams'])
+    const viewFace = viewEntry.inject?.(PARENT_ID) as unknown as {
+      openSession: (id: SessionId) => void
+      loadOlder: () => Promise<void>
+    }
+    await viewFace.loadOlder()
+    viewFace.openSession(CHILD_ID)
+    expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID, CHILD_ID])
+    expect(() => viewEntry.inject?.('ghost' as SessionId)).toThrow(/unavailable/)
     await fiber.dispose()
     expect(ctx.slots.entries('conversation.chat.node')).toEqual([])
     expect(ctx.slots.entries('conversation.view')).toEqual([])

@@ -52,8 +52,9 @@ function taskDot(status: string | undefined): StateDotState | null {
   return status === undefined ? null : TASK_DOTS[status] ?? null
 }
 
-function taskStatusLabel(task: PatentTeamsCardTask, t: Translate): string {
-  switch (task.status) {
+/** Locale label for one raw task status (shared by rows, the DAG, and the feed). */
+export function statusLabel(status: string | undefined, t: Translate): string {
+  switch (status) {
     case undefined: return t('task.noStatus')
     case 'pending': return t('task.pending')
     case 'claimed': return t('task.claimed')
@@ -61,8 +62,12 @@ function taskStatusLabel(task: PatentTeamsCardTask, t: Translate): string {
     case 'completed': return t('task.completed')
     case 'failed': return t('task.failed')
     case 'cancelled': return t('task.cancelled')
-    default: return t('task.unknownStatus', { status: task.status })
+    default: return t('task.unknownStatus', { status })
   }
+}
+
+function taskStatusLabel(task: PatentTeamsCardTask, t: Translate): string {
+  return statusLabel(task.status, t)
 }
 
 /** Navigation action shared with the plugin's SessionRuntime access. */
@@ -138,10 +143,10 @@ export function TeamsTaskList({ team, t }: {
             <span className={css.taskStatus}>{taskStatusLabel(task, t)}</span>
             <span className={css.taskAssignee}>{task.assignee ?? t('task.unassigned')}</span>
             {task.dependencies.length === 0 ? null : (
-              <span className={css.taskDeps}>{t('task.deps', { deps: task.dependencies.join('、') })}</span>
+              <span className={css.taskDeps}>{t('task.deps', { deps: task.dependencies.join(t('list.separator')) })}</span>
             )}
             {task.missingHardFields === undefined ? null : (
-              <span className={css.taskFlag}>{t('task.contractDegraded', { fields: task.missingHardFields.join('、') })}</span>
+              <span className={css.taskFlag}>{t('task.contractDegraded', { fields: task.missingHardFields.join(t('list.separator')) })}</span>
             )}
             {task.gated ? <span className={css.taskFlag}>{t('task.gated')}</span> : null}
           </div>
