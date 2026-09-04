@@ -131,15 +131,29 @@ async function fetchPdfBody(
   }
 }
 
-/** Extract the pdf_url from a connector record's extra, or the override. */
+/**
+ * Resolve the PDF link for a download: an explicit override wins, else the
+ * connector record's PDF field. A connector `fetch` returns its raw source
+ * record (arXiv `pdf`, OpenAlex `pdf_url`, Semantic Scholar `openAccessPdf.url`)
+ * or a normalized hit carrying those under `.extra`; accept both shapes so the
+ * source record is read without its wrapper.
+ */
 function pdfUrlFrom(
   record: unknown,
   direct: string | undefined,
 ): { pdfUrl: string } | { error: string } {
   if (direct !== undefined && direct.trim() !== '') return { pdfUrl: direct.trim() }
-  const extra = (record as { extra?: Record<string, unknown> } | undefined)?.extra
-  const fromExtra = extra?.pdf_url ?? extra?.pdf
-  if (typeof fromExtra === 'string' && fromExtra !== '') return { pdfUrl: fromExtra }
+  // record may be null when the connector exposes no fetch; every access is optional-chained.
+  const r = record as {
+    extra?: { pdf_url?: unknown; pdf?: unknown }
+    pdf_url?: unknown
+    pdf?: unknown
+    openAccessPdf?: { url?: unknown }
+  } | null | undefined
+  const candidates = [r?.extra?.pdf_url, r?.extra?.pdf, r?.pdf_url, r?.pdf, r?.openAccessPdf?.url]
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate !== '') return { pdfUrl: candidate }
+  }
   return { error: 'no PDF link available for this record (no pdf_url in the record and no direct pdfUrl given)' }
 }
 

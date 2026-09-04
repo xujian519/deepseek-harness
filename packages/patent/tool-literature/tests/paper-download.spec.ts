@@ -179,6 +179,32 @@ describe('paper_download', () => {
     }
   })
 
+  it('resolves a PDF link from a raw source record (arXiv pdf field, no extra)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
+    try {
+      let fetched = ''
+      const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+        fetched = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        return pdfFetch()(input)
+      })
+      // A real connector fetch returns the raw source record (arXiv puts the
+      // PDF in `pdf`, OpenAlex in `pdf_url`, Semantic Scholar in
+      // `openAccessPdf.url`) — not a ConnectorHit carrying `.extra`.
+      const result = await executeTool(
+        { db: 'fake', id: '1706.03762', outputDir: dir },
+        { registry: registryWith({ id: 'http://arxiv.org/abs/1706.03762v7', pdf: 'http://arxiv.org/pdf/1706.03762v7' }), fetchImpl },
+      )
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error('expected success')
+      const value = result.value as { result: { status: string; method?: string } }
+      expect(value.result.status).toBe('ok')
+      expect(value.result.method).toBe('direct')
+      expect(fetched).toBe('http://arxiv.org/pdf/1706.03762v7')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('honors the pdfUrl override', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-paper-'))
     try {
