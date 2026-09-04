@@ -29,31 +29,11 @@ import {
   type Syllogism,
   type WorkflowManifest,
 } from '@deepseek-ai/dsh-patent-core'
-import { apply as applyInvariant } from '@deepseek-ai/dsh-patent-core/invariant'
 import type { GenerateOptions, LlmFailure, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 
 // ---------------------------------------------------------------------------
-// invariant companion / paths
+// paths
 // ---------------------------------------------------------------------------
-
-it('invariant：注册 package 所有权 companion', async () => {
-  let registeredName = ''
-  let installed = 0
-  const ctx = {
-    invariants: {
-      register: (name: string, installer: () => void): (() => void) => {
-        registeredName = name
-        installer()
-        installed += 1
-        return () => undefined
-      },
-    },
-  }
-  const disposer = await applyInvariant(ctx as never)
-  expect(registeredName).toBe('@deepseek-ai/dsh-patent-core')
-  expect(installed).toBe(1)
-  expect(typeof disposer).toBe('function')
-})
 
 it('caseWorkflowRunsDir：拼接工作流运行目录', () => {
   expect(caseWorkflowRunsDir('case-1')).toBe('data/cases/case-1/workflow-runs')

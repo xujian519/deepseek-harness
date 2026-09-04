@@ -82,3 +82,5 @@ Append-only; newly visible result text follows the reusable request prefix and d
 ### Dev Note
 
 None.
+
+No companion is published because the triz tool writes no package-owned durable session events beyond the normal tools/result log; execution relations are owned by the tool registry it calls.

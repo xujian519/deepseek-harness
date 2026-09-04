@@ -21,9 +21,6 @@
       "path": "../../core/tools"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../browser/browser-backend"
     }
   ]

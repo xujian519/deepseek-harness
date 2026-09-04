@@ -92,3 +92,5 @@ Independent; the library contributes no model-visible content, so it never popul
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：库是对调用方输入做纯计算，不持有可独立观测并可能分歧的包内持久状态。

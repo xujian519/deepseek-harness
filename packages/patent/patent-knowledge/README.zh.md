@@ -90,3 +90,5 @@ Independent; the knowledge seam registers no prompt, tool schema, or result of i
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：知识缝对外部 knowledge.db 提供只读查询，不持有包属持久会话事件流；模型可见与会话日志关系归消费这些查询的工具层所有。

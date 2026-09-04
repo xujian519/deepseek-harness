@@ -61,3 +61,5 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 ### Dev Note
 
 None.
+
+No companion is published because the data seam serves callers on demand and owns no durable package-local event stream; search and ego-browser runs are consumed by the tool layer, which owns the model-visible and session-log relations.

@@ -117,3 +117,5 @@ Schemastery 配置，所有字段可选。
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：专利工具除常规 tools/result 日志外不写入包属持久会话事件；workflow-run 与 plantask 事件归 dsh-patent-workflow 所有。

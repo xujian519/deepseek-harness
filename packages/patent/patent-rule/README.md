@@ -61,3 +61,5 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 ### Dev Note
 
 None.
+
+No companion is published because the dsh-tools runtime’s own invariant companion enforces and audits the EVI-011 guards and the tools/post-execute output gate.

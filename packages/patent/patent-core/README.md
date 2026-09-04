@@ -81,3 +81,5 @@ Independent; the library contributes no model-visible content, so it never popul
 ### Dev Note
 
 None.
+
+No companion is published because the library is pure computation over caller-owned inputs and owns no durable package-local state with observations that could independently diverge.

@@ -62,3 +62,5 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 ### Dev Note
 
 None.
+
+No companion is published because render_patent_document writes deliverable files to the working tree but emits no package-owned durable session events beyond the normal tools/result log; template assets are validated fail-loud at resolution time.

@@ -68,3 +68,5 @@ Schemastery 配置，所有字段均可选。
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：render_patent_document 将交付文件写入工作树，除常规 tools/result 日志外不写入包属持久会话事件；模板资产在解析时 fail-loud 校验。

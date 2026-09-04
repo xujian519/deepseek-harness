@@ -87,3 +87,5 @@ Call triz with an improving and a worsening parameter number (1-39) to read that
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：triz 工具除常规 tools/result 日志外不写入任何包属的持久会话事件；执行关系归它调用的工具注册表所有。

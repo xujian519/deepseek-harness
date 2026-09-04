@@ -19,9 +19,6 @@
     },
     {
       "path": "../../core/system-prompt"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

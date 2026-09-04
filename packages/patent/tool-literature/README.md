@@ -103,3 +103,5 @@ Append-only; newly visible list text follows the reusable request prefix and doe
 ### Dev Note
 
 None.
+
+No companion is published because the literature tools write no package-owned durable session events beyond the normal tools/result log; execution relations are owned by the tool registry they call.

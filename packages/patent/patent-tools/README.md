@@ -113,3 +113,5 @@ Prefix-stable while the registered tool set and their descriptions are unchanged
 ### Dev Note
 
 None.
+
+No companion is published because the patent tools write no package-owned durable session events beyond the normal tools/result log; workflow-run and plantask events are owned by dsh-patent-workflow.

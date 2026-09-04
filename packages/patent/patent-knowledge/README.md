@@ -85,3 +85,5 @@ Independent; the knowledge seam registers no prompt, tool schema, or result of i
 ### Dev Note
 
 None.
+
+No companion is published because the knowledge seam serves read-only queries over an external knowledge.db and owns no durable package-local session event stream; model-visible and session-log relations belong to the tool layer that consumes these queries.

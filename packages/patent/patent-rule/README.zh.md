@@ -67,3 +67,5 @@ None, as 本插件不注册工具 schema、提示段或结果投影；其 EVI-01
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：dsh-tools 运行时自身的 invariant 伴生组件负责执行与审计 EVI-011 守卫及 tools/post-execute 输出门禁。

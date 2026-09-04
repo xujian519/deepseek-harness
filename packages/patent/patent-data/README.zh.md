@@ -65,3 +65,5 @@ Independent; the data seam registers no prompt, tool schema, or result of its ow
 ### 开发备注
 
 无。
+
+本包不发布 invariant 伴生组件：数据缝按需服务调用方，不持有包属持久事件流；检索与 ego-browser 运行由工具层消费，模型可见与会话日志关系归工具层所有。
