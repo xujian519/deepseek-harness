@@ -583,6 +583,32 @@ describe('updateTask', () => {
     await expect(h.ctx.patentTeams.updateTask(captain, { task_id: 't1', status: 'completed', output: 'o' }))
       .resolves.toMatchObject({ status: 'completed', output: 'o' })
   })
+
+  it('normalizes a gate-bounced claimed task to in_progress so a resubmission is legal', async () => {
+    const h = await makeService({ qualityGate: true, passThreshold: 0.7 })
+    const captain = fakeAgent('captain-1', h.workspace)
+    await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, {
+      subject: 'work', assignee: 'alice', worker: 'patent-technical-analyzer',
+    })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const alice = fakeAgent('member-1', h.workspace)
+    // The short output misses the contract's hard fields, so the composite gate
+    // bounces the submission while the task is still claimed.
+    const gated = await h.ctx.patentTeams.updateTask(alice, {
+      task_id: 't1', status: 'completed', output: 'ok', attempt_id: claimed.attempt_id!,
+    })
+    expect(gated).toMatchObject({ gated: true, status: 'in_progress' })
+    const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
+    expect(team?.tasks[0]?.status).toBe('in_progress')
+    // A resubmission on the same attempt must not throw the claimed->completed
+    // transition error (it stays gated:true until the output passes the gate).
+    const resubmitted = await h.ctx.patentTeams.updateTask(alice, {
+      task_id: 't1', status: 'completed', output: 'ok', attempt_id: claimed.attempt_id!,
+    })
+    expect(resubmitted).toMatchObject({ gated: true, status: 'in_progress' })
+  })
 })
 
 describe('sendMessage', () => {

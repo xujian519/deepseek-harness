@@ -808,6 +808,10 @@ export class PatentTeamsService extends Service {
           // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured task.worker and args.output are defined
           const gate = runQualityGate(this.ctx, task.worker!, args.output!, this.config.passThreshold)
           if (!gate.satisfied) {
+            // A bounced submission must fall back to in_progress: leaving a
+            // claimed task claimed would make the revised completed submission
+            // hit the claimed->completed transition error and wedge the member.
+            if (task.status === 'claimed') task.status = 'in_progress'
             // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured args.output is defined
             task.output = args.output!
             task.gateFeedback = gate
