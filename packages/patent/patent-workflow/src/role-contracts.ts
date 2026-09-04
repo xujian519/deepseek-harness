@@ -38,8 +38,8 @@ export interface RoleContract {
 }
 
 /**
- * 内置团队角色目录（12 角色，与 patent-team-composition SKILL 角色总表一一对应）。
- * @returns 全部 12 个角色契约。
+ * 内置团队角色目录（13 角色，与 patent-team-composition SKILL 角色总表一一对应）。
+ * @returns 全部 13 个角色契约。
  */
 export function defaultRoleContracts(): RoleContract[] {
   return [
@@ -150,6 +150,16 @@ export function defaultRoleContracts(): RoleContract[] {
       workers: ['tech-investigator'],
       forbiddenActions: ['不评法律结论', '不代任一方主张'],
       triggersHITL: false,
+    },
+    {
+      role: 'document-specialist',
+      name: '文档专员',
+      stance: 'neutral',
+      description:
+        '按场景输出正式交付文档：场景→模板映射（专利性意见/检索报告/OA答复/权利要求书+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书）、矫正（术语一致性/法条引用格式与出处/数字日期期限/编号层级/文书称谓）、美化（模板渲染/品牌注入/A4 版式/md 起草→html/pdf 或 docx）',
+      workers: ['patent-document-renderer'],
+      forbiddenActions: ['不改实体结论（权利要求布局/无效理由组合/诉请金额等）', '不代任一立场起草策略内容'],
+      triggersHITL: true,
     },
   ]
 }

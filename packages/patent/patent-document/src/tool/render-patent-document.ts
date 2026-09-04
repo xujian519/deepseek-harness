@@ -1,6 +1,6 @@
 /**
  * `render_patent_document` tool: render a patent-attorney deliverable from one
- * of the five shipped Chinese HTML templates into an HTML file and, by default,
+ * of the nine shipped Chinese HTML templates into an HTML file and, by default,
  * a headless-Chrome PDF.
  * @module @deepseek-ai/dsh-patent-document/tool/render-patent-document
  */
@@ -13,17 +13,21 @@ import { DocumentRenderError } from '../document/errors.ts'
 import { renderPatentDocument } from '../document/renderPatentDocument.ts'
 import type { DocumentRenderResult } from '../document/types.ts'
 
-/** 五个随包分发的模板 id，与 manifest.json 的 templates 列表一致。 */
+/** 九个随包分发的模板 id，与 manifest.json 的 templates 列表一致。 */
 const TEMPLATE_IDS = [
   'patentability-opinion',
   'search-report',
   'oa-response',
   'claims-spec',
   'invalidation-opinion',
+  'rectification-response',
+  're-examination-request',
+  'infringement-opinion',
+  'litigation-pleading',
 ] as const
 
 const DESCRIPTION = [
-  'Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, or invalidation opinion) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).',
+  'Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, or litigation pleading) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).',
 ].join('\n')
 /** 输出 canonical 值的 JSON schema（与 DocumentRenderResult 对应）。 */
 const RESULT_SCHEMA = {
@@ -92,7 +96,7 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
         type: 'string',
         required: true,
         enum: TEMPLATE_IDS,
-        description: 'Template id to render (one of the five shipped patent templates).',
+        description: 'Template id to render (one of the nine shipped patent templates).',
       },
       outputName: {
         type: 'string',

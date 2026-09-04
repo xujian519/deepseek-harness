@@ -542,4 +542,47 @@ describe('renderPatentDocument', () => {
       cleanup(dir)
     }
   })
+
+  it('renders each of the four post-draft templates from the real assets', async () => {
+    const dir = makeTempDir()
+    try {
+      const cases = [
+        {
+          template: 'rectification-response',
+          sections: { 'meta-title': '一种电池模组散热方法', 'rect-findings': '通知缺陷摘录' },
+        },
+        {
+          template: 're-examination-request',
+          sections: { 'meta-title': '一种电池模组散热结构', 'ground-1': '针对理由一的回应' },
+        },
+        {
+          template: 'infringement-opinion',
+          sections: { 'meta-title': '一种电池模组温度均衡装置', 'claim-text': '权利要求 1 全文', 'conclusion-text': '落入保护范围' },
+        },
+        {
+          template: 'litigation-pleading',
+          sections: { 'meta-title': '侵害发明专利权纠纷', 'doc-kind': '答辩状' },
+        },
+      ] as const
+      for (const c of cases) {
+        const result = await renderPatentDocument(
+          {
+            template: c.template,
+            outputName: `tmp-${c.template}`,
+            outputDir: dir,
+            format: 'html',
+            sections: c.sections,
+          },
+          process.cwd(),
+          { subprocess: unusedSubprocess() },
+        )
+        const html = readFileSync(result.htmlPath, 'utf8')
+        for (const value of Object.values(c.sections)) {
+          expect(html).toContain(value)
+        }
+      }
+    } finally {
+      cleanup(dir)
+    }
+  })
 })

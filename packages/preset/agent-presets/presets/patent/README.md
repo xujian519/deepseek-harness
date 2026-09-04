@@ -24,7 +24,7 @@ The preset also mounts `@deepseek-ai/dsh-self-evolve-benchmark` behind its own i
 
 ## Skills
 
-Twelve skills ship in skills/:
+Thirteen skills ship in skills/:
 
 - patent-disclosure-understanding
 - patent-prior-art-search
@@ -38,8 +38,11 @@ Twelve skills ship in skills/:
 - patent-matter
 - patent-fact-check
 - patent-compliance-review
+- patent-document-polish
 
-`patent-team-composition` is the durable-team template: this session mounts the `dsh-patent-teams` plugin (`patent_teams_*` tools), so cases pick one of seven scenario role packs covering the full patent lifecycle — case intake (case-manager / researcher / technical-expert / drafter), drafting (researcher / drafter / adversarial-reviewer / technical-expert / applicant-counsel), office-action response (same five), correction (drafter / formal-examiner), reexamination (researcher / drafter / adversarial-reviewer / applicant-counsel / adjudicator), invalidation (researcher / drafter / technical-expert / invalidity-petitioner / patentee-defender / adjudicator), and infringement litigation (researcher / drafter / technical-expert / patentee-defender / defendant-counsel / adjudicator, plus optional tech-investigator) — led by the current session as captain; only when the plugin is disabled does it fall back to single-session `subagent_fork` expert review. The reexamination, invalidation, and litigation packs use the adversarial structure of paired positions plus a neutral adjudicator.
+`patent-team-composition` is the durable-team template: this session mounts the `dsh-patent-teams` plugin (`patent_teams_*` tools), so cases pick one of seven scenario role packs covering the full patent lifecycle — case intake (case-manager / researcher / technical-expert / drafter / document-specialist), drafting (researcher / drafter / adversarial-reviewer / technical-expert / applicant-counsel / document-specialist), office-action response (same six), correction (drafter / formal-examiner / document-specialist), reexamination (researcher / drafter / adversarial-reviewer / applicant-counsel / adjudicator / document-specialist), invalidation (researcher / drafter / technical-expert / invalidity-petitioner / patentee-defender / adjudicator / document-specialist), and infringement litigation (researcher / drafter / technical-expert / patentee-defender / defendant-counsel / adjudicator / document-specialist, plus optional tech-investigator) — led by the current session as captain; the document-specialist (`document-specialist`) owns the scenario-mapped deliverable before closure (correction and beautification only, never substantive conclusions); only when the plugin is disabled does it fall back to single-session `subagent_fork` expert review. The reexamination, invalidation, and litigation packs use the adversarial structure of paired positions plus a neutral adjudicator.
+
+`patent-document-polish` is the deliverable-output discipline: pick the scenario template (patentability opinion / search report / OA response / claims-spec / rectification response / re-examination request / invalidation opinion / infringement opinion / litigation pleading), correct (terminology consistency, law-citation format with provenance, numbers/dates/deadlines, numbering levels, legal salutations), and beautify (template rendering, brand injection, A4 layout, md draft → html/pdf or docx), with the delivery release merged into one quality-gate confirmation.
 
 The novelty/inventiveness, infringement, and invalidity skills are rewritten from the Sati skills patent-novelty-analysis, patent-inventiveness-analysis, patent-infringement-checker, and patent-invalidity-checker. Sati tool references (patent_kg_query / patent_case_search / law_search) are replaced by the dsh patent tools, the <memory-context> auto-injection is replaced by explicit must-check lists, and Sati-internal file paths are replaced by workspace-relative paths.
 
@@ -57,7 +60,7 @@ The cnlaw legal base is an optional enhancement: when the local semantica-cnlaw 
 
 ## Model Experience
 
-The model sees the Chinese patent-agent persona (professional identity, seven work disciplines, the standard workflow, and the output discipline with its mandatory disclaimer), the patent plan-mode section, the seven preset skills, and the patent tools plus the standard coding tools. The persona requires verify-before-cite (web_fetch on every fact when mounted), separate comparison, per-feature comparison with citations, and a mandatory disclaimer on every analysis output.
+The model sees the Chinese patent-agent persona (professional identity, seven work disciplines, the standard workflow, and the output discipline with its mandatory disclaimer), the patent plan-mode section, the eight preset skills (seven working skills plus the team and document-discipline skills), and the patent tools plus the standard coding tools. The persona requires verify-before-cite (web_fetch on every fact when mounted), separate comparison, per-feature comparison with citations, and a mandatory disclaimer on every analysis output.
 
 ## Known Limitations and Deferred Work
 

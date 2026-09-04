@@ -22,11 +22,15 @@ describe('templateResolver', () => {
       'oa-response',
       'claims-spec',
       'invalidation-opinion',
+      'rectification-response',
+      're-examination-request',
+      'infringement-opinion',
+      'litigation-pleading',
     ])
   })
 
   it('resolves the html path for every manifest template', () => {
-    for (const id of ['patentability-opinion', 'search-report', 'oa-response', 'claims-spec', 'invalidation-opinion'] as const) {
+    for (const id of ['patentability-opinion', 'search-report', 'oa-response', 'claims-spec', 'invalidation-opinion', 'rectification-response', 're-examination-request', 'infringement-opinion', 'litigation-pleading'] as const) {
       const { root, htmlPath } = resolveTemplate(id)
       expect(htmlPath).toBe(join(root, id, 'assets', 'template.html'))
       expect(existsSync(htmlPath)).toBe(true)

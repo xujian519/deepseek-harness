@@ -4301,7 +4301,7 @@ The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowl
 
 ### `render_patent_document`
 
-Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, or invalidation opinion) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).
+Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, or litigation pleading) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).
 
 ```json
 {
@@ -4309,13 +4309,17 @@ Render a patent-attorney deliverable (patentability opinion, search report, OA r
   "properties": {
     "template": {
       "type": "string",
-      "description": "Template id to render (one of the five shipped patent templates).",
+      "description": "Template id to render (one of the nine shipped patent templates).",
       "enum": [
         "patentability-opinion",
         "search-report",
         "oa-response",
         "claims-spec",
-        "invalidation-opinion"
+        "invalidation-opinion",
+        "rectification-response",
+        "re-examination-request",
+        "infringement-opinion",
+        "litigation-pleading"
       ]
     },
     "outputName": {
@@ -4383,7 +4387,7 @@ Add a durable continuable member. By default it snapshots the captain's current 
     },
     "role": {
       "type": "string",
-      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator)."
+      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator, document-specialist)."
     },
     "provider": {
       "type": "string",

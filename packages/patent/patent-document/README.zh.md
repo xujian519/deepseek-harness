@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：五个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染，以及 render_patent_document 工具。"
+description: "函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：九个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染，以及 render_patent_document 工具。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：五个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染，以及 render_patent_document 工具。
+函数插件，将 Sati 专利文书渲染器移植进 DeepSeek Harness：九个随包分发的专利律师交付物中文 HTML 模板、品牌注入、经 ctx.subprocess 调用 Chrome headless 的 PDF 渲染，以及 render_patent_document 工具。
 
 ## 目录
 
@@ -22,7 +22,7 @@ kind: "package-reference"
 <a id="render_patent_document-tool"></a>
 ## render_patent_document 工具
 
-render_patent_document 将五个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec 或 invalidation-opinion）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再以 id -> innerHTML 记录的形式传入 sections 填充模板槽位。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
+render_patent_document 将九个随包模板之一（patentability-opinion、search-report、oa-response、claims-spec、invalidation-opinion、rectification-response、re-examination-request、infringement-opinion 或 litigation-pleading）渲染为 HTML 文件，默认同时生成 PDF。选定一个模板 id 与 outputName，再以 id -> innerHTML 记录的形式传入 sections 填充模板槽位。结果以模型可读文本返回写出的 htmlPath、pdfPath、可能的 pdfError 与 warnings；当 PDF 失败时，HTML 仍然存在。
 
 <a id="document-engine-library-api"></a>
 ## 文档引擎（库 API）
@@ -47,7 +47,7 @@ Schemastery 配置，所有字段均可选。
 
 #### 模型看到的内容
 
-一个名为 `render_patent_document` 的已注册工具，含必需的 `template` 枚举（五个 id：`patentability-opinion`、`search-report`、`oa-response`、`claims-spec`、`invalidation-opinion`）、必需的 `outputName`，以及可选的 `caseId`、`outputDir`、`format`、`sections`、`brand` 与 `brandPath`。结果以 Markdown 文本渲染，列出写出的 `htmlPath`、`pdfPath`、可能的 `pdfError` 与 `warnings`。
+一个名为 `render_patent_document` 的已注册工具，含必需的 `template` 枚举（九个 id：`patentability-opinion`、`search-report`、`oa-response`、`claims-spec`、`invalidation-opinion`、`rectification-response`、`re-examination-request`、`infringement-opinion`、`litigation-pleading`）、必需的 `outputName`，以及可选的 `caseId`、`outputDir`、`format`、`sections`、`brand` 与 `brandPath`。结果以 Markdown 文本渲染，列出写出的 `htmlPath`、`pdfPath`、可能的 `pdfError` 与 `warnings`。
 
 #### Token 影响
 

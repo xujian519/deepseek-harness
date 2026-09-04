@@ -20,9 +20,9 @@ const STANCES: readonly RoleStance[] = [
 ]
 
 describe('defaultRoleContracts', () => {
-  it('ships the twelve team roles with unique ids and legal stances', () => {
+  it('ships the thirteen team roles with unique ids and legal stances', () => {
     const roles = defaultRoleContracts()
-    expect(roles).toHaveLength(12)
+    expect(roles).toHaveLength(13)
     const ids = roles.map(role => role.role)
     expect(new Set(ids).size).toBe(ids.length)
     for (const role of roles) {
@@ -67,6 +67,14 @@ describe('roleContract', () => {
     expect(roleContract('case-manager')?.forbiddenActions).toContain('不评技术或法律实体内容')
     expect(roleContract('no-such-role')).toBeUndefined()
   })
+
+  it('resolves the document-specialist role to its neutral stance and worker', () => {
+    const specialist = roleContract('document-specialist')
+    expect(specialist?.name).toBe('文档专员')
+    expect(specialist?.stance).toBe('neutral')
+    expect(specialist?.triggersHITL).toBe(true)
+    expect(roleWorkers('document-specialist').map(w => w.name)).toEqual(['patent-document-renderer'])
+  })
 })
 
 describe('workerDeliverables', () => {
@@ -74,6 +82,7 @@ describe('workerDeliverables', () => {
     expect(workerDeliverables('researcher')).toBe('检索式、对比文件、公开日')
     expect(workerDeliverables('drafter')).toBe('技术问题、技术特征、技术效果、意见陈述、修改对照')
     expect(workerDeliverables('patentee-defender')).toBe('质证意见、反证清单、修改权利要求方案')
+    expect(workerDeliverables('document-specialist')).toBe('交付场景、矫正清单、渲染产物')
   })
 
   it('returns an empty string for an unknown role', () => {

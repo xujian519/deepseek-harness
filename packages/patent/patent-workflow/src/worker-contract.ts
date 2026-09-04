@@ -470,5 +470,22 @@ export function defaultPatentWorkers(): WorkerContract[] {
       forbiddenActions: ['draft_claims', 'draft_specification', 'novelty_analysis', 'inventiveness_analysis'],
       triggersHITL: false,
     },
+    {
+      name: 'patent-document-renderer',
+      tier: 'work',
+      description:
+        '文档专员（流程中立）：按场景把已定稿内容组织成正式交付文档——选择场景模板（专利性意见/检索报告/OA答复/权利要求书+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书），矫正（术语一致性、法条引用格式与出处、数字/日期/期限、编号层级、文书称谓），美化（模板渲染、品牌注入、A4 版式、md 起草→html/pdf 或 docx 交付）',
+      allowedTools: ['read_file', 'write_file', 'render_patent_document'],
+      outputs: [
+        {
+          path: `${caseOutputsDir('{caseId}')}/document-deliverable.md`,
+          format: 'markdown',
+          contractLevel: 'hard',
+          requiredFields: ['交付场景', '矫正清单', '渲染产物'],
+        },
+      ],
+      forbiddenActions: ['不改实体结论（权利要求布局/无效理由组合/诉请金额等）', '不代任一立场起草策略内容'],
+      triggersHITL: true,
+    },
   ]
 }

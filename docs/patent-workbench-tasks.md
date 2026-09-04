@@ -368,6 +368,14 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 - [ ] 5. 「专利模式」设为默认，新会话默认进入
 - [ ] 6. 知识库已积累，召回路径（先查本地再上网）实测生效
 
+### 阶段 5 追加落地记录（2026-09-04）
+
+- [x] 文档专员角色：`document-specialist` 注册于 `patent-workflow/role-contracts.ts`（13 角色），worker `patent-document-renderer`（交付场景/矫正清单/渲染产物，triggersHITL），`patent_teams_add_member` role 描述同步。
+- [x] 技能 `patent-document-polish`（场景→模板映射、矫正清单、美化清单、交付流程与 HITL 去重）。
+- [x] 模板扩至 9 个：新增 `rectification-response` / `re-examination-request` / `infringement-opinion` / `litigation-pleading`（SKILL.md + template.html + example.html + references）。
+- [x] `patent-team-composition` 七场景包均纳入文档专员，质量门禁后、收口前插入「正式文档输出」任务；质量门禁、目录规范、preset README（双语）同步。
+- [x] 手工验证待办：真实案件跑一次含文档专员的团队流程（示例见 render-patent-document.spec 模板渲染单测已覆盖资产加载）。
+
 ---
 
 ## 自检记录（writing-plans Self-Review）

@@ -7,7 +7,7 @@
 > 2. 分阶段实施。**本文档为设计蓝图**；实现已推进到插件层与预设接线（见下方"当前状态"），不再停留于"只出设计文档"。
 > 3. 法域以**中国专利法体系**为主（CNIPA），检索源以 Google Patents + CNIPA 公布公告为主。
 
-> **当前状态（2026-08-25 两套预设收敛后）**：专利模式唯一正本预设位于仓库 `packages/preset/agent-presets/presets/patent/`（随 `package:desktop` 部署进 app；桌面环境 shipped 根优先，会遮蔽同名 user 版）。团队机制采用 `dsh-patent-teams`（`patent_teams_*` 工具）+ 技能 `patent-team-composition`。与本文档下述条款存在分歧时，以实际预设为准：§4 草案的 `fetch: true` 实际为 `fetch: false`（宿主未挂 fetch provider）；§3 预设技能集由 7 个扩展为 11 个（新增 `patent-matter` / `patent-fact-check` / `patent-compliance-review`）；团队技能名为 `patent-team-composition`（对应 §8.4）。人设与 `patent-quality-gate` 已并入 docx 交付与 HITL 放行规则。执行记录见 `docs/patent-workbench-plan.md` 与 `docs/patent-workbench-tasks.md`。
+> **当前状态（2026-08-25 两套预设收敛后）**：专利模式唯一正本预设位于仓库 `packages/preset/agent-presets/presets/patent/`（随 `package:desktop` 部署进 app；桌面环境 shipped 根优先，会遮蔽同名 user 版）。团队机制采用 `dsh-patent-teams`（`patent_teams_*` 工具）+ 技能 `patent-team-composition`。与本文档下述条款存在分歧时，以实际预设为准：§4 草案的 `fetch: true` 实际为 `fetch: false`（宿主未挂 fetch provider）；§3 预设技能集实际为 13 个（`patent-matter` / `patent-fact-check` / `patent-compliance-review` / `inventive-step-analysis` / `patent-document-polish` 等）；团队技能名为 `patent-team-composition`（对应 §8.4）。团队角色目录 13 角色，含文档专员 `document-specialist`（按场景输出正式交付文档、矫正与美化，不改实体结论）；`render_patent_document` 提供 9 个场景模板（含补正书、复审请求书、侵权比对意见、诉讼文书）。人设与 `patent-quality-gate` 已并入 docx 交付与 HITL 放行规则。执行记录见 `docs/patent-workbench-plan.md` 与 `docs/patent-workbench-tasks.md`。
 
 ---
 

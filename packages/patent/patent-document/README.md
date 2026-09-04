@@ -1,5 +1,5 @@
 ---
-description: "Function plugin porting the Sati patent document renderer into the DeepSeek Harness: five shipped Chinese attorney-deliverable HTML templates, brand injection, headless-Chrome PDF rendering through ctx.subprocess, and the render_patent_document tool."
+description: "Function plugin porting the Sati patent document renderer into the DeepSeek Harness: nine shipped Chinese attorney-deliverable HTML templates, brand injection, headless-Chrome PDF rendering through ctx.subprocess, and the render_patent_document tool."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin porting the Sati patent document renderer into the DeepSeek Harness: five shipped Chinese attorney-deliverable HTML templates, brand injection, headless-Chrome PDF rendering through ctx.subprocess, and the render_patent_document tool.
+Function plugin porting the Sati patent document renderer into the DeepSeek Harness: nine shipped Chinese attorney-deliverable HTML templates, brand injection, headless-Chrome PDF rendering through ctx.subprocess, and the render_patent_document tool.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ Function plugin porting the Sati patent document renderer into the DeepSeek Harn
 
 ## render_patent_document tool
 
-render_patent_document renders one of the five shipped templates — patentability-opinion, search-report, oa-response, claims-spec, or invalidation-opinion — into an HTML file and, by default, a PDF. Pick a template id and an outputName, then pass sections as an id -> innerHTML record to fill the template slots. The result is model-facing prose naming the written htmlPath, pdfPath, any pdfError, and warnings; when the PDF fails, the HTML still exists.
+render_patent_document renders one of the nine shipped templates — patentability-opinion, search-report, oa-response, claims-spec, invalidation-opinion, rectification-response, re-examination-request, infringement-opinion, or litigation-pleading — into an HTML file and, by default, a PDF. Pick a template id and an outputName, then pass sections as an id -> innerHTML record to fill the template slots. The result is model-facing prose naming the written htmlPath, pdfPath, any pdfError, and warnings; when the PDF fails, the HTML still exists.
 
 ## Document engine (library API)
 
@@ -42,7 +42,7 @@ Schemastery configuration, every field optional.
 
 #### What the model sees
 
-One registered tool named `render_patent_document` with a required `template` enum (five ids: `patentability-opinion`, `search-report`, `oa-response`, `claims-spec`, `invalidation-opinion`), a required `outputName`, and optional `caseId`, `outputDir`, `format`, `sections`, `brand`, and `brandPath`. The result renders as Markdown prose naming the written `htmlPath`, `pdfPath`, any `pdfError`, and `warnings`.
+One registered tool named `render_patent_document` with a required `template` enum (nine ids: `patentability-opinion`, `search-report`, `oa-response`, `claims-spec`, `invalidation-opinion`, `rectification-response`, `re-examination-request`, `infringement-opinion`, `litigation-pleading`), a required `outputName`, and optional `caseId`, `outputDir`, `format`, `sections`, `brand`, and `brandPath`. The result renders as Markdown prose naming the written `htmlPath`, `pdfPath`, any `pdfError`, and `warnings`.
 
 #### Token effect
 

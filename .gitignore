@@ -51,6 +51,9 @@ graphify-out/
 # Runtime team state (dsh-agent-teams / dsh-patent-teams workspaces)
 .agent-teams/
 .patent-teams/
+# Case dockets and web verification scratch (not source)
+patent-workspace/
+apps/web/verify-sidebar.tmp.mjs
 # Local tool indexes
 .codegraph/
 .cursor/

@@ -10,6 +10,10 @@ export type DocumentTemplateId =
   | 'oa-response'
   | 'claims-spec'
   | 'invalidation-opinion'
+  | 'rectification-response'
+  | 're-examination-request'
+  | 'infringement-opinion'
+  | 'litigation-pleading'
 
 /** 渲染输出格式。 */
 export type RenderFormat = 'html' | 'pdf' | 'both'

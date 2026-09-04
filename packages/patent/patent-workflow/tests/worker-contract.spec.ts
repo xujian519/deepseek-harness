@@ -163,6 +163,7 @@ describe('defaultPatentWorkers', () => {
       'defendant-counsel',
       'adjudicator',
       'tech-investigator',
+      'patent-document-renderer',
     ])
     for (const def of workers) {
       expect(def.outputs?.length).toBeGreaterThan(0)
@@ -176,5 +177,10 @@ describe('defaultPatentWorkers', () => {
     expect(novelty.canInvoke).toContain('patent-search-commander')
     const checker = workers.find(w => w.name === 'quality_checker')!
     expect(checker.tier).toBe('checker')
+    const docRenderer = workers.find(w => w.name === 'patent-document-renderer')!
+    expect(docRenderer.tier).toBe('work')
+    expect(docRenderer.triggersHITL).toBe(true)
+    expect(docRenderer.allowedTools).toContain('render_patent_document')
+    expect(docRenderer.forbiddenActions?.some(a => a.includes('实体结论'))).toBe(true)
   })
 })
