@@ -83,7 +83,7 @@ describe('HMR exact config paths', () => {
     }
   })
 
-  it('observes add, change, and unlink outside its module roots', { timeout: 20_000 }, async () => {
+  it('observes add, change, and unlink outside its module roots', { timeout: 90_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-hmr-config-'))
     const filename = join(dir, 'plugins.yml')
     const ctx = await bootHmr(dir)
@@ -98,12 +98,16 @@ describe('HMR exact config paths', () => {
         }
       })
 
+      // Each wait bounds filesystem-event delivery, which can lag under the
+      // forks pool's aggregate contention. Give each the lane the CI run grants
+      // instead of the 10 s default, so a contended host delays the event rather
+      // than failing on a budget below the lane.
       writeFileSync(filename, 'one', { flag: 'wx' })
-      await eventually(() => observed.includes('one'), 'HMR did not observe config creation')
+      await eventually(() => observed.includes('one'), 'HMR did not observe config creation', 20_000)
       writeFileSync(filename, 'two')
-      await eventually(() => observed.includes('two'), 'HMR did not observe config change')
+      await eventually(() => observed.includes('two'), 'HMR did not observe config change', 20_000)
       unlinkSync(filename)
-      await eventually(() => observed.includes('missing'), 'HMR did not observe config removal')
+      await eventually(() => observed.includes('missing'), 'HMR did not observe config removal', 20_000)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -136,36 +140,53 @@ describe('HMR exact config paths', () => {
     const ctx = await bootHmr(dir)
     const started = Promise.withResolvers<undefined>()
     const release = Promise.withResolvers<undefined>()
+    const secondStarted = Promise.withResolvers<undefined>()
+    const release2 = Promise.withResolvers<undefined>()
     const observed: string[] = []
     let active = 0
     let maxActive = 0
+    let secondHeld = false
     try {
       const dispose = await ctx.hmr.registerConfig(filename, async () => {
         active += 1
         maxActive = Math.max(maxActive, active)
         observed.push(readFileSync(filename, 'utf8'))
         if (observed.length === 1) {
+          // Hold the initial-scan refresh so disposal proves it waits on it.
           started.resolve(undefined)
           await release.promise
+        } else if (!secondHeld) {
+          // Hold the first change refresh so the queued edit is provably
+          // serialized behind the held refresh and disposal waits on it too.
+          secondHeld = true
+          secondStarted.resolve(undefined)
+          await release2.promise
         }
         active -= 1
       })
       await started.promise
+      // Queue a second change while the initial refresh is held: the serializer
+      // marks it dirty and the same running task re-runs it, never in parallel.
+      // Wait for the second refresh to actually start (an observable state
+      // transition) before disposing, so a slow filesystem event cannot be
+      // delivered after the watcher closes and lose the edit — the old fixed
+      // 250 ms sleep left that race.
       writeFileSync(filename, 'two')
-      // Chokidar coalesces atomic writes for 100 ms by default. Wait beyond
-      // that window so this edit is queued before registration disposal.
-      await new Promise(resolve => setTimeout(resolve, 250))
+      release.resolve(undefined)
+      await secondStarted.promise
+      expect(maxActive).toBe(1)
 
       let disposed = false
       const disposal = dispose().then(() => { disposed = true })
       await Promise.resolve()
       expect(disposed).toBe(false)
-      release.resolve(undefined)
+      release2.resolve(undefined)
       await disposal
-      expect(maxActive).toBe(1)
+      expect(disposed).toBe(true)
       expect(observed).toEqual(['one', 'two'])
     } finally {
       release.resolve(undefined)
+      release2.resolve(undefined)
       await ctx.fiber.dispose()
     }
   })

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-04-hmr-config-refresh-observable-barrier.md
+2026-09-04-hmr-config-refresh-observable-barrier.md: 4820a2c9f8df4a8d11f9e7fac371e8f3422026c4
+2026-09-04-hmr-config-refresh-observable-barrier.zh.md: 6b09a758705bb50861e22621e196f945b73aa57d
