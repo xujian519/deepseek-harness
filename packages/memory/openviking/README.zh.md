@@ -13,6 +13,9 @@ DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自
 
 插件仅与运行中的 OpenViking HTTP 服务通信——从不调用 `ov` CLI，也不内嵌服务器。服务可能不可达：插件仍可加载，普通对话继续，自动分层以去重警告跳过，显式工具调用则抛出清晰错误。
 
+不发布运行时不变式伴生；recall/capture/commit 是会话事件流与 prompt 注册表的纯消费者——agent/session 层持有持久上下文准入，StateStore 持有唯一可变数据面，其单调性与原子替换在自己边界强制执行。
+
+
 ## 目录
 
 - [公开 API](#public-api)
@@ -26,7 +29,6 @@ DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自
 
 - `Config` — 校验后的插件配置：`endpoint`（默认 `http://localhost:1933`）、`apiKey`、`account`、`user`、`agentId`、`timeoutMs`（默认 30000）、`stateFile`（默认 `~/.dsh/openviking/state.json`），以及下文记载的 `repoContext`、`autoRecall`、`autoCommit` 分组。
 - 函数插件 `name` / `inject` / `Config` / `apply` —— 无默认导出。
-- `./invariant` —— 包级不变式伴生插件。
 
 <a id="configuration"></a>
 ## 配置

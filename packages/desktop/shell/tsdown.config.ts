@@ -5,7 +5,7 @@ import { defineConfig } from 'tsdown'
  * registers `ctx.desktop` for the packaged Electron app.
  */
 export default defineConfig({
-  entry: ['lib/types/index.js', 'lib/types/bridge-client.js', 'lib/types/invariant.js'],
+  entry: ['lib/types/index.js', 'lib/types/bridge-client.js'],
   outDir: 'lib',
   format: ['esm'],
   platform: 'node',

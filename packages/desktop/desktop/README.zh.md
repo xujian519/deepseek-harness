@@ -13,6 +13,9 @@ kind: "package-reference"
 
 注册在托盘配置的菜单组（默认 `'tray'`，可通过 `DesktopTrayConfig.menuGroup` 覆盖）下的菜单项进入托盘上下文菜单；其他组成为顶层应用菜单。`DesktopNotification.id` 在通知被点击时经 `desktop/notification-clicked` 回传；未提供时由提供方自动生成。
 
+不发布运行时不变式伴生；本包把 ctx.desktop Service Definition 声明为纯类型与封闭错误词汇，不持有可观测的运行时状态，provider 在调用边界通过类型化 DesktopError 失败断言自身桥接状态。
+
+
 ## 目录
 
 - [Model Experience](#model-experience)

@@ -74,7 +74,7 @@ The toolset is a thin, model-facing layer over the `pluginMarket` service. It ad
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `market_source_list` / `market_plugin_search` / `market_plugin_preview`, source resolution, and the `tool:plugin-market` prompt section |
 | [`src/prompt.ts`](src/prompt.ts) | The `tool:plugin-market` system-prompt section |
-| [`src/invariant.ts`](src/invariant.ts) | Package-owned invariant companion (empty installer; see [Dev Note](#dev-note)) |
+| — | No runtime invariant companion is published; this model-facing adapter has no independent lifecycle stream, and the ownership relation is inherited from the pluginMarket capability seam it reads. |
 
 ### How a call flows
 
@@ -164,6 +164,6 @@ These limits define when the toolset is a poor fit or needs special care. They a
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-The invariant companion is an empty installer: this model-facing adapter owns no independent lifecycle stream, so the ownership relation is inherited from the `pluginMarket` capability seam it reads. Per the coverage policy, `packages/extensions/*/src/**` is exempt from the per-file 100% gate; correctness is pinned by `tests/discovery.spec.ts` plus the model-visible snapshot path.
+Per the coverage policy, `packages/extensions/*/src/**` is exempt from the per-file 100% gate; correctness is pinned by `tests/discovery.spec.ts` plus the model-visible snapshot path.
 
 </details>

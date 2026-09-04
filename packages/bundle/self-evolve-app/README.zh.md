@@ -13,6 +13,9 @@ dsh 自进化 opt-in bundle。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [
 
 base bundle 刻意不携带这两行：`tool-self-evolve` 在挂载上下文注册工具，base 级行会把它们泄漏到宿主面与每个 agent（minimal 预设的双工具契约与"宿主面无工具"不变量都依赖这一点）。因此 standard 与 minimal 预设保持不变；启用是一个显式的组合步骤。
 
+不发布运行时不变式伴生；bundle patch 与胶水插件不持有自身的可变状态，所有贡献都落入各自主管注册表。
+
+
 ## 目录
 
 - [Model Experience](#model-experience)

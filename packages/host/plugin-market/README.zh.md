@@ -11,6 +11,9 @@ kind: "package-reference"
 
 开放插件目录缝隙（`ctx.pluginMarket`）：用户注册的 HTTPS 目录源、目录搜索，以及带快照/回滚与持久 receipt 的受管安装管线。远程目录载荷一律视为不可信输入——按 `docs/schemas/` 下的 wire schema 校验，并经受限 HTTPS 客户端获取。
 
+不发布运行时不变式伴生；该能力的权威性位于 provider 持久化的 source/receipt 文件中，由 provider 自行观测。
+
+
 ## 目录
 
 - [能力](#what-it-does)

@@ -1,10 +1,9 @@
 /**
- * Desktop-surface bundle glue: the runtime plugin mounts without throwing and
- * the invariant companion registers a disposer. The patch-composition cases
- * pin the two desktop-ship defects: the web runtime must never hand the URL to
- * the system browser (the Electron window is the UI), and the directory picker
- * must pair the electron provider with a client surface so the Add-workspace
- * affordance renders.
+ * Desktop-surface bundle glue: the runtime plugin mounts without throwing. The
+ * patch-composition cases pin the two desktop-ship defects: the web runtime
+ * must never hand the URL to the system browser (the Electron window is the
+ * UI), and the directory picker must pair the electron provider with a client
+ * surface so the Add-workspace affordance renders.
  */
 
 import { join } from 'node:path'
@@ -12,21 +11,10 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import { apply } from '../src/index.ts'
-import { apply as applyInvariant, inject, name } from '../src/invariant.ts'
 
 describe('dsh-desktop-app glue', () => {
   it('apply mounts without throwing', () => {
     expect(() => { apply(new Context()) }).not.toThrow()
-  })
-
-  it('invariant companion registers a disposer', async () => {
-    const ctx = {
-      invariants: { register: () => () => {} },
-    } as unknown as Context
-    const disposer = await applyInvariant(ctx)
-    expect(disposer).toBeTypeOf('function')
-    expect(name).toBe('desktop-app-invariant')
-    expect(inject).toEqual(['invariants'])
   })
 })
 

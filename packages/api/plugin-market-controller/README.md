@@ -10,6 +10,9 @@ English | [中文](README.zh.md)
 
 `@deepseek-ai/dsh-api-plugin-market-controller` exposes the generated `ctx.remote.pluginMarket` namespace for browser plugin discovery. It forwards only the read-only face of the `ctx.pluginMarket` seam — source listing, source catalog search, and install preview — into the browser. Installs and uninstalls stay with the `dsh plugin` profile CLI: this controller exposes no write, so a browser session can discover and preview a plugin but never mutate a profile. When the plugin-market provider is absent, the namespace stays registered and returns an actionable configuration error instead of silently being missing.
 
+No runtime invariant companion is published; the plugin-market seam owns catalog sources, install receipts, and their events, while this package only projects its read-only methods onto the wire.
+
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

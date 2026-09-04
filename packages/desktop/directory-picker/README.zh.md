@@ -13,6 +13,9 @@ kind: "package-reference"
 
 本包故意不提供浏览器 half：桌面 shell 通过自己的渲染进程显示 Web UI，且同一后端代码在两种上下文中运行。只有桌面 profile 挂载此提供方；浏览器和 headless profile 保留原有的 directory-picker 实现。
 
+不发布运行时不变式伴生；provider 不持有状态——它把每次选取委托给 ctx.desktop.showOpenDialog，并在调用边界把响应转换为目录选择器的 string | null 约定。
+
+
 ## 目录
 
 - [Model Experience](#model-experience)

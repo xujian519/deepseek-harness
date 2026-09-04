@@ -6,7 +6,7 @@ import { defineConfig } from 'tsdown'
  * Loader can import the built lib from a real install.
  */
 export default defineConfig({
-  entry: ['lib/types/index.js', 'lib/types/invariant.js'],
+  entry: ['lib/types/index.js'],
   outDir: 'lib',
   format: ['esm'],
   platform: 'node',

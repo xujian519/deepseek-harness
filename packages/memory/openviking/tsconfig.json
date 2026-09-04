@@ -48,9 +48,6 @@
       "path": "../../fs/fs"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../host/webserver"
     }
   ]

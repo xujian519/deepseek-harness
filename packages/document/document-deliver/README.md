@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 Function plugin for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome. The tool call is session-logged like every tool call, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list (paths, formats, gate state) from the log — no new session event type, no host write RPC.
 
+No runtime invariant companion is published; the tool writes no package-owned durable session events beyond the normal tool/call and tool/result log, the tool/result log is owned by the tool registry, and nothing outside this package reads the registered files.
+
+
 ## Table of Contents
 
 - [What it mounts](#what-it-mounts)

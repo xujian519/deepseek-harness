@@ -15,9 +15,6 @@
       "path": "../desktop"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../../vendor/cordis"
     }
   ]

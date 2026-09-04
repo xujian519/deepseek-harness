@@ -11,6 +11,9 @@ kind: "package-reference"
 
 函数插件，供[文档智能体 preset](../../preset/agent-presets/presets/document/preset.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果。工具调用与其他工具一样写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志推导交付物列表（路径、格式、质量门状态）——不新增会话事件类型，也不新增 host 写 RPC。
 
+不发布运行时不变式伴生；工具除常规 tool/call 与 tool/result 日志外不写入包级持久会话事件，tool/result 日志由工具注册表持有，本包之外无人读取这些注册文件。
+
+
 ## 目录
 
 - [挂载内容](#what-it-mounts)

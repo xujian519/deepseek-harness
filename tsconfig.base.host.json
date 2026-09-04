@@ -511,9 +511,6 @@
       "@deepseek-ai/dsh-api-plugin-market-controller": [
         "./packages/api/plugin-market-controller/src/index.ts"
       ],
-      "@deepseek-ai/dsh-api-plugin-market-controller/invariant": [
-        "./packages/api/plugin-market-controller/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-api-plugin-market-controller/types": [
         "./packages/api/plugin-market-controller/src/types.ts"
       ],
@@ -616,17 +613,11 @@
       "@deepseek-ai/dsh-better-sidebar": [
         "./packages/client/better-sidebar/src"
       ],
-      "@deepseek-ai/dsh-better-sidebar/invariant": [
-        "./packages/client/better-sidebar/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-brand": [
         "./packages/util/brand/src"
       ],
       "@deepseek-ai/dsh-browser-backend": [
         "./packages/browser/browser-backend/src"
-      ],
-      "@deepseek-ai/dsh-browser-backend/invariant": [
-        "./packages/browser/browser-backend/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-cmdline": [
         "./packages/boot/cmdline/src"
@@ -667,9 +658,6 @@
       "@deepseek-ai/dsh-contained-emit": [
         "./packages/util/contained-emit/src"
       ],
-      "@deepseek-ai/dsh-contained-emit/invariant": [
-        "./packages/util/contained-emit/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-credentials": [
         "./packages/credentials/credentials/src"
       ],
@@ -688,20 +676,11 @@
       "@deepseek-ai/dsh-desktop": [
         "./packages/desktop/desktop/src"
       ],
-      "@deepseek-ai/dsh-desktop/invariant": [
-        "./packages/desktop/desktop/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-desktop-app": [
         "./packages/bundle/desktop-app/src"
       ],
-      "@deepseek-ai/dsh-desktop-app/invariant": [
-        "./packages/bundle/desktop-app/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-document-deliver": [
         "./packages/document/document-deliver/src"
-      ],
-      "@deepseek-ai/dsh-document-deliver/invariant": [
-        "./packages/document/document-deliver/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-e2b": [
         "./packages/e2b/e2b/src"
@@ -766,9 +745,6 @@
       "@deepseek-ai/dsh-im": [
         "./packages/bundle/im/src"
       ],
-      "@deepseek-ai/dsh-im/invariant": [
-        "./packages/bundle/im/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-jobs": [
         "./packages/jobs/jobs/src"
       ],
@@ -823,17 +799,11 @@
       "@deepseek-ai/dsh-methodology": [
         "./packages/patent/methodology/src"
       ],
-      "@deepseek-ai/dsh-methodology/invariant": [
-        "./packages/patent/methodology/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-native-command": [
         "./packages/util/native-command/src"
       ],
       "@deepseek-ai/dsh-openviking": [
         "./packages/memory/openviking/src"
-      ],
-      "@deepseek-ai/dsh-openviking/invariant": [
-        "./packages/memory/openviking/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-output-retention": [
         "./packages/util/output-retention/src"
@@ -937,26 +907,14 @@
       "@deepseek-ai/dsh-self-evolve-app": [
         "./packages/bundle/self-evolve-app/src"
       ],
-      "@deepseek-ai/dsh-self-evolve-app/invariant": [
-        "./packages/bundle/self-evolve-app/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-self-evolve-basic": [
         "./packages/self-evolve/self-evolve-basic/src"
-      ],
-      "@deepseek-ai/dsh-self-evolve-basic/invariant": [
-        "./packages/self-evolve/self-evolve-basic/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-self-evolve-benchmark": [
         "./packages/self-evolve/self-evolve-benchmark/src"
       ],
-      "@deepseek-ai/dsh-self-evolve-benchmark/invariant": [
-        "./packages/self-evolve/self-evolve-benchmark/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-self-evolve-eval": [
         "./packages/test-support/self-evolve-eval/src"
-      ],
-      "@deepseek-ai/dsh-self-evolve-eval/invariant": [
-        "./packages/test-support/self-evolve-eval/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-session": [
         "./packages/core/session/src"
@@ -1162,17 +1120,11 @@
       "@deepseek-ai/dsh-tool-literature": [
         "./packages/patent/tool-literature/src"
       ],
-      "@deepseek-ai/dsh-tool-literature/invariant": [
-        "./packages/patent/tool-literature/src/invariant.ts"
-      ],
       "@deepseek-ai/dsh-tool-lsp": [
         "./packages/lsp/tool-lsp/src"
       ],
       "@deepseek-ai/dsh-tool-plugin-market": [
         "./packages/extensions/tool-plugin-market/src"
-      ],
-      "@deepseek-ai/dsh-tool-plugin-market/invariant": [
-        "./packages/extensions/tool-plugin-market/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-tool-pwsh-persistent": [
         "./packages/shell/tool-pwsh-persistent/src"
@@ -1182,9 +1134,6 @@
       ],
       "@deepseek-ai/dsh-tool-self-evolve": [
         "./packages/self-evolve/tool-self-evolve/src"
-      ],
-      "@deepseek-ai/dsh-tool-self-evolve/invariant": [
-        "./packages/self-evolve/tool-self-evolve/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-tool-session-query": [
         "./packages/session-query/tool-session-query/src"
@@ -1239,9 +1188,6 @@
       ],
       "@deepseek-ai/dsh-value": [
         "./packages/util/value/src"
-      ],
-      "@deepseek-ai/dsh-value/invariant": [
-        "./packages/util/value/src/invariant.ts"
       ],
       "@deepseek-ai/dsh-web": [
         "./packages/web/web/src"

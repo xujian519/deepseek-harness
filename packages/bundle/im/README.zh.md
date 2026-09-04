@@ -13,7 +13,10 @@ kind: "package-bundle"
 
 本包**不是**任何内置 profile 模板的成员：`dsh-base`、`dsh-web-app`、`dsh-desktop-app` 都不引用它，因此没有 surface profile 默认加载 IM。profile 通过把 `@deepseek-ai/dsh-im` 加进其 `dsh.profile.bundles` 列表选择启用；在已安装的 `dsh` 上则是 `dsh plugin --profile <name> add @deepseek-ai/dsh-im`（CLI 的 `reconcilePlugins` 因其清单声明了 `dsh.bundle` 而把它追加进去）。In-box bundle 解析——名字先在本 dsh 安装中解析、再在 profile 自身的 `node_modules` 中解析——使 wrapper 对任意 profile 可用，同时把 IM 排除在默认闭包之外。
 
-wrapper 把 `@xmanrui/dsh-im@3.0.5` 固定为单一依赖，为仓库提供唯一的命名入口与固定版本，也为 IM 文档与门禁提供归属地。上游包是外部 MIT 项目；除 patch 与 invariant companion 外，本 bundle 不贡献任何自身代码。
+wrapper 把 `@xmanrui/dsh-im@3.0.5` 固定为单一依赖，为仓库提供唯一的命名入口与固定版本，也为 IM 文档与门禁提供归属地。上游包是外部 MIT 项目；除 patch 外，本 bundle 不贡献任何自身代码。
+
+不发布运行时不变式伴生；本包是静态 patch 列表载体（由其他包持有的 loader 行的 YAML 文档），不挂载服务或事件，也没有可检查的可变关系；被固定的 xmanrui-dsh-im 行由其所属包承载对应插件的不变式。
+
 
 ## 目录
 

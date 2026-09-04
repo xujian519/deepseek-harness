@@ -31,9 +31,6 @@
     },
     {
       "path": "../../host/plugin-market"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

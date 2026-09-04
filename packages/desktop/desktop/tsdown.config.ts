@@ -5,7 +5,7 @@ import { defineConfig } from 'tsdown'
  * The runtime bundle mirrors the dsh-host-directory-picker shape.
  */
 export default defineConfig({
-  entry: ['lib/types/index.js', 'lib/types/invariant.js'],
+  entry: ['lib/types/index.js'],
   outDir: 'lib',
   format: ['esm'],
   platform: 'node',

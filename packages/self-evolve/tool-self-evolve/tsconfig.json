@@ -24,9 +24,6 @@
       "path": "../../core/session"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../self-evolve/self-evolve"
     },
     {

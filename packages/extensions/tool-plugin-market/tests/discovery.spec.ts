@@ -17,7 +17,6 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as ToolPluginMarket from '../src/index.ts'
-import { apply as invariantApply } from '../src/invariant.ts'
 
 vi.mock('node:dns/promises', () => ({
   lookup: async () => [{ address: '93.184.216.34' }],
@@ -207,14 +206,5 @@ describe('tool-plugin-market tool bodies', () => {
     const result = await call(ctx, 'market_source_list', {})
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('plugin-market tools require an Agent-backed session')
-  })
-})
-
-describe('tool-plugin-market invariant companion', () => {
-  it('registers the package name with an empty installer', async () => {
-    const register = vi.fn(() => () => {})
-    const ctx = { invariants: { register } } as unknown as Context
-    await invariantApply(ctx)
-    expect(register).toHaveBeenCalledWith('@deepseek-ai/dsh-tool-plugin-market', expect.any(Function))
   })
 })

@@ -13,6 +13,9 @@ The **P1-10 evaluation scaffold** for the self-evolve capability: deterministic 
 
 This is dev/test infrastructure, not a runtime plugin: it owns no service and no model-visible surface. The campaign runner takes the light-weight local path (per-task venv, local pytest verdict — no Docker); the official per-instance container verdict stays as a cross-check. The scaffold covers everything around the campaign and fails honest when the data is not there.
 
+No runtime invariant companion is published; this evaluation scaffold owns no production event stream or mutable data — it only consumes campaign result files authored by keyed external runs.
+
+
 ## Table of Contents
 
 - [Usage](#usage)

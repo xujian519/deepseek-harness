@@ -11,6 +11,9 @@ kind: "package-reference"
 
 **`tool-self-evolve`** 包是 `ctx.selfEvolve` 面向模型的 Consumer。它注册两个工具——`self_evolve_inspect_patterns` 与 `self_evolve_now`——以及一个稳定的提示片段，用于告诉模型何时使用它们。
 
+不发布运行时不变式伴生；工具消费者只新增一个 prompt 段与两个工具，不持有事件序列或可变数据，loop 括号由接缝持有。
+
+
 ## 目录
 
 - [角色](#role)

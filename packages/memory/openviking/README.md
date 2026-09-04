@@ -13,6 +13,9 @@ OpenViking context-database integration for DeepSeek Harness: auto-recall before
 
 The plugin talks to a running OpenViking HTTP service only — it never shells out to the `ov` CLI and never starts a server. The service may be unreachable: the plugin still loads, ordinary conversation continues, and the automatic layers skip with deduplicated warnings while explicit tool calls throw clear errors.
 
+No runtime invariant companion is published; recall/capture/commit are pure consumers of the session event stream and the prompt registry — the agent/session layers own durable context admission, and StateStore owns the only mutable data plane, whose monotonicity and atomic replacement are enforced at its own boundary.
+
+
 ## Table of Contents
 
 - [Public API](#public-api)
@@ -25,7 +28,6 @@ The plugin talks to a running OpenViking HTTP service only — it never shells o
 
 - `Config` — validated plugin configuration: `endpoint` (default `http://localhost:1933`), `apiKey`, `account`, `user`, `agentId`, `timeoutMs` (default 30000), `stateFile` (default `~/.dsh/openviking/state.json`), plus the `repoContext`, `autoRecall`, and `autoCommit` groups documented below.
 - Function plugin `name` / `inject` / `Config` / `apply` — no default export.
-- `./invariant` — package-owned invariant companion.
 
 ## Configuration
 

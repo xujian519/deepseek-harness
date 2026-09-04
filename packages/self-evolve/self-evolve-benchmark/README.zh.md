@@ -11,6 +11,9 @@ kind: "package-reference"
 
 **`BenchmarkEvolveEngine`** 是 `ctx.selfEvolveBenchmark` 的提供方。它为 self-evolve 能力补充一个量化目标维度:benchmark 是一组有界用例,每个用例按私有评分标准(rubric)打分,提供方在严格的 improve-or-rollback 策略下优化 agent 状态,并以整版快照版本化为支撑。这与 `ctx.selfEvolve` 从会话流挖掘失败模式形成互补,给优化循环一个可以追逐的客观分数。
 
+不发布运行时不变式伴生；provider 的不变式位于其磁盘存储布局（statement/rubric 分离、单调快照版本），而非可观测事件序列。
+
+
 ## 目录
 
 - [Role](#role)

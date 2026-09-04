@@ -16,7 +16,6 @@ import { PATENT_TEAMS_TARGET, type PatentTeamsViewSnapshot } from '../src/client
 import { apply, inject } from '../src/client/index.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { apply as applyNode } from '../src/index.ts'
-import { apply as applyInvariant } from '../src/invariant.ts'
 
 afterEach(cleanup)
 
@@ -491,15 +490,7 @@ describe('plugin lifecycle', () => {
     expect(ctx.slots.entries('conversation.view')).toEqual([])
   })
 
-  it('keeps the node half inert and registers invariant ownership', async () => {
-    applyNode()
-    const registered: string[] = []
-    const ctx = new Context()
-    ctx.provide('invariants')
-    ctx.set('invariants', {
-      register: (pkg: string) => { registered.push(pkg); return () => {} },
-    } as never)
-    await applyInvariant(ctx)
-    expect(registered).toEqual(['@deepseek-ai/dsh-client-ui-patent-teams'])
+  it('keeps the node half inert on a bare context', () => {
+    expect(() => { applyNode() }).not.toThrow()
   })
 })

@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 `dsh-better-sidebar` gives the dsh web GUI a VSCode-like right workspace: a file explorer, a CodeMirror editor, per-session terminals, a git panel, side-chat child conversations, live subagent previews, and an embedded browser, all scoped to the conversation that is open. Every file, git, and terminal operation runs against the open session's working directory through host routes fenced like the `/api` gateway, so switching conversations switches the whole workspace; terminals, tabs, and drafts stay with their own session. The package is dual-face: the host half mounts the fenced `/sidebar/*` routes with node-pty terminals and opt-in `terminal_*` tools, and the browser half renders the panel and publishes a client service other client plugins use to register sidebar tabs and file viewers. The desktop composition mounts the plugin by default; a browser `dsh web` composition does not. The package was adopted first-party from the MIT-licensed `dsh-better-sidebar` 0.17.1 by omdsh-dev, and the MIT LICENSE file is preserved.
 
+No runtime invariant companion is published; the sidebar owns no service state or event protocol of its own — every route is mounted under the host's webServer fence, and the pty lifecycle, store semantics, and route fence are each observed through their seams.
+
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

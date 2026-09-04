@@ -13,6 +13,9 @@ The **Service Definition** for the `ctx.desktop` capability seam: OS-level deskt
 
 Menu items registered under the tray's configured menu group (`'tray'` by default, overridable through `DesktopTrayConfig.menuGroup`) populate the tray context menu; other groups become top-level application menus. `DesktopNotification.id` is echoed back in `desktop/notification-clicked` when a notification is clicked; the provider mints one when absent.
 
+No runtime invariant companion is published; the package declares the ctx.desktop Service Definition as pure types plus a closed error vocabulary and owns no runtime state to observe, and providers assert their own bridge state through typed DesktopError failures at the call boundary.
+
+
 ## Table of Contents
 
 - [Model Experience](#model-experience)

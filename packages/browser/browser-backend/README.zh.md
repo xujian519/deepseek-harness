@@ -11,6 +11,9 @@ kind: "package-reference"
 
 面向模型可见下载与抓取工具的浏览器自动化后端级联，自 Sati 浏览器后端层（`src/browser/backend/`）移植。四个后端按固定顺序探测与路由——**ego lite → BrowserOS neo → browser-use → @playwright/mcp**——采用冷决策规则：任务的后端在任务开始前解析一次，运行中不切换。统一 ego 栈让下载通道只认 ego；其余后端参与探测矩阵，但从不承担下载。
 
+不发布运行时不变式伴生；后端的 probe 与路由是无状态的只读操作，不持有包级持久状态，消费路由后端的下载工具自行持有执行关系。
+
+
 ## 目录
 
 - [后端与能力位](#backends-and-capabilities)

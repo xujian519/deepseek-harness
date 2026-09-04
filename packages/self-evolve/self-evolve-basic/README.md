@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 The **`BasicSelfEvolveEngine`** is the default provider of `ctx.selfEvolve`. It wires the `failure-patterns` projection unit, triggers evolution loops on idle or explicit request, and commits narrow L1 (skill) and L2 (prompt-section) proposals through reversible Cordis effects.
 
+No runtime invariant companion is published; this provider is the sole producer of the self-evolve/* durable bracket, whose ordering the @deepseek-ai/dsh-self-evolve seam invariant already validates, and its $DSH_HOME/self-evolve/* files are derived side-effects, not an observable sequence.
+
+
 ## Table of Contents
 
 - [Role](#role)

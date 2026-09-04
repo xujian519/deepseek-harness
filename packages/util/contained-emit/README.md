@@ -73,7 +73,7 @@ One loop, two entry points, and the Cordis argument-shape contract.
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `invokeContained`, `emitContained`, the `ContainedListener` callback type |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; containment behavior is enforced by unit tests) |
+| — | No runtime invariant companion is published; this pure utility owns no event stream or mutable runtime data, and containment behavior is enforced by unit tests. |
 
 ### The dispatch argument contract
 

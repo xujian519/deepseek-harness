@@ -34,7 +34,6 @@
     { "path": "../../core/session" },
     { "path": "../../core/tools" },
     { "path": "../../llm/llm" },
-    { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../../settings/settings" },
     { "path": "../../subagent/subagent" },
     { "path": "../connection/tsconfig.client.json" },

@@ -13,7 +13,10 @@ The optional IM integration as a profile bundle: [`cordis.patch.yml`](cordis.pat
 
 This bundle is **not** a member of any shipped profile template: `dsh-base`, `dsh-web-app`, and `dsh-desktop-app` do not name it, so no surface profile loads IM by default. A profile opts in by adding `@deepseek-ai/dsh-im` to its `dsh.profile.bundles` list, or on an installed `dsh` by `dsh plugin --profile <name> add @deepseek-ai/dsh-im` (the CLI's `reconcilePlugins` then appends it because its manifest declares `dsh.bundle`). In-box bundle resolution — the name resolves from the dsh installation before the profile's own `node_modules` — makes the wrapper available to any profile while keeping IM out of the shipped default closure.
 
-The wrapper pins `@xmanrui/dsh-im@3.0.5` as a single dependency, giving the repository one named entry point and one pinned version, and a home for the IM documentation and gates. The upstream package is external and MIT-licensed; this bundle contributes no code of its own beyond the patch and the invariant companion.
+The wrapper pins `@xmanrui/dsh-im@3.0.5` as a single dependency, giving the repository one named entry point and one pinned version, and a home for the IM documentation and gates. The upstream package is external and MIT-licensed; this bundle contributes no code of its own beyond the patch.
+
+No runtime invariant companion is published; the package is a static patch-list carrier (a YAML document of loader rows owned by other packages), mounts no service or events, and owns no mutable relation to check; the pinned xmanrui-dsh-im row's own package carries that plugin's invariants.
+
 
 ## Table of Contents
 

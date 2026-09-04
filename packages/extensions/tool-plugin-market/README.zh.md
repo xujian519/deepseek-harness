@@ -74,7 +74,7 @@ kind: "package-reference"
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`market_source_list` / `market_plugin_search` / `market_plugin_preview`、源解析，以及 `tool:plugin-market` 提示词章节 |
 | [`src/prompt.ts`](src/prompt.ts) | `tool:plugin-market` 系统提示词章节 |
-| [`src/invariant.ts`](src/invariant.ts) | 包持有的 invariant 伴生（空 installer；见[开发备注](#dev-note)） |
+| — | 不发布运行时不变式伴生；此模型面向适配器不持有独立生命周期流，所有权关系继承自它读取的 pluginMarket 能力间隔。 |
 
 ### 一次调用的流程
 
@@ -164,6 +164,6 @@ The plugin market exposes read-only catalog discovery so you can find and evalua
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-invariant 伴生是空 installer：这个模型面向适配器不持有独立生命周期流，因此所有权关系继承自它读取的 `pluginMarket` 能力间隔。按覆盖策略，`packages/extensions/*/src/**` 不在逐文件 100% 门禁内；正确性由 `tests/discovery.spec.ts` 与模型可见的 snapshot 路径钉住。
+按覆盖策略，`packages/extensions/*/src/**` 不在逐文件 100% 门禁内；正确性由 `tests/discovery.spec.ts` 与模型可见的 snapshot 路径钉住。
 
 </details>

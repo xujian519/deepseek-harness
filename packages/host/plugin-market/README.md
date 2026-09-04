@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 The open plugin-catalog seam (`ctx.pluginMarket`): user-registered HTTPS catalog sources, catalog search, and a managed install pipeline with snapshot/rollback and durable receipts. Remote catalog payloads are untrusted input — validated against the wire schemas under `docs/schemas/` and fetched through a restricted HTTPS client.
 
+No runtime invariant companion is published; the capability's authority lives in the provider's persisted source/receipt files, which the provider itself observes.
+
+
 ## Table of Contents
 
 - [What it does](#what-it-does)

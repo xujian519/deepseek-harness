@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 `dsh-client-ui-plugin-market` contributes the read-only **Plugin market** tab to the Web Settings Plugins section. The tab lazily calls the `ctx.remote.pluginMarket` namespace the first time it is selected and renders a source picker, a search form, and an install-preview control. It lists the catalog sources the Host has registered (marking built-in ones), searches one source by free text, category, and capability, and previews a `name@version` reference against the registry — all without touching a profile. Loading, empty, no-match, preview, and generic failure states stay local to the mounted component, and a failed source read can be retried without exposing transport details.
 
+No runtime invariant companion is published; this package owns a read-only discovery contribution.
+
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

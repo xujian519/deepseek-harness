@@ -11,6 +11,9 @@ kind: "package-reference"
 
 面向[文档模式 preset](../../preset/agent-presets/presets/document/preset.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经宿主预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。
 
+不发布运行时不变式伴生；此纯消费插件不发出 cordis 事件、不持有跨插件可变状态——其视图槽注册与自动切换订阅是普通副作用，其释放由槽账本自身 spec 与本包行为 spec 直接观测。
+
+
 ## 目录
 
 - [挂载内容](#what-it-mounts)

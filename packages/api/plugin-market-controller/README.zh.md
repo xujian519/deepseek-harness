@@ -10,6 +10,9 @@ kind: "package-reference"
 
 `@deepseek-ai/dsh-api-plugin-market-controller` 为浏览器插件发现暴露生成的 `ctx.remote.pluginMarket` 命名空间。它只转发 `ctx.pluginMarket` seam 的只读面——来源列表、来源目录搜索与安装预检——到浏览器。安装与卸载仍由 `dsh plugin` profile CLI 独占：该控制器不暴露任何写操作，因此浏览器会话能发现并预检插件，但永不修改 profile。当 plugin-market 提供方缺失时，命名空间保持已注册并以可行动配置错误返回，而不是静默缺失。
 
+不发布运行时不变式伴生；插件市场能力继承目录来源、安装凭据及其事件，本包仅将其只读方法投射到线上。
+
+
 ## 目录
 
 - [使用本包](#use-this-package)

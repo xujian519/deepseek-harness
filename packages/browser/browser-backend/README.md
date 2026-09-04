@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 Browser automation backend cascade for model-facing download and scraping tools, ported from the Sati browser backend layer (`src/browser/backend/`). Four backends are probed and routed in a fixed order — **ego lite → BrowserOS neo → browser-use → @playwright/mcp** — with a cold-decision rule: the backend for a task is resolved once before the task starts and never switches mid-task. The unified ego stack routes downloads to ego only; the other backends join the probe matrix but never take a download.
 
+No runtime invariant companion is published; the backend probes and routing are stateless read-only operations with no package-owned durable state, and the download tools that consume the routed backend own their execution relations.
+
+
 ## Table of Contents
 
 - [Backends and capabilities](#backends-and-capabilities)

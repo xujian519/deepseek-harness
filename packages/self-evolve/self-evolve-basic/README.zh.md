@@ -11,6 +11,9 @@ kind: "package-reference"
 
 **`BasicSelfEvolveEngine`** 是 `ctx.selfEvolve` 的默认提供方。它连接 `failure-patterns` 投影单元，在 idle 或显式请求时触发进化循环，并通过可逆 Cordis effect 提交窄范围的 L1（技能）与 L2（提示片段）提案。
 
+不发布运行时不变式伴生；此 provider 是 self-evolve/* 持久括号的唯一生产者，其排序已由 @deepseek-ai/dsh-self-evolve 接缝不变式校验，而其 $DSH_HOME/self-evolve/* 文件是派生副作用，不是可观测序列。
+
+
 ## 目录
 
 - [角色](#role)

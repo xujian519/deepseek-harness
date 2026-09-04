@@ -11,6 +11,9 @@ kind: "package-reference"
 
 把 PatentTeams 监视面带回 Web UI 的浏览器插件：对话流里的一张持久团队卡片，以及固定的"团队"会话视图。两个面都折叠 [`dsh-patent-teams`](../../patent/patent-teams/README.zh.md) 拥有的九种 `patent-teams/*` 会话事件；上游 `@nanmicoder/dsh-agent-teams` 活动面板的交互词汇（分段进度、花名册、任务依赖图）被采纳，但其 body-portal 浮层与轮询 host 路由仍有意排除——本包改为重放会话日志，零轮询、零新增 host 面。
 
+不发布运行时不变式伴生；本包把 patent-teams/* 会话事件只读投射到一个聊天渲染器与视图目标 fold——不发出 cordis 事件、不持有跨插件可变状态，其注册经由 HMR 安全 spec 证明释放。
+
+
 ## 目录
 
 - [持久状态与重放](#durable-state-and-replay)

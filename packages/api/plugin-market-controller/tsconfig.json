@@ -15,9 +15,6 @@
       "path": "../../host/plugin-market"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../typert/protocol"
     }
   ]

@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 The **`tool-self-evolve`** package is the model-facing Consumer of `ctx.selfEvolve`. It registers two tools — `self_evolve_inspect_patterns` and `self_evolve_now` — plus a stable prompt section that tells the model when to use them.
 
+No runtime invariant companion is published; the tool consumer adds a prompt section and two tools, owning no event sequence or mutable data, and the seam owns the loop bracket.
+
+
 ## Table of Contents
 
 - [Role](#role)

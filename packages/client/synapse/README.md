@@ -13,6 +13,9 @@ Browser half of the Synapse session map for `dsh web`: the **对话/会话地图
 
 The host half (`@deepseek-ai/dsh-host-synapse`) owns the canvas page and projection; this package only renders chrome and forwards bridge messages.
 
+No runtime invariant companion is published; the browser half only renders a view switch and an iframe host, owns no registry or observation stream of its own, and every session relationship it reads comes through the client sessions/workspaces services, which enforce their own contracts.
+
+
 ## Table of Contents
 
 - [Registration](#registration)

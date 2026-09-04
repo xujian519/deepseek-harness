@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 The browser plugin that restores the PatentTeams monitor to the Web UI: one durable team card in the chat stream and the fixed Teams conversation view. Both surfaces fold the nine `patent-teams/*` Session events owned by [`dsh-patent-teams`](../../patent/patent-teams/README.md); the interaction vocabulary of the upstream `@nanmicoder/dsh-agent-teams` activity panel (segmented progress, roster, task DAG) is adopted, while its body-portal floating layer and polled host route stay deliberately out — this package replays the session log instead, with no polling and no new host surface.
 
+No runtime invariant companion is published; this package is a read-only projection of patent-teams/* session events onto one chat renderer and view-target fold — it emits no cordis events, owns no cross-plugin mutable state, and its registrations prove disposal through the HMR-safety spec.
+
+
 ## Table of Contents
 
 - [Durable state and replay](#durable-state-and-replay)

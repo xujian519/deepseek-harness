@@ -11,6 +11,9 @@ English | [中文](README.zh.md)
 
 The **`BenchmarkEvolveEngine`** is the provider of `ctx.selfEvolveBenchmark`. It adds a quantitative target dimension to the self-evolve capability: a benchmark is a bounded set of cases, each scored against a private rubric, and the provider optimizes the agent state under a strict improve-or-rollback policy backed by whole-state snapshot versioning. This complements `ctx.selfEvolve`, which mines failure patterns from the session stream, with an objective score a loop can chase.
 
+No runtime invariant companion is published; the provider's invariants live in its on-disk storage layout (statement/rubric separation, monotonic snapshot versions), not in an observable event sequence.
+
+
 ## Table of Contents
 
 - [Role](#role)

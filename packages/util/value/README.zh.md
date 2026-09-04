@@ -171,7 +171,7 @@ function settle(caught: unknown): Error {
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
-| [`src/invariant.ts`](src/invariant.ts) | 不变量伴随(无运行时不变量;谓词代数由单元测试覆盖) |
+| — | 不发布运行时不变式伴生；此纯工具不持有事件流或可变运行时数据，谓词代数由单元测试覆盖。 |
 
 ### 为什么守卫只看形状
 

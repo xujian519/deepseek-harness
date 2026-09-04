@@ -2,10 +2,9 @@
  * Host-half pure-helper coverage: the wire envelope (bounded body read,
  * error writing), the workspace write-path guard's non-ENOENT resolution
  * failures, the explorer listing errors and row overflow, the name-search
- * budget stop points, the browser-trust fence's authority parsing, the
- * live-activity parser's malformed rows, and the invariant companion's
- * registration. Complements the behavior specs by pinning the failure and
- * degradation branches those specs do not reach.
+ * budget stop points, the browser-trust fence's authority parsing, and the
+ * live-activity parser's malformed rows. Complements the behavior specs by
+ * pinning the failure and degradation branches those specs do not reach.
  */
 import { describe, expect, it } from 'vitest'
 import { anyString } from './matchers.ts'
@@ -19,7 +18,6 @@ import { searchFiles } from '../src/fs-search.ts'
 import { isLoopbackHostname, isTrustedApiRequest } from '../src/trust-fence.ts'
 import { contentText, lastActivity } from '../src/subagent-activity.ts'
 import { buildSubagentLiveApi } from '../src/subagent-live-route.ts'
-import { apply as invariantApply, name as invariantName } from '../src/invariant.ts'
 import type { Context, SidebarSessionEvent, SidebarSubagentDescendantEntry } from '../src/context-types.ts'
 
 /** A response recorder shaped like SidebarHttpResponse. */
@@ -256,27 +254,5 @@ describe('subagent live route degradation', () => {
     // The unreadable child yields no activity (omitted); the quiet child with
     // no events is omitted too; only the child with text surfaces.
     expect(live).toEqual({ chatty: { text: 'working' } })
-  })
-})
-
-describe('invariant companion', () => {
-  it('registers the package with the invariants service and returns the disposer', async () => {
-    const registered: Array<{ name: string; install: (ctx: unknown, fail: (message: string) => never) => void }> = []
-    let disposed = 0
-    const disposer = await invariantApply({
-      invariants: {
-        register: (packageName: string, install: (ctx: unknown, fail: (message: string) => never) => void) => {
-          registered.push({ name: packageName, install })
-          // Activation runs the (empty) install body inside the service fiber.
-          install({}, () => { throw new Error('unused') })
-          return () => { disposed += 1 }
-        },
-      },
-    } as never)
-    expect(registered).toHaveLength(1)
-    expect(registered[0]!.name).toBe('@deepseek-ai/dsh-better-sidebar')
-    expect(invariantName).toBe('better-sidebar-invariant')
-    disposer()
-    expect(disposed).toBe(1)
   })
 })

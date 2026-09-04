@@ -11,6 +11,9 @@ kind: "package-reference"
 
 `dsh-better-sidebar` 为 dsh web GUI 提供类 VSCode 的右侧工作区：文件 explorer、CodeMirror editor、按会话隔离的终端、git 面板、side chat 子会话、实时的 subagent 预览以及内嵌浏览器，全部作用于当前打开的会话。每个文件、git 与终端操作都通过与 `/api` 网关相同信任围栏的宿主路由执行，作用目录是当前会话的工作目录——切换会话即切换整个工作区；终端、标签页与草稿都留在各自会话中。本包是双面孔：宿主半侧挂载带围栏的 `/sidebar/*` 路由、node-pty 终端与默认关闭的 `terminal_*` 工具，浏览器半侧渲染面板并发布一个客户端服务，供其他客户端插件注册侧边栏标签页与文件查看器。桌面组合默认挂载该插件；浏览器 `dsh web` 组合不挂载。本包自 omdsh-dev 的 MIT 许可 `dsh-better-sidebar` 0.17.1 一方收编为第一方，MIT LICENSE 文件保留。
 
+不发布运行时不变式伴生；侧边栏不持有自身的服务状态或事件协议——每条路由都挂在宿主 webServer 护栏下，pty 生命周期、存储语义与路由护栏各自经由其能力间隔观测。
+
+
 ## 目录
 
 - [使用本包](#use-this-package)
