@@ -547,7 +547,7 @@ export function matchUrlTarget(tabs: readonly TabDescriptor[], url: URL): TabDes
  * `package.json` version; `scripts/release/bump.ts` rewrites it with every
  * dsh release and `tests/service.spec.ts` asserts the pair stays in sync.
  */
-export const SIDEBAR_SERVICE_VERSION = '0.1.2-alpha.4'
+export const SIDEBAR_SERVICE_VERSION = '0.1.2-rc.1'
 
 /**
  * Monotonic capability list consumers use to gate new API usage (features

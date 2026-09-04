@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-desktop-app",
   "description": "The dsh desktop-surface bundle: the desktop patch layer over dsh-web-app plus its runtime glue plugin",
-  "version": "0.1.2-alpha.4",
+  "version": "0.1.2-rc.1",
   "publishConfig": {
     "access": "public"
   },
