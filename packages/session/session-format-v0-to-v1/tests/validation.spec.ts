@@ -61,6 +61,14 @@ const validPayloads: Readonly<Record<string, SessionFormatJsonValue>> = {
   },
   'llm/retry-started': { retryId: 'retry-1', turn: 1, step: 0, retry: 1 },
   'model/selection': { provider: 'mock', model: 'mock', reasoningEffort: 'high' },
+  'patent-teams/member-added': { teamId: 'team-1', memberId: 'member-1', name: 'worker', role: 'technical-expert' },
+  'patent-teams/member-removed': { teamId: 'team-1', memberId: 'member-1' },
+  'patent-teams/message-sent': { teamId: 'team-1', messageId: 'message-1', from: 'captain', to: 'worker', content: 'hello', ts: 1 },
+  'patent-teams/task-created': { teamId: 'team-1', taskId: 'task-1', subject: 'subject', dependencies: [], assignee: 'worker', worker: 'technical-analyzer' },
+  'patent-teams/task-gated': { teamId: 'team-1', taskId: 'task-1', score: 0.5, failures: ['missing'], feedback: 'fix' },
+  'patent-teams/task-updated': { teamId: 'team-1', taskId: 'task-1', status: 'in_progress', assignee: 'worker', output: 'out', attempt: 1, attemptId: 'attempt-1' },
+  'patent-teams/task-validated': { teamId: 'team-1', taskId: 'task-1', worker: 'technical-analyzer', valid: true, missingHardFields: [], degraded: false },
+  'patent-teams/team-created': { teamId: 'team-1', captainSessionId: 'session-1', name: 'team', description: 'description' },
   'permission/preset': { preset: 'default' },
   'plan/mode': { active: true },
   'request/context': { provider: 'mock', model: 'mock', contextWindow: 8192 },
@@ -78,6 +86,7 @@ const validPayloads: Readonly<Record<string, SessionFormatJsonValue>> = {
     version: 1, operation: 'create',
     schedule: { id: 'schedule-1', kind: 'after', prompt: 'remember', afterSeconds: 60, scheduledAt: '2026-08-31T00:00:00.000Z' },
   },
+  'self-evolve/reflection': { turn: 1, step: 1, patternId: 'L1-skill:pattern', confidence: 0.9, suggestion: 'fix' },
   'session-log-deepseek/delivery-accepted': { sessionId: 'validation', throughSeq: 0, sessionFormatVersion: 1 },
   'session/end-seed': {},
   'session/title': { title: 'Title', messageSeqs: [0], source: { kind: 'fallback' } },
@@ -210,7 +219,7 @@ function replaceAtPath(value: SessionFormatJsonValue, path: string, replacement:
 describe('released event and payload inventory', () => {
   it('has an executable valid fixture for every frozen released-v0 event type', () => {
     expect(Object.keys(validPayloads).sort()).toEqual([...RELEASED_V0_EVENT_TYPES].sort())
-    expect(RELEASED_V0_EVENT_TYPES).toHaveLength(51)
+    expect(RELEASED_V0_EVENT_TYPES).toHaveLength(60)
     expect(RELEASED_V0_EVENT_TYPES
       .filter(type => type !== 'assistant/chunk')
       .every(type => KNOWN_SESSION_EVENT_TYPES.has(type))).toBe(true)
