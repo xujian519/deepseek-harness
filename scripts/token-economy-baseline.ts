@@ -55,9 +55,6 @@ export interface UsageBaseline {
 
 /** The usage a chunk or finalized message reports for its step, if any. */
 function usageOf(event: SessionEvent): { turn: number; step: number; usage: TokenUsage } | undefined {
-  if (event.type === 'assistant/chunk' && event.data.chunk.type === 'usage') {
-    return { turn: event.data.turn, step: event.data.step, usage: event.data.chunk.usage }
-  }
   if (event.type === 'assistant/message' && event.data.usage !== undefined) {
     return { turn: event.data.turn, step: event.data.step, usage: event.data.usage }
   }

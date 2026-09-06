@@ -1,6 +1,6 @@
-{"type":"session","version":0,"id":"{{sessionId}}","createdAt":1784973850091,"cwd":"{{cwd}}/workspace"}
+{"type":"session","version":2,"id":"{{sessionId}}","createdAt":1784973850091,"cwd":"{{cwd}}/workspace","isSeeded":false,"delegationDepth":0}
 {"type":"turn/start","data":{"turn":1,"trigger":{"kind":"message","source":{"kind":"user","rpcId":"{{rpcId}}"}}}}
-{"type":"user/message","data":{"content":[{"type":"text","text":"Use PatentTeams to form a search team and drive it to completion."}],"source":{"kind":"user","rpcId":"{{rpcId}}"}},"surfaceOp":"append"}
+{"type":"user/message","data":{"id":"patent-user-1","role":"user","content":[{"type":"text","text":"Use PatentTeams to form a search team and drive it to completion."}],"source":{"kind":"user","rpcId":"{{rpcId}}"}},"surfaceOp":"append"}
 {"type":"session/title","data":{"title":"Use PatentTeams to form a","messageSeqs":[1],"source":{"kind":"fallback"}}}
 {"type":"step/start","data":{"turn":1,"step":1}}
 {"type":"patent-teams/team-created","data":{"teamId":"search-team","captainSessionId":"{{sessionId}}","name":"search-team","description":"Prior-art search across CNIPR and literature"},"ignorable":true}
