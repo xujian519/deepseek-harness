@@ -42,6 +42,7 @@ const headerLine = (id: string): string => JSON.stringify({
   id,
   createdAt: 1728000000000,
   cwd: '/tmp/proj',
+  isSeeded: false,
   delegationDepth: 0,
 })
 
