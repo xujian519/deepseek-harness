@@ -4,6 +4,7 @@ import type {
   ConversationNodeContext, ConversationNodeDefinition,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import { expandAssistantStream } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
@@ -63,6 +64,12 @@ function blockIsVisible(block: AssistantBlock | undefined): boolean {
   if (block === undefined || block.kind === 'tool-call') return false
   if (block.kind === 'text' || block.kind === 'reasoning') return block.text.trim() !== ''
   return true
+}
+
+/** Whether a runtime value is a finalized content block a block-end chunk carries. */
+function isContentBlock(value: unknown): value is ContentBlock {
+  return typeof value === 'object' && value !== null
+    && typeof (value as { type?: unknown }).type === 'string'
 }
 
 function countVisibleBlocks(blocks: readonly AssistantBlock[]): number {
@@ -140,9 +147,10 @@ function updateChunk(
     case 'block-end': {
       changedIndex = chunk.index
       previousVisible = blockIsVisible(blocks[chunk.index])
-      /* v8 ignore next -- malformed live-chunks carry a null/non-object block; fold them away rather than throw. */
-      if (chunk.block === null || typeof chunk.block !== 'object') break
-      blocks[chunk.index] = toAssistantBlock(chunk.block)
+      const content = chunk.block as unknown
+      /* malformed live-chunks carry a null/non-object block; fold them away rather than throw. */
+      if (!isContentBlock(content)) break
+      blocks[chunk.index] = toAssistantBlock(content)
       break
     }
     case 'usage':
