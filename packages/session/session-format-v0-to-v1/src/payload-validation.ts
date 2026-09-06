@@ -224,9 +224,14 @@ export function assertReleasedPayloadSemantics(event: SessionFormatEvent, versio
       return
     case 'todo/write':
       arrayValue(data['todos'], `${label} todos`, (value, itemLabel) => {
-        const item = exactRecord(value, itemLabel, ['content', 'status'])
+        const item = exactRecord(value, itemLabel, ['content', 'status'], ['tags'])
         stringValue(item['content'], `${itemLabel} content`)
         literalValue(item['status'], ['pending', 'in_progress', 'completed'], `${itemLabel} status`)
+        if (item['tags'] !== undefined) {
+          arrayValue(item['tags'], `${itemLabel} tags`, (tag, tagLabel) => {
+            nonEmptyString(tag, tagLabel)
+          })
+        }
       })
       return
     case 'tool-workflow/agent-end':

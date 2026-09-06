@@ -111,7 +111,7 @@ const validPayloads: Readonly<Record<string, SessionFormatJsonValue>> = {
       blockedBy: [], writeScopes: ['/work'],
     },
   },
-  'todo/write': { todos: [{ content: 'work', status: 'in_progress' }] },
+  'todo/write': { todos: [{ content: 'work', status: 'in_progress', tags: ['planning'] }] },
   'tool-workflow/agent-end': { runId: 'run-1', seq: 1, outcome: 'completed' },
   'tool-workflow/agent-start': { runId: 'run-1', seq: 1, label: 'worker', phase: 'build', childId: 'child-1' },
   'tool-workflow/run-end': { runId: 'run-1', stopReason: 'completed' },
@@ -278,6 +278,18 @@ describe('released event and payload inventory', () => {
     expect(() => assertPayload('subagent/descriptor', {
       mode: 'continuable', version: 4, provider: 'spawn', label: 'child',
     })).not.toThrow()
+  })
+
+  it('refuses a todo item whose optional tags are not a non-empty string array', () => {
+    expect(() => {
+      assertPayload('todo/write', { todos: [{ content: 'x', status: 'pending', tags: ['ok'] }] })
+    }).not.toThrow()
+    expect(() => {
+      assertPayload('todo/write', { todos: [{ content: 'x', status: 'pending', tags: 'oops' }] })
+    }).toThrow(/tags must be an array/)
+    expect(() => {
+      assertPayload('todo/write', { todos: [{ content: 'x', status: 'pending', tags: ['a', 1] }] })
+    }).toThrow(/tags\[1\] must be a non-empty string/)
   })
 
   it('refuses type corruption at every non-opaque nested member in the frozen fixture inventory', () => {
