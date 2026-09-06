@@ -8,7 +8,7 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkS
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { findUnresolvableBackendImports, hoistVirtualStore, materializeExternalLinks, pruneNodePtyPrebuilds, resourcesDirForPlatform, topLevelPackageNames, verifyBackendDeploy, virtualStorePackages } from './desktop-package.ts'
+import { findUnresolvableBackendImports, hoistVirtualStore, materializeExternalLinks, pruneNodePtyPrebuilds, resourcesDirForPlatform, sourceBuiltNativeAddonModules, topLevelPackageNames, verifyBackendDeploy, virtualStorePackages } from './desktop-package.ts'
 
 const POSIX: NodeJS.Platform = 'linux'
 const WIN32: NodeJS.Platform = 'win32'
@@ -297,6 +297,46 @@ describe('pruneNodePtyPrebuilds', () => {
     const dir = mkdtempSync(join(tmpdir(), 'prebuilds-'))
     try {
       expect(pruneNodePtyPrebuilds(dir, 'darwin-arm64')).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('sourceBuiltNativeAddonModules', () => {
+  it('finds only packages with a node-gyp source build output', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'native-addons-'))
+    try {
+      // node-gyp source build: binding.gyp + build/Release/*.node.
+      const fsExt = join(dir, 'node_modules', '.pnpm', 'fs-ext@2.1.1', 'node_modules', 'fs-ext')
+      mkdirSync(join(fsExt, 'build', 'Release'), { recursive: true })
+      writeFileSync(join(fsExt, 'binding.gyp'), '')
+      writeFileSync(join(fsExt, 'build', 'Release', 'fs_ext.node'), 'x')
+
+      // N-API prebuild package: binding.gyp but its addon lives in prebuilds/.
+      const nodePty = join(dir, 'node_modules', '.pnpm', 'node-pty@1.1.0', 'node_modules', 'node-pty')
+      mkdirSync(join(nodePty, 'prebuilds', 'darwin-arm64'), { recursive: true })
+      writeFileSync(join(nodePty, 'binding.gyp'), '')
+      writeFileSync(join(nodePty, 'prebuilds', 'darwin-arm64', 'pty.node'), 'x')
+
+      // A dependency without a source build is ignored.
+      const plain = join(dir, 'node_modules', '.pnpm', 'js-yaml@4.1.0', 'node_modules', 'js-yaml')
+      mkdirSync(plain, { recursive: true })
+      writeFileSync(join(plain, 'package.json'), '{"name":"js-yaml"}')
+
+      expect(sourceBuiltNativeAddonModules(dir)).toEqual([fsExt])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns nothing for a tree without native addons', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'native-addons-'))
+    try {
+      const plain = join(dir, 'node_modules', '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg')
+      mkdirSync(plain, { recursive: true })
+      writeFileSync(join(plain, 'package.json'), '{"name":"pkg"}')
+      expect(sourceBuiltNativeAddonModules(dir)).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

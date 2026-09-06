@@ -208,6 +208,100 @@ export function pruneNodePtyPrebuilds(backendDir: string, platform: string): str
 }
 
 /**
+ * Package directories in a deployed backend tree that compiled a native addon
+ * from source with node-gyp (`build/Release/*.node`). Source-built addons are
+ * ABI-specific: they load only under the Node version that compiled them, so
+ * they must be recompiled against the embedded Node. Packages that ship a
+ * N-API prebuild (node-pty, sharp, koffi, node-addon-require-builtin) do not
+ * produce a `build/Release/*.node` here and are left alone.
+ * @param backendDir - the deployed backend tree.
+ * @returns each package directory holding a `binding.gyp` and a `build/Release/*.node`.
+ */
+export function sourceBuiltNativeAddonModules(backendDir: string): string[] {
+  const found: string[] = []
+  const visit = (dir: string): void => {
+    let entries: Dirent[] = []
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const full = join(dir, entry.name)
+      if (entry.name === 'node_modules') {
+        visit(full)
+        continue
+      }
+      if (!existsSync(join(full, 'binding.gyp'))) {
+        // Not a package root; keep walking (pnpm nests stores under node_modules).
+        visit(full)
+        continue
+      }
+      const release = join(full, 'build', 'Release')
+      if (existsSync(release) && readdirSync(release).some(file => file.endsWith('.node'))) {
+        found.push(full)
+      }
+      // Do not descend into a package's own internals (build/, node_modules).
+    }
+  }
+  visit(join(backendDir, 'node_modules'))
+  return found
+}
+
+/**
+ * Absolute path of the node-gyp CLI in the repository's pnpm store, preferring
+ * the greatest installed version. Throws when node-gyp is absent.
+ * @returns the node-gyp CLI entry point.
+ */
+function resolveNodeGypCli(): string {
+  const storeDir = join(ROOT, 'node_modules', '.pnpm')
+  const names = readdirSync(storeDir, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name.startsWith('node-gyp@'))
+    .map(entry => entry.name)
+    .sort((a, b) => {
+      const aVersion = a.slice('node-gyp@'.length).split('.').map(Number)
+      const bVersion = b.slice('node-gyp@'.length).split('.').map(Number)
+      for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i += 1) {
+        const left = aVersion[i] ?? 0
+        const right = bVersion[i] ?? 0
+        if (left !== right) return left - right
+      }
+      return 0
+    })
+  const chosen = names[names.length - 1]
+  if (chosen === undefined) {
+    throw new Error('node-gyp is not installed in the pnpm store')
+  }
+  return join(storeDir, chosen, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js')
+}
+
+/**
+ * Recompile every source-built native addon against the embedded Node binary so
+ * its ABI matches the packaged runtime. `pnpm deploy` reuses the pnpm store's
+ * cached build (compiled against the packager host Node), which is why a node-gyp
+ * addon can ship with the wrong `NODE_MODULE_VERSION`; forcing a rebuild with the
+ * embedded Node makes the bundle load on the first boot.
+ * @param backendDir - the deployed backend tree.
+ * @param nodeBin - the embedded Node binary (the packaged runtime).
+ * @returns the rebuilt package directories.
+ */
+export function rebuildNativeAddonsWithNode(backendDir: string, nodeBin: string): string[] {
+  const modules = sourceBuiltNativeAddonModules(backendDir)
+  if (modules.length === 0) return []
+  const nodeGypCli = resolveNodeGypCli()
+  const rebuilt: string[] = []
+  for (const moduleDir of modules) {
+    const result = spawnSync(nodeBin, [nodeGypCli, 'rebuild'], { cwd: moduleDir, stdio: 'inherit', encoding: 'utf8' })
+    if (result.status !== 0) {
+      throw new Error(`node-gyp rebuild failed for ${moduleDir} (status ${String(result.status)})`)
+    }
+    rebuilt.push(moduleDir)
+  }
+  return rebuilt
+}
+
+/**
  * Package names resolvable from the top level of a node_modules directory,
  * scoped names expanded to `@scope/name`. Broken or dangling entries are
  * ignored.
@@ -491,10 +585,22 @@ export async function prepareDesktopResources(options: PrepareResourcesOptions =
   if (pruned.length > 0) {
     console.log(`pruned node-pty prebuilds for other platforms: ${pruned.join(', ')}`)
   }
+  let embeddedNodeBin: string | undefined
   if (!options.skipNode) {
     const spec = nodeDownloadSpec(platform, DEFAULT_NODE_VERSION)
-    const target = await downloadNode({ spec, targetDir: nodeDir, force: options.forceNode ?? false })
-    console.log(`node ${spec.version} (${spec.platform}) -> ${target}`)
+    embeddedNodeBin = await downloadNode({ spec, targetDir: nodeDir, force: options.forceNode ?? false })
+    console.log(`node ${spec.version} (${spec.platform}) -> ${embeddedNodeBin}`)
+  }
+  // Source-built native addons (node-gyp) are ABI-specific and are cached in
+  // the pnpm store already compiled against the packager host Node; recompile
+  // them against the embedded Node so the packaged runtime can load them. Only
+  // the host platform can compile native addons; a cross-platform Node download
+  // is for link verification only and is not distributable.
+  if (embeddedNodeBin !== undefined && platform === currentDesktopPlatform()) {
+    const rebuilt = rebuildNativeAddonsWithNode(backendDir, embeddedNodeBin)
+    if (rebuilt.length > 0) {
+      console.log(`rebuilt native addons against the embedded node: ${rebuilt.join(', ')}`)
+    }
   }
 }
 
