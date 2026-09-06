@@ -7,7 +7,7 @@
 
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, ipcMain, shell, type Tray } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell, type Tray } from 'electron'
 import { startDshBackend, type DesktopBackend } from './server-manager.ts'
 import { BridgeServer, resolveBridgePath } from './bridge-server.ts'
 import { isWithinBackendOrigin } from './navigation.ts'
@@ -134,6 +134,10 @@ void app.whenReady().then(async () => {
     }
     return printHtmlToPdf(mainWindow, html, suggestedName ?? 'document')
   })
+  // Each launch binds a fresh random port and mints a new port-scoped session
+  // cookie; stale cookies persist across launches and accumulate until the
+  // request head exceeds the HTTP header limit (431). Reset the jar each start.
+  await session.defaultSession.clearStorageData({ storages: ['cookies'] })
   const window = createWindow()
 
   bridge = new BridgeServer(window)
