@@ -308,6 +308,19 @@ describe('released event and payload inventory', () => {
     expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'plugin' })).toThrow(/origin/)
   })
 
+  it('accepts released v0 assistant/chunk replayState as owner-opaque', () => {
+    expect(() => assertPayload('assistant/chunk', {
+      turn: 1, step: 0,
+      chunk: {
+        type: 'finish', reason: { kind: 'stop' },
+        replayState: {
+          kind: 'pi-ai', version: 1, api: 'openai-completions', provider: 'mock',
+          model: 'mock', responseId: 'id', stopReason: 'stop', blocks: [{ type: 'text' }],
+        },
+      },
+    })).not.toThrow()
+  })
+
   it('refuses type corruption at every non-opaque nested member in the frozen fixture inventory', () => {
     let mutations = 0
     for (const [type, data] of Object.entries(validPayloads)) {
@@ -653,7 +666,7 @@ describe('released event and payload inventory', () => {
         source: { kind: 'plugin', plugin: 'compact' },
       }],
       ['assistant/chunk', {
-        turn: 1, step: 0, chunk: { type: 'finish', reason: { kind: 'stop' }, replayState: { response: {}, blocks: {} } },
+        turn: 1, step: 0, chunk: { type: 'finish', reason: { kind: 'stop', extra: true } },
       }],
       ['compaction/summary', {
         compactionId: 'c', summary: [], shadowedRange: { start: 0, end: 0 }, shadowedSeqs: [0],

@@ -796,10 +796,10 @@ function finishReasonValue(value: SessionFormatJsonValue | undefined, label: str
 }
 
 function replayEnvelopeValue(value: SessionFormatJsonValue | undefined, label: string): void {
-  const replay = exactRecord(value, label, ['response'], ['blocks'])
-  if (replay['blocks'] !== undefined && !Array.isArray(replay['blocks'])) {
-    throw new SessionFormatError(`${label} blocks must be an array`)
-  }
+  // Replay metadata is adapter-private and owner-opaque. `response`/`blocks` is
+  // the current generic envelope, but released v0 carried per-provider flat
+  // records (kind/version/api/...): freeze only "it is a record", never members.
+  releasedV0Record(value, label)
 }
 
 function turnEndReasonValue(value: SessionFormatJsonValue | undefined, label: string): void {
