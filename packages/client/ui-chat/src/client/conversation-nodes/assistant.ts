@@ -100,12 +100,14 @@ function updateChunk(
   let changedIndex = -1
   let previousVisible = false
   switch (chunk.type) {
-    case 'block-start':
+    case 'block-start': {
       changedIndex = chunk.index
       previousVisible = blockIsVisible(blocks[chunk.index])
       blocks[chunk.index] = emptyAssistantBlock(chunk.blockType)
       break
+    }
     case 'text-delta': {
+      if (typeof chunk.text !== 'string') break
       const previous = blocks[chunk.index]
       changedIndex = chunk.index
       previousVisible = blockIsVisible(previous)
@@ -113,6 +115,7 @@ function updateChunk(
       break
     }
     case 'reasoning-delta': {
+      if (typeof chunk.text !== 'string') break
       const previous = blocks[chunk.index]
       changedIndex = chunk.index
       previousVisible = blockIsVisible(previous)
@@ -134,11 +137,14 @@ function updateChunk(
       }
       break
     }
-    case 'block-end':
+    case 'block-end': {
       changedIndex = chunk.index
       previousVisible = blockIsVisible(blocks[chunk.index])
+      /* v8 ignore next -- malformed live-chunks carry a null/non-object block; fold them away rather than throw. */
+      if (chunk.block === null || typeof chunk.block !== 'object') break
       blocks[chunk.index] = toAssistantBlock(chunk.block)
       break
+    }
     case 'usage':
       return { ...state, usage: chunk.usage }
     default:

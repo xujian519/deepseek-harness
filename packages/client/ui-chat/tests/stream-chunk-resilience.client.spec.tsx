@@ -92,20 +92,20 @@ describe('stream-chunk resilience', () => {
       at(1, 'turn/start', { turn: 1 }),
       at(2, 'step/start', { turn: 1, step: 1 }),
       // Malformed block indexes: negative, fractional, missing, and absurdly large.
-      at(3, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: -1, blockType: 'text' } }),
-      at(4, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 1.5, blockType: 'text' } }),
-      at(5, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: undefined, blockType: 'text' } }),
-      at(6, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 1_000_000, blockType: 'text' } }),
+      at(3, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: -1, blockType: 'text' } }),
+      at(4, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 1.5, blockType: 'text' } }),
+      at(5, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: undefined, blockType: 'text' } }),
+      at(6, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 1_000_000, blockType: 'text' } }),
       // A valid block, then malformed deltas (non-string text / missing index).
-      at(7, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'text' } }),
-      at(8, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 123 } }),
-      at(9, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: undefined, text: 'lost-index' } }),
+      at(7, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'text' } }),
+      at(8, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 123 } }),
+      at(9, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: undefined, text: 'lost-index' } }),
       // Valid deltas accumulate a string, and an extreme length still lands as a string.
-      at(10, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: '好' } }),
-      at(11, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: '内容'.repeat(5_000) } }),
+      at(10, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: '好' } }),
+      at(11, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: '内容'.repeat(5_000) } }),
       // block-end with a null / non-object block must fold away, not throw.
-      at(12, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-end', index: 0, block: null } }),
-      at(13, 'assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-end', index: 1, block: 'text' } }),
+      at(12, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-end', index: 0, block: null } }),
+      at(13, 'assistant/live-chunk', { turn: 1, step: 1, chunk: { type: 'block-end', index: 1, block: 'text' } }),
     ])
     const result = snapshot(value)
     const assistant = result.nodes.values().find((candidate): candidate is ChatConversationViewNode & { kind: 'assistant-step' } => candidate.kind === 'assistant-step')
