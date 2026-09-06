@@ -128,6 +128,21 @@ describe('released Session format v0 to v1', () => {
     expect(releasedV1SessionFormatCodec.decodeArtifact(v1, [prefix, event]).events).toEqual([prefix, event])
   })
 
+  it('upgrades a released v2 subagent descriptor to v3 during migration', () => {
+    const header = { type: 'session', version: 0, id: 'descriptor', createdAt: 1, cwd: '/work', delegationDepth: 0 }
+    const descriptor = {
+      type: 'subagent/descriptor', seq: 0, time: 2,
+      data: {
+        version: 2, mode: 'continuable', provider: 'spawn', label: 'child',
+        agentProvider: 'mock', agentModel: 'mock',
+      },
+    }
+    const source = releasedV0SessionFormatCodec.decodeArtifact(header, [descriptor])
+    const migrated = sessionFormatV0ToV1.migrate(source)
+    expect(migrated.events[0]).toEqual({ ...descriptor, data: { ...descriptor.data, version: 3 } })
+    sessionFormatV0ToV1.validateTarget(migrated)
+  })
+
   it('preserves a complete canonical multi-owner log except for header.version', () => {
     const physicalHeader = {
       type: 'session', version: 0, id: 'full-identity', createdAt: 1, cwd: '/work', delegationDepth: 0,

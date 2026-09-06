@@ -228,14 +228,20 @@ export function assertReleasedEventPayload(event: SessionFormatEvent, version: 0
     )
   }
   const data = releasedV0Record(event.data, `${event.type} ${event.seq} data`)
-  if (event.type === 'subagent/descriptor' && data['version'] !== 3) {
+  if (event.type === 'subagent/descriptor') {
     const descriptorVersion = sessionFormatCount(data['version'], `${event.type} ${event.seq} version`)
-    if (version === 0) {
+    // Released v0 source carried descriptor versions 2 (pre-persona/toolFilter
+    // continuation) and 3 (current); the v0-to-v1 migration normalizes v2 to v3
+    // so the runbook's SUBAGENT_DESCRIPTOR_VERSION reader can classify the child.
+    // A future descriptor version is unanticipated released data and refuses the
+    // migration step. Current-artifact reads stay forward-compatible instead:
+    // an unknown descriptor version is retained unvalidated for the runbook.
+    if (descriptorVersion !== 2 && descriptorVersion !== 3 && version !== 0) return
+    if (descriptorVersion !== 2 && descriptorVersion !== 3) {
       throw new SessionFormatUnsupportedMigrationError(
         `${event.type} ${event.seq} uses unsupported descriptor version ${descriptorVersion}`,
       )
     }
-    return
   }
   const versionOptional = version === 1 && event.type === 'session-log-deepseek/delivery-accepted'
     ? [...disposition.optional, 'sessionFormatVersion']

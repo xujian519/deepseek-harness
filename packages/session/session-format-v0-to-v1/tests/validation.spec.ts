@@ -267,6 +267,19 @@ describe('released event and payload inventory', () => {
     }
   })
 
+  it('accepts released v0 subagent/descriptor versions previously over-rejected', () => {
+    expect(() => assertPayload('subagent/descriptor', {
+      mode: 'continuable', version: 2, provider: 'spawn', label: 'child',
+      agentProvider: 'mock', agentModel: 'mock',
+    })).not.toThrow()
+    expect(() => assertPayload('subagent/descriptor', {
+      mode: 'one-shot', version: 2, provider: 'spawn', label: 'child',
+    })).not.toThrow()
+    expect(() => assertPayload('subagent/descriptor', {
+      mode: 'continuable', version: 4, provider: 'spawn', label: 'child',
+    })).not.toThrow()
+  })
+
   it('refuses type corruption at every non-opaque nested member in the frozen fixture inventory', () => {
     let mutations = 0
     for (const [type, data] of Object.entries(validPayloads)) {

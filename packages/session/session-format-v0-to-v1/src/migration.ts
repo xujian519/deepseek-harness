@@ -62,10 +62,11 @@ function normalizeReleasedV0Events(
     const header = normalizeLegacyRequestHeader(end, sessionId)
     const steering = normalizeLegacySteering(header, sessionId)
     const message = normalizeLegacyMessage(steering, sessionId, messageIds)
-    assertReleasedEventPayload(message, 0)
-    output.push(message)
-    const messageId = eventMessageId(message)
-    if (messageId !== undefined) messageIds.set(message.seq, messageId)
+    const descriptor = normalizeDescriptorVersion(message)
+    assertReleasedEventPayload(descriptor, 0)
+    output.push(descriptor)
+    const messageId = eventMessageId(descriptor)
+    if (messageId !== undefined) messageIds.set(descriptor.seq, messageId)
   }
   return Object.freeze(output)
 }
@@ -276,6 +277,16 @@ function normalizeLegacyMessage(
     default:
       return event
   }
+}
+
+function normalizeDescriptorVersion(event: SessionFormatEvent): SessionFormatEvent {
+  if (event.type !== 'subagent/descriptor') return event
+  const data = releasedV0Record(event.data, `subagent/descriptor ${event.seq} data`)
+  if (data['version'] !== 2) return event
+  // Descriptor v2 is the pre-persona/pre-toolFilter continuation shape; its
+  // field set is a subset of v3, so a plain version bump reproduces the same
+  // durable composition as the runbook's SUBAGENT_DESCRIPTOR_VERSION reader.
+  return { ...event, data: { ...data, version: 3 } }
 }
 
 function replacementStart(event: SessionFormatEvent): number | undefined {
