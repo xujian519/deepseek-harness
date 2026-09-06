@@ -497,15 +497,15 @@ declare class Session {
    * @param type - The event type (key of {@link SessionEventMap}).
    * @param data - The event payload; must be JSON-serializable.
    * @param opts - Surface placement for {@link SurfaceEventType} events:
-   * `surfaceOp` controls how the event enters the ordered surface and
-   * `sourceEventSeqs` lists the seq numbers of earlier events it derives from,
-   * the sole source of derived model history. Surface options are REQUIRED for
-   * every message-producing event and rejected by the compiler for non-surface
-   * types like `turn/start` or `assistant/attempt`. A v2 `assistant/message`
-   * embeds its exact provider stream and cannot cite top-level source events
-   * (`sourceEventSeqs` is `never`). Non-surface events accept an optional
-   * {@link AppendOptions} carrying the `ignorable` skip marker for out-of-repo
-   * plugin telemetry.
+   *   `surfaceOp` controls how the event enters the ordered surface and
+   *   `sourceEventSeqs` lists the seq numbers of earlier events it derives
+   *   from, the sole source of derived model history. Surface options are
+   *   REQUIRED for every message-producing event and rejected by the
+   *   compiler for non-surface types like `turn/start` or `assistant/attempt`.
+   *   A v2 `assistant/message` embeds its exact provider stream and cannot
+   *   cite top-level source events (`sourceEventSeqs` is `never`). Non-surface
+   *   events accept an optional {@link AppendOptions} carrying the `ignorable`
+   *   skip marker for out-of-repo plugin telemetry.
    * @returns the logged event — its assigned `seq`/`time` plus the SNAPSHOT of
    *   `data` that entered the log, so reading `event.data` back sees the logged
    *   value, never the caller's still-mutable input.

@@ -44,7 +44,8 @@
     "@deepseek-ai/dsh-brand": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-util-values": "workspace:^",
-    "@deepseek-ai/dsh-value": "workspace:^"
+    "@deepseek-ai/dsh-value": "workspace:^",
+    "@deepseek-ai/dsh-contained-emit": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-scope": "workspace:^",
