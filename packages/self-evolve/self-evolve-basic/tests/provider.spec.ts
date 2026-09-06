@@ -2118,7 +2118,7 @@ describe('applyCommit across candidate kinds', () => {
 
   it('L1 candidates honor a session cwd and a whenToUse value in the frontmatter', async () => {
     const ctx = new Context()
-    const session = Session.create(SessionId('cwd-session'), [], { version: 0, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj', isSeeded: false })
+    const session = Session.create(SessionId('cwd-session'), [], { version: 2, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj', isSeeded: false })
     const writes: { content: string }[] = []
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
@@ -2656,7 +2656,7 @@ describe('workspace verifier (P1.9b)', () => {
 
   function sessionAt(dir: string): Session {
     const id = SessionId(`ws-${Math.random().toString(36).slice(2, 10)}`)
-    const header: SessionHeader = { version: 0, id, createdAt: Date.now(), cwd: dir, isSeeded: false }
+    const header: SessionHeader = { version: 2, id, createdAt: Date.now(), cwd: dir, isSeeded: false }
     return Session.create(id, undefined, header)
   }
 

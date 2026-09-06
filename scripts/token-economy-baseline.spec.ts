@@ -13,12 +13,6 @@ const usage = (over: Partial<TokenUsage>): TokenUsage => ({
 let seq = 0
 const resetSeq = (): void => { seq = 0 }
 const time = (): number => 1728000000000 + seq
-const chunk = (turn: number, step: number, u: TokenUsage): SessionEvent<'assistant/chunk'> => ({
-  type: 'assistant/chunk',
-  seq: SessionSeq(seq++),
-  time: time(),
-  data: { turn, step, chunk: { type: 'usage', usage: u } },
-})
 const message = (turn: number, step: number, u: TokenUsage): SessionEvent<'assistant/message'> => ({
   type: 'assistant/message',
   seq: SessionSeq(seq++),
@@ -31,6 +25,7 @@ const message = (turn: number, step: number, u: TokenUsage): SessionEvent<'assis
       content: [{ type: 'text', text: 'ok' }],
       source: { kind: 'model', provider: 'mock', model: 'mock' },
     }),
+    stream: [],
     usage: u,
   },
 })
@@ -43,7 +38,7 @@ const turnStart = (turn: number): SessionEvent<'turn/start'> => ({
 
 const headerLine = (id: string): string => JSON.stringify({
   type: 'session',
-  version: 0,
+  version: 2,
   id,
   createdAt: 1728000000000,
   cwd: '/tmp/proj',
@@ -55,10 +50,10 @@ describe('analyzeUsage', () => {
     resetSeq()
     const events = [
       turnStart(1),
-      chunk(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 })),
-      chunk(1, 2, usage({ inputTokens: 100, cacheReadTokens: 900 })),
+      message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 })),
+      message(1, 2, usage({ inputTokens: 100, cacheReadTokens: 900 })),
       turnStart(2),
-      chunk(2, 1, usage({ inputTokens: 200, cacheReadTokens: 0, cacheWriteTokens: 1800 })),
+      message(2, 1, usage({ inputTokens: 200, cacheReadTokens: 0, cacheWriteTokens: 1800 })),
     ]
     const baseline = analyzeUsage(events)
     expect(baseline.turns).toHaveLength(2)
@@ -70,11 +65,11 @@ describe('analyzeUsage', () => {
     expect(baseline.outputTokens).toBe(60)
   })
 
-  it('lets the assistant/message sample replace the earlier chunk sample of the same step', () => {
+  it('lets the later assistant/message for the same step replace the earlier sample', () => {
     resetSeq()
     const events = [
       turnStart(1),
-      chunk(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 })),
+      message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 })),
       message(1, 1, usage({ inputTokens: 100, cacheReadTokens: 800 })),
     ]
     const baseline = analyzeUsage(events)
@@ -96,7 +91,7 @@ describe('parseLog', () => {
   it('parses a plaintext header plus event lines', () => {
     const lines = [headerLine('s1')]
     resetSeq()
-    const events = [turnStart(1), chunk(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))]
+    const events = [turnStart(1), message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))]
     lines.push(...events.map(event => JSON.stringify(event)))
     const { meta, events: parsed } = parseLog(Buffer.from(`${lines.join('\n')}\n`, 'utf8'))
     expect(meta.id).toBe('s1')
@@ -122,8 +117,8 @@ describe('loadBaseline', () => {
 describe('formatReport', () => {
   it('prints per-turn and total lines', () => {
     resetSeq()
-    const baseline = analyzeUsage([turnStart(1), chunk(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))])
-    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 0, delegationDepth: 0, isSeeded: false }, baseline)
+    const baseline = analyzeUsage([turnStart(1), message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))])
+    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 2, delegationDepth: 0, isSeeded: false }, baseline)
     expect(report).toContain('Session s1')
     expect(report).toContain('Turn 1: hit 90.00%')
     expect(report).toContain('Total: hit 90.00%')

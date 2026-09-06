@@ -115,9 +115,6 @@
       "@deepseek-ai/dsh-session/types": [
         "./packages/core/session/src/types.ts"
       ],
-      "@deepseek-ai/dsh-session/chunk-rows": [
-        "./packages/core/session/src/chunk-rows.ts"
-      ],
       "@deepseek-ai/dsh-session/surface": [
         "./packages/core/session/src/surface.ts"
       ],
@@ -1233,6 +1230,27 @@
       ],
       "@deepseek-ai/dsh-workspace/invariant": [
         "./packages/workspace/workspace/src/invariant.ts"
+      ],
+      "@deepseek-ai/dsh-api-plugin-market-controller/invariant": [
+        "./packages/api/plugin-market-controller/src/invariant.ts"
+      ],
+      "@deepseek-ai/dsh-client-file-upload": [
+        "./packages/client/file-upload/src"
+      ],
+      "@deepseek-ai/dsh-llm/assistant-stream": [
+        "./packages/llm/llm/src/assistant-stream.ts"
+      ],
+      "@deepseek-ai/dsh-session-format": [
+        "./packages/session/session-format/src"
+      ],
+      "@deepseek-ai/dsh-session-format-catalog": [
+        "./packages/session/session-format-catalog/src"
+      ],
+      "@deepseek-ai/dsh-session-format-v0-to-v1": [
+        "./packages/session/session-format-v0-to-v1/src"
+      ],
+      "@deepseek-ai/dsh-session-format-v1-to-v2": [
+        "./packages/session/session-format-v1-to-v2/src"
       ]
     }
   }
