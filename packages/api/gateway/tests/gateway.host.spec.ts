@@ -177,7 +177,7 @@ async function serveRoute(route: WebRoute): Promise<{ readonly origin: string; c
 /** Exchange a Connection launch token without mounting the frontend fallback. */
 function browserCookie(connection: HostConnectionHandle, origin: string): string {
   const target = new URL(connection.authenticatedUrl(origin))
-  let setCookie: string | undefined
+  let setCookie: string | readonly string[] | undefined
   connection.authorizeIndex({
     method: 'GET',
     url: `${target.pathname}${target.search}`,
@@ -187,7 +187,8 @@ function browserCookie(connection: HostConnectionHandle, origin: string): string
     end() {},
   })
   if (setCookie === undefined) throw new Error('gateway fixture did not receive an authentication cookie')
-  return setCookie.split(';', 1)[0]!
+  const cookie = typeof setCookie === 'string' ? setCookie : setCookie[setCookie.length - 1]!
+  return cookie.split(';', 1)[0]!
 }
 
 class FirstSharedService extends Service {

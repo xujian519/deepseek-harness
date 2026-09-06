@@ -16,6 +16,9 @@ const SECRET_BYTES = 32
 const TOKEN_QUERY = 'token'
 const COOKIE_PREFIX = 'dsh-auth-'
 const COOKIE_PAYLOAD_VERSION = 1
+
+/** Upper bound on `dsh-auth-*` cookies a browser keeps, so the request head stays under the HTTP header limit. */
+export const MAX_BROWSER_COOKIES = 32
 const STORED_SECRET_VERSION = 1
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]*$/
 const PROCESS_LAUNCH_TOKENS = new WeakMap<object, string>()
@@ -117,6 +120,45 @@ function cookieValue(headerValue: string, name: string): string | undefined {
 /** Serialize the fixed browser-session attributes; generated names and values are cookie-safe base64url. */
 function sessionCookie(name: string, value: string, expiresAt: number, maxAgeSeconds: number): string {
   return `${name}=${value}; Max-Age=${String(maxAgeSeconds)}; Path=/; Expires=${new Date(expiresAt).toUTCString()}; HttpOnly; SameSite=Strict`
+}
+
+/** A `dsh-auth-*` cookie observed on a request, with the mint time of its signed payload. */
+interface ObservedCookie {
+  readonly name: string
+  readonly issuedAt: number
+}
+
+/** Same-name, empty-value cookie that makes the browser drop a `dsh-auth-*` entry. */
+function evictedCookie(name: string): string {
+  return `${name}=; Max-Age=0; Path=/; Expires=${new Date(0).toUTCString()}`
+}
+
+/**
+ * Names of the oldest `dsh-auth-*` cookies to expunge so the jar holds at most
+ * `MAX_BROWSER_COOKIES` after the caller mints the current authority's cookie.
+ * Cookies from the current authority and non-prefixed cookies are never
+ * evicted; undecodable prefixed cookies are treated as oldest so excess bytes
+ * are shed first.
+ * @param rawCookie - the request's `Cookie` header value.
+ * @param secret - the signing secret that authenticates browser-session cookies.
+ * @param currentName - the cookie name being minted for the current authority.
+ * @returns names to clear, oldest first.
+ */
+function excessCookieNames(rawCookie: string | undefined, secret: Buffer, currentName: string): string[] {
+  if (rawCookie === undefined) return []
+  const observed: ObservedCookie[] = []
+  for (const segment of rawCookie.split(';')) {
+    const at = segment.indexOf('=')
+    const name = at === -1 ? '' : segment.slice(0, at).trim()
+    if (!name.startsWith(COOKIE_PREFIX) || name === currentName) continue
+    const value = segment.slice(at + 1).trim()
+    const payload = decodeCookie(value, secret)
+    observed.push({ name, issuedAt: payload?.issuedAt ?? Number.NEGATIVE_INFINITY })
+  }
+  const evictCount = observed.length - (MAX_BROWSER_COOKIES - 1)
+  if (evictCount <= 0) return []
+  observed.sort((a, b) => a.issuedAt - b.issuedAt)
+  return observed.slice(0, evictCount).map(cookie => cookie.name)
 }
 
 function signature(secret: Buffer, body: string): Buffer {
@@ -250,13 +292,16 @@ export class BrowserAuth {
           issuedAt,
           expiresAt,
         }, this.secret)
+        const setCookies = [
+          ...excessCookieNames(header(req.headers, 'cookie'), this.secret, cookieName(authority))
+            .map(evictedCookie),
+          sessionCookie(cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000)),
+        ]
         res.writeHead(303, {
           'cache-control': 'no-store',
           'location': '/',
           'referrer-policy': 'no-referrer',
-          'set-cookie': sessionCookie(
-            cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000),
-          ),
+          'set-cookie': setCookies,
         })
         res.end()
         return false
