@@ -1,9 +1,9 @@
 /** Browser launch-token and persistent-cookie behavior. */
 
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
-import { BrowserAuth } from '../src/browser-auth.ts'
+import { BrowserAuth, MAX_BROWSER_COOKIES } from '../src/browser-auth.ts'
 import type { ConnectionIndexRequest, ConnectionIndexResponse } from '../src/rpc.ts'
 import { RecordCredentials } from './browser-credentials.ts'
 
@@ -27,7 +27,7 @@ function signedBodyCookie(store: RecordCredentials, name: string, body: string):
 
 interface ResponseState {
   status?: number
-  headers?: Readonly<Record<string, string>>
+  headers?: Readonly<Record<string, string | readonly string[]>>
   body?: string
 }
 
@@ -76,14 +76,15 @@ function request(url: string, authority = '127.0.0.1:3080', init?: {
 function exchange(
   auth: BrowserAuth,
   authority = '127.0.0.1:3080',
-): { cookie: string; launchUrl: string; state: ResponseState } {
+): { cookie: string; launchUrl: string; setCookie: string; state: ResponseState } {
   const launchUrl = auth.authenticatedUrl(`http://${authority}`)
   const target = new URL(launchUrl)
   const res = response()
   expect(auth.authorizeIndex(request(`${target.pathname}${target.search}`, authority), res.value)).toBe(false)
   const setCookie = res.state.headers?.['set-cookie']
   if (setCookie === undefined) throw new Error('token exchange did not set a cookie')
-  return { cookie: setCookie.split(';', 1)[0]!, launchUrl, state: res.state }
+  const setCookieHeader = typeof setCookie === 'string' ? setCookie : setCookie[setCookie.length - 1]!
+  return { cookie: setCookieHeader.split(';', 1)[0]!, launchUrl, setCookie: setCookieHeader, state: res.state }
 }
 
 afterEach(() => {
@@ -105,8 +106,8 @@ describe('BrowserAuth', () => {
         'referrer-policy': 'no-referrer',
       },
     })
-    expect(login.state.headers?.['set-cookie']).toMatch(/; Max-Age=2592000; Path=\/; Expires=.*; HttpOnly; SameSite=Strict$/u)
-    expect(login.state.headers?.['set-cookie']).not.toContain('Secure')
+    expect(login.setCookie).toMatch(/; Max-Age=2592000; Path=\/; Expires=.*; HttpOnly; SameSite=Strict$/u)
+    expect(login.setCookie).not.toContain('Secure')
     expect(first.isAuthenticated(request('/', '127.0.0.1:3080', { cookie: login.cookie }))).toBe(true)
     expect(first.isAuthenticated({
       headers: new Headers({ host: '127.0.0.1:3080', cookie: login.cookie }),
@@ -246,5 +247,42 @@ describe('BrowserAuth', () => {
 
     await expect(createAuth(new RecordCredentials(), Number.MAX_SAFE_INTEGER))
       .rejects.toThrow(/safe timestamp range/u)
+  })
+
+  it('evicts the oldest cookies when the jar exceeds the bound', async () => {
+    const store = new RecordCredentials()
+    const auth = await createAuth(store)
+    const nameFor = (authority: string): string =>
+      'dsh-auth-' + Buffer.from(createHash('sha256').update(authority).digest()).toString('base64url')
+    const surplusCount = MAX_BROWSER_COOKIES + 1
+    const authorities: string[] = []
+    const cookies: string[] = []
+    for (let i = 0; i < surplusCount; i += 1) {
+      const authority = `127.0.0.1:${String(4000 + i)}`
+      authorities.push(authority)
+      cookies.push(signedCookie(store, nameFor(authority), {
+        version: 1,
+        authority,
+        issuedAt: Date.now() + i * 1000,
+        expiresAt: Date.now() + i * 1000 + 30 * 24 * 60 * 60 * 1000,
+      }))
+    }
+    const currentAuthority = '127.0.0.1:9999'
+    const launchUrl = auth.authenticatedUrl(`http://${currentAuthority}`)
+    const target = new URL(launchUrl)
+    const res = response()
+    expect(auth.authorizeIndex(request(`${target.pathname}${target.search}`, currentAuthority, {
+      cookie: cookies.join('; '),
+    }), res.value)).toBe(false)
+    const setCookie = res.state.headers?.['set-cookie']
+    expect(Array.isArray(setCookie)).toBe(true)
+    const entries = setCookie as readonly string[]
+    const cleared = entries.slice(0, -1).filter(entry => entry.includes('Max-Age=0'))
+    expect(cleared).toHaveLength(2)
+    const oldestNames = authorities.slice(0, 2).map(nameFor)
+    for (const name of oldestNames) {
+      expect(cleared.some(entry => entry.startsWith(`${name}=`))).toBe(true)
+    }
+    expect(entries[entries.length - 1]).toMatch(/^dsh-auth-.*=v1\./u)
   })
 })

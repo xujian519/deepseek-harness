@@ -58,13 +58,13 @@ function fakeRawPost(headers: Record<string, string>, url: string, body: string)
 /** Response recorder compatible with both the fence's short-circuit and the bridge. */
 function fakeResponse(): {
   response: ServerResponse
-  state: { status?: number; headers?: Record<string, string>; body?: unknown }
+  state: { status?: number; headers?: Record<string, string | string[]>; body?: unknown }
 } {
-  const state: { status?: number; headers?: Record<string, string>; body?: unknown } = {}
+  const state: { status?: number; headers?: Record<string, string | string[]>; body?: unknown } = {}
   const chunks: Buffer[] = []
   const response = Object.assign(new EventEmitter(), {
     writableEnded: false,
-    writeHead(value: number, headers?: Record<string, string>) {
+    writeHead(value: number, headers?: Record<string, string | string[]>) {
       state.status = value
       if (headers !== undefined) state.headers = headers
       return this
@@ -112,7 +112,8 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
   )
   const setCookie = exchanged.state.headers?.['set-cookie']
   if (setCookie === undefined) throw new Error('browser token exchange did not set a cookie')
-  return setCookie.split(';', 1)[0]!
+  const cookieHeader = typeof setCookie === 'string' ? setCookie : setCookie[setCookie.length - 1]!
+  return cookieHeader.split(';', 1)[0]!
 }
 
 describe('connection node half', () => {
