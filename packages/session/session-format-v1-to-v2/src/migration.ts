@@ -41,11 +41,8 @@ export const sessionFormatV1ToV2 = defineSessionFormatMigration({
   },
   migrate(source) {
     assertReleasedV1Artifact(source)
-    const unknown = source.events.find(event => RELEASED_V0_EVENT_DISPOSITIONS[event.type] === undefined)
-    if (unknown !== undefined) {
-      throw refusal(`format v1 contains unknown event type ${JSON.stringify(unknown.type)} at seq ${unknown.seq}`)
-    }
-    const groups = collectAttemptGroups(source.events)
+    const events = source.events.filter(event => !isIgnorableUnknown(event))
+    const groups = collectAttemptGroups(events)
     const groupByChunk = new Map<number, AttemptGroup>()
     const groupByMessage = new Map<number, AttemptGroup>()
     for (const group of groups) {
@@ -55,7 +52,7 @@ export const sessionFormatV1ToV2 = defineSessionFormatMigration({
 
     const staged: StagedEvent[] = []
     const oldToNew = new Map<number, number>()
-    for (const sourceEvent of source.events) {
+    for (const sourceEvent of events) {
       const group = groupByChunk.get(sourceEvent.seq)
       if (group !== undefined) {
         if (group.messageSeq === undefined && sourceEvent.seq === group.chunks.at(-1)?.seq) {
@@ -379,4 +376,10 @@ function sameNumbers(left: readonly number[], right: readonly number[]): boolean
 
 function refusal(message: string): SessionFormatUnsupportedMigrationError {
   return new SessionFormatUnsupportedMigrationError(message)
+}
+
+/** External-plugin events survive the v0->v1 identity edge but are dropped here; v2 is pure first-party. */
+function isIgnorableUnknown(event: SessionFormatEvent): boolean {
+  return RELEASED_V0_EVENT_DISPOSITIONS[event.type] === undefined
+    && (event as SessionFormatJsonObject)['ignorable'] === true
 }

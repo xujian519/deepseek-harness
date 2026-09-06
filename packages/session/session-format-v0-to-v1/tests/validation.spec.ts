@@ -310,10 +310,13 @@ describe('released event and payload inventory', () => {
     expect(() => { assertPayload(type, data) }).not.toThrow()
   })
 
-  it('refuses unknown v0 events even when the envelope marks them ignorable', () => {
+  it('preserves an unknown v0 event marked ignorable across the identity edge', () => {
     const row = { type: 'plugin/unknown', seq: 0, time: 1, data: {}, ignorable: true }
-    expect(() => releasedV0SessionFormatCodec.decodeArtifact(v0Header, [row]))
-      .toThrow(/unknown historical event.*refuses.*ignorable/)
+    const decoded = releasedV0SessionFormatCodec.decodeArtifact(v0Header, [row])
+    expect(decoded.events).toEqual([row])
+    const migrated = sessionFormatV0ToV1.migrate(decoded)
+    expect(migrated.header.version).toBe(1)
+    expect(migrated.events).toEqual([row])
   })
 
   it('keeps capturedFormatVersion v1-only inside session-reference sources', () => {

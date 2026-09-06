@@ -140,7 +140,7 @@ function assertArtifactCoordinates(
     const disposition = RELEASED_V0_EVENT_DISPOSITIONS[type]
     const legacy = allowLegacySteering && LEGACY_SOURCE_TYPES.has(type)
     const currentKnown = knownEventTypes?.has(type) === true
-    const ignorableCurrent = !allowLegacySteering && !currentKnown && record['ignorable'] === true
+    const ignorableCurrent = !currentKnown && record['ignorable'] === true
     if (!currentKnown && !legacy && !ignorableCurrent && !vocabularyNeutral) {
       if (allowLegacySteering) {
         throw new SessionFormatUnsupportedMigrationError(
@@ -217,8 +217,12 @@ export function assertReleasedSurfaceMetadata(
  */
 export function assertReleasedEventPayload(event: SessionFormatEvent, version: 0 | 1): void {
   const disposition = RELEASED_V0_EVENT_DISPOSITIONS[event.type]
-  /* v8 ignore next -- artifact coordinate validation admits only the frozen inventory before payload validation. */
   if (disposition === undefined) {
+    // An external plugin's ignorable event is preserved through the identity
+    // v0->v1 edge (see v1->v2, where ignorable unknowns are ultimately dropped).
+    const record = releasedV0Record(event, `${event.type} ${event.seq} envelope`)
+    if (record['ignorable'] === true) return
+    /* v8 ignore next -- coordinate validation refuses non-ignorable unknown events before payload validation. */
     throw new SessionFormatUnsupportedMigrationError(
       `format v0 contains unknown event type ${JSON.stringify(event.type)} at seq ${event.seq}`,
     )

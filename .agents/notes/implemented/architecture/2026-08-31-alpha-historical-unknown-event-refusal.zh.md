@@ -28,6 +28,8 @@ Alpha v0-to-v1 迁移边拥有冻结且完整的已发布 v0 事件与 payload �
 
 本记录仅在历史格式迁移方面取代 [保留可忽略外部 Session 事件](2026-08-30-retain-ignorable-external-session-events.zh.md)。原决定对同版本 append 与 reload 仍然有效。
 
+上述历史迁移拒绝已被 [Session 迁移丢弃 ignorable 未知事件](2026-09-06-session-migration-drops-ignorable-unknown-events.zh.md) 取代：v0->v1 恒等边现在保留 ignorable 未知事件，v1->v2 边丢弃它。
+
 ## 考虑过的替代方案
 
 - **逐字复制未知 ignorable 事件**——保留字节，但不能证明不透明数字或生命周期事实在结构迁移后仍有效。

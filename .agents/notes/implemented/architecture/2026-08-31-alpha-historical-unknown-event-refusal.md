@@ -28,6 +28,8 @@ Community feedback will determine the next policy. A later release may add an ex
 
 This note supersedes [Retain ignorable external Session events](2026-08-30-retain-ignorable-external-session-events.md) only for historical format migration. That decision remains current for equal-version append and reload.
 
+The historical-migration refusal described above is superseded by [Session migration drops ignorable unknown events](2026-09-06-session-migration-drops-ignorable-unknown-events.md): the v0->v1 identity edge now preserves an ignorable unknown event and the v1->v2 edge drops it.
+
 ## Alternatives considered
 
 - **Copy unknown ignorable events verbatim** — preserves bytes but cannot prove that opaque numeric or lifecycle facts remain valid after structural edges.

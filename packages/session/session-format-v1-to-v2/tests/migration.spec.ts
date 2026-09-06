@@ -396,7 +396,7 @@ describe('sessionFormatV1ToV2', () => {
     )
   })
 
-  it('refuses an undeclared v1 event even when its envelope says ignorable', () => {
+  it('drops an undeclared v1 event marked ignorable during migration', () => {
     const source: SessionFormatArtifact = {
       header: {
         version: 1,
@@ -412,9 +412,9 @@ describe('sessionFormatV1ToV2', () => {
       }],
     }
 
-    expect(() => sessionFormatV1ToV2.migrate(source)).toThrow(
-      /format v1 contains unknown event type "external\/info" at seq 0/,
-    )
+    const migrated = sessionFormatV1ToV2.migrate(source)
+    expect(migrated.header.version).toBe(2)
+    expect(migrated.events).toEqual([])
   })
 
   it.each([undefined, []] as const)(
