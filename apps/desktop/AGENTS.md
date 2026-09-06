@@ -131,6 +131,12 @@ Desktop-only behavior must still go through Cordis seams where one exists:
    deployed code makes resolves from the tree (missing peer-provided seam
    packages otherwise die with `ERR_MODULE_NOT_FOUND` at boot), and downloads
    the checksum-verified Node binary into `apps/desktop/resources/<os>/node`.
+   It then recompiles every node-gyp source-built native addon
+   (`build/Release/*.node`) against that embedded Node: `pnpm deploy` reuses
+   the pnpm store's build, already compiled against the packager host Node, so
+   an ABI-specific addon ships with the wrong `NODE_MODULE_VERSION` and fails
+   to load at boot (`ERR_DLOPEN_FAILED`). N-API prebuilds (node-pty, sharp,
+   koffi) are ABI-independent and untouched.
 3. `pnpm run package:desktop:mac` / `package:desktop:win` run the prepare step
    and then `electron-builder` against `apps/desktop/electron-builder.yml`;
    each target packs its own OS resources directory as extraResources.

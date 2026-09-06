@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-06-desktop-native-addon-abi-from-host-node.md
+2026-09-06-desktop-native-addon-abi-from-host-node.md: ba5cfa1458d15db714bef13b8cb3cc90d1d7fbaf
+2026-09-06-desktop-native-addon-abi-from-host-node.zh.md: 4e664d0aee5b08133c7b11db724ce97102d831aa
