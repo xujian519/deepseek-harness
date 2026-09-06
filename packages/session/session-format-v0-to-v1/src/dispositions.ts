@@ -89,7 +89,7 @@ export const RELEASED_V0_EVENT_DISPOSITIONS: Readonly<Record<string, ReleasedV0P
     ['teamId', 'taskId', 'worker', 'valid', 'missingHardFields', 'degraded'],
   ),
   'patent-teams/team-created': disposition(['teamId', 'captainSessionId', 'name'], ['description']),
-  'permission/preset': disposition(['preset']),
+  'permission/preset': disposition(['preset'], ['origin']),
   'plan/mode': disposition(['active']),
   'request/context': disposition(['provider', 'model'], ['contextWindow']),
   'request/header': disposition(['header', 'reason'], ['startsSeries']),

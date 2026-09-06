@@ -301,6 +301,13 @@ describe('released event and payload inventory', () => {
     }).toThrow(/tags\[1\] must be a non-empty string/)
   })
 
+  it('accepts released v0 permission/preset origin values', () => {
+    expect(() => assertPayload('permission/preset', { preset: 'default' })).not.toThrow()
+    expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'default' })).not.toThrow()
+    expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'selection' })).not.toThrow()
+    expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'plugin' })).toThrow(/origin/)
+  })
+
   it('refuses type corruption at every non-opaque nested member in the frozen fixture inventory', () => {
     let mutations = 0
     for (const [type, data] of Object.entries(validPayloads)) {
