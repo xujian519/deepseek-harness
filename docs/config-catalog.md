@@ -1474,6 +1474,30 @@ export interface LspLocalServerConfig {
 
 Source: [`packages/lsp/lsp-stdio/src/index.ts:83`](../packages/lsp/lsp-stdio/src/index.ts)
 
+<a id="deepseek-aidsh-macos-tools"></a>
+
+## `@deepseek-ai/dsh-macos-tools`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Plugin configuration; every field defaults and validates at load. */
+export interface Config {
+  /** Timeout for every system-CLI invocation, in milliseconds (default 15000). */
+  readonly commandTimeoutMs?: number
+  /** Character cap for one clipboard read (default 20000). */
+  readonly clipboardReadMaxChars?: number
+  /** Character cap for one clipboard write (default 1000000). */
+  readonly clipboardWriteMaxChars?: number
+  /** Character cap for one spoken text (default 4000). */
+  readonly speakMaxChars?: number
+  /** Character cap for a notification title plus message (default 4000). */
+  readonly notifyMaxChars?: number
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts:26`](../packages/desktop/macos-tools/src/index.ts)
+
 <a id="deepseek-aidsh-mcp-client"></a>
 
 ## `@deepseek-ai/dsh-mcp-client`

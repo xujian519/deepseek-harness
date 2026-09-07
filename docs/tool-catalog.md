@@ -48,6 +48,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
+| `@deepseek-ai/dsh-macos-tools` | `macos_app`, `macos_clipboard_get`, `macos_clipboard_set`, `macos_notify`, `macos_open_path`, `macos_open_url`, `macos_speak` | `ctx.tools`, `ctx.approval (one-time consent for open/clipboard-read/app launch+quit; absent fails closed)` | `tool/call`, `tool/result`, `approval/asked + approval/decided for gated calls` | - | Seven macOS native tools over system CLIs (open/reveal, browser URLs, clipboard read/write, notifications, speech, app control); every spawn is an absolute executable with an argv array, never a shell string. |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -4811,3 +4812,178 @@ Search the web for current information. Provide 1–4 queries in the required qu
 Source: [`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.
+
+<a id="deepseek-aidsh-macos-tools"></a>
+
+## `@deepseek-ai/dsh-macos-tools`
+
+### `macos_app`
+
+Launch, activate, or quit a macOS application by name, bundle id, or absolute/~-rooted .app path. Launching and quitting ask the user for approval; activating only brings a running app to the front.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "launch starts the application; activate brings a running application to the front; quit asks a running application to quit.",
+      "enum": [
+        "launch",
+        "activate",
+        "quit"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "description": "Application name (Safari), bundle id (com.apple.Safari), or .app path."
+    }
+  },
+  "required": [
+    "action",
+    "name"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_clipboard_get`
+
+Read the current macOS clipboard text. The clipboard may hold secrets, so every read asks the user for one-time approval first.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_clipboard_set`
+
+Replace the macOS clipboard text with the given text, overwriting its previous content.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to place on the clipboard."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_notify`
+
+Post a macOS system notification with a title, an optional message, and an optional sound.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Notification title."
+    },
+    "message": {
+      "type": "string",
+      "description": "Notification body (optional)."
+    },
+    "sound": {
+      "type": "boolean",
+      "description": "Play the default notification sound (default false)."
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_open_path`
+
+Open a file or folder with its default macOS application, or reveal it in Finder. Opening hands the path to its default application and asks the user for approval; revealing only selects it in Finder.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Absolute or ~-rooted file or folder path."
+    },
+    "reveal": {
+      "type": "boolean",
+      "description": "true to select the path in Finder instead of opening it (default false)."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_open_url`
+
+Open a URL in the user's default browser. Bare hosts default to https; only http and https URLs are allowed.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "URL to open, e.g. https://example.com or example.com."
+    }
+  },
+  "required": [
+    "url"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_speak`
+
+Speak text aloud with macOS text-to-speech (the say command).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to speak."
+    },
+    "voice": {
+      "type": "string",
+      "description": "Voice name (e.g. Tingting, Samantha); defaults to the system voice."
+    },
+    "rate": {
+      "type": "integer",
+      "description": "Words per minute, between 80 and 500 (default 175)."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+Seven macOS native tools over system CLIs (open/reveal, browser URLs, clipboard read/write, notifications, speech, app control); every spawn is an absolute executable with an argv array, never a shell string.

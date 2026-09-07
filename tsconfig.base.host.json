@@ -787,6 +787,9 @@
       "@deepseek-ai/dsh-lsp-stdio": [
         "./packages/lsp/lsp-stdio/src"
       ],
+      "@deepseek-ai/dsh-macos-tools": [
+        "./packages/desktop/macos-tools/src"
+      ],
       "@deepseek-ai/dsh-mcp-client": [
         "./packages/mcp/mcp-client/src"
       ],

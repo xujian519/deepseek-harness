@@ -38,6 +38,7 @@
     "@deepseek-ai/dsh-desktop-shell": "workspace:^",
     "@deepseek-ai/dsh-desktop-directory-picker": "workspace:^",
     "@deepseek-ai/dsh-client-ui-directory-picker-native": "workspace:^",
+    "@deepseek-ai/dsh-macos-tools": "workspace:^",
     "@deepseek-ai/dsh-better-sidebar": "workspace:^"
   },
   "peerDependencies": {

@@ -80,7 +80,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`browser/`](browser/README.md) | Browser automation backend family: capability probing, cascade routing, link extraction |
 | [`host/`](host/README.md) | Web-GUI host half: API gateway + HTTP route server |
 | [`client/`](client/README.md) | Web-GUI browser half: shell, wire, object services, slots, `ui-*` plugins |
-| [`desktop/`](desktop/README.md) | Desktop OS integration: Service Definition + Electron shell provider + sandboxed directory-picker bridge |
+| [`desktop/`](desktop/README.md) | Desktop OS integration: Service Definition + Electron shell provider + sandboxed directory-picker bridge + CLI-backed macOS native tools |
 | [`test-support/`](test-support/README.md) | Support infrastructure (testkits, invariants, replay, Loader smokes) |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.md) | Runtime diagnostics: package-owned invariant checks and reports |
 | [`util/`](util/README.md) | Low-level shared utilities (`Branded<B>`, home/path helpers, timeout, retention); no runtime dependencies, invariant-companion peer only |

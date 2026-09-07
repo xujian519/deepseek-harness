@@ -55,3 +55,12 @@
 - insert:
     - id: better-sidebar
       name: '@deepseek-ai/dsh-better-sidebar'
+
+# macOS native tools: model-facing open/reveal, browser URLs, clipboard
+# read/write, notifications, speech, and app control driven through system
+# CLIs. Host effects beyond the session resolve one-time approval through the
+# approval seam. darwin-only: every executable it spawns is macOS-specific.
+- insert:
+    - id: macos-tools
+      name: '@deepseek-ai/dsh-macos-tools'
+      disabled: !!js process.platform !== 'darwin'

@@ -1,0 +1,11 @@
+version: 1
+scenario: macos-tools-validation
+profile: headless
+composition: macos-tools-validation
+recording: authored
+header:
+  class: default
+  pin: true
+  systemPromptSource: text-turn
+replay:
+  override: true
