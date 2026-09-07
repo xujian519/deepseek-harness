@@ -4900,7 +4900,7 @@ Post a macOS system notification with a title, an optional message, and an optio
     },
     "sound": {
       "type": "boolean",
-      "description": "Play the default notification sound (default false)."
+      "description": "Play a notification sound (default false)."
     }
   },
   "required": [

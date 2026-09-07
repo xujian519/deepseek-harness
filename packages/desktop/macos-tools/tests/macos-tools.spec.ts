@@ -355,13 +355,20 @@ describe('macos_speak', () => {
     expect(value(result)).toEqual({ ok: true, chars: 11 })
     expect(text(result)).toBe('Spoke 11 characters')
     expect(test.calls[0]).toEqual(expect.objectContaining({ command: '/usr/bin/say' }))
-    expect(test.calls[0]?.args).toEqual(['hello world'])
+    expect(test.calls[0]?.args).toEqual(['--', 'hello world'])
   })
 
   it('passes rate and voice as separate argv elements', async () => {
     const test = await harness()
     await test.execute('macos_speak', { text: 'hi', voice: 'Tingting', rate: 200 })
-    expect(test.calls[0]?.args).toEqual(['-r', '200', '-v', 'Tingting', 'hi'])
+    expect(test.calls[0]?.args).toEqual(['-r', '200', '-v', 'Tingting', '--', 'hi'])
+  })
+
+  it('keeps leading-dash text positional through the -- separator', async () => {
+    const test = await harness()
+    const result = await test.execute('macos_speak', { text: '- item to speak' })
+    expect(value(result)).toEqual({ ok: true, chars: 15 })
+    expect(test.calls[0]?.args).toEqual(['--', '- item to speak'])
   })
 
   it('rejects out-of-range and non-integer rates', async () => {
@@ -481,5 +488,17 @@ describe('plugin assembly', () => {
     expect(() => { macosTools.apply(ctx, { commandTimeoutMs: 0 }) }).toThrow('commandTimeoutMs must be a positive integer')
     expect(() => { macosTools.apply(ctx, { clipboardReadMaxChars: -1 }) }).toThrow('clipboardReadMaxChars must be a positive integer')
     expect(() => { macosTools.apply(ctx, { notifyMaxChars: 1.5 }) }).toThrow('notifyMaxChars must be a positive integer')
+  })
+
+  it('removes the seven tools when the contributing fiber disposes', async () => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    const fiber = await ctx.plugin(macosTools)
+    expect(ctx.tools.schemas().map(item => item.name)).toHaveLength(7)
+    await fiber.dispose()
+    expect(ctx.tools.schemas()).toEqual([])
+    expect(ctx.tools.get('macos_open_url')).toBeUndefined()
   })
 })

@@ -1,8 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createExecFileRunner } from '../src/runner.ts'
 import { createMacosTools, createStatPathCheck, type MacosLimits } from '../src/tools.ts'
 
 const signal = new AbortController().signal
+const tempDirs: string[] = []
+
+afterEach(async () => {
+  for (const dir of tempDirs.splice(0)) await rm(dir, { recursive: true, force: true })
+})
 
 const LIMITS: MacosLimits = {
   commandTimeoutMs: 10_000,
@@ -27,6 +35,19 @@ describe.skipIf(process.platform !== 'darwin')('macOS system CLIs', () => {
     const run = createExecFileRunner()
     const { stdout } = await run('/usr/bin/say', ['-v', '?'], { timeoutMs: 10_000, signal })
     expect(stdout).toContain('en')
+  })
+
+  it('keeps leading-dash text positional through the -- separator (no audio)', async () => {
+    const run = createExecFileRunner()
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-macos-say-'))
+    tempDirs.push(dir)
+    const out = join(dir, 'probe.aiff')
+    // Without '--', say parses '-v probe' as the voice option and renders
+    // near-silence; with it the text renders as spoken audio.
+    await expect(run('/usr/bin/say', ['-o', out, '--', '-v probe'], { timeoutMs: 10_000, signal }))
+      .resolves.toMatchObject({ stdout: '' })
+    const { size } = await stat(out)
+    expect(size).toBeGreaterThan(10_000)
   })
 
   it('resolves the stat precheck against a real directory', async () => {

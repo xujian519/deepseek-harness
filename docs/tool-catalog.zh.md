@@ -4922,7 +4922,7 @@ web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可�
     },
     "sound": {
       "type": "boolean",
-      "description": "Play the default notification sound (default false)."
+      "description": "Play a notification sound (default false)."
     }
   },
   "required": [

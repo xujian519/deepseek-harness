@@ -275,7 +275,7 @@ export function createMacosTools(deps: MacosToolDeps): ToolDefinition[] {
       parameters: {
         title: { type: 'string', required: true, description: 'Notification title.' },
         message: { type: 'string', description: 'Notification body (optional).' },
-        sound: { type: 'boolean', description: 'Play the default notification sound (default false).' },
+        sound: { type: 'boolean', description: 'Play a notification sound (default false).' },
       },
       output: {
         schema: {
@@ -332,7 +332,9 @@ export function createMacosTools(deps: MacosToolDeps): ToolDefinition[] {
         if (args.voice !== undefined) {
           argv.push('-v', requireText(args.voice, 100, 'voice'))
         }
-        argv.push(text)
+        // '--' ends option parsing, keeping a leading-dash text (e.g. a
+        // markdown list item) positional instead of silently swallowed.
+        argv.push('--', text)
         await spawn(SAY, argv, exec)
         return { ok: true, chars: text.length }
       },
