@@ -233,8 +233,8 @@ export function createMacosTools(deps: MacosToolDeps): ToolDefinition[] {
           text = (await spawn(PBPASTE, [], exec)).stdout
         } catch {
           // pbpaste exits non-zero when the clipboard holds no text (e.g. an
-          // image): that is an empty read, and no other failure is possible
-          // before approval has already been granted.
+          // image); approval already resolved above, so the exit reads as an
+          // empty clipboard.
         }
         const truncated = text.length > limits.clipboardReadMaxChars
         return {
@@ -379,12 +379,12 @@ export function createMacosTools(deps: MacosToolDeps): ToolDefinition[] {
           } else {
             await spawn(OPEN, ['-a', name], exec)
           }
-          return { ok: true, action: args.action, name }
+        } else {
+          if (args.action === 'quit') {
+            await requireApproval(deps, exec, `quitting "${name}"`, `quit the application ${name}`)
+          }
+          await spawn(OSASCRIPT, ['-e', `tell application "${appleScriptText(name)}" to ${args.action}`], exec)
         }
-        if (args.action === 'quit') {
-          await requireApproval(deps, exec, `quitting "${name}"`, `quit the application ${name}`)
-        }
-        await spawn(OSASCRIPT, ['-e', `tell application "${appleScriptText(name)}" to ${args.action}`], exec)
         return { ok: true, action: args.action, name }
       },
     }),
