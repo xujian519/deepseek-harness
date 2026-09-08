@@ -35,6 +35,8 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'glob', 'grep', 'interrupt_agent', 'interrupt_agent',
       'job_kill', 'job_list', 'job_output', 'knowledge_note_save',
       'list_agents', 'list_agents', 'list_subagent_models', 'lsp',
+      'macos_app', 'macos_clipboard_get', 'macos_clipboard_set', 'macos_notify',
+      'macos_open_path', 'macos_open_url', 'macos_speak',
       'market_plugin_preview', 'market_plugin_search', 'market_source_list', 'paper_download',
       'paper_list_sources', 'paper_search', 'patent_analysis_report', 'patent_case_search',
       'patent_eval', 'patent_kg_query', 'patent_legal_status', 'patent_metadata',
