@@ -67,6 +67,7 @@ import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import { registerListSubagentModels } from '../packages/subagent/tool-subagent/src/list-models.ts'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import * as MacosTools from '@deepseek-ai/dsh-macos-tools'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
 import * as Methodology from '@deepseek-ai/dsh-methodology'
 import * as DocumentDeliver from '@deepseek-ai/dsh-document-deliver'
@@ -716,6 +717,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-macos-tools',
+    dir: 'macos-tools',
+    source: 'packages/desktop/macos-tools/src/index.ts',
+    requires: ['ctx.tools', 'ctx.approval (one-time consent for open/clipboard-read/app launch+quit; absent fails closed)'],
+    writes: ['tool/call', 'tool/result', 'approval/asked + approval/decided for gated calls'],
+    async mount(ctx) {
+      await ctx.plugin(MacosTools)
+    },
+    note:
+      'Seven macOS native tools over system CLIs (open/reveal, browser URLs, clipboard read/write, notifications, speech, app control); every spawn is an absolute executable with an argv array, never a shell string.',
   },
 ]
 

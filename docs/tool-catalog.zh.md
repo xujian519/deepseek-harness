@@ -52,6 +52,7 @@
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
+| `@deepseek-ai/dsh-macos-tools` | `macos_app`、`macos_clipboard_get`、`macos_clipboard_set`、`macos_notify`、`macos_open_path`、`macos_open_url`、`macos_speak` | `ctx.tools`、`ctx.approval（打开/读剪贴板/应用启停的一次性许可；缺失即拒绝）` | `tool/call`、`tool/result`、`受控调用的 approval/asked + approval/decided` | - | 七个基于系统 CLI 的 macOS 原生工具（打开/显示、浏览器网址、剪贴板读写、通知、朗读、应用控制）；每次调用都以参数数组启动绝对路径的可执行文件，绝不使用 shell 字符串。 |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -4833,3 +4834,178 @@ The durable multi-agent team service for the patent domain: create a team (you b
 来源：[`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。
+
+<a id="deepseek-aidsh-macos-tools"></a>
+
+## `@deepseek-ai/dsh-macos-tools`
+
+### `macos_app`
+
+按名称、包 ID 或绝对/`~` 开头的 .app 路径启动、激活或退出 macOS 应用。启动与退出需用户审批；激活只是把已运行的应用带到前台。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "launch starts the application; activate brings a running application to the front; quit asks a running application to quit.",
+      "enum": [
+        "launch",
+        "activate",
+        "quit"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "description": "Application name (Safari), bundle id (com.apple.Safari), or .app path."
+    }
+  },
+  "required": [
+    "action",
+    "name"
+  ]
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_clipboard_get`
+
+读取当前 macOS 剪贴板文本。剪贴板可能存有敏感内容，因此每次读取都先向用户请求一次性审批。
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_clipboard_set`
+
+用给定文本替换 macOS 剪贴板内容，覆盖原有内容。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to place on the clipboard."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_notify`
+
+发送一条带标题、可选正文与可选提示音的 macOS 系统通知。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Notification title."
+    },
+    "message": {
+      "type": "string",
+      "description": "Notification body (optional)."
+    },
+    "sound": {
+      "type": "boolean",
+      "description": "Play a notification sound (default false)."
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_open_path`
+
+用默认 macOS 应用打开文件或文件夹，或在 Finder 中显示。打开会把路径交给默认应用并请求用户审批；显示只是在 Finder 中选中。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Absolute or ~-rooted file or folder path."
+    },
+    "reveal": {
+      "type": "boolean",
+      "description": "true to select the path in Finder instead of opening it (default false)."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_open_url`
+
+在用户的默认浏览器中打开网址。裸域名默认补 https；仅允许 http 与 https。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "URL to open, e.g. https://example.com or example.com."
+    }
+  },
+  "required": [
+    "url"
+  ]
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+### `macos_speak`
+
+用 macOS 语音合成（say 命令）朗读文本。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to speak."
+    },
+    "voice": {
+      "type": "string",
+      "description": "Voice name (e.g. Tingting, Samantha); defaults to the system voice."
+    },
+    "rate": {
+      "type": "integer",
+      "description": "Words per minute, between 80 and 500 (default 175)."
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+来源：[`packages/desktop/macos-tools/src/index.ts`](../packages/desktop/macos-tools/src/index.ts)
+
+七个基于系统 CLI 的 macOS 原生工具（打开/显示、浏览器网址、剪贴板读写、通知、朗读、应用控制）；每次调用都以参数数组启动绝对路径的可执行文件，绝不使用 shell 字符串。
