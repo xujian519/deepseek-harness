@@ -393,6 +393,9 @@ describe('LocalSubprocessRuntime', () => {
       const ctx = new Context()
       const fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
       const service = ctx.subprocess as InstanceType<typeof IsolatedLocalSubprocessRuntime>
+      // The synthetic pty never consumes a native scope's launch request, so
+      // these bookkeeping checks pin the fallback containment selection.
+      service.internals = { platform: 'darwin' }
       const handle = await ctx.subprocess.spawnTerminal({
         argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, graceMs: 1,
       })
@@ -600,7 +603,11 @@ describe('LocalSubprocessRuntime', () => {
       ctx.logger.error = ((error: unknown) => { disposalErrors.push(error) }) as typeof ctx.logger.error
       const fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
       const alive = new Set([124])
-      ;(ctx.subprocess as InstanceType<typeof IsolatedLocalSubprocessRuntime>).terminalInspector = {
+      const runtime = ctx.subprocess as InstanceType<typeof IsolatedLocalSubprocessRuntime>
+      // The synthetic pty never consumes a native scope's launch request, so
+      // these bookkeeping checks pin the fallback containment selection.
+      runtime.internals = { platform: 'darwin' }
+      runtime.terminalInspector = {
         foregroundPgid: () => 123,
         isStdinWaiting: () => false,
         snapshot: () => ({

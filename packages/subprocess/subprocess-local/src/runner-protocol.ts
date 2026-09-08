@@ -93,6 +93,30 @@ function parseErrorResult(value: Record<string, unknown>): LinuxStartupError {
   return { type: 'error', error: value.error }
 }
 
+/** Stable code marking a scope exit whose launch request was never consumed. */
+export const LAUNCH_REQUEST_UNCONSUMED_CODE = 'DSH_LAUNCH_REQUEST_UNCONSUMED' as const
+
+/**
+ * Build the rejection for a scope exit that never consumed its launch request.
+ * @param subject - scope kind named in the message.
+ * @returns the marked error consumed by launch-result composition.
+ */
+export function unconsumedLaunchRequestError(subject: 'subprocess' | 'terminal'): Error {
+  return Object.assign(
+    new Error(`${subject} scope exited before its bootstrap consumed the launch request`),
+    { code: LAUNCH_REQUEST_UNCONSUMED_CODE },
+  )
+}
+
+/**
+ * Identify the marked scope exit that never consumed its launch request.
+ * @param error - rejection value from a launch result.
+ * @returns whether the error carries the unconsumed-launch-request code.
+ */
+export function isUnconsumedLaunchRequestError(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | null)?.code === LAUNCH_REQUEST_UNCONSUMED_CODE
+}
+
 /**
  * Create a private 0700 directory and one complete 0600 launch request.
  * @param request - target cwd and complete environment for the bootstrap.

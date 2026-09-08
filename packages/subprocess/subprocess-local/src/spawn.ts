@@ -28,6 +28,7 @@ import type {
 import type { BoundProcessOwner, ManagedProcessLaunch } from './managed-owner.ts'
 import { waitWithAbort } from './managed-owner.ts'
 import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
+import { isUnconsumedLaunchRequestError } from './runner-protocol.ts'
 
 type SpawnProcess = (
   program: string,
@@ -542,8 +543,10 @@ export function bindManagedProcess(
     return rangeExitObservation
   }
 
+  let lastRequestedSignal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'
   const kill = (sig: 'SIGTERM' | 'SIGKILL', cancellationReason?: unknown): void => {
     if (rangeExitObserved) return
+    lastRequestedSignal = sig
     launch.owner.signal(sig, cancellationReason)
   }
 
@@ -591,6 +594,16 @@ export function bindManagedProcess(
       resolve(outcome)
     }
     const fail = (error: unknown): void => {
+      // A rejection landing after this side requested termination is that
+      // termination ending a range whose bootstrap never consumed the launch
+      // request: report the last requested signal, which is the direct result
+      // the fallback path produces for the same kill. Every other rejection —
+      // including a genuine spawn failure racing teardown — stays a rejection,
+      // and callers keep their own cancellation facts.
+      if (terminationStarted && isUnconsumedLaunchRequestError(error)) {
+        settle({ exitCode: null, signal: lastRequestedSignal })
+        return
+      }
       settled = true
       terminate()
       stopCollectors()

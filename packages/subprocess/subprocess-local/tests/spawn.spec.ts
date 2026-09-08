@@ -12,8 +12,9 @@ import {
   taskkillProcessTree,
   validateSubprocessSpec,
 } from '../src/spawn.ts'
-import type { SubprocessHandle, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessHandle, SubprocessOutcome, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { unconsumedLaunchRequestError } from '../src/runner-protocol.ts'
 import { waitWithAbort } from '../src/managed-owner.ts'
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -328,6 +329,49 @@ describe('spawnSubprocess', () => {
     setTimeout(() => { controller.abort('user cancelled') }, 50)
     const result = await running.done
     expect(result.signal).toBe(process.platform === 'win32' ? null : 'SIGTERM')
+  })
+
+  it('settles a requested termination whose rejection ends the launch before it settles', async () => {
+    // A native scope that is signalled before its bootstrap consumed the
+    // launch request rejects the direct result instead of reporting the
+    // signal; the composition must still settle as that kill, like the
+    // fallback path's direct result for the same signal.
+    let rejectDirect: (error: Error) => void = () => {}
+    const direct = new Promise<SubprocessOutcome>((_, reject) => { rejectDirect = reject })
+    const owner = {
+      signal: vi.fn(),
+      waitForExit: vi.fn(async () => {}),
+      terminateForHostExit: vi.fn(),
+    }
+    const running = bindManagedProcess(spec('sleep 60'), {
+      stdin: null,
+      stdout: null,
+      stderr: null,
+      direct,
+      owner,
+    })
+    running.terminate()
+    rejectDirect(unconsumedLaunchRequestError('subprocess'))
+    await expect(running.done).resolves.toEqual({ exitCode: null, signal: 'SIGTERM' })
+    expect(owner.signal).toHaveBeenCalledWith('SIGTERM', expect.anything())
+  })
+
+  it('keeps rejecting an unconsumed-launch rejection that no termination requested', async () => {
+    let rejectDirect: (error: Error) => void = () => {}
+    const direct = new Promise<SubprocessOutcome>((_, reject) => { rejectDirect = reject })
+    const running = bindManagedProcess(spec('sleep 60'), {
+      stdin: null,
+      stdout: null,
+      stderr: null,
+      direct,
+      owner: {
+        signal: vi.fn(),
+        waitForExit: vi.fn(async () => {}),
+        terminateForHostExit: vi.fn(),
+      },
+    })
+    rejectDirect(unconsumedLaunchRequestError('subprocess'))
+    await expect(running.done).rejects.toThrow('before its bootstrap consumed')
   })
 
   it('throws a stable Error when already aborted before spawn', () => {

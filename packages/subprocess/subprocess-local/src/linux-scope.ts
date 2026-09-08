@@ -16,6 +16,7 @@ import {
   createLinuxLaunchFiles,
   deserializeRunnerError,
   readLinuxStartupError,
+  unconsumedLaunchRequestError,
 } from './runner-protocol.ts'
 import type { LinuxLaunchFiles } from './runner-protocol.ts'
 import {
@@ -377,7 +378,7 @@ function directOutcome(
           return
         }
         if (existsSync(files.requestPath)) {
-          rejectOutcome(new Error('subprocess scope exited before its bootstrap consumed the launch request'))
+          rejectOutcome(unconsumedLaunchRequestError('subprocess'))
           return
         }
         resolveOutcome({ exitCode, signal })
@@ -441,9 +442,7 @@ export function prepareLinuxTerminalScope(
     resolveOutcome: (outcome) => {
       const startup = readLinuxStartupError(files.startupErrorPath)
       if (startup !== undefined) throw deserializeRunnerError(startup.error)
-      if (existsSync(files.requestPath)) {
-        throw new Error('terminal scope exited before its bootstrap consumed the launch request')
-      }
+      if (existsSync(files.requestPath)) throw unconsumedLaunchRequestError('terminal')
       return outcome
     },
     cleanup: () => { cleanupLinuxLaunchFiles(files) },

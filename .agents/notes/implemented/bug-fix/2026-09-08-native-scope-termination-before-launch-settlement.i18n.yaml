@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-08-native-scope-termination-before-launch-settlement.md
+2026-09-08-native-scope-termination-before-launch-settlement.md: b93680b75c7937cd2af6d7c50a5acd7568f22b40
+2026-09-08-native-scope-termination-before-launch-settlement.zh.md: 49437fee55adb3d821808be338317f15e61c8fe1
