@@ -127,6 +127,19 @@ function appleScriptText(value: string): string {
   return value.replace(/[\x00-\x1f\\"]/g, '')
 }
 
+/**
+ * The closed `{ ok, chars }` output schema shared by the clipboard-write and
+ * speak tools; `as const` keeps `defineTool`'s value inference literal.
+ */
+const OK_CHARS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    ok: { type: 'boolean', required: true },
+    chars: { type: 'integer', required: true },
+  },
+} as const
+
 /** Reject empty or over-limit text with the limit named. */
 function requireText(value: string, max: number, label: string): string {
   if (value.length === 0) throw new Error(`${label} must not be empty`)
@@ -252,14 +265,7 @@ export function createMacosTools(deps: MacosToolDeps): ToolDefinition[] {
         text: { type: 'string', required: true, description: 'Text to place on the clipboard.' },
       },
       output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            ok: { type: 'boolean', required: true },
-            chars: { type: 'integer', required: true },
-          },
-        },
+        schema: OK_CHARS_SCHEMA,
         render: (_args, value) => [{ type: 'text', text: `Copied ${value.chars} characters to the clipboard` }],
       },
       async execute(args, exec) {
@@ -310,14 +316,7 @@ export function createMacosTools(deps: MacosToolDeps): ToolDefinition[] {
         rate: { type: 'integer', description: 'Words per minute, between 80 and 500 (default 175).' },
       },
       output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            ok: { type: 'boolean', required: true },
-            chars: { type: 'integer', required: true },
-          },
-        },
+        schema: OK_CHARS_SCHEMA,
         render: (_args, value) => [{ type: 'text', text: `Spoke ${value.chars} characters` }],
       },
       async execute(args, exec) {
