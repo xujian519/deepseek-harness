@@ -4,7 +4,7 @@ English | [中文](desktop.zh.md)
 
 The desktop subsystem exposes OS-level capabilities to the dsh backend through the Electron main process while keeping the renderer sandboxed. [`@deepseek-ai/dsh-desktop`](../../packages/desktop/desktop/README.md) defines the `ctx.desktop` Service Definition; [`@deepseek-ai/dsh-desktop-shell`](../../packages/desktop/shell/README.md) bridges it to Electron Main over a local socket set by `DSH_DESKTOP_BRIDGE_PATH`; [`@deepseek-ai/dsh-desktop-directory-picker`](../../packages/desktop/directory-picker/README.md) implements the `electron` kind of `ctx.directoryPicker`. The renderer receives model-visible facts through the normal backend event stream, not by calling Main directly.
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts), [`packages/desktop/shell/src/index.ts`](../../packages/desktop/shell/src/index.ts), [`apps/desktop/src/bridge-server.ts`](../../apps/desktop/src/bridge-server.ts)
+Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts), [`packages/desktop/shell/src/index.ts`](../../packages/desktop/shell/src/index.ts), [`apps/desktop-patent/src/bridge-server.ts`](../../apps/desktop-patent/src/bridge-server.ts)
 
 ## Skeleton scope
 

@@ -1,38 +1,26 @@
-/**
- * Desktop preload: the allow-listed bridge between the renderer and the
- * Electron Main process. This file is bundled to a sandboxed CommonJS
- * script (`dist/preload.cjs`) by the package build; sandboxed preloads cannot
- * use ESM.
- * @module @deepseek-ai/dsh-desktop-electron/preload
- */
+/** Context-isolated renderer bridge for desktop package and update operations. */
 
 import { contextBridge, ipcRenderer } from 'electron'
+import { DESKTOP_IPC, type DshDesktopApi, type DesktopUpdateState } from './ipc.ts'
 
-/** Outcome of one desktop print-to-PDF request. */
-export interface DesktopPrintResult {
-  /** Saved file path on success. */
-  path?: string
-  /** The user dismissed the save dialog. */
-  cancelled?: true
-  /** Print, raster, or save failure message. */
-  error?: string
+const api: DshDesktopApi = {
+  protocolVersion: 1,
+  locale: () => ipcRenderer.invoke(DESKTOP_IPC.localeGet) as Promise<ReturnType<DshDesktopApi['locale']> extends Promise<infer T> ? T : never>,
+  plugins: {
+    list: () => ipcRenderer.invoke(DESKTOP_IPC.pluginsList) as Promise<ReturnType<DshDesktopApi['plugins']['list']> extends Promise<infer T> ? T : never>,
+    add: spec => ipcRenderer.invoke(DESKTOP_IPC.pluginsAdd, spec) as Promise<void>,
+    remove: name => ipcRenderer.invoke(DESKTOP_IPC.pluginsRemove, name) as Promise<void>,
+    update: (name, version) => ipcRenderer.invoke(DESKTOP_IPC.pluginsUpdate, name, version) as Promise<void>,
+  },
+  updates: {
+    check: () => ipcRenderer.invoke(DESKTOP_IPC.updatesCheck) as Promise<DesktopUpdateState>,
+    install: () => ipcRenderer.invoke(DESKTOP_IPC.updatesInstall) as Promise<void>,
+    subscribe(listener) {
+      const handle = (_event: Electron.IpcRendererEvent, state: DesktopUpdateState): void => { listener(state) }
+      ipcRenderer.on(DESKTOP_IPC.updatesState, handle)
+      return () => { ipcRenderer.off(DESKTOP_IPC.updatesState, handle) }
+    },
+  },
 }
 
-/** The API exposed to the renderer as `window.desktop`. */
-export interface DesktopBridge {
-  /** Round-trip probe proving the preload and IPC channels are live. */
-  ping(): Promise<string>
-  /**
-   * Print one full HTML document to PDF through the OS save dialog.
-   * @param payload - the HTML document and the suggested file name.
-   * @returns the saved path, a cancellation marker, or an error message.
-   */
-  printHtmlToPdf(payload: { html: string; suggestedName?: string }): Promise<DesktopPrintResult>
-}
-
-const bridge: DesktopBridge = {
-  ping: () => ipcRenderer.invoke('desktop:ping'),
-  printHtmlToPdf: payload => ipcRenderer.invoke('desktop:print-to-pdf', payload),
-}
-
-contextBridge.exposeInMainWorld('desktop', bridge)
+contextBridge.exposeInMainWorld('dshDesktop', api)

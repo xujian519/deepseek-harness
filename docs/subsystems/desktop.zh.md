@@ -4,7 +4,7 @@
 
 桌面子系统通过 Electron 主进程向 dsh 后端暴露 OS 级能力，同时保持渲染进程沙箱化。[`@deepseek-ai/dsh-desktop`](../../packages/desktop/desktop/README.zh.md) 定义 `ctx.desktop` Service Definition；[`@deepseek-ai/dsh-desktop-shell`](../../packages/desktop/shell/README.zh.md) 通过 `DSH_DESKTOP_BRIDGE_PATH` 指定的本地 socket 桥接到 Electron Main；[`@deepseek-ai/dsh-desktop-directory-picker`](../../packages/desktop/directory-picker/README.zh.md) 实现 `ctx.directoryPicker` 的 `electron` kind。渲染进程通过正常的后端事件流接收模型可见事实，而不是直接调用 Main。
 
-源码：[`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)、[`packages/desktop/shell/src/index.ts`](../../packages/desktop/shell/src/index.ts)、[`apps/desktop/src/bridge-server.ts`](../../apps/desktop/src/bridge-server.ts)
+源码：[`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)、[`packages/desktop/shell/src/index.ts`](../../packages/desktop/shell/src/index.ts)、[`apps/desktop-patent/src/bridge-server.ts`](../../apps/desktop-patent/src/bridge-server.ts)
 
 ## 骨架范围
 

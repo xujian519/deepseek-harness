@@ -29,7 +29,7 @@ import { WorkspaceStore, InputError, NotFoundError, MAX_TITLE_LENGTH, type Sessi
 async function readPersistedEvents(persistence: SessionPersistence, id: SessionId): Promise<readonly SessionEvent[]> {
   const handle = await persistence.open(id, 'read')
   try {
-    return await handle.read()
+    return (await handle.read()).events
   } finally {
     await handle.close()
   }

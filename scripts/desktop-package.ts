@@ -1,5 +1,5 @@
 /**
- * Assemble `apps/desktop/resources/<os>/`: `pnpm deploy --prod` of the dsh CLI
+ * Assemble `apps/desktop-patent/resources/<os>/`: `pnpm deploy --prod` of the dsh CLI
  * backend plus the platform Node binary, then verify the deploy tree carries
  * every plugin the `desktop` profile resolves at boot. The Node binary and the
  * backend's native addons are platform-specific, so resources live in per-OS
@@ -34,12 +34,12 @@ export function resourcesDirForPlatform(platform: string): string {
 
 /** Deployed backend tree for a platform, under the desktop app resources. */
 function backendResourcesDir(platform: string): string {
-  return resolve(ROOT, 'apps', 'desktop', 'resources', resourcesDirForPlatform(platform), 'backend')
+  return resolve(ROOT, 'apps', 'desktop-patent', 'resources', resourcesDirForPlatform(platform), 'backend')
 }
 
 /** Embedded Node runtime directory for a platform, under the app resources. */
 function nodeResourcesDir(platform: string): string {
-  return resolve(ROOT, 'apps', 'desktop', 'resources', resourcesDirForPlatform(platform), 'node')
+  return resolve(ROOT, 'apps', 'desktop-patent', 'resources', resourcesDirForPlatform(platform), 'node')
 }
 
 /** The cli build output the deploy carries; absent until `build:lib` ran. */
@@ -552,7 +552,7 @@ export async function prepareDesktopResources(options: PrepareResourcesOptions =
   if (refresh.status !== 0) {
     throw new Error(`pnpm install refresh failed (status ${String(refresh.status)})`)
   }
-  // pnpm 11's deploy also writes an empty `apps/desktop/resources/...` module
+  // pnpm 11's deploy also writes an empty `apps/desktop-patent/resources/...` module
   // skeleton into the vendored `link:` dependencies (vendor/schemastery). It
   // is 0-byte and untracked, but materializing it recursively copies repo
   // store content into the backend, so drop it before the link pass.

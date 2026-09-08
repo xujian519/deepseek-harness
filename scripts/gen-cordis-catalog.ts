@@ -132,6 +132,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   selfEvolveBenchmark: 'self-evolve.md',
   workspaceRegistry: 'workspace.md',
   workspaceController: 'workspace.md',
+  workspaceFiles: 'workspace.md',
   directoryPickerController: 'workspace.md',
   betterSidebar: 'web-client.md',
 }
@@ -187,6 +188,9 @@ export const SERVICE_WALK_EXEMPTIONS: Record<string, string> = {
   slots: 'client-side interface-typed browser service — packages/client/ui-renderer/README.md owns the API',
   theme: 'client-side interface-typed browser service — packages/client/ui-theme/README.md owns the API',
   workspaces: 'client-side interface-typed browser service — packages/api/workspace-controller/README.md owns the API',
+  resources: 'client-side resource model (protocol providers, pins, live sources) — packages/client/resources/README.md owns the API',
+  sidebarRight: 'client-side right-Sidebar navigation face — packages/client/ui-sidebar-right/README.md owns the API',
+  sidebarRightTabs: 'client-side right-Sidebar tab-type registry — packages/client/ui-sidebar-right/README.md owns the API',
 }
 
 /**
@@ -219,7 +223,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'system-prompt': 'system-prompt.md',
   'session-telemetry': 'session-telemetry.md',
   'self-evolve-loop': 'self-evolve.md',
-  'tools': 'tools.md',
+  'feedback': 'feedback.md',  'tools': 'tools.md',
   'user-questions': 'user-questions.md',
   'webserver': 'web-server.md',
   'workflow': 'workflow.md',
@@ -267,6 +271,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   ContentBlock: 'llm-streaming.md',
   CreateAgentOptions: 'core.md',
   GenerateOptions: 'llm-streaming.md',
+  Inbox: 'core.md',
   InboxItem: 'core.md',
   InboxPlacement: 'core.md',
   InspectorJsonValue: 'extensions.md',
@@ -687,6 +692,9 @@ export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
   'Promise',
   'Record',
   'Readonly',
+  'ReadonlyMap',
+  'Request',
+  'Response',
   'Uint8Array',
 ])
 
@@ -818,6 +826,14 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   CatalogQuery: 'catalog query contract is owned by packages/host/plugin-market/README.md',
   CatalogPage: 'catalog page contract is owned by packages/host/plugin-market/README.md',
   InstallPreview: 'install preview contract is owned by packages/host/plugin-market/README.md',
+  WorkspaceByteRange: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceDirectoryListing: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceFileBytes: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceFileChange: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceFileWatchFrame: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceFileRange: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceFileStat: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
+  WorkspaceFileText: 'Host workspace file endpoint contract is owned by packages/api/workspace-files/README.md',
 }
 
 /** Repository data policy consumed by the Cordis catalog projector. */

@@ -1,6 +1,6 @@
 /**
  * Download the Node.js runtime that the packaged desktop app embeds. The
- * binary lands in the layout that `apps/desktop/src/main.ts` resolves when
+ * binary lands in the layout that `apps/desktop-patent/src/main.ts` resolves when
  * `app.isPackaged`: `resources/<os>/node/` (darwin keeps `bin/node`, win32
  * keeps `node.exe`).
  */

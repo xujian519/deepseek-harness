@@ -12,11 +12,7 @@ Status: implemented
 
 ## Decision
 
-在 `apps/desktop/src/main.ts` 中，于窗口创建前、启动时重置 Electron 默认会话的 cookie jar：
-
-```ts
-await session.defaultSession.clearStorageData({ storages: ['cookies'] })
-```
+在 `apps/desktop-patent/src/main.ts` 中，于窗口创建前、启动时通过 `await session.defaultSession.clearStorageData({ storages: ['cookies'] })` 重置 Electron 默认会话的 cookie jar。
 
 桌面 shell 每次启动都会根据就绪行里的 per-launch token URL 重建浏览器会话，因此它从不需要保留一份跨启动的 cookie；清空 jar 移除了把 bundle 请求推过头限制的、积累的按端口 cookie 名。
 

@@ -76,7 +76,7 @@ describe('PromptCache service', () => {
   it('clears every scope on a system-prompt change', async () => {
     const ctx = new Context()
     await ctx.plugin(PromptCache, { ttlMs: 10000 })
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
 
     const k = key()
     await ctx.promptCache.set(k, [{ name: 'a', text: 'A' }])
@@ -89,7 +89,7 @@ describe('PromptCache with SystemPrompt assembly', () => {
   it('serves the stable prefix across assembles without re-evaluating providers', async () => {
     const ctx = new Context()
     await ctx.plugin(PromptCache, { ttlMs: 10000 })
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
 
     let calls = 0
     ctx.systemPrompt.section({
@@ -110,7 +110,7 @@ describe('PromptCache with SystemPrompt assembly', () => {
   it('re-evaluates after an explicit invalidation', async () => {
     const ctx = new Context()
     await ctx.plugin(PromptCache, { ttlMs: 10000 })
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
 
     let calls = 0
     ctx.systemPrompt.section({

@@ -126,7 +126,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const ctx = new Context()
     const tmp = await mkdtemp(join(tmpdir(), 'ov-mount-'))
     const stateFile = join(tmp, 'state.json')
-    await ctx.plugin(SystemPrompt, { persona: 'You are an agent.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are an agent.' })
     await ctx.plugin(ToolRuntime)
     const fiber = ctx.plugin(apply, Config({ endpoint: 'http://127.0.0.1:1', stateFile }))
     await fiber.await()

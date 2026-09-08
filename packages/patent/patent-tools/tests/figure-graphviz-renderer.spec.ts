@@ -52,7 +52,6 @@ vi.mock('node:path', async (importOriginal) => {
 
 function handleWith(outcome: { exitCode: number | null; signal: NodeJS.Signals | null }, stderr = ''): SubprocessHandle {
   return {
-    pid: 7,
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,
@@ -173,7 +172,6 @@ describe('probeGraphviz', () => {
   it('dot -V 成功但无输出流时仍就绪（无版本号）', async () => {
     const { dot: dotPath } = fakeDot()
     const { runtime } = fakeSubprocess(() => ({
-      pid: 7,
       stdin: undefined,
       stdout: undefined,
       stderr: undefined,
@@ -306,7 +304,6 @@ describe('renderWithGraphviz', () => {
       const { runtime, calls } = fakeSubprocess((spec) => {
         signal = spec.signal
         return {
-          pid: 7,
           stdin: undefined,
           stdout: undefined,
           stderr: undefined,
@@ -411,7 +408,6 @@ describe('renderWithGraphviz', () => {
       const { runtime } = fakeSubprocess((_spec) => {
         caller.abort()
         return {
-          pid: 7,
           stdin: undefined,
           stdout: undefined,
           stderr: undefined,

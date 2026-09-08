@@ -38,7 +38,7 @@ class StubCache implements PromptCache {
 describe('SystemPrompt stable-prefix cache', () => {
   it('evaluates a stable static prefix once across two assembles', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -54,7 +54,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('skips a function provider declared stable after the first assembly', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -75,7 +75,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('re-evaluates a function provider that does not declare stable', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -96,7 +96,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('serves the cached prefix across variable value changes', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -118,7 +118,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('invalidating the scope forces re-evaluation', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -142,7 +142,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('restores a cached complete section as the sole prompt section', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -166,7 +166,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('keeps registered variable values out of the signature', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -186,7 +186,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('degrades to the normal assembly path when the cache read throws', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const failing = new StubCache()
     failing.get = async () => { throw new Error('cache down') }
     ctx.provide('promptCache', failing)
@@ -210,7 +210,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('degrades to the normal assembly path when the cache write throws', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const failing = new StubCache()
     failing.set = async () => { throw new Error('cache full') }
     ctx.provide('promptCache', failing)
@@ -234,7 +234,7 @@ describe('SystemPrompt stable-prefix cache', () => {
 
   it('caches only the contiguous stable prefix, excluding later unstable sections', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
     const cache = new StubCache()
     ctx.provide('promptCache', cache)
 
@@ -247,13 +247,13 @@ describe('SystemPrompt stable-prefix cache', () => {
     // The stable prefix stops at the first unstable section; live-fn is
     // evaluated per assembly and never enters the cache.
     const lastSet = [...cache.entries.values()].at(-1)!
-    expect(lastSet.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona'])
+    expect(lastSet.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix'])
     expect(calls).toBe(2)
   })
 
   it('behaves unchanged when no cache strategy is mounted', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'You are p.' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'You are p.' })
 
     let calls = 0
     ctx.systemPrompt.section({ name: 'live-fn', order: 10, text: () => `live ${++calls}` })

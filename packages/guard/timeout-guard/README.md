@@ -130,6 +130,6 @@ These limits define when the policy is a poor fit. They are current package cons
 
 This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
 
-This tree settled the `@deepseek-ai/dsh-timeout-guard` rename the `src/index.ts` FIXME asked for; the [naming ledger](../../../.agents/notes/implemented/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.md) still records `@deepseek-ai/dsh-tool-call-timeout-policy` as the decided name, so the ledger entry is stale here.
+This tree settled the `@deepseek-ai/dsh-timeout-guard` rename the `src/index.ts` FIXME asked for; the [naming ledger](../../../.agents/notes/archived/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.md) still records `@deepseek-ai/dsh-tool-call-timeout-policy` as the decided name, so the ledger entry is stale here.
 
 </details>

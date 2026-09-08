@@ -39,7 +39,6 @@ function realSubprocess(): SubprocessRuntime {
       })
       spec.signal?.addEventListener('abort', () => { child.kill('SIGTERM') }, { once: true })
       return {
-        pid: child.pid as number,
         stdin: undefined,
         stdout: undefined,
         stderr: undefined,

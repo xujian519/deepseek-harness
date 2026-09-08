@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-19-tool-call-timeout-rename.md
-2026-08-19-tool-call-timeout-rename.md: ec913d4e7a105496aa290fc2f569bff30717d8ae
-2026-08-19-tool-call-timeout-rename.zh.md: eb59add191d6cf00478b35c6fecd6da336c1877b
+2026-08-19-tool-call-timeout-rename.md: c63e112a079735e7d72ce18a3349b202bdeeb715
+2026-08-19-tool-call-timeout-rename.zh.md: b0427fe3dacae8fdb56190c8a1fe93c0a6b00e7d

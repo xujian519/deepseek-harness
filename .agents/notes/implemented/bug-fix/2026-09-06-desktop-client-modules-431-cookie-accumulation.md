@@ -12,11 +12,7 @@ Every launch binds a fresh random port and mints a new, 30-day, port-scoped sess
 
 ## Decision
 
-Reset the Electron default-session cookie jar at startup, before the window is created, in `apps/desktop/src/main.ts`:
-
-```ts
-await session.defaultSession.clearStorageData({ storages: ['cookies'] })
-```
+Reset the Electron default-session cookie jar at startup, before the window is created, in `apps/desktop-patent/src/main.ts` with `await session.defaultSession.clearStorageData({ storages: ['cookies'] })`.
 
 The desktop shell always rebuilds its browser session from the per-launch token URL in the readiness line, so it never needs a cookie to survive a boot; clearing the jar removes the accumulated per-port names that pushed the bundle request over the header limit.
 

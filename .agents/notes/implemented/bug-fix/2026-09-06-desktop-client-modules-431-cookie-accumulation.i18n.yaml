@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-06-desktop-client-modules-431-cookie-accumulation.md
-2026-09-06-desktop-client-modules-431-cookie-accumulation.md: b52b8ed5a04f5088bb1c9625cc26a17cba5f2be5
-2026-09-06-desktop-client-modules-431-cookie-accumulation.zh.md: 5292edff704718177b5ead0440912b6fd467bdad
+2026-09-06-desktop-client-modules-431-cookie-accumulation.md: e75becc0ee6e735a1150330b94fa8a1497e42ad1
+2026-09-06-desktop-client-modules-431-cookie-accumulation.zh.md: e559d84d76db041fe8cf5b74212949e844ca1d76

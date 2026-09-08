@@ -22,7 +22,6 @@ function makeHandle(options: {
   done?: Promise<SubprocessOutcome>
 } = {}): SubprocessHandle {
   return {
-    pid: 1,
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,

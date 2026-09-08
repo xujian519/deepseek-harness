@@ -65,10 +65,13 @@ function boot(
   sessions: Record<string, unknown>[],
   persistence: {
     list: () => Promise<unknown[]>
-    open: (id: string, access: string) => Promise<{ read: () => Promise<unknown[]>; close: () => Promise<void> }>
+    open: (id: string, access: string) => Promise<{
+      read: () => Promise<{ eventState: unknown; events: unknown[] }>
+      close: () => Promise<void>
+    }>
   } = {
     list: async () => [],
-    open: async () => ({ read: async () => [], close: async () => {} }),
+    open: async () => ({ read: async () => ({ eventState: 'detached', events: [] }), close: async () => {} }),
   },
 ): { ctx: Context; routes: WebRoute[] } {
   const ctx = new Context()
@@ -198,7 +201,7 @@ describe('host apply', () => {
     ]
     const persistence = {
       list: async () => [{ header: { id: 's-cold', cwd: '/tmp/cold', parentSession: undefined, seedLength: undefined }, revision: 'r1' }],
-      open: async () => ({ read: async () => events, close: async () => {} }),
+      open: async () => ({ read: async () => ({ eventState: 'detached', events }), close: async () => {} }),
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')
@@ -228,7 +231,7 @@ describe('host apply', () => {
     ]
     const persistence = {
       list: async () => [],
-      open: async () => ({ read: async () => events, close: async () => {} }),
+      open: async () => ({ read: async () => ({ eventState: 'detached', events }), close: async () => {} }),
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')
@@ -249,7 +252,7 @@ describe('host apply', () => {
     ]
     const persistence = {
       list: async () => [],
-      open: async () => ({ read: async () => events, close: async () => {} }),
+      open: async () => ({ read: async () => ({ eventState: 'detached', events }), close: async () => {} }),
     }
     const { routes } = boot({}, [], persistence)
     const api = route(routes, 'prefix', '/synapse/api')

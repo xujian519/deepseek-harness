@@ -6,7 +6,7 @@ English | [中文](2026-09-02-cross-session-todo-board.zh.md)
 
 ## Problem
 
-The retired desktop demo (the history-only PR #374 merge) carried a Mission Control board: a three-column kanban that aggregated every session's latest `todo/write` list, with a badge on each card that jumped to the owning session. The shipped Web GUI has no cross-session todo surface — the dock's Todo strip ([todo plan clears on the next turn](2026-07-28-todo-plan-clears-on-next-turn.md)) shows only the current session's current-turn standing plan, so a user cannot see at a glance what any other session is working on, and a finished session's last checklist disappears from the UI at the next `turn/start`.
+The retired desktop demo (the history-only PR #374 merge) carried a Mission Control board: a three-column kanban that aggregated every session's latest `todo/write` list, with a badge on each card that jumped to the owning session. The shipped Web GUI has no cross-session todo surface — the dock's Todo strip ([todo plan clears on the next turn](../../archived/feature/2026-07-28-todo-plan-clears-on-next-turn.md)) shows only the current session's current-turn standing plan, so a user cannot see at a glance what any other session is working on, and a finished session's last checklist disappears from the UI at the next `turn/start`.
 
 ## Decision
 

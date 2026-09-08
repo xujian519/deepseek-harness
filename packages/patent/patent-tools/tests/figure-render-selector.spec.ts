@@ -28,7 +28,6 @@ function spec(overrides: Partial<GraphvizRenderSpec> = {}): GraphvizRenderSpec {
 /** 退出码 0 的 CLI handle；输出文件由 onSpawn 侧预写（渲染器校验存在性）。 */
 function cliHandle(): SubprocessHandle {
   return {
-    pid: 7,
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,

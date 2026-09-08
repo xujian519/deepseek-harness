@@ -20,6 +20,7 @@ import {
   initProfile,
   installedPackageVersion,
   loadProfile,
+  loadProfileDirectory,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
   profileCoreOverrides,
@@ -292,6 +293,16 @@ describe('resolveBundleDir', () => {
 })
 
 describe('loadProfile', () => {
+  it('loads an explicitly owned profile directory outside CLI discovery', () => {
+    const anchor = stageInstallation({ 'bundle-a': { patch: '[]\n' } })
+    const dir = join(tmp(), 'managed', 'desktop')
+    initProfile(dir, ['bundle-a'])
+    const profile = loadProfileDirectory('managed app', dir, anchor)
+    expect(profile.dir).toBe(dir)
+    expect(profile.name).toBe('desktop')
+    expect(profile.layers.map(layer => layer.packageName)).toEqual(['bundle-a'])
+  })
+
   it('resolves each dsh.profile.bundles entry to its patch layer in order, plus the user layer', () => {
     const anchor = stageInstallation({
       'bundle-a': { patch: '- insert:\n    - id: a\n      name: pkg-a\n' },
@@ -392,10 +403,10 @@ describe('loadProfile', () => {
       '@deepseek-ai/dsh-desktop-app': { patch: '[]\n' },
     })
     const home = tmp()
-    expect(PROFILE_TEMPLATES.desktop?.bundles).toContain('@deepseek-ai/dsh-desktop-app')
-    loadProfile('t', 'desktop', anchor, home)
-    expect(readProfileManifest('t', resolveProfileDir('desktop', home)).dsh?.profile?.bundles)
-      .toEqual([...PROFILE_TEMPLATES.desktop?.bundles ?? []])
+    expect(PROFILE_TEMPLATES['desktop-patent']?.bundles).toContain('@deepseek-ai/dsh-desktop-app')
+    loadProfile('t', 'desktop-patent', anchor, home)
+    expect(readProfileManifest('t', resolveProfileDir('desktop-patent', home)).dsh?.profile?.bundles)
+      .toEqual([...PROFILE_TEMPLATES['desktop-patent']?.bundles ?? []])
   })
 
   it('adds a shipped reload default only to an exact stock tuple and preserves explicit choices', () => {

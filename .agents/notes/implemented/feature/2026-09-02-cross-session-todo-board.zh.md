@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-已退役的桌面 demo（历史独占的 PR #374 合并）带有一个 Mission Control 看板：把每个会话最新的 `todo/write` 列表聚合成三列 kanban，每张卡片带一个可跳回所属会话的徽标。随附的 Web GUI 没有跨会话的待办表面——停靠栏的 Todo 条带（[todo 计划在下一轮次清空](2026-07-28-todo-plan-clears-on-next-turn.zh.md)）只显示当前会话当前回合的有效计划，用户无法一眼看到其他会话正在做什么，而且一个已结束会话的最后一份清单会在下一个 `turn/start` 从界面上消失。
+已退役的桌面 demo（历史独占的 PR #374 合并）带有一个 Mission Control 看板：把每个会话最新的 `todo/write` 列表聚合成三列 kanban，每张卡片带一个可跳回所属会话的徽标。随附的 Web GUI 没有跨会话的待办表面——停靠栏的 Todo 条带（[todo 计划在下一轮次清空](../../archived/feature/2026-07-28-todo-plan-clears-on-next-turn.md)）只显示当前会话当前回合的有效计划，用户无法一眼看到其他会话正在做什么，而且一个已结束会话的最后一份清单会在下一个 `turn/start` 从界面上消失。
 
 ## 决策
 

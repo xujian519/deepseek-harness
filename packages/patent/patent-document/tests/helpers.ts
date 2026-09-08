@@ -8,7 +8,6 @@ import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@
 /** A settled, exit-0 subprocess handle carrying no collected output. */
 export function successHandle(): SubprocessHandle {
   return {
-    pid: 42,
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,

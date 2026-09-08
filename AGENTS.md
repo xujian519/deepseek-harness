@@ -15,14 +15,16 @@ vendor/      Vendored Cordis source — manifest + sync procedure in vendor/READ
 packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/; the group map in
              packages/README.md is the single home for what each group owns
 apps/        dsh app entrypoints: apps/cli (dsh bin, profile boot, dsh web alias), apps/web
-             (Web UI frontend, served by dsh web), apps/desktop (Electron desktop shell around
-             the dsh backend and web UI)
-python/      Python SDK and bundled runtime (see python/README.md)
+             (Web UI frontend, served by dsh web), apps/desktop (official Electron desktop
+             release shell), apps/desktop-patent (DSH Patent Electron shell around the dsh
+             backend and web UI)
+python/      Python SDK/runtime (see python/README.md)
 native/      @deepseek-ai/node-addon-landlock-run source of record (see native/README.md)
 examples/    Runnable demo leaves composed over packages/examples bundles
+benchmarks/  performance gates
 .agents/     Agent workflows and Agent Notes (`notes/`)
 docs/        architecture, generated catalogs, postmortems, cookbook (see docs/AGENTS.md)
-scripts/     repo gates and generators
+scripts/     gates and generators
 website/     VitePress projection of selected bilingual docs/ sources
 ```
 
