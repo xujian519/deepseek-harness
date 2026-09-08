@@ -26,6 +26,7 @@ import {
   spawnRunnerInvocation,
 } from './runner-launch.ts'
 import type { RunnerInvocation } from './runner-launch.ts'
+import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 import { childEnv } from './spawn.ts'
 
 /** Test seams for systemd command execution. */
@@ -40,6 +41,7 @@ export interface LinuxScopeInternals {
   runnerAvailable?: (invocation: RunnerInvocation) => boolean
   loadLinuxExecve?: typeof loadLinuxExecve
   sleep?: (delayMs: number, signal?: AbortSignal) => Promise<void>
+  processGroupHasLiveMembers?: (processGroupId: number) => boolean | undefined
 }
 
 interface SystemctlResult {
@@ -158,6 +160,8 @@ export function probeLinuxNative(internals: LinuxScopeInternals = {}): boolean {
 interface DirectRange {
   running(): boolean
   signal(signal: 'SIGTERM' | 'SIGKILL'): void
+  /** Whether the launcher's process group still has live (non-zombie) members; undefined when unobservable. */
+  hasLiveMembers?(): boolean | undefined
 }
 
 class SystemdScopeOwner implements BoundProcessOwner {
@@ -279,6 +283,17 @@ class SystemdScopeOwner implements BoundProcessOwner {
         throw new Error(
           `systemctl returned unknown state for ${this.unit}: ${JSON.stringify({ loadState, activeState })}`,
         )
+      }
+      // A loaded unit can keep reporting 'active' after a signalled
+      // pre-consumption launch ended: unreaped zombies hold the scope cgroup
+      // non-empty, and a manager that never observes the empty cgroup keeps
+      // the stale state. The still-present launch request (consumption
+      // unlinks it) plus the exited launcher with no live group members
+      // settle the range regardless of the manager's residue state.
+      if (!this.direct.running()
+        && existsSync(this.files.requestPath)
+        && this.direct.hasLiveMembers?.() !== true) {
+        return false
       }
       this.establishment = 'established'
       if (activeState === 'inactive' || activeState === 'failed') return false
@@ -486,6 +501,9 @@ export function launchLinuxScope(
     {
       running: () => child.pid !== undefined && child.exitCode === null && child.signalCode === null,
       signal: (signal) => { signalChildGroup(child, signal) },
+      hasLiveMembers: () => child.pid === undefined
+        ? undefined
+        : (internals.processGroupHasLiveMembers ?? linuxProcessGroupHasLiveMembers)(child.pid),
     },
     internals.systemctl ?? 'systemctl',
     internals.spawnSync ?? spawnSync,

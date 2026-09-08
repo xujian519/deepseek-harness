@@ -115,6 +115,7 @@ function launch(
     ...overrides.runnerAvailable === undefined ? {} : { runnerAvailable: overrides.runnerAvailable },
     ...overrides.loadLinuxExecve === undefined ? {} : { loadLinuxExecve: overrides.loadLinuxExecve },
     ...overrides.sleep === undefined ? {} : { sleep: overrides.sleep },
+    ...overrides.processGroupHasLiveMembers === undefined ? {} : { processGroupHasLiveMembers: overrides.processGroupHasLiveMembers },
   })
   const requestPath = options?.env?.[SUBPROCESS_RUNNER_ENV]
   if (requestPath === undefined) throw new Error('launch did not publish a request locator')
@@ -342,6 +343,25 @@ describe('Linux scope establishment and quiescence', () => {
     child.exit(127, null)
     await expect(result.direct).rejects.toThrow('before its bootstrap consumed')
     await expect(result.owner.waitForExit()).resolves.toBeUndefined()
+    result.owner.cleanup?.()
+  })
+
+  it.each([false, undefined])('stops waiting when a signalled pre-consumption launch leaves %s group residue in an active unit', async (residue) => {
+    // A killed scope's unit can keep reporting 'active' while the group holds
+    // only zombies (false) or nothing at all (undefined, the manager's state
+    // is stale); the exited launcher plus no live group members settles the
+    // range without waiting for the manager to observe the residue gone. The
+    // launcher exit lands after the first poll already marked the unit
+    // loaded, so the residue check cannot depend on pending establishment.
+    const { child, result } = launch(async () => activeUnit(), {
+      sleep: async () => { await new Promise((resolve) => { setImmediate(resolve) }) },
+      processGroupHasLiveMembers: () => residue,
+    })
+    const waiting = result.owner.waitForExit()
+    await new Promise((resolve) => { setImmediate(resolve) })
+    child.exit(null, 'SIGTERM')
+    await expect(result.direct).rejects.toThrow('before its bootstrap consumed')
+    await waiting
     result.owner.cleanup?.()
   })
 

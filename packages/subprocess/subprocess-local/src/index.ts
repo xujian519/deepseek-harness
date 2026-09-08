@@ -37,7 +37,7 @@ import {
 } from './linux-scope.ts'
 import { launchWindowsJob, probeWindowsJob } from './windows-job.ts'
 import { targetEnvironment } from './runner-launch.ts'
-import { createProcessInspector } from './process-inspector.ts'
+import { createProcessInspector, linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 import type { ProcessInspector } from './process-inspector.ts'
 import { LocalTerminalHandle } from './terminal.ts'
 
@@ -273,6 +273,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       signal: (signal) => {
         try { terminal.kill(signal) } catch { /* Direct process already exited. */ }
       },
+      hasLiveMembers: () => linuxProcessGroupHasLiveMembers(terminal.pid),
     })
     handle = new LocalTerminalHandle(
       terminal,
