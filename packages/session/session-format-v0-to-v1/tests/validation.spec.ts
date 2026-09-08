@@ -277,16 +277,22 @@ describe('released event and payload inventory', () => {
   })
 
   it('accepts released v0 subagent/descriptor versions previously over-rejected', () => {
-    expect(() => assertPayload('subagent/descriptor', {
-      mode: 'continuable', version: 2, provider: 'spawn', label: 'child',
-      agentProvider: 'mock', agentModel: 'mock',
-    })).not.toThrow()
-    expect(() => assertPayload('subagent/descriptor', {
-      mode: 'one-shot', version: 2, provider: 'spawn', label: 'child',
-    })).not.toThrow()
-    expect(() => assertPayload('subagent/descriptor', {
-      mode: 'continuable', version: 4, provider: 'spawn', label: 'child',
-    })).not.toThrow()
+    expect(() => {
+      assertPayload('subagent/descriptor', {
+        mode: 'continuable', version: 2, provider: 'spawn', label: 'child',
+        agentProvider: 'mock', agentModel: 'mock',
+      })
+    }).not.toThrow()
+    expect(() => {
+      assertPayload('subagent/descriptor', {
+        mode: 'one-shot', version: 2, provider: 'spawn', label: 'child',
+      })
+    }).not.toThrow()
+    expect(() => {
+      assertPayload('subagent/descriptor', {
+        mode: 'continuable', version: 4, provider: 'spawn', label: 'child',
+      })
+    }).not.toThrow()
   })
 
   it('refuses a todo item whose optional tags are not a non-empty string array', () => {
@@ -302,23 +308,25 @@ describe('released event and payload inventory', () => {
   })
 
   it('accepts released v0 permission/preset origin values', () => {
-    expect(() => assertPayload('permission/preset', { preset: 'default' })).not.toThrow()
-    expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'default' })).not.toThrow()
-    expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'selection' })).not.toThrow()
-    expect(() => assertPayload('permission/preset', { preset: 'workspace-write', origin: 'plugin' })).toThrow(/origin/)
+    expect(() => { assertPayload('permission/preset', { preset: 'default' }) }).not.toThrow()
+    expect(() => { assertPayload('permission/preset', { preset: 'workspace-write', origin: 'default' }) }).not.toThrow()
+    expect(() => { assertPayload('permission/preset', { preset: 'workspace-write', origin: 'selection' }) }).not.toThrow()
+    expect(() => { assertPayload('permission/preset', { preset: 'workspace-write', origin: 'plugin' }) }).toThrow(/origin/)
   })
 
   it('accepts released v0 assistant/chunk replayState as owner-opaque', () => {
-    expect(() => assertPayload('assistant/chunk', {
-      turn: 1, step: 0,
-      chunk: {
-        type: 'finish', reason: { kind: 'stop' },
-        replayState: {
-          kind: 'pi-ai', version: 1, api: 'openai-completions', provider: 'mock',
-          model: 'mock', responseId: 'id', stopReason: 'stop', blocks: [{ type: 'text' }],
+    expect(() => {
+      assertPayload('assistant/chunk', {
+        turn: 1, step: 0,
+        chunk: {
+          type: 'finish', reason: { kind: 'stop' },
+          replayState: {
+            kind: 'pi-ai', version: 1, api: 'openai-completions', provider: 'mock',
+            model: 'mock', responseId: 'id', stopReason: 'stop', blocks: [{ type: 'text' }],
+          },
         },
-      },
-    })).not.toThrow()
+      })
+    }).not.toThrow()
   })
 
   it('refuses type corruption at every non-opaque nested member in the frozen fixture inventory', () => {
