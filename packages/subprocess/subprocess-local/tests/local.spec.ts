@@ -881,6 +881,11 @@ describe('LocalSubprocessRuntime', () => {
   it('disposal contains a spawn-failure rejection that races teardown', async () => {
     const ctx = new Context()
     const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    // The rejection must come from the spawned target, so the containment
+    // stays on the fallback selection where the bad workdir fails the spawn
+    // itself; on native scopes the teardown signal can legitimately settle a
+    // still-booting launch as the requested kill before the workdir is read.
+    ;(ctx.subprocess as LocalSubprocessRuntime).internals = { platform: 'darwin' }
     // Dispose before the rejection continuation removes the handle from the
     // live set, so teardown itself must swallow the rejected done.
     const handle = ctx.subprocess.spawn(spec('true', { cwd: '/nonexistent-dir-dsh-subprocess-test' }))

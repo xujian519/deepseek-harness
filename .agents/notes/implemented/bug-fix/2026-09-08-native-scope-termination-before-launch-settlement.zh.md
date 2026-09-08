@@ -16,7 +16,7 @@ Status: implemented
 
 `bindManagedProcess`（`packages/subprocess/subprocess-local/src/spawn.ts`）现在在终止请求已发出且拒绝携带新的 `DSH_LAUNCH_REQUEST_UNCONSUMED` 标记码时，把启动拒绝结算为 `{ exitCode: null, signal: <最后请求的信号> }`——该标记由 `packages/subprocess/subprocess-local/src/runner-protocol.ts` 的 `unconsumedLaunchRequestError` 构造，普通与终端两类 scope 结果都会抛出。其余拒绝保持拒绝语义，因此与 teardown 竞争的真实 spawn 失败仍然上浮（`disposal contains a spawn-failure rejection that races teardown` 契约），且调用方保留自己的取消事实：截止时间分类（`timedOut`/`aborted`）与 tool 层的结构化 `TOOL_ABORTED` 错误都来自调用方的 signal，而非该结果。
 
-`packages/subprocess/subprocess-local/tests/local.spec.ts` 中两个驱动合成 node-pty 的终端簿记测试（`releases a terminal after top-level exit reaches quiescence`、`retains a terminal whose automatic cleanup fails`）固定 `internals.platform = 'darwin'`，使其按编写时的 fallback 围栏选择路径运行；合成 pty 无法消费原生 scope 的启动请求。
+`packages/subprocess/subprocess-local/tests/local.spec.ts` 中有三个测试固定 `internals.platform = 'darwin'`，按编写时的 fallback 围栏选择路径运行：两个驱动合成 node-pty 的终端簿记测试（`releases a terminal after top-level exit reaches quiescence`、`retains a terminal whose automatic cleanup fails`——合成 pty 无法消费原生 scope 的启动请求），以及 `disposal contains a spawn-failure rejection that races teardown`（在原生 scope 上，teardown 信号可以在坏工作目录被读取之前，正当地把引导中的启动结算为请求的终止信号）。
 
 `SIDEBAR_SERVICE_VERSION` 重新对齐为 `0.1.3-alpha.2`。
 
