@@ -43,7 +43,11 @@ jobs:
         run: pnpm run duplication
 
       - name: Unit tests
-        run: pnpm run test
+        # The free 2-core runner executes the native systemd containment path
+        # (probe + scope launch + settle chains) far slower than upstream's
+        # pools; upstream's slow lanes raise the same budget via
+        # DSH_COVERAGE_TEST_TIMEOUT_MS. A genuine hang still fails at 30s.
+        run: pnpm exec vitest run --testTimeout=30000 --hookTimeout=30000
 
       - name: Documentation checks
         run: pnpm run test:docs
