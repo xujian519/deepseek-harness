@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-desktop-portless-webserver-seam.md
-2026-09-09-desktop-portless-webserver-seam.md: cd7892e130df67d8cd73a87b171fae73f91c919e
-2026-09-09-desktop-portless-webserver-seam.zh.md: 1c3711ec8d510fe7dcbd5a5d8c9e4692196d77da
+2026-09-09-desktop-portless-webserver-seam.md: d977b40653211a991ae49864569c5588fce4e2b5
+2026-09-09-desktop-portless-webserver-seam.zh.md: d107ef4e3d96c16d3bf42e8b07276a388bd1b570

@@ -12,7 +12,7 @@ Status: implemented
 
 在 `apps/desktop-host/src/portless-webserver.ts` 新增无端口 HTTP 面 `PortlessWebServer`。它是一张路由注册表（`register` 用于 exact/prefix 路由，`registerUpgrade` 为 socket 升级预留）外加一个适配器，把字节管道的 Fetch `Request`/`Response` 转成路由 handler 已经在用的 node 风格请求/响应对：请求暴露 `url`、`method`、`headers` 以及一个读取 Fetch body 分块的 `[Symbol.asyncIterator]`；响应把 `writeHead`/`end` 调用收集成带对应状态与头的 `Response`。宿主的 `fetch` 分发在每个非 `/api`、非 `/.dsh/remote-stream` 路径上都咨询它，没有路由匹配就回落到静态资产 handler。它暴露侧边栏 `apply` 在 `context-types.ts` 读取的 `register`/`registerUpgrade` 面，因此侧边栏宿主半侧原样挂载。
 
-WebSocket 升级无法在自定义协议上服务：Electron 44.0.0 上的探针确认 `new WebSocket('dsh-app://app/ws')` 在渲染进程抛错，因为 Chromium 的 `WebSocket` 构造器只接受 `ws`/`wss`/`http`/`https`，且升级请求从不抵达 handler。因此升级注册被保留但不会在此分发；推送传输是另一条接缝，记录在[无端口侧边栏提案](../proposed/architecture/2026-09-09-better-sidebar-portless-desktop.md)。
+WebSocket 升级无法在自定义协议上服务：Electron 44.0.0 上的探针确认 `new WebSocket('dsh-app://app/ws')` 在渲染进程抛错，因为 Chromium 的 `WebSocket` 构造器只接受 `ws`/`wss`/`http`/`https`，且升级请求从不抵达 handler。因此升级注册被保留但不会在此分发；推送传输是另一条接缝，记录在[无端口侧边栏提案](../../proposed/architecture/2026-09-09-better-sidebar-portless-desktop.zh.md)。
 
 ## Alternatives considered
 
