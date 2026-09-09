@@ -29,6 +29,7 @@ export const API_REMOTE_FORWARDED_EVENTS = [
   { event: '@deepseek-ai/cordis/dynamic-retract', mode: 'emit' },
   { event: '@deepseek-ai/cordis/inspect-query', mode: 'emit' },
   { event: '@deepseek-ai/cordis/inspect-query-resolved', mode: 'emit' },
+  { event: 'goal/activation-changed', mode: 'emit' },
   { event: 'llm/adapters-updated', mode: 'emit' },
   { event: 'settings/document-updated', mode: 'emit' },
   { event: 'user-questions/request', mode: 'waterfall' },

@@ -19,7 +19,7 @@ apps/        dsh app entrypoints: apps/cli (dsh bin, profile boot, dsh web alias
              release shell), apps/desktop-patent (DSH Patent Electron shell around the dsh
              backend and web UI)
 python/      Python SDK/runtime (see python/README.md)
-native/      @deepseek-ai/node-addon-landlock-run source of record (see native/README.md)
+native/      @deepseek-ai/node-addon-system source of record (see native/README.md)
 examples/    Runnable demo leaves composed over packages/examples bundles
 benchmarks/  performance gates
 .agents/     Agent workflows and Agent Notes (`notes/`)
