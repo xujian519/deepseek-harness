@@ -7,7 +7,6 @@ English | [中文](2026-09-09-retire-patent-desktop-shell.zh.md)
 ## Problem
 
 `apps/desktop-patent` (`@deepseek-ai/dsh-desktop-electron`) was the legacy Patent-facing Electron shell packaged around the dsh backend and web UI. The official `apps/desktop` shell (`@deepseek-ai/dsh-desktop`) has absorbed every feature the Patent shell carried — branding, tray and print, the `ctx.desktop` bridge seam, the macOS native tools, and the portless better-sidebar transports — so the Patent shell is a duplicate application with its own port-based transport and its own `desktop-patent` CLI profile. Keeping it leaves two shells to maintain and strands the better-sidebar desktop feature on the only port-based transport inside an otherwise portless shell.
-10→
 
 ## Decision
 
