@@ -27,7 +27,7 @@ import { allLeaves, createSidebarStore, toggleBottomPanel, type SidebarStore } f
 import { createBetterSidebarService, type BetterSidebarService } from '../src/client/service.ts'
 import { t } from '../src/client/locales.ts'
 
-/** jsdom has no WebSocket; the agent-terminals push effect constructs one on mount. */
+/** The push effect now streams via fetch; keep an inert WebSocket stub so any residual construction cannot crash. */
 class FakeWebSocket {
   onmessage: ((event: { data: unknown }) => void) | null = null
   onclose: (() => void) | null = null

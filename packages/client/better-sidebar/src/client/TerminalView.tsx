@@ -179,7 +179,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
     const schemeSub = subscribeColorScheme(applyTheme)
 
     let closed = false
-    let retry: number | undefined
+    let retry: ReturnType<typeof setTimeout> | undefined
     let failures = 0
     let inputController: ReadableStreamDefaultController<Uint8Array> | undefined
     let inputEnded = false
@@ -219,7 +219,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
         setFatal(`${t('terminalConnectFailed')} (${failures})`)
         return
       }
-      retry = window.setTimeout(connect, 2000)
+      retry = setTimeout(connect, 2000)
     }
 
     function handleFailure(url: string, status: number, body: string): void {
@@ -351,7 +351,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
     return () => {
       closed = true
       cancelOpen()
-      window.clearTimeout(retry)
+      clearTimeout(retry)
       observer.disconnect()
       fontSub()
       schemeSub()

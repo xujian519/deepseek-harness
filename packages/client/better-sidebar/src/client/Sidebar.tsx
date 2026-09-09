@@ -93,7 +93,7 @@ function subscribeSessionPush(
   label: string,
   onMessage: (event: MessageEvent) => void,
 ): () => void {
-  let retry: number | undefined
+  let retry: ReturnType<typeof setTimeout> | undefined
   let closed = false
   let failures = 0
   const abort = new AbortController()
@@ -104,7 +104,7 @@ function subscribeSessionPush(
       console.error(`[dsh-better-sidebar] ${label} connection failed; stopping reconnect loop`, sessionId)
       return
     }
-    retry = window.setTimeout(() => { void connect() }, 2000)
+    retry = setTimeout(() => { void connect() }, 2000)
   }
   async function connect(): Promise<void> {
     if (closed) return
@@ -139,7 +139,7 @@ function subscribeSessionPush(
   void connect()
   return () => {
     closed = true
-    window.clearTimeout(retry)
+    clearTimeout(retry)
     abort.abort()
   }
 }
