@@ -295,7 +295,6 @@
     { "path": "./packages/bundle/sdk-app" },
     { "path": "./packages/bundle/sdk-minimal" },
     { "path": "./packages/bundle/web-app" },
-    { "path": "./packages/bundle/desktop-app" },
     { "path": "./packages/bundle/self-evolve-app" },
     { "path": "./packages/bundle/im" },
     { "path": "./packages/desktop/desktop-seam" },

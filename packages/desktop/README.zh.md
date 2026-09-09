@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-desktop 组拥有 Desktop OS 集成接缝（`ctx.desktop`）：`desktop-seam` 包声明服务，`apps/desktop` 的 Electron main 进程持有原生侧（对话框、通知、菜单、全局快捷键、托盘、拖放），`shell` 通过本地 JSON-RPC socket 把两侧桥接起来，渲染进程因此保持沙箱。`directory-picker` 在同一桥的后端半侧注册 Electron 工作区目录选择器。`macos-tools` 提供由系统 CLI 驱动、不依赖 Electron 桥的面向模型 macOS 原生工具。桌面 profile 经 `desktop-app` bundle 组装这些包；本组不接触网络。
+desktop 组拥有 Desktop OS 集成接缝（`ctx.desktop`）：`desktop-seam` 包声明服务，`apps/desktop` 的 Electron main 进程持有原生侧（对话框、通知、菜单、全局快捷键、托盘、拖放），`shell` 通过本地 JSON-RPC socket 把两侧桥接起来，渲染进程因此保持沙箱。`directory-picker` 在同一桥的后端半侧注册 Electron 工作区目录选择器。`macos-tools` 提供由系统 CLI 驱动、不依赖 Electron 桥的面向模型 macOS 原生工具。Electron 应用通过私有的 `dsh-desktop-host` overlay 把这些包叠加在 `dsh-web-app` 之上；本组不接触网络。
 
 ## 目录
 

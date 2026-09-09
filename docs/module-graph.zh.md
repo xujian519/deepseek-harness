@@ -137,7 +137,6 @@ flowchart TD
   subgraph group_bundle["packages/bundle"]
     pkg_acp_app["acp-app"]
     pkg_base["base"]
-    pkg_desktop_app["desktop-app"]
     pkg_headless["headless"]
     pkg_im["im"]
     pkg_sdk_app["sdk-app"]
@@ -1344,7 +1343,6 @@ flowchart TD
 | [`browser-backend`](../packages/browser/browser-backend) | `browser` | — |
 | [`acp-app`](../packages/bundle/acp-app) | `bundle` | — |
 | [`base`](../packages/bundle/base) | `bundle` | — |
-| [`desktop-app`](../packages/bundle/desktop-app) | `bundle` | — |
 | [`im`](../packages/bundle/im) | `bundle` | — |
 | [`sdk-app`](../packages/bundle/sdk-app) | `bundle` | — |
 | [`sdk-minimal`](../packages/bundle/sdk-minimal) | `bundle` | — |
