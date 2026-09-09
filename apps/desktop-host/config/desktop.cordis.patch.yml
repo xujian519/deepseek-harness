@@ -18,6 +18,15 @@
 - id: ui-open-in-app
   disabled: true
 
+# The /synapse canvas host half registers HTTP routes, so it cannot activate
+# without the disabled webserver; its client assets are served by those same
+# routes and are equally unreachable.
+- id: synapse
+  disabled: true
+
+- id: synapse-client
+  disabled: true
+
 - id: directory-picker
   disabled: true
 
