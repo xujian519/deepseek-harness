@@ -3,7 +3,7 @@
  * integration exposed to the dsh backend through the Electron main process.
  * The renderer does not use this seam directly; it receives model-visible facts
  * through the normal backend event stream.
- * @module @deepseek-ai/dsh-desktop
+ * @module @deepseek-ai/dsh-desktop-seam
  */
 
 import type { Context } from '@deepseek-ai/cordis'

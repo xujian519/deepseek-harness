@@ -7,7 +7,7 @@ import { unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { DesktopError } from '@deepseek-ai/dsh-desktop'
+import { DesktopError } from '@deepseek-ai/dsh-desktop-seam'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesktopShell, { BridgeClient } from '../src/index.ts'
 

@@ -11,7 +11,7 @@ describe('ElectronDirectoryPicker', () => {
     const ctx = new Context()
     ctx.provide('desktop', {
       showOpenDialog: async () => ['/workspace'],
-    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    } as unknown as import('@deepseek-ai/dsh-desktop-seam').Desktop)
     const picker = new ElectronDirectoryPicker(ctx)
     const capability = picker.capability()
     expect(capability.kind).toBe('electron')
@@ -21,7 +21,7 @@ describe('ElectronDirectoryPicker', () => {
     const ctx = new Context()
     ctx.provide('desktop', {
       showOpenDialog: async () => ['/workspace'],
-    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    } as unknown as import('@deepseek-ai/dsh-desktop-seam').Desktop)
     const picker = new ElectronDirectoryPicker(ctx)
     const capability = picker.capability() as DirectoryPickerElectronCapability
     const result = await capability.pick(new AbortController().signal)
@@ -32,7 +32,7 @@ describe('ElectronDirectoryPicker', () => {
     const ctx = new Context()
     ctx.provide('desktop', {
       showOpenDialog: async () => undefined,
-    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    } as unknown as import('@deepseek-ai/dsh-desktop-seam').Desktop)
     const picker = new ElectronDirectoryPicker(ctx)
     const capability = picker.capability() as DirectoryPickerElectronCapability
     const result = await capability.pick(new AbortController().signal)
@@ -43,7 +43,7 @@ describe('ElectronDirectoryPicker', () => {
     const ctx = new Context()
     ctx.provide('desktop', {
       showOpenDialog: async () => [],
-    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    } as unknown as import('@deepseek-ai/dsh-desktop-seam').Desktop)
     const picker = new ElectronDirectoryPicker(ctx)
     const capability = picker.capability() as DirectoryPickerElectronCapability
     const result = await capability.pick(new AbortController().signal)
@@ -62,7 +62,7 @@ describe('ElectronDirectoryPicker', () => {
         signals.push(signal)
         return undefined
       },
-    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    } as unknown as import('@deepseek-ai/dsh-desktop-seam').Desktop)
     const picker = new ElectronDirectoryPicker(ctx)
     const capability = picker.capability() as DirectoryPickerElectronCapability
     const controller = new AbortController()
@@ -76,7 +76,7 @@ describe('ElectronDirectoryPicker', () => {
       showOpenDialog: (_options: unknown, signal?: AbortSignal) => new Promise((_resolve, reject) => {
         signal?.addEventListener('abort', () => { reject(new DOMException('aborted', 'AbortError')) }, { once: true })
       }),
-    } as unknown as import('@deepseek-ai/dsh-desktop').Desktop)
+    } as unknown as import('@deepseek-ai/dsh-desktop-seam').Desktop)
     const picker = new ElectronDirectoryPicker(ctx)
     const capability = picker.capability() as DirectoryPickerElectronCapability
     const controller = new AbortController()

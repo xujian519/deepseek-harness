@@ -14,7 +14,7 @@ import {
   type DesktopTrayConfig,
   type OpenDialogOptions,
   type SaveDialogOptions,
-} from '@deepseek-ai/dsh-desktop'
+} from '@deepseek-ai/dsh-desktop-seam'
 import { BridgeClient, BridgeRpcError, type JsonRpcNotification } from './bridge-client.ts'
 
 /**

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-桌面应用是包裹 dsh Web UI 的 Electron 壳。它不打开监听端口：内置的上游 Node.js 子进程启动已安装的 dsh 项目，带版本的分帧字节管道在没有外层 Base64 信封的情况下承载 Fetch 请求与流式响应，Node IPC 承载生命周期控制，`dsh-app://` 则提供与后端版本匹配的客户端资源。壳拥有系统托盘——关闭最后一个窗口会将应用隐藏到托盘——并以 `window.desktop` 向 Web UI 暴露打印 PDF 桥。
+桌面应用是包裹 dsh Web UI 的 Electron 壳。它不打开监听端口：内置的上游 Node.js 子进程启动已安装的 dsh 项目，带版本的分帧字节管道在没有外层 Base64 信封的情况下承载 Fetch 请求与流式响应，Node IPC 承载生命周期控制，`dsh-app://` 则提供与后端版本匹配的客户端资源。壳拥有系统托盘——关闭最后一个窗口会将应用隐藏到托盘——并以 `window.desktop` 向 Web UI 暴露打印 PDF 桥。已安装的后端通过单连接本地 JSON-RPC socket 使用壳侧的 OS 能力（对话框、通知、菜单项、全局快捷键与托盘定制）。
 
 ## 关键技术决策
 

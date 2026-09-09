@@ -228,8 +228,8 @@ flowchart TD
     pkg_credentials_local["credentials-local"]
   end
   subgraph group_desktop["packages/desktop"]
-    pkg_desktop["desktop"]
     pkg_desktop_directory_picker["desktop-directory-picker"]
+    pkg_desktop_seam["desktop-seam"]
     pkg_desktop_shell["desktop-shell"]
     pkg_macos_tools["macos-tools"]
   end
@@ -1405,8 +1405,8 @@ flowchart TD
 | [`client-ui-workspace`](../packages/client/ui-workspace) | `client` | — |
 | [`client-web`](../packages/client/web) | `client` | — |
 | [`code-runtime`](../packages/code-runtime/code-runtime) | `code-runtime` | — |
-| [`desktop`](../packages/desktop/desktop) | `desktop` | — |
 | [`desktop-directory-picker`](../packages/desktop/directory-picker) | `desktop` | — |
+| [`desktop-seam`](../packages/desktop/desktop-seam) | `desktop` | — |
 | [`desktop-shell`](../packages/desktop/shell) | `desktop` | — |
 | [`experimental-agent-team-profile`](../packages/experimental/agent-team-profile) | `experimental` | — |
 | [`experimental-agent-team-web-profile`](../packages/experimental/agent-team-web-profile) | `experimental` | — |

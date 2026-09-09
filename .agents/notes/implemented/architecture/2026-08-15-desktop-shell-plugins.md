@@ -58,7 +58,7 @@ If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a 
 ### `ctx.desktop` Service Definition
 
 ```ts
-import type { Desktop } from '@deepseek-ai/dsh-desktop'
+import type { Desktop } from '@deepseek-ai/dsh-desktop-seam'
 
 declare const desktop: Desktop
 void desktop.showOpenDialog({ properties: ['openDirectory'] })

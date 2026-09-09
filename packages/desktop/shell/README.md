@@ -1,5 +1,5 @@
 ---
-description: "The **Electron-main bridge provider** for the [`ctx.desktop`](../desktop/README.md) capability seam. `DesktopShell` is a Cordis Service Provider that reads `DSH_DESKTOP_BRIDGE_PATH` from its environment, connects to the Electron main process over a local socket through [`BridgeClient`](./src/bridge-client.ts), and registers `ctx.desktop`. If the bridge path is absent, the plugin loads but `ctx.desktop` is unavailable and every method rejects with `DesktopError('bridge-disconnected')`; this lets the same bundle start in tests without Electron."
+description: "The **Electron-main bridge provider** for the [`ctx.desktop`](../desktop-seam/README.md) capability seam. `DesktopShell` is a Cordis Service Provider that reads `DSH_DESKTOP_BRIDGE_PATH` from its environment, connects to the Electron main process over a local socket through [`BridgeClient`](./src/bridge-client.ts), and registers `ctx.desktop`. If the bridge path is absent, the plugin loads but `ctx.desktop` is unavailable and every method rejects with `DesktopError('bridge-disconnected')`; this lets the same bundle start in tests without Electron."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The **Electron-main bridge provider** for the [`ctx.desktop`](../desktop/README.md) capability seam. `DesktopShell` is a Cordis Service Provider that reads `DSH_DESKTOP_BRIDGE_PATH` from its environment, connects to the Electron main process over a local socket through [`BridgeClient`](./src/bridge-client.ts), and registers `ctx.desktop`. If the bridge path is absent, the plugin loads but `ctx.desktop` is unavailable and every method rejects with `DesktopError('bridge-disconnected')`; this lets the same bundle start in tests without Electron.
+The **Electron-main bridge provider** for the [`ctx.desktop`](../desktop-seam/README.md) capability seam. `DesktopShell` is a Cordis Service Provider that reads `DSH_DESKTOP_BRIDGE_PATH` from its environment, connects to the Electron main process over a local socket through [`BridgeClient`](./src/bridge-client.ts), and registers `ctx.desktop`. If the bridge path is absent, the plugin loads but `ctx.desktop` is unavailable and every method rejects with `DesktopError('bridge-disconnected')`; this lets the same bundle start in tests without Electron.
 
 
 ## Table of Contents

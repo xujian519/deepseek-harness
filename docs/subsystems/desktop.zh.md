@@ -2,13 +2,13 @@
 
 [English](desktop.md) | 中文
 
-桌面子系统通过 Electron 主进程向 dsh 后端暴露 OS 级能力，同时保持渲染进程沙箱化。[`@deepseek-ai/dsh-desktop`](../../packages/desktop/desktop/README.zh.md) 定义 `ctx.desktop` Service Definition；[`@deepseek-ai/dsh-desktop-shell`](../../packages/desktop/shell/README.zh.md) 通过 `DSH_DESKTOP_BRIDGE_PATH` 指定的本地 socket 桥接到 Electron Main；[`@deepseek-ai/dsh-desktop-directory-picker`](../../packages/desktop/directory-picker/README.zh.md) 实现 `ctx.directoryPicker` 的 `electron` kind。渲染进程通过正常的后端事件流接收模型可见事实，而不是直接调用 Main。
+桌面子系统通过 Electron 主进程向 dsh 后端暴露 OS 级能力，同时保持渲染进程沙箱化。[`@deepseek-ai/dsh-desktop-seam`](../../packages/desktop/desktop-seam/README.zh.md) 定义 `ctx.desktop` Service Definition；[`@deepseek-ai/dsh-desktop-shell`](../../packages/desktop/shell/README.zh.md) 通过 `DSH_DESKTOP_BRIDGE_PATH` 指定的本地 socket 桥接到 Electron Main；[`@deepseek-ai/dsh-desktop-directory-picker`](../../packages/desktop/directory-picker/README.zh.md) 实现 `ctx.directoryPicker` 的 `electron` kind。渲染进程通过正常的后端事件流接收模型可见事实，而不是直接调用 Main。
 
-源码：[`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)、[`packages/desktop/shell/src/index.ts`](../../packages/desktop/shell/src/index.ts)、[`apps/desktop-patent/src/bridge-server.ts`](../../apps/desktop-patent/src/bridge-server.ts)
+源码：[`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)、[`packages/desktop/shell/src/index.ts`](../../packages/desktop/shell/src/index.ts)、[`apps/desktop/src/bridge-server.ts`](../../apps/desktop/src/bridge-server.ts)
 
 ## 骨架范围
 
-当前 Phase 3 实现接通了桥接、Service Definition 和 Electron Main 桩处理程序。原生对话框（`showOpenDialog`、`showSaveDialog`）调用 Electron 的 `dialog` API，Electron Main 显示一个静态托盘图标（显示/退出菜单、关闭时隐藏）。通知、菜单、全局快捷键、文件拖放以及可编程的 `setTray` 契约仍为桩实现，将在后续阶段补齐。
+官方 Electron 壳（`apps/desktop`）持有桥服务器、主进程处理程序、托盘图标（显示/退出菜单、关闭时隐藏），以及以 `window.desktop` 暴露给渲染进程的打印转 PDF 桥。原生对话框（`showOpenDialog`、`showSaveDialog`）调用 Electron 的 `dialog` API。通知、全局快捷键、文件拖放以及可编程的 `setTray` 契约仍为桩实现，将在后续阶段补齐。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -80,7 +80,7 @@ abstract registerGlobalShortcut(accelerator: string, handler: () => void): Promi
 abstract setTray(config: DesktopTrayConfig): Promise<() => void>
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 
 <a id="desktop-events"></a>
 
@@ -100,7 +100,7 @@ The bridge to Electron Main was lost.
 'desktop/bridge-lost'(): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 
 <a id="desktopfile-dropped--emit"></a>
 
@@ -117,7 +117,7 @@ Files were dropped on the renderer window.
 'desktop/file-dropped'(payload: { paths: string[] }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 
 <a id="desktopmenu-activated--emit"></a>
 
@@ -134,7 +134,7 @@ A registered menu item was activated.
 'desktop/menu-activated'(payload: { menuId: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 
 <a id="desktopnotification-clicked--emit"></a>
 
@@ -151,7 +151,7 @@ A notification was clicked.
 'desktop/notification-clicked'(payload: { notificationId: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 
 <a id="desktopshortcut-triggered--emit"></a>
 
@@ -168,7 +168,7 @@ A registered global shortcut was pressed.
 'desktop/shortcut-triggered'(payload: { accelerator: string }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 
 <a id="desktoptray-clicked--emit"></a>
 
@@ -185,5 +185,5 @@ The tray icon was clicked.
 'desktop/tray-clicked'(payload: { button: 'left' | 'right' }): void
 ```
 
-Source: [`packages/desktop/desktop/src/index.ts`](../../packages/desktop/desktop/src/index.ts)
+Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
 <!-- END GENERATED cordis-surface -->

@@ -3,7 +3,7 @@ description: "The **Service Definition** for the `ctx.desktop` capability seam: 
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-desktop
+# @deepseek-ai/dsh-desktop-seam
 
 English | [中文](README.zh.md)
 

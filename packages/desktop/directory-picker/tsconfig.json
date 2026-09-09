@@ -12,7 +12,7 @@
   ],
   "references": [
     {
-      "path": "../desktop"
+      "path": "../desktop-seam"
     },
     {
       "path": "../../host/directory-picker"

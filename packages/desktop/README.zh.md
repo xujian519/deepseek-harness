@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-desktop 组拥有 Desktop OS 集成接缝（`ctx.desktop`）：`desktop` 包声明服务，`apps/desktop` 的 Electron main 进程持有原生侧（对话框、通知、菜单、全局快捷键、托盘、拖放），`shell` 通过本地 JSON-RPC socket 把两侧桥接起来，渲染进程因此保持沙箱。`directory-picker` 在同一桥的后端半侧注册 Electron 工作区目录选择器。`macos-tools` 提供由系统 CLI 驱动、不依赖 Electron 桥的面向模型 macOS 原生工具。桌面 profile 经 `desktop-app` bundle 组装这些包；本组不接触网络。
+desktop 组拥有 Desktop OS 集成接缝（`ctx.desktop`）：`desktop-seam` 包声明服务，`apps/desktop` 的 Electron main 进程持有原生侧（对话框、通知、菜单、全局快捷键、托盘、拖放），`shell` 通过本地 JSON-RPC socket 把两侧桥接起来，渲染进程因此保持沙箱。`directory-picker` 在同一桥的后端半侧注册 Electron 工作区目录选择器。`macos-tools` 提供由系统 CLI 驱动、不依赖 Electron 桥的面向模型 macOS 原生工具。桌面 profile 经 `desktop-app` bundle 组装这些包；本组不接触网络。
 
 ## 目录
 
@@ -24,7 +24,7 @@ desktop 组拥有 Desktop OS 集成接缝（`ctx.desktop`）：`desktop` 包声�
 
 | Package | Role | Service |
 |---|---|---|
-| [`desktop/`](desktop/README.zh.md) | `Desktop` 服务定义：对话框、通知、菜单、快捷键、托盘契约。 | `desktop` |
+| [`desktop-seam/`](desktop-seam/README.zh.md) | `Desktop` 服务定义：对话框、通知、菜单、快捷键、托盘契约。 | `desktop` |
 | [`shell/`](shell/README.zh.md) | Electron 侧提供方：经本地 socket 把原生能力桥接到后端。 | (provider) |
 | [`directory-picker/`](directory-picker/README.zh.md) | 在后端桥上注册 Electron 工作区目录选择器。 | (provider) |
 | [`macos-tools/`](macos-tools/README.zh.md) | 基于系统 CLI 的面向模型 macOS 原生工具：打开/显示、网址、剪贴板、通知、朗读、应用控制。 | (tools) |

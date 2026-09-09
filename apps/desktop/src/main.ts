@@ -23,6 +23,7 @@ import { claimDesktopSingleInstance } from './single-instance.ts'
 import { printHtmlToPdf } from './print.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
+import { BridgeServer, removeStaleBridgeSockets, resolveBridgePath } from './bridge-server.ts'
 
 const SCHEME = 'dsh-app'
 /** Renderer-supplied HTML ceiling for print-to-PDF. */
@@ -155,6 +156,12 @@ async function main(): Promise<void> {
   const messages = locale.messages
   const appPreload = fileURLToPath(new URL('./preload-app.cjs', import.meta.url))
   const managementPreload = fileURLToPath(new URL('./preload.cjs', import.meta.url))
+  // The bridge socket must listen before the host child spawns: the child
+  // receives the path once, at boot, through its scrubbed environment.
+  removeStaleBridgeSockets()
+  const bridgePath = resolveBridgePath()
+  const bridge = new BridgeServer(() => mainWindow, app.getName())
+  await bridge.start(bridgePath)
 
   const publishUpdate = (state: DesktopUpdateState): DesktopUpdateState => {
     updateState = state
@@ -165,7 +172,7 @@ async function main(): Promise<void> {
   }
 
   const startHost = async (projectDir = activeProject): Promise<DesktopHostProcess> => {
-    const next = new DesktopHostProcess(resources.node, projectDir, hostInspectPort)
+    const next = new DesktopHostProcess(resources.node, projectDir, hostInspectPort, bridgePath)
     await next.start()
     return next
   }
@@ -347,20 +354,26 @@ async function main(): Promise<void> {
     void pluginWindow.loadURL(`${SCHEME}://shell/plugin-manager.html`)
   }
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{
-    label: process.platform === 'darwin' ? app.name : messages.application,
-    submenu: [
-      {
-        label: development === undefined ? messages.pluginsMenu : messages.pluginsMenuPackagedOnly,
-        accelerator: 'CmdOrCtrl+,',
-        enabled: development === undefined,
-        click: openPluginWindow,
-      },
-      { label: messages.checkUpdatesMenu, click: () => { void checkAndPrompt(true) } },
-      { type: 'separator' },
-      { role: 'quit' },
-    ],
-  }]))
+  // The shell owns the base application menu; backend-registered menu groups
+  // are appended after these entries when the bridge rebuilds the menu.
+  const appMenuTemplate: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: process.platform === 'darwin' ? app.name : messages.application,
+      submenu: [
+        {
+          label: development === undefined ? messages.pluginsMenu : messages.pluginsMenuPackagedOnly,
+          accelerator: 'CmdOrCtrl+,',
+          enabled: development === undefined,
+          click: openPluginWindow,
+        },
+        { label: messages.checkUpdatesMenu, click: () => { void checkAndPrompt(true) } },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+  ]
+  bridge.setAppMenuBase(appMenuTemplate)
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate))
 
   // A tray-less environment (some Linux sessions) keeps every other behavior;
   // Tray construction throwing is the one failure the shell tolerates here.
@@ -387,6 +400,15 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error('dsh desktop: tray setup failed:', error)
     tray = undefined
+  }
+  if (tray !== undefined) {
+    bridge.initTray(tray, {
+      onShow: () => { focusPrimaryWindow() },
+      onQuit: () => {
+        isQuitting = true
+        app.quit()
+      },
+    })
   }
 
   const createMainWindow = (): BrowserWindow => {
@@ -430,6 +452,7 @@ async function main(): Promise<void> {
   })
   app.on('before-quit', () => {
     isQuitting = true
+    bridge.dispose()
   })
   app.on('will-quit', () => {
     tray?.destroy()

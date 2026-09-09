@@ -1,5 +1,5 @@
 ---
-description: "[`ctx.desktop`](../desktop/README.zh.md) 能力缝隙的 **Electron 主进程桥接提供方**。`DesktopShell` 是一个 Cordis Service Provider，从环境变量读取 `DSH_DESKTOP_BRIDGE_PATH`，通过 [`BridgeClient`](./src/bridge-client.ts) 经本地 socket 连接到 Electron 主进程，并注册 `ctx.desktop`。如果缺少桥接路径，插件会加载但 `ctx.desktop` 不可用，所有方法都会以 `DesktopError('bridge-disconnected')` 拒绝；这样同一个包可以在无 Electron 的测试中启动。"
+description: "[`ctx.desktop`](../desktop-seam/README.zh.md) 能力缝隙的 **Electron 主进程桥接提供方**。`DesktopShell` 是一个 Cordis Service Provider，从环境变量读取 `DSH_DESKTOP_BRIDGE_PATH`，通过 [`BridgeClient`](./src/bridge-client.ts) 经本地 socket 连接到 Electron 主进程，并注册 `ctx.desktop`。如果缺少桥接路径，插件会加载但 `ctx.desktop` 不可用，所有方法都会以 `DesktopError('bridge-disconnected')` 拒绝；这样同一个包可以在无 Electron 的测试中启动。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-[`ctx.desktop`](../desktop/README.zh.md) 能力缝隙的 **Electron 主进程桥接提供方**。`DesktopShell` 是一个 Cordis Service Provider，从环境变量读取 `DSH_DESKTOP_BRIDGE_PATH`，通过 [`BridgeClient`](./src/bridge-client.ts) 经本地 socket 连接到 Electron 主进程，并注册 `ctx.desktop`。如果缺少桥接路径，插件会加载但 `ctx.desktop` 不可用，所有方法都会以 `DesktopError('bridge-disconnected')` 拒绝；这样同一个包可以在无 Electron 的测试中启动。
+[`ctx.desktop`](../desktop-seam/README.zh.md) 能力缝隙的 **Electron 主进程桥接提供方**。`DesktopShell` 是一个 Cordis Service Provider，从环境变量读取 `DSH_DESKTOP_BRIDGE_PATH`，通过 [`BridgeClient`](./src/bridge-client.ts) 经本地 socket 连接到 Electron 主进程，并注册 `ctx.desktop`。如果缺少桥接路径，插件会加载但 `ctx.desktop` 不可用，所有方法都会以 `DesktopError('bridge-disconnected')` 拒绝；这样同一个包可以在无 Electron 的测试中启动。
 
 
 ## 目录
