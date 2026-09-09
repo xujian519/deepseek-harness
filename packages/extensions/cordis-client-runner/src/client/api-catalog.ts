@@ -1023,7 +1023,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SidebarWebServer',
-    declaration: 'export interface SidebarWebServer {\n    register(route: SidebarWebRoute): () => void;\n    registerUpgrade(route: SidebarWebUpgradeRoute): () => void;\n}',
+    declaration: 'export interface SidebarWebServer {\n    register(route: SidebarWebRoute): () => void;\n    registerUpgrade(route: SidebarWebUpgradeRoute): () => void;\n    registerStream(route: SidebarWebStreamingRoute): () => void;\n}',
+  },
+  {
+    name: 'SidebarWebStreamingRoute',
+    declaration: 'export interface SidebarWebStreamingRoute {\n    kind: \'exact\' | \'prefix\';\n    path: string;\n    handler: (req: SidebarHttpRequest) => Response | Promise<Response>;\n}',
   },
   {
     name: 'SidebarWebUpgradeRoute',

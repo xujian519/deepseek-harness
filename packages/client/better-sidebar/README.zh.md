@@ -115,7 +115,6 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 - [桌面组合 patch](../../bundle/desktop-app/cordis.patch.yml)——让侧边栏成为桌面默认项的 insert 行。
 - [客户端模块](../modules/README.zh.md)——`dsh.client` bundle 及其 external 如何组合与提供。
 - [客户端组地图](../README.zh.md)——本包所属的浏览器半侧。
-- [桌面打包](../../../scripts/desktop-package.ts)——携带本包的部署树完整性清单。
 
 -----
 

@@ -115,7 +115,6 @@ Read these when the package contract is not enough: the composition that mounts 
 - [Desktop composition patch](../../bundle/desktop-app/cordis.patch.yml) — the insert row that makes the sidebar a desktop default.
 - [Client modules](../modules/README.md) — how the `dsh.client` bundle and its externals are composed and served.
 - [Client group map](../README.md) — the browser half this package belongs to.
-- [Desktop packaging](../../../scripts/desktop-package.ts) — the deploy-tree completeness list that carries the package.
 
 -----
 

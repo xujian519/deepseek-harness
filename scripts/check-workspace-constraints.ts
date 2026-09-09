@@ -57,11 +57,9 @@ const experimentalPackageDirectory = /^packages\/experimental\/[^/]+$/
 /** npm namespace reserved for private experimental packages. */
 const experimentalPackageNamePrefix = '@deepseek-ai/dsh-experimental-'
 /** Directories whose packages this repository publishes: one release member each. */
-const releaseMemberDirectory = /^(?:packages\/(?!experimental\/)[^/]+\/[^/]+|apps\/(?!desktop(?:-host)?(?:-patent)?$)[^/]+|vendor\/[^/]+)$/
+const releaseMemberDirectory = /^(?:packages\/(?!experimental\/)[^/]+\/[^/]+|apps\/(?!desktop(?:-host)?$)[^/]+|vendor\/[^/]+)$/
 /** Installable application assembled by electron-builder rather than published to npm. */
 const desktopApplicationDirectory = 'apps/desktop'
-/** The DSH Patent Electron shell: also electron-builder output, never published. */
-const desktopPatentApplicationDirectory = 'apps/desktop-patent'
 const localArtifactDirs = new Set(['node_modules'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh': ['lib/*.js'],
@@ -73,9 +71,6 @@ const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   // (dist/preview.html and dist/preview/) backs private experimental
   // packages and is not published.
   '@deepseek-ai/dsh-web-frontend': ['dist', '!dist/**/*.map', '!dist/preview.html', '!dist/preview'],
-  // The desktop shell publishes its built main/preload plus the packaging
-  // configuration; sources stay out of the payload per the publication policy.
-  '@deepseek-ai/dsh-desktop-electron': ['dist', '!dist/**/*.map', 'build', 'electron-builder.yml'],
 }
 
 /** The subset of package.json fields this constraint check cares about. */
@@ -398,7 +393,7 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
     }
   }
 
-  if (dir.startsWith('apps/') && dir !== desktopApplicationDirectory && dir !== desktopPatentApplicationDirectory && manifest.name?.startsWith('@deepseek-ai/')) {
+  if (dir.startsWith('apps/') && dir !== desktopApplicationDirectory && manifest.name?.startsWith('@deepseek-ai/')) {
     const expectedFiles = appPackageFiles[manifest.name]
     if (expectedFiles === undefined) {
       errors.push(`${label}: app package has no publication files policy`)
@@ -463,8 +458,7 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
 }
 
 /** Normalize a pnpm-workspace.yaml `!` exclusion glob to a repo-relative dir
- * prefix: `!packages/self-evolve/evaluation` → `packages/self-evolve/evaluation`,
- * `!apps/desktop-patent/resources/**` → `apps/desktop-patent/resources`. */
+ * prefix: `!packages/self-evolve/evaluation` → `packages/self-evolve/evaluation`. */
 function excludedDirPrefix(pattern: string): string {
   return pattern.replace(/^!/, '').replace(/\/?\*\*$/, '').replace(/\/$/, '')
 }

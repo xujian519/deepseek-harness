@@ -16,8 +16,7 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/; the g
              packages/README.md is the single home for what each group owns
 apps/        dsh app entrypoints: apps/cli (dsh bin, profile boot, dsh web alias), apps/web
              (Web UI frontend, served by dsh web), apps/desktop (official Electron desktop
-             release shell), apps/desktop-patent (DSH Patent Electron shell around the dsh
-             backend and web UI)
+             release shell)
 python/      Python SDK/runtime (see python/README.md)
 native/      @deepseek-ai/node-addon-system source of record (see native/README.md)
 examples/    Runnable demo leaves composed over packages/examples bundles
