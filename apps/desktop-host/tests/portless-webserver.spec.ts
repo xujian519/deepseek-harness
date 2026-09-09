@@ -97,4 +97,48 @@ describe('PortlessWebServer', () => {
     dispose()
     expect(await web.dispatch(new Request('http://x/sidebar/api', { method: 'POST' }))).toBeNull()
   })
+
+  it('serves a streaming route by returning a Response with a ReadableStream body', async () => {
+    const web = new PortlessWebServer()
+    web.registerStream({
+      kind: 'exact',
+      path: '/sidebar/ws/agent-terminals',
+      stream: true,
+      handler: async (req) => {
+        // A streaming handler reads the request body (its subscription token)
+        // and returns an open body, exactly like a push carrier.
+        const body = await readBody(req)
+        const sent = JSON.parse(body) as { sessionId?: string }
+        const encoder = new TextEncoder()
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode(`{"sessionId":"${sent.sessionId ?? ''}"}\n`))
+            controller.enqueue(encoder.encode('{"ok":true}\n'))
+            controller.close()
+          },
+        })
+        return new Response(stream, { headers: { 'content-type': 'application/x-ndjson' } })
+      },
+    })
+    const request = new Request('http://x/sidebar/ws/agent-terminals', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId: 's1' }),
+    })
+    const response = await web.dispatch(request)
+    expect(response).not.toBeNull()
+    expect(response!.status).toBe(200)
+    expect(response!.headers.get('content-type')).toBe('application/x-ndjson')
+    expect(await response!.text()).toBe('{"sessionId":"s1"}\n{"ok":true}\n')
+  })
+
+  it('rejects a streaming route that collides with a writeHead/end route', async () => {
+    const web = new PortlessWebServer()
+    web.register(jsonRoute('/ws/x'))
+    expect(() => web.registerStream({
+      kind: 'exact',
+      path: '/ws/x',
+      stream: true,
+      handler: () => new Response('bye', { status: 200 }),
+    })).toThrow(/duplicate exact route/)
+  })
 })
