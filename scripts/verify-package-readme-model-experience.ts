@@ -152,7 +152,6 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/host/open-in-app': { kind: 'none', reason: 'Host routes opening desktop applications for a human; registers nothing model-facing.' },
   'packages/client/ui-open-in-app': { kind: 'none', reason: 'Browser-side split button opening the workspace directory for a human; registers nothing model-facing.' },  'packages/bundle/base': { kind: 'indirect', reason: 'The bundle is a patch-list carrier; each inserted row\'s package owns its model-facing behavior.' },
   'packages/bundle/headless': { kind: 'none', reason: 'The one-shot runner submits the task as an ordinary user message; prompts and tools belong to the composed base and headless bundles.' },
-  'packages/bundle/desktop-app': { kind: 'none', reason: 'The glue plugin holds a composition seat without contributing prompt text, tool schemas, or results; the web surface is owned by dsh-web-app.' },
   'packages/bundle/self-evolve-app': { kind: 'indirect', reason: 'The bundle inserts the tool-self-evolve row; its glue plugin contributes no prompt, schema, or result of its own.' },
   'packages/bundle/im': { kind: 'indirect', reason: 'The bundle is a patch-list carrier that pins the xmanrui-dsh-im row; @xmanrui/dsh-im owns every model-facing text and tool it exposes.' },
   'packages/self-evolve/self-evolve': { kind: 'none', reason: 'The Service Definition declares the abstract lifecycle and durable event vocabulary; providers and tool consumers own every model-facing effect.' },

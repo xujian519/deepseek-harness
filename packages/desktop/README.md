@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The desktop group owns the Desktop OS-integration seam (`ctx.desktop`): the `desktop-seam` package declares the service, the Electron main process in `apps/desktop` owns the native side (dialogs, notifications, menus, global shortcuts, tray, drag-and-drop), and `shell` bridges the two over a local JSON-RPC socket so the renderer stays sandboxed. `directory-picker` registers the Electron-backed workspace-directory chooser on the backend half of the same bridge. `macos-tools` contributes model-facing macOS native tools driven through system CLIs, independent of the Electron bridge. The desktop profile composes these through the `desktop-app` bundle; nothing in the group talks to the network.
+The desktop group owns the Desktop OS-integration seam (`ctx.desktop`): the `desktop-seam` package declares the service, the Electron main process in `apps/desktop` owns the native side (dialogs, notifications, menus, global shortcuts, tray, drag-and-drop), and `shell` bridges the two over a local JSON-RPC socket so the renderer stays sandboxed. `directory-picker` registers the Electron-backed workspace-directory chooser on the backend half of the same bridge. `macos-tools` contributes model-facing macOS native tools driven through system CLIs, independent of the Electron bridge. The Electron app layers these over `dsh-web-app` through the private `dsh-desktop-host` overlay; nothing in the group talks to the network.
 
 ## Table of Contents
 

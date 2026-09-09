@@ -26,7 +26,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-侧边栏是桌面默认项：[桌面组合 patch](../../bundle/desktop-app/cordis.patch.yml) 插入 `better-sidebar` 行，面板随即出现在会话旁，无需任何接线。其他组合想启用时自行插入同一行；桌面部署不想要它时，在自己的 profile patch 中禁用该行。
+侧边栏是桌面默认项：[桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) 插入 `better-sidebar` 行，面板随即出现在会话旁，无需任何接线。其他组合想启用时自行插入同一行；桌面部署不想要它时，在自己的 profile patch 中禁用该行。
 
 ### 何时选择它
 
@@ -34,7 +34,7 @@ kind: "package-reference"
 
 ### 最小配置
 
-桌面默认无需任何配置。浏览器或自定义组合用 insert 行挂载插件；profile 可以禁用桌面默认行，禁用在 desktop-app 层之后生效：
+桌面默认无需任何配置。浏览器或自定义组合用 insert 行挂载插件；profile 可以禁用桌面默认行，禁用在桌面组合层之后生效：
 
 ```yaml
 # Mount in a composition without the desktop bundle:
@@ -112,7 +112,7 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 
 当包约定不够用时阅读以下页面：挂载它的组合、提供其客户端 bundle 的 roster，以及本包所属的组。
 
-- [桌面组合 patch](../../bundle/desktop-app/cordis.patch.yml)——让侧边栏成为桌面默认项的 insert 行。
+- [桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml)——让侧边栏成为桌面默认项的 insert 行。
 - [客户端模块](../modules/README.zh.md)——`dsh.client` bundle 及其 external 如何组合与提供。
 - [客户端组地图](../README.zh.md)——本包所属的浏览器半侧。
 

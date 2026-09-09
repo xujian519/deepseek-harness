@@ -4044,7 +4044,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-commands`（[`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts)）
 - `@deepseek-ai/dsh-cordis-client-runner`（[`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts)）
 - `@deepseek-ai/dsh-deepseek-llm-api-extensions`（[`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts)）
-- `@deepseek-ai/dsh-desktop-app`（[`packages/bundle/desktop-app/src/index.ts`](../packages/bundle/desktop-app/src/index.ts)）
 - `@deepseek-ai/dsh-desktop-directory-picker` — requires `desktop` ([`packages/desktop/directory-picker/src/index.ts`](../packages/desktop/directory-picker/src/index.ts))
 - `@deepseek-ai/dsh-desktop-shell`（[`packages/desktop/shell/src/index.ts`](../packages/desktop/shell/src/index.ts)）
 - `@deepseek-ai/dsh-document-deliver` — requires `tools` · `fs` ([`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts))

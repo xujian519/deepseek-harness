@@ -1,6 +1,6 @@
 # The dsh-im bundle patch: the optional IM integration layer over any surface
 # bundle. Declared by the `dsh.bundle.patch` manifest field; the profile
-# composer appends this bundle after base/web-app/desktop-app when a profile
+# composer appends this bundle after base/web-app when a profile
 # opts into IM, so its rows keep the highest precedence over later surface
 # rows. The xmanrui-dsh-im row id is globally unique and is the sole content.
 #

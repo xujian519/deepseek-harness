@@ -26,7 +26,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-The sidebar is a desktop default: the [desktop composition patch](../../bundle/desktop-app/cordis.patch.yml) inserts the `better-sidebar` row, and the panel appears beside the conversation with no wiring. Compositions that want it elsewhere insert the same row themselves; a deployment that does not want it on desktop disables that row from its own profile patch.
+The sidebar is a desktop default: the [desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) inserts the `better-sidebar` row, and the panel appears beside the conversation with no wiring. Compositions that want it elsewhere insert the same row themselves; a deployment that does not want it on desktop disables that row from its own profile patch.
 
 ### When to choose it
 
@@ -34,7 +34,7 @@ Choose the sidebar when a workspace beside the conversation helps: reading and e
 
 ### Minimal configuration
 
-The desktop default needs no configuration. A browser or custom composition mounts the plugin with an insert row, and a profile can disable the desktop default, which applies after the desktop-app layer:
+The desktop default needs no configuration. A browser or custom composition mounts the plugin with an insert row, and a profile can disable the desktop default, which applies after the desktop composition layer:
 
 ```yaml
 # Mount in a composition without the desktop bundle:
@@ -112,7 +112,7 @@ A side conversation is a child session the plugin creates itself, seeded with th
 
 Read these when the package contract is not enough: the composition that mounts it, the roster that serves its client bundle, and the group this package belongs to.
 
-- [Desktop composition patch](../../bundle/desktop-app/cordis.patch.yml) — the insert row that makes the sidebar a desktop default.
+- [Desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) — the insert row that makes the sidebar a desktop default.
 - [Client modules](../modules/README.md) — how the `dsh.client` bundle and its externals are composed and served.
 - [Client group map](../README.md) — the browser half this package belongs to.
 

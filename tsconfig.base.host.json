@@ -673,9 +673,6 @@
       "@deepseek-ai/dsh-deque": [
         "./packages/util/deque/src"
       ],
-      "@deepseek-ai/dsh-desktop-app": [
-        "./packages/bundle/desktop-app/src"
-      ],
       "@deepseek-ai/dsh-document-deliver": [
         "./packages/document/document-deliver/src"
       ],
