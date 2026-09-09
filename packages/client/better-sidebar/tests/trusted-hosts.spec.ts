@@ -69,6 +69,7 @@ function mount(initialTrustedHosts: readonly string[] = []): {
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (route: SidebarWebUpgradeRoute) => { upgrades.push(route); return () => {} },
+      registerStream: () => () => {},
     },
     sessions: { get: () => undefined },
     tools: { register: () => () => {} },

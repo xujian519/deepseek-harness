@@ -16,8 +16,6 @@
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
-import type { Duplex } from 'node:stream'
-import { WebSocket, WebSocketServer } from 'ws'
 import type { Context, SidebarHttpRequest, SidebarHttpResponse } from './context-types.ts'
 import {
   Config,
@@ -56,22 +54,20 @@ import { buildSubagentLiveApi, type SidebarSubagentLiveRoutes } from './subagent
 import { buildSidechatApi } from './sidechat-routes.ts'
 import { readJsonBody, requireString, SidebarError, writeError, writeJson, writeOk } from './wire.ts'
 
-/** The utf8 text of one ws message frame (a Buffer, a bare ArrayBuffer, or a frame array). */
-function frameText(data: WebSocket.RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
-  if (data instanceof Uint8Array) return data.toString('utf8')
-  return Buffer.from(data).toString('utf8')
+/** The utf8 text of one transport frame (a byte chunk or a decoded string). */
+function frameText(data: string | Uint8Array): string {
+  return typeof data === 'string' ? data : Buffer.from(data).toString('utf8')
 }
 
 /** One terminal control frame (JSON object; `close`, `park`, or `resize`). */
 type TerminalControlFrame = { type?: unknown; cols?: unknown; rows?: unknown }
 
 /**
- * Decode one terminal ws frame: control frames are JSON objects (the
+ * Decode one terminal transport frame: control frames are JSON objects (the
  * resize/close/park shape); anything else — including JSON that is not a
  * recognized control — is terminal input, verbatim.
  */
-function controlFrameOf(data: WebSocket.RawData): { text: string; control: TerminalControlFrame | null } {
+function controlFrameOf(data: string | Uint8Array): { text: string; control: TerminalControlFrame | null } {
   const text = frameText(data)
   let control: TerminalControlFrame | null = null
   try {
@@ -1026,71 +1022,58 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     },
   }), 'dsh-better-sidebar: /sidebar/html preview route')
 
-  // ── Terminal WebSocket ──────────────────────────────────────────────────
-  // One upgrade endpoint serves both UI-tab terminals (?tab=...) and
-  // agent-owned terminals (?uuid=...). The two paths attach to different
-  // registries but share the wire protocol: input frames are raw text,
-  // resize frames are JSON `{type:'resize',cols,rows}`, and a close frame
-  // `{type:'close'}` releases the underlying pty (immediate for agent
-  // terminals, scheduled-0 for UI tabs which keep the same reconnect grace
-  // contract the host has always had).
-  const wss = new WebSocketServer({ noServer: true })
-  ctx.effect(() => ctx.webServer.registerUpgrade({
+  // ── Terminal stream ─────────────────────────────────────────────────────
+  // One portless stream serves both UI-tab terminals (?tab=...) and
+  // agent-owned terminals (?uuid=...). The desktop renderer cannot construct
+  // a WebSocket for dsh-app://, so the request body carries client→host input
+  // frames (raw text, and JSON `{type:'resize'|'close'|'park'}`) while the
+  // response body streams host→client output (transcript replay, live data,
+  // exit notice) — the same wire protocol the WebSocket carried, over a
+  // duplex fetch. A close frame releases the pty (immediate for agent
+  // terminals, scheduled-0 for UI tabs), a park frame stops the reconnect
+  // grace, and a bare body end (refresh, tab switch) starts it.
+  ctx.effect(() => ctx.webServer.registerStream({
+    kind: 'exact',
     path: '/sidebar/ws/terminal',
-    handler: (req, socket, head) => {
-      if (!fence(req)) {
-        socket.destroy()
-        return
-      }
-      // The structural request/socket/head faces satisfy the shared fence;
-      // the `ws` package wants the real Node types — cast at this boundary.
-      wss.handleUpgrade(req as unknown as IncomingMessage, socket as unknown as Duplex, head as Buffer, (ws) => {
-        void attachTerminal(ctx, ptyManager, agentPtyRegistry, ws, sidebarRequest(req), resolved, () => settingsFace)
-      })
+    handler: (req) => {
+      if (!fence(req)) return streamErrorResponse(403, { error: { code: 'forbidden', message: 'forbidden' } })
+      return attachTerminal(ctx, ptyManager, agentPtyRegistry, req, resolved, () => settingsFace)
     },
-  }), 'dsh-better-sidebar: terminal WebSocket')
+  }), 'dsh-better-sidebar: terminal stream')
 
-  // ── Agent terminals push WebSocket ──────────────────────────────────────
+  // ── Agent terminals push stream ─────────────────────────────────────────
   // Pushes the live list of agent terminals for one session to the sidebar
   // view: the client mirrors the list into tabs (id `agent:<uuid>`,
   // title from the agent's `terminal_create` call). The host fires on every
   // create / close / exit; the client reconciles by adding tabs for new
   // uuids and dropping tabs whose uuids disappeared (the user closing a tab
-  // sends `{type:'close'}` on the terminal WS, which kills the pty, which
-  // fires a change here, which converges the view).
-  const agentListWss = new WebSocketServer({ noServer: true })
-  ctx.effect(() => ctx.webServer.registerUpgrade({
+  // sends `{type:'close'}` on the terminal stream, which kills the pty,
+  // which fires a change here, which converges the view).
+  ctx.effect(() => ctx.webServer.registerStream({
+    kind: 'exact',
     path: '/sidebar/ws/agent-terminals',
-    handler: (req, socket, head) => {
-      if (!fence(req)) {
-        socket.destroy()
-        return
-      }
-      agentListWss.handleUpgrade(req as unknown as IncomingMessage, socket as unknown as Duplex, head as Buffer, (ws) => {
-        attachAgentList(agentPtyRegistry, ws, sidebarRequest(req))
-      })
-    },
-  }), 'dsh-better-sidebar: agent-terminals push WebSocket')
+    handler: req => pushStream(
+      req,
+      fence,
+      (transport, sessionId) => { attachAgentList(agentPtyRegistry, transport, sessionId) },
+    ),
+  }), 'dsh-better-sidebar: agent-terminals push stream')
 
-  // ── Agent opens push WebSocket ─────────────────────────────────────────
+  // ── Agent opens push stream ─────────────────────────────────────────────
   // Pushes `sidebar_open` requests for one session to the sidebar view: the
   // host queues each request in the registry (consume-on-send), so a
   // connected view applies it immediately and a disconnected one gets the
   // replay when it attaches. The client mirrors each request into an
   // editor / folder-window / browser tab open.
-  const agentOpenWss = new WebSocketServer({ noServer: true })
-  ctx.effect(() => ctx.webServer.registerUpgrade({
+  ctx.effect(() => ctx.webServer.registerStream({
+    kind: 'exact',
     path: '/sidebar/ws/agent-opens',
-    handler: (req, socket, head) => {
-      if (!fence(req)) {
-        socket.destroy()
-        return
-      }
-      agentOpenWss.handleUpgrade(req as unknown as IncomingMessage, socket as unknown as Duplex, head as Buffer, (ws) => {
-        attachAgentOpen(agentOpenRegistry, ws, sidebarRequest(req))
-      })
-    },
-  }), 'dsh-better-sidebar: agent-opens push WebSocket')
+    handler: req => pushStream(
+      req,
+      fence,
+      (transport, sessionId) => { attachAgentOpen(agentOpenRegistry, transport, sessionId) },
+    ),
+  }), 'dsh-better-sidebar: agent-opens push stream')
 
   ctx.effect(() => () => {
     toolsDisposers?.()
@@ -1098,177 +1081,278 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     ptyManager?.disposeAll()
     agentPtyRegistry?.disposeAll()
     agentOpenRegistry.dispose()
-    wss.close()
-    agentListWss.close()
-    agentOpenWss.close()
   }, 'dsh-better-sidebar: teardown')
 }
 
 /**
- * Wire one sidebar push socket: resolves `?sessionId` (closing the socket
- * 1008 when missing), builds an OPEN-guarded JSON sender, and hands both to
- * `subscribe`, whose return detaches the view; the detach runs on
- * close/error, and any wiring throw closes 1011 with the error message.
+ * The bidirectional transport face the sidebar's terminal/push helpers use.
+ * Over the portless fetch carrier there is no WebSocket, so `send()` emits
+ * host→client output frames into the response body, `onMessage` is fed every
+ * client→host input frame read from the request body, and `close`/`onClose`
+ * end the transport. Kept as a small interface so the pty pumps and push
+ * attachments do not depend on the `ws` package.
  */
-function attachSessionPush(
-  ws: WebSocket,
+interface SidebarTransport {
+  /** Enqueue one host→client output frame; drops it when the client is
+   *  saturated (mirror of the old WebSocket bufferedAmount gate). */
+  send(data: string): void
+  /** End the transport; the client's response stream closes. */
+  close(): void
+  /** Register the client→host input handler (fed every request-body chunk). */
+  onMessage(cb: (data: string | Uint8Array) => void): void
+  /** Register the client-disconnect handler (fires once). */
+  onClose(cb: () => void): void
+  /** Register the transport-error handler (fires once). */
+  onError(cb: () => void): void
+}
+
+/**
+ * Build a streaming `Response` for one sidebar transport and drive its
+ * request body. `transport.send` enqueues output frames into the response
+ * body; `close` ends it; `onMessage` is fed every input chunk read from the
+ * request body (drained in the background so the upload never backpressures
+ * the renderer); `onClose`/`onError` fire on client disconnect or transport
+ * error. The output stream uses a 4 MB high-water mark so a burst (the
+ * transcript replay) never drops while a long-lived backlog still can,
+ * matching the old WebSocket `bufferedAmount` contract.
+ */
+function openStreamTransport(
   req: SidebarHttpRequest,
-  subscribe: (sessionId: string, sendJson: (payload: unknown) => void) => (() => void) | undefined,
-): void {
-  try {
-    const url = new URL(req.url ?? '/', 'http://dsh.internal')
-    const sessionId = url.searchParams.get('sessionId')
-    if (sessionId === null) {
-      ws.close(1008, 'sessionId is required')
-      return
-    }
-    const sendJson = (payload: unknown): void => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload))
+  contentType: string,
+): { transport: SidebarTransport; response: Response } {
+  const encoder = new TextEncoder()
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+  let closed = false
+  let messageCb: ((data: string | Uint8Array) => void) | undefined
+  let closeCb: (() => void) | undefined
+  let errorCb: (() => void) | undefined
+  const output = new ReadableStream<Uint8Array>({
+    start(c) { controller = c },
+    cancel() {
+      if (closed) return
+      closed = true
+      closeCb?.()
+    },
+  }, { highWaterMark: 4 * 1024 * 1024 })
+  const transport: SidebarTransport = {
+    send(data) {
+      if (closed || controller === undefined) return
+      if ((controller.desiredSize ?? 0) <= 0) return
+      controller.enqueue(encoder.encode(data))
+    },
+    close() {
+      if (closed) return
+      closed = true
+      controller?.close()
+      closeCb?.()
+    },
+    onMessage(cb) { messageCb = cb },
+    onClose(cb) { closeCb = cb },
+    onError(cb) { errorCb = cb },
+  }
+  void (async () => {
+    try {
+      for await (const chunk of req) {
+        // oxlint-disable-next-line no-unnecessary-condition -- closed flips true in the close/cancel callbacks, which oxlint cannot see.
+        if (closed) return
+        messageCb?.(chunk)
+      }
+      // oxlint-disable-next-line no-unnecessary-condition -- closed flips true in the close/cancel callbacks, which oxlint cannot see.
+      if (!closed) {
+        closed = true
+        closeCb?.()
+      }
+    } catch {
+      if (!closed) {
+        closed = true
+        errorCb?.()
       }
     }
-    const unsubscribe = subscribe(sessionId, sendJson)
-    ws.on('close', () => { unsubscribe?.() })
-    ws.on('error', () => { unsubscribe?.() })
-  } catch (error) {
-    ws.close(1011, error instanceof Error ? error.message : String(error))
-  }
+  })()
+  return { transport, response: new Response(output, { headers: { 'content-type': contentType } }) }
+}
+
+/** A JSON error `Response` for a rejected stream request (non-200, so the
+ *  client reads the status instead of an open stream). */
+function streamErrorResponse(status: number, payload: object): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  })
+}
+
+/** One one-way push stream: fence the request, require `?sessionId`, then
+ *  attach the subscription onto a streaming NDJSON response. */
+function pushStream(
+  req: SidebarHttpRequest,
+  fence: (req: SidebarHttpRequest | IncomingMessage) => boolean,
+  attach: (transport: SidebarTransport, sessionId: string) => void,
+): Response {
+  if (!fence(req)) return streamErrorResponse(403, { error: { code: 'forbidden', message: 'forbidden' } })
+  const sessionId = new URL(req.url ?? '/', 'http://dsh.internal').searchParams.get('sessionId')
+  if (sessionId === null) return streamErrorResponse(400, { error: { code: 'bad-request', message: 'sessionId is required' } })
+  const { transport, response } = openStreamTransport(req, 'application/x-ndjson')
+  attach(transport, sessionId)
+  return response
 }
 
 /** Push queued `sidebar_open` requests for one session to a connected view. */
 function attachAgentOpen(
   registry: AgentOpenRegistry,
-  ws: WebSocket,
-  req: SidebarHttpRequest,
+  transport: SidebarTransport,
+  sessionId: string,
 ): void {
-  attachSessionPush(ws, req, (sessionId, sendJson) => {
-    // Attach replays the queued (undelivered) requests for this session; the
-    // disposer detaches the view on socket close/error so later opens queue
-    // instead of accumulating on a dead socket.
-    return registry.attach(sessionId, (request: AgentOpenRequest) => { sendJson(request) })
-  })
+  const sendJson = (payload: unknown): void => { transport.send(`${JSON.stringify(payload)}\n`) }
+  // Attach replays the queued (undelivered) requests for this session; the
+  // disposer detaches the view on disconnect so later opens queue instead of
+  // accumulating on a dead stream.
+  const unsubscribe = registry.attach(sessionId, (request: AgentOpenRequest) => { sendJson(request) })
+  transport.onClose(() => { unsubscribe() })
+  transport.onError(() => { unsubscribe() })
 }
 
 /** Push the live agent-terminal list for one session to a connected sidebar view. */
 function attachAgentList(
   registry: AgentPtyRegistry | null,
-  ws: WebSocket,
-  req: SidebarHttpRequest,
+  transport: SidebarTransport,
+  sessionId: string,
 ): void {
-  attachSessionPush(ws, req, (sessionId, sendJson) => {
-    const push = (): void => {
-      // Degraded mode (node-pty unavailable): no agent terminal can exist,
-      // so the honest push is the empty list.
-      sendJson(registry?.list(sessionId) ?? [])
-    }
-    push()
-    return registry?.subscribe(push)
-  })
+  const sendJson = (payload: unknown): void => { transport.send(`${JSON.stringify(payload)}\n`) }
+  const push = (): void => {
+    // Degraded mode (node-pty unavailable): no agent terminal can exist,
+    // so the honest push is the empty list.
+    sendJson(registry?.list(sessionId) ?? [])
+  }
+  push()
+  const unsubscribe = registry?.subscribe(push)
+  transport.onClose(() => { unsubscribe?.() })
+  transport.onError(() => { unsubscribe?.() })
 }
 
 /**
- * Wire one terminal socket to its pty: replay transcript, pump both ways.
+ * Wire one terminal stream to its pty: replay transcript, pump both ways.
  * Two attach modes share the wire protocol:
  * - `?uuid=...` attaches to an agent-owned terminal (created by the
  *   `terminal_create` tool). The close frame kills the pty immediately
  *   (the agent's terminal closes when the user closes the sidebar tab); a
- *   bare socket drop (refresh, tab switch) leaves the pty alive for the
+ *   bare body end (refresh, tab switch) leaves the pty alive for the
  *   reconnect grace, exactly like UI-tab terminals.
  * - `?tab=...&sessionId=...` attaches to a UI-tab terminal (the user
  *   created it from the + menu). The close frame schedules a 0-ms close
  *   (the host's reconnect grace keeps the shell alive across a refresh).
  *   The park frame (sent when the user switches to another conversation)
- *   marks the pty as parked so the upcoming bare socket drop does NOT start
+ *   marks the pty as parked so the upcoming bare body end does NOT start
  *   the grace countdown — the tab is still open in its session's state, so
  *   the shell must survive until the user switches back or closes the tab.
+ * @returns the 200 duplex stream Response on success, or a non-200 error
+ * Response when the attach is rejected (missing params, unknown uuid, or
+ * node-pty unavailable).
  */
 async function attachTerminal(
   ctx: Context,
   ptyManager: PtyManager | null,
   agentPtyRegistry: AgentPtyRegistry | null,
-  ws: WebSocket,
   req: SidebarHttpRequest,
   resolved: ResolvedSidebarConfig,
   getSettings: () => SidebarSettingsFace | undefined,
-): Promise<void> {
+): Promise<Response> {
   try {
-    const url = new URL(req.url ?? '/', 'http://dsh.internal')
-    const uuid = url.searchParams.get('uuid')
-    if (uuid !== null) {
-      // Degraded mode (node-pty unavailable): no agent terminal can exist,
-      // so the lookup behaves exactly like a missing uuid.
-      if (agentPtyRegistry === null) {
-        ws.close(1011, `agent terminal "${uuid}" not found`)
-        return
-      }
-      const handle = agentPtyRegistry.get(uuid)
-      if (handle === undefined) {
-        ws.close(1011, `agent terminal "${uuid}" not found`)
-        return
-      }
-      pumpAgentTerminal(agentPtyRegistry, handle, ws)
-      return
-    }
-    const sessionId = url.searchParams.get('sessionId')
-    const tabId = url.searchParams.get('tab')
-    if (sessionId === null || tabId === null) {
-      ws.close(1008, 'either ?uuid or ?sessionId+?tab are required')
-      return
-    }
-    if (ptyManager === null) {
-      // Degraded mode (issue #140): node-pty unavailable. The close reason
-      // is a SHORT marker — a WS close reason is capped at 123 bytes, so the
-      // client fetches the full repair command from /sidebar/api/terminal.deps.
-      ws.close(1011, PTY_DEPS_MISSING)
-      return
-    }
-    const cwd = await sessionCwdOf(ctx, sessionId, url.searchParams.get('cwd') ?? undefined)
-    // Settings-page shell overrides win over the yaml/auto shell for
-    // terminals opened from now on (existing pty handles keep their shell).
-    const overrides = shellOverridesOf(getSettings)
-    const handle = ptyManager.open(sessionId, tabId, cwd, 80, 24, overrides.shell, overrides.shellArgs)
-    // Replay the transcript, then follow live output.
-    if (handle.transcript !== '') ws.send(handle.transcript)
-    const { dataSub, exitSub } = pumpPtyOutput(handle.pty, ws)
-    ws.on('message', (data) => {
-      const { text, control } = controlFrameOf(data)
-      // Control frames are JSON with a known shape; anything else (including
-      // JSON that is not a recognized control) is terminal input, verbatim.
-      if (control !== null && control.type === 'close') {
-        // The owning tab was closed: release the quota immediately.
-        ptyManager.scheduleClose(handle.key, 0)
-        return
-      }
-      if (control !== null && control.type === 'park') {
-        // The user switched to another conversation: the tab is still open in
-        // its session's persisted state, but its view unmounted. Park the pty
-        // so the upcoming bare socket drop does NOT start the reconnect-grace
-        // countdown — the pty stays alive until the user switches back (a
-        // reconnecting view clears the parked state) or explicitly closes the
-        // tab (a close frame's scheduleClose clears it).
-        ptyManager.park(handle.key)
-        return
-      }
-      if (handle.exited) return
-      if (!resizeFromControl(control, handle.pty)) {
-        handle.pty.write(text)
-      }
-    })
-    ws.on('close', () => {
-      dataSub.dispose()
-      exitSub.dispose()
-      // A parked pty (the user switched conversations and sent `{type:'park'}`)
-      // stays alive indefinitely — do NOT start the grace countdown. A bare
-      // socket drop without a prior park (refresh, crash) starts the grace
-      // period so a quick reconnect keeps the process; the reconnect's open()
-      // cancels the pending close.
-      if (!ptyManager.isParked(handle.key)) {
-        ptyManager.scheduleClose(handle.key, resolved.reconnectGraceMs)
-      }
-    })
+    return await attachTerminalImpl(ctx, ptyManager, agentPtyRegistry, req, resolved, getSettings)
   } catch (error) {
-    ws.close(1011, error instanceof Error ? error.message : String(error))
+    // An unexpected resolution failure (e.g. sessionCwdOf rejecting a bad
+    // cwd) answers the stream with a 500 instead of leaving the client
+    // hanging on a half-open transport.
+    return streamErrorResponse(500, { error: { code: 'internal', message: error instanceof Error ? error.message : String(error) } })
   }
+}
+
+async function attachTerminalImpl(
+  ctx: Context,
+  ptyManager: PtyManager | null,
+  agentPtyRegistry: AgentPtyRegistry | null,
+  req: SidebarHttpRequest,
+  resolved: ResolvedSidebarConfig,
+  getSettings: () => SidebarSettingsFace | undefined,
+): Promise<Response> {
+  const url = new URL(req.url ?? '/', 'http://dsh.internal')
+  const uuid = url.searchParams.get('uuid')
+  if (uuid !== null) {
+    // Degraded mode (node-pty unavailable): no agent terminal can exist,
+    // so the lookup behaves exactly like a missing uuid.
+    if (agentPtyRegistry === null) {
+      return streamErrorResponse(404, { error: { code: 'not-found', message: `agent terminal "${uuid}" not found` } })
+    }
+    const handle = agentPtyRegistry.get(uuid)
+    if (handle === undefined) {
+      return streamErrorResponse(404, { error: { code: 'not-found', message: `agent terminal "${uuid}" not found` } })
+    }
+    const { transport, response } = openStreamTransport(req, 'text/plain; charset=utf-8')
+    pumpAgentTerminal(agentPtyRegistry, handle, transport)
+    return response
+  }
+  const sessionId = url.searchParams.get('sessionId')
+  const tabId = url.searchParams.get('tab')
+  if (sessionId === null || tabId === null) {
+    return streamErrorResponse(400, { error: { code: 'bad-request', message: 'either ?uuid or ?sessionId+?tab are required' } })
+  }
+  if (ptyManager === null) {
+    // Degraded mode (issue #140): node-pty unavailable. The client maps this
+    // marker to a fetch of the full repair command from /sidebar/api/terminal.deps.
+    return streamErrorResponse(503, { error: { code: PTY_DEPS_MISSING } })
+  }
+  const cwd = await sessionCwdOf(ctx, sessionId, url.searchParams.get('cwd') ?? undefined)
+  // Settings-page shell overrides win over the yaml/auto shell for
+  // terminals opened from now on (existing pty handles keep their shell).
+  const overrides = shellOverridesOf(getSettings)
+  const handle = ptyManager.open(sessionId, tabId, cwd, 80, 24, overrides.shell, overrides.shellArgs)
+  const { transport, response } = openStreamTransport(req, 'text/plain; charset=utf-8')
+  // Replay the transcript, then follow live output.
+  if (handle.transcript !== '') transport.send(handle.transcript)
+  const { dataSub, exitSub } = pumpPtyOutput(handle.pty, transport)
+  // A close frame that follows the body end would otherwise have the body-end
+  // grace reschedule override the close frame's immediate release (last
+  // scheduleClose wins); track it so the grace is skipped after an explicit
+  // close frame.
+  let closeFrameReceived = false
+  transport.onMessage((data) => {
+    const { text, control } = controlFrameOf(data)
+    // Control frames are JSON with a known shape; anything else (including
+    // JSON that is not a recognized control) is terminal input, verbatim.
+    if (control !== null && control.type === 'close') {
+      // The owning tab was closed: release the quota immediately.
+      closeFrameReceived = true
+      ptyManager.scheduleClose(handle.key, 0)
+      return
+    }
+    if (control !== null && control.type === 'park') {
+      // The user switched to another conversation: the tab is still open in
+      // its session's persisted state, but its view unmounted. Park the pty
+      // so the upcoming bare body end does NOT start the reconnect-grace
+      // countdown — the pty stays alive until the user switches back (a
+      // reconnecting view clears the parked state) or explicitly closes the
+      // tab (a close frame's scheduleClose clears it).
+      ptyManager.park(handle.key)
+      return
+    }
+    if (handle.exited) return
+    if (!resizeFromControl(control, handle.pty)) {
+      handle.pty.write(text)
+    }
+  })
+  transport.onClose(() => {
+    dataSub.dispose()
+    exitSub.dispose()
+    // A parked pty (the user switched conversations and sent `{type:'park'}`)
+    // stays alive indefinitely — do NOT start the grace countdown. A close
+    // frame already released the quota immediately; its body end must not
+    // reschedule the grace. Only a bare body end (refresh, crash) starts the
+    // grace period so a quick reconnect keeps the process; the reconnect's
+    // open() cancels the pending close.
+    if (!closeFrameReceived && !ptyManager.isParked(handle.key)) {
+      ptyManager.scheduleClose(handle.key, resolved.reconnectGraceMs)
+    }
+  })
+  return response
 }
 
 /** Forward one pty's live output to a connected view (shared by the UI-tab
@@ -1279,12 +1363,10 @@ function pumpPtyOutput(
     onData(cb: (data: string) => void): { dispose(): void }
     onExit(cb: (e: { exitCode: number; signal?: number }) => void): { dispose(): void }
   },
-  ws: WebSocket,
+  transport: SidebarTransport,
 ): { dataSub: { dispose(): void }; exitSub: { dispose(): void } } {
   const onData = (data: string): void => {
-    if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 4 * 1024 * 1024) {
-      ws.send(data)
-    }
+    transport.send(data)
   }
   const onExit = ({ exitCode }: { exitCode: number; signal?: number }): void => {
     onData(`\r\n[process exited with code ${String(exitCode)}]\r\n`)
@@ -1295,18 +1377,18 @@ function pumpPtyOutput(
 /**
  * Pump one agent terminal's pty to a connected view. The close frame kills
  * the pty immediately (the agent's terminal closes when the user closes the
- * sidebar tab); a bare socket drop leaves the pty alive — the agent owns
+ * sidebar tab); a bare body end leaves the pty alive — the agent owns
  * the lifetime, and only `terminal_close`, a `{type:'close'}` frame, or
  * plugin teardown kills it.
  */
 function pumpAgentTerminal(
   registry: AgentPtyRegistry,
   handle: AgentTerminalHandle,
-  ws: WebSocket,
+  transport: SidebarTransport,
 ): void {
-  if (handle.transcript !== '') ws.send(handle.transcript)
-  const { dataSub, exitSub } = pumpPtyOutput(handle.pty, ws)
-  ws.on('message', (data) => {
+  if (handle.transcript !== '') transport.send(handle.transcript)
+  const { dataSub, exitSub } = pumpPtyOutput(handle.pty, transport)
+  transport.onMessage((data) => {
     if (handle.exited) return
     const { text, control } = controlFrameOf(data)
     if (control !== null && control.type === 'close') {
@@ -1325,10 +1407,10 @@ function pumpAgentTerminal(
     // treats non-resize JSON controls as input, but for an agent terminal
     // there is no realistic input that is also valid JSON).
   })
-  ws.on('close', () => {
+  transport.onClose(() => {
     dataSub.dispose()
     exitSub.dispose()
-    // A bare socket drop (refresh, tab switch) leaves the agent's pty alive.
+    // A bare body end (refresh, tab switch) leaves the agent's pty alive.
     // The agent owns the lifetime: only `terminal_close`, a `{type:'close'}`
     // frame, or plugin teardown kills it. A reconnecting view reattaches the
     // same shell and gets the full transcript replayed.

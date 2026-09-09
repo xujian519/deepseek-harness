@@ -36,6 +36,8 @@ export interface DesktopHttpResponse {
 export interface DesktopRoute {
   kind: DesktopRouteKind
   path: string
+  /** Discriminator: absent/false marks the node-style writeHead/end face. */
+  stream?: false
   handler: (req: DesktopHttpRequest, res: DesktopHttpResponse) => void | Promise<void>
 }
 
@@ -44,6 +46,23 @@ export interface DesktopUpgradeRoute {
   path: string
   handler: unknown
 }
+
+/** One streaming route: the handler returns a Fetch Response whose body is a
+ *  `ReadableStream`, which the host dispatch forwards chunk by chunk. Live and
+ *  push transports that get no WebSocket carrier on the custom protocol
+ *  register here; the node-style `register` routes keep their writeHead/end
+ *  face. */
+export interface DesktopStreamingRoute {
+  kind: 'exact' | 'prefix'
+  path: string
+  /** Discriminator separating Response-returning streaming routes from the
+   *  node-style writeHead/end routes on `register`. */
+  stream: true
+  handler: (req: DesktopHttpRequest) => Response | Promise<Response>
+}
+
+/** One registered route, owning the full response lifecycle. */
+export type DesktopAnyRoute = DesktopRoute | DesktopStreamingRoute
 
 /** Adapt a Fetch Request into the node-style request face handlers read. */
 function toDesktopRequest(request: Request): DesktopHttpRequest {
@@ -97,18 +116,32 @@ function responseCollector(): DesktopHttpResponse & { toResponse(): Response } {
  * route patterns are distinct; a collision is a composition misconfiguration.
  */
 export class PortlessWebServer {
-  private readonly exact = new Map<string, DesktopRoute>()
-  private readonly prefixes = new Map<string, DesktopRoute>()
+  private readonly exact = new Map<string, DesktopAnyRoute>()
+  private readonly prefixes = new Map<string, DesktopAnyRoute>()
   private readonly upgrades = new Map<string, DesktopUpgradeRoute>()
 
-  /** Register a named route; returns the disposer removing it. */
-  register(route: DesktopRoute): () => void {
+  /** Insert a route into the exact or prefix table, enforcing path uniqueness. */
+  private insertRoute(route: DesktopAnyRoute): () => void {
     const table = route.kind === 'exact' ? this.exact : this.prefixes
     if (table.has(route.path)) {
       throw new Error(`desktop webserver: duplicate ${route.kind} route "${route.path}"`)
     }
     table.set(route.path, route)
     return () => { table.delete(route.path) }
+  }
+
+  /** Register a named route; returns the disposer removing it. */
+  register(route: DesktopRoute): () => void {
+    return this.insertRoute(route)
+  }
+
+  /** Register a streaming route whose handler returns a Response with a
+   *  `ReadableStream` body; returns the disposer removing it. A streaming
+   *  route and a writeHead/end route may not share a path. The `stream`
+   *  discriminator is forced true here so a consumer-side route object (which
+   *  omits the compiler-only field) still dispatches as a stream. */
+  registerStream(route: DesktopStreamingRoute): () => void {
+    return this.insertRoute({ ...route, stream: true })
   }
 
   /** Register an exact-path upgrade route; returns the disposer removing it. */
@@ -121,10 +154,10 @@ export class PortlessWebServer {
   }
 
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */
-  private match(pathname: string): DesktopRoute | undefined {
+  private match(pathname: string): DesktopAnyRoute | undefined {
     const exact = this.exact.get(pathname)
     if (exact !== undefined) return exact
-    let best: DesktopRoute | undefined
+    let best: DesktopAnyRoute | undefined
     for (const [prefix, route] of this.prefixes) {
       if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) continue
       if (best === undefined || prefix.length > best.path.length) best = route
@@ -136,13 +169,17 @@ export class PortlessWebServer {
    * Serve one custom-protocol request from the route table.
    * @param request - the Fetch request carried over the byte pipe.
    * @returns the route's Response, or null when no route matches the pathname.
+   * A streaming route returns its own Response (whose body the host dispatch
+   * forwards chunk by chunk); a writeHead/end route is collected into one.
    */
   async dispatch(request: Request): Promise<Response | null> {
     const pathname = new URL(request.url).pathname
     const route = this.match(pathname)
     if (route === undefined) return null
+    const req = toDesktopRequest(request)
+    if (route.stream === true) return await route.handler(req)
     const res = responseCollector()
-    await route.handler(toDesktopRequest(request), res)
+    await route.handler(req, res)
     return res.toResponse()
   }
 }

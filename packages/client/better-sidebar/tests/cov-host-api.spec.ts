@@ -76,6 +76,7 @@ function mount(opts: MountOptions = {}): Mounted {
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (route: SidebarWebUpgradeRoute) => { upgrades.push(route); return () => {} },
+      registerStream: () => () => {},
     },
     sessions: { get: opts.sessions ?? (() => undefined) },
     tools: { register: () => () => {} },
