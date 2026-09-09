@@ -396,19 +396,6 @@ describe('loadProfile', () => {
     ])
   })
 
-  it('auto-initializes the desktop template and normalizes its installation-owned tuple', () => {
-    const anchor = stageInstallation({
-      '@deepseek-ai/dsh-base': { patch: '[]\n' },
-      '@deepseek-ai/dsh-web-app': { patch: '[]\n' },
-      '@deepseek-ai/dsh-desktop-app': { patch: '[]\n' },
-    })
-    const home = tmp()
-    expect(PROFILE_TEMPLATES['desktop-patent']?.bundles).toContain('@deepseek-ai/dsh-desktop-app')
-    loadProfile('t', 'desktop-patent', anchor, home)
-    expect(readProfileManifest('t', resolveProfileDir('desktop-patent', home)).dsh?.profile?.bundles)
-      .toEqual([...PROFILE_TEMPLATES['desktop-patent']?.bundles ?? []])
-  })
-
   it('adds a shipped reload default only to an exact stock tuple and preserves explicit choices', () => {
     const anchor = stageInstallation({
       '@deepseek-ai/dsh-base': { patch: '[]\n' },

@@ -123,8 +123,6 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   // listener and waterfall assertions must match the emitted name verbatim.
   { file: 'packages/self-evolve/self-evolve-basic/src/index.ts', upstream: ['cordis'] },
   { file: 'packages/self-evolve/self-evolve-basic/tests/provider.spec.ts', upstream: ['cordis'] },
-  // The packaged-app script walks the vendor tree by directory name.
-  { file: 'scripts/desktop-package.ts', upstream: ['schemastery', 'cosmokit'] },
   { file: 'packages/extensions/tool-cordis/src/api-catalog.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/tool-cordis/src/providers.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/index.ts', upstream: ['cordis'] },

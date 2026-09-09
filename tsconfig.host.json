@@ -366,7 +366,6 @@
     { "path": "./apps/cli" },
     { "path": "./apps/desktop-host" },
     { "path": "./apps/desktop" },
-    { "path": "./apps/desktop-patent" },
     { "path": "./packages/document/document-deliver" },
     { "path": "./packages/patent/patent-core" },
     { "path": "./packages/patent/patent-data" },
