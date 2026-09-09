@@ -1,7 +1,12 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import {
+  DESKTOP_ICON_DIR_ENV,
   resolveDesktopAppId,
+  resolveDesktopIconDir,
   resolveMacOSNotarizationEnvironment,
   resolveMacOSSigningEnvironment,
+  resolveDesktopProductName,
 } from './scripts/desktop-release-environment.mjs'
 import { notarizeMacOSDiskImageArtifact } from './scripts/notarize-macos-disk-images.mjs'
 import { verifyMacOSSignatureAfterSign } from './scripts/verify-macos-signature.mjs'
@@ -25,6 +30,15 @@ export function createElectronBuilderConfig(
   hostArch = process.arch,
 ) {
   const appId = resolveDesktopAppId(env)
+  const productName = resolveDesktopProductName(env)
+  const iconDir = resolveDesktopIconDir(env)
+  const iconFile = (fileName) => {
+    const iconPath = join(iconDir, fileName)
+    if (!existsSync(iconPath)) {
+      throw new Error(`desktop release environment: ${DESKTOP_ICON_DIR_ENV} does not contain ${fileName}`)
+    }
+    return iconPath
+  }
   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
   const resolvedPlatform = targetPlatform ?? hostPlatform
   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
@@ -47,7 +61,9 @@ export function createElectronBuilderConfig(
   const buildPaths = desktopTargetBuildPaths(update.target)
   return {
     appId,
-    productName: 'DeepSeek Harness',
+    productName,
+    // Artifact names stay infrastructure identifiers: branded names may contain
+    // spaces, and update metadata plus upload paths key on this stable template.
     artifactName: 'deepseek-harness-${version}-${os}-${arch}.${ext}',
     directories: { output: buildPaths.artifacts },
     asar: true,
@@ -55,6 +71,7 @@ export function createElectronBuilderConfig(
       'lib/*.js',
       'lib/*.cjs',
       'renderer/**/*',
+      'assets/**/*',
       'package.json',
     ],
     extraResources: [
@@ -63,6 +80,7 @@ export function createElectronBuilderConfig(
     ],
     mac: {
       category: 'public.app-category.developer-tools',
+      icon: iconDir === undefined ? undefined : iconFile('icon.icns'),
       identity: macOSSigning?.signingIdentity,
       forceCodeSigning: true,
       hardenedRuntime: true,
@@ -87,6 +105,7 @@ export function createElectronBuilderConfig(
     },
     win: {
       forceCodeSigning: true,
+      icon: iconDir === undefined ? undefined : iconFile('icon.ico'),
       signtoolOptions: {
         sign: windowsSigner,
         signingHashAlgorithms: ['sha256'],

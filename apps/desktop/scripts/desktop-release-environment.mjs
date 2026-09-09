@@ -3,6 +3,18 @@
 /** Environment variable that supplies the Electron application identifier. */
 export const DESKTOP_APP_ID_ENV = 'DSH_DESKTOP_APP_ID'
 
+/** Environment variable that supplies the packaged application name shown to users. */
+export const DESKTOP_PRODUCT_NAME_ENV = 'DSH_DESKTOP_PRODUCT_NAME'
+
+/** Environment variable that supplies a directory holding icon.icns and icon.ico for branded builds. */
+export const DESKTOP_ICON_DIR_ENV = 'DSH_DESKTOP_ICON_DIR'
+
+/** Application name used when the packaging environment does not brand the release. */
+export const DEFAULT_DESKTOP_PRODUCT_NAME = 'DeepSeek Harness'
+
+/** Longest accepted branded application name; electron-builder derives install paths from it. */
+const MAX_PRODUCT_NAME_LENGTH = 64
+
 /** Environment variable that supplies electron-builder's macOS certificate qualifier. */
 export const MACOS_SIGNING_IDENTITY_ENV = 'DSH_DESKTOP_MACOS_SIGNING_IDENTITY'
 
@@ -43,6 +55,34 @@ export function resolveDesktopAppId(env) {
     throw new Error(`desktop release environment: ${DESKTOP_APP_ID_ENV} must be a reverse-DNS identifier`)
   }
   return appId
+}
+
+/**
+ * Resolve the packaged application name, defaulting to the official identity.
+ * @param {NodeJS.ProcessEnv} env - Packaging environment.
+ * @returns {string} Application name without control characters or path separators.
+ */
+export function resolveDesktopProductName(env) {
+  const value = env[DESKTOP_PRODUCT_NAME_ENV]?.trim()
+  if (value === undefined || value === '') return DEFAULT_DESKTOP_PRODUCT_NAME
+  if (value.length > MAX_PRODUCT_NAME_LENGTH) {
+    throw new Error(`desktop release environment: ${DESKTOP_PRODUCT_NAME_ENV} must hold at most ${MAX_PRODUCT_NAME_LENGTH} characters`)
+  }
+  if (/[\u0000-\u001f\u007f/\\]/u.test(value)) {
+    throw new Error(`desktop release environment: ${DESKTOP_PRODUCT_NAME_ENV} must not contain control characters or path separators`)
+  }
+  return value
+}
+
+/**
+ * Resolve the branded icon directory, or undefined when the release keeps the default icon.
+ * @param {NodeJS.ProcessEnv} env - Packaging environment.
+ * @returns {string | undefined} Directory expected to hold icon.icns and icon.ico.
+ */
+export function resolveDesktopIconDir(env) {
+  const value = env[DESKTOP_ICON_DIR_ENV]?.trim()
+  if (value === undefined || value === '') return undefined
+  return value
 }
 
 /**

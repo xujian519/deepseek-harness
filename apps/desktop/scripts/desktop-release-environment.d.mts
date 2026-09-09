@@ -1,6 +1,15 @@
 /** Environment variable that supplies the Electron application identifier. */
 export const DESKTOP_APP_ID_ENV: 'DSH_DESKTOP_APP_ID'
 
+/** Environment variable that supplies the packaged application name shown to users. */
+export const DESKTOP_PRODUCT_NAME_ENV: 'DSH_DESKTOP_PRODUCT_NAME'
+
+/** Environment variable that supplies a directory holding icon.icns and icon.ico for branded builds. */
+export const DESKTOP_ICON_DIR_ENV: 'DSH_DESKTOP_ICON_DIR'
+
+/** Application name used when the packaging environment does not brand the release. */
+export const DEFAULT_DESKTOP_PRODUCT_NAME: 'DeepSeek Harness'
+
 /** Environment variable that supplies electron-builder's macOS certificate qualifier. */
 export const MACOS_SIGNING_IDENTITY_ENV: 'DSH_DESKTOP_MACOS_SIGNING_IDENTITY'
 
@@ -45,6 +54,20 @@ export type MacOSNotarizationEnvironment =
  * @returns Reverse-DNS application identifier.
  */
 export function resolveDesktopAppId(env: NodeJS.ProcessEnv): string
+
+/**
+ * Resolve the packaged application name, defaulting to the official identity.
+ * @param env - Packaging environment.
+ * @returns Application name without control characters or path separators.
+ */
+export function resolveDesktopProductName(env: NodeJS.ProcessEnv): string
+
+/**
+ * Resolve the branded icon directory, or undefined when the release keeps the default icon.
+ * @param env - Packaging environment.
+ * @returns Directory expected to hold icon.icns and icon.ico.
+ */
+export function resolveDesktopIconDir(env: NodeJS.ProcessEnv): string | undefined
 
 /**
  * Resolve and validate the public identity expected on a macOS release.
