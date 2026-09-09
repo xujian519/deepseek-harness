@@ -37,6 +37,7 @@ import {
   encodeDesktopResponseStart,
   type DesktopHostRequestFrame,
 } from './wire.ts'
+import { PortlessWebServer } from './portless-webserver.ts'
 
 export { DESKTOP_HOST_PROTOCOL_VERSION } from './wire.ts'
 
@@ -305,6 +306,9 @@ export async function runDesktopHost(
   const api = connection.createSharedFetchHandler('/api')
   const assets = assetHandler(ctx, absoluteProject)
   const streams = remoteStreamHandler(ctx)
+  // The portless HTTP surface: composition plugins (the sidebar) register their
+  // routes here in place of a listening webServer; this dispatch serves them.
+  const portlessWeb = new PortlessWebServer()
   const requests = new Map<number, AbortController>()
   let disposing: Promise<void> | undefined
 
@@ -340,7 +344,7 @@ export async function runDesktopHost(
           ? await streams.fetch(request)
           : url.pathname.startsWith('/api/')
             ? await api.fetch(request)
-            : await assets.fetch(request)
+            : (await portlessWeb.dispatch(request)) ?? (await assets.fetch(request))
         await writeResponse(encodeDesktopResponseStart(command.streamId, {
           status: response.status,
           headers: [...response.headers.entries()],
