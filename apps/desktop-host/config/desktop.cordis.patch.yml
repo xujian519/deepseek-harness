@@ -49,3 +49,12 @@
 
     - id: ui-directory-picker-native
       name: '@deepseek-ai/dsh-client-ui-directory-picker-native'
+
+# The macOS native tools package: open/reveal, browser URLs, clipboard
+# read/write, notifications, speech, and app control driven through system
+# CLIs. Host effects beyond the session resolve one-time approval through the
+# approval seam. darwin-only: every executable it spawns is macOS-specific.
+- insert:
+    - id: macos-tools
+      name: '@deepseek-ai/dsh-macos-tools'
+      disabled: !!js process.platform !== 'darwin'
