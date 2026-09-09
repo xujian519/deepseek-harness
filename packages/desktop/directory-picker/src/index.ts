@@ -11,7 +11,7 @@ import type {
   DirectoryPickerCapability,
   DirectoryPickerCapabilities,
 } from '@deepseek-ai/dsh-host-directory-picker'
-import type { Desktop } from '@deepseek-ai/dsh-desktop'
+import type { Desktop } from '@deepseek-ai/dsh-desktop-seam'
 
 /** The electron interaction: one native OS chooser on the host display. */
 export interface DirectoryPickerElectronCapability {

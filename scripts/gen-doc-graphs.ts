@@ -656,7 +656,7 @@ const SERVICE_ROLES: ServiceRole[] = [
   },
   {
     key: 'desktop',
-    pkg: 'desktop',
+    pkg: 'desktop-seam',
     title: 'Desktop OS-integration seam',
     mode: 'seam',
     implementations: ['desktop-shell'],

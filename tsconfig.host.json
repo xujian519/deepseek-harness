@@ -298,7 +298,7 @@
     { "path": "./packages/bundle/desktop-app" },
     { "path": "./packages/bundle/self-evolve-app" },
     { "path": "./packages/bundle/im" },
-    { "path": "./packages/desktop/desktop" },
+    { "path": "./packages/desktop/desktop-seam" },
     { "path": "./packages/desktop/shell" },
     { "path": "./packages/desktop/directory-picker" },
     { "path": "./packages/desktop/macos-tools" },

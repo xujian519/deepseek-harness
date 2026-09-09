@@ -88,11 +88,15 @@ export class DesktopHostProcess {
    * @param node - absolute bundled upstream Node.js executable.
    * @param projectDir - active or staged desktop npm project.
    * @param inspectPort - optional loopback inspector port for workspace development.
+   * @param bridgePath - optional desktop bridge socket path passed through as
+   * DSH_DESKTOP_BRIDGE_PATH; the DSH_DESKTOP_ prefix filter below strips every
+   * other variable of that namespace from the child environment.
    */
   constructor(
     private readonly node: string,
     private readonly projectDir: string,
     private readonly inspectPort?: number,
+    private readonly bridgePath?: string,
   ) {}
 
   /** Start the child once and resolve only after its complete composition is active. */
@@ -106,9 +110,12 @@ export class DesktopHostProcess {
       ...(this.inspectPort === undefined ? [] : ['--allow-linked-profile']),
     ], {
       cwd: this.projectDir,
-      env: Object.fromEntries(Object.entries(process.env).filter(([name]) => (
-        name !== 'NODE_OPTIONS' && !/^DSH_DESKTOP_/u.test(name) && !/^(?:npm|pnpm|corepack)_/iu.test(name)
-      ))),
+      env: {
+        ...Object.fromEntries(Object.entries(process.env).filter(([name]) => (
+          name !== 'NODE_OPTIONS' && !/^DSH_DESKTOP_/u.test(name) && !/^(?:npm|pnpm|corepack)_/iu.test(name)
+        ))),
+        ...(this.bridgePath === undefined ? {} : { DSH_DESKTOP_BRIDGE_PATH: this.bridgePath }),
+      },
       stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe', 'ipc'],
     })
     const requestPipe = child.stdio[DESKTOP_REQUEST_PIPE_FD]

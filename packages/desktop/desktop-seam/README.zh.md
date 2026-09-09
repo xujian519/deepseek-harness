@@ -3,7 +3,7 @@ description: "`ctx.desktop` 能力缝隙的 **Service Definition**：通过 Elec
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-desktop
+# @deepseek-ai/dsh-desktop-seam
 
 [English](README.md) | 中文
 

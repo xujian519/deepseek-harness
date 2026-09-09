@@ -526,6 +526,9 @@
       "@deepseek-ai/dsh-desktop-directory-picker": [
         "./packages/desktop/directory-picker/src"
       ],
+      "@deepseek-ai/dsh-desktop-seam": [
+        "./packages/desktop/desktop-seam/src"
+      ],
       "@deepseek-ai/dsh-desktop-shell": [
         "./packages/desktop/shell/src"
       ],
@@ -669,9 +672,6 @@
       ],
       "@deepseek-ai/dsh-deque": [
         "./packages/util/deque/src"
-      ],
-      "@deepseek-ai/dsh-desktop": [
-        "./packages/desktop/desktop/src"
       ],
       "@deepseek-ai/dsh-desktop-app": [
         "./packages/bundle/desktop-app/src"

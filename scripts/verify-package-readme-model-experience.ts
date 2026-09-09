@@ -137,7 +137,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/fs/fs-local': { kind: 'indirect', reason: 'The provider backend delegates model rendering to dsh-tool-fs.' },
   'packages/hooks/hook-protocol': { kind: 'indirect', reason: 'Only the hook bridge plugins render decoded hook output to a model.' },
   'packages/host/directory-picker': { kind: 'none', reason: 'The GUI-host picking seam registers nothing model-facing.' },
-  'packages/desktop/desktop': { kind: 'none', reason: 'The Service Definition only declares the ctx.desktop seam; providers and consumers own every model-facing effect.' },
+  'packages/desktop/desktop-seam': { kind: 'none', reason: 'The Service Definition only declares the ctx.desktop seam; providers and consumers own every model-facing effect.' },
   'packages/desktop/shell': { kind: 'none', reason: 'The bridge provider only forwards calls to Electron Main; consumers own every model-facing effect.' },
   'packages/desktop/directory-picker': { kind: 'none', reason: 'The directory-picker backend only opens a native chooser on behalf of the GUI host; it registers nothing model-facing.' },
   'packages/host/directory-picker-auto': { kind: 'none', reason: 'The GUI-host picking chooser only mounts a backend row; it registers nothing model-facing.' },

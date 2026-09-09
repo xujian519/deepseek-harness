@@ -35,6 +35,14 @@
     - credentials
   config: {}
 
+# The desktop-shell provider occupies ctx.desktop: it calls the Electron main
+# process over the bridge socket (DSH_DESKTOP_BRIDGE_PATH) for dialogs,
+# notifications, menu items, global shortcuts, and tray customization, and it
+# degrades to warn-only when the variable is absent (headless development).
+- insert:
+    - id: desktop-shell
+      name: '@deepseek-ai/dsh-desktop-shell'
+
 - insert:
     - id: directory-picker-native
       name: '@deepseek-ai/dsh-host-directory-picker-native'

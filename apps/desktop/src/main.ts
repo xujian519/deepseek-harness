@@ -9,7 +9,9 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   protocol,
+  Tray,
   type IpcMainInvokeEvent,
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
@@ -18,9 +20,14 @@ import { DesktopHostProcess } from './host-process.ts'
 import { DESKTOP_IPC, type DesktopUpdateState } from './ipc.ts'
 import { formatDesktopMessage, resolveDesktopLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
+import { printHtmlToPdf } from './print.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
+import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
+import { BridgeServer, removeStaleBridgeSockets, resolveBridgePath } from './bridge-server.ts'
 
 const SCHEME = 'dsh-app'
+/** Renderer-supplied HTML ceiling for print-to-PDF. */
+const MAX_PRINT_HTML_BYTES = 4 * 1024 * 1024
 let focusPrimaryWindow = (): void => {}
 
 function errorOf(reason: unknown, fallback: string): Error {
@@ -141,12 +148,20 @@ async function main(): Promise<void> {
   let host: DesktopHostProcess | undefined
   let mainWindow: BrowserWindow | undefined
   let pluginWindow: BrowserWindow | undefined
+  let tray: Tray | undefined
+  let isQuitting = false
   let shellInstallerOwnsQuit = false
   let updateState: DesktopUpdateState = { phase: 'idle' }
   const locale = resolveDesktopLocale(app.getLocale())
   const messages = locale.messages
   const appPreload = fileURLToPath(new URL('./preload-app.cjs', import.meta.url))
   const managementPreload = fileURLToPath(new URL('./preload.cjs', import.meta.url))
+  // The bridge socket must listen before the host child spawns: the child
+  // receives the path once, at boot, through its scrubbed environment.
+  removeStaleBridgeSockets()
+  const bridgePath = resolveBridgePath()
+  const bridge = new BridgeServer(() => mainWindow, app.getName())
+  await bridge.start(bridgePath)
 
   const publishUpdate = (state: DesktopUpdateState): DesktopUpdateState => {
     updateState = state
@@ -157,7 +172,7 @@ async function main(): Promise<void> {
   }
 
   const startHost = async (projectDir = activeProject): Promise<DesktopHostProcess> => {
-    const next = new DesktopHostProcess(resources.node, projectDir, hostInspectPort)
+    const next = new DesktopHostProcess(resources.node, projectDir, hostInspectPort, bridgePath)
     await next.start()
     return next
   }
@@ -269,6 +284,20 @@ async function main(): Promise<void> {
     assertDesktopSender(event, ['shell'])
     await updates.install()
   })
+  ipcMain.handle(DESKTOP_IPC.printToPdf, async (event, payload: unknown) => {
+    assertDesktopSender(event, ['app'])
+    // Renderer input is untrusted: validate the closed channel's arguments
+    // before the hidden print window touches anything.
+    if (typeof payload !== 'object' || payload === null) return { error: 'invalid payload' }
+    const html = (payload as { html?: unknown }).html
+    const suggestedName = (payload as { suggestedName?: unknown }).suggestedName
+    if (typeof html !== 'string' || html.length === 0) return { error: 'invalid html' }
+    if (html.length > MAX_PRINT_HTML_BYTES) return { error: 'html too large' }
+    if (suggestedName !== undefined && typeof suggestedName !== 'string') {
+      return { error: 'invalid suggestedName' }
+    }
+    return printHtmlToPdf(mainWindow, html, typeof suggestedName === 'string' ? suggestedName : 'document')
+  })
 
   const checkAndPrompt = async (manual: boolean): Promise<void> => {
     const state = await updates.check()
@@ -325,25 +354,73 @@ async function main(): Promise<void> {
     void pluginWindow.loadURL(`${SCHEME}://shell/plugin-manager.html`)
   }
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{
-    label: process.platform === 'darwin' ? app.name : messages.application,
-    submenu: [
+  // The shell owns the base application menu; backend-registered menu groups
+  // are appended after these entries when the bridge rebuilds the menu.
+  const appMenuTemplate: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: process.platform === 'darwin' ? app.name : messages.application,
+      submenu: [
+        {
+          label: development === undefined ? messages.pluginsMenu : messages.pluginsMenuPackagedOnly,
+          accelerator: 'CmdOrCtrl+,',
+          enabled: development === undefined,
+          click: openPluginWindow,
+        },
+        { label: messages.checkUpdatesMenu, click: () => { void checkAndPrompt(true) } },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+  ]
+  bridge.setAppMenuBase(appMenuTemplate)
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate))
+
+  // A tray-less environment (some Linux sessions) keeps every other behavior;
+  // Tray construction throwing is the one failure the shell tolerates here.
+  try {
+    const trayIcon = nativeImage.createFromPath(trayIconPath(app.getAppPath(), process.platform))
+    if (isTemplateTrayIcon(process.platform)) trayIcon.setTemplateImage(true)
+    tray = new Tray(trayIcon)
+    tray.setToolTip(app.getName())
+    tray.setContextMenu(Menu.buildFromTemplate([
       {
-        label: development === undefined ? messages.pluginsMenu : messages.pluginsMenuPackagedOnly,
-        accelerator: 'CmdOrCtrl+,',
-        enabled: development === undefined,
-        click: openPluginWindow,
+        label: formatDesktopMessage(messages.trayShow, { name: app.getName() }),
+        click: () => { focusPrimaryWindow() },
       },
-      { label: messages.checkUpdatesMenu, click: () => { void checkAndPrompt(true) } },
       { type: 'separator' },
-      { role: 'quit' },
-    ],
-  }]))
+      {
+        label: formatDesktopMessage(messages.trayQuit, { name: app.getName() }),
+        click: () => {
+          isQuitting = true
+          app.quit()
+        },
+      },
+    ]))
+    tray.on('click', () => { focusPrimaryWindow() })
+  } catch (error) {
+    console.error('dsh desktop: tray setup failed:', error)
+    tray = undefined
+  }
+  if (tray !== undefined) {
+    bridge.initTray(tray, {
+      onShow: () => { focusPrimaryWindow() },
+      onQuit: () => {
+        isQuitting = true
+        app.quit()
+      },
+    })
+  }
 
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload)
     mainWindow = window
     window.once('ready-to-show', () => { if (!window.isDestroyed()) window.show() })
+    window.on('close', (event) => {
+      if (shouldHideOnClose(isQuitting, tray !== undefined)) {
+        event.preventDefault()
+        window.hide()
+      }
+    })
     window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
     return window
   }
@@ -372,6 +449,14 @@ async function main(): Promise<void> {
   })
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
+  })
+  app.on('before-quit', () => {
+    isQuitting = true
+    bridge.dispose()
+  })
+  app.on('will-quit', () => {
+    tray?.destroy()
+    tray = undefined
   })
   app.on('before-quit', (event) => {
     if (shellInstallerOwnsQuit) return

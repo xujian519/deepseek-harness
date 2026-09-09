@@ -34,7 +34,7 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-desktop": "workspace:^",
+    "@deepseek-ai/dsh-desktop-seam": "workspace:^",
     "@deepseek-ai/dsh-desktop-shell": "workspace:^",
     "@deepseek-ai/dsh-desktop-directory-picker": "workspace:^",
     "@deepseek-ai/dsh-client-ui-directory-picker-native": "workspace:^",
