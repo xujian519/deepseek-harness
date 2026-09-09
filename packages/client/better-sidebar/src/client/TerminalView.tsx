@@ -1,12 +1,14 @@
 /**
- * The interactive terminal: xterm.js over a WebSocket to the host pty.
- * The host replays the session's transcript on connect, then streams live
- * output; input frames are raw text, resize frames are JSON with
- * type:"resize". Transient disconnects (page refresh, host restart) reconnect
- * automatically; a server-side refusal (close code 1011 with a reason, e.g.
- * a failed pty spawn) stops the loop and shows the reason with a manual
- * retry, and repeated unreasoned failures surface the close code after three
- * attempts, so the banner never spins forever.
+ * The interactive terminal: xterm.js over a streaming fetch to the host pty.
+ * The desktop renderer cannot construct a WebSocket for dsh-app://, so the
+ * view POSTs a client→host input stream and reads a host→client output
+ * stream in the same request. The host replays the session's transcript on
+ * connect, then streams live output; input frames are raw text, resize frames
+ * are JSON with type:"resize". Transient disconnects (page refresh, host
+ * restart) reconnect automatically; a server-side refusal (a 4xx/5xx status
+ * with a reason, e.g. a failed pty spawn) stops the loop and shows the reason
+ * with a manual retry, and repeated unreasoned failures surface the failure
+ * after three attempts, so the banner never spins forever.
  *
  * Three control frames shape the pty lifecycle on unmount:
  * - `{type:'close'}` — the user closed the tab. The host kills the pty
@@ -176,17 +178,19 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
     }
     const schemeSub = subscribeColorScheme(applyTheme)
 
-    let socket: WebSocket | null = null
     let closed = false
     let retry: number | undefined
     let failures = 0
+    let inputController: ReadableStreamDefaultController<Uint8Array> | undefined
+    let inputEnded = false
+    let currentAbort: AbortController | undefined
 
-    const wsUrl = (): string => {
+    const streamUrl = (): string => {
       const url = new URL('/sidebar/ws/terminal', location.origin)
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-      // Agent terminals attach by uuid (the host looks them up in the agent
-      // pty registry); UI-tab terminals attach by sessionId+tab (the host
-      // uses the UI-tab pty manager). Same upgrade endpoint, different query.
+      // The host serves the terminal over the same custom-protocol dispatch as
+      // the other /sidebar routes, so the scheme stays whatever the renderer
+      // already uses (dsh-app:// in the desktop shell, http(s) in a browser) —
+      // no ws:// swap, which a non-ws scheme refuses anyway.
       if (isAgentTabId(tabId)) {
         url.search = new URLSearchParams({ uuid: agentUuidOf(tabId) }).toString()
       } else {
@@ -194,79 +198,105 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
         if (scope.cwd !== undefined && scope.cwd !== '') params.set('cwd', scope.cwd)
         url.search = params.toString()
       }
-      // Same construction the app's own downlink WebSockets use (new URL
-      // over location.origin + protocol swap): whatever the environment
-      // does to the app's websockets applies identically here.
       return url.toString()
     }
 
-    const sendResize = (): void => {
-      if (socket !== null && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+    const writeInput = (data: string): void => {
+      if (inputController !== undefined && !inputEnded) {
+        inputController.enqueue(new TextEncoder().encode(data))
       }
+    }
+
+    const sendResize = (): void => {
+      writeInput(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+    }
+
+    function retryAfterFailure(url: string): void {
+      if (closed) return
+      failures += 1
+      if (failures >= FAILURE_LIMIT) {
+        console.error('[dsh-better-sidebar] terminal connection failed:', url)
+        setFatal(`${t('terminalConnectFailed')} (${failures})`)
+        return
+      }
+      retry = window.setTimeout(connect, 2000)
+    }
+
+    function handleFailure(url: string, status: number, body: string): void {
+      setConnected(false)
+      // node-pty dependency missing/broken (issue #140): the host answers a
+      // 503 with the marker. Fetch the full repair details over HTTP — a WS
+      // close reason was capped at 123 bytes, too small for the pasteable
+      // command. A failed fetch falls back to the plain banner.
+      if (status === 503 && body.includes(PTY_DEPS_MISSING)) {
+        void api.terminalDeps().then((stat) => {
+          if (stat.ok) {
+            // The host recovered between the refusal and the fetch — the
+            // plain banner with a retry is the honest state.
+            setFatal(t('terminalDepsFailed'))
+            return
+          }
+          setFatal(null)
+          setDepsFatal(stat)
+        }).catch(() => {
+          setFatal(t('terminalDepsFailed'))
+        })
+        return
+      }
+      // A server-side refusal carries a status + body message; retrying it
+      // forever would only spin the banner, so surface it with a retry.
+      if (status >= 400) {
+        setFatal(body !== '' ? body : String(status))
+        return
+      }
+      retryAfterFailure(url)
     }
 
     const connect = (): void => {
       if (closed) return
-      const url = wsUrl()
+      const url = streamUrl()
       setLastUrl(url)
-      socket = new WebSocket(url)
-      socket.onopen = () => {
-        failures = 0
-        setConnected(true)
-        setFatal(null)
-        sendResize()
-      }
-      socket.onmessage = (event) => {
-        if (typeof event.data === 'string') term.write(event.data)
-      }
-      socket.onclose = (event) => {
-        setConnected(false)
-        // node-pty dependency missing/broken (issue #140): the host closed
-        // with the short marker. Fetch the full repair details over HTTP —
-        // a WS close reason is capped at 123 bytes, too small for the
-        // pasteable command. A failed fetch falls back to the plain banner.
-        if (event.code === 1011 && event.reason === PTY_DEPS_MISSING) {
-          void api.terminalDeps().then((status) => {
-            if (status.ok) {
-              // The host recovered between the close and the fetch — the
-              // plain banner with a retry is the honest state.
-              setFatal(t('terminalDepsFailed'))
-              return
+      const abort = new AbortController()
+      currentAbort = abort
+      inputEnded = false
+      const input = new ReadableStream<Uint8Array>({
+        start(c) { inputController = c },
+        cancel() { inputEnded = true },
+      })
+      void fetch(url, { method: 'POST', body: input, signal: abort.signal })
+        .then(async (response) => {
+          if (response.status >= 400 || response.body === null) {
+            const bodyText = await response.text().catch(() => '')
+            handleFailure(url, response.status, bodyText)
+            return
+          }
+          failures = 0
+          setConnected(true)
+          setFatal(null)
+          sendResize()
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          try {
+            for (;;) {
+              const { done, value } = await reader.read()
+              if (done) break
+              term.write(decoder.decode(value, { stream: true }))
             }
-            setFatal(null)
-            setDepsFatal(status)
-          }).catch(() => {
-            setFatal(t('terminalDepsFailed'))
-          })
-          return
-        }
-        // A server-side refusal carries a close code + reason; retrying it
-        // forever would only spin the banner, so surface it with a retry.
-        if (event.code === 1011 && event.reason !== '') {
-          setFatal(event.reason)
-          return
-        }
-        // Unreasoned drops (upgrade rejected, host down, mid-handshake
-        // refusal) normally recover on the next attempt; after a few
-        // consecutive failures stop spinning and show the close code.
-        failures += 1
-        if (failures >= FAILURE_LIMIT) {
-          const detail = event.reason !== '' ? ` (${event.code}: ${event.reason})` : ` (${event.code})`
-          console.error('[dsh-better-sidebar] terminal connection failed:', event.code, event.reason, url)
-          setFatal(`${t('terminalConnectFailed')}${detail}`)
-          return
-        }
-        if (!closed) retry = window.setTimeout(connect, 2000)
-      }
-      socket.onerror = () => {
-        socket?.close()
-      }
+          } catch {
+            // The response stream errored (host down mid-stream); fall through
+            // to the reconnect path below.
+          }
+          setConnected(false)
+          retryAfterFailure(url)
+        })
+        .catch(() => {
+          retryAfterFailure(url)
+        })
     }
     connectRef.current = connect
 
     const inputSub = term.onData((data) => {
-      if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(data)
+      writeInput(data)
     })
     const observer = new ResizeObserver(() => {
       try {
@@ -348,14 +378,20 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
       // Agent terminals own their lifetime entirely (the host's agent-pty.close
       // route, fired by the tab close, is the close path); this view-unmount
       // path is always a bare drop for them, so it must never emit either frame.
-      if (!isAgentTabId(tabId) && !tabStillOpen
-        && socket !== null && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'close' }))
-      } else if (tabStillOpen && sessionSwitched && !isAgentTabId(tabId)
-        && socket !== null && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'park' }))
+      try {
+        const inputOpen = inputController !== undefined && !inputEnded
+        if (!isAgentTabId(tabId) && !tabStillOpen && inputOpen) {
+          writeInput(JSON.stringify({ type: 'close' }))
+        } else if (tabStillOpen && sessionSwitched && !isAgentTabId(tabId) && inputOpen) {
+          writeInput(JSON.stringify({ type: 'park' }))
+        }
+        // End the request body so the host reads the frame then a clean body
+        // end (gracefully closing the controller flushes the queued frame).
+        if (inputOpen) { inputController?.close(); inputEnded = true }
+      } catch {
+        // The transport may already be gone; nothing left to signal.
       }
-      socket?.close()
+      currentAbort?.abort()
       linkProvider.dispose()
       term.dispose()
       connectRef.current = null

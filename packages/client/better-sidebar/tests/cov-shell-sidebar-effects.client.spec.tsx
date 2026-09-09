@@ -31,6 +31,38 @@ class FakeWebSocket {
   constructor(readonly url: string) { FakeWebSocket.instances.push(this) }
 }
 
+/** A fake `fetch` for one push subscription: the sidebar POSTs the request
+ *  and reads a newline-delimited JSON body. The test drives host→client
+ *  frames with `push` (which the NDJSON reader splits) and ends the stream
+ *  with `end` (a host-side stream close triggers the reconnect ladder). */
+class FakePushFetch {
+  static instances: FakePushFetch[] = []
+  url: string
+  private outputController: ReadableStreamDefaultController<Uint8Array> | undefined
+  private closed = false
+  private readonly promise: Promise<Response>
+  constructor(url: string, _init: RequestInit) {
+    this.url = url
+    const output = new ReadableStream<Uint8Array>({
+      start: (c) => { this.outputController = c },
+      cancel: () => { this.closed = true },
+    })
+    this.promise = Promise.resolve(new Response(output, { status: 200 }))
+    FakePushFetch.instances.push(this)
+  }
+  /** Push one host→client output frame (a newline-delimited JSON line). */
+  push(data: string): void {
+    if (this.closed) return
+    this.outputController?.enqueue(new TextEncoder().encode(data))
+  }
+  /** End the host→client output (drives the reconnect ladder). */
+  end(): void {
+    if (this.closed) return
+    this.closed = true
+    this.outputController?.close()
+  }
+}
+
 interface Harness {
   container: HTMLElement
   store: SidebarStore
@@ -70,6 +102,24 @@ function mountShell(opts: {
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 })
   vi.stubGlobal('WebSocket', FakeWebSocket)
   FakeWebSocket.instances = []
+  // The two push loops (agent-terminals / agent-opens) subscribe via a
+  // streaming fetch; the fake captures each subscription so the tests can
+  // push NDJSON frames and end the stream. Non-push URLs (the session.cwd
+  // route) delegate to the fetch stubbed before mount so their own tests
+  // still drive the API.
+  FakePushFetch.instances = []
+  const priorFetch = globalThis.fetch
+  vi.stubGlobal('fetch', (url: string | URL, init: RequestInit) => {
+    const target = String(url)
+    if (target.includes('/sidebar/ws/agent-terminals') || target.includes('/sidebar/ws/agent-opens')) {
+      return new FakePushFetch(target, init).promise
+    }
+    if (typeof priorFetch === 'function') return priorFetch(target, init)
+    return Promise.resolve(new Response(JSON.stringify({ ok: true, value: null }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }))
+  })
 
   const container = document.createElement('div')
   document.body.append(container)
@@ -137,9 +187,18 @@ afterEach(() => {
   localStorage.clear()
 })
 
-/** The shell mounts TWO push loops (terminals + opens); pick by route. */
-const socketFor = (route: string): FakeWebSocket =>
-  FakeWebSocket.instances.find(socket => socket.url.includes(route))!
+/** The shell mounts TWO push loops (terminals + opens); pick the LATEST by
+ *  route (a reconnect creates a fresh subscription). */
+const socketFor = (route: string): FakePushFetch => {
+  const all = FakePushFetch.instances.filter(socket => socket.url.includes(route))
+  return all[all.length - 1]!
+}
+
+/** Flush pending microtasks so the push loop's NDJSON reader advances. */
+async function flush(): Promise<void> {
+  await act(async () => { await Promise.resolve() })
+  await act(async () => { await Promise.resolve() })
+}
 
 describe('no-session shell', () => {
   it('renders a focusable disabled cluster and pushes nothing', () => {
@@ -395,38 +454,43 @@ describe('agent-terminals push loop', () => {
     component: ({ tab }) => createElement('div', { 'data-probe': 'terminal' }, tab.id),
   })
 
-  it('reconciles pushes into tabs and ignores malformed payloads', () => {
+  it('reconciles pushes into tabs and ignores malformed payloads', async () => {
     descriptors.push(terminalView())
     const h = mountShell()
     try {
-      expect(FakeWebSocket.instances).toHaveLength(2) // terminals + opens loops
+      expect(FakePushFetch.instances).toHaveLength(2) // terminals + opens loops
       const socket = socketFor('agent-terminals')
       expect(socket.url).toContain('/sidebar/ws/agent-terminals?sessionId=')
-      act(() => { socket.onmessage!({ data: JSON.stringify([{ uuid: 'u1', title: 'Agent sh', command: 'sh', exited: false }]) }) })
+      act(() => { socket.push(`${JSON.stringify([{ uuid: 'u1', title: 'Agent sh', command: 'sh', exited: false }])}\n`) })
+      await flush()
       expect(h.container.querySelector('[data-probe="terminal"]')!.textContent).toContain('agent:u1')
       // Idempotent: the same push is a no-op.
-      act(() => { socket.onmessage!({ data: JSON.stringify([{ uuid: 'u1', title: 'Agent sh', command: 'sh', exited: false }]) }) })
-      // Non-string payload and broken JSON are ignored.
-      act(() => { socket.onmessage!({ data: 42 }) })
-      act(() => { socket.onmessage!({ data: '{broken' }) })
+      act(() => { socket.push(`${JSON.stringify([{ uuid: 'u1', title: 'Agent sh', command: 'sh', exited: false }])}\n`) })
+      await flush()
+      // Non-array JSON, broken JSON and blank lines are ignored.
+      act(() => { socket.push('42\n') })
+      act(() => { socket.push('{broken\n') })
+      act(() => { socket.push('\n') })
+      await flush()
       expect(h.container.querySelectorAll('[data-probe="terminal"]')).toHaveLength(1)
     } finally {
       h.unmount()
     }
   })
 
-  it('pushes are ignored while the terminal type is disabled', () => {
+  it('pushes are ignored while the terminal type is disabled', async () => {
     const h = mountShell({ prefsPatch: { tabsEnabled: { terminal: false } } })
     try {
       const socket = socketFor('agent-terminals')
-      act(() => { socket.onmessage!({ data: JSON.stringify([{ uuid: 'u2', title: 'T', command: 'sh', exited: false }]) }) })
+      act(() => { socket.push(`${JSON.stringify([{ uuid: 'u2', title: 'T', command: 'sh', exited: false }])}\n`) })
+      await flush()
       expect(h.container.querySelector('[data-probe="terminal"]')).toBeNull()
     } finally {
       h.unmount()
     }
   })
 
-  it('reconnects with backoff, caps the failures, and closes on error/unmount', () => {
+  it('reconnects with backoff, caps the failures, and stops on unmount', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const pending: Array<() => void> = []
     vi.stubGlobal('setTimeout', (fn: () => void) => { pending.push(fn); return pending.length })
@@ -434,25 +498,21 @@ describe('agent-terminals push loop', () => {
     const h = mountShell()
     try {
       expect(pending).toHaveLength(0)
-      // Two failures schedule two reconnects.
-      socketFor('agent-terminals').onclose!()
-      socketFor('agent-terminals').onclose!()
-      expect(pending).toHaveLength(2)
-      // The third failure stops the loop with a logged error.
-      socketFor('agent-terminals').onclose!()
-      expect(errorSpy.mock.calls.some(call => String(call[0]).includes('agent-terminals'))).toBe(true)
-      // An error closes its socket (driving the onclose path).
-      const socket = socketFor('agent-terminals')
-      act(() => { socket.onerror!() })
-      expect(socket.close).toHaveBeenCalled()
-      // Unmount closes BOTH live sockets and stops reconnects.
-      h.unmount()
-      for (const open of FakeWebSocket.instances) {
-        if (open.url.includes('agent-terminals')) expect(open.close).toHaveBeenCalled()
+      // Each dropped stream schedules a reconnect; after FAILURE_LIMIT (3)
+      // consecutive drops the loop stops with a logged error.
+      for (let i = 0; i < 3; i += 1) {
+        act(() => { socketFor('agent-terminals').end() })
+        await flush()
+        act(() => { pending.splice(0).forEach((fn) => { fn() }) })
+        await flush()
       }
-      const after = FakeWebSocket.instances.length
+      expect(errorSpy.mock.calls.some(call => String(call[0]).includes('agent-terminals'))).toBe(true)
+      // Unmount aborts the live request; a late retry is a no-op.
+      h.unmount()
+      const after = FakePushFetch.instances.length
       for (const fn of pending.splice(0)) fn()
-      expect(FakeWebSocket.instances).toHaveLength(after)
+      await flush()
+      expect(FakePushFetch.instances).toHaveLength(after)
       return
     } finally {
       if (h.container.isConnected) h.unmount()
@@ -471,10 +531,11 @@ describe('agent-opens push loop', () => {
   })
 
   function pushes(_h: Harness, payload: unknown): void {
-    act(() => { socketFor('agent-opens').onmessage!({ data: typeof payload === 'string' ? payload : JSON.stringify(payload) }) })
+    const frame = typeof payload === 'string' ? payload : JSON.stringify(payload)
+    act(() => { socketFor('agent-opens').push(`${frame}\n`) })
   }
 
-  it('routes file, folder and url opens; ignores broken requests and the pref switch', () => {
+  it('routes file, folder and url opens; ignores broken requests and the pref switch', async () => {
     descriptors.push(editorView(), browserView())
     const h = mountShell({ prefsPatch: { agentOpenTools: true } })
     try {
@@ -482,6 +543,7 @@ describe('agent-opens push loop', () => {
       pushes(h, { kind: 'file', target: '/w/notes/a.md' })
       pushes(h, { kind: 'folder', target: '/w/notes' })
       pushes(h, { kind: 'url', target: 'http://example.test/x', title: 'Example' })
+      await flush()
       const state = h.store.getSnapshot().state!
       const tabs = (state.splits as { tabs: Array<{ id: string; path?: string; meta?: unknown }> }).tabs
         .filter(tab => tab.id.startsWith('editor:/w/') || tab.id === 'browser')
@@ -495,34 +557,37 @@ describe('agent-opens push loop', () => {
       pushes(h, { kind: 'file', target: '' })
       pushes(h, { kind: 'file' })
       pushes(h, null)
+      await flush()
       expect((h.store.getSnapshot().state!.splits as { tabs: unknown[] }).tabs).toHaveLength(4)
       // With the tool pref off, pushes are a defensive no-op.
       act(() => { h.store.setPrefs({ ...h.store.getPrefs(), agentOpenTools: false }) })
       pushes(h, { kind: 'file', target: '/w/other.md' })
+      await flush()
       expect((h.store.getSnapshot().state!.splits as { tabs: unknown[] }).tabs).toHaveLength(4)
     } finally {
       h.unmount()
     }
   })
 
-  it('caps reconnect failures and cleans up on unmount', () => {
+  it('caps reconnect failures and cleans up on unmount', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const pending: Array<() => void> = []
     vi.stubGlobal('setTimeout', (fn: () => void) => { pending.push(fn); return pending.length })
     vi.stubGlobal('clearTimeout', () => {})
     const h = mountShell({ prefsPatch: { agentOpenTools: true } })
     try {
-      socketFor('agent-opens').onclose!()
-      socketFor('agent-opens').onclose!()
-      socketFor('agent-opens').onclose!()
+      for (let i = 0; i < 3; i += 1) {
+        act(() => { socketFor('agent-opens').end() })
+        await flush()
+        act(() => { pending.splice(0).forEach((fn) => { fn() }) })
+        await flush()
+      }
       expect(errorSpy.mock.calls.some(call => String(call[0]).includes('agent-opens'))).toBe(true)
-      const socket = socketFor('agent-opens')
-      act(() => { socket.onerror!() })
-      expect(socket.close).toHaveBeenCalled()
       h.unmount()
-      const after = FakeWebSocket.instances.length
+      const after = FakePushFetch.instances.length
       for (const fn of pending.splice(0)) fn()
-      expect(FakeWebSocket.instances).toHaveLength(after)
+      await flush()
+      expect(FakePushFetch.instances).toHaveLength(after)
       return
     } finally {
       if (h.container.isConnected) h.unmount()

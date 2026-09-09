@@ -1309,12 +1309,18 @@ async function attachTerminalImpl(
   // Replay the transcript, then follow live output.
   if (handle.transcript !== '') transport.send(handle.transcript)
   const { dataSub, exitSub } = pumpPtyOutput(handle.pty, transport)
+  // A close frame that follows the body end would otherwise have the body-end
+  // grace reschedule override the close frame's immediate release (last
+  // scheduleClose wins); track it so the grace is skipped after an explicit
+  // close frame.
+  let closeFrameReceived = false
   transport.onMessage((data) => {
     const { text, control } = controlFrameOf(data)
     // Control frames are JSON with a known shape; anything else (including
     // JSON that is not a recognized control) is terminal input, verbatim.
     if (control !== null && control.type === 'close') {
       // The owning tab was closed: release the quota immediately.
+      closeFrameReceived = true
       ptyManager.scheduleClose(handle.key, 0)
       return
     }
@@ -1337,11 +1343,12 @@ async function attachTerminalImpl(
     dataSub.dispose()
     exitSub.dispose()
     // A parked pty (the user switched conversations and sent `{type:'park'}`)
-    // stays alive indefinitely — do NOT start the grace countdown. A bare
-    // body end without a prior park (refresh, crash) starts the grace period
-    // so a quick reconnect keeps the process; the reconnect's open() cancels
-    // the pending close.
-    if (!ptyManager.isParked(handle.key)) {
+    // stays alive indefinitely — do NOT start the grace countdown. A close
+    // frame already released the quota immediately; its body end must not
+    // reschedule the grace. Only a bare body end (refresh, crash) starts the
+    // grace period so a quick reconnect keeps the process; the reconnect's
+    // open() cancels the pending close.
+    if (!closeFrameReceived && !ptyManager.isParked(handle.key)) {
       ptyManager.scheduleClose(handle.key, resolved.reconnectGraceMs)
     }
   })

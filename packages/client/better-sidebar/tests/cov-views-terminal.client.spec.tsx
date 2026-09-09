@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 /**
- * TerminalView spec: the full mount lifecycle over a fake WebSocket and
+ * TerminalView spec: the full mount lifecycle over a fake fetch stream and
  * fake xterm — URL construction for UI-tab and agent terminals, open/close/
  * park/ping frames, the transcript stream and input echo, the link provider
  * (buffer scan + Ctrl/Cmd activation + scheme guard), live font re-apply on
  * prefs changes, the reconnect ladder with its failure limit, the
  * deps-missing banner flow, and the retry affordances.
+ *
+ * The terminal carries client→host input over the fetch request body and
+ * host→client output over the response body, so the harness drives a fake
+ * `fetch` whose response body the test pushes to and whose request body the
+ * view writes into (captured as the fake's `sent` frames).
  */
-// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -16,13 +20,11 @@ import { api, type SessionScope } from '../src/client/api.ts'
 import { createBetterSidebarService } from '../src/client/service.ts'
 import { createSidebarStore } from '../src/client/state.ts'
 import { TerminalView, TerminalDepsBanner } from '../src/client/TerminalView.tsx'
-
+import { PTY_DEPS_MISSING } from '../src/pty-deps.ts'
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 // Hoisted module mocks: the real xterm needs a rendering-capable window.
-// The factories dereference the classes lazily (vi.mock is hoisted above
-// the declarations, but the factory only runs at import time).
 vi.mock('@xterm/xterm', () => ({ get Terminal() { return FakeTerminal } }))
 vi.mock('@xterm/addon-fit', () => ({ get FitAddon() { return FakeFitAddon } }))
 
@@ -70,34 +72,104 @@ class FakeFitAddon {
   fit = vi.fn()
 }
 
-class FakeWebSocket {
-  static OPEN = 1
-  static CONNECTING = 0
-  static instances: FakeWebSocket[] = []
+/** A fake `fetch` for one terminal duplex request: captures the view's input
+ *  frames (the request body), exposes host→client output via `push`/`end`,
+ *  and can be built as a non-200 refusal. */
+class FakeFetch {
+  static instances: FakeFetch[] = []
   url: string
-  readyState = 0
+  /** Client→host input frames the view wrote, in order. */
   sent: string[] = []
-  closed = 0
-  onopen: (() => void) | undefined
-  onclose: ((event: { code: number; reason: string }) => void) | undefined
-  onmessage: ((event: { data: unknown }) => void) | undefined
-  onerror: (() => void) | undefined
-  constructor(url: string) {
+  ended = false
+  disposed = false
+  private response: Response
+  private outputController: ReadableStreamDefaultController<Uint8Array> | undefined
+  readonly promise: Promise<Response>
+  constructor(url: string, init: RequestInit, failed: { status: number; body: string } | undefined) {
     this.url = url
-    FakeWebSocket.instances.push(this)
+    if (failed !== undefined) {
+      this.response = new Response(failed.body, { status: failed.status })
+      this.promise = Promise.resolve(this.response)
+    } else {
+      const output = new ReadableStream<Uint8Array>({
+        start: (c) => { this.outputController = c },
+        cancel: () => { this.disposed = true },
+      })
+      this.response = new Response(output, { status: 200 })
+      this.promise = Promise.resolve(this.response)
+    }
+    // Drain the request body (client→host input) into `sent`.
+    const body = init.body as ReadableStream<Uint8Array>
+    const decoder = new TextDecoder()
+    void (async () => {
+      try {
+        const reader = body.getReader()
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          this.sent.push(decoder.decode(value))
+        }
+      } catch {
+        // A client abort ends the upload normally here.
+      } finally {
+        this.ended = true
+      }
+    })()
+    FakeFetch.instances.push(this)
   }
-  send(data: string): void { this.sent.push(data) }
-  close(): void { this.closed += 1; this.readyState = 3 }
-  /** Test helper: complete the handshake. */
-  connect(): void {
-    this.readyState = 1
-    this.onopen?.()
+  /** Push one host→client output chunk. */
+  push(data: string): void {
+    this.outputController?.enqueue(new TextEncoder().encode(data))
+  }
+  /** End the host→client output (a host-side stream close). */
+  end(): void {
+    this.outputController?.close()
   }
 }
 
+/** Install the fake fetch; `failNext` makes the NEXT terminal request a
+ *  refusal and `rejectNext` makes it reject (a network failure). */
+function installFakeFetch(): {
+  instances: () => FakeFetch[]
+  failNext: (status: number, body: string) => void
+  rejectNext: () => void
+} {
+  let failNext: { status: number; body: string } | null = null
+  let rejectNext = false
+  const instances: FakeFetch[] = []
+  const impl = (url: string | URL, init: RequestInit): Promise<Response> => {
+    if (rejectNext) {
+      rejectNext = false
+      return Promise.reject(new Error('network down'))
+    }
+    const failed = failNext
+    failNext = null
+    const fake = new FakeFetch(String(url), init, failed ?? undefined)
+    instances.push(fake)
+    return fake.promise
+  }
+  vi.stubGlobal('fetch', impl)
+  return {
+    instances: () => instances,
+    failNext: (status, body) => { failNext = { status, body } },
+    rejectNext: () => { rejectNext = true },
+  }
+}
+
+/** Flush pending microtasks so the fake's async input drain and the view's
+ *  response reader both advance before an assertion. */
+async function flush(): Promise<void> {
+  await act(async () => { await Promise.resolve() })
+  await act(async () => { await Promise.resolve() })
+  await act(async () => { await Promise.resolve() })
+}
+
+const fakeFetch = { current: installFakeFetch() }
+
 beforeEach(() => {
   FakeTerminal.instances = []
-  FakeWebSocket.instances = []
+  FakeFetch.instances = []
+  fakeFetch.current = installFakeFetch()
 })
 
 afterEach(() => {
@@ -111,7 +183,7 @@ afterEach(() => {
 function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
   container: HTMLDivElement
   unmount: () => void
-  lastSocket: () => FakeWebSocket
+  lastFetch: () => FakeFetch
   lastTerm: () => FakeTerminal
   store: ReturnType<typeof createSidebarStore>
   service: ReturnType<typeof createBetterSidebarService>
@@ -127,9 +199,6 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
   const container = document.createElement('div')
   document.body.append(container)
   const root: Root = createRoot(container)
-  // A real host size + immediate rAF: the deferred open fires on mount.
-  // jsdom reports every box as 0x0, so the size probe is overridden too —
-  // otherwise openWhenSized would poll (or, with a synchronous rAF, recurse).
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 400 })
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 300 })
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 1 })
@@ -139,7 +208,6 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
     disconnect(): void {}
     unobserve(): void {}
   })
-  vi.stubGlobal('WebSocket', FakeWebSocket)
   act(() => { root.render(createElement(TerminalView, { scope, tabId, store })) })
   return {
     container,
@@ -147,7 +215,7 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
       act(() => { root.unmount() })
       container.remove()
     },
-    lastSocket: () => FakeWebSocket.instances.at(-1)!,
+    lastFetch: () => FakeFetch.instances.at(-1)!,
     lastTerm: () => FakeTerminal.instances.at(-1)!,
     store,
     service,
@@ -155,59 +223,57 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
 }
 
 describe('TerminalView connection lifecycle', () => {
-  it('builds the UI-tab URL, opens the terminal, and streams both directions', () => {
-    const { container, unmount, lastSocket, lastTerm } = mountTerminal('terminal:1')
-    const socket = lastSocket()
-    expect(socket.url).toBe('ws://localhost:3000/sidebar/ws/terminal?sessionId=s1&tab=terminal%3A1&cwd=%2Fws')
-    act(() => { socket.connect() })
+  it('builds the UI-tab URL, opens the terminal, and streams both directions', async () => {
+    const { container, unmount, lastFetch, lastTerm } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    expect(fake.url).toBe('http://localhost:3000/sidebar/ws/terminal?sessionId=s1&tab=terminal%3A1&cwd=%2Fws')
+    await flush()
     expect(container.textContent).not.toContain('disconnected')
-    // The deferred open ran (host reports a size): resize announced once.
-    expect(socket.sent).toContain(JSON.stringify({ type: 'resize', cols: 80, rows: 24 }))
+    // Resize announced once after a real host size.
+    expect(fake.sent).toContain(JSON.stringify({ type: 'resize', cols: 80, rows: 24 }))
     // Server output writes into the terminal; user input echoes back.
-    act(() => { socket.onmessage?.({ data: 'hello\n' }) })
+    fake.push('hello\n')
+    await flush()
     expect(lastTerm().written).toEqual(['hello\n'])
-    act(() => { lastTerm().emitData('ls\n') })
-    expect(socket.sent).toContain('ls\n')
-    // Non-string frames are ignored.
-    act(() => { socket.onmessage?.({ data: new ArrayBuffer(2) }) })
-    expect(lastTerm().written).toHaveLength(1)
+    lastTerm().emitData('ls\n')
+    await flush()
+    expect(fake.sent).toContain('ls\n')
     unmount()
     // Same-session unmount: bare drop, no control frame.
-    expect(socket.sent.filter(frame => frame.includes('close') || frame.includes('park'))).toEqual([])
+    expect(fake.sent.filter(frame => frame.includes('close') || frame.includes('park'))).toEqual([])
     expect(lastTerm().disposed).toBe(1)
   })
 
-  it('an agent terminal attaches by uuid and drops bare (no park, no close)', () => {
-    const { unmount, lastSocket } = mountTerminal('agent:abc-uuid-42', undefined)
-    expect(lastSocket().url).toBe('ws://localhost:3000/sidebar/ws/terminal?uuid=abc-uuid-42')
-    const socket = lastSocket()
-    act(() => { socket.connect() })
+  it('an agent terminal attaches by uuid and drops bare (no park, no close)', async () => {
+    const { unmount, lastFetch } = mountTerminal('agent:abc-uuid-42', undefined)
+    expect(lastFetch().url).toBe('http://localhost:3000/sidebar/ws/terminal?uuid=abc-uuid-42')
+    const fake = lastFetch()
+    await flush()
     unmount()
-    // Agent terminals never send park (their lifetime is agent-owned); a bare
-    // drop also never sends a close frame — the connect-time resize is the
-    // only legitimate frame.
-    expect(socket.sent.some(frame => frame.includes('"close"') || frame.includes('"park"'))).toBe(false)
+    // Agent terminals never send park or close (their lifetime is agent-owned).
+    expect(fake.sent.some(frame => frame.includes('"close"') || frame.includes('"park"'))).toBe(false)
   })
 
-  it('a tab closed before unmount sends the close frame', () => {
-    const { unmount, lastSocket, service } = mountTerminal('terminal:1')
-    const socket = lastSocket()
-    act(() => { socket.connect() })
-    // Close the tab so the unmount reads it as a closed terminal — a bare
-    // (still-open) unmount is the park/no-frame case exercised above.
+  it('a tab closed before unmount sends the close frame', async () => {
+    const { unmount, lastFetch, service } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    await flush()
+    // Close the tab so the unmount reads it as a closed terminal.
     act(() => { service.closeTab('terminal:1', { sessionId: 's1', cwd: '/ws' }) })
     unmount()
-    expect(socket.sent.some(frame => frame.includes('"close"'))).toBe(true)
+    await flush()
+    expect(fake.sent.some(frame => frame.includes('"close"'))).toBe(true)
   })
 
-  it('a session switch with the tab still open sends the park frame', () => {
-    const { unmount, lastSocket, store } = mountTerminal('terminal:1')
-    const socket = lastSocket()
-    socket.connect()
+  it('a session switch with the tab still open sends the park frame', async () => {
+    const { unmount, lastFetch, store } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    await flush()
     act(() => { store.setSession('s2') })
     unmount()
-    expect(socket.sent.some(frame => frame.includes('"park"'))).toBe(true)
-    expect(socket.sent.some(frame => frame.includes('"close"'))).toBe(false)
+    await flush()
+    expect(fake.sent.some(frame => frame.includes('"park"'))).toBe(true)
+    expect(fake.sent.some(frame => frame.includes('"close"'))).toBe(false)
   })
 })
 
@@ -217,7 +283,6 @@ describe('TerminalView link provider', () => {
     const term = lastTerm()
     expect(term.linkProvider).toBeDefined()
     const callback = vi.fn()
-    // Line 1 → buffer index 0 → the URL line.
     term.linkProvider!.provideLinks(1, callback)
     const links = callback.mock.calls[0]![0] as Array<{
       text: string
@@ -227,17 +292,14 @@ describe('TerminalView link provider', () => {
     expect(links).toHaveLength(1)
     expect(links[0]!.text).toBe('https://example.com')
     expect(links[0]!.range).toEqual({ start: { x: 5, y: 1 }, end: { x: 23, y: 1 } })
-    // A plain click is inert; Ctrl/Cmd opens; non-http(s) never reaches open.
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
     links[0]!.activate({ ctrlKey: false })
     expect(openSpy).not.toHaveBeenCalled()
     links[0]!.activate({ ctrlKey: true })
     expect(openSpy).toHaveBeenCalledWith('https://example.com/', '_blank', 'noopener,noreferrer')
-    // A line without URLs yields no links.
     term.buffer.active.getLine = () => ({ translateToString: () => 'plain text' })
     term.linkProvider!.provideLinks(1, callback)
     expect(callback.mock.calls[1]![0]).toBeUndefined()
-    // A line number past the buffer ends the scan.
     term.linkProvider!.provideLinks(9, callback)
     expect(callback.mock.calls[2]![0]).toBeUndefined()
     unmount()
@@ -245,66 +307,64 @@ describe('TerminalView link provider', () => {
 })
 
 describe('TerminalView close handling', () => {
-  it('an unreasoned drop retries, then surfaces the close code after three failures', () => {
+  it('an unreasoned drop retries, then surfaces the failure after three attempts', async () => {
     vi.useFakeTimers()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Every connect's fetch rejects (host down), so failures accumulate
+    // across the reconnect ladder instead of being reset by a 200 hand-up.
+    fakeFetch.current.rejectNext()
     const { container, unmount } = mountTerminal('terminal:1')
-    const drop = (code: number, reason = ''): void => {
-      const socket = FakeWebSocket.instances.at(-1)!
-      act(() => { socket.onclose?.({ code, reason }) })
-    }
-    drop(1006)
+    await flush()
     expect(container.textContent).toContain('disconnected')
+    act(() => { fakeFetch.current.rejectNext() })
     act(() => { vi.advanceTimersByTime(2000) })
-    drop(1006)
+    await flush()
+    act(() => { fakeFetch.current.rejectNext() })
     act(() => { vi.advanceTimersByTime(2000) })
-    drop(1006, 'ECONNREFUSED')
-    expect(container.textContent).toContain('(1006: ECONNREFUSED)')
+    await flush()
+    expect(container.textContent).toContain('(3)')
     expect(errorSpy).toHaveBeenCalled()
     unmount()
   })
 
-  it('a server refusal (1011 + reason) stops the ladder and offers retry', () => {
-    const { container, unmount, lastSocket } = mountTerminal('terminal:1')
-    const socket = lastSocket()
-    act(() => { socket.onclose?.({ code: 1011, reason: 'spawn refused' }) })
+  it('a server refusal (4xx + body) stops the ladder and offers retry', async () => {
+    fakeFetch.current.failNext(404, 'spawn refused')
+    const { container, unmount } = mountTerminal('terminal:1')
+    await flush()
     expect(container.textContent).toContain('spawn refused')
     // The retry button reconnects through the stored connector.
     const retry = [...container.querySelectorAll('button')].at(-1)!
     act(() => { retry.click() })
-    expect(FakeWebSocket.instances.length).toBe(2)
+    await flush()
+    expect(FakeFetch.instances.length).toBe(2)
     unmount()
   })
 
-  it('the deps-missing close fetches the repair details and renders the banner', async () => {
+  it('the deps-missing refusal fetches the repair details and renders the banner', async () => {
     const deps = vi.spyOn(api, 'terminalDeps').mockResolvedValue({
       ok: false, cause: 'binding gone', command: 'npm rebuild', profile: 'web', note: 'or brew',
     })
-    const { container, unmount, lastSocket } = mountTerminal('terminal:1')
-    const socket = lastSocket()
-    // `terminalDeps` resolves asynchronously; act-flush the microtask so the
-    // fetched banner state lands before the assertions.
-    await act(async () => { socket.onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
-    // The banner renders through TerminalDepsBanner (profile + note + copy).
+    fakeFetch.current.failNext(503, JSON.stringify({ error: { code: PTY_DEPS_MISSING } }))
+    const { container, unmount } = mountTerminal('terminal:1')
+    await flush()
     expect(container.textContent).toContain('npm rebuild')
     expect(container.textContent).toContain('or brew')
     expect(deps).toHaveBeenCalled()
     unmount()
   })
 
-  it('a recovered host between close and fetch falls back to the plain banner; a failed fetch too', async () => {
+  it('a recovered host between refusal and fetch falls back to the plain banner; a failed fetch too', async () => {
     vi.spyOn(api, 'terminalDeps').mockResolvedValue({ ok: true })
-    const { container, unmount, lastSocket } = mountTerminal('terminal:1')
-    act(() => { lastSocket().onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
-    await act(async () => {})
-    // A recovered host falls back to the plain (translated) deps-failed banner.
+    fakeFetch.current.failNext(503, JSON.stringify({ error: { code: PTY_DEPS_MISSING } }))
+    const { container, unmount } = mountTerminal('terminal:1')
+    await flush()
     expect(container.textContent).toContain('node-pty failed to load')
     unmount()
 
     vi.spyOn(api, 'terminalDeps').mockRejectedValue(new Error('route down'))
+    fakeFetch.current.failNext(503, JSON.stringify({ error: { code: PTY_DEPS_MISSING } }))
     const second = mountTerminal('terminal:1')
-    act(() => { second.lastSocket().onclose?.({ code: 1011, reason: 'pty-deps-missing' }) })
-    await act(async () => {})
+    await flush()
     expect(second.container.textContent).toContain('node-pty failed to load')
     second.unmount()
   })
@@ -337,10 +397,10 @@ describe('TerminalDepsBanner (direct)', () => {
 })
 
 describe('TerminalView live font re-apply', () => {
-  it('a prefs change re-resolves the font and announces the resize', () => {
-    const { unmount, lastSocket, lastTerm, store } = mountTerminal('terminal:1')
-    const socket = lastSocket()
-    socket.connect()
+  it('a prefs change re-resolves the font and announces the resize', async () => {
+    const { unmount, lastFetch, lastTerm, store } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    await flush()
     const before = lastTerm().options.fontSize
     act(() => {
       store.setPrefs({ ...store.getPrefs(), terminalFontSize: 40 })
@@ -348,7 +408,8 @@ describe('TerminalView live font re-apply', () => {
     expect(lastTerm().options.fontSize).not.toBe(before)
     expect(lastTerm().options.fontSize).toBe(32)
     // The resize is re-announced after the refit.
-    expect(socket.sent.filter(frame => frame.includes('resize')).length).toBeGreaterThanOrEqual(2)
+    await flush()
+    expect(fake.sent.filter(frame => frame.includes('resize')).length).toBeGreaterThanOrEqual(2)
     unmount()
   })
 })

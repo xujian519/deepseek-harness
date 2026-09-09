@@ -16,7 +16,7 @@ import { encodeHtmlUrl } from '../src/html-route.ts'
 import * as git from '../src/git.ts'
 import { listDirectory } from '../src/fs-tree.ts'
 import { defaultShell, PtyManager, type SidebarPty } from '../src/pty-manager.ts'
-import type { SidebarWebRoute, SidebarWebUpgradeRoute } from '../src/context-types.ts'
+import type { SidebarWebRoute, SidebarWebStreamingRoute, SidebarWebUpgradeRoute } from '../src/context-types.ts'
 
 /** The package root: the tests upstream ran with the package as the process
  * cwd; the repo-wide vitest runner starts at the repository root instead, so
@@ -77,6 +77,7 @@ interface FakeContext {
   webServer: {
     register: (route: SidebarWebRoute) => () => void
     registerUpgrade: (route: SidebarWebUpgradeRoute) => () => void
+    registerStream: (route: SidebarWebStreamingRoute) => () => void
   }
   sessions: { get: (id: string) => { header: { cwd?: string } } | undefined }
   tools: { register: (tool: unknown) => () => void }
@@ -122,13 +123,14 @@ describe('host plugin smoke', () => {
 
   it('mounts the fenced routes', () => {
     const routes: SidebarWebRoute[] = []
-    const upgrades: SidebarWebUpgradeRoute[] = []
+    const streams: SidebarWebStreamingRoute[] = []
     const effects: Array<() => unknown> = []
     const ctx: FakeContext = {
       webRuntime: { trustedHosts: [] },
       webServer: {
         register: (route) => { routes.push(route); return () => {} },
-        registerUpgrade: (route) => { upgrades.push(route); return () => {} },
+        registerUpgrade: () => () => {},
+        registerStream: (route) => { streams.push(route); return () => {} },
       },
       sessions: { get: () => undefined },
       tools: { register: () => () => {} },
@@ -152,7 +154,7 @@ describe('host plugin smoke', () => {
       '/sidebar/file',
       '/sidebar/html',
     ])
-    expect(upgrades.map(route => route.path)).toEqual(['/sidebar/ws/terminal', '/sidebar/ws/agent-terminals', '/sidebar/ws/agent-opens'])
+    expect(streams.map(route => route.path)).toEqual(['/sidebar/ws/terminal', '/sidebar/ws/agent-terminals', '/sidebar/ws/agent-opens'])
     // Teardown runs without throwing (pty manager has nothing open).
     for (const cleanup of effects) cleanup()
   })
@@ -169,6 +171,7 @@ describe('host plugin smoke', () => {
       webServer: {
         register: (route) => { routes.push(route); return () => {} },
         registerUpgrade: () => () => {},
+        registerStream: () => () => {},
       },
       sessions: { get: () => ({ header: { cwd: directory } }) },
       tools: { register: () => () => {} },
@@ -514,6 +517,7 @@ describe('session cwd resolution over the API route', () => {
       webServer: {
         register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
         registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },
+        registerStream: () => () => {},
       },
       sessions: overrides.sessions ?? { get: () => undefined },
       tools: { register: () => () => {} },
@@ -881,6 +885,7 @@ describe('side card settings routes', () => {
       webServer: {
         register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
         registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },
+        registerStream: () => () => {},
       },
       sessions: { get: () => undefined },
       tools: { register: () => () => {} },
@@ -1105,6 +1110,7 @@ describe('agent terminal tool gating', () => {
       webServer: {
         register: (route: SidebarWebRoute) => { void route; return () => {} },
         registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },
+        registerStream: () => () => {},
       },
       sessions: { get: () => undefined },
       tools: { register: () => { registered += 1; return () => { disposed += 1 } } },
@@ -1162,6 +1168,7 @@ describe('agent sidebar-open tool gating', () => {
       webServer: {
         register: (route: SidebarWebRoute) => { void route; return () => {} },
         registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },
+        registerStream: () => () => {},
       },
       sessions: { get: () => undefined },
       tools: { register: () => { registered += 1; return () => { disposed += 1 } } },

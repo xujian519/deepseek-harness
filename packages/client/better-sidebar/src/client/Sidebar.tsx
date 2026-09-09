@@ -79,11 +79,13 @@ const AUTO_OPEN_DEBOUNCE_MS = 500
 
 /**
  * One reconnecting sidebar push subscription (agent terminals / agent opens):
- * opens `/sidebar/ws/<path>?sessionId=...`, hands messages to `onMessage`,
- * and reconnects with a fixed 2 s backoff until FAILURE_LIMIT consecutive
- * failures stop the loop (the next session switch restarts it). Returns the
- * teardown: it marks the subscription closed so late retries never fire and
- * closes the live socket.
+ * opens `/sidebar/ws/<path>?sessionId=...` as a POST whose newline-delimited
+ * JSON response body is handed to `onMessage` line by line, and reconnects
+ * with a fixed 2 s backoff until FAILURE_LIMIT consecutive failures stop the
+ * loop (the next session switch restarts it). The desktop renderer cannot
+ * construct a WebSocket for dsh-app://, so the host serves the push over a
+ * streaming fetch instead. Returns the teardown: it marks the subscription
+ * closed so late retries never fire and aborts the live request.
  */
 function subscribeSessionPush(
   path: string,
@@ -91,33 +93,54 @@ function subscribeSessionPush(
   label: string,
   onMessage: (event: MessageEvent) => void,
 ): () => void {
-  let socket: WebSocket | null = null
   let retry: number | undefined
   let closed = false
   let failures = 0
-  const connect = (): void => {
+  const abort = new AbortController()
+  function scheduleRetry(): void {
+    if (closed) return
+    failures += 1
+    if (failures >= FAILURE_LIMIT) {
+      console.error(`[dsh-better-sidebar] ${label} connection failed; stopping reconnect loop`, sessionId)
+      return
+    }
+    retry = window.setTimeout(() => { void connect() }, 2000)
+  }
+  async function connect(): Promise<void> {
     if (closed) return
     const url = new URL(path, location.origin)
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     url.search = new URLSearchParams({ sessionId }).toString()
-    socket = new WebSocket(url.toString())
-    socket.onmessage = onMessage
-    socket.onclose = () => {
-      if (closed) return
-      failures += 1
-      if (failures >= FAILURE_LIMIT) {
-        console.error(`[dsh-better-sidebar] ${label} connection failed; stopping reconnect loop`, sessionId)
+    try {
+      const response = await fetch(url.toString(), { method: 'POST', signal: abort.signal })
+      if (!response.ok || response.body === null) {
+        scheduleRetry()
         return
       }
-      retry = window.setTimeout(connect, 2000)
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let newline = buffer.indexOf('\n')
+        while (newline !== -1) {
+          const line = buffer.slice(0, newline)
+          buffer = buffer.slice(newline + 1)
+          if (line !== '') onMessage(new MessageEvent('message', { data: line }))
+          newline = buffer.indexOf('\n')
+        }
+      }
+      scheduleRetry()
+    } catch {
+      scheduleRetry()
     }
-    socket.onerror = () => { socket?.close() }
   }
-  connect()
+  void connect()
   return () => {
     closed = true
     window.clearTimeout(retry)
-    socket?.close()
+    abort.abort()
   }
 }
 
