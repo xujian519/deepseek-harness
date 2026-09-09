@@ -37,8 +37,10 @@ import {
   encodeDesktopResponseStart,
   type DesktopHostRequestFrame,
 } from './wire.ts'
+import { PortlessWebServer } from './portless-webserver.ts'
 
 export { DESKTOP_HOST_PROTOCOL_VERSION } from './wire.ts'
+export { PortlessWebServer } from './portless-webserver.ts'
 
 /** One request forwarded from Electron's `dsh-app://` handler. */
 export interface DesktopHostFetchCommand {
@@ -95,6 +97,9 @@ const DESKTOP_PATCH = fileURLToPath(new URL('../config/desktop.cordis.patch.yml'
 const ROOT_CONFIG = '# Electron desktop composition root; package transactions own this file.\n[]\n'
 const ROOT_CONFIG_FILENAME = 'desktop.cordis.yml'
 const DESKTOP_STREAM_PATH = '/.dsh/remote-stream'
+// The renderer origin authority. The desktop window loads `dsh-app://app`, so
+// browser requests carry `Host: app`; the portless route fence accepts it.
+const DESKTOP_ORIGIN_HOST = 'app'
 
 const DESKTOP_TRANSPORT_SCRIPT = `globalThis.__DSH_TRANSPORT__={
   ownsHost:true,
@@ -149,7 +154,7 @@ function isProjectPath(projectDir: string, target: string): boolean {
   return path === root || path.startsWith(root + sep)
 }
 
-function desktopPatches(projectDir: string, allowLinkedPackages: boolean): PatchOptions[] {
+export function desktopPatches(projectDir: string, allowLinkedPackages: boolean): PatchOptions[] {
   const dshRoot = dirname(packageManifestPath(projectDir, '@deepseek-ai/dsh'))
   const profile = loadProfileDirectory('dsh desktop', projectDir, join(dshRoot, 'package.json'))
   for (const layer of profile.layers) {
@@ -286,6 +291,11 @@ export async function runDesktopHost(
   writeFileSync(rootConfig, ROOT_CONFIG)
   const environment = loadLayeredEnv('dsh desktop')
   let current: Context | undefined
+  // The portless HTTP surface substitutes the disabled webserver's socket:
+  // composition plugins (the sidebar) register their routes here at apply
+  // time. The desktop renderer loads dsh-app://app, so the fence's trusted
+  // authority is that origin hostname.
+  const portlessWeb = new PortlessWebServer()
   const ctx = await boot('dsh desktop', rootConfig, structuredClone(desktopPatches(
     absoluteProject,
     options.allowLinkedPackages === true,
@@ -293,6 +303,8 @@ export async function runDesktopHost(
     current = hostCtx
     hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
     provideCmdline(hostCtx, { args: [], exit: () => {} })
+    hostCtx.provide('webServer', portlessWeb)
+    hostCtx.provide('webRuntime', { trustedHosts: [DESKTOP_ORIGIN_HOST] })
   })
   current = ctx
   const connection = ctx.get('connection')
@@ -340,7 +352,7 @@ export async function runDesktopHost(
           ? await streams.fetch(request)
           : url.pathname.startsWith('/api/')
             ? await api.fetch(request)
-            : await assets.fetch(request)
+            : (await portlessWeb.dispatch(request)) ?? (await assets.fetch(request))
         await writeResponse(encodeDesktopResponseStart(command.streamId, {
           status: response.status,
           headers: [...response.headers.entries()],
