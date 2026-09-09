@@ -40,7 +40,7 @@ class FakePushFetch {
   url: string
   private outputController: ReadableStreamDefaultController<Uint8Array> | undefined
   private closed = false
-  private readonly promise: Promise<Response>
+  readonly promise: Promise<Response>
   constructor(url: string, _init: RequestInit) {
     this.url = url
     const output = new ReadableStream<Uint8Array>({
