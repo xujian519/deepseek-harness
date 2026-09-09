@@ -137,9 +137,11 @@ export class PortlessWebServer {
 
   /** Register a streaming route whose handler returns a Response with a
    *  `ReadableStream` body; returns the disposer removing it. A streaming
-   *  route and a writeHead/end route may not share a path. */
+   *  route and a writeHead/end route may not share a path. The `stream`
+   *  discriminator is forced true here so a consumer-side route object (which
+   *  omits the compiler-only field) still dispatches as a stream. */
   registerStream(route: DesktopStreamingRoute): () => void {
-    return this.insertRoute(route)
+    return this.insertRoute({ ...route, stream: true })
   }
 
   /** Register an exact-path upgrade route; returns the disposer removing it. */

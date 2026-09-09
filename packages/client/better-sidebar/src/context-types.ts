@@ -71,10 +71,21 @@ export interface SidebarWebUpgradeRoute {
   handler: (req: SidebarHttpRequest, socket: SidebarUpgradeSocket, head: SidebarUpgradeHead) => void | Promise<void>
 }
 
+/** One streaming webserver route: the handler returns a Fetch `Response`
+ *  whose body the host forwards chunk by chunk. This is the portless carrier
+ *  for the sidebar's push and terminal transports, which have no WebSocket
+ *  upgrade on the desktop's custom protocol. */
+export interface SidebarWebStreamingRoute {
+  kind: 'exact' | 'prefix'
+  path: string
+  handler: (req: SidebarHttpRequest) => Response | Promise<Response>
+}
+
 /** The webServer service face this plugin uses. */
 export interface SidebarWebServer {
   register(route: SidebarWebRoute): () => void
   registerUpgrade(route: SidebarWebUpgradeRoute): () => void
+  registerStream(route: SidebarWebStreamingRoute): () => void
 }
 
 /** A published session's header slice the sidebar reads (authoritative cwd). */
