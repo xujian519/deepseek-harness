@@ -161,7 +161,7 @@ describe('SIG-2 classifyFailure → patternId stability', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope' }] } as never,
+      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope', isError: true }] } as never,
       error: { name: 'ReadDenied', code: 'DENIED' },
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     const pattern = patternsOf(folded(session))[0]
@@ -307,16 +307,24 @@ describe('extractText and parseShellMarkers edge surfaces', () => {
 
 describe('classifier edge surfaces', () => {
   it('a tool/result without a message payload is not classified', () => {
-    const session = sessionFactory()
-    session.append('tool/result', { turn: 1, step: 1, error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
-    expect(patternsOf(folded(session))).toHaveLength(0)
+    // V3 append validation rejects a message-less tool/result, so feed the
+    // defensive classifier path through foldEvent directly.
+    const event = {
+      type: 'tool/result', seq: 0, time: 0, surfaceOp: 'append' as const,
+      data: { turn: 1, step: 1, error: { name: 'LoneError' } },
+    } as never
+    expect(patternsOf(foldEvent(failurePatternsProjectionDefinition.init(), event))).toHaveLength(0)
   })
 
   it('a tool/result with a null or non-object message is not classified', () => {
-    const session = sessionFactory()
-    session.append('tool/result', { turn: 1, step: 1, message: null, error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
-    session.append('tool/result', { turn: 1, step: 1, message: 'bare', error: { name: 'LoneError' } } as never, { surfaceOp: 'append' })
-    expect(patternsOf(folded(session))).toHaveLength(0)
+    const build = (message: unknown): never => ({
+      type: 'tool/result', seq: 0, time: 0, surfaceOp: 'append',
+      data: { turn: 1, step: 1, message, error: { name: 'LoneError' } },
+    } as never)
+    let state = failurePatternsProjectionDefinition.init()
+    state = foldEvent(state, build(null))
+    state = foldEvent(state, build('bare'))
+    expect(patternsOf(state)).toHaveLength(0)
   })
 
   it('an empty error name degrades to generic-error', () => {
@@ -325,7 +333,7 @@ describe('classifier edge surfaces', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope' }] } as never,
+      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope', isError: true }] } as never,
       error: { name: '', code: 'E_EMPTY' },
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     const pattern = patternsOf(folded(session))[0]
@@ -337,7 +345,7 @@ describe('classifier edge surfaces', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', content: [{ type: 'text', text: 'nope' }] } as never,
+      message: { role: 'tool', content: [{ type: 'text', text: 'nope', isError: true }] } as never,
       error: { name: 'ReadDenied', code: 'E_DENIED' },
     }, { surfaceOp: 'append' })
     const pattern = patternsOf(folded(session))[0]
