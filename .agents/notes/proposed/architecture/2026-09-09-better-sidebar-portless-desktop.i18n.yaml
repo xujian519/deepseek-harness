@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-09-09-better-sidebar-portless-desktop.md
+2026-09-09-better-sidebar-portless-desktop.md: dc20391a369c4b2ee530b059d01daf66f9bc5b96
+2026-09-09-better-sidebar-portless-desktop.zh.md: 1034319bf56b0a90ed63821a3c9e6c5b6586fc60
