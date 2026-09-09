@@ -13,8 +13,6 @@ Host half of the Synapse session map: the `/synapse` canvas page, its static ass
 
 The canvas is derived, reconstructable UI state: the DSH SessionStore stays the source of session truth. This package reads only committed session logs and never contributes to a model request.
 
-No runtime invariant companion is published; the canvas graph is derived, reconstructable UI state whose truth lives in the DSH SessionStore, which enforces its only owned relationships at mutation time, and the projection replays committed logs rather than publishing an independent raw-event stream.
-
 
 ## Table of Contents
 
@@ -62,4 +60,4 @@ None: it never changes request headers, system prompts, or tool registries, so a
 
 ### Dev Note
 
-None.
+No runtime invariant companion is published; the canvas graph is derived, reconstructable UI state whose truth lives in the DSH SessionStore, which enforces its only owned relationships at mutation time, and the projection replays committed logs rather than publishing an independent raw-event stream.

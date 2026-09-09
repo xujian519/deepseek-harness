@@ -17,6 +17,7 @@ const message = (turn: number, step: number, u: TokenUsage): SessionEvent<'assis
   type: 'assistant/message',
   seq: SessionSeq(seq++),
   time: time(),
+  surfaceOp: 'append',
   data: {
     turn,
     step,
@@ -38,7 +39,7 @@ const turnStart = (turn: number): SessionEvent<'turn/start'> => ({
 
 const headerLine = (id: string): string => JSON.stringify({
   type: 'session',
-  version: 2,
+  version: 3,
   id,
   createdAt: 1728000000000,
   cwd: '/tmp/proj',
@@ -119,7 +120,7 @@ describe('formatReport', () => {
   it('prints per-turn and total lines', () => {
     resetSeq()
     const baseline = analyzeUsage([turnStart(1), message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))])
-    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 2, delegationDepth: 0, isSeeded: false }, baseline)
+    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 3, delegationDepth: 0, isSeeded: false }, baseline)
     expect(report).toContain('Session s1')
     expect(report).toContain('Turn 1: hit 90.00%')
     expect(report).toContain('Total: hit 90.00%')

@@ -9,11 +9,9 @@ kind: "package-reference"
 
 ## 概述
 
-面向模型的 **macOS 原生工具**：打开/在 Finder 中显示路径、用浏览器打开网址、读写剪贴板文本、发系统通知、朗读文本、启动/激活/退出应用——全部通过系统 CLI 以参数数组方式调用，会话之外的宿主效果由一次性审批把关。
+面向模型的 **macOS 原生工具**：打开/在 Finder 中显示路径、用浏览器打开网址、读写剪贴板文本、发系统通知、朗读文本、启动/激活/退出应用——全部通过系统 CLI 以参数数组方式调用。
 
-每个工具都以绝对路径启动系统可执行文件（`/usr/bin/open`、`osascript`、`pbcopy`、`pbpaste`、`say`）并传参数数组，绝不使用 shell 字符串，因此模型文本只能以单个参数或 stdin 字节的形式到达系统。影响超出会话的动作——用默认应用打开路径、读取剪贴板、启动或退出应用——在执行前先经 `ctx.approval` 解一次性审批，无审批通道应答时一律拒绝；其余动作直接执行。desktop bundle 仅在 darwin 上挂载本包。
-
-No runtime invariant companion is published; the package owns no independently divergent observations — its effects are one-shot system commands whose outcomes the tool results already record, and approval behavior is owned by `@deepseek-ai/dsh-user-approval`.
+每个工具都以绝对路径启动系统可执行文件并传参数数组，绝不使用 shell 字符串，因此模型文本只能以单个参数或 stdin 字节的形式到达系统。影响超出会话的动作——打开路径、读取剪贴板、启动或退出应用——先经 `ctx.approval` 解一次性审批，无审批通道应答时一律拒绝；其余动作直接执行。desktop bundle 仅在 darwin 上挂载本包。
 
 ## 目录
 
@@ -93,4 +91,4 @@ No runtime invariant companion is published; the package owns no independently d
 
 ### 开发备注
 
-无。
+不发布运行时不变式伴生；本包不持有独立发散的观测——其效果是一次性系统命令，其结果已由工具结果记录，审批行为由 `@deepseek-ai/dsh-user-approval` 拥有。

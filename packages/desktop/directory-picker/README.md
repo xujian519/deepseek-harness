@@ -13,8 +13,6 @@ An **Electron-backed provider** for the `ctx.directoryPicker` seam. It exposes a
 
 The browser half of this package is intentionally absent: the desktop shell displays the Web UI through its own renderer, and the same backend code runs in both contexts. Only the desktop profile mounts this provider; browser and headless profiles keep their existing directory-picker implementations.
 
-No runtime invariant companion is published; the provider owns no state — it delegates every pick to ctx.desktop.showOpenDialog and converts the response to the directory picker's string | null contract at the call boundary.
-
 
 ## Table of Contents
 
@@ -36,4 +34,4 @@ None; this package neither assembles nor sends a provider request.
 
 ### Dev Note
 
-None.
+No runtime invariant companion is published; the provider owns no state — it delegates every pick to ctx.desktop.showOpenDialog and converts the response to the directory picker's string | null contract at the call boundary.

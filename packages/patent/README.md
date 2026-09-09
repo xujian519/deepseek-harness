@@ -7,6 +7,12 @@ kind: "package-group"
 
 English | [中文](README.zh.md)
 
+## Summary
+
+The patent group is the native port of the Sati patent domain into harness plugins per `docs/sati-as-dsh-plugins-plan.md`: no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages. The table below maps each package's half; child READMEs own each package contract, and all packages are scaffold-stage until their plan phase lands.
+
+## Packages
+
 Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh-plugins-plan.md](../../docs/sati-as-dsh-plugins-plan.md): no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages.
 
 | Package | Role | ctx key |

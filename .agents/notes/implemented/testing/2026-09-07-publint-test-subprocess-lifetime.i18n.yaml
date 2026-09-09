@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-07-publint-test-subprocess-lifetime.md
+2026-09-07-publint-test-subprocess-lifetime.md: 0daad803428027d2cf12d7ca6f5d686faf9c3c53
+2026-09-07-publint-test-subprocess-lifetime.zh.md: 753612484e75bae92ac5d2df343e386f0dfe8a66

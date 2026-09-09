@@ -7,6 +7,12 @@ kind: "package-group"
 
 [English](README.md) | 中文
 
+## 概述
+
+document 组保存文档智能体 preset 的域插件。`document-deliver/` 提供模型可见的 `document_deliver` 工具：它把交付文件、格式与质量门状态记录进会话日志，支撑交付工作室的文件列表与质量门徽标。各包契约由子 README 负责。
+
+## 包
+
 [文档智能体 preset](../preset/agent-presets/presets/document/preset.yml)的域插件：支撑交付工作室文件列表与质量门徽标的结构化交付登记。
 
 | 包 | 职责 | ctx key |

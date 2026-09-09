@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createUserMessage, ToolCallId, createMessage, createToolResultMessage, MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { createSystemMessage, createUserMessage, ToolCallId, createMessage, createToolResultMessage, MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import SessionStore, {
   adoptSessionEvent,
   SESSION_FORMAT_VERSION,
@@ -221,7 +221,7 @@ describe('Session', () => {
       data: { header: 'old-header' },
     } as unknown as SessionEvent
     expect(() => Session.create(SessionId('malformed-header'), [malformedHeader]))
-      .toThrow('seed request/header at index 0 lacks provider/model')
+      .toThrow('seed request/header at index 0 header must be an object')
 
     const unrelatedPrimitiveData = {
       type: 'plugin/event', seq: 0, time: 1, data: null,
@@ -394,6 +394,30 @@ describe('Session', () => {
         message: 'message must have tool source',
       },
       {
+        name: 'system role',
+        event: {
+          type: 'system/message', seq: 0, time: 1, surfaceOp: 'append',
+          data: {
+            turn: 1,
+            step: 1,
+            message: { ...user, id: 'system', source: { kind: 'plugin', plugin: 'prompt' } },
+          },
+        },
+        message: 'message must have role "system"',
+      },
+      {
+        name: 'system source',
+        event: {
+          type: 'system/message', seq: 0, time: 1, surfaceOp: 'append',
+          data: {
+            turn: 1,
+            step: 1,
+            message: { ...user, id: 'system', role: 'system', source: { kind: 'plugin', plugin: '' } },
+          },
+        },
+        message: 'message must have plugin source',
+      },
+      {
         name: 'tool tuple',
         event: {
           type: 'tool/result', seq: 0, time: 1, surfaceOp: 'append',
@@ -484,9 +508,27 @@ describe('Session', () => {
     expect(snapshot.data.content).not.toBe(source.data.content)
   })
 
+  it('adopts a system/message by freezing its message', () => {
+    const event = {
+      type: 'system/message',
+      seq: SessionSeq(0),
+      time: 1,
+      surfaceOp: 'append',
+      data: {
+        turn: 1,
+        step: 1,
+        message: createSystemMessage('You are terse.', '@deepseek-ai/dsh-system-prompt'),
+      },
+    } as unknown as SessionEvent
+    const adopted = adoptSessionEvent(event)
+    expect(adopted.type === 'system/message' && Object.isFrozen(adopted.data.message)).toBe(true)
+    expect(adopted.type === 'system/message' && Object.isFrozen(adopted.data.message.content[0])).toBe(true)
+  })
+
   it('validates message shape before adopting ownership', () => {
     const malformed = {
       type: 'user/message',
+      surfaceOp: 'append',
       seq: 0,
       time: 1,
       data: {
@@ -737,7 +779,7 @@ describe('Session', () => {
       data: createUserMessage({
         content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' },
       }),
-      surfaceOp: { op: 'replace', start: 1n, end: 2 },
+      surfaceOp: { op: 'replace', startSeq: 1n, endSeq: 2 },
     }] as unknown as SessionEvent[]
 
     expect(() => Session.create(SessionId('seed-bad-metadata'), seed))
@@ -747,8 +789,8 @@ describe('Session', () => {
   it('rejects exotic seed metadata before cloning can erase its prototype', () => {
     class ReplaceOp {
       readonly op = 'replace' as const
-      readonly start = 0
-      readonly end = 0
+      readonly startSeq = 0
+      readonly endSeq = 0
     }
     const seed = [{
       type: 'user/message',
@@ -792,7 +834,7 @@ describe('Session', () => {
 
   it('reads a nested seed-metadata getter once and stores its first JSON value', () => {
     let reads = 0
-    const surfaceOp = Object.defineProperty({ op: 'replace', end: 0 }, 'start', {
+    const surfaceOp = Object.defineProperty({ op: 'replace', endSeq: 0 }, 'startSeq', {
       enumerable: true,
       get: () => {
         reads += 1
@@ -823,7 +865,7 @@ describe('Session', () => {
     if (event.type !== 'user/message') throw new Error('test fixture must remain a user/message')
 
     expect(reads).toBe(1)
-    expect(event.surfaceOp).toEqual({ op: 'replace', start: 0, end: 0 })
+    expect(event.surfaceOp).toEqual({ op: 'replace', startSeq: 0, endSeq: 0 })
   })
 
   it.each([
@@ -850,7 +892,7 @@ describe('Session', () => {
       data: createUserMessage({
         content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' },
       }),
-      surfaceOp: { op: 'replace', start: 0, end: 0 },
+      surfaceOp: { op: 'replace', startSeq: 0, endSeq: 0 },
       sourceEventSeqs: [0],
     }] as unknown as SessionEvent[]
 
@@ -930,7 +972,7 @@ describe('Session', () => {
       createUserMessage({
         content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' },
       }),
-      { surfaceOp: { op: 'replace', start: 1n, end: 2 } } as never,
+      { surfaceOp: { op: 'replace', startSeq: 1n, endSeq: 2 } } as never,
     )).toThrow(/non-JSON-serializable surface metadata/)
     expect(session.snapshotEvents()).toEqual([])
   })
@@ -938,8 +980,8 @@ describe('Session', () => {
   it('rejects exotic surface metadata before cloning can erase its prototype', () => {
     class ReplaceOp {
       readonly op = 'replace' as const
-      readonly start = SessionSeq(0)
-      readonly end = SessionSeq(0)
+      readonly startSeq = SessionSeq(0)
+      readonly endSeq = SessionSeq(0)
     }
     const session = Session.create(SessionId('append-exotic-metadata'))
 
@@ -963,7 +1005,7 @@ describe('Session', () => {
       { surfaceOp: 'append' },
     )
     let reads = 0
-    const surfaceOp = Object.defineProperty({ op: 'replace', end: 0 }, 'start', {
+    const surfaceOp = Object.defineProperty({ op: 'replace', endSeq: 0 }, 'startSeq', {
       enumerable: true,
       get: () => {
         reads += 1
@@ -980,7 +1022,7 @@ describe('Session', () => {
     )
 
     expect(reads).toBe(1)
-    expect(event.surfaceOp).toEqual({ op: 'replace', start: 0, end: 0 })
+    expect(event.surfaceOp).toEqual({ op: 'replace', startSeq: 0, endSeq: 0 })
     expect(session.snapshotEvents()).toEqual([source, event])
   })
 
@@ -996,7 +1038,7 @@ describe('Session', () => {
     expect(() => appendRaw('user/message', data, { surfaceOp: 'invalid' }))
       .toThrow(/invalid surfaceOp/)
     expect(() => appendRaw('user/message', data, {
-      surfaceOp: { op: 'replace', start: -1, end: 0 },
+      surfaceOp: { op: 'replace', startSeq: -1, endSeq: 0 },
     })).toThrow(/invalid replace surfaceOp/)
     expect(() => appendRaw('user/message', data, {
       surfaceOp: 'append',
@@ -1621,7 +1663,7 @@ describe('SessionStore', () => {
       content: [{ type: 'text', text: 'replacement' }],
       source: { kind: 'plugin', plugin: 'test' },
     }), {
-      surfaceOp: { op: 'replace', start: SessionSeq(2), end: SessionSeq(2) },
+      surfaceOp: { op: 'replace', startSeq: SessionSeq(2), endSeq: SessionSeq(2) },
       sourceEventSeqs: [SessionSeq(2)],
     })).toThrow('reject surface candidate')
 

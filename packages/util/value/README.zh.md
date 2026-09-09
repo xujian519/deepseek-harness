@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置边界,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下渲染并规范化任意抛出值;`deepFreeze` 从 `dsh-util-values` 转发导出,后者是全 harness 共享深冻结实现的拥有者。这份库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致,而不是按插件各自分叉。
+`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置检查,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下规范化任意抛出值;`deepFreeze` 从共享深冻结的拥有者 `dsh-util-values` 转发导出。这份库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致。
 
 ## 目录
 

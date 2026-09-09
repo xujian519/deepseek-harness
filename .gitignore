@@ -68,3 +68,4 @@ dist/
 .zcode/
 skills-lock.json
 .agents/skills/archify/
+native/system/test/bin/

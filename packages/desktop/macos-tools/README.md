@@ -9,11 +9,9 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Model-facing **macOS native tools**: open/reveal paths, open browser URLs, read/write clipboard text, post notifications, speak text, and launch/activate/quit applications — all driven through system CLIs with argv-array spawns, with host effects beyond the session gated by one-time approval.
+Model-facing **macOS native tools**: open/reveal paths, open browser URLs, read/write clipboard text, post notifications, speak text, and launch/activate/quit applications — all driven through system CLIs with argv-array spawns.
 
-Every tool spawns an absolute system executable (`/usr/bin/open`, `osascript`, `pbcopy`, `pbpaste`, `say`) with an argument array and never a shell string, so model text reaches the system only as one argv element or stdin bytes. Actions with reach beyond the session — opening a path with its default application, reading the clipboard, launching or quitting an application — resolve one-time approval through `ctx.approval` before anything runs and fail closed when no approval channel answers; the remaining actions run directly. The desktop bundle mounts this package on darwin only.
-
-No runtime invariant companion is published; the package owns no independently divergent observations — its effects are one-shot system commands whose outcomes the tool results already record, and approval behavior is owned by `@deepseek-ai/dsh-user-approval`.
+Every tool spawns an absolute system executable with argument arrays, never a shell string, so model text reaches the system only as one argv element or stdin bytes. Actions with reach beyond the session — opening paths, reading the clipboard, launching or quitting an application — resolve one-time approval through `ctx.approval` and fail closed when no approval channel answers; the rest run directly. The desktop bundle mounts it on darwin only.
 
 ## Table of Contents
 
@@ -83,4 +81,4 @@ None; this package neither assembles nor sends a provider request.
 
 ### Dev Note
 
-None.
+No runtime invariant companion is published; the package owns no independently divergent observations — its effects are one-shot system commands whose outcomes the tool results already record, and approval behavior is owned by `@deepseek-ai/dsh-user-approval`.
