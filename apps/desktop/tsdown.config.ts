@@ -26,5 +26,9 @@ export default defineConfig([
     dts: false,
     clean: false,
     deps: { neverBundle: ['electron'] },
+    // Sandboxed preloads cannot require a shared chunk file: any require
+    // outside electron and Node builtins fails and the whole preload is
+    // skipped silently, so each entry must inline its shared modules.
+    splitting: false,
   },
 ])

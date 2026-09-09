@@ -384,7 +384,8 @@ async function main(): Promise<void> {
       },
     ]))
     tray.on('click', () => { focusPrimaryWindow() })
-  } catch {
+  } catch (error) {
+    console.error('dsh desktop: tray setup failed:', error)
     tray = undefined
   }
 

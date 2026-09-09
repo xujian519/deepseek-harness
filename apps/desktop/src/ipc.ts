@@ -3,18 +3,13 @@
 import type { DesktopPluginRecord } from './project-manager.ts'
 import type { DesktopLocale } from './locale.ts'
 import type { PrintToPdfResult } from './print.ts'
+import { PRINT_TO_PDF_CHANNEL } from './channels-app.ts'
+import { SHELL_CHANNELS } from './channels-shell.ts'
 
 /** IPC channel names kept private to the desktop application bundle. */
 export const DESKTOP_IPC = {
-  localeGet: 'dsh-desktop:locale-get',
-  pluginsList: 'dsh-desktop:plugins-list',
-  pluginsAdd: 'dsh-desktop:plugins-add',
-  pluginsRemove: 'dsh-desktop:plugins-remove',
-  pluginsUpdate: 'dsh-desktop:plugins-update',
-  updatesCheck: 'dsh-desktop:updates-check',
-  updatesInstall: 'dsh-desktop:updates-install',
-  updatesState: 'dsh-desktop:updates-state',
-  printToPdf: 'dsh-desktop:print-to-pdf',
+  ...SHELL_CHANNELS,
+  printToPdf: PRINT_TO_PDF_CHANNEL,
 } as const
 
 /** Desktop release update state rendered by desktop-owned UI. */

@@ -5,10 +5,10 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { DESKTOP_IPC } from './ipc.ts'
+import { PRINT_TO_PDF_CHANNEL } from './channels-app.ts'
 
 contextBridge.exposeInMainWorld('dshDesktop', { protocolVersion: 1 })
 contextBridge.exposeInMainWorld('desktop', {
   printHtmlToPdf: (payload: { html: string; suggestedName?: string }) =>
-    ipcRenderer.invoke(DESKTOP_IPC.printToPdf, payload),
+    ipcRenderer.invoke(PRINT_TO_PDF_CHANNEL, payload),
 })

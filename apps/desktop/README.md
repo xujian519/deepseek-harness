@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The desktop application is an Electron shell around the dsh Web UI. It opens no listening port: a bundled upstream Node.js child boots the installed dsh project, versioned framed byte pipes carry Fetch requests and streaming responses without an outer Base64 envelope, Node IPC carries lifecycle control, and `dsh-app://` serves the matching client assets.
+The desktop application is an Electron shell around the dsh Web UI. It opens no listening port: a bundled upstream Node.js child boots the installed dsh project, versioned framed byte pipes carry Fetch requests and streaming responses without an outer Base64 envelope, Node IPC carries lifecycle control, and `dsh-app://` serves the matching client assets. The shell owns a system tray — closing the last window hides the application into it — and exposes a print-to-PDF bridge to the Web UI as `window.desktop`.
 
 ## Key technical decisions
 

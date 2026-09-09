@@ -22,13 +22,13 @@ describe('desktop release environment branding', () => {
 
   it('rejects over-long names', () => {
     expect(() => resolveDesktopProductName({ [DESKTOP_PRODUCT_NAME_ENV]: 'x'.repeat(65) }))
-      .toThrowError(/at most 64 characters/)
+      .toThrow(/at most 64 characters/)
   })
 
   it('rejects control characters and path separators', () => {
     for (const name of ['DSH\nPatent', 'DSH/Patent', 'DSH\\Patent']) {
       expect(() => resolveDesktopProductName({ [DESKTOP_PRODUCT_NAME_ENV]: name }))
-        .toThrowError(/control characters or path separators/)
+        .toThrow(/control characters or path separators/)
     }
   })
 })
