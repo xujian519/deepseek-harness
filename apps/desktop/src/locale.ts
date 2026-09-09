@@ -34,6 +34,8 @@ export const en = {
   refreshing: 'Refreshing…',
   refreshed: 'Plugin list refreshed.',
   loadingPlugins: 'Reading Desktop plugins…',
+  trayShow: 'Show {name}',
+  trayQuit: 'Quit {name}',
 } as const
 
 /** Every Desktop locale supplies the complete English key set. */
@@ -73,6 +75,8 @@ export const zh = {
   refreshing: '正在刷新…',
   refreshed: '插件列表已刷新。',
   loadingPlugins: '正在读取桌面插件…',
+  trayShow: '显示 {name}',
+  trayQuit: '退出 {name}',
 } as const satisfies DesktopMessages
 
 /** Locale payload exposed to the Desktop-owned renderer. */

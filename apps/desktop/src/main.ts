@@ -9,7 +9,9 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   protocol,
+  Tray,
   type IpcMainInvokeEvent,
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
@@ -18,9 +20,13 @@ import { DesktopHostProcess } from './host-process.ts'
 import { DESKTOP_IPC, type DesktopUpdateState } from './ipc.ts'
 import { formatDesktopMessage, resolveDesktopLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
+import { printHtmlToPdf } from './print.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
+import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
 
 const SCHEME = 'dsh-app'
+/** Renderer-supplied HTML ceiling for print-to-PDF. */
+const MAX_PRINT_HTML_BYTES = 4 * 1024 * 1024
 let focusPrimaryWindow = (): void => {}
 
 function errorOf(reason: unknown, fallback: string): Error {
@@ -141,6 +147,8 @@ async function main(): Promise<void> {
   let host: DesktopHostProcess | undefined
   let mainWindow: BrowserWindow | undefined
   let pluginWindow: BrowserWindow | undefined
+  let tray: Tray | undefined
+  let isQuitting = false
   let shellInstallerOwnsQuit = false
   let updateState: DesktopUpdateState = { phase: 'idle' }
   const locale = resolveDesktopLocale(app.getLocale())
@@ -269,6 +277,20 @@ async function main(): Promise<void> {
     assertDesktopSender(event, ['shell'])
     await updates.install()
   })
+  ipcMain.handle(DESKTOP_IPC.printToPdf, async (event, payload: unknown) => {
+    assertDesktopSender(event, ['app'])
+    // Renderer input is untrusted: validate the closed channel's arguments
+    // before the hidden print window touches anything.
+    if (typeof payload !== 'object' || payload === null) return { error: 'invalid payload' }
+    const html = (payload as { html?: unknown }).html
+    const suggestedName = (payload as { suggestedName?: unknown }).suggestedName
+    if (typeof html !== 'string' || html.length === 0) return { error: 'invalid html' }
+    if (html.length > MAX_PRINT_HTML_BYTES) return { error: 'html too large' }
+    if (suggestedName !== undefined && typeof suggestedName !== 'string') {
+      return { error: 'invalid suggestedName' }
+    }
+    return printHtmlToPdf(mainWindow, html, typeof suggestedName === 'string' ? suggestedName : 'document')
+  })
 
   const checkAndPrompt = async (manual: boolean): Promise<void> => {
     const state = await updates.check()
@@ -340,10 +362,42 @@ async function main(): Promise<void> {
     ],
   }]))
 
+  // A tray-less environment (some Linux sessions) keeps every other behavior;
+  // Tray construction throwing is the one failure the shell tolerates here.
+  try {
+    const trayIcon = nativeImage.createFromPath(trayIconPath(app.getAppPath(), process.platform))
+    if (isTemplateTrayIcon(process.platform)) trayIcon.setTemplateImage(true)
+    tray = new Tray(trayIcon)
+    tray.setToolTip(app.getName())
+    tray.setContextMenu(Menu.buildFromTemplate([
+      {
+        label: formatDesktopMessage(messages.trayShow, { name: app.getName() }),
+        click: () => { focusPrimaryWindow() },
+      },
+      { type: 'separator' },
+      {
+        label: formatDesktopMessage(messages.trayQuit, { name: app.getName() }),
+        click: () => {
+          isQuitting = true
+          app.quit()
+        },
+      },
+    ]))
+    tray.on('click', () => { focusPrimaryWindow() })
+  } catch {
+    tray = undefined
+  }
+
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload)
     mainWindow = window
     window.once('ready-to-show', () => { if (!window.isDestroyed()) window.show() })
+    window.on('close', (event) => {
+      if (shouldHideOnClose(isQuitting, tray !== undefined)) {
+        event.preventDefault()
+        window.hide()
+      }
+    })
     window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
     return window
   }
@@ -372,6 +426,13 @@ async function main(): Promise<void> {
   })
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
+  })
+  app.on('before-quit', () => {
+    isQuitting = true
+  })
+  app.on('will-quit', () => {
+    tray?.destroy()
+    tray = undefined
   })
   app.on('before-quit', (event) => {
     if (shellInstallerOwnsQuit) return

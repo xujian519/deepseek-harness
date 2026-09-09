@@ -2,6 +2,7 @@
 
 import type { DesktopPluginRecord } from './project-manager.ts'
 import type { DesktopLocale } from './locale.ts'
+import type { PrintToPdfResult } from './print.ts'
 
 /** IPC channel names kept private to the desktop application bundle. */
 export const DESKTOP_IPC = {
@@ -13,6 +14,7 @@ export const DESKTOP_IPC = {
   updatesCheck: 'dsh-desktop:updates-check',
   updatesInstall: 'dsh-desktop:updates-install',
   updatesState: 'dsh-desktop:updates-state',
+  printToPdf: 'dsh-desktop:print-to-pdf',
 } as const
 
 /** Desktop release update state rendered by desktop-owned UI. */
@@ -37,4 +39,9 @@ export interface DshDesktopApi {
     install(): Promise<void>
     subscribe(listener: (state: DesktopUpdateState) => void): () => void
   }
+}
+
+/** Print bridge exposed to the Web UI renderer under `window.desktop`, matching the client's `DesktopPrintBridge` contract. */
+export interface DesktopPrintApi {
+  printHtmlToPdf(payload: { html: string; suggestedName?: string }): Promise<PrintToPdfResult>
 }
