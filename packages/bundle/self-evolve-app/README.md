@@ -9,11 +9,9 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The dsh self-evolve opt-in bundle. [`cordis.patch.yml`](cordis.patch.yml) stacks over [`dsh-base`](../base/README.md): it inserts the `self-evolve-basic` provider and the `tool-self-evolve` consumer rows. A profile that wants the capability seam mounts this bundle; without it the seam stays dormant and the host plane holds no tools.
+The dsh self-evolve opt-in bundle. [`cordis.patch.yml`](cordis.patch.yml) stacks over [`dsh-base`](../base/README.md), inserting the `self-evolve-basic` provider and the `tool-self-evolve` consumer rows. A profile wanting the capability seam mounts this bundle; without it the seam stays dormant and the host plane holds no tools.
 
-The base bundle deliberately does not carry these rows: `tool-self-evolve` registers its tools on the mount context, so a base-level row would leak them into the host plane and every agent (the minimal preset's two-tool contract and the "host plane holds no tools" invariant both depend on that). The standard and minimal presets therefore stay unchanged; opting in is an explicit composition step.
-
-No runtime invariant companion is published; the bundle patch and glue plugin hold no mutable state of their own, and every contribution lands in an owning registry.
+The base bundle deliberately omits these rows: `tool-self-evolve` registers its tools on the mount context, so a base-level row would leak them into the host plane and every agent (the minimal preset's two-tool contract and the "host plane holds no tools" invariant depend on that). Standard and minimal presets stay unchanged; opting in is an explicit composition step.
 
 
 ## Table of Contents
@@ -37,4 +35,4 @@ None, as the glue plugin holds the composition seat without assembling or sendin
 
 ### Dev Note
 
-None.
+No runtime invariant companion is published; the bundle patch and glue plugin hold no mutable state of their own, and every contribution lands in an owning registry.

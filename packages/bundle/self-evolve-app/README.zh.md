@@ -9,11 +9,9 @@ kind: "package-bundle"
 
 ## 概述
 
-dsh 自进化 opt-in bundle。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.zh.md) 之上：插入 `self-evolve-basic` provider 与 `tool-self-evolve` consumer 两行。需要该能力接缝的 profile 挂载此 bundle；不挂载则接缝休眠，宿主面不持有任何工具。
+dsh 自进化 opt-in bundle。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.zh.md) 之上，插入 `self-evolve-basic` provider 与 `tool-self-evolve` consumer 两行。需要该能力接缝的 profile 挂载此 bundle；不挂载则接缝休眠，宿主面不持有任何工具。
 
-base bundle 刻意不携带这两行：`tool-self-evolve` 在挂载上下文注册工具，base 级行会把它们泄漏到宿主面与每个 agent（minimal 预设的双工具契约与"宿主面无工具"不变量都依赖这一点）。因此 standard 与 minimal 预设保持不变；启用是一个显式的组合步骤。
-
-不发布运行时不变式伴生；bundle patch 与胶水插件不持有自身的可变状态，所有贡献都落入各自主管注册表。
+base bundle 刻意省略这两行：`tool-self-evolve` 在挂载上下文注册工具，base 级行会把它们泄漏到宿主面与每个 agent（minimal 预设的双工具契约与"宿主面无工具"不变量依赖这一点）。standard 与 minimal 预设保持不变；启用是一个显式的组合步骤。
 
 
 ## 目录
@@ -37,4 +35,4 @@ Indirectly, through the mounted consumer: this bundle inserts the `tool-self-evo
 
 ### 开发备注
 
-无。
+不发布运行时不变式伴生；bundle patch 与胶水插件不持有自身的可变状态，所有贡献都落入各主管注册表。

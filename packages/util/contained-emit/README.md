@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Cordis' `emit` walks listeners through `Array.map`: one synchronous throw starves every later listener, and a returned promise that later rejects surfaces as an unhandled rejection. Notifications that must not veto a committed state change need the opposite behavior — every listener runs, and every failure becomes one log line. `dsh-contained-emit` provides that loop once: `emitContained` dispatches an `emit`-mode event and contains each listener; `invokeContained` contains an already-resolved callback snapshot (for example from a registry that is not the event bus). Callers inject their own log label and error renderer, so the zero-dependency package stays format-neutral and works for any consumer vocabulary.
+Cordis' `emit` walks listeners through `Array.map`: one synchronous throw starves every later listener, and a returned promise that later rejects surfaces as an unhandled rejection. Notifications that must not veto a committed state change need the opposite behavior — every listener runs, and every failure becomes one log line. `dsh-contained-emit` provides that loop once: `emitContained` dispatches an `emit`-mode event and contains each listener; `invokeContained` contains an already-resolved callback snapshot (for example, from a registry other than the event bus). Callers inject their own log label and error renderer, so the zero-dependency package stays format-neutral for any consumer vocabulary.
 
 ## Table of Contents
 

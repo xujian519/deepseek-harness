@@ -11,7 +11,7 @@ kind: "package-reference"
 
 **`SelfEvolveEngine`**（`ctx.selfEvolve`）定义了自改进插件该做什么——观察基于验证器的失败模式，并对技能、提示片段、工作流或 harness 包提出窄范围编辑——而不规定怎么做。
 
-本包拥有 self-evolve capability 的 Service Definition 角色，拆分目的是让每个角色可以独立演进（或被替换）：
+本包拥有该 capability 的 Service Definition 角色，拆分目的是让每个角色可以独立演进（或被替换）：
 
 | 包 | 角色 |
 |---|---|
@@ -63,4 +63,4 @@ kind: "package-reference"
 
 ### 开发备注
 
-无。
+不发布运行时不变式伴生；引擎是抽象服务与词汇表的纯声明——事件、模式词汇与 projection-unit 契约即全部接口，没有可观测的运行时状态。

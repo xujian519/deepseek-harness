@@ -7,6 +7,12 @@ kind: "package-group"
 
 English | [中文](README.zh.md)
 
+## Summary
+
+The document group holds the domain plugins for the document agent preset. `document-deliver/` provides the model-facing `document_deliver` tool: it records delivered files, formats, and quality-gate state in the session log, backing the delivery studio's file list and quality-gate badges. Child READMEs own each package contract.
+
+## Packages
+
 Domain plugins for the [document agent preset](../preset/agent-presets/presets/document/preset.yml): the structured deliverable registration that backs the delivery studio's file list and quality-gate badges.
 
 | Package | Role | ctx key |

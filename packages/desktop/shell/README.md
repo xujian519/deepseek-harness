@@ -11,8 +11,6 @@ English | [中文](README.zh.md)
 
 The **Electron-main bridge provider** for the [`ctx.desktop`](../desktop/README.md) capability seam. `DesktopShell` is a Cordis Service Provider that reads `DSH_DESKTOP_BRIDGE_PATH` from its environment, connects to the Electron main process over a local socket through [`BridgeClient`](./src/bridge-client.ts), and registers `ctx.desktop`. If the bridge path is absent, the plugin loads but `ctx.desktop` is unavailable and every method rejects with `DesktopError('bridge-disconnected')`; this lets the same bundle start in tests without Electron.
 
-No runtime invariant companion is published; the provider deliberately loads without DSH_DESKTOP_BRIDGE_PATH so tests and headless boots can compose the same bundle, and a disconnected bridge is reported through typed DesktopError('bridge-disconnected') failures at the call boundary.
-
 
 ## Table of Contents
 
@@ -34,4 +32,4 @@ None; this package neither assembles nor sends a provider request.
 
 ### Dev Note
 
-None.
+No runtime invariant companion is published; the provider deliberately loads without DSH_DESKTOP_BRIDGE_PATH so tests and headless boots can compose the same bundle, and a disconnected bridge is reported through typed DesktopError('bridge-disconnected') failures at the call boundary.

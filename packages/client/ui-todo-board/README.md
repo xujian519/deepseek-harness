@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package renders the cross-session todo board in the Web GUI: a `Board` tab in the conversation view ring next to Chat and Trajectory. It folds each workspace session's latest whole todo list (the `todosLatest` session projection written by `todo/write` events) into three status columns — Pending, In Progress, Completed — so the work across all sessions of the current workspace is visible in one place. Each card carries a session badge; activating it opens the owning session in the conversation. An empty board renders a dashed ghost preview of the three columns so a first-time reader sees the shape real todos will land in.
+This package renders the cross-session todo board in the Web GUI: a `Board` tab in the conversation view ring next to Chat and Trajectory. It folds each workspace session's latest whole todo list (the `todosLatest` session projection written by `todo/write` events) into three status columns — Pending, In Progress, Completed — so the work across all sessions of the current workspace is visible in one place. Each card carries a session badge; activating it opens the owning session in the conversation. An empty board renders a dashed ghost preview of the three columns.
 
 ## Table of Contents
 

@@ -9,9 +9,9 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The **`SelfEvolveEngine`** (`ctx.selfEvolve`) defines WHAT self-improving plugins do — observe verifier-grounded failure patterns and propose narrow edits to skills, prompt sections, workflows, or harness packages — without saying HOW.
+The **`SelfEvolveEngine`** (`ctx.selfEvolve`) defines WHAT self-improving plugins do — observe verifier-grounded failure patterns and propose narrow edits to skills, prompts, workflows, or harness packages — without saying HOW.
 
-This package owns the Service Definition role of the self-evolve capability, split so each role can evolve (and be swapped) independently:
+This package owns the capability's Service Definition role, split so each role can evolve (and be swapped) independently:
 
 | Package | Role |
 |---|---|

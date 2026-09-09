@@ -7,6 +7,12 @@ kind: "package-group"
 
 English | [中文](README.zh.md)
 
+## Summary
+
+The memory group gives the harness long-lived memory backed by an external context database. Each integration owns a foreign data plane — retrieval, capture, commit, and the tool surface — and stays a consumer of the in-process lifecycle and prompt extension points; no `agent-loop` code changes here. All packages are opt-in unless a group README says otherwise.
+
+## Packages
+
 Plugins that give the harness long-lived memory backed by an external context database. Each integration owns a foreign data plane (retrieval, capture, commit, tool surface) and remains a consumer of the in-process lifecycle and prompt extension points; no `agent-loop` code changes here. All packages are opt-in unless a group README says otherwise.
 
 | Package | Role | ctx key |

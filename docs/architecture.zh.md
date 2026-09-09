@@ -16,7 +16,7 @@
 
 运行中的 `dsh` 是一棵插件树，由启动时按序叠加的各层组合而成。
 
-**profile** 是存放在 Harness home 中的具名组装。它列出自己叠放的组合包，存放自己安装的树外插件，并保存用户自己的 `cordis.patch.yml`。`web`、`headless`、`desktop`、`sdk`、`sdk-minimal` 和 `acp` 作为模板随发行版交付。
+**profile** 是存放在 Harness home 中的具名组装。它列出叠放的组合包、树外插件，以及用户自己的 `cordis.patch.yml`。`web`、`headless`、`desktop`、`sdk`、`sdk-minimal` 和 `acp` 作为模板随发行版交付。
 
 **组合包**是 Cordis 配置项及其挂载代码的分发格式，因此它插入的内容始终可被其上各层 patch。
 
@@ -153,7 +153,7 @@ seam 正是替换一个提供方就能改变整个产品的原因。文件系统
 | 拦截请求、工具或轮次 | 使用相应的 `agent/*` 或 `tools/*` 事件；`agent/turn-stopping` 会停止轮次 |
 | 添加模型可见上下文 | 调用 `agent.inject()`；它会落到下一次获准的请求中 |
 | 添加 UI 或编辑器集成 | 驱动 `ctx.agents` 并从 `session/event` 渲染 |
-| 添加 Web 界面会话地图/视图 | 挂载一个宿主行（`dsh-host-synapse`）加上一个 `dsh.client` 行（`dsh-client-synapse`）；画布作为静态资产托管 |
+| 添加 Web 界面会话地图/视图 | 挂载 `dsh-host-synapse` 宿主行与 `dsh-client-synapse` 客户端行；画布作为静态资产托管 |
 | 添加 Web Client Chat 节点 | 注册 `ConversationNodeDefinition` + keyed renderer |
 | 添加持久会话状态 | 扩展 `SessionEventMap`；从日志渲染和回放 |
 | 生成会话标题 | 注册唯一的 `ctx.sessionTitle` 提供方 |
