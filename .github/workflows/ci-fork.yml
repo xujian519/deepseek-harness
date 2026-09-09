@@ -42,6 +42,13 @@ jobs:
       - name: Duplication
         run: pnpm run duplication
 
+      - name: Build the native system addon
+        # Session V3 persistence flocks the JSONL log through the
+        # node-addon-system host addon; the durable-session lanes refuse to
+        # start without the built binary, and the fork's vitest invocation
+        # bypasses the root `test` script that upstream builds through.
+        run: pnpm run build:native-system
+
       - name: Unit tests
         # The free 2-core runner executes the native systemd containment path
         # (probe + scope launch + settle chains) far slower than upstream's
