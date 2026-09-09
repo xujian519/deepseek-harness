@@ -24,4 +24,4 @@ WebSocket 升级无法在自定义协议上服务：Electron 44.0.0 上的探针
 
 ## Consequences
 
-组合插件可以无端口挂载 HTTP 路由（node 风格 handler）并经桌面 `dsh-app://` 传输服务。每个非 `/api`、非 `/.dsh/remote-stream` 请求现在会在回落到打包资产之前多跑一次注册表查询；没有路由认领时，结果仍是原来的 404 或资产。五条 `/sidebar/*` 路由是预期的消费方，但侧边栏包尚未挂进官方组合，所以注册表当前为空；挂载它、向组合提供 `ctx.webServer`/`ctx.webRuntime`，以及把终端与 agent 推送 socket 改接到非 WebSocket 载体，是后续增量。路由 handler 拥有响应生命周期，所以被保持打开的输出流（SSE）仍须像在监听服务器上那样由 handler 自行提供。
+组合插件可以无端口挂载 HTTP 路由（node 风格 handler）并经桌面 `dsh-app://` 传输服务。每个非 `/api`、非 `/.dsh/remote-stream` 请求现在会在回落到打包资产之前多跑一次注册表查询；没有路由认领时，结果仍是原来的 404 或资产。官方组合已正式挂载第一方侧边栏：宿主沿用 `desktop.cordis.patch.yml` overlay（其中插入 `better-sidebar` 行），boot 回调提供 `ctx.webServer`（无端口面）与 `ctx.webRuntime`，并把渲染进程的 `app` 权威当作围栏的可信主机，因此侧边栏宿主半侧把五条 `/sidebar/*` 路由注册到该接缝上。`apps/desktop-host/tests/desktop-boot.spec.ts` 里的 boot 桩会通过真实 cordis 组合、在宿主提供的服务上激活侧边栏，并服务一条带围栏的路由。经 `registerUpgrade` 注册的三条推送 socket 被保留但不分发——它们在自定义协议上没有 WebSocket 载体，因此改接到非 WebSocket 通道是剩下的增量。路由 handler 拥有响应生命周期，所以被保持打开的输出流（SSE）仍须像在监听服务器上那样由 handler 自行提供。
