@@ -184,6 +184,10 @@ it('validateWorkflowManifest：各非法分支抛 WorkflowError', () => {
   throws({ ...base(), stages: [validStage('s1'), validStage('s1')] }, /重复的阶段/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: '  ' }] }, /缺少描述/)
   throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', atom: ' ' }] }, /atom/)
+  throws({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', guidance: ' ' }] }, /guidance/)
+  expect(() => {
+    validateWorkflowManifest({ ...base(), stages: [{ id: 's1', strategy: 'chain', description: 'd', guidance: '三步法边界条件' }] })
+  }).not.toThrow()
   expect(() => {
     validateWorkflowManifest({
       ...base(),

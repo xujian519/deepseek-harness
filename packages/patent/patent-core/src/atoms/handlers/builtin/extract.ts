@@ -35,6 +35,17 @@ const EXTRACT_SCHEMA = {
   required: ['features'],
 } as const
 
+/**
+ * 特征抽取的 MTU（最小技术单元）拆分与反幻觉标注规则（移植 Mady feature-extraction
+ * 模板，Apache-2.0）。仅注入特征类抽取的提示词；标注随特征文本落串，不改变
+ * features 的字符串数组 schema 及其下游消费方（merge/keywords/novelty）。
+ */
+const FEATURE_MTU_GUIDANCE = [
+  'MTU 拆分规则：每条特征必须是最小技术单元——单一技术手段、单一技术效果、可与现有技术独立比对；可再拆分的必须继续拆分。',
+  '逐条在句末标注：[必要性:必要|非必要]（以解决技术问题是否必需判断）与 [依赖:<所依赖特征文本|无>]。',
+  '原文无法确定的技术含义不得编造；不确定时在句末追加 [待确认] 并简述推测依据。',
+].join('\n')
+
 /** extract 执行器：结构化抽取（JSON Schema 约束）。 */
 export class ExtractHandler implements StageHandler {
   readonly name = 'extract'
@@ -58,8 +69,10 @@ export class ExtractHandler implements StageHandler {
     // 按任务分键（经 stage.params.output_key 注入）：三路提取互不覆盖。
     // 缺省时保持旧行为（全量写 features/problems/effects）。
     const outputKey = getStateString(state, 'output_key')
+    const isFeatureExtraction = outputKey === 'features' || extractionType.includes('特征')
     const prompt = [
       `你是 ${domain} 领域的技术分析助手。任务：${extractionType}。`,
+      ...(isFeatureExtraction ? [FEATURE_MTU_GUIDANCE] : []),
       '请从以下文本中提取结构化结果，严格输出 JSON：',
       '```',
       text.slice(0, 8000),

@@ -28,6 +28,11 @@ export type WorkflowStage = {
    */
   params?: Record<string, unknown>
   /**
+   * 可选：阶段法律指引（收口阶段由通用执行器拼入系统提示词；原子阶段由 handler 决定是否消费）。
+   * 承载该阶段的法条操作框架与输出要求（如三步法边界条件、驳回类型解析表），是纯数据、非运行时路由。
+   */
+  guidance?: string
+  /**
    * 可选：一致性重试循环（对齐 Mady disclosure 管线的 check_consistency 条件回退边）。
    * 本阶段输出匹配 whenOutputMatches（信号：需要重做）时，回退到 rewindTo 阶段
    * 重新执行（含中间阶段），最多 maxRetries 次。

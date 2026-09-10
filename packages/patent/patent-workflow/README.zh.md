@@ -22,7 +22,7 @@ kind: "package-reference"
 <a id="service"></a>
 ## 服务
 
-`PatentWorkflow` 服务暴露管线入口，并从本包根导出再导出纯管线 API（workflow、workflow-dag、workflow-store、flexible-plan、flexible-plan-store、plantask、worker-contract、approval、output-gate、quality-gate）。
+`PatentWorkflow` 服务暴露管线入口，并从本包根导出再导出纯管线 API（workflow、workflow-dag、workflow-store、flexible-plan、flexible-plan-store、plantask、worker-contract、checker-verdict、approval、output-gate、quality-gate）。`CheckerVerdict` 是 checker 层 worker 的结构化复核结论 schema（`pass`/`needs_revision`/`blocked` + 逐问题严重度）；`parseCheckerVerdict` 在该模型 JSON 边界做校验。
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
