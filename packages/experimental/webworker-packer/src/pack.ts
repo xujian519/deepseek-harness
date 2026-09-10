@@ -410,7 +410,7 @@ function sweepImage(
   // resolve nowhere by the drop rule itself, not by a pack defect.
   const executablePackageDirs = new Set([...droppedExecutables].map((key) => {
     const rest = key.slice('node_modules/'.length)
-    const packageName = rest.startsWith('@') === true
+    const packageName = rest.startsWith('@')
       ? rest.split('/').slice(0, 2).join('/')
       : rest.split('/')[0] ?? ''
     return `node_modules/${packageName}/`
