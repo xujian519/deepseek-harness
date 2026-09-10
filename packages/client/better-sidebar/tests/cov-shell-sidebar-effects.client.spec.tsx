@@ -708,3 +708,123 @@ describe('subagent and job auto-openers', () => {
     }
   })
 })
+
+describe('personal-workbench entry promotion', () => {
+  /** Mount a #root + strip so the effect's MutationObserver/rAF attaches,
+   *  mirroring the real app shell (the effect watches document#root). */
+  const mountStrip = ({ anchor, timer }: { anchor?: boolean; timer?: boolean }): { root: HTMLElement; strip: HTMLElement } => {
+    const root = document.createElement('div')
+    root.id = 'root'
+    document.body.append(root)
+    const strip = document.createElement('div')
+    root.append(strip)
+    if (timer) {
+      const timerButton = document.createElement('button')
+      timerButton.setAttribute('aria-label', '打开定时任务面板')
+      strip.append(timerButton)
+    }
+    if (anchor) {
+      const anchorButton = document.createElement('button')
+      anchorButton.className = 'hT2-rG_newSession'
+      strip.append(anchorButton)
+    }
+    return { root, strip }
+  }
+
+  const flush = (): Promise<void> =>
+    new Promise<void>(resolve => requestAnimationFrame(() => { resolve() }))
+
+  it('moves the plugin entry after 新建会话, hides the scheduled task, and matches its styling', async () => {
+    // The @dely0/dsh-personal-workbench plugin injects
+    // button[data-dsh-personal-workbench-entry] into the sidebar after mount; the
+    // shell moves it to the slot right after 新建会话, hides the scheduled-task
+    // entry that used to sit there, and copies the new-session button's class
+    // so it reads as a peer. The anchor is matched by its CSS-module class
+    // suffix (the expanded sidebar has TWO aria-label="新建会话" buttons — the
+    // brand shortcut and the real button, so the aria-label alone is ambiguous).
+    const { root, strip } = mountStrip({ anchor: true, timer: true })
+    const anchor = strip.children[1] as HTMLButtonElement
+    const timer = strip.children[0] as HTMLButtonElement
+    const h = mountShell()
+    try {
+      const entry = document.createElement('button')
+      entry.setAttribute('data-dsh-personal-workbench-entry', '')
+      entry.innerHTML = '<svg aria-hidden="true"></svg><span class="wb-label">工作台</span>'
+      // Prepend so the entry is NOT already anchor's next sibling, forcing the
+      // effect to actually move it (the after-anchor case would skip the move).
+      act(() => { strip.prepend(entry) })
+      await act(async () => { await flush() })
+      expect(timer.style.display).toBe('none')
+      expect(anchor.nextElementSibling).toBe(entry)
+      expect(entry.className).toBe(anchor.className)
+      expect(entry.querySelector('span')!.className).toBe('')
+      expect(entry.querySelector('svg')!.getAttribute('width')).toBe('14')
+      expect(entry.querySelector('svg')!.getAttribute('height')).toBe('14')
+      // Idempotent: another mutation cycle leaves the entry where it is.
+      act(() => { root.append(document.createElement('i')) })
+      await act(async () => { await flush() })
+      expect(anchor.nextElementSibling).toBe(entry)
+    } finally {
+      h.unmount()
+      root.remove()
+    }
+  })
+
+  it('hides the scheduled task but leaves the entry in place when no 新建会话 anchor exists', async () => {
+    const { root, strip } = mountStrip({ timer: true })
+    const timer = strip.children[0] as HTMLButtonElement
+    const h = mountShell()
+    try {
+      const entry = document.createElement('button')
+      entry.setAttribute('data-dsh-personal-workbench-entry', '')
+      entry.innerHTML = '<span class="wb-label">工作台</span><svg aria-hidden="true"></svg>'
+      act(() => { strip.append(entry) })
+      await act(async () => { await flush() })
+      expect(timer.style.display).toBe('none')
+      expect(entry.parentElement).toBe(strip)
+      expect(entry.className).toBe('')
+    } finally {
+      h.unmount()
+      root.remove()
+    }
+  })
+
+  it('copies the anchor class even when the scheduled task, entry label, and entry icon are absent', async () => {
+    // Covers the no-scheduled-task, no-span, and no-svg paths in one sweep: a
+    // bare data-attribute button still gets promoted and restyled to match.
+    const { root, strip } = mountStrip({ anchor: true })
+    const anchor = strip.children[0] as HTMLButtonElement
+    const h = mountShell()
+    try {
+      const entry = document.createElement('button')
+      entry.setAttribute('data-dsh-personal-workbench-entry', '')
+      act(() => { strip.append(entry) })
+      await act(async () => { await flush() })
+      expect(anchor.nextElementSibling).toBe(entry)
+      expect(entry.className).toBe(anchor.className)
+      expect(entry.querySelector('span')).toBeNull()
+      expect(entry.querySelector('svg')).toBeNull()
+    } finally {
+      h.unmount()
+      root.remove()
+    }
+  })
+
+  it('attaches no observer and promotes nothing when no #root shell is mounted', async () => {
+    // Without a #root node the effect has nothing to observe (root === null):
+    // the one-shot promoteEntry() at mount finds no entry yet, and a later-
+    // inserted entry is never promoted. Mounting the shell this way also
+    // exercises the null branch of the observer-attach guard.
+    const h = mountShell()
+    const entry = document.createElement('button')
+    try {
+      entry.setAttribute('data-dsh-personal-workbench-entry', '')
+      act(() => { document.body.append(entry) })
+      await act(async () => { await flush() })
+      expect(entry.parentElement).toBe(document.body)
+    } finally {
+      entry.remove()
+      h.unmount()
+    }
+  })
+})
