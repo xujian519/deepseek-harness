@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-31-alpha-historical-unknown-event-refusal.md
-2026-08-31-alpha-historical-unknown-event-refusal.md: cbf4bc436fa1b8badb341f379afe7b94e50a03cf
-2026-08-31-alpha-historical-unknown-event-refusal.zh.md: 356b0019f54ad583e8782a530585862ff51166e5
+2026-08-31-alpha-historical-unknown-event-refusal.md: ff6e7958f62ab7eef549caca53d4483a9c9f9467
+2026-08-31-alpha-historical-unknown-event-refusal.zh.md: c1d95b1456968fac1c7a14dec245a08f0421a3f9
