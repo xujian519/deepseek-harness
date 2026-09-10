@@ -59,10 +59,7 @@
       name: '@deepseek-ai/dsh-macos-tools'
       disabled: !!js process.platform !== 'darwin'
 
-# The first-party workspace sidebar: explorer / editor / terminal / git tabs
-# mounted beside the conversation. Its host half registers routes on the
-# portless webServer (the disabled webserver's replacement); its client half
-# is served through the client-modules roster and the /sidebar/bundle route.
-- insert:
-    - id: better-sidebar
-      name: '@deepseek-ai/dsh-better-sidebar'
+# The first-party workspace sidebar (`@deepseek-ai/dsh-better-sidebar`) is
+# deliberately absent: its bottom-panel and right-panel toggles are the only
+# entry to those panels, and this desktop product offers neither panel. The
+# rationale is in .agents/notes/implemented/architecture/2026-09-10-desktop-without-workspace-sidebar.md.

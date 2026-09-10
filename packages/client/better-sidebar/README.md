@@ -1,5 +1,5 @@
 ---
-description: "VSCode-like right sidebar for the dsh web GUI: explorer, editor, terminal, git, side chat, subagent, and browser tabs isolated per conversation session, mounted by default in the desktop composition and extendable by other client plugins through the ctx.betterSidebar tab and file-viewer registry."
+description: "VSCode-like right sidebar for the dsh web GUI: explorer, editor, terminal, git, side chat, subagent, and browser tabs isolated per conversation session, mounted only by a composition that inserts the row and extendable by other client plugins through the ctx.betterSidebar tab and file-viewer registry."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-better-sidebar` gives the dsh web GUI a VSCode-like right workspace — file explorer, CodeMirror editor, per-session terminals, git panel, side-chat child conversations, subagent previews, and an embedded browser — all scoped to the open conversation. File, git, and terminal operations run against the open session's working directory through fenced host routes; switching conversations switches the whole workspace. The host half mounts `/sidebar/*` routes with node-pty terminals and opt-in `terminal_*` tools; the browser half renders the panel and publishes a client service for tabs and file viewers. Desktop compositions mount it by default; a browser `dsh web` composition does not.
+`dsh-better-sidebar` gives the dsh web GUI a VSCode-like right workspace — file explorer, editor, per-session terminals, git panel, side-chat conversations, subagent previews, and an embedded browser — all scoped to the open conversation. File, git, and terminal operations run against the open session's working directory through fenced host routes; switching conversations switches the workspace. The host half mounts `/sidebar/*` routes with node-pty terminals and opt-in `terminal_*` tools; the browser half renders the panel and publishes a client service for tabs and file viewers. No shipped composition mounts it: the desktop omits the row, and `dsh web` never had it.
 
 
 ## Table of Contents
@@ -26,7 +26,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-The sidebar is a desktop default: the [desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) inserts the `better-sidebar` row, and the panel appears beside the conversation with no wiring. Compositions that want it elsewhere insert the same row themselves; a deployment that does not want it on desktop disables that row from its own profile patch.
+The sidebar mounts by one insert row: a composition that adds it gets the panel beside the conversation with no further wiring. No shipped composition adds it, so a deployment that wants the panel inserts the row itself; the desktop composition deliberately leaves the row out, because the panel's two toggles are its only entry and that product offers neither the bottom nor the right panel.
 
 ### When to choose it
 
@@ -34,17 +34,13 @@ Choose the sidebar when a workspace beside the conversation helps: reading and e
 
 ### Minimal configuration
 
-The desktop default needs no configuration. A browser or custom composition mounts the plugin with an insert row, and a profile can disable the desktop default, which applies after the desktop composition layer:
+Mounting needs no configuration: the insert row is the whole wiring.
 
 ```yaml
-# Mount in a composition without the desktop bundle:
+# Mount in a composition:
 - insert:
     - id: better-sidebar
       name: '@deepseek-ai/dsh-better-sidebar'
-
-# Opt out of the desktop default from a profile patch:
-- id: better-sidebar
-  disabled: true
 ```
 
 Host limits ride the row's `config` block:
@@ -112,7 +108,7 @@ A side conversation is a child session the plugin creates itself, seeded with th
 
 Read these when the package contract is not enough: the composition that mounts it, the roster that serves its client bundle, and the group this package belongs to.
 
-- [Desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) — the insert row that makes the sidebar a desktop default.
+- [Desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) — the composition that leaves the sidebar row out; add the row there to mount it on desktop.
 - [Client modules](../modules/README.md) — how the `dsh.client` bundle and its externals are composed and served.
 - [Client group map](../README.md) — the browser half this package belongs to.
 

@@ -1,5 +1,5 @@
 ---
-description: "dsh web GUI 的类 VSCode 右侧边栏：explorer、editor、terminal、git、side chat、subagent 与 browser 标签页按会话隔离，桌面组合默认挂载，其他客户端插件可通过 ctx.betterSidebar 标签页与文件查看器注册表扩展。"
+description: "dsh web GUI 的类 VSCode 右侧边栏：explorer、editor、terminal、git、side chat、subagent 与 browser 标签页按会话隔离，仅由主动插入该行的组合挂载，其他客户端插件可通过 ctx.betterSidebar 标签页与文件查看器注册表扩展。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-better-sidebar` 为 dsh web GUI 提供类 VSCode 的右侧工作区——文件 explorer、CodeMirror editor、按会话隔离的终端、git 面板、side chat 子会话、subagent 预览与内嵌浏览器——全部作用于当前打开的会话。文件、git 与终端操作都通过带围栏的宿主路由作用于当前会话的工作目录；切换会话即切换整个工作区。宿主半侧挂载 `/sidebar/*` 路由、node-pty 终端与默认关闭的 `terminal_*` 工具；浏览器半侧渲染面板并发布一个客户端服务，供注册侧边栏标签页与文件查看器。桌面组合默认挂载该插件；浏览器 `dsh web` 组合不挂载。
+`dsh-better-sidebar` 为 dsh web GUI 提供类 VSCode 的右侧工作区——文件 explorer、editor、按会话隔离的终端、git 面板、side chat 会话、subagent 预览与内嵌浏览器——全部作用于当前打开的会话。文件、git 与终端操作都通过带围栏的宿主路由作用于当前会话的工作目录；切换会话即切换工作区。宿主半侧挂载 `/sidebar/*` 路由、node-pty 终端与默认关闭的 `terminal_*` 工具；浏览器半侧渲染面板并发布一个客户端服务，供注册侧边栏标签页与文件查看器。没有任何随仓库发布的组合挂载它：桌面不插入该行，`dsh web` 也从未挂载。
 
 
 ## 目录
@@ -26,7 +26,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-侧边栏是桌面默认项：[桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) 插入 `better-sidebar` 行，面板随即出现在会话旁，无需任何接线。其他组合想启用时自行插入同一行；桌面部署不想要它时，在自己的 profile patch 中禁用该行。
+侧边栏靠一行 insert 挂载：加入该行的组合即会在会话旁得到面板，无需其他接线。没有任何随仓库发布的组合加入该行，因此想要该面板的部署需自行插入；桌面组合有意略去该行，因为面板的两个开关是进入面板的唯一入口，而该产品不提供底栏与右侧栏面板。
 
 ### 何时选择它
 
@@ -34,17 +34,13 @@ kind: "package-reference"
 
 ### 最小配置
 
-桌面默认无需任何配置。浏览器或自定义组合用 insert 行挂载插件；profile 可以禁用桌面默认行，禁用在桌面组合层之后生效：
+挂载无需任何配置：insert 行就是全部接线。
 
 ```yaml
-# Mount in a composition without the desktop bundle:
+# Mount in a composition:
 - insert:
     - id: better-sidebar
       name: '@deepseek-ai/dsh-better-sidebar'
-
-# Opt out of the desktop default from a profile patch:
-- id: better-sidebar
-  disabled: true
 ```
 
 宿主限制放在该行的 `config` 块中：
@@ -112,7 +108,7 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 
 当包约定不够用时阅读以下页面：挂载它的组合、提供其客户端 bundle 的 roster，以及本包所属的组。
 
-- [桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml)——让侧边栏成为桌面默认项的 insert 行。
+- [桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml)——略去侧边栏行的组合；在其中加入该行即可在桌面挂载。
 - [客户端模块](../modules/README.zh.md)——`dsh.client` bundle 及其 external 如何组合与提供。
 - [客户端组地图](../README.zh.md)——本包所属的浏览器半侧。
 

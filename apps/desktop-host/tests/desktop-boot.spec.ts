@@ -11,9 +11,12 @@ import { PortlessWebServer } from '../src/index.ts'
  * Boot harness for the portless desktop surface. A full desktop-composition
  * unit boot is impossible here — the profile's plugin set is hoisted only into
  * a pnpm-deployed project (packages/bundle/* live as separate workspaces) — so
- * this boots a real cordis composition that activates the first-party sidebar
- * against the host-provided portless webServer/webRuntime, then serves one of
- * its fenced routes through the seam.
+ * this boots a real cordis composition that activates one route-registering
+ * plugin against the host-provided portless webServer/webRuntime, then serves
+ * one of its fenced routes through the seam. That plugin is the first-party
+ * sidebar, kept as the fixture because its host half is a real fenced route
+ * owner; the desktop composition itself does not mount it (see
+ * .agents/notes/implemented/architecture/2026-09-10-desktop-without-workspace-sidebar.md).
  *
  * The sidebar is wired through a fixture module (the same pattern as the
  * headless/web startup boots) rather than its bare package name: Loader's
@@ -22,8 +25,8 @@ import { PortlessWebServer } from '../src/index.ts'
  * imported here, so the composition exercises the real host half without an
  * artifact plane.
  */
-describe('desktop composition boots the portless sidebar surface', () => {
-  it('activates better-sidebar and serves its routes over the portless seam', async () => {
+describe('desktop host serves a composition plugin through the portless seam', () => {
+  it('activates the sidebar fixture and serves its fenced route over the portless webServer', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-desktop-boot-'))
     const root = join(dir, 'desktop.cordis.yml')
     // The fixture re-exports the sidebar plugin via the imported source-plane

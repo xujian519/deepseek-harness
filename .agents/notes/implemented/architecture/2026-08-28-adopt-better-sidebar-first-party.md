@@ -16,9 +16,9 @@ The web GUI's VSCode-like workspace sidebar — explorer, editor, per-session te
 
 The plugin is adopted first-party as `@deepseek-ai/dsh-better-sidebar` at `packages/client/better-sidebar` on the source plane: all peers resolve from the workspace, ending the per-release npm peer-range churn, and the upstream MIT LICENSE file is preserved.
 
-The desktop composition mounts it by default: the `dsh-desktop-app` bundle patch (`packages/bundle/desktop-app/cordis.patch.yml`) inserts the `better-sidebar` row; a browser `dsh web` composition mounts nothing, and any deployment opts out with a `- id: better-sidebar, disabled: true` row in its own profile patch, which applies after the desktop-app layer.
+No shipped composition mounts it: the desktop overlay (`apps/desktop-host/config/desktop.cordis.patch.yml`) leaves the `better-sidebar` row out deliberately (see the [desktop-without-workspace-sidebar note](2026-09-10-desktop-without-workspace-sidebar.md)) and a browser `dsh web` composition mounts nothing, so a deployment that wants the panel inserts the row itself.
 
-The packaged desktop deploy tree carries the package in the same change: `@deepseek-ai/dsh-better-sidebar` is an `apps/cli` production dependency, and `REQUIRED_BACKEND_PATHS` in `scripts/desktop-package.ts` requires `node_modules/@deepseek-ai/dsh-better-sidebar/package.json`, so an incomplete deploy tree fails the packaging check instead of booting short.
+The packaged desktop deploy tree carries the package: `@deepseek-ai/dsh-better-sidebar` is an `apps/cli` production dependency, so the `@deepseek-ai/dsh` closure that every desktop package set includes installs it whether or not a composition mounts it.
 
 node-pty stays locked to the workspace-pinned `1.2.0-beta.15` — the exact range `@deepseek-ai/dsh-subprocess-local` declares — so pnpm resolves one physical native binding for both consumers, and the plugin's contract test compares its declaration against `dsh-subprocess-local`'s own `package.json`.
 
@@ -34,6 +34,6 @@ Data-plane identifiers keep the historical name on purpose: the settings namespa
 
 ## Consequences
 
-The durable consequence is the deployment one: desktop releases ship the sidebar offline, with no profile `pnpm install` and no dependence on upstream npm state. The sidebar became a desktop default that any profile can disable with one patch row, while browser `dsh web` compositions stay sidebar-free unless they insert the row themselves.
+The durable consequence is the deployment one: desktop releases ship the sidebar offline, with no profile `pnpm install` and no dependence on upstream npm state. Desktop installs it without mounting it, so a profile that wants the panel inserts the row, and browser `dsh web` compositions stay sidebar-free unless they do the same.
 
 The upstream-only channels are gone by construction: distribution happens only through composition rows, and the dropped surface — the plugin-registry channel (`dsh.plugin.json` + `client-registry.js` bundle), third-party locale dictionaries, and the AGPL office extension — can return only as deliberate first-party or external work, not as upstream drift.
