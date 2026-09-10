@@ -22,7 +22,7 @@ import {
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-api-gateway'
-import type { ConnectionFetchHandler } from '@deepseek-ai/dsh-client-connection'
+import { API_PATH, type ConnectionFetchHandler } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-client-modules'
 import { renderIndexInjections, type IndexInjection } from '@deepseek-ai/dsh-host-webserver'
 import {
@@ -37,7 +37,7 @@ import {
   encodeDesktopResponseStart,
   type DesktopHostRequestFrame,
 } from './wire.ts'
-import { PortlessWebServer } from './portless-webserver.ts'
+import { PortlessWebServer, type DesktopRouteKind } from './portless-webserver.ts'
 
 export { DESKTOP_HOST_PROTOCOL_VERSION } from './wire.ts'
 export { PortlessWebServer } from './portless-webserver.ts'
@@ -97,9 +97,34 @@ const DESKTOP_PATCH = fileURLToPath(new URL('../config/desktop.cordis.patch.yml'
 const ROOT_CONFIG = '# Electron desktop composition root; package transactions own this file.\n[]\n'
 const ROOT_CONFIG_FILENAME = 'desktop.cordis.yml'
 const DESKTOP_STREAM_PATH = '/.dsh/remote-stream'
-// The renderer origin authority. The desktop window loads `dsh-app://app`, so
-// browser requests carry `Host: app`; the portless route fence accepts it.
+// The renderer origin authority. The desktop window loads `dsh-app://app`; the
+// portless request face derives `Host: app` from that URL, and the route fence
+// (`webRuntime.trustedHosts`) accepts it.
 const DESKTOP_ORIGIN_HOST = 'app'
+
+/** Where one custom-protocol request is served from. */
+export type DesktopRequestOwner = 'stream' | 'gateway' | 'portless' | 'assets'
+
+/**
+ * Choose what serves one custom-protocol pathname.
+ *
+ * The portless route table is consulted before the `/api` gateway, keeping the
+ * listening server's exact-then-longest-prefix order so a composition plugin may
+ * own a path under `/api`. The gateway's own prefix registration is served by the
+ * host's direct handler instead: a custom-scheme request carries neither a socket
+ * nor a Host header, which is everything that registration's browser fence reads.
+ * @param pathname - request pathname.
+ * @param matched - route the portless table claims for the pathname, if any.
+ * @returns the owner that serves the pathname.
+ */
+export function desktopRequestOwner(
+  pathname: string,
+  matched: { readonly kind: DesktopRouteKind; readonly path: string } | undefined,
+): DesktopRequestOwner {
+  if (pathname === DESKTOP_STREAM_PATH) return 'stream'
+  if (matched !== undefined && !(matched.kind === 'prefix' && matched.path === API_PATH)) return 'portless'
+  return pathname === API_PATH || pathname.startsWith(`${API_PATH}/`) ? 'gateway' : 'assets'
+}
 
 const DESKTOP_TRANSPORT_SCRIPT = `globalThis.__DSH_TRANSPORT__={
   ownsHost:true,
@@ -314,9 +339,17 @@ export async function runDesktopHost(
     await ctx.fiber.dispose()
     throw new Error('dsh desktop: composition did not provide connection, typertGateway, and clientModules')
   }
-  const api = connection.createSharedFetchHandler('/api')
+  const api = connection.createSharedFetchHandler(API_PATH)
   const assets = assetHandler(ctx, absoluteProject)
   const streams = remoteStreamHandler(ctx)
+  const serve = async (owner: DesktopRequestOwner, request: Request): Promise<Response> => {
+    switch (owner) {
+      case 'stream': return streams.fetch(request)
+      case 'gateway': return api.fetch(request)
+      case 'portless': return (await portlessWeb.dispatch(request)) ?? await assets.fetch(request)
+      case 'assets': return assets.fetch(request)
+    }
+  }
   const requests = new Map<number, AbortController>()
   let disposing: Promise<void> | undefined
 
@@ -348,11 +381,8 @@ export async function runDesktopHost(
           signal: controller.signal,
         }
         const request = new Request(url, init)
-        const response = url.pathname === DESKTOP_STREAM_PATH
-          ? await streams.fetch(request)
-          : url.pathname.startsWith('/api/')
-            ? await api.fetch(request)
-            : (await portlessWeb.dispatch(request)) ?? (await assets.fetch(request))
+        const matched = url.pathname === DESKTOP_STREAM_PATH ? undefined : portlessWeb.match(url.pathname)
+        const response = await serve(desktopRequestOwner(url.pathname, matched), request)
         await writeResponse(encodeDesktopResponseStart(command.streamId, {
           status: response.status,
           headers: [...response.headers.entries()],

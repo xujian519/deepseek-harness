@@ -53,6 +53,30 @@ describe('PortlessWebServer', () => {
     expect(Buffer.from(await response!.arrayBuffer())).toEqual(Buffer.from([1, 2, 3]))
   })
 
+  it('derives the node face Host from the request URL, keeping an explicit one', async () => {
+    const web = new PortlessWebServer()
+    const seen: Array<string | undefined> = []
+    web.register({
+      kind: 'exact',
+      path: '/sidebar/host',
+      handler: (req, res) => { seen.push(req.headers.host); res.writeHead(204); res.end() },
+    })
+    // Chromium omits Host on the custom scheme, so the URL authority is the only
+    // source the route fences can bind.
+    await web.dispatch(new Request('dsh-app://app/sidebar/host'))
+    await web.dispatch(new Request('http://app/sidebar/host', { headers: { host: 'explicit' } }))
+    expect(seen).toEqual(['app', 'explicit'])
+  })
+
+  it('reports the owning route for the host dispatch', () => {
+    const web = new PortlessWebServer()
+    web.register(route('exact', '/sidebar/exact/path', 'exact'))
+    web.register(route('prefix', '/sidebar', 'short'))
+    expect(web.match('/sidebar/exact/path')).toMatchObject({ kind: 'exact', path: '/sidebar/exact/path' })
+    expect(web.match('/sidebar/other')).toMatchObject({ kind: 'prefix', path: '/sidebar' })
+    expect(web.match('/assets/app.js')).toBeUndefined()
+  })
+
   it('returns null when no route matches, leaving the asset handler to answer', async () => {
     const web = new PortlessWebServer()
     expect(await web.dispatch(new Request('http://x/index.html', { method: 'GET' }))).toBeNull()

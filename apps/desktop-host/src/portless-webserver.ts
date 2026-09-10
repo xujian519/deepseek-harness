@@ -68,6 +68,9 @@ export type DesktopAnyRoute = DesktopRoute | DesktopStreamingRoute
 function toDesktopRequest(request: Request): DesktopHttpRequest {
   const headers: Record<string, string> = {}
   for (const [name, value] of request.headers.entries()) headers[name] = value
+  // A custom-scheme request carries no Host header (Chromium omits it), but the
+  // node face route fences bind is the request authority: derive it from the URL.
+  if (!('host' in headers)) headers.host = new URL(request.url).host
   return {
     url: request.url,
     method: request.method,
@@ -153,8 +156,14 @@ export class PortlessWebServer {
     return () => { this.upgrades.delete(route.path) }
   }
 
-  /** Longest-prefix-wins over the prefix table after an exact-table miss. */
-  private match(pathname: string): DesktopAnyRoute | undefined {
+  /**
+   * The route owning one pathname: an exact-table hit wins, then the longest
+   * prefix. The host dispatch reads it to choose between the portless surface
+   * and the paths it serves itself (`/api`, the packaged assets).
+   * @param pathname - decoded request pathname.
+   * @returns the owning route, or undefined when no route matches.
+   */
+  match(pathname: string): DesktopAnyRoute | undefined {
     const exact = this.exact.get(pathname)
     if (exact !== undefined) return exact
     let best: DesktopAnyRoute | undefined
