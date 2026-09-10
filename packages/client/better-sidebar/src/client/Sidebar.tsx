@@ -806,60 +806,6 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     // above, this is the belt-and-braces retry for the open moment itself).
   }, [measureCenter, state?.bottomOpen])
 
-  // The @dely0/dsh-personal-workbench plugin injects its sidebar entry
-  // (button[data-dsh-personal-workbench-entry]) mid-strip, wedged between the
-  // top actions and the workspace list. Move it to the slot right after 「新建会话」
-  // and give it the new-session button's classes so it reads as a peer rather
-  // than an odd insertion; the scheduled-task entry that used to sit there is
-  // hidden in its place. The anchor is the new-session button — matched by its
-  // CSS-module class suffix (the expanded sidebar has TWO elements carrying
-  // aria-label="新建会话": the brand shortcut and the real button, so the
-  // aria-label alone is ambiguous). The entry is injected by the plugin but
-  // #root's subtree is swapped on boot/HMR, so a MutationObserver re-promote
-  // (not a one-shot query) keeps the position stable.
-  useEffect(() => {
-    let disposed = false
-    let frame: number | null = null
-    const promoteEntry = (): void => {
-      /* v8 ignore next -- cleanup cancels the rAF and disconnects the observer, so this guard is unreachable after dispose */
-      if (disposed) return
-      const entry = document.querySelector<HTMLButtonElement>('button[data-dsh-personal-workbench-entry]')
-      if (entry === null) return
-      const timer = document.querySelector<HTMLButtonElement>('button[aria-label="打开定时任务面板"]')
-      if (timer !== null) timer.style.display = 'none'
-      const anchor = document.querySelector<HTMLButtonElement>('button[class*="_newSession"]')
-      // querySelector only returns connected nodes, so a found anchor is always in the DOM.
-      if (anchor === null) return
-      if (entry !== anchor.nextElementSibling) anchor.insertAdjacentElement('afterend', entry)
-      entry.className = anchor.className
-      const label = entry.querySelector('span')
-      if (label !== null) label.className = ''
-      const svg = entry.querySelector('svg')
-      if (svg !== null) {
-        svg.setAttribute('width', '14')
-        svg.setAttribute('height', '14')
-        svg.style.setProperty('flex', '0 0 auto')
-      }
-    }
-    const schedule = (): void => {
-      /* v8 ignore next -- dedupes burst mutations into one rAF; the re-entrant visit is not observable in tests */
-      if (frame !== null) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        promoteEntry()
-      })
-    }
-    const watcher = new MutationObserver(schedule)
-    const root = document.getElementById('root')
-    if (root !== null) watcher.observe(root, { childList: true, subtree: true })
-    promoteEntry()
-    return () => {
-      disposed = true
-      if (frame !== null) cancelAnimationFrame(frame)
-      watcher.disconnect()
-    }
-  }, [])
-
   /**
    * Free windows — drag-out detection. The tab strips already drive HTML5
    * DnD (payload application/x-dsh-tab) with drops owned by the panes

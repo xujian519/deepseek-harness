@@ -72,4 +72,25 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
     expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
   })
+
+  it('gives the promoted workbench entry the New Session surface regardless of inject order', () => {
+    // The plugin's own [data-dsh-personal-workbench-entry] sheet lands after the
+    // bundle, so this class+attribute rule has to carry the surface; measured
+    // values match `.newSession` declaration for declaration.
+    const promoted = declarations('.newSession[data-dsh-personal-workbench-entry]')
+    const surface = declarations('.newSession')
+    for (const property of [
+      'justify-content', 'gap', 'height', 'padding', 'margin', 'box-sizing',
+      'border', 'border-radius', 'background', 'color', 'font-size', 'font-weight', 'line-height',
+    ]) {
+      expect(promoted?.get(property)).toBe(surface?.get(property))
+    }
+    expect(promoted?.get('width')).toBe('auto')
+    expect(declarations('.newSession[data-dsh-personal-workbench-entry]:hover')?.get('background'))
+      .toBe(declarations('.newSession:hover')?.get('background'))
+    // The rail overrides arrive later in the sheet, so they still win the tie.
+    expect(css.indexOf('.collapsed .newSession {')).toBeGreaterThan(
+      css.indexOf('.newSession[data-dsh-personal-workbench-entry] {'),
+    )
+  })
 })

@@ -35,6 +35,10 @@ The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as 
 
 Plugins add an icon component to the root-scoped `sidebar.panellist` list with an `id`, optional `order`, and a string or locale-aware `label`. The same id addresses the component registered in the layout's root-scoped `main` keyed slot; selecting a missing main entry throws without changing the current selection. The label supplies plain visible text, the accessible name, and the collapsed tooltip. Each row reads its own selected state through `usePanelInfo`; moving DOM focus to search or a directory picker does not change the displayed panel or its selected row. With no registrations, neither the list nor spacing for it is rendered. The shipped composition registers no example panel.
 
+### Injected plugin entries
+
+The shell promotes the external personal-workbench entry: it places `button[data-dsh-personal-workbench-entry]` in the slot right after New Session, gives it New Session's class, label class and icon size (14 in the wide column, 18 in the rail), and hides the scheduled-task trigger (`button.dshc-trigger`) whose slot it takes. The plugin injects its own entry stylesheet into the document after the bundle, so that surface comes from the class-and-attribute rule in `SidebarRoot.module.css`; the entry's own hover and active states keep the tie and still apply.
+
 ### Collapse behavior
 
 During a live collapse, the expanded content fades out at its current width, the upper controls share one fade and leftward translation into the 56px rail, and the layout's column slide ends the motion. A page that starts collapsed renders the rail statically, and reduced-motion mode disables both transitions. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation.
@@ -93,6 +97,7 @@ These limits define what the shell owns versus what its occupants own; they are 
 - **Session state-dot rendering is owned by ui-workspace** — no done/error notification sources are available to this shell.
 - **Workspace browser behavior is composition-owned** — grouping, ordering, search, and row state belong to ui-workspace, not this shell.
 - **"New task completed" unread marking is local viewing state** — completion-time > last-seen never reaches the host.
+- **The scheduled-task trigger is hidden by the promotion** — that trigger is the panel's only entry in this shell, so the panel cannot be opened from the sidebar while the promotion runs.
 
 <a id="dev-note"></a>
 ### Dev Note

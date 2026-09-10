@@ -163,6 +163,63 @@ export function SidebarRoot({
 
   const buildVersion = localBuildVersion()
 
+  // The @dely0/dsh-personal-workbench plugin injects its sidebar entry
+  // (`button[data-dsh-personal-workbench-entry]`) into this column after mount.
+  // Promote it into the top action group: the slot right after 「新会话」, with
+  // that button's class, icon size and label class so it reads as a peer, and
+  // with the scheduled-task trigger hidden in the place it takes. The anchor is
+  // this shell's own new-session button, selected by the module class (the
+  // expanded column carries TWO `session.new.label` buttons — the brand shortcut
+  // and the real one — so the label alone is ambiguous); the surface itself
+  // comes from the matching rule in SidebarRoot.module.css, because the plugin's
+  // own sheet is appended to <head> after the bundle and would otherwise win the
+  // tie. `wide` re-promotes so the rail gets the rail icon size.
+  useEffect(() => {
+    let disposed = false
+    let frame: number | null = null
+    const promoteEntry = (): void => {
+      /* v8 ignore next -- cleanup cancels the rAF and disconnects the observer, so this guard is unreachable after dispose */
+      if (disposed) return
+      const entry = document.querySelector<HTMLButtonElement>('button[data-dsh-personal-workbench-entry]')
+      if (entry === null) return
+      const timer = document.querySelector<HTMLButtonElement>('button.dshc-trigger')
+      if (timer !== null) timer.style.display = 'none'
+      const anchor = document.querySelector<HTMLButtonElement>(
+        `button.${css.newSession}:not([data-dsh-personal-workbench-entry])`,
+      )
+      // querySelector only returns connected nodes, so a found anchor is always in the DOM.
+      if (anchor === null) return
+      if (entry !== anchor.nextElementSibling) anchor.insertAdjacentElement('afterend', entry)
+      entry.className = anchor.className
+      const label = entry.querySelector('span')
+      if (label !== null) label.className = clsx(css.newSessionLabel, wide && css.wide)
+      const icon = entry.querySelector('svg')
+      if (icon !== null) {
+        // Inline: the plugin's own [data-…] svg rule outranks presentational sizes.
+        icon.style.width = `${String(wide ? 14 : 18)}px`
+        icon.style.height = `${String(wide ? 14 : 18)}px`
+        icon.style.flex = '0 0 auto'
+      }
+    }
+    const schedule = (): void => {
+      /* v8 ignore next -- dedupes burst mutations into one rAF; the re-entrant visit is not observable in tests */
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        promoteEntry()
+      })
+    }
+    const watcher = new MutationObserver(schedule)
+    const root = document.getElementById('root')
+    if (root !== null) watcher.observe(root, { childList: true, subtree: true })
+    promoteEntry()
+    return () => {
+      disposed = true
+      if (frame !== null) cancelAnimationFrame(frame)
+      watcher.disconnect()
+    }
+  }, [wide])
+
   return (
     <div
       ref={column}

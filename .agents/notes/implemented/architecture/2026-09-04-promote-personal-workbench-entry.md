@@ -6,20 +6,24 @@ English | [中文](2026-09-04-promote-personal-workbench-entry.zh.md)
 
 ## Problem
 
-The external `@dely0/dsh-personal-workbench` plugin injects its sidebar entry (`button[data-dsh-personal-workbench-entry]`) mid-strip, wedged between the top actions and the workspace list. With the plugin mounted alongside the scheduled-task and new-session entries, the workbench entry reads as an odd insertion rather than a peer action, and the sidebar's scheduled-task entry occupies the slot where a workbench action fits.
+The external `@dely0/dsh-personal-workbench` plugin injects its sidebar entry (`button[data-dsh-personal-workbench-entry]`) mid-strip, wedged between the top actions and the workspace list. With the plugin mounted alongside the scheduled-task and new-session entries, the workbench entry reads as an odd insertion rather than a peer action, and the sidebar's scheduled-task entry occupies the slot where a workbench action fits. The plugin also styles that entry as a plain nav row in its own injected stylesheet.
 
 ## Decision
 
-The better-sidebar client shell (`packages/client/better-sidebar/src/client/Sidebar.tsx`) promotes the entry on every mount: it hides the scheduled-task button, moves the workbench entry to the slot immediately after 「新建会话」, and copies the new-session button's classes and icon sizing (14×14) so it reads as a peer. A `MutationObserver` on `#root` re-applies the placement because the plugin injects the entry after mount and the shell's subtree is swapped on boot/HMR.
+The mounted sidebar shell (`packages/client/ui-sidebar/src/client/SidebarRoot.tsx`) promotes the entry: it hides the scheduled-task trigger, moves the workbench entry to the slot immediately after 「新会话」, and gives it that button's class, label class and icon size (14 wide, 18 in the rail) so it reads as a peer. A `MutationObserver` on `#root` re-applies the placement because the plugin injects the entry after mount and the shell's subtree is swapped on boot/HMR.
 
-The anchor is the new-session button, matched by its CSS-module class suffix (`[class*="_newSession"]`). The expanded sidebar carries two elements with `aria-label="新建会话"` (the brand shortcut and the real button), so matching the aria-label alone is ambiguous; the class suffix disambiguates without hard-coding a build-time hash. `document.querySelector` only returns connected nodes, so a found anchor is always in the DOM.
+The promotion lives in the shell that renders the strip, which is the one every composition mounts. The plugin's own stylesheet lands in `<head>` after the bundle, so the entry's surface comes from the shell rule keyed on the new-session class AND the entry attribute (`SidebarRoot.module.css`): equal-specificity rules there would lose the tie, while the entry's own `:hover` and `[data-active]` rules keep it and still win by order.
+
+The anchor is the shell's own new-session button, matched by the module class the shell renders (the expanded column carries two `session.new.label` buttons — the brand shortcut and the real one — so the label alone is ambiguous). The scheduled-task trigger is matched by its own class (`button.dshc-trigger`), not by its `aria-label`, which the owning plugin localizes.
 
 ## Alternatives considered
 
 - **Anchor on `aria-label="新建会话"`** — ambiguous: the brand shortcut carries the same label and appears first in document order, so the effect would move the entry above the logo instead of after the new-session button.
-- **Hard-code the current CSS-module hash (`hT2-rG_newSession`)** — the hash changes per build, so the selector would break on the next rebuild.
-- **Apply the placement in the personal-workbench plugin itself** — the plugin owns the entry source, but the entry's injected position and its coexistence with the scheduled-task entry are a sidebar-layout concern the shell already owns.
+- **Hard-code the current CSS-module hash (`hT2-rG_newSession`)** — the hash changes per build, so the selector would break on the next rebuild; importing the module's own class name keeps the anchor resolved at build time.
+- **Apply the placement in the personal-workbench plugin itself** — the plugin owns the entry source, but the entry's injected position and its coexistence with the scheduled-task trigger are a sidebar-layout concern the shell already owns.
+- **Keep the promotion in the better-sidebar client** — that shell is no longer mounted by any shipped composition (see the [desktop-without-workspace-sidebar note](2026-09-10-desktop-without-workspace-sidebar.md)), so the effect never ran and the desktop showed the plugin's raw entry.
+- **Set the surface inline from the effect** — inline styles would also block the plugin's `:hover` and `[data-active]` feedback, which the class-and-attribute rule leaves intact.
 
 ## Consequences
 
-The better-sidebar client now composes the workbench entry consistently regardless of which plugins inject actions into the strip. The scheduled-task entry is hidden rather than reordered (its former slot is reused). Because the effect runs in the better-sidebar client bundle, both the browser `dsh web` composition and the desktop composition (which mounts the first-party `@deepseek-ai/dsh-better-sidebar`) pick it up; the desktop needs that first-party package rebuilt so its client bundle carries the change.
+The workbench entry renders as a peer of New Session wherever the sidebar shell is mounted, desktop included. The scheduled-task trigger is hidden rather than reordered (its former slot is reused), so the scheduled-task panel loses that entry for the session it is hidden in. The promotion is a shell concern now: a composition that mounts no sidebar shell (and therefore no strip) has nothing to promote.

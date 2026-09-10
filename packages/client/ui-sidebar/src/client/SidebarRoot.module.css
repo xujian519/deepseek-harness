@@ -272,6 +272,36 @@
   background: var(--dsw-alias-button-floating-hover);
 }
 
+/* The promoted workbench entry (SidebarRoot.tsx) carries this class so it reads
+   as a peer of New Session, but the plugin injects its own
+   [data-dsh-personal-workbench-entry] rule into <head> after this sheet, which
+   wins the tie and would flatten the surface back to a nav row. Keying on the
+   class AND the attribute outranks that rule while leaving the entry's own
+   :hover and [data-active] rules, which tie with this one, still winning by
+   order. Placed before `.collapsed .newSession` so the rail keeps its shape. */
+.newSession[data-dsh-personal-workbench-entry] {
+  flex: none;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 8px 16px;
+  margin: 0 2px 8px;
+  width: auto;
+  box-sizing: border-box;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 12px;
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  overflow: hidden;
+}
+
+.newSession[data-dsh-personal-workbench-entry]:hover {
+  background: var(--dsw-alias-button-floating-hover);
+}
+
 .collapsed .newSession {
   align-self: flex-start;
   width: 36px;
