@@ -31,7 +31,8 @@ export function resolveDesktopPaths(dshHome: string = resolveDshHome()): Desktop
   const pnpm = join(root, 'pnpm')
   return {
     root,
-    profile: join(dshHome, 'profiles', 'desktop'),
+    // Apart from 'profiles/desktop', which existing dsh CLI desktop profiles occupy.
+    profile: join(dshHome, 'profiles', 'desktop-runtime'),
     staging: join(root, 'staging'),
     rollback: join(root, 'rollback', 'profile'),
     pending: join(root, 'pending.json'),

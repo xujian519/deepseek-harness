@@ -24,6 +24,7 @@ import { printHtmlToPdf } from './print.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
 import { BridgeServer, removeStaleBridgeSockets, resolveBridgePath } from './bridge-server.ts'
+import { withStartupDeadline } from './startup-deadline.ts'
 
 const SCHEME = 'dsh-app'
 /** Renderer-supplied HTML ceiling for print-to-PDF. */
@@ -161,7 +162,7 @@ async function main(): Promise<void> {
   removeStaleBridgeSockets()
   const bridgePath = resolveBridgePath()
   const bridge = new BridgeServer(() => mainWindow, app.getName())
-  await bridge.start(bridgePath)
+  await withStartupDeadline('opening the desktop bridge', bridge.start(bridgePath))
 
   const publishUpdate = (state: DesktopUpdateState): DesktopUpdateState => {
     updateState = state
@@ -218,13 +219,13 @@ async function main(): Promise<void> {
   }
 
   if (development === undefined) {
-    await manager.applyRelease(resources.seed, app.getVersion(), {
+    await withStartupDeadline('installing the packaged profile', manager.applyRelease(resources.seed, app.getVersion(), {
       ...hooks,
       beforeActivate: async () => {},
       afterActivate: async () => {},
-    })
+    }))
   }
-  host = await startHost()
+  host = await withStartupDeadline('starting the desktop backend', startHost())
 
   const updates = new DesktopUpdateCoordinator(
     publishUpdate,

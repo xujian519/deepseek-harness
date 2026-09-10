@@ -48,6 +48,8 @@ const DESKTOP_PROJECT_FILES = [
 export interface DesktopPluginRecord {
   readonly name: string
   readonly version: string
+  /** Dependency spec recorded in the profile manifest: a registry range, or a file:/git locator. */
+  readonly spec: string
 }
 
 /** Installed desktop project manifest slice. */
@@ -285,7 +287,8 @@ function profilePluginNames(projectDir: string): readonly string[] {
 }
 
 function pluginRecords(projectDir: string): readonly DesktopPluginRecord[] {
-  return profilePluginNames(projectDir).map(name => inspectPlugin(projectDir, name))
+  const dependencies = projectManifest(projectDir).dependencies
+  return profilePluginNames(projectDir).map(name => inspectPlugin(projectDir, name, dependencies))
 }
 
 function writeProfilePlugins(projectDir: string, plugins: readonly DesktopPluginRecord[]): void {
@@ -302,7 +305,11 @@ function writeProfilePlugins(projectDir: string, plugins: readonly DesktopPlugin
   } satisfies DesktopProjectManifest)
 }
 
-function inspectPlugin(projectDir: string, requestedName: string): DesktopPluginRecord {
+function inspectPlugin(
+  projectDir: string,
+  requestedName: string,
+  dependencies: Readonly<Record<string, string>>,
+): DesktopPluginRecord {
   const manifestPath = join(projectDir, 'node_modules', ...requestedName.split('/'), 'package.json')
   if (!existsSync(manifestPath)) {
     throw new Error(`desktop project: installed package ${JSON.stringify(requestedName)} has no manifest`)
@@ -310,6 +317,10 @@ function inspectPlugin(projectDir: string, requestedName: string): DesktopPlugin
   const manifest = readJson(manifestPath)
   if (!isRecord(manifest) || manifest.name !== requestedName || typeof manifest.version !== 'string') {
     throw new Error(`desktop project: installed package ${JSON.stringify(requestedName)} has inconsistent name or version`)
+  }
+  const spec = dependencies[requestedName]
+  if (spec === undefined) {
+    throw new Error(`desktop project: installed package ${JSON.stringify(requestedName)} has no recorded dependency spec`)
   }
   const dsh = manifest.dsh
   const bundle = isRecord(dsh) ? dsh.bundle : undefined
@@ -322,7 +333,12 @@ function inspectPlugin(projectDir: string, requestedName: string): DesktopPlugin
   if ((patchPath !== packageDir && !patchPath.startsWith(packageDir + sep)) || !existsSync(patchPath)) {
     throw new Error(`desktop project: ${requestedName}@${manifest.version} declares an invalid bundle patch`)
   }
-  return { name: requestedName, version: manifest.version }
+  return { name: requestedName, version: manifest.version, spec }
+}
+
+/** Registry specs resolve from the packaged store; every other locator must be resolved again. */
+function isRegistrySpec(spec: string): boolean {
+  return !/^(?:file:|link:|git\+|github:|gitlab:|bitbucket:|https?:|ssh:)/u.test(spec)
 }
 
 /** Transactional desktop npm project manager. */
@@ -414,12 +430,7 @@ export class DesktopProjectManager {
           copyMetadata(seedDir, stagingProfile)
           await this.runPnpm(stagingProfile, ['install', '--offline', '--frozen-lockfile', '--trust-lockfile'])
           if (plugins.length > 0) {
-            await this.runPnpm(stagingProfile, [
-              'add',
-              ...plugins.map(plugin => `${plugin.name}@${plugin.version}`),
-              '--save-exact',
-              '--offline',
-            ])
+            await this.restorePlugins(stagingProfile, plugins)
             writeProfilePlugins(stagingProfile, plugins)
           }
         } else {
@@ -467,7 +478,7 @@ export class DesktopProjectManager {
         const requestedName = packageNameFromSpec(mutation.spec)
         if (requestedName === undefined) throw new Error('desktop project: plugin package name is required')
         await this.runPnpm(projectDir, ['add', mutation.spec, '--save-exact'])
-        const installed = inspectPlugin(projectDir, requestedName)
+        const installed = inspectPlugin(projectDir, requestedName, projectManifest(projectDir).dependencies)
         const current = pluginRecords(projectDir).filter(plugin => plugin.name !== installed.name)
         writeProfilePlugins(
           projectDir,
@@ -493,7 +504,7 @@ export class DesktopProjectManager {
         }
         await this.runPnpm(projectDir, ['add', `${mutation.name}@${mutation.version}`, '--save-exact'])
         {
-          const installed = inspectPlugin(projectDir, mutation.name)
+          const installed = inspectPlugin(projectDir, mutation.name, projectManifest(projectDir).dependencies)
           writeProfilePlugins(
             projectDir,
             pluginRecords(projectDir).map(plugin => plugin.name === installed.name ? installed : plugin),
@@ -503,6 +514,62 @@ export class DesktopProjectManager {
       default:
         mutation satisfies never
     }
+  }
+
+  /**
+   * Reinstall the active profile's plugins into staging, preserving how each one resolved.
+   * Registry packages come from the installed offline store; `file:` and git locators are
+   * resolved again from their recorded source, which needs the host network for git.
+   * @param stagingProfile - staged project that receives the plugins.
+   * @param plugins - records read from the active profile.
+   */
+  private async restorePlugins(
+    stagingProfile: string,
+    plugins: readonly DesktopPluginRecord[],
+  ): Promise<void> {
+    const registry = plugins.filter(plugin => isRegistrySpec(plugin.spec))
+    const located = plugins.filter(plugin => !isRegistrySpec(plugin.spec))
+    if (registry.length > 0) {
+      await this.runPnpm(stagingProfile, [
+        'add',
+        ...registry.map(plugin => `${plugin.name}@${plugin.version}`),
+        '--save-exact',
+        '--offline',
+      ])
+    }
+    if (located.length > 0) {
+      await this.runPnpm(stagingProfile, [
+        'add',
+        ...located.map(plugin => `${plugin.name}@${this.locatedSpec(plugin.spec)}`),
+        '--save-exact',
+      ])
+    }
+  }
+
+  /**
+   * Rewrite the workspace file to the exact profile contract after one pnpm call.
+   *
+   * pnpm may annotate the file while it runs (release-age exemptions, for
+   * example) and the profile contract is an exact comparison, so a transaction
+   * that left such an annotation behind would fail its own next manifest read
+   * and the following startup.
+   * @param projectDir - project whose workspace file is restored.
+   */
+  private normalizeWorkspaceFile(projectDir: string): void {
+    const packageSet = readDesktopCorePackageSet(projectDir, releaseFile(projectDir).version)
+    writeFileSync(
+      join(projectDir, 'pnpm-workspace.yaml'),
+      workspaceFile(desktopCorePackageOverrides(packageSet)),
+      { mode: 0o600 },
+    )
+  }
+
+  /** Resolve a recorded `file:` locator against the active profile that staging replaces. */
+  private locatedSpec(spec: string): string {
+    if (!spec.startsWith('file:')) return spec
+    const target = spec.slice('file:'.length)
+    if (isAbsolute(target)) return spec
+    return `file:${resolve(this.paths.profile, target)}`
   }
 
   private mergeSeedPnpmState(seedDir: string): void {
@@ -567,6 +634,10 @@ export class DesktopProjectManager {
         `--config.store-dir=${this.paths.pnpm.store}`,
         '--config.enable-global-virtual-store=false',
         `--config.userconfig=${npmrc}`,
+        // pnpm 11 records its supply-chain release-age exemptions in the project's own
+        // pnpm-workspace.yaml, which every profile contract compares exactly; a
+        // transaction that installs the requested version must not rewrite that file.
+        '--config.minimumReleaseAge=0',
         command,
         ...commandArgs,
       ], {
@@ -622,6 +693,12 @@ export class DesktopProjectManager {
       child.once('close', (code, signal) => {
         complete(() => {
           if (code === 0) {
+            try {
+              this.normalizeWorkspaceFile(projectDir)
+            } catch (error) {
+              reject(errorOf(error, 'desktop project: failed to restore the pnpm workspace contract'))
+              return
+            }
             settle()
             return
           }

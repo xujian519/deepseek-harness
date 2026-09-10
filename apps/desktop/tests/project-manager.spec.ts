@@ -101,8 +101,13 @@ const packageVersion = spec => {
 }
 
 if (command === 'add') {
-  const spec = args[args.indexOf('add') + 1]
-  manifest.dependencies[packageName(spec)] = packageVersion(spec)
+  for (const spec of args.slice(args.indexOf('add') + 1)) {
+    if (spec.startsWith('-')) break
+    manifest.dependencies[packageName(spec)] = packageVersion(spec)
+  }
+  // pnpm 11 annotates the workspace file with its release-age exemptions.
+  const workspacePath = join(project, 'pnpm-workspace.yaml')
+  writeFileSync(workspacePath, readFileSync(workspacePath, 'utf8') + "minimumReleaseAgeExclude:\n  - 'simulated@1.0.0'\n")
 }
 if (command === 'remove') delete manifest.dependencies[args[args.indexOf('remove') + 1]]
 writeFileSync(manifestPath, JSON.stringify(manifest))
@@ -126,7 +131,12 @@ for (const [name, version] of Object.entries(manifest.dependencies)) {
   }
 }
 writeFileSync(join(project, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
-if (process.env.TEST_PNPM_LOG) writeFileSync(process.env.TEST_PNPM_LOG, JSON.stringify({ args, env: process.env }))
+if (process.env.TEST_PNPM_LOG) {
+  let recorded = []
+  try { recorded = JSON.parse(readFileSync(process.env.TEST_PNPM_LOG, 'utf8')) } catch { recorded = [] }
+  recorded.push({ args, env: process.env })
+  writeFileSync(process.env.TEST_PNPM_LOG, JSON.stringify(recorded))
+}
 `)
   return path
 }
@@ -161,6 +171,26 @@ function release(version = '1.0.0'): DesktopRelease {
     nodeVersion: '24.17.0',
     pnpmVersion: '11.7.0',
   }
+}
+
+/** Board one installed plugin in a profile: manifest dependency, bundle entry, and package files. */
+function installFakePlugin(profile: string, name: string, spec: string): void {
+  const manifestPath = join(profile, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    dependencies: Record<string, string>
+    dsh: { profile: { bundles: string[] } }
+  }
+  manifest.dependencies[name] = spec
+  manifest.dsh.profile.bundles.push(name)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, undefined, 2)}\n`)
+  const packageRoot = join(profile, 'node_modules', ...name.split('/'))
+  mkdirSync(packageRoot, { recursive: true })
+  writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({
+    name,
+    version: '1.0.0',
+    dsh: { bundle: { patch: './bundle.yml' } },
+  }))
+  writeFileSync(join(packageRoot, 'bundle.yml'), '[]\n')
 }
 
 afterEach(async () => {
@@ -225,7 +255,7 @@ describe('desktop project transactions', () => {
     }
     expect(manager.dshVersion()).toBe('1.0.0')
     expect(manager.releaseVersion()).toBe('1.0.0')
-    expect(paths.profile).toBe(join(root, '.dsh', 'profiles', 'desktop'))
+    expect(paths.profile).toBe(join(root, '.dsh', 'profiles', 'desktop-runtime'))
     expect(existsSync(join(paths.profile, 'node_modules', '@deepseek-ai', 'dsh'))).toBe(true)
     const installedHost = JSON.parse(readFileSync(
       join(paths.profile, 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'package.json'),
@@ -234,7 +264,9 @@ describe('desktop project transactions', () => {
     expect(installedHost.version).toBe('1.0.0')
     expect(existsSync(join(paths.profile, 'desktop-plugins.json'))).toBe(false)
     expect(readFileSync(join(paths.pnpm.store, 'seed-entry'), 'utf8')).toBe('content')
-    const invocation = JSON.parse(readFileSync(log, 'utf8')) as { args: string[]; env: Record<string, string> }
+    const invocations = JSON.parse(readFileSync(log, 'utf8')) as Array<{ args: string[]; env: Record<string, string> }>
+    const invocation = invocations[invocations.length - 1]
+    if (invocation === undefined) throw new Error('the packaged pnpm was never invoked')
     expect(invocation.args).toContain('--offline')
     expect(invocation.args).toContain('--trust-lockfile')
     expect(invocation.args).toContain(`--config.store-dir=${paths.pnpm.store}`)
@@ -294,7 +326,7 @@ describe('desktop project transactions', () => {
 
     manager.recover()
 
-    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0' }])
+    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0', spec: '2.0.0' }])
     expect(existsSync(stagingProfile)).toBe(false)
     expect(existsSync(paths.pending)).toBe(false)
   })
@@ -361,11 +393,16 @@ describe('desktop project transactions', () => {
     expect(coreSpec).toMatch(/^file:\.\/desktop-packages\//u)
     expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8'))
       .toContain(`${JSON.stringify('@deepseek-ai/dsh')}: ${JSON.stringify(coreSpec)}`)
+    // The packaged pnpm annotates the workspace file; the activated profile must match its contract exactly.
+    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('minimumReleaseAgeExclude')
     expect(manifest.dependencies['@scope/plugin']).toBe('2.0.0')
-    const invocation = JSON.parse(readFileSync(log, 'utf8')) as { args: string[]; env: Record<string, string> }
+    const invocations = JSON.parse(readFileSync(log, 'utf8')) as Array<{ args: string[]; env: Record<string, string> }>
+    const invocation = invocations[invocations.length - 1]
+    if (invocation === undefined) throw new Error('the packaged pnpm was never invoked')
     expect(invocation.args).toContain('add')
     expect(invocation.args).toContain('@scope/plugin@2.0.0')
     expect(invocation.args).toContain('--config.registry=https://registry.npmjs.org/')
+    expect(invocation.args).toContain('--config.minimumReleaseAge=0')
     expect(invocation.env.NPM_CONFIG_REGISTRY).toBe('https://registry.npmjs.org/')
   })
 
@@ -394,7 +431,7 @@ describe('desktop project transactions', () => {
     await expect(manager.applyRelease(nextSeed, '1.1.0', hooks())).resolves.toBe(true)
     expect(manager.releaseVersion()).toBe('1.1.0')
     expect(manager.dshVersion()).toBe('1.1.0')
-    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0' }])
+    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0', spec: '2.0.0' }])
     const profile = JSON.parse(readFileSync(join(paths.profile, 'package.json'), 'utf8')) as {
       dsh: { profile: { bundles: string[] } }
     }
@@ -406,5 +443,43 @@ describe('desktop project transactions', () => {
     expect(readFileSync(join(paths.pnpm.store, 'release-1'), 'utf8')).toBe('one')
     expect(readFileSync(join(paths.pnpm.store, 'release-2'), 'utf8')).toBe('two')
     await expect(manager.applyRelease(nextSeed, '1.1.0', hooks())).resolves.toBe(false)
+  })
+
+  it('restores plugins from their recorded source instead of their version', async () => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    const log = join(root, 'pnpm-log.json')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, '.dsh'))
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm: writeFakePnpm(root) })
+    await manager.applyRelease(seed, '1.0.0', hooks())
+    mkdirSync(join(paths.profile, 'vendor'), { recursive: true })
+    writeFileSync(join(paths.profile, 'vendor', 'local-plugin.tgz'), 'tgz')
+    installFakePlugin(paths.profile, 'git-plugin', 'github:example/git-plugin')
+    installFakePlugin(paths.profile, 'local-plugin', 'file:./vendor/local-plugin.tgz')
+    // A mismatched private Host makes the next startup rebuild the profile from the seed.
+    writeFileSync(
+      join(paths.profile, 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'package.json'),
+      '{"name":"@deepseek-ai/dsh-desktop-host","version":"0.9.0"}\n',
+    )
+    const previousLog = process.env.TEST_PNPM_LOG
+    process.env.TEST_PNPM_LOG = log
+    try {
+      await expect(manager.applyRelease(seed, '1.0.0', hooks())).resolves.toBe(true)
+    } finally {
+      if (previousLog === undefined) delete process.env.TEST_PNPM_LOG
+      else process.env.TEST_PNPM_LOG = previousLog
+    }
+
+    const invocations = JSON.parse(readFileSync(log, 'utf8')) as Array<{ args: string[] }>
+    const restore = invocations[invocations.length - 1]
+    if (restore === undefined) throw new Error('the packaged pnpm was never invoked')
+    expect(restore.args).toContain('git-plugin@github:example/git-plugin')
+    expect(restore.args).toContain(`local-plugin@file:${join(paths.profile, 'vendor', 'local-plugin.tgz')}`)
+    expect(restore.args).not.toContain('--offline')
+    expect(manager.listPlugins().map(plugin => plugin.name)).toEqual(['git-plugin', 'local-plugin'])
   })
 })

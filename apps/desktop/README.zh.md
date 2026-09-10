@@ -45,7 +45,7 @@ Electron 根据应用 locale 选择类型化的中英文字典，并以英文作
 3. 否则验证每个归档条目，把全部 store 分片解包到 Desktop 拥有的临时 staging 目录，将包文件与 SQLite 包索引记录合并进私有 store，再创建 staging profile，并通过内置 Node.js 与 pnpm 执行 `pnpm install --offline --frozen-lockfile --trust-lockfile`。Seed 记录替换匹配的索引键，插件专属记录继续保留。
 4. Electron 升级时，从旧活跃 profile 读取每个插件的名称和精确版本，再通过现有 Desktop pnpm 状态以 `--offline` 把这些版本加入 staging。首次安装不执行插件恢复。
 5. 停止活跃后端，启动并停止完整的 staging 后端执行健康检查，再在激活前重新启动活跃后端。这种串行方式避免两个桌面后端共享 `$DSH_HOME`；安装错误或插件不兼容会删除 staging，并保持活跃 profile 不变。
-6. 在每次目录移动前先持久化下一个激活阶段，把活跃 profile 移到 `$DSH_HOME/desktop/rollback/profile`，再把 staging 移到 `$DSH_HOME/profiles/desktop`。恢复过程同时检查日志与真实的 profile、rollback 和 staging 目录，因此在任一个写入与移动间隙中断后仍会恢复或保留一个完整 profile。
+6. 在每次目录移动前先持久化下一个激活阶段，把活跃 profile 移到 `$DSH_HOME/desktop/rollback/profile`，再把 staging 移到 `$DSH_HOME/profiles/desktop-runtime`。恢复过程同时检查日志与真实的 profile、rollback 和 staging 目录，因此在任一个写入与移动间隙中断后仍会恢复或保留一个完整 profile。
 
 GUI 插件修改会在把 registry 包安装到共享 Desktop pnpm store 后，使用相同的 staging、健康检查、激活与 rollback 路径。
 
