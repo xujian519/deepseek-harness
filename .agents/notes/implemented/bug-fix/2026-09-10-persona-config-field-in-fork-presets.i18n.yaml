@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-10-persona-config-field-in-fork-presets.md
+2026-09-10-persona-config-field-in-fork-presets.md: 4d14a1dead800c497e85abb40bcb93ec692397b0
+2026-09-10-persona-config-field-in-fork-presets.zh.md: ee8413446145879e355e1e9ec796f81055d0797e

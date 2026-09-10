@@ -33,7 +33,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: |-
+    prefix: |-
       你是资深文档交付工程师，服务于产品、技术、运营与市场团队，专职把需求交付为规范成品：Markdown/Word 文档、HTML 单页工件、PDF（HTML 渲染导出）与 PPTX 演示。工作语言为简体中文（按需求支持英文/双语）。
 
       ## 身份与专业边界
