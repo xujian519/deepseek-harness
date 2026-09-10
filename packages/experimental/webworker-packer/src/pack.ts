@@ -282,6 +282,22 @@ interface SweepOutcome {
 }
 
 /**
+ * Whether the package manifest points its runtime entries at `./dist` —
+ * `main`, or any export target with nested condition objects included.
+ * Vendored prebuilt artifacts ship only that tree, so the workspace `dist/`
+ * exclusion would strip their entire runtime plane.
+ */
+function runtimePlaneIsDist(manifest: { main?: unknown; exports?: unknown }): boolean {
+  if (typeof manifest.main === 'string' && manifest.main.startsWith('./dist/')) return true
+  const targets = (value: unknown): boolean => {
+    if (typeof value === 'string') return value.startsWith('./dist/')
+    if (typeof value !== 'object' || value === null) return false
+    return Object.values(value).some(targets)
+  }
+  return targets(manifest.exports)
+}
+
+/**
  * Keep only the JavaScript the worker can reach, transforming it on the way.
  *
  * Roots are the export faces of every materialized workspace and vendored
@@ -327,6 +343,21 @@ function nameForDebugger(bytes: Uint8Array, name: string, decoder: TextDecoder, 
   return encoder.encode(`${source}\n//# sourceURL=${name}`)
 }
 
+/** Package name an image key under `node_modules/` imports from, or undefined outside it. */
+function importerPackageOf(importer: string): string | undefined {
+  return /^node_modules\/((?:@[^/]+\/)?[^/]+)\//u.exec(importer)?.[1]
+}
+
+function isOwnedImporter(importer: string, ownedPackages: ReadonlySet<string>): boolean {
+  const name = importerPackageOf(importer)
+  return name !== undefined && ownedPackages.has(name)
+}
+
+function isVendoredImporter(importer: string, vendoredPackages: ReadonlySet<string>): boolean {
+  const name = importerPackageOf(importer)
+  return name !== undefined && vendoredPackages.has(name)
+}
+
 /**
  * Debugger names for image entries: a workspace or vendored package file is
  * named by its repository path (`packages/<group>/<pkg>/lib/index.js`), the
@@ -355,6 +386,9 @@ function sweepImage(
   options: PackOptions,
   rootPackages: readonly string[],
   root: string,
+  droppedExecutables: ReadonlySet<string>,
+  ownedPackages: ReadonlySet<string>,
+  vendoredPackages: ReadonlySet<string>,
 ): SweepOutcome {
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
@@ -372,6 +406,15 @@ function sweepImage(
     staticModules: Object.fromEntries(Object.keys(MODULE_PROXIES).map(name => [name, stub])),
     staticModulePrefixes: Object.fromEntries(Object.keys(MODULE_PROXY_PREFIXES).map(name => [name, stub])),
   })
+  // Packages that contributed a dropped executable: their bin-face requests
+  // resolve nowhere by the drop rule itself, not by a pack defect.
+  const executablePackageDirs = new Set([...droppedExecutables].map((key) => {
+    const rest = key.slice('node_modules/'.length)
+    const packageName = rest.startsWith('@') === true
+      ? rest.split('/').slice(0, 2).join('/')
+      : rest.split('/')[0] ?? ''
+    return `node_modules/${packageName}/`
+  }))
 
   const queue: { specifier: string; from: string; importer: string; meta?: boolean }[] = (options.entries ?? IMAGE_ENTRY_SEEDS)
     .map(specifier => ({ specifier, from: root, importer: 'worker assembly entry' }))
@@ -411,12 +454,21 @@ function sweepImage(
       // assembly entries is a pack defect. Third-party files keep the runtime
       // philosophy instead — platform-dispatch branches the worker never
       // evaluates may request node-only modules, and such a request fails loud
-      // at require time if it ever runs.
-      const external = importer.startsWith('node_modules/') && !importer.startsWith('node_modules/@deepseek-ai/')
+      // at require time if it ever runs. A vendored prebuilt artifact counts
+      // as third-party here: its opaque dist cannot be rewritten to declare
+      // platform modules. A roster face of a package whose executable dropped
+      // is the drop rule's own doing: nothing in a browser can run a shebang
+      // script, so the face request is tolerated.
+      const external = importer.startsWith('node_modules/')
+        && (!isOwnedImporter(importer, ownedPackages) || isVendoredImporter(importer, vendoredPackages))
+      const facePackage = /^workspace face (\S+)$/u.exec(importer)?.[1]
+      const executableFace = facePackage !== undefined
+        && executablePackageDirs.has(`node_modules/${facePackage}/`)
       // A meta-resolve request is a URL mapping, not a load: a missing target
       // is tolerable from any importer — the call throws if it ever runs.
-      if (external || entry.meta === true) tolerated.add(`${importer}: "${specifier}"`)
-      else failures.push(`${importer}: "${specifier}" — ${(reason as Error).message}`)
+      if (external || entry.meta === true || executableFace) {
+        tolerated.add(`${importer}: "${specifier}"`)
+      } else failures.push(`${importer}: "${specifier}" — ${(reason as Error).message}`)
       continue
     }
     if (resolution.kind === 'static') continue
@@ -527,11 +579,15 @@ function materialize(
     if (options.workspaces.has(name)) {
       // A workspace package ships the slice npm would publish — `files`
       // filters out build residue like the tsc mirror under lib/types/ —
-      // minus the workspace exclude table (no sources, no dist: the page
-      // serves its own assets).
+      // minus the workspace exclude table (no sources; a workspace `dist/`
+      // is a page-asset tree the static deployment serves itself). A package
+      // whose manifest points its runtime plane at `dist/` — a vendored
+      // prebuilt artifact — keeps dist, because the exclude table assumes a
+      // built `lib/` runtime such a package does not have.
       const published = Array.isArray(manifest.files) ? publishedFilter(manifest.files) : undefined
+      const skip = runtimePlaneIsDist(manifest) ? excluded : workspaceExcluded
       collectTree(directory, files, prefix, relativePath =>
-        !workspaceExcluded(relativePath) && (published === undefined || published(relativePath)))
+        !skip(relativePath) && (published === undefined || published(relativePath)))
     } else {
       collectTree(directory, files, prefix, relativePath => !excluded(relativePath))
     }
@@ -610,8 +666,19 @@ export function packVfsImage(options: PackOptions): PackResult {
 
   const executables = dropExecutables(files)
   const rootPackages = [...packages.keys()].filter(name => options.workspaces.has(name))
+  // Vendored prebuilt artifacts keep third-party tolerance: their dist cannot
+  // be rewritten to declare platform modules. Every other workspace package
+  // owns its requests.
+  const vendoredPackages = new Set(
+    [...options.workspaces]
+      .filter(([, directory]) => directory.startsWith(join(options.resolveFrom, 'vendor')))
+      .map(([name]) => name),
+  )
+  const ownedPackages = new Set(
+    [...options.workspaces.keys()].filter(name => !vendoredPackages.has(name)),
+  )
   const { swept, transform, javascriptEntries, droppedJavascriptEntries, unresolvedExternalRequests } =
-    sweepImage(files, options, rootPackages, root)
+    sweepImage(files, options, rootPackages, root, new Set(executables), ownedPackages, vendoredPackages)
 
   swept[MANIFEST_PATH] = encoder.encode(`${JSON.stringify({
     root,

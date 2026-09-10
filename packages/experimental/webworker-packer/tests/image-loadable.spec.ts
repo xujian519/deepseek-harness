@@ -131,6 +131,32 @@ const packedWebServer = (): ReturnType<typeof packVfsImage> => webServerMemo ??=
   entries: [],
 })
 
+const NUO_PATENT = '@deepseek-ai/nuo-patent'
+const PATENT_KNOWLEDGE = '@deepseek-ai/dsh-patent-knowledge'
+
+// The vendored artifact ships prebuilt dist; the fork package needs its built lib.
+const nuoPatentBuilt = existsSync(join(repoRoot, 'vendor/nuo-patent/dist/index.mjs'))
+const patentKnowledgeBuilt = existsSync(join(repoRoot, 'packages/patent/patent-knowledge/lib/bin.js'))
+  && existsSync(join(repoRoot, 'packages/patent/patent-knowledge/lib/index.js'))
+
+let nuoPatentMemo: ReturnType<typeof packVfsImage> | undefined
+const packedNuoPatent = (): ReturnType<typeof packVfsImage> => nuoPatentMemo ??= packVfsImage({
+  config: `- id: subject\n  name: '${NUO_PATENT}'\n`,
+  profile: 'nuo-patent-check',
+  workspaces,
+  resolveFrom: repoRoot,
+  entries: [],
+})
+
+let patentKnowledgeMemo: ReturnType<typeof packVfsImage> | undefined
+const packedPatentKnowledge = (): ReturnType<typeof packVfsImage> => patentKnowledgeMemo ??= packVfsImage({
+  config: `- id: subject\n  name: '${PATENT_KNOWLEDGE}'\n`,
+  profile: 'patent-knowledge-check',
+  workspaces,
+  resolveFrom: repoRoot,
+  entries: [],
+})
+
 /** The image's archive, inflated once: mounting reads the tar, not the gzip member. */
 let archiveMemo: Uint8Array | undefined
 const archive = async (): Promise<Uint8Array> =>
@@ -341,5 +367,24 @@ const archive = async (): Promise<Uint8Array> =>
     })
     expect(() => loader.requireFrom(`${DEFAULT_ROOT}/workspace`)(SUBJECT))
       .toThrow(/still carries module syntax, so the image was not lowered by the packer/)
+  })
+})
+
+;(nuoPatentBuilt ? describe : describe.skip)('vendored prebuilt runtime plane', () => {
+  it('keeps the dist tree a manifest-pointed runtime plane needs', () => {
+    const result = packedNuoPatent()
+    expect(result.missing).toEqual([])
+    expect(result.files['node_modules/@deepseek-ai/nuo-patent/dist/index.mjs']).toBeInstanceOf(Uint8Array)
+  })
+})
+
+;(patentKnowledgeBuilt ? describe : describe.skip)('workspace faces over dropped executables', () => {
+  it('packs the closure although the bin face resolves onto a dropped executable', () => {
+    const result = packedPatentKnowledge()
+    expect(result.missing).toEqual([])
+    expect(result.files['node_modules/@deepseek-ai/dsh-patent-knowledge/lib/index.js']).toBeInstanceOf(Uint8Array)
+    // The shebang rule itself removed the bin body; the face request is the drop's own doing.
+    expect(result.files['node_modules/@deepseek-ai/dsh-patent-knowledge/lib/bin.js']).toBeUndefined()
+    expect(result.unresolvedExternalRequests.join('\n')).toContain('@deepseek-ai/dsh-patent-knowledge/bin')
   })
 })
