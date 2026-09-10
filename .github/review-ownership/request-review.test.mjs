@@ -410,6 +410,9 @@ test('prints changed code files and requests the highest-ranked counted owner', 
   ]
   const api = async (path, options = {}) => {
     trace.push({ type: 'api', path, options })
+    if (path.includes('/collaborators?')) {
+      return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+    }
     if (path.endsWith('/files?per_page=100&page=1')) return files
     if (path.endsWith('/reviews?per_page=100&page=1')) return []
     if (path.endsWith('/requested_reviewers') && options.method !== 'POST') {
@@ -471,6 +474,9 @@ test('does not request an owner again after that owner approves', async () => {
     ownershipSource: '/packages/typert/ @imccyu\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [{ filename: 'packages/typert/generator/src/analyzer.ts', additions: 150, deletions: 47 }]
       }
@@ -502,6 +508,9 @@ test('fills the counted slot with the next owner after omitting an approved owne
     ownershipSource: '/packages/core/ @imccyu @mektpoy\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [{ filename: 'packages/core/agent/src/index.ts', additions: 20, deletions: 10 }]
       }
@@ -532,6 +541,9 @@ test('does not add another counted owner when one is already requested', async (
     ownershipSource: '/packages/core/ @mektpoy\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [{ filename: 'packages/core/agent/src/index.ts', additions: 20, deletions: 10 }]
       }
@@ -565,6 +577,9 @@ test('requests at most one owner per run when turtle ranks first', async () => {
     ownershipSource: '/packages/core/ @turtle1999\n/packages/client/ @mektpoy\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [
           { filename: 'packages/core/agent/src/index.ts', additions: 25, deletions: 5 },
@@ -595,6 +610,9 @@ test('does not add turtle when one counted reviewer is already requested', async
     ownershipSource: '/packages/core/ @turtle1999 @mektpoy\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [{ filename: 'packages/core/agent/src/index.ts', additions: 20, deletions: 10 }]
       }
@@ -619,6 +637,9 @@ test('keeps the counted slot available when turtle is already requested', async 
     ownershipSource: '/packages/core/ @turtle1999 @mektpoy\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [{ filename: 'packages/core/agent/src/index.ts', additions: 20, deletions: 10 }]
       }
@@ -647,6 +668,9 @@ test('replaces a workflow reviewer that no longer matches current ownership', as
     ownershipSource: '/packages/core/ @mektpoy\n',
     api: async (path, options = {}) => {
       trace.push({ type: 'api', path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [{ filename: 'packages/core/agent/src/index.ts', additions: 20, deletions: 10 }]
       }
@@ -697,6 +721,9 @@ test('removes excess workflow reviewers using current relevance order', async ()
     ownershipSource: '/packages/core/ @mektpoy\n/packages/subagent/ @Dudu-0223\n',
     api: async (path, options = {}) => {
       calls.push({ path, options })
+      if (path.includes('/collaborators?')) {
+        return [{ login: 'imccyu' }, { login: 'mektpoy' }, { login: 'turtle1999' }, { login: 'Dudu-0222' }, { login: 'LegGasai' }]
+      }
       if (path.endsWith('/files?per_page=100&page=1')) {
         return [
           { filename: 'packages/core/agent/src/index.ts', additions: 25, deletions: 5 },
@@ -866,4 +893,30 @@ test('sends authenticated JSON and escapes an API error body', async () => {
     fetchImpl: async () => new Response('::error::untrusted\nbody', { status: 422 }),
   })
   await assert.rejects(failing('/failure'), /"::error::untrusted\\nbody"/u)
+})
+
+test('omits owners who are not repository collaborators', async () => {
+  const output = []
+  const result = await requestReviews({
+    event: pullRequestEvent(),
+    ownershipSource: '/packages/core/ @imccyu @mektpoy\n',
+    api: async (path, options = {}) => {
+      if (path.includes('/collaborators?')) return [{ login: 'Mektpoy' }]
+      if (path.endsWith('/files?per_page=100&page=1')) {
+        return [{ filename: 'packages/core/agent/src/index.ts', additions: 20, deletions: 10 }]
+      }
+      if (path.endsWith('/reviews?per_page=100&page=1')) return []
+      if (path.endsWith('/requested_reviewers') && options.method === undefined) {
+        return { users: [], teams: [] }
+      }
+      if (path.endsWith('/requested_reviewers') && options.method === 'POST') return {}
+      throw new Error(`unexpected API path ${path}`)
+    },
+    write: line => output.push(line),
+  })
+
+  assert.deepEqual(result.requestedReviewers, ['mektpoy'])
+  const omittedHeading = output.indexOf('Non-collaborator owners omitted from review requests:')
+  assert.ok(omittedHeading >= 0)
+  assert.equal(output[omittedHeading + 1], '- @imccyu')
 })

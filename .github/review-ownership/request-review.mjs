@@ -10,6 +10,7 @@ const MAX_PULL_REQUEST_FILES = 3_000
 const MAX_PULL_REQUEST_REVIEWS = 3_000
 const MAX_COUNTED_REQUESTED_REVIEWERS = 1
 const MAX_TIMELINE_EVENTS = 3_000
+const MAX_COLLABORATORS = 1_000
 const PAGE_SIZE = 100
 const PULL_REQUEST_REVIEW_STATES = new Set(['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED', 'DISMISSED', 'PENDING'])
 const UNCOUNTED_REVIEWER = 'turtle1999'
@@ -485,6 +486,27 @@ function requestedReviewerLogins(response) {
  * @param {{event: unknown, ownershipSource: string, api: (path: string, options?: {method?: string, body?: unknown}) => Promise<unknown>, write?: (line: string) => void}} options Runtime inputs.
  * @returns {Promise<{changedCodeFiles: string[], excludedTestFiles: string[], excludedDocumentationFiles: string[], excludedCommentOnlyFiles: string[], requestedReviewers: string[], cancelledReviewers: string[]}>} Applied routing result.
  */
+/**
+ * Fetch the repository collaborator logins, lower-cased for case-insensitive
+ * comparison. Review requests are only legal for collaborators; owners from
+ * the upstream ownership file who are not collaborators here are skipped.
+ * @param {(path: string, options?: {method?: string, body?: unknown}) => Promise<unknown>} api GitHub API caller.
+ * @param {string} repository Owner/name repository identifier.
+ * @returns {Promise<Set<string>>} Lower-cased collaborator logins.
+ */
+async function listCollaboratorLogins(api, repository) {
+  const logins = new Set()
+  for (let page = 1; logins.size < MAX_COLLABORATORS; page++) {
+    const response = await api(`/repos/${repository}/collaborators?per_page=${PAGE_SIZE}&page=${page}`)
+    if (!Array.isArray(response)) break
+    for (const entry of response) {
+      if (isRecord(entry) && typeof entry.login === 'string') logins.add(entry.login.toLowerCase())
+    }
+    if (response.length < PAGE_SIZE) break
+  }
+  return logins
+}
+
 export async function requestReviews({ event, ownershipSource, api, write = line => process.stdout.write(`${line}\n`) }) {
   const pull = pullRequestFromEvent(event)
   write('This is by automated Angry Turtle Cyborg, not a human')
@@ -547,6 +569,16 @@ export async function requestReviews({ event, ownershipSource, api, write = line
   const candidates = ownerCandidates.filter(({ login }) => !approvedReviewerKeys.has(login.toLowerCase()))
   writeList(write, 'Approved owners omitted from review requests', approvedOwners.map(({ login }) => `@${login}`))
 
+  const collaboratorLogins = candidates.length === 0
+    ? new Set()
+    : await listCollaboratorLogins(api, pull.repository)
+  const collaborativeCandidates = candidates.filter(({ login }) => collaboratorLogins.has(login.toLowerCase()))
+  writeList(
+    write,
+    'Non-collaborator owners omitted from review requests',
+    candidates.filter(({ login }) => !collaboratorLogins.has(login.toLowerCase())).map(({ login }) => `@${login}`),
+  )
+
   const existing = await api(`/repos/${pull.repository}/pulls/${pull.number}/requested_reviewers`)
   const currentReviewers = requestedReviewerLogins(existing).sort((left, right) => left.localeCompare(right, 'en'))
   const workflowReviewers = currentReviewers.length === 0
@@ -563,7 +595,7 @@ export async function requestReviews({ event, ownershipSource, api, write = line
       - manualReviewers.filter(login => login.toLowerCase() !== UNCOUNTED_REVIEWER).length,
   )
   const retainedWorkflowReviewerKeys = new Set()
-  for (const { login } of candidates) {
+  for (const { login } of collaborativeCandidates) {
     const key = login.toLowerCase()
     if (!workflowReviewerKeys.has(key)) continue
     if (key === UNCOUNTED_REVIEWER) retainedWorkflowReviewerKeys.add(key)
@@ -585,7 +617,7 @@ export async function requestReviews({ event, ownershipSource, api, write = line
   )
   writeList(write, 'Current individual review requests', currentReviewers.map(login => `@${login}`))
   write(`Available counted review request slots: ${availableSlots}.`)
-  const reviewers = candidates
+  const reviewers = collaborativeCandidates
     .filter(({ login }) => !alreadyRequested.has(login.toLowerCase()))
     .slice(0, availableSlots)
     .map(({ login }) => login)
