@@ -260,6 +260,9 @@ function browserShared(face: 'client' | undefined): Pick<UserConfig, 'define' | 
  */
 function clientBundleConfig(face: 'client' | undefined): UserConfig {
   return {
+    // The shared preset's `<id>/client` name: gen-third-party-notices finds the
+    // browser bundle by it when it records the plugin's bundled externals.
+    name: `${PLUGIN_ID}/client`,
     entry: { client: face === 'client' ? 'lib/types/client/index.js' : 'src/client/index.tsx' },
     outDir: 'lib',
     format: 'cjs',

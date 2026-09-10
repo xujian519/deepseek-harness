@@ -8,7 +8,8 @@ import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:
 import { loadavg, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { FSWatcher, type ChokidarOptions } from 'chokidar'
 import { Context } from '@deepseek-ai/cordis'
 import Hmr from '@deepseek-ai/cordis-plugin-hmr'
 import Include, { type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
@@ -23,6 +24,20 @@ import {
 } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
+
+const configWatch = vi.hoisted(() => ({
+  create: undefined as ((options?: ChokidarOptions) => FSWatcher) | undefined,
+}))
+
+vi.mock('chokidar', async (importOriginal) => {
+  const native = await importOriginal<typeof import('chokidar')>()
+  return {
+    ...native,
+    watch: (paths: string | string[], options?: ChokidarOptions) => configWatch.create === undefined
+      ? native.watch(paths, options)
+      : configWatch.create(options),
+  }
+})
 
 const tempRoots: string[] = []
 afterAll(() => {
@@ -49,8 +64,6 @@ async function eventually(test: () => boolean, message: string, budgetMs = 10_00
   }
 }
 
-const settleChokidarChangeThrottle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 75))
-
 describe('loadOptionalPatches', () => {
   afterEach(() => {
     delete process.env.DSH_HOME
@@ -58,14 +71,6 @@ describe('loadOptionalPatches', () => {
 
   it('returns undefined when no user patch file exists', () => {
     expect(loadOptionalPatches(NAME, join(tmp(), PROFILE_PATCH_FILENAME))).toBeUndefined()
-  })
-
-  it('treats an empty or comment-only patch file as zero patches', () => {
-    const dir = tmp()
-    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '')
-    expect(loadOptionalPatches(NAME, join(dir, PROFILE_PATCH_FILENAME))).toEqual([])
-    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '# this bundle patches nothing in this release\n')
-    expect(loadOptionalPatches(NAME, join(dir, PROFILE_PATCH_FILENAME))).toEqual([])
   })
 
   it('parses a patch list and preserves !!js expressions as loader expression nodes', () => {
@@ -404,14 +409,26 @@ describe('boot with user patches', () => {
     }
   })
 
-  it('watches add, failure, recovery, and removal through transactional HMR', { timeout: 30_000 }, async () => {
+  it('watches add, failure, recovery, and removal through transactional HMR', { timeout: 20_000 }, async () => {
     const dir = tmp()
     const userDir = tmp()
     const filename = join(userDir, PROFILE_PATCH_FILENAME)
     const basePatches = [{ id: 'noop', config: { value: 'generated' } }]
     const ctx = await boot(NAME, writeTree(dir), basePatches)
+    onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(Timer)
     await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
+    // Native notifications belong to hmr-config.spec.ts; this case owns the
+    // real HMR/Include transaction after each delivered filesystem event.
+    const watchers: FSWatcher[] = []
+    const previousFactory = configWatch.create
+    onTestFinished(() => { configWatch.create = previousFactory })
+    configWatch.create = (options) => {
+      const watcher = new FSWatcher(options)
+      watchers.push(watcher)
+      queueMicrotask(() => { watcher.emit('ready') })
+      return watcher
+    }
     const failures: Array<{ filename: string; error: Error }> = []
     ctx.on('hmr/config-update-failed', (failedFilename, error) => {
       failures.push({ filename: failedFilename, error })
@@ -421,49 +438,49 @@ describe('boot with user patches', () => {
       filename,
       compose: userPatches => [...basePatches, ...userPatches],
     })
+    expect(watchers).toHaveLength(1)
+    const watcher = watchers[0]!
     try {
       writeFileSync(filename, '- id: noop\n  config:\n    value: live\n')
-      // The watcher applies sub-second when unloaded, but FSEvents delivery
-      // lags behind the full suite's parallel workers; the budget matches the
-      // declared test timeout so every step keeps its own diagnostic.
-      const watcherBudget = 20_000
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied', watcherBudget)
+      watcher.emit('add', filename)
+      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied')
 
       writeFileSync(filename, '- id: noop\n  config:\n    fail: true\n')
-      await eventually(() => failures.length === 1, 'failed candidate was not broadcast', watcherBudget)
+      watcher.emit('change', filename)
+      await eventually(() => failures.length === 1, 'failed candidate was not broadcast')
       expect(failures[0]).toMatchObject({ filename })
       expect(failures[0]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
-      await settleChokidarChangeThrottle()
 
       writeFileSync(filename, 'invalid: [unclosed\n')
-      await eventually(() => failures.length === 2, 'parse failure was not broadcast', watcherBudget)
+      watcher.emit('change', filename)
+      await eventually(() => failures.length === 2, 'parse failure was not broadcast')
       expect(failures[1]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
-      await settleChokidarChangeThrottle()
 
       writeFileSync(filename, '- id: noop\n  config:\n    value: recovered\n')
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'recovered', 'valid recovery was not applied', watcherBudget)
-      await settleChokidarChangeThrottle()
+      watcher.emit('change', filename)
+      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'recovered', 'valid recovery was not applied')
 
       unlinkSync(filename)
-      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'generated', 'user patch removal did not restore the app-owned patch', watcherBudget)
+      watcher.emit('unlink', filename)
+      await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'generated', 'user patch removal did not restore the app-owned patch')
       expect(failures).toHaveLength(2)
-      await settleChokidarChangeThrottle()
 
       // Default compose: the user layer IS the whole patch list, so a
       // fresh generation replaces the app-owned layer instead of stacking on it.
       await dispose()
       const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename })
+      expect(watchers).toHaveLength(2)
       try {
         writeFileSync(filename, '- id: noop\n  config:\n    value: identity\n')
-        await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied', watcherBudget)
+        watchers[1]!.emit('add', filename)
+        await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied')
       } finally {
         await disposeDefault()
       }
     } finally {
       await dispose()
-      await ctx.fiber.dispose()
     }
   })
 

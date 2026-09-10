@@ -616,6 +616,9 @@
       "@deepseek-ai/dsh-brand": [
         "./packages/util/brand/src"
       ],
+      "@deepseek-ai/dsh-chunked-list": [
+        "./packages/util/chunked-list/src"
+      ],
       "@deepseek-ai/dsh-browser-backend": [
         "./packages/browser/browser-backend/src"
       ],
@@ -633,6 +636,9 @@
       ],
       "@deepseek-ai/dsh-command-feedback": [
         "./packages/feedback/command-feedback/src"
+      ],
+      "@deepseek-ai/dsh-command-feedback/types": [
+        "./packages/feedback/command-feedback/src/types.ts"
       ],
       "@deepseek-ai/dsh-command-goal": [
         "./packages/goal/command-goal/src"
@@ -1122,6 +1128,12 @@
       ],
       "@deepseek-ai/dsh-tool-plugin-market": [
         "./packages/extensions/tool-plugin-market/src"
+      ],
+      "@deepseek-ai/dsh-tool-present": [
+        "./packages/fs/tool-present/src"
+      ],
+      "@deepseek-ai/dsh-tool-present/types": [
+        "./packages/fs/tool-present/src/types.ts"
       ],
       "@deepseek-ai/dsh-tool-pwsh-persistent": [
         "./packages/shell/tool-pwsh-persistent/src"

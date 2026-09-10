@@ -266,3 +266,6 @@
 # profile — they only discover and evaluate.
 - id: tool-plugin-market
   name: '@deepseek-ai/dsh-tool-plugin-market'
+
+- id: present
+  name: '@deepseek-ai/dsh-tool-present'
