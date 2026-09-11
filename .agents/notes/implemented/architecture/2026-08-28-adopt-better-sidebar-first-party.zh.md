@@ -16,7 +16,7 @@ web GUI 的类 VSCode 工作区侧边栏——explorer、editor、按会话终�
 
 该插件以第一方身份收编为 `packages/client/better-sidebar` 的 `@deepseek-ai/dsh-better-sidebar`，落在 source plane：所有 peer 都从 workspace 解析，逐发行的 npm peer 范围漂移就此终结，且上游的 MIT LICENSE 文件保留。
 
-没有任何随仓库发布的组合挂载它：桌面 overlay（`apps/desktop-host/config/desktop.cordis.patch.yml`）有意略去 `better-sidebar` 行（见[桌面不再挂载工作台侧边栏](2026-09-10-desktop-without-workspace-sidebar.zh.md)），浏览器 `dsh web` 组合不挂载任何东西，因此想要该面板的部署需自行插入该行。
+桌面 overlay（`apps/desktop-host/config/desktop.cordis.patch.yml`）自[重新挂载的决定](2026-09-10-desktop-workspace-sidebar-remount.zh.md)起重新挂载 `better-sidebar` 行，浏览器 `dsh web` 组合不挂载任何东西，因此想要该面板的浏览器部署需自行插入该行。
 
 打包的桌面部署树携带本包：`@deepseek-ai/dsh-better-sidebar` 是 `apps/cli` 的 production 依赖，因此每个桌面包集合都会包含的 `@deepseek-ai/dsh` 闭包会安装它，无论是否有组合挂载它。
 

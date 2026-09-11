@@ -1,6 +1,7 @@
 # Agent Note: 桌面组合不再挂载工作台侧边栏
 
 Status: implemented
+Archived: 2026-09-10
 
 [English](2026-09-10-desktop-without-workspace-sidebar.md) | 中文
 

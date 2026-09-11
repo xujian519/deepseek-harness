@@ -305,11 +305,12 @@ export interface SidebarSessionTitleService {
   rename(session: unknown, title: string): { title: string; eventSeq: number }
 }
 
-/** The host session-persistence face (mirror of the sessionPersistence
- *  service): detached inspection of a persisted session, used to compose the
- *  recorded preset when a Side Chat thread cold-resumes. */
-export interface SidebarSessionPersistenceService {
-  inspect(sessionId: string): Promise<{
+/** The host session-controller face (mirror of the `sessionController`
+ *  service's `inspect`): detached inspection of one attached or persisted
+ *  session, used to resolve a cold session's working directory and to
+ *  compose the recorded preset when a Side Chat thread cold-resumes. */
+export interface SidebarSessionControllerService {
+  inspect(sessionId: string, signal?: AbortSignal): Promise<{
     meta: { cwd?: string; agentPreset?: string }
     events: readonly SidebarSessionEvent[]
   }>
@@ -566,8 +567,8 @@ export interface SidebarContextShape {
   agentPresets: SidebarAgentPresetsService
   /** The host session-title service (optional; side chat thread label pin). */
   sessionTitle: SidebarSessionTitleService
-  /** The host session-persistence service (optional; side chat cold resume). */
-  sessionPersistence: SidebarSessionPersistenceService
+  /** The host session-controller service (optional; cold-session cwd and side chat cold resume). */
+  sessionController: SidebarSessionControllerService
   /** The composer draft face (client ui-conversation, lazy `ctx.get` probe). */
   conversation: SidebarConversation
   /**

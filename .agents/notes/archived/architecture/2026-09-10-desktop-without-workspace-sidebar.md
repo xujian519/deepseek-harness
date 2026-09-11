@@ -1,6 +1,7 @@
 # Agent Note: Desktop composition without the workspace sidebar
 
 Status: implemented
+Archived: 2026-09-10
 
 English | [中文](2026-09-10-desktop-without-workspace-sidebar.zh.md)
 

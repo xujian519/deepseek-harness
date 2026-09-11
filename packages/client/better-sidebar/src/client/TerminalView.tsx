@@ -263,7 +263,14 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
         start(c) { inputController = c },
         cancel() { inputEnded = true },
       })
-      void fetch(url, { method: 'POST', body: input, signal: abort.signal })
+      // Chromium refuses a streaming request body without `duplex`, which
+      // lib.dom does not declare (`packages/client/connection` casts the same way).
+      void fetch(url, {
+        method: 'POST',
+        body: input,
+        signal: abort.signal,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' })
         .then(async (response) => {
           if (response.status >= 400 || response.body === null) {
             const bodyText = await response.text().catch(() => '')

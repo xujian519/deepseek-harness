@@ -50,7 +50,7 @@ function happyServices(parent: AgentLike | undefined, child: AgentLike) {
     agents: { get, create, resume },
     agentPresets: { resolve, mount },
     sessionTitle: { rename },
-    sessionPersistence: { inspect },
+    sessionController: { inspect },
     create,
     resume,
     get,
@@ -65,13 +65,13 @@ function ctxWith(services: {
   agents?: unknown
   agentPresets?: unknown
   sessionTitle?: unknown
-  sessionPersistence?: unknown
+  sessionController?: unknown
 }): Context {
   const table: Record<string, unknown> = {
     ...(services.agents === undefined ? {} : { agents: services.agents }),
     ...(services.agentPresets === undefined ? {} : { agentPresets: services.agentPresets }),
     ...(services.sessionTitle === undefined ? {} : { sessionTitle: services.sessionTitle }),
-    ...(services.sessionPersistence === undefined ? {} : { sessionPersistence: services.sessionPersistence }),
+    ...(services.sessionController === undefined ? {} : { sessionController: services.sessionController }),
   }
   return {
     get: (key: string) => table[key],
@@ -111,6 +111,7 @@ describe('sidechat.start', () => {
     const options = services.create.mock.calls[0]![0] as {
       sessionId: string
       meta: Record<string, unknown>
+      inheritedEventCount: number
       seed: readonly { type: string; data: Record<string, unknown> }[]
       agentOptions: { provider: string; model: string }
       setup: unknown
@@ -133,6 +134,10 @@ describe('sidechat.start', () => {
       'user/message', 'turn/start', 'step/start', 'assistant/message', 'step/end', 'turn/end',
       'subagent/descriptor',
     ])
+    // The descriptor event is the child's own first row, so the inherited prefix
+    // stops before it: the subagent address fence rejects an address whose
+    // descriptor seq sits below the child's inherited event count.
+    expect(options.inheritedEventCount).toBe(options.seed.length - 1)
     expect(options.seed.at(-1)?.data).toMatchObject({
       // descriptor version follows the workspace dsh-subagent's snapshot format (v3)
       version: 3,
@@ -360,7 +365,7 @@ describe('sidechat.info', () => {
     const services = happyServices(undefined, agent('child'))
     services.agents.get = vi.fn((_id: unknown) => undefined)
     services.inspect = vi.fn(async () => { throw new Error('unknown session') })
-    services.sessionPersistence = { inspect: services.inspect }
+    services.sessionController = { inspect: services.inspect }
     const api = buildSidechatApi(ctxWith(services))
     await expect(api['sidechat.info']({ childId: 'ghost' })).resolves.toEqual({ live: false })
   })

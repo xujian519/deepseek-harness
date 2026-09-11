@@ -28,7 +28,7 @@ import type { Context as CordisContext } from '@deepseek-ai/cordis'
 // The /types subpath keeps this client-reachable module off the host session
 // package's Context augmentation, which would otherwise enter the client
 // program and flip Context['sessions'] to the host SessionStore face.
-import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionLogOffset, type SessionEvent, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { Context } from './context-types.ts'
 import {
   boundaryDelivered,
@@ -97,11 +97,11 @@ async function composePersistedSetup(
   ctx: Context,
   childId: string,
 ): Promise<AgentSetup> {
-  const persistence = ctx.get('sessionPersistence')
-  if (persistence === undefined) {
+  const controller = ctx.get('sessionController')
+  if (controller === undefined) {
     return () => Promise.resolve()
   }
-  const inspected = await persistence.inspect(childId)
+  const inspected = await controller.inspect(childId)
   const presetId = resolvePresetId(inspected.meta, inspected.events)
   const presets = ctx.get('agentPresets')
   if (presets === undefined || presetId === undefined) {
@@ -206,6 +206,10 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
           delegationDepth: (parentSession.header.delegationDepth ?? 0) + 1,
           ...(agentPreset === undefined ? {} : { agentPreset }),
         },
+        // The inherited prefix is the parent-derived seed; the descriptor event
+        // is the child's own first row and must sit outside it (the subagent
+        // address fence rejects a descriptor whose seq is below the count).
+        inheritedEventCount: SessionLogOffset(inheritance.seed.length),
         seed: seed as unknown as readonly SessionEvent[],
         agentOptions: { ...parent.options },
         setup,
@@ -332,10 +336,10 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
         }
       }
       // Cold thread: only the persisted preset is worth reading back.
-      const persistence = ctx.get('sessionPersistence')
-      if (persistence !== undefined) {
+      const controller = ctx.get('sessionController')
+      if (controller !== undefined) {
         try {
-          const inspected = await persistence.inspect(childId)
+          const inspected = await controller.inspect(childId)
           const preset = resolvePresetId(inspected.meta, inspected.events)
           return { live: false, ...(preset === undefined ? {} : { preset }) }
         } catch {

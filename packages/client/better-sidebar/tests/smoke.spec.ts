@@ -507,7 +507,7 @@ describe('git destructive operations (scratch repository)', () => {
 describe('session cwd resolution over the API route', () => {
   interface CtxOverrides {
     sessions?: { get: (id: string) => { header: { cwd?: string } } | undefined }
-    sessionPersistence?: { inspect: (id: string) => Promise<{ meta: { cwd?: string } }> }
+    sessionController?: { inspect: (id: string) => Promise<{ meta: { cwd?: string } }> }
   }
 
   const mountAll = (overrides: CtxOverrides = {}): SidebarWebRoute[] => {
@@ -526,7 +526,7 @@ describe('session cwd resolution over the API route', () => {
       // No settings service: the namespace registration never runs.
       inject: () => () => {},
       // No jobs/agents services in the smoke context: the routes degrade.
-      get: (key: string) => key === 'sessionPersistence' ? overrides.sessionPersistence : undefined,
+      get: (key: string) => key === 'sessionController' ? overrides.sessionController : undefined,
     }
     apply(ctx as never)
     return routes
@@ -583,15 +583,15 @@ describe('session cwd resolution over the API route', () => {
     expect(result.value?.cwd).toBe(process.cwd())
   })
 
-  it('resolves a cold (detached) session cwd through the persistence index', async () => {
+  it('resolves a cold (detached) session cwd through the session controller', async () => {
     // Regression: a detached first request (session not yet attached, no
-    // client cwd) must resolve the cwd from the session-persistence index
-    // instead of the host process cwd. On Windows the host process cwd is
-    // the DSH source root (dsh.cmd's `pushd`), so every user-project path
-    // was misclassified as "outside workspace" by the realpath guard.
+    // client cwd) must resolve the cwd from the session controller's
+    // inspection instead of the host process cwd. On Windows the host process
+    // cwd is the DSH source root (dsh.cmd's `pushd`), so every user-project
+    // path was misclassified as "outside workspace" by the realpath guard.
     const coldCwd = resolvePath('/cold-project-cwd')
     const route = mount({
-      sessionPersistence: {
+      sessionController: {
         inspect: async id => ({
           meta: id === 's-cold' ? { cwd: coldCwd } : {},
         }),
@@ -602,13 +602,13 @@ describe('session cwd resolution over the API route', () => {
     expect(result.value?.cwd).toBe(coldCwd)
   })
 
-  it('rejects a relative cwd from the persistence index', async () => {
-    // A buggy / corrupt persistence layer that stored a relative cwd must
-    // be rejected by requireAbsolute instead of flowing into the workspace
+  it('rejects a relative cwd from the session controller inspection', async () => {
+    // A buggy / corrupt inspection that reports a relative cwd must be
+    // rejected by requireAbsolute instead of flowing into the workspace
     // guard, where it would be resolved against the host process cwd and
     // potentially recreate the original "outside workspace" misclassification.
     const route = mount({
-      sessionPersistence: {
+      sessionController: {
         inspect: async () => ({ meta: { cwd: 'relative/path' } }),
       },
     })
@@ -617,13 +617,26 @@ describe('session cwd resolution over the API route', () => {
     expect(result.error?.message).toMatch(/invalid working directory/)
   })
 
-  it('falls back to the process cwd when persistence has no cwd for the session', async () => {
+  it('falls back to the process cwd when the session controller reports no cwd', async () => {
     const route = mount({
-      sessionPersistence: {
+      sessionController: {
         inspect: async () => ({ meta: {} }),
       },
     })
     const result = await invoke(route, 'session.cwd', { sessionId: 's-blank' })
+    expect(result.ok).toBe(true)
+    expect(result.value?.cwd).toBe(process.cwd())
+  })
+
+  it('falls back to the process cwd when the session controller refuses the session', async () => {
+    // An unknown or unreadable session must not fail the request: the cwd
+    // resolution chain ends at the host process cwd.
+    const route = mount({
+      sessionController: {
+        inspect: async () => { throw new Error('session "s-gone" not found') },
+      },
+    })
+    const result = await invoke(route, 'session.cwd', { sessionId: 's-gone' })
     expect(result.ok).toBe(true)
     expect(result.value?.cwd).toBe(process.cwd())
   })

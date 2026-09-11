@@ -16,7 +16,7 @@ The web GUI's VSCode-like workspace sidebar — explorer, editor, per-session te
 
 The plugin is adopted first-party as `@deepseek-ai/dsh-better-sidebar` at `packages/client/better-sidebar` on the source plane: all peers resolve from the workspace, ending the per-release npm peer-range churn, and the upstream MIT LICENSE file is preserved.
 
-No shipped composition mounts it: the desktop overlay (`apps/desktop-host/config/desktop.cordis.patch.yml`) leaves the `better-sidebar` row out deliberately (see the [desktop-without-workspace-sidebar note](2026-09-10-desktop-without-workspace-sidebar.md)) and a browser `dsh web` composition mounts nothing, so a deployment that wants the panel inserts the row itself.
+The desktop overlay (`apps/desktop-host/config/desktop.cordis.patch.yml`) mounts the `better-sidebar` row again since the [remount decision](2026-09-10-desktop-workspace-sidebar-remount.md), and a browser `dsh web` composition mounts nothing, so a browser deployment that wants the panel inserts the row itself.
 
 The packaged desktop deploy tree carries the package: `@deepseek-ai/dsh-better-sidebar` is an `apps/cli` production dependency, so the `@deepseek-ai/dsh` closure that every desktop package set includes installs it whether or not a composition mounts it.
 
