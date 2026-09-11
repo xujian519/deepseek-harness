@@ -2578,6 +2578,9 @@ importers:
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../llm/llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
       '@deepseek-ai/dsh-subagent':
         specifier: workspace:^
         version: link:../../subagent/subagent
@@ -2590,9 +2593,6 @@ importers:
       node-pty:
         specifier: 1.2.0-beta.15
         version: 1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0)
-      ws:
-        specifier: ^8.21.0
-        version: 8.21.0
     devDependencies:
       '@codemirror/commands':
         specifier: ^6.10.4
@@ -2672,9 +2672,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../ui-slots
-      '@deepseek-ai/dsh-session':
-        specifier: workspace:^
-        version: link:../../core/session
       '@deepseek-ai/dsh-settings':
         specifier: workspace:^
         version: link:../../settings/settings
