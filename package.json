@@ -135,6 +135,8 @@
     "upload:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:win:x64",
     "verify-agent-note-classification": "tsx scripts/verify-agent-note-classification.ts",
     "verify-agent-note-format": "tsx scripts/verify-agent-note-format.ts",
+    "verify-agent-preset-config": "tsx scripts/verify-agent-preset-config.ts",
+    "verify-agent-preset-config:home": "tsx scripts/verify-agent-preset-config.ts --home",
     "verify-application-entrypoints": "tsx scripts/verify-application-entrypoints.ts",
     "verify-archived-agent-notes": "tsx scripts/verify-archived-agent-notes.ts",
     "verify-built-package-invariants": "node scripts/verify-built-package-invariants.mjs",

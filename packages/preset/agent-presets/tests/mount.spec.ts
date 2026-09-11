@@ -254,6 +254,15 @@ describe('rejecting a composition that cannot be used', () => {
     expect(toolNames(ctx)).toEqual([])
   })
 
+  it('rejects a row whose config the schema of its plugin no longer accepts', async () => {
+    // Discovery judges a preset's shape and whether its packages resolve, so
+    // the roster calls this composition healthy; the schema the Loader applies
+    // is what refuses it. The 2026-09-06 persona field rename reached a
+    // deployment exactly this way, and nothing in CI saw it.
+    await expect(agentOn(ctx, 'sess-stale-persona', 'stale-persona'))
+      .rejects.toThrow(/\$\.prefix missing required value/)
+  })
+
   it('names every failed row, not just the count', async () => {
     // The Loader folds several failed rows into one AggregateError whose own
     // message names none of them; unflattened, the operator is told only that
@@ -354,7 +363,7 @@ describe('the preset roster', () => {
 
     // `not-a-preset` is the fixture ghost: no composition file, listed broken.
     expect(listed.map(preset => preset.id).sort())
-      .toEqual(['broken', 'isolated', 'late', 'leaky', 'minimal', 'nested-broken', 'not-a-preset', 'pending', 'standard', 'two-broken'])
+      .toEqual(['broken', 'isolated', 'late', 'leaky', 'minimal', 'nested-broken', 'not-a-preset', 'pending', 'stale-persona', 'standard', 'two-broken'])
     expect(listed.find(preset => preset.id === 'standard')?.trust).toBe('system')
     expect(listed.find(preset => preset.id === 'not-a-preset')?.broken).toMatch(/is missing/)
   })
