@@ -64,6 +64,17 @@ const TARGETS: Record<DesktopPackageTargetName, DesktopPackageTarget> = {
 }
 
 /**
+ * Targets a local unsigned build may emit. Listed rather than derived from
+ * TARGETS so a future target has to opt in: shipping an unsigned payload is a
+ * release decision, not a packaging detail.
+ */
+const UNSIGNED_TARGET_NAMES: ReadonlySet<string> = new Set<DesktopPackageTargetName>([
+  'mac-arm64',
+  'mac-x64',
+  'win-x64',
+])
+
+/**
  * Remove Windows signing configuration from package preparation subprocesses.
  * @param environment - Packaging command environment.
  * @returns A copy without Windows signing fields.
@@ -76,7 +87,7 @@ export function withoutWindowsSigningEnvironment(environment: NodeJS.ProcessEnv)
 /**
  * Select signing and NSIS-compatible archive filters for electron-builder.
  * @param environment - Target packaging environment.
- * @param unsigned - Whether to create a local unsigned Windows artifact.
+ * @param unsigned - Whether to create a local unsigned artifact.
  * @returns Packaging environment without certificate inputs for unsigned builds.
  */
 export function desktopElectronBuilderEnvironment(environment: NodeJS.ProcessEnv, unsigned: boolean): NodeJS.ProcessEnv {
@@ -204,7 +215,9 @@ export function parseDesktopPackageInvocation(
   })
   if (positionals.length > 1) throw new Error('desktop package: expected at most one target')
   const name = positionals[0] ?? hostTargetName(hostPlatform, hostArch)
-  if (values.unsigned && name !== 'win-x64') throw new Error('desktop package: --unsigned requires win-x64')
+  if (values.unsigned && !UNSIGNED_TARGET_NAMES.has(name)) {
+    throw new Error(`desktop package: --unsigned supports ${[...UNSIGNED_TARGET_NAMES].join(', ')}`)
+  }
   if (values.unsigned && values['prepare-only']) throw new Error('desktop package: --unsigned cannot use --prepare-only')
   return {
     target: resolveDesktopPackageTarget(name, hostPlatform, hostArch),
@@ -282,6 +295,10 @@ async function main(): Promise<void> {
     ...buildEnv,
     DSH_DESKTOP_TARGET_PLATFORM: target.platform,
     DSH_DESKTOP_TARGET_ARCH: target.arch,
+    // Preparation subprocesses read the mode directly — prepare:dsh skips
+    // macOS runtime signing for it — so it rides every step, not only
+    // electron-builder.
+    DSH_DESKTOP_UNSIGNED: invocation.unsigned ? '1' : '0',
   }
   const electronBuilderEnv = desktopElectronBuilderEnvironment(targetEnv, invocation.unsigned)
   for (const name of WINDOWS_SIGNING_ENV_NAMES) {
@@ -311,7 +328,10 @@ async function main(): Promise<void> {
   await runPnpm(['run', 'prepare:packages'], targetEnv)
   await runPnpm(['run', 'prepare:dsh'], targetEnv)
   if (invocation.prepareOnly) return
-  if (target.platform === 'darwin' && !invocation.directory) {
+  // Signed macOS packaging splits the app into independently notarized App/DMG
+  // copies; an unsigned build has no notary inputs, so it takes the plain
+  // electron-builder path the directory build uses.
+  if (target.platform === 'darwin' && !invocation.directory && !invocation.unsigned) {
     await runPnpm([
       ...desktopElectronBuilderArguments(target, true),
       '--config.mac.notarize=false',
