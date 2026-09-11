@@ -17,6 +17,51 @@
 - **仍然开放**:H4、H5、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H6(恢复/中止文案)、H7(监听器 containment)、M1(util 小工具)与 M2(ResolvedConfig)已于 2026-08-30 全部收敛;**原语清单 5 项已全部落地**(emitContained、abort-race、util 下沉、recovery-vocabulary、ResolvedConfig)。
 - **hygiene 门禁现为红(既有,2026-08-28 确认)**:vendor rescope 的 6 处 exact-edit 漂移(agent-spine-demo README 双语 + cookbook 双语)、`ui-settings-models/onboarding-copy.ts` 的 6 条硬编码欢迎文案(需走 locale 字典)、3 个 client 包(synapse/ui-document-studio/ui-patent-teams)的 peer+dev 声明与 `verify-client-packages` 规则不一致。均为合并窗口遗留,文件未受本次清扫触碰,归入各自后续修复。
 
+## 2026-09-11 更新(全仓复测 + Issue 关联跟踪)
+
+复测基线 `dc50e9045f`。方法与逐条证据见 [全仓技术债务探查与 Issue 清单](../.agents/audits/2026-09-11-tech-debt-issue-manifest.md);该清单同时持有每条发现的 `file:line` 与拟建 issue 正文。本节的「Issue」列是本台账与 tracker 的唯一关联点。
+
+### 已收敛(相应条目不再开放)
+
+- **duplication 门禁**:08-30 的 28 克隆降为 **0 克隆**(462346 行),并已在 `ci-fork.yml` 纳入 CI——P1-1 的门禁红与「CI 盲区」同时消除。
+- **P2-1** `llm-deepseek/src/translate.ts:171` 闭合联合已补 `assertNever`。
+- **P2-4** `self-evolve-benchmark` 的 `BenchmarkId`/`CaseId` 已 brand。
+- **P2-7** `packages/README.md` 组职责表已补齐(56/56),与 `packages/*/` 目录一一对应。
+- **P2-8** `better-sidebar/src/pty-manager.ts` 注释已改指 `subprocess-local` 的真实 postinstall。
+- **L1、L2** 根 AGENTS.md 布局段与 L2 三项死代码(`finalExtension`、`WorkflowEventName`、`list-children.ts` 的本地 `reason:'unsupported'`)均已处理。
+- **M2** 13 处 `config as ResolvedConfig` 已由 `dsh-value` 的 `assertResolvedConfig` 收敛。
+- **M6 部分**:`subagent/continuation.ts` 1569 → 550 行,可销案;`host/apiproxy` 已删除。
+
+### 台账更正(本轮实测推翻原记录)
+
+- **M1** 的「已收敛 / 0 剩余」**不成立**:`isRecord` 仍有 6 处本地定义、`asRecord` 5 处、`assertPositive*` 5 处(签名三方漂移)、`errorMessage` 简化版 4 处、`toError` 2 处、放宽语义的 `isENOENT`/`isEEXIST` 4 处,另有新族 `isAbortError`(5)、`hasExactKeys`(4)、`sleep`(9)。详表见 Issue #87。
+- **M6** 的行数表大面积过期:仅 `continuation.ts` 收敛;`analyzer.ts` 3142 → 3235、`core/session` 1157 → 1281、`ptc.ts` 的 `createRunCodeTool` ~315 → 386、`acp` 的 `apply` ~310 → 341 均恶化,另有台账未载的新上帝文件(`client/connection/src/client/fixture.ts` 4052、`experimental/code-runtime-python/src/index.ts` 2441、`client/ui-trajectory/src/client/TrajectoryTable.tsx` 3208)。见 Issue #86。
+- **M8** 点名项**零修复**(行号普遍漂移),且「shell seam 共享 `settingsNamespace('shell')`」的描述有误:shell 用的是裸字符串 `SHELL_SETTINGS_NAMESPACE`。见 Issue #88。
+- **M9** 的前提已变:`SESSION_FORMAT_VERSION` 已升到 2,legacy shim 的消费者需重新验证。见 Issue #98。
+
+### 本轮新增(台账与 08-30 审计均未载)
+
+hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源于 fork 的桌面侧栏改造)、一处未声明的工作区依赖(#82,`session-persistence-jsonl/src/win32.ts:17` 运行期值导入 `dsh-value` 但未声明)、26 处闭合联合缺 `assertNever`(#89)、10 个组 README 共缺 16 个包条目(#90)、src 内 63 处空 `.catch(() => {})`(#85)、硬编码参数新簇(#88)、测试可靠性族(#92)、死导出无门禁(#93)、`vitest.config.ts` 豁免理由错位残留(#91)。完整清单见上述 manifest。
+
+### 台账条目 → Issue 关联
+
+| 台账条目 | 状态 | Issue |
+|---|---|---|
+| H4 e2b 生命周期缺口 | 开放 | #79 |
+| H5 agent/session announcement 状态机双份 | 开放 | #101 |
+| M1 小工具复制流行病 | 部分收敛,仍有残留 | #87 |
+| M3 settings 三个竞态 | 开放 | #80 |
+| M4 hooks 桥行为缺口 | 开放 | #81 |
+| M6 上帝文件 | 开放(行数已更新) | #86 |
+| M8 硬编码可调参数 | 开放(零修复) | #88 |
+| M9 legacy shim | 开放(前提已变) | #98 |
+| L3 `types.ts` 含运行时代码 | 开放 | #99 |
+| L4 terminal seam 错误风格 | 开放 | #100 |
+| L5 其他低危 | 开放,仍只在本台账登记 | — |
+| H1–H3、H6、H7、M2、M5、M7、L1、L2、P1-1、P2-1、P2-4、P2-7、P2-8 | 已收敛 | — |
+
+L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装、identity 首启并发窗口、todo 双 schema 库混用等)保持台账登记、不单独立案:它们各自没有可独立评审的修复单元,合并成一个滚总 issue 又无法被单个 PR 关闭。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
@@ -164,7 +209,7 @@
 - **部署相关并发度非 Config**:`subagent/src/list-children.ts:27` `COLD_READ_CONCURRENCY = 4`(注释立场:bound 本地 read-only 扫描、非部署行为,「Should a networked persistence backend appear, promote it to a validated Config field」——当前可接受,网络化持久化出现时须 promote)
 - **客户端可见行为无 Config**:`sdk/client/src/client.ts:28,31` `STDERR_TAIL_LIMIT=400`/`STREAM_SETTLE_MS=100`;`boot/app-boot:578` `FAIL_LOUD_RELEASE_TIMEOUT_MS=2000`;`acp:239` `agentInfo.version='0.0.1'`(应从包版本派生);`session-persistence-jsonl:44` `ZSTD_DECODE_YIELD_INTERVAL_MS=500`
 - **默认值风格漂移**:同类超时默认值横向不对称(bash/pwsh-local 前台 `120_000` vs tool-bash-persistent `300_000` vs terminal-bash `30_000` vs e2b `300_000`),无一处集中文档化来源依据
-- **同机制两样写法**:`preset/agent-presets:40` 裸字符串 `SETTINGS_NAMESPACE = 'agent-presets'` vs shell seam 共享 `settingsNamespace('shell')`
+- **同机制两样写法**:`preset/agent-presets:55` 裸字符串 `SETTINGS_NAMESPACE = 'agent-presets'` 与 `shell/shell/src/index.ts:21` 的 `SHELL_SETTINGS_NAMESPACE = 'shell'` 是同类写法(2026-09-11 更正:原记录称 shell 共享 `settingsNamespace()` 不实)
 
 ### M9. 残留 shim 待验证消费者
 
