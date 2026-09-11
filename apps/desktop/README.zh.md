@@ -135,15 +135,18 @@ macOS 签名遍历真实文件，不跟随 Framework 的软链接别名。PAK �
 
 可通过公司代理加速向 Apple 公证服务上传。代理配置参见公司内部文档。
 
-### 未签名 Windows 测试安装包
+### 未签名测试安装包
 
-在 Windows x64 上，使用完整的未签名打包命令进行本地安装测试：
+进行本地安装测试时，使用对应目标的完整未签名打包命令：
 
 ```sh
 pnpm run package:desktop:win:x64:unsigned
+pnpm run package:desktop:mac:arm64:unsigned
 ```
 
-该命令要求设置 `DSH_DESKTOP_APP_ID` 并具备常规构建依赖，包括编译原生模块所需的 Python 和 Visual C++ 构建工具。Python 不在 `PATH` 中时，将 `PYTHON` 设置为其可执行文件路径。命令将安装包写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，省略自动更新配置，清除签名凭据，且不生成发布完成记录。它不需要 EV 凭据或更新源地址。签名打包和上传命令仍遵循正式发布要求。
+该命令要求设置 `DSH_DESKTOP_APP_ID` 并具备常规构建依赖，包括 Python；Windows 目标还需编译原生模块所需的 Visual C++ 构建工具。Python 不在 `PATH` 中时，将 `PYTHON` 设置为其可执行文件路径。命令将产物写入 `.desktop-build/targets/<target>/unsigned-artifacts/`，省略自动更新配置，清除签名凭据，且不生成发布完成记录。它不需要 EV 凭据或更新源地址，macOS 目标还额外不需要 Developer ID 与公证凭据。签名打包和上传命令仍遵循正式发布要求。
+
+macOS 产物不含 Developer ID 签名与公证票据，在其他机器上会被 Gatekeeper 拒绝；请在构建机上安装。它永远不是可发布的正式版本。
 
 ### Windows EV 签名
 
