@@ -19,6 +19,9 @@ export function desktopRuntimeFileExclusion(
   if (/\.(?:[cm]?[jt]s|css)\.map$/u.test(file)) return 'source map'
   if (/\.d\.[cm]?ts$/u.test(file)) return 'TypeScript declaration'
   if (/\.tsbuildinfo$/u.test(file)) return 'TypeScript build cache'
+  // electron-builder drops this placeholder while copying extraResources, so a
+  // runtime that keeps it fails its own inventory comparison after packing.
+  if (file === '.gitkeep') return 'version-control placeholder'
   const packageParts = parts.slice(parts.lastIndexOf('node_modules') + 1)
   const nameParts = packageParts[0]?.startsWith('@') ? 2 : 1
   const name = packageParts.slice(0, nameParts).join('/')

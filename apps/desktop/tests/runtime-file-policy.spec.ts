@@ -17,6 +17,7 @@ it('omits development artifacts while preserving executable modules, assets and 
     'example/index.js.map', 'example/index.mjs.map', 'example/index.cjs.map',
     'example/style.css.map', 'example/index.d.ts.map', 'example/index.d.mts.map',
     'example/index.d.cts.map', 'example/tsconfig.tsbuildinfo',
+    'undici/lib/llhttp/.gitkeep',
     'node-pty/prebuilds/win32-arm64/conpty.node',
     'node-pty/prebuilds/linux-x64/pty.node', 'node-pty/prebuilds/darwin-x64/pty.node',
     'node-pty/prebuilds/win32-x64/conpty.pdb',
