@@ -4,6 +4,7 @@ import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import { PassThrough } from 'node:stream'
 import { posix } from 'node:path'
+import { Context } from '@deepseek-ai/cordis'
 import {
   CommandExitError,
   e2bControlEnvs,
@@ -460,6 +461,7 @@ export async function spawnE2BTerminal(
   spec: SubprocessTerminalSpawnSpec,
   stateDir: string,
   pollMs: number,
+  ctx: Context,
 ): Promise<E2BTerminalHandle> {
   const sandbox = await runtime.getSandbox()
   spec.signal?.throwIfAborted()
@@ -558,6 +560,7 @@ export async function spawnE2BTerminal(
     try {
       await cleanup()
     } catch (cleanupError: unknown) {
+      ctx.logger.warn(cleanupError, 'subprocess-e2b: terminal setup cleanup failed')
       // TODO(e2b-terminal-setup-rollback): Retain retry state only if a real
       // double failure must be recovered before sandbox disposal or timeout.
       throw new AggregateError([asError(error), asError(cleanupError)], asError(error).message)

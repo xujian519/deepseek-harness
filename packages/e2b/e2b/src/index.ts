@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { posix } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { FileType, Sandbox, SandboxNotFoundError } from 'e2b'
+import { FileType, Sandbox, SandboxError, SandboxNotFoundError } from 'e2b'
 import { proxyRouteFor } from '@deepseek-ai/dsh-http-proxy'
 import { e2bApiUrl } from './api-url.ts'
 
@@ -17,6 +17,7 @@ export {
   FileNotFoundError,
   FileType,
   Sandbox,
+  SandboxError,
   SandboxNotFoundError,
 } from 'e2b'
 export type { CommandHandle, CommandResult, EntryInfo } from 'e2b'
@@ -28,6 +29,10 @@ export type { CommandHandle, CommandResult, EntryInfo } from 'e2b'
  */
 export function quoteE2BShellArg(value: string): string {
   return `'${value.replaceAll('\'', "'\"'\"'")}'`
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
 }
 
 /**
@@ -106,7 +111,9 @@ export class E2BRuntime extends Service {
     this.ready = this.open()
     // A deployment may load the owner before any adapter uses it. Keep a
     // failed eager connection observed; getSandbox() still returns the error.
-    void this.ready.catch(() => {})
+    void this.ready.catch((error: unknown) => {
+      this.ctx.logger.warn(error, 'dsh-e2b: sandbox setup failed')
+    })
 
     ctx.effect(() => async () => {
       this.disposed = true
@@ -120,7 +127,9 @@ export class E2BRuntime extends Service {
       try {
         await sandbox.kill()
       } catch (error: unknown) {
-        if (!(error instanceof SandboxNotFoundError)) throw error
+        if (error instanceof SandboxNotFoundError) return
+        const level = error instanceof SandboxError ? 'warn' : 'error'
+        this.ctx.logger[level](error, 'dsh-e2b: sandbox teardown kill failed')
       }
     }, 'e2b sandbox teardown')
   }
@@ -177,11 +186,18 @@ export class E2BRuntime extends Service {
       )
       return sandbox
     } catch (error: unknown) {
+      let rollbackError: unknown
       try {
         await sandbox.kill()
-      } catch (_sandboxSetupRollbackFailure) {
-        // TODO(e2b-setup-rollback): Add retry state only if a real double failure
-        // outlives E2B's configured sandbox timeout.
+      } catch (setupRollbackFailure) {
+        rollbackError = setupRollbackFailure
+        this.ctx.logger.warn(rollbackError, 'dsh-e2b: setup rollback kill failed')
+      }
+      if (rollbackError !== undefined) {
+        throw new AggregateError(
+          [asError(error), asError(rollbackError)],
+          asError(error).message,
+        )
       }
       throw error
     }
