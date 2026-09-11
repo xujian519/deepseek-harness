@@ -29,12 +29,7 @@ import type { Context as CordisContext } from '@deepseek-ai/cordis'
 // package's Context augmentation, which would otherwise enter the client
 // program and flip Context['sessions'] to the host SessionStore face.
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
-import type {
-  Context,
-  SidebarAgentPresetsService,
-  SidebarSessionPersistenceService,
-  SidebarSessionTitleService,
-} from './context-types.ts'
+import type { Context } from './context-types.ts'
 import {
   boundaryDelivered,
   buildSidechatInheritance,
@@ -85,7 +80,7 @@ async function composeChildSetup(
   ctx: Context,
   presetId: string | undefined,
 ): Promise<{ agentPreset?: string; setup: AgentSetup }> {
-  const presets = ctx.get('agentPresets') as SidebarAgentPresetsService | undefined
+  const presets = ctx.get('agentPresets')
   if (presets === undefined) {
     return { setup: () => Promise.resolve() }
   }
@@ -102,13 +97,13 @@ async function composePersistedSetup(
   ctx: Context,
   childId: string,
 ): Promise<AgentSetup> {
-  const persistence = ctx.get('sessionPersistence') as SidebarSessionPersistenceService | undefined
+  const persistence = ctx.get('sessionPersistence')
   if (persistence === undefined) {
     return () => Promise.resolve()
   }
   const inspected = await persistence.inspect(childId)
   const presetId = resolvePresetId(inspected.meta, inspected.events)
-  const presets = ctx.get('agentPresets') as SidebarAgentPresetsService | undefined
+  const presets = ctx.get('agentPresets')
   if (presets === undefined || presetId === undefined) {
     return () => Promise.resolve()
   }
@@ -172,10 +167,12 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
       }
       const parentSession = parent.session
       const inheritance = buildSidechatInheritance(
+        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         parentSession.snapshotEvents(),
       )
       const { agentPreset, setup } = await composeChildSetup(
         ctx,
+        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         resolvePresetId(parentSession.header, parentSession.snapshotEvents()),
       )
       const childId = `session-${randomUUID()}` as SessionId
@@ -227,7 +224,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
       threadDisposers.set(childId, () => handle.dispose())
       // Pin the thread label so the client can identify its threads by
       // title prefix (the rename is a live-session op, no RPC fence).
-      const titles = ctx.get('sessionTitle') as SidebarSessionTitleService | undefined
+      const titles = ctx.get('sessionTitle')
       const pinTitle = (label: string): void => {
         if (titles === undefined) return
         try {
@@ -273,6 +270,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
           throw new SidebarError('sidechat-error', `thread resume failed: ${error instanceof Error ? error.message : String(error)}`, 500)
         }
       }
+      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       if (boundaryDelivered(agent.session.snapshotEvents())) {
         admitFollowup(agent, textPrompt(text))
       } else {
@@ -284,7 +282,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
         pendingSnapshots.delete(childId)
         if (snapshot !== undefined) parts.push(snapshot)
         admitFirstContact(agent, parts.join('\n\n'), text)
-        const titles = ctx.get('sessionTitle') as SidebarSessionTitleService | undefined
+        const titles = ctx.get('sessionTitle')
         if (titles !== undefined) {
           try {
             titles.rename(agent.session, sideLabel(text))
@@ -334,7 +332,7 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
         }
       }
       // Cold thread: only the persisted preset is worth reading back.
-      const persistence = ctx.get('sessionPersistence') as SidebarSessionPersistenceService | undefined
+      const persistence = ctx.get('sessionPersistence')
       if (persistence !== undefined) {
         try {
           const inspected = await persistence.inspect(childId)

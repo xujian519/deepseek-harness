@@ -76,6 +76,7 @@ interface BranchInput {
 
 /** Fold a live Session into the minimal facts the canvas projection needs. */
 function threadSource(session: Session): ThreadSource {
+  // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   const title = sessionTitle(session.snapshotEvents())
   return {
     id: session.id,
@@ -336,6 +337,7 @@ export class WorkspaceStore {
    * @param workspaceTitleFallback Title for sessions without a cwd.
    * @returns The projected thread, or null when the session was archived. */
   async projectSession(session: Session, replayFrom = 0, workspaceTitleFallback = 'DSH 任务'): Promise<Thread | null> {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     return this.projectPersisted(threadSource(session), sessionCwd(session), session.snapshotEvents(), replayFrom, workspaceTitleFallback)
   }
 
