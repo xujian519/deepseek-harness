@@ -588,9 +588,10 @@ terminal seam 的错误风格与同族包不对称：同类包都带包名前缀
 | `packages/experimental/webworker-runtime` 的 no-op Node 内建 shim、`api/session-controller/src/client/scope.ts:45` 空函数 | 注释标注为有意。 |
 | `python/` | 15 个跟踪 `.py` 文件：0 债务标记、0 `noqa`、0 `type: ignore`、0 bare `except`、1 处环境守卫 skip。本轮无条目。 |
 
-## 6. 下一步
+## 6. 落地结果
 
-1. 你确认/裁剪第 3 节表格与第 4 节正文（尤其 11 个新 `area/*` 标签、优先级排序、Issue 22/23 是否保留）。
-2. 我按确认结果：新建标签 → 逐条 `gh issue create --repo xujian519/deepseek-harness …` → 把 issue 号回写本清单表格。
-3. 回写 `docs/TECH_DEBT.md`（Issue 20 的产物）并跑 `pnpm run test:docs`。
-4. 可选：把本清单与台账回写作为一次本地提交 / PR（若走 PR，按 AGENTS.md 需在同 PR 附 Agent Note）。
+- **标签**：新建 11 个 `area/*`（core、client、util、session、e2b、hooks、settings、api、tests、docs、infra）；另补建 taxonomy 的规范 `kind/doc`（fork 缺失，PR 需要）。
+- **Issue**：24 条全部创建，编号 #78–#101（第 3 节表格已回写编号）。其中 H5（agent/session announcement 状态机双份分叉）在首批 23 条之外补建 —— 清单第 2 节把它列为「仍开放」，首批遗漏，复核源码确认仍在（session 侧多出 `appending`，已开始分叉）后补为 #101。
+- **关联**：`docs/TECH_DEBT.md` 新增「2026-09-11 更新」小节与「台账条目 → Issue」关联表；`pnpm run test:docs` 17/17 通过。
+- **PR**：[#102](https://github.com/xujian519/deepseek-harness/pull/102)（`chore/tech-debt-issue-tracking` → `master`，`kind/doc` + `area/docs`，正文声明 `Fixes #97`）。
+- **未完成**：Project 的 Status/Priority 与原生 Issue Type 仍无法写入（证据见第 3 节偏差记录），待可用后回填。
