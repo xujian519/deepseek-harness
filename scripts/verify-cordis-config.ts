@@ -16,6 +16,7 @@ import { Script } from 'node:vm'
 import ts from 'typescript'
 import { cordisConfigFiles } from './cordis-config-files.ts'
 import { isCordisGroupEntry, isJsExpr, loadCordisYaml } from './cordis-yaml.ts'
+import { SOURCE_EXTENSIONS, sourcePlaneResolver } from './source-plane.ts'
 
 export interface PackageManifest {
   name?: string
@@ -400,29 +401,7 @@ export function bundlePluginDependencyErrors(
 function validateSourcePlaneResolution(): string[] {
   const violations: string[] = []
   const localPackages = localPackageDirectories()
-  const config = ts.readConfigFile(resolve(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
-  if (config.error !== undefined) {
-    throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
-  }
-  const { options, errors: optionErrors } = ts.convertCompilerOptionsFromJson(
-    (config.config as { compilerOptions?: unknown }).compilerOptions,
-    root,
-    'tsconfig.base.json',
-  )
-  if (optionErrors.length > 0) {
-    throw new Error(optionErrors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
-  }
-  // convertCompilerOptionsFromJson leaves `pathsBasePath` unset, so relative
-  // `paths` targets resolve against the host's current directory; anchor it to
-  // the repository root to keep the gate cwd-independent.
-  const host: ts.ModuleResolutionHost = {
-    fileExists: path => ts.sys.fileExists(path),
-    readFile: path => ts.sys.readFile(path),
-    directoryExists: path => ts.sys.directoryExists(path),
-    getCurrentDirectory: () => root,
-  }
-  const sourceExtensions = new Set<string>([ts.Extension.Ts, ts.Extension.Tsx])
-  const containingFile = resolve(root, 'scripts/verify-cordis-config.ts')
+  const resolveSpecifier = sourcePlaneResolver(root, resolve(root, 'scripts/verify-cordis-config.ts'))
   const locationsBySpecifier = new Map<string, Set<string>>()
   for (const reference of pluginReferences) {
     const packageName = packageNameFromSpecifier(reference.name)
@@ -432,8 +411,8 @@ function validateSourcePlaneResolution(): string[] {
     locationsBySpecifier.set(reference.name, locations)
   }
   for (const [specifier, locations] of locationsBySpecifier) {
-    const resolved = ts.resolveModuleName(specifier, containingFile, options, host).resolvedModule
-    if (resolved !== undefined && sourceExtensions.has(resolved.extension)) continue
+    const resolved = resolveSpecifier(specifier)
+    if (resolved !== undefined && SOURCE_EXTENSIONS.has(resolved.extension)) continue
     violations.push(`${[...locations].join(', ')}: ${specifier} does not resolve to workspace source through tsconfig.base.json paths (add a mapping so the tsx source launch does not depend on built lib/)`)
   }
   return violations
