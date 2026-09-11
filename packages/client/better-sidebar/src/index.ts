@@ -149,17 +149,17 @@ export function mediaTypeForPath(path: string): string {
 
 /**
  * Resolve a session's authoritative working directory. The attached session
- * header wins; while the session is still hydrating from persistence (the
- * web client attaches the current conversation a moment after page load, so
- * the very first sidebar requests can arrive detached) the caller's own
- * list-summary cwd is used; the session-persistence index is queried as a
+ * header wins; while the session is still hydrating from storage (the web
+ * client attaches the current conversation a moment after page load, so the
+ * very first sidebar requests can arrive detached) the caller's own
+ * list-summary cwd is used; `ctx.sessionController.inspect` is queried as a
  * last resort for cold (not-yet-attached) sessions so a detached first
  * request still resolves the correct project instead of the host process
  * cwd (which on Windows is the DSH source root after `dsh.cmd`'s `pushd`,
  * causing every user-project path to be misclassified as "outside
  * workspace"). The host process cwd is the FINAL fallback for deployments
- * without persistence (tests / stripped-down hosts); production always
- * provides persistence, so the bug-fix path (header → client → persistence)
+ * without the session controller (tests / stripped-down hosts); production
+ * always provides it, so the bug-fix path (header → client → controller)
  * always resolves the real session cwd before reaching it.
  */
 async function sessionCwdOf(ctx: Context, sessionId: string, clientCwd?: string): Promise<string> {
@@ -173,10 +173,15 @@ async function sessionCwdOf(ctx: Context, sessionId: string, clientCwd?: string)
       throw new SidebarError('bad-request', `invalid working directory "${clientCwd}"`)
     }
   }
-  const persistence = ctx.get('sessionPersistence')
-  if (persistence !== undefined) {
-    const inspected = await persistence.inspect(sessionId)
-    const metaCwd = inspected.meta.cwd
+  const controller = ctx.get('sessionController')
+  if (controller !== undefined) {
+    let metaCwd: string | undefined
+    try {
+      metaCwd = (await controller.inspect(sessionId)).meta.cwd
+    } catch {
+      // Unknown or unreadable session: this request carries no cwd of its
+      // own, so the host process cwd below stays the last resort.
+    }
     if (metaCwd !== undefined && metaCwd !== '') {
       try {
         return requireAbsolute(metaCwd)

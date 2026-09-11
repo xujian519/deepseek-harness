@@ -77,7 +77,9 @@ class FakeFitAddon {
  *  and can be built as a non-200 refusal. */
 class FakeFetch {
   static instances: FakeFetch[] = []
-  url: string
+  readonly url: string
+  /** The request options the view passed (carries the streaming-body `duplex`). */
+  readonly init: RequestInit
   /** Client→host input frames the view wrote, in order. */
   sent: string[] = []
   ended = false
@@ -87,6 +89,7 @@ class FakeFetch {
   readonly promise: Promise<Response>
   constructor(url: string, init: RequestInit, failed: { status: number; body: string } | undefined) {
     this.url = url
+    this.init = init
     if (failed !== undefined) {
       this.response = new Response(failed.body, { status: failed.status })
       this.promise = Promise.resolve(this.response)
@@ -227,6 +230,9 @@ describe('TerminalView connection lifecycle', () => {
     const { container, unmount, lastFetch, lastTerm } = mountTerminal('terminal:1')
     const fake = lastFetch()
     expect(fake.url).toBe('http://localhost:3000/sidebar/ws/terminal?sessionId=s1&tab=terminal%3A1&cwd=%2Fws')
+    // A streaming request body requires `duplex`; Chromium refuses the request
+    // outright without it, so the terminal must declare it on every transport.
+    expect((fake.init as { duplex?: string }).duplex).toBe('half')
     await flush()
     expect(container.textContent).not.toContain('disconnected')
     // Resize announced once after a real host size.

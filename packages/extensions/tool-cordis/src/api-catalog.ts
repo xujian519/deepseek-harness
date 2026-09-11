@@ -6539,7 +6539,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SidebarContextShape',
-    declaration: 'export interface SidebarContextShape {\n    webServer: SidebarWebServer;\n    sessions: SidebarSessionStore & SidebarSessionsService;\n    connection: SidebarConnectionHandle;\n    webRuntime: SidebarWebRuntime;\n    slots: SidebarSlotsService;\n    workspaces: SidebarWorkspacesService;\n    settings: SidebarSettingsService;\n    invariants: SidebarInvariantsService;\n    tools: SidebarToolsService;\n    locale: SidebarLocaleService;\n    modules: {\n        import(specifier: string): Promise<unknown>;\n    };\n    jobs: SidebarJobsService;\n    agents: SidebarAgentsService;\n    subagents: SidebarSubagentsService;\n    agentPresets: SidebarAgentPresetsService;\n    sessionTitle: SidebarSessionTitleService;\n    sessionPersistence: SidebarSessionPersistenceService;\n    conversation: SidebarConversation;\n    betterSidebar: BetterSidebarService;\n    on(event: string, listener: (session: unknown, event: SidebarSessionEvent) => void): () => void;\n}',
+    declaration: 'export interface SidebarContextShape {\n    webServer: SidebarWebServer;\n    sessions: SidebarSessionStore & SidebarSessionsService;\n    connection: SidebarConnectionHandle;\n    webRuntime: SidebarWebRuntime;\n    slots: SidebarSlotsService;\n    workspaces: SidebarWorkspacesService;\n    settings: SidebarSettingsService;\n    invariants: SidebarInvariantsService;\n    tools: SidebarToolsService;\n    locale: SidebarLocaleService;\n    modules: {\n        import(specifier: string): Promise<unknown>;\n    };\n    jobs: SidebarJobsService;\n    agents: SidebarAgentsService;\n    subagents: SidebarSubagentsService;\n    agentPresets: SidebarAgentPresetsService;\n    sessionTitle: SidebarSessionTitleService;\n    sessionController: SidebarSessionControllerService;\n    conversation: SidebarConversation;\n    betterSidebar: BetterSidebarService;\n    on(event: string, listener: (session: unknown, event: SidebarSessionEvent) => void): () => void;\n}',
   },
   {
     name: 'SidebarConversation',
@@ -6598,6 +6598,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SidebarRpcResult<T> = {\n    ok: true;\n    value: T;\n} | {\n    ok: false;\n    error: {\n        code: string;\n        message: string;\n    };\n};',
   },
   {
+    name: 'SidebarSessionControllerService',
+    declaration: 'export interface SidebarSessionControllerService {\n    inspect(sessionId: string, signal?: AbortSignal): Promise<{\n        meta: {\n            cwd?: string;\n            agentPreset?: string;\n        };\n        events: readonly SidebarSessionEvent[];\n    }>;\n}',
+  },
+  {
     name: 'SidebarSessionEvent',
     declaration: 'export interface SidebarSessionEvent {\n    type: string;\n    seq: number;\n    time: number;\n    data: Record<string, unknown>;\n}',
   },
@@ -6616,10 +6620,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SidebarSessionList',
     declaration: 'export interface SidebarSessionList {\n    current: string | undefined;\n    byId: Record<string, SidebarSessionSummary>;\n    subagentsByParent?: Readonly<Record<string, SidebarSubagentCatalog>>;\n    jobsBySession?: Readonly<Record<string, readonly SidebarJobView[]>>;\n}',
-  },
-  {
-    name: 'SidebarSessionPersistenceService',
-    declaration: 'export interface SidebarSessionPersistenceService {\n    inspect(sessionId: string): Promise<{\n        meta: {\n            cwd?: string;\n            agentPreset?: string;\n        };\n        events: readonly SidebarSessionEvent[];\n    }>;\n}',
   },
   {
     name: 'SidebarSessionsService',
