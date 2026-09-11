@@ -22,9 +22,13 @@
  */
 
 import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
+// The /types subpaths keep this client-reachable module (the /client
+// subpath re-exports its snapshot function) off the host Context
+// augmentations, which would otherwise enter the client program and flip
+// Context['sessions'] to the host SessionStore face.
+import type { ToolRestriction } from '@deepseek-ai/dsh-tools/types'
 import { isRecord } from '@deepseek-ai/dsh-value'
 
 declare module '@deepseek-ai/dsh-session/types' {

@@ -270,6 +270,9 @@
       "@deepseek-ai/dsh-host-plugin-market/types": ["./packages/host/plugin-market/src/types.ts"],
       "@deepseek-ai/dsh-host-synapse": ["./packages/web/synapse/src"],
       "@deepseek-ai/dsh-system-prompt/prompt-cache": ["./packages/core/system-prompt/src/prompt-cache.ts"],
+      // session-log-export lives under session-query/, so the generated aliases map only its
+      // bare name; the browser half needs this explicit subpath for source-mode dynamic imports.
+      "@deepseek-ai/dsh-session-log-export/client": ["./packages/session-query/session-log-export/src/client"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],
@@ -377,6 +380,7 @@
       "@deepseek-ai/dsh-prompt-cache": ["./packages/core/prompt-cache/src"],
       "@deepseek-ai/dsh-prompt-cache/invariant": ["./packages/core/prompt-cache/src/invariant.ts"],
       "@deepseek-ai/dsh-pwsh-sandbox": ["./packages/shell/pwsh-sandbox/src"],
+      "@deepseek-ai/dsh-remote-mock": ["./packages/test-support/remote-mock/src"],
       "@deepseek-ai/dsh-repeat-tool-reminder": ["./packages/guard/repeat-tool-reminder/src"],
       "@deepseek-ai/dsh-sandbox": ["./packages/sandbox/sandbox/src"],
       "@deepseek-ai/dsh-sandbox-local": ["./packages/sandbox/sandbox-local/src"],

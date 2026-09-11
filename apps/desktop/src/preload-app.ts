@@ -1,14 +1,32 @@
 /**
- * Main-renderer bridge: the desktop protocol marker plus the print-to-PDF
- * bridge under `window.desktop`, the name the client UI's
- * `DesktopPrintBridge` contract already detects.
+ * Startup controls for shell documents; application documents receive the
+ * carrier marker plus the print-to-PDF bridge under `window.desktop`, the
+ * name the client UI's `DesktopPrintBridge` contract already detects.
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { PRINT_TO_PDF_CHANNEL } from './channels-app.ts'
+import { DESKTOP_IPC, type DshDesktopStartupApi } from './ipc.ts'
+import type { DesktopBackendState } from './backend-controller.ts'
 
-contextBridge.exposeInMainWorld('dshDesktop', { protocolVersion: 1 })
+const startup: DshDesktopStartupApi = {
+  protocolVersion: 1,
+  locale: () => ipcRenderer.invoke(DESKTOP_IPC.localeGet) as ReturnType<DshDesktopStartupApi['locale']>,
+  backend: {
+    status: () => ipcRenderer.invoke(DESKTOP_IPC.backendStatus) as ReturnType<DshDesktopStartupApi['backend']['status']>,
+    subscribe(listener) {
+      const handle = (_event: Electron.IpcRendererEvent, state: DesktopBackendState): void => { listener(state) }
+      ipcRenderer.on(DESKTOP_IPC.backendState, handle)
+      return () => { ipcRenderer.off(DESKTOP_IPC.backendState, handle) }
+    },
+  },
+  disablePlugins: () => ipcRenderer.invoke(DESKTOP_IPC.pluginsDisableAll) as Promise<void>,
+  restart: () => ipcRenderer.invoke(DESKTOP_IPC.applicationRestart) as Promise<void>,
+  resetConfiguration: () => ipcRenderer.invoke(DESKTOP_IPC.configurationReset) as Promise<void>,
+}
+
+contextBridge.exposeInMainWorld('dshDesktop', location.protocol === 'dsh-app:' && location.hostname === 'shell'
+  ? startup : { protocolVersion: 1 })
 contextBridge.exposeInMainWorld('desktop', {
   printHtmlToPdf: (payload: { html: string; suggestedName?: string }) =>
-    ipcRenderer.invoke(PRINT_TO_PDF_CHANNEL, payload),
+    ipcRenderer.invoke(DESKTOP_IPC.printToPdf, payload),
 })

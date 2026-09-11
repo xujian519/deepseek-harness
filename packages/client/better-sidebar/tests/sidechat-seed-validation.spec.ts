@@ -11,8 +11,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Session } from '@deepseek-ai/dsh-session'
-import type { SessionId } from '@deepseek-ai/dsh-session'
-import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent/client'
 import type { SidebarSessionEvent } from '../src/context-types.ts'
 import { buildSidechatInheritance } from '../src/sidechat-core.ts'
 

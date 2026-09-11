@@ -6,6 +6,9 @@ import { repositoryConfigHost } from './ts-project.ts'
 
 const knownOrphanEntries = new Set(['node_modules', 'lib', '.typecheck'])
 
+/** Manifest-less package-tree directories that hold only tracked documents, never build residue. */
+const documentationDirectories = new Set(['packages/self-evolve/evaluation'])
+
 function isMissing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
@@ -90,6 +93,7 @@ export class RepositoryCleaner {
 
     for (const groupDirectory of await childDirectories(join(this.root, 'packages'))) {
       for (const packageDirectory of await childDirectories(groupDirectory)) {
+        if (documentationDirectories.has(repositoryPath(this.root, packageDirectory))) continue
         // A package.json marks a live package; its output was discovered from the
         // project graph above, and its package-local node_modules must be preserved.
         if (await exists(join(packageDirectory, 'package.json'))) {

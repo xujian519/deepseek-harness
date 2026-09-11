@@ -163,6 +163,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
 
   const seed = (session: Session): Map<string, OpenRun> => {
     const trace = new Map<string, OpenRun>()
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     for (const event of session.snapshotEvents()) {
       const transition = validateEvent(trace, event, fail)
       if (transition !== undefined) applyTransition(trace, transition)
