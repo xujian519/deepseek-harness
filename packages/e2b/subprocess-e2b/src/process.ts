@@ -21,7 +21,7 @@ import type {
 import type E2BRuntime from '@deepseek-ai/dsh-e2b'
 import { bootstrapEnvironment, readRemoteEnvironment, serializeRemoteEnvironment } from './environment.ts'
 import { E2BBase64Decoder, E2B_OUTPUT_COMPLETE_FRAME, E2BOutputReader } from './output.ts'
-import { asError, commandOpts, signalRemoteGroups, waitTick } from './remote.ts'
+import { asError, commandOpts, signalOpts, signalRemoteGroups, waitTick } from './remote.ts'
 
 const OUTPUT_ENCODER_SOURCE = [
   '(async () => {',
@@ -344,7 +344,12 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       }
       this.commandState.resolve(handle)
       try {
-        this.remoteProcessGroupId = await this.waitForProcessGroupId(sandbox, completion)
+        const processGroupId = await this.waitForProcessGroupId(sandbox, completion, this.terminationController.signal)
+        if (processGroupId === undefined) {
+          await this.terminationAttempt?.catch(() => undefined)
+          return { exitCode: null, signal: this.terminationSignal ?? 'SIGTERM' }
+        }
+        this.remoteProcessGroupId = processGroupId
       } catch (error: unknown) {
         try {
           await this.rollbackUnpublishedGroup(sandbox, handle)
@@ -476,30 +481,39 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     })
   }
 
-  private async waitForProcessGroupId(sandbox: Sandbox, completion: Promise<CommandResult>): Promise<number> {
+  private async waitForProcessGroupId(
+    sandbox: Sandbox,
+    completion: Promise<CommandResult>,
+    signal?: AbortSignal,
+  ): Promise<number | undefined> {
     const commandSettled = completion.then(
       () => true,
       () => true,
     )
     while (true) {
-      // TODO(e2b-publication-cancel): Join cancellation to the existing
-      // termination transaction before aborting an in-flight SDK file read.
-      const raw = await sandbox.files.read(this.paths.pid)
-      const value = raw.trim()
-      if (value.length > 0) {
-        const pid = Number(value)
-        if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(pid)) {
-          throw new Error(`subprocess-e2b: remote wrapper published invalid process-group id ${JSON.stringify(value)}`)
+      try {
+        const raw = await sandbox.files.read(this.paths.pid, signalOpts(signal))
+        signal?.throwIfAborted()
+        const value = raw.trim()
+        if (value.length > 0) {
+          const pid = Number(value)
+          if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(pid)) {
+            throw new Error(`subprocess-e2b: remote wrapper published invalid process-group id ${JSON.stringify(value)}`)
+          }
+          // A same-UID sandbox process can rewrite this file; refuse ids whose
+          // negative form addresses every process (`kill -- -1`) or init's group.
+          if (pid <= 1) {
+            throw new Error(`subprocess-e2b: unsafe published process-group id ${pid}`)
+          }
+          return pid
         }
-        // A same-UID sandbox process can rewrite this file; refuse ids whose
-        // negative form addresses every process (`kill -- -1`) or init's group.
-        if (pid <= 1) {
-          throw new Error(`subprocess-e2b: unsafe published process-group id ${pid}`)
-        }
-        return pid
+        if (signal?.aborted === true) return undefined
+        const settled = await Promise.race([commandSettled, waitTick(this.pollMs).then(() => false)])
+        if (settled) throw new Error('subprocess-e2b: remote command exited before publishing its process-group id')
+      } catch (error: unknown) {
+        if (signal?.aborted === true) return undefined
+        throw error
       }
-      const settled = await Promise.race([commandSettled, waitTick(this.pollMs).then(() => false)])
-      if (settled) throw new Error('subprocess-e2b: remote command exited before publishing its process-group id')
     }
   }
 

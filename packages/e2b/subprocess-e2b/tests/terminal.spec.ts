@@ -259,14 +259,20 @@ function holdRequestUntilAbort(started: PromiseWithResolvers<AbortSignal>) {
   }
 }
 
+function fakeContext(): Context {
+  const ctx = new Context()
+  return ctx
+}
+
 /** Spawn the terminal under test with the config default the service would pass. */
 function testSpawn(
   runtime: Parameters<typeof spawnE2BTerminal>[0],
   spec: Parameters<typeof spawnE2BTerminal>[1],
   stateDir: string,
   pollMs = 20,
+  ctx = fakeContext(),
 ): ReturnType<typeof spawnE2BTerminal> {
-  return spawnE2BTerminal(runtime, spec, stateDir, pollMs)
+  return spawnE2BTerminal(runtime, spec, stateDir, pollMs, ctx)
 }
 
 describe('E2B terminal allocation', () => {
@@ -506,7 +512,29 @@ describe('E2B terminal allocation', () => {
     createFailed.createError = new Error('create failed')
     await expect(testSpawn(runtime(createFailed), spec(), '/runtime/create'))
       .rejects.toThrow('create failed')
+  })
 
+  it('logs terminal setup cleanup failures before aggregating them with the original error', async () => {
+    const fake = new FakeTerminalSandbox()
+    fake.handle.pid = 0
+    fake.handle.sdkKillError = new Error('kill transport failed')
+    fake.removeError = new Error('remove transport failed')
+    const ctx = fakeContext()
+    const warnings: unknown[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(message) }) as typeof ctx.logger.warn
+
+    await expect(testSpawn(runtime(fake), spec(), '/runtime/cleanup-logged', 20, ctx))
+      .rejects.toSatisfy((error: unknown) => {
+        if (!(error instanceof AggregateError)) return false
+        expect(error.errors).toHaveLength(2)
+        expect(error.errors[0]).toMatchObject({ message: 'subprocess-e2b: E2B returned invalid terminal pid 0' })
+        expect(error.errors[1]).toBeInstanceOf(AggregateError)
+        return true
+      })
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toBeInstanceOf(AggregateError)
+    expect((warnings[0] as AggregateError).message).toBe('subprocess-e2b: terminal setup cleanup did not complete')
   })
 
   it('bounds a missing bootstrap-output boundary by process exit or cancellation', async () => {

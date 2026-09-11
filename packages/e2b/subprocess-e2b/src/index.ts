@@ -205,6 +205,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
         { ...spec, signal: setupSignal },
         stateDir,
         this.pollMs,
+        this.ctx,
       )
       this.terminals.add(terminal)
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- Remote allocation yields to disposal.

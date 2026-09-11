@@ -1055,6 +1055,21 @@ describe('E2BSubprocessHandle', () => {
     await optimisticHandle.done
   })
 
+  it('cancels a stalled process-group publication wait when termination is requested', async () => {
+    const fake = new FakeSandbox()
+    fake.deferProcessGroupRead()
+    const handle = testHandle(runtime(fake), spec(), '/runtime/cancel-publication', 1)
+    await vi.waitFor(() => { expect(fake.startOptions).toBeDefined() })
+
+    handle.terminate()
+    await vi.waitFor(() => { expect(fake.commandsSeen).toContain('kill -TERM -- -4242') })
+    expect(fake.alive).toBe(false)
+    await expect(handle.waitForExit()).resolves.toBe(true)
+
+    fake.releaseProcessGroupRead()
+    await expect(handle.done).resolves.toEqual({ exitCode: null, signal: 'SIGTERM' })
+  })
+
   it('honors an already-aborted signal when constructing the asynchronous handle directly', async () => {
     const fake = new FakeSandbox()
     const handle = testHandle(runtime(fake), spec({ signal: AbortSignal.abort('stop') }), '/runtime/pre-aborted')

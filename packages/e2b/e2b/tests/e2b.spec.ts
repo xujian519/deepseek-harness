@@ -5,6 +5,7 @@ import type { Sandbox as SandboxType } from 'e2b'
 import E2BRuntime, {
   e2bControlEnvs,
   FileType,
+  SandboxError,
   SandboxNotFoundError,
   quoteE2BShellArg,
 } from '@deepseek-ai/dsh-e2b'
@@ -151,7 +152,7 @@ describe('E2BRuntime', () => {
     expect(errors).toEqual([])
   })
 
-  it('does not classify other disposal failures as an already-gone sandbox', async () => {
+  it('logs unexpected disposal kill failures at error level without aborting disposal', async () => {
     const fixture = fakeSandbox()
     const failure = new Error('disposition unknown')
     fixture.kill.mockRejectedValue(failure)
@@ -166,27 +167,55 @@ describe('E2BRuntime', () => {
     expect(errors).toContain(failure)
   })
 
+  it('logs E2B disposal kill failures at warn level without aborting disposal', async () => {
+    const fixture = fakeSandbox()
+    const failure = new SandboxError('rate limited')
+    fixture.kill.mockRejectedValue(failure)
+    sdk.create.mockResolvedValue(fixture.sandbox)
+    const ctx = new Context()
+    const warnings: unknown[] = []
+    ctx.logger.warn = ((error: unknown) => { warnings.push(error) }) as typeof ctx.logger.warn
+    const fiber = await ctx.plugin(E2BRuntime, { apiKey: 'test-key' })
+    await ctx.e2b.getSandbox()
+    await expect(fiber.dispose()).resolves.toBeUndefined()
+    expect(fixture.kill).toHaveBeenCalledOnce()
+    expect(warnings).toContain(failure)
+  })
+
   it('kills a newly created sandbox when remote directory setup fails', async () => {
     const fixture = fakeSandbox()
     fixture.makeDir.mockRejectedValueOnce(new Error('setup failed'))
     sdk.create.mockResolvedValue(fixture.sandbox)
     const ctx = new Context()
+    const warnings: unknown[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(message) }) as typeof ctx.logger.warn
     const fiber = await ctx.plugin(E2BRuntime, { apiKey: 'test-key' })
 
     await expect(ctx.e2b.getSandbox()).rejects.toThrow('setup failed')
     expect(fixture.kill).toHaveBeenCalledOnce()
+    expect(warnings.some(m => m instanceof Error && m.message.includes('setup failed'))).toBe(true)
     await fiber.dispose()
   })
 
-  it('preserves the setup failure after its one rollback attempt fails', async () => {
+  it('preserves the setup failure and rollback failure when rollback kill fails', async () => {
     const fixture = fakeSandbox()
     fixture.run.mockRejectedValueOnce(new Error('chmod failed'))
     fixture.kill.mockRejectedValueOnce(new Error('cleanup failed'))
     sdk.create.mockResolvedValue(fixture.sandbox)
     const ctx = new Context()
+    const warnings: unknown[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(message) }) as typeof ctx.logger.warn
     const fiber = await ctx.plugin(E2BRuntime, { apiKey: 'test-key' })
-    await expect(ctx.e2b.getSandbox()).rejects.toThrow('chmod failed')
+
+    await expect(ctx.e2b.getSandbox()).rejects.toSatisfy((error: unknown) => {
+      if (!(error instanceof AggregateError)) return false
+      expect(error.message).toBe('chmod failed')
+      expect(error.errors[0]).toMatchObject({ message: 'chmod failed' })
+      expect(error.errors[1]).toMatchObject({ message: 'cleanup failed' })
+      return true
+    })
     expect(fixture.kill).toHaveBeenCalledOnce()
+    expect(warnings.some(m => m instanceof Error && m.message.includes('cleanup failed'))).toBe(true)
 
     await fiber.dispose()
     expect(fixture.kill).toHaveBeenCalledOnce()
