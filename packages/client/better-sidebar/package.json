@@ -48,11 +48,11 @@
   "license": "MIT",
   "dependencies": {
     "node-pty": "1.2.0-beta.15",
-    "ws": "^8.21.0",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
-    "@deepseek-ai/dsh-subagent": "workspace:^"
+    "@deepseek-ai/dsh-subagent": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
@@ -85,7 +85,6 @@
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
-    "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
     "@deepseek-ai/dsh-util-crypto": "workspace:^",
     "@lezer/highlight": "^1.2.3",

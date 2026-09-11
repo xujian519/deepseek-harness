@@ -54,7 +54,7 @@ export const PTY_DEPS_MISSING = 'pty-deps-missing'
 /** A require-compatible loader, injectable for tests. */
 export type NodePtyRequire = (id: string) => unknown
 
-const defaultRequire: NodePtyRequire = createRequire(import.meta.url)
+const require = createRequire(import.meta.url)
 
 type LoadResult = { ok: true; module: NodePtyModule } | { ok: false; cause: unknown }
 
@@ -67,10 +67,10 @@ let cached: LoadResult | undefined
  * @param requireImpl - require-compatible loader, injectable for tests.
  * @returns the loaded module, or null when the load fails.
  */
-export function loadNodePty(requireImpl: NodePtyRequire = defaultRequire): NodePtyModule | null {
+export function loadNodePty(requireImpl?: NodePtyRequire): NodePtyModule | null {
   if (cached === undefined) {
     try {
-      cached = { ok: true, module: requireImpl('node-pty') as NodePtyModule }
+      cached = { ok: true, module: (requireImpl === undefined ? require('node-pty') : requireImpl('node-pty')) as NodePtyModule }
     } catch (cause) {
       cached = { ok: false, cause }
     }
