@@ -21,7 +21,7 @@ The anchor is the shell's own new-session button, matched by the module class th
 - **Anchor on `aria-label="新建会话"`** — ambiguous: the brand shortcut carries the same label and appears first in document order, so the effect would move the entry above the logo instead of after the new-session button.
 - **Hard-code the current CSS-module hash (`hT2-rG_newSession`)** — the hash changes per build, so the selector would break on the next rebuild; importing the module's own class name keeps the anchor resolved at build time.
 - **Apply the placement in the personal-workbench plugin itself** — the plugin owns the entry source, but the entry's injected position and its coexistence with the scheduled-task trigger are a sidebar-layout concern the shell already owns.
-- **Keep the promotion in the better-sidebar client** — that shell is no longer mounted by any shipped composition (see the [desktop-without-workspace-sidebar note](2026-09-10-desktop-without-workspace-sidebar.md)), so the effect never ran and the desktop showed the plugin's raw entry.
+- **Keep the promotion in the better-sidebar client** — the desktop composition omitted that shell when this decision was made ([removal note](../../archived/architecture/2026-09-10-desktop-without-workspace-sidebar.md)), so the effect never ran and the desktop showed the plugin's raw entry; a shell that later carries the promotion can own it again ([remount note](2026-09-10-desktop-workspace-sidebar-remount.md)).
 - **Set the surface inline from the effect** — inline styles would also block the plugin's `:hover` and `[data-active]` feedback, which the class-and-attribute rule leaves intact.
 
 ## Consequences

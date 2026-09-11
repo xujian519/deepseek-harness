@@ -25,11 +25,11 @@ import { createUserMessage, type ContentBlock, type UserMessage } from '@deepsee
 import type { Agent, AgentSetup, CreateAgentOptions, ResumeAgentOptions } from '@deepseek-ai/dsh-agent'
 import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
-import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset, type SessionEvent, type SessionId } from '@deepseek-ai/dsh-session'
 import type {
   Context,
   SidebarAgentPresetsService,
-  SidebarSessionPersistenceService,
+  SidebarSessionControllerService,
   SidebarSessionTitleService,
 } from './context-types.ts'
 import {
@@ -99,11 +99,11 @@ async function composePersistedSetup(
   ctx: Context,
   childId: string,
 ): Promise<AgentSetup> {
-  const persistence = ctx.get('sessionPersistence') as SidebarSessionPersistenceService | undefined
-  if (persistence === undefined) {
+  const controller = ctx.get('sessionController') as SidebarSessionControllerService | undefined
+  if (controller === undefined) {
     return () => Promise.resolve()
   }
-  const inspected = await persistence.inspect(childId)
+  const inspected = await controller.inspect(childId)
   const presetId = resolvePresetId(inspected.meta, inspected.events)
   const presets = ctx.get('agentPresets') as SidebarAgentPresetsService | undefined
   if (presets === undefined || presetId === undefined) {
@@ -206,6 +206,10 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
           delegationDepth: (parentSession.header.delegationDepth ?? 0) + 1,
           ...(agentPreset === undefined ? {} : { agentPreset }),
         },
+        // The inherited prefix is the parent-derived seed; the descriptor event
+        // is the child's own first row and must sit outside it (the subagent
+        // address fence rejects a descriptor whose seq is below the count).
+        inheritedEventCount: SessionLogOffset(inheritance.seed.length),
         seed: seed as unknown as readonly SessionEvent[],
         agentOptions: { ...parent.options },
         setup,
@@ -331,10 +335,10 @@ export function buildSidechatApi(ctx: Context): SidechatRoutes {
         }
       }
       // Cold thread: only the persisted preset is worth reading back.
-      const persistence = ctx.get('sessionPersistence') as SidebarSessionPersistenceService | undefined
-      if (persistence !== undefined) {
+      const controller = ctx.get('sessionController') as SidebarSessionControllerService | undefined
+      if (controller !== undefined) {
         try {
-          const inspected = await persistence.inspect(childId)
+          const inspected = await controller.inspect(childId)
           const preset = resolvePresetId(inspected.meta, inspected.events)
           return { live: false, ...(preset === undefined ? {} : { preset }) }
         } catch {

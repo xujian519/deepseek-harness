@@ -64,6 +64,32 @@ describe('desktop macOS release signature', () => {
     expect(typeof config.artifactBuildCompleted).toBe('function')
   })
 
+  it('drops signing and notarization for an explicitly requested unsigned local build', async () => {
+    const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
+    const config = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: RELEASE_ENVIRONMENT.DSH_DESKTOP_APP_ID,
+      DSH_DESKTOP_TARGET_PLATFORM: RELEASE_ENVIRONMENT.DSH_DESKTOP_TARGET_PLATFORM,
+      DSH_DESKTOP_TARGET_ARCH: RELEASE_ENVIRONMENT.DSH_DESKTOP_TARGET_ARCH,
+      DSH_DESKTOP_PRODUCT_NAME: 'DSH Patent',
+      DSH_DESKTOP_MACOS_SIGNING_IDENTITY: RELEASE_ENVIRONMENT.DSH_DESKTOP_MACOS_SIGNING_IDENTITY,
+      DSH_DESKTOP_MACOS_TEAM_ID: RELEASE_ENVIRONMENT.DSH_DESKTOP_MACOS_TEAM_ID,
+      DSH_DESKTOP_UNSIGNED_BUILD: '1',
+      DOWNLOAD_TEST_ORIGIN: RELEASE_ENVIRONMENT.DOWNLOAD_TEST_ORIGIN,
+    }, 'darwin', 'arm64')
+    // No APPLE_* notary credentials are present: the unsigned build must not
+    // consult them, and must hand electron-builder a null identity so it signs
+    // nothing (the artifact is an ad-hoc local build, not a release).
+    expect(config).toMatchObject({
+      productName: 'DSH Patent',
+      mac: {
+        identity: null,
+        forceCodeSigning: false,
+        notarize: false,
+      },
+    })
+    expect(config.afterSign({ electronPlatformName: 'darwin' })).toBeUndefined()
+  })
+
   it('validates Windows signing without requiring macOS identifiers for a Windows target', async () => {
     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
     expect(() => createElectronBuilderConfig({

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-better-sidebar` gives the dsh web GUI a VSCode-like right workspace — file explorer, editor, per-session terminals, git panel, side-chat conversations, subagent previews, and an embedded browser — all scoped to the open conversation. File, git, and terminal operations run against the open session's working directory through fenced host routes; switching conversations switches the workspace. The host half mounts `/sidebar/*` routes with node-pty terminals and opt-in `terminal_*` tools; the browser half renders the panel and publishes a client service for tabs and file viewers. No shipped composition mounts it: the desktop omits the row, and `dsh web` never had it.
+`dsh-better-sidebar` gives the dsh web GUI a VSCode-like right workspace — file explorer, editor, per-session terminals, git panel, side-chat conversations, subagent previews, and an embedded browser — all scoped to the open conversation. File, git, and terminal operations run against the open session's working directory through fenced host routes; switching conversations switches the workspace. The host half mounts `/sidebar/*` routes with node-pty terminals and opt-in `terminal_*` tools; the browser half renders the panel and publishes a client service for tabs and file viewers. The desktop composition mounts it ([remount decision](../../../.agents/notes/implemented/architecture/2026-09-10-desktop-workspace-sidebar-remount.md)); a browser `dsh web` composition mounts nothing.
 
 
 ## Table of Contents
@@ -26,7 +26,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-The sidebar mounts by one insert row: a composition that adds it gets the panel beside the conversation with no further wiring. No shipped composition adds it, so a deployment that wants the panel inserts the row itself; the desktop composition deliberately leaves the row out, because the panel's two toggles are its only entry and that product offers neither the bottom nor the right panel.
+The sidebar mounts by one insert row: a composition that adds it gets the panel beside the conversation with no further wiring. The desktop composition adds it; a browser `dsh web` composition mounts nothing, so a browser deployment that wants the panel inserts the row itself.
 
 ### When to choose it
 
@@ -108,7 +108,7 @@ A side conversation is a child session the plugin creates itself, seeded with th
 
 Read these when the package contract is not enough: the composition that mounts it, the roster that serves its client bundle, and the group this package belongs to.
 
-- [Desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) — the composition that leaves the sidebar row out; add the row there to mount it on desktop.
+- [Desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) — the composition that mounts the sidebar row; remove the row there to leave it out on desktop.
 - [Client modules](../modules/README.md) — how the `dsh.client` bundle and its externals are composed and served.
 - [Client group map](../README.md) — the browser half this package belongs to.
 
@@ -138,7 +138,7 @@ The declarations sit in the request's stable tool prefix for as long as a switch
 
 These limits define what the sidebar does not do today. They are current package constraints, not a task backlog.
 
-- **Desktop default only** — a browser `dsh web` composition does not mount the sidebar; opting in or out is a patch row, not a setting.
+- **Desktop default only** — a browser `dsh web` composition does not mount the sidebar; adding or removing the patch row is the opt-in, not a setting.
 - **Terminals need a healthy node-pty** — a missing or broken native install leaves the plugin degraded: terminal tabs show a repair command and the `terminal_*` tools stay unregistered, while `sidebar_open` keeps working.
 - **One right panel at a time** — when the `aionui-panel` settings namespace selects itself as the right-panel provider, the sidebar does not mount.
 - **zh/en copy only** — the sidebar ships bilingual zh/en dictionaries; further locales are external work, and upstream's third-party dictionaries were not carried.

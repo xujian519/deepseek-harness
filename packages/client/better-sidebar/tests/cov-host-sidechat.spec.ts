@@ -69,7 +69,7 @@ function services(parent: AgentLike | undefined, child: AgentLike) {
     agents: { get, create, resume },
     agentPresets: { resolve, mount },
     sessionTitle: { rename },
-    sessionPersistence: { inspect },
+    sessionController: { inspect },
     create,
     resume,
     get,
@@ -355,13 +355,13 @@ describe('sidechat routes optional-service degradation', () => {
     const child = agent('child')
     const table = services(undefined, child)
     table.agents.get = vi.fn(() => undefined)
-    table.sessionPersistence.inspect = vi.fn(async () => ({
+    table.sessionController.inspect = vi.fn(async () => ({
       meta: { agentPreset: 'persisted-preset' },
       events: [ev('agent-preset/selected', 0, { agentPreset: 'persisted-preset' })],
     }))
     const api = buildSidechatApi(ctxWith(table))
     await api['sidechat.prompt']({ childId: 'child', text: 'after restart' })
-    expect(table.sessionPersistence.inspect).toHaveBeenCalledWith('child')
+    expect(table.sessionController.inspect).toHaveBeenCalledWith('child')
     expect(table.resolve).toHaveBeenCalledWith('persisted-preset')
     const resumeOptions = table.resume.mock.calls[0]![0] as { setup: (ctx: unknown) => Promise<void> }
     await resumeOptions.setup({ resumed: true })
@@ -372,7 +372,7 @@ describe('sidechat routes optional-service degradation', () => {
     const child = agent('child')
     const table = services(undefined, child)
     table.agents.get = vi.fn(() => undefined)
-    delete (table as Record<string, unknown>).sessionPersistence
+    delete (table as Record<string, unknown>).sessionController
     delete (table as Record<string, unknown>).agentPresets
     const api = buildSidechatApi(ctxWith(table))
     await api['sidechat.prompt']({ childId: 'child', text: 'bare resume' })
@@ -408,7 +408,7 @@ describe('sidechat routes optional-service degradation', () => {
   it('reports a bare cold info without a persistence service', async () => {
     const table = services(undefined, agent('child'))
     table.agents.get = vi.fn(() => undefined)
-    delete (table as Record<string, unknown>).sessionPersistence
+    delete (table as Record<string, unknown>).sessionController
     const api = buildSidechatApi(ctxWith(table))
     await expect(api['sidechat.info']({ childId: 'ghost' })).resolves.toEqual({ live: false })
   })

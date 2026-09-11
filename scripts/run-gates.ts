@@ -768,6 +768,7 @@ function docSyncLeafGates(options: {
       label: 'documentation site checks',
     }),
     pnpmScript('package-readme-limitations', 'verify-package-readme-limitations', { label: 'package README limitations', quick: true }),
+    pnpmScript('agent-preset-config', 'verify-agent-preset-config', { label: 'agent preset config', quick: true }),
   ]
 }
 

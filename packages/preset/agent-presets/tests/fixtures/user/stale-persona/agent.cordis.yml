@@ -1,0 +1,8 @@
+# A persona row still spelling the field the 2026-09-06 system-prompt change
+# replaced. Discovery reports this preset healthy — it judges composition shape
+# and package resolution, never a row's config — so only the mount refuses it,
+# which is what `mount.spec.ts` pins.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: persona prose

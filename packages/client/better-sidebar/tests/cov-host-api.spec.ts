@@ -52,7 +52,7 @@ function settingsService(prefs: Record<string, unknown> | undefined, updateImpl?
 
 interface MountOptions {
   sessions?: (id: string) => { header: { cwd?: string }; events?: unknown[] } | undefined
-  sessionPersistence?: unknown
+  sessionController?: unknown
   jobs?: unknown
   agents?: unknown
   subagents?: unknown
@@ -89,7 +89,7 @@ function mount(opts: MountOptions = {}): Mounted {
       return () => {}
     },
     get: (key: string) =>
-      key === 'sessionPersistence' ? opts.sessionPersistence
+      key === 'sessionController' ? opts.sessionController
         : key === 'jobs' ? opts.jobs
           : key === 'agents' ? opts.agents
             : key === 'subagents' ? opts.subagents

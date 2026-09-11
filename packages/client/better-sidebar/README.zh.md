@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-better-sidebar` 为 dsh web GUI 提供类 VSCode 的右侧工作区——文件 explorer、editor、按会话隔离的终端、git 面板、side chat 会话、subagent 预览与内嵌浏览器——全部作用于当前打开的会话。文件、git 与终端操作都通过带围栏的宿主路由作用于当前会话的工作目录；切换会话即切换工作区。宿主半侧挂载 `/sidebar/*` 路由、node-pty 终端与默认关闭的 `terminal_*` 工具；浏览器半侧渲染面板并发布一个客户端服务，供注册侧边栏标签页与文件查看器。没有任何随仓库发布的组合挂载它：桌面不插入该行，`dsh web` 也从未挂载。
+`dsh-better-sidebar` 为 dsh web GUI 提供类 VSCode 的右侧工作区——文件 explorer、editor、按会话隔离的终端、git 面板、side chat 会话、subagent 预览与内嵌浏览器——全部作用于当前打开的会话。文件、git 与终端操作都通过带围栏的宿主路由作用于当前会话的工作目录；切换会话即切换工作区。宿主半侧挂载 `/sidebar/*` 路由、node-pty 终端与默认关闭的 `terminal_*` 工具；浏览器半侧渲染面板并发布一个客户端服务，供注册侧边栏标签页与文件查看器。桌面组合挂载它（[重新挂载的决定](../../../.agents/notes/implemented/architecture/2026-09-10-desktop-workspace-sidebar-remount.zh.md)）；浏览器 `dsh web` 组合不挂载任何东西。
 
 
 ## 目录
@@ -26,7 +26,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-侧边栏靠一行 insert 挂载：加入该行的组合即会在会话旁得到面板，无需其他接线。没有任何随仓库发布的组合加入该行，因此想要该面板的部署需自行插入；桌面组合有意略去该行，因为面板的两个开关是进入面板的唯一入口，而该产品不提供底栏与右侧栏面板。
+侧边栏靠一行 insert 挂载：加入该行的组合即会在会话旁得到面板，无需其他接线。桌面组合加入该行；浏览器 `dsh web` 组合不挂载任何东西，因此想要该面板的浏览器部署需自行插入。
 
 ### 何时选择它
 
@@ -108,7 +108,7 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 
 当包约定不够用时阅读以下页面：挂载它的组合、提供其客户端 bundle 的 roster，以及本包所属的组。
 
-- [桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml)——略去侧边栏行的组合；在其中加入该行即可在桌面挂载。
+- [桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml)——挂载侧边栏行的组合；在其中移除该行即可让桌面不再挂载。
 - [客户端模块](../modules/README.zh.md)——`dsh.client` bundle 及其 external 如何组合与提供。
 - [客户端组地图](../README.zh.md)——本包所属的浏览器半侧。
 
@@ -138,7 +138,7 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 
 这些限制说明侧边栏今天不做什么。它们是当前包约束，不是任务积压。
 
-- **仅桌面默认**——浏览器 `dsh web` 组合不挂载侧边栏；启用或退出都靠 patch 行，而不是设置项。
+- **仅桌面默认**——浏览器 `dsh web` 组合不挂载侧边栏；增删 patch 行就是启用与退出，而不是设置项。
 - **终端依赖健康的 node-pty**——原生依赖缺失或损坏时插件降级：终端标签页展示修复命令、`terminal_*` 工具保持未注册，`sidebar_open` 仍可工作。
 - **同时只有一个右面板**——当 `aionui-panel` 设置命名空间选择自身为右面板 provider 时，侧边栏不挂载。
 - **仅有中英文案**——侧边栏自带 zh/en 双语词典；更多语言属于外部工作，upstream 的第三方词典未随收编带入。

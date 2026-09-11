@@ -44,8 +44,9 @@ export function createElectronBuilderConfig(
   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = targetPlatform === 'win32'
+  const unsignedBuild = env.DSH_DESKTOP_UNSIGNED_BUILD === '1'
   const macOSSigning = packagesMacOS ? resolveMacOSSigningEnvironment(env) : undefined
-  if (packagesMacOS) resolveMacOSNotarizationEnvironment(env)
+  if (packagesMacOS && !unsignedBuild) resolveMacOSNotarizationEnvironment(env)
   const windowsSigner = packagesWindows
     ? createWindowsTokenSigner({
         certificateFile: env.DSH_DESKTOP_WINDOWS_CER_FILE,
@@ -81,10 +82,10 @@ export function createElectronBuilderConfig(
     mac: {
       category: 'public.app-category.developer-tools',
       icon: iconDir === undefined ? undefined : iconFile('icon.icns'),
-      identity: macOSSigning?.signingIdentity,
-      forceCodeSigning: true,
+      identity: unsignedBuild ? null : macOSSigning?.signingIdentity,
+      forceCodeSigning: !unsignedBuild,
       hardenedRuntime: true,
-      notarize: true,
+      notarize: unsignedBuild ? false : true,
       target: ['dmg', 'zip'],
     },
     dmg: {
@@ -93,6 +94,7 @@ export function createElectronBuilderConfig(
     },
     afterSign: context => {
       if (context.electronPlatformName !== 'darwin') return
+      if (unsignedBuild) return
       verifyMacOSSignatureAfterSign(context, macOSSigning ?? resolveMacOSSigningEnvironment(env))
     },
     artifactBuildCompleted: artifact => {

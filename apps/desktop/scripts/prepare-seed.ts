@@ -162,7 +162,9 @@ async function main(): Promise<void> {
     const targetPlatform = process.env.DSH_DESKTOP_TARGET_PLATFORM ?? process.platform
     let signedMachOFiles: number | undefined
     let macOSSigning: ReturnType<typeof resolveMacOSSigningEnvironment> | undefined
-    if (targetPlatform === 'darwin') {
+    // DSH_DESKTOP_UNSIGNED_BUILD=1 keeps the seed unsigned for a local ad-hoc
+    // build; releases always sign every embedded Mach-O (see the desktop README).
+    if (targetPlatform === 'darwin' && process.env.DSH_DESKTOP_UNSIGNED_BUILD !== '1') {
       macOSSigning = resolveMacOSSigningEnvironment(process.env)
       const signing = await signMacOSSeedStore(
         STORE_ROOT,

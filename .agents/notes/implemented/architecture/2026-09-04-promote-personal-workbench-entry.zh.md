@@ -21,7 +21,7 @@ Status: implemented
 - **用 `aria-label="新建会话"` 作锚点** — 有歧义：品牌快捷键带同样标签且按文档顺序排在前面，效果会把入口移到 logo 之上，而非新会话按钮之后。
 - **写死当前 CSS-module 哈希（`hT2-rG_newSession`）** — 哈希随构建变化，选择器会在下次重建时失效；导入 module 自身的类名可在构建期解析锚点。
 - **在 personal-workbench 插件本身应用该位置** — 插件拥有入口来源，但入口注入位置及其与定时任务触发器的并存属于外壳已持有的侧边栏布局问题。
-- **把提升逻辑留在 better-sidebar 客户端** — 该外壳已不再被任何随仓库发布的组合挂载（见[桌面不再挂载工作台侧边栏](2026-09-10-desktop-without-workspace-sidebar.zh.md)），效果从未运行，桌面端显示的是插件原样的入口。
+- **把提升逻辑留在 better-sidebar 客户端** — 本决定作出时桌面组合不挂载该外壳（[移除记录](../../archived/architecture/2026-09-10-desktop-without-workspace-sidebar.md)），效果从未运行，桌面端显示的是插件原样的入口；重新挂载该外壳的组合（[重新挂载记录](2026-09-10-desktop-workspace-sidebar-remount.zh.md)）可以再由它承担。
 - **在效果里用内联样式设定表面** — 内联样式同时会挡住插件自身的 `:hover` 与 `[data-active]` 反馈，而类加属性的规则会保留它们。
 
 ## Consequences

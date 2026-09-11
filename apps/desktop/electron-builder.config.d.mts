@@ -17,6 +17,7 @@ export interface DesktopElectronBuilderConfig {
     readonly sign: boolean
     readonly writeUpdateInfo: boolean
   }
+  readonly afterSign: (context: { readonly electronPlatformName: string }) => undefined
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
   readonly publish: readonly [{ readonly provider: 'generic', readonly url: string }]
 }
