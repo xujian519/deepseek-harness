@@ -402,8 +402,7 @@ describe('LocalSubprocessRuntime', () => {
       expect((service as unknown as { terminals: Set<SubprocessTerminalHandle> }).terminals.size).toBe(1)
       exitListener?.({ exitCode: 0 })
       await handle.done
-      await new Promise(resolve => setImmediate(resolve))
-      expect((service as unknown as { terminals: Set<SubprocessTerminalHandle> }).terminals.size).toBe(0)
+      await expect.poll(() => (service as unknown as { terminals: Set<SubprocessTerminalHandle> }).terminals.size).toBe(0)
       await fiber.dispose()
     } finally {
       vi.doUnmock('node-pty')
@@ -622,9 +621,11 @@ describe('LocalSubprocessRuntime', () => {
       const handle = await ctx.subprocess.spawnTerminal({
         argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, graceMs: 1,
       })
+      const terminate = vi.spyOn(handle, 'terminate')
       exitListener?.({ exitCode: 0 })
       await handle.done
-      await new Promise(resolve => setTimeout(resolve, 10))
+      await expect.poll(() => terminate.mock.calls.length).toBe(1)
+      await expect(terminate.mock.results[0]?.value).rejects.toThrow('surviving pids: 124')
       expect((ctx.subprocess as unknown as { terminals: Set<SubprocessTerminalHandle> }).terminals.size).toBe(1)
       await fiber.dispose()
       expect(disposalErrors).toHaveLength(1)
@@ -887,10 +888,26 @@ describe('LocalSubprocessRuntime', () => {
     // still-booting launch as the requested kill before the workdir is read.
     ;(ctx.subprocess as LocalSubprocessRuntime).internals = { platform: 'darwin' }
     // Dispose before the rejection continuation removes the handle from the
-    // live set, so teardown itself must swallow the rejected done.
+    // live set, so teardown itself must swallow the rejected done. Two
+    // settlements are valid and the winner is a race: a bootstrap that
+    // publishes its pre-exec failure rejects with that failure, and a teardown
+    // that stops the bootstrap first settles as the requested termination —
+    // the recorded failure only outranks the stop when it was published before
+    // the stop landed.
     const handle = ctx.subprocess.spawn(spec('true', { cwd: '/nonexistent-dir-dsh-subprocess-test' }))
     await fiber.dispose()
-    await expect(handle.done).rejects.toThrow()
+    const settlement = await handle.done.then(
+      outcome => ({ kind: 'stopped' as const, outcome }),
+      (error: unknown) => ({ kind: 'failed' as const, error }),
+    )
+    if (settlement.kind === 'failed') {
+      expect(settlement.error).toBeInstanceOf(Error)
+    } else {
+      // Only the Linux scope records a stop this way: the win32 job owner
+      // rejects a cancelled start and the fallback launcher rejects the ENOENT,
+      // so neither can produce the stopped branch.
+      expect(settlement.outcome.signal).toBe('SIGTERM')
+    }
   })
 
   it('loading a second implementation throws (one processes service per context — cordis standard)', async () => {

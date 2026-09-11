@@ -811,6 +811,9 @@
       "@deepseek-ai/dsh-output-retention": [
         "./packages/util/output-retention/src"
       ],
+      "@deepseek-ai/dsh-package-manifest": [
+        "./packages/util/package-manifest/src"
+      ],
       "@deepseek-ai/dsh-patent-core": [
         "./packages/patent/patent-core/src"
       ],
