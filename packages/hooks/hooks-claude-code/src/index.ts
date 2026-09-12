@@ -67,7 +67,16 @@ export interface Config {
   defaultTimeoutMs?: number
   /** Character cap for the `hook/result` event's persisted stderr summary. */
   stderrSummaryMaxChars?: number
+  /**
+   * Maximum consecutive times a blocking `Stop` hook may force another step
+   * before the run is cancelled. Prevents an unconditionally blocking hook from
+   * running forever. Defaults to 10.
+   */
+  maxStopContinuations?: number
 }
+
+/** Default cap on consecutive Stop-hook forced continuations before the run is cancelled. */
+const DEFAULT_MAX_STOP_CONTINUATIONS = 10
 
 export const Config: z<Config> = z.object({
   configPath: z.string().required(),
@@ -75,6 +84,7 @@ export const Config: z<Config> = z.object({
   projectDir: z.string(),
   defaultTimeoutMs: z.number().default(DEFAULT_HOOK_TIMEOUT_MS),
   stderrSummaryMaxChars: z.number().default(DEFAULT_STDERR_SUMMARY_MAX_CHARS),
+  maxStopContinuations: z.number().default(DEFAULT_MAX_STOP_CONTINUATIONS),
 })
 
 /** A stable per-handler id so an invoked/result pair correlates in the log. */
@@ -91,6 +101,8 @@ export function apply(ctx: Context, config: Config): void {
   const stderrSummaryMaxChars = config.stderrSummaryMaxChars ?? DEFAULT_STDERR_SUMMARY_MAX_CHARS
   assertPositiveInteger('hooks-claude-code: stderrSummaryMaxChars', stderrSummaryMaxChars)
   const defaultTimeoutMs = config.defaultTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS
+  const maxStopContinuations = config.maxStopContinuations ?? DEFAULT_MAX_STOP_CONTINUATIONS
+  assertPositiveInteger('hooks-claude-code: maxStopContinuations', maxStopContinuations)
   // Parse once at load. A read or parse failure logs and registers nothing.
   let parsed: ClaudeCodeHookConfig = {}
   try {
@@ -116,7 +128,16 @@ export function apply(ctx: Context, config: Config): void {
   // handle unregisters the agent. Every retained entry relies on that paired
   // end; a producer that can omit it must provide another release edge.
   const subagentChildren = new Map<SubagentRunId, Agent>()
+  // Per-agent state: a startup gate so the first step waits for SessionStart
+  // and can fold its context into the admitted batch, plus a counter for
+  // consecutive Stop-hook forced continuations.
+  const sessionStartGates = new Map<Agent, Promise<MergedHookOutcome | undefined>>()
+  const stopLoops = new Map<Agent, number>()
   ctx.effect(() => () => detached.drain(), 'hooks-claude-code: drain detached hook runs')
+  ctx.on('agent/disposed', ({ agent }) => {
+    sessionStartGates.delete(agent)
+    stopLoops.delete(agent)
+  })
 
   /**
    * Run every command hook configured for `point` whose matcher selects
@@ -165,6 +186,9 @@ export function apply(ctx: Context, config: Config): void {
           expectedEventName: point,
         }, () => performance.now())
         outputs.push(output)
+        // Execution and decision mapping remain in each bridge so dialect
+        // differences stay explicit at their owning extension point.
+        /* jscpd:ignore-start */
         if (output.updatedInput !== undefined) {
           ctx.logger.warn(`hooks-claude-code: ${point} hook requested updatedInput, which is not yet honored (ignored)`)
         }
@@ -179,8 +203,6 @@ export function apply(ctx: Context, config: Config): void {
     return mergeHookOutputs(outputs)
   }
 
-  // TODO(hook-continue-false): `merged.stop` is logged but needs a run-level halt mechanism.
-
   /** Build additional model context from hook output, or return undefined when empty. */
   function contextFrom(merged: MergedHookOutcome): UserMessage | undefined {
     if (merged.additionalContext.length === 0) return undefined
@@ -193,37 +215,55 @@ export function apply(ctx: Context, config: Config): void {
     return [ours, ...theirs ?? []]
   }
 
-  // SessionStart injects context when its detached hook resolves; a slow hook
-  // may miss the first request.
-  // TODO(session-start-gating): add a startup gate before promising first-turn delivery.
+  // SessionStart runs detached; its outcome is also stored as a startup gate
+  // so the first `agent/pre-step` awaits it and folds any context into the
+  // admitted batch (injection alone can miss a step whose messages were
+  // already claimed). The gate stays stored until a step consumes it, because
+  // the hook usually resolves before the first prompt arrives.
   ctx.on('agent/session-start', ({ agent, source }) => {
-    detached.track(runPoint('SessionStart', source, sessionStartPayload(agent, source), { agent, signal: detached.signal })
+    const run = runPoint('SessionStart', source, sessionStartPayload(agent, source), { agent, signal: detached.signal })
       .then((merged) => {
-        const context = contextFrom(merged)
-        if (context) agent.inject(context)
+        if (merged.stop) {
+          agent.cancel({ kind: 'hook', reason: hookStopReason('SessionStart', merged) })
+        }
+        return merged
       })
       .catch((error: unknown) => {
         ctx.logger.warn(`hooks-claude-code: SessionStart hook failed: ${String(error)}`)
-      }))
+        return undefined
+      })
+    sessionStartGates.set(agent, run)
+    detached.track(run)
   })
 
   // --- UserPromptSubmit → PreStepDecision. The prompt text is the payload; no
   // matcher subject (CC ignores matchers for this event). ---
   ctx.on('agent/pre-step', async ({ agent, messages, turn, signal }, next): Promise<PreStepDecision> => {
+    const startMerged = await sessionStartGates.get(agent)
     if (messages.length === 0) return next()
+    sessionStartGates.delete(agent)
+    const startContext = startMerged && !startMerged.stop ? contextFrom(startMerged) : undefined
+    /* jscpd:ignore-end */
     const content = messages.flatMap(message => message.content)
     const merged = await runPoint('UserPromptSubmit', '', promptPayload(agent, content), { agent, turn, signal })
+    /* jscpd:ignore-start */
+    if (merged.stop) {
+      agent.cancel({ kind: 'hook', reason: hookStopReason('UserPromptSubmit', merged) })
+      return { kind: 'reject' }
+    }
     if (merged.decision === 'deny') {
       return { kind: 'reject' }
     }
-    // Delegate so later listeners may still rewrite or reject, then prepend our
-    // context only to a downstream enter decision.
+    // Delegate so later listeners may still rewrite or reject, then prepend
+    // SessionStart context and append our context only to a downstream enter decision.
     const downstream = await next()
     const ours = contextFrom(merged)
-    if (!ours || downstream.kind !== 'enter') return downstream
+    if (downstream.kind !== 'enter') return downstream
+    const admitted = startContext ? [startContext, ...downstream.messages] : downstream.messages
+    if (!ours) return { ...downstream, messages: admitted }
     return {
       ...downstream,
-      messages: [...downstream.messages, ours],
+      messages: [...admitted, ours],
     }
   })
 
@@ -231,6 +271,12 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('tools/pre-execute', async (exec, next): Promise<PreToolDecision> => {
     const turn = lastTurn(ctx, exec.agent)
     const merged = await runPoint('PreToolUse', exec.name, preToolPayload(exec), { ...exec.agent ? { agent: exec.agent } : {}, turn, signal: exec.signal })
+    if (merged.stop) {
+      const reason = hookStopReason('PreToolUse', merged)
+      exec.agent?.cancel({ kind: 'hook', reason })
+      return { kind: 'deny', reason }
+    }
+    /* jscpd:ignore-end */
     if (merged.decision === 'deny') return { kind: 'deny', reason: merged.reason ?? 'blocked by PreToolUse hook' }
     if (merged.decision === 'ask') return { kind: 'ask', ...merged.reason !== undefined ? { reason: merged.reason } : {} }
     return next()
@@ -240,7 +286,13 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('tools/post-execute', async (exec, result, next): Promise<PostToolDecision> => {
     const turn = lastTurn(ctx, exec.agent)
     const merged = await runPoint('PostToolUse', exec.name, postToolPayload(exec, result), { ...exec.agent ? { agent: exec.agent } : {}, turn, signal: exec.signal })
+    /* jscpd:ignore-start */
     const context = contextFrom(merged)
+    if (merged.stop) {
+      const reason = hookStopReason('PostToolUse', merged)
+      exec.agent?.cancel({ kind: 'hook', reason })
+      return { kind: 'block', feedback: [{ type: 'text', text: reason }], ...context ? { additionalContexts: [context] } : {} }
+    }
     if (merged.decision === 'deny') {
       return { kind: 'block', feedback: [{ type: 'text', text: merged.reason ?? 'blocked by PostToolUse hook' }], ...context ? { additionalContexts: [context] } : {} }
     }
@@ -258,15 +310,29 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   // A blocking Stop hook steers at the stopping boundary, which makes the
-  // machine observe pending input and run another step.
-  // TODO(stop-loop-guard): cap consecutive forced continuations; hooks must self-limit meanwhile.
+  // machine observe pending input and run another step. To prevent an
+  // unconditionally blocking hook from looping forever, the run is cancelled
+  // after `maxStopContinuations` consecutive forced continuations.
   ctx.on('agent/turn-stopping', async ({ agent, turn, signal }): Promise<void> => {
-    const merged = await runPoint('Stop', '', stopPayload(agent), { agent, turn, signal })
+    const count = stopLoops.get(agent) ?? 0
+    const merged = await runPoint('Stop', '', stopPayload(agent, count > 0), { agent, turn, signal })
+    if (merged.stop) {
+      agent.cancel({ kind: 'hook', reason: hookStopReason('Stop', merged) })
+      return
+    }
     if (merged.decision === 'deny') {
+      if (count >= maxStopContinuations) {
+        agent.cancel({ kind: 'hook', reason: 'Stop hook forced continuation too many times' })
+        return
+      }
+      stopLoops.set(agent, count + 1)
       // A blocking Stop hook forces continuation.
       const text = merged.reason ?? 'continue: blocked by Stop hook'
       agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE }))
+      return
     }
+    stopLoops.set(agent, 0)
+    /* jscpd:ignore-end */
   })
 
   // SubagentStart may inject child context; SubagentStop only observes. Both
@@ -311,6 +377,17 @@ function blocksToText(content: ContentBlock[]): string {
   return content.filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text').map(b => b.text).join('')
 }
 
+/**
+ * The cancel reason for a hook that requested a run-level stop: the hook's own
+ * `stopReason` when it supplied one, else a fallback naming the firing event.
+ * @param point - The hook point that halted the run.
+ * @param merged - The folded outcome whose `stop` the caller is acting on.
+ * @returns The reason to pass to the run-level cancel.
+ */
+function hookStopReason(point: string, merged: MergedHookOutcome): string {
+  return merged.stopReason ?? `${point} hook requested stop`
+}
+
 function base(agent: Agent | undefined, event: string): Record<string, unknown> {
   return {
     session_id: agent?.session.header.id ?? '',
@@ -334,8 +411,8 @@ function preToolPayload(exec: ToolExecution): Record<string, unknown> {
 function postToolPayload(exec: ToolExecution, result: ToolExecutionResult): Record<string, unknown> {
   return { ...base(exec.agent, 'PostToolUse'), tool_name: exec.name, tool_input: exec.arguments, tool_use_id: exec.callId, tool_response: blocksToText(result.content) }
 }
-function stopPayload(agent: Agent): Record<string, unknown> {
-  return { ...base(agent, 'Stop'), stop_hook_active: false }
+function stopPayload(agent: Agent, stopHookActive: boolean): Record<string, unknown> {
+  return { ...base(agent, 'Stop'), stop_hook_active: stopHookActive }
 }
 /**
  * Build a SubagentStart/SubagentStop payload from the CC base (the child's

@@ -45,8 +45,13 @@ function writeConfig(hooks: unknown, scripts: Record<string, string> = {}): stri
   return dir
 }
 
-async function harness(configDir: string, adapter: MockAdapter, beforeHooks?: (ctx: Context) => void): Promise<Context> {
-  return (await harnessWithFiber(configDir, adapter, beforeHooks)).ctx
+async function harness(
+  configDir: string,
+  adapter: MockAdapter,
+  beforeHooks?: (ctx: Context) => void,
+  pluginConfig?: Partial<HooksClaude.Config>,
+): Promise<Context> {
+  return (await harnessWithFiber(configDir, adapter, beforeHooks, pluginConfig)).ctx
 }
 
 /** {@link harness}, also exposing the bridge's fiber for tests that dispose it. */
@@ -54,6 +59,7 @@ async function harnessWithFiber(
   configDir: string,
   adapter: MockAdapter,
   beforeHooks?: (ctx: Context) => void,
+  pluginConfig?: Partial<HooksClaude.Config>,
 ): Promise<{ ctx: Context; hooks: Fiber }> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
@@ -61,7 +67,7 @@ async function harnessWithFiber(
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
   beforeHooks?.(ctx)
-  const hooks = await ctx.plugin(HooksClaude, { configPath: join(configDir, 'hooks.json') })
+  const hooks = await ctx.plugin(HooksClaude, { configPath: join(configDir, 'hooks.json'), ...pluginConfig })
   ctx.llm.registerAdapter(['mock'], adapter)
   return { ctx, hooks }
 }
@@ -262,15 +268,96 @@ describe('hooks-claude-code bridge — SessionStart', () => {
     const adapter = new MockAdapter([textResponse('ok')])
     const ctx = await harness(dir, adapter)
     const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-    // session-start fires async (detached .then → agent.inject); injection now
-    // enters the next-step inbox directly and becomes a user/message only after
-    // step entry, so synchronize on the pending inbox item before sending.
-    await waitFor(() => agent.inbox.nextStep.some(message =>
-      message.content.some(block => block.type === 'text' && block.text.includes('project uses tabs'))))
+    // The pre-step gate waits for SessionStart, so the first request sees the
+    // injected context even when followup is sent immediately.
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
     await waitForIdle(ctx, agent)
 
     expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('project uses tabs')
+  })
+
+  it('a SessionStart hook that resolved before the first prompt still delivers its context', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
+    dirs.push(dir)
+    const s = join(dir, 'early.sh')
+    const marker = join(dir, 'ran')
+    writeFileSync(s, `#!/usr/bin/env bash\necho '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"early context"}}'\ntouch '${marker}'\n`)
+    chmodSync(s, 0o755)
+    writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: s }] }] } }))
+
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(dir, adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    // Wait for the hook to finish, then let its detached continuation settle
+    // before the first prompt: the gate must survive until a step consumes it.
+    await waitFor(() => existsSync(marker))
+    await new Promise(resolve => setTimeout(resolve, 200))
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('early context')
+  })
+})
+
+describe('hooks-claude-code bridge — run-level stop', () => {
+  it('a UserPromptSubmit hook requesting continue:false cancels the run before the model call', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
+    dirs.push(dir)
+    const s = join(dir, 'stop.sh')
+    writeFileSync(s, '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"policy halt"}\'\n')
+    chmodSync(s, 0o755)
+    writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: s }] }] } }))
+
+    const adapter = new MockAdapter([textResponse('should not run')])
+    const ctx = await harness(dir, adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(adapter.requests).toHaveLength(0)
+    const ends = events(agent).filter(e => e.type === 'turn/end')
+    expect(ends.some(e => e.type === 'turn/end' && e.data.reason.kind === 'aborted' && e.data.reason.reason.kind === 'hook')).toBe(true)
+  })
+})
+
+describe('hooks-claude-code bridge — Stop loop guard', () => {
+  it('cancels the run after too many consecutive Stop-hook continuations', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
+    dirs.push(dir)
+    const s = join(dir, 'cont.sh')
+    writeFileSync(s, '#!/usr/bin/env bash\necho "keep going" >&2\nexit 2\n')
+    chmodSync(s, 0o755)
+    writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: s }] }] } }))
+
+    const adapter = new MockAdapter(Array.from({ length: 20 }, (_, i) => textResponse(`answer ${i}`)))
+    const ctx = await harness(dir, adapter, undefined, { maxStopContinuations: 2 })
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(adapter.requests).toHaveLength(3) // 1 original + 2 forced continuations
+    const ends = events(agent).filter(e => e.type === 'turn/end')
+    expect(ends.some(e => e.type === 'turn/end' && e.data.reason.kind === 'aborted' && e.data.reason.reason.kind === 'hook')).toBe(true)
+  }, 15_000)
+})
+
+describe('hooks-claude-code bridge — SessionStart gate', () => {
+  it('waits for a slow SessionStart hook before the first step', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-claude-'))
+    dirs.push(dir)
+    const s = join(dir, 'slow.sh')
+    writeFileSync(s, '#!/usr/bin/env bash\nsleep 0.2\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"gated context"}}\'\n')
+    chmodSync(s, 0o755)
+    writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: s }] }] } }))
+
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(dir, adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    // Do NOT pre-wait for injection; the pre-step gate must hold the step until SessionStart resolves.
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('gated context')
   })
 })
 

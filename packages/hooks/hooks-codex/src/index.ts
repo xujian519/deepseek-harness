@@ -55,13 +55,23 @@ export interface Config {
   defaultTimeoutMs?: number
   /** Character cap for the `hook/result` event's persisted stderr summary. */
   stderrSummaryMaxChars?: number
+  /**
+   * Maximum consecutive times a blocking `Stop` hook may force another step
+   * before the run is cancelled. Prevents an unconditionally blocking hook from
+   * running forever. Defaults to 10.
+   */
+  maxStopContinuations?: number
 }
+
+/** Default cap on consecutive Stop-hook forced continuations before the run is cancelled. */
+const DEFAULT_MAX_STOP_CONTINUATIONS = 10
 
 export const Config: z<Config> = z.object({
   configPath: z.string().required(),
   model: z.string().default(''),
   defaultTimeoutMs: z.number().default(DEFAULT_HOOK_TIMEOUT_MS),
   stderrSummaryMaxChars: z.number().default(DEFAULT_STDERR_SUMMARY_MAX_CHARS),
+  maxStopContinuations: z.number().default(DEFAULT_MAX_STOP_CONTINUATIONS),
 })
 
 let handlerCounter = 0
@@ -76,6 +86,8 @@ export function apply(ctx: Context, config: Config): void {
   const stderrSummaryMaxChars = config.stderrSummaryMaxChars ?? DEFAULT_STDERR_SUMMARY_MAX_CHARS
   assertPositiveInteger('hooks-codex: stderrSummaryMaxChars', stderrSummaryMaxChars)
   const defaultTimeoutMs = config.defaultTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS
+  const maxStopContinuations = config.maxStopContinuations ?? DEFAULT_MAX_STOP_CONTINUATIONS
+  assertPositiveInteger('hooks-codex: maxStopContinuations', maxStopContinuations)
   let parsed: CodexHookConfig = {}
   try {
     const raw: unknown = JSON.parse(readFileSync(config.configPath, 'utf8'))
@@ -95,7 +107,16 @@ export function apply(ctx: Context, config: Config): void {
   // run chains so disposal aborts a still-running hook process and drains the
   // continuation (docs/defensive-patterns.md: dispose must reach quiescence).
   const detached = createDetachedRuns()
+  // Per-agent state: a startup gate so the first step waits for SessionStart
+  // and can fold its context into the admitted batch, plus a counter for
+  // consecutive Stop-hook forced continuations.
+  const sessionStartGates = new Map<Agent, Promise<MergedHookOutcome | undefined>>()
+  const stopLoops = new Map<Agent, number>()
   ctx.effect(() => () => detached.drain(), 'hooks-codex: drain detached hook runs')
+  ctx.on('agent/disposed', ({ agent }) => {
+    sessionStartGates.delete(agent)
+    stopLoops.delete(agent)
+  })
 
   /**
    * Run and fold one configured Codex hook point.
@@ -162,8 +183,6 @@ export function apply(ctx: Context, config: Config): void {
     return mergeHookOutputs(outputs)
   }
 
-  // TODO(hook-continue-false): `merged.stop` is logged but needs a run-level halt mechanism.
-
   function contextFrom(merged: MergedHookOutcome): UserMessage | undefined {
     if (merged.additionalContext.length === 0) return undefined
     const content: ContentBlock[] = merged.additionalContext.map(text => ({ type: 'text', text }))
@@ -175,22 +194,31 @@ export function apply(ctx: Context, config: Config): void {
     return [ours, ...theirs ?? []]
   }
 
-  // SessionStart injects plain stdout when its detached hook resolves; a slow
-  // hook may miss the first request.
-  // TODO(session-start-gating): add a startup gate before promising first-turn delivery.
+  // SessionStart runs detached; its outcome is also stored as a startup gate
+  // so the first `agent/pre-step` awaits it and folds any context into the
+  // admitted batch (injection alone can miss a step whose messages were
+  // already claimed). The gate stays stored until a step consumes it, because
+  // the hook usually resolves before the first prompt arrives.
   ctx.on('agent/session-start', ({ agent, source }) => {
-    detached.track(runPoint('SessionStart', source, { ...base(agent, 'SessionStart', model), source }, { agent, plainStdoutAsContext: true, signal: detached.signal })
+    const run = runPoint('SessionStart', source, { ...base(agent, 'SessionStart', model), source }, { agent, plainStdoutAsContext: true, signal: detached.signal })
       .then((merged) => {
-        const context = contextFrom(merged)
-        if (context) agent.inject(context)
+        if (merged.stop) {
+          agent.cancel({ kind: 'hook', reason: hookStopReason('SessionStart', merged) })
+        }
+        return merged
       })
-      .catch((error: unknown) => { ctx.logger.warn(`hooks-codex: SessionStart hook failed: ${String(error)}`) }))
+      .catch((error: unknown) => { ctx.logger.warn(`hooks-codex: SessionStart hook failed: ${String(error)}`); return undefined })
+    sessionStartGates.set(agent, run)
+    detached.track(run)
     /* jscpd:ignore-end */
   })
 
   // UserPromptSubmit → PreStepDecision. Codex supports reject, not rewrite or ask.
   ctx.on('agent/pre-step', async ({ agent, messages, turn, signal }, next): Promise<PreStepDecision> => {
+    const startMerged = await sessionStartGates.get(agent)
     if (messages.length === 0) return next()
+    sessionStartGates.delete(agent)
+    const startContext = startMerged && !startMerged.stop ? contextFrom(startMerged) : undefined
     const payload = {
       ...base(agent, 'UserPromptSubmit', model),
       turn_id: String(turn),
@@ -200,17 +228,24 @@ export function apply(ctx: Context, config: Config): void {
       agent, turn, plainStdoutAsContext: true, signal,
     })
     /* jscpd:ignore-start */
+    if (merged.stop) {
+      agent.cancel({ kind: 'hook', reason: hookStopReason('UserPromptSubmit', merged) })
+      return { kind: 'reject' }
+    }
     if (merged.decision === 'deny') {
       return { kind: 'reject' }
     }
     // Context alone is not a veto: DELEGATE so a later pre-step listener can
-    // still reject/rewrite, then fold our context onto its decision.
+    // still reject/rewrite, then prepend SessionStart context and append our
+    // context only to a downstream enter decision.
     const downstream = await next()
     const ours = contextFrom(merged)
-    if (!ours || downstream.kind !== 'enter') return downstream
+    if (downstream.kind !== 'enter') return downstream
+    const admitted = startContext ? [startContext, ...downstream.messages] : downstream.messages
+    if (!ours) return { ...downstream, messages: admitted }
     return {
       ...downstream,
-      messages: [...downstream.messages, ours],
+      messages: [...admitted, ours],
     }
   })
 
@@ -219,6 +254,11 @@ export function apply(ctx: Context, config: Config): void {
     const turn = lastTurn(ctx, exec.agent)
     const merged = await runPoint('PreToolUse', exec.name, preToolPayload(ctx, exec, model), { ...exec.agent ? { agent: exec.agent } : {}, turn, signal: exec.signal })
     /* jscpd:ignore-end */
+    if (merged.stop) {
+      const reason = hookStopReason('PreToolUse', merged)
+      exec.agent?.cancel({ kind: 'hook', reason })
+      return { kind: 'deny', reason }
+    }
     if (merged.decision === 'deny') return { kind: 'deny', reason: merged.reason ?? 'blocked by PreToolUse hook' }
     return next()
   })
@@ -229,6 +269,11 @@ export function apply(ctx: Context, config: Config): void {
     /* jscpd:ignore-start */
     const merged = await runPoint('PostToolUse', exec.name, postToolPayload(ctx, exec, result, model), { ...exec.agent ? { agent: exec.agent } : {}, turn, signal: exec.signal })
     const context = contextFrom(merged)
+    if (merged.stop) {
+      const reason = hookStopReason('PostToolUse', merged)
+      exec.agent?.cancel({ kind: 'hook', reason })
+      return { kind: 'block', feedback: [{ type: 'text', text: reason }], ...context ? { additionalContexts: [context] } : {} }
+    }
     if (merged.decision === 'deny') {
       return { kind: 'block', feedback: [{ type: 'text', text: merged.reason ?? 'blocked by PostToolUse hook' }], ...context ? { additionalContexts: [context] } : {} }
     }
@@ -246,20 +291,31 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   // A blocking Stop hook steers at the stopping boundary, which makes the
-  // machine observe pending input and run another step.
-  // TODO(stop-loop-guard): Codex supplies `stop_hook_active` so a Stop hook can
-  // avoid continuing the same turn indefinitely. It is always false here, so an
-  // unconditionally blocking hook force-continues every step until it self-limits.
+  // machine observe pending input and run another step. To prevent an
+  // unconditionally blocking hook from looping forever, the run is cancelled
+  // after `maxStopContinuations` consecutive forced continuations.
   ctx.on('agent/turn-stopping', async ({ agent, turn, signal }): Promise<void> => {
-    const merged = await runPoint('Stop', '', { ...turnBase(ctx, agent, 'Stop', model), stop_hook_active: false, last_assistant_message: null }, { agent, turn, signal })
+    const count = stopLoops.get(agent) ?? 0
+    const merged = await runPoint('Stop', '', { ...turnBase(ctx, agent, 'Stop', model), stop_hook_active: count > 0, last_assistant_message: null }, { agent, turn, signal })
     /* jscpd:ignore-end */
+    if (merged.stop) {
+      agent.cancel({ kind: 'hook', reason: hookStopReason('Stop', merged) })
+      return
+    }
     if (merged.decision === 'deny') {
+      if (count >= maxStopContinuations) {
+        agent.cancel({ kind: 'hook', reason: 'Stop hook forced continuation too many times' })
+        return
+      }
+      stopLoops.set(agent, count + 1)
       // A blocking Stop hook forces continuation; a block with no reason (exit 2,
       // empty stderr) still forces it — fall back to a generic steering line
       // rather than letting the turn stop.
       const text = merged.reason ?? 'continue: blocked by Stop hook'
       agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE }))
+      return
     }
+    stopLoops.set(agent, 0)
   })
 }
 
@@ -277,6 +333,17 @@ function lastTurn(ctx: Context, agent: Agent | undefined): number {
 
 function blocksToText(content: ContentBlock[]): string {
   return content.filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text').map(b => b.text).join('')
+}
+
+/**
+ * The cancel reason for a hook that requested a run-level stop: the hook's own
+ * `stopReason` when it supplied one, else a fallback naming the firing event.
+ * @param point - The hook point that halted the run.
+ * @param merged - The folded outcome whose `stop` the caller is acting on.
+ * @returns The reason to pass to the run-level cancel.
+ */
+function hookStopReason(point: string, merged: MergedHookOutcome): string {
+  return merged.stopReason ?? `${point} hook requested stop`
 }
 /* jscpd:ignore-end */
 
