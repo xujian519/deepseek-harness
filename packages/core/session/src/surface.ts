@@ -9,6 +9,7 @@
  */
 
 import type { Message } from '@deepseek-ai/dsh-llm'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { SessionLogOffset, SessionSeq } from './types.ts'
 import { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
 import type {
@@ -123,11 +124,6 @@ export function deriveEventMessage(event: SessionEvent): Message | null {
       // no message. Merge-extensible union: no assertNever here.
       return null
   }
-}
-
-/** Whether a payload field is a JSON object rather than an array or scalar. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

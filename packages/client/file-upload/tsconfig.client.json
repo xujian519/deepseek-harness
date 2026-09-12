@@ -16,6 +16,7 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../util/brand" },
     { "path": "../../util/crypto" },
+    { "path": "../../util/value" },
     { "path": "../../attachment/attachment" },
     { "path": "../../core/session" },
     { "path": "../../typert/protocol" }
