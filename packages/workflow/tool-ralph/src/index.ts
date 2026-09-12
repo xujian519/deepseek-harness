@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools'
@@ -227,10 +228,6 @@ function requireFreshProvider(ctx: Context, name: string): SubagentProvider {
     throw new Error(`Ralph subagent provider "${name}" inherits parent context; Ralph requires a fresh provider`)
   }
   return provider
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizedText(value: unknown): value is string {

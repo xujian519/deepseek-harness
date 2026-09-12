@@ -17,7 +17,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
-import { isRecord } from '@deepseek-ai/dsh-value'
+import { isENOENT, isRecord } from '@deepseek-ai/dsh-value'
 import type { TaskStatus, TeamMember, TeamMessage, TeamState, TeamTask } from './types.ts'
 
 /** Mailbox key of the captain. */
@@ -233,7 +233,7 @@ export async function readTeam(stateRoot: string, teamId: string): Promise<TeamS
   try {
     return parseTeamRecord(await readFile(join(stateRoot, teamId, 'team.json'), 'utf8'), teamId)
   } catch (error: unknown) {
-    if (isEnoent(error)) {
+    if (isENOENT(error)) {
       return undefined
     }
     throw error
@@ -264,7 +264,7 @@ export async function readRetiredMemberIds(stateRoot: string): Promise<Set<strin
     }
     return new Set(parsed)
   } catch (error: unknown) {
-    if (isEnoent(error)) {
+    if (isENOENT(error)) {
       return new Set()
     }
     throw error
@@ -290,18 +290,13 @@ export async function recordRetiredMemberIds(stateRoot: string, memberIds: reado
   })
 }
 
-/** Whether an fs/promises error is a missing-file ENOENT. */
-function isEnoent(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
-}
-
 /** Read every live team record under the state root (missing root = none). */
 async function scanTeams(stateRoot: string): Promise<TeamState[]> {
   let entries
   try {
     entries = await readdir(stateRoot, { withFileTypes: true })
   } catch (error: unknown) {
-    if (isEnoent(error)) return []
+    if (isENOENT(error)) return []
     throw error
   }
   const teams: TeamState[] = []
@@ -408,7 +403,7 @@ async function missingTrailingNewline(file: string): Promise<string> {
   try {
     handle = await open(file, 'r')
   } catch (error: unknown) {
-    if (isEnoent(error)) {
+    if (isENOENT(error)) {
       return ''
     }
     throw error
@@ -463,7 +458,7 @@ export async function readMailbox(
     }
     return messages
   } catch (error: unknown) {
-    if (isEnoent(error)) {
+    if (isENOENT(error)) {
       return []
     }
     throw error
@@ -505,7 +500,7 @@ async function mutateMailbox(
   try {
     raw = await readFile(file, 'utf8')
   } catch (error: unknown) {
-    if (isEnoent(error)) return
+    if (isENOENT(error)) return
     throw error
   }
   const selected = new Set(messageIds)
@@ -855,7 +850,7 @@ export async function archiveTeamDir(stateRoot: string, teamId: string): Promise
   } catch (error: unknown) {
     // Only ENOENT means there was nothing to displace; any other failure
     // (including a persistent EPERM lock) surfaces to the caller.
-    if (!isEnoent(error)) {
+    if (!isENOENT(error)) {
       throw error
     }
   }
@@ -904,7 +899,7 @@ export async function listArchivedTeamIds(stateRoot: string): Promise<string[]> 
       .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
       .map(entry => entry.name)
   } catch (error: unknown) {
-    if (isEnoent(error)) {
+    if (isENOENT(error)) {
       return []
     }
     throw error

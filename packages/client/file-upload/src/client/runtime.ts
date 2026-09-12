@@ -2,6 +2,7 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 import { bytesToBase64 } from '@deepseek-ai/dsh-util-crypto'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -352,8 +353,4 @@ function parseFileUploadResult(body: string): RemoteResult<FileUploadValue> {
       },
     },
   }
-}
-
-function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

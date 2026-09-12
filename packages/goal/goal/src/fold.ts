@@ -2,6 +2,7 @@
 
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import { GOAL_CHANGE_VERSION, GoalId } from './runtime.ts'
 import type { GoalBlockReason, GoalPhase, GoalRef, GoalSnapshot } from './types.ts'
 import type {
@@ -46,11 +47,6 @@ export function emptyGoalFoldState(): GoalFoldState {
     lastRef: undefined,
     seenGoalIds: new Set(),
   }
-}
-
-/** Whether a value is a JSON record rather than an array. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Require one positive safe integer. */

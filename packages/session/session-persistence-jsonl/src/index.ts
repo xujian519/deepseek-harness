@@ -34,6 +34,7 @@ import { JsonlBackendTracker, JsonlSessionHandle, type StorageHandleState } from
 import { SessionWriteLease } from './lease.ts'
 import { SESSION_FORMAT_VERSION, SessionId as makeSessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId, SessionHeader, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
+import { isENOENT } from '@deepseek-ai/dsh-value'
 import {
   assertNoRetiredHeaderFields, encodeSegment, eventLines, generationLogFilename, generationLogPath, logPath, logSuffix,
   parseGenerationLogFilename, projectDir, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
@@ -179,11 +180,6 @@ function fileRevision(identity: JsonlPhysicalIdentity): PersistenceRevision {
     identity.mtimeNs,
     identity.ctimeNs,
   ].join(':'))
-}
-
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }
 
 /** Whether a filesystem-owned failure should retain its original errno and path. */

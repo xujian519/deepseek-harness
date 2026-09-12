@@ -26,6 +26,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { constants, createZstdCompress } from 'node:zlib'
 import { Session } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { isEEXIST } from '@deepseek-ai/dsh-value'
 import { BlockAssembler, expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import type {
   SessionFormatArtifact,
@@ -225,10 +226,6 @@ const defaultInternals: JsonlGenerationInternals = {
   platform: process.platform,
   publishNewWin32: publishNewFileWin32,
   barrier: () => {},
-}
-
-function isEEXIST(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
 }
 
 /** Whether a filesystem-owned failure should retain its original errno and path. */
