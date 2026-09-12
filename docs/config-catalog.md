@@ -2181,7 +2181,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/sandbox/sandbox-local/src/index.ts:44`](../packages/sandbox/sandbox-local/src/index.ts)
+Source: [`packages/sandbox/sandbox-local/src/index.ts:45`](../packages/sandbox/sandbox-local/src/index.ts)
 
 <a id="deepseek-aidsh-sandbox-policy"></a>
 
@@ -2643,7 +2643,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/session/session-title/src/index.ts:56`](../packages/session/session-title/src/index.ts)
+Source: [`packages/session/session-title/src/index.ts:57`](../packages/session/session-title/src/index.ts)
 
 <a id="deepseek-aidsh-session-title-all-prompts-llm"></a>
 

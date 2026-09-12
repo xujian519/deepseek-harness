@@ -38,6 +38,7 @@ import type { ConfinedArgv, ConfinedSandboxMode, RunnerFailureRule, SandboxEnfor
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from '@deepseek-ai/dsh-sandbox-windows-acl'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+import { assertPositiveFinite } from '@deepseek-ai/dsh-value'
 import { bwrapProfileArgs, landlockProfileArgs, seatbeltProfileArgs } from './profiles.ts'
 
 /** Plugin config. All optional — `static Config` supplies the defaults. */
@@ -187,17 +188,6 @@ const STATIC_ENFORCEMENT: Record<SelectedRunner['runner'], SandboxEnforcement> =
 }
 
 /**
- * A probe bound must be a positive finite number: Node treats
- * `spawnSync({ timeout: 0 })` as NO timeout, so an unvalidated 0 would
- * silently mean "unbounded" — the opposite of what the field promises.
- */
-function assertPositiveFinite(name: string, value: number): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`sandbox-local: ${name} must be a positive finite number`)
-  }
-}
-
-/**
  * The denial dialect each runner's kernel speaks — the case-insensitive stderr substrings a
  * denied file effect produces under it, carried on every wrap (the seam's
  * `ConfinedArgv.denialSignatures`).
@@ -292,7 +282,9 @@ export class LocalSandboxProvider extends SandboxProvider {
     this.runnerCommand = runner.length > 0 ? runner : undefined
     this.configuredRunnerFailureSignatures = runnerFailureSignatures
     this.probeTimeoutMs = config.probeTimeoutMs as number
-    assertPositiveFinite('probeTimeoutMs', this.probeTimeoutMs)
+    // Node treats `spawnSync({ timeout: 0 })` as NO timeout, so an unvalidated 0
+    // would silently mean "unbounded" — the opposite of what the field promises.
+    assertPositiveFinite('sandbox-local: probeTimeoutMs', this.probeTimeoutMs)
     // The temp grants are revoked with the provider: a clean server
     // shutdown leaves no temp ACEs behind (workspace ACEs stand by design —
     // the reuse cache; an unclean shutdown leaves them for the next

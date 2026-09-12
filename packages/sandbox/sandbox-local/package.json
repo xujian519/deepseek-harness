@@ -35,6 +35,7 @@
   "dependencies": {
     "@deepseek-ai/dsh-sandbox-windows-acl": "workspace:^",
     "@deepseek-ai/dsh-util-values": "workspace:^",
+    "@deepseek-ai/dsh-value": "workspace:^",
     "@deepseek-ai/node-addon-system": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^"
   },

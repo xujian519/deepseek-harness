@@ -11,6 +11,7 @@ import type { Branded } from '@deepseek-ai/dsh-brand'
 import { isAgentLoopRequest } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { assertNever, deepFreeze } from '@deepseek-ai/dsh-util-values'
+import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
 import type {
   Session,
   SessionEvent,
@@ -186,13 +187,6 @@ interface SessionTitleWorkState {
   fallback?: Promise<SessionTitleSnapshot | undefined>
   pending?: PendingAutomaticWork
   active?: ActiveProviderWork
-}
-
-/** Validate one positive integer configuration field. */
-function assertPositiveInteger(label: string, value: number): void {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`${label} must be a positive integer`)
-  }
 }
 
 /**
