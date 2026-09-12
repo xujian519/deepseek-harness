@@ -17,10 +17,11 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { roleContract, validateWorkerOutput, workerContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
 import { evaluatePatentContent } from '@deepseek-ai/dsh-patent-tools'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { join } from 'node:path'
 import { appendTeamEvent, captainSessionOf } from './events.ts'
+import { PatentTeamsMessageId, PatentTeamsTaskId, PatentTeamsTeamId } from './ids.ts'
 import {
   acknowledgeMailbox,
   appendMailbox,
@@ -318,7 +319,7 @@ export class PatentTeamsService extends Service {
         }
         await createTeamDir(stateRoot, state)
         appendTeamEvent(this.ctx, agent.session, 'patent-teams/team-created', {
-          teamId: state.id,
+          teamId: PatentTeamsTeamId(state.id),
           captainSessionId: agent.id,
           name: state.name,
           ...state.description !== undefined ? { description: state.description } : {},
@@ -414,9 +415,9 @@ export class PatentTeamsService extends Service {
         requireAddableMember(fresh, args.name, memberKey, this.config.maxMembers)
         fresh.members.push(member)
         await writeTeam(stateRoot, fresh)
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/member-added', {
-          teamId: fresh.id,
-          memberId: member.id,
+        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/member-added', {
+          teamId: PatentTeamsTeamId(fresh.id),
+          memberId: SessionId(member.id),
           name: member.name,
           ...member.role !== undefined ? { role: member.role } : {},
         })
@@ -477,9 +478,9 @@ export class PatentTeamsService extends Service {
       }
       member.status = 'removed'
       await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/member-removed', {
-        teamId: fresh.id,
-        memberId: member.id,
+      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/member-removed', {
+        teamId: PatentTeamsTeamId(fresh.id),
+        memberId: SessionId(member.id),
       })
       return { member: { ...member }, requeued }
     })
@@ -545,11 +546,11 @@ export class PatentTeamsService extends Service {
       fresh.taskSeq += 1
       fresh.tasks.push(task)
       await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-created', {
-        teamId: fresh.id,
-        taskId: task.id,
+      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-created', {
+        teamId: PatentTeamsTeamId(fresh.id),
+        taskId: PatentTeamsTaskId(task.id),
         subject: task.subject,
-        dependencies: task.dependencies,
+        dependencies: task.dependencies.map(dependency => PatentTeamsTaskId(dependency)),
         ...task.assignee !== undefined ? { assignee: task.assignee } : {},
         ...task.worker !== undefined ? { worker: task.worker } : {},
       })
@@ -636,8 +637,8 @@ export class PatentTeamsService extends Service {
       if (quiescenceError === undefined && target === CAPTAIN_KEY) beginTaskAttempt(task, CAPTAIN_KEY)
       await writeTeam(stateRoot, fresh)
       appendTeamEvent(this.ctx, agent.session, 'patent-teams/task-updated', {
-        teamId: fresh.id,
-        taskId: task.id,
+        teamId: PatentTeamsTeamId(fresh.id),
+        taskId: PatentTeamsTaskId(task.id),
         status: task.status,
         assignee: task.assignee,
         ...args.reason === undefined ? {} : { output: `Reassigned: ${args.reason}` },
@@ -731,9 +732,9 @@ export class PatentTeamsService extends Service {
       }
       const attemptId = beginTaskAttempt(task, assignee)
       await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-updated', {
-        teamId: fresh.id,
-        taskId: task.id,
+      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-updated', {
+        teamId: PatentTeamsTeamId(fresh.id),
+        taskId: PatentTeamsTaskId(task.id),
         status: task.status,
         assignee: task.assignee,
       })
@@ -817,9 +818,9 @@ export class PatentTeamsService extends Service {
             task.gateFeedback = gate
             task.updatedAt = Date.now()
             await writeTeam(stateRoot, fresh)
-            appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-gated', {
-              teamId: fresh.id,
-              taskId: task.id,
+            appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-gated', {
+              teamId: PatentTeamsTeamId(fresh.id),
+              taskId: PatentTeamsTaskId(task.id),
               score: gate.score,
               failures: gate.failures,
               feedback: gate.feedback,
@@ -850,18 +851,18 @@ export class PatentTeamsService extends Service {
       task.updatedAt = Date.now()
       await writeTeam(stateRoot, fresh)
       // v8 ignore start -- an updatable task always carries assignee/attempt/attemptId
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-updated', {
-        teamId: fresh.id,
-        taskId: task.id,
+      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-updated', {
+        teamId: PatentTeamsTeamId(fresh.id),
+        taskId: PatentTeamsTaskId(task.id),
         status: task.status,
         ...task.assignee !== undefined ? { assignee: task.assignee } : {},
         ...task.output !== undefined ? { output: task.output } : {},
       })
       // v8 ignore stop
       if (validated !== undefined) {
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/task-validated', {
-          teamId: fresh.id,
-          taskId: task.id,
+        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-validated', {
+          teamId: PatentTeamsTeamId(fresh.id),
+          taskId: PatentTeamsTaskId(task.id),
           worker: validated.worker,
           valid: validated.valid,
           missingHardFields: validated.missingHardFields,
@@ -906,9 +907,9 @@ export class PatentTeamsService extends Service {
       if (to === CAPTAIN_KEY) {
         const message = { ...createMessage(from, CAPTAIN_KEY, args.content), deliveryClaimedAt: Date.now() }
         await appendMailbox(stateRoot, fresh.id, CAPTAIN_KEY, message)
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/message-sent', {
-          teamId: fresh.id,
-          messageId: message.id,
+        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/message-sent', {
+          teamId: PatentTeamsTeamId(fresh.id),
+          messageId: PatentTeamsMessageId(message.id),
           from,
           to: CAPTAIN_KEY,
           content: args.content,
@@ -919,9 +920,9 @@ export class PatentTeamsService extends Service {
       const recipient = requireMember(fresh, to)
       const message = { ...createMessage(from, recipient.name, args.content), deliveryClaimedAt: Date.now() }
       await appendMailbox(stateRoot, fresh.id, recipient.name, message)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/message-sent', {
-        teamId: fresh.id,
-        messageId: message.id,
+      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/message-sent', {
+        teamId: PatentTeamsTeamId(fresh.id),
+        messageId: PatentTeamsMessageId(message.id),
         from,
         to: recipient.name,
         content: args.content,
@@ -1141,8 +1142,8 @@ export class PatentTeamsService extends Service {
     }
     await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
       const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, fresh.captainSessionId, agent.session), 'patent-teams/team-deleted', {
-        teamId: fresh.id,
+      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/team-deleted', {
+        teamId: PatentTeamsTeamId(fresh.id),
       })
       // Archive, not delete: tasks (with their dependency graph) and the
       // mailboxes stay on disk for later review and dependency rebuilds.

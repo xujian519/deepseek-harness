@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 The **Service Definition** for the `ctx.desktop` capability seam: OS-level desktop integration exposed to the dsh backend through the Electron main process. It declares typed methods (`showOpenDialog`, `showSaveDialog`, `sendNotification`, `registerMenuItem`, `registerGlobalShortcut`, `setTray`) and six `desktop/*` Cordis events. Registration methods are asynchronous and reject when the bridge cannot place the item (an accelerator already claimed, a tray unavailable). Providers such as [`@deepseek-ai/dsh-desktop-shell`](../shell/README.md) implement this seam; consumers (`@deepseek-ai/dsh-desktop-directory-picker`, tools, commands) use `ctx.desktop` without depending on Electron.
 
-Menu items in the tray's menu group (`'tray'` by default, overridable through `DesktopTrayConfig.menuGroup`) populate the tray context menu; `DesktopNotification.id` is echoed back in `desktop/notification-clicked`.
+Tray-group menu items populate the tray context menu (overridable through `DesktopTrayConfig.menuGroup`); the ids crossing the bridge — `MenuId`, `NotificationId` — are branded through their same-named constructors.
 
 
 ## Table of Contents
@@ -34,4 +34,4 @@ None; this package neither assembles nor sends a provider request.
 
 ### Dev Note
 
-No runtime invariant companion is published; the package declares the ctx.desktop Service Definition as pure types plus a closed error vocabulary and owns no runtime state to observe, and providers assert their own bridge state through typed DesktopError failures at the call boundary.
+No runtime invariant companion is published; the package declares the ctx.desktop Service Definition as types, the two bridge-id brand constructors, and a closed error vocabulary, and owns no runtime state to observe, and providers assert their own bridge state through typed DesktopError failures at the call boundary.

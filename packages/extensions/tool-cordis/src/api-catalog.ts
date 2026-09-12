@@ -3756,7 +3756,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'desktop/menu-activated',
     mode: 'emit',
-    signature: '\'desktop/menu-activated\'(payload: { menuId: string }): void',
+    signature: '\'desktop/menu-activated\'(payload: { menuId: MenuId }): void',
     summary: 'A registered menu item was activated.',
     description: 'A registered menu item was activated.',
     parameters: [{ name: 'payload', description: 'event payload.' }],
@@ -3764,7 +3764,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'desktop/notification-clicked',
     mode: 'emit',
-    signature: '\'desktop/notification-clicked\'(payload: { notificationId: string }): void',
+    signature: '\'desktop/notification-clicked\'(payload: { notificationId: NotificationId }): void',
     summary: 'A notification was clicked.',
     description: 'A notification was clicked.',
     parameters: [{ name: 'payload', description: 'event payload.' }],
@@ -4699,11 +4699,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'DesktopMenuItem',
-    declaration: 'export interface DesktopMenuItem {\n    id: string;\n    label: string;\n    accelerator?: string;\n}',
+    declaration: 'export interface DesktopMenuItem {\n    id: MenuId;\n    label: string;\n    accelerator?: string;\n}',
   },
   {
     name: 'DesktopNotification',
-    declaration: 'export interface DesktopNotification {\n    title: string;\n    body?: string;\n    id?: string;\n}',
+    declaration: 'export interface DesktopNotification {\n    title: string;\n    body?: string;\n    id?: NotificationId;\n}',
   },
   {
     name: 'DesktopTrayConfig',
@@ -5374,6 +5374,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ManualCompactAgentContext extends CompactionAgentContext {\n    runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;\n}',
   },
   {
+    name: 'MenuId',
+    declaration: 'export type MenuId = Branded<\'MenuId\'>;',
+  },
+  {
     name: 'Message',
     declaration: 'export interface Message {\n    readonly id: MessageId;\n    readonly role: \'system\' | \'user\' | \'assistant\';\n    readonly content: ContentBlock[];\n    readonly source: MessageSource;\n}',
   },
@@ -5500,6 +5504,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ModelReasoningEffort',
     declaration: 'export interface ModelReasoningEffort {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n}',
+  },
+  {
+    name: 'NotificationId',
+    declaration: 'export type NotificationId = Branded<\'NotificationId\'>;',
   },
   {
     name: 'ObjectJsonSchema',
@@ -7212,6 +7220,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TokenUsage',
     declaration: 'export interface TokenUsage {\n    inputTokens: number;\n    outputTokens: number;\n    totalTokens?: number;\n    cacheReadTokens?: number;\n    cacheWriteTokens?: number;\n    reasoningTokens?: number;\n}',
+  },
+  {
+    name: 'ToolCallId',
+    declaration: 'export type ToolCallId = Branded<\'ToolCallId\'>;',
   },
   {
     name: 'ToolCallKind',

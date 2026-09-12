@@ -1,6 +1,6 @@
 /** Root/subcall Tool composition with one keyed atomic dispatch path. */
 import { memo, useMemo, type ReactNode } from 'react'
-import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ToolCallBlock, ToolCallId } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ToolCallOwnerProps, ToolTreeProps } from '../contract/slots.ts'
 import { GenericToolCard } from './toolviews/GenericToolCard.tsx'
 import css from './ToolCallTree.module.css'
@@ -28,7 +28,9 @@ const ToolCall = memo(function ToolCall({
     cwd,
     home,
     loadImage,
-    inspect: () => { inspectCall(callId) },
+    // Chat nodes carry tool-call ids as strings; the host vocabulary the Tool
+    // seat's callback speaks brands them.
+    inspect: () => { inspectCall(callId as ToolCallId) },
   }), [callId, toolName, block, openFile, cwd, home, loadImage, inspectCall])
   return (
     <div

@@ -33,7 +33,7 @@ export interface AcpConfig {
 
 依赖：`Stream`（`@agentclientprotocol/sdk`）
 
-来源：[`packages/acp/acp/src/index.ts:75`](../packages/acp/acp/src/index.ts)
+来源：[`packages/acp/acp/src/index.ts:82`](../packages/acp/acp/src/index.ts)
 
 <a id="deepseek-aidsh-agent-default-model"></a>
 

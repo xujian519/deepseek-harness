@@ -8,6 +8,31 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
+import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
+
+/** Identity of one registered application-menu entry, as reported by the bridge. */
+export type MenuId = Branded<'MenuId'>
+
+/**
+ * Brand a menu-entry identity.
+ * @param id - the id the entry was registered under.
+ * @returns the same string branded as a menu identity.
+ */
+export function MenuId(id: string): MenuId {
+  return brandString<MenuId>(id)
+}
+
+/** Identity of one posted system notification, as reported by the bridge. */
+export type NotificationId = Branded<'NotificationId'>
+
+/**
+ * Brand a system-notification identity.
+ * @param id - the durable id the notification was posted under.
+ * @returns the same string branded as a notification identity.
+ */
+export function NotificationId(id: string): NotificationId {
+  return brandString<NotificationId>(id)
+}
 
 /** Options for a native open-file or open-directory dialog. */
 export interface OpenDialogOptions {
@@ -34,13 +59,13 @@ export interface DesktopNotification {
   /** Notification body text. */
   body?: string
   /** Stable identifier echoed back in `desktop/notification-clicked`; the provider mints one when absent. */
-  id?: string
+  id?: NotificationId
 }
 
 /** One dynamic application-menu entry registered by a backend plugin. */
 export interface DesktopMenuItem {
   /** Stable identifier returned in `desktop/menu-activated`. */
-  id: string
+  id: MenuId
   /** Display label. */
   label: string
   /** Optional keyboard shortcut (Electron accelerator syntax). */
@@ -85,7 +110,7 @@ declare module '@deepseek-ai/cordis' {
      * @mode emit
      * @param payload - event payload.
      */
-    'desktop/menu-activated'(payload: { menuId: string }): void
+    'desktop/menu-activated'(payload: { menuId: MenuId }): void
     /**
      * A registered global shortcut was pressed.
      * @mode emit
@@ -109,7 +134,7 @@ declare module '@deepseek-ai/cordis' {
      * @mode emit
      * @param payload - event payload.
      */
-    'desktop/notification-clicked'(payload: { notificationId: string }): void
+    'desktop/notification-clicked'(payload: { notificationId: NotificationId }): void
     /**
      * The bridge to Electron Main was lost.
      * @mode emit

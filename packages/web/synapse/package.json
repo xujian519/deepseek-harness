@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-home-paths": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^"
   },
   "devDependencies": {

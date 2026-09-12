@@ -131,7 +131,7 @@ A registered menu item was activated.
  * @mode emit
  * @param payload - event payload.
  */
-'desktop/menu-activated'(payload: { menuId: string }): void
+'desktop/menu-activated'(payload: { menuId: MenuId }): void
 ```
 
 Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)
@@ -148,7 +148,7 @@ A notification was clicked.
  * @mode emit
  * @param payload - event payload.
  */
-'desktop/notification-clicked'(payload: { notificationId: string }): void
+'desktop/notification-clicked'(payload: { notificationId: NotificationId }): void
 ```
 
 Source: [`packages/desktop/desktop-seam/src/index.ts`](../../packages/desktop/desktop-seam/src/index.ts)

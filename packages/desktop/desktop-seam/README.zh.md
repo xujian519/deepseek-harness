@@ -11,7 +11,7 @@ kind: "package-reference"
 
 `ctx.desktop` 能力缝隙的 **Service Definition**：通过 Electron 主进程向 dsh 后端暴露 OS 级桌面集成能力。它声明了有类型的方法（`showOpenDialog`、`showSaveDialog`、`sendNotification`、`registerMenuItem`、`registerGlobalShortcut`、`setTray`）和六个 `desktop/*` Cordis 事件。注册方法为异步，bridge 无法放置条目时（快捷键已被占用、托盘不可用）会 reject。[`@deepseek-ai/dsh-desktop-shell`](../shell/README.zh.md) 等提供方实现该缝隙；消费方（`@deepseek-ai/dsh-desktop-directory-picker`、工具、命令）使用 `ctx.desktop` 而不依赖 Electron。
 
-注册在托盘菜单组（默认 `'tray'`，可通过 `DesktopTrayConfig.menuGroup` 覆盖）下的菜单项进入托盘上下文菜单；`DesktopNotification.id` 经 `desktop/notification-clicked` 回传。
+托盘菜单组下的菜单项进入托盘上下文菜单(可用 `DesktopTrayConfig.menuGroup` 覆盖);跨 bridge 的 id——`MenuId`、`NotificationId`——由同名构造函数打品牌。
 
 
 ## 目录

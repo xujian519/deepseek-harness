@@ -1,7 +1,7 @@
 /** Chat-owned per-Session view state. */
 
-/** Tool call identity as carried by Chat nodes. */
-export type ToolCallId = string
+/** Tool call identity as carried by Chat nodes, owned by the host LLM vocabulary. */
+export type { ToolCallId } from '@deepseek-ai/dsh-llm'
 
 /** One manually expanded Turn answer generation. */
 export interface TurnProcessViewEntry {

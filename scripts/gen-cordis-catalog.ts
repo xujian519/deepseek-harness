@@ -775,6 +775,8 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   DesktopNotification: 'desktop notification payload is owned by packages/desktop/desktop/README.md',
   DesktopMenuItem: 'desktop menu item payload is owned by packages/desktop/desktop/README.md',
   DesktopTrayConfig: 'desktop tray configuration is owned by packages/desktop/desktop/README.md',
+  MenuId: 'desktop bridge menu identity is owned by packages/desktop/desktop-seam/README.md',
+  NotificationId: 'desktop bridge notification identity is owned by packages/desktop/desktop-seam/README.md',
   PermissionSelect: 'permissions projection payload is owned by packages/interaction/permission-presets/src/types.ts',
   PromptAssembly: 'assembly result is owned by packages/core/system-prompt/README.md',
   RequestRunId: 'dynamic-package payload contract is owned by packages/extensions/cordis-host-runner/src/types.ts',

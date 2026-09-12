@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import type { ToolCallId as HostToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '../src/client/contract/store.ts'
 import { createChatStore } from '../src/client/stores.ts'
 
 describe('createChatStore', () => {
@@ -23,5 +25,11 @@ describe('createChatStore', () => {
     store.actions.setTurnProcessOpen(9, 10, false)
 
     expect(store.store.getSnapshot().turnProcesses).toEqual([{ turn: 3, answerStep: 4 }])
+  })
+})
+
+describe('ToolCallId', () => {
+  it('is the host LLM vocabulary identity, not a client-local string alias', () => {
+    expectTypeOf<ToolCallId>().toEqualTypeOf<HostToolCallId>()
   })
 })

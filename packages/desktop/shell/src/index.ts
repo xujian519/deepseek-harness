@@ -9,6 +9,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import {
   Desktop,
   DesktopError,
+  MenuId,
+  NotificationId,
   type DesktopMenuItem,
   type DesktopNotification,
   type DesktopTrayConfig,
@@ -143,9 +145,11 @@ export default class DesktopShell extends Desktop {
 
   private onBridgeNotification(ctx: Context, notification: JsonRpcNotification): void {
     switch (notification.method) {
-      case 'desktop/menu-activated':
-        ctx.emit('desktop/menu-activated', notification.params as { menuId: string })
+      case 'desktop/menu-activated': {
+        const { menuId } = notification.params as { menuId: string }
+        ctx.emit('desktop/menu-activated', { menuId: MenuId(menuId) })
         return
+      }
       case 'desktop/shortcut-triggered': {
         const { accelerator } = notification.params as { accelerator: string }
         ctx.emit('desktop/shortcut-triggered', { accelerator })
@@ -158,9 +162,11 @@ export default class DesktopShell extends Desktop {
       case 'desktop/file-dropped':
         ctx.emit('desktop/file-dropped', notification.params as { paths: string[] })
         return
-      case 'desktop/notification-clicked':
-        ctx.emit('desktop/notification-clicked', notification.params as { notificationId: string })
+      case 'desktop/notification-clicked': {
+        const { notificationId } = notification.params as { notificationId: string }
+        ctx.emit('desktop/notification-clicked', { notificationId: NotificationId(notificationId) })
         return
+      }
       default:
         ctx.logger.warn(`unknown desktop bridge notification: ${notification.method}`)
     }

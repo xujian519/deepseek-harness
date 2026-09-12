@@ -1,7 +1,7 @@
 /**
- * PatentTeams session event types — pure types only, zero imports.
+ * PatentTeams session event types — pure types only, zero runtime imports.
  *
- * This file intentionally imports nothing: both the host program (the
+ * This file intentionally imports no runtime value: both the host program (the
  * emitter in `events.ts`) and the browser program (the Conversation Node
  * definition) must be able to load these types and the `SessionEventMap`
  * declaration merge without pulling in host-side `Context` augmentations
@@ -10,35 +10,46 @@
  * @module dsh-patent-teams/event-types
  */
 
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {
+  PatentTeamsAttemptId,
+  PatentTeamsMessageId,
+  PatentTeamsTaskId,
+  PatentTeamsTeamId,
+} from './ids.ts'
+
 /** Opens one team record: the captain created the team. */
 export interface PatentTeamsTeamCreatedData {
-  readonly teamId: string
+  readonly teamId: PatentTeamsTeamId
   /** The captain session that owns this team (UI follows it). */
-  readonly captainSessionId: string
+  readonly captainSessionId: SessionId
   readonly name: string
   readonly description?: string
 }
 
 /** Records one member after its continuable subagent is spawned. */
 export interface PatentTeamsMemberAddedData {
-  readonly teamId: string
-  readonly memberId: string
+  readonly teamId: PatentTeamsTeamId
+  /** The member's durable child session id. */
+  readonly memberId: SessionId
   readonly name: string
   readonly role?: string
 }
 
 /** Marks one member removed. */
 export interface PatentTeamsMemberRemovedData {
-  readonly teamId: string
-  readonly memberId: string
+  readonly teamId: PatentTeamsTeamId
+  /** The member's durable child session id. */
+  readonly memberId: SessionId
 }
 
 /** Records one task in the team's task list. */
 export interface PatentTeamsTaskCreatedData {
-  readonly teamId: string
-  readonly taskId: string
+  readonly teamId: PatentTeamsTeamId
+  readonly taskId: PatentTeamsTaskId
   readonly subject: string
-  readonly dependencies: readonly string[]
+  /** Task ids that must reach `completed` before this task can be claimed. */
+  readonly dependencies: readonly PatentTeamsTaskId[]
   readonly assignee?: string
   /** The worker contract the task output is validated against, when set. */
   readonly worker?: string
@@ -46,19 +57,19 @@ export interface PatentTeamsTaskCreatedData {
 
 /** Records one task status/assignee/output transition. */
 export interface PatentTeamsTaskUpdatedData {
-  readonly teamId: string
-  readonly taskId: string
+  readonly teamId: PatentTeamsTeamId
+  readonly taskId: PatentTeamsTaskId
   readonly status: string
   readonly assignee?: string
   readonly output?: string
   readonly attempt?: number
-  readonly attemptId?: string
+  readonly attemptId?: PatentTeamsAttemptId
 }
 
 /** Records a contract-validation verdict on a completed task. */
 export interface PatentTeamsTaskValidatedData {
-  readonly teamId: string
-  readonly taskId: string
+  readonly teamId: PatentTeamsTeamId
+  readonly taskId: PatentTeamsTaskId
   readonly worker: string
   readonly valid: boolean
   readonly missingHardFields: readonly string[]
@@ -67,8 +78,8 @@ export interface PatentTeamsTaskValidatedData {
 
 /** Records a completion rejected by the composite quality gate. */
 export interface PatentTeamsTaskGatedData {
-  readonly teamId: string
-  readonly taskId: string
+  readonly teamId: PatentTeamsTeamId
+  readonly taskId: PatentTeamsTaskId
   readonly score: number
   readonly failures: readonly string[]
   readonly feedback: string
@@ -76,13 +87,13 @@ export interface PatentTeamsTaskGatedData {
 
 /** Closes one team record: the team was deleted. */
 export interface PatentTeamsTeamDeletedData {
-  readonly teamId: string
+  readonly teamId: PatentTeamsTeamId
 }
 
 /** Records one mailbox message sent between team agents. */
 export interface PatentTeamsMessageSentData {
-  readonly teamId: string
-  readonly messageId: string
+  readonly teamId: PatentTeamsTeamId
+  readonly messageId: PatentTeamsMessageId
   /** `captain` or a member name. */
   readonly from: string
   /** `captain` or a member name. */
