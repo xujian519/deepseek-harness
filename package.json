@@ -158,6 +158,7 @@
     "verify-doc-site-fragments": "tsx scripts/verify-doc-site-fragments.ts",
     "verify-dsh-package-licenses": "tsx scripts/verify-dsh-package-licenses.ts",
     "verify-export-jsdoc": "tsx scripts/verify-export-jsdoc.ts",
+    "verify-group-readme-packages": "tsx scripts/verify-group-readme-packages.ts",
     "verify-md-links": "tsx scripts/verify-md-links.ts",
     "verify-md-wrap": "tsx scripts/verify-md-wrap.ts",
     "verify-mermaid": "tsx scripts/verify-mermaid.ts",
