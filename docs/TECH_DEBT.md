@@ -68,8 +68,9 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **M3 已收敛**(#80,PR #105):`__proto__` 原型污染、注册 dispose 的 quiescence、replacement 后陈旧写提交三项竞态均已修复。
 - **M4 修复就绪**(#81,PR #106):`SessionStart` 门控改为「被首个 step 消费才清除」,Stop 连续强制 continuation 有上限,`{"continue": false}` 成为运行级停止。
 - **门禁红项修复**:`verify-export-jsdoc` 缺 `@param ctx`(PR #107);`docs/event-producer-consumer.md` 事件图过期(随 PR #106 重新生成)。
-- **M1 第二批收敛**(#87,PR #110):`isRecord` 回升后的 4 处副本(`client/file-upload`、`core/session`、`goal`、`workflow/tool-ralph`)与放宽语义的 `isENOENT`/`isEEXIST` 3 处(`session-persistence-jsonl` ×2、`patent-teams` 的 `isEnoent`)全部改 import `@deepseek-ai/dsh-value`。严格版本要求真实 `Error`,非 Error 的 `code` lookalike 由「按码判缺」改为向上抛出;真实 fs 失败路径不变。`assertPositive*` 仍有 4 处未收(见 M1 行)。
+- **M1 第二批收敛**(#87,PR #110):`isRecord` 回升后的 4 处副本(`client/file-upload`、`core/session`、`goal`、`workflow/tool-ralph`)与放宽语义的 `isENOENT`/`isEEXIST` 3 处(`session-persistence-jsonl` ×2、`patent-teams` 的 `isEnoent`)全部改 import `@deepseek-ai/dsh-value`。严格版本要求真实 `Error`,非 Error 的 `code` lookalike 由「按码判缺」改为向上抛出;真实 fs 失败路径不变。`assertPositive*` 当时仍有 4 处未收(见 M1 行;其中 2 处可收敛副本于同日第三批收敛)。
 - **决定(2026-09-12)**:fork CI 不纳入覆盖率门禁。`.github/workflows/ci-fork.yml` 以裸 `vitest run` 执行,逐文件 100% 只在上游 CI 与本地 `pnpm run test:coverage` 强制;fork 侧已知未达标的文件(如 `packages/e2b/subprocess-e2b/src/process.ts` 99.48%)不阻塞合并。
+- **M1 第三批收敛**(#87,PR #111):`session-title/index.ts` 与 `sandbox-local/index.ts` 的 `assertPositive*` 副本改 import `@deepseek-ai/dsh-value`。前者所在包的 `normalize.ts` 早已 import 权威版本,消除同包自相矛盾;后者的 `sandbox-local: ` 诊断前缀移入 label,抛出类型由 `Error` 变为 `TypeError`(仍是 `Error` 子类,消息逐字不变)。至此 M1 的 `assertPositive*` 只剩 2 个刻意保留的语义特例。
 
 ## 总体评估
 
@@ -142,7 +143,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 | 函数 | 份数 | 分布(部分) |
 |---|---|---|
-| `assertPositiveInteger`/`assertPositiveFinite` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value`) | 保留 2 个语义特例:subagent-acp 的 `assertPositiveFinite`(钉 `MAX_TIMER_DELAY_MS` 上限,timer 域契约)、session-query-sqlite 的包装(抛 `SessionQueryError`,配置错误聚合契约);**另有 2 处可收敛副本未动**:`sandbox-local`(只差 `sandbox-local: ` 前缀,可由 label 承载)、`session-title`(抛 `Error` 且不收窄 `unknown`) |
+| `assertPositiveInteger`/`assertPositiveFinite` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;2026-09-12 收敛回升后的副本:`session-title/index.ts`——同包 `normalize.ts` 早已 import 权威版本——与 `sandbox-local/index.ts`,后者的 `sandbox-local: ` 前缀由 label 承载) | 保留 2 个语义特例:subagent-acp 的 `assertPositiveFinite`(钉 `MAX_TIMER_DELAY_MS` 上限,timer 域契约)、session-query-sqlite 的包装(抛 `SessionQueryError`,配置错误聚合契约) |
 | `isRecord` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;sdk/client 公开导出改为再导出;mcp-client 的 JsonValue 谓词由调用点显式收窄替代) | 0 剩余(2026-09-12 收敛回升后的 5 处:`subprocess-local/runner-protocol.ts`、`client/file-upload`、`core/session/surface.ts`、`goal/fold.ts`、`workflow/tool-ralph`;`file-upload` 按 client 依赖政策记 `devDependencies`) |
 | `toError` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value`,采用 skill 的 hostile-proxy 加固形式;gateway/remote-events 的 `(reason, message, cause)` 变体是同名不同契约,保留本地) | **不再为 0**:09-11 复测仍见 2 处简化副本(`test-support/client-runtime`、`test-support/remote-mock`),见 #87 |
 | `errorMessage`/`renderThrown` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value` 短格式:`.message` → string-message 探针 → `String` → 固定占位符 `[unrenderable thrown value]`;占位文案统一,`<unrenderable…>`/`<unprintable…>`/`unknown error` 消失。保留特例:subagent lifecycle(带类名行)、workflow-worker-thread realm(栈优先报告)、agent-team(inspect 有界描述)、llm adapter-failure(`Error` 入参的 SDK getter 防御)——四者是不同契约而非副本;tool-ralph/tool-workflow 的 `?? 'unknown error'` 是结果字段缺省值,不属本族) | **不再为 0**:09-11 复测仍见 4 处缺 hostile-proxy 兜底的简化副本(`fs-local`、`ui-agent-preset`、`self-evolve-eval`、`workspace-controller`),见 #87 |
