@@ -6,6 +6,7 @@
  * @module @deepseek-ai/dsh-web-search-exa/provider
  */
 
+import { isAbortError } from '@deepseek-ai/dsh-value'
 import { WebError } from '@deepseek-ai/dsh-web'
 import type {
   WebSearchProvider,
@@ -157,9 +158,4 @@ function isValidBaseUrl(baseURL: string): boolean {
 /** True for a request limit that can be sent to Exa (a positive whole number). */
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0
-}
-
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
 }

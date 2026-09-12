@@ -1479,4 +1479,4 @@ Source: [`packages/self-evolve/self-evolve/src/types.ts:241`](../packages/self-e
 'web/deepseek-search-llm-request': DeepSeekSearchLlmRequest
 ```
 
-来源：[`packages/web/web-search-deepseek/src/provider.ts:83`](../packages/web/web-search-deepseek/src/provider.ts)
+来源：[`packages/web/web-search-deepseek/src/provider.ts:84`](../packages/web/web-search-deepseek/src/provider.ts)

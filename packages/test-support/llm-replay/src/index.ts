@@ -34,7 +34,7 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import { LlmAdapter, LlmError, ReasoningEffortId, expandAssistantStream, requestImageHandleText, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
-import { isRecord } from '@deepseek-ai/dsh-value'
+import { hasExactKeys, isRecord } from '@deepseek-ai/dsh-value'
 
 const PACKED_CHUNK_ROW_TYPES = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks'])
 
@@ -659,10 +659,6 @@ function inferStartedSubagents(
       liveSessionIds[index] = id
     }
   }
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  return Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
 }
 
 function invalidOverride(file: string, location: string, detail: string): never {

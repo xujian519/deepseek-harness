@@ -1,10 +1,11 @@
 /**
  * Shared value primitives for classifying, validating, and rendering
- * `unknown` inputs at parser and config boundaries: object guards,
- * fail-loud positive number assertions, filesystem errno tests, and
- * thrown-value normalization. Pure predicates and pure operations only — no
- * I/O; `deepFreeze` is re-exported from `@deepseek-ai/dsh-util-values`, the
- * harness-wide owner of the shared deep-freeze implementation.
+ * `unknown` inputs at parser and config boundaries: object guards, key-set
+ * validation, fail-loud positive number assertions, filesystem errno and
+ * abort-error tests, and thrown-value normalization. Pure predicates and pure
+ * operations only — no I/O; `deepFreeze` is re-exported from
+ * `@deepseek-ai/dsh-util-values`, the harness-wide owner of the shared
+ * deep-freeze implementation.
  * @module @deepseek-ai/dsh-value
  */
 
@@ -105,6 +106,27 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 }
 
 /**
+ * Test whether a record carries exactly the expected own keys: every key in
+ * `required` is present, and no own key outside `required` plus `optional` is.
+ * Inherited keys do not count, so a decoded durable value passes only on the
+ * keys it literally declares. The caller narrows with {@link isRecord} first.
+ *
+ * @param value The record to inspect.
+ * @param required The keys that must all be own properties.
+ * @param optional Additional own keys that may be present but are not required.
+ * @returns Whether the record's own key set is `required` plus `optional`.
+ */
+export function hasExactKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): boolean {
+  const allowed = new Set([...required, ...optional])
+  return required.every(key => Object.hasOwn(value, key))
+    && Object.keys(value).every(key => allowed.has(key))
+}
+
+/**
  * Test whether a caught error reports Node's ENOENT code: the target path does
  * not exist. Only real `Error` instances qualify, so every other failure —
  * including a non-error lookalike carrying `code` — surfaces to the caller.
@@ -126,6 +148,21 @@ export function isENOENT(error: unknown): boolean {
  */
 export function isEEXIST(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST'
+}
+
+/**
+ * Test whether a caught error reports an abort: a real `Error` whose `name` is
+ * `AbortError`. That is what an aborted `AbortSignal` carries as its reason and
+ * what `fetch` rejects with, in every supported runtime — a `DOMException`
+ * named `AbortError` is an `Error` instance there. Only real `Error` instances
+ * qualify, so a lookalike carrying `name: 'AbortError'` surfaces to the caller
+ * instead of being reported as an abort.
+ *
+ * @param error The caught value from an abortable operation.
+ * @returns Whether the error means the operation was aborted.
+ */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 export { deepFreeze } from '@deepseek-ai/dsh-util-values'

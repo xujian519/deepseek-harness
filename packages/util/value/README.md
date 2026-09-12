@@ -1,5 +1,5 @@
 ---
-description: "Shared unknown-value primitives: object guards, fail-loud positive-number assertions, filesystem errno tests, thrown-value normalization and rendering, and a cycle-safe deep freeze for parser and config boundaries."
+description: "Shared unknown-value primitives: object guards, key-set validation, fail-loud positive-number assertions, filesystem errno and abort-error tests, thrown-value normalization and rendering, and a cycle-safe deep freeze for parser and config boundaries."
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-value` holds the smallest pieces of untrusted-input handling that every parser, config loader, and wire decoder re-implements: `isRecord` classifies a value as a non-null, non-array object, `isPlainObject` additionally demands the `Object.prototype`-or-null prototype, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers, narrowing `unknown` to `number`, `assertResolvedConfig` pins the plugin-config check after schema defaults run, `isENOENT` and `isEEXIST` classify filesystem errno errors, and `errorMessage` and `toError` normalize arbitrary thrown values without letting hostile coercion escape; `deepFreeze` is re-exported from `dsh-util-values`, the shared deep-freeze owner. The library owns the predicate and the failure message, so diagnostics stay word-for-word consistent across the harness.
+`dsh-value` holds the untrusted-input primitives every parser, config loader, and wire decoder re-implements: `isRecord` and `isPlainObject` classify objects, `hasExactKeys` checks a record's own key set, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers and narrow `unknown` to `number`, `assertResolvedConfig` pins the plugin-config check after schema defaults run, `isENOENT`, `isEEXIST`, and `isAbortError` classify errno and abort errors, and `errorMessage` and `toError` normalize thrown values without letting hostile coercion escape; `deepFreeze` is re-exported from `dsh-util-values`. The library owns each predicate and message, so diagnostics stay consistent harness-wide.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Reach for `isRecord` before reading properties off an `unknown` value, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, for `assertResolvedConfig` where a plugin receives its schemastery-resolved config, and for `deepFreeze` when a handed-out value must stay immutable.
+Reach for `isRecord` before reading properties off an `unknown` value, for `hasExactKeys` where a decoded boundary must carry exactly the declared keys, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, for `assertResolvedConfig` where a plugin receives its schemastery-resolved config, and for `deepFreeze` when a handed-out value must stay immutable.
 
 ### Guarding an untrusted object
 
@@ -96,6 +96,20 @@ if (isPlainObject(payload)) {
 
 `isPlainObject` is the prototype-strict sibling of `isRecord`: it accepts only objects whose prototype is `Object.prototype` or `null`. Use it at wire and protocol boundaries where a foreign class instance must not pass for data.
 
+### Checking an exact key set
+
+```ts
+import { hasExactKeys } from '@deepseek-ai/dsh-value'
+
+declare const record: Record<string, unknown>
+
+if (hasExactKeys(record, ['version', 'operation'], ['acceptedAt'])) {
+  // the record declares version and operation; acceptedAt may also be present
+}
+```
+
+Only own keys count, so a decoded durable value passes on exactly the keys it declares: an extra property or a prototype-inherited one fails the check instead of being silently accepted. Callers narrow with `isRecord` first.
+
 ### Testing a filesystem errno error
 
 ```ts
@@ -112,6 +126,23 @@ try {
 ```
 
 The tests accept only real `Error` instances carrying the code, so a lookalike value can never masquerade as absence or as an existing target.
+
+### Testing an abort error
+
+```ts
+import { isAbortError } from '@deepseek-ai/dsh-value'
+
+declare const run: (signal: AbortSignal) => Promise<void>
+declare const controller: AbortController
+
+try {
+  await run(controller.signal)
+} catch (error) {
+  if (!isAbortError(error)) throw error // the caller's cancellation, not a failure
+}
+```
+
+An aborted `AbortSignal` carries an `AbortError`-named reason and `fetch` rejects with one; in every supported runtime that value is a real `Error`, which is what the predicate reads. A non-`Error` lookalike carrying the same `name` is not classified as an abort and surfaces to the caller.
 
 ### Freezing a value in place
 
@@ -170,7 +201,7 @@ The library is built on one boundary: the predicate and the failure message belo
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
 | — | No runtime invariant companion is published; this pure utility owns no event stream or mutable runtime data, and the predicate algebra is exercised by unit tests. |
 
 ### Why the guard is shape-only
@@ -212,7 +243,7 @@ These limits define what the library deliberately does not do. They are current 
 - **Shape-only object guard** — `isRecord` accepts class instances and `Date`; `isPlainObject` is the prototype-strict alternative when a consumer needs that discrimination.
 - **Positive values only** — the assertions cover `>= 1` and positive finite numbers; ranges, upper bounds, and non-integer floors (other than 1) stay with their owning capability.
 - **Freeze owns named properties** — `deepFreeze` cannot make TypedArray elements or internal slots (a `Date`'s time value) immutable; values relying on those need owner-side care.
-- **Errno tests are strict** — `isENOENT`/`isEEXIST` reject non-`Error` lookalikes by design; a synthetic value carrying `code` surfaces instead of being classified.
+- **Errno and abort tests are strict** — `isENOENT`/`isEEXIST`/`isAbortError` reject non-`Error` lookalikes by design; a synthetic value carrying `code` or `name: 'AbortError'` surfaces instead of being classified.
 - **Rendering is short-form** — `errorMessage` yields `.message` without the error-class prefix for structured records; name-inclusive lines, stack-first reports, and `inspect`-based bounded descriptions stay with their owning consumers.
 
 <a id="dev-note"></a>

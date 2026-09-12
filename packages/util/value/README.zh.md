@@ -1,5 +1,5 @@
 ---
-description: "共享的未知值原语：面向解析与配置边界的对象守卫、fail-loud 正数断言、文件系统 errno 测试、抛出值规范化与渲染及循环安全的深冻结。"
+description: "共享的未知值原语：面向解析与配置边界的对象守卫、键集校验、fail-loud 正数断言、文件系统 errno 与 abort 错误测试、抛出值规范化与渲染及循环安全的深冻结。"
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 把值分类为非 null、非数组的对象,`isPlainObject` 额外要求 `Object.prototype` 或 null 原型,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置检查,`isENOENT` 与 `isEEXIST` 分类文件系统 errno 错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下规范化任意抛出值;`deepFreeze` 从共享深冻结的拥有者 `dsh-util-values` 转发导出。这份库拥有谓词与失败消息,让诊断文案在全 harness 逐字一致。
+`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 与 `isPlainObject` 分类对象,`hasExactKeys` 校验记录自身的键集,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置检查,`isENOENT`、`isEEXIST` 与 `isAbortError` 分类 errno 与中止错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下规范化抛出值;`deepFreeze` 从 `dsh-util-values` 转发导出。这份库拥有每个谓词与消息,让诊断文案在全 harness 一致。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在从 `unknown` 值上读属性之前用 `isRecord`;在配置边界上遇到必须是正整数的数值选项时用 `assertPositiveInteger`,遇到必须是正有限数的选项时用 `assertPositiveFinite`;插件接收到 schemastery 已解析配置时用 `assertResolvedConfig`;需要交付出去的值保持不可变时用 `deepFreeze`。
+在从 `unknown` 值上读属性之前用 `isRecord`;已解码的边界必须只携带声明的键时用 `hasExactKeys`;在配置边界上遇到必须是正整数的数值选项时用 `assertPositiveInteger`,遇到必须是正有限数的选项时用 `assertPositiveFinite`;插件接收到 schemastery 已解析配置时用 `assertResolvedConfig`;需要交付出去的值保持不可变时用 `deepFreeze`。
 
 ### 守卫不可信对象
 
@@ -96,6 +96,20 @@ if (isPlainObject(payload)) {
 
 `isPlainObject` 是 `isRecord` 的原型严格姊妹:只接受原型为 `Object.prototype` 或 `null` 的对象。在 wire 与协议边界上使用它,让外来类实例不能冒充数据。
 
+### 校验精确键集
+
+```ts
+import { hasExactKeys } from '@deepseek-ai/dsh-value'
+
+declare const record: Record<string, unknown>
+
+if (hasExactKeys(record, ['version', 'operation'], ['acceptedAt'])) {
+  // the record declares version and operation; acceptedAt may also be present
+}
+```
+
+只统计自身键,因此已解码的持久值只能靠它字面声明的键通过:多出的属性或原型继承来的属性都会被判失败,而不是被静默接受。调用方先用 `isRecord` 收窄。
+
 ### 测试文件系统 errno 错误
 
 ```ts
@@ -112,6 +126,23 @@ try {
 ```
 
 测试只接受携带 code 的真实 `Error` 实例,伪造的同形值永远不能冒充缺失或已存在。
+
+### 测试中止错误
+
+```ts
+import { isAbortError } from '@deepseek-ai/dsh-value'
+
+declare const run: (signal: AbortSignal) => Promise<void>
+declare const controller: AbortController
+
+try {
+  await run(controller.signal)
+} catch (error) {
+  if (!isAbortError(error)) throw error // the caller's cancellation, not a failure
+}
+```
+
+被中止的 `AbortSignal` 携带名为 `AbortError` 的 reason,`fetch` 也会以它拒绝;在所有受支持运行时该值都是真实 `Error`,谓词读的就是这一点。只带同名 `name` 的非 `Error` 同形值不会被判为中止,而是向上浮出。
 
 ### 就地冻结值
 
@@ -170,7 +201,7 @@ function settle(caught: unknown): Error {
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `errorMessage`, `toError`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
 | — | 不发布运行时不变式伴生；此纯工具不持有事件流或可变运行时数据，谓词代数由单元测试覆盖。 |
 
 ### 为什么守卫只看形状
@@ -212,7 +243,7 @@ function settle(caught: unknown): Error {
 - **只看形状的对象守卫** — `isRecord` 接受类实例与 `Date`;需要原型判别的消费方改用 `isPlainObject`。
 - **只覆盖正值** — 断言只管 `>= 1` 与正有限数;区间、上限与 1 以外的非整数下界留在各归属能力内。
 - **冻结只管具名属性** — `deepFreeze` 无法让 TypedArray 元素或内部槽(如 `Date` 的时间值)不可变;依赖这些的值需要属主自行处理。
-- **errno 测试从严** — `isENOENT`/`isEEXIST` 刻意拒绝非 `Error` 同形值;携带 `code` 的伪造值会向上浮出而不是被分类。
+- **errno 与中止测试从严** — `isENOENT`/`isEEXIST`/`isAbortError` 刻意拒绝非 `Error` 同形值;携带 `code` 或 `name: 'AbortError'` 的伪造值会向上浮出而不是被分类。
 - **渲染为短格式** — `errorMessage` 产出不带错误类名前缀的 `.message`,面向结构化记录;带类名的行、栈优先的报告与基于 `inspect` 的有界描述留在各属主消费方。
 
 <a id="dev-note"></a>

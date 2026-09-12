@@ -7,6 +7,8 @@ import {
   assertPositiveInteger,
   assertResolvedConfig,
   deepFreeze,
+  hasExactKeys,
+  isAbortError,
   isEEXIST,
   isENOENT,
   isPlainObject,
@@ -150,6 +152,49 @@ describe('isPlainObject', () => {
     const value: unknown = { kind: 'response' }
     if (!isPlainObject(value)) throw new Error('expected a plain object')
     expect(value.kind).toBe('response')
+  })
+})
+
+describe('hasExactKeys', () => {
+  it('accepts a record whose own keys are exactly the required set', () => {
+    expect(hasExactKeys({ a: 1, b: 'two' }, ['a', 'b'])).toBe(true)
+    expect(hasExactKeys({}, [])).toBe(true)
+  })
+
+  it('rejects a record missing a required key', () => {
+    expect(hasExactKeys({ a: 1 }, ['a', 'b'])).toBe(false)
+  })
+
+  it('rejects an own key outside required plus optional', () => {
+    expect(hasExactKeys({ a: 1, extra: true }, ['a'])).toBe(false)
+    expect(hasExactKeys({ a: 1, extra: true }, ['a'], ['other'])).toBe(false)
+  })
+
+  it('admits optional keys without requiring them', () => {
+    expect(hasExactKeys({ a: 1, b: 2 }, ['a'], ['b'])).toBe(true)
+    expect(hasExactKeys({ a: 1 }, ['a'], ['b'])).toBe(true)
+  })
+
+  it('counts only own keys: an inherited key neither satisfies nor violates the set', () => {
+    const inherited = Object.assign(Object.create({ ghost: 1 }) as Record<string, unknown>, { a: 1 })
+    expect(hasExactKeys(inherited, ['a'])).toBe(true)
+    expect(hasExactKeys(inherited, ['ghost'])).toBe(false)
+  })
+})
+
+describe('isAbortError', () => {
+  it('accepts the abort reason an AbortSignal carries', () => {
+    expect(isAbortError(AbortSignal.abort().reason)).toBe(true)
+    expect(isAbortError(Object.assign(new Error('stopped'), { name: 'AbortError' }))).toBe(true)
+  })
+
+  it('rejects other errors and non-error lookalikes so they surface', () => {
+    expect(isAbortError(new Error('other failure'))).toBe(false)
+    expect(isAbortError(Object.assign(new Error('timed out'), { name: 'TimeoutError' }))).toBe(false)
+    expect(isAbortError({ name: 'AbortError' })).toBe(false)
+    expect(isAbortError('AbortError')).toBe(false)
+    expect(isAbortError(null)).toBe(false)
+    expect(isAbortError(undefined)).toBe(false)
   })
 })
 

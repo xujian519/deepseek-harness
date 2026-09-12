@@ -6645,6 +6645,9 @@ importers:
       '@deepseek-ai/dsh-util-crypto':
         specifier: workspace:^
         version: link:../../util/crypto
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -6664,9 +6667,6 @@ importers:
       '@deepseek-ai/dsh-host-webserver':
         specifier: workspace:^
         version: link:../../host/webserver
-      '@deepseek-ai/dsh-value':
-        specifier: workspace:^
-        version: link:../../util/value
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -11568,6 +11568,9 @@ importers:
 
   packages/subprocess/subprocess-local:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/dsh-win32-process':
         specifier: workspace:^
         version: link:../win32-process
@@ -12390,6 +12393,9 @@ importers:
 
   packages/web/web-search-deepseek:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -12424,6 +12430,9 @@ importers:
 
   packages/web/web-search-exa:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -12443,6 +12452,9 @@ importers:
 
   packages/web/web-search-perplexity:
     dependencies:
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery

@@ -5,7 +5,7 @@
 
 import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
-import { isRecord } from '@deepseek-ai/dsh-value'
+import { hasExactKeys, isRecord } from '@deepseek-ai/dsh-value'
 import type {
   AfterScheduleRecord,
   AtInput,
@@ -111,13 +111,6 @@ export interface EveryOccurrence {
  */
 export function ScheduleId(value: string): ScheduleIdType {
   return value as ScheduleIdType
-}
-
-/** Require exactly the named durable object keys. */
-function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-  const keys = Object.keys(value).sort()
-  const wanted = [...expected].sort()
-  return keys.length === wanted.length && keys.every((key, index) => key === wanted[index])
 }
 
 /** Validate one stable session-local id at the durable boundary. */

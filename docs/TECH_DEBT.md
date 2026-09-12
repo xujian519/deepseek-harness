@@ -134,12 +134,15 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | 函数 | 份数 | 分布(部分) |
 |---|---|---|
 | `assertPositiveInteger`/`assertPositiveFinite` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`) | 保留 2 个语义特例:subagent-acp 的 `assertPositiveFinite`(钉 `MAX_TIMER_DELAY_MS` 上限,timer 域契约)、session-query-sqlite 的包装(抛 `SessionQueryError`,配置错误聚合契约) |
-| `isRecord` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;sdk/client 公开导出改为再导出;mcp-client 的 JsonValue 谓词由调用点显式收窄替代) | 0 剩余 |
-| `toError` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`,采用 skill 的 hostile-proxy 加固形式;gateway/remote-events 的 `(reason, message, cause)` 变体是同名不同契约,保留本地) | 0 剩余 |
-| `errorMessage`/`renderThrown` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value` 短格式:`.message` → string-message 探针 → `String` → 固定占位符 `[unrenderable thrown value]`;占位文案统一,`<unrenderable…>`/`<unprintable…>`/`unknown error` 消失。保留特例:subagent lifecycle(带类名行)、workflow-worker-thread realm(栈优先报告)、agent-team(inspect 有界描述)、llm adapter-failure(`Error` 入参的 SDK getter 防御)——四者是不同契约而非副本;tool-ralph/tool-workflow 的 `?? 'unknown error'` 是结果字段缺省值,不属本族) | 0 剩余 |
-| `isENOENT` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;同批折叠同族 `isEEXIST` 3 份) | 0 剩余 |
+| `isRecord` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;sdk/client 公开导出改为再导出;mcp-client 的 JsonValue 谓词由调用点显式收窄替代) | **不再为 0**:09-11 复测发现 6 处本地副本(见 09-11 节与 #87);2026-09-12 收敛 `subprocess-local/runner-protocol.ts` 一处,余下待 #87 后续 |
+| `toError` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value`,采用 skill 的 hostile-proxy 加固形式;gateway/remote-events 的 `(reason, message, cause)` 变体是同名不同契约,保留本地) | **不再为 0**:09-11 复测仍见 2 处简化副本(`test-support/client-runtime`、`test-support/remote-mock`),见 #87 |
+| `errorMessage`/`renderThrown` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value` 短格式:`.message` → string-message 探针 → `String` → 固定占位符 `[unrenderable thrown value]`;占位文案统一,`<unrenderable…>`/`<unprintable…>`/`unknown error` 消失。保留特例:subagent lifecycle(带类名行)、workflow-worker-thread realm(栈优先报告)、agent-team(inspect 有界描述)、llm adapter-failure(`Error` 入参的 SDK getter 防御)——四者是不同契约而非副本;tool-ralph/tool-workflow 的 `?? 'unknown error'` 是结果字段缺省值,不属本族) | **不再为 0**:09-11 复测仍见 4 处缺 hostile-proxy 兜底的简化副本(`fs-local`、`ui-agent-preset`、`self-evolve-eval`、`workspace-controller`),见 #87 |
+| `isENOENT` | **已收敛,后回升**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;同批折叠同族 `isEEXIST` 3 份) | **不再为 0**:09-11 复测仍见 4 处放宽语义副本(`session-persistence-jsonl` ×2、`patent-teams`,`win32.ts` 已改 import 权威而同一包内自相矛盾),见 #87 |
 | `isPlainObject` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;实际 3 份——台账漏记 inspector/shared/json.ts 的导出副本,一并折叠,包内 14 处导入走 re-export) | 0 剩余 |
 | `deepFreeze` | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-value`;`dsh-llm` 公开导出移除,9 个导入包改指 `dsh-value`;settings 递归副本由共享迭代版替代,配置数据上行为不变) | 0 剩余 |
+| `isAbortError` | **已收敛**(2026-09-12 下沉 `@deepseek-ai/dsh-value`,严格 `instanceof Error` + `name` 判定;原 5 处本地副本——`fs-local`、`inspector`、三个 `web-search-*`——全部收敛) | 0 剩余 |
+| `hasExactKeys` | **已收敛**(2026-09-12 下沉 `@deepseek-ai/dsh-value`,收敛为 `required` + `optional` 单一签名;`schedule`、`subprocess-local`、`llm-replay` 三处副本全部收敛) | 0 剩余 |
+| `sleep`(未收编) | **评估后暂不下沉**(2026-09-12) | 实测 7 处同形定义,但语义分叉:`workflow-worker-thread` 的 timer 需 `unref`(dispose 宽限不得吊住进程)、`connection`/`linux-scope` 的变体需接受 `AbortSignal`,`subprocess-local/spawn.ts` 的 `sleepTick` 是让出而非定时。现有两个共享包(`dsh-value`/`dsh-timeout`)都不持有「可 unref、可中止的定时等待」契约,单签名会引入语义参数;待出现第三个真实需求时随 `dsh-timeout` 的定时原语一并评估 |
 | abort-race 包装器 | **已收敛**(2026-08-30 下沉 `@deepseek-ai/dsh-timeout` `abortable`,标准语义原样 `reject(signal.reason)`;原记 5 份中 e2b `withinMs`/`waitWithSignal` 两份已随上游更新消失) | 保留特例:skill `waitWithAbort`(4 行适配,公开契约要求中止以 `Error` 形态逃逸,测试钉点 `instanceof Error` + hostile reason)、terminal-bash `startupSession` 的 pwsh deadline(内联 timer+`startupOperation.cancel()`,是超时语义非取消)、subprocess-local `waitForExit`(resolve false 是「等待退出 vs 放弃等待」查询语义,非取消) |
 
 - **影响**:日志/诊断格式漂移(运维无法依赖统一格式)、helper 语义各自微调、任何一处的 bug 修复要同步多处。
