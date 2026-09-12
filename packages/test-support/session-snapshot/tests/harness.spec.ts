@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { tmpdir } from 'node:os'
 import { delimiter, join, relative, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { afterAll, describe, expect, it, vi, type TestContext } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { runScenario, snapshotSpillRoot, type AgentUnderTest, type InputStep } from '../src/harness.ts'
 import { launchAcpTestAgent } from '../src/launcher.ts'
@@ -76,24 +76,7 @@ async function scenario(behavior: object): Promise<{ dir: string; fixtureFile: s
   return { dir, fixtureFile: join(dir, 'session.jsonl') }
 }
 
-/** Keep immutable-log diagnostics independent of initial filesystem harvest latency. */
-function isolateDiagnosticTimeout(onTestFinished: TestContext['onTestFinished']): void {
-  const waitFor = vi.waitFor
-  const wait = vi.spyOn(vi, 'waitFor')
-  onTestFinished(() => { wait.mockRestore() })
-  wait.mockImplementation(async (callback, options) => {
-    if (typeof options !== 'object' || options.timeout !== 20) return waitFor(callback, options)
-    try {
-      return await callback()
-    } catch (error) {
-      return waitFor(() => { throw error }, options)
-    }
-  })
-}
-
 const boot: InputStep[] = [{ op: 'initialize' }, { op: 'newSession' }]
-// A Windows coverage shard can spend more than 20ms harvesting logs before vi.waitFor records the diagnostic error.
-const titleDiagnosticTimeoutMs = process.platform === 'win32' ? 5_000 : 20
 
 it('keeps scenario-owned snapshot spill root length stable across platforms', () => {
   const fixtureFile = '/fixtures/scenario/session.jsonl'
@@ -1031,8 +1014,27 @@ describe('runScenario', () => {
     }
   })
 
-  it('waitForSubagentTurnEnd requires a closed child work turn', { timeout: 20_000 }, async ({ onTestFinished }) => {
-    isolateDiagnosticTimeout(onTestFinished)
+  it('reports the harvest failure when a listed log cannot be versioned', { timeout: 20_000 }, async ({ onTestFinished }) => {
+    const { fixtureFile } = await scenario({})
+    const originalReaddir = readdir
+    let seeded = false
+    const spy = vi.spyOn(fsPromises, 'readdir').mockImplementation(async (...args) => {
+      const dir = String(args[0])
+      if (!seeded && dir.includes('acp-snap-sessions-')) {
+        seeded = true
+        await mkdir(join(dir, 'b', 'mismatch'), { recursive: true })
+        await writeFile(join(dir, 'b', 'mismatch', 'session.v1.jsonl'), '{"type":"session","version":0}\n')
+      }
+      return await originalReaddir(...args)
+    })
+    onTestFinished(() => { spy.mockRestore() })
+    await expect(runScenario(
+      { steps: [...boot, { op: 'waitForTurnEnd', timeoutMs: 20 }] },
+      { agent: AGENT, mode: 'replay', fixtureFile },
+    )).rejects.toThrow('filename declares Session format v1, header declares v0')
+  })
+
+  it('waitForSubagentTurnEnd requires a closed child work turn', { timeout: 20_000 }, async () => {
     const closed = await scenario({
       prompt: 'hang-until-cancel',
       persistLogsOnCancel: true,
@@ -1137,15 +1139,14 @@ describe('runScenario', () => {
         steps: [
           ...boot,
           { op: 'promptAndCancel', text: 'hang' },
-          { op: 'waitForTitleAfterTurnEnd', timeoutMs: titleDiagnosticTimeoutMs },
+          { op: 'waitForTitleAfterTurnEnd', timeoutMs: 20 },
         ],
       },
       { agent: AGENT, mode: 'replay', fixtureFile },
-    )).rejects.toThrow(new RegExp(`did not persist session/title after turn/end within ${titleDiagnosticTimeoutMs}ms`))
+    )).rejects.toThrow(/did not persist session\/title after turn\/end within 20ms/)
   })
 
-  it('waitForEventAfterTurnEnd holds the app for a typed post-boundary record and times out otherwise', { timeout: 20_000 }, async ({ onTestFinished }) => {
-    isolateDiagnosticTimeout(onTestFinished)
+  it('waitForEventAfterTurnEnd holds the app for a typed post-boundary record and times out otherwise', { timeout: 20_000 }, async () => {
     const late = await scenario({
       prompt: 'hang-until-cancel',
       persistLogsOnCancel: true,
