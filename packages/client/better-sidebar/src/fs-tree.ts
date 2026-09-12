@@ -9,6 +9,7 @@
  */
 import { opendir, stat } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { SidebarError } from './wire.ts'
 
 /** One explorer row. */
@@ -53,7 +54,7 @@ export async function listDirectory(path: string, maxEntries = 1000): Promise<Si
   try {
     level = await opendir(path)
   } catch (error) {
-    throw new SidebarError('fs-error', `cannot list "${path}": ${messageOf(error)}`, 400)
+    throw new SidebarError('fs-error', `cannot list "${path}": ${errorMessage(error)}`, 400)
   }
   const rows: SidebarFsEntry[] = []
   let overflow = 0
@@ -75,7 +76,7 @@ export async function listDirectory(path: string, maxEntries = 1000): Promise<Si
       })
     }
   } catch (error) {
-    throw new SidebarError('fs-error', `cannot list "${path}": ${messageOf(error)}`, 400)
+    throw new SidebarError('fs-error', `cannot list "${path}": ${errorMessage(error)}`, 400)
   }
   // Probe symlink targets AFTER the readdir stream closes, with bounded
   // concurrency: a symlink-heavy level (UNC/network targets) would otherwise
@@ -174,8 +175,6 @@ export function isWithin(base: string, target: string, platform: NodeJS.Platform
 /**
  * Message text of an unknown thrown value.
  * @param error - the caught value of any type.
- * @returns `error.message` for Error values, otherwise the string coercion.
+ * @returns `error.message` for `Error` values, a non-Error object's string `message`, otherwise the string coercion.
  */
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
+export { errorMessage as messageOf }

@@ -12,7 +12,7 @@ import type { BigIntStats, Dirent, Stats } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { TextDecoder } from 'node:util'
 import { FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
-import { isAbortError, isEEXIST, isENOENT } from '@deepseek-ai/dsh-value'
+import { errorMessage, isAbortError, isEEXIST, isENOENT } from '@deepseek-ai/dsh-value'
 import { copyFileDaclWin32, replaceFileWin32 } from './win32.ts'
 
 const BINARY_SAMPLE_BYTES = 8192
@@ -28,12 +28,6 @@ const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024
 function isENOTDIR(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOTDIR'
 }
-
-/* v8 ignore start -- composes secondary cleanup-failure messages, which require a filesystem/kernel fault after the primary failure. */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-/* v8 ignore stop */
 
 function isPermissionError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && (error.code === 'EACCES' || error.code === 'EPERM')

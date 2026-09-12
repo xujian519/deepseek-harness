@@ -18,6 +18,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { PreToolDecision } from '@deepseek-ai/dsh-tools'
 
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { OpenVikingClient } from './client.ts'
 import type { ClientCredentials } from './client.ts'
 import { registerOpenVikingCommands } from './commands.ts'
@@ -218,13 +219,12 @@ export function apply(ctx: Context, config: Config): void {
   }, 'openviking:mcp')
 }
 
-/** One-line label for a health-probe failure.
+/**
+ * One-line label for a health-probe failure.
  * @param error - the failure value.
- * @returns the error message or the stringified value.
+ * @returns `error.message` for `Error` values, a non-Error object's string `message`, otherwise the string coercion.
  */
-export function errorLabel(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
+export { errorMessage as errorLabel }
 
 /** A SessionSync-shaped no-op used before the async state store resolves.
  * @returns the placeholder sync instance.
@@ -297,7 +297,7 @@ export function probeHealth(
   return client.health(signal).then(
     () => undefined,
     (error: unknown) => {
-      logger.info('openviking health check failed', { error: errorLabel(error) })
+      logger.info('openviking health check failed', { error: errorMessage(error) })
       warn()
     },
   )

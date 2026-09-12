@@ -1,6 +1,7 @@
 /** Worker-owned request routing for Client read-only source catalogs. */
 
 import { randomUUID } from 'node:crypto'
+import { toError } from '@deepseek-ai/dsh-value'
 import type {
   ClientSourceCommand,
   ClientSourceError,
@@ -83,7 +84,7 @@ export class ClientSourceRouter {
         })
         if (!sent) this.rejectPending(requestId, new Error('Client source disconnected before dispatch'))
       } catch (error) {
-        this.rejectPending(requestId, renderError(error))
+        this.rejectPending(requestId, toError(error))
       }
     })
   }
@@ -181,10 +182,6 @@ function matchesCommand(command: ClientSourceCommand, result: ClientSourceResult
   return result.scriptKey === command.scriptKey
     && result.content === command.content
     && (!result.available || result.offset === command.offset)
-}
-
-function renderError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
 }
 
 function assertNever(value: never): never {

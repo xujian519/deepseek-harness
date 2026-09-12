@@ -2,6 +2,7 @@
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 
 /** Download phases presented by the shared modal. */
 export type SessionLogDownloadStatus = 'downloading' | 'success' | 'error'
@@ -48,10 +49,6 @@ export function downloadUrl(url: string, filename: string): void {
 function hostBase(): string {
   const origin = (globalThis as { location?: { origin?: string } }).location?.origin
   return origin !== undefined && origin !== 'null' ? origin : 'http://dsh.internal'
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /** Owns one in-flight browser download per Session and publishes modal state. */
@@ -126,7 +123,7 @@ export class SessionLogDownloadController {
     } catch (error: unknown) {
       if (signal.aborted) return
       const open = this.store.getSnapshot().bySession[String(sessionId)]?.open ?? true
-      this.publish(sessionId, { open, status: 'error', error: messageOf(error) })
+      this.publish(sessionId, { open, status: 'error', error: errorMessage(error) })
     }
   }
 

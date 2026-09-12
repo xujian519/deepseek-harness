@@ -429,7 +429,7 @@ export class CommandRuntime extends TypertRemoteService {
     try {
       this.appendLifecycle(session, 'command/done', {
         commandId, kind: 'error',
-        text: error instanceof Error ? error.message : errorMessage(error),
+        text: errorMessage(error),
       })
     } catch (appendError: unknown) {
       this.ctx.logger.warn(`command "${command}": command/done append failed: ${errorMessage(appendError)}`)

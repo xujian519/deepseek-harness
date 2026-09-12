@@ -1,5 +1,6 @@
 /** Worker-side admission, execution, and bounded settlement of non-CDP queries. */
 
+import { errorMessage, toError } from '@deepseek-ai/dsh-value'
 import type { CordisRuntimeTreeReader } from '../../shared/cordis/reader.ts'
 import type { InspectorSourceGeneration, InspectorSourceId } from '../../shared/bridge/ids.ts'
 import { jsonByteLength, type InspectorJsonValue } from '../../shared/json.ts'
@@ -143,7 +144,7 @@ export class InspectorQueryPeer {
         throw new Error(`inspector protocol: query request exceeds ${String(this.maxFrameBytes)} bytes`)
       }
     } catch (error) {
-      this.rejectMalformed(value, renderError(error))
+      this.rejectMalformed(value, toError(error))
       return true
     }
     const accepted = this.accepted
@@ -189,7 +190,7 @@ export class InspectorQueryPeer {
       }
       this.deliver(response)
     } catch (error) {
-      if (this.canReply(frame, accepted)) this.sendFailure(frame, 'internal-error', renderError(error).message)
+      if (this.canReply(frame, accepted)) this.sendFailure(frame, 'internal-error', errorMessage(error))
     } finally {
       if (this.inFlight.get(frame.requestId) === accepted) this.inFlight.delete(frame.requestId)
     }
@@ -236,7 +237,7 @@ export class InspectorQueryPeer {
     try {
       this.transport.send(frame)
     } catch (error) {
-      this.rejectTransport(1011, renderError(error).message)
+      this.rejectTransport(1011, errorMessage(error))
     }
   }
 
@@ -248,8 +249,4 @@ export class InspectorQueryPeer {
       // The carrier is already unusable; query state has reached quiescence.
     }
   }
-}
-
-function renderError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
 }

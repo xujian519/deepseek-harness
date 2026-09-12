@@ -1,6 +1,7 @@
 /** Worker-owned routing between synthetic Client contexts and source generations. */
 
 import { randomUUID } from 'node:crypto'
+import { toError } from '@deepseek-ai/dsh-value'
 import type {
   ClientConsoleEventFrame,
   ClientRuntimeCapability,
@@ -173,7 +174,7 @@ export class ClientRuntimeRouter {
         })
         if (!sent) this.rejectPending(requestId, new Error('Client execution context disconnected before dispatch'))
       } catch (error) {
-        this.rejectPending(requestId, renderError(error))
+        this.rejectPending(requestId, toError(error))
       }
     })
   }
@@ -369,10 +370,6 @@ export class ClientRuntimeRouter {
       }
     }
   }
-}
-
-function renderError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
 }
 
 function assertNever(value: never): never {

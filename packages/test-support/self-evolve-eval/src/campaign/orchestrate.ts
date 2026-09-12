@@ -12,6 +12,7 @@
 
 import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { EvalTask } from '../types.ts'
 import { loadTaskManifest } from '../subset.ts'
 import {
@@ -392,8 +393,4 @@ async function runPool<T>(items: readonly T[], concurrency: number, worker: (ite
     }
   })
   await Promise.all(workers)
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

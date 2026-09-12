@@ -1,5 +1,6 @@
 /** Client observation and Runtime endpoint over the Inspector Worker's ingest WebSocket. */
 
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { InspectorClientBootstrap } from '../../shared/bridge/messages/control.ts'
 import type {
   ClientRuntimeRequestId,
@@ -285,7 +286,7 @@ export class ClientInspectorSource extends InspectorSourceConnection {
         ok: false,
         error: {
           code: error instanceof ClientSourceCatalogError ? error.code : 'internal-error',
-          message: renderError(error).slice(0, 2_048),
+          message: errorMessage(error).slice(0, 2_048),
         },
       }
     }
@@ -311,8 +312,4 @@ export class ClientInspectorSource extends InspectorSourceConnection {
     socket.send(JSON.stringify(response))
   }
 
-}
-
-function renderError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
