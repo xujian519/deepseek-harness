@@ -77,6 +77,9 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **共享 `errorMessage` 已硬化**(#87,PR #114,第六批):其 `Error` 分支此前原样返回 `value.message`,而该属性在运行期可为任意值、返回类型却声明为 `string`。现改为按 `unknown` 读出后再 `String(...)` 转换(先读进 `unknown` 是为了不被 `no-unnecessary-type-conversion` 判为冗余转换;对 `string` 输入等价)。恶意 `Error.message`(抛出式 `Symbol.toPrimitive`、循环对象)由新返回值变为「固定占位符」或 `[object Object]`,不再把非字符串递给调用方。
 - **M1 第六批收敛**(#87,PR #114):硬化后 `code-runtime-python` 的本地 `messageOf` 完全冗余(它要的两条保证——渲染不得抛出、必须得到真字符串——共享版都已提供),故整段删除改 import,8 处调用点与 1 处注释随之改名;该包 4 条断言里的本地占位文案 `<unrenderable rejection value>` 改为共享占位符 `[unrenderable thrown value]`,占位文案彻底统一。至此 M1 的抛出值渲染 / 规整定义族 21 处全部收敛。
 
+- **测试可靠性(#92)之一:快照 harness 等待的确定性诊断**(PR #115):`packages/test-support/session-snapshot/src/harness.ts` 的 8 处持久化等待此前委托 `vi.waitFor(cb, { interval: 10, timeout })`;该库只在截止前已有尝试抛出时才重抛回调错误,于是首个探针仍在自己读日志时就被它自己的 `Timed out in waitFor!` 顶掉,既不说在等什么状态、也不说哪个 session。仓库里为此积累了两处绕行:产线 `waitForPersistedChildTurnEnd` 外套 try/catch 重抛带 `cause` 的诊断,测试侧 `isolateDiagnosticTimeout` monkey-patch `vi.waitFor` 以让 20ms 预算先跑一次回调;`titleDiagnosticTimeoutMs` 还按平台把预算抬到 5s。现改为共享 `waitForPersisted(probe, diagnostic, timeoutMs)`:探针是纯谓词,预算同时约束状态出现与探针卡住,读失败仍重试、截止时报告读失败本身。两处绕行与 Windows 分支随之删除,`harness.ts` 覆盖率回到 100%。触发记录:PR #114 的 CI 首跑即在 `waitForGoalPhase` 用例上出现该文案,同提交重跑即绿;新增用例覆盖「探针自身失败」分支。
+- **既有红项:快照回放套件**(2026-09-12 实测,与本轮改动无关):`pnpm run test:snapshot` = 5 failed / 127 passed / 2 skipped,失败项为 `keeps a current-writer majority plus bounded declared historical migration coverage` 与四条 `replays …`(`system-prompt-in-history` ×2、`macos-tools-validation`、`subagent-tool-filter`);在合并基线 `3adac36997` 的干净检出上逐项一致。fork CI 只跑 `vitest run`,不含该套件,故长期未暴露。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
