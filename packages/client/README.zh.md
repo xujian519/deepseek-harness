@@ -44,6 +44,9 @@ kind: "package-group"
 | [`ui-sidebar/`](ui-sidebar/README.zh.md) | 展示工作区与会话导航 | — |
 | [`resources/`](resources/README.zh.md) | 统一资源模型：`useResource` 会话标准钩子背后的协议提供方 | `ctx.resources` |
 | [`ui-sidebar-files/`](ui-sidebar-files/README.zh.md) | 右侧 Sidebar 的工作区文件树 tab 类型 | — |
+| [`ui-sidebar-documentpreview/`](ui-sidebar-documentpreview/README.zh.md) | 在右侧 Sidebar 按 `text` tab 类型预览可读文件 | `ctx.documentPreviews` |
+| [`ui-sidebar-right/`](ui-sidebar-right/README.zh.md) | 承载右侧 Sidebar：每会话一块停靠面，架在停靠套件与 tab 类型注册表之上 | `ctx.sidebarRight` / `ctx.sidebarRightTabs` |
+| [`ui-dockkit/`](ui-dockkit/README.zh.md) | 提供停靠布局引擎——由可逆操作组成的标签格分裂树——以及渲染并驱动它的组件 | — |
 | [`ui-brand-official/`](ui-brand-official/README.zh.md) | 用官方名称与标记填充通用浏览器品牌 slot | — |
 | [`ui-workspace/`](ui-workspace/README.zh.md) | 提供工作区选择与创建界面 | — |
 | [`ui-conversation/`](ui-conversation/README.zh.md) | 展示当前对话及其输入界面 | — |
@@ -53,6 +56,7 @@ kind: "package-group"
 | [`ui-workflow-run/`](ui-workflow-run/README.zh.md) | 把持久工作流运行回放为嵌套对话折叠项 | — |
 | [`ui-goal/`](ui-goal/README.zh.md) | 展示与管理当前目标 | — |
 | [`ui-trajectory/`](ui-trajectory/README.zh.md) | 提供 agent（智能体）活动的其他视图 | — |
+| [`synapse/`](synapse/README.zh.md) | 把 `/synapse/` 会话地图桥接进浏览器：对话/会话地图视图切换与整页画布 | — |
 | [`ui-todo-board/`](ui-todo-board/README.zh.md) | 以会话视图 tab 的形式呈现跨会话任务看板，支持模型写入标签的筛选 | — |
 | [`ui-commands/`](ui-commands/README.zh.md) | 提供会话感知的命令发现与分发 | — |
 | [`ui-input-trigger/`](ui-input-trigger/README.zh.md) | 协调内联命令与引用建议 | — |
@@ -71,12 +75,15 @@ kind: "package-group"
 | [`ui-settings-general/`](ui-settings-general/README.zh.md) | 提供常规设置分区 | — |
 | [`ui-settings-models/`](ui-settings-models/README.zh.md) | 提供模型提供方配置与 DeepSeek 引导 | — |
 | [`ui-settings-plugin-inventory/`](ui-settings-plugin-inventory/README.zh.md) | 向「插件」设置贡献只读的 Host Loader 清单标签页 | — |
+| [`ui-plugin-market/`](ui-plugin-market/README.zh.md) | 向「插件」设置分区贡献只读的插件市场标签页 | — |
 | [`ui-deliverables/`](ui-deliverables/README.zh.md) | 生成已产出文件的轮次尾部与可点击的最终响应文件引用 | — |
+| [`ui-document-studio/`](ui-document-studio/README.zh.md) | 贡献文档工作台：列出已交付文件的对话视图标签页，含宿主预览与打开／在文件夹中显示／打印动作 | — |
 | [`ui-message-feedback/`](ui-message-feedback/README.zh.md) | 反馈界面：助手消息操作条中的逐消息赞踩，以及点赞、点踩与 `/feedback` 背后的反馈弹窗 | — |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.zh.md) | 面向工作区目录流程的应用内目录浏览界面 | — |
 | [`ui-directory-picker-native/`](ui-directory-picker-native/README.zh.md) | 驱动宿主 OS 选择器的原生目录选择界面 | — |
 | [`better-sidebar/`](better-sidebar/README.zh.md) | 呈现按会话隔离的工作区右侧边栏：explorer、editor、terminal、git、side chat、subagent 与 browser 标签页 | `ctx.betterSidebar`（客户端） |
 | [`ui-open-in-app/`](ui-open-in-app/README.zh.md) | 在已安装应用中打开工作区目录的会话标题栏拆分按钮 | — |
+| [`ui-patent-teams/`](ui-patent-teams/README.zh.md) | 把 PatentTeams 监视面带回 Web UI：一张持久团队卡片与固定的「团队」会话视图 | — |
 
 -----
 

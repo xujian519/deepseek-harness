@@ -31,6 +31,7 @@ test-support 组为仓库测试提供确定且无须密钥的真实产品测试�
 | [`loader-smoke`](loader-smoke/README.zh.md) | 启动由 Loader 组合的应用并驱动 fixture（测试前置数据）轮次以执行冒烟测试 |
 | [`llm-mock-server`](llm-mock-server/README.zh.md) | 为恢复测试提供可通过脚本控制的 OpenAI 兼容故障服务器 |
 | [`llm-replay`](llm-replay/README.zh.md) | 为无密钥测试与演示回放已记录的模型流 |
+| [`self-evolve-eval`](self-evolve-eval/README.zh.md) | 提供 self-evolve 评估脚手架：确定性任务子集、配对结果收集与记录在案的 continue/rollback 决策 |
 
 -----
 

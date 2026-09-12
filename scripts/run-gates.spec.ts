@@ -199,6 +199,12 @@ describe('gate graph validation', () => {
     expect(ids).toContain('package-readme-summaries')
   })
 
+  it('keeps the group README package inventory in the documentation gate', () => {
+    const ids = withPnpmEntrypoint(() => gatesForMode('doc-sync').map(subject => subject.id))
+
+    expect(ids).toContain('group-readme-packages')
+  })
+
   it('derives the quick documentation aggregate from marked doc-sync leaves', () => {
     const full = withPnpmEntrypoint(() => gatesForMode('doc-sync'))
     const quick = withPnpmEntrypoint(() => gatesForMode('doc-quick'))

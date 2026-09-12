@@ -41,6 +41,8 @@ kind: "package-group"
 | [`output-retention/`](output-retention/README.zh.md) | 限制面向模型的输出并报告精确的省略元数据 |
 | [`time/`](time/README.zh.md) | 校验并规范化调用方所报的 IANA 时区 |
 | [`timeout/`](timeout/README.zh.md) | 截止时间运算、信号融合与超时和取消分类 |
+| [`contained-emit/`](contained-emit/README.zh.md) | 派发事件或已解析的回调快照，让每个监听器都运行、每次失败都变成一行日志 |
+| [`value/`](value/README.zh.md) | 面向解析器、配置加载器与 wire 解码器的未知输入原语：记录与键集谓词、正数与已解析配置断言、errno 与中止错误分类，以及抛出值渲染 |
 
 -----
 

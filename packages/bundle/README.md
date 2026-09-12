@@ -29,6 +29,7 @@ This group maps the installable patch layers used by `dsh --profile`. Each packa
 | [`sdk-app`](sdk-app/README.md) | SDK JSON-RPC stdio application over base | mounts the SDK server |
 | [`sdk-minimal`](sdk-minimal/README.md) | Standalone minimal SDK application without base or Web | — (complete patch tree) |
 | [`im/`](im/README.md) | Optional IM integration over any surface; pins the external `@xmanrui/dsh-im` row | — (patch only) |
+| [`self-evolve-app`](self-evolve-app/README.md) | Opt-in self-evolve capability over base: the provider and its model-facing tools | mounts the self-evolve seam |
 
 In-box bundles resolve from the dsh installation; out-of-tree bundles install into a profile through `dsh plugin --profile <name> add <package>`.
 
