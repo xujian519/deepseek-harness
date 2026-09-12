@@ -181,19 +181,25 @@ export { deepFreeze } from '@deepseek-ai/dsh-util-values'
 
 /**
  * Render an arbitrary thrown value as a short human-readable message without
- * letting coercion escape: `Error` instances render `.message`, non-Error
- * objects carrying a string `message` property (e.g. `throw { message:
- * 'denied' }`) render it, everything else is stringified. The renderer is
- * total — a hostile thrown value that traps `instanceof`, property access, or
- * string coercion yields the fixed `[unrenderable thrown value]` placeholder,
- * so diagnostics keep a consistent format across the harness.
+ * letting coercion escape: `Error` instances render `.message` coerced to a
+ * string — the property is writable and may hold any value at run time, while
+ * this function promises a string — non-Error objects carrying a string
+ * `message` property (e.g. `throw { message: 'denied' }`) render it, everything
+ * else is stringified. The renderer is total — a hostile thrown value that
+ * traps `instanceof`, property access, or string coercion yields the fixed
+ * `[unrenderable thrown value]` placeholder, so diagnostics keep a consistent
+ * format across the harness.
  *
  * @param value The caught value to render.
  * @returns The rendered message.
  */
 export function errorMessage(value: unknown): string {
   try {
-    if (value instanceof Error) return value.message
+    if (value instanceof Error) {
+      // `message` is writable and may hold a non-string at run time.
+      const message: unknown = value.message
+      return String(message)
+    }
     if (typeof value === 'object' && value !== null && 'message' in value) {
       const message: unknown = value.message
       if (typeof message === 'string') return message
