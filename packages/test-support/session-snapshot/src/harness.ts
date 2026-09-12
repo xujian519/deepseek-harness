@@ -79,7 +79,17 @@ const WAIT_POLL_INTERVAL_MS = 10
  */
 export type InputStep =
   | { op: 'initialize' }
-  | { op: 'newSession' }
+  | {
+    op: 'newSession'
+    /**
+     * Await the `config_option_update` announcement before the step settles.
+     * The bridge queues that announcement off the `session/new` response and
+     * drops it once the session closes, so a scenario whose last step is the
+     * response must arm the wait here: arming it after the response can miss an
+     * announcement that already arrived, and closing without it can suppress one.
+     */
+    waitForConfigOptionUpdate?: boolean
+  }
   | { op: 'newSessionExpectError'; additionalDirectories?: string[] }
   | { op: 'prompt'; text: string }
   | { op: 'promptContent'; content: AcpContentBlock[] }
@@ -425,8 +435,12 @@ async function runStep(
       })
       return
     case 'newSession': {
+      const announcement = step.waitForConfigOptionUpdate === true
+        ? waitForUpdate(update => update.sessionUpdate === 'config_option_update')
+        : undefined
       const { sessionId } = await client.newSession({ cwd, mcpServers: [] })
       setSessionId(sessionId)
+      await announcement
       return
     }
     case 'newSessionExpectError': {

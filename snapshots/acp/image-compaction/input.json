@@ -4,7 +4,8 @@
       "op": "initialize"
     },
     {
-      "op": "newSession"
+      "op": "newSession",
+      "waitForConfigOptionUpdate": true
     },
     {
       "op": "promptContent",

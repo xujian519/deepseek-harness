@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-12-cross-boundary-declarations.md
-2026-09-12-cross-boundary-declarations.md: 5aece1cdd679416754b5c817f769777b8bfdcbd1
-2026-09-12-cross-boundary-declarations.zh.md: cd49b4c00584c6a3995f3aaeb3678c6615bbe144
+2026-09-12-cross-boundary-declarations.md: 80adab00a61a6e16f6498f978da537ff3004c57c
+2026-09-12-cross-boundary-declarations.zh.md: 04e765c0610b5289f1abcf0863ecc83996acfd9f

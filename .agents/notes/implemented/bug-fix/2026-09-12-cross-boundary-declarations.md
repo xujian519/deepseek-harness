@@ -33,7 +33,7 @@ Six published declaration sets now list a dependency they require, the client co
 
 ## Testing
 
-`pnpm exec vitest run` over the twelve touched packages; `pnpm run typecheck`, `pnpm run lint`, `pnpm run duplication`, `pnpm run test:docs`, and the catalog gates. The new `ids.spec.ts`, the desktop-seam identity assertions, and the `ToolCallId` identity test are the compile-time pins. Brands do not change serialized values and the ACP handshake is not a session record, so no recorded-session snapshot is owed.
+`pnpm exec vitest run` over the twelve touched packages; `pnpm run typecheck`, `pnpm run lint`, `pnpm run duplication`, `pnpm run test:docs`, and the catalog gates. The new `ids.spec.ts`, the desktop-seam identity assertions, and the `ToolCallId` identity test are the compile-time pins. Brands do not change serialized values, so no session fixture changed; the advertised version does change a protocol frame, and the `snapshots/acp` expectation that pins it was updated by the corpus repair that followed this batch.
 
 ## Related
 
