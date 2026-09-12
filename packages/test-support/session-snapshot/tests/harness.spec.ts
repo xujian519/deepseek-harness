@@ -725,6 +725,15 @@ describe('runScenario', () => {
     expect(result.rawStdout).toContain('thinking about it')
   })
 
+  it('newSession armed with waitForConfigOptionUpdate holds the run open for the off-response announcement', { timeout: 20_000 }, async () => {
+    const { fixtureFile } = await scenario({ announceConfigOptions: true })
+    const result = await runScenario(
+      { steps: [{ op: 'initialize' }, { op: 'newSession', waitForConfigOptionUpdate: true }] },
+      { agent: AGENT, mode: 'replay', fixtureFile, configPath: AGENT.configPath },
+    )
+    expect(result.rawStdout).toContain('"sessionUpdate":"config_option_update"')
+  })
+
   it('waitForTurnEnd holds cancellation open through the persisted closing boundary', { timeout: 20_000 }, async () => {
     const { fixtureFile } = await scenario({
       prompt: 'hang-until-cancel',

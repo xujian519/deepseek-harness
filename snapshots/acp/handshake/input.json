@@ -1,6 +1,6 @@
 {
   "steps": [
     { "op": "initialize" },
-    { "op": "newSession" }
+    { "op": "newSession", "waitForConfigOptionUpdate": true }
   ]
 }

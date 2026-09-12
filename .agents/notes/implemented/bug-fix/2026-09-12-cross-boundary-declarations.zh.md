@@ -33,7 +33,7 @@ Status: implemented
 
 ## Testing
 
-对十二个受改动包跑 `pnpm exec vitest run`;并跑 `pnpm run typecheck`、`pnpm run lint`、`pnpm run duplication`、`pnpm run test:docs` 与各 catalog 门禁。新增的 `ids.spec.ts`、desktop-seam 的身份断言与 `ToolCallId` 身份测试即编译期钉子。品牌不改变序列化值,且 ACP 握手不属于会话记录,因此不欠 recorded-session 快照。
+对十二个受改动包跑 `pnpm exec vitest run`;并跑 `pnpm run typecheck`、`pnpm run lint`、`pnpm run duplication`、`pnpm run test:docs` 与各 catalog 门禁。新增的 `ids.spec.ts`、desktop-seam 的身份断言与 `ToolCallId` 身份测试即编译期钉子。品牌不改变序列化值,因此没有会话 fixture 变动;而上报的版本确实改变一帧协议,钉住它的 `snapshots/acp` 期望由随后那批语料修复一并更新。
 
 ## Related
 

@@ -43,6 +43,12 @@ interface Behavior {
   rejectNewSession?: boolean
   /** Reject `session/new` only when `additionalDirectories` is non-empty (the real bridge's rule). */
   rejectExtraDirs?: boolean
+  /**
+   * Announce session config options in a `session/update` scheduled AFTER the
+   * `session/new` response, mirroring the real bridge's off-response queue so a
+   * spec can assert the harness await.
+   */
+  announceConfigOptions?: boolean
   /** How `session/prompt` settles: a clean response, a JSON-RPC error, or a hang until `session/cancel`. */
   prompt?: 'respond' | 'error' | 'hang-until-cancel'
   /** Persist the scripted logs while handling cancellation, before stdin EOF. */
@@ -213,6 +219,14 @@ function handleFrame(frame: Record<string, unknown>): void {
       sessionId = randomUUID()
       sessionCwd = typeof params.cwd === 'string' ? params.cwd : process.cwd()
       respond(id as number | string, { sessionId })
+      if (behavior.announceConfigOptions === true) {
+        setImmediate(() => {
+          send({
+            method: 'session/update',
+            params: { sessionId, update: { sessionUpdate: 'config_option_update', configOptions: [] } },
+          })
+        })
+      }
       return
     }
     case 'session/prompt':
