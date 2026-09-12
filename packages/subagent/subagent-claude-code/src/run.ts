@@ -302,6 +302,8 @@ export async function disposeClaudeCodeChild(
       : new AggregateError(failures, 'Claude Code teardown failures')
     throw new ClaudeCodeFailure(facts, cause)
   }
+  // `waitForExit()` above is this teardown's evidence, and the handle's own
+  // failure already has its consumers; only range settlement matters here.
   await child.done.catch(() => {})
 }
 
@@ -435,6 +437,8 @@ export async function startClaudeCodeRun(
         throw childFailure
       },
     )
+    // The published run races this once startup succeeds; the guard keeps a
+    // process rejection observed when startup throws first or the result wins.
     void childProcessFailure.catch(() => {})
   }
   try {

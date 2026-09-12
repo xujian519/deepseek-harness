@@ -169,6 +169,7 @@ function abortError(signal: AbortSignal): Error {
 
 async function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
+    // The caller receives its own abort; no other observer awaits this request.
     void pending.catch(() => {})
     throw abortError(signal)
   }
@@ -379,6 +380,8 @@ export class CodexAppServerWire {
    */
   interrupt(): void {
     if (this.threadId === undefined || this.turnId === undefined || this.closed) return
+    // No caller awaits this response: the terminal turn or process outcome
+    // remains the authority on whether the interrupt took effect.
     void this.transport.request('turn/interrupt', {
       threadId: this.threadId,
       turnId: this.turnId,

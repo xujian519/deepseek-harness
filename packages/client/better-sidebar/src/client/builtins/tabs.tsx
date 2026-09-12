@@ -211,6 +211,8 @@ export function builtinTabs(_ctx: Context, options: BuiltinTabOptions = {}): rea
       onClose: (tab) => {
         const threadId = sidechatThreadIdOf(tab)
         if (threadId !== undefined) {
+          // The tab is already closing: nothing here can report a dispose
+          // failure, and the session stays persisted either way.
           void api.sidechatDispose(threadId).catch(() => {})
         }
       },

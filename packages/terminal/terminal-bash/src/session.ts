@@ -450,6 +450,8 @@ export class LocalPtySession implements TerminalBackendSession {
     this.statusValue = { kind: 'exited', exitCode: null, signal: null }
     this.closeEmulator()
     this.failActive(failure)
+    // The transport failure is already recorded and delivered to the caller; a
+    // failed emulator teardown has no other observer.
     void this.terminal.terminate().catch(() => {})
   }
 

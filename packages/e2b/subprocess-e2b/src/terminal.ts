@@ -509,6 +509,8 @@ export async function spawnE2BTerminal(
       onData: (data) => { outputFilter.push(data) },
     })
     completion = handle.wait()
+    // `waitForBootstrapOutput` and the setup rollback observe this later; the
+    // guard covers the throws before either attaches.
     void completion.catch(() => {})
     spec.signal?.throwIfAborted()
     if (!Number.isSafeInteger(handle.pid) || handle.pid <= 0) {

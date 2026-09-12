@@ -279,6 +279,8 @@ export class LocalAttachmentStore extends AttachmentStore {
       }))
       operation = shared
       this.requestInflight.set(key, shared)
+      // The request failure reaches wait(); this handler only guards the derived
+      // promise that removes the in-flight entry.
       void shared.promise.finally(() => {
         if (this.requestInflight.get(key) === shared) this.requestInflight.delete(key)
       }).catch(() => {})
