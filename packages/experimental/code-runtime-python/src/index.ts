@@ -22,6 +22,7 @@ import z from '@deepseek-ai/schemastery'
 import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeBindingErrorClass, CodeBindingFunction, CodeJsonValue, CodeRunFailure, CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { BootMessage, ChildToHost, ReplyMessage } from './protocol.ts'
 import { checkDoneValue, encodeJsonPlain, hasUnsafeIntegerToken, logTruncationMarker, validateChildFrame } from './protocol.ts'
@@ -378,46 +379,6 @@ export function hostFrameParseCeiling(heapLimit: number = getHeapStatistics().he
 const GROUP_REAP_POLL_MS = 50
 
 /**
- * Extract a human message from an unknown thrown value.
- *
- * `String(error)` runs the value's own conversion, and a host binding may reject
- * with an object whose `Symbol.toPrimitive` or `toString` throws. One call site
- * is a detached async reply callback, where that throw escapes as an unhandled
- * rejection: the reply frame is never written, the program stays blocked on
- * `await`, and the run degrades to a `maxWallMs` timeout (a Node host without an
- * `unhandledRejection` listener exits outright). The conversion is therefore
- * wrapped, with a fixed literal as the fallback — the value already proved it
- * cannot be rendered, so nothing derived from it is safe to try.
- *
- * `Error.message` is typed `string` but is a plain writable property, so a
- * rejecting binding can hand back an `Error` carrying any value there. The
- * `Error` arm therefore goes through the same conversion rather than returning
- * `message` verbatim: the returned string crosses the wire under
- * `encodeJsonPlain`'s JSON-plain precondition, where a cyclic object grows the
- * encoder stack until the host exhausts memory and any other unsupported value
- * prevents the reply frame outright.
- *
- * The same conversion renders abort reasons, which reach an `AbortSignal`
- * listener: Node reports a throw from such a listener as an uncaught exception,
- * so an unwrapped conversion there can terminate the host with the run left
- * unsettled.
- *
- * @param error The thrown value, of unknown shape.
- * @returns The value's message or string form; a fixed placeholder when its own
- *   conversion throws.
- */
-function messageOf(error: unknown): string {
-  try {
-    return String(error instanceof Error ? error.message : error)
-  } catch {
-    // Swallows only a throw from the value's own `message` getter or string
-    // conversion. Nothing else runs inside the try, and the placeholder is a
-    // literal, so this cannot throw again.
-    return '<unrenderable rejection value>'
-  }
-}
-
-/**
  * A process's start time, as the identity half of (pid, started).
  *
  * A pid is reusable the moment the kernel reaps it, so signalling one that a
@@ -522,7 +483,7 @@ function validatePythonBin(bin: string): void {
       maxBuffer: 1_024,
     }).trim()
   } catch (error: unknown) {
-    throw new Error(`dsh-code-runtime-python: config.pythonBin ${JSON.stringify(bin)} failed the CPython version probe: ${messageOf(error)}`)
+    throw new Error(`dsh-code-runtime-python: config.pythonBin ${JSON.stringify(bin)} failed the CPython version probe: ${errorMessage(error)}`)
   }
   const match = /^(\S+) (\d+) (\d+) (\d+)$/.exec(output)
   if (match === null) {
@@ -1040,7 +1001,7 @@ export class PythonCodeRuntime extends CodeRuntime {
     if (this.disposed) throw new Error('dsh-code-runtime-python: run() after disposal')
     const bindings = this.validateBindings(request)
     if (request.signal?.aborted) {
-      return { logs: [], error: { kind: 'abort', message: messageOf(request.signal.reason) } }
+      return { logs: [], error: { kind: 'abort', message: errorMessage(request.signal.reason) } }
     }
     let bootstrapPath: string
     try {
@@ -1054,7 +1015,7 @@ export class PythonCodeRuntime extends CodeRuntime {
       // failed to ship, is a SUBSTRATE failure — the same class as a child that
       // cannot start. The seam permits rejection only for misuse, so this
       // resolves as `worker-exit` rather than throwing out of `run()`.
-      return { logs: [], error: { kind: 'worker-exit', message: `failed to stage the python bootstrap: ${messageOf(error)}` } }
+      return { logs: [], error: { kind: 'worker-exit', message: `failed to stage the python bootstrap: ${errorMessage(error)}` } }
     }
     return await this.execute(request, bindings, bootstrapPath)
   }
@@ -1214,7 +1175,7 @@ export class PythonCodeRuntime extends CodeRuntime {
         // directory, so only a filesystem-level refusal reaches here, and the
         // staging copy holds nothing but two checked-in scripts.
       }
-      return Promise.resolve({ logs: [], error: { kind: 'worker-exit' as const, message: `python spawn error: ${messageOf(error)}` } })
+      return Promise.resolve({ logs: [], error: { kind: 'worker-exit' as const, message: `python spawn error: ${errorMessage(error)}` } })
     }
 
     return new Promise<CodeRunResult>((resolve) => {
@@ -1928,7 +1889,7 @@ export class PythonCodeRuntime extends CodeRuntime {
               } catch (error: unknown) {
                 // Check `settled` before formatting the error: a rejection that
                 // arrives after `maxWallMs`, an abort, or dispose has already
-                // settled the run, and `messageOf(error)` runs hostile getters
+                // settled the run, and `errorMessage(error)` runs hostile getters
                 // before `sendReply` peeks at `settled`. Dropping the framed
                 // reply early spares the host heap and time for a run whose
                 // outcome is already fixed.
@@ -1939,7 +1900,7 @@ export class PythonCodeRuntime extends CodeRuntime {
                 /* v8 ignore next -- a rejection arriving after settlement is not schedulable from a test. */
                 if (settled) return
                 /* oxlint-enable typescript/no-unnecessary-condition */
-                sendReply({ type: 'reply', id: message.id, ok: false, message: messageOf(error) })
+                sendReply({ type: 'reply', id: message.id, ok: false, message: errorMessage(error) })
               } finally {
                 // Release the in-flight slot on every exit — reply written,
                 // resolution rejected, or the run settling mid-wait (the
@@ -2382,7 +2343,7 @@ export class PythonCodeRuntime extends CodeRuntime {
       }, this.config.maxWallMs)
 
       const onAbort = (): void => {
-        finish({ error: { kind: 'abort', message: messageOf(request.signal?.reason) } })
+        finish({ error: { kind: 'abort', message: errorMessage(request.signal?.reason) } })
       }
       request.signal?.addEventListener('abort', onAbort, { once: true })
 
@@ -2420,7 +2381,7 @@ export class PythonCodeRuntime extends CodeRuntime {
       try {
         proto.write(`${JSON.stringify(boot)}\n`)
       } catch (error: unknown) {
-        finish({ error: { kind: 'worker-exit', message: `failed to boot python subprocess: ${messageOf(error)}` } })
+        finish({ error: { kind: 'worker-exit', message: `failed to boot python subprocess: ${errorMessage(error)}` } })
         return
       }
       // Register the ack gate with the frame handler before any data arrives.
@@ -2431,7 +2392,7 @@ export class PythonCodeRuntime extends CodeRuntime {
           proto.write(`${JSON.stringify({ type: 'run', program: request.program })}\n`)
         } catch (error: unknown) {
           /* v8 ignore next -- the child exited between its ack and this write; the run settles as worker-exit. */
-          finish({ error: { kind: 'worker-exit', message: `failed to boot python subprocess: ${messageOf(error)}` } })
+          finish({ error: { kind: 'worker-exit', message: `failed to boot python subprocess: ${errorMessage(error)}` } })
         }
       }
     })

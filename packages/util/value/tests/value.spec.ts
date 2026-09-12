@@ -323,6 +323,13 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error(''))).toBe('')
   })
 
+  it('coerces an Error whose message holds a non-string', () => {
+    const error = new Error('placeholder')
+    const writable: { message: unknown } = error
+    writable.message = { toString: () => 'rendered' }
+    expect(errorMessage(error)).toBe('rendered')
+  })
+
   it('renders non-Error values through their string-message property first', () => {
     expect(errorMessage({ message: 'denied' })).toBe('denied')
     expect(errorMessage({ message: 42 })).toBe('[object Object]')
@@ -334,6 +341,10 @@ describe('errorMessage', () => {
   it('is total: a trapping thrown value yields the fixed placeholder', () => {
     expect(errorMessage({ toString: () => { throw new Error('coercion trap') } })).toBe('[unrenderable thrown value]')
     expect(errorMessage(new Proxy({}, { get() { throw new Error('getter trap') } }))).toBe('[unrenderable thrown value]')
+    const hostile = new Error('placeholder')
+    const writable: { message: unknown } = hostile
+    writable.message = { [Symbol.toPrimitive]: () => { throw new Error('message coercion trap') } }
+    expect(errorMessage(hostile)).toBe('[unrenderable thrown value]')
   })
 })
 

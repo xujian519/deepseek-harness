@@ -573,7 +573,7 @@ describe('PythonCodeRuntime — seam descriptors and misuse', () => {
     })
     const result = await runtime.run({ program: 'return 1', bindings: [], signal })
     expect(result.error?.kind).toBe('abort')
-    expect(result.error?.message).toBe('<unrenderable rejection value>')
+    expect(result.error?.message).toBe('[unrenderable thrown value]')
     expect(result.logs).toEqual([])
   })
 
@@ -1206,7 +1206,7 @@ describe('PythonCodeRuntime — programs and bindings', () => {
       }),
     })
     expect(result.error).toBeUndefined()
-    expect(result.value).toBe('rejected: <unrenderable rejection value>')
+    expect(result.value).toBe('rejected: [unrenderable thrown value]')
   }, 15_000)
 
   it('still answers the call when an Error carries a cyclic value in place of its message', async () => {
@@ -1243,7 +1243,7 @@ describe('PythonCodeRuntime — programs and bindings', () => {
       }),
     })
     expect(result.error).toBeUndefined()
-    expect(result.value).toBe('rejected: <unrenderable rejection value>')
+    expect(result.value).toBe('rejected: [unrenderable thrown value]')
   }, 15_000)
 
   it('renders an Error whose message is a value with no JSON form', async () => {
@@ -3160,7 +3160,7 @@ describe('PythonCodeRuntime — budgets, termination, disposal', () => {
       }, 200)
       const result = await settled
       expect(result.error?.kind).toBe('abort')
-      expect(result.error?.message).toBe('<unrenderable rejection value>')
+      expect(result.error?.message).toBe('[unrenderable thrown value]')
       expect(uncaught).toEqual([])
     } finally {
       process.off('uncaughtException', record)
