@@ -10,6 +10,7 @@
  */
 
 import { parseDocument } from 'yaml'
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type { EvidenceSpan } from './span.ts'
 import {
   determinePublicationDate,
@@ -451,12 +452,6 @@ function assessChainIntegrity(span: EvidenceSpan, fourElements: FourElementsResu
 // ---------------------------------------------------------------------------
 // 规则索引（YAML 资产加载）
 // ---------------------------------------------------------------------------
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
-}
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []

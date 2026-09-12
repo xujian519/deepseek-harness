@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDocument } from 'yaml'
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type {
   ConstitutionalRule,
   LoadedRuleSet,
@@ -46,11 +47,7 @@ export function isRuleAction(value: unknown): value is RuleAction {
  * @param value - 待规整的值。
  * @returns 纯对象，非对象为 null。
  */
-export function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
-}
+export { asRecord }
 
 function asStringArray(value: unknown): string[] | null {
   if (!Array.isArray(value)) return null

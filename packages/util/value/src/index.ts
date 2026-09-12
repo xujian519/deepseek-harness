@@ -23,6 +23,18 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Read an untrusted value as a record: the same test `isRecord` performs,
+ * returning the record itself rather than a boolean, so a decoder can hand the
+ * narrowed value straight to its own readers.
+ *
+ * @param value The untrusted value to read.
+ * @returns The value as a record of unknown values, or `null` when it is an array, `null`, or a scalar.
+ */
+export function asRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null
+}
+
+/**
  * Assert a positive integer (>= 1) and narrow an `unknown` value to `number`.
  *
  * @param label Diagnostic label naming the validated input; the thrown message
