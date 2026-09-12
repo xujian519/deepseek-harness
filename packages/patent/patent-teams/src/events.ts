@@ -57,9 +57,9 @@ export function appendTeamEvent(
  */
 export function captainSessionOf(
   ctx: Context,
-  captainSessionId: string,
+  captainSessionId: SessionId,
   fallback: Session,
 ): Session {
-  const captain = ctx.get('agents')?.get(captainSessionId as SessionId)
+  const captain = ctx.get('agents')?.get(captainSessionId)
   return captain?.session ?? fallback
 }

@@ -13,6 +13,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { isAbsolute, resolve } from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import Schema from '@deepseek-ai/schemastery'
@@ -54,6 +55,12 @@ import { supportsAcpImagePrompts } from './content.ts'
 import { AcpMcpConfigError } from './mcp.ts'
 import { AcpModelConfigError } from './model-control.ts'
 import { AcpSession } from './session.ts'
+
+// The package's own manifest is the single source of the version the handshake
+// advertises, so the client cannot be told a version this build is not
+// (`./package.json` is an export of this package; the relative path resolves
+// from both `src/` and the bundled `lib/`).
+const { version: AGENT_VERSION } = createRequire(import.meta.url)('../package.json') as { version: string }
 
 const DEFAULT_SESSION_LIST_PAGE_SIZE = 100
 
@@ -179,7 +186,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
       imagePromptEnabled = await supportsAcpImagePrompts(ctx, config.provider, config.model)
       return {
         protocolVersion: PROTOCOL_VERSION,
-        agentInfo: { name: 'deepseek-harness-acp', version: '0.0.1' },
+        agentInfo: { name: 'deepseek-harness-acp', version: AGENT_VERSION },
         agentCapabilities: {
           mcpCapabilities: { http: true },
           promptCapabilities: { image: imagePromptEnabled, audio: false, embeddedContext: false },

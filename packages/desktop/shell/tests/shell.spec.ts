@@ -7,7 +7,7 @@ import { unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { DesktopError } from '@deepseek-ai/dsh-desktop-seam'
+import { DesktopError, MenuId } from '@deepseek-ai/dsh-desktop-seam'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesktopShell, { BridgeClient } from '../src/index.ts'
 
@@ -118,7 +118,7 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 50))
-    const disposer = await shell.registerMenuItem('file', { id: 'open', label: 'Open' })
+    const disposer = await shell.registerMenuItem('file', { id: MenuId('open'), label: 'Open' })
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(lastMethod).toBe('desktop/registerMenuItem')
     disposer()
@@ -161,7 +161,7 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 20))
-    await shell.registerMenuItem('tray', { id: 'pause', label: 'Pause' })
+    await shell.registerMenuItem('tray', { id: MenuId('pause'), label: 'Pause' })
     await shell.registerGlobalShortcut('Cmd+P', () => {})
     // Drop the backend socket; the client reconnects (backoff 500ms base)
     // and re-sends every live registration in order.
@@ -187,7 +187,7 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 50))
-    await shell.registerMenuItem('tray', { id: 'pause', label: 'Pause' })
+    await shell.registerMenuItem('tray', { id: MenuId('pause'), label: 'Pause' })
     const warn = vi.spyOn(ctx.logger, 'warn')
     const call = vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValueOnce(new Error('replay boom'))
     serverSocket?.end()
@@ -201,7 +201,7 @@ describe('DesktopShell', () => {
     const shell = new DesktopShell(ctx)
     shells.push({ shell, ctx })
     await new Promise(resolve => setTimeout(resolve, 50))
-    await shell.registerMenuItem('tray', { id: 'pause', label: 'Pause' })
+    await shell.registerMenuItem('tray', { id: MenuId('pause'), label: 'Pause' })
     const warn = vi.spyOn(ctx.logger, 'warn')
     const call = vi.spyOn(BridgeClient.prototype, 'call').mockRejectedValueOnce('plain failure')
     serverSocket?.end()

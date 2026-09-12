@@ -6,10 +6,11 @@ import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
 import { appendTeamEvent, captainSessionOf } from '../src/events.ts'
+import { PatentTeamsTeamId } from '../src/ids.ts'
 import type { PatentTeamsTeamCreatedData } from '../src/event-types.ts'
 
 const TEAM_CREATED = 'patent-teams/team-created' as const
-const data: PatentTeamsTeamCreatedData = { teamId: 'alpha', captainSessionId: 'captain-1', name: 'Alpha' }
+const data: PatentTeamsTeamCreatedData = { teamId: PatentTeamsTeamId('alpha'), captainSessionId: SessionId('captain-1'), name: 'Alpha' }
 
 function makeContext(): Context {
   return new Context()
@@ -44,13 +45,13 @@ describe('captainSessionOf', () => {
       get: (id: string) => (id === 'captain-1' ? { id, session: captainSession } : undefined),
     })
     const fallback = Session.create(SessionId('caller'))
-    expect(captainSessionOf(ctx, 'captain-1', fallback)).toBe(captainSession)
+    expect(captainSessionOf(ctx, SessionId('captain-1'), fallback)).toBe(captainSession)
   })
 
   it('falls back to the calling session when the captain is offline', () => {
     const ctx = makeContext()
     ctx.provide('agents', { get: () => undefined })
     const fallback = Session.create(SessionId('caller'))
-    expect(captainSessionOf(ctx, 'captain-1', fallback)).toBe(fallback)
+    expect(captainSessionOf(ctx, SessionId('captain-1'), fallback)).toBe(fallback)
   })
 })

@@ -89,7 +89,9 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ownerProps: [
       '/** Stable identity handed to an optional approval-detail renderer. */\nexport interface ApprovalDetailOwnerProps {\n  /** Tool call correlated with the request. */\n  callId: ToolCallId\n}',
     ],
-    ownerPropsReferences: [],
+    ownerPropsReferences: [
+      'ToolCallId',
+    ],
     standardProps: [
       'useResource: UseResource',
       'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
@@ -245,6 +247,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'MessageImageLoader',
       'OpenFileOptions',
       'RenderMessageImages',
+      'ToolCallId',
       'TurnProcessOwnerProps',
       'TurnTailOwnerProps',
     ],

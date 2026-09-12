@@ -18,6 +18,7 @@ import type {
   ConversationLocationDataStore, ConversationTurnDataMap,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { KeyedSnapshotSelectorHook, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
@@ -1314,7 +1315,7 @@ describe('ChatView', () => {
       nodes: [toolResult(3, 'a')],
     })
     render(<h.ChatView {...h.props} />)
-    h.toolOwners[0]?.inspectCall('a')
+    h.toolOwners[0]?.inspectCall(ToolCallId('a'))
     expect(h.openView).toHaveBeenCalledWith('trajectory', 'a')
   })
 
@@ -2224,7 +2225,7 @@ describe('ChatView', () => {
     expect(owner.openFile).not.toBe(h.openFile)
     owner.openFile('src/a.ts')
     expect(h.openFile).toHaveBeenCalledWith('src/a.ts')
-    owner.inspectCall('a')
+    owner.inspectCall(ToolCallId('a'))
     expect(h.openView).toHaveBeenCalledWith('trajectory', 'a')
   })
 

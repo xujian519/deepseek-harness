@@ -627,7 +627,7 @@ Source: [`packages/patent/patent-workflow/src/types.ts:30`](../packages/patent/p
 'patent-teams/member-added': PatentTeamsMemberAddedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:105`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:116`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmember-removed--log-only"></a>
 
@@ -641,7 +641,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:105`](../packages/pate
 'patent-teams/member-removed': PatentTeamsMemberRemovedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:110`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:121`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsmessage-sent--log-only"></a>
 
@@ -655,7 +655,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:110`](../packages/pate
 'patent-teams/message-sent': PatentTeamsMessageSentData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:135`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:146`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-created--log-only"></a>
 
@@ -669,7 +669,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:135`](../packages/pate
 'patent-teams/task-created': PatentTeamsTaskCreatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:115`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:126`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-gated--log-only"></a>
 
@@ -683,7 +683,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:115`](../packages/pate
 'patent-teams/task-gated': PatentTeamsTaskGatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:130`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:141`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-updated--log-only"></a>
 
@@ -697,7 +697,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:130`](../packages/pate
 'patent-teams/task-updated': PatentTeamsTaskUpdatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:120`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:131`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamstask-validated--log-only"></a>
 
@@ -711,7 +711,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:120`](../packages/pate
 'patent-teams/task-validated': PatentTeamsTaskValidatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:125`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:136`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-created--log-only"></a>
 
@@ -725,7 +725,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:125`](../packages/pate
 'patent-teams/team-created': PatentTeamsTeamCreatedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:100`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:111`](../packages/patent/patent-teams/src/event-types.ts)
 
 <a id="patent-teamsteam-deleted--log-only"></a>
 
@@ -739,7 +739,7 @@ Source: [`packages/patent/patent-teams/src/event-types.ts:100`](../packages/pate
 'patent-teams/team-deleted': PatentTeamsTeamDeletedData
 ```
 
-Source: [`packages/patent/patent-teams/src/event-types.ts:140`](../packages/patent/patent-teams/src/event-types.ts)
+Source: [`packages/patent/patent-teams/src/event-types.ts:151`](../packages/patent/patent-teams/src/event-types.ts)
 
 ### `permission/*`
 

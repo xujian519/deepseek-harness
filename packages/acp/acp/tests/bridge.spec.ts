@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +13,8 @@ import { SessionPersistenceRevision, type SessionPersistenceSnapshot } from '@de
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { makeBridgeHarness, textResponse, type BridgeHarness } from './harness.ts'
 import { startHttpMcpFixture } from '../../../mcp/mcp-client/tests/http-fixture.ts'
+
+const manifest = createRequire(import.meta.url)('../package.json') as { version: string }
 
 /** Wrap a bare header as the snapshot shape `SessionPersistence.list` now returns. */
 function snapshotOf(header: SessionHeader): SessionPersistenceSnapshot {
@@ -48,7 +51,7 @@ describe('automation-only ACP bridge', () => {
 
     expect(response).toEqual({
       protocolVersion: PROTOCOL_VERSION,
-      agentInfo: { name: 'deepseek-harness-acp', version: '0.0.1' },
+      agentInfo: { name: 'deepseek-harness-acp', version: manifest.version },
       agentCapabilities: {
         mcpCapabilities: { http: true },
         promptCapabilities: { image: false, audio: false, embeddedContext: false },
@@ -56,6 +59,16 @@ describe('automation-only ACP bridge', () => {
       },
       authMethods: [],
     })
+  })
+
+  it('advertises the published package version, never a hand-copied constant', async () => {
+    harness = await makeBridgeHarness()
+    const response = await harness.client.initialize({
+      protocolVersion: PROTOCOL_VERSION,
+      clientCapabilities: { _meta: { terminal_output: true } },
+    })
+
+    expect(response.agentInfo?.version).toBe(manifest.version)
   })
 
   it('advertises image prompts only with an exact capable route and attachment store', async () => {
