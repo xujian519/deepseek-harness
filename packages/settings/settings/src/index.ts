@@ -207,7 +207,11 @@ function applyPathOp(section: Record<string, unknown>, op: SettingsPathOp): Reco
     return { ...op.value }
   }
   if (rest.length === 0) {
-    if (op.op === 'set') return { ...section, [head]: op.value }
+    if (op.op === 'set') {
+      const next: Record<string, unknown> = { ...section }
+      setDataProperty(next, head, op.value)
+      return next
+    }
     const { [head]: _removed, ...kept } = section
     return kept
   }
@@ -216,9 +220,13 @@ function applyPathOp(section: Record<string, unknown>, op: SettingsPathOp): Reco
     // Unsetting through an absent path is already satisfied; setting through
     // one creates the intermediate objects it needs.
     if (op.op === 'unset') return section
-    return { ...section, [head]: applyPathOp({}, { ...op, path: rest }) }
+    const next: Record<string, unknown> = { ...section }
+    setDataProperty(next, head, applyPathOp({}, { ...op, path: rest }))
+    return next
   }
-  return { ...section, [head]: applyPathOp(child, { ...op, path: rest }) }
+  const next: Record<string, unknown> = { ...section }
+  setDataProperty(next, head, applyPathOp(child, { ...op, path: rest }))
+  return next
 }
 
 /** Human label for a value that lossless JSON cannot represent (numbers reject inline). */
@@ -446,9 +454,13 @@ export abstract class SettingsProvider extends Service {
     }
     this.ctx.effect(() => {
       this.registrations.set(parsedNs, registration)
-      // TODO(settings-registration-quiescence): Deactivate every watcher and await
-      // its tail on disposal so callbacks cannot outlive the registrant fiber.
-      return () => this.registrations.delete(parsedNs)
+      return async () => {
+        for (const watcher of registration.watchers) {
+          watcher.active = false
+        }
+        this.registrations.delete(parsedNs)
+        await Promise.allSettled([...registration.watchers].map(watcher => watcher.tail))
+      }
     }, `settings.register(${JSON.stringify(String(parsedNs))})`)
     return {
       get: () => registration.resolved as T,
@@ -682,15 +694,17 @@ export abstract class SettingsProvider extends Service {
           : (snapshot['ops'] as SettingsPathOp[]).reduce(applyPathOp, current)
       const next = deepFreeze(this.resolve(registration.schema, registration.base, section, registration.validate))
       await this.persist(ns, section)
-      // The write reached storage either way; the cache must say so. Commit
-      // only when this registration is still the namespace owner — a fiber
-      // disposed (or replaced) mid-persist must not receive the notification.
+      // The write reached storage either way; the cache must say so. Commit to
+      // whichever registration currently owns the namespace — either the writer
+      // itself or a replacement that registered while this write was in flight.
       this.document[ns] = section
-      // TODO(settings-replacement-resync): Re-resolve any replacement registration
-      // from this persisted section so an old in-flight write cannot leave it stale.
-      if (this.registrations.get(ns) === registration && !this.isStopped()) {
-        this.bumpRevision(registration, current, section)
-        this.commit(registration, next, 'update')
+      const currentRegistration = this.registrations.get(ns)
+      if (currentRegistration !== undefined && !this.isStopped()) {
+        const resolvedNext = currentRegistration === registration
+          ? next
+          : deepFreeze(this.resolve(currentRegistration.schema, currentRegistration.base, section, currentRegistration.validate))
+        this.bumpRevision(currentRegistration, current, section)
+        this.commit(currentRegistration, resolvedNext, 'update')
       }
     })
     this.writeQueues.set(ns, run)
