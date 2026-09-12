@@ -16,6 +16,7 @@ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeBindingNamespace, CodeJsonValue, CodeRunFailure, CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { ReplyMessage, WorkerBootData, WorkerToHost } from './protocol.ts'
 import { jsonStringBytesUpTo, jsonValueBytesUpTo, truncateJsonStringBytes } from './output-json.ts'
 import { decodeWorkerJson, encodeWorkerJson } from './worker-json.ts'
@@ -104,11 +105,6 @@ interface LiveRun {
  */
 /* v8 ignore next -- the './worker.cjs' arm is the built-lib world, unreachable unbuilt by construction; the built-lib e2e pins it. */
 const WORKER_PATH = fileURLToPath(new URL(new URL(import.meta.url).pathname.endsWith('.ts') ? './worker.ts' : './worker.cjs', import.meta.url))
-
-/** Render an unknown thrown value as a message, `Error` or not. */
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 /** Resolve after a worker pipe emits all queued data, or closes/errors during termination. */
 function waitForPipeDrain(stream: Readable): Promise<void> {
@@ -305,7 +301,7 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
       // A program that does not survive the type-strip (syntax error,
       // non-erasable syntax like `enum`) is a program failure, reported the
       // same way a thrown exception would be — and no worker ever spawns.
-      return this.failureBeforeWorker({ kind: 'exception', message: messageOf(error) })
+      return this.failureBeforeWorker({ kind: 'exception', message: errorMessage(error) })
     }
 
     return await this.execute(request, code, bindings)
@@ -501,7 +497,7 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
               reply({ type: 'reply', id: message.id, ok: true, value: encodeWorkerJson(value) })
             }
           } catch (error: unknown) {
-            reply({ type: 'reply', id: message.id, ok: false, message: messageOf(error) })
+            reply({ type: 'reply', id: message.id, ok: false, message: errorMessage(error) })
           }
         })()
       }

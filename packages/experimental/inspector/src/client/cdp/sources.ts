@@ -1,6 +1,7 @@
 /** Browser-side catalog for the Inspector Client bundle and its source map. */
 
 import { bytesToBase64 } from '@deepseek-ai/dsh-util-crypto'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type {
   ClientScriptDescriptor,
   ClientSourceCommand,
@@ -136,7 +137,7 @@ export class ClientSourceCatalog {
 
   private source(entry: LoadedAsset, maxContentBytes: number): Promise<string> {
     entry.source ??= entry.asset.loadSource().catch((error: unknown) => {
-      throw new ClientSourceCatalogError('load-failed', `Cannot load Client script: ${renderError(error)}`)
+      throw new ClientSourceCatalogError('load-failed', `Cannot load Client script: ${errorMessage(error)}`)
     })
     return entry.source.then((source) => {
       if (new TextEncoder().encode(source).byteLength > maxContentBytes) {
@@ -156,7 +157,7 @@ export class ClientSourceCatalog {
     entry.sourceMapBytes ??= entry.asset.loadSourceMap().then(value =>
       value === undefined ? undefined : new TextEncoder().encode(value),
     ).catch((error: unknown) => {
-      throw new ClientSourceCatalogError('load-failed', `Cannot load Client source map: ${renderError(error)}`)
+      throw new ClientSourceCatalogError('load-failed', `Cannot load Client source map: ${errorMessage(error)}`)
     })
     return entry.sourceMapBytes.then((bytes) => {
       if (bytes !== undefined && bytes.byteLength > maxContentBytes) {
@@ -216,10 +217,6 @@ function countNewlines(value: string): number {
     if (value.charCodeAt(index) === 10) count++
   }
   return count
-}
-
-function renderError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function normalizedUrl(value: string): string {

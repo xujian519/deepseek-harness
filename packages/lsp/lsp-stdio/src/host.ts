@@ -2,6 +2,7 @@
 
 import { Buffer } from 'node:buffer'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { throwIfAborted } from './abort.ts'
 
 /** A canonical workspace in the filesystem/subprocess execution world. */
@@ -40,7 +41,7 @@ export async function canonicalizeWorkspace(
     target = await fs.resolve(workspaceRoot, signal === undefined ? {} : { signal })
   } catch (error: unknown) {
     throwIfAborted(signal)
-    throw new Error(`workspace root "${workspaceRoot}" cannot be resolved: ${messageOf(error)}`, { cause: error })
+    throw new Error(`workspace root "${workspaceRoot}" cannot be resolved: ${errorMessage(error)}`, { cause: error })
   }
   throwIfAborted(signal)
   const info = await fs.stat(target, signal).catch((error: unknown) => {
@@ -85,7 +86,7 @@ export async function readHostSource(
     })
   } catch (error: unknown) {
     throwIfAborted(signal)
-    throw new Error(`source "${filePath}" cannot be resolved: ${messageOf(error)}`, { cause: error })
+    throw new Error(`source "${filePath}" cannot be resolved: ${errorMessage(error)}`, { cause: error })
   }
   throwIfAborted(signal)
   if (!fs.contains(workspace.target, target)) {
@@ -105,7 +106,7 @@ export async function readHostSource(
     }
   } catch (error: unknown) {
     throwIfAborted(signal)
-    throw new Error(`source "${filePath}" could not be read: ${messageOf(error)}`, { cause: error })
+    throw new Error(`source "${filePath}" could not be read: ${errorMessage(error)}`, { cause: error })
   }
   if (bytes > maxDocumentBytes) {
     throw new Error(
@@ -117,8 +118,4 @@ export async function readHostSource(
     fileUrl: fs.fileUrl(target),
     text: chunks.join(''),
   }
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

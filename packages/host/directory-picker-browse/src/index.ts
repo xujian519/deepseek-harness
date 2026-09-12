@@ -20,6 +20,7 @@ import {
 import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 
 /**
  * Ancestor chain from the filesystem root to `target` inclusive — the
@@ -142,12 +143,6 @@ function asError(reason: unknown): Error {
 /** Swallow the close failure of a handle its caller already departed. */
 function swallowCloseFailure(): void {}
 /* v8 ignore stop */
-
-/** Message text of an unknown thrown value. */
-function messageOf(error: unknown): string {
-  /* v8 ignore next -- node:fs rejects with Error instances; the String arm only satisfies the unknown narrowing. */
-  return error instanceof Error ? error.message : String(error)
-}
 
 /**
  * One listing row for a dirent, following symlinks to directories; null for
@@ -277,7 +272,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
     } catch (error: unknown) {
       // An abort is the caller's own reason, not an unreadable directory.
       signal?.throwIfAborted()
-      throw new DirectoryPickerError('directory-unreadable', target, `cannot list ${target}: ${messageOf(error)}`)
+      throw new DirectoryPickerError('directory-unreadable', target, `cannot list ${target}: ${errorMessage(error)}`)
     }
     const entries: DirectoryEntry[] = []
     let truncated = evicted
@@ -318,7 +313,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST') {
         throw new DirectoryPickerError('directory-exists', target, `${target} already exists`)
       }
-      throw new DirectoryPickerError('directory-create-failed', target, `cannot create ${target}: ${messageOf(error)}`)
+      throw new DirectoryPickerError('directory-create-failed', target, `cannot create ${target}: ${errorMessage(error)}`)
     }
   }
 }

@@ -14,6 +14,7 @@ import type {
 import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteErrorCode } from '@deepseek-ai/dsh-typert-protocol'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 
 const createDirectoryRequestSchema = z.object({
   path: z.string(),
@@ -178,8 +179,4 @@ function cancellableFailure(
   if (signal.aborted) return new RemoteError('gateway/cancelled', cancelled, {}, { cause: error })
   if (failed === undefined) return browseFailure(error)
   return new RemoteError('gateway/internal', `${failed}: ${errorMessage(error)}`, {}, { cause: error })
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

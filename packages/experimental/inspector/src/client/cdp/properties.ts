@@ -1,5 +1,6 @@
 /** Lazy Client property enumeration for `Runtime.getProperties`. */
 
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type {
   ClientRuntimeGetPropertiesCommand,
   ClientRuntimeInternalPropertyDescriptor,
@@ -116,7 +117,7 @@ function readKeys(value: object): readonly PropertyKey[] {
   try {
     return Reflect.ownKeys(value)
   } catch (error) {
-    throw new ClientRuntimeExecutionError('internal-error', `Cannot enumerate Client object: ${renderError(error)}`)
+    throw new ClientRuntimeExecutionError('internal-error', `Cannot enumerate Client object: ${errorMessage(error)}`)
   }
 }
 
@@ -124,7 +125,7 @@ function readDescriptor(value: object, key: PropertyKey): PropertyDescriptor | u
   try {
     return Reflect.getOwnPropertyDescriptor(value, key)
   } catch (error) {
-    throw new ClientRuntimeExecutionError('internal-error', `Cannot read Client property ${String(key)}: ${renderError(error)}`)
+    throw new ClientRuntimeExecutionError('internal-error', `Cannot read Client property ${String(key)}: ${errorMessage(error)}`)
   }
 }
 
@@ -132,7 +133,7 @@ function readPrototype(value: object): object | null {
   try {
     return Object.getPrototypeOf(value) as object | null
   } catch (error) {
-    throw new ClientRuntimeExecutionError('internal-error', `Cannot read Client object prototype: ${renderError(error)}`)
+    throw new ClientRuntimeExecutionError('internal-error', `Cannot read Client object prototype: ${errorMessage(error)}`)
   }
 }
 
@@ -143,10 +144,6 @@ function isObjectLike(value: unknown): value is object | symbol {
 function isArrayIndex(value: string): boolean {
   const number = Number(value)
   return Number.isInteger(number) && number >= 0 && number < 4_294_967_295 && String(number) === value
-}
-
-function renderError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function remoteOptions(group: string | undefined, generatePreview?: boolean): {

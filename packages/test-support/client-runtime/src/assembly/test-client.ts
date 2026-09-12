@@ -11,6 +11,7 @@ import type { ClientTransportHooks, ConnectionHandle } from '@deepseek-ai/dsh-cl
 import { bootClient } from '@deepseek-ai/dsh-client-web/src/boot-client.ts'
 import { mountClient } from '@deepseek-ai/dsh-client-web/src/mount.ts'
 import type { RemoteMock } from '@deepseek-ai/dsh-remote-mock'
+import { errorMessage, toError } from '@deepseek-ai/dsh-value'
 import { act } from '@testing-library/react'
 import { createInProcessModules, loadPluginModules } from './modules.ts'
 import { assertPlan, graphFromRoster, type AssemblyPlan } from './roster.ts'
@@ -122,15 +123,6 @@ function installJsdomShims(): () => void {
   const installed = Object.keys(JSDOM_SHIMS).filter(name => globals[name] === undefined)
   for (const name of installed) globals[name] = JSDOM_SHIMS[name]
   return () => { for (const name of installed) Reflect.deleteProperty(globals, name) }
-}
-
-/** The Error a thrown value stands for: itself, or a new Error carrying its string form. */
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function messageOf(error: unknown): string {
-  return toError(error).message
 }
 
 function connectionOf(ctx: Context): ConnectionHandle {
@@ -343,7 +335,7 @@ export class TestClient {
     try {
       this.mock.assertNoUnmatched()
     } catch (unmatched) {
-      throw new Error(`${messageOf(unmatched)}\nclient-test-runtime: the plugin tree also failed to dispose: ${failure.message}`, { cause: failure })
+      throw new Error(`${errorMessage(unmatched)}\nclient-test-runtime: the plugin tree also failed to dispose: ${failure.message}`, { cause: failure })
     }
     throw failure
   }

@@ -23,6 +23,7 @@ import type {
 } from '@deepseek-ai/dsh-settings/types'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { z } from 'zod'
 import { CredentialsController } from './credentials.ts'
 import type { AgentPresetDirectoryOpenValue, SettingsDocumentOpenValue } from './types.ts'
@@ -200,7 +201,7 @@ export class SettingsController extends TypertRemoteService {
       path = await settings.prepareDocument()
     } catch (error: unknown) {
       if (isAborted(signal)) throw new RemoteError('gateway/cancelled', 'settings document preparation was aborted', {})
-      throw new RemoteError('gateway/internal', `settings document preparation failed: ${messageOf(error)}`, {}, { cause: error })
+      throw new RemoteError('gateway/internal', `settings document preparation failed: ${errorMessage(error)}`, {}, { cause: error })
     }
     if (path === undefined) {
       throw new RemoteError('gateway/internal', 'settings provider has no local document to open', {})
@@ -211,7 +212,7 @@ export class SettingsController extends TypertRemoteService {
       return { opened: true }
     } catch (error: unknown) {
       if (isAborted(signal)) throw new RemoteError('gateway/cancelled', 'settings document open was aborted', {})
-      throw new RemoteError('gateway/internal', `path open failed: ${messageOf(error)}`, {}, { cause: error })
+      throw new RemoteError('gateway/internal', `path open failed: ${errorMessage(error)}`, {}, { cause: error })
     }
   }
 
@@ -253,7 +254,7 @@ export class SettingsController extends TypertRemoteService {
       return { opened: true }
     } catch (error: unknown) {
       if (signal.aborted) throw new RemoteError('gateway/cancelled', 'path open was aborted', {})
-      throw new RemoteError('gateway/internal', `path open failed: ${messageOf(error)}`, {}, { cause: error })
+      throw new RemoteError('gateway/internal', `path open failed: ${errorMessage(error)}`, {}, { cause: error })
     }
   }
 
@@ -299,10 +300,6 @@ export class SettingsController extends TypertRemoteService {
   }
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
 interface SettingsConflict {
   readonly code: 'SETTINGS_CONFLICT'
   readonly message: string
@@ -337,7 +334,7 @@ function rejected(ns: string, error: unknown): RemoteError {
       { cause: error },
     )
   }
-  return new RemoteError('settings/rejected', messageOf(error), { ns }, { cause: error })
+  return new RemoteError('settings/rejected', errorMessage(error), { ns }, { cause: error })
 }
 
 export default SettingsController

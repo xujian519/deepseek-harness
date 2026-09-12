@@ -1,6 +1,7 @@
 /** Per-DevTools-connection bridge to the Host main thread's real V8 inspector target. */
 
 import { Session } from 'node:inspector'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { NativeProtocolNotification } from '../../../shared/cdp/realm.ts'
 
 /** Notification emitted by Node's native inspector session. */
@@ -63,7 +64,7 @@ export class HostInspectorSession {
           else resolve(result ?? {})
         })
       } catch (error) {
-        reject(new Error(renderError(error)))
+        reject(new Error(errorMessage(error)))
       }
     })
   }
@@ -86,7 +87,7 @@ export class HostInspectorSession {
     try {
       this.session.connectToMainThread()
     } catch (error) {
-      this.failure = `Host V8 inspector is unavailable: ${renderError(error)}`
+      this.failure = `Host V8 inspector is unavailable: ${errorMessage(error)}`
     }
     return this.failure
   }
@@ -157,8 +158,4 @@ export class HostNotificationChannel<Event> {
       // Malformed optional native notifications do not interrupt request handling.
     })
   }
-}
-
-function renderError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

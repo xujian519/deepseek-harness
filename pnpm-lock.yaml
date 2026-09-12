@@ -1630,6 +1630,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:^
         version: link:../../typert/protocol
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
 
   packages/api/workspace-controller:
     dependencies:
@@ -2587,6 +2590,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -3009,6 +3015,9 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -3298,6 +3307,9 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -5543,6 +5555,9 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:^
         version: link:../../util/values
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -7771,6 +7786,9 @@ importers:
       '@deepseek-ai/dsh-host-directory-picker':
         specifier: workspace:^
         version: link:../directory-picker
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -9574,6 +9592,9 @@ importers:
       '@deepseek-ai/dsh-session-query':
         specifier: workspace:^
         version: link:../session-query
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -11879,6 +11900,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:^
         version: link:../../typert/protocol
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../../util/value
       '@deepseek-ai/dsh-web-app':
         specifier: workspace:^
         version: link:../../bundle/web-app

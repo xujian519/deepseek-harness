@@ -18,12 +18,11 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the ctx.remote merge into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import { beginRosterRead, writeDefaultPreset, writeModeSelectionEnabled } from './settings-store.ts'
 
 /** Ids a preset directory may be named, mirroring the host's own rule. */
 const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
-
-const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 /** One preset row the page renders. */
 export interface PresetRow {

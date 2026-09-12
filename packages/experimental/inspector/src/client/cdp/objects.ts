@@ -1,5 +1,6 @@
 /** Client-local object handles and CDP-compatible RemoteObject serialization. */
 
+import { errorMessage } from '@deepseek-ai/dsh-value'
 import {
   inspectorId,
   type ClientRemoteObjectHandle,
@@ -209,7 +210,7 @@ function serializeByValue(value: unknown): InspectorJsonValue {
   try {
     serialized = JSON.stringify(value)
   } catch (error) {
-    throw new ClientRuntimeExecutionError('unsupported', `Value cannot be returned by value: ${renderError(error)}`)
+    throw new ClientRuntimeExecutionError('unsupported', `Value cannot be returned by value: ${errorMessage(error)}`)
   }
   if (typeof serialized !== 'string') throw new ClientRuntimeExecutionError('unsupported', 'Value cannot be returned by value')
   const result = JSON.parse(serialized) as unknown
@@ -386,10 +387,6 @@ function ownString(value: object, key: string): string | undefined {
   } catch {
     return undefined
   }
-}
-
-function renderError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 const SUBTYPES_BY_PROTOTYPE: readonly (readonly [object, RuntimeRemoteObjectSubtype])[] = [

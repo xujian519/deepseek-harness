@@ -1,5 +1,6 @@
 /** Shared Host/Client owner of correlated non-CDP query requests. */
 
+import { errorMessage, toError } from '@deepseek-ai/dsh-value'
 import { inspectorId, type InspectorSourceGeneration, type InspectorSourceId } from './ids.ts'
 import { jsonByteLength, type InspectorJsonValue } from '../json.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from './version.ts'
@@ -100,7 +101,7 @@ export class InspectorQueryConnection implements InspectorQueryRequester {
       try {
         active.sender.send(frame)
       } catch (error) {
-        this.rejectPending(requestId, renderError(error))
+        this.rejectPending(requestId, toError(error))
       }
     })
     return result as Promise<InspectorQueryResultFor<Query>>
@@ -120,7 +121,7 @@ export class InspectorQueryConnection implements InspectorQueryRequester {
         throw new Error(`inspector protocol: query response exceeds ${String(this.options.maxFrameBytes)} bytes`)
       }
     } catch (error) {
-      this.disconnect(`Invalid Inspector query response: ${renderError(error).message}`)
+      this.disconnect(`Invalid Inspector query response: ${errorMessage(error)}`)
       throw error
     }
     const pending = this.pending.get(frame.requestId)
@@ -175,8 +176,4 @@ export class InspectorQueryConnection implements InspectorQueryRequester {
     this.pending.delete(requestId)
     pending.reject(error)
   }
-}
-
-function renderError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
 }

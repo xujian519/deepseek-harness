@@ -30,6 +30,7 @@
     "src/client/builtins/index.ts"
   ],
   "references": [
+    { "path": "../../util/value" },
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../core/session" },
