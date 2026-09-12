@@ -454,6 +454,7 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
  * @param spec - Fully specified terminal-process request.
  * @param stateDir - Private remote directory for one startup transaction.
  * @param pollMs - Remote session liveness poll cadence.
+ * @param ctx - Cordis context whose logger reports terminal setup cleanup failures.
  * @returns The live subprocess terminal handle.
  */
 export async function spawnE2BTerminal(
