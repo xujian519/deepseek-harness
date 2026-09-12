@@ -47,11 +47,11 @@ hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源�
 
 | 台账条目 | 状态 | Issue |
 |---|---|---|
-| H4 e2b 生命周期缺口 | 开放 | #79 |
+| H4 e2b 生命周期缺口 | 已收敛(余 5 处上游依赖 TODO,见 09-12 节) | #79 |
 | H5 agent/session announcement 状态机双份 | 开放 | #101 |
 | M1 小工具复制流行病 | 部分收敛,仍有残留 | #87 |
-| M3 settings 三个竞态 | 开放 | #80 |
-| M4 hooks 桥行为缺口 | 开放 | #81 |
+| M3 settings 三个竞态 | 已收敛 | #80 |
+| M4 hooks 桥行为缺口 | 修复就绪,待合并 | #81 |
 | M6 上帝文件 | 开放(行数已更新) | #86 |
 | M8 硬编码可调参数 | 开放(零修复) | #88 |
 | M9 legacy shim | 开放(前提已变) | #98 |
@@ -61,6 +61,14 @@ hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源�
 | H1–H3、H6、H7、M2、M5、M7、L1、L2、P1-1、P2-1、P2-4、P2-7、P2-8 | 已收敛 | — |
 
 L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装、identity 首启并发窗口、todo 双 schema 库混用等)保持台账登记、不单独立案:它们各自没有可独立评审的修复单元,合并成一个滚总 issue 又无法被单个 PR 关闭。
+
+## 2026-09-12 更新(已闭合项归档 + 覆盖率门禁决定)
+
+- **H4 已收敛**(#79,PR #104):`ready` 失败不再静默(落 `logger.warn`),teardown 按错误类型分类而非只识别 `SandboxNotFoundError`,publication 等待在取消时可终止。余下 5 处 `TODO(e2b-*)`(`e2b-status-watch`、`e2b-replace-environment`、`e2b-pgid-identity`×2、`e2b-terminal-setup-rollback`)的注释都以「等 E2B 上游能力」或「出现真实需求再补」为前提,不构成可独立评审的修复单元。
+- **M3 已收敛**(#80,PR #105):`__proto__` 原型污染、注册 dispose 的 quiescence、replacement 后陈旧写提交三项竞态均已修复。
+- **M4 修复就绪**(#81,PR #106):`SessionStart` 门控改为「被首个 step 消费才清除」,Stop 连续强制 continuation 有上限,`{"continue": false}` 成为运行级停止。
+- **门禁红项修复**:`verify-export-jsdoc` 缺 `@param ctx`(PR #107);`docs/event-producer-consumer.md` 事件图过期(随 PR #106 重新生成)。
+- **决定(2026-09-12)**:fork CI 不纳入覆盖率门禁。`.github/workflows/ci-fork.yml` 以裸 `vitest run` 执行,逐文件 100% 只在上游 CI 与本地 `pnpm run test:coverage` 强制;fork 侧已知未达标的文件(如 `packages/e2b/subprocess-e2b/src/process.ts` 99.48%)不阻塞合并。
 
 ## 总体评估
 
