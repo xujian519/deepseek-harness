@@ -1,5 +1,6 @@
 /** Full `globalThis.fetch` capture that publishes without delaying response delivery. */
 
+import { isAbortError } from '@deepseek-ai/dsh-value'
 import type { InspectorJsonValue } from '../../shared/json.ts'
 import type { InspectorPublisher } from '../../shared/bridge/publisher.ts'
 import { FETCH_TOPICS } from '../../shared/bridge/messages/network.ts'
@@ -218,10 +219,6 @@ function compactOutcome(requestId: string, outcome: CaptureOutcome): InspectorJs
 
 function headerEntries(headers: Headers): [string, string][] {
   return [...headers.entries()]
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
 }
 
 function renderError(error: unknown): string {

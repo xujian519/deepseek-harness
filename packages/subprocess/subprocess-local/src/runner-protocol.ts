@@ -12,6 +12,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
+import { hasExactKeys, isRecord } from '@deepseek-ai/dsh-value'
 
 /** Target state restored by the Linux bootstrap after systemd establishes the scope. */
 export interface LinuxLaunchRequest {
@@ -54,16 +55,6 @@ export interface LinuxLaunchFiles {
   directory: string
   requestPath: string
   startupErrorPath: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function hasExactKeys(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []): boolean {
-  const allowed = new Set([...required, ...optional])
-  return required.every(key => Object.hasOwn(value, key))
-    && Object.keys(value).every(key => allowed.has(key))
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {

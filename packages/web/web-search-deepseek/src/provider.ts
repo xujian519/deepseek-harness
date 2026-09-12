@@ -6,6 +6,7 @@
  * @module @deepseek-ai/dsh-web-search-deepseek/provider
  */
 
+import { isAbortError } from '@deepseek-ai/dsh-value'
 import { WebError } from '@deepseek-ai/dsh-web'
 import type {
   WebSearchProvider,
@@ -357,11 +358,6 @@ function searchAborted(signal?: AbortSignal, fallback?: unknown): WebError {
   return new WebError('DeepSeek search aborted', 'WEB_ABORTED', {
     cause: signal?.aborted === true ? signal.reason : fallback,
   })
-}
-
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
 }
 
 /** True for DeepSeek request limits that can be sent to the Messages API. */

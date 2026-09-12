@@ -6,6 +6,7 @@
  * @module @deepseek-ai/dsh-web-search-perplexity/provider
  */
 
+import { isAbortError } from '@deepseek-ai/dsh-value'
 import { WebError } from '@deepseek-ai/dsh-web'
 import type {
   WebSearchProvider,
@@ -152,14 +153,9 @@ export class PerplexitySearchProvider implements WebSearchProvider {
   }
 }
 
-// These two predicates are intentionally local: exporting generic internals
-// from the public web seam would add more API than these pure checks.
+// This predicate is intentionally local: exporting a generic internal from the
+// public web seam would add more API than this pure check.
 /* jscpd:ignore-start */
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
-
 /** True for a request limit that can be sent to Perplexity (a positive whole number). */
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0
