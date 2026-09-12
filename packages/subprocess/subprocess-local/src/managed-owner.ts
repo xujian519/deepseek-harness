@@ -32,6 +32,8 @@ export interface ManagedProcessLaunch {
  */
 export async function waitWithAbort(pending: Promise<void>, signal?: AbortSignal): Promise<boolean> {
   if (signal?.aborted) {
+    // The caller is told the wait did not complete, and the shared wait has no
+    // other observer yet, so consume its rejection here.
     void pending.catch(() => {})
     return false
   }

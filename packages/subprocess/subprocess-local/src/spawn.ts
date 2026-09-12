@@ -516,6 +516,8 @@ export function bindManagedProcess(
 
   const scheduleOwnerCleanup = (): boolean => {
     if (launch.owner.cleanup === undefined) return false
+    // Cleanup runs after a settlement a caller already observes; this handler
+    // only keeps the derived promise's rejection from surfacing as unhandled.
     queueMicrotask(() => { void done.finally(() => { launch.owner.cleanup?.() }).catch(() => {}) })
     return true
   }

@@ -77,6 +77,8 @@ class WindowsJobOwner implements BoundProcessOwner {
     private readonly directResultType: () => WindowsRunnerResult['type'] | undefined,
     private readonly failInfrastructure: (error: unknown) => void,
   ) {
+    // `waitForExit()` awaits this promise; the no-op handler keeps its rejection
+    // from surfacing before any caller does.
     void this.exited.catch(() => {})
   }
 

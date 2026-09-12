@@ -102,6 +102,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       // Direct result and range observation are independent. Start both so an
       // unreadable owner cannot hide behind a result that never settles.
       pending.push(Promise.all([
+        // The direct result belongs to the caller that started the process; the
+        // range wait below is this teardown's own evidence.
         handle.done.catch(() => {}),
         handle.waitForExit(),
       ]).then(() => { this.live.delete(handle) }))
@@ -182,6 +184,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     // case waitForExit resolves immediately after settlement.
     const release = (): Promise<void> =>
       handle.waitForExit().then(() => { this.live.delete(handle) })
+    // A failed range wait leaves the handle in `this.live` for teardown to
+    // force-kill; the release failure itself has no observer.
     void handle.done.then(release, release).catch(() => {})
     return handle
   }
@@ -288,6 +292,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       await handle.terminate()
       this.terminals.delete(handle)
     }
+    // A failed range wait leaves the terminal in `this.terminals` for teardown
+    // to force-kill; the release failure itself has no observer.
     void handle.done.then(release, release).catch(() => {})
     return handle
   }
