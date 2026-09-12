@@ -169,6 +169,8 @@ export class DeepSeekFileStore {
       throw uploadFailure(error)
     })
     this.inflight.set(key, shared)
+    // The upload failure is delivered to waitForUpload(); this handler only
+    // guards the derived promise that removes the in-flight entry.
     void shared.promise.finally(() => {
       if (this.inflight.get(key) === shared) this.inflight.delete(key)
     }).catch(() => {})

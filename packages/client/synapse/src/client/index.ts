@@ -176,6 +176,8 @@ export function apply(ctx: ClientContext): void {
       const sessionIds = new Set(sessions.map(session => session.id))
       const removedSessionIds = [...knownSessionIds].filter(id => !sessionIds.has(id))
       knownSessionIds = sessionIds
+      // Fire-and-forget: each pass posts the full list, so a dropped failure is
+      // superseded by the next debounced pass.
       void fetch('/synapse/api/sessions/sync', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

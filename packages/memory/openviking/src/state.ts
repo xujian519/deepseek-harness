@@ -112,6 +112,8 @@ export class StateStore {
       const parsed = parseStateFile(raw, expected)
       if (typeof parsed === 'string') {
         const target = `${expanded}.${parsed}-${Date.now()}`
+        // The parse issue below is the reported defect; a failed quarantine
+        // rename must not stop the store from opening with defaults.
         await rename(expanded, target).catch(() => {})
         quarantined.push({ path: target, issue: parsed })
       } else {

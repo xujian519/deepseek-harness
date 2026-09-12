@@ -213,6 +213,8 @@ export async function disposeCodexChild(
       outcome,
     }, thrown(error))
   }
+  // `waitForExit()` above is this teardown's evidence, and the handle's own
+  // failure already has its consumers; only range settlement matters here.
   await child.done.catch(() => {})
 }
 

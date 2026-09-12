@@ -387,6 +387,8 @@ function buildApi(
         await writeFile(tmp, content, 'utf8')
         await rename(tmp, path)
       } catch (error) {
+        // The write failure thrown below is the reported one; a failed temp
+        // cleanup must not replace it.
         await rm(tmp, { force: true }).catch(() => {})
         throw new SidebarError('fs-error', `cannot write "${path}": ${error instanceof Error ? error.message : String(error)}`, 400)
       }

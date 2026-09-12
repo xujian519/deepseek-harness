@@ -276,6 +276,8 @@ export async function openvikingPreStep(
   const turns = recall.userTurnCount(String(payload.agent.id))
   if (cadence > 0 && turns > 0 && turns % cadence === 0 && startupMap.lastRefreshTurn !== turns) {
     startupMap.lastRefreshTurn = turns
+    // Cadence-driven background refresh: this step never waits on the library
+    // overview, and a failure keeps the previous map.
     startupMap.refresh(payload.signal).catch(() => {})
   }
   return decision

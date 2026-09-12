@@ -218,9 +218,13 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       ...(this.stderrReader !== undefined ? { stderr: this.stderrReader } : {}),
     }
     this.stdin = spec.stdio.stdin === 'pipe' ? new DeferredStdin(this.readyState.promise) : undefined
+    // DeferredStdin and waitForExit() attach their handlers only once used;
+    // this guard keeps an earlier rejection from surfacing unhandled.
     void this.readyState.promise.catch(() => {})
     spec.signal?.addEventListener('abort', this.onAbort, { once: true })
     this.done = this.run()
+    // Callers that await `done` still receive this rejection; the guard covers
+    // a caller that only terminates.
     void this.done.catch(() => {})
     if (spec.signal?.aborted === true) this.terminate()
   }
@@ -326,6 +330,8 @@ export class E2BSubprocessHandle implements SubprocessHandle {
         },
       )
       const completion = handle.wait()
+      // `waitForProcessGroupId`/`waitForCommand` observe this later; the guard
+      // covers the setup failures that throw before either attaches.
       void completion.catch(() => {})
       if (!isValidProcessId(handle.pid)) {
         const invalidPid = new Error(`subprocess-e2b: E2B returned invalid command pid ${handle.pid}`)

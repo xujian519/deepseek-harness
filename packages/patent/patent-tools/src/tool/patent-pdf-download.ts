@@ -355,6 +355,8 @@ async function fetchPdfFallback(
       durationMs: Date.now() - start,
     }
   } catch (fetchErr) {
+    // The fetch failure returned below is the reported one; a failed temp
+    // cleanup must not replace it.
     await unlink(tmp).catch(() => {})
     networkErrorCode = fetchErr instanceof NetworkFetchError ? fetchErr.code : undefined
     return failed(fetchErr instanceof Error ? fetchErr.message : String(fetchErr))

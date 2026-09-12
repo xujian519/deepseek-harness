@@ -502,6 +502,8 @@ export class WorkspaceStore {
     const lockFile = `${this.dataFile}.lock`
     if (await this.tryAcquire(lockFile)) return
     if (await this.lockIsStale(lockFile)) {
+      // Breaking a stale lock is best-effort; tryAcquire() below reports whether
+      // the lock was taken.
       await unlink(lockFile).catch(() => {})
       if (await this.tryAcquire(lockFile)) return
     }

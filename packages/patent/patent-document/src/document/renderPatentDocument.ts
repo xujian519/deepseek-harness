@@ -92,6 +92,8 @@ async function atomicWriteFile(file: string, content: string): Promise<void> {
     await rm(file, { force: true })
     await rename(tmp, file)
   } catch (error) {
+    // The step failure thrown below is the reported one; a failed tmp cleanup
+    // must not replace it.
     await rm(tmp, { force: true }).catch(() => {})
     throw error
   }

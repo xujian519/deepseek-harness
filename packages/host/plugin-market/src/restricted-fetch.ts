@@ -255,6 +255,8 @@ async function readBounded(response: Response, maxBytes: number, timeoutMs: numb
       text += decoder.decode(value, { stream: true })
     }
   } finally {
+    // The read outcome is already the caller's; a failed stream cancel has no
+    // other observer and must not replace it.
     void reader.cancel().catch(() => {})
   }
   return text
