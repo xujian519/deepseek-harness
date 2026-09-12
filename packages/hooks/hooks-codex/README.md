@@ -46,6 +46,7 @@ Use it when you own a Codex `hooks.json` and its command hooks should gate promp
 | `model` | `''` | Model name stamped on every payload (Codex includes `model` on each event) |
 | `defaultTimeoutMs` | `600,000` | Per-hook timeout when a hook sets none (the Codex default) |
 | `stderrSummaryMaxChars` | `500` | Character cap on the persisted `hook/result` stderr summary |
+| `maxStopContinuations` | `10` | Maximum consecutive Stop-hook forced continuations before the run is cancelled |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-hooks-codex) is the exhaustive source for every accepted field.
 
@@ -168,11 +169,11 @@ A blocked prompt sends no request and invalidates nothing. Denial, feedback, and
 These limits describe what your Codex hooks cannot do through this bridge yet, and where behavior differs from the reference tool. They are current package constraints, not a task backlog.
 
 - **Unsupported hook events (5 of Codex's current 10)** — `PermissionRequest`, `PreCompact`, `PostCompact`, `SubagentStart`, and `SubagentStop`. Config for these events is silently dropped during parsing. The comparison baseline is Codex's [official hook reference](https://learn.chatgpt.com/docs/hooks).
-- **`SessionStart` is partial** — plain stdout and JSON `additionalContext` work, but the hook runs detached, so context can miss the first request.
-- **`UserPromptSubmit` is partial** — blocking plus plain-stdout or JSON context work, but the common `systemMessage` and `{"continue": false}` controls are not enforced.
+- **`SessionStart` is partial** — plain stdout and JSON `additionalContext` work and are gated into the first step.
+- **`UserPromptSubmit` is partial** — blocking plus plain-stdout or JSON context work, but `systemMessage` is not surfaced.
 - **`PreToolUse` is partial** — blocking works, but `additionalContext`, `permissionDecision: "allow"`, and `updatedInput` are ignored. Every tool is represented as `tool_input: { command }`, so non-shell tool arguments are not faithfully exposed to the hook.
-- **`PostToolUse` is partial** — blocking feedback and JSON `additionalContext` work, but `{"continue": false}` is not enforced, non-shell tool arguments are reduced to `{ command }`, and structured tool output is flattened to text in `tool_response`.
-- **`Stop` is partial** — blocking forces another model turn, but `stop_hook_active` is always `false`, `last_assistant_message` is always `null`, and `{"continue": false}` is not enforced. An unconditionally blocking hook therefore force-continues every step unless it self-limits.
+- **`PostToolUse` is partial** — blocking feedback and JSON `additionalContext` work, but non-shell tool arguments are reduced to `{ command }`, and structured tool output is flattened to text in `tool_response`.
+- **`Stop` is partial** — blocking forces another model turn, `stop_hook_active` is `true` when the previous Stop hook already forced a continuation, and `maxStopContinuations` caps consecutive forced continuations before cancelling the run. `last_assistant_message` is always `null`.
 - **Common payload and output fields are partial** — every mapped event reports the statically configured `model` and `permission_mode: "default"` instead of current Codex runtime values, and `transcript_path` is never populated: it is always `null`, because the persistence seam exposes no artifact paths and the default-zstd session log is not readable by hook scripts. `systemMessage` is logged + warned but not surfaced, and `{"continue": false}` is recorded but does not apply Codex's event-specific stop behavior.
 - **Config loading and execution are partial** — one process-level `configPath` is parsed at load; Codex's active user, project, session, system/managed, and plugin layers, trust controls, and inline `config.toml` hook form are not implemented. Only synchronous `command` handlers run, current metadata such as `statusMessage` and `commandWindows` is ignored, and matching handlers run serially rather than with Codex's concurrent launch semantics.
 

@@ -408,9 +408,7 @@ export function defineCoverageCases(group: CoverageGroup): void {
   })
 
   if (group === 'context') describe('hooks-claude-code coverage — continue:false, context arm, no-cwd', () => {
-    it('a {"continue":false} hook is RECORDED as decision "stop" but does not halt the run (TODO(hook-continue-false))', async () => {
-    // The extension points cannot yet honor `continue:false` as a hard halt. The log must still record the
-    // stop decision while execution and the turn continue normally.
+    it('a {"continue":false} hook is recorded as decision "stop" and cancels the run', async () => {
       const d = dir()
       const s = sh(d, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"halt"}\'\n')
       const path = hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
@@ -423,9 +421,10 @@ export function defineCoverageCases(group: CoverageGroup): void {
       await waitForIdle(ctx, agent)
       const res = events(agent).find(e => e.type === 'hook/result')
       expect(res?.type === 'hook/result' && res.data.decision).toBe('stop') // recorded
-      expect(ran).toBe(true) // NOT honored: the tool still ran (halt is deferred)
+      expect(ran).toBe(false) // honored: the run was cancelled before the tool ran
       const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
-      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('completed') // ran to completion
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('aborted')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
     })
 
     it('a PostToolUse hook that BOTH blocks AND attaches additionalContext', async () => {
@@ -628,23 +627,22 @@ export function defineCoverageCases(group: CoverageGroup): void {
   })
 
   if (group === 'edge-paths') describe('hooks-claude-code coverage — detached-listener catch handlers', () => {
-    it('a throwing SessionStart inject is contained (logged, agent still runs)', async () => {
+    it('a throwing SessionStart cancel is contained (logged, agent still runs)', async () => {
       const d = dir()
-      const s = sh(d, 'start.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\'\n')
+      const s = sh(d, 'start.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"start halt"}\'\n')
       const path = hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(path, adapter)
+      const warn = vi.fn(); ctx.logger.warn = warn as never
       const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      // Make inject throw, forcing the SessionStart .catch path.
-      const original = agent.inject.bind(agent)
-      let threw = false
-      agent.inject = (() => { threw = true; throw new Error('inject boom') })
-      await waitFor(() => threw)
-      expect(threw).toBe(true)
-      agent.inject = original
+      // Make cancel throw, forcing the SessionStart .catch path.
+      const original = agent.cancel.bind(agent)
+      agent.cancel = () => { throw new Error('cancel boom') }
+      await waitFor(() => warn.mock.calls.some(c => String(c[0]).includes('SessionStart hook failed')))
+      agent.cancel = original
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
       await waitForIdle(ctx, agent)
-      expect(adapter.requests).toHaveLength(1) // loop survived the thrown inject
+      expect(adapter.requests).toHaveLength(1) // loop survived the thrown cancel
     })
   })
 
@@ -734,20 +732,86 @@ export function defineCoverageCases(group: CoverageGroup): void {
     })
   })
 
-  if (group === 'edge-paths') describe('hooks-claude-code coverage — SessionStart timing is best-effort (no-wait)', () => {
-    it('does NOT crash or block when the prompt is sent immediately (context is best-effort, may miss the first request)', async () => {
-    // Session-start injection is detached, so an immediate prompt need not observe it. Assert only
-    // the guaranteed behavior—no crash and a completed turn—without pre-waiting away the race.
+  if (group === 'edge-paths') describe('hooks-claude-code coverage — SessionStart delivery gate', () => {
+    it('includes SessionStart context on the first request even when the prompt is sent immediately', async () => {
       const d = dir()
-      const s = sh(d, 'start.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"late ctx"}}\'\n')
+      const s = sh(d, 'start.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"start ctx"}}\'\n')
       const path = hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: s }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(path, adapter)
       const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      // Send immediately — do NOT wait for the session-start inject.
+      // Send immediately — the pre-step gate waits for SessionStart before assembling the request.
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
       await waitForIdle(ctx, agent)
-      expect(adapter.requests).toHaveLength(1) // the turn ran regardless of hook timing
+      expect(adapter.requests).toHaveLength(1)
+      expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('start ctx')
     })
+  })
+
+  if (group === 'stop') describe('hooks-claude-code coverage — run-level stop arms', () => {
+    it('a PostToolUse hook requesting continue:false blocks the tool, carries the reason, and cancels the run', async () => {
+      const d = dir()
+      const s = sh(d, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"tool halt","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"after the stop"}}\'\n')
+      const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
+      const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
+      const ctx = await harness(path, adapter)
+      ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'e', parameters: {}, async execute() { return [{ type: 'text', text: 'ok' }] } }))
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+      await waitForIdle(ctx, agent)
+      const result = events(agent).find(e => e.type === 'tool/result')
+      expect(result?.type === 'tool/result' && result.data.message.content[0].isError).toBe(true)
+      expect(result?.type === 'tool/result' && JSON.stringify(result.data.message.content)).toContain('tool halt')
+      // The hook also attaches additionalContext, exercising the context-carrying
+      // arm of the block decision; the cancel ends the run before it is injected.
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('aborted')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
+
+    it('a PostToolUse hook requesting continue:false without a reason or context uses the point fallback', async () => {
+      const d = dir()
+      const s = sh(d, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false}\'\n')
+      const path = hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: s }] }] })
+      const adapter = new MockAdapter([toolCallResponse('c1', 'echo', {}), textResponse('done')])
+      const ctx = await harness(path, adapter)
+      ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'e', parameters: {}, async execute() { return [{ type: 'text', text: 'ok' }] } }))
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+      await waitForIdle(ctx, agent)
+      const result = events(agent).find(e => e.type === 'tool/result')
+      expect(result?.type === 'tool/result' && JSON.stringify(result.data.message.content)).toContain('PostToolUse hook requested stop')
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
+
+    it('a Stop hook requesting continue:false cancels the run instead of forcing a continuation', async () => {
+      const d = dir()
+      const s = sh(d, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"stop halt"}\'\n')
+      const path = hooks(d, { Stop: [{ hooks: [{ type: 'command', command: s }] }] })
+      const adapter = new MockAdapter([textResponse('one')])
+      const ctx = await harness(path, adapter)
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+      await waitForIdle(ctx, agent)
+      expect(adapter.requests).toHaveLength(1) // no forced continuation
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('aborted')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
+
+    it('a Stop hook requesting continue:false without a reason uses the point fallback', async () => {
+      const d = dir()
+      const s = sh(d, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false}\'\n')
+      const path = hooks(d, { Stop: [{ hooks: [{ type: 'command', command: s }] }] })
+      const adapter = new MockAdapter([textResponse('one')])
+      const ctx = await harness(path, adapter)
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+      await waitForIdle(ctx, agent)
+      expect(adapter.requests).toHaveLength(1)
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
   })
 }

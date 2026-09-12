@@ -48,6 +48,7 @@ kind: "package-reference"
 | `projectDir` | 会话工作区 | 替换 `${CLAUDE_PROJECT_DIR}` 并设置 `CLAUDE_PROJECT_DIR` 环境变量 |
 | `defaultTimeoutMs` | `600,000` | hook 未设置时的每 hook 超时（即 Claude Code 默认值） |
 | `stderrSummaryMaxChars` | `500` | 持久化 `hook/result` stderr 摘要的字符上限 |
+| `maxStopContinuations` | `10` | Stop hook 强制 continuation 的连续最大次数，超出则取消运行 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-hooks-claude-code)是每个受支持字段的穷尽式真源。
 
@@ -172,13 +173,13 @@ hook 不返回上下文时没有成本。Hook 文本取决于数据，会被记�
 这些限制描述你的 Claude Code 钩子目前还无法通过本桥接做到的事情，以及行为与参考工具的差异。它们是当前包约束，而非任务积压。
 
 - **不支持的 hook 事件（Claude Code 当前 30 项中的 23 项）**——`Setup`、`InstructionsLoaded`、`UserPromptExpansion`、`MessageDisplay`、`PermissionRequest`、`PostToolUseFailure`、`PostToolBatch`、`PermissionDenied`、`Notification`、`TaskCreated`、`TaskCompleted`、`StopFailure`、`TeammateIdle`、`ConfigChange`、`CwdChanged`、`FileChanged`、`WorktreeCreate`、`WorktreeRemove`、`PreCompact`、`PostCompact`、`SessionEnd`、`Elicitation` 与 `ElicitationResult`。这些事件的配置会在配置组解析前被忽略，因此不支持的事件既不会使配置失效，也不会注册 hook。比较基线是 Claude Code [官方 hook 事件参考](https://code.claude.com/docs/en/hooks#hook-events)。
-- **`SessionStart` 只支持部分功能**——会消费 JSON `additionalContext`，但不支持纯 stdout 上下文、`initialUserMessage`、`sessionTitle`、`watchPaths`、`reloadSkills` 与 `CLAUDE_ENV_FILE`。hook 脱离运行，因此上下文可能错过第一个请求，payload 会省略 `model`、`agent_type` 与 `session_title` 等可选字段。
+- **`SessionStart` 只支持部分功能**——会消费 JSON `additionalContext` 并通过门控加入第一步，但不支持纯 stdout 上下文、`initialUserMessage`、`sessionTitle`、`watchPaths`、`reloadSkills` 与 `CLAUDE_ENV_FILE`。payload 会省略 `model`、`agent_type` 与 `session_title` 等可选字段。
 - **`UserPromptSubmit` 只支持部分功能**——支持阻塞与 JSON `additionalContext`，但不支持纯 stdout 上下文、`sessionTitle` 与 `suppressOriginalPrompt`。除非被覆盖，否则桥接还会使用自身 600 秒默认值，而非 Claude Code 的事件特定 30 秒 command 超时。
 - **`PreToolUse` 只支持部分功能**——`deny` 与 `ask` 决策可用；`allow` 不会预审批，`defer` 不受支持，`additionalContext` 会被忽略，`updatedInput` 会被记录 + 警告但不应用（见 [pre-tool-input-rewrite Agent Note](../../../.agents/notes/proposed/feature/2026-06-30-pre-tool-input-rewrite.zh.md)）。
 - **`PostToolUse` 只支持部分功能**——支持阻塞反馈与 JSON `additionalContext`，但不支持 `updatedToolOutput` 与 `updatedMCPToolOutput`，`tool_response` 会展平为文本。
 - **`SubagentStart` 与 `SubagentStop` 只支持部分功能**——两者均报告常量 `agent_type` `general-purpose`，并在 Claude Code 报告父会话的位置使用 child 会话 id。Start 上下文是尽力而为，且只能到达仍在运行的同进程 child；stop 只观测，无法阻塞 subagent 或向其提供上下文。Stop 省略 `agent_transcript_path`、`last_assistant_message`、`background_tasks` 与 `session_crons`，并始终报告 `stop_hook_active: false`。
-- **`Stop` 只支持部分功能**——阻塞会强制另一个模型轮次，但 `stop_hook_active` 始终为 `false`，会省略 `last_assistant_message`、`background_tasks` 与 `session_crons`，且未实现连续阻塞上限。因此，无条件阻塞 hook 会在每个步骤中强制 continuation，除非它自我限制。
-- **通用 payload 与输出字段只支持部分功能**——已映射事件会省略 Claude Code 原本会提供的 `prompt_id`、`permission_mode` 与 `effort`，且 `transcript_path` 永不填充：它始终为空字符串，因为持久化 seam 不暴露产物路径，且默认使用 Zstandard 压缩的会话日志无法被 hook 脚本读取。`systemMessage` 会被记录 + 警告但不呈现；`{"continue": false}` 会被记录但不会停止运行；`suppressOutput`、`stopReason` 与 `terminalSequence` 不会被应用。
+- **`Stop` 只支持部分功能**——阻塞会强制另一个模型轮次；上一次 Stop hook 已强制 continuation 时 `stop_hook_active` 为 `true`，并可通过 `maxStopContinuations` 限制连续强制 continuation 的次数，超出则取消运行。`last_assistant_message`、`background_tasks` 与 `session_crons` 仍被省略。
+- **通用 payload 与输出字段只支持部分功能**——已映射事件会省略 Claude Code 原本会提供的 `prompt_id`、`permission_mode` 与 `effort`，且 `transcript_path` 永不填充：它始终为空字符串，因为持久化 seam 不暴露产物路径，且默认使用 Zstandard 压缩的会话日志无法被 hook 脚本读取。`systemMessage` 会被记录 + 警告但不呈现；`suppressOutput`、除作为停止原因外的 `stopReason` 与 `terminalSequence` 不会被应用。
 - **Handler 与配置只支持部分功能**——只运行 shell 形态 command handler。会跳过 `http`、`mcp_tool`、`prompt` 与 `agent` handler；`args`、`async`、`asyncRewake`、`shell`、`if`、`once` 与 `statusMessage` 等 command handler 选项不会被遵循。匹配 handler 串行运行且不去重，而 Claude Code 会并行运行并对相同 handler 去重。一个进程级 `configPath` 会在加载时解析一次；尚未实现 Claude Code 的分层项目、用户、插件与策略发现以及实时重新加载。
 
 <a id="dev-note"></a>
@@ -189,6 +190,6 @@ hook 不返回上下文时没有成本。Hook 文本取决于数据，会被记�
 
 本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-上面的延期缺口就是工作队列：按会话的 hook 配置发现、会话启动投递门、stop 循环防护，以及 `continue: false` 的运行级停止。目前均无设计；官方 Claude Code 参考是实现其中任何一项的基线。
+剩余的延期缺口是按会话的 hook 配置发现；官方 Claude Code 参考是实现它的基线。
 
 </details>

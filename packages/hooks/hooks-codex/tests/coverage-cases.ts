@@ -204,8 +204,7 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(join(d, 'hooks.json'), adapter)
       const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      await waitFor(() => agent.inbox.nextStep.some(message =>
-        message.content.some(block => block.type === 'text' && block.text.includes('start-ctx'))))
+      // Do NOT pre-wait for injection; the pre-step gate folds the context into the first request.
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
       expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('start-ctx')
     })
@@ -233,6 +232,38 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
       expect(events(agent).some(e => e.type === 'user/message' && e.data.source.kind !== 'user' && e.data.content.some(b => b.type === 'text' && b.text.includes('post-ctx')))).toBe(true)
     })
+
+    it('a PostToolUse hook requesting continue:false blocks the tool, carries the reason, and cancels the run', async () => {
+      const d = dir()
+      // The hook also attaches additionalContext, exercising the context-carrying
+      // arm of the block decision; the cancel ends the run before it is injected.
+      hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: sh(d, 'pc.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"tool halt","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"after the stop"}}\'\n') }] }] })
+      const adapter = new MockAdapter([toolCallResponse('c1', 'Bash', { command: 'ls' }), textResponse('done')])
+      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      ctx.tools.register(defineContentToolFixture({ name: 'Bash', description: 'b', parameters: { command: { type: 'string' } }, async execute() { return [{ type: 'text', text: 'ok' }] } }))
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
+      const result = events(agent).find(e => e.type === 'tool/result')
+      expect(result?.type === 'tool/result' && result.data.message.content[0].isError).toBe(true)
+      expect(result?.type === 'tool/result' && JSON.stringify(result.data.message.content)).toContain('tool halt')
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('aborted')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
+
+    it('a PostToolUse hook requesting continue:false without a reason or context uses the point fallback', async () => {
+      const d = dir()
+      hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: sh(d, 'pc.sh', '#!/usr/bin/env bash\necho \'{"continue":false}\'\n') }] }] })
+      const adapter = new MockAdapter([toolCallResponse('c1', 'Bash', { command: 'ls' }), textResponse('done')])
+      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      ctx.tools.register(defineContentToolFixture({ name: 'Bash', description: 'b', parameters: { command: { type: 'string' } }, async execute() { return [{ type: 'text', text: 'ok' }] } }))
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
+      const result = events(agent).find(e => e.type === 'tool/result')
+      expect(result?.type === 'tool/result' && JSON.stringify(result.data.message.content)).toContain('PostToolUse hook requested stop')
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
   })
 
   if (selected.has('result-shape')) describe('hooks-codex coverage — hook result shape and configuration', () => {
@@ -347,14 +378,14 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       expect(events(agent).some(e => e.type === 'user/message' && e.data.source.kind !== 'user')).toBe(false)
     })
 
-    it('a throwing SessionStart inject is contained (logged)', async () => {
+    it('a throwing SessionStart cancel is contained (logged)', async () => {
       const d = dir()
-      hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: sh(d, 's.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"x"}}\'\n') }] }] })
+      hooks(d, { SessionStart: [{ hooks: [{ type: 'command', command: sh(d, 's.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"start halt"}\'\n') }] }] })
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(join(d, 'hooks.json'), adapter)
       const warn = vi.fn(); ctx.logger.warn = warn as never
       const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      agent.inject = (() => { throw new Error('inject boom') })
+      agent.cancel = () => { throw new Error('cancel boom') }
       await waitFor(() => warn.mock.calls.some(c => String(c[0]).includes('SessionStart hook failed')))
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('SessionStart hook failed'))
     })
@@ -387,12 +418,9 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       expect(events(agent).some(e => e.type === 'hook/invoked')).toBe(false)
     })
 
-    it('a {"continue":false} hook is RECORDED as "stop" but does not halt the run (TODO(hook-continue-false))', async () => {
-    // Honoring `continue:false` is deferred — the extension points have no hard-halt
-    // primitive. Assert the LOG records the halt request AND that the run is not
-    // actually halted (the tool still runs, the turn completes).
+    it('a {"continue":false} hook is recorded as "stop" and cancels the run', async () => {
       const d = dir()
-      hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: sh(d, 's.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"halt"}\'\n') }] }] })
+      hooks(d, { PreToolUse: [{ hooks: [{ type: 'command', command: sh(d, 's.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"tool halt"}\'\n') }] }] })
       const adapter = new MockAdapter([toolCallResponse('c1', 'Bash', { command: 'x' }), textResponse('done')])
       const ctx = await harness(join(d, 'hooks.json'), adapter)
       let ran = false
@@ -401,7 +429,10 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
       const res = events(agent).find(e => e.type === 'hook/result')
       expect(res?.type === 'hook/result' && res.data.decision).toBe('stop') // recorded
-      expect(ran).toBe(true) // NOT honored: the tool still ran (halt is deferred)
+      expect(ran).toBe(false) // honored: the run was cancelled before the tool ran
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('aborted')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
     })
 
     it('PreToolUse deny with EMPTY stderr uses the default reason (?? right arm)', async () => {
@@ -480,6 +511,31 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       const res = events(agent).find(e => e.type === 'hook/result')
       expect(res?.type === 'hook/result' && 'exitCode' in res.data).toBe(false)
     })
+
+    it('a Stop hook requesting continue:false cancels the run instead of forcing a continuation', async () => {
+      const d = dir()
+      hooks(d, { Stop: [{ hooks: [{ type: 'command', command: sh(d, 's.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"stop halt"}\'\n') }] }] })
+      const adapter = new MockAdapter([textResponse('one')])
+      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
+      expect(adapter.requests).toHaveLength(1) // no forced continuation
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('aborted')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
+
+    it('a Stop hook requesting continue:false without a reason uses the point fallback', async () => {
+      const d = dir()
+      hooks(d, { Stop: [{ hooks: [{ type: 'command', command: sh(d, 's.sh', '#!/usr/bin/env bash\necho \'{"continue":false}\'\n') }] }] })
+      const adapter = new MockAdapter([textResponse('one')])
+      const ctx = await harness(join(d, 'hooks.json'), adapter)
+      const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
+      expect(adapter.requests).toHaveLength(1)
+      const turnEnd = events(agent).findLast(e => e.type === 'turn/end')
+      expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind === 'aborted' && turnEnd.data.reason.reason.kind).toBe('hook')
+    }, 15_000)
   })
 
   if (selected.has('payload')) describe('hooks-codex coverage — continuation, payload, and cwd mapping', () => {
@@ -544,8 +600,7 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       const adapter = new MockAdapter([textResponse('ok')])
       const ctx = await harness(join(d, 'hooks.json'), adapter)
       const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
-      await waitFor(() => agent.inbox.nextStep.some(message =>
-        message.content.some(block => block.type === 'text' && block.text.includes('session preamble'))))
+      // Do NOT pre-wait for injection; the pre-step gate folds the context into the first request.
       agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } })); await waitForIdle(ctx, agent)
       expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('session preamble')
     })

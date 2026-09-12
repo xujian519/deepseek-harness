@@ -901,6 +901,12 @@ export interface Config {
   defaultTimeoutMs?: number
   /** Character cap for the `hook/result` event's persisted stderr summary. */
   stderrSummaryMaxChars?: number
+  /**
+   * Maximum consecutive times a blocking `Stop` hook may force another step
+   * before the run is cancelled. Prevents an unconditionally blocking hook from
+   * running forever. Defaults to 10.
+   */
+  maxStopContinuations?: number
 }
 ```
 
@@ -928,6 +934,12 @@ export interface Config {
   defaultTimeoutMs?: number
   /** Character cap for the `hook/result` event's persisted stderr summary. */
   stderrSummaryMaxChars?: number
+  /**
+   * Maximum consecutive times a blocking `Stop` hook may force another step
+   * before the run is cancelled. Prevents an unconditionally blocking hook from
+   * running forever. Defaults to 10.
+   */
+  maxStopContinuations?: number
 }
 ```
 

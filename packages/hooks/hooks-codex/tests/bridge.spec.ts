@@ -39,14 +39,19 @@ function writeHooks(dir: string, hooks: unknown): void {
   writeFileSync(join(dir, 'hooks.json'), JSON.stringify({ hooks }))
 }
 
-async function harness(dir: string, adapter: MockAdapter, beforeHooks?: (ctx: Context) => void): Promise<Context> {
+async function harness(
+  dir: string,
+  adapter: MockAdapter,
+  beforeHooks?: (ctx: Context) => void,
+  pluginConfig?: Partial<HooksCodex.Config>,
+): Promise<Context> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
   beforeHooks?.(ctx)
-  await ctx.plugin(HooksCodex, { configPath: join(dir, 'hooks.json'), model: 'test-model' })
+  await ctx.plugin(HooksCodex, { configPath: join(dir, 'hooks.json'), model: 'test-model', ...pluginConfig })
   ctx.llm.registerAdapter(['mock'], adapter)
   return ctx
 }
@@ -104,6 +109,72 @@ describe('hooks-codex bridge', () => {
     expect(adapter.requests).toHaveLength(2)
     expect(JSON.stringify(adapter.requests[1]!.messages)).toContain('keep going: address the goal')
   }, 15_000) // Two real hook subprocesses and agent steps need startup and teardown headroom under load.
+
+  it('a UserPromptSubmit hook requesting continue:false cancels the run before the model call', async () => {
+    const dir = configDir()
+    const stopHook = script(dir, 'stop.sh', '#!/usr/bin/env bash\necho \'{"continue":false,"stopReason":"policy halt"}\'\n')
+    writeHooks(dir, { UserPromptSubmit: [{ hooks: [{ type: 'command', command: stopHook }] }] })
+
+    const adapter = new MockAdapter([textResponse('should not run')])
+    const ctx = await harness(dir, adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(adapter.requests).toHaveLength(0)
+    const ends = events(agent).filter(e => e.type === 'turn/end')
+    expect(ends.some(e => e.type === 'turn/end' && e.data.reason.kind === 'aborted' && e.data.reason.reason.kind === 'hook')).toBe(true)
+  })
+
+  it('cancels the run after too many consecutive Stop-hook continuations', async () => {
+    const dir = configDir()
+    const cont = script(dir, 'cont.sh', '#!/usr/bin/env bash\necho "keep going" >&2\nexit 2\n')
+    writeHooks(dir, { Stop: [{ hooks: [{ type: 'command', command: cont }] }] })
+
+    const adapter = new MockAdapter(Array.from({ length: 20 }, (_, i) => textResponse(`answer ${i}`)))
+    const ctx = await harness(dir, adapter, undefined, { maxStopContinuations: 2 })
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(adapter.requests).toHaveLength(3) // 1 original + 2 forced continuations
+    const ends = events(agent).filter(e => e.type === 'turn/end')
+    expect(ends.some(e => e.type === 'turn/end' && e.data.reason.kind === 'aborted' && e.data.reason.reason.kind === 'hook')).toBe(true)
+  }, 15_000)
+
+  it('waits for a slow SessionStart hook before the first step', async () => {
+    const dir = configDir()
+    const slow = script(dir, 'slow.sh', '#!/usr/bin/env bash\nsleep 0.2\necho "gated context"\n')
+    writeHooks(dir, { SessionStart: [{ hooks: [{ type: 'command', command: slow }] }] })
+
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(dir, adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    // Do NOT pre-wait for injection; the pre-step gate must hold the step until SessionStart resolves.
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('gated context')
+  })
+
+  it('a SessionStart hook that resolved before the first prompt still delivers its context', async () => {
+    const dir = configDir()
+    const marker = join(dir, 'ran')
+    const early = script(dir, 'early.sh', `#!/usr/bin/env bash\necho "early context"\ntouch "${marker}"\n`)
+    writeHooks(dir, { SessionStart: [{ hooks: [{ type: 'command', command: early }] }] })
+
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(dir, adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    // Wait for the hook to finish, then let its detached continuation settle
+    // before the first prompt: the gate must survive until a step consumes it.
+    await waitFor(() => existsSync(marker))
+    await new Promise(resolve => setTimeout(resolve, 200))
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    expect(JSON.stringify(adapter.requests[0]!.messages)).toContain('early context')
+  })
 
   it('turn cancellation aborts and reaps a running UserPromptSubmit hook before idle', async () => {
     const dir = configDir()
