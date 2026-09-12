@@ -438,6 +438,55 @@ describe('second review regressions', () => {
     expect(provider.doc['ui-theme']).toEqual({ theme: 'light' })
   })
 
+  it('awaits an in-flight watcher before the registrant fiber finishes dispose', async () => {
+    const { ctx } = await boot()
+    let scope: SettingsScope<ThemeConfig> | undefined
+    let release: (() => void) | undefined
+    let finished = false
+    const fiber = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        scope = child.settings.register('ui-theme', ThemeSchema)
+        scope.watch(async () => {
+          await new Promise<void>((resolve) => { release = resolve })
+          finished = true
+        })
+      },
+    })
+    await fiber
+    ;(ctx.settings as unknown as { publish(doc: Record<string, unknown>): void })
+      .publish({ 'ui-theme': { theme: 'light' } })
+    await vi.waitFor(() => { expect(release).toBeDefined() })
+    let disposed = false
+    const disposing = fiber.dispose().then(() => { disposed = true })
+    await new Promise(resolve => setTimeout(resolve, 15))
+    expect(disposed).toBe(false)
+    release!()
+    await disposing
+    expect(finished).toBe(true)
+  })
+
+  it('re-resolves a replacement registration after an old in-flight write lands', async () => {
+    const { ctx } = await boot({ persistDelayMs: 30 })
+    let scope: SettingsScope<ThemeConfig> | undefined
+    const fiber = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        scope = child.settings.register('ui-theme', ThemeSchema)
+      },
+    })
+    await fiber
+    const pending = scope!.update({ theme: 'light' })
+    await new Promise(resolve => setTimeout(resolve, 5))
+    await fiber.dispose()
+
+    const nextScope = ctx.settings.register('ui-theme', ThemeSchema)
+    await pending
+    await new Promise(resolve => setTimeout(resolve, 40))
+
+    expect(nextScope.get()).toEqual({ theme: 'light', fontSize: 14 })
+  })
+
   it('drains in-flight writes at service dispose and rejects later ones', async () => {
     const { ctx, provider, fiber } = await boot({ persistDelayMs: 20 })
     const service = ctx.settings
@@ -640,6 +689,21 @@ describe('third review regressions', () => {
     const loop: unknown[] = []
     loop.push(loop)
     await expect(scope.update({ value: loop })).rejects.toThrow(/circular reference at \$\.value\[0\]/)
+  })
+
+  it('does not let a "__proto__" key pollute the object prototype', async () => {
+    const { ctx } = await boot()
+    const scope = ctx.settings.register('ui-theme', z.object({ value: z.any() }))
+    await scope.update({ value: { ['__proto__']: { polluted: true } } })
+    const value = scope.get() as { value: Record<string, unknown> }
+    expect(Object.getPrototypeOf(value.value)).toBe(Object.prototype)
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined()
+    expect(value.value['__proto__']).toEqual({ polluted: true })
+
+    await ctx.settings.mutate('ui-theme', [{ op: 'set', path: ['value', '__proto__'], value: { mutated: true } }])
+    const mutated = ctx.settings.describe().find(d => d.ns === 'ui-theme')!.user as { value: Record<string, unknown> }
+    expect(Object.getPrototypeOf(mutated.value)).toBe(Object.prototype)
+    expect(mutated.value['__proto__']).toEqual({ mutated: true })
   })
 
   it('accepts one object referenced twice without a cycle', async () => {
