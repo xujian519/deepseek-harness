@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-value` holds the untrusted-input primitives every parser, config loader, and wire decoder re-implements: `isRecord` and `isPlainObject` classify objects, `hasExactKeys` checks a record's own key set, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers and narrow `unknown` to `number`, `assertResolvedConfig` pins the plugin-config check after schema defaults run, `isENOENT`, `isEEXIST`, and `isAbortError` classify errno and abort errors, and `errorMessage` and `toError` normalize thrown values without letting hostile coercion escape; `deepFreeze` is re-exported from `dsh-util-values`. The library owns each predicate and message, so diagnostics stay consistent harness-wide.
+`dsh-value` holds the untrusted-input primitives every parser, config loader, and wire decoder re-implements: `isRecord` classifies objects and `asRecord` reads one or `null`, `isPlainObject` classifies plain data objects, `hasExactKeys` checks a record's own key set, `assertPositiveInteger` and `assertPositiveFinite` reject out-of-range numbers and narrow `unknown` to `number`, `assertResolvedConfig` pins the plugin-config check after schema defaults run, `isENOENT`, `isEEXIST`, and `isAbortError` classify errno and abort errors, and `errorMessage` and `toError` normalize thrown values without letting hostile coercion escape; `deepFreeze` is re-exported from `dsh-util-values`. The library owns each predicate and message, so diagnostics stay consistent harness-wide.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Reach for `isRecord` before reading properties off an `unknown` value, for `hasExactKeys` where a decoded boundary must carry exactly the declared keys, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, for `assertResolvedConfig` where a plugin receives its schemastery-resolved config, and for `deepFreeze` when a handed-out value must stay immutable.
+Reach for `isRecord` before reading properties off an `unknown` value, for `asRecord` where a decoder hands the narrowed record to its own readers, for `hasExactKeys` where a decoded boundary must carry exactly the declared keys, for `assertPositiveInteger` at the config boundary where a numeric option must be a positive integer, for `assertResolvedConfig` where a plugin receives its schemastery-resolved config, and for `deepFreeze` when a handed-out value must stay immutable.
 
 ### Guarding an untrusted object
 
@@ -40,6 +40,21 @@ if (isRecord(value) && typeof value.type === 'string') {
 ```
 
 `isRecord` accepts every object prototype — `Date`, `Map`, class instances — and rejects `null`, arrays, primitives, and functions. It answers "can I index this like a record", never "is this a plain object literal".
+
+### Reading an untrusted value as a record
+
+```ts
+import { asRecord } from '@deepseek-ai/dsh-value'
+
+declare const value: unknown
+
+const record = asRecord(value)
+if (record !== null) {
+  // record: Record<string, unknown> — the caller's own reference, narrowed.
+}
+```
+
+`asRecord` runs the `isRecord` test and returns the value itself when it passes, `null` otherwise. Reach for it where a decoder hands the narrowed record straight to its readers and a boolean guard would add a second statement; it never copies.
 
 ### Asserting a positive integer
 
@@ -201,7 +216,7 @@ The library is built on one boundary: the predicate and the failure message belo
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `asRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
 | — | No runtime invariant companion is published; this pure utility owns no event stream or mutable runtime data, and the predicate algebra is exercised by unit tests. |
 
 ### Why the guard is shape-only

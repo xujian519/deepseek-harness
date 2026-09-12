@@ -1,17 +1,12 @@
 /** Trajectory-owned conversion from durable Session events to ledger view data. */
 
 import type { ContentBlock, StreamChunk } from '@deepseek-ai/dsh-llm/types'
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type {
   AssistantBlock, ContextProvenanceView, KnownContextForm,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 /* jscpd:ignore-start -- Chat and Trajectory own independent event-to-view projections. */
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null
-}
 
 function readString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key]

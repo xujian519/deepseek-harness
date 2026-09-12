@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  asRecord,
   assertPositiveFinite,
   assertPositiveInteger,
   assertResolvedConfig,
@@ -57,6 +58,33 @@ describe('isRecord', () => {
     const value: unknown = { kind: 'response' }
     if (!isRecord(value)) throw new Error('expected a record')
     expect(value.kind).toBe('response')
+  })
+})
+
+describe('asRecord', () => {
+  it('returns the same object for every prototype isRecord accepts', () => {
+    const literal = { type: 'image', count: 2 }
+    expect(asRecord(literal)).toBe(literal)
+    const instance = new Date()
+    expect(asRecord(instance)).toBe(instance)
+  })
+
+  it('returns null for null, arrays, primitives, and functions', () => {
+    expect(asRecord(null)).toBeNull()
+    expect(asRecord(undefined)).toBeNull()
+    expect(asRecord([])).toBeNull()
+    expect(asRecord(['entry'])).toBeNull()
+    expect(asRecord(42)).toBeNull()
+    expect(asRecord('text')).toBeNull()
+    expect(asRecord(true)).toBeNull()
+    expect(asRecord(() => {})).toBeNull()
+  })
+
+  it('narrows the result so properties can be read as unknown', () => {
+    const value: unknown = { kind: 'response' }
+    const record = asRecord(value)
+    if (record === null) throw new Error('expected a record')
+    expect(record.kind).toBe('response')
   })
 })
 

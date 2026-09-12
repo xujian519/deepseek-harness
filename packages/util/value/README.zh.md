@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 与 `isPlainObject` 分类对象,`hasExactKeys` 校验记录自身的键集,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置检查,`isENOENT`、`isEEXIST` 与 `isAbortError` 分类 errno 与中止错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下规范化抛出值;`deepFreeze` 从 `dsh-util-values` 转发导出。这份库拥有每个谓词与消息,让诊断文案在全 harness 一致。
+`dsh-value` 收纳每个解析器、配置加载器和 wire 解码器都要重写的最小未知输入处理:`isRecord` 分类对象、`asRecord` 读出记录或 `null`,`isPlainObject` 分类纯数据对象,`hasExactKeys` 校验记录自身的键集,`assertPositiveInteger` 与 `assertPositiveFinite` 拒绝越界数值并把 `unknown` 收窄为 `number`,`assertResolvedConfig` 在 schema 默认值跑完后钉住插件配置检查,`isENOENT`、`isEEXIST` 与 `isAbortError` 分类 errno 与中止错误,`errorMessage` 与 `toError` 在不让敌意 coercion 逃逸的前提下规范化抛出值;`deepFreeze` 从 `dsh-util-values` 转发导出。这份库拥有每个谓词与消息,让诊断文案在全 harness 一致。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在从 `unknown` 值上读属性之前用 `isRecord`;已解码的边界必须只携带声明的键时用 `hasExactKeys`;在配置边界上遇到必须是正整数的数值选项时用 `assertPositiveInteger`,遇到必须是正有限数的选项时用 `assertPositiveFinite`;插件接收到 schemastery 已解析配置时用 `assertResolvedConfig`;需要交付出去的值保持不可变时用 `deepFreeze`。
+在从 `unknown` 值上读属性之前用 `isRecord`;解码器要把收窄后的记录直接交给自己的读取器时用 `asRecord`;已解码的边界必须只携带声明的键时用 `hasExactKeys`;在配置边界上遇到必须是正整数的数值选项时用 `assertPositiveInteger`,遇到必须是正有限数的选项时用 `assertPositiveFinite`;插件接收到 schemastery 已解析配置时用 `assertResolvedConfig`;需要交付出去的值保持不可变时用 `deepFreeze`。
 
 ### 守卫不可信对象
 
@@ -40,6 +40,21 @@ if (isRecord(value) && typeof value.type === 'string') {
 ```
 
 `isRecord` 接受一切对象原型——`Date`、`Map`、类实例——拒绝 `null`、数组、原始值和函数。它回答的是"能否像 record 一样索引",而不是"是否为普通对象字面量"。
+
+### 把未知值读成记录
+
+```ts
+import { asRecord } from '@deepseek-ai/dsh-value'
+
+declare const value: unknown
+
+const record = asRecord(value)
+if (record !== null) {
+  // record: Record<string, unknown> — the caller's own reference, narrowed.
+}
+```
+
+`asRecord` 执行与 `isRecord` 相同的判定,通过时返回该值本身,否则返回 `null`。解码器要把收窄后的记录直接交给自己的读取器、而布尔守卫只会多写一条语句时用它;它从不复制。
 
 ### 断言正整数
 
@@ -201,7 +216,7 @@ function settle(caught: unknown): Error {
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `isRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
+| [`src/index.ts`](src/index.ts) | `isRecord`, `asRecord`, `isPlainObject`, `hasExactKeys`, `assertPositiveInteger`, `assertPositiveFinite`, `assertResolvedConfig`, `isENOENT`, `isEEXIST`, `isAbortError`, `errorMessage`, `toError`, `deepFreeze` |
 | — | 不发布运行时不变式伴生；此纯工具不持有事件流或可变运行时数据，谓词代数由单元测试覆盖。 |
 
 ### 为什么守卫只看形状
