@@ -81,6 +81,8 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **既有红项:快照回放套件**(2026-09-12 实测,与本轮改动无关):`pnpm run test:snapshot` = 5 failed / 127 passed / 2 skipped,失败项为 `keeps a current-writer majority plus bounded declared historical migration coverage` 与四条 `replays …`(`system-prompt-in-history` ×2、`macos-tools-validation`、`subagent-tool-filter`);在合并基线 `3adac36997` 的干净检出上逐项一致。fork CI 只跑 `vitest run`,不含该套件,故长期未暴露。
 - **组 README 包表缺口已补齐,并新增防漂移门禁**(#90,PR #116):十个组的 `README.md`/`README.zh.md` 各补 16 条包条目(`client/` 7、`util/` 2,`api/`、`bundle/`、`core/`、`host/`、`session/`、`test-support/`、`web/` 各 1),`host/` 的「All eight packages」/「Eight packages play the host roles」与 `web/` 的「Six packages play the web roles」三处计数措辞随中文对应句一并改为九与七。新增 `verify-group-readme-packages`(`doc-sync` 的 quick 叶门):按组比对 `## Packages`/`## 包` 段与该组目录下持有 `package.json` 的包集合,英文与中文各查一遍——配对门禁只把每一侧与其记录状态比对,发现不了「只加一侧」;跨组 `../` 目标归目标组所有而忽略,空扫描、缺段、组内无包均报错。此前 `hygiene` 各叶门与 `doc-sync` 都不读组内包表,故 16 条缺口长期无人发现。
 
+- **空 `.catch(() => {})` 第一批**(#85,PR #117):按 issue 点名的两个聚焦包逐处判定——`core/agent-loop` 7 处、`subprocess/subprocess-local` 8 处,共 15 处。其中 4 处早有说明性注释(agent-loop 两个回滚 dispose、`setupAndPublish` 的回滚 dispose,以及 `spawn.ts` 的 range 观测),另 11 处补上注释,按五种形态写明「吞掉什么、为什么别的路径到不了」:setup 失败后的回滚(主错误交给调用方)、取消后弃置的句柄(调用方收到的是自己的中止,句柄无其它属主)、`finally` 中的 close(块的结局已定)、teardown 对自己正在终结的进程做 join(`waitForExit()` 才是 teardown 自己的证据并经 `allSettled` 上报,range 等待失败时句柄仍留在集合里待强制结束)、以及自身仍保留消费方的 promise 上的未处理拒绝防护(失败仍到达等待者,防护只避免噪声)。口径更正:实测 src 为 **62 处**(09-11 记 63 处);`总体评估` 的「零未注释空 catch」指 `catch {}` 子句(src 0 处、tests 10 处),`catch(() => {})` 从不在该断言的覆盖范围内。其余 47 处分布在 20 个包(subagent 桥、LSP stdio、OpenViking、e2b、浏览器 UI 等),按同一词汇逐批判定,#85 保持开放。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:

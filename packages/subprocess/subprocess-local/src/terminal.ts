@@ -337,6 +337,8 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
         this.dataDisposable.dispose()
         this.exitDisposable.dispose()
       } finally {
+        // Owner cleanup runs after settlement with no observer; `this.done` keeps
+        // its own consumers, so this handler only guards the derived promise.
         void this.done.finally(() => { this.cleanupManagedOwner(this.managedOwner as BoundProcessOwner) }).catch(() => {})
       }
       return
