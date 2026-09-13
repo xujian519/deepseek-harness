@@ -27,6 +27,8 @@ export type ContentToolFixtureOptions<S extends ParameterSchemaSpec> = Omit<
 export function defineContentToolFixture<const S extends ParameterSchemaSpec>(
   options: ContentToolFixtureOptions<S>,
 ): ToolDefinition {
+  // Object-literal fixture bodies never read `this`; the extracted reference is
+  // called with explicit arguments.
   // oxlint-disable-next-line typescript/unbound-method
   const execute = options.execute
   return defineTool({

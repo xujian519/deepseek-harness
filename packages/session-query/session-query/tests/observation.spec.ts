@@ -112,6 +112,8 @@ function stubPersistence(
         void options
         hooks.onRead?.()
         if (hooks.readFailure !== undefined) {
+          // The stub forwards the injected failure unchanged, and a test injects a
+          // non-Error value to exercise containment.
           // oxlint-disable-next-line typescript/prefer-promise-reject-errors
           return Promise.reject(hooks.readFailure)
         }

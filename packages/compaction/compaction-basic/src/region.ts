@@ -127,6 +127,7 @@ export function selectCompactableRange(
     || surfaceNodes.some((seq, index) => seq !== pricedNodes[index]?.seq)) {
     throw new Error('compaction: token-meter surface does not match the current session surface')
   }
+  // The empty-surface return and the length check above leave index 0 in range.
   // oxlint-disable-next-line typescript/no-non-null-assertion
   const firstIdx = systemHead(session, surfaceNodes[0]!) === undefined ? 0 : 1
 
