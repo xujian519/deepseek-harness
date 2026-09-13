@@ -12,7 +12,7 @@ import type {
   JobDoneListener, JobId, JobRead, JobSnapshot, JobStart, JobsChangedListener,
 } from './types.ts'
 
-export { JobId } from './types.ts'
+export { JobId } from './brand.ts'
 export type {
   JobDoneListener,
   JobHooks,

@@ -12,6 +12,7 @@ import {
   bindSnapshotSelector,
   chatSnapshot,
   conversationSnapshot,
+  makeTranslate,
   SlotTestRuntime,
   usePinnedBrowserLanguages,
 } from '../src/index.ts'
@@ -199,5 +200,19 @@ describe('Session fixture lifecycle', () => {
     runtime.releaseWorkspaceSource()
     await runtime.dispose()
     expect(release).toHaveBeenCalledOnce()
+  })
+})
+
+describe('translate stub', () => {
+  it('resolves through the dictionaries in order and falls back to the key', () => {
+    const t = makeTranslate({ 'ns.key': 'namespace' }, { 'ns.key': 'common', 'common.key': 'shared' })
+    expect(t('ns.key')).toBe('namespace')
+    expect(t('common.key')).toBe('shared')
+    expect(t('missing.key')).toBe('missing.key')
+  })
+
+  it('interpolates named params and leaves an unknown placeholder visible', () => {
+    const t = makeTranslate({ greet: 'hi {name}, from {place}' })
+    expect(t('greet', { name: 'Ada' })).toBe('hi Ada, from {place}')
   })
 })
