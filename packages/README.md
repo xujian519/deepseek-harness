@@ -83,7 +83,7 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`desktop/`](desktop/README.md) | Desktop OS integration: Service Definition + Electron shell provider + sandboxed directory-picker bridge + CLI-backed macOS native tools |
 | [`test-support/`](test-support/README.md) | Support infrastructure (testkits, invariants, replay, Loader smokes) |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.md) | Runtime diagnostics: package-owned invariant checks and reports |
-| [`util/`](util/README.md) | Low-level shared utilities (`Branded<B>`, home/path helpers, timeout, retention); no runtime dependencies, invariant-companion peer only |
+| [`util/`](util/README.md) | Low-level shared utilities (`Branded<B>`, home/path helpers, timeout, retention); no product service or event, and runtime dependencies only where a primitive needs one (`zod`, `undici`, `dsh-util-values`) |
 
 -----
 

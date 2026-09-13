@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 组装
 
-插件在首次使用时为每个 `sessionId` 创建一个 agent。已注册的模型适配器优先用于该路由；尚无适配器负责的 `deepseek-official` 路由会挂载 DeepSeek 适配器，任何其他尚无适配器负责的提供方都会导致初始化失败。初始化成功前，所选适配器会解析确切模型与可选推理强度。
+插件在首次使用时为每个 `sessionId` 创建一个 agent。已注册的模型适配器优先用于该路由；尚无适配器负责的 `deepseek-official` 路由会挂载 DeepSeek 适配器，任何其他尚无适配器负责的提供方都会导致初始化失败。初始化成功前，所选适配器会解析确切模型与可选推理强度。`dsh-llm-deepseek` 声明为对等依赖而非普通依赖，因为适配器的选择属于组合——[`dsh-sdk-minimal`](../../bundle/sdk-minimal/README.zh.md) 自己组合了 `llm-deepseek` 行——本插件的挂载只是「组合未为该路由注册任何适配器」时的回退。
 
 ### 配置
 
