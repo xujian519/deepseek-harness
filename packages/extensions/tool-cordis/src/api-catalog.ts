@@ -2962,9 +2962,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'delivered foreground process-group identity.',
       },
       {
-        signature: 'async kill(owner: Agent, id: TerminalSessionId, reason: string = \'model request\'): Promise<boolean>',
+        signature: 'async kill(owner: Agent, id: TerminalSessionId, reason: string): Promise<boolean>',
         description: 'Close one owned session and remove it only after quiescent backend cleanup.',
-        parameters: [{ name: 'owner', description: 'exact session owner.' }, { name: 'id', description: 'target PTY identity.' }, { name: 'reason', description: 'diagnostic cleanup reason.' }],
+        parameters: [{ name: 'owner', description: 'exact session owner.' }, { name: 'id', description: 'target PTY identity.' }, { name: 'reason', description: 'why this caller closes the session; a backend that fails its own cleanup reports the text verbatim.' }],
         returns: 'true for a newly closed session, false when the same close is already in flight.',
       },
       {

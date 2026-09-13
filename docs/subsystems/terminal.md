@@ -165,10 +165,11 @@ signal(owner: Agent, id: TerminalSessionId, signal: TerminalSignal): Promise<Ter
  * Close one owned session and remove it only after quiescent backend cleanup.
  * @param owner - exact session owner.
  * @param id - target PTY identity.
- * @param reason - diagnostic cleanup reason.
+ * @param reason - why this caller closes the session; a backend that fails its own
+ * cleanup reports the text verbatim.
  * @returns true for a newly closed session, false when the same close is already in flight.
  */
-async kill(owner: Agent, id: TerminalSessionId, reason: string = 'model request'): Promise<boolean>
+async kill(owner: Agent, id: TerminalSessionId, reason: string): Promise<boolean>
 
 /**
  * List fresh snapshots for exactly one owner.
