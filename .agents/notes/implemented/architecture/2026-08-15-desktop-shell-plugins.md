@@ -58,13 +58,13 @@ If `DSH_DESKTOP_BRIDGE_PATH` is absent, `@deepseek-ai/dsh-desktop-shell` logs a 
 ### `ctx.desktop` Service Definition
 
 ```ts
-import type { Desktop } from '@deepseek-ai/dsh-desktop-seam'
+import { MenuId, type Desktop } from '@deepseek-ai/dsh-desktop-seam'
 
 declare const desktop: Desktop
 void desktop.showOpenDialog({ properties: ['openDirectory'] })
 void desktop.showSaveDialog({ defaultPath: 'draft.md' })
 desktop.sendNotification({ title: 'done', body: 'task complete' })
-void desktop.registerMenuItem('file', { id: 'open-workspace', label: 'Open…' })
+void desktop.registerMenuItem('file', { id: MenuId('open-workspace'), label: 'Open…' })
 void desktop.registerGlobalShortcut('CmdOrCtrl+Shift+P', () => {})
 void desktop.setTray({ tooltip: 'dsh' })
 ```
@@ -73,7 +73,7 @@ Events are typed Cordis events:
 
 | Event | Direction | Payload |
 | --- | --- | --- |
-| `desktop/menu-activated` | Main → backend | `{ menuId: string }` |
+| `desktop/menu-activated` | Main → backend | `{ menuId: MenuId }` |
 | `desktop/shortcut-triggered` | Main → backend | `{ accelerator: string }` |
 | `desktop/tray-clicked` | Main → backend | `{ button: 'left' \| 'right' }` |
 | `desktop/file-dropped` | Main → backend | `{ paths: string[] }` |
