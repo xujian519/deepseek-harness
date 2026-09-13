@@ -3413,6 +3413,9 @@ importers:
       '@deepseek-ai/dsh-util-crypto':
         specifier: workspace:^
         version: link:../../util/crypto
+      '@deepseek-ai/dsh-util-values':
+        specifier: workspace:^
+        version: link:../../util/values
       '@deepseek-ai/dsh-util-workspace-path':
         specifier: workspace:^
         version: link:../../util/workspace-path
@@ -6679,6 +6682,9 @@ importers:
       '@deepseek-ai/dsh-util-crypto':
         specifier: workspace:^
         version: link:../../util/crypto
+      '@deepseek-ai/dsh-util-values':
+        specifier: workspace:^
+        version: link:../../util/values
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
@@ -6799,6 +6805,9 @@ importers:
       '@deepseek-ai/dsh-util-crypto':
         specifier: workspace:^
         version: link:../../util/crypto
+      '@deepseek-ai/dsh-util-values':
+        specifier: workspace:^
+        version: link:../../util/values
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value

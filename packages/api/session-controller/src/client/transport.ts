@@ -2,6 +2,7 @@
 
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import {
   RemoteJournalStream,
   RemoteSnapshotStream,
@@ -74,6 +75,9 @@ function toSessionJournalChange(
     }
     case 'notification':
       return { type: 'assistant-stream', frame: change.notification }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new journal change here. */
+    default:
+      return assertNever(change, 'session journal change')
   }
 }
 

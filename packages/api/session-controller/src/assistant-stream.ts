@@ -3,7 +3,7 @@
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
 import { AssistantStreamAccumulator } from '@deepseek-ai/dsh-llm'
 import type { SessionSeqCursor } from '@deepseek-ai/dsh-session'
-import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
   SessionAssistantStreamAttempt,
   SessionAssistantStreamBaseline,
@@ -73,6 +73,9 @@ export class SessionAssistantStreamAccumulator {
       case 'end':
         this.activeAttempt = undefined
         break
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new frame type here. */
+      default:
+        assertNever(frame, 'assistant stream frame')
     }
     this.dirty = true
   }

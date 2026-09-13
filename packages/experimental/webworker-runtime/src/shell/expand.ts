@@ -7,6 +7,7 @@
  */
 
 import picomatch from 'picomatch'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { ArgumentSegment, ArithmeticExpression, ShellLine, ValueArgument } from './ast.ts'
 import { resolve } from '../module-system/posix-path.ts'
 import type { ShellFileSystem, ShellState } from './types.ts'
@@ -202,6 +203,9 @@ export async function expandArgument(argument: ValueArgument, context: Expansion
         }
         break
       }
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new segment kind here. */
+      default:
+        assertNever(segment, 'shell argument segment')
     }
   }
   if (current !== undefined) fields.push(current)

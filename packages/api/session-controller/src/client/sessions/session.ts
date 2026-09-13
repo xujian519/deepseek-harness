@@ -2,6 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { AttachmentIdType, FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
@@ -651,6 +652,10 @@ export class Session implements SessionFace {
         return
       case 'assistant-stream':
         this.publishAssistantEntry(this.assistantStream.acceptFrame(change.frame))
+        return
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new journal change here. */
+      default:
+        assertNever(change, 'session journal change')
     }
   }
 

@@ -205,6 +205,8 @@ function finishError(finish: FinishReason): Error | undefined {
       error.code = 'MAX_TOKENS'
       return error
     }
+    // FinishReason is merge-extensible: its type doc mandates falling through an
+    // unknown kind, so an unrecognized finish is not treated as a failure here.
     default:
       return undefined
   }

@@ -3,6 +3,7 @@
 import { isJsonValue, isPlainObject } from '../../../json.ts'
 import { exactKeys, exactObject, optionalBoolean, optionalString, wireId } from '../../../validation.ts'
 import { parseInspectorObjectReference } from '../../../cordis/object-reference.ts'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   RuntimeCallFrame,
   RuntimeObjectPreview,
@@ -314,6 +315,10 @@ function validateRemoteObject(value: ClientRuntimeRemoteObject): void {
       if (hasUnserializableValue || hasValue === hasObject) {
         throw new Error('inspector protocol: object RemoteObject needs exactly one value or backend object')
       }
+      return
+    /* v8 ignore next -- closed-union backstop; parseRemoteObject admits only REMOTE_TYPES before this cast. */
+    default:
+      assertNever(descriptor.type, 'inspector RemoteObject type')
   }
 }
 
