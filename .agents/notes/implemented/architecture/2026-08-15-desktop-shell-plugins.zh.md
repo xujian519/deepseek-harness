@@ -58,13 +58,13 @@ dsh backend plugins / UI   (Consumers: ctx.desktop, ctx.directoryPicker, tools, 
 ### `ctx.desktop` Service Definition
 
 ```ts
-import type { Desktop } from '@deepseek-ai/dsh-desktop-seam'
+import { MenuId, type Desktop } from '@deepseek-ai/dsh-desktop-seam'
 
 declare const desktop: Desktop
 void desktop.showOpenDialog({ properties: ['openDirectory'] })
 void desktop.showSaveDialog({ defaultPath: 'draft.md' })
 desktop.sendNotification({ title: 'done', body: 'task complete' })
-void desktop.registerMenuItem('file', { id: 'open-workspace', label: 'Open…' })
+void desktop.registerMenuItem('file', { id: MenuId('open-workspace'), label: 'Open…' })
 void desktop.registerGlobalShortcut('CmdOrCtrl+Shift+P', () => {})
 void desktop.setTray({ tooltip: 'dsh' })
 ```
@@ -73,7 +73,7 @@ void desktop.setTray({ tooltip: 'dsh' })
 
 | 事件 | 方向 | 载荷 |
 | --- | --- | --- |
-| `desktop/menu-activated` | Main → 后端 | `{ menuId: string }` |
+| `desktop/menu-activated` | Main → 后端 | `{ menuId: MenuId }` |
 | `desktop/shortcut-triggered` | Main → 后端 | `{ accelerator: string }` |
 | `desktop/tray-clicked` | Main → 后端 | `{ button: 'left' \| 'right' }` |
 | `desktop/file-dropped` | Main → 后端 | `{ paths: string[] }` |
