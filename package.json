@@ -181,6 +181,7 @@
     "verify-session-format-catalog": "tsx scripts/gen-session-format-catalog.ts --check",
     "verify-skill-invocation-metadata": "tsx scripts/verify-skill-invocation-metadata.ts",
     "verify-subsystem-pages": "tsx scripts/verify-subsystem-pages.ts",
+    "verify-suppression-reasons": "tsx scripts/verify-suppression-reasons.ts",
     "verify-third-party-notices": "tsx scripts/gen-third-party-notices.ts --check",
     "verify-tool-catalog": "tsx scripts/gen-tool-catalog.ts --check",
     "verify-translation-pairing": "tsx scripts/verify-translation-pairing.ts",
