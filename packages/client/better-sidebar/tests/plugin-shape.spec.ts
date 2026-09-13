@@ -4,9 +4,9 @@ import * as sidebar from '../src/index.ts'
 
 /**
  * Run the real namespace export through `Loader.unwrapExports`; a stray
- * default would discard `name`, `inject`, `Config`, and `apply`. Same guard
- * the official plugin repos ship (dsh-external/turtle-ui,
- * packages/ui/jsonrpc).
+ * default would discard `name`, `inject`, `Config`, and `apply` — the failure
+ * [post-mortem 0001](../../../docs/postmortem/0001-acp-default-export-drops-inject.md)
+ * records.
  */
 describe('@deepseek-ai/dsh-better-sidebar plugin export shape', () => {
   it('has the namespace-plugin export shape (no stray default) so the Loader keeps name/inject/Config/apply', () => {
