@@ -4,28 +4,26 @@
  * word-boundary rules. Zero React / DOM / cordis.
  */
 import { activeAtToken } from '@deepseek-ai/dsh-file-reference/grammar'
-import type { TriggerChar } from '../types.ts'
 import type { DetectTrigger } from './contract.ts'
 
 const WORD_CHAR = /[\p{L}\p{N}_]/u
 const WHITESPACE = /\s/u
 
 /**
- * Word-boundary rule: a trigger char opens only at start-of-draft, after
- * whitespace (newlines included), or after punctuation. Two URL carve-outs
- * keep '/' dead inside URLs (both pinned by tests): '/' after a ':' that
- * itself follows a non-whitespace char (scheme separator, `https:/…`), and
- * '/' directly after another '/' (second slash of `//`).
+ * Word-boundary rule for the one live trigger char, '/': it opens only at
+ * start-of-draft, after whitespace (newlines included), or after punctuation.
+ * Two URL carve-outs keep '/' dead inside URLs (both pinned by tests): '/'
+ * after a ':' that itself follows a non-whitespace char (scheme separator,
+ * `https:/…`), and '/' directly after another '/' (second slash of `//`).
+ * The '@' trigger resolves through the shared file-reference grammar instead.
  */
-function boundaryOk(draft: string, index: number, char: TriggerChar): boolean {
+function boundaryOk(draft: string, index: number): boolean {
   if (index === 0) return true
   const prev = draft.charAt(index - 1)
   if (WHITESPACE.test(prev)) return true
   if (WORD_CHAR.test(prev)) return false
-  if (char === '/') {
-    if (prev === '/') return false
-    if (prev === ':' && index >= 2 && !WHITESPACE.test(draft.charAt(index - 2))) return false
-  }
+  if (prev === '/') return false
+  if (prev === ':' && index >= 2 && !WHITESPACE.test(draft.charAt(index - 2))) return false
   return true
 }
 
@@ -63,7 +61,7 @@ export const detectTrigger: DetectTrigger = (draft, caret, guard) => {
     if (WHITESPACE.test(ch)) return null
     if (ch !== '/') continue
     if (guard.tier === 'claimed') continue
-    if (!boundaryOk(draft, i, ch)) continue
+    if (!boundaryOk(draft, i)) continue
     return {
       trigger: ch,
       query: draft.slice(i + 1, caret),

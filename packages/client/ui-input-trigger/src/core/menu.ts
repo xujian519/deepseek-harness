@@ -137,6 +137,7 @@ export const menuReduce: MenuReduce = (state, ev) => {
       const next = pos[at < 0
         ? (ev.dir === 1 ? 0 : pos.length - 1)
         : (at + ev.dir + pos.length) % pos.length]
+      /* v8 ignore next -- noUncheckedIndexedAccess backstop; `pos.length > 0` keeps the index in range. */
       if (next === undefined) return state
       if (hl && next.source === hl.source && next.index === hl.index) return state
       return { ...state, highlight: next }

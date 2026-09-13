@@ -299,7 +299,9 @@ export default defineConfig({
         'packages/experimental/inspector/src/shared/bridge/messages/runtime/{command-codec,console-frames,frames,value-codec}.ts',
         'packages/experimental/inspector/src/shared/bridge/messages/sources/{codec,frames}.ts',
         'packages/experimental/inspector/src/worker/inspection/{cordis-store,query-router,realm-store}.ts',
-        'packages/client/modules/src/client/system.ts',
+        // client-hmr's browser half drives the system SSE channel and the
+        // Loader's entry swap; the jsdom lane cannot open that channel.
+        // TODO(gui): cover and remove with the client test lane above.
         'packages/client/hmr/src/client/index.ts',
         // Web config-tree boot round: the new host-side web-transport halves
         // whose remaining branches need real-composition/process harnesses.
@@ -338,17 +340,19 @@ export default defineConfig({
         'packages/client/ui-model-selection/src/client/service.ts',
         'packages/client/ui-input-trigger/src/client/controller.ts',
         'packages/client/ui-input-trigger/src/client/service.ts',
-        'packages/client/ui-input-trigger/src/core/menu.ts',
-        'packages/client/ui-input-trigger/src/core/detect.ts',
         'packages/client/ui-sidebar/src/client/index.ts',
         'packages/client/ui-skill/src/client/index.ts',
         'packages/client/ui-workspace/src/client/index.ts',
-        'packages/test-support/client-runtime/src/translate.ts',
         'packages/client/ui-primitives/src/JsonTree.tsx',
         'packages/client/ui-settings-models/src/client/DeepSeekOnboardingDialog.tsx',
         'packages/client/ui-settings-models/src/client/welcome-store.ts',
-        'packages/extensions/*/src/**/*.ts',
-        'packages/extensions/*/src/**/*.tsx',
+        // Extensions sit outside the per-file gate. Their unit suites cover part
+        // of the tree; tool-cordis's own src is reached by the real-composition
+        // round (apps/web/tests/cordis-tool-round.e2e.ts) and the recorded
+        // sessions, not by its suite. The two generated API catalogs belong to
+        // verify-cordis-api / verify-cordis-inspect-catalog.
+        // TODO(cov): gate the hand-written files and drop this wildcard.
+        'packages/extensions/*/src/**/*.{ts,tsx}',
         // Typert correctness is checked by its uninstrumented suites,
         // including compiler fixtures and byte-for-byte catalog reproduction.
         'packages/typert/*/src/**/*.{ts,tsx}',

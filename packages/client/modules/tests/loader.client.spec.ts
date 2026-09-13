@@ -185,6 +185,20 @@ describe('lazy CJS arrival', () => {
     expect(exports.react.marker).toBe('react')
   })
 
+  it('leaves a dynamic request the graph does not carry to its require-time miss', async () => {
+    const b = bench([row('a', { external: ['absent/client'] })], { a: () => ({ marker: 'a' }) })
+    const exports = await b.loader.import('a', '', {})
+    expect((exports as { marker: string }).marker).toBe('a')
+    expect(b.fetched).toEqual([APPLICATION_URL])
+  })
+
+  it('import materializes a registered factory that has no graph row', async () => {
+    const b = bench([], {}, { pending: [{ id: 'adhoc', factory: () => ({ marker: 'adhoc' }) }] })
+    const exports = await b.loader.import('adhoc', '', {})
+    expect((exports as { marker: string }).marker).toBe('adhoc')
+    expect(b.fetched).toEqual([])
+  })
+
   it('registers injected package factories before materializing a consumer', async () => {
     const b = bench([
       row('consumer', { inject: ['provider'] }),
@@ -330,10 +344,6 @@ describe('failure modes', () => {
     await expect(b.loader.prefetch('nope')).rejects.toThrow('prefetch("nope") — not a graph entry')
   })
 
-  it('a duplicate graph entry is loud at construction', () => {
-    expect(() => bench([row('a'), row('a')])).toThrow('duplicate graph entry "a"')
-  })
-
   it('a module arrival cycle is loud even if a malformed host graph reaches the browser', async () => {
     const b = bench([
       row('a', { external: ['b'] }),
@@ -366,6 +376,17 @@ describe('boot manifest wire', () => {
       { id: 'a', url: '/plugins/a/client.js', initialUrl: '/batch.js', rev: '1', inject: ['b'], external: [] },
       { id: 'b', url: '/plugins/b/client.js', initialUrl: '/batch.js', rev: '2', inject: [], external: ['react'] },
     ])
+  })
+
+  it('rejects a duplicate graph entry', () => {
+    expect(() => parseBootManifest({
+      rev: 'graph',
+      entries: [
+        { id: 'a', url: '/a.js', rev: '1' },
+        { id: 'a', url: '/b.js', rev: '2' },
+      ],
+      batches: [{ phase: 'application', url: '/batch.js', rev: 'batch', entries: ['a'] }],
+    })).toThrow('client-modules: duplicate graph entry "a"')
   })
 
   it('rejects a non-array external', () => {
@@ -495,6 +516,24 @@ describe('HMR reset', () => {
     b.loader.invalidate('a')
     await b.loader.prefetch('a')
     expect(b.fetched).toEqual([APPLICATION_URL, comboUrl(['a'], '0')])
+  })
+
+  it('leaves the bootstrap module in place', () => {
+    const b = bench([])
+    b.loader.invalidate(MODULES_ID, 'next')
+    expect(b.loader.loadCache.get(MODULES_ID)?.exports).toBe(bootstrapExports)
+  })
+
+  it('a graph row whose URL carries no revision is loud', () => {
+    const b = bench([row('a', { url: '/plugins/a/client.js' })], { a: () => ({}) })
+    expect(() => { b.loader.invalidate('a') }).toThrow('bundle URL /plugins/a/client.js has no revision')
+  })
+
+  it('an id outside the graph leaves the tables untouched', () => {
+    const b = bench([])
+    b.loader.invalidate('absent', 'next')
+    expect(b.loader.loadCache.size).toBe(1)
+    expect(b.fetched).toEqual([])
   })
 })
 

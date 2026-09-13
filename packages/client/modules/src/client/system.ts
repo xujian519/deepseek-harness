@@ -84,10 +84,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
     this.seed = new Map(Object.entries(options.staticModules))
     this.loadBundle = options.loadBundle ?? defaultLoadBundle
 
-    for (const row of options.manifest.modules) {
-      if (this.graphRows.has(row.id)) throw new Error(`client-modules: duplicate graph entry "${row.id}"`)
-      this.graphRows.set(row.id, row)
-    }
+    for (const row of options.manifest.modules) this.graphRows.set(row.id, row)
 
     const bootstrapId = stripClientSuffix(options.bootstrapModule.id)
     this.bootstrapIds.add(bootstrapId)

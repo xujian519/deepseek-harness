@@ -122,7 +122,7 @@ export interface BootPluginRow {
 export interface BootManifest {
   /** Consistency anchor over the whole graph. */
   rev: string
-  /** Rows as the module table consumes them. */
+  /** Rows as the module table consumes them; `id` is unique, since the parser rejects a repeat. */
   modules: BootModuleRow[]
   /** Rows as entry composition consumes them. */
   plugins: BootPluginRow[]
