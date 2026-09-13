@@ -39,7 +39,7 @@ const snapshot = snapshotJsonValue(input) as JsonValue
 
 ### 发布或比较值
 
-`deepFreeze(value)` 原地冻结对象图并返回同一个值。它遍历可枚举字符串键的子项，并刻意让活跃 `AbortSignal` 对象保持可变。`deepEqualJson(a, b)` 按结构比较 JSON 兼容数组与记录；调用方必须先校验恶意或不受约束的值，再进行比较。
+`deepFreeze(value)` 原地冻结对象图并返回同一个值。它遍历可枚举字符串键的子项，并刻意让活跃 `AbortSignal` 对象保持可变。`deepEqualJson(a, b)` 按结构比较 JSON 兼容数组与记录；调用方必须先校验恶意或不受约束的值，再进行比较。记录只比较自有可枚举键，因此 `__proto__` 键不会与缺失该键的记录的 prototype 相匹配。
 
 ### 封闭可辨识联合类型
 

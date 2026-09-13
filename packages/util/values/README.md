@@ -39,7 +39,7 @@ const snapshot = snapshotJsonValue(input) as JsonValue
 
 ### Publish or compare values
 
-`deepFreeze(value)` freezes an object graph in place and returns the same value. It walks enumerable string-keyed children and deliberately leaves live `AbortSignal` objects mutable. `deepEqualJson(a, b)` compares JSON-compatible arrays and records structurally; callers must validate hostile or unconstrained values before comparison.
+`deepFreeze(value)` freezes an object graph in place and returns the same value. It walks enumerable string-keyed children and deliberately leaves live `AbortSignal` objects mutable. `deepEqualJson(a, b)` compares JSON-compatible arrays and records structurally; callers must validate hostile or unconstrained values before comparison. Records compare their own enumerable keys, so a `__proto__` key never matches the prototype of a record that lacks one.
 
 ### Close a discriminated union
 

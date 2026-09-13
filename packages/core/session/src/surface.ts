@@ -9,6 +9,7 @@
  */
 
 import type { Message } from '@deepseek-ai/dsh-llm'
+import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { isRecord } from '@deepseek-ai/dsh-value'
 import { SessionLogOffset, SessionSeq } from './types.ts'
 import { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
@@ -339,24 +340,6 @@ function replacementRange(
   }
 }
 
-/**
- * Deep structural equality over the session-event JSON value domain
- * (null/boolean/number/string, arrays, plain objects). Replaces
- * `node:util`'s isDeepStrictEqual to keep this module browser-safe.
- */
-function isDeepEqualJson(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
-    return a.every((item, i) => isDeepEqualJson(item, b[i]))
-  }
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
-  const aKeys = Object.keys(a)
-  const bRecord = b as Record<string, unknown>
-  if (aKeys.length !== Object.keys(b).length) return false
-  return aKeys.every(key => Object.hasOwn(b, key) && isDeepEqualJson((a as Record<string, unknown>)[key], bRecord[key]))
-}
-
 /** Restrict a tool-result replacement to one current result's content. */
 function assertToolResultRewrite(
   event: SessionEvent,
@@ -385,7 +368,7 @@ function assertToolResultRewrite(
       ...event.data.message,
       content: [{ ...replacementResult, content: null }],
     }
-    if (!isDeepEqualJson(originalRest, replacementRest)) {
+    if (!deepEqualJson(originalRest, replacementRest)) {
       throw new Error('tool/result surface replacement may change only content')
     }
   }
