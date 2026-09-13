@@ -35,6 +35,10 @@ Compose this plugin instead of a concrete backend when the same composition must
 
 The resolved interaction arrives as an ordinary Loader entry: the backend registers `ctx.directoryPicker`, and its browser half is discovered by the client module table exactly as a config row's would be, so the seam's one-row-swaps-both-faces invariant holds. Unloading the chooser removes the entry, unloading both faces with it. The sample happens exactly once per boot, so the mounted capability stays stable for the service lifetime.
 
+### What the composition must declare
+
+A composition that mounts this chooser declares all four packages it can mount — both Host backends and both client surfaces — beside this one. The choice is made at boot and the mount is by runtime specifier, resolved against the composing application's base URL, so a `cordis.yml` row naming only the chooser is complete to the Loader and incomplete to the install: `verify-cordis-config` extends the requirement to the four and rejects a manifest that drops one. This package declares the same four as peers, since it imports none of them.
+
 ### Pinning an interaction
 
 Pinning is not a config field here: compose the `-native` or `-browse` row directly instead of this one — that is the seam's documented swap point. Mounting the chooser and a backend row together fails loud (duplicate `directoryPicker` service, duplicate client flow in the `single` holes).

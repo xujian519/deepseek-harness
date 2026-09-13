@@ -83,7 +83,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`desktop/`](desktop/README.zh.md) | 桌面操作系统集成：Service Definition + Electron shell 提供方 + 沙盒化目录选择桥 + CLI 驱动的 macOS 原生工具 |
 | [`test-support/`](test-support/README.zh.md) | 支持基础设施（testkit、不变式、回放、Loader 冒烟测试） |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.zh.md) | 运行时诊断：按包归属的运行时不变式检查与报告 |
-| [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；无运行时依赖，仅不变量伴随 peer |
+| [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；不注册产品服务或事件，运行期依赖只出现在确实需要它的原语里（`zod`、`undici`、`dsh-util-values`） |
 
 -----
 
