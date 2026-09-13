@@ -5,6 +5,7 @@ import type {
   ISessions, SessionBinding, SessionEventSource, SessionEventWindow,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import {
   createSnapshotStore, type ObservableSnapshot, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
@@ -124,6 +125,9 @@ class BoundConversation implements ConversationBinding {
           window.change.entry,
         ))
         return
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new window change here. */
+      default:
+        assertNever(window.change, 'conversation window change')
     }
   }
 

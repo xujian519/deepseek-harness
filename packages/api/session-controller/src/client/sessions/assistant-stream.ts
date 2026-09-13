@@ -7,6 +7,7 @@ import type {
 import { expandAssistantStream } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type { AssistantStreamRecord } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type { LlmAttemptId } from '@deepseek-ai/dsh-llm/brand'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   SessionAssistantSettlementEntry,
   SessionEventLikeEntry,
@@ -179,6 +180,9 @@ export class ClientAssistantStream {
         this.publishedSeqs.add(entry.event.seq)
         return { type: 'settlement', attemptId: attempt.attemptId, entry }
       }
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new frame type here. */
+      default:
+        return assertNever(frame, 'assistant stream frame')
     }
   }
 

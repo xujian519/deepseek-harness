@@ -107,6 +107,9 @@ export class NetworkStore implements InspectorRecordConsumer {
 
   append(source: InspectorSourceDescriptor, records: readonly IngestedInspectorRecord[]): void {
     for (const record of records) {
+      // `topics` is this store's topic boundary: a topic outside `FETCH_TOPICS` —
+      // for example one a newer worker adds — is dropped here, so the switch in
+      // `ingest` only ever sees the topics it enumerates.
       if (!this.topics.has(record.topic)) continue
       try {
         this.ingest(source, record)

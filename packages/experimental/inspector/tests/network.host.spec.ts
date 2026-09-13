@@ -37,6 +37,32 @@ describe('Inspector Network domain', () => {
     expect(dataEvent?.[1]).not.toHaveProperty('data')
   })
 
+  it('ignores a topic it does not model without disturbing the captured request', () => {
+    const sendEvent = vi.fn()
+    const sink: NetworkSink = { sendEvent }
+    const store = new NetworkStore({ maxRetainedRequests: 10, maxJournalBytes: 1_024 })
+    const network = new NetworkDomain(store)
+    network.enable(sink)
+    store.append(source, requestRecords('unknown-topic', 'payload'))
+    const published = sendEvent.mock.calls.length
+
+    // A newer worker's topic arrives under the request key it belongs to and
+    // carries no state this store models.
+    store.append(source, [{
+      sequence: 5,
+      monotonicMs: 5,
+      topic: 'fetch/topic-from-a-newer-worker',
+      payload: { requestId: 'unknown-topic' },
+    }])
+
+    expect(sendEvent.mock.calls.length).toBe(published)
+    expect(network.handle('Network.getResponseBody', { requestId: requestId('unknown-topic') }, sink)).toEqual({
+      body: Buffer.from('payload').toString('base64'),
+      base64Encoded: true,
+      dshInspectorTruncated: false,
+    })
+  })
+
   it('evicts completed requests before retaining a later body', () => {
     const sink: NetworkSink = { sendEvent: vi.fn() }
     const store = new NetworkStore({ maxRetainedRequests: 10, maxJournalBytes: 4 })

@@ -32,6 +32,9 @@ function eventDelta(event: SessionEvent): number {
       return event.data.message.content.filter(block => block.type === 'tool-call').length
     case 'tool/result':
       return -1
+    // Every other type leaves the in-progress count unchanged; SessionEventMap is
+    // merge-extensible, so a type merged in after this fold was written lands here
+    // by design.
     default:
       return 0
   }

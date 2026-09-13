@@ -15,6 +15,7 @@ import type { Command, CommandChain, CommandLine, RedirectArgument, ShellLine, V
 import { expandArgument, isGlobPattern } from './expand.ts'
 import type { ExpansionContext } from './expand.ts'
 import { describeFailure, hostFileSystem, resolveIn } from './fs-access.ts'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { standardPrograms } from './programs/index.ts'
 import type { ShellFileSystem, ShellIo, ShellProgram, ShellRunOutcome, ShellState } from './types.ts'
 
@@ -343,6 +344,9 @@ class Interpreter {
           case '<&':
             io.err(`bash: <&${target}: unsupported descriptor redirection\n`)
             return 1
+          /* v8 ignore next -- closed-union backstop; the compiler rejects a new redirection subtype here. */
+          default:
+            assertNever(redirection.subtype, 'shell redirection subtype')
         }
       } catch (error) {
         io.err(`${describeFailure('bash', resolveIn(state.cwd, target), error)}\n`)

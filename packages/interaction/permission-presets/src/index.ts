@@ -129,6 +129,9 @@ function applyPermissionEvent(
       return { ...state, approval: event.data.policy }
     case 'session/end-seed':
       return { ...state, seeded: true }
+    // A type merged into SessionEventMap after this projection was written also
+    // lands here; returning the unchanged reference keeps the registry's change
+    // gate intact for it.
     default:
       return state
   }

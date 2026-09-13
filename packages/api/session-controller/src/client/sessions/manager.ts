@@ -15,6 +15,7 @@ import type {
 import { mergeOrderedBaseline } from '../ordered-baseline.ts'
 import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { SessionListEntry, TitledSessionSummary } from './lineage.ts'
 import { flattenLineage } from './lineage.ts'
 // Type-only merge edge: the title domain's client-namespace outlet declares
@@ -997,6 +998,9 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
       return summaries.map(summary => summary.sessionId === mutation.sessionId && summary.blank
         ? { ...summary, blank: false }
         : summary)
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new mutation kind here. */
+    default:
+      return assertNever(mutation, 'session list mutation')
   }
 }
 
