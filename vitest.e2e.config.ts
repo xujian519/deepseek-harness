@@ -48,11 +48,18 @@ export default defineConfig({
       '**/*.expected.e2e.ts',
       'packages/experimental/inspector/tests/client-browser.e2e.ts',
     ],
-    // Real model calls: generous timeouts, and retries for transient flakes
-    // (the shared internal key hits concurrency quotas). No coverage — the
-    // unit suites own the coverage gate.
+    // Real model calls: generous timeouts. No coverage — the unit suites own
+    // the coverage gate.
     testTimeout: 120_000,
     hookTimeout: 30_000,
+    // The repository's only retry, and it reruns ANY failure — assertion
+    // failures included — because a test here cannot separate its own
+    // expectation from the provider: one shared internal key serves the whole
+    // run, so a concurrency quota or a provider-side transient arrives wrapped
+    // in whatever assertion it broke. The exception stays at this
+    // external-provider boundary (see the CI test reliability skill); an
+    // intermittent defect that is not provider-caused belongs to a keyless lane
+    // — the recorded-session snapshot tier is the one that would see it.
     retry: 2,
     // Run files in a bounded pool: enough lower-level parallelism to keep CI
     // and local with-key runs moving, while leaving a resource knob for shared

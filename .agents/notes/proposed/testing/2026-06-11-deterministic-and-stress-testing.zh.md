@@ -14,6 +14,10 @@ Status: proposed
 
 全仓扫描复核了本文前提。`setTimeout` 睡眠债务已清偿：`packages/*/tests` 中仅存的出现位置是被测的 webworker 定时器 API，并非同步睡眠，措施 1 已无可禁止对象。措施 2 与 3 仍未落地，inbox 唤醒竞态依旧只有最初的一次手工验证。
 
+## 更新（2026-09-13）
+
+措施 3 现已有独立跟踪项：[Issue #121](https://github.com/xujian519/deepseek-harness/issues/121) 承接范围、预算、失败消费方式与负控制等决定。注意 Vitest 4 的选项名与本文的 `--repeat`/`--shuffle` 措辞不同：重复运行是 `test.repeats` 选项（CLI 没有 `--repeat`），随机顺序是 `--sequence.shuffle`。
+
 ## 提案
 
 三项措施：

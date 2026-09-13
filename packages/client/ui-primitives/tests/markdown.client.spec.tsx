@@ -466,6 +466,12 @@ describe('MarkdownText', () => {
   })
 
   it('bounds fallback work for repeated unclosed backslash delimiters', () => {
+    // 6,400 unclosed `\(` openers, each followed by another opener: the
+    // tokenizer attempts a close at every backslash and fails it on the next
+    // opener, which makes this input the worst case for the fallback path. The
+    // ceiling guards fallback work that grows with the input rather than a
+    // performance budget — the input renders in ~60 ms locally, leaving ~50x
+    // headroom for a loaded runner.
     const startedAt = performance.now()
     const { container } = render(<MarkdownText text={'\\(x '.repeat(6_400)} />)
 

@@ -76,7 +76,11 @@ describe('git command runner failures', () => {
       process.env.PATH = `${shimDir}:${previousPath ?? ''}`
       const started = Date.now()
       // The 5s discovery timeout kills the shim and rejects; isGitRepo
-      // degrades that to false.
+      // degrades that to false. The lower bound is the deadline under test
+      // (DISCOVERY_TIMEOUT_MS): a timer never fires early, so reaching 4s can
+      // only mean the deadline elapsed — a spawn that failed for any other
+      // reason answers at once. The case budget is 15s, three times the
+      // deadline, so a loaded runner cannot turn the wait into a case timeout.
       expect(await git.isGitRepo(tmpdir())).toBe(false)
       expect(Date.now() - started).toBeGreaterThanOrEqual(4_000)
     } finally {

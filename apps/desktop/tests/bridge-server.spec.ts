@@ -76,6 +76,16 @@ function nextSocketPath(): string {
     : join(tmpdir(), `dsh-desktop-bridge-server-test-${process.pid}-${socketPathCounter}.sock`)
 }
 
+/** One JSON-RPC line the bridge wrote back to the backend. */
+interface Frame {
+  jsonrpc: '2.0'
+  id?: number
+  method?: string
+  result?: unknown
+  error?: { code: number; message: string }
+  params?: unknown
+}
+
 /** A shell-owned tray double handed to the bridge through initTray. */
 function makeTrayDouble(): {
   tray: Tray
@@ -117,6 +127,23 @@ describe('BridgeServer', () => {
   let client: Socket | undefined
   let frames: string[] = []
 
+  /**
+   * Wait for the frame `match` accepts and return it parsed. Real socket
+   * delivery replaces the fixed sleeps this suite used to park on: a loaded
+   * runner can deliver a response after any fixed delay, and the failure names
+   * the frames that did arrive instead of a bare timeout.
+   * @param match - predicate the awaited frame must satisfy.
+   * @returns the parsed frame.
+   */
+  async function waitForFrame(match: (frame: Frame) => boolean): Promise<Frame> {
+    return vi.waitFor(() => {
+      const parsed = frames.map(line => JSON.parse(line) as Frame)
+      const found = parsed.find(match)
+      if (found === undefined) throw new Error(`the bridge wrote no matching frame among ${JSON.stringify(parsed)}`)
+      return found
+    }, { timeout: 5_000, interval: 5 })
+  }
+
   beforeEach(async () => {
     frames = []
     mocks.notifications.length = 0
@@ -134,27 +161,48 @@ describe('BridgeServer', () => {
     client.on('data', (chunk: string) => {
       for (const line of chunk.split('\n').filter(Boolean)) frames.push(line)
     })
-    await new Promise(resolve => setTimeout(resolve, 20))
+    // Readiness handshake: the bridge attaches its backend socket inside the
+    // accept callback, so only a completed round-trip proves that a later
+    // notify() push reaches this client. `unregisterGlobalShortcut` is
+    // allow-listed and owns no state; its frame is dropped so each case starts
+    // at index 0.
+    client?.write(JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'desktop/unregisterGlobalShortcut', params: { accelerator: 'Cmd+K' } }) + '\n')
+    await waitForFrame(frame => frame.id === 0)
+    frames.length = 0
   })
 
   afterEach(async () => {
     client?.end()
     bridge.dispose()
-    await new Promise<void>(resolve => setTimeout(resolve, 20))
-    try { unlinkSync(socketPath) } catch {}
+    // POSIX unlinks the socket file when the closing server releases it, and
+    // Windows frees a pipe name asynchronously; the bounded retry covers both
+    // without parking on a fixed delay.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      try {
+        unlinkSync(socketPath)
+        break
+      } catch {
+        // Still held by the closing listener; retry until the budget runs out.
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
+    }
   })
 
   it('rejects an unknown method with a JSON-RPC error', async () => {
     client?.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'desktop/unknown' }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const frame = JSON.parse(frames[0] ?? '{}') as { error?: { code: number } }
+    const frame = await waitForFrame(candidate => candidate.id === 1)
     expect(frame.error?.code).toBe(-32601)
   })
 
   it('rejects a frame without an id', async () => {
-    client?.write(JSON.stringify({ jsonrpc: '2.0', method: 'desktop/showOpenDialog' }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(frames).toEqual([])
+    client?.write(JSON.stringify({ jsonrpc: '2.0', method: 'desktop/unknown' }) + '\n')
+    // A frame with no id gets no reply, and an absence has no event to await.
+    // The valid frame behind it supplies that event: the bridge answers in
+    // request order, so a reply to the id-less frame would have to precede the
+    // id 1 response and this would see two frames.
+    client?.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'desktop/unknown' }) + '\n')
+    await waitForFrame(candidate => candidate.id === 1)
+    expect(frames).toHaveLength(1)
   })
 
   it('rejects a second connection while one backend is attached', async () => {
@@ -217,24 +265,20 @@ describe('BridgeServer', () => {
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'desktop/sendNotification', params: { title: 'hello', body: 'world' },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const response = JSON.parse(frames[0] ?? '{}') as { result?: { delivered: boolean; notificationId: string } }
+    const response = await waitForFrame(candidate => candidate.id === 1)
     expect(response.result).toEqual({ delivered: true, notificationId: 'notification-1' })
     expect(mocks.notifications).toHaveLength(1)
     expect(mocks.notifications[0]?.options).toEqual({ title: 'hello', body: 'world' })
     frames.length = 0
     mocks.notifications[0]?.handlers.click?.()
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { notificationId: string } }
-    expect(pushed.method).toBe('desktop/notification-clicked')
+    const pushed = await waitForFrame(candidate => candidate.method === 'desktop/notification-clicked')
     expect(pushed.params).toEqual({ notificationId: 'notification-1' })
   })
 
   it('reports undelivered when notifications are unsupported', async () => {
     mocks.isNotificationSupported.mockReturnValue(false)
     client?.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'desktop/sendNotification', params: { title: 'x' } }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const response = JSON.parse(frames[0] ?? '{}') as { result?: { delivered: boolean } }
+    const response = await waitForFrame(candidate => candidate.id === 1)
     expect(response.result).toEqual({ delivered: false })
   })
 
@@ -244,7 +288,7 @@ describe('BridgeServer', () => {
       jsonrpc: '2.0', id: 1, method: 'desktop/registerMenuItem',
       params: { group: 'file', item: { id: 'open', label: 'Open', accelerator: 'CmdOrCtrl+O' } },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 1)
     // One rebuild from setAppMenuBase, one from the registration.
     expect(mocks.setApplicationMenu).toHaveBeenCalledTimes(2)
     // The shell's own entries survive the rebuild; the group follows them.
@@ -254,9 +298,7 @@ describe('BridgeServer', () => {
     expect(group?.submenu).toHaveLength(1)
     frames.length = 0
     group?.submenu[0]?.click?.()
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { menuId: string } }
-    expect(pushed.method).toBe('desktop/menu-activated')
+    const pushed = await waitForFrame(candidate => candidate.method === 'desktop/menu-activated')
     expect(pushed.params).toEqual({ menuId: 'open' })
   })
 
@@ -266,14 +308,14 @@ describe('BridgeServer', () => {
       jsonrpc: '2.0', id: 1, method: 'desktop/registerMenuItem',
       params: { group: 'file', item: { id: 'open', label: 'Open' } },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 1)
     // Base rebuild + registration rebuild.
     expect(mocks.setApplicationMenu).toHaveBeenCalledTimes(2)
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 2, method: 'desktop/unregisterMenuItem',
       params: { group: 'file', id: 'open' },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 2)
     // Removing the last group must reinstall the shell's base menu, not leave
     // the custom menu with a stale group standing.
     expect(mocks.setApplicationMenu).toHaveBeenCalledTimes(3)
@@ -287,14 +329,12 @@ describe('BridgeServer', () => {
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator: 'Cmd+K' },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(JSON.parse(frames[0] ?? '{}')).toMatchObject({ result: { ok: true } })
+    const response = await waitForFrame(candidate => candidate.id === 1)
+    expect(response.result).toEqual({ ok: true })
     const callback = mocks.registerShortcut.mock.calls[0]?.[1] as (() => void) | undefined
     frames.length = 0
     callback?.()
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { accelerator: string } }
-    expect(pushed.method).toBe('desktop/shortcut-triggered')
+    const pushed = await waitForFrame(candidate => candidate.method === 'desktop/shortcut-triggered')
     expect(pushed.params).toEqual({ accelerator: 'Cmd+K' })
   })
 
@@ -303,8 +343,7 @@ describe('BridgeServer', () => {
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator: 'Cmd+K' },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const response = JSON.parse(frames[0] ?? '{}') as { error?: { code: number; message: string } }
+    const response = await waitForFrame(candidate => candidate.id === 1)
     expect(response.error?.code).toBe(-32000)
     expect(response.error?.message).toContain('already registered')
   })
@@ -315,14 +354,14 @@ describe('BridgeServer', () => {
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'desktop/setTray', params: { tooltip: 'DSH', menuGroup: 'tray' },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 1)
     expect(double.setToolTip).toHaveBeenCalledWith('DSH')
     // A tray-group menu item lands in the tray menu, not the application menu.
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 2, method: 'desktop/registerMenuItem',
       params: { group: 'tray', item: { id: 'pause', label: 'Pause' } },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 2)
     // A tray-group item never joins the application menu; the rebuild still
     // runs (base baseline) but must not carry the tray item. Read the
     // application menu from the setApplicationMenu call, not the shared mock
@@ -341,9 +380,9 @@ describe('BridgeServer', () => {
     const double = makeTrayDouble()
     bridge.initTray(double.tray, { onShow: () => {}, onQuit: () => {} })
     client?.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'desktop/setTray', params: { tooltip: 'DSH' } }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 1)
     client?.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'desktop/clearTray' }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 2)
     expect(double.setToolTip).toHaveBeenLastCalledWith(APP_NAME)
   })
 
@@ -361,9 +400,7 @@ describe('BridgeServer', () => {
     bridge.initTray(double.tray, { onShow: () => {}, onQuit: () => {} })
     frames.length = 0
     double.handlers.click?.()
-    await new Promise(resolve => setTimeout(resolve, 20))
-    const pushed = JSON.parse(frames[0] ?? '{}') as { method: string; params: { button: string } }
-    expect(pushed.method).toBe('desktop/tray-clicked')
+    const pushed = await waitForFrame(candidate => candidate.method === 'desktop/tray-clicked')
     expect(pushed.params).toEqual({ button: 'left' })
   })
 
@@ -373,7 +410,7 @@ describe('BridgeServer', () => {
     client?.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'desktop/sendNotification', params: { title: 'x' },
     }) + '\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await waitForFrame(candidate => candidate.id === 1)
     bridge.dispose()
     expect(mocks.unregisterAll).toHaveBeenCalled()
     expect(double.destroy).not.toHaveBeenCalled()

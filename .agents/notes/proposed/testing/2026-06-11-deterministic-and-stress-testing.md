@@ -14,6 +14,10 @@ Several loop tests synchronize with `setTimeout(30)` sleeps — flakiness debt t
 
 A full-repo scan re-measured the premises. The `setTimeout` sleep debt is gone: the only remaining occurrences in `packages/*/tests` drive the webworker timer API under test, not synchronization sleeps, so proposal 1 has nothing left to ban. Proposals 2 and 3 remain unlanded, and the inbox wakeup race is still verified only by the original hand-run.
 
+## Update 2026-09-13
+
+Proposal 3 now has its own tracking item: [Issue #121](https://github.com/xujian519/deepseek-harness/issues/121) carries the range, budget, failure-consumption, and negative-control decisions. Note that the Vitest 4 option names differ from this note's `--repeat`/`--shuffle` wording: repetition is the `test.repeats` option (the CLI has no `--repeat`), and random order is `--sequence.shuffle`.
+
 ## Proposal
 
 Three measures:

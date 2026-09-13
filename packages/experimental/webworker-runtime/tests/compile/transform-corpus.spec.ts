@@ -22,7 +22,13 @@ test('every built bundle imports under Node', (context) => {
   const finished = spawnSync(process.execPath, ['--import', 'tsx/esm', runner], { encoding: 'utf8' })
   const output = `${finished.stdout}${finished.stderr}`
   if (output.includes('no built bundles found')) {
-    context.skip('the workspace has no build output to sweep')
+    // The sweep needs built bundles, so a unit-only lane (no `pnpm run build`
+    // in the job) skips it. Skipping quietly would hide that the sweep never
+    // ran; the CI annotation mirrors the sandbox-windows-acl probe skip, so a
+    // lane that lost its build step stays visible instead of degrading away.
+    const reason = 'compiled-bundle import sweep skipped: the workspace has no build output'
+    console.warn(process.env.CI ? `::warning::${reason}` : reason)
+    context.skip(reason)
     return
   }
   // The runner prefixes every finding with '- ', so a failure reads as the

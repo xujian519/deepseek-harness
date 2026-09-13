@@ -260,6 +260,11 @@ describe('PTC mode typed values: keyless real-worker contracts', () => {
     setTimeout(() => { controller.abort('stop-foreground') }, 200)
     const result = await pending
     expect(result.isError).toBe(true)
+    // The 5s ceiling is what separates a mid-command abort from one that only
+    // takes effect once `sleep 10` returns: the abort fires at 200ms, so the
+    // happy path has ~25x headroom under load, while the late-check path lands
+    // at ~10s. The case budget (15s) stays above the command's own 10s, so a
+    // broken coupling fails on this assertion rather than as a case timeout.
     expect(Date.now() - startedAt).toBeLessThan(5_000)
     expect(ctx.jobs.list()).toEqual([])
   }, 15_000)

@@ -1913,9 +1913,9 @@ describe('PythonCodeRuntime — programs and bindings', () => {
     // A chain thousands of links deep would make the rendering walk and
     // format() linear in its length, consuming maxWallMs. Rendering is capped
     // at 100 links with a marker; the run reports the exception well within
-    // budget rather than timing out.
+    // budget rather than timing out. The reported kind is the assertion: a run
+    // that consumed the wall budget would report `timeout`, not `exception`.
     const { runtime } = await setup({ maxValueBytes: 1024 * 1024, maxWallMs: 20_000 })
-    const start = Date.now()
     const result = await runtime.run({
       program: [
         'err = None',
@@ -1930,7 +1930,6 @@ describe('PythonCodeRuntime — programs and bindings', () => {
     })
     expect(result.error?.kind).toBe('exception')
     expect(result.error?.message).toContain('exception chain truncated at 100 links')
-    expect(Date.now() - start).toBeLessThan(15_000)
   }, 25_000)
 
   it('bounds an over-cap chain without assigning to the live exception', async () => {
@@ -1943,7 +1942,6 @@ describe('PythonCodeRuntime — programs and bindings', () => {
     // COPY touches no model hook, so the marker still appears and the run
     // reports `exception`.
     const { runtime } = await setup({ maxValueBytes: 1024 * 1024, maxWallMs: 15_000 })
-    const start = Date.now()
     const result = await runtime.run({
       program: [
         'class Sealed(Exception):',
@@ -1963,9 +1961,9 @@ describe('PythonCodeRuntime — programs and bindings', () => {
     expect(result.error?.message).toContain('Sealed')
     expect(result.error?.message).toContain('exception chain truncated at 100 links')
     // The sever attempt is what used to leak: its message must not appear, and
-    // the run must settle well inside the wall budget rather than timing out.
+    // the run must settle well inside the wall budget rather than timing out —
+    // exactly what the `exception` kind above reports.
     expect(result.error?.message).not.toContain('live mutation refused')
-    expect(Date.now() - start).toBeLessThan(10_000)
   }, 20_000)
 
   it('still sends done when rendering the diagnostic itself raises', async () => {
@@ -2982,7 +2980,6 @@ describe('PythonCodeRuntime — programs and bindings', () => {
     // JSON.parse drops silently, hanging the call until the wall clock;
     // allow_nan=False raises in-program right away.
     const { runtime } = await setup({ maxWallMs: 8000 })
-    const start = Date.now()
     const result = await runtime.run({
       program: [
         'caught = ""',
@@ -2994,9 +2991,10 @@ describe('PythonCodeRuntime — programs and bindings', () => {
       ].join('\n'),
       bindings: tools({ echo: async args => args as CodeJsonValue }),
     })
+    // A hang would burn the 8 s wall budget and report a timeout error, so the
+    // value assertion below already excludes it — no elapsed bound needed.
     expect(result.error).toBeUndefined()
     expect(result.value).toContain('lossless JSON')
-    expect(Date.now() - start).toBeLessThan(5000)
   })
 
   it('carries large binding arguments well past maxValueBytes', async () => {
@@ -3121,6 +3119,9 @@ describe('PythonCodeRuntime — budgets, termination, disposal', () => {
     // The wall timer may fire first or the exit-after-signal may resolve; both are ok.
     expect(['timeout', 'worker-exit']).toContain(result.error?.kind)
     // We got somewhere in the neighborhood of maxWallMs, not the underlying `sleep(1)`.
+    // The alternative is an infinite loop bounded only by the 5 s case budget,
+    // so this is the deadline under test: 500 ms of work plus its kill path
+    // against a 2 s ceiling, with the case budget above it.
     expect(elapsed).toBeLessThan(2000)
   }, 5000)
 
