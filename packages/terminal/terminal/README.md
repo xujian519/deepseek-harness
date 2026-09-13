@@ -53,7 +53,7 @@ Every session is owned by the exact agent that opened it. Operations that name a
 
 ### Observable outcomes and failures
 
-A successful open returns the session id, type, pid when the backend has one, status, and a bounded startup message. Sends settle with a wait reason: `stdin_read` (the shell is waiting for input), `inferred_idle` (output silence), `timeout`, or `session_exit` (the top-level shell exited). Failures carry stable machine-routable codes: a missing backend type (`NO_BACKEND`), an unknown session (`NO_SESSION`), another agent's session (`FOREIGN_SESSION`), a second concurrent send (`SEND_ACTIVE`), or an owner that is no longer live (`OWNER_NOT_LIVE`). Backend setup failures reject the open before anything is published, and a failed cleanup rejects the close rather than claiming success.
+A successful open returns the session id, type, pid when the backend has one, status, and a bounded startup message. Sends settle with a wait reason: `stdin_read` (the shell is waiting for input), `inferred_idle` (output silence), `timeout`, or `session_exit` (the top-level shell exited). Failures carry stable machine-routable codes: a missing backend type (`NO_BACKEND`), an unknown session (`NO_SESSION`), another agent's session (`FOREIGN_SESSION`), a second concurrent send (`SEND_ACTIVE`), a send or signal on a session that is closing (`SESSION_CLOSING`) or whose shell already exited (`SESSION_EXITED`), or an owner that is no longer live (`OWNER_NOT_LIVE`). Passing an empty backend type or session name is a caller error and fails with `TypeError` instead of a code. Backend setup failures reject the open before anything is published, and a failed cleanup rejects the close rather than claiming success.
 
 -----
 
@@ -85,7 +85,7 @@ Each published session is a record of its id, owner, optional name, backend type
 
 - Fencing uses the exact `Agent` object: `hasOwnerActivity(owner)` spans unpublished setup through final close with no publication gap, so lifecycle policy can fence the owner precisely.
 - A backend that cannot clean partial startup resources rejects with `TerminalBackendCleanupError`; the service retains that failure as tracked owner activity until owner or service disposal consumes and reports it.
-- Caller cancellation keeps its exact `AbortSignal.reason`; `kill()` and disposal resolve only after the backend's captured process tree is quiescent.
+- Caller cancellation keeps its exact `AbortSignal.reason`; `kill()` and disposal resolve only after the backend's captured process tree is quiescent. `kill()` requires the caller's close reason: the caller knows why it is closing, and the seam reports that text verbatim when the backend's own cleanup fails.
 
 ### Send reservation
 
