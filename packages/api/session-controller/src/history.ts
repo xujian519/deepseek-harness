@@ -76,32 +76,27 @@ export class SessionHistoryController {
    */
   async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
     validatePageRequest(request)
-    const throughSeq: SessionSeqCursor = request.throughSeq === -1
-      ? -1
-      : SessionSeq(request.throughSeq)
-    const beforeSeq = request.beforeSeq === undefined
-      ? undefined
-      : SessionLogOffset(request.beforeSeq)
+    const spec = resolvePageRequest(request)
     using source = await this.sourceFor(request.address, signal, false)
     signal.throwIfAborted()
     const sourceLog = source.events
     const sourceCursor: SessionSeqCursor = sourceLog.at(-1)?.seq ?? -1
-    if (throughSeq > sourceCursor) {
+    if (spec.throughSeq > sourceCursor) {
       throw new RemoteError(
         'gateway/bad-request',
-        `session page through seq ${String(throughSeq)} is past cursor ${String(sourceCursor)}`,
+        `session page through seq ${String(spec.throughSeq)} is past cursor ${String(sourceCursor)}`,
         {},
       )
     }
     /* v8 ignore next -- Session and persistence validation guarantee a dense zero-based event prefix. */
-    if (throughSeq >= 0 && sourceLog[throughSeq]?.seq !== throughSeq) {
-      throw new RemoteError('gateway/internal', `session log does not contain through seq ${String(throughSeq)}`, {})
+    if (spec.throughSeq >= 0 && sourceLog[spec.throughSeq]?.seq !== spec.throughSeq) {
+      throw new RemoteError('gateway/internal', `session log does not contain through seq ${String(spec.throughSeq)}`, {})
     }
     const page = paginate(
       sourceLog,
-      beforeSeq,
-      request.maxMessages ?? DEFAULT_MAX_MESSAGES,
-      throughSeq,
+      spec.beforeSeq,
+      spec.maxMessages,
+      spec.throughSeq,
     )
     const records = pageRecords(page.events)
     return {
@@ -119,6 +114,7 @@ export class SessionHistoryController {
   async *follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
     validateFollowRequest(request)
     const { address } = request
+    const spec = resolveFollowRequest(request)
     const target = addressId(address)
     const buffered = new Deque<
       | { readonly type: 'event'; readonly event: SessionEvent }
@@ -161,9 +157,8 @@ export class SessionHistoryController {
       }
       notify()
     }, { global: true })
-    const disposeAssistantStream = request.assistantStream !== true
-      ? undefined
-      : this.ctx.on('agent/assistant-stream', ({ agent, frame }) => {
+    const disposeAssistantStream = spec.assistantStream
+      ? this.ctx.on('agent/assistant-stream', ({ agent, frame }) => {
         if (agent.session.id !== target) return
         buffered.pushBack({
           type: 'assistant-stream',
@@ -172,6 +167,7 @@ export class SessionHistoryController {
         })
         notify()
       }, { global: true })
+      : undefined
     const onAbort = (): void => { notify() }
     signal.addEventListener('abort', onAbort, { once: true })
     try {
@@ -180,8 +176,8 @@ export class SessionHistoryController {
       signal.throwIfAborted()
       const cursor = source.cursor
       snapshotCursor = cursor
-      const page = paginate(events, undefined, request.maxMessages ?? DEFAULT_MAX_MESSAGES)
-      const assistantStream = request.assistantStream === true
+      const page = paginate(events, undefined, spec.maxMessages)
+      const assistantStream = spec.assistantStream
         ? this.assistantStreams.get(target)?.snapshot() ?? { revision: 0 }
         : undefined
       // The accumulator snapshot and this watermark are synchronous. Frames
@@ -323,6 +319,49 @@ function validateFollowRequest(request: SessionFollowRequest): void {
   if (request.maxMessages !== undefined
     && (!Number.isSafeInteger(request.maxMessages) || request.maxMessages <= 0)) {
     throw new RemoteError('gateway/bad-request', 'maxMessages must be a positive safe integer', {})
+  }
+}
+
+/** A validated page request with this implementation's defaults applied. */
+interface PageSpec {
+  readonly throughSeq: SessionSeqCursor
+  readonly beforeSeq: SessionLogOffset | undefined
+  readonly maxMessages: number
+}
+
+/** A validated follow request with this implementation's defaults applied. */
+interface FollowSpec {
+  readonly maxMessages: number
+  readonly assistantStream: boolean
+}
+
+/** Resolve the page size a request leaves to this implementation. */
+function resolveMaxMessages(value: number | undefined): number {
+  return value ?? DEFAULT_MAX_MESSAGES
+}
+
+/**
+ * Apply this implementation's defaults to a validated page request.
+ * @param request - a request already accepted by {@link validatePageRequest}.
+ * @returns the seq cursors to read between and the message limit to honor.
+ */
+function resolvePageRequest(request: SessionPageRequest): PageSpec {
+  return {
+    throughSeq: request.throughSeq === -1 ? -1 : SessionSeq(request.throughSeq),
+    beforeSeq: request.beforeSeq === undefined ? undefined : SessionLogOffset(request.beforeSeq),
+    maxMessages: resolveMaxMessages(request.maxMessages),
+  }
+}
+
+/**
+ * Apply this implementation's defaults to a validated follow request.
+ * @param request - a request already accepted by {@link validateFollowRequest}.
+ * @returns the message limit to honor and whether assistant frames are wanted.
+ */
+function resolveFollowRequest(request: SessionFollowRequest): FollowSpec {
+  return {
+    maxMessages: resolveMaxMessages(request.maxMessages),
+    assistantStream: request.assistantStream === true,
   }
 }
 
