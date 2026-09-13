@@ -597,7 +597,9 @@ describe('LocalPtySession readiness and output', () => {
     const exiting = session.startSend({ text: 'exit', submit: true })
     terminal.emitExit(7, 9)
     expect(await exiting.done).toMatchObject({ waitReason: 'session_exit', sessionStatus: { kind: 'exited', exitCode: null, signal: 'SIGKILL' } })
-    expect(() => session.startSend({ text: '', submit: false })).toThrow('has exited')
+    expect(() => session.startSend({ text: '', submit: false })).toThrow(expect.objectContaining({
+      code: 'SESSION_EXITED',
+    }))
   })
 
   it('answers PSReadLine cursor-position queries so pwsh can render its next prompt', async () => {
@@ -1043,7 +1045,9 @@ describe('LocalPtySession readiness and output', () => {
     await expect(operation.done).rejects.toThrow('interrupt failed')
     expect(signalCalls).toBe(1)
     expect(session.status()).toEqual({ kind: 'exited', exitCode: null, signal: null })
-    expect(() => session.startSend({ text: '', submit: false })).toThrow('has exited')
+    expect(() => session.startSend({ text: '', submit: false })).toThrow(expect.objectContaining({
+      code: 'SESSION_EXITED',
+    }))
   })
 
   it('handles startup exit, unknown exit signals, cancel-write failure, and stale polls', async () => {
@@ -1527,8 +1531,12 @@ describe('LocalPtySession bounds, signals, and teardown', () => {
     const closing = session.close('test')
     expect(session.close('other')).toBe(closing)
     await expect(closing).rejects.toThrow('PTY cleanup failed (test)')
-    expect(() => session.startSend({ text: '', submit: false })).toThrow('closing')
-    await expect(session.signal('SIGTERM')).rejects.toThrow('closing')
+    expect(() => session.startSend({ text: '', submit: false })).toThrow(expect.objectContaining({
+      code: 'SESSION_CLOSING',
+    }))
+    await expect(session.signal('SIGTERM')).rejects.toThrow(expect.objectContaining({
+      code: 'SESSION_CLOSING',
+    }))
   })
 
   it('reports cleanup failure without waiting for top-level exit and permits retry', async () => {

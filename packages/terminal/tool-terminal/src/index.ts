@@ -378,7 +378,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     },
     async execute(args: SessionArgs, exec) {
       const id = sessionId(args)
-      const closed = await ctx.terminals.kill(requireAgent(exec.agent), id)
+      const closed = await ctx.terminals.kill(requireAgent(exec.agent), id, 'model request')
       return { sessionId: id, outcome: closed ? 'closed' as const : 'already-closing' as const }
     },
     presentCall: args => ({ card: 'generic', title: `Close terminal ${(args).sessionId}`, kind: 'delete' }),

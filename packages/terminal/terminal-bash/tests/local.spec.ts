@@ -150,7 +150,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
       expect((await second.done).viewport).toContain('cwd=/ keep=ok secret=unset')
 
       expect(ctx.terminals.read(agent, created.sessionId, { offset: 0, count: 20 }).text).toContain('cwd=/ keep=ok secret=unset')
-      expect(await ctx.terminals.kill(agent, created.sessionId)).toBe(true)
+      expect(await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')).toBe(true)
       expect(ctx.terminals.list(agent)).toEqual([])
     } finally {
       if (previous === undefined) delete process.env.DSH_TEST_SECRET
@@ -175,7 +175,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
     const result = await after.done
     expect(result.waitReason).toBe('stdin_read')
     expect(result.viewport).toContain('healed=[dsh> ]')
-    await ctx.terminals.kill(agent, created.sessionId)
+    await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
   }, 20_000)
 
   it.skipIf(process.platform !== 'linux')('recognizes a foreground read opened through /dev/tty', async () => {
@@ -200,7 +200,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
     const answered = await answer.done
     expect(answered.waitReason).toBe('stdin_read')
     expect(answered.viewport).toContain('ANSWER=accepted')
-    await ctx.terminals.kill(agent, created.sessionId)
+    await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
   }, 20_000)
 
   it('wraps the exact shell argv under confined policy and unregisters on reload', async () => {
@@ -213,7 +213,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
     await fiber.dispose()
     expect(ctx.terminals.listBackends()).toEqual([])
     expect(ctx.terminals.list(agent)).toHaveLength(1)
-    await ctx.terminals.kill(agent, created.sessionId)
+    await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
   }, 10_000)
 
   it('signals a foreground command and kills a TERM-ignoring background descendant', async () => {
@@ -234,7 +234,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
     expect(child).toBeDefined()
     const pid = Number(child)
     expect(() => process.kill(pid, 0)).not.toThrow()
-    await ctx.terminals.kill(agent, created.sessionId)
+    await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
     expect(() => process.kill(pid, 0)).toThrow()
   }, 10_000)
 
@@ -266,7 +266,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
         await new Promise(resolve => setTimeout(resolve, 10))
       }
       expect(ctx.terminals.list(agent)[0]?.status.kind).toBe('exited')
-      await ctx.terminals.kill(agent, created.sessionId)
+      await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
       expect(processIsRunning(childPid)).toBe(false)
     } finally {
       if (pid !== undefined) {
@@ -310,7 +310,7 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
     })
     await waitForOutput(after, afterReady, 15_000)
     expectReadyForNextSend((await after.done).waitReason)
-    await ctx.terminals.kill(agent, created.sessionId)
+    await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
   }, 35_000)
 })
 
@@ -381,7 +381,7 @@ describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
       const read = () => ctx.terminals.read(agent, created.sessionId, { offset: 0, count: 100 }).text
       await expect.poll(read, { timeout: 8_000 }).toContain(expected)
       expect(read()).not.toContain('must-not-leak')
-      expect(await ctx.terminals.kill(agent, created.sessionId)).toBe(true)
+      expect(await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')).toBe(true)
       expect(ctx.terminals.list(agent)).toEqual([])
     } finally {
       if (previous === undefined) delete process.env.DSH_TEST_SECRET
@@ -415,6 +415,6 @@ describe.skipIf(!hasPwsh)('terminal-bash pwsh real shell', () => {
     await sent.done
     const sentViewport = await waitForRendered(ctx, agent, created.sessionId, '中文 encoding-ok')
     expect(sentViewport).toContain('中文 encoding-ok')
-    await ctx.terminals.kill(agent, created.sessionId)
+    await ctx.terminals.kill(agent, created.sessionId, 'test cleanup')
   }, 30_000)
 })
