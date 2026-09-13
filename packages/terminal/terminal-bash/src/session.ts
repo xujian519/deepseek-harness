@@ -249,8 +249,8 @@ export class LocalPtySession implements TerminalBackendSession {
   }
 
   startSend(request: TerminalSendRequest): TerminalSendOperation {
-    if (this.closing) throw new Error('PTY session is closing')
-    if (this.statusValue.kind === 'exited') throw new Error('PTY session has exited')
+    if (this.closing) throw new TerminalError('PTY session is closing', 'SESSION_CLOSING')
+    if (this.statusValue.kind === 'exited') throw new TerminalError('PTY session has exited', 'SESSION_EXITED')
     if (this.active !== undefined) {
       const draining = this.activeWrite !== undefined
         ? ' or draining provider write'
@@ -375,7 +375,7 @@ export class LocalPtySession implements TerminalBackendSession {
   }
 
   async signal(signal: TerminalSignal): Promise<TerminalSignalResult> {
-    if (this.closing) throw new Error('PTY session is closing')
+    if (this.closing) throw new TerminalError('PTY session is closing', 'SESSION_CLOSING')
     const targetPgid = await this.terminal.signalForeground(signal)
     return { delivered: true, targetPgid }
   }

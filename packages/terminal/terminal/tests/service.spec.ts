@@ -149,7 +149,10 @@ describe('TerminalSessionService backend registry', () => {
 
   it('rejects empty backend types', async () => {
     const ctx = await harness()
-    expect(() => ctx.terminals.registerBackend(backend('').provider)).toThrow('must be non-empty')
+    expect(() => ctx.terminals.registerBackend(backend('').provider)).toThrow(expect.objectContaining({
+      name: 'TypeError',
+      message: 'PTY backend type must be non-empty',
+    }))
   })
 })
 
@@ -170,7 +173,7 @@ describe('TerminalSessionService ownership and lifecycle', () => {
     expect(ctx.terminals.list(foreign)).toEqual([])
     expect(() => ctx.terminals.read(foreign, created.sessionId)).toThrow('belongs to another agent')
     expect(() => ctx.terminals.signal(foreign, created.sessionId, 'SIGINT')).toThrow('belongs to another agent')
-    await expect(Promise.resolve().then(() => ctx.terminals.kill(foreign, created.sessionId))).rejects.toThrow('belongs to another agent')
+    await expect(Promise.resolve().then(() => ctx.terminals.kill(foreign, created.sessionId, 'test cleanup'))).rejects.toThrow('belongs to another agent')
   })
 
   it('rejects unknown backends, non-live owners, duplicate names, and active sends', async () => {
@@ -182,7 +185,10 @@ describe('TerminalSessionService ownership and lifecycle', () => {
     const b = backend()
     ctx.terminals.registerBackend(b.provider)
     const created = await ctx.terminals.spawn(owner, { type: 'stub', name: 'main' })
-    await expect(ctx.terminals.spawn(owner, { type: 'stub', name: '' })).rejects.toThrow('must be non-empty')
+    await expect(ctx.terminals.spawn(owner, { type: 'stub', name: '' })).rejects.toThrow(expect.objectContaining({
+      name: 'TypeError',
+      message: 'PTY session name must be non-empty',
+    }))
     const aborted = new AbortController()
     const abortReason = new Error('spawn aborted')
     aborted.abort(abortReason)
@@ -499,7 +505,7 @@ describe('TerminalSessionService ownership and lifecycle', () => {
     ctx.terminals.registerBackend(b.provider)
     const created = await ctx.terminals.spawn(nextOwner, { type: 'bad-close' })
     b.sessions[0]!.rejectClose = true
-    await expect(ctx.terminals.kill(nextOwner, created.sessionId)).rejects.toThrow('close failed')
+    await expect(ctx.terminals.kill(nextOwner, created.sessionId, 'test cleanup')).rejects.toThrow('close failed')
     expect(ctx.terminals.list(nextOwner)).toHaveLength(1)
   })
 
@@ -511,9 +517,11 @@ describe('TerminalSessionService ownership and lifecycle', () => {
     ctx.terminals.registerBackend(b.provider)
     const created = await ctx.terminals.spawn(owner, { type: 'stub' })
     b.sessions[0]!.closeGate = Promise.withResolvers<undefined>()
-    const first = ctx.terminals.kill(owner, created.sessionId)
-    expect(() => ctx.terminals.startSend(owner, created.sessionId, { text: '', submit: false })).toThrow('closing')
-    const second = ctx.terminals.kill(owner, created.sessionId)
+    const first = ctx.terminals.kill(owner, created.sessionId, 'test cleanup')
+    expect(() => ctx.terminals.startSend(owner, created.sessionId, { text: '', submit: false })).toThrow(expect.objectContaining({
+      code: 'SESSION_CLOSING',
+    }))
+    const second = ctx.terminals.kill(owner, created.sessionId, 'test cleanup')
     b.sessions[0]!.closeGate?.resolve(undefined)
     expect(await first).toBe(true)
     expect(await second).toBe(false)
@@ -546,8 +554,8 @@ describe('TerminalSessionService ownership and lifecycle', () => {
     ctx.agents.register(second)
     const a = await ctx.terminals.spawn(first, { type: 'stub' })
     await ctx.terminals.spawn(second, { type: 'stub' })
-    expect(await ctx.terminals.kill(first, a.sessionId)).toBe(true)
-    expect(b.sessions[0]?.closed).toEqual(['model request'])
+    expect(await ctx.terminals.kill(first, a.sessionId, 'test cleanup')).toBe(true)
+    expect(b.sessions[0]?.closed).toEqual(['test cleanup'])
 
     const service = ctx.terminals
     await disposeTerminalSessionService(ctx)

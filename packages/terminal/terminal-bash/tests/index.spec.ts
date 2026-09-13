@@ -625,8 +625,8 @@ describe('terminal-bash plugin shape', () => {
     await replacementFiber.dispose()
     expect(() => { setSandboxMode(session, 'read-only') }).toThrow('open or being created')
 
-    await ctx.terminals.kill(owner, created.sessionId)
-    await ctx.terminals.kill(owner, second.sessionId)
+    await ctx.terminals.kill(owner, created.sessionId, 'test cleanup')
+    await ctx.terminals.kill(owner, second.sessionId, 'test cleanup')
     expect(() => { setSandboxMode(session, 'read-only') }).not.toThrow()
     expect(session.snapshotEvents().filter(event => event.type === 'sandbox/mode')).toHaveLength(2)
   })
@@ -661,7 +661,7 @@ describe('terminal-bash plugin shape', () => {
     expect(() => { setSandboxMode(session, 'read-only') }).toThrow('open or being created')
     gate.resolve(undefined)
     const created = await spawning
-    await ctx.terminals.kill(owner, created.sessionId)
+    await ctx.terminals.kill(owner, created.sessionId, 'test cleanup')
     expect(ctx.terminals.hasOwnerActivity(owner)).toBe(false)
   })
 })

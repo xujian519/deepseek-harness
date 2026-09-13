@@ -60,6 +60,8 @@ export type TerminalErrorCode =
   | 'NO_SESSION'
   | 'OWNER_NOT_LIVE'
   | 'SEND_ACTIVE'
+  | 'SESSION_CLOSING'
+  | 'SESSION_EXITED'
   | 'SERVICE_DISPOSING'
 
 /** Error carrying a stable {@link TerminalErrorCode}. */
@@ -123,7 +125,7 @@ export class TerminalSessionService extends Service {
    * @returns disposer that removes exactly this contribution.
    */
   registerBackend(backend: TerminalBackend): () => void {
-    if (backend.type.length === 0) throw new Error('pty backend type must be non-empty')
+    if (backend.type.length === 0) throw new TypeError('PTY backend type must be non-empty')
     if (this.backends.has(backend.type)) {
       throw new TerminalError(`a PTY backend named "${backend.type}" is already registered`, 'DUPLICATE_BACKEND')
     }
@@ -157,7 +159,7 @@ export class TerminalSessionService extends Service {
     this.ensureOwnerCleanup(owner)
     const backend = this.backends.get(request.type)
     if (backend === undefined) throw new TerminalError(`no PTY backend registered for "${request.type}"`, 'NO_BACKEND')
-    if (request.name !== undefined && request.name.length === 0) throw new Error('PTY session name must be non-empty')
+    if (request.name !== undefined && request.name.length === 0) throw new TypeError('PTY session name must be non-empty')
     const releaseName = this.reserveName(owner, request.name)
     const spawnReservation = this.reserveSpawn(owner)
     const backendSignal = signal === undefined
@@ -242,7 +244,7 @@ export class TerminalSessionService extends Service {
    */
   startSend(owner: Agent, id: TerminalSessionId, request: TerminalSendRequest): TerminalSendOperation {
     const record = this.expectOwned(owner, id)
-    if (record.closing !== undefined) throw new Error(`PTY session ${id} is closing`)
+    if (record.closing !== undefined) throw new TerminalError(`PTY session ${id} is closing`, 'SESSION_CLOSING')
     if (record.active !== undefined) throw new TerminalError(`PTY session ${id} already has an active send`, 'SEND_ACTIVE')
     const operation = record.session.startSend(request)
     record.active = operation
@@ -279,10 +281,11 @@ export class TerminalSessionService extends Service {
    * Close one owned session and remove it only after quiescent backend cleanup.
    * @param owner - exact session owner.
    * @param id - target PTY identity.
-   * @param reason - diagnostic cleanup reason.
+   * @param reason - why this caller closes the session; a backend that fails its own
+   * cleanup reports the text verbatim.
    * @returns true for a newly closed session, false when the same close is already in flight.
    */
-  async kill(owner: Agent, id: TerminalSessionId, reason: string = 'model request'): Promise<boolean> {
+  async kill(owner: Agent, id: TerminalSessionId, reason: string): Promise<boolean> {
     const record = this.expectOwned(owner, id)
     if (record.closing !== undefined) {
       await record.closing
