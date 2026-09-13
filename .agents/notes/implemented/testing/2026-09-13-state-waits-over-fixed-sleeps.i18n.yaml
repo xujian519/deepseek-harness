@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-13-state-waits-over-fixed-sleeps.md
-2026-09-13-state-waits-over-fixed-sleeps.md: 5431fa5445b7cd13d033395acdd78a57be489246
-2026-09-13-state-waits-over-fixed-sleeps.zh.md: eff952da78032cc3e254625f72be803cb6ca5abd
+2026-09-13-state-waits-over-fixed-sleeps.md: aed4f1883d0abdebcb75aa84916ce8968d1f84a9
+2026-09-13-state-waits-over-fixed-sleeps.zh.md: 70b1903ba9240c5c8336e60ffc7b4af8d216aef4

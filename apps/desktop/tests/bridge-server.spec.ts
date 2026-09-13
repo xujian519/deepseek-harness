@@ -174,18 +174,11 @@ describe('BridgeServer', () => {
   afterEach(async () => {
     client?.end()
     bridge.dispose()
-    // POSIX unlinks the socket file when the closing server releases it, and
-    // Windows frees a pipe name asynchronously; the bounded retry covers both
-    // without parking on a fixed delay.
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      try {
-        unlinkSync(socketPath)
-        break
-      } catch {
-        // Still held by the closing listener; retry until the budget runs out.
-        await new Promise(resolve => setTimeout(resolve, 20))
-      }
-    }
+    // Node unlinks a POSIX socket file when the closing server releases it —
+    // every observed run reported ENOENT on the first attempt — and a Windows
+    // pipe name is not a file at all, so this stays a best-effort removal
+    // rather than a wait for the file to disappear.
+    try { unlinkSync(socketPath) } catch {}
   })
 
   it('rejects an unknown method with a JSON-RPC error', async () => {

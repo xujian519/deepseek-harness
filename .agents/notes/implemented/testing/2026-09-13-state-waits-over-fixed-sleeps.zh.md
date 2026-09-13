@@ -20,7 +20,7 @@ Issue #92 列出四类可靠性债务。同一 Issue 上先前的两批已修复
 
 - `beforeEach` 用白名单内的无副作用方法（`desktop/unregisterGlobalShortcut`）做就绪握手。桥接服务在 accept 回调里挂上后端套接字，因此连接事件不能证明之后的 `notify()` 推送会到达该客户端，完成一次往返才能。
 - 无 id 帧的用例断言的是「不存在」，而无存在之事件可等；它现在在非法帧之后补发一个合法帧，并断言帧总数。桥接服务按请求顺序作答，因此若对无 id 帧有回复，它必然出现在 id 1 响应之前。
-- `afterEach` 用有界重试包裹 `unlinkSync` 取代固定等待，覆盖 POSIX 在关闭监听后 unlink 套接字文件、Windows 异步释放管道名两种语义。
+- `afterEach` 去掉固定等待，只保留一次尽力而为的 `unlinkSync`：POSIX 下关闭监听时 Node 自己会 unlink 套接字文件，Windows 的管道名则根本不是文件；给这一改动第一版的有界重试做插桩后，十次尝试全部报 `ENOENT`——该循环每个用例白白多等 200 ms，等的是一个早已被删掉的文件。
 
 **墙钟界只保留它真正判定的部分。** `packages/experimental/code-runtime-python/tests/runtime.spec.ts` 删除三处 elapsed 断言：它们的「记录在案」断言是运行结局本身，而消耗掉墙钟预算的运行会报告 `timeout`（或得到一个已定义的 `error`）而非被断言的取值，故这些界只可能虚假失败。保留的界各自区分两种真实结局，并写明所区分者：墙钟截止对「否则永久运行」的程序（`maxWallMs: 500`）、CPU 硬上限对墙钟天花板、`dispose()` 必须等满的宽限期、close 截止兜底对 setsid 孤儿的自行退出、以及 `ui-primitives` 中回退工作量上限——实测约 60 ms 对 3 s 界。
 
@@ -36,16 +36,17 @@ Issue #92 列出四类可靠性债务。同一 Issue 上先前的两批已修复
 - **删除全部 elapsed 界。** 否决：其中数处是唯一能把「被测截止」与「无界等待」分开的可观测量；删除等于用盲区换掉一次偶发失败。
 - **为负载余量放宽保留的界。** 否决：那会缩小每个界存在的意义，而实测余量已超过任何可信的调度延迟。
 - **让语料扫描在无构建产物时失败。** 否决：纯单测车道本就没有构建产物，失败会打断正确的车道；消除静默靠的是注解。
+- **用有界重试等待套接字文件消失。** 试过后否决：给该循环插桩发现每次尝试都报 `ENOENT`，即关闭监听的一方早已删掉该文件，于是这段等待只给它本要加速的套件每用例多加了 200 ms。
 - **把 better-sidebar 两个 EditorHost 用例改写成 `vi.waitFor`。** 以「无据」否决：这两个用例只在审计的全量跑中失败过一次，而在 CPU 饱和下的十次运行每次 18 个用例全过，从失败信息里也指认不出被等待的状态。台账改为登记该观测与复现尝试。
 - **在本批顺带落地竞态压测 job。** 否决：那属于 CI 拓扑而非测试修复，需要自行决定范围、预算与失败消费方式。
 
 ## 影响
 
-桌面桥接套件的每次套接字往返现在都会带着实际到达的帧失败，而不是读到空数组；该套件约 4 s 跑完，而此前仅睡眠就每用例 20 ms。墙钟界的「删除还是记录」划分给仓库留下一条规则：elapsed 断言必须写明它区分的两种结局。两处盲区是构造使然：e2e 车道仍会重跑断言失败，因此该车道的间歇缺陷要么被快照层、要么被人工重跑才能复现；已构建包扫描仍不跑在本 fork 的 CI 里——它现在会说出来，而不是静默通过。EditorHost 的观测是登记，不是修复。
+桌面桥接套件的每次套接字往返现在都会带着实际到达的帧失败，而不是读到空数组；该文件约 0.4 s 跑完（每用例 14 ms），而此前仅睡眠就每用例 20 ms。墙钟界的「删除还是记录」划分给仓库留下一条规则：elapsed 断言必须写明它区分的两种结局。两处盲区是构造使然：e2e 车道仍会重跑断言失败，因此该车道的间歇缺陷要么被快照层、要么被人工重跑才能复现；已构建包扫描仍不跑在本 fork 的 CI 里——它现在会说出来，而不是静默通过。EditorHost 的观测是登记，不是修复。
 
 ## 测试
 
-`pnpm exec vitest run apps/desktop/tests/bridge-server.spec.ts`（19 通过，4.0 s）；`pnpm exec vitest run packages/client/better-sidebar/tests/cov-host-git.spec.ts packages/client/ui-primitives/tests/markdown.client.spec.tsx packages/experimental/code-runtime-python/tests/runtime.spec.ts packages/experimental/webworker-runtime/tests/compile/transform-corpus.spec.ts`（302 通过 / 2 跳过）；语料跳过分支通过临时强制空语料并设 `CI=1` 实跑，打印出 `::warning::` 行并跳过（已回退）；`pnpm run lint`（0 警告 / 0 错误）与 `pnpm run typecheck`。
+`pnpm exec vitest run apps/desktop/tests/bridge-server.spec.ts`（19 通过，0.4 s）；`pnpm exec vitest run packages/client/better-sidebar/tests/cov-host-git.spec.ts packages/client/ui-primitives/tests/markdown.client.spec.tsx packages/experimental/code-runtime-python/tests/runtime.spec.ts packages/experimental/webworker-runtime/tests/compile/transform-corpus.spec.ts`（302 通过 / 2 跳过）；语料跳过分支通过临时强制空语料并设 `CI=1` 实跑，打印出 `::warning::` 行并跳过（已回退）；`pnpm run lint`（0 警告 / 0 错误）与 `pnpm run typecheck`。
 
 ## 相关
 
