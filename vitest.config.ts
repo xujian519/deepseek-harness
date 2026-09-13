@@ -200,12 +200,15 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      // Coverage measures OUR runtime source. Types-only files carry no
-      // executable code; vendor/ and application/config fixtures are out of scope.
+      // Coverage measures OUR runtime source; vendor/ and application/config
+      // fixtures are out of scope.
       // .tsx: client components are gated like everything else (jsdom lane).
       include: ['packages/*/*/src/**/*.{ts,tsx}'],
-      // Types-only files have no runtime coverage. Importing self-executing bins/workers would boot
-      // them inside the unit process, so real subprocess/Worker tests cover their thin entry glue.
+      // Declaration files have no executable code. A few also declare a brand
+      // constructor, error class, or vocabulary constant (packages/AGENTS.md);
+      // those companions travel with the file. Importing self-executing
+      // bins/workers would boot them inside the unit process, so real
+      // subprocess/Worker tests cover their thin entry glue.
       exclude: [
         'packages/*/*/src/types.ts',
         'packages/*/*/src/bin.ts',

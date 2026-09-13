@@ -20,7 +20,7 @@ import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } fr
  */
 export const SHELL_SETTINGS_NAMESPACE = 'shell'
 
-export { DSH_ENV_PREFIX } from './types.ts'
+export { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-subprocess'
 export type {
   ShellExecRequest,
   ShellExecSpec,
