@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-switch-exhaustiveness-guards.md
-2026-09-13-switch-exhaustiveness-guards.md: 500d2d7b294aa1382a1291f773d232314fc92717
-2026-09-13-switch-exhaustiveness-guards.zh.md: 554b86f247c4717e6f4097f9a4448ef306a6d299
+2026-09-13-switch-exhaustiveness-guards.md: 053e11ec744c58005ac9d35e9d3a24ac1d776181
+2026-09-13-switch-exhaustiveness-guards.zh.md: b732e414ad2ffbcb3c21dd76476d1a64c4ccffba

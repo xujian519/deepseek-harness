@@ -10,7 +10,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { callingAgent, type PatentTeamsArchive, type PatentTeamsService, type PatentTeamsStatus } from './service.ts'
 
@@ -57,11 +57,6 @@ function renderStatus(team: PatentTeamsStatus): string {
   return lines.join('\n')
 }
 
-/** Exhaustiveness guard for the closed archive payload union. */
-function assertNever(value: never): never {
-  throw new Error(`unreachable patent-teams archive payload: ${String(value)}`)
-}
-
 /** Render the archive payload as compact text for the model. */
 function renderArchive(archive: PatentTeamsArchive): string {
   switch (archive.mode) {
@@ -87,8 +82,10 @@ function renderArchive(archive: PatentTeamsArchive): string {
         }),
       ].join('\n')
     }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new archive mode here. */
+    default:
+      return assertNever(archive, 'patent teams archive mode')
   }
-  return assertNever(archive)
 }
 
 /**

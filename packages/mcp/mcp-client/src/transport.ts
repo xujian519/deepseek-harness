@@ -10,6 +10,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Config } from './index.ts'
 
 /**
@@ -46,5 +47,8 @@ export function createTransport(config: Config): Transport {
         new URL(config.url),
         { requestInit: { headers: config.headers } },
       ) as Transport
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new transport here. */
+    default:
+      return assertNever(config, 'mcp transport')
   }
 }

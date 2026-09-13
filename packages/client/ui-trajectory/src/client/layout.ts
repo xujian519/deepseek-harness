@@ -13,6 +13,7 @@ import type {
   ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   TrajectoryCellProps,
   TrajectorySourceBlock,
@@ -831,6 +832,9 @@ function assistantSourceBlock(block: AssistantBlock): TrajectorySourceBlock {
     }
     case 'image': return { type: 'image', content: '', attachment: block.attachment }
     case 'other': return sourceBlock(block.block)
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new assistant block here. */
+    default:
+      return assertNever(block, 'assistant block')
   }
 }
 

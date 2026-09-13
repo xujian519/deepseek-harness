@@ -24,6 +24,7 @@ import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import clsx from 'clsx'
 import { IconCloseFill14, IconPlusOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { DockZone, LayoutState, PaneNode, TabId } from '../contract/types.ts'
 import { getTab } from '../engine/tree.ts'
 import type { PaneCallbacks, SplitBlock } from './render.ts'
@@ -204,6 +205,9 @@ function splitBlockedTitle(labels: PaneCallbacks['labels'], block: SplitBlock): 
   switch (block) {
     case 'budget': return labels.splitPaneDisabled
     case 'width': return labels.splitPaneNarrow
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new split block here. */
+    default:
+      return assertNever(block, 'split block')
   }
 }
 

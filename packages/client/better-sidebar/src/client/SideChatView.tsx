@@ -34,6 +34,7 @@ import {
   StateDot,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { markdownTextProps } from './markdown-labels.tsx'
 import { IconHistoryOutline16, IconSaveOutline16 } from './icons.tsx'
 import type { Context, SidebarHistoryEntry } from '../context-types.ts'
@@ -231,6 +232,9 @@ function renderRow(row: SidechatTranscriptRow, labels: RowLabels): React.ReactNo
         />
       )
     }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new transcript row here. */
+    default:
+      return assertNever(row, 'sidechat transcript row')
   }
 }
 

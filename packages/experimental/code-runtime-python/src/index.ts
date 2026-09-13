@@ -21,7 +21,7 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeBindingErrorClass, CodeBindingFunction, CodeJsonValue, CodeRunFailure, CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
-import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
+import { assertNever, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { BootMessage, ChildToHost, ReplyMessage } from './protocol.ts'
@@ -1912,6 +1912,9 @@ export class PythonCodeRuntime extends CodeRuntime {
             })()
             return
           }
+          /* v8 ignore next -- closed-union backstop; the compiler rejects a new child frame here. */
+          default:
+            assertNever(message, 'python runtime child frame')
         }
       }
 

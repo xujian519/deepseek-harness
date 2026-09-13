@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import {
   IconBrowseOutline16, IconFolderClose16,
 } from './icons/index.tsx'
@@ -31,5 +32,8 @@ export function ReferenceIcon({ kind, size = 16, className }: ReferenceIconProps
       )
     case 'file': return <IconBrowseOutline16 size={size} className={className} />
     case 'folder': return <IconFolderClose16 size={size} className={className} />
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new reference kind here. */
+    default:
+      return assertNever(kind, 'reference icon kind')
   }
 }

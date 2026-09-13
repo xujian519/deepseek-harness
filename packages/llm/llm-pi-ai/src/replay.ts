@@ -11,6 +11,7 @@
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { Message, ModelMessageSource, ReplayEnvelope } from '@deepseek-ai/dsh-llm'
 import type { Api, AssistantMessage, Usage as PiUsage } from '@earendil-works/pi-ai'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** Per-block half of the pi-ai replay envelope, one entry per content block. */
 export type PiAiReplayBlock =
@@ -105,6 +106,9 @@ export function toPiReplayState(message: AssistantMessage, requestedModel = mess
           type: 'tool-call',
           ...block.thoughtSignature === undefined ? {} : { thoughtSignature: block.thoughtSignature },
         }
+        /* v8 ignore next -- closed-union backstop; the compiler rejects a new replay block here. */
+        default:
+          return assertNever(block, 'pi-ai replay block')
       }
     }),
   }

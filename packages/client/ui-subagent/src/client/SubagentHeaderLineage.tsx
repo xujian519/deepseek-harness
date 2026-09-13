@@ -12,6 +12,7 @@ import {
   IconChevronDownOutline14, IconChevronRightOutline14, IconRefreshOutline14, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { NS } from './locales.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-token-meter/client'
@@ -55,6 +56,9 @@ function diagnosticReason(
     case 'corrupt': return t('diagnostic.corrupt')
     case 'unsupported': return t('diagnostic.unsupported')
     case 'unavailable': return t('diagnostic.unavailable')
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new diagnostic reason here. */
+    default:
+      return assertNever(entry.reason, 'subagent diagnostic reason')
   }
 }
 

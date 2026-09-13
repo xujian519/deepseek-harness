@@ -9,7 +9,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   PlanTaskSemanticError,
   PlanTaskStateMachine,
@@ -89,6 +89,9 @@ export function renderPlanTask(value: PatentPlanTaskOutput): string {
         : '无保留步骤'
       return `patent_plan_task: 重规划 → ${(value.tasks ?? []).length} 个任务\n${preserved}\n需执行: ${(value.toRun ?? []).join(', ') || '（全部已完成）'}`
     }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new plan task action here. */
+    default:
+      return assertNever(value.action, 'plan task action')
   }
 }
 

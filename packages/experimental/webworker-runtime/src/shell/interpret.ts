@@ -237,6 +237,9 @@ class Interpreter {
         return await this.redirected(command.args, state, io, async inner => await this.line(command.group, state, inner))
       case 'command':
         return await this.program(command, state, io)
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new command kind here. */
+      default:
+        return assertNever(command, 'shell command')
     }
   }
 

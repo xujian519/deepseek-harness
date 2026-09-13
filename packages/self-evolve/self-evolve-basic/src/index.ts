@@ -53,6 +53,7 @@ import type {} from '@deepseek-ai/dsh-cordis-host-runner'
 import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-projection'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 export type {
   BasicSelfEvolveConfig,
@@ -144,6 +145,9 @@ function candidateText(proposal: EvolveProposal): string {
       return `workflow ${candidate.scriptName}:\n${candidate.scriptBody}`
     case 'L4-harness':
       return `plugin ${candidate.pluginIdPrefix} (host=${candidate.hostCode !== undefined ? 'provided' : 'none'}, client=${candidate.clientCode !== undefined ? 'provided' : 'none'})`
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new candidate kind here. */
+    default:
+      return assertNever(candidate, 'evolve candidate')
   }
 }
 

@@ -17,6 +17,7 @@ import type { ReactNode } from 'react'
 import type {
   BoundActions, HandleOf, PropsStore, SnapshotSelectorHook, StoreDecl,
 } from '@deepseek-ai/dsh-client-store'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { HostObservable, KeyedStandardSource } from './renderer.ts'
 
 export * from './store.ts'
@@ -860,6 +861,9 @@ export class SlotCore {
       case 'chain':
         if (options.select === undefined) throw new Error(`chain slot "${options.name}" requires options.select`)
         break
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new slot kind here. */
+      default:
+        assertNever(spec.kind, 'slot kind')
     }
     if (options.children) {
       for (const childKey of Object.keys(options.children)) {

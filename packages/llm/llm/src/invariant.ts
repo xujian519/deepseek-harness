@@ -2,6 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { ContentBlockType, StreamChunk } from './types.ts'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-llm'
@@ -77,6 +78,9 @@ async function* validateStream(
         }
         finished = true
         break
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new chunk type here. */
+      default:
+        assertNever(chunk, 'assistant stream chunk')
     }
     yield chunk
   }

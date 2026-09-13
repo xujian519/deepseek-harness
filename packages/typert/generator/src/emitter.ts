@@ -7,6 +7,7 @@
 import { Buffer } from 'node:buffer'
 import { posix } from 'node:path'
 import { GenMapping, addMapping, toEncodedMap } from '@jridgewell/gen-mapping'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   DocumentationModel,
   FaceModel,
@@ -641,6 +642,9 @@ class SchemaEmitter {
       case 'function':
       case 'constructor':
       case 'this': return this.unsupported(node)
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new type node here. */
+      default:
+        return assertNever(node, 'type node')
     }
   }
 

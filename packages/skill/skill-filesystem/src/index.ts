@@ -1017,6 +1017,8 @@ function frontmatterBoolean(data: Record<string, unknown>, key: string): boolean
   if (value === 1 || value === '1') return true
   if (value === 0 || value === '0') return false
   if (typeof value === 'string') {
+    // Only these spellings are boolean literals; any other string falls through
+    // to the TypeError below rather than defaulting.
     switch (value.toLowerCase()) {
       case 'true':
       case 'yes':

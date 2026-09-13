@@ -13,6 +13,7 @@
  * for a pending group with no items). Auto-close and explicit close drop
  * the groups.
  */
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { InputTriggerCandidate, InputTriggerSource } from '../types.ts'
 import type { ExactMatch, MenuReduce, MenuState } from './contract.ts'
 
@@ -150,6 +151,9 @@ export const menuReduce: MenuReduce = (state, ev) => {
     }
     case 'close':
       return closed(state)
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new menu event here. */
+    default:
+      return assertNever(ev, 'input trigger menu event')
   }
 }
 

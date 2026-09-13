@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { EvolveLevel, FailurePattern, FailurePatternsProjection } from './types.ts'
 
 /** Projection-unit key registered under `ctx.sessionProjections`. */
@@ -79,6 +80,9 @@ function toNarrowLevel(tier: VerifierTier): EvolveLevel {
       return 'L2-context'
     case 'agent-loop':
       return 'L4-harness'
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new verifier tier here. */
+    default:
+      return assertNever(tier, 'verifier tier')
   }
   /* v8 ignore stop */
 }

@@ -25,6 +25,7 @@ import type {} from '@deepseek-ai/dsh-api-gateway'
 import { API_PATH, type ConnectionFetchHandler } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-client-modules'
 import { renderIndexInjections, type IndexInjection } from '@deepseek-ai/dsh-host-webserver'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import {
   DESKTOP_HOST_PROTOCOL_VERSION,
   DESKTOP_PIPE_CHUNK_BYTES,
@@ -351,6 +352,9 @@ export async function runDesktopHost(
       case 'gateway': return api.fetch(request)
       case 'portless': return (await portlessWeb.dispatch(request)) ?? await assets.fetch(request)
       case 'assets': return assets.fetch(request)
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new request owner here. */
+      default:
+        return assertNever(owner, 'desktop request owner')
     }
   }
   const requests = new Map<number, AbortController>()

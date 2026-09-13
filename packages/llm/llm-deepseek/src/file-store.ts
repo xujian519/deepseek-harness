@@ -2,6 +2,7 @@
 
 import type { RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { LlmError } from '@deepseek-ai/dsh-llm'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { DeepSeekFilesClient, isFilesQuotaError } from './files-api.ts'
 import type { DeepSeekFileId } from './file-id.ts'
 import { deepSeekFileScope, DeepSeekUploadIndex } from './upload-index.ts'
@@ -98,6 +99,9 @@ function extension(mediaType: RequestImageAttachment['mediaType']): 'png' | 'jpe
     case 'image/jpeg': return 'jpeg'
     case 'image/webp': return 'webp'
     case 'image/gif': return 'gif'
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new image media type here. */
+    default:
+      return assertNever(mediaType, 'request image media type')
   }
 }
 

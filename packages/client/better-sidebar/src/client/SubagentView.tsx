@@ -25,6 +25,7 @@ import clsx from 'clsx'
 import {
   IconRefreshOutline14, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   Context,
   SidebarSessionList,
@@ -92,6 +93,9 @@ function diagnosticReason(entry: SidebarSubagentDiagnosticEntry): string {
     case 'corrupt': return t('subagentDiagCorrupt')
     case 'unsupported': return t('subagentDiagUnsupported')
     case 'unavailable': return t('subagentDiagUnavailable')
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new diagnostic reason here. */
+    default:
+      return assertNever(entry.reason, 'subagent diagnostic reason')
   }
 }
 

@@ -12,6 +12,7 @@
  *      re-match that lets a `detect` viewer claim a binary the extension
  *      match could not see (the builtin NUL probe on `binary-download`).
  */
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { FileViewerDescriptor } from './service.ts'
 
 /** One host fs.read result (mirror of the wire; `head` present when binary). */
@@ -68,6 +69,9 @@ export function planFirstMatch(
       return { kind: 'customLoad', viewer }
     case 'fsRead':
       return { kind: 'fetchFsRead', viewer }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new viewer fetch strategy here. */
+    default:
+      return assertNever(viewer.fetchStrategy, 'file viewer fetch strategy')
   }
 }
 

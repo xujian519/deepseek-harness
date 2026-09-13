@@ -94,6 +94,10 @@ function materialize(value: unknown, path: string, seen: Set<object>): unknown {
       throw new MaterializeError(path, 'undefined is not JSON data')
     case 'object':
       break
+    // No default: `typeof` has exactly these eight results, so a ninth arm cannot
+    // be added and the switch is total by the language rather than by a union this
+    // repository can extend. `value` stays `unknown` here, so `assertNever` could
+    // not accept it either.
   }
   if (value === null) return null
   const objectValue: object = value

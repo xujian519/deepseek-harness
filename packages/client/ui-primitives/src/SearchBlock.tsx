@@ -1,5 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { headTailCap } from './head-tail-cap.ts'
 import { useCopyFeedback } from './use-copy-feedback.ts'
 import css from './SearchBlock.module.css'
@@ -166,6 +167,9 @@ function rowKey(row: SearchRow): string {
     case 'match': return `match:${row.key}`
     case 'file': return `file:${row.index}`
     case 'path': return `path:${row.path}`
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new search row here. */
+    default:
+      return assertNever(row, 'search row')
   }
 }
 

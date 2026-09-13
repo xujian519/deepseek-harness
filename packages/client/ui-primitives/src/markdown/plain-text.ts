@@ -6,6 +6,7 @@
  * keeps its source text.
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { parseGfm } from './parse.ts'
 
 /** Amount of parsed Markdown content returned by the extractor. */
@@ -117,5 +118,8 @@ export function extractMarkdownPlainText(
       return all.split('\n').find(line => line !== '') ?? ''
     case 'first-paragraph':
       return findFirstParagraph(root) ?? all.split('\n').find(line => line !== '') ?? ''
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new extraction mode here. */
+    default:
+      return assertNever(mode, 'plain-text extraction mode')
   }
 }

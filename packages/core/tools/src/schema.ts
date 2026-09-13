@@ -2,7 +2,7 @@
 
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult, ToolRunContext, ToolResult } from './index.ts'
 import { assertSupportedJsonSchema, isJsonSchemaRecord, isPlainJsonArray, JsonSchemaError, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode, JsonSchemaScalar, ObjectJsonSchema } from './json-schema.ts'
@@ -259,6 +259,9 @@ function assignCompiledNode(destination: NodeDestination, node: JsonSchemaNode):
     case 'one-of':
       destination.target[destination.index] = node
       break
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new destination kind here. */
+    default:
+      assertNever(destination, 'compiled schema node destination')
   }
 }
 

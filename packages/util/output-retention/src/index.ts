@@ -30,6 +30,8 @@
  * @module @deepseek-ai/dsh-output-retention
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
+
 /**
  * How much content the retainer omitted.
  *
@@ -272,6 +274,9 @@ export class TextRetainer {
         this.prefixCap = strategy.headBytes
         this.suffixCap = strategy.tailBytes
         break
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new retention strategy here. */
+      default:
+        assertNever(strategy, 'text retention strategy')
     }
   }
 
@@ -417,6 +422,9 @@ export function describeOmitted(omitted: Omitted, unit: RetentionNotice['unit'])
       return `Omitted ${omitted.count} ${unit}.`
     case 'unknown':
       return `More ${unit} were omitted.`
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new omitted kind here. */
+    default:
+      return assertNever(omitted, 'omitted count')
   }
 }
 

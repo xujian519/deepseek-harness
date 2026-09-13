@@ -76,6 +76,9 @@ export function assertReleasedArtifactRelationships(
       continue
     }
 
+    // Only disposition-table types reach here (the `continue` above drops the rest);
+    // the cases are those that carry relationship state to rewrite, and the other
+    // entries of that table are re-emitted unchanged.
     switch (event.type) {
       case 'turn/start': {
         const previous = artifact.events[event.seq - 1]

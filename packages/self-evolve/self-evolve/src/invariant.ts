@@ -12,6 +12,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { SelfEvolveRunId } from './brand.ts'
 import type {} from './types.ts'
 
@@ -147,12 +148,18 @@ function applyTransition(trace: Map<string, OpenRun>, transition: RunTransition)
         case 'commit':
           entry.committed.add(transition.proposalId)
           break
+        /* v8 ignore next -- closed-union backstop; the compiler rejects a new transition kind here. */
+        default:
+          assertNever(transition.kind, 'proposal transition')
       }
       break
     }
     case 'end':
       trace.delete(runId)
       break
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new transition kind here. */
+    default:
+      assertNever(transition.kind, 'run transition')
   }
 }
 

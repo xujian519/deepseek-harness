@@ -88,6 +88,8 @@ export function assertV3EventAdmission(event: SessionFormatEvent): void {
 }
 
 function relationshipEvent(event: SessionFormatEvent): SessionFormatEvent {
+  // Legacy renames only: every other type keeps its own name here, and
+  // `system/message` is rewritten below.
   switch (event.type) {
     case 'tool/ptc-dispatch-start':
       return { ...event, type: 'tool/code-dispatch-start' }
