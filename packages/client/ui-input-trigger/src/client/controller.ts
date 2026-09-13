@@ -9,6 +9,7 @@
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   ArbitrateKey, ArbitrateOutcome, PickOutcome, ReferenceInsert,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -263,6 +264,9 @@ export class InputTriggerController {
         this.pick(state.highlight.source, state.highlight.index)
         return 'pick-highlighted'
       }
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new arbitration key here. */
+      default:
+        return assertNever(key, 'arbitration key')
     }
   }
 

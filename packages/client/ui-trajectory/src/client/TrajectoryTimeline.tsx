@@ -5,6 +5,7 @@ import {
   type PointerEvent,
 } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { TrajectoryTurnModel } from './layout.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import type { AssistantMetricDetail, TrajectoryCellKind, TrajectoryCellProps } from './trajectory-record.ts'
@@ -91,6 +92,9 @@ function timelineKindLabel(kind: TrajectoryCellKind, t: TrajectoryTranslate): st
     case 'message': return t('kind.assistant')
     case 'tool': return t('kind.tool')
     case 'subtool': return t('kind.subtool')
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new timeline cell kind here. */
+    default:
+      return assertNever(kind, 'trajectory cell kind')
   }
 }
 

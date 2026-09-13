@@ -13,6 +13,7 @@ import { CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, isContextWindowExcee
 import type { FinishReason, StreamChunk, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { isContextOverflow } from '@earendil-works/pi-ai'
 import type { AssistantMessage, AssistantMessageEvent, Usage as PiUsage } from '@earendil-works/pi-ai'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { toPiReplayState } from './replay.ts'
 
 /**
@@ -124,6 +125,9 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
       const text = message.errorMessage ?? 'pi-ai stream error'
       return { kind: 'error', failure: { message: text, code: classifyPiAiError(text) } }
     }
+    /* v8 ignore next -- closed-union backstop; a new pi-ai stop reason fails compilation here. */
+    default:
+      return assertNever(message.stopReason, 'pi-ai stop reason')
   }
 }
 
@@ -225,9 +229,9 @@ export async function* toStreamChunks(
           ),
         }
         return
-      // no default: AssistantMessageEvent is pi-ai's closed union; a new
-      // event type should fail compilation here via tsc's exhaustiveness
-      // when one is added (switch covers all current variants).
+      /* v8 ignore next -- closed-union backstop; a new pi-ai event type fails compilation here. */
+      default:
+        assertNever(event, 'pi-ai stream event')
     }
   }
   throw new LlmError('pi-ai event stream ended without done/error', 'STREAM_CLOSED')

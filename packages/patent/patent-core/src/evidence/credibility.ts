@@ -6,6 +6,7 @@
  * 使用 URL 解析取 hostname 而非子串匹配，避免误匹配。
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { CredibilityLevel } from './types.ts'
 import { cleanEvidenceURI } from './date.ts'
 
@@ -144,6 +145,9 @@ export function credibilityToScore(level: CredibilityLevel): number {
       return 0.55
     case 'low':
       return 0.25
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new credibility level here. */
+    default:
+      return assertNever(level, 'credibility level')
   }
 }
 

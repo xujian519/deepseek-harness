@@ -12,6 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import {
   createSnapshotStore, type ObservableSnapshot, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { LexicalEditor, NodeKey } from 'lexical'
 import {
   $addUpdateTag, $createParagraphNode, $createTextNode, $getRoot, $getSelection, $isRangeSelection,
@@ -687,6 +688,9 @@ export class SessionInputShell implements SessionInput {
         this.commitDraft(fx.retainSuffixOf)
         return
       }
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new input effect here. */
+      default:
+        assertNever(fx, 'input effect')
     }
   }
 

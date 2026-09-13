@@ -12,6 +12,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDocument } from 'yaml'
 import { asRecord } from '@deepseek-ai/dsh-value'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   ConstitutionalRule,
   LoadedRuleSet,
@@ -225,6 +226,9 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
       const minConfidence = typeof record.minConfidence === 'number' ? record.minConfidence : 1
       return { type, requirements, minConfidence }
     }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new check type here. */
+    default:
+      return assertNever(type, 'rule check type')
   }
 }
 

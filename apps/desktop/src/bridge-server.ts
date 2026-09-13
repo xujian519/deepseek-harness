@@ -12,6 +12,7 @@ import {
   type BrowserWindow,
   dialog, globalShortcut, Menu, Notification, type Tray,
 } from 'electron'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** Incoming JSON-RPC request from the backend. */
 export interface JsonRpcRequest {
@@ -66,7 +67,17 @@ const ALLOWED_METHODS = new Set([
   'desktop/unregisterGlobalShortcut',
   'desktop/setTray',
   'desktop/clearTray',
-])
+] as const)
+
+/** Every allow-listed bridge method; `dispatch` is total over this union. */
+type DesktopBridgeMethod = Parameters<typeof ALLOWED_METHODS.has>[0]
+
+/** Whether a JSON-RPC method name is one this bridge implements. */
+function isDesktopBridgeMethod(method: string): method is DesktopBridgeMethod {
+  // Membership is a string question; the widening keeps the predicate's own
+  // parameter type out of the answer.
+  return (ALLOWED_METHODS as ReadonlySet<string>).has(method)
+}
 
 /** The default tray menu group, overridable through the setTray params. */
 const DEFAULT_TRAY_GROUP = 'tray'
@@ -264,7 +275,7 @@ export class BridgeServer {
       id,
       error: { code: -32601, message: `unknown method: ${request.method}` },
     }
-    if (!ALLOWED_METHODS.has(request.method)) return unknownMethod
+    if (!isDesktopBridgeMethod(request.method)) return unknownMethod
     try {
       const result = await this.dispatch(request.method, request.params)
       return { jsonrpc: '2.0', id, result }
@@ -274,7 +285,7 @@ export class BridgeServer {
     }
   }
 
-  private async dispatch(method: string, params: unknown): Promise<unknown> {
+  private async dispatch(method: DesktopBridgeMethod, params: unknown): Promise<unknown> {
     switch (method) {
       case 'desktop/showOpenDialog':
         return this.showOpenDialog(params)
@@ -299,8 +310,10 @@ export class BridgeServer {
       case 'desktop/clearTray':
         this.clearTray()
         return { ok: true }
+      /* v8 ignore next -- closed-union backstop; the compiler rejects a new allow-listed method here. */
+      default:
+        return assertNever(method, 'desktop bridge method')
     }
-    return undefined
   }
 
   private async showOpenDialog(params: unknown): Promise<{ filePaths: string[] } | undefined> {

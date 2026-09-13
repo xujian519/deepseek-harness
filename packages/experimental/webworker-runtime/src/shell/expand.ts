@@ -57,6 +57,9 @@ function arithmetic(expression: ArithmeticExpression, state: ShellState): number
     case 'subtraction': return arithmetic(expression.left, state) - arithmetic(expression.right, state)
     case 'multiplication': return arithmetic(expression.left, state) * arithmetic(expression.right, state)
     case 'division': return Math.trunc(arithmetic(expression.left, state) / arithmetic(expression.right, state))
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new arithmetic expression here. */
+    default:
+      return assertNever(expression, 'arithmetic expression')
   }
 }
 

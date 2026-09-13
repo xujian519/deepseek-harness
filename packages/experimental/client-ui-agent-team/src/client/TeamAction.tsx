@@ -13,6 +13,7 @@ import {
   IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
   IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS, type TeamKey } from './locales.ts'
@@ -82,6 +83,9 @@ function statusKey(status: TeamTask['status']): TeamKey {
     case 'completed': return 'status.completed'
     /* v8 ignore next -- Team views omit deleted task tombstones. */
     case 'deleted': return 'status.completed'
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new task status here. */
+    default:
+      return assertNever(status, 'team task status')
   }
 }
 
@@ -92,6 +96,9 @@ function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
     case 'inactive': return 'memberStatus.inactive'
     case 'provisioning': return 'memberStatus.provisioning'
     case 'failed': return 'memberStatus.failed'
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new member status here. */
+    default:
+      return assertNever(status, 'team roster member status')
   }
 }
 

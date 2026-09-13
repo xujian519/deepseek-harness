@@ -34,6 +34,7 @@ import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 import type { CommandDefinitionId, CommandId } from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { PlanProjection, PlanUnitState } from './types.ts'
 export type * from './types.ts'
 
@@ -234,7 +235,8 @@ export class PlanModeController extends Service {
             return { kind: 'error', text: 'Attachments cannot accompany /plan off.' }
           }
           if (message === 'off') {
-            switch (this.set(agent, false)) {
+            const transition = this.set(agent, false)
+            switch (transition) {
               case 'committed':
                 return { kind: 'success', text: 'Plan mode off.' }
               case 'queued':
@@ -248,6 +250,9 @@ export class PlanModeController extends Service {
                 return this.loggedActive(agent.session)
                   ? { kind: 'success', text: 'Leaving plan mode (applies from the next step).' }
                   : { kind: 'success', text: 'Plan mode is already inactive.' }
+              /* v8 ignore next -- closed-union backstop; the compiler rejects a new transition here. */
+              default:
+                return assertNever(transition, 'plan mode transition')
             }
           }
           const outcome = this.set(agent, true)

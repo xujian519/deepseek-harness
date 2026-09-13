@@ -641,6 +641,10 @@ class SchemaEmitter {
       case 'function':
       case 'constructor':
       case 'this': return this.unsupported(node)
+      // No default: the root tsdown config imports this module (through the
+      // Typert build plugin) before any workspace bundle exists, so a shared
+      // `assertNever` would need `dsh-util-values/lib/index.js` mid-build. The
+      // union is closed, so the compiler still rejects a new node kind here.
     }
   }
 

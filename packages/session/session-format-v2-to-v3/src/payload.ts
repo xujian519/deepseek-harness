@@ -129,6 +129,8 @@ function contentArray(value: SessionFormatJsonValue | undefined, label: string):
 
 function assertOwnedContent(event: SessionFormatEvent, data: SessionFormatJsonObject): void {
   const label = 'format v2 ' + event.type + ' at seq ' + String(event.seq) + ' data'
+  // Only these types own a model-content array; every other v2 event has no
+  // content field this check could read.
   switch (event.type) {
     case 'user/message':
     case 'tool/code-dispatch':

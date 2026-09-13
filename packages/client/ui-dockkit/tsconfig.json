@@ -13,6 +13,9 @@
     },
     {
       "path": "../ui-primitives"
+    },
+    {
+      "path": "../../util/values"
     }
   ]
 }

@@ -228,6 +228,9 @@ function assertSessionEventEnvelope(value: unknown, index: number): asserts valu
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
   }
   validateSessionEventData(event as SessionEvent, `seed ${type} at index ${index}`)
+  // Only these six types carry the request/message envelope `assertCurrentLlmShape`
+  // owns. Other types are plugin-owned or ignorable events from the merge-extensible
+  // `SessionEventMap`, with no core envelope to assert.
   switch (type) {
     case 'request/header':
     case 'system/message':

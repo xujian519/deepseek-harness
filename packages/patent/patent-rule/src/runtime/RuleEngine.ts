@@ -17,6 +17,7 @@ import type {
   StructuralAnalysisCheck,
 } from '@deepseek-ai/dsh-patent-core'
 import { hasNegationContext, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { checkSynonymRequirements, type SynonymMap } from './synonym-engine.ts'
 
 /** 证据截断长度。 */
@@ -227,6 +228,9 @@ export function evaluateRule(rule: ConstitutionalRule, text: string, synonyms?: 
       message = violation
       break
     }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new check type here. */
+    default:
+      assertNever(check, 'rule check type')
   }
 
   return {

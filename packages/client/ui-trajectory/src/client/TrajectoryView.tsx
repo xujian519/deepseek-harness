@@ -7,6 +7,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import {
   TrajectoryTable,
   type TrajectoryRequestNumber,
@@ -62,6 +63,9 @@ function timelineBlock(block: AssistantBlock): AssistantBlock {
       argsRaw: '',
     }
     case 'other': return { kind: 'other', block: null }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new assistant block here. */
+    default:
+      return assertNever(block, 'assistant block')
   }
 }
 

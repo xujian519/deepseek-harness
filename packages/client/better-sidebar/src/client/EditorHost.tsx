@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createElement } from 'react'
 import clsx from 'clsx'
 import { IconCheckOutline16, IconFolderOpen16, IconRefreshOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Context } from '../context-types.ts'
 import { api, mediaUrl, type SessionScope } from './api.ts'
 import { BinaryDownload } from './binary-download.tsx'
@@ -333,6 +334,9 @@ export function EditorHost(props: {
             setLoad({ status: 'error', message: error instanceof Error ? error.message : String(error) })
           })
           return
+        /* v8 ignore next -- closed-union backstop; the compiler rejects a new editor load action here. */
+        default:
+          assertNever(action, 'editor load action')
       }
     }
     apply(planFirstMatch(ctx.get('betterSidebar')?.matchFileViewer(path), mediaUrlOf))

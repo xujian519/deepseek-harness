@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { isRecord } from '@deepseek-ai/dsh-value'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -366,6 +366,9 @@ function renderResult(result: RalphRunResult, maxChars: number): string {
     case 'budget-limited':
       text = `Ralph reached its ${rounds} limit; the worker reported work remaining.\nFinal report:\n${JSON.stringify(result.report, null, 2)}`
       break
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new run status here. */
+    default:
+      assertNever(result.status, 'ralph run status')
   }
   return boundResult(text, maxChars)
 }

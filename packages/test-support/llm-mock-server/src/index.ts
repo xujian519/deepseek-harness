@@ -11,6 +11,7 @@ import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:
 import { randomBytes } from 'node:crypto'
 import { isIP, type AddressInfo } from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** Request-scoped behaviors accepted by {@link startMockLlmServer}. */
 export const MOCK_LLM_BEHAVIORS = [
@@ -585,6 +586,9 @@ async function runBehavior(
       openSse(response)
       await completeText(options, record, response, 'stop', options.chunkDelayMs)
       return
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new mock behavior here. */
+    default:
+      assertNever(record.behavior, 'mock LLM behavior')
   }
 }
 

@@ -17,6 +17,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { PatentToolError } from '../error.ts'
 import { FIGURE_TYPE_NAMES } from './analyze-patent-figure.ts'
 import type { FigureComponent, FigureAnalysisResult, FigureConnection, FigureType } from './analyze-patent-figure.ts'
@@ -201,6 +202,9 @@ function toFigureType(figureType: GenerateFigureType): FigureType {
       return 'schematic'
     case 'raw_dot':
       return 'unknown'
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new figure type here. */
+    default:
+      return assertNever(figureType, 'figure type')
   }
 }
 
@@ -258,6 +262,9 @@ function collectComponents(input: StructuralFigureInput): { id: string; label: s
       return []
     case 'raw_dot':
       return []
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new figure type here. */
+    default:
+      return assertNever(input.figure_type, 'structural figure input')
   }
 }
 
@@ -573,6 +580,9 @@ function buildFigureDot(input: StructuralFigureInput, params: FigureDotParams): 
       }
       return input.dot
     }
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new figure type here. */
+    default:
+      return assertNever(input.figure_type, 'structural figure input')
   }
 }
 

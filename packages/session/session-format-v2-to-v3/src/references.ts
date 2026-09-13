@@ -27,6 +27,8 @@ export function remapEvent(event: SessionFormatEvent, seq: number, mapping: read
     return { ...source, start: one(source['start']), end: one(source['end']) }
   }
   let data = record(event.data, event.type)
+  // Types outside this set carry no Session seq to renumber; their data is
+  // re-emitted unchanged.
   switch (event.type) {
     case 'command/done':
       if (data['sourceEventSeq'] !== undefined) data = { ...data, sourceEventSeq: one(data['sourceEventSeq']) }

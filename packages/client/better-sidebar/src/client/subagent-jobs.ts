@@ -6,6 +6,7 @@
  * requests, and the row ordering / status mapping mirror the official
  * ui-jobs header list.
  */
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   SidebarSessionList,
   SidebarSessionSummary,
@@ -144,6 +145,9 @@ export function jobDotState(status: SidebarJobStatus): JobDotState {
     case 'completed': return 'done'
     case 'killed': return 'warning'
     case 'failed': return 'error'
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new job status here. */
+    default:
+      return assertNever(status, 'sidebar job status')
   }
 }
 
@@ -163,6 +167,9 @@ export function jobStatusLabel(
     case 'completed': return t('jobStatusCompleted')
     case 'killed': return t('jobStatusKilled')
     case 'failed': return t('jobStatusFailed')
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new job status here. */
+    default:
+      return assertNever(status, 'sidebar job status')
   }
 }
 

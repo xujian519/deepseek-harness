@@ -91,6 +91,9 @@
     },
     {
       "path": "../../util/workspace-path"
+    },
+    {
+      "path": "../../util/values"
     }
   ],
   "exclude": [
