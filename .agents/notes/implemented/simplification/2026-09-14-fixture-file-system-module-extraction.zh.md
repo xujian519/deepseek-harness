@@ -24,7 +24,7 @@ Status: implemented
 
 | 模块 | 行数 | 持有 |
 | --- | --- | --- |
-| `src/client/fixture.ts` | 2675（原 2897） | wire 词汇、session 查询镜像，以及世界 |
+| `src/client/fixture.ts` | 2483（本刀之前 2897，本刀落地时 2675） | wire 词汇、session 查询镜像，以及世界 |
 | `src/client/fixture-file-system.ts` | 255 | workspace 文件读取与目录选择器的浏览树 |
 
 模块头部写明了它的边界：
@@ -128,7 +128,7 @@ const directoryPickerRemotes = createDirectoryPickerRemotes(FIXTURE_HOME)
 - **让 `WORKSPACE_FILES_ROOT` 走 `src/types.ts`。** 否决：那个文件承载的是一个包的接缝词汇，本包没有接缝词汇，而该常量是新模块自己的根，不是两个模块共享的一个词。入口把它读回来只是一条 import，不是第二个所有者。
 - **让树的祖先节点从 `home` 派生。** 按「不做未要求的行为改变」否决：树硬编码了 `['/', ['home']]` 与 `['/home', ['fixture']]`，所以任何不是 `/home/fixture` 的 `home` 本就自相矛盾，而本刀只有一个调用点、传的是正确的值。工厂的 JSDoc 写明这个前提，而不是顺手改成派生。
 - **照投影那一刀的做法，加一条 `vitest.config.ts` 豁免。** 否决：那一刀继承的缺口是从世界内部够不着的缺口。这些区域一旦移出世界就够得着了，而豁免会丢掉本刀唯一的防线。
-- **在同一刀里把 `settingsRemotes` / `credentialRemotes` / `presetRemotes` 也搬走。** 是延后，不是否决：它们以同样的方式自足，需要同样的处理，但它们捕获的是三份可变状态（`fixturePresets`、`fixtureCredentials`、`fixtureDefaultPreset`）而不是一份，那是下一刀的边界决定。
+- **在同一刀里把 `settingsRemotes` / `credentialRemotes` / `presetRemotes` 也搬走。** 是延后，不是否决：它们以同样的方式自足，需要同样的处理，但它们捕获的是三份可变状态（`fixturePresets`、`fixtureCredentials`、`fixtureDefaultPreset`）而不是一份，那是下一刀的边界决定。[那一刀](2026-09-14-fixture-configuration-remotes-extraction.zh.md)用一个零参数工厂持有全部三者，把它定了下来。
 
 ## Consequences
 
@@ -136,7 +136,7 @@ const directoryPickerRemotes = createDirectoryPickerRemotes(FIXTURE_HOME)
 
 代价是多一个文件、多一条 `tsconfig.client.json` 登记，以及一个要被入口读回来的常量。本刀给世界其余部分立下的模板就是这个工厂签名：**一个簇把世界的值作为参数收进来，自己持有它改动的状态。**
 
-剩余区域是三个延后的 remote 簇，以及 `rpc` 派发表（2441–2651 行，211 行）——后者需要先把它那约 20 个 handler 编成一个 interface 才能搬，是个比文件系统更大的边界决定。
+三个延后的 remote 簇[此后已落地](2026-09-14-fixture-configuration-remotes-extraction.zh.md)，进入 `fixture-configuration-remotes.ts`。剩余区域是 `rpc` 派发表（以当前入口计 2249–2459 行，211 行）——它需要先把它那约 20 个 handler 编成一个 interface 才能搬，是个比文件系统更大的边界决定。
 
 本刀留下两处陈旧点。`fixture.ts` 在 `referenceRemotes` 上方堆了两条文档注释（1209–1210 行）：属于其上方 `goalView` 声明的 Goal Remote 那句，紧挨着描述该常量本身的 reference-discovery 那句。以及计划自己的 30–31 行仍写着 `fixture.ts` 含有 `jscpd:ignore` 块——那个块在上一刀里已经移到 `fixture-projections.ts`。
 
