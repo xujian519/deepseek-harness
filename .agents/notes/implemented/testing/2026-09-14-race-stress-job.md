@@ -53,6 +53,21 @@ Test Files  61 passed | 3 skipped (64)
   Duration  182.53s
 ```
 
+## Alternatives considered
+
+**Add a `--repeat` CLI flag to Vitest or patch it.** Rejected: maintaining a fork or patch of Vitest for one job is far more expensive than a ~30-line custom runner that uses the public `TestRunner` extension point.
+
+**Run the whole suite with repeats.** Rejected: the full suite includes 227 client jsdom files that are slow to start and not the highest-value race surface; the focused subset keeps the nightly job fast enough to finish and be actionable.
+
+**Use Vitest's built-in retry instead of `retry: 0`.** Rejected: retries would hide the flakes this job is meant to catch. A failure here must be triaged as a bug.
+
+## Consequences
+
+- Nightly signal: the repository gains a daily, high-volume check for ordering and scheduling races in the most sensitive areas.
+- Cost: ~3 minutes of runner time per night for the focused suite at 10 repeats; scaling repeats or scope increases this linearly.
+- Failure handling: a red race-stress job requires a fix; suppressing it with retries or reruns is not allowed.
+- The custom runner is an extension of Vitest's public runner API; if Vitest changes the API shape, the runner must be updated together with the Vitest version bump.
+
 ## Related
 
 - Issue #121 — the tracking item that requested this mechanism.

@@ -53,6 +53,21 @@ Test Files  61 passed | 3 skipped (64)
   Duration  182.53s
 ```
 
+## 备选方案
+
+**为 Vitest 添加 `--repeat` CLI 参数或打补丁。**  rejected：仅为一个任务维护 Vitest 的分支或补丁，成本远高于使用公开 `TestRunner` 扩展点编写的约 30 行自定义 runner。
+
+**用 repeats 运行整个套件。**  rejected：完整套件包含 227 个客户端 jsdom 文件，启动缓慢且不是最有价值的竞态表面；聚焦后的子集使夜间任务足够快，结果可执行。
+
+**使用 Vitest 内置重试而非 `retry: 0`。**  rejected：重试会掩盖本任务旨在捕获的 flaky。这里的失败必须按 bug 分诊。
+
+## 后果
+
+- 夜间信号：仓库获得一项针对高敏感区域顺序与调度竞态的每日高容量检查。
+- 成本：聚焦后的套件以 10 次重复运行约 3 分钟；扩大重复次数或范围会线性增加时间。
+- 失败处理：race-stress 任务变红需要修复；不允许用重试或重新运行来压制。
+- 自定义 runner 扩展了 Vitest 公开的 runner API；若该 API 形态变化，runner 必须与 Vitest 版本升级同步更新。
+
 ## 相关
 
 - Issue #121 — 提出该机制的跟踪项。
