@@ -11,7 +11,7 @@ English | [中文](2026-09-14-oxlint-contract-probe-race.zh.md)
 While the probes exist, other specs that concurrently scan the repository and read every matching file can hit a deleted probe between their `globSync` and `readFileSync` calls, throwing:
 
 ```
-Error: ENOENT: no such file or directory, open '.../packages/fs/fs-observation-policy/src/oxlint-contract-<uuid>.ts'
+Error: ENOENT: no such file or directory, open '.../src/oxlint-contract-<uuid>.ts'
 ```
 
 This is a load-sensitive race: `pnpm exec vitest run scripts/` reproduced it locally, with different failing specs on different runs (`gen-client-catalog.spec.ts`, `verify-application-entrypoints.spec.ts`, and `verify-suppression-reasons.spec.ts`).

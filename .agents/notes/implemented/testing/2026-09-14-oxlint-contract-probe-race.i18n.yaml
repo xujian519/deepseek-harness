@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-14-oxlint-contract-probe-race.md
-2026-09-14-oxlint-contract-probe-race.md: 88290039e58d145949eab1c647f2d0662659f227
-2026-09-14-oxlint-contract-probe-race.zh.md: e2be25f5ec05782a34e209f56fc4272f01bd7285
+2026-09-14-oxlint-contract-probe-race.md: a30677ebd2843ffa04893bc015652f449c5b81eb
+2026-09-14-oxlint-contract-probe-race.zh.md: 060d0180fa39b7a4ce6b1c8a4a43bee7dfbfcdd5
