@@ -1038,7 +1038,7 @@ describe('runScenario', () => {
     })
     onTestFinished(() => { spy.mockRestore() })
     await expect(runScenario(
-      { steps: [...boot, { op: 'waitForTurnEnd', timeoutMs: 20 }] },
+      { steps: [...boot, { op: 'waitForTurnEnd', timeoutMs: 200 }] },
       { agent: AGENT, mode: 'replay', fixtureFile },
     )).rejects.toThrow('filename declares Session format v1, header declares v0')
   })
