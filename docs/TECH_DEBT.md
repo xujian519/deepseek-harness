@@ -37,6 +37,7 @@
 - **M1** 的「已收敛 / 0 剩余」**不成立**:`isRecord` 仍有 6 处本地定义、`asRecord` 5 处、`assertPositive*` 5 处(签名三方漂移)、`errorMessage` 简化版 4 处、`toError` 2 处、放宽语义的 `isENOENT`/`isEEXIST` 4 处,另有新族 `isAbortError`(5)、`hasExactKeys`(4)、`sleep`(9)。详表见 Issue #87。
 - **M6** 的行数表大面积过期:仅 `continuation.ts` 收敛;`analyzer.ts` 3142 → 3235、`core/session` 1157 → 1281、`ptc.ts` 的 `createRunCodeTool` ~315 → 386、`acp` 的 `apply` ~310 → 341 均恶化,另有台账未载的新上帝文件(`client/connection/src/client/fixture.ts` 4052、`experimental/code-runtime-python/src/index.ts` 2441、`client/ui-trajectory/src/client/TrajectoryTable.tsx` 3208)。见 Issue #86。
 - **M6 首个切口已落地**(2026-09-14):`experimental/code-runtime-python/src/index.ts` 2441 → 1801 行。字节计价与截断词汇落 `src/cost.ts`,日志台账落 `src/output-ledger.ts`(`class OutputLedger`);入口模块导出清单不变,无测试改导入路径,无快照移动。这是 Issue #86 拆分计划的批次 1 试点,其测得的拆分成本记在 `.agents/notes/implemented/simplification/2026-09-14-code-runtime-python-cost-and-ledger.md`,计划本身在 `.agents/notes/proposed/simplification/2026-09-14-god-file-split-plan.md`。M6 整体仍开放。
+- **M6 批次 3 首刀已落地**(2026-09-14):`core/session/src/index.ts` 950 → 904 行。三套增量折叠(`requestHeader`、`requestContext`、`deriveMessages` 及其六个私有缓存字段)落 `src/folds.ts`(`class SessionFolds`),按引用接收日志数组与 surface;入口保留三个同名一行委派,导出清单、`attachments` WeakMap 与 `@typert` 类型字符串均未变。新文件由既有 spec 覆盖到 100%,未新增覆盖率豁免。见 `.agents/notes/implemented/simplification/2026-09-14-session-folds-extraction.md` 与 Issue #86。
 - **M8 已收敛**(2026-09-14):点名项已逐项定性并收编。「shell seam 共享 `settingsNamespace('shell')`」的描述有误——实测 shell 用的是裸字符串 `SHELL_SETTINGS_NAMESPACE`,它属持久化格式键(改名即丢弃已存状态),判定保持固定。见下节与 Issue #88。
 - **M9 已收敛**:原 `packages/api/remotes/src/agent-lookup.ts` 的 legacy agent-busy fence 已不存在。该文件在 2026-08-22 的 Session Controller refactor 中被删除,相关检查以 `session/agent-busy` 形式迁入了 `packages/api/session-controller/src/agent.ts`,旧错误码与 `ApiRemote*` 符号无残留;`SESSION_FORMAT_VERSION` 现已为 3。见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md` 与 Issue #98。
 
@@ -279,7 +280,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 | `packages/subagent/subagent/src/continuation.ts` | 1483 | ChildLock、Activation/Materialization、drain、coldResume、dispose 全挤在一个类 |
 | `packages/extensions/cordis-host-runner/src/index.ts` | 1274 | Dynamic Plugin 服务 |
 | `packages/client/ui-slots/src/index.ts` | 1192 | — |
-| `packages/core/session/src/index.ts` | 1157 | session 服务 + 事件词汇 |
+| `packages/core/session/src/index.ts` | 904 | session 服务 + 事件词汇 |
 | `packages/api/session-controller/src/client/sessions/manager.ts` | 1131 | — |
 | `packages/session-query/session-query-sqlite/src/index.ts` | 1103 | — |
 | `packages/typert/generator/src/cordis-catalog.ts` | 1059 | — |

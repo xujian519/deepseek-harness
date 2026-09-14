@@ -10,11 +10,11 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 
 | File | Lines | Form | In this plan |
 | --- | --- | --- | --- |
-| `packages/client/connection/src/client/fixture.ts` | 4052 | Shipped browser-mode provider (not a test fixture) | yes |
+| `packages/client/connection/src/client/fixture.ts` | 2483 | Shipped browser-mode provider (not a test fixture) | yes |
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 3208 | Multi-component file with two inline JSX regions | yes |
 | `packages/typert/generator/src/analyzer.ts` | 3235 | Pure build-time library | yes |
 | `packages/experimental/code-runtime-python/src/index.ts` | 1801 | One class, one oversized method | yes — pilot landed |
-| `packages/core/session/src/index.ts` | 1256 | Four concerns sharing a module | yes |
+| `packages/core/session/src/index.ts` | 904 | Four concerns sharing a module | yes |
 | `packages/core/tools/src/ptc.ts` | 678 | One 386-line tool factory | yes |
 | `packages/acp/acp/src/index.ts` | 543 | One 341-line `apply` | yes |
 | `packages/client/better-sidebar/src/client/state.ts` | 1900 | Clone center | no |
@@ -23,11 +23,11 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 | `packages/self-evolve/self-evolve-basic/src/index.ts` | 1857 | Flat since the audit | no |
 | `packages/subagent/subagent/src/continuation.ts` | 550 | Converged from 1483 | no — the issue closes it |
 
-Five entries are outside this plan, each for a stated reason rather than by omission. `continuation.ts` converged and the issue itself recommends closing it. `better-sidebar`'s `state.ts` and `Sidebar.tsx` are flagged by the issue as clone centers: their remedy is deduplication, and cutting two files that already mirror each other would turn one in-file clone into a cross-file one — that work belongs to the M1 dedup family, not here. `core/tools/src/index.ts` and `self-evolve-basic/src/index.ts` are at or below the size the issue recorded, and this plan's own standard — every cut justified by a test that becomes possible, an interface that becomes explicit, or a method that becomes readable — has no answer for them yet; they stay open on the issue rather than entering a batch without a reason. Line counts are as measured on 2026-09-14, after the pilot.
+Five entries are outside this plan, each for a stated reason rather than by omission. `continuation.ts` converged and the issue itself recommends closing it. `better-sidebar`'s `state.ts` and `Sidebar.tsx` are flagged by the issue as clone centers: their remedy is deduplication, and cutting two files that already mirror each other would turn one in-file clone into a cross-file one — that work belongs to the M1 dedup family, not here. `core/tools/src/index.ts` and `self-evolve-basic/src/index.ts` are at or below the size the issue recorded, and this plan's own standard — every cut justified by a test that becomes possible, an interface that becomes explicit, or a method that becomes readable — has no answer for them yet; they stay open on the issue rather than entering a batch without a reason. Line counts are as measured on 2026-09-14, after the pilot and the session-folds extraction.
 
 A structural survey of the seven in scope found that size is not what makes them hard to split. Every one already has visible cuts — module-level pure functions, already-extracted helpers, section boundaries a reader can see. What none of them has is a settled answer to **where a cut boundary belongs**, and several carry explicit contracts that a naive split would break silently:
 
-- `fixture.ts` and `code-runtime-python` contain `/* jscpd:ignore-start */` blocks whose comments say they exist to keep a shape parallel to a sibling implementation. Cutting one side breaks the declared symmetry.
+- `code-runtime-python` contains two `/* jscpd:ignore-start */` blocks — the constructor/teardown/run shape (542–774) and the timer/abort/live-set block (1576–1592) — whose comments declare a shape parallel to its sibling worker-thread backend. Cutting one side breaks the declared symmetry. `fixture.ts` carries no such block; the package's only one is in `fixture-projections.ts`, which mirrors host timing without importing a target implementation.
 - `fixture.ts` deliberately re-implements host behavior rather than importing it, so a web client package does not acquire host dependencies. A split that "deduplicates" by importing would pull host packages into the client bundle — the exact regression the file was written to avoid.
 - `code-runtime-python` has no `src/types.ts`, so the vocabulary its cut pieces would share has no home; giving it one collides with the exception already recorded for Issue #99. `ui-trajectory` had none either and gained one in its batch-1 cut, the same way `analyzer` did.
 - Tests import internal symbols through source paths (`code-runtime-python/tests/runtime.spec.ts` from `../src/index.ts`; `ui-trajectory/tests/table.client.spec.tsx` from `../src/client/TrajectoryTable.tsx`), so a split must keep the entry module re-exporting what it re-exports today.
@@ -72,7 +72,7 @@ The pilot is `code-runtime-python`, because its ledger cut has the strongest sin
 These do not land until the change can show what it preserves.
 
 - `ptc.ts` dispatch pool: the ordered commit lane, the exclusive barrier, backpressure, and the wakeup-order defense are all behavior, not structure.
-- `core/session`: the three incremental folds, where `SurfaceManager` captures the `this.log` array reference at construction and `deriveMessages` indexes it directly; and the `Session` class, whose `attachments` WeakMap and `SessionEntry` must stay co-located, and whose type string is asserted verbatim by a test.
+- `core/session`: the three incremental folds [landed](../../implemented/simplification/2026-09-14-session-folds-extraction.md) into `src/folds.ts` — `SessionFolds` takes the log array by reference and the surface, `Session` keeps three one-line delegations, and `index.ts` is 904 lines. The `Session` class remains open, whose `attachments` WeakMap and `SessionEntry` must stay co-located, and whose type string is asserted verbatim by a test.
 - `code-runtime-python`: the config gates and the process supervisor.
 - `ui-trajectory`: the row renderer. It captures roughly 30 `useMemo` derivations and 15 callbacks; passing them explicitly costs about 45 props, and a memo boundary handled carelessly re-renders every visible row on each parent render, giving back the virtualizer's benefit. Its stability is currently deliberate, as the `useStableVirtualRowStructure` hook documents.
 - `analyzer`: the `Remote`/RPC analyzer and the type modeler rejoin batch 3 after a spell in batch 2, and the reading that moved them is the evidence they were missing. `allocateNodeId` mints `type:<file>:<line>:<column>#<ordinal>`, where the ordinal is a per-location counter incremented on every call, so an id is a function of **visit order at one source position** rather than of the type. Two sites make that order hard to predict: `resolvedRemoteCodecType` allocates inside its own `convert` closure against its own `completed`/`active` caches — one authored site yields `#1`, `#2`, `#3` by cache-miss order — and `convertType` allocates before recursing, so a union and its first member, which share `getStart()`, are ordered by call order rather than by structure. Both clusters write the same five maps (`nodes`, `declarations`, `declarationStates`, `crossFaceLinks`, `nodeOrdinals`), and `ensureDeclaration` re-enters across calls behind a `declarationStates` guard. `tests/__snapshots__/type-model.spec.ts.snap` records 578 occurrences of these ids, 294 of them distinct, so a reordered visit renames ids and arrives as a snapshot diff instead of a failure. The cut does not start until a test pins `allocateNodeId`'s id stability against a reordering it must survive.
@@ -105,5 +105,6 @@ These do not land until the change can show what it preserves.
 
 - `.agents/audits/2026-09-11-tech-debt-issue-manifest.md` Issue #86
 - `docs/TECH_DEBT.md` (M6, and the ledger entry that names the two files the audit missed)
+- [Extracting the session's incremental folds](../../implemented/simplification/2026-09-14-session-folds-extraction.md) (batch 3's first landed cut)
 - `packages/code-runtime/code-runtime-worker-thread/src/index.ts` (the `OutputLedger` precedent)
 - `packages/experimental/code-runtime-python/src/index.ts`, `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx`
