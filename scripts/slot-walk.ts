@@ -83,6 +83,16 @@ export interface ScannedFile {
 }
 
 /**
+ * Resolve glob patterns against a repository root and return a sorted list of
+ * `/`-normalized relative paths, excluding transient oxlint-contract probe files.
+ */
+function sortedRelativePaths(scanRoot: string, patterns: readonly string[]): string[] {
+  return [...new Set(globSync(patterns as string[], { cwd: scanRoot })
+    .map(path => path.split(sep).join('/'))
+    .filter(rel => !rel.includes('oxlint-contract-')))].sort()
+}
+
+/**
  * Parse every file matching `patterns`, keeping the ones that carry a slot
  * contract merge or a registration call. Files without either are skipped so
  * the scan stays cheap over the whole workspace.
@@ -93,10 +103,7 @@ export interface ScannedFile {
 export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): ScannedFile[] {
   const out: ScannedFile[] = []
   const names = new Map<string, string>()
-  const rels = [...new Set(globSync(patterns as string[], { cwd: scanRoot })
-    .map(path => path.split(sep).join('/'))
-    .filter(rel => !rel.includes('oxlint-contract-')))].sort()
-  for (const rel of rels) {
+  for (const rel of sortedRelativePaths(scanRoot, patterns)) {
     const abs = resolve(scanRoot, rel)
     const text = readFileSync(abs, 'utf8')
     if (!MERGE_HEAD.test(text) && !REGISTER_HEAD.test(text)) continue
@@ -121,10 +128,7 @@ export function scanSlotFiles(scanRoot: string, patterns: readonly string[]): Sc
 export function indexExportedTypes(scanRoot: string, patterns: readonly string[]): Map<string, TypeDeclaration> {
   const index = new Map<string, TypeDeclaration>()
   const ambiguous = new Set<string>()
-  const rels = [...new Set(globSync(patterns as string[], { cwd: scanRoot })
-    .map(path => path.split(sep).join('/'))
-    .filter(rel => !rel.includes('oxlint-contract-')))].sort()
-  for (const rel of rels) {
+  for (const rel of sortedRelativePaths(scanRoot, patterns)) {
     const abs = resolve(scanRoot, rel)
     const sf = ts.createSourceFile(abs, readFileSync(abs, 'utf8'), ts.ScriptTarget.Latest, true, scriptKindOf(rel))
     for (const statement of sf.statements) {
