@@ -69,7 +69,10 @@ Completion values and binding arguments cross as exact JSON: values serialize wi
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `PythonCodeRuntime` — spawn, frame pump, budgets, containment, teardown; re-exports the protocol vocabulary |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `PythonCodeRuntime` — spawn, budgets, containment, teardown; re-exports the protocol vocabulary |
+| [`src/frame-reader.ts`](src/frame-reader.ts) | Host side: the fd-3 frame reader — newline-delimited frame assembly, its byte and fragment-count caps, hostile-frame drops |
+| [`src/output-ledger.ts`](src/output-ledger.ts) | Host side: the `logs` ledger — log-frame and stray-byte capture, truncation, and the fragment primitives the frame reader shares |
+| [`src/cost.ts`](src/cost.ts) | Host side: serialized-JSON byte pricing, the truncation-marker text both sides of the pipe use, and the diagnostic message cap |
 | [`src/protocol.ts`](src/protocol.ts) | Host side: frame codec, hostile-frame validators, lossless-JSON meters, shared marker text |
 | [`py/bootstrap.py`](py/bootstrap.py) | Child side: fd-3 channel, program execution, binding dispatch, ledger and settlement |
 | [`py/protocol.py`](py/protocol.py) | Python side: `PROTOCOL_FD`, `TypedDict` frame mirrors, `log_truncation_marker` |

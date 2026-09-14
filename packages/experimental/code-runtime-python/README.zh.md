@@ -69,7 +69,10 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`PythonCodeRuntime`——spawn、帧 pump、预算、隔离、拆卸；重新导出协议词汇 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`PythonCodeRuntime`——spawn、预算、隔离、拆卸；重新导出协议词汇 |
+| [`src/frame-reader.ts`](src/frame-reader.ts) | 宿主侧：fd-3 帧读取器——按换行组帧、其字节数与分片数上限、敌意帧丢弃 |
+| [`src/output-ledger.ts`](src/output-ledger.ts) | 宿主侧：`logs` 账本——log 帧与游离字节捕获、截断，以及与帧读取器共享的分片原语 |
+| [`src/cost.ts`](src/cost.ts) | 宿主侧：序列化 JSON 字节计价、管道两侧共用的截断标记文本、诊断消息上限 |
 | [`src/protocol.ts`](src/protocol.ts) | 宿主侧：帧 codec、不可信帧校验器、无损 JSON 计量器、共享标记文本 |
 | [`py/bootstrap.py`](py/bootstrap.py) | 子进程侧：fd-3 通道、程序执行、binding 分发、账本与结算 |
 | [`py/protocol.py`](py/protocol.py) | Python 侧：`PROTOCOL_FD`、`TypedDict` 帧镜像、`log_truncation_marker` |
