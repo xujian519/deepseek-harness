@@ -10,7 +10,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 
 | 文件 | 行数 | 形态 | 本计划 |
 | --- | --- | --- | --- |
-| `packages/client/connection/src/client/fixture.ts` | 2483 | 随包发布的浏览器模式 provider（不是测试夹具） | 在 |
+| `packages/client/connection/src/client/fixture.ts` | 2288 | 随包发布的浏览器模式 provider（不是测试夹具） | 在 |
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 3208 | 多组件文件，含两段内联 JSX | 在 |
 | `packages/typert/generator/src/analyzer.ts` | 3235 | 纯构建期库 | 在 |
 | `packages/experimental/code-runtime-python/src/index.ts` | 1801 | 单个类，单个超大方法 | 在——试点已落地 |
@@ -23,7 +23,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | `packages/self-evolve/self-evolve-basic/src/index.ts` | 1857 | 自审计以来持平 | 不在 |
 | `packages/subagent/subagent/src/continuation.ts` | 550 | 已从 1483 收敛 | 不在——issue 自行销案 |
 
-五个条目在本计划之外，各有一条明写的理由，而不是被略过。`continuation.ts` 已收敛，且 issue 自身建议销案。`better-sidebar` 的 `state.ts` 与 `Sidebar.tsx` 被 issue 点为克隆中心：它们的正解是去重，而切割两个本就互为镜像的文件，只会把一处文件内克隆变成一处跨文件克隆——那项工作属 M1 去重族，不在这里。`core/tools/src/index.ts` 与 `self-evolve-basic/src/index.ts` 已到或低于 issue 记录的行数，而本计划自己的标准——每一刀都要由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——对它们尚无答案；它们留在 issue 上，而不是在没有理由的情况下进入某个批次。行数为 2026-09-14 实测，即试点与会话折叠提取之后。
+五个条目在本计划之外，各有一条明写的理由，而不是被略过。`continuation.ts` 已收敛，且 issue 自身建议销案。`better-sidebar` 的 `state.ts` 与 `Sidebar.tsx` 被 issue 点为克隆中心：它们的正解是去重，而切割两个本就互为镜像的文件，只会把一处文件内克隆变成一处跨文件克隆——那项工作属 M1 去重族，不在这里。`core/tools/src/index.ts` 与 `self-evolve-basic/src/index.ts` 已到或低于 issue 记录的行数，而本计划自己的标准——每一刀都要由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——对它们尚无答案；它们留在 issue 上，而不是在没有理由的情况下进入某个批次。行数为 2026-09-14 实测，即试点、会话折叠提取与 fixture RPC 派发表提取之后。
 
 对在范围的七个文件的结构调研发现：**体量并不是它们难以拆分的原因**。每一个都有肉眼可见的切口——模块级纯函数、已经抽出的辅助函数、读者能看到的段落边界。它们真正缺的，是**切口边界该归谁**这个问题的定论；而且其中几个带着明确的契约，粗暴拆分会让它们悄无声息地失效：
 
@@ -65,7 +65,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 - `code-runtime-python`：fd-3 帧读取器，[已落地](../../implemented/simplification/2026-09-14-code-runtime-python-frame-reader.zh.md)，其帧回调只携带重建后的帧——没有任何消费者读取帧的原始字节长度，因此本条原本预计需要的协议并未建立；台账与 `log` 帧分支之间的契约是双向的，因为该分支要回报「已发生截断」。
 - `ui-trajectory`：inspector `<aside>` 抽成 `RecordInspector`（~550 行，约 10 个值 + 4 个回调），以及其 pointer-capture 拖拽抽成 `useResizeHandle`。
 - `core/tools` 的 `ptc.ts` 与 `acp/acp`：批次 1 的提取把它们缩短之后，那两个超大方法剩下主体。
-- `fixture.ts`：历史脚本 `buildAlphaLog` 与投影 fold 家族均已[落地](../../implemented/simplification/2026-09-14-fixture-history-module-extraction.zh.md)。内存文件系统也已[落地](../../implemented/simplification/2026-09-14-fixture-file-system-module-extraction.zh.md)，并为该文件定下了本批次那个接口问题的答案：一个簇把世界的值作为参数收进来，自己持有它改动的状态。各自捕获一个世界状态绑定的三个 remote 簇，也依那个模板[落地](../../implemented/simplification/2026-09-14-fixture-configuration-remotes-extraction.zh.md)了，而该模板的退化情形是零参数工厂；`fixture.ts` 为 2483 行。剩下的是 `rpc` 派发表（2249–2459 行，211 行），它需要先把约二十个 handler 收进一个 interface 才能搬。
+- `fixture.ts`：历史脚本 `buildAlphaLog` 与投影 fold 家族均已[落地](../../implemented/simplification/2026-09-14-fixture-history-module-extraction.zh.md)。内存文件系统也已[落地](../../implemented/simplification/2026-09-14-fixture-file-system-module-extraction.zh.md)，并为该文件定下了本批次那个接口问题的答案：一个簇把世界的值作为参数收进来，自己持有它改动的状态。各自捕获一个世界状态绑定的三个 remote 簇，也依那个模板[落地](../../implemented/simplification/2026-09-14-fixture-configuration-remotes-extraction.zh.md)了，而该模板的退化情形是零参数工厂。`rpc` 派发表则[落地](../../implemented/simplification/2026-09-14-fixture-rpc-dispatch-extraction.zh.md)在一份 `FixtureRpcDeps` 清单之后，该清单位于其成员类型所在之处；`fixture.ts` 为 2288 行。批次 2 完成。
 
 ### 批次 3 —— 压在语义上的切割，逐项附证据
 
