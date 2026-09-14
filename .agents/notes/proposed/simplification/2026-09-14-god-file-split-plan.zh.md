@@ -62,7 +62,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 
 ### 批次 2 —— 需要先把接口定形的切割
 
-- `code-runtime-python`：fd-3 帧读取器（需要定义携带原始行长度的帧回调协议）；台账与 `log` 帧分支之间的契约是双向的，因为该分支要回报「已发生截断」。
+- `code-runtime-python`：fd-3 帧读取器，[已落地](../../implemented/simplification/2026-09-14-code-runtime-python-frame-reader.zh.md)，其帧回调只携带重建后的帧——没有任何消费者读取帧的原始字节长度，因此本条原本预计需要的协议并未建立；台账与 `log` 帧分支之间的契约是双向的，因为该分支要回报「已发生截断」。
 - `ui-trajectory`：inspector `<aside>` 抽成 `RecordInspector`（~550 行，约 10 个值 + 4 个回调），以及其 pointer-capture 拖拽抽成 `useResizeHandle`。
 - `core/tools` 的 `ptc.ts` 与 `acp/acp`：批次 1 的提取把它们缩短之后，那两个超大方法剩下主体。
 - `fixture.ts`：先是历史脚本 `buildAlphaLog`，再是投影 fold 家族。

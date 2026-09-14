@@ -62,7 +62,7 @@ The pilot is `code-runtime-python`, because its ledger cut has the strongest sin
 
 ### Batch 2 — cuts that need an interface settled first
 
-- `code-runtime-python`: the fd-3 frame reader (needs a frame callback protocol carrying the raw line length); the ledger's contract with the `log` frame branch, which is two-way because the branch reports back that truncation occurred.
+- `code-runtime-python`: the fd-3 frame reader, [landed](../../implemented/simplification/2026-09-14-code-runtime-python-frame-reader.md) with a frame callback carrying only the rebuilt frame — no consumer reads a frame's raw byte length, so the protocol this bullet predicted it needed was not built; the ledger's contract with the `log` frame branch, which is two-way because the branch reports back that truncation occurred.
 - `ui-trajectory`: the inspector `<aside>` as `RecordInspector` (~550 lines, about 10 values and 4 callbacks), plus a `useResizeHandle` for its pointer-capture drag.
 - `core/tools` `ptc.ts` and `acp/acp`: the remaining bodies of the oversized methods, once batch-1 extractions have shrunk them.
 - `fixture.ts`: the history script `buildAlphaLog`, then the projection fold family.

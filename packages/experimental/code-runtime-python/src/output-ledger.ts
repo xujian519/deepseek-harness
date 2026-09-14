@@ -3,9 +3,9 @@
  * entry the run can return in `logs` against a shared `maxLogBytes` budget,
  * bills the child's stray stdout/stderr bytes — native prints, C-extension
  * writes — against that same budget, and funnels every truncation arm into one
- * marker. The entry module's fd-3 frame reader shares the fragment-accumulation
- * primitives at the top of this file, so they live here rather than inside
- * either reader.
+ * marker. The fd-3 frame reader in `src/frame-reader.ts` shares the
+ * fragment-accumulation primitives at the top of this file, so they live here
+ * rather than inside either reader.
  * @module @deepseek-ai/dsh-experimental-code-runtime-python/src/output-ledger
  */
 
@@ -149,18 +149,19 @@ export function detachResidual(residual: Buffer): Buffer[] {
 // are already line-granular; stray capture matches them by splitting on `\n`.
 //
 // Buffered as raw `Buffer` chunks with a running SERIALIZED-cost counter,
-// exactly like the fd-3 reader in the entry module and for the same reasons: a
-// string `+=` accumulator re-copies the whole residual on every pipe chunk
-// (quadratic on a large newline-free write), and scanning it from index 0 each
-// chunk is a second quadratic. Appending a chunk is O(1); the split happens
-// only when a `\n` actually arrived. A newline never appears inside a UTF-8
-// multibyte sequence (continuation bytes are 0x80–0xBF), so splitting on the
-// raw 0x0a byte and decoding each complete line is safe without a streaming
-// decoder — a line's bytes are whole by construction.
+// exactly like the fd-3 reader in `src/frame-reader.ts` and for the same
+// reasons: a string `+=` accumulator re-copies the whole residual on every
+// pipe chunk (quadratic on a large newline-free write), and scanning it from
+// index 0 each chunk is a second quadratic. Appending a chunk is O(1); the
+// split happens only when a `\n` actually arrived. A newline never appears
+// inside a UTF-8 multibyte sequence (continuation bytes are 0x80–0xBF), so
+// splitting on the raw 0x0a byte and decoding each complete line is safe
+// without a streaming decoder — a line's bytes are whole by construction.
 //
 // `chunks` also seals into `blocks` past {@link MAX_PENDING_CHUNKS}, mirroring
-// the fd-3 reader: without it a program pacing one-byte newline-free
-// `os.write`s accumulates one Buffer object per write, and the object plus
+// the fd-3 reader in `src/frame-reader.ts`: without it a program pacing
+// one-byte newline-free `os.write`s accumulates one Buffer object per write,
+// and the object plus
 // backing-store overhead — which no byte or cost count sees — exhausts the host
 // heap far below the budget. Sealing bounds the live object count.
 interface StrayBuffer { chunks: Buffer[]; blocks: Buffer[]; cost: number; utf8: Utf8CostState }
