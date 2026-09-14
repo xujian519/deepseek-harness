@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-contained-emit": "workspace:^",
+    "@deepseek-ai/dsh-entry-lifecycle": "workspace:^",
     "@deepseek-ai/dsh-value": "workspace:^"
   },
   "devDependencies": {

@@ -14,7 +14,7 @@
 - **L2 已修**:lsp `finalExtension` 收敛为包内模块(`src/extension.ts`,不再公共导出);workflow `WorkflowEventName` 取消导出;subagent `'unsupported'` 死变体已随上游删除。
 - **L5 之 bridge-client 写路径泄漏已修**:同步 write 抛错现在 settle pending 条目并摘除 abort 监听(`packages/desktop/shell/src/bridge-client.ts`)。
 - **合并新增债已清**:vendor/README.md manifest 版本表刷新(commit 列标 not recorded,下次 sync 按程序补录);`docs/event-producer-consumer(.md/.zh)` 再生(apiproxy→remotes/tool-cordis);fork CI 增补 `test:docs` 门禁;coverage exclude 登记 patent/synapse/self-evolve/ui-agent-preset(hygiene-gate note 第 3 项);ui-chat 两处 `it.skip` 恢复(skip-hardening 移植进上游 fold,AssistantMarkdown 加 textOf 兜底);桌面打包链修复(REQUIRED_BACKEND_PATHS 移除 apiproxy,apps/cli 显式声明 deploy 会丢弃的 9 个 peer seam 包,`package:desktop:prepare` 端到端验证通过)。
-- **仍然开放**:H4、H5、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H6(恢复/中止文案)、H7(监听器 containment)、M1(util 小工具)与 M2(ResolvedConfig)已于 2026-08-30 全部收敛;**原语清单 5 项已全部落地**(emitContained、abort-race、util 下沉、recovery-vocabulary、ResolvedConfig)。
+- **仍然开放**:H4、M3、M4、M6 余下、M8、L3、L4;sync note follow-up 1(ui-document-studio readFileText Remote 网关)与 2(synapse live-reply)。H6(恢复/中止文案)、H7(监听器 containment)、M1(util 小工具)与 M2(ResolvedConfig)已于 2026-08-30 全部收敛,H5(announcement 状态机)于 2026-09-14 收敛;**原语清单 6 项已全部落地**(emitContained、abort-race、util 下沉、recovery-vocabulary、ResolvedConfig、entry-lifecycle)。
 - **hygiene 门禁现为红(既有,2026-08-28 确认)**:vendor rescope 的 6 处 exact-edit 漂移(agent-spine-demo README 双语 + cookbook 双语)、`ui-settings-models/onboarding-copy.ts` 的 6 条硬编码欢迎文案(需走 locale 字典)、3 个 client 包(synapse/ui-document-studio/ui-patent-teams)的 peer+dev 声明与 `verify-client-packages` 规则不一致。均为合并窗口遗留,文件未受本次清扫触碰,归入各自后续修复。
 
 ## 2026-09-11 更新(全仓复测 + Issue 关联跟踪)
@@ -48,7 +48,7 @@ hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源�
 | 台账条目 | 状态 | Issue |
 |---|---|---|
 | H4 e2b 生命周期缺口 | 已收敛(余 5 处上游依赖 TODO,见 09-12 节) | #79 |
-| H5 agent/session announcement 状态机双份 | 开放 | #101 |
+| H5 agent/session announcement 状态机双份 | 已收敛(2026-09-14,下沉为 `dsh-entry-lifecycle`) | #101 |
 | M1 小工具复制流行病 | 已收敛(2026-09-14 收口,余下均为成文裁定的契约变体) | #87 |
 | M3 settings 三个竞态 | 已收敛 | #80 |
 | M4 hooks 桥行为缺口 | 修复就绪,待合并 | #81 |
@@ -116,6 +116,18 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **新发现(与本批无关,已单独立项)**:验证过程中 `pnpm exec vitest run scripts/` 在干净 master 上复现红(2 失败,均为 `ENOENT: .../oxlint-contract-<uuid>.ts`)——`scripts/oxlint-contract.spec.ts` 把探针文件写进真实包 `src` 目录,而 `scripts/gen-client-catalog.spec.ts` 与 `scripts/verify-application-entrypoints.spec.ts` 会遍历全仓并逐个 `open`,列目录与读取之间探针被删即抛错。已用 `git stash -u` 在干净树复现(每次 uuid 不同,是竞争而非残留文件),整仓 `vitest run` 这一次未命中(调度不同)。见 #132。另有一处**非仓库缺陷**需记明:以 `npx vitest run` 调用会让 `npm_execpath` 指向 npm,`ui-sidebar-documentpreview` 的打包用例据此改调 `npm pack --json`(返回数组而非对象)而失败;改用 `pnpm exec` 即通过,仓库约定本就是 pnpm。
 - 验证:受影响四包 66 套件 1268 用例通过;`pnpm run typecheck`(host + client 两编译面)通过;lint 0 警告 0 错误(4491 文件,90 规则);`duplication` 0 克隆;`test:docs` 18/18;`hygiene` 16/16;`verify-module-graph` 三产物最新(新增的 client `devDependency` 不产生模块图边,与 09-13 的 peer 边结论互补);`verify-package-dependencies` 66 包;`verify-client-packages` 57 包;`verify-package-paths` 5569 文件;`verify-doc-refs` 4050 文件;`verify-md-wrap` 2024 文件;`verify-agent-note-format` 495 篇;配对 1010 对;`pnpm-lock.yaml` 仅 +3 行(ui-tool 的 devDependency)。Agent Note:`.agents/notes/implemented/architecture/2026-09-14-local-helper-copy-rulings.md`。
 
+## 2026-09-14 更新(H5 收口:announcement 状态机下沉为原语包)
+
+- **H5 复测并收口**(#101,PR #134):两侧的状态机确认仍逐字同形,且真实共享面比 issue 记的更窄也更清楚——共用的是「认领唯一创建边 → 同步派发窗口内的移除延后 → 只对已公告条目发出配对销毁」这一条规则,差异只在窗口个数(session 多一个 append 发布窗口)。下沉为 `packages/util/entry-lifecycle`(`@deepseek-ai/dsh-entry-lifecycle`,零依赖、无服务、无事件):`announce(subject)` 认领创建边并打开它的派发窗口;`endAnnouncement()`/`endDispatch()` 关闭窗口,并在「移除请求已存在且再无窗口」时返回 true 让调用方执行移除;`detachCapability(remove)` 是两侧都交出的那个一次性移除能力;`hasOpenDispatch` 是「自身发布不得重入」的守卫。两条原本两处各写一遍的事实因此回到单点:公告拒绝句子 `` `${subject} was already announced` ``(subject 由调用方给,如 `agent "<id>"`),以及「窗口关闭后由谁执行移除」的判定。
+- **两侧保留的部分**:存储成员关系、`scopeTarget` 载体、事件名与 payload、session 的 `attachments` 映射、`agent/disposed` 与 `session/disposed` 的发出各留在原包;`SessionEntry` 只把 `detach` 留作 `Session.append` 到服务之间的桥。会话侧的 `appending` 换成一对 `beginDispatch`/`endDispatch`,重入守卫改读 `hasOpenDispatch`——与原 `appending` 同条件,因此**在 `session/created` 监听器内部追加**这一既有行为不变(此处刻意不用「任一窗口打开」当守卫,那会把它变成抛错)。agent 侧的三处旗标与延迟分支、两侧的一次性闭包全部删除。
+- **为什么不寄宿 `dsh-scope`**:该包 `store.ts` 虽已是注册表原语的家(`NamedEntries`/`AnonymousEntries`/`ScopedLayers`),但本状态机与 scope 无关,而 `dsh-scope` 是稳定核心包;共享机械原语按既有惯例落在支援级 `util/` 组,与 H7 的 `dsh-contained-emit` 同组同形。
+- **新增包接入面**(后续同类批可直接照此清单):`packages/util/entry-lifecycle`(package.json、tsconfig、src、tests、README 双语 + i18n 记录)、`tsconfig.base.json` 与 `tsconfig.base.host.json` 两处 paths、`tsconfig.host.json` 的 references、两个消费包各补 `dependencies` 与 tsconfig reference、`packages/util/README.md`/`.zh.md` 包表行、`scripts/doc-standard.spec.ts` 的 `PACKAGE_LIBRARIES` 条目、`scripts/verify-package-readme-model-experience.ts` 的短句式允许清单(`kind: 'none'`)、`docs/config-catalog.md` 与其中文孪生条目、`docs/event-producer-consumer.md` 与其中文孪生指针、`docs/module-graph` 三产物、lockfile。
+- **依赖归类按包级而非导出级**:[`2026-08-26-published-dependency-faces`](../.agents/notes/implemented/process/2026-08-26-published-dependency-faces.md) 的条款适用于本包——`EntryLifecycle` 实例自包含、无 `instanceof` 跨包比较、模块无模块级状态,即「已无包级身份或状态要求」,故进 `scripts/package-dependency-policy.ts` 的 `duplicateSafePackages`(包级);导出级 `safeHostDependencyExports` 表按该文件自身的规定**不许自动代理添加**,本次未使用。连带事实:`scripts/verify-package-dependencies.spec.ts` 显式钉住该名单,新增归类必须同步更新那条断言(否则该 spec 红)。
+- **两处约定陷阱(本批实测踩到,值得记)**:① `docs/config-catalog.zh.md` 是**手工**维护的孪生——生成器只写英文侧,新增包后中文侧必须同步补行,否则配对门禁以「list item 数 / link target 不一致」报错;② 配对门禁对**代码块逐字节比对**,中文 README 的代码块内注释须保持英文(与 `util/value` 双语 README 的既有做法一致),否则报「code block #1 diverges」。
+- **一处 lint 反馈**:接口成员写成 `detach(): void` 时,把 `entry.detach` 当回调传入会触发 `typescript(unbound-method)`;改为属性 `readonly detach: () => void` 即消除,且与构造处的箭头函数写法一致。
+- 验证:两侧受影响包加新包加依赖名单 spec 共 48 套件 1068 用例通过(含新包 11 项,覆盖重复公告的逐字拒绝、无窗口时立即移除、跨公告 / 跨一个派发 / 跨两个嵌套派发 / 嵌套于公告内部的派发四种延迟、一次性能力与被消费的请求);新包逐文件覆盖率实测 100%(statements 100 / branches 100 / functions 100 / lines 100——fork CI 不含覆盖率门禁,故该项只能本地实测,结论见 2026-09-12 的覆盖率决定条);`pnpm run typecheck`(host + client 两编译面)通过;lint 0 警告 0 错误(4493 文件,90 规则);`duplication` 0 克隆;`test:docs` 18/18;`doc-sync` 36/36;`hygiene` 16/16;`verify-package-dependencies` 66 包(第 1 次红即「未归类」,按包级归类后转绿);`verify-module-graph` 三产物最新;`verify-config-catalog` 最新;`verify-doc-graphs` 随 `docs/event-producer-consumer` 行号再生转绿;配对、`verify-agent-note-format`(496 篇)、`verify-package-paths`、`verify-doc-refs`、`verify-md-wrap` 全绿;`pnpm-lock.yaml` 随两个消费包的新依赖更新。
+- **完整 `vitest run`(fork CI 口径)两次本机运行各出现 1–3 例负载敏感失败,均与本批无关**:`packages/client/better-sidebar/tests/smoke.spec.ts` 的 pty zombie 三例与 `packages/boot/app-boot/tests/hmr-config.spec.ts`(后者是 09-13 已登记的 HMR 负载敏感族);两次运行的失败集合互不相同(第一次的 better-sidebar 在第二次未复现、第二次的 app-boot 在第一次未出现),且**隔离复跑两个文件 59 用例全过**。两处均不在本批改动面内(pty 管理器与 HMR 配置父目录观察)。Agent Note:`.agents/notes/implemented/architecture/2026-09-14-entry-lifecycle-primitive.md`。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:
@@ -163,9 +175,9 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ### H5. agent/session 双份 lifecycle 状态机开始分叉
 
-- **位置**:`packages/core/agent/src/index.ts:474-576` vs `packages/core/session/src/index.ts:913-1005`
+- **位置**:`packages/core/agent/src/index.ts`(`enter`/`announce`/`detachEntered`,改动前 460-556 行)vs `packages/core/session/src/index.ts`(`enter`/`announce`/`detachEntered`,改动前 1034-1118 行)
 - **问题**:AgentEntry 与 SessionEntry 拥有同构的 `announced`/`announcing`/`detachRequested` 三旗标状态机与 `enter() → announce() → detachEntered() → emitDisposed()` 方法序列,连错误文案都逐字相同(`"${kind} ${id}" was already announced`)。已开始分叉:session 侧多出 `appending` 旗标,agent 侧多出 announcing 重查。任何语义修正都要两处落地,是 defensive-patterns「Honor public contracts on BOTH sides」的漂移温床。
-- **修复**:抽取共享 announcement 原语(参照 `scope` 包 ScopedLayers 模式)或让 session 侧宿主 agent 侧。
+- **修复**:**已收敛**(2026-09-14,PR #134)。两侧的状态机下沉为 `@deepseek-ai/dsh-entry-lifecycle` 的 `EntryLifecycle`:认领唯一创建边、计数打开的派发窗口、把窗口期到达的移除延后到最后一个窗口关闭。两侧各保留自己的存储、`scopeTarget` 载体、事件名与 payload、`attachments` 映射与销毁发出;公告拒绝文案由调用方传入 subject(`agent "<id>"` / `session "<id>"`)拼出,句子回到单点。session 的 `appending` 成为围绕 append 发布的一对 `beginDispatch`/`endDispatch`,其重入守卫改读 `hasOpenDispatch`(与 `appending` 同条件,故 `session/created` 监听器内追加的行为不变)。行为不变,由两侧既有套件与新包单测共同钉住。
 
 ### H6. 模型可见恢复/中止文案三包复制且已漂移
 
@@ -345,7 +357,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 3. **`util/` 小工具包** — `isRecord`、`assertPositiveInteger`、`toError`、`errorMessage`、`isENOENT`、`isPlainObject`、`deepFreeze`(收敛 M1 的 40+ 份;2026-08-30 已全部落地 `@deepseek-ai/dsh-value`)
 4. **recovery-vocabulary 模块** — 错误码 + 模型可见逐字文案 + 合成结果工厂(收敛 H6;2026-08-30 已落地:`TOOL_OUTCOME_UNKNOWN` 文案已随上游坍缩为 session 单点,导出 tools 的 `toolAbortedBeforeDispatchResult` 工厂并收敛两份手抄)
 5. **ResolvedConfig helper** — `Required<Config>` + 单一断言(收敛 M2 的 8+ 处 cast;2026-08-30 已落地 `dsh-value` `assertResolvedConfig`,13 文件收敛)
-6. **announcement 状态机原语** — 收敛 H5 的双份 entry 生命周期
+6. **announcement 状态机原语** — 收敛 H5 的双份 entry 生命周期(2026-09-14 已落地 `@deepseek-ai/dsh-entry-lifecycle`)
 
 ## 修复优先级路线图
 
@@ -358,6 +370,6 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - M8 硬编码可调参数收编(先 maxParallelSubCalls 双份)
 
 **第三批(结构/维护)**:
-- H5 状态机抽取、M6 上帝文件拆分(优先级:continuation.ts → tools/index.ts → api-proxy.ts)、M7 typert 契约测试恢复、L1 CLAUDE.md 布局同步、M9 legacy shim 清理(验证消费者后)、L2 死代码删除
+- M6 上帝文件拆分(优先级:continuation.ts → tools/index.ts → api-proxy.ts)、M7 typert 契约测试恢复、L1 CLAUDE.md 布局同步、M9 legacy shim 清理(验证消费者后)、L2 死代码删除
 
 > 备注:59 处 TODO/FIXME 中,除本报告列为债务的之外,其余为常规记账(命名规范、多属「待办优化」而非缺陷)。FIXME(timeout-policy 改名)必须在首个 tagged release 前决定——已于 2026-08-19 以 `dsh-timeout-policy` → `dsh-timeout-guard` 执行完毕。

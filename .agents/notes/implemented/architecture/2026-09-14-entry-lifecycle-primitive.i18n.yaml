@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-14-entry-lifecycle-primitive.md
+2026-09-14-entry-lifecycle-primitive.md: f127dc8815e9e040df613a6c5dd6d56abf32e8e7
+2026-09-14-entry-lifecycle-primitive.zh.md: c44e3381d73fb58d1aaf805ef89b22f7e3bca694

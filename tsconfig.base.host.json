@@ -685,6 +685,9 @@
       "@deepseek-ai/dsh-e2b": [
         "./packages/e2b/e2b/src"
       ],
+      "@deepseek-ai/dsh-entry-lifecycle": [
+        "./packages/util/entry-lifecycle/src"
+      ],
       "@deepseek-ai/dsh-file-reference": [
         "./packages/context/file-reference/src"
       ],

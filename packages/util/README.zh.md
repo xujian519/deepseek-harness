@@ -43,6 +43,7 @@ kind: "package-group"
 | [`timeout/`](timeout/README.zh.md) | 截止时间运算、信号融合与超时和取消分类 |
 | [`contained-emit/`](contained-emit/README.zh.md) | 派发事件或已解析的回调快照，让每个监听器都运行、每次失败都变成一行日志 |
 | [`value/`](value/README.zh.md) | 面向解析器、配置加载器与 wire 解码器的未知输入原语：记录与键集谓词、正数与已解析配置断言、errno 与中止错误分类，以及抛出值渲染 |
+| [`entry-lifecycle/`](entry-lifecycle/README.zh.md) | 持有单个注册表条目的发布状态：一次创建公告、让它保持存活的监听器派发，以及延迟到最后一个派发才执行的移除 |
 
 -----
 

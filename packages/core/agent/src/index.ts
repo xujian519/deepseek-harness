@@ -10,6 +10,7 @@ import type { Fiber } from '@deepseek-ai/cordis'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
 import { emitContained } from '@deepseek-ai/dsh-contained-emit'
+import { EntryLifecycle } from '@deepseek-ai/dsh-entry-lifecycle'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
@@ -216,9 +217,7 @@ interface AgentEntry {
   /** Runtime creator-agent ownership; independent of durable session lineage. */
   readonly owner: Agent | undefined
   readonly carrier: Scoped<Agent>
-  announced: boolean
-  announcing: boolean
-  detachRequested: boolean
+  readonly lifecycle: EntryLifecycle
 }
 
 /** One tracked boundary plus its inherited nesting chain. */
@@ -471,32 +470,16 @@ export class AgentRegistry extends Service {
       agent,
       owner,
       carrier,
-      announced: false,
-      announcing: false,
-      detachRequested: false,
+      lifecycle: new EntryLifecycle(),
     }
     this.store.set(id, entry)
-    let entered = true
-    const detach = (): void => {
-      if (!entered) return
-      entered = false
-      // Every callback reached by this creation dispatch must observe the same
-      // live entry, and disposal must follow creation. A listener may own
-      // the advanced detach capability, so make that ordering structural:
-      // visibility and the paired disposal are deferred until announce()'s
-      // synchronous dispatch has unwound.
-      if (entry.announcing) {
-        entry.detachRequested = true
-        return
-      }
-      this.detachEntered(entry)
-    }
-    return detach
+    // A creation listener may take this capability; the primitive defers
+    // removal until the announcement dispatch unwinds.
+    return entry.lifecycle.detachCapability(() => { this.detachEntered(entry) })
   }
 
   /** Remove one exact entered agent and emit its paired disposal when announced. */
   private detachEntered(entry: AgentEntry): void {
-    entry.detachRequested = false
     // A stale capability can never delete a later same-id lifecycle. The
     // captured entry identity is the final boundary.
     /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
@@ -506,7 +489,7 @@ export class AgentRegistry extends Service {
     // so emitting disposed would invent an impossible lifecycle edge. Marking
     // happens before the created emit: if a later created listener throws,
     // earlier listeners may already have observed it and must see disposal.
-    if (!entry.announced) return
+    if (!entry.lifecycle.isAnnounced) return
     this.emitDisposed(entry)
   }
 
@@ -528,13 +511,7 @@ export class AgentRegistry extends Service {
     if (entry === undefined || entry.agent !== agent) {
       throw new Error(`agent "${agent.id}" is not live in this registry`)
     }
-    if (entry.announced || entry.announcing) {
-      throw new Error(`agent "${entry.id}" was already announced`)
-    }
-    // Mark before dispatch so a listener cannot recursively create a second
-    // lifecycle edge; detach still pairs a partially delivered first edge.
-    entry.announcing = true
-    entry.announced = true
+    entry.lifecycle.announce(`agent "${entry.id}"`)
     const args: unknown[] = [entry.carrier, 'agent/created', { agent: entry.agent }]
     try {
       for (const callback of this.ctx.events.dispatch('emit', args)) {
@@ -547,8 +524,7 @@ export class AgentRegistry extends Service {
         })
       }
     } finally {
-      entry.announcing = false
-      if (entry.detachRequested) this.detachEntered(entry)
+      if (entry.lifecycle.endAnnouncement()) this.detachEntered(entry)
     }
   }
 

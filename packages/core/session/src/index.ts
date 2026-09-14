@@ -9,6 +9,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
 import { invokeContained } from '@deepseek-ai/dsh-contained-emit'
+import { EntryLifecycle } from '@deepseek-ai/dsh-entry-lifecycle'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { assertNever, deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
@@ -421,11 +422,8 @@ interface SessionEntry {
   readonly session: Session
   readonly carrier: Scoped<Session>
   readonly emitCtx: Context
-  announced: boolean
-  announcing: boolean
-  appending: boolean
-  detachRequested: boolean
-  detach(): void
+  readonly lifecycle: EntryLifecycle
+  readonly detach: () => void
 }
 
 /** Store attachment for the append path; module-private to keep Session store-agnostic publicly. */
@@ -725,7 +723,7 @@ export class Session {
       throw new Error(`session event "${type}" carries non-JSON-serializable surface metadata`)
     }
     const entry = attachments.get(this)
-    if (entry?.appending) {
+    if (entry?.lifecycle.hasOpenDispatch) {
       throw new Error('session append cannot reenter while another append is being published')
     }
     const event = deepFreeze({
@@ -739,7 +737,7 @@ export class Session {
     validateSessionEventData(event, `session event "${type}" at seq ${event.seq}`)
     this.surfaceManager.validateNext(event as SessionEvent)
 
-    if (entry !== undefined) entry.appending = true
+    if (entry !== undefined) entry.lifecycle.beginDispatch()
     try {
       let callbacks: SessionCallback[] | undefined
       const callbackArgs: unknown[] = [this, event]
@@ -753,10 +751,7 @@ export class Session {
       }
       return event
     } finally {
-      if (entry !== undefined) {
-        entry.appending = false
-        if (entry.detachRequested && !entry.announcing) entry.detach()
-      }
+      if (entry !== undefined && entry.lifecycle.endDispatch()) entry.detach()
     }
   }
 
@@ -1044,40 +1039,25 @@ export class SessionStore extends Service {
       session,
       carrier,
       emitCtx: this.ctx,
-      announced: false,
-      announcing: false,
-      appending: false,
-      detachRequested: false,
+      lifecycle: new EntryLifecycle(),
       detach: () => { this.detachEntered(entry) },
     }
     this.store.set(id, entry)
     attachments.set(session, entry)
-    let entered = true
-    const detach = (): void => {
-      if (!entered) return
-      entered = false
-      // A lifecycle listener may own the advanced detach capability. Keep the
-      // entry and its publication hooks live until synchronous creation or append
-      // publication unwinds, then publish the paired disposal edge.
-      if (entry.announcing || entry.appending) {
-        entry.detachRequested = true
-        return
-      }
-      entry.detach()
-    }
-    return detach
+    // A publication listener may take this capability; the primitive defers
+    // removal until the creation or append dispatch unwinds.
+    return entry.lifecycle.detachCapability(entry.detach)
   }
 
   /** Remove one exact entered session and emit its paired disposal when announced. */
   private detachEntered(entry: SessionEntry): void {
-    entry.detachRequested = false
     // A stale capability cannot remove observers or storage belonging to a
     // later same-id lifecycle.
     /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
     if (this.store.get(entry.id) !== entry) return
     this.store.delete(entry.id)
     attachments.delete(entry.session)
-    if (entry.announced) this.emitDisposed(entry)
+    if (entry.lifecycle.isAnnounced) this.emitDisposed(entry)
   }
 
   /** Emit `session/created` exactly once for an {@link enter}ed session (with
@@ -1089,15 +1069,8 @@ export class SessionStore extends Service {
    *   including a reentrant call from a creation listener. */
   announce(session: Session): void {
     const entry = this.liveEntryFor(session)
-    if (entry.announced || entry.announcing) {
-      throw new Error(`session "${entry.id}" was already announced`)
-    }
-    // Mark before emit: Cordis emit may deliver to earlier listeners and then
-    // throw. Rollback must still pair that partial creation with disposal, and
-    // a listener cannot recursively create a second lifecycle edge.
-    entry.announced = true
+    entry.lifecycle.announce(`session "${entry.id}"`)
     const callbackArgs: unknown[] = [session]
-    entry.announcing = true
     try {
       const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/created', session])
       for (const callback of callbacks) {
@@ -1112,8 +1085,7 @@ export class SessionStore extends Service {
         })
       }
     } finally {
-      entry.announcing = false
-      if (entry.detachRequested && !entry.appending) entry.detach()
+      if (entry.lifecycle.endAnnouncement()) entry.detach()
     }
   }
 
