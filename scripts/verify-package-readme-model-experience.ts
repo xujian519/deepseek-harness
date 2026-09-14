@@ -60,6 +60,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/util/crypto': { kind: 'indirect', reason: 'Pure identifier minting; the ids consumers mint with it never enter prompts as semantic content.' },
   'packages/util/value': { kind: 'indirect', reason: 'Pure unknown-value classification and validation; consumers own any model-facing rendering of a rejected input.' },
   'packages/util/contained-emit': { kind: 'indirect', reason: 'Dispatched notifications are log-only; failure lines never reach a model request.' },
+  'packages/util/entry-lifecycle': { kind: 'none', reason: 'In-process publication state for registry entries; registers nothing model-facing.' },
   'packages/util/deque': { kind: 'none', reason: 'In-process collection primitive; registers nothing model-facing.' },
   'packages/util/chunked-list': { kind: 'none', reason: 'Immutable collection primitive; registers nothing model-facing.' },
   'packages/util/package-manifest': { kind: 'none', reason: 'Type declarations only; registers nothing model-facing.' },

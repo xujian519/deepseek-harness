@@ -84,6 +84,7 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/util/atomic-write': 'Zero-dependency filesystem write utility.',
   'packages/util/brand': 'Stateless nominal-string and canonical-key constructors.',
   'packages/util/contained-emit': 'Zero-dependency contained event-dispatch utility.',
+  'packages/util/entry-lifecycle': 'Zero-dependency registry-entry publication state utility.',
   'packages/util/crypto': 'Zero-dependency identifier minting utility.',
   'packages/util/deque': 'Zero-dependency circular deque utility.',
   'packages/util/chunked-list': 'Persistent collection operations and checkpoint validation without a plugin surface.',

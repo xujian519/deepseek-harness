@@ -12,6 +12,9 @@
       "path": "../../util/contained-emit"
     },
     {
+      "path": "../../util/entry-lifecycle"
+    },
+    {
       "path": "../../util/value"
     },
     {

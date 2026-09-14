@@ -6025,6 +6025,9 @@ importers:
       '@deepseek-ai/dsh-contained-emit':
         specifier: workspace:^
         version: link:../../util/contained-emit
+      '@deepseek-ai/dsh-entry-lifecycle':
+        specifier: workspace:^
+        version: link:../../util/entry-lifecycle
       '@deepseek-ai/dsh-value':
         specifier: workspace:^
         version: link:../../util/value
@@ -6201,6 +6204,9 @@ importers:
       '@deepseek-ai/dsh-contained-emit':
         specifier: workspace:^
         version: link:../../util/contained-emit
+      '@deepseek-ai/dsh-entry-lifecycle':
+        specifier: workspace:^
+        version: link:../../util/entry-lifecycle
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../llm/llm
@@ -12319,6 +12325,12 @@ importers:
         version: link:../../../vendor/cordis
 
   packages/util/deque:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/util/entry-lifecycle:
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

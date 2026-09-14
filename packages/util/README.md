@@ -43,6 +43,7 @@ Each package provides one primitive; open a package page for how to use it.
 | [`timeout/`](timeout/README.md) | Deadline arithmetic, signal fusion, and timeout-versus-cancel classification |
 | [`contained-emit/`](contained-emit/README.md) | Dispatches an event, or a resolved callback snapshot, so every listener runs and each failure becomes one log line |
 | [`value/`](value/README.md) | Untrusted-input primitives for parsers, config loaders, and wire decoders: record and key-set predicates, positive-number and resolved-config assertions, errno and abort classification, and thrown-value rendering |
+| [`entry-lifecycle/`](entry-lifecycle/README.md) | Holds one registry entry's publication state: a single creation announcement, the listener dispatches that keep it live, and removal deferred to the last of them |
 
 -----
 
