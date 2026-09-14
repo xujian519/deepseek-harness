@@ -9,7 +9,7 @@
 - **M5 已修**:`atomic-write` 现在把临时文件 fsync 于 rename 前、父目录条目 fsync 于 rename 后;目录 fsync 为 best-effort(Windows 无法打开目录句柄),平台差异收敛在 `src/fsync.ts`。Windows owner-only ACL 语义仍超范围。
 - **M6 部分消解**:`packages/host/apiproxy`(3744 行)已随上游删除,RPC 传输归 connection;`tools/src/code-mode.ts` 改名 `ptc.ts`。其余上帝文件仍在且继续增长(analyzer 3142、continuation 1569、coordinator 1439 行)。
 - **M7 已修**:两个 `describe.skip` 恢复(实测全套 <1s,「60s 超时」的跳过理由不成立),并修正滞后断言(service 方法模型新增 `kind` 判别字段)。
-- **M9 决策:保留**。消费者是已出货桌面构建(DSH Patent 0.1.1-rc.2)磁盘上的历史会话日志,无法证明无消费者;「不支持词汇 fail-loud + 旧形状迁移」是有意设计。首个 tagged release 或 SESSION_FORMAT_VERSION bump 时复审。
+- **M9 已收敛**:原 `packages/api/remotes/src/agent-lookup.ts` 的 legacy agent-busy fence 已随 2026-08-22 的 Session Controller refactor(`d26acfa2e3`)删除;当前 `session/agent-busy` 是 Session Controller 的当前设计,不是 shim。旧错误码与 `ApiRemote*` 符号在当前树中无残留。见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
 - **L1 已修**:根 AGENTS.md 布局段收敛为指向 `packages/README.md`(唯一事实源),补 `apps/desktop` 与根 `examples/`;vitest coverage exclude 的 `packages/self-modification` 死条目删除。
 - **L2 已修**:lsp `finalExtension` 收敛为包内模块(`src/extension.ts`,不再公共导出);workflow `WorkflowEventName` 取消导出;subagent `'unsupported'` 死变体已随上游删除。
 - **L5 之 bridge-client 写路径泄漏已修**:同步 write 抛错现在 settle pending 条目并摘除 abort 监听(`packages/desktop/shell/src/bridge-client.ts`)。
@@ -37,7 +37,7 @@
 - **M1** 的「已收敛 / 0 剩余」**不成立**:`isRecord` 仍有 6 处本地定义、`asRecord` 5 处、`assertPositive*` 5 处(签名三方漂移)、`errorMessage` 简化版 4 处、`toError` 2 处、放宽语义的 `isENOENT`/`isEEXIST` 4 处,另有新族 `isAbortError`(5)、`hasExactKeys`(4)、`sleep`(9)。详表见 Issue #87。
 - **M6** 的行数表大面积过期:仅 `continuation.ts` 收敛;`analyzer.ts` 3142 → 3235、`core/session` 1157 → 1281、`ptc.ts` 的 `createRunCodeTool` ~315 → 386、`acp` 的 `apply` ~310 → 341 均恶化,另有台账未载的新上帝文件(`client/connection/src/client/fixture.ts` 4052、`experimental/code-runtime-python/src/index.ts` 2441、`client/ui-trajectory/src/client/TrajectoryTable.tsx` 3208)。见 Issue #86。
 - **M8** 点名项**零修复**(行号普遍漂移),且「shell seam 共享 `settingsNamespace('shell')`」的描述有误:shell 用的是裸字符串 `SHELL_SETTINGS_NAMESPACE`。见 Issue #88。
-- **M9** 的前提已变:`SESSION_FORMAT_VERSION` 已升到 2,legacy shim 的消费者需重新验证。见 Issue #98。
+- **M9 已收敛**:原 `packages/api/remotes/src/agent-lookup.ts` 的 legacy agent-busy fence 已不存在。该文件在 2026-08-22 的 Session Controller refactor 中被删除,相关检查以 `session/agent-busy` 形式迁入了 `packages/api/session-controller/src/agent.ts`,旧错误码与 `ApiRemote*` 符号无残留;`SESSION_FORMAT_VERSION` 现已为 3。见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md` 与 Issue #98。
 
 ### 本轮新增(台账与 08-30 审计均未载)
 
@@ -54,7 +54,7 @@ hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源�
 | M4 hooks 桥行为缺口 | 修复就绪,待合并 | #81 |
 | M6 上帝文件 | 开放(行数已更新) | #86 |
 | M8 硬编码可调参数 | 开放(零修复) | #88 |
-| M9 legacy shim | 开放(前提已变) | #98 |
+| M9 legacy shim | 已收敛(2026-09-14,原 shim 已随 Session Controller refactor 删除) | #98 |
 | L2 死导出与失效注释引用 | 已收敛 | #93 |
 | L3 `types.ts` 含运行时代码 | 已收敛 | #99 |
 | L4 terminal seam 错误风格 | 已收敛 | #100 |
@@ -127,6 +127,13 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **一处 lint 反馈**:接口成员写成 `detach(): void` 时,把 `entry.detach` 当回调传入会触发 `typescript(unbound-method)`;改为属性 `readonly detach: () => void` 即消除,且与构造处的箭头函数写法一致。
 - 验证:两侧受影响包加新包加依赖名单 spec 共 48 套件 1068 用例通过(含新包 11 项,覆盖重复公告的逐字拒绝、无窗口时立即移除、跨公告 / 跨一个派发 / 跨两个嵌套派发 / 嵌套于公告内部的派发四种延迟、一次性能力与被消费的请求);新包逐文件覆盖率实测 100%(statements 100 / branches 100 / functions 100 / lines 100——fork CI 不含覆盖率门禁,故该项只能本地实测,结论见 2026-09-12 的覆盖率决定条);`pnpm run typecheck`(host + client 两编译面)通过;lint 0 警告 0 错误(4493 文件,90 规则);`duplication` 0 克隆;`test:docs` 18/18;`doc-sync` 36/36;`hygiene` 16/16;`verify-package-dependencies` 66 包(第 1 次红即「未归类」,按包级归类后转绿);`verify-module-graph` 三产物最新;`verify-config-catalog` 最新;`verify-doc-graphs` 随 `docs/event-producer-consumer` 行号再生转绿;配对、`verify-agent-note-format`(496 篇)、`verify-package-paths`、`verify-doc-refs`、`verify-md-wrap` 全绿;`pnpm-lock.yaml` 随两个消费包的新依赖更新。
 - **完整 `vitest run`(fork CI 口径)两次本机运行各出现 1–3 例负载敏感失败,均与本批无关**:`packages/client/better-sidebar/tests/smoke.spec.ts` 的 pty zombie 三例与 `packages/boot/app-boot/tests/hmr-config.spec.ts`(后者是 09-13 已登记的 HMR 负载敏感族);两次运行的失败集合互不相同(第一次的 better-sidebar 在第二次未复现、第二次的 app-boot 在第一次未出现),且**隔离复跑两个文件 59 用例全过**。两处均不在本批改动面内(pty 管理器与 HMR 配置父目录观察)。Agent Note:`.agents/notes/implemented/architecture/2026-09-14-entry-lifecycle-primitive.md`。
+
+## 2026-09-14 更新(M9 收敛:legacy agent-busy shim 已删除)
+
+- **M9 复测并收口**(#98):台账记录的 `packages/api/remotes/src/agent-lookup.ts:83` legacy agent-busy fence 已不存在。该文件在 2026-08-22 的 Session Controller refactor(`d26acfa2e3`)中被整体删除(211 行),其 subagent ownership 检查随后在新的 Session Controller 中以当前 RemoteError 词汇重新实现为 `session/agent-busy`。
+- **消费者验证**:当前代码树中无旧错误码 `'agent-busy'`(不带 `session/` 前缀)的引用,也无 `ApiRemoteLookupError`、`ApiRemoteAgentResult`、`createApiRemoteAgentResolver` 等旧符号的引用;旧类型与旧错误码均未进入当前 API catalog 或任何生产代码/测试。历史会话格式迁移(`session-format-v0-to-v1`、`session-format-v1-to-v2`)与 `session-persistence` 的 storage contract 均未保留该 fence。
+- **当前设计定位**:现在的 subagent ownership fence 位于 `packages/api/session-controller/src/agent.ts`(`hasApiSessionSubagentOwner`、`apiSessionSubagentOwnershipError`),返回 `RemoteError<'session/agent-busy'>`,是 `docs/api-gateway.md` 与 `docs/subsystems/session.md` 中记录的普通会话 resolver 契约的一部分,不是遗留 shim。
+- **结论**:M9 无需删除任何源码(删除已发布),也无需设定未来复审条件。台账、manifest 与 Agent Note 同步关闭。Agent Note:`.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
 
 ## 总体评估
 
@@ -284,10 +291,11 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **默认值风格漂移**:同类超时默认值横向不对称(bash/pwsh-local 前台 `120_000` vs tool-bash-persistent `300_000` vs terminal-bash `30_000` vs e2b `300_000`),无一处集中文档化来源依据
 - **同机制两样写法**:`preset/agent-presets:55` 裸字符串 `SETTINGS_NAMESPACE = 'agent-presets'` 与 `shell/shell/src/index.ts:21` 的 `SHELL_SETTINGS_NAMESPACE = 'shell'` 是同类写法(2026-09-11 更正:原记录称 shell 共享 `settingsNamespace()` 不实)
 
-### M9. 残留 shim 待验证消费者
+### M9. 残留 shim 待验证消费者（已收敛）
 
 - **位置**:`api/remotes/src/agent-lookup.ts:83` — legacy agent-busy fence
 - **问题**:SESSION_FORMAT_VERSION 仍是 0 且「无兼容承诺」,这些迁移是否还有真实生产消费者需要验证;无消费者则应删除(对照 pre-release stance:foundation over blast radius)。
+- **结论**:该文件已在 2026-08-22 的 Session Controller refactor(`d26acfa2e3`)中删除,legacy agent-busy fence 已不存在。当前 `session/agent-busy` 是 `packages/api/session-controller/src/agent.ts` 的当前设计,旧错误码 `'agent-busy'` 与 `ApiRemote*` 符号在代码树中无残留。`SESSION_FORMAT_VERSION` 现为 3。详见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
 
 ### M10. 其他中危
 
