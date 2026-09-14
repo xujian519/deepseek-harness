@@ -24,7 +24,7 @@ This cut takes the first row and, with it, settles the question the plan left op
 
 | Module | Lines | Owns |
 | --- | --- | --- |
-| `src/client/fixture.ts` | 2675 (was 2897) | the wire vocabulary, the session-query mirrors, and the world |
+| `src/client/fixture.ts` | 2483 (2897 before this cut, 2675 as it landed) | the wire vocabulary, the session-query mirrors, and the world |
 | `src/client/fixture-file-system.ts` | 255 | the workspace-file reads and the directory-picker browse tree |
 
 The module's header states its boundary:
@@ -128,7 +128,7 @@ Deleting the entry's line 28 import of `DirectoryListing as FixtureDirectoryList
 - **Routing `WORKSPACE_FILES_ROOT` through `src/types.ts`.** Rejected: that file carries a package's seam vocabulary, this package has none, and the constant is the new module's own root rather than a word two modules share. The entry reading it back is one import, not a second owner.
 - **Deriving the tree's ancestor nodes from `home`.** Rejected under "no unrequested behavior changes": the tree hardcodes `['/', ['home']]` and `['/home', ['fixture']]`, so any `home` other than `/home/fixture` would already be self-contradictory, and this cut has one caller passing the right value. The factory's JSDoc states that precondition instead.
 - **Adding a `vitest.config.ts` exemption, following the projection cut.** Rejected: that cut inherited gaps it could not reach from inside the world. These regions are reachable now that they are outside it, and the exemption would have discarded the cut's only defence.
-- **Moving `settingsRemotes` / `credentialRemotes` / `presetRemotes` in the same cut.** Deferred, not rejected: they are self-contained in the same way and need the same treatment, but they capture three pieces of mutable state (`fixturePresets`, `fixtureCredentials`, `fixtureDefaultPreset`) rather than one, which is the next cut's boundary decision.
+- **Moving `settingsRemotes` / `credentialRemotes` / `presetRemotes` in the same cut.** Deferred, not rejected: they are self-contained in the same way and need the same treatment, but they capture three pieces of mutable state (`fixturePresets`, `fixtureCredentials`, `fixtureDefaultPreset`) rather than one, which was the next cut's boundary decision. [That cut](2026-09-14-fixture-configuration-remotes-extraction.md) settled it with one zero-parameter factory holding all three.
 
 ## Consequences
 
@@ -136,7 +136,7 @@ Deleting the entry's line 28 import of `DirectoryListing as FixtureDirectoryList
 
 The cost is one more file, one more `tsconfig.client.json` entry, and one constant the entry reads back. The template this cut sets for the rest of the world is the factory signature: **a cluster takes the world's values as parameters and owns the state it mutates.**
 
-The remaining regions are the three deferred remote clusters and the `rpc` dispatch table (2441–2651, 211 lines), which needs its roughly 20 handlers compiled into an interface before it can move — a larger boundary decision than the file system's.
+The three deferred remote clusters [have since landed](2026-09-14-fixture-configuration-remotes-extraction.md) in `fixture-configuration-remotes.ts`. The remaining region is the `rpc` dispatch table (2249–2459, 211 lines in the entry as it stands now), which needs its roughly 20 handlers compiled into an interface before it can move — a larger boundary decision than the file system's.
 
 Two stale points this cut leaves alone. `fixture.ts` carries two stacked doc comments above `referenceRemotes` (1209–1210): the Goal Remote line that belongs to the `goalView` declaration above it, then the reference-discovery line that describes the constant. And the plan's own lines 30–31 still say `fixture.ts` contains a `jscpd:ignore` block, which moved to `fixture-projections.ts` in the previous cut.
 
