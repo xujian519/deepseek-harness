@@ -521,7 +521,7 @@ AGENTS.md 要求默认值是一个显式的 `resolve(request): Spec` 步骤，�
 
 ### Issue 21 — legacy shim 消费者验证与删除决策（M9）
 
-- Type：Task；标签：`area/session`；优先级：P2；对应台账 M9
+- Type：Task；标签：`area/session`；优先级：P2；对应台账 M9；**状态：已收敛**
 
 **Summary**
 
@@ -532,7 +532,11 @@ AGENTS.md 要求默认值是一个显式的 `resolve(request): Spec` 步骤，�
 - 验证 `packages/api/remotes/src/agent-lookup.ts` 的 legacy agent-busy fence 是否仍有真实生产消费者（桌面已出货构建的磁盘会话日志）。
 - 结论二选一：删除，或记录「保留到 `<条件>`」并把复审条件写进台账（避免又一次无期限保留）。
 
-**Evidence**：台账 M9 原文；`SESSION_FORMAT_VERSION = 2` 现况。
+**Resolution**
+
+该 legacy shim 已不存在。`packages/api/remotes/src/agent-lookup.ts` 在 2026-08-22 的 Session Controller refactor（`d26acfa2e3`）中被整体删除，其 subagent ownership 检查随后在新的 Session Controller 中以 `session/agent-busy` 重新实现；旧错误码 `'agent-busy'` 与 `ApiRemote*` 符号在当前树中无残留。当前 `session/agent-busy` 是已文档化的当前设计，不是 shim。`SESSION_FORMAT_VERSION` 现为 3。详见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
+
+**Evidence**：台账 M9 原文；`SESSION_FORMAT_VERSION = 2/3` 现况；git history of `packages/api/remotes/src/agent-lookup.ts`。
 
 ---
 
