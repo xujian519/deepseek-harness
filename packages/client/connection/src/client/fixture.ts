@@ -31,7 +31,6 @@ import { createConfigurationRemotes } from './fixture-configuration-remotes.ts'
 import {
   WORKSPACE_FILES_ROOT,
   createDirectoryPickerRemotes,
-  workspaceFileRemotes,
 } from './fixture-file-system.ts'
 import {
   FIXTURE_IMAGE_DATA,
@@ -56,26 +55,13 @@ import {
   type FxGoalProjection,
   type ModelSelection,
 } from './fixture-projections.ts'
+import { createFixtureRpc } from './fixture-rpc.ts'
 import { randomUuid } from './random-uuid.ts'
 import type {
   ClientConnectionRpc, ConnectionRpcFailure, ConnectionRpcResult,
 } from '../rpc.ts'
 
 const FIXTURE_SESSION_SEARCH_RESULT_LIMIT = 20
-
-interface ModelProviderGroup {
-  readonly id: string
-  readonly name: string
-  readonly models: readonly {
-    readonly id: string
-    readonly name: string
-    readonly description?: string
-    readonly reasoning?: {
-      readonly efforts: readonly { readonly id: string; readonly name: string; readonly description?: string }[]
-      readonly defaultEffort?: string
-    }
-  }[]
-}
 
 interface FixtureSessionSummary {
   readonly sessionId: SessionId
@@ -116,7 +102,8 @@ interface FixtureFollowRequest {
   readonly assistantStream?: true
 }
 
-interface FixturePageRequest {
+/** One history page request: an addressed session plus the window the caller already holds. */
+export interface FixturePageRequest {
   readonly address: FixtureSessionAddress
   readonly throughSeq: number
   readonly beforeSeq?: number
@@ -376,54 +363,6 @@ interface FixtureWorkspace {
   sessionIds: SessionId[]
   createdAt: string
   updatedAt: string
-}
-
-const DEEPSEEK_REASONING = {
-  efforts: [
-    { id: 'off', name: 'Off' },
-    { id: 'high', name: 'High' },
-    { id: 'max', name: 'Max' },
-  ],
-  defaultEffort: 'high',
-}
-
-const OPENAI_REASONING = {
-  efforts: [
-    { id: 'off', name: 'Off' },
-    { id: 'medium', name: 'Medium' },
-    { id: 'high', name: 'High' },
-    { id: 'max', name: 'Max' },
-  ],
-  defaultEffort: 'medium',
-}
-
-/** Catalog served by `session/modelCatalog` (fresh copies per call). */
-function fixtureModelGroups(): ModelProviderGroup[] {
-  return [
-    {
-      id: 'deepseek-official',
-      name: 'DeepSeek',
-      models: [
-        {
-          id: 'deepseek-v4-flash',
-          name: 'DeepSeek-V4-Flash',
-          description: '快速响应',
-          reasoning: DEEPSEEK_REASONING,
-        },
-        {
-          id: 'deepseek-v4-pro',
-          name: 'DeepSeek-V4-Pro',
-          description: '复杂任务',
-          reasoning: DEEPSEEK_REASONING,
-        },
-      ],
-    },
-    {
-      id: 'openai',
-      name: 'OpenAI',
-      models: [{ id: 'gpt-5', name: 'GPT-5', reasoning: OPENAI_REASONING }],
-    },
-  ]
 }
 
 function sid(id: string): SessionId {
@@ -688,6 +627,72 @@ class FxInbox<Value> implements StreamConn<Value> {
   }
 }
 
+/** A goal reference as the goals endpoints carry it. */
+type FxGoalRef = { id: string; revision: number }
+
+/** The goal projection's public view, as `goals/*` answers it. */
+type FxGoalView = FxGoalProjection['goal'] & {
+  roundsStarted: number
+  createdAt: number
+  updatedAt: number
+  activation: 'armed' | 'disarmed'
+}
+
+/** The configuration remotes module's return type, split into its three clusters. */
+type ConfigurationRemotes = ReturnType<typeof createConfigurationRemotes>
+
+/**
+ * The world values the fixture's RPC dispatch table closes over. The table reads
+ * no world state directly: every endpoint reaches its state through the remote,
+ * API, stream opener, or helper named here.
+ */
+export interface FixtureRpcDeps {
+  readonly commandRemotes: {
+    list(id: SessionId): RpcResult<readonly CommandDescriptor[]>
+    execute(id: SessionId, line: string, attachments?: readonly unknown[]): RpcResult<CommandExecution | undefined>
+  }
+  readonly referenceRemotes: {
+    files(id: SessionId, query: string): RpcResult<{ path: string; kind: 'file' | 'directory' }[]>
+    sessions(id: SessionId, query: string): RpcResult<{
+      sessionId: SessionId
+      label: string
+      cwd?: string
+      createdAt: number
+      mention: string
+    }[]>
+  }
+  readonly goalRemotes: {
+    get(id: SessionId): RpcResult<FxGoalView | undefined>
+    create(id: SessionId, request: { objective: string; maxGoalRounds?: number }): RpcResult<{ ref: FxGoalRef }>
+    edit(id: SessionId, ref: FxGoalRef, request: { objective?: string; maxGoalRounds?: number }): RpcResult<FxGoalView>
+    pause(id: SessionId, ref: FxGoalRef): RpcResult<FxGoalView>
+    resume(id: SessionId, ref: FxGoalRef): RpcResult<FxGoalView>
+    complete(id: SessionId, ref: FxGoalRef): RpcResult<FxGoalView>
+    clear(id: SessionId, ref: FxGoalRef): RpcResult<FxGoalRef>
+  }
+  readonly directoryPickerRemotes: ReturnType<typeof createDirectoryPickerRemotes>
+  readonly settingsRemotes: ConfigurationRemotes['settingsRemotes']
+  readonly credentialRemotes: ConfigurationRemotes['credentialRemotes']
+  readonly presetRemotes: ConfigurationRemotes['presetRemotes']
+  readonly sessionApi: FixtureSessionApi
+  readonly workspaceApi: FixtureWorkspaceApi
+  readonly openControl: (signal: AbortSignal) => AsyncGenerator<FixtureControlFrame>
+  readonly openWorkspace: (signal: AbortSignal) => AsyncGenerator<WorkspaceFollowFrame>
+  readonly openWorkspaceFileChanges: (signal: AbortSignal) => AsyncGenerator<FixtureWorkspaceFileWatchFrame>
+  readonly openRemoteEvents: (
+    signal: AbortSignal,
+  ) => AsyncGenerator<FixtureRemoteEventReadyFrame | FixtureRemoteEventFrame>
+  readonly openFollow: (
+    request: FixtureFollowRequest,
+    signal: AbortSignal,
+  ) => AsyncGenerator<FixtureFollowFrame>
+  readonly sessionOk: <Value>(value: Value) => Promise<ConnectionRpcResult<Value>>
+  readonly requireRemoteSession: (
+    request: { readonly sessionId: SessionId },
+  ) => Promise<ConnectionRpcResult<never>> | undefined
+  readonly answerRemoteEvent: (result: FixtureRemoteEventResult) => ConnectionRpcResult<unknown>
+}
+
 /** Fixture RPC face over one in-memory state graph. */
 export interface FixtureWorld {
   /** Generic Remote caller for the endpoints business services own. */
@@ -950,14 +955,6 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       sessionId: id,
       goal: { id: current.goal.id, revision: current.goal.revision, activation },
     }])
-  }
-
-  type FxGoalRef = { id: string; revision: number }
-  type FxGoalView = FxGoalProjection['goal'] & {
-    roundsStarted: number
-    createdAt: number
-    updatedAt: number
-    activation: 'armed' | 'disarmed'
   }
 
   const goalFailure = <T>(message: string): RpcResult<T> => ({
@@ -2246,217 +2243,25 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     },
   }
 
-  const rpc: ClientConnectionRpc = {
-    call(channel, endpoint, payload, signal) {
-      if (channel !== '/api') {
-        return Promise.reject(new Error(`fixture connection RPC channel ${JSON.stringify(channel)} is unavailable`))
-      }
-      const args = (payload as {
-        args: Readonly<{
-          agentId: SessionId
-          line?: string
-          query?: string
-          path?: string
-          range?: { offset?: number; limit?: number }
-          name?: string
-          images?: readonly unknown[]
-          // A goal ref and a credential reference name share this wire field name.
-          ref?: string | { id: string; revision: number }
-          refs?: readonly string[]
-          value?: string
-          ns?: string
-          settingsNs?: string
-          agentPreset?: string
-          from?: string
-          id?: string
-          request?: unknown
-          _request?: unknown
-        }>
-      }).args
-      const sessionId = args.agentId
-      const callSignal = signal ?? new AbortController().signal
-      const request = args.request
-      switch (endpoint) {
-        case 'commands/list': return Promise.resolve(commandRemotes.list(sessionId))
-        case 'commands/execute': return Promise.resolve(commandRemotes.execute(sessionId, args.line as string, args.images ?? []))
-        case 'fileReferences/list': return Promise.resolve(referenceRemotes.files(sessionId, args.query ?? ''))
-        case 'sessionReferenceResolver/candidates': return Promise.resolve(referenceRemotes.sessions(sessionId, args.query ?? ''))
-        case 'directoryPicker/pick': return Promise.resolve(directoryPickerRemotes.pick())
-        case 'directoryPicker/list': return Promise.resolve(directoryPickerRemotes.list(args.path))
-        case 'directoryPicker/createDirectory':
-          return Promise.resolve(directoryPickerRemotes.createDirectory(args.path ?? '', args.name ?? ''))
-        case 'goals/get': return Promise.resolve(goalRemotes.get(sessionId))
-        case 'goals/create': return Promise.resolve(goalRemotes.create(sessionId, {
-          objective: (request as { objective?: string } | undefined)?.objective as string,
-          ...(request as { maxGoalRounds?: number } | undefined)?.maxGoalRounds === undefined
-            ? {}
-            : { maxGoalRounds: (request as { maxGoalRounds: number }).maxGoalRounds },
-        }))
-        case 'goals/edit': return Promise.resolve(goalRemotes.edit(
-          sessionId,
-          args.ref as FxGoalRef,
-          request as { objective?: string; maxGoalRounds?: number },
-        ))
-        case 'goals/pause': return Promise.resolve(goalRemotes.pause(sessionId, args.ref as FxGoalRef))
-        case 'goals/resume': return Promise.resolve(goalRemotes.resume(sessionId, args.ref as FxGoalRef))
-        case 'goals/complete': return Promise.resolve(goalRemotes.complete(sessionId, args.ref as FxGoalRef))
-        case 'goals/clear': return Promise.resolve(goalRemotes.clear(sessionId, args.ref as FxGoalRef))
-        case 'agentPresets/list': return Promise.resolve(presetRemotes.list())
-        case 'agentPresets/select': return Promise.resolve(presetRemotes.select(sessionId, args.agentPreset as string))
-        case 'agentPresets/read': return Promise.resolve(presetRemotes.read(args.agentPreset as string))
-        case 'agentPresets/copy': return Promise.resolve(presetRemotes.copy(args.from as string, args.id as string))
-        case 'agentPresets/deletePreset': return Promise.resolve(presetRemotes.deletePreset(args.id as string))
-        case 'subagents/list': return Promise.resolve({
-          ok: true,
-          value: { entries: [], parentAvailable: true },
-        })
-        case 'subagents/prompt': return Promise.resolve({
-          ok: true,
-          value: {
-            messageId: `fixture-message-${(request as { childSessionId: SessionId }).childSessionId}`,
-          },
-        })
-        case 'subagents/interruptByParent': return Promise.resolve({ ok: true, value: { accepted: true } })
-        case 'credentials/describe': return Promise.resolve(credentialRemotes.describe(args.refs ?? []))
-        case 'credentials/set': return Promise.resolve(credentialRemotes.set(args.ref as string))
-        case 'credentials/unset': return Promise.resolve(credentialRemotes.unset(args.ref as string))
-        case 'settings/describe': return Promise.resolve(settingsRemotes.describe())
-        case 'settings/canOpenAgentPresetDirectory': return Promise.resolve({ ok: true, value: true })
-        case 'settings/openSettingsDocument': return Promise.resolve(settingsRemotes.openSettingsDocument())
-        case 'settings/openAgentPresetDirectory': return Promise.resolve(
-          settingsRemotes.openAgentPresetDirectory(args.agentPreset as string),
-        )
-        case 'skills/list': {
-          const skillRequest = request as { readonly sessionId: SessionId }
-          const missing = requireRemoteSession(skillRequest)
-          if (missing !== undefined) return missing
-          return sessionOk({
-            skills: [
-              { name: 'fixture-demo', description: 'fixture 技能样本', whenToUse: '仅供 UI 目录渲染验收', modelInvocable: true },
-              { name: 'fixture-user-only', description: 'fixture 仅用户技能样本', modelInvocable: false },
-            ],
-          })
-        }
-        case 'session/openWorkspacePath': {
-          return sessionOk({ opened: true as const })
-        }
-        case 'workspaceFiles/read': {
-          return Promise.resolve(workspaceFileRemotes.read(args.path ?? '', args.range ?? {}))
-        }
-        case 'workspaceFiles/stat': {
-          return Promise.resolve(workspaceFileRemotes.stat(args.path ?? ''))
-        }
-        case 'workspaceFiles/list': {
-          return Promise.resolve(workspaceFileRemotes.list(args.path ?? ''))
-        }
-        case 'session/canOpenWorkspacePath': return Promise.resolve({ ok: true, value: true })
-        case 'session/modelCatalog': return Promise.resolve({
-          ok: true,
-          value: {
-            default: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
-            routableProviders: ['deepseek-official', 'openai', 'acme-gateway'],
-            groups: fixtureModelGroups(),
-            failures: [],
-          },
-        })
-        case 'llm/listProviders': return Promise.resolve({
-          ok: true,
-          value: [
-            { id: 'deepseek-official', name: 'DeepSeek' },
-            { id: 'openai', name: 'openai' },
-            { id: 'acme-gateway', name: 'Acme Gateway' },
-          ],
-        })
-        case 'llm/listConfigurableProviders': return Promise.resolve({
-          ok: true,
-          value: [
-            { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [] },
-            { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], declared: false },
-            { provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'], declared: false },
-            { provider: 'acme-gateway', displayName: 'Acme Gateway', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'acme-gateway'], declared: true },
-          ],
-        })
-        // The fixture endpoint is imaginary, so interrogation answers the
-        // catalog it already serves without a network request.
-        case 'llm/discoverModels': return Promise.resolve({
-          ok: true,
-          value: fixtureModelGroups().flatMap(group => group.models.map(model => ({ id: model.id, name: model.name }))),
-        })
-        case 'settings/update': return Promise.resolve(settingsRemotes.update(args.ns as string))
-        case 'settings/replace': return Promise.resolve(settingsRemotes.replace(args.ns as string))
-        case 'settings/mutate': return Promise.resolve(settingsRemotes.mutate(args.ns as string))
-        case 'session/list': return sessionApi.list(
-          args._request as Parameters<FixtureSessionApi['list']>[0],
-        )
-        case 'session/search': return sessionApi.search(
-          request as Parameters<FixtureSessionApi['search']>[0],
-          callSignal,
-        )
-        case 'session/create': return sessionApi.create(
-          request as Parameters<FixtureSessionApi['create']>[0],
-        )
-        case 'session/selectModel': return sessionApi.selectModel(
-          request as Parameters<FixtureSessionApi['selectModel']>[0],
-        )
-        case 'session/rename': return sessionApi.rename(
-          request as Parameters<FixtureSessionApi['rename']>[0],
-        )
-        case 'session/fork': return sessionApi.fork(
-          request as Parameters<FixtureSessionApi['fork']>[0],
-        )
-        case 'session/prompt': return sessionApi.prompt(
-          request as Parameters<FixtureSessionApi['prompt']>[0],
-        )
-        case 'session/attachment': return sessionApi.attachment(
-          request as Parameters<FixtureSessionApi['attachment']>[0],
-        )
-        case 'session/updateQueue': return sessionApi.updateQueue(
-          request as Parameters<FixtureSessionApi['updateQueue']>[0],
-        )
-        case 'session/cancel': return sessionApi.cancel(
-          request as Parameters<FixtureSessionApi['cancel']>[0],
-        )
-        case 'session/page': {
-          const page = request as FixturePageRequest
-          const pageSessionId = page.address.kind === 'session'
-            ? page.address.sessionId
-            : page.address.childSessionId
-          return sessionApi.history({
-            sessionId: pageSessionId,
-            throughSeq: page.throughSeq,
-            ...page.beforeSeq === undefined ? {} : { beforeSeq: page.beforeSeq },
-            ...page.maxMessages === undefined ? {} : { maxMessages: page.maxMessages },
-          })
-        }
-        case '$events/result': return Promise.resolve(answerRemoteEvent(args as unknown as FixtureRemoteEventResult))
-        case 'workspace/create': return workspaceApi.create(request as WorkspaceCreateRequest)
-        case 'workspace/rename': return workspaceApi.rename(request as WorkspaceRenameRequest)
-        case 'workspace/delete': return workspaceApi.delete(request as WorkspaceDeleteRequest)
-        case 'workspace/insertBefore': return workspaceApi.insertBefore(request as WorkspaceInsertBeforeRequest)
-        case 'workspace/insertSessionBefore': return workspaceApi.insertSessionBefore(
-          request as WorkspaceInsertSessionBeforeRequest,
-        )
-        case 'workspace/archiveSession': return workspaceApi.archiveSession(request as WorkspaceArchiveSessionRequest)
-        default:
-          return Promise.reject(new Error(`fixture connection RPC endpoint ${JSON.stringify(endpoint)} is unavailable`))
-      }
-    },
-    open(channel, endpoint, payload, signal) {
-      if (channel !== '/api') {
-        throw new Error(`fixture connection RPC channel ${JSON.stringify(channel)} is unavailable`)
-      }
-      const args = (payload as { args: Readonly<{ request?: unknown }> }).args
-      switch (endpoint) {
-        case '$events': return openRemoteEvents(signal)
-        case 'session/control': return openControl(signal)
-        case 'session/follow': return openFollow(args.request as FixtureFollowRequest, signal)
-        case 'workspace/follow': return openWorkspace(signal)
-        case 'workspaceFiles/changes': return openWorkspaceFileChanges(signal)
-        default:
-          throw new Error(`fixture connection stream endpoint ${JSON.stringify(endpoint)} is unavailable`)
-      }
-    },
-  }
+  const rpc = createFixtureRpc({
+    commandRemotes,
+    referenceRemotes,
+    goalRemotes,
+    directoryPickerRemotes,
+    settingsRemotes,
+    credentialRemotes,
+    presetRemotes,
+    sessionApi,
+    workspaceApi,
+    openControl,
+    openWorkspace,
+    openWorkspaceFileChanges,
+    openRemoteEvents,
+    openFollow,
+    sessionOk,
+    requireRemoteSession,
+    answerRemoteEvent,
+  })
   return { rpc }
 }
 
