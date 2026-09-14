@@ -14,7 +14,7 @@ Status: implemented
 
 ## Decision
 
-现在由八个模块承载原文件，`src/client/TrajectoryTable.tsx` 为 1768 行。110 个声明全部保留原名与原函数体：搬迁区间与离开入口的代码逐字节相同，留在入口的 38 个声明也逐字节相同，只有入口新需要的 import 接线是新增的。
+现在由八个模块承载原文件，本刀落地时 `src/client/TrajectoryTable.tsx` 为 1768 行。110 个声明全部保留原名与原函数体：搬迁区间与离开入口的代码逐字节相同，留在入口的 38 个声明也逐字节相同，只有入口新需要的 import 接线是新增的。
 
 | 模块 | 行数 | 搬迁 | 承载 |
 | --- | --- | --- | --- |
@@ -38,6 +38,8 @@ Status: implemented
 这一刀的第一版把 `DetailTabItem`、`SYSTEM_PROMPT_TABS`、`SYSTEM_UPDATE_TABS`、`REQUEST_TABS` 随读取它们的 `detailTabs` 一起搬进了 `trajectory-record-presentation.tsx`。这是错的，而指出它错的正是计划自己的批次 1 规则：**批次 1 不移动常量。** `readonly DetailTabItem[]` 表是常量值，而且 `REQUEST_TABS` 还被入口自己的 tab 条 JSX 直接读取，不只有 `detailTabs` 读它。
 
 五个声明现全部回到入口。判定依据是机械可查的：三张表只被 `detailTabs` 引用，`detailTabs` 只被 `TrajectoryTable` 引用，`REQUEST_TABS` 被 `TrajectoryTable` 直接引用。入口之外没有任何地方提到它们，所以留在入口不产生额外 import 边，而移动它们则会把常量放进一个以「presentation helper」命名的模块。
+
+批次 2 把这五个声明一起移进了 `trajectory-detail-tabs.ts`。inspector 的 tab 条 JSX 在那一刀里离开了入口，因此三张表的所有读者都在新模块内，批次 1 的「不移动常量」规则不再适用。[那份记录](2026-09-14-trajectory-record-inspector-extraction.zh.md)记下了这次移动。
 
 ### 共享词汇为何落到 `src/types.ts`
 
@@ -85,9 +87,9 @@ Status: implemented
 
 ## Consequences
 
-`TrajectoryTable.tsx` 缩短 1440 行，只保留视图以及视图直接拥有的 38 个声明。代价是记账：搬迁 1387 行，八个新文件共 1662 行，入口十行 import 接线 —— 九条 import 加那条双名重新导出 —— 替换掉入口不再需要的 import。275 行的增长来自模块头、import，以及 `verify-export-jsdoc` 对两个 `.ts` 模块导出所要求的 JSDoc。没有任何内容被删除或重写。
+`TrajectoryTable.tsx` 缩短 1440 行，本刀后只保留视图以及视图直接拥有的 38 个声明。代价是记账：搬迁 1387 行，八个新文件共 1662 行，入口十行 import 接线 —— 九条 import 加那条双名重新导出 —— 替换掉入口不再需要的 import。275 行的增长来自模块头、import，以及 `verify-export-jsdoc` 对两个 `.ts` 模块导出所要求的 JSDoc。没有任何内容被删除或重写。
 
-这次搬迁让批次 2 的切口变得可度量。计划希望抽成 `RecordInspector` 的 inspector `<aside>`，现在是入口里仅剩的大块 JSX 区域；它渲染所经的六个 presentation 模块已经是独立文件，因此那一刀需要定下的接口，无需读过 virtualizer 就能看见。
+这次搬迁让批次 2 的切口变得可度量。计划希望抽成 `RecordInspector` 的 inspector `<aside>`，当时是入口里仅剩的大块 JSX 区域；它渲染所经的六个 presentation 模块已经是独立文件，因此那一刀需要定下的接口，无需读过 virtualizer 就能看见。那一刀已经落地：[inspector 提取记录](2026-09-14-trajectory-record-inspector-extraction.zh.md)记下了它定下的 18 项 `RecordInspectorProps`，以及取代拖拽的 `useResizeHandle`。
 
 有一处不对称是这一刀保留而非造成的：`trajectory-record-presentation.tsx` 同时承载 record 转文本的读取器（`markdownSource`、`recordDisplayText`、`recordResultText`）与渲染它们的 React 组件（`RecordPresentation`、`RecordListText`）。把读取器分出去成为 `.ts` 模块会为它们触发 `verify-export-jsdoc`，并让它们可以在没有组件的情况下被 import；那是留给后续切口处理的结构选择，不是这一刀必须定下的边界。
 

@@ -1,36 +1,28 @@
 /** Turn-aware trajectory event ledger with a local record inspector. */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  IconChevronRightOutline14,
-  IconSettingsOutline16,
-  IconSparkle16,
-  IconUserOutline16,
-  MarkdownText,
-  Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { TrajectoryCellKind, TrajectoryCellProps } from './trajectory-record.ts'
-import { formatElapsedSeconds, trajectoryRecordId } from './trajectory-record.ts'
+import type { TrajectoryCellProps } from './trajectory-record.ts'
+import { trajectoryRecordId } from './trajectory-record.ts'
 import {
   groupTrajectoryVirtualRows, trajectoryVirtualRecordKey,
 } from './trajectory-virtual-rows.ts'
 import type { TrajectoryVirtualRow } from './trajectory-virtual-rows.ts'
 import type { TrajectoryTurnModel } from './layout.ts'
-import type { TrajectoryKey, TrajectoryTranslate } from './locales.ts'
+import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
 
-import { MarkdownRecordContent } from './trajectory-markdown-content.tsx'
-import { SystemPromptDiff, ToolCatalog } from './trajectory-prompt-diff.tsx'
-import { assistantToolCalls, collapseAssistantRecords, collapseTurnRecords, filterRecords, flattenRecords, indexRequestBoundaries, indexRequestBoundaryRuns, indexRequestNumbers, requestErrorMessage, requestIdentity, requestKey, sectionLabel, stateOf, statusLabel } from './trajectory-record-model.ts'
-import { RecordPayload, RecordSchema, RequestOptions } from './trajectory-record-payload.tsx'
-import { MessageSource, RecordListText, RecordPresentation, isMarkdownRecord, messageSourceLabel, parentRecords } from './trajectory-record-presentation.tsx'
-import { RecordTiming, RequestTiming, formatDurationMs } from './trajectory-timing.tsx'
-import { RequestUsagePanel, TokenRows, UsageRows } from './trajectory-usage-panel.tsx'
-import type { DetailTab, ParentRecords, RecordState, TableRecord, TrajectoryRequestNumber } from '../types.ts'
-import { markdownLabels } from '../types.ts'
+import { assistantToolCalls, collapseAssistantRecords, collapseTurnRecords, filterRecords, flattenRecords, indexRequestBoundaries, indexRequestBoundaryRuns, indexRequestNumbers, requestIdentity, requestKey, sectionLabel, stateOf } from './trajectory-record-model.ts'
+import { RecordListText, RecordPresentation } from './trajectory-record-presentation.tsx'
+import { RecordInspector } from './trajectory-record-inspector.tsx'
+import { detailTabs } from './trajectory-detail-tabs.ts'
+import { KIND_ICON, KIND_LABEL_KEY } from './trajectory-kind.tsx'
+import { useResizeHandle } from './trajectory-resize-handle.ts'
+import type { SelectedRequest } from './trajectory-record-inspector.tsx'
+import type { DetailTab, TableRecord, TrajectoryRequestNumber } from '../types.ts'
 
 export type { TrajectoryRequestNumber, TrajectoryUsage } from '../types.ts'
 
@@ -45,87 +37,6 @@ const VIRTUALIZATION_THRESHOLD = 100
 const VIRTUAL_OVERSCAN_ROWS = 12
 
 const VIRTUAL_INITIAL_VIEWPORT_HEIGHT_PX = 600
-
-const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
-  system: 'kind.system',
-  user: 'kind.user',
-  context: 'kind.context',
-  compacted: 'kind.compacted',
-  message: 'kind.assistant',
-  tool: 'kind.tool',
-  subtool: 'kind.subtool',
-}
-
-function ToolWrenchIcon(): ReactNode {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      data-role-icon="wrench"
-      aria-hidden="true"
-    >
-      <path d="M14 3.3a3.8 3.8 0 0 1-4.8 4.8l-5.1 5.1a1.6 1.6 0 1 1-2.3-2.3l5.1-5.1A3.8 3.8 0 0 1 11.7 1l-2.3 2.3 2.3 2.3L14 3.3Z" />
-    </svg>
-  )
-}
-
-function InformationIcon(): ReactNode {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      data-role-icon="information"
-      aria-hidden="true"
-    >
-      <circle cx="8" cy="8" r="6.7" />
-      <circle cx="8" cy="5.5" r=".85" fill="currentColor" stroke="none" />
-      <path d="M8 7.75v3.4" strokeWidth="1.8" />
-    </svg>
-  )
-}
-
-function CompactedIcon(): ReactNode {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      data-role-icon="compacted"
-      aria-hidden="true"
-    >
-      <path d="m2.5 2.5 3.75 3.75M3 6.25h3.25V3" />
-      <path d="m13.5 2.5-3.75 3.75M13 6.25H9.75V3" />
-      <path d="m2.5 13.5 3.75-3.75M3 9.75h3.25V13" />
-      <path d="m13.5 13.5-3.75-3.75M13 9.75H9.75V13" />
-    </svg>
-  )
-}
-
-const KIND_ICON: Record<TrajectoryCellKind, ReactNode> = {
-  system: <IconSettingsOutline16 size={13} />,
-  user: <IconUserOutline16 size={13} />,
-  context: <InformationIcon />,
-  compacted: <CompactedIcon />,
-  message: <IconSparkle16 size={13} />,
-  tool: <ToolWrenchIcon />,
-  subtool: <ToolWrenchIcon />,
-}
 
 interface VirtualRowStructure {
   height: number
@@ -151,58 +62,6 @@ function useStableVirtualRowStructure(
   return structure
 }
 
-interface DetailTabItem {
-  id: DetailTab
-  labelKey: TrajectoryKey
-}
-
-interface SelectedRequest {
-  identity: string
-}
-
-interface DetailsResizeDrag {
-  pointerId: number
-  startX: number
-  startWidth: number
-  splitWidth: number
-  startToolRequestOffset: number
-}
-
-const DETAILS_MIN_WIDTH = 320
-
-const DETAILS_MAX_WIDTH = 720
-
-const TABLE_MIN_WIDTH = 280
-
-const DETAILS_RESIZE_STEP = 16
-
-const TOOL_REQUEST_SHARE = 0.58
-
-const TOOL_REQUEST_MIN_WIDTH = 180
-
-const TOOL_REQUEST_MAX_WIDTH = 480
-
-const DEFAULT_TOOL_REQUEST_SHARE = 0.36
-
-const DEFAULT_TOOL_REQUEST_OFFSET = 56
-
-const SYSTEM_PROMPT_TABS: readonly DetailTabItem[] = [
-  { id: 'system-prompt', labelKey: 'tab.systemPrompt' },
-  { id: 'tools', labelKey: 'tab.tools' },
-]
-
-const SYSTEM_UPDATE_TABS: readonly DetailTabItem[] = [
-  { id: 'diff', labelKey: 'tab.diff' },
-  ...SYSTEM_PROMPT_TABS,
-]
-
-const REQUEST_TABS: readonly DetailTabItem[] = [
-  { id: 'overview', labelKey: 'tab.summary' },
-  { id: 'options', labelKey: 'tab.options' },
-  { id: 'usage', labelKey: 'tab.usage' },
-  { id: 'timing', labelKey: 'tab.timing' },
-]
-
 type TrajectorySplitStyle = CSSProperties & {
   '--trajectory-tool-request-width': string
 }
@@ -219,24 +78,6 @@ interface OlderLoadAnchor {
   readonly historyStartSeq: number | undefined
   readonly scrollHeight: number
   readonly scrollTop: number
-}
-
-function clampDetailsWidth(width: number, splitWidth: number): number {
-  const maxWidth = Math.max(
-    DETAILS_MIN_WIDTH,
-    Math.min(DETAILS_MAX_WIDTH, splitWidth - TABLE_MIN_WIDTH),
-  )
-  return Math.round(Math.min(Math.max(width, DETAILS_MIN_WIDTH), maxWidth))
-}
-
-function defaultToolRequestWidth(splitWidth: number): number {
-  return Math.min(
-    Math.max(
-      splitWidth * DEFAULT_TOOL_REQUEST_SHARE - DEFAULT_TOOL_REQUEST_OFFSET,
-      TOOL_REQUEST_MIN_WIDTH,
-    ),
-    TOOL_REQUEST_MAX_WIDTH,
-  )
 }
 
 /** Props for the trajectory ledger. */
@@ -289,71 +130,6 @@ export interface TrajectoryTableProps {
   onInspectApplied?: (() => void) | undefined
 }
 
-function detailTabs(record: TableRecord): readonly DetailTabItem[] {
-  if (record.cell.kind === 'system') {
-    if (record.cell.promptDetail === undefined && record.cell.systemPromptDetail !== undefined) {
-      return SYSTEM_PROMPT_TABS.filter(tab => tab.id === 'system-prompt')
-    }
-    return record.cell.previousPromptDetail === undefined
-      ? SYSTEM_PROMPT_TABS
-      : SYSTEM_UPDATE_TABS
-  }
-  if (record.cell.kind === 'compacted') {
-    return [
-      { id: 'overview', labelKey: 'tab.summary' },
-      { id: 'raw', labelKey: 'tab.rawOutput' },
-    ]
-  }
-  if (isMarkdownRecord(record)) {
-    return [
-      { id: 'overview', labelKey: 'tab.summary' },
-      { id: 'rendered', labelKey: 'tab.preview' },
-      { id: 'raw', labelKey: 'tab.raw' },
-      ...(record.cell.messageSource === undefined
-        ? []
-        : [{ id: 'source', labelKey: 'tab.source' } as const]),
-    ]
-  }
-  return [
-    { id: 'overview', labelKey: 'tab.summary' },
-    ...(record.cell.inputDetail ? [{ id: 'input', labelKey: 'tab.payload' } as const] : []),
-    ...(record.cell.outputDetail ? [{ id: 'output', labelKey: 'tab.result' } as const] : []),
-    { id: 'schema', labelKey: 'tab.schema' },
-    { id: 'timing', labelKey: 'tab.timing' },
-  ]
-}
-
-function OverviewSection({
-  label,
-  onOpen,
-  children,
-}: {
-  label: string
-  onOpen: () => void
-  children: ReactNode
-}) {
-  return (
-    <section className={css.overviewSection}>
-      <h3 className={css.overviewHeading}>
-        <button
-          type="button"
-          className={css.overviewTitle}
-          onClick={onOpen}
-        >
-          <span>{label}</span>
-          <IconChevronRightOutline14 className={css.overviewTitleIcon} size={12} />
-        </button>
-      </h3>
-      <div
-        className={`${css.overviewPreview} ${css.summaryScrollRegion}`}
-        data-summary-scroll-region=""
-      >
-        {children}
-      </div>
-    </section>
-  )
-}
-
 /**
  * Render trajectory events as a dense ledger with turn and step separators.
  * Clicking ledger whitespace clears the active record or request selection.
@@ -389,9 +165,6 @@ export function TrajectoryTable({
   const [selectedRequest, setSelectedRequest] = useState<SelectedRequest | null>(null)
   const [activeTab, setActiveTab] = useState<DetailTab>('overview')
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
-  const [detailsWidth, setDetailsWidth] = useState<number | null>(null)
-  const [toolRequestOffset, setToolRequestOffset] = useState<number | null>(null)
-  const detailsResizeDrag = useRef<DetailsResizeDrag | null>(null)
   const appliedRecordSelection = useRef<TrajectoryTableProps['recordSelection']>(null)
   const appliedRecordFocus = useRef<TrajectoryTableProps['recordFocus']>(null)
   const tabHistory = useRef<Set<DetailTab>>(new Set(['overview']))
@@ -404,6 +177,7 @@ export function TrajectoryTable({
   const loadingOlder = useRef(false)
   const [olderLoading, setOlderLoading] = useState(false)
   const olderLoadAnchor = useRef<OlderLoadAnchor | null>(null)
+  const { detailsWidth, toolRequestOffset, handlers: resizeHandlers } = useResizeHandle()
   const allRecords = useMemo(() => flattenRecords(turns), [turns])
   const streamingCellsByIndex = useMemo(
     () => new Map(streamingCells.map(cell => [cell.index, cell])),
@@ -518,101 +292,16 @@ export function TrajectoryTable({
     () => indexRequestBoundaryRuns(records, requestGroups),
     [records, requestGroups],
   )
-  const selectedPrompt = selected?.cell.kind === 'system'
-    ? selected.cell.promptDetail
-    : undefined
-  const selectedPreviousPrompt = selected?.cell.kind === 'system'
-    ? selected.cell.previousPromptDetail
-    : undefined
-  const selectedSystemPrompt = selectedPrompt?.system ?? selected?.cell.systemPromptDetail
-  const promptSelected = selectedSystemPrompt !== undefined
-  const selectedState = selected === undefined ? undefined : stateOf(selected)
   const selectedRequestInfo = selectedRequest === null
     ? undefined
     : sessionRequestNumbers?.find(request =>
       requestIdentity(request) === selectedRequest.identity)
-  const selectedRequestRecordTemplates = useMemo(() => selectedRequestInfo === undefined
-    ? []
-    : allRecords.filter(record =>
-      record.turn === selectedRequestInfo.turn
-        && record.group === selectedRequestInfo.group,
-    ), [allRecords, selectedRequestInfo])
-  const selectedRequestRecords = selectedRequestRecordTemplates.map(currentRecord)
-  const selectedRequestAssistant = selectedRequestRecords.find(
-    record => record.cell.kind === 'message',
-  )
-  const selectedRequestAnchor = selectedRequestAssistant ?? selectedRequestRecords[0]
-  const selectedRequestNumber = selectedRequestInfo?.number
-  const selectedRequestState: RecordState | undefined = selectedRequestInfo === undefined
-    ? undefined
-    : selectedRequestInfo.status
-      ?? (selectedRequestAssistant?.cell.assistantMetrics?.completedTime === null
-        ? 'running'
-        : selectedRequestAssistant === undefined
-          && selectedRequestRecords.some(record => stateOf(record) === 'running')
-          ? 'running'
-          : 'complete')
-  const selectedRequestToolCalls = selectedRequestRecords.filter(
-    record => record.cell.kind === 'tool',
-  ).length
-  const selectedRequestSubtoolCalls = selectedRequestRecords.filter(
-    record => record.cell.kind === 'subtool',
-  ).length
-  const selectedRequestResultTemplate = selectedRequestInfo?.resultSeq === undefined
-    ? selectedRequestAssistant
-    : allRecords.find(record => record.cell.sourceSeq === selectedRequestInfo.resultSeq)
-  const selectedRequestResult = selectedRequestResultTemplate === undefined
-    ? undefined
-    : currentRecord(selectedRequestResultTemplate)
-  const selectedRequestUsage = selectedRequestInfo?.usage ?? (
-    selectedRequestAssistant === undefined
-      ? undefined
-      : {
-        ...(selectedRequestAssistant.cell.input === undefined
-          ? {}
-          : { input: selectedRequestAssistant.cell.input }),
-        ...(selectedRequestAssistant.cell.cacheRead === undefined
-          ? {}
-          : { cacheRead: selectedRequestAssistant.cell.cacheRead }),
-        ...(selectedRequestAssistant.cell.cacheWrite === undefined
-          ? {}
-          : { cacheWrite: selectedRequestAssistant.cell.cacheWrite }),
-        ...(selectedRequestAssistant.cell.output === undefined
-          ? {}
-          : { output: selectedRequestAssistant.cell.output }),
-        ...(selectedRequestAssistant.cell.think === undefined
-          ? {}
-          : { reasoning: selectedRequestAssistant.cell.think }),
-      }
-  )
-  const selectedRequestCumulativeUsage =
-    selectedRequestInfo?.cumulativeUsage ?? selectedRequestUsage
-  const selectedRequestOptions = selectedRequestInfo?.requestConfig
   const activeTurn = selectedRequestInfo === undefined ? selected?.turn : selectedRequestInfo.turn
   const activeSection = selectedRequestInfo === undefined
     ? selected?.section
-    : selectedRequestRecords[0]?.section
-  const selectedTabs = selectedRequestInfo !== undefined
-    ? REQUEST_TABS.filter(tab => tab.id !== 'options' || selectedRequestOptions !== undefined)
-    : selected === undefined ? [] : detailTabs(selected)
-  const selectedParents: ParentRecords = selected === undefined
-    ? {}
-    : parentRecords(allRecords, selected)
-  const selectedParentMessage = selectedParents.message
-  const selectedParentTool = selectedParents.tool
-  const selectedAssistantRequest = selected?.cell.kind === 'message'
-    ? requestNumbers.get(requestKey(selected.turn, selected.group))
-    : undefined
-  const selectedAssistantRequestInfo = selectedAssistantRequest === undefined
-    ? undefined
-    : sessionRequestNumbers?.find(request => request.number === selectedAssistantRequest)
-  const selectedAssistantRequestTarget: SelectedRequest | undefined =
-    selectedAssistantRequestInfo === undefined
-      ? undefined
-      : { identity: requestIdentity(selectedAssistantRequestInfo) }
-  const hasSelectedHierarchy = selectedAssistantRequestTarget !== undefined
-    || selectedParents.message !== undefined
-    || selectedParents.tool !== undefined
+    : allRecords.find(record =>
+      record.turn === selectedRequestInfo.turn
+        && record.group === selectedRequestInfo.group)?.section
   const splitStyle: TrajectorySplitStyle | undefined = toolRequestOffset === null
     ? undefined
     : {
@@ -1207,562 +896,26 @@ export function TrajectoryTable({
           </tbody>
         </table>
       </div>
-      {(selectedRequestInfo !== undefined
-        || promptSelected
-        || (selected !== undefined && selectedState !== undefined)) && (
-        <aside
-          className={css.details}
-          aria-label={t('details.event')}
-          style={detailsWidth === null ? undefined : { width: detailsWidth }}
-        >
-          <div
-            className={css.detailsResizeHandle}
-            role="separator"
-            aria-label={t('details.resize')}
-            aria-controls="trajectory-detail-panel"
-            aria-orientation="vertical"
-            tabIndex={0}
-            title={t('details.resizeTitle')}
-            onDoubleClick={() => {
-              setDetailsWidth(null)
-              setToolRequestOffset(null)
-            }}
-            onPointerDown={(event) => {
-              if (event.button !== 0) return
-              const details = event.currentTarget.parentElement
-              if (details === null) return
-              const split = details.parentElement
-              if (split === null) return
-              const splitWidth = split.getBoundingClientRect().width
-              detailsResizeDrag.current = {
-                pointerId: event.pointerId,
-                startX: event.clientX,
-                startWidth: details.getBoundingClientRect().width,
-                splitWidth,
-                startToolRequestOffset: toolRequestOffset ?? (
-                  splitWidth * TOOL_REQUEST_SHARE - defaultToolRequestWidth(splitWidth)
-                ),
-              }
-              event.currentTarget.setPointerCapture(event.pointerId)
-              event.preventDefault()
-            }}
-            onPointerMove={(event) => {
-              const drag = detailsResizeDrag.current
-              if (drag === null || drag.pointerId !== event.pointerId) return
-              const nextDetailsWidth = clampDetailsWidth(
-                drag.startWidth + drag.startX - event.clientX,
-                drag.splitWidth,
-              )
-              setDetailsWidth(nextDetailsWidth)
-              setToolRequestOffset(
-                drag.startToolRequestOffset
-                + (nextDetailsWidth - drag.startWidth) * TOOL_REQUEST_SHARE,
-              )
-            }}
-            onPointerUp={(event) => {
-              if (detailsResizeDrag.current?.pointerId !== event.pointerId) return
-              detailsResizeDrag.current = null
-              event.currentTarget.releasePointerCapture(event.pointerId)
-            }}
-            onPointerCancel={() => {
-              detailsResizeDrag.current = null
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-              const details = event.currentTarget.parentElement
-              if (details === null) return
-              const split = details.parentElement
-              if (split === null) return
-              const direction = event.key === 'ArrowLeft' ? 1 : -1
-              const currentDetailsWidth = details.getBoundingClientRect().width
-              const splitWidth = split.getBoundingClientRect().width
-              const nextDetailsWidth = clampDetailsWidth(
-                currentDetailsWidth + direction * DETAILS_RESIZE_STEP,
-                splitWidth,
-              )
-              const currentToolRequestOffset = toolRequestOffset ?? (
-                splitWidth * TOOL_REQUEST_SHARE - defaultToolRequestWidth(splitWidth)
-              )
-              setDetailsWidth(nextDetailsWidth)
-              setToolRequestOffset(
-                currentToolRequestOffset
-                + (nextDetailsWidth - currentDetailsWidth) * TOOL_REQUEST_SHARE,
-              )
-              event.preventDefault()
-            }}
-          />
-          <div className={css.detailsHeader}>
-            <div className={css.detailsTitle}>
-              {selectedRequestInfo !== undefined
-                ? (
-                  <>
-                    <span className={css.requestDetailsDot} aria-hidden="true" />
-                    <span className={css.requestDetailsName}>
-                      {t('request.label', { request: selectedRequestNumber ?? '—' })}
-                    </span>
-                    <span className={css.detailsLocation}>
-                      {selectedRequestInfo.purpose === 'compaction'
-                        ? t('request.compaction', { section: sectionLabel(selectedRequestInfo.turn, t) })
-                        : sectionLabel(selectedRequestInfo.turn, t)}
-                    </span>
-                  </>
-                )
-                : promptSelected
-                  ? (
-                    <>
-                      <span className={`${css.kindTag} ${css.systemNeutral}`}>{t('kind.system')}</span>
-                      <span className={css.detailsLocation}>{selected?.cell.text}</span>
-                    </>
-                  )
-                  : selected !== undefined && (
-                    <>
-                      <span className={`${css.kindTag} ${
-                        selected.cell.kind === 'context'
-                          ? css.contextGreen
-                          : selected.cell.kind === 'compacted'
-                            ? css.compacted
-                            : selected.cell.kind === 'tool'
-                              ? css.toolAmber
-                              : selected.cell.kind === 'message'
-                                ? css.assistantVioletBright
-                                : selected.cell.kind === 'subtool'
-                                  ? css.subtoolAmber
-                                  : css[selected.cell.kind]
-                      }`}
-                      >
-                        {t(KIND_LABEL_KEY[selected.cell.kind])}
-                      </span>
-                      <span className={css.detailsLocation}>
-                        {selected.cell.kind === 'compacted'
-                          ? sectionLabel(selected.turn, t)
-                          : `${sectionLabel(selected.turn, t)} · ${selected.group}`}
-                      </span>
-                    </>
-                  )}
-            </div>
-            <button
-              type="button"
-              className={css.close}
-              aria-label={t('details.close')}
-              onClick={clearInspectorSelection}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
-          <div className={css.detailTabs} role="tablist" aria-label={t('details.event')}>
-            {selectedTabs.map(tab => (
-              <button
-                key={tab.id}
-                id={`trajectory-detail-${tab.id}`}
-                type="button"
-                role="tab"
-                aria-controls="trajectory-detail-panel"
-                aria-selected={activeTab === tab.id}
-                className={activeTab === tab.id ? `${css.detailTab} ${css.detailTabActive}` : css.detailTab}
-                onClick={() => { activateTab(tab.id) }}
-              >
-                {t(tab.labelKey)}
-              </button>
-            ))}
-          </div>
-          <div
-            id="trajectory-detail-panel"
-            className={activeTab === 'overview'
-              ? `${css.detailBody} ${css.detailBodySummary}`
-              : css.detailBody}
-            role="tabpanel"
-            aria-labelledby={`trajectory-detail-${activeTab}`}
-          >
-            {selectedRequestInfo !== undefined
-              && selectedRequestState !== undefined
-              && activeTab === 'overview' && (
-              <>
-                <dl
-                  className={`${css.overview} ${css.summaryScrollRegion}`}
-                  data-summary-scroll-region=""
-                >
-                  <div>
-                    <dt>{t('details.status')}</dt>
-                    <dd className={selectedRequestState === 'error' ? css.error : undefined}>
-                      {statusLabel(selectedRequestState, t)}
-                    </dd>
-                  </div>
-                  {selectedRequestInfo.purpose === 'compaction' && (
-                    <div>
-                      <dt>{t('details.purpose')}</dt>
-                      <dd>{t('request.compactionPurpose')}</dd>
-                    </div>
-                  )}
-                  {(selectedRequestInfo.provider
-                    ?? selectedRequestInfo.requestConfig?.provider) !== undefined && (
-                    <div>
-                      <dt>{t('details.provider')}</dt>
-                      <dd>
-                        {selectedRequestInfo.provider
-                          ?? selectedRequestInfo.requestConfig?.provider}
-                      </dd>
-                    </div>
-                  )}
-                  {(selectedRequestInfo.model
-                    ?? selectedRequestInfo.requestConfig?.model) !== undefined && (
-                    <div>
-                      <dt>{t('details.model')}</dt>
-                      <dd>
-                        {selectedRequestInfo.model
-                          ?? selectedRequestInfo.requestConfig?.model}
-                      </dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt>{t('details.toolCalls')}</dt>
-                    <dd>{selectedRequestToolCalls}</dd>
-                  </div>
-                  {selectedRequestSubtoolCalls > 0 && (
-                    <div>
-                      <dt>{t('details.subtoolCalls')}</dt>
-                      <dd>{selectedRequestSubtoolCalls}</dd>
-                    </div>
-                  )}
-                  {selectedRequestInfo.error !== undefined && (
-                    <div>
-                      <dt>{t('details.error')}</dt>
-                      <dd className={css.error}>{requestErrorMessage(selectedRequestInfo, t)}</dd>
-                    </div>
-                  )}
-                  {selectedRequestInfo.retry !== undefined && (
-                    <div>
-                      <dt>{t('details.retry')}</dt>
-                      <dd>
-                        {t('details.scheduled')} {selectedRequestInfo.maxRetries === undefined
-                          ? selectedRequestInfo.retry
-                          : t('request.retryProgress', {
-                            retry: selectedRequestInfo.retry,
-                            maximum: selectedRequestInfo.maxRetries,
-                          })}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedRequestInfo.retryDelayMs !== undefined && (
-                    <div>
-                      <dt>{t('details.retryDelay')}</dt>
-                      <dd>{formatDurationMs(selectedRequestInfo.retryDelayMs, t)}</dd>
-                    </div>
-                  )}
-                  {selectedRequestResult !== undefined && (
-                    <div>
-                      <dt>{t('details.result')}</dt>
-                      <dd className={css.overviewParentLinks}>
-                        <button
-                          type="button"
-                          className={css.overviewHierarchyNavLink}
-                          onClick={() => {
-                            openRecordSummary(selectedRequestResult)
-                          }}
-                        >
-                          <span>
-                            {selectedRequestInfo.purpose === 'compaction'
-                              ? t('details.compacted')
-                              : t('details.assistantMessage')}
-                          </span>
-                          <IconChevronRightOutline14
-                            className={css.overviewHierarchyJumpIconTight}
-                            size={11}
-                          />
-                        </button>
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-                <div className={css.overviewSections}>
-                  {selectedRequestOptions !== undefined && (
-                    <OverviewSection label={t('tab.options')} onOpen={() => { activateTab('options') }}>
-                      <RequestOptions options={selectedRequestOptions} preview t={t} />
-                    </OverviewSection>
-                  )}
-                  <OverviewSection label={t('tab.usage')} onOpen={() => { activateTab('usage') }}>
-                    <UsageRows usage={selectedRequestUsage} t={t} />
-                  </OverviewSection>
-                  <OverviewSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
-                    <RequestTiming
-                      assistant={selectedRequestAssistant}
-                      anchor={selectedRequestAnchor}
-                      request={selectedRequestInfo}
-                      t={t}
-                    />
-                  </OverviewSection>
-                </div>
-              </>
-            )}
-            {selectedRequestInfo !== undefined && activeTab === 'options' && (
-              <RequestOptions options={selectedRequestOptions} t={t} />
-            )}
-            {selectedRequestInfo !== undefined && activeTab === 'usage' && (
-              <RequestUsagePanel
-                usage={selectedRequestUsage}
-                cumulative={selectedRequestCumulativeUsage}
-                t={t}
-              />
-            )}
-            {selectedRequestInfo !== undefined && activeTab === 'timing' && (
-              <RequestTiming
-                assistant={selectedRequestAssistant}
-                anchor={selectedRequestAnchor}
-                request={selectedRequestInfo}
-                t={t}
-              />
-            )}
-            {selectedPrompt !== undefined
-              && selectedPreviousPrompt !== undefined
-              && activeTab === 'diff' && (
-              <SystemPromptDiff
-                before={selectedPreviousPrompt}
-                after={selectedPrompt}
-                t={t}
-              />
-            )}
-            {promptSelected && activeTab === 'system-prompt' && (
-              selectedSystemPrompt === ''
-                ? <p className={css.noPayload}>{t('record.systemPromptMissing')}</p>
-                : (
-                  <div className={`${css.markdownPayload} ${css.systemPrompt}`}>
-                    <MarkdownText text={selectedSystemPrompt} labels={markdownLabels(t)} />
-                  </div>
-                )
-            )}
-            {selectedPrompt !== undefined && activeTab === 'tools' && (
-              <ToolCatalog tools={selectedPrompt.tools} t={t} />
-            )}
-            {!promptSelected
-              && selected?.cell.kind === 'compacted'
-              && selectedState !== undefined
-              && activeTab === 'overview' && (
-              <>
-                <dl
-                  className={`${css.overview} ${css.summaryScrollRegion}`}
-                  data-summary-scroll-region=""
-                >
-                  <div>
-                    <dt>{t('details.status')}</dt>
-                    <dd className={selectedState === 'error' ? css.error : undefined}>
-                      {statusLabel(selectedState, t)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{t('timing.duration')}</dt>
-                    <dd>{formatElapsedSeconds(selected.cell.timeSeconds, t)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('usage.tokens')}</dt>
-                    <dd>—</dd>
-                  </div>
-                </dl>
-                {selected.cell.outputDetail !== undefined && (
-                  <div
-                    className={`${css.compactedSummary} ${css.summaryScrollRegion}`}
-                    data-summary-scroll-region=""
-                  >
-                    <MarkdownRecordContent
-                      record={selected}
-                      renderImages={renderImages}
-                      rendered
-                      thinkingExpanded={thinkingExpanded}
-                      onThinkingExpandedChange={setThinkingExpanded}
-                      onOpenCall={openCallSummary}
-                      t={t}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-            {!promptSelected
-              && selected !== undefined
-              && selected.cell.kind !== 'compacted'
-              && selectedState !== undefined
-              && activeTab === 'overview' && (
-              <>
-                <dl
-                  className={`${css.overview} ${css.summaryScrollRegion}`}
-                  data-summary-scroll-region=""
-                >
-                  {selected.cell.messageSource !== undefined && (
-                    <div>
-                      <dt>{t('details.source')}</dt>
-                      <dd className={css.overviewParentLinks}>
-                        <button
-                          type="button"
-                          className={css.overviewHierarchyNavLink}
-                          onClick={() => { activateTab('source') }}
-                        >
-                          <span>{messageSourceLabel(selected.cell.messageSource, t)}</span>
-                          <IconChevronRightOutline14
-                            className={css.overviewHierarchyJumpIconTight}
-                            size={11}
-                          />
-                        </button>
-                      </dd>
-                    </div>
-                  )}
-                  {hasSelectedHierarchy && (
-                    <div>
-                      <dt>
-                        {selectedAssistantRequestTarget !== undefined
-                          ? t('details.source')
-                          : t('details.hierarchy')}
-                      </dt>
-                      <dd className={css.overviewParentLinks}>
-                        {selectedAssistantRequestTarget !== undefined && (
-                          <button
-                            type="button"
-                            className={css.overviewHierarchyNavLink}
-                            onClick={() => {
-                              selectRequest(selectedAssistantRequestTarget)
-                            }}
-                          >
-                            <span>{t('request.label', { request: selectedAssistantRequest ?? '—' })}</span>
-                            <IconChevronRightOutline14
-                              className={css.overviewHierarchyJumpIconTight}
-                              size={11}
-                            />
-                          </button>
-                        )}
-                        {selectedParentMessage !== undefined && (
-                          <button
-                            type="button"
-                            className={css.overviewHierarchyNavLink}
-                            onClick={() => { openRecordSummary(selectedParentMessage) }}
-                          >
-                            <span>{t('details.assistantMessage')}</span>
-                            <IconChevronRightOutline14
-                              className={css.overviewHierarchyJumpIconTight}
-                              size={11}
-                            />
-                          </button>
-                        )}
-                        {selectedParentTool !== undefined && (
-                          <button
-                            type="button"
-                            className={css.overviewHierarchyNavLink}
-                            onClick={() => { openRecordSummary(selectedParentTool) }}
-                          >
-                            <span>{t('details.toolCall')}</span>
-                            <IconChevronRightOutline14
-                              className={css.overviewHierarchyJumpIconTight}
-                              size={11}
-                            />
-                          </button>
-                        )}
-                      </dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt>{t('details.status')}</dt>
-                    <dd className={selectedState === 'error' ? css.error : undefined}>
-                      {statusLabel(selectedState, t)}
-                    </dd>
-                  </div>
-                  {selected.cell.kind === 'message' && (
-                    <TokenRows cell={selected.cell} t={t} />
-                  )}
-                  {(selected.cell.kind === 'user' || selected.cell.kind === 'context') && (
-                    <div>
-                      <dt>{t('timing.duration')}</dt>
-                      <dd>{formatElapsedSeconds(selected.cell.timeSeconds, t)}</dd>
-                    </div>
-                  )}
-                </dl>
-                <div className={css.overviewSections}>
-                  {isMarkdownRecord(selected)
-                    ? (
-                      <>
-                        <OverviewSection label={t('tab.preview')} onOpen={() => { activateTab('rendered') }}>
-                          <MarkdownRecordContent
-                            record={selected}
-                            renderImages={renderImages}
-                            rendered
-                            preview
-                            thinkingExpanded={thinkingExpanded}
-                            onThinkingExpandedChange={setThinkingExpanded}
-                            onOpenCall={openCallSummary}
-                            t={t}
-                          />
-                        </OverviewSection>
-                      </>
-                    )
-                    : (
-                      <>
-                        {selected.cell.inputDetail && (
-                          <OverviewSection label={t('tab.payload')} onOpen={() => { activateTab('input') }}>
-                            <RecordPayload record={selected} direction="input" preview renderImages={renderImages} t={t} />
-                          </OverviewSection>
-                        )}
-                        {selected.cell.outputDetail && (
-                          <OverviewSection label={t('tab.result')} onOpen={() => { activateTab('output') }}>
-                            <RecordPayload record={selected} direction="output" preview renderImages={renderImages} t={t} />
-                          </OverviewSection>
-                        )}
-                        <OverviewSection label={t('tab.schema')} onOpen={() => { activateTab('schema') }}>
-                          <RecordSchema record={selected} preview t={t} />
-                        </OverviewSection>
-                      </>
-                    )}
-                  {selectedAssistantRequestTarget !== undefined && (
-                    <OverviewSection
-                      label={t('timing.request')}
-                      onOpen={() => {
-                        selectRequest(selectedAssistantRequestTarget, 'timing')
-                      }}
-                    >
-                      <RecordTiming record={selected} t={t} />
-                    </OverviewSection>
-                  )}
-                  {(selected.cell.kind === 'tool' || selected.cell.kind === 'subtool') && (
-                    <OverviewSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
-                      <RecordTiming record={selected} t={t} />
-                    </OverviewSection>
-                  )}
-                </div>
-              </>
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'rendered' && (
-              <MarkdownRecordContent
-                record={selected}
-                renderImages={renderImages}
-                rendered
-                thinkingExpanded={thinkingExpanded}
-                onThinkingExpandedChange={setThinkingExpanded}
-                onOpenCall={openCallSummary}
-                t={t}
-              />
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'raw' && (
-              <MarkdownRecordContent
-                record={selected}
-                renderImages={renderImages}
-                rendered={false}
-                thinkingExpanded={thinkingExpanded}
-                onThinkingExpandedChange={setThinkingExpanded}
-                onOpenCall={openCallSummary}
-                t={t}
-              />
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'source' && (
-              <MessageSource record={selected} t={t} />
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'input' && (
-              <RecordPayload record={selected} direction="input" renderImages={renderImages} t={t} />
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'output' && (
-              <RecordPayload record={selected} direction="output" renderImages={renderImages} t={t} />
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'schema' && (
-              <RecordSchema record={selected} t={t} />
-            )}
-            {!promptSelected && selected !== undefined && activeTab === 'timing' && (
-              <RecordTiming record={selected} t={t} />
-            )}
-          </div>
-        </aside>
-      )}
+      <RecordInspector
+        t={t}
+        renderImages={renderImages}
+        allRecords={allRecords}
+        currentRecord={currentRecord}
+        requestNumbers={requestNumbers}
+        sessionRequestNumbers={sessionRequestNumbers}
+        selected={selected}
+        selectedRequest={selectedRequest}
+        activeTab={activeTab}
+        thinkingExpanded={thinkingExpanded}
+        detailsWidth={detailsWidth}
+        resizeHandlers={resizeHandlers}
+        onActivateTab={activateTab}
+        onClearSelection={clearInspectorSelection}
+        onOpenRecordSummary={openRecordSummary}
+        onOpenCallSummary={openCallSummary}
+        onSelectRequest={selectRequest}
+        onThinkingExpandedChange={setThinkingExpanded}
+      />
     </div>
   )
 }
