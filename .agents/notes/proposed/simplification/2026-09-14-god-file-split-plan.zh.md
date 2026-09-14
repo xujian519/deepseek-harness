@@ -29,7 +29,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 
 - `fixture.ts`、`code-runtime-python`、`analyzer.ts` 含有 `/* jscpd:ignore-start */` 块，其注释声明这些块的存在是为了与某个兄弟实现保持形状平行。只切一侧就打破了声明的对称。
 - `fixture.ts` 故意重新实现宿主行为而不去 import，以免一个 Web 客户端包染上宿主依赖。任何靠 import 来「去重」的拆分，都会把宿主包拖进客户端 bundle——正是这个文件被写出来要避免的退步。
-- `code-runtime-python` 与 `ui-trajectory` 没有 `src/types.ts`，因此切出来的碎片本应共享的词汇无家可归；而给它安家会撞上 Issue #99 已经记录在案的例外。
+- `code-runtime-python` 没有 `src/types.ts`，因此切出来的碎片本应共享的词汇无家可归；而给它安家会撞上 Issue #99 已经记录在案的例外。`ui-trajectory` 本来也没有，并在其批次 1 那一刀中新建了一个，与 `analyzer` 的做法相同。
 - 测试经由源码路径导入内部符号（`code-runtime-python/tests/runtime.spec.ts` 从 `../src/index.ts`；`ui-trajectory/tests/table.client.spec.tsx` 从 `../src/client/TrajectoryTable.tsx`），所以拆分必须让入口模块保持今天这份再导出。
 
 这几个问题放着不管，每一次评审都要重新吵一遍，而且答案会在文件之间漂移。按体量排序还指错了方向：最大的那个文件恰恰是最不该先切的安全项之一。
@@ -52,7 +52,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | 包 | 切口 | 行数（估算） |
 | --- | --- | --- |
 | `code-runtime-python` | 字节计价与截断词汇 → `src/cost.ts`；日志台账 → `class OutputLedger` | ~200、~270——实际落为 131、619 |
-| `ui-trajectory` | 记录投影层 → `trajectory-record-model.ts`；四个展示辅助族各自落文件 | ~260、~1050 |
+| `ui-trajectory` | 记录投影层 → `trajectory-record-model.ts`；六个展示辅助族各自落文件；共享的 record 词汇 → 新建 `src/types.ts` | ~260、~1050 —— 实际落在 248、1045，另加 94 行的 `types.ts` |
 | `core/session` | 校验器 → `validation.ts`；头部处理 → `header.ts` | ~300、~65 |
 | `analyzer` | 节点文本辅助、`package.json` exports 解析、路径工具 | 各 ~250 |
 | `acp` | cursor codec 簇 | ~56 |

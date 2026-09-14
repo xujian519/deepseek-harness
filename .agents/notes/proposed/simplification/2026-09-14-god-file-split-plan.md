@@ -29,7 +29,7 @@ A structural survey of the seven in scope found that size is not what makes them
 
 - `fixture.ts`, `code-runtime-python`, and `analyzer.ts` contain `/* jscpd:ignore-start */` blocks whose comments say they exist to keep a shape parallel to a sibling implementation. Cutting one side breaks the declared symmetry.
 - `fixture.ts` deliberately re-implements host behavior rather than importing it, so a web client package does not acquire host dependencies. A split that "deduplicates" by importing would pull host packages into the client bundle — the exact regression the file was written to avoid.
-- `code-runtime-python` and `ui-trajectory` have no `src/types.ts`, so the vocabulary their cut pieces would share has no home; giving it one collides with the exception already recorded for Issue #99.
+- `code-runtime-python` has no `src/types.ts`, so the vocabulary its cut pieces would share has no home; giving it one collides with the exception already recorded for Issue #99. `ui-trajectory` had none either and gained one in its batch-1 cut, the same way `analyzer` did.
 - Tests import internal symbols through source paths (`code-runtime-python/tests/runtime.spec.ts` from `../src/index.ts`; `ui-trajectory/tests/table.client.spec.tsx` from `../src/client/TrajectoryTable.tsx`), so a split must keep the entry module re-exporting what it re-exports today.
 
 Left unanswered, those four questions get re-litigated in each review, and the answers drift between files. The order by size also points the wrong way: the largest file is among the least safe to cut first.
@@ -52,7 +52,7 @@ Each item moves code that is already self-contained: no instance state, no new i
 | Package | Cut | Lines (estimated) |
 | --- | --- | --- |
 | `code-runtime-python` | Byte-cost and truncation vocabulary → `src/cost.ts`; log ledger → `class OutputLedger` | ~200, ~270 — landed at 131, 619 |
-| `ui-trajectory` | Record projection layer → `trajectory-record-model.ts`; four presentation-helper families to their own files | ~260, ~1050 |
+| `ui-trajectory` | Record projection layer → `trajectory-record-model.ts`; six presentation-helper families to their own files; the shared record vocabulary → a new `src/types.ts` | ~260, ~1050 — landed at 248, 1045, plus a 94-line `types.ts` |
 | `core/session` | Validators → `validation.ts`; header handling → `header.ts` | ~300, ~65 |
 | `analyzer` | Node-text helpers, `package.json` exports parsing, path utilities | ~250 each |
 | `acp` | Cursor codec cluster | ~56 |
