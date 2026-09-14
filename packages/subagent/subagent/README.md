@@ -42,6 +42,16 @@ Mount the service with a provider and the delegation tool. The provider register
 
 An agent that calls the tool gets the child's final answer as the tool result. Mounting the service alone changes nothing: nothing can delegate until a provider and a tool are composed.
 
+### Service configuration
+
+The service accepts an optional `coldReadConcurrency` config field (positive integer, default `4`). It bounds how many cold Session observations `listChildren` and `listDescendants` issue in parallel when reading from persistence. Raise it for networked persistence providers; lower it to reduce I/O pressure.
+
+```yaml
+- name: '@deepseek-ai/dsh-subagent'
+  config:
+    coldReadConcurrency: 4
+```
+
 ### One-shot and continuable children
 
 One-shot children run once and settle with a single result, plus an optional structured output and a safe diagnostic on failure. A start request may override the child Agent's provider, model, reasoning effort, and output-token limit through `agentOptions`; every requested option requires the provider's matching capability. Continuable children keep a durable session and accept later messages in order: the caller receives a stable child id, sends adjacent-Agent messages, and can interrupt the current turn without destroying the child. The tool row's `backgroundMode` picks the shape (`one-shot` by default, or `continuable` on providers that support it).

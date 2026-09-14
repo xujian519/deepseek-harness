@@ -1360,3 +1360,43 @@ describe('SubagentRuntime.listDescendants', () => {
     )
   })
 })
+
+describe('subagent listing cold-read concurrency config', () => {
+  it('defaults coldReadConcurrency to 4', () => {
+    expect(SubagentRuntime.Config.parse({})).toEqual({ coldReadConcurrency: 4 })
+  })
+
+  it('accepts a custom coldReadConcurrency', () => {
+    expect(SubagentRuntime.Config.parse({ coldReadConcurrency: 8 })).toEqual({ coldReadConcurrency: 8 })
+  })
+
+  it('rejects non-positive coldReadConcurrency', () => {
+    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: 0 })).toThrow()
+    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: -1 })).toThrow()
+    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: 1.5 })).toThrow()
+  })
+
+  it('lists with a custom coldReadConcurrency', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(SubagentRuntime, { coldReadConcurrency: 1 })
+
+    const parentId = SessionId('config-parent')
+    ctx.sessions.create(parentId)
+    const childId = SessionId('config-child')
+    const child = ctx.sessions.create(childId, {
+      meta: { parentSession: parentId, origin: 'subagent' },
+    })
+    child.append('turn/start', { turn: 1 })
+    child.append('subagent/descriptor', descriptorPayload('config child'))
+
+    await expect(ctx.subagents.listChildren(parentId)).resolves.toEqual([
+      {
+        kind: 'child', id: childId, label: 'config child', mode: 'continuable',
+        activity: 'running', hasChildren: false,
+      },
+    ])
+  })
+})
