@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react'
 import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import type { ContextMessageNode } from '../contract/snapshot.ts'
 import type { KnownContextForm } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -18,13 +19,6 @@ const MAX_CHARS = 20_000
 const MAX_ENTRIES = 200
 
 type Translate = ChatViewSlotProps['t']
-
-/** One durable source narrowed to the readable-record shape; null for anything else. */
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null
-}
 
 /** One run of the model-facing content: adjacent text, or one unknown block. */
 type ContentRun = { text: string } | { block: unknown }

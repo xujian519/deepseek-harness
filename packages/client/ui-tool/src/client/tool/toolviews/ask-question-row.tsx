@@ -1,4 +1,5 @@
 import { IconQuestionOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { isRecord } from '@deepseek-ai/dsh-value'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -31,10 +32,6 @@ interface AnsweredQuestion {
 interface AnswerPresentation {
   summary: string
   questions: AnsweredQuestion[] | null
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function parseJson(text: string): unknown {
