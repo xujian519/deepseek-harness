@@ -55,8 +55,8 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | `ui-trajectory` | 记录投影层 → `trajectory-record-model.ts`；六个展示辅助族各自落文件；共享的 record 词汇 → 新建 `src/types.ts` | ~260、~1050 —— 实际落在 248、1045，另加 94 行的 `types.ts` |
 | `core/session` | 校验器与头部处理 → `validation.ts` | ~365——实际落为 345 |
 | `analyzer` | 节点文本辅助、`package.json` exports 解析、路径工具 | 各 ~250 |
-| `acp` | cursor codec 簇 | ~56 |
-| `ptc` | JSON 展示簇；flavor 表与解析器 | ~90、~107 |
+| `acp` | cursor codec 簇 | ~56——实际落为 75 |
+| `ptc` | JSON 展示簇；flavor 表与解析器 | ~90、~107——实际落为 103、110 |
 
 试点选 `code-runtime-python`，因为它的台账切口握有全仓库最有力的一条证据：兄弟后端 `packages/code-runtime/code-runtime-worker-thread/src/index.ts` 已经有一个抽好的 `OutputLedger`。两者可以对拍同一组边界案例；而且该包只导出 `.` 且为 `private: true`，已发布面不可能移动。试点已落地：[字节计价与日志台账提取 note](../../implemented/simplification/2026-09-14-code-runtime-python-cost-and-ledger.zh.md) 记录了这一刀的产出与代价。
 

@@ -47,7 +47,7 @@ harness 不再使用 `vi.waitFor`,因此它的测试改为断言 harness 自己�
 `pnpm exec vitest run --coverage packages/test-support/session-snapshot` —— 344 通过、1 跳过,`harness.ts` 语句、分支、函数、行均为 100%。
 
 - `identifies the child wait when its first log harvest outlasts the deadline`(既有):mock 的 `readdir` 永不返回,等待仍须指名子会话与轮次。
-- `reports the harvest failure when a listed log cannot be versioned`(新增):向会话根目录预置一份文件名与头声明格式版本不一致的日志,等待须报该不一致而不是「状态缺失」——即报告探针自身失败的那条分支。
+- `reports the harvest failure when a listed log cannot be versioned`(新增):向会话根目录预置一份文件名与头声明格式版本不一致的日志,等待须报该不一致而不是「状态缺失」——即报告探针自身失败的那条分支。它的预算必须长于一次 harvest:等待只有在某次探针先于 deadline 抛出时才会报告失败,因此在负载高的执行器上,预算若短于一次 harvest,报告出来的反而是 diagnostic。
 
 `pnpm run test:snapshot` 回放驱动本 harness 的录制会话:127 通过、5 失败——这 5 项在合并基线的干净检出上同样失败,而 fork CI 不跑快照回放,所以该套件在本次改动前已经是红的。
 
