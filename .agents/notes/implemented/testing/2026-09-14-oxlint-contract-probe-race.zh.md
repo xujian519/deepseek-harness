@@ -11,7 +11,7 @@ Status: implemented
 在探针存在期间，其他并发扫描仓库并逐个读取匹配文件的 spec，可能在 `globSync` 和 `readFileSync` 之间遇到已被删除的探针，抛出：
 
 ```
-Error: ENOENT: no such file or directory, open '.../packages/fs/fs-observation-policy/src/oxlint-contract-<uuid>.ts'
+Error: ENOENT: no such file or directory, open '.../src/oxlint-contract-<uuid>.ts'
 ```
 
 这是一个负载敏感的竞态：`pnpm exec vitest run scripts/` 在本地可复现，不同运行中失败的 spec 也不同（`gen-client-catalog.spec.ts`、`verify-application-entrypoints.spec.ts` 和 `verify-suppression-reasons.spec.ts`）。

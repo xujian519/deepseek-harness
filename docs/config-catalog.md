@@ -3745,8 +3745,8 @@ export interface Config {
   mode?: ToolPresentationMode
   /**
    * Concurrency cap for a `run_code` program's overlapping sub-calls
-   * (default 10, the loop scheduler's own default). Sub-calls follow the
-   * native scheduling contract — only calls whose tools classify
+   * (default {@link DEFAULT_MAX_PARALLEL_SUB_CALLS}, the loop scheduler's own default).
+   * Sub-calls follow the native scheduling contract — only calls whose tools classify
    * concurrency-safe overlap; exclusive calls form barriers — so `1`
    * restores strictly serial dispatch. Must be a positive integer.
    */

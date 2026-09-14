@@ -649,8 +649,8 @@ export interface Config {
   mode?: ToolPresentationMode
   /**
    * Concurrency cap for a `run_code` program's overlapping sub-calls
-   * (default 10, the loop scheduler's own default). Sub-calls follow the
-   * native scheduling contract — only calls whose tools classify
+   * (default {@link DEFAULT_MAX_PARALLEL_SUB_CALLS}, the loop scheduler's own default).
+   * Sub-calls follow the native scheduling contract — only calls whose tools classify
    * concurrency-safe overlap; exclusive calls form barriers — so `1`
    * restores strictly serial dispatch. Must be a positive integer.
    */
@@ -744,9 +744,12 @@ interface FusedToolSignal {
   dispose(): void
 }
 
+/** Default concurrency cap for overlapping parallel-safe sub-calls. */
+export const DEFAULT_MAX_PARALLEL_SUB_CALLS = 10
+
 /** Resolve the run_code overlap cap at the owning config boundary (direct construction bypasses the Loader schema). */
 function resolveMaxParallelSubCalls(value: number | undefined): number {
-  const maxParallelSubCalls = value ?? 10
+  const maxParallelSubCalls = value ?? DEFAULT_MAX_PARALLEL_SUB_CALLS
   if (!Number.isInteger(maxParallelSubCalls) || maxParallelSubCalls < 1) {
     throw new Error('maxParallelSubCalls must be a positive integer')
   }
@@ -762,7 +765,7 @@ export class ToolRuntime extends Service {
 
   static Config: z<Config> = z.object({
     mode: z.union(['native', 'ptc', 'both'] as const).default('native'),
-    maxParallelSubCalls: z.natural().min(1).default(10),
+    maxParallelSubCalls: z.natural().min(1).default(DEFAULT_MAX_PARALLEL_SUB_CALLS),
   })
 
   /** Internal staged view consumed by `dsh-agent-loop`'s parallel scheduler. */
