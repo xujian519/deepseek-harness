@@ -53,7 +53,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | --- | --- | --- |
 | `code-runtime-python` | 字节计价与截断词汇 → `src/cost.ts`；日志台账 → `class OutputLedger` | ~200、~270——实际落为 131、619 |
 | `ui-trajectory` | 记录投影层 → `trajectory-record-model.ts`；六个展示辅助族各自落文件；共享的 record 词汇 → 新建 `src/types.ts` | ~260、~1050 —— 实际落在 248、1045，另加 94 行的 `types.ts` |
-| `core/session` | 校验器 → `validation.ts`；头部处理 → `header.ts` | ~300、~65 |
+| `core/session` | 校验器与头部处理 → `validation.ts` | ~365——实际落为 345 |
 | `analyzer` | 节点文本辅助、`package.json` exports 解析、路径工具 | 各 ~250 |
 | `acp` | cursor codec 簇 | ~56 |
 | `ptc` | JSON 展示簇；flavor 表与解析器 | ~90、~107 |
