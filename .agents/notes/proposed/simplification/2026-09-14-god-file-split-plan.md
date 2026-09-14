@@ -10,7 +10,7 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 
 | File | Lines | Form | In this plan |
 | --- | --- | --- | --- |
-| `packages/client/connection/src/client/fixture.ts` | 4052 | Shipped browser-mode provider (not a test fixture) | yes |
+| `packages/client/connection/src/client/fixture.ts` | 2483 | Shipped browser-mode provider (not a test fixture) | yes |
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 3208 | Multi-component file with two inline JSX regions | yes |
 | `packages/typert/generator/src/analyzer.ts` | 3235 | Pure build-time library | yes |
 | `packages/experimental/code-runtime-python/src/index.ts` | 1801 | One class, one oversized method | yes — pilot landed |

@@ -56,7 +56,7 @@ Status: implemented
 
 ## Consequences
 
-`index.ts` 减少 46 行，`folds.ts` 为 121 行，因此净增即模块头加上类的 JSDoc。没有任何常量、默认值或 schema 值移动，每套折叠的算术（`headerFoldSeq`、`contextFoldSeq`、`derivedNodes`、`derivedGeneration`）与入口此前运行到的逐字节一致。批次 3 的其余条目——`Session` 类、`ptc` 派发池、python 运行时的门与 supervisor、trajectory 行渲染器、analyzer——仍在 Issue #86 上保持开放。包 README 的源码地图两种语言各增一行，该对的配对记录已重录。
+`index.ts` 减少 46 行，`folds.ts` 为 121 行，因此净增即模块头加上类的 JSDoc。没有任何常量、默认值或 schema 值移动，每套折叠的算术（`headerFoldSeq`、`contextFoldSeq`、`derivedNodes`、`derivedGeneration`）与入口此前运行到的逐字节一致。计划中 `fixture.ts` 的清单行写着 4052，而同文件正文写着 2483；该行现取实测的 2483。批次 3 的其余条目——`Session` 类、`ptc` 派发池、python 运行时的门与 supervisor、trajectory 行渲染器、analyzer——仍在 Issue #86 上保持开放。包 README 的源码地图两种语言各增一行，该对的配对记录已重录。
 
 ## Related
 

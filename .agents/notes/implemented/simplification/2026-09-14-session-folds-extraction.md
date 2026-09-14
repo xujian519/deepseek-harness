@@ -56,7 +56,7 @@ No test was added: the existing specs reach every branch of the new module, so t
 
 ## Consequences
 
-`index.ts` loses 46 lines and `folds.ts` is 121, so the net growth is the module header plus the class JSDoc. No constant, default, or schema value moved, and every fold's arithmetic (`headerFoldSeq`, `contextFoldSeq`, `derivedNodes`, `derivedGeneration`) is byte-identical to what the entry ran before. Batch 3's remaining items — the `Session` class, the `ptc` dispatch pool, the python runtime's gates and supervisor, the trajectory row renderer, and the analyzer — stay open on Issue #86. The package README source map gained one row in both languages, and the pair's consistency record was re-recorded.
+`index.ts` loses 46 lines and `folds.ts` is 121, so the net growth is the module header plus the class JSDoc. No constant, default, or schema value moved, and every fold's arithmetic (`headerFoldSeq`, `contextFoldSeq`, `derivedNodes`, `derivedGeneration`) is byte-identical to what the entry ran before. The plan's inventory row for `fixture.ts` read 4052 against 2483 in the same document's prose, and the row now reads the measured 2483. Batch 3's remaining items — the `Session` class, the `ptc` dispatch pool, the python runtime's gates and supervisor, the trajectory row renderer, and the analyzer — stay open on Issue #86. The package README source map gained one row in both languages, and the pair's consistency record was re-recorded.
 
 ## Related
 

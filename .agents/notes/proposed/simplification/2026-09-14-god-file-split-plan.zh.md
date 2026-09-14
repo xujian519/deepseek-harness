@@ -10,7 +10,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 
 | 文件 | 行数 | 形态 | 本计划 |
 | --- | --- | --- | --- |
-| `packages/client/connection/src/client/fixture.ts` | 4052 | 随包发布的浏览器模式 provider（不是测试夹具） | 在 |
+| `packages/client/connection/src/client/fixture.ts` | 2483 | 随包发布的浏览器模式 provider（不是测试夹具） | 在 |
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 3208 | 多组件文件，含两段内联 JSX | 在 |
 | `packages/typert/generator/src/analyzer.ts` | 3235 | 纯构建期库 | 在 |
 | `packages/experimental/code-runtime-python/src/index.ts` | 1801 | 单个类，单个超大方法 | 在——试点已落地 |

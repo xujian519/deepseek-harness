@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-09-14-god-file-split-plan.md
-2026-09-14-god-file-split-plan.md: 1b0f4e5c92ae393640f5d071568ee57e42957881
-2026-09-14-god-file-split-plan.zh.md: 9bdd97b3ccd5c02b5df31de3a6215bd1c72c6fa8
+2026-09-14-god-file-split-plan.md: 629b4472051dbdc090c0630486587214c5eac715
+2026-09-14-god-file-split-plan.zh.md: d5051c910443f98affb63ba073342ec951cf4296
