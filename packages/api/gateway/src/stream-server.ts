@@ -19,6 +19,12 @@ export type RemoteStreamOpener = (
 /** Convert an invocation or carrier failure to a stable wire value. */
 export type RemoteStreamFailureMapper = (error: unknown) => RemoteStreamFailure
 
+/**
+ * Consecutive missed heartbeats tolerated before the server closes a
+ * connection. A fixed tolerance, not config: it multiplies the configured
+ * `heartbeatIntervalMs` into the detection window, so the interval stays the
+ * deployment knob and this counts frames within it.
+ */
 const MAX_MISSED_HEARTBEATS = 2
 
 /** Own the no-server WebSocket acceptor and every active logical stream. */

@@ -19,6 +19,12 @@ import type {
   SessionSearchValue, SessionSummary,
 } from './types.ts'
 
+/**
+ * Maximum provider content fetches issued by one search. A defensive budget,
+ * not a deployment choice: it bounds the work a single query can trigger when
+ * the provider's index returns a long candidate list, while the returned result
+ * count is capped separately by {@link SESSION_SEARCH_RESULT_LIMIT}.
+ */
 const SEARCH_PROVIDER_CALL_LIMIT = 100
 const SESSION_SEARCH_QUERY_MAX_CHARS = 500
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])

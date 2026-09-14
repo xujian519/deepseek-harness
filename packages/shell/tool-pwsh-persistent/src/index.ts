@@ -21,10 +21,23 @@ const SHELL_PROMPT = '__DSH_PERSISTENT_PWSH_PROMPT__ '
 const TIMEOUT_CODE = 'PERSISTENT_PWSH_TIMEOUT'
 // One page is enough to find a just-emitted completion marker; the full
 // scrollback is assembled only when a command settles or needs partial output.
+// An internal read size, not config: it bounds one terminal read, and the
+// assembled result is the same for any page size.
 const SCROLLBACK_PAGE_LINES = 1_000
+/**
+ * Delay between terminal scrollback reads while a command runs. An internal
+ * cadence, not config: a shorter interval only raises host CPU for the same
+ * captured output, while a longer one delays the completion marker.
+ */
 const POLL_INTERVAL_MS = 25
 
 const DEFAULT_DESCRIPTION = 'Run commands in a persistent PowerShell shell. State, including the current directory and exported environment variables, persists across calls for this agent.'
+/** Default PTY backend for each owner-isolated persistent shell. */
+const DEFAULT_BACKEND_TYPE = 'shell'
+/** Default wall-clock limit for one command (five minutes). */
+const DEFAULT_TIMEOUT_MS = 300_000
+/** Default maximum returned command-output characters before clipping. */
+const DEFAULT_MAX_OUTPUT_CHARS = 16_000
 
 interface ResolvedConfig {
   backendType: string
@@ -482,18 +495,18 @@ export interface Config {
 
 /** Runtime configuration schema for the persistent pwsh tool. */
 export const Config: z<Config> = z.object({
-  backendType: z.string().default('shell'),
-  timeoutMs: z.number().default(300_000),
-  maxOutputChars: z.number().default(16_000),
+  backendType: z.string().default(DEFAULT_BACKEND_TYPE),
+  timeoutMs: z.number().default(DEFAULT_TIMEOUT_MS),
+  maxOutputChars: z.number().default(DEFAULT_MAX_OUTPUT_CHARS),
   description: z.string().default(DEFAULT_DESCRIPTION),
 })
 
 /** Register one owner-scoped persistent `pwsh` tool. */
 export function apply(ctx: Context, config: Config): void {
   const resolved: ResolvedConfig = {
-    backendType: config.backendType ?? 'shell',
-    timeoutMs: config.timeoutMs ?? 300_000,
-    maxOutputChars: config.maxOutputChars ?? 16_000,
+    backendType: config.backendType ?? DEFAULT_BACKEND_TYPE,
+    timeoutMs: config.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxOutputChars: config.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS,
     description: config.description ?? DEFAULT_DESCRIPTION,
   }
   if (resolved.backendType.trim().length === 0) {

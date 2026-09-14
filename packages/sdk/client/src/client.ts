@@ -26,10 +26,20 @@ import { disposeRuntimeProcess } from './dispose.ts'
 import { resolveDshLaunch, type RuntimeProcessOptions } from './launch.ts'
 import type { HarnessClientOptions, HarnessNotification, NotificationFilter } from './types.ts'
 
-/** Retained stderr lines used to diagnose an unexpected runtime death. */
+/**
+ * Retained stderr lines used to diagnose an unexpected runtime death. A fixed
+ * diagnostic capacity, not config: it bounds the message carried by
+ * {@link TransportClosedError}, and every retained line costs memory in a
+ * process that may own several runtimes.
+ */
 const STDERR_TAIL_LIMIT = 400
 
-/** Grace for the runtime's stdio streams to settle after its exit edge. */
+/**
+ * Grace for the runtime's stdio streams to settle after its exit edge. A fixed
+ * drain window, not config: it absorbs the pipe buffering between the exit
+ * signal and the last readable chunk, and a shorter one truncates the tail this
+ * module exists to report.
+ */
 const STREAM_SETTLE_MS = 100
 
 /**
