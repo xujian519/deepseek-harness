@@ -5,20 +5,17 @@
  * @module @deepseek-ai/dsh-typert-generator/analyzer
  */
 
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import ts from 'typescript'
 import type {
   CrossFaceLink,
-  DocumentationModel,
   EventModel,
   EnumMemberModel,
   ExportModel,
   FaceModel,
   InvocationModel,
   InvocationParameterModel,
-  JsDocTagModel,
-  KeywordTypeName,
   MemberBase,
   MemberModel,
   MemberVisibility,
@@ -43,6 +40,62 @@ import type {
   WorkspaceModel,
 } from './model.ts'
 
+import {
+  authoredExportName,
+  externalModuleIdentityForFile,
+  formatDiagnostic,
+  formatProgramDiagnostic,
+  importBindingOf,
+  importTypeAttributesText,
+  isStandardLibraryFile,
+  isWithin,
+  moduleIdentity,
+  moduleSpecifierOf,
+  realPath,
+  slash,
+} from './module-path.ts'
+
+import {
+  annotationPosition,
+  declarationName,
+  declarationText,
+  documentationOf,
+  exposableMember,
+  expressionName,
+  hasModifier,
+  isRemoteSegment,
+  isTypeDeclaration,
+  keywordName,
+  literalModel,
+  memberName,
+  memberText,
+  modifierMode,
+  optionalParent,
+  packageExportSpecifier,
+  preferredDeclaration,
+  stringLiteralValue,
+  typertMode,
+  typertServiceTag,
+  visibilityOf,
+} from './node-text.ts'
+
+import {
+  clientExportSubpaths,
+  hostExportSubpaths,
+  isDualFacePackage,
+  packageExportTargets,
+  sourcePathForExport,
+} from './package-exports.ts'
+
+import {
+  EMPTY_DOCUMENTATION,
+  TypertAnalysisError,
+} from './types.ts'
+
+import type { ModuleIdentity, ReferenceSite } from './types.ts'
+
+export { TypertAnalysisError } from './types.ts'
+
 type WithoutId<T> = T extends { readonly id: TypeNodeId } ? Omit<T, 'id'> : never
 
 type TypeNodeInput = WithoutId<TypeNodeModel>
@@ -50,11 +103,6 @@ type TypeNodeInput = WithoutId<TypeNodeModel>
 const PUBLIC_REMOTE_TYPE_ROOTS = new Set([
   '@deepseek-ai/dsh-util-values',
 ])
-
-/** Analysis failure with a source-oriented diagnostic. */
-export class TypertAnalysisError extends Error {
-  override name = 'TypertAnalysisError'
-}
 
 class SourceEditQueued extends Error {}
 
@@ -125,22 +173,11 @@ interface SourceEdit {
   readonly text: string
 }
 
-interface ModuleIdentity {
-  readonly package: string
-  readonly subpath: string
-}
-
 /** The package import a type reference reaches after following package-local forwarding modules. */
 interface PackageImport {
   readonly module: ModuleIdentity
   /** Name the type is exported under at that package subpath. */
   readonly name: string
-}
-
-/** One `import` binding of a local name; `name` is absent for a namespace import. */
-interface ImportBinding {
-  readonly specifier: string
-  readonly name?: string
 }
 
 /** One outgoing `export` edge of a forwarding module for one exported name. */
@@ -167,10 +204,6 @@ interface GatewayBinding {
   readonly namespace: string
   readonly site: ts.Node
 }
-
-type ReferenceSite = ts.TypeReferenceNode | ts.ExpressionWithTypeArguments | ts.ImportTypeNode
-
-const EMPTY_DOCUMENTATION: DocumentationModel = { tags: [] }
 
 interface FaceProgramHost {
   readonly host: ts.CompilerHost
@@ -2754,470 +2787,8 @@ function hasPackageSurface(model: PackageModel): boolean {
     || model.invocations.length > 0
 }
 
-function isDualFacePackage(manifest: Record<string, unknown>): boolean {
-  const dsh = manifest.dsh
-  const client = dsh !== null && typeof dsh === 'object'
-    ? (dsh as Record<string, unknown>).client
-    : undefined
-  return client !== null
-    && typeof client === 'object'
-    && clientExportSubpaths(manifest).length > 0
-}
 
-function hostExportSubpaths(manifest: Record<string, unknown>): string[] {
-  return packageExportTargets(manifest)
-    .map(([subpath]) => subpath)
-    .filter(subpath => subpath !== './client'
-      && !subpath.startsWith('./client/')
-      && subpath !== './remote')
-}
 
-function clientExportSubpaths(manifest: Record<string, unknown>): string[] {
-  return packageExportTargets(manifest)
-    .map(([subpath]) => subpath)
-    .filter(subpath => subpath === './client' || subpath.startsWith('./client/'))
-}
-
-function packageExportTargets(manifest: Record<string, unknown>): [string, string][] {
-  const exportsField = manifest.exports
-  if (typeof exportsField === 'string') return [['.', exportsField]]
-  if (exportsField === null || typeof exportsField !== 'object') {
-    const types = manifest.types
-    return typeof types === 'string' ? [['.', types]] : []
-  }
-  if (Array.isArray(exportsField)
-    || !Object.keys(exportsField).some(key => key.startsWith('.'))) {
-    const target = exportTarget(exportsField)
-    return target === undefined ? [] : [['.', target]]
-  }
-  const result: [string, string][] = []
-  for (const [subpath, value] of Object.entries(exportsField as Record<string, unknown>)) {
-    if (!subpath.startsWith('.')) continue
-    const target = exportTarget(value)
-    if (target !== undefined) result.push([subpath, target])
-  }
-  return result.sort(([left], [right]) => left.localeCompare(right))
-}
-
-function exportTarget(value: unknown): string | undefined {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) {
-    for (const candidate of value) {
-      const target = exportTarget(candidate)
-      if (target !== undefined) return target
-    }
-    return undefined
-  }
-  if (value === null || typeof value !== 'object') return undefined
-  const conditions = value as Record<string, unknown>
-  for (const key of ['types', 'import', 'default']) {
-    const target = exportTarget(conditions[key])
-    if (target !== undefined) return target
-  }
-  for (const candidate of Object.values(conditions)) {
-    const target = exportTarget(candidate)
-    if (target !== undefined) return target
-  }
-  return undefined
-}
-
-function sourcePathForExport(packageRoot: string, target: string): string {
-  const normalized = target.replace(/^\.\//, '')
-  if (normalized.startsWith('lib/types/')) {
-    return resolve(packageRoot, 'src', normalized.slice('lib/types/'.length).replace(/\.d\.(?:mts|cts|ts)$/, '.ts'))
-  }
-  if (normalized.startsWith('lib/')) {
-    return resolve(packageRoot, 'src', normalized.slice('lib/'.length).replace(/\.(?:mjs|cjs|js|d\.ts)$/, '.ts'))
-  }
-  return resolve(packageRoot, normalized)
-}
-
-function preferredDeclaration(symbol: ts.Symbol): ts.Declaration | undefined {
-  return symbol.declarations?.find(isTypeDeclaration)
-    ?? symbol.valueDeclaration
-    ?? symbol.declarations?.[0]
-}
-
-function optionalParent(node: ts.Node): ts.Node | undefined {
-  return (node as ts.Node & { readonly parent?: ts.Node }).parent
-}
-
-function isTypeDeclaration(
-  node: ts.Node,
-): node is ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.EnumDeclaration {
-  return ts.isClassDeclaration(node)
-    || ts.isInterfaceDeclaration(node)
-    || ts.isTypeAliasDeclaration(node)
-    || ts.isEnumDeclaration(node)
-}
-
-function declarationName(
-  declaration: ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.EnumDeclaration,
-): string {
-  return (declaration.name as ts.Identifier).text
-}
-
-function memberText(member: ts.TypeElement | ts.ClassElement): string {
-  const sourceFile = member.getSourceFile()
-  const full = member.getText(sourceFile)
-  const body = (member as { body?: ts.Node }).body
-  const signature = body === undefined ? full : full.slice(0, full.length - body.getText(sourceFile).length)
-  return signature.replace(/\s*;?\s*$/, '').replace(/\s+/g, ' ').trim()
-}
-
-function declarationText(
-  declaration: ts.ClassDeclaration | ts.InterfaceDeclaration | ts.TypeAliasDeclaration | ts.EnumDeclaration,
-): string {
-  const printer = ts.createPrinter({ removeComments: true })
-  const projected = ts.isClassDeclaration(declaration) ? classShape(declaration) : declaration
-  return printer.printNode(ts.EmitHint.Unspecified, projected, declaration.getSourceFile()).replace(/\r/g, '')
-}
-
-function classShape(node: ts.ClassDeclaration): ts.ClassDeclaration {
-  const nonPublic = (member: ts.ClassElement): boolean =>
-    (ts.canHaveModifiers(member) ? ts.getModifiers(member) : undefined)?.some(modifier =>
-      modifier.kind === ts.SyntaxKind.PrivateKeyword || modifier.kind === ts.SyntaxKind.ProtectedKeyword) ?? false
-  const members = node.members.flatMap((member): ts.ClassElement[] => {
-    if (nonPublic(member) || (ts.isPropertyDeclaration(member) && ts.isPrivateIdentifier(member.name))) return []
-    if (ts.isMethodDeclaration(member)) {
-      return [ts.factory.updateMethodDeclaration(
-        member,
-        member.modifiers,
-        member.asteriskToken,
-        member.name,
-        member.questionToken,
-        member.typeParameters,
-        member.parameters,
-        member.type,
-        undefined,
-      )]
-    }
-    if (ts.isConstructorDeclaration(member)) {
-      return [ts.factory.updateConstructorDeclaration(member, member.modifiers, member.parameters, undefined)]
-    }
-    if (ts.isGetAccessorDeclaration(member)) {
-      return [ts.factory.updateGetAccessorDeclaration(
-        member,
-        member.modifiers,
-        member.name,
-        member.parameters,
-        member.type,
-        undefined,
-      )]
-    }
-    if (ts.isSetAccessorDeclaration(member)) {
-      return [ts.factory.updateSetAccessorDeclaration(
-        member,
-        member.modifiers,
-        member.name,
-        member.parameters,
-        undefined,
-      )]
-    }
-    if (ts.isPropertyDeclaration(member)) {
-      return [ts.factory.updatePropertyDeclaration(
-        member,
-        member.modifiers,
-        member.name,
-        member.questionToken ?? member.exclamationToken,
-        member.type,
-        undefined,
-      )]
-    }
-    return [member]
-  })
-  return ts.factory.updateClassDeclaration(
-    node,
-    node.modifiers,
-    node.name,
-    node.typeParameters,
-    node.heritageClauses,
-    members,
-  )
-}
-
-function documentationOf(node: ts.Node): DocumentationModel {
-  const blocks = ts.getJSDocCommentsAndTags(node).filter(ts.isJSDoc)
-  const block = blocks.at(-1)
-  if (block === undefined) return EMPTY_DOCUMENTATION
-  const description = normalizedDocText(ts.getTextOfJSDocComment(block.comment))
-  const tags: JsDocTagModel[] = ts.getJSDocTags(node).map((tag) => {
-    const named = tag as ts.JSDocTag & { name?: ts.Node }
-    const comment = normalizedDocText(ts.getTextOfJSDocComment(tag.comment))
-    return {
-      name: tag.tagName.text,
-      ...(named.name === undefined ? {} : { argument: named.name.getText() }),
-      ...(comment === undefined ? {} : { comment }),
-      text: tag.getText(tag.getSourceFile()).trim(),
-    }
-  })
-  return {
-    ...(description === undefined ? {} : {
-      description,
-      summary: firstSentence(description),
-    }),
-    tags,
-    jsDoc: rawJsDoc(node),
-  }
-}
-
-function normalizedDocText(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined
-  const normalized = value.replace(/\s+/g, ' ').trim()
-  /* v8 ignore next -- TypeScript represents whitespace-only JSDoc as undefined before this helper is called. */
-  return normalized.length === 0 ? undefined : normalized
-}
-
-function firstSentence(value: string): string {
-  return (/^(.*?[.!?])(?:\s|$)/.exec(value)?.[1] ?? value).trim()
-}
-
-function rawJsDoc(node: ts.Node): string {
-  const sourceFile = node.getSourceFile()
-  const source = sourceFile.getFullText()
-  const ranges = ts.getLeadingCommentRanges(source, node.getFullStart()) as ts.CommentRange[]
-  const range = ranges.filter(candidate => source.slice(candidate.pos, candidate.pos + 3) === '/**').at(-1) as ts.CommentRange
-  const raw = source.slice(range.pos, range.end)
-  const { line } = sourceFile.getLineAndCharacterOfPosition(range.pos)
-  const lineStart = sourceFile.getPositionOfLineAndCharacter(line, 0)
-  const indent = source.slice(lineStart, range.pos)
-  return raw.split('\n')
-    .map((text, index) => index > 0 && text.startsWith(indent) ? text.slice(indent.length) : text)
-    .join('\n')
-}
-
-function typertMode(node: ts.Node): 'object' | 'schema' | undefined {
-  for (const tag of ts.getJSDocTags(node)) {
-    if (tag.tagName.text !== 'typert') continue
-    const mode = (ts.getTextOfJSDocComment(tag.comment) ?? '').trim().split(/\s+/, 1)[0]
-    if (mode === 'object') return 'object'
-    if (mode === '' || mode === 'schema' || mode === 'type') return 'schema'
-  }
-  return undefined
-}
-
-function typertServiceTag(node: ts.Node): ts.JSDocTag | undefined {
-  return ts.getJSDocTags(node).find(tag => tag.tagName.text === 'typert'
-    && (ts.getTextOfJSDocComment(tag.comment) ?? '').trim().split(/\s+/, 1)[0] === 'service')
-}
-
-function memberName(name: ts.PropertyName | ts.BindingName): string {
-  if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name) || ts.isStringLiteral(name)
-    || ts.isNumericLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) return name.text
-  if (ts.isComputedPropertyName(name)) return `[${name.expression.getText()}]`
-  return name.getText()
-}
-
-function stringLiteralValue(node: ts.Node | undefined): string | undefined {
-  return node !== undefined && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
-    ? node.text
-    : undefined
-}
-
-function isRemoteSegment(value: string): boolean {
-  // Generation bootstraps workspace artifacts before dsh-typert-protocol is built,
-  // so this extraction-only copy must mirror isTypertRemoteSegment().
-  return value !== '.' && value !== '..' && /^[A-Za-z0-9_$.-]+$/.test(value)
-}
-
-function expressionName(node: ts.Expression): string | undefined {
-  if (ts.isIdentifier(node)) return node.text
-  if (ts.isPropertyAccessExpression(node)) return node.name.text
-  return undefined
-}
-
-function packageExportSpecifier(packageName: string, subpath: string): string {
-  return subpath === '.' ? packageName : `${packageName}${subpath.slice(1)}`
-}
-
-function visibilityOf(node: ts.Node): MemberVisibility {
-  if ('name' in node && node.name !== undefined && ts.isPrivateIdentifier(node.name as ts.Node)) return 'private'
-  if (hasModifier(node, ts.SyntaxKind.PrivateKeyword)) return 'private'
-  if (hasModifier(node, ts.SyntaxKind.ProtectedKeyword)) return 'protected'
-  return 'public'
-}
-
-function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
-  return (ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined)?.some(modifier => modifier.kind === kind) ?? false
-}
-
-function exposableMember(member: MemberModel): boolean {
-  return member.visibility === 'public' && !member.static
-}
-
-function keywordName(kind: ts.SyntaxKind): KeywordTypeName | undefined {
-  switch (kind) {
-    case ts.SyntaxKind.AnyKeyword: return 'any'
-    case ts.SyntaxKind.BigIntKeyword: return 'bigint'
-    case ts.SyntaxKind.BooleanKeyword: return 'boolean'
-    case ts.SyntaxKind.NeverKeyword: return 'never'
-    case ts.SyntaxKind.NumberKeyword: return 'number'
-    case ts.SyntaxKind.ObjectKeyword: return 'object'
-    case ts.SyntaxKind.StringKeyword: return 'string'
-    case ts.SyntaxKind.SymbolKeyword: return 'symbol'
-    case ts.SyntaxKind.UndefinedKeyword: return 'undefined'
-    case ts.SyntaxKind.UnknownKeyword: return 'unknown'
-    case ts.SyntaxKind.VoidKeyword: return 'void'
-    default: return undefined
-  }
-}
-
-function literalModel(node: ts.LiteralTypeNode): Omit<Extract<TypeNodeModel, { kind: 'literal' }>, 'id'> {
-  const literal = node.literal
-  if (ts.isStringLiteral(literal)) return { kind: 'literal', value: literal.text, text: literal.getText() }
-  if (ts.isNoSubstitutionTemplateLiteral(literal)) {
-    return { kind: 'literal', value: literal.text, text: literal.getText() }
-  }
-  if (ts.isNumericLiteral(literal)) return { kind: 'literal', value: Number(literal.text), text: literal.getText() }
-  if (ts.isBigIntLiteral(literal)) return { kind: 'literal', value: BigInt(literal.text.slice(0, -1)), text: literal.getText() }
-  if (literal.kind === ts.SyntaxKind.TrueKeyword) return { kind: 'literal', value: true, text: 'true' }
-  if (literal.kind === ts.SyntaxKind.FalseKeyword) return { kind: 'literal', value: false, text: 'false' }
-  if (literal.kind === ts.SyntaxKind.NullKeyword) return { kind: 'literal', value: null, text: 'null' }
-  /* v8 ignore else -- all remaining LiteralTypeNode syntax is a signed numeric or bigint literal. */
-  if (ts.isPrefixUnaryExpression(literal)
-    && (ts.isNumericLiteral(literal.operand) || ts.isBigIntLiteral(literal.operand))) {
-    return {
-      kind: 'literal',
-      value: ts.isBigIntLiteral(literal.operand)
-        ? BigInt(literal.getText().slice(0, -1))
-        : Number(literal.getText()),
-      text: literal.getText(),
-    }
-  }
-  /* v8 ignore next -- TypeScript's LiteralTypeNode grammar is exhausted above; this contains future compiler syntax. */
-  throw new TypertAnalysisError(`typert: unsupported literal type ${literal.getText()}`)
-}
-
-function modifierMode(token: ts.ReadonlyKeyword | ts.PlusToken | ts.MinusToken | ts.QuestionToken | undefined):
-  'add' | 'remove' | 'preserve' {
-  if (token?.kind === ts.SyntaxKind.PlusToken) return 'add'
-  if (token?.kind === ts.SyntaxKind.MinusToken) return 'remove'
-  return token === undefined ? 'preserve' : 'add'
-}
-
-function annotationPosition(
-  node: ts.Node,
-  purpose: 'property' | 'parameter' | 'return',
-): number {
-  if (purpose === 'return') return (node as ts.SignatureDeclarationBase).parameters.end + 1
-  return (node as ts.ParameterDeclaration | ts.PropertyDeclaration | ts.PropertySignature).name.end
-}
-
-function moduleSpecifierOf(node: ReferenceSite): string | undefined {
-  if (ts.isImportTypeNode(node)) {
-    const argument = node.argument as ts.LiteralTypeNode & { readonly literal: ts.StringLiteral }
-    return argument.literal.text
-  }
-  const symbol = ts.isTypeReferenceNode(node)
-    ? node.typeName
-    : node.expression
-  const sourceFile = node.getSourceFile()
-  const first = ts.isIdentifier(symbol) ? symbol.text : symbol.getFirstToken(sourceFile)?.getText(sourceFile)
-  return first === undefined ? undefined : importBindingOf(sourceFile, first)?.specifier
-}
-
-function authoredExportName(node: ReferenceSite, moduleSpecifier: string): string {
-  if (ts.isImportTypeNode(node)) return (node.qualifier as ts.EntityName).getText().split('.')[0] as string
-
-  const referenced = ts.isTypeReferenceNode(node)
-    ? node.typeName.getText().split('.')
-    : node.expression.getText().split('.')
-  const localName = referenced[0] as string
-  const binding = importBindingOf(node.getSourceFile(), localName)
-  /* v8 ignore next -- moduleSpecifierOf returns only the import inspected by importBindingOf. */
-  if (binding === undefined) throw new TypertAnalysisError(`typert: cannot recover export name for ${localName} from ${moduleSpecifier}`)
-  return binding.name ?? (referenced[1] as string)
-}
-
-function importBindingOf(sourceFile: ts.SourceFile, localName: string): ImportBinding | undefined {
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement) || statement.importClause === undefined
-      || !ts.isStringLiteral(statement.moduleSpecifier)) continue
-    const specifier = statement.moduleSpecifier.text
-    if (statement.importClause.name?.text === localName) return { specifier, name: 'default' }
-    const bindings = statement.importClause.namedBindings
-    if (bindings === undefined) continue
-    if (ts.isNamespaceImport(bindings)) {
-      if (bindings.name.text === localName) return { specifier }
-      continue
-    }
-    const element = bindings.elements.find(candidate => candidate.name.text === localName)
-    if (element !== undefined) return { specifier, name: element.propertyName?.text ?? element.name.text }
-  }
-  return undefined
-}
-
-function importTypeAttributesText(node: ts.ImportTypeNode): string {
-  const sourceFile = node.getSourceFile()
-  const children = node.getChildren(sourceFile)
-  const comma = children.find(child => child.kind === ts.SyntaxKind.CommaToken) as ts.Node
-  const close = children.find(child => child.kind === ts.SyntaxKind.CloseParenToken) as ts.Node
-  return sourceFile.text.slice(comma.end, close.pos).trim()
-}
-
-function moduleIdentity(specifier: string): ModuleIdentity | undefined {
-  if (specifier.startsWith('.') || specifier.startsWith('/')) return undefined
-  const parts = specifier.split('/')
-  const packageLength = specifier.startsWith('@') ? 2 : 1
-  const packageName = parts.slice(0, packageLength).join('/')
-  const rest = parts.slice(packageLength).join('/')
-  return {
-    package: packageName,
-    subpath: rest.length === 0 ? '.' : `./${rest}`,
-  }
-}
-
-function externalModuleIdentityForFile(file: string): ModuleIdentity | undefined {
-  const normalized = slash(file)
-  const marker = '/node_modules/'
-  const index = normalized.lastIndexOf(marker)
-  if (index < 0) return undefined
-  const parts = normalized.slice(index + marker.length).split('/')
-  const packageLength = (parts[0] as string).startsWith('@') ? 2 : 1
-  const packageName = parts.slice(0, packageLength).join('/')
-  return { package: packageName, subpath: '.' }
-}
-
-function isStandardLibraryFile(file: string): boolean {
-  const base = file.replaceAll('\\', '/')
-  return /\/typescript\/lib\/lib\.[^/]+\.d\.ts$/.test(base)
-}
-
-function formatDiagnostic(diagnostic: ts.Diagnostic): string {
-  return ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-}
-
-function formatProgramDiagnostic(root: string, face: TypertFace, diagnostic: ts.DiagnosticWithLocation): string {
-  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-  const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
-  const file = slash(relative(root, diagnostic.file.fileName))
-  return `typert(${face}): ${file}:${String(position.line + 1)}:${String(position.character + 1)}: TypeScript TS${String(diagnostic.code)}: ${message}`
-}
-
-const realPathCache = new Map<string, string>()
-
-function realPath(path: string): string {
-  const absolute = resolve(path)
-  const cached = realPathCache.get(absolute)
-  if (cached !== undefined) return cached
-  // Only existing paths are memoized: a path can come into existence later,
-  // but an existing path's canonical form is stable for the process lifetime
-  // (analysis edits rewrite file contents, never the directory tree).
-  if (!existsSync(absolute)) return absolute
-  const resolved = realpathSync(absolute)
-  realPathCache.set(absolute, resolved)
-  return resolved
-}
-
-function isWithin(path: string, root: string): boolean {
-  const absolute = realPath(path)
-  const parent = realPath(root)
-  return absolute === parent || absolute.startsWith(parent + sep)
-}
-
-function slash(value: string): string {
-  return value.replaceAll('\\', '/')
-}
 
 function uniqueBy<T>(values: readonly T[], key: (value: T) => string): T[] {
   const result = new Map<string, T>()
