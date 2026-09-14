@@ -42,6 +42,16 @@ kind: "package-reference"
 
 调用该工具的 agent 会把子 agent 的最终答案作为工具结果收到。只挂载服务本身不会改变任何行为：在组合出提供方和工具之前，什么都不能委派。
 
+### 服务配置
+
+服务接受可选的 `coldReadConcurrency` 配置字段（正整数，默认 `4`）。它限制 `listChildren` 与 `listDescendants` 从持久化读取时并发发起的冷 Session 观察数量。网络化持久化提供方可提高该值；需要降低 I/O 压力时可调小。
+
+```yaml
+- name: '@deepseek-ai/dsh-subagent'
+  config:
+    coldReadConcurrency: 4
+```
+
 ### 一次性与可继续子级
 
 一次性子 agent 只运行一次，并以单个结果结算，可附带可选的结构化输出与失败时的安全诊断。启动请求可以通过 `agentOptions` 覆盖子 Agent 的提供方、模型、推理强度与输出 token 上限；每个请求的选项都要求提供方声明对应能力。可继续子 agent 保留持久会话并按顺序接受后续消息：调用方收到稳定的子 agent id、发送相邻 Agent 消息，并可中断当前轮次而不销毁子 agent。工具行的 `backgroundMode` 选择形态（默认 `one-shot`，或在支持的提供方上使用 `continuable`）。

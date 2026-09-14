@@ -39,6 +39,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { z } from 'zod'
 import {
   catalogView, rejectCatalogRead, rejectPrompt, validateControlRequest,
 } from './control.ts'
@@ -70,7 +71,11 @@ import { createActivationObserver, createLifecycleEmitter, observeRun } from './
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentContinuationManager from './continuation.ts'
 import type { SubagentDelivery } from './inbox.ts'
-import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
+import {
+  DEFAULT_COLD_READ_CONCURRENCY,
+  listChildren as listSubagentChildren,
+  listDescendants as listSubagentDescendants,
+} from './list-children.ts'
 import type { SubagentDescendantListEntry, SubagentListEntry } from './list-children.ts'
 import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
@@ -184,8 +189,18 @@ interface BrowserPromptSource {
   readonly clientTimeZone?: string
 }
 
+/** Subagent runtime configuration resolved by the Cordis loader. */
+export interface Config {
+  /** Maximum concurrent cold Session observations issued by one listing. */
+  coldReadConcurrency?: number
+}
+
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends TypertRemoteService {
+  static Config: z.ZodType<Config> = z.object({
+    coldReadConcurrency: z.number().int().min(1).default(DEFAULT_COLD_READ_CONCURRENCY),
+  }).optional().default(() => ({ coldReadConcurrency: DEFAULT_COLD_READ_CONCURRENCY }))
+
   private providers = new Map<string, SubagentProvider>()
   private continuations: SubagentContinuationManager | undefined
   /**
@@ -194,9 +209,11 @@ export class SubagentRuntime extends TypertRemoteService {
    * composes into the carrier.
    */
   private readonly emitLifecycle: LifecycleEmitter
+  private readonly coldReadConcurrency: number
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config?: Config) {
     super(ctx, 'subagents')
+    this.coldReadConcurrency = config?.coldReadConcurrency ?? DEFAULT_COLD_READ_CONCURRENCY
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentContinuationManager(childCtx, {
@@ -347,7 +364,7 @@ export class SubagentRuntime extends TypertRemoteService {
    *   store is not mounted, or the caller cancels the listing.
    */
   listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]> {
-    return listSubagentChildren(this.ctx, parentSessionId, signal)
+    return listSubagentChildren(this.ctx, parentSessionId, signal, this.coldReadConcurrency)
   }
 
   /**
@@ -366,7 +383,7 @@ export class SubagentRuntime extends TypertRemoteService {
    * @throws {@link SubagentError} under the same conditions as {@link listChildren}.
    */
   listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
-    return listSubagentDescendants(this.ctx, rootSessionId, signal)
+    return listSubagentDescendants(this.ctx, rootSessionId, signal, this.coldReadConcurrency)
   }
 
   /**

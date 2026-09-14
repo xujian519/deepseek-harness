@@ -29,12 +29,8 @@ import type { SubagentIdentityProjection } from './projection-types.ts'
 
 export type { SubagentListEntry } from './control-types.ts'
 
-/**
- * Concurrent cold observations per explicit catalog listing. Current Session
- * persistence providers are local; a networked provider must promote this to
- * a validated deployment setting.
- */
-const COLD_READ_CONCURRENCY = 4
+/** Default concurrency cap for cold Session observations in one listing. */
+export const DEFAULT_COLD_READ_CONCURRENCY = 4
 
 /**
  * One entry of a descendant listing: the interpreted subagent facts plus its
@@ -76,6 +72,8 @@ interface PositionedCandidate {
  *   optional persistence, and the optional projection cache.
  * @param parentSessionId - parent session whose direct children are listed.
  * @param signal - caller-owned cancellation observed around every persistence read.
+ * @param coldReadConcurrency - maximum concurrent cold observations; defaults to
+ *   {@link DEFAULT_COLD_READ_CONCURRENCY}.
  * @returns children and per-child diagnostics ordered by `createdAt`, then id.
  * @throws {@link SubagentError} when the projection registry or the session
  *   store is not mounted, or the caller cancels the listing.
@@ -84,13 +82,14 @@ export async function listChildren(
   ctx: Context,
   parentSessionId: SessionId,
   signal?: AbortSignal,
+  coldReadConcurrency: number = DEFAULT_COLD_READ_CONCURRENCY,
 ): Promise<SubagentListEntry[]> {
   const listing = await prepareListing(ctx, signal)
   const candidates = [...listing.corpus.values()]
     .filter(record => record.header.parentSession === parentSessionId
       && record.header.origin === 'subagent')
     .sort(compareCorpusRecords)
-  const rows = await resolveCandidateRows(candidates, listing, signal)
+  const rows = await resolveCandidateRows(candidates, listing, coldReadConcurrency, signal)
   return rows.filter((row): row is SubagentListEntry => row !== undefined)
 }
 
@@ -104,6 +103,8 @@ export async function listChildren(
  * @param ctx - context carrying the session store, projection registry, and optional persistence/cache.
  * @param rootSessionId - session whose complete descendant tree is listed.
  * @param signal - caller-owned cancellation observed around every persistence read.
+ * @param coldReadConcurrency - maximum concurrent cold observations; defaults to
+ *   {@link DEFAULT_COLD_READ_CONCURRENCY}.
  * @returns interpreted subagents with durable direct-parent and root-relative depth.
  * @throws {@link SubagentError} under the same conditions as {@link listChildren}.
  */
@@ -111,12 +112,14 @@ export async function listDescendants(
   ctx: Context,
   rootSessionId: SessionId,
   signal?: AbortSignal,
+  coldReadConcurrency: number = DEFAULT_COLD_READ_CONCURRENCY,
 ): Promise<SubagentDescendantListEntry[]> {
   const listing = await prepareListing(ctx, signal)
   const positioned = descendantCandidates(listing.corpus, rootSessionId)
   const rows = await resolveCandidateRows(
     positioned.map(candidate => candidate.record),
     listing,
+    coldReadConcurrency,
     signal,
   )
   const entries: SubagentDescendantListEntry[] = []
@@ -197,6 +200,7 @@ async function prepareListing(
 async function resolveCandidateRows(
   candidates: readonly CorpusRecord[],
   listing: ListingRuntime,
+  coldReadConcurrency: number,
   signal: AbortSignal | undefined,
 ): Promise<(SubagentListEntry | undefined)[]> {
   const { projections, query, cache, subagentParents } = listing
@@ -230,7 +234,7 @@ async function resolveCandidateRows(
   if (coldReads.length > 0) {
     const queue = [...coldReads]
     await Promise.all(Array.from(
-      { length: Math.min(COLD_READ_CONCURRENCY, queue.length) },
+      { length: Math.min(coldReadConcurrency, queue.length) },
       async () => {
         for (let job = queue.shift(); job !== undefined; job = queue.shift()) {
           rows[job.index] = await resolveColdIdentity(
