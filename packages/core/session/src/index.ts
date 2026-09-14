@@ -1044,9 +1044,8 @@ export class SessionStore extends Service {
     }
     this.store.set(id, entry)
     attachments.set(session, entry)
-    // A lifecycle listener may own the advanced detach capability. Keep the
-    // entry and its publication hooks live until synchronous creation or append
-    // publication unwinds, then publish the paired disposal edge.
+    // A publication listener may take this capability; the primitive defers
+    // removal until the creation or append dispatch unwinds.
     return entry.lifecycle.detachCapability(entry.detach)
   }
 

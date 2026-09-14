@@ -473,11 +473,8 @@ export class AgentRegistry extends Service {
       lifecycle: new EntryLifecycle(),
     }
     this.store.set(id, entry)
-    // Every callback reached by this creation dispatch must observe the same
-    // live entry, and disposal must follow creation. A listener may own
-    // the advanced detach capability, so make that ordering structural:
-    // visibility and the paired disposal are deferred until announce()'s
-    // synchronous dispatch has unwound.
+    // A creation listener may take this capability; the primitive defers
+    // removal until the announcement dispatch unwinds.
     return entry.lifecycle.detachCapability(() => { this.detachEntered(entry) })
   }
 
