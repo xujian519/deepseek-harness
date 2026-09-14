@@ -24,8 +24,10 @@ import type { CodeBindingErrorClass, CodeBindingFunction, CodeJsonValue, CodeRun
 import { assertNever, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { capMessage } from './cost.ts'
+import { MAX_PENDING_CHUNKS, OutputLedger, detachResidual } from './output-ledger.ts'
 import type { BootMessage, ChildToHost, ReplyMessage } from './protocol.ts'
-import { checkDoneValue, encodeJsonPlain, hasUnsafeIntegerToken, logTruncationMarker, validateChildFrame } from './protocol.ts'
+import { checkDoneValue, encodeJsonPlain, hasUnsafeIntegerToken, validateChildFrame } from './protocol.ts'
 
 // Re-export the fd-3 wire vocabulary so the runtime and its tests share one
 // import surface; the protocol layer owns the definitions.
@@ -38,6 +40,9 @@ export {
   logTruncationMarker,
   validateChildFrame,
 } from './protocol.ts'
+// The fragment-accumulation primitive the fd-3 frame reader shares with the
+// output ledger; it moved out of this module but keeps this import surface.
+export { detachResidual } from './output-ledger.ts'
 
 /** Plugin config: every cap, changeable from `cordis.yml` (no hardcoded tunables). */
 export interface Config {
@@ -211,18 +216,6 @@ function materializePyScripts(): string {
  * not a deployment choice.
  */
 const FRAME_PARSE_CAP_BYTES = 64 * 1024 * 1024
-
-/**
- * Fragments the unframed fd-3 buffer may hold before they are coalesced into
- * one Buffer, bounding retained per-chunk overhead that the byte cap cannot
- * see: the cap meters payload bytes, while each chunk is a distinct Buffer
- * with its own object and backing store. A
- * program writing single bytes without a newline produced one chunk per write.
- * 1024 keeps the overhead a small constant factor of the payload while leaving
- * normal pipe-sized reads (which arrive in far fewer, much larger chunks)
- * untouched. A framing invariant, not a deployment choice.
- */
-const MAX_PENDING_CHUNKS = 1024
 
 /**
  * Replies the host retains before fd 3 accepts them. The drain loop writes one
@@ -500,247 +493,11 @@ function validatePythonBin(bin: string): void {
   }
 }
 
-/** The marker appended when a diagnostic message is byte-capped host-side. */
-const TRUNCATION_MARKER = '… [truncated]'
-
-/**
- * The marker's own UTF-8 byte length, reserved out of the budget so a capped
- * message stays WITHIN `maxValueBytes` rather than exceeding it by the marker.
- * The ellipsis is 3 bytes, so this is 15, not the string's 13 code units.
- */
-const TRUNCATION_MARKER_BYTES = Buffer.byteLength(TRUNCATION_MARKER, 'utf8')
 // Fatal UTF-8 decoder for fd-3 frames: `toString('utf8')` replaces illegal
 // bytes with U+FFFD, which would silently corrupt a completion or binding
 // payload a forged frame smuggled in; a fatal decode throws instead and the
 // frame is dropped. Non-stream mode keeps it stateless across lines.
 const UTF8_FATAL = new TextDecoder('utf-8', { fatal: true })
-
-/**
- * Serialized JSON byte width of one character, given its code point and the
- * one-character string. Control characters below 0x20 escape to `\uXXXX` (6)
- * except the five with short forms `\b \t \n \f \r` (2); `"` and `\` escape to
- * 2; a LONE surrogate escapes to `\uXXXX` (6) under ES2019 well-formed
- * `JSON.stringify`; everything else rides at its raw UTF-8 width.
- * @param code - the character's code point.
- * @param character - the one-character (or one-code-point) string.
- * @returns the character's serialized JSON byte width.
- */
-function serializedCharCost(code: number, character: string): number {
-  if (code < 0x20) return code === 0x08 || code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d ? 2 : 6
-  if (code === 0x22 || code === 0x5c) return 2
-  if (code >= 0xd800 && code <= 0xdfff) return 6
-  return Buffer.byteLength(character, 'utf8')
-}
-
-/**
- * Serialized JSON-string cost of `text` (the two quotes plus each character's
- * escaped byte width), measured WITHOUT materializing the escaped copy, and
- * abandoned the instant it exceeds `maxBytes`. `JSON.stringify(text)` would
- * allocate the whole escaped form first — up to sixfold a control-char-dense
- * string — so a near-budget line under a large `maxLogBytes` could momentarily
- * allocate over a gigabyte just to measure it. This walks code point by code
- * point (a matched surrogate pair yields its combined code point ≥ 0x10000; a
- * lone surrogate yields a value in 0xD800–0xDFFF that {@link serializedCharCost}
- * charges the full six escaped bytes) and stops at the cap, allocating nothing.
- * @param text - the candidate string.
- * @param maxBytes - the largest serialized size the caller can admit.
- * @returns the exact serialized byte cost, or `undefined` once it exceeds `maxBytes`.
- */
-function jsonStringCostUpTo(text: string, maxBytes: number): number | undefined {
-  if (maxBytes < 2) return undefined
-  let bytes = 2 // the enclosing quotes
-  for (const character of text) {
-    bytes += serializedCharCost(character.codePointAt(0) as number, character)
-    if (bytes > maxBytes) return undefined
-  }
-  return bytes
-}
-
-/**
- * Cross-chunk UTF-8 state for {@link accrueStrayCost}: `expected` continuation
- * bytes still needed to finish the in-progress sequence, its total `width`, and
- * `lowerFirst`/`upperFirst`, the valid range for the NEXT continuation byte
- * (only the first continuation of a 3- or 4-byte lead is range-restricted; once
- * consumed, later continuations accept the full 0x80–0xBF). All zero between
- * sequences. Carried on each {@link StrayBuffer} so a multibyte character split
- * across pipe `data` chunks is costed as one character.
- */
-interface Utf8CostState { expected: number; width: number; lowerFirst: number; upperFirst: number }
-
-/**
- * Accrue the serialized JSON cost of raw pipe bytes `buf`, decoding UTF-8 the way
- * `toString('utf8')` (WHATWG) would so a byte that renders as U+FFFD is charged
- * the three bytes that replacement character serializes to. A naive tally that
- * charged every byte 1 let a `b"\xff"` flood (every byte illegal → U+FFFD each)
- * grow the residual to a full budget's worth of raw bytes before flushing; near
- * a large `maxLogBytes` that retained ~256 MiB, then `flushStray`'s
- * `Buffer.concat` + `toString` expanded it to a ~1 GiB peak. Charging only the
- * structural width would leave the same gap for structurally-well-formed but
- * ILLEGAL sequences a flood produces just as cheaply — a CESU-8 surrogate
- * (`ED A0 80`) or an overlong (`E0 80 80`) decodes to THREE U+FFFD (cost 9), not
- * one width-3 character, so this validates each lead's first continuation range
- * (WHATWG: `E0`→A0-BF, `ED`→80-9F, `F0`→90-BF, `F4`→80-8F, others 80-BF) and
- * charges 3 per byte of any sequence that breaks. A control byte below 0x20
- * costs 6 (`\uXXXX`) or 2 (five short escapes); `"`/`\` cost 2; ASCII costs 1; a
- * fully valid multibyte sequence costs its byte width (2/3/4). `state` carries
- * the in-progress sequence across chunks; an unfinished tail at stream end is
- * decoded by the final `flushStray` and costed exactly there.
- * @param buf - raw bytes from a stdout/stderr pipe chunk.
- * @param state - the pipe's carried UTF-8 sequence state, mutated in place.
- * @returns the serialized cost accrued by the bytes that resolved in this call.
- */
-function accrueStrayCost(buf: Buffer, state: Utf8CostState): number {
-  let cost = 0
-  let index = 0
-  while (index < buf.length) {
-    const byte = buf[index] as number
-    if (state.expected > 0) {
-      // The valid range for THIS continuation: the lead-specific range applies
-      // to the first continuation only, then reverts to the full 0x80–0xBF.
-      const consumed = state.width - state.expected
-      const lower = consumed === 1 ? state.lowerFirst : 0x80
-      const upper = consumed === 1 ? state.upperFirst : 0xbf
-      if (byte >= lower && byte <= upper) {
-        state.expected -= 1
-        if (state.expected === 0) {
-          cost += state.width
-          state.width = 0
-        }
-        index += 1
-        continue
-      }
-      // The sequence broke. WHATWG's maximal-subpart rule folds the bytes
-      // consumed so far into ONE U+FFFD (cost 3), then reprocesses this byte as
-      // a fresh start (no index advance). Charging per consumed byte would
-      // over-count, which is memory-safe but wrong; folding to one is exact.
-      cost += 3
-      state.expected = 0
-      state.width = 0
-      continue
-    }
-    if (byte < 0x20) {
-      cost += byte === 0x08 || byte === 0x09 || byte === 0x0a || byte === 0x0c || byte === 0x0d ? 2 : 6
-    } else if (byte === 0x22 || byte === 0x5c) {
-      cost += 2
-    } else if (byte < 0x80) {
-      cost += 1
-    } else if (byte >= 0xc2 && byte <= 0xdf) {
-      state.expected = 1
-      state.width = 2
-      state.lowerFirst = 0x80
-      state.upperFirst = 0xbf
-    } else if (byte >= 0xe0 && byte <= 0xef) {
-      state.expected = 2
-      state.width = 3
-      // Exclude the overlong (E0 80-9F) and CESU-8 surrogate (ED A0-BF) ranges.
-      state.lowerFirst = byte === 0xe0 ? 0xa0 : 0x80
-      state.upperFirst = byte === 0xed ? 0x9f : 0xbf
-    } else if (byte >= 0xf0 && byte <= 0xf4) {
-      state.expected = 3
-      state.width = 4
-      // Exclude the overlong (F0 80-8F) and out-of-range (F4 90-BF) leads.
-      state.lowerFirst = byte === 0xf0 ? 0x90 : 0x80
-      state.upperFirst = byte === 0xf4 ? 0x8f : 0xbf
-    } else {
-      // 0x80–0xc1 and 0xf5–0xff never begin a valid sequence: U+FFFD (3).
-      cost += 3
-    }
-    index += 1
-  }
-  return cost
-}
-
-/**
- * Cap a done-frame `error.message` to `maxValueBytes` host-side: a forged done
- * frame can carry an arbitrarily long message, so truncate by RAW UTF-8 byte
- * length and append the shared marker on overflow. Completion VALUES are never
- * truncated — the seam forbids substitution, so an oversized value fails the run
- * as `output-limit` instead (see the done case in `execute`).
- *
- * This is the RECEIVE-side backstop, and it bills by raw bytes on purpose,
- * unlike the producing-side `_cap_message` in `py/bootstrap.py`, which bills by
- * SERIALIZED (JSON-escaped) cost. The split is deliberate: `_cap_message`'s
- * output has to cross fd 3 as a JSON string, so its escaped width is what the
- * frame ceiling bounds; this function's output goes straight into
- * `CodeRunResult.error.message` and never re-crosses a frame-bounded channel, so
- * the honest measure of what it retains is the raw length. An honest child has
- * already capped the diagnostic by serialized cost, and raw length ≤ serialized
- * cost, so a well-formed message passes through unchanged. A forged message with
- * control characters could serialize to roughly six times its raw length, but it
- * is not travelling any capped channel, so the raw-byte bound is the right one:
- * the value it protects is the model-visible size of `error.message`, not a wire
- * width.
- *
- * The marker's bytes are RESERVED from the budget, not added on top: the whole
- * returned string, marker included, is at most `maxValueBytes` bytes. Appending
- * the marker after retaining a full budget's worth of text would overrun the
- * very cap this function exists to enforce. The one exception is a configured
- * cap SMALLER than the marker itself, which leaves no room for message text at
- * all; the marker alone is returned there, so the bound is
- * `max(maxValueBytes, 15)`. Reporting the truncation is worth those 15 bytes,
- * and the default cap is 32 KiB.
- * @param message - the error message from an inbound (possibly forged) done frame.
- * @param maxValueBytes - the configured completion-value budget, reused here.
- * @returns the message unchanged, or its byte-capped form on overflow.
- */
-function capMessage(message: string, maxValueBytes: number): string {
-  // Code-unit bounds BEFORE any encode, so a forged done frame carrying a
-  // message anywhere below the 64 MiB fd-3 frame parse cap cannot force a
-  // full-length UTF-8 copy under a 32 KiB cap. One UTF-16 code unit encodes to
-  // at least one UTF-8 byte and at most three: three for a non-ASCII BMP
-  // character, two apiece for the pair halves sharing an astral code point's
-  // four bytes, and three for a LONE surrogate, which `Buffer.from` renders as
-  // U+FFFD. So at most maxValueBytes/3 code units cannot overflow the cap and
-  // need no encode at all...
-  if (message.length * 3 <= maxValueBytes) return message
-  // ...and nothing past the first maxValueBytes code units can fit inside it,
-  // so only that prefix is ever encoded — at most 3 * maxValueBytes bytes.
-  const keep = Math.min(message.length, maxValueBytes)
-  const whole = keep === message.length
-  const bytes = Buffer.from(whole ? message : message.slice(0, keep), 'utf8')
-  // A message that fits is measured against the WHOLE cap: it gets no marker,
-  // so reserving marker bytes here would truncate text that was within budget.
-  if (whole && bytes.length <= maxValueBytes) return message
-  // Past this point the message IS being truncated, so the marker WILL be
-  // appended and its bytes come out of the cap instead of sitting on top of it.
-  const budget = Math.max(0, maxValueBytes - TRUNCATION_MARKER_BYTES)
-  // Trim back to the last complete UTF-8 sequence: a cut through a multibyte
-  // character would decode as U+FFFD — corrupting the diagnostic AND
-  // exceeding the byte cap, since the replacement character itself encodes
-  // to three bytes. Continuation bytes are 0b10xxxxxx; at most three of them
-  // precede a lead byte.
-  //
-  // This also covers a code-unit prefix ending on a HIGH SURROGATE whose low
-  // half sits outside it, which `Buffer.from` encodes as U+FFFD: that orphan
-  // occupies the last three bytes of `bytes`, and `bytes` is at least
-  // `maxValueBytes + 2` long here (one byte per retained unit, three for the
-  // orphan), so it starts past `budget` and is always cut. Reserving the
-  // marker is what makes that hold; cutting at `maxValueBytes` itself did not,
-  // and needed an explicit surrogate check.
-  let end = Math.min(budget, bytes.length)
-  while (end > 0 && ((bytes[end] as number) & 0b1100_0000) === 0b1000_0000) end--
-  return `${bytes.subarray(0, end).toString('utf8')}${TRUNCATION_MARKER}`
-}
-
-/**
- * Copy an fd-3 line residual into a fresh, right-sized Buffer so it no longer
- * shares the joined-frame allocation it was sliced from.
- *
- * After the newline loop over a `Buffer.concat` of the pending chunks, the
- * leftover partial line is a `subarray` VIEW onto that concat's backing store.
- * A view keeps the ENTIRE backing allocation alive for as long as it is
- * retained, so carrying the view forward as the next pending chunk would pin a
- * whole large frame's worth of memory behind a tiny trailing fragment — and the
- * `pendingBytes` counter, set to the fragment's own length, would no longer
- * measure the memory actually held. `Buffer.from` allocates exactly
- * `residual.length` bytes and copies, letting the concat allocation be
- * collected; an empty residual carries nothing forward.
- * @param residual - the leftover slice after the last newline (a view).
- * @returns the pending-chunk list to carry forward: `[copy]`, or `[]` when empty.
- */
-export function detachResidual(residual: Buffer): Buffer[] {
-  return residual.length > 0 ? [Buffer.from(residual)] : []
-}
 
 /** One namespace after seam validation: its callables plus the optional typed-rejection contract. */
 interface ValidatedNamespace {
@@ -1180,283 +937,15 @@ export class PythonCodeRuntime extends CodeRuntime {
 
     return new Promise<CodeRunResult>((resolve) => {
       let settled = false
-      const logs: string[] = []
-      // An unterminated line flushed with the `open` flag: the next log frame
-      // appends to it (no fake newline between entries), and finish() pushes
-      // the residual if the run ends with it still open. Held as a fragment
-      // ARRAY, so k tiny open frames cost O(k) — re-joining and re-walking the
-      // whole held text per frame would be O(k * budget).
-      let openParts: string[] = []
-      // Past MAX_PENDING_CHUNKS, the held fragments are coalesced into sealed
-      // blocks (mirroring the fd-3 reader's `blocks` and the stray capture's
-      // seal): each fragment is a distinct array slot plus string object
-      // header — ~30x overhead the byte cap cannot see — so a budget-sized
-      // single-character open flood would otherwise accumulate thousands of
-      // slots. Sealing bounds the live fragment count exactly like the
-      // sibling paths; the merge reads sealed + current fragments. A block
-      // ARRAY (not one repeated string concat) matches the sibling shape and
-      // avoids depending on V8 ConsString amortization.
-      let openSealed: string[] = []
-      // Every truncation arm funnels here: the committed open prefix was
-      // ALREADY billed, so it is pushed BEFORE the marker — a flushed line is
-      // never lost (only the marker stays last), and no ledger re-charge
-      // happens. openParts is emptied here, so no later arm or finish() sees
-      // it.
-      const truncateLogs = (): void => {
-        logsTruncated = true
-        if (openSealed.length > 0 || openParts.length > 0) {
-          logs.push(openSealed.join('') + openParts.join(''))
-          openSealed = []
-          openParts = []
-        }
-        logs.push(logTruncationMarker(this.config.maxLogBytes))
-        clearStray(strayOut)
-        clearStray(strayErr)
-      }
-
-      // One host-side ledger covers normal frames, forged frames, and stray stdout bytes.
-      // The ledger starts one byte below maxLogBytes: each entry is charged its
-      // JSON-string cost plus one separator byte, and the serialized outer logs
-      // array adds one more byte of envelope (two brackets and n-1 commas over n
-      // entries' separators), so a result that exactly exhausts the ledger
-      // serializes to exactly maxLogBytes; WITHOUT the reserved byte it would
-      // serialize to maxLogBytes + 1. Reserving that byte keeps an admitted
-      // result within the configured cap; the truncation-marker entry is
-      // envelope, not payload, and rides uncharged.
-      let logBudget = this.config.maxLogBytes - 1
-      let logsTruncated = false
-      // Drop a pipe's buffered stray output wholesale: once the ledger has
-      // truncated, every byte of it would be no-op'd by admit(), so retaining
-      // it (and later Buffer.concat+decoding it in flushStray) would spend host
-      // memory on output that can never be admitted. Called from every arm that
-      // marks the ledger truncated — admit()'s two ceilings and the child-marker
-      // frame arm — so the end-path flushStray sees empty buffers and exits.
-      const clearStray = (stray: StrayBuffer): void => {
-        stray.chunks = []
-        stray.blocks = []
-        stray.cost = 0
-        stray.utf8 = { expected: 0, width: 0, lowerFirst: 0, upperFirst: 0 }
-      }
-      const admit = (text: string): void => {
-        // Post-truncation admits are no-ops: once the ledger has truncated, the
-        // marker is the last entry. Reachable within one `data` callback — a
-        // chunk carrying two newline-terminated lines where the first exhausts
-        // the budget hits this on the second — so it is a measured branch.
-        if (logsTruncated) return
-        // Each entry is charged its SERIALIZED cost — JSON.stringify's quotes
-        // and escapes plus one separator byte — because the seam bounds the
-        // serialized outer logs payload, and control characters expand
-        // several-fold under JSON escaping (a "\x00" flood would otherwise
-        // admit 6x its charge). The charge also puts a floor under an empty
-        // entry (its two quotes plus separator), so a `while True: print()`
-        // flood of zero-byte lines exhausts the ledger instead of growing the
-        // retained array without ever touching the budget. The one fixed
-        // truncation-marker entry is envelope, not payload, and rides
-        // uncharged.
-        //
-        // Cheap lower bound FIRST, before the escaped copy exists: every
-        // UTF-16 code unit costs at least one serialized byte (an ASCII
-        // character is one byte; a control character is six as `\uXXXX`; a
-        // non-ASCII BMP character is two or three; each half of a surrogate
-        // pair contributes two of the four bytes its code point encodes to),
-        // and the JSON form adds two quotes on top of the separator byte. So
-        // `text.length + 3` never exceeds the true cost, and a forged `log`
-        // frame carrying a control-heavy string anywhere below the 64 MiB
-        // frame parse cap truncates here instead of allocating a
-        // hundreds-of-megabytes escaped copy under a small maxLogBytes.
-        if (text.length + 3 > logBudget) {
-          // Release the buffered stray pipes: their bytes can never be
-          // admitted now (see clearStray).
-          truncateLogs()
-          return
-        }
-        // Past the lower bound, measure the exact serialized cost without
-        // allocating the escaped copy: `jsonStringCostUpTo` walks to the cap and
-        // stops, so even a near-budget control-char-dense line never materializes
-        // a sixfold-inflated `JSON.stringify` result. `+ 1` for the separator.
-        const measured = jsonStringCostUpTo(text, logBudget - 1)
-        if (measured === undefined) {
-          truncateLogs()
-          return
-        }
-        logBudget -= measured + 1
-        logs.push(text)
-      }
-
-      // Stray-byte capture: anything the child writes to its stdout/stderr
-      // (native prints, C-extension writes) still counts against the ledger.
-      //
-      // Output is admitted per LINE, not per transport chunk. `logs` entries
-      // are joined with `\n` downstream (PTC mode), so each entry must be one
-      // line: pushing a raw `data` chunk would turn every arbitrary pipe-read
-      // boundary into a model-visible newline, so a single 200 KiB native write
-      // split across pipe reads would read back with spurious line breaks. The
-      // child's own `log` frames are already line-granular; stray capture
-      // matches them by splitting on `\n`.
-      //
-      // Buffered as raw `Buffer` chunks with a running SERIALIZED-cost counter,
-      // exactly like the fd-3 reader below and for the same reasons: a string
-      // `+=` accumulator re-copies the whole residual on every pipe chunk
-      // (quadratic on a large newline-free write), and scanning it from index 0
-      // each chunk is a second quadratic. Appending a chunk is O(1); the split
-      // happens only when a `\n` actually arrived. A newline never appears inside
-      // a UTF-8 multibyte sequence (continuation bytes are 0x80–0xBF), so
-      // splitting on the raw 0x0a byte and decoding each complete line is safe
-      // without a streaming decoder — a line's bytes are whole by construction.
-      //
-      // `chunks` also seals into `blocks` past MAX_PENDING_CHUNKS, mirroring the
-      // fd-3 reader: without it a program pacing one-byte newline-free
-      // `os.write`s accumulates one Buffer object per write, and the object plus
-      // backing-store overhead — which no byte or cost count sees — exhausts the
-      // host heap far below the budget. Sealing bounds the live object count.
-      interface StrayBuffer { chunks: Buffer[]; blocks: Buffer[]; cost: number; utf8: Utf8CostState }
-      const strayOut: StrayBuffer = { chunks: [], blocks: [], cost: 0, utf8: { expected: 0, width: 0, lowerFirst: 0, upperFirst: 0 } }
-      const strayErr: StrayBuffer = { chunks: [], blocks: [], cost: 0, utf8: { expected: 0, width: 0, lowerFirst: 0, upperFirst: 0 } }
-      const captureStray = (stray: StrayBuffer, chunk: Buffer): void => {
-        // Once the ledger has truncated, stop buffering: admit() is a no-op past
-        // that point, so continuing to accumulate would retain host memory for
-        // output that can never be admitted.
-        if (logsTruncated) return
-        stray.chunks.push(chunk)
-        // Track SERIALIZED cost, not raw bytes: a control-char-dense residual
-        // (a NUL or illegal-UTF-8 flood) serializes several-fold, so a raw-byte
-        // threshold would let it grow to the full budget's worth of RAW bytes
-        // before flushing. `accrueStrayCost` decodes UTF-8 structurally across
-        // chunks (via `stray.utf8`) so a byte that renders as U+FFFD is charged
-        // its three serialized bytes, not one.
-        stray.cost += accrueStrayCost(chunk, stray.utf8)
-        // Bound the live fragment count (see the seal rationale above), before
-        // any concat so an over-count payload is never copied whole first.
-        if (stray.chunks.length >= MAX_PENDING_CHUNKS) {
-          stray.blocks.push(Buffer.concat(stray.chunks))
-          stray.chunks = []
-        }
-        if (chunk.includes(0x0a)) {
-          let buffered = Buffer.concat(stray.blocks.length > 0 ? [...stray.blocks, ...stray.chunks] : stray.chunks)
-          stray.blocks = []
-          let newline: number
-          while ((newline = buffered.indexOf(0x0a)) >= 0) {
-            admit(buffered.subarray(0, newline).toString('utf8'))
-            buffered = buffered.subarray(newline + 1)
-          }
-          // Carry the residual as a fresh right-sized copy, not the subarray view
-          // (which would pin the whole concat allocation). See detachResidual.
-          // The residual begins at a character boundary (a newline is never
-          // inside a multibyte sequence), so its cost and UTF-8 state recompute
-          // cleanly from a fresh walk.
-          // A line admitted inside the loop may have exhausted the ledger and
-          // cleared this pipe (see clearStray); the re-retain below must not
-          // resurrect the doomed residual.
-          // oxlint-disable-next-line typescript/no-unnecessary-condition -- admit() (a closure) sets it.
-          if (logsTruncated) return
-          stray.chunks = detachResidual(buffered)
-          stray.utf8 = { expected: 0, width: 0, lowerFirst: 0, upperFirst: 0 }
-          stray.cost = accrueStrayCost(buffered, stray.utf8)
-        }
-        // Newline-free residual is bounded by the ledger, not left to grow with
-        // the stream: an `os.write(1, b"A"*N)` flood carrying no newline would
-        // otherwise accumulate N bytes in host memory before `end`. The bound is
-        // on the COMBINED pending cost of both pipes, not each alone: stdout and
-        // stderr share one `logBudget`, so checking each against the full budget
-        // independently would let both retain nearly a budget's worth at once —
-        // ~2x peak, up to ~512 MiB near the ceiling — before either flushed.
-        // When the sum would cross the budget, flush both now. admit() charges
-        // the exact serialized cost, truncates, and marks the ledger, and the
-        // truncation short-circuit above stops buffering on the next chunk.
-        // `+ 3` covers the two quotes and one separator admit adds. The two
-        // pipes are independent OS streams whose `data` events already interleave
-        // nondeterministically with each other and with the child's own fd-3
-        // `log` frames, so `logs` carries no cross-pipe ordering guarantee to
-        // preserve here; a fixed drain order is as valid as any.
-        // Flushing is NOT a stream end: a multibyte UTF-8 character can be split
-        // across pipe `data` chunks, so the residual may end mid-sequence. A
-        // budget-triggered flush must decode only the complete prefix and carry
-        // the incomplete tail forward (≤3 bytes) on the same pipe's residual —
-        // decoding it here would render a legal character as U+FFFD in a released
-        // entry (see `flushStray`). This is unlike the `end`/closeDeadline paths
-        // below, where a trailing incomplete sequence is genuinely truncated input
-        // and U+FFFD is honest.
-        if (strayOut.cost + strayErr.cost + 3 > logBudget) {
-          flushStray(strayOut, true)
-          flushStray(strayErr, true)
-        }
-      }
-      // Flush a pipe's residual into `logs`. Called on the combined-budget
-      // threshold above, on the pipe's `end` (normal drain), and — for the
-      // setsid-escapee path where destroy() forces settlement without an `end` —
-      // explicitly in the closeDeadline handler. Idempotent: it clears what it
-      // admits, so a later flush is a no-op, and it returns early on an empty
-      // buffer so flushing the sibling that had nothing pending is a no-op. The
-      // `chunks`/`blocks` guard is the only emptiness check needed — `data` never
-      // emits a zero-length Buffer, so a non-empty fragment list always decodes
-      // to a non-empty tail.
-      //
-      // `retainPartialTail` is true only on the budget-triggered path: there the
-      // residual can end at an ARBITRARY pipe boundary, so if the incomplete
-      // trailing bytes of a UTF-8 lead sequence are pending (`stray.utf8.expected
-      // > 0`), they are withheld from the decode and re-carried on `chunks` for a
-      // later chunk to complete — decoding them here would render a LEGAL,
-      // un-finished character as U+FFFD in an admitted entry, and the next chunk's
-      // bytes would then each independently break into more U+FFFD. The withheld
-      // tail is `stray.utf8.width - stray.utf8.expected` bytes (the lead plus the
-      // continuations consumed so far), at most 3; `stray.utf8` is reset and the
-      // withheld tail re-accrued so the next chunk continues the walk correctly.
-      // The `end`/closeDeadline paths pass `false`: there a trailing incomplete
-      // sequence is real truncated input and the U+FFFD is the honest render.
-      function flushStray(stray: StrayBuffer, retainPartialTail?: boolean): void {
-        if (stray.chunks.length === 0 && stray.blocks.length === 0) return
-        // Concatenate the sealed blocks and the current-chunk residual together
-        // unconditionally (no `blocks.length > 0` ternary): a flush can run with
-        // either or both present, and a branch on their presence would need a
-        // test that flushes exactly at a seal boundary.
-        let full = Buffer.concat([...stray.blocks, ...stray.chunks])
-        // A budget flush landing exactly between a lead byte and its
-        // still-pending continuation requires the combined-cost threshold to trip
-        // on a specific mid-multibyte pipe boundary — not deterministically
-        // schedulable through the black-box seam, which observes only complete
-        // entries. So the retention arm is v8-ignored (exercised by review
-        // reasoning over the `stray.utf8` state, not by an in-tree test): it
-        // withholds the lead-plus-consumed-continuations tail (≤3 bytes, via
-        // `stray.utf8.width - stray.utf8.expected`) from the decode, re-carries it
-        // for a later chunk, and re-accrues the pipe's cost/UTF-8 state over it;
-        // decoding here would render a LEGAL, unfinished character as U+FFFD in an
-        // admitted entry. Every retainPartialTail=false call (the `end`/closeDeadline
-        // paths) and a budget flush with no partial tail in flight (`expected === 0`)
-        // falls through with `keep` unset: the FULL residual is decoded — there a
-        // trailing incomplete sequence is real truncated input and the U+FFFD is the
-        // honest render.
-        let keep: Buffer | undefined
-        /* v8 ignore next 18 -- mid-sequence budget-flush boundary is not schedulable from a test. */
-        if (retainPartialTail && stray.utf8.expected > 0) {
-          const drop = Math.min(stray.utf8.width - stray.utf8.expected, full.length)
-          keep = full.subarray(full.length - drop)
-          full = full.subarray(0, full.length - drop)
-          stray.chunks = detachResidual(keep)
-          // Re-accrue the withheld tail from a FRESH state: `stray.utf8` still
-          // holds the whole-pending state (`expected > 0`, i.e. the tail is
-          // mid-sequence), so metering `keep` against it would charge the carried
-          // LEAD byte as an illegal continuation. Reset, then walk `keep` so the
-          // resumed sequence re-claims its own lead.
-          stray.utf8 = { expected: 0, width: 0, lowerFirst: 0, upperFirst: 0 }
-          stray.cost = accrueStrayCost(keep, stray.utf8)
-          stray.blocks = []
-          // Do not admit an EMPTY entry: when the whole residual is a single
-          // unfinished multibyte sequence, `full` was drained into `keep` and no
-          // complete byte stream remains to admit. `admit('')` would push a
-          // model-visible bogus empty line (logs are joined with '\n' downstream).
-          if (full.length > 0) admit(full.toString('utf8'))
-        } else {
-          stray.chunks = []
-          stray.cost = 0
-          stray.utf8 = { expected: 0, width: 0, lowerFirst: 0, upperFirst: 0 }
-          stray.blocks = []
-          admit(full.toString('utf8'))
-        }
-      }
-      child.stdout.on('data', (chunk: Buffer) => { captureStray(strayOut, chunk) })
-      child.stderr.on('data', (chunk: Buffer) => { captureStray(strayErr, chunk) })
-      child.stdout.on('end', () => { flushStray(strayOut) })
-      child.stderr.on('end', () => { flushStray(strayErr) })
+      // One ledger per run: it holds the `logs` this promise resolves with, the
+      // shared byte budget every log entry and stray byte is billed against, and
+      // the truncation state the `log` frame arm and the finish paths funnel
+      // into.
+      const ledger = new OutputLedger(this.config.maxLogBytes)
+      child.stdout.on('data', (chunk: Buffer) => { ledger.captureStdout(chunk) })
+      child.stderr.on('data', (chunk: Buffer) => { ledger.captureStderr(chunk) })
+      child.stdout.on('end', () => { ledger.flushStdout() })
+      child.stderr.on('end', () => { ledger.flushStderr() })
 
       // Line-framed JSON reader over fd 3. The unframed buffer is bounded: a
       // hostile program can loop `os.write(3, b"A"*4096)` with no newline to
@@ -1690,94 +1179,10 @@ export class PythonCodeRuntime extends CodeRuntime {
             return
           case 'log':
             if (message.truncated === true) {
-              // The CHILD ledger hit its cap. Its marker is the last log text
-              // there will be, so record it and stop host capture at the same
-              // point: admitting it as ordinary text left the host budget open,
-              // so later direct `os.write(1, ...)` bytes were retained AFTER the
-              // marker and a host-side exhaustion could append a second one.
-              // Both ledgers are keyed to the same `maxLogBytes`, so one marker
-              // describes the run.
-              if (!logsTruncated) {
-                // The host's OWN marker, never the frame's text. `truncated` is
-                // attacker-reachable, so trusting the text let a program write
-                // `{"type":"log","truncated":true,"text":<1 MiB>}` and land all
-                // of it in `logs` under a 64-byte `maxLogBytes` — measured, the
-                // whole megabyte was retained, bypassing `admit` and its
-                // ceiling. Both ledgers key off the same `maxLogBytes`, so the
-                // marker the host generates says the same thing the child's
-                // would have.
-                truncateLogs()
-              }
+              ledger.markChildTruncated()
               return
             }
-            if (message.open === true) {
-              // An explicit flush of an unterminated line: hold it so the next
-              // frame appends to the SAME entry (print('a', end='', flush=True)
-              // followed by print('b') reads back as one 'ab' entry, not a fake
-              // newline). Billed INCREMENTALLY so k tiny frames cost O(k), not
-              // O(k * budget) (re-walking the whole held text per frame): the
-              // first fragment is charged the full JSON-string cost plus the
-              // separator (quotes + content + newline), each continuation only
-              // its content (jsonStringCostUpTo includes the two quotes), and
-              // the closing frame only its own content — the merged entry's
-              // wire cost is billed exactly once, split across the fragments.
-              // Caps: the first fragment's exact-cost walk uses logBudget - 1
-              // (the ledger's reserved byte, matching admit), a continuation's
-              // logBudget + 2 (a continuation is billed WITHOUT quotes, so its
-              // billed cost cost - 2 fits exactly when the walk's cost is at
-              // most logBudget + 2).
-              if (!logsTruncated) {
-                // An EMPTY first open frame (openParts empty AND text '') bills
-                // cost + 1 = 3 but establishes no hold (the push is skipped),
-                // so the next frame is billed as a new first fragment. Not
-                // reachable from an honest child (_LogStream.write('') returns
-                // early; flush_line pushes only non-empty pending); for a
-                // forged frame it is a bounded over-charge in the safe
-                // direction (a flood exhausts the ledger into truncation).
-                const cap = openParts.length === 0 ? logBudget - 1 : logBudget + 2
-                const cost = jsonStringCostUpTo(message.text, cap)
-                if (cost === undefined) {
-                  truncateLogs()
-                } else {
-                  const bill = openParts.length === 0 ? cost + 1 : Math.max(cost - 2, 0)
-                  logBudget -= bill
-                  // A zero-content continuation (text '') bills 0; holding it
-                  // would grow the fragment array without touching the ledger,
-                  // so a forged empty-open flood could grow host memory — skip
-                  // the push, the merge result is unchanged.
-                  if (message.text !== '') {
-                    if (openParts.length >= MAX_PENDING_CHUNKS) {
-                      openSealed.push(openParts.join(''))
-                      openParts = []
-                    }
-                    openParts.push(message.text)
-                  }
-                }
-              }
-              return
-            }
-            if (openParts.length > 0) {
-              // Closing frame: the held fragments are already billed; bill only
-              // this frame's own content (the quotes and separator ride on the
-              // first fragment) and push the merged entry once. Cap is
-              // logBudget + 2 for the same reason as a continuation.
-              /* v8 ignore next -- logsTruncated is an invariant false here: an open
-               * frame that would trip the ledger resets openParts, so a non-empty
-               * hold implies the ledger never truncated. The guard is defensive. */
-              if (!logsTruncated) {
-                const cost = jsonStringCostUpTo(message.text, logBudget + 2)
-                if (cost === undefined) {
-                  truncateLogs()
-                } else {
-                  logBudget -= Math.max(cost - 2, 0)
-                  logs.push(openSealed.join('') + openParts.join('') + message.text)
-                }
-              }
-              openSealed = []
-              openParts = []
-              return
-            }
-            admit(message.text)
+            ledger.admitFrame(message.text, message.open === true)
             return
           case 'done': {
             // The call-backlog cap must also hold when the child finishes in
@@ -2164,7 +1569,7 @@ export class PythonCodeRuntime extends CodeRuntime {
           // a removal failure here is the one case the "gone by settlement"
           // contract degrades on.
         }
-        resolve({ ...result, logs })
+        resolve({ ...result, logs: ledger.lines })
         // Mark the fiber quiescent for THIS run: drop it from `live` and resolve
         // `finished` (what teardown awaits). Deferred until the process group is
         // actually empty — dropping from `live` before then would let a
@@ -2258,16 +1663,7 @@ export class PythonCodeRuntime extends CodeRuntime {
         // A spawn failure (ENOENT, EACCES) never produced a pid, so there is no
         // process to kill: settle now. Its `close` still fires later and reaches
         // the idempotent settle() again as a no-op.
-        // An unterminated flushed line never got a closing frame; it was
-        // billed incrementally, so push it directly (admit would re-bill).
-        // logsTruncated implies the hold is already empty (truncateLogs
-        // committed and cleared it), so this is reachable only when the run
-        // ends with the hold still open and untruncated.
-        if (openSealed.length > 0 || openParts.length > 0) {
-          logs.push(openSealed.join('') + openParts.join(''))
-        }
-        openSealed = []
-        openParts = []
+        ledger.sealOpen()
         if (child.pid === undefined) {
           settle(result)
           return
@@ -2288,8 +1684,8 @@ export class PythonCodeRuntime extends CodeRuntime {
         // orphan's stray output from being accounted against a run that already
         // finished. `unref` so the deadline never keeps the host process alive.
         closeDeadline = setTimeout(() => {
-          flushStray(strayOut)
-          flushStray(strayErr)
+          ledger.flushStdout()
+          ledger.flushStderr()
           proto.destroy()
           child.stdout.destroy()
           child.stderr.destroy()
