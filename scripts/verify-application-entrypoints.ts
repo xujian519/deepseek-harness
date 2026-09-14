@@ -77,6 +77,7 @@ const SOURCE_EXCLUDES = [
   '**/lib/**',
   '**/dist/**',
   '**/coverage/**',
+  '**/oxlint-contract-*',
 ]
 
 /** Convert a host path from glob output to the repository's slash form. */

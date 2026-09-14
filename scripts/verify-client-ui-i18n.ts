@@ -332,7 +332,7 @@ function sourceFiles(): string[] {
     ...globSync('apps/desktop/renderer/*.js', { cwd: root }),
   ])]
     .map(file => file.replaceAll('\\', '/'))
-    .filter(file => !file.endsWith('.d.ts'))
+    .filter(file => !file.endsWith('.d.ts') && !file.includes('oxlint-contract-'))
     .sort()
 }
 
