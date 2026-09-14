@@ -10,7 +10,6 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -54,6 +53,13 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 import { supportsAcpImagePrompts } from './content.ts'
 import { AcpMcpConfigError } from './mcp.ts'
 import { AcpModelConfigError } from './model-control.ts'
+import {
+  compareSessionIds,
+  decodeSessionListCursor,
+  encodeSessionListCursor,
+  isAfterSessionListCursor,
+  type SessionListCursor,
+} from './session-list-cursor.ts'
 import { AcpSession } from './session.ts'
 
 // The package's own manifest is the single source of the version the handshake
@@ -462,11 +468,6 @@ function initialSelection(config: AcpConfig): ModelSelection | undefined {
     : { provider: config.provider, model: config.model }
 }
 
-interface SessionListCursor {
-  createdAt: number
-  sessionId: string
-}
-
 /** Resolve and validate the deployment-owned session page limit. */
 function resolveSessionListPageSize(value: number | undefined): number {
   const resolved = value ?? DEFAULT_SESSION_LIST_PAGE_SIZE
@@ -476,47 +477,6 @@ function resolveSessionListPageSize(value: number | undefined): number {
   }
   /* v8 ignore stop */
   return resolved
-}
-
-/** Decode an opaque keyset cursor without assigning meaning to client metadata. */
-function decodeSessionListCursor(value: string | null | undefined): SessionListCursor | undefined {
-  if (value === undefined || value === null) return undefined
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('session/list cursor is invalid')
-  try {
-    const decoded = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as unknown
-    const createdAt: unknown = Array.isArray(decoded) ? decoded[0] : undefined
-    const sessionId: unknown = Array.isArray(decoded) ? decoded[1] : undefined
-    if (
-      !Array.isArray(decoded)
-      || decoded.length !== 2
-      || typeof createdAt !== 'number'
-      || !Number.isSafeInteger(createdAt)
-      || createdAt < 0
-      || typeof sessionId !== 'string'
-      || sessionId.length === 0
-    ) throw new Error('invalid cursor fields')
-    const canonical = Buffer.from(JSON.stringify(decoded), 'utf8').toString('base64url')
-    if (canonical !== value) throw new Error('non-canonical cursor')
-    return { createdAt, sessionId }
-  } catch (_invalidCursor) {
-    throw new Error('session/list cursor is invalid')
-  }
-}
-
-/** Encode the last returned ordering key as an opaque continuation token. */
-function encodeSessionListCursor(entry: SessionListCursor): string {
-  return Buffer.from(JSON.stringify([entry.createdAt, entry.sessionId]), 'utf8').toString('base64url')
-}
-
-/** Test whether an entry follows the cursor in newest-first list order. */
-function isAfterSessionListCursor(entry: SessionListCursor, cursor: SessionListCursor): boolean {
-  return entry.createdAt < cursor.createdAt
-    || (entry.createdAt === cursor.createdAt && compareSessionIds(entry.sessionId, cursor.sessionId) > 0)
-}
-
-/** Compare opaque session ids by stable UTF-8 bytes, independent of process locale. */
-function compareSessionIds(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left), Buffer.from(right))
 }
 
 /** Reject workspace features outside the automation contract. */
