@@ -36,7 +36,7 @@
 
 - **M1** 的「已收敛 / 0 剩余」**不成立**:`isRecord` 仍有 6 处本地定义、`asRecord` 5 处、`assertPositive*` 5 处(签名三方漂移)、`errorMessage` 简化版 4 处、`toError` 2 处、放宽语义的 `isENOENT`/`isEEXIST` 4 处,另有新族 `isAbortError`(5)、`hasExactKeys`(4)、`sleep`(9)。详表见 Issue #87。
 - **M6** 的行数表大面积过期:仅 `continuation.ts` 收敛;`analyzer.ts` 3142 → 3235、`core/session` 1157 → 1281、`ptc.ts` 的 `createRunCodeTool` ~315 → 386、`acp` 的 `apply` ~310 → 341 均恶化,另有台账未载的新上帝文件(`client/connection/src/client/fixture.ts` 4052、`experimental/code-runtime-python/src/index.ts` 2441、`client/ui-trajectory/src/client/TrajectoryTable.tsx` 3208)。见 Issue #86。
-- **M8** 点名项**零修复**(行号普遍漂移),且「shell seam 共享 `settingsNamespace('shell')`」的描述有误:shell 用的是裸字符串 `SHELL_SETTINGS_NAMESPACE`。见 Issue #88。
+- **M8 已收敛**(2026-09-14):点名项已逐项定性并收编。「shell seam 共享 `settingsNamespace('shell')`」的描述有误——实测 shell 用的是裸字符串 `SHELL_SETTINGS_NAMESPACE`,它属持久化格式键(改名即丢弃已存状态),判定保持固定。见下节与 Issue #88。
 - **M9 已收敛**:原 `packages/api/remotes/src/agent-lookup.ts` 的 legacy agent-busy fence 已不存在。该文件在 2026-08-22 的 Session Controller refactor 中被删除,相关检查以 `session/agent-busy` 形式迁入了 `packages/api/session-controller/src/agent.ts`,旧错误码与 `ApiRemote*` 符号无残留;`SESSION_FORMAT_VERSION` 现已为 3。见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md` 与 Issue #98。
 
 ### 本轮新增(台账与 08-30 审计均未载)
@@ -53,7 +53,7 @@ hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源�
 | M3 settings 三个竞态 | 已收敛 | #80 |
 | M4 hooks 桥行为缺口 | 修复就绪,待合并 | #81 |
 | M6 上帝文件 | 开放(行数已更新) | #86 |
-| M8 硬编码可调参数 | 开放(零修复) | #88 |
+| M8 硬编码可调参数 | 已收敛(2026-09-14 逐项定性,余下均为成文裁定的固定项) | #88 |
 | M9 legacy shim | 已收敛(2026-09-14,原 shim 已随 Session Controller refactor 删除) | #98 |
 | L2 死导出与失效注释引用 | 已收敛 | #93 |
 | L3 `types.ts` 含运行时代码 | 已收敛 | #99 |
@@ -134,6 +134,15 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **消费者验证**:当前代码树中无旧错误码 `'agent-busy'`(不带 `session/` 前缀)的引用,也无 `ApiRemoteLookupError`、`ApiRemoteAgentResult`、`createApiRemoteAgentResolver` 等旧符号的引用;旧类型与旧错误码均未进入当前 API catalog 或任何生产代码/测试。历史会话格式迁移(`session-format-v0-to-v1`、`session-format-v1-to-v2`)与 `session-persistence` 的 storage contract 均未保留该 fence。
 - **当前设计定位**:现在的 subagent ownership fence 位于 `packages/api/session-controller/src/agent.ts`(`hasApiSessionSubagentOwner`、`apiSessionSubagentOwnershipError`),返回 `RemoteError<'session/agent-busy'>`,是 `docs/api-gateway.md` 与 `docs/subsystems/session.md` 中记录的普通会话 resolver 契约的一部分,不是遗留 shim。
 - **结论**:M9 无需删除任何源码(删除已发布),也无需设定未来复审条件。台账、manifest 与 Agent Note 同步关闭。Agent Note:`.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
+
+## 2026-09-14 更新(M8 收尾:硬编码可调参数逐项定性)
+
+- **M8 逐项定性并收口**(#88,PR #140):15 个模块级常量按 AGENTS.md「No hardcoded tunables in plugins」逐条判定——随部署而变的取值属可从 `cordis.yml` 变更的、经校验的 `Config` 字段,协议常量、外部规格、安全不变量与内部节奏保持固定,而 `DEFAULT_*` 常量本身不等于可配置性。结论:仅 `SYMLINK_PROBE_CONCURRENCY`(`client/better-sidebar/src/fs-tree.ts`,一次目录列举中并发的符号链接探测数)够得上「部署相关」候选,按「Require evidence for public choices」维持固定并写明依据(当前无使用方需要别的上界,该路径又是人机交互路径);其余 14 个无需改动源码。
+- **已可配置者不算缺陷**:两个 `DEFAULT_STREAM_IDLE_TIMEOUT_MS`(`llm/llm-deepseek/src/index.ts`、`llm/llm-pi-ai/src/config.ts`)各自与所在包 `Config` 的 `streamIdleTimeoutMs` 配对——schema 给默认值、显式的 `resolveAdapterOptions`/`resolve` 步骤在全字段可选的接口上做 `??` 回退,正是 AGENTS.md 的 request/spec 模板。其余为持久化格式键(`SETTINGS_NAMESPACE`、`SHELL_SETTINGS_NAMESPACE`,改名即丢弃已存状态)、安全不变量(`FAIL_LOUD_RELEASE_TIMEOUT_MS`:卡住的 disposer 只能推迟致命退出、绝不能取消它)、内部节奏(`ZSTD_DECODE_YIELD_INTERVAL_MS`、`ELU_POLL_INTERVAL_MS`,两处注释本就写明不是部署配置)与产品可见上限(`SESSION_SEARCH_RESULT_LIMIT`,已导出并有文档)。
+- **5 处固定项补写定性依据**:`STDERR_TAIL_LIMIT`、`STREAM_SETTLE_MS`(`sdk/client/src/client.ts`)、`MAX_MISSED_HEARTBEATS`(`api/gateway/src/stream-server.ts`,乘在已配置的 `heartbeatIntervalMs` 上、只计数窗口内的帧)、`SEARCH_PROVIDER_CALL_LIMIT`(`api/session-controller/src/list.ts`,防一次性查询触发过多取内容的预算,与 `SESSION_SEARCH_RESULT_LIMIT` 分工)、`SCROLLBACK_PAGE_LINES` 与 `POLL_INTERVAL_MS`(两个 persistent 工具)。此前它们确实固定却无一处说明理由,读者无法区分「斟酌过的固定值」与「从未审视的值」。
+- **修复一处 issue 未点名的对称性缺陷**:`shell/tool-bash-persistent` 与 `shell/tool-pwsh-persistent` 把 `backendType`、`timeoutMs`、`maxOutputChars` 的默认值以裸字面量写了两遍(schema 一次、`apply()` 的 resolve 步骤一次),而同一对象字面量里的 `DEFAULT_DESCRIPTION` 早已抽取为常量。两个包各抽取 `DEFAULT_BACKEND_TYPE`/`DEFAULT_TIMEOUT_MS`/`DEFAULT_MAX_OUTPUT_CHARS`,schema 默认值与解析结果共用同一来源。
+- **前台超时默认值横向不对称的依据**(前次要求):本地执行器(`bash-local`/`pwsh-local`)为 `120_000`、persistent 工具为 `300_000`,差异是结构性的——`tool-bash`/`tool-pwsh` 不自持默认值,只在模型给出 `timeoutMs` 时透传,否则落到执行器的 `resolve()`(`clampTimeout(request.timeoutMs, config.timeoutMs, config.maxTimeoutMs)`),该值是「兜底值 + 上限」;persistent 工具经 `ctx.terminals` 驱动长驻 PTY、不走 `run()` 路径,底下没有执行器的 `resolve()`,必须自持截止时间(`deadline(upstream, config.timeoutMs, TIMEOUT_CODE)`)。两者都是各自包的 `Config` 字段、仍可从 `cordis.yml` 变更,不对称反映的是两种不同契约,而非同一选择的重复。
+- **行为零变更,验证**:两个 persistent 工具的 schema 默认值与解析结果不变、其余常量取值不变;`pnpm run test:docs` 18/18(含 agent note format、agent note classification、translation pairing);受影响 6 包 `vitest run` 205 文件、2865 通过 / 6 跳过;`pnpm run typecheck` 通过,pre-push hook 复跑通过。Agent Note:`.agents/notes/implemented/simplification/2026-09-14-hardcoded-tunable-closeout.md`。
 
 ## 总体评估
 
