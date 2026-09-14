@@ -324,6 +324,8 @@ export default defineConfig({
         // Slash/command/input round: per-file gaps deferred with the same
         // client-lane debt. TODO(gui): cover and remove with the lane above.
         'packages/client/connection/src/client/fixture.ts',
+        // The projection folds carved out of that file carry the same gaps.
+        'packages/client/connection/src/client/fixture-projections.ts',
         'packages/client/ui-commands/src/index.ts',
         'packages/client/ui-skill/src/index.ts',
         'packages/client/ui-input-trigger/src/index.ts',

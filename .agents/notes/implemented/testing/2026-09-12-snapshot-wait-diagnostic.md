@@ -47,7 +47,7 @@ The harness no longer uses `vi.waitFor`, so its tests assert the harness's own d
 `pnpm exec vitest run --coverage packages/test-support/session-snapshot` — 344 passed, 1 skipped, with `harness.ts` at 100% statements, branches, functions, and lines.
 
 - `identifies the child wait when its first log harvest outlasts the deadline` (existing): a mocked `readdir` never resolves, and the wait must still name the child and turn.
-- `reports the harvest failure when a listed log cannot be versioned` (new): a session log whose filename and header declare different format versions is seeded into the sessions root, and the wait must report that mismatch rather than a missing state — the branch that reports a probe's own failure.
+- `reports the harvest failure when a listed log cannot be versioned` (new): a session log whose filename and header declare different format versions is seeded into the sessions root, and the wait must report that mismatch rather than a missing state — the branch that reports a probe's own failure. Its budget must outlast one harvest: the wait reports a failure only once a probe has thrown before the deadline, so a budget shorter than a single harvest on a loaded runner reports the diagnostic instead.
 
 `pnpm run test:snapshot` replays the recorded sessions that drive this harness: 127 passed, 5 failed — the same five failing on a clean checkout of the merge base, and the fork CI runs no snapshot replay, so that suite was already red before this change.
 

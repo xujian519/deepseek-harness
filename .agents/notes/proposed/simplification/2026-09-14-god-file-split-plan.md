@@ -53,10 +53,10 @@ Each item moves code that is already self-contained: no instance state, no new i
 | --- | --- | --- |
 | `code-runtime-python` | Byte-cost and truncation vocabulary → `src/cost.ts`; log ledger → `class OutputLedger` | ~200, ~270 — landed at 131, 619 |
 | `ui-trajectory` | Record projection layer → `trajectory-record-model.ts`; six presentation-helper families to their own files; the shared record vocabulary → a new `src/types.ts` | ~260, ~1050 — landed at 248, 1045, plus a 94-line `types.ts` |
-| `core/session` | Validators → `validation.ts`; header handling → `header.ts` | ~300, ~65 |
+| `core/session` | Validators and header handling → `validation.ts` | ~365 — landed at 345 |
 | `analyzer` | Node-text helpers, `package.json` exports parsing, path utilities | ~250 each — landed at 397, 111, 201, plus a 26-line `types.ts` |
-| `acp` | Cursor codec cluster | ~56 |
-| `ptc` | JSON presentation cluster; flavor table and resolver | ~90, ~107 |
+| `acp` | Cursor codec cluster | ~56 — landed at 75 |
+| `ptc` | JSON presentation cluster; flavor table and resolver | ~90, ~107 — landed at 103, 110 |
 
 The pilot is `code-runtime-python`, because its ledger cut has the strongest single piece of evidence in the repository: the sibling backend `packages/code-runtime/code-runtime-worker-thread/src/index.ts` already has an extracted `OutputLedger`. The two can be compared for the same boundary cases, and the package exports only `.` while being `private: true`, so the published surface cannot move. The pilot has landed: [the cost/ledger extraction note](../../implemented/simplification/2026-09-14-code-runtime-python-cost-and-ledger.md) records what the cut produced and what it cost.
 

@@ -25,7 +25,7 @@ import type { ToolRestriction } from './types.ts'
 import { assertSupportedJsonSchema, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode } from './json-schema.ts'
 import { createRunCodeTool, RUN_CODE_NAME } from './ptc.ts'
-import type { CodeSdkLanguage } from './ptc.ts'
+import type { CodeSdkLanguage } from './run-code-flavor.ts'
 import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
 import { renderToolsSdkPy } from './py-types.ts'
@@ -36,7 +36,7 @@ import { renderToolsSdkPy } from './py-types.ts'
  * section under a non-native mode; a runtime whose language is not a key
  * fails the assembly loudly (same idiom as `toolOrder` violations). Adding a
  * new backend language is three parallel edits — a {@link CodeSdkLanguage}
- * member, an entry here, and a `RUN_CODE_FLAVORS` entry in `ptc.ts` for
+ * member, an entry here, and a `RUN_CODE_FLAVORS` entry in `run-code-flavor.ts` for
  * its `run_code` schema strings — plus the renderer function this table points
  * at. The `satisfies` clause pins this table's key set to that union, which
  * the flavor table is checked against too, so any of the three left out is a
