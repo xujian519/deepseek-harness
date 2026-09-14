@@ -65,8 +65,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 - `code-runtime-python`：fd-3 帧读取器，[已落地](../../implemented/simplification/2026-09-14-code-runtime-python-frame-reader.zh.md)，其帧回调只携带重建后的帧——没有任何消费者读取帧的原始字节长度，因此本条原本预计需要的协议并未建立；台账与 `log` 帧分支之间的契约是双向的，因为该分支要回报「已发生截断」。
 - `ui-trajectory`：inspector `<aside>` 抽成 `RecordInspector`（~550 行，约 10 个值 + 4 个回调），以及其 pointer-capture 拖拽抽成 `useResizeHandle`。
 - `core/tools` 的 `ptc.ts` 与 `acp/acp`：批次 1 的提取把它们缩短之后，那两个超大方法剩下主体。
-- `fixture.ts`：历史脚本 `buildAlphaLog` 与投影 fold 家族均已[落地](../../implemented/simplification/2026-09-14-fixture-history-module-extraction.zh.md)。内存文件系统也已[落地](../../implemented/simplification/2026-09-14-fixture-file-system-module-extraction.zh.md)，并为该文件定下了本批次那个接口问题的答案：一个簇把世界的值作为参数收进来，自己持有它改动的状态。剩下的是各自捕获一个世界状态绑定的三个 remote 簇，以及 `rpc` 派发表。
-- `typert/generator`：`Remote`/RPC 分析器与类型建模器——前提是能证明它们不扰动 `nodeOrdinals` 的 id 稳定性。
+- `fixture.ts`：历史脚本 `buildAlphaLog` 与投影 fold 家族均已[落地](../../implemented/simplification/2026-09-14-fixture-history-module-extraction.zh.md)。内存文件系统也已[落地](../../implemented/simplification/2026-09-14-fixture-file-system-module-extraction.zh.md)，并为该文件定下了本批次那个接口问题的答案：一个簇把世界的值作为参数收进来，自己持有它改动的状态。各自捕获一个世界状态绑定的三个 remote 簇，也依那个模板[落地](../../implemented/simplification/2026-09-14-fixture-configuration-remotes-extraction.zh.md)了，而该模板的退化情形是零参数工厂；`fixture.ts` 为 2483 行。剩下的是 `rpc` 派发表（2249–2459 行，211 行），它需要先把约二十个 handler 收进一个 interface 才能搬。
 
 ### 批次 3 —— 压在语义上的切割，逐项附证据
 
@@ -76,6 +75,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 - `core/session`：三个增量折叠已[落地](../../implemented/simplification/2026-09-14-session-folds-extraction.zh.md)到 `src/folds.ts`——`SessionFolds` 按引用接收日志数组与 surface，`Session` 保留三个一行委派，`index.ts` 为 904 行。`Session` 类仍开放：它的 `attachments` WeakMap 与 `SessionEntry` 必须同址，且它的类型字符串被某个测试逐字断言。
 - `code-runtime-python`：配置门控与进程监管。
 - `ui-trajectory`：行渲染器。它捕获约 30 个 `useMemo` 派生值与 15 个回调；显式传递约 45 项 props，而 memo 边界处理不当会让父级每次重渲染都重渲全部可见行，把虚拟滚动的收益还回去。它当前的稳定性是刻意的，`useStableVirtualRowStructure` 这个 hook 就是证据。
+- `analyzer`：`Remote`/RPC 分析器与类型建模器在批次 2 待过一阵后回到批次 3，而把它们搬回来的那次阅读就是它们此前缺的证据。`allocateNodeId` 造出的是 `type:<文件>:<行>:<列>#<序号>`，序号是按位置计数的计数器，每次调用加一，因此一个 id 是**某个源码位置上的访问次序**的函数，而不是那个类型的函数。有两处让这个次序难以预测：`resolvedRemoteCodecType` 在它自己的 `convert` 闭包内、对着自己的 `completed`/`active` 两份缓存做分配——同一个书写位置会按缓存未命中的次序产出 `#1`、`#2`、`#3`；`convertType` 在递归之前就分配，于是共享 `getStart()` 的一个 union 及其首个成员，其次序由调用次序而非结构决定。两个簇写的是同一批五个 Map（`nodes`、`declarations`、`declarationStates`、`crossFaceLinks`、`nodeOrdinals`），而 `ensureDeclaration` 跨调用重入，靠 `declarationStates` 一道守卫挡着。`tests/__snapshots__/type-model.spec.ts.snap` 记录了这些 id 的 578 处出现，其中 294 个互不相同，因此一次重排会重命名 id，并以快照 diff 而非失败的形式出现。在补上一个钉住 `allocateNodeId` 的 id 稳定性、且覆盖它必须经受的那种重排的测试之前，这一刀不开始。
 
 ## Alternatives considered
 
@@ -97,7 +97,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 
 - **对称欠账。** 每个被触碰却没带上对侧的 `jscpd:ignore` 块，都会留下一份未言明的契约。规则要求成对改动或修订注释，但评审者仍须亲自核对。
 - **藏在结构收益背后的性能退步。** `ui-trajectory` 的行渲染器是最清楚的一例：拆完看着更干净，却可能开始掉帧。这正是它被放进批次 3 的原因。
-- **快照漂移。** 生成的产物快照可能依赖 `analyzer.ts` 里 `nodeOrdinals` 的 id 稳定性；一次重排节点访问顺序的切割，会表现为一处无解释的快照 diff，而不是测试失败。
+- **快照漂移。** 对 `analyzer.ts` 而言已不再是假设：`type-model.spec.ts.snap` 记录了 `allocateNodeId` 那些 id 的 578 处出现，而每个 id 的序号都来自其源码位置上的访问次序。改变那个次序的切割会重命名 id，并以快照 diff 而非失败测试的形式落地——这正是 analyzer 被移入批次 3、且以一道 id 稳定性测试开刀的原因。
 - **与 Issue #99 的词汇归属冲突。** 创建 `src/types.ts` 解决了「无家可归」，但也重新揭开一个已决问题；每一次这样的改动都必须援引既有例外，而不是重新论证一遍。
 - **为拆而拆的空转。** 拆分本身只是搬行，不保证任何东西更好改。每次切割都应由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——本计划为批次 1 的每一项都点名了理由，并要求批次 2 之前先拿出它。
 
