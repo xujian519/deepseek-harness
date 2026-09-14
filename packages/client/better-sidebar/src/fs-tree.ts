@@ -88,7 +88,12 @@ export async function listDirectory(path: string, maxEntries = 1000): Promise<Si
   return { path, entries: rows, truncated: overflow > 0 }
 }
 
-/** How many symlink target stats run in flight during one level listing. */
+/**
+ * How many symlink target stats run in flight during one level listing. A fixed
+ * bound, not config: it caps concurrent `stat` calls so one listing cannot
+ * saturate IO on a network mount, and raising it only shortens a listing that
+ * the directory's entry count already bounds.
+ */
 const SYMLINK_PROBE_CONCURRENCY = 32
 
 /** Probe each symlink row's target once (bounded concurrency, order-preserving). */
