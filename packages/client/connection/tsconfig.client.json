@@ -11,6 +11,7 @@
     "src/client/connection.ts",
     "src/client/fixture-alpha-log.ts",
     "src/client/fixture-messages.ts",
+    "src/client/fixture-projections.ts",
     "src/client/fixture.ts",
     "src/client/index.ts",
     "src/client/random-uuid.ts",
