@@ -140,7 +140,10 @@ export function scanSuppressions(file: string, source: string): SuppressionScan 
  * by scanning nothing.
  */
 export function scanRepository(): { directives: number; findings: Array<SuppressionFinding & { file: string }> } {
-  const files = LINTED_GLOBS.flatMap(pattern => globSync(pattern, { cwd: root, exclude: ['**/.generated/**', '**/*.d.ts'] }))
+  const files = LINTED_GLOBS.flatMap(pattern => globSync(pattern, {
+    cwd: root,
+    exclude: ['**/.generated/**', '**/*.d.ts', '**/oxlint-contract-*'],
+  }))
   if (files.length === 0) throw new Error('verify-suppression-reasons: scanned an empty corpus; the globs no longer match.')
   let directives = 0
   const findings: Array<SuppressionFinding & { file: string }> = []

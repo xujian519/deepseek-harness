@@ -114,6 +114,7 @@
     "test:coverage:partitioned": "tsx scripts/run-coverage-partitions.ts",
     "test:docs": "tsx scripts/run-gates.ts doc-quick",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:race-stress": "pnpm run build:native-system && vitest run --config vitest.race-stress.config.ts",
     "test:expected": "vitest run --config vitest.expected.config.ts",
     "test:expected:refresh": "DSH_SNAPSHOT=refresh vitest run --config vitest.expected.config.ts",
     "test:approval-policy": "node --test .github/review-ownership/check-approval.test.mjs",
