@@ -1,0 +1,39 @@
+name: Race stress
+
+on:
+  schedule:
+    # 02:00 UTC daily: outside peak hours, enough time before the working day
+    # for a failure to be triaged.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  race-stress:
+    if: github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: nightly race stress (repeats + shuffle)
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run race-stress suite
+        # This job intentionally uses retry: 0. A flake here is a bug, not noise.
+        run: pnpm run test:race-stress

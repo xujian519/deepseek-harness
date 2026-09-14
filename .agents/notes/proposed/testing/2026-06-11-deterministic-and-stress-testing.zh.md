@@ -18,6 +18,10 @@ Status: proposed
 
 措施 3 现已有独立跟踪项：[Issue #121](https://github.com/xujian519/deepseek-harness/issues/121) 承接范围、预算、失败消费方式与负控制等决定。注意 Vitest 4 的选项名与本文的 `--repeat`/`--shuffle` 措辞不同：重复运行是 `test.repeats` 选项（CLI 没有 `--repeat`），随机顺序是 `--sequence.shuffle`。
 
+## 更新（2026-09-14）
+
+措施 3 已实现。夜间竞态压测任务通过 `pnpm run test:race-stress` 以重复和乱序方式运行聚焦后的套件；详情请见 `.agents/notes/implemented/testing/2026-09-14-race-stress-job.md`。
+
 ## 提案
 
 三项措施：

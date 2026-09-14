@@ -18,6 +18,10 @@ A full-repo scan re-measured the premises. The `setTimeout` sleep debt is gone: 
 
 Proposal 3 now has its own tracking item: [Issue #121](https://github.com/xujian519/deepseek-harness/issues/121) carries the range, budget, failure-consumption, and negative-control decisions. Note that the Vitest 4 option names differ from this note's `--repeat`/`--shuffle` wording: repetition is the `test.repeats` option (the CLI has no `--repeat`), and random order is `--sequence.shuffle`.
 
+## Update 2026-09-14
+
+Proposal 3 is implemented. The nightly race-stress job runs the focused suite with repeats and shuffle via `pnpm run test:race-stress`; details are in `.agents/notes/implemented/testing/2026-09-14-race-stress-job.md`.
+
 ## Proposal
 
 Three measures:
