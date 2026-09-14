@@ -94,6 +94,7 @@ session.deriveMessages()         // the derived model history
 | [`src/index.ts`](src/index.ts) | 插件入口：`SessionStore` 服务、存储生命周期、`fork`、`flush` |
 | [`src/types.ts`](src/types.ts) | `SessionEventMap`、`SessionEvent`、`UserMessage`、`SessionHeader`、`TurnEndReasonMap` |
 | [`src/surface.ts`](src/surface.ts) | 有序 surface 投影、替换校验、`deriveEventMessage` |
+| [`src/folds.ts`](src/folds.ts) | `Session` 提供的三种增量折叠：请求头部、请求上下文、派生消息 |
 | [`src/validation.ts`](src/validation.ts) | 分离入口边界上的头部与事件校验：种子事件封装、被采纳事件、请求头部 |
 | [`src/request-header.ts`](src/request-header.ts) | `request/header` 折叠与重建 |
 | [`dsh-util-values`](../../util/values/README.zh.md) | 共享无损 JSON 校验与分离式快照 |

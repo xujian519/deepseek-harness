@@ -20,7 +20,7 @@ import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { AppendOptions, CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SessionSeedEventState, SurfaceIntent, SurfaceEventType } from './types.ts'
 import { deriveEventMessage, SurfaceManager, validateSessionEventData } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
-import { foldRequestHeader } from './request-header.ts'
+import { SessionFolds } from './folds.ts'
 import { assertSessionEventEnvelope, snapshotSessionHeader, validateRestoredSessionHeader } from './validation.ts'
 
 export * from './types.ts'
@@ -449,10 +449,8 @@ export class Session {
     }
   }
 
-  /** Cached fold of the request-header events — see {@link requestHeader}. */
-  private headerFold: EpochHeader | undefined
-  /** Log position (events consumed) the header fold has reached. */
-  private headerFoldSeq = 0
+  /** The three incremental folds over this session's event log. */
+  private readonly folds = new SessionFolds(this.log, this.surfaceManager)
 
   /**
    * The {@link EpochHeader} in force after the log's last header event — the
@@ -463,20 +461,8 @@ export class Session {
    * @returns the folded header, or undefined when no header event exists yet.
    */
   requestHeader(): EpochHeader | undefined {
-    if (this.headerFoldSeq < this.log.length) {
-      // Frozen on update: the fold is session state exposed by reference — a
-      // consumer mutating it in place (instead of building a replacement)
-      // would desync every later comparison against the log, so mutation
-      // throws instead.
-      this.headerFold = deepFreeze(foldRequestHeader(this.log.slice(this.headerFoldSeq), this.headerFold))
-      this.headerFoldSeq = this.log.length
-    }
-    return this.headerFold
+    return this.folds.requestHeader()
   }
-
-  /** Cached fold of `request/context` events. */
-  private contextFold: RequestContext | undefined
-  private contextFoldSeq = 0
 
   /**
    * Return the latest resolved route metadata, or `undefined` before the first
@@ -484,21 +470,8 @@ export class Session {
    * @returns the latest immutable route metadata.
    */
   requestContext(): RequestContext | undefined {
-    if (this.contextFoldSeq < this.log.length) {
-      for (const event of this.log.slice(this.contextFoldSeq)) {
-        if (event.type === 'request/context') this.contextFold = deepFreeze({ ...event.data })
-      }
-      this.contextFoldSeq = this.log.length
-    }
-    return this.contextFold
+    return this.folds.requestContext()
   }
-
-  /** The derived-message cache: frozen projections, extended per unseen node. */
-  private derived: Message[] = []
-  /** Surface position (nodes projected) the cache has reached. */
-  private derivedNodes = 0
-  /** {@link SurfaceManager.replaceGeneration} the cache was built under. */
-  private derivedGeneration = 0
 
   /**
    * Derive the LLM message history by walking the ordered sequences of
@@ -519,26 +492,7 @@ export class Session {
    * @returns a fresh array of the shared, frozen derived history.
    */
   deriveMessages(): Message[] {
-    const surface = this.surface
-    const nodes = surface.nodes
-    const generation = surface.replaceGeneration
-    if (generation !== this.derivedGeneration) {
-      this.derived = []
-      this.derivedNodes = 0
-      this.derivedGeneration = generation
-    }
-    for (const seq of nodes.slice(this.derivedNodes)) {
-      // Surface sequences are built from this.log — seq is always a valid
-      // index by construction. The non-null assertion expresses that invariant.
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      const msg = this.deriveEventMessage(this.log[seq]!)
-      // A surface node is one of the five message-producing types, but an
-      // empty-content assistant/message (a max-tokens step that hosts only
-      // usage) derives to null and must not enter the transcript.
-      if (msg) this.derived.push(msg)
-    }
-    this.derivedNodes = nodes.length
-    return [...this.derived]
+    return this.folds.deriveMessages()
   }
 
   /**
