@@ -10,6 +10,7 @@
     "src/client/api.ts",
     "src/client/connection.ts",
     "src/client/fixture-alpha-log.ts",
+    "src/client/fixture-file-system.ts",
     "src/client/fixture-messages.ts",
     "src/client/fixture-projections.ts",
     "src/client/fixture.ts",

@@ -65,7 +65,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 - `code-runtime-python`：fd-3 帧读取器，[已落地](../../implemented/simplification/2026-09-14-code-runtime-python-frame-reader.zh.md)，其帧回调只携带重建后的帧——没有任何消费者读取帧的原始字节长度，因此本条原本预计需要的协议并未建立；台账与 `log` 帧分支之间的契约是双向的，因为该分支要回报「已发生截断」。
 - `ui-trajectory`：inspector `<aside>` 抽成 `RecordInspector`（~550 行，约 10 个值 + 4 个回调），以及其 pointer-capture 拖拽抽成 `useResizeHandle`。
 - `core/tools` 的 `ptc.ts` 与 `acp/acp`：批次 1 的提取把它们缩短之后，那两个超大方法剩下主体。
-- `fixture.ts`：先是历史脚本 `buildAlphaLog`，再是投影 fold 家族。
+- `fixture.ts`：历史脚本 `buildAlphaLog` 与投影 fold 家族均已[落地](../../implemented/simplification/2026-09-14-fixture-history-module-extraction.zh.md)。内存文件系统也已[落地](../../implemented/simplification/2026-09-14-fixture-file-system-module-extraction.zh.md)，并为该文件定下了本批次那个接口问题的答案：一个簇把世界的值作为参数收进来，自己持有它改动的状态。剩下的是各自捕获一个世界状态绑定的三个 remote 簇，以及 `rpc` 派发表。
 - `typert/generator`：`Remote`/RPC 分析器与类型建模器——前提是能证明它们不扰动 `nodeOrdinals` 的 id 稳定性。
 
 ### 批次 3 —— 压在语义上的切割，逐项附证据
