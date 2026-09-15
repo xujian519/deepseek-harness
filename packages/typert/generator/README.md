@@ -71,10 +71,11 @@ The generator is built on one separation: extraction and emission are decoupled 
 |---|---|
 | [`src/index.ts`](src/index.ts) | Public API: analyzer, emitter, workspace generator, renderer, catalog projection |
 | [`src/analyzer.ts`](src/analyzer.ts) | `WorkspaceAnalyzer`: face programs, check/write modes, batching, discovery, source index |
+| [`src/type-graph.ts`](src/type-graph.ts) | `TypeGraph`: the declaration and node model, the type conversion that writes it, and node-id allocation |
 | [`src/node-text.ts`](src/node-text.ts) | Syntax-node readings: declaration and member text, modifiers, JSDoc, literal models |
 | [`src/package-exports.ts`](src/package-exports.ts) | `package.json` export-map reading: published subpaths, face ownership, source targets |
 | [`src/module-path.ts`](src/module-path.ts) | Module and path resolution: reference targets, package identity, diagnostics, filesystem helpers |
-| [`src/types.ts`](src/types.ts) | `TypertAnalysisError` and the vocabulary the split analyzer modules share |
+| [`src/types.ts`](src/types.ts) | `TypertAnalysisError`, `SourceEditQueued`, and the vocabulary the split analyzer modules share |
 | [`src/model.ts`](src/model.ts) | Compiler-independent model types |
 | [`src/emitter.ts`](src/emitter.ts) | `FaceModelEmitter`: Zod schema and declaration emission, Remote declarations |
 | [`src/workspace.ts`](src/workspace.ts) | `WorkspaceTypertGenerator`: discovery, generation, export and files validation |
