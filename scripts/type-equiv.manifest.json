@@ -552,7 +552,7 @@
     {
       "doc": "docs/subsystems/session.md",
       "symbol": "Session",
-      "source": "packages/core/session/src/index.ts",
+      "source": "packages/core/session/src/session.ts",
       "projection": "public-api"
     },
     {

@@ -14,7 +14,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 3208 | 多组件文件，含两段内联 JSX | 在 |
 | `packages/typert/generator/src/analyzer.ts` | 3235 | 纯构建期库 | 在 |
 | `packages/experimental/code-runtime-python/src/index.ts` | 1801 | 单个类，单个超大方法 | 在——试点已落地 |
-| `packages/core/session/src/index.ts` | 904 | 四个关切共用一个模块 | 在 |
+| `packages/core/session/src/index.ts` | 488 | store：发布协议、生命周期与 fork 路径 | 在 |
 | `packages/core/tools/src/ptc.ts` | 372 | 单个工具工厂，调度车道已抽出 | 在 |
 | `packages/acp/acp/src/index.ts` | 543 | 单个 341 行的 `apply` | 在 |
 | `packages/client/better-sidebar/src/client/state.ts` | 1900 | 克隆中心 | 不在 |
@@ -23,7 +23,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 | `packages/self-evolve/self-evolve-basic/src/index.ts` | 1857 | 自审计以来持平 | 不在 |
 | `packages/subagent/subagent/src/continuation.ts` | 550 | 已从 1483 收敛 | 不在——issue 自行销案 |
 
-五个条目在本计划之外，各有一条明写的理由，而不是被略过。`continuation.ts` 已收敛，且 issue 自身建议销案。`better-sidebar` 的 `state.ts` 与 `Sidebar.tsx` 被 issue 点为克隆中心：它们的正解是去重，而切割两个本就互为镜像的文件，只会把一处文件内克隆变成一处跨文件克隆——那项工作属 M1 去重族，不在这里。`core/tools/src/index.ts` 与 `self-evolve-basic/src/index.ts` 已到或低于 issue 记录的行数，而本计划自己的标准——每一刀都要由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——对它们尚无答案；它们留在 issue 上，而不是在没有理由的情况下进入某个批次。行数在每刀落地时实测，最近一次为 2026-09-15：即试点、会话折叠提取、fixture RPC 派发表提取与 ptc 调度池提取之后。
+五个条目在本计划之外，各有一条明写的理由，而不是被略过。`continuation.ts` 已收敛，且 issue 自身建议销案。`better-sidebar` 的 `state.ts` 与 `Sidebar.tsx` 被 issue 点为克隆中心：它们的正解是去重，而切割两个本就互为镜像的文件，只会把一处文件内克隆变成一处跨文件克隆——那项工作属 M1 去重族，不在这里。`core/tools/src/index.ts` 与 `self-evolve-basic/src/index.ts` 已到或低于 issue 记录的行数，而本计划自己的标准——每一刀都要由「某个测试变得可行」「某个接口变得显式」「某个方法变得可读」之一来证成——对它们尚无答案；它们留在 issue 上，而不是在没有理由的情况下进入某个批次。行数在每刀落地时实测，最近一次为 2026-09-15：即试点、会话折叠提取、fixture RPC 派发表提取、ptc 调度池提取与会话对象提取之后。
 
 对在范围的七个文件的结构调研发现：**体量并不是它们难以拆分的原因**。每一个都有肉眼可见的切口——模块级纯函数、已经抽出的辅助函数、读者能看到的段落边界。它们真正缺的，是**切口边界该归谁**这个问题的定论；而且其中几个带着明确的契约，粗暴拆分会让它们悄无声息地失效：
 
@@ -72,7 +72,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 这些在能证明自己保住了什么之前不落地。
 
 - `ptc.ts` 调度池：有序提交车道、独占屏障、背压、唤醒顺序防御全是行为，不是结构。[已落地](../../implemented/simplification/2026-09-15-ptc-dispatch-pool-extraction.zh.md)至 `src/ptc-dispatch-pool.ts`——`DispatchPool` 接收 `{ maxParallel, isRunOver }`，传输层负责提交、登记附带工作与排空，`tests/ptc-dispatch-pool.spec.ts` 用八个用例直接驱动该车道；`ptc.ts` 为 372 行。
-- `core/session`：三个增量折叠已[落地](../../implemented/simplification/2026-09-14-session-folds-extraction.zh.md)到 `src/folds.ts`——`SessionFolds` 按引用接收日志数组与 surface，`Session` 保留三个一行委派，`index.ts` 为 904 行。`Session` 类仍开放：它的 `attachments` WeakMap 与 `SessionEntry` 必须同址，且它的类型字符串被某个测试逐字断言。
+- `core/session`：三个增量折叠已[落地](../../implemented/simplification/2026-09-14-session-folds-extraction.zh.md)到 `src/folds.ts`——`SessionFolds` 按引用接收日志数组与 surface，`Session` 保留三个一行委派，`index.ts` 为 904 行。`Session` 类已[落地](../../implemented/simplification/2026-09-15-session-object-extraction.zh.md)到 `src/session.ts`，并带上必须与它同址的 `attachments`/`SessionEntry` 对；两条发布路径都要用的两个监听器分发 helper 落 `src/observers.ts`。`@typert object` 类型字符串在 store 的注册里逐字不变，`index.ts` 为 488 行。
 - `code-runtime-python`：配置门控与进程监管。
 - `ui-trajectory`：行渲染器。它捕获约 30 个 `useMemo` 派生值与 15 个回调；显式传递约 45 项 props，而 memo 边界处理不当会让父级每次重渲染都重渲全部可见行，把虚拟滚动的收益还回去。它当前的稳定性是刻意的，`useStableVirtualRowStructure` 这个 hook 就是证据。
 - `analyzer`：`Remote`/RPC 分析器与类型建模器在批次 2 待过一阵后回到批次 3，而把它们搬回来的那次阅读就是它们此前缺的证据。`allocateNodeId` 造出的是 `type:<文件>:<行>:<列>#<序号>`，序号是按位置计数的计数器，每次调用加一，因此一个 id 是**某个源码位置上的访问次序**的函数，而不是那个类型的函数。有两处让这个次序难以预测：`resolvedRemoteCodecType` 在它自己的 `convert` 闭包内、对着自己的 `completed`/`active` 两份缓存做分配——同一个书写位置会按缓存未命中的次序产出 `#1`、`#2`、`#3`；`convertType` 在递归之前就分配，于是共享 `getStart()` 的一个 union 及其首个成员，其次序由调用次序而非结构决定。两个簇写的是同一批五个 Map（`nodes`、`declarations`、`declarationStates`、`crossFaceLinks`、`nodeOrdinals`），而 `ensureDeclaration` 跨调用重入，靠 `declarationStates` 一道守卫挡着。`tests/__snapshots__/type-model.spec.ts.snap` 记录了这些 id 的 578 处出现，其中 294 个互不相同，因此一次重排会重命名 id，并以快照 diff 而非失败的形式出现。在补上一个钉住 `allocateNodeId` 的 id 稳定性、且覆盖它必须经受的那种重排的测试之前，这一刀不开始。
@@ -107,5 +107,6 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 - `docs/TECH_DEBT.md`（M6，以及点名审计遗漏那两个文件的台账条目）
 - [提取会话的增量折叠](../../implemented/simplification/2026-09-14-session-folds-extraction.zh.md)（批次 3 首刀落地）
 - [提取 `run_code` 的子分发车道](../../implemented/simplification/2026-09-15-ptc-dispatch-pool-extraction.zh.md)（批次 3 第二刀落地）
+- [提取 `Session` 对象与发布观察者](../../implemented/simplification/2026-09-15-session-object-extraction.zh.md)（批次 3 第三刀落地）
 - `packages/code-runtime/code-runtime-worker-thread/src/index.ts`（`OutputLedger` 先例）
 - `packages/experimental/code-runtime-python/src/index.ts`、`packages/client/ui-trajectory/src/client/TrajectoryTable.tsx`
