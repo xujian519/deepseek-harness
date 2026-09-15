@@ -8,7 +8,7 @@ English | [中文](2026-09-15-python-config-gates-extraction.zh.md)
 
 `packages/experimental/code-runtime-python/src/index.ts` was 1638 lines. Roughly 450 of them were load-time admission rather than runtime: the `Config` interface, the fixed bounds its gates are written against, the interpreter lookup and version probe, and a constructor whose gates and interpreter resolution ran for 168 lines before registering anything. The code that actually supervises a child process — spawn, fd-3 frames, kill escalation, settlement — came after all of it.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) holds this item in batch 3 and names the risk that keeps it there: the constructor sits inside a `/* jscpd:ignore-start */` block whose comment declares its shape parallel to the sibling `code-runtime-worker-thread` backend, and rule 1 of the plan requires the matching side or an amended comment before that block is touched.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) holds this item in batch 3 and names the risk that keeps it there: the constructor sits inside a `/* jscpd:ignore-start */` block whose comment declares its shape parallel to the sibling `code-runtime-worker-thread` backend, and rule 1 of the plan requires the matching side or an amended comment before that block is touched.
 
 ## Decision
 
@@ -64,7 +64,7 @@ The plugin entry now reads as a plugin: register, gate the configuration, superv
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's sixth landed cut)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's sixth landed cut)
 - [Extracting the analyzer's type graph](2026-09-15-analyzer-type-graph-extraction.md) (batch 3's fifth landed cut)
 - [Extracting the log ledger](2026-09-14-code-runtime-python-cost-and-ledger.md) (batch 1's cut of this file, and where its gates' bounds were first measured)
 - `packages/experimental/code-runtime-python/src/config.ts`, `packages/experimental/code-runtime-python/tests/config.spec.ts`

@@ -8,7 +8,7 @@ English | [中文](2026-09-14-session-folds-extraction.zh.md)
 
 `packages/core/session/src/index.ts` was 950 lines. The `Session` class owned the event log and, alongside it, three incremental fold caches: the request header in force, the latest resolved route metadata, and the derived LLM message history. The caches and their methods occupy lines 452–542 — 91 lines and six private fields — and share one input, the log array, which the class also appends to.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) puts `core/session` in batch 3, the batch whose cuts sit on semantics and must each show what they preserve. This cut's evidence is the coverage that already exists: `tests/request-header.spec.ts` (10 cases), `tests/derived-cache.spec.ts` (6 cases), and `deriveMessages with surface` in `tests/surface.spec.ts` exercise all three folds through `Session`; the package carries no `jscpd:ignore` symmetry contract, no browser lane, and no coverage exemption, so the per-file gate over `packages/*/*/src` refuses a cut that drops a path instead of failing quietly.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) puts `core/session` in batch 3, the batch whose cuts sit on semantics and must each show what they preserve. This cut's evidence is the coverage that already exists: `tests/request-header.spec.ts` (10 cases), `tests/derived-cache.spec.ts` (6 cases), and `deriveMessages with surface` in `tests/surface.spec.ts` exercise all three folds through `Session`; the package carries no `jscpd:ignore` symmetry contract, no browser lane, and no coverage exemption, so the per-file gate over `packages/*/*/src` refuses a cut that drops a path instead of failing quietly.
 
 ## Decision
 
@@ -60,7 +60,7 @@ No test was added: the existing specs reach every branch of the new module, so t
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is the first batch-3 item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is the first batch-3 item)
 - [Extracting session header and event validation](2026-09-14-session-validation-extraction.md) (the batch-1 cut in the same package)
 - `packages/core/session/src/surface.ts` (the surface the folds read through, and `deriveEventMessage`)
 - `packages/core/session/src/request-header.ts` (`foldRequestHeader`, the pure fold the header cache mirrors)

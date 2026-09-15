@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-configuration-remotes-extraction.md
-2026-09-14-fixture-configuration-remotes-extraction.md: 90cec34e48bf5213e6866d316131f22a6821f7d4
-2026-09-14-fixture-configuration-remotes-extraction.zh.md: 348f5b993bb5cda15611a3c6e76917e259cf0a34
+2026-09-14-fixture-configuration-remotes-extraction.md: d7d11d2e553d4ddcd4d06dbe5dec09fa2e4f98c8
+2026-09-14-fixture-configuration-remotes-extraction.zh.md: f6d7828f63406566b63cfce05ad316bb713957db

@@ -8,7 +8,7 @@ English | [中文](2026-09-15-session-object-extraction.zh.md)
 
 `packages/core/session/src/index.ts` was 904 lines, and three subjects shared it: the `Context`/`Events` declarations and the `SessionStore` service, the `Session` object, and the listener-dispatch helpers both publication paths call. The class alone was 382 lines (126–507), and the store read three more things from the same module: the `SessionEntry`/`attachments` pair its `enter`, `detachEntered`, and `liveEntryFor` write and read, and the observers `announce`, `emitDisposed`, and `flush` resolve.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3 and names its two constraints: `attachments` and `SessionEntry` must stay co-located, and the class's type string is asserted verbatim by `tests/typert.spec.ts`.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3 and names its two constraints: `attachments` and `SessionEntry` must stay co-located, and the class's type string is asserted verbatim by `tests/typert.spec.ts`.
 
 ## Decision
 
@@ -60,7 +60,7 @@ No new test is possible from this cut: `Session` is already constructed directly
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's third landed cut)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's third landed cut)
 - [Extracting the session's incremental folds](2026-09-14-session-folds-extraction.md) (batch 3's first cut of this file)
 - [Extracting the `run_code` sub-dispatch lane](2026-09-15-ptc-dispatch-pool-extraction.md) (batch 3's second landed cut)
 - `packages/core/session/src/session.ts`, `packages/core/session/src/observers.ts`, `packages/core/session/tests/typert.spec.ts`

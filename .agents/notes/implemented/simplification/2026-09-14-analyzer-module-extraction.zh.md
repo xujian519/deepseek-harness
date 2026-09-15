@@ -10,7 +10,7 @@ Status: implemented
 
 这个尾部并不均质。它是三个彼此无边相连的簇：读取语法节点（声明与成员文本、修饰符、JSDoc、字面量模型）、读取 `package.json` 导出映射、解析模块与文件系统路径。每一簇都只能经由同时装着分析器的那个文件抵达，因此想改「`package.json#exports` 如何映射到源码文件」，就得在 2700 行提取逻辑之下先找到它。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀定为批次 1 的 `analyzer` 项，估算为三刀各约 250 行。本 note 记录这一刀实际产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀定为批次 1 的 `analyzer` 项，估算为三刀各约 250 行。本 note 记录这一刀实际产出了什么。
 
 ## Decision
 
@@ -82,7 +82,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 1 的 `analyzer` 项）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 1 的 `analyzer` 项）
 - [提取 python 运行期的字节计价与日志台账模块](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（批次 1 试点）
 - [硬编码可调参数审计收尾](2026-09-14-hardcoded-tunable-closeout.zh.md)（Issue #88；批次 1 改动规则：常量与默认值不得移动）
 - `packages/AGENTS.md`（包的接缝词汇落在何处）

@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/core/tools/src/ptc.ts` 曾为 492 行，其中 320 行是 `createRunCodeTool` 的 `execute`。这个大函数体大部分在做调度而不是分发：`PendingDispatch` interface、两个队列加三个记账集合、唯一一趟驱动器、结算排空与背压等待——116 行，主语是「一次子分发何时启动与提交」，而不是「一个子分发是什么」。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，即那些落在语义上、每一刀都必须证明自己保住了什么的批次。它点名了四处押在行为上的东西：有序提交车道、独占屏障、背压与唤醒顺序防御。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，即那些落在语义上、每一刀都必须证明自己保住了什么的批次。它点名了四处押在行为上的东西：有序提交车道、独占屏障、背压与唤醒顺序防御。
 
 ## Decision
 
@@ -79,7 +79,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第二刀落地）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第二刀落地）
 - [提取会话的增量折叠](2026-09-14-session-folds-extraction.zh.md)（批次 3 首刀落地）
 - [提取 `acp`/`ptc` 簇](2026-09-14-acp-ptc-cluster-extraction.zh.md)（本文件批次 1 的一刀：静态 spec、flavor 表与 JSON 呈现）
 - `packages/core/tools/src/ptc-dispatch-pool.ts`、`packages/core/tools/tests/ptc-dispatch-pool.spec.ts`

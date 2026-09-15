@@ -128,6 +128,6 @@ The template this cut confirms is the file-system cut's, now with its degenerate
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)
 - [Extracting the fixture's in-memory file system](2026-09-14-fixture-file-system-module-extraction.md) (the cut that named this boundary question and the template this one applies)
 - [Extracting the fixture provider's projection folds](2026-09-14-fixture-projections-module-extraction.md) (the cut before that)

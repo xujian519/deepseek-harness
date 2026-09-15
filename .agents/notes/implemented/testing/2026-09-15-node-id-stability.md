@@ -11,7 +11,7 @@ English | [中文](2026-09-15-node-id-stability.zh.md)
 - `convertType` allocates before it recurses, so a form and the node it wraps — which share `getStart()` — are ordered by call order, not by structure: a union and its first member, a conditional and its check type, `Payload['name']` and `Payload`, `string[]` and `string`.
 - `resolvedRemoteCodecType` allocates inside its own `convert` closure against its own `completed`/`active` caches, so one authored Remote boundary mints one id per compiler type it converts through that node, ordered by cache miss.
 
-`tests/__snapshots__/type-model.spec.ts.snap` records these ids — 578 occurrences, 282 of them distinct, across 18 shared-start positions in the type-model fixture alone — so a reordered visit renames them and arrives as a snapshot diff rather than as a failure. [The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) makes that the reason `analyzer.ts` sits in batch 3, and the reason its cut does not start until a test pins the order.
+`tests/__snapshots__/type-model.spec.ts.snap` records these ids — 578 occurrences, 282 of them distinct, across 18 shared-start positions in the type-model fixture alone — so a reordered visit renames them and arrives as a snapshot diff rather than as a failure. [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) makes that the reason `analyzer.ts` sits in batch 3, and the reason its cut does not start until a test pins the order.
 
 ## Decision
 
@@ -67,6 +67,6 @@ The change adds one test file and no source line, so no coverage exemption moves
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan whose batch-3 item this unblocks)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan whose batch-3 item this unblocks)
 - [Extracting the `Session` object and the publication observers](../simplification/2026-09-15-session-object-extraction.md) (batch 3's third landed cut)
 - `packages/typert/generator/tests/node-id-stability.spec.ts`, `packages/typert/generator/tests/type-model.spec.ts`

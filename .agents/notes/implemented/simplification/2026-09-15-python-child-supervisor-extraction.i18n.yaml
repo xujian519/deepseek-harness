@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-python-child-supervisor-extraction.md
-2026-09-15-python-child-supervisor-extraction.md: 54b26c1c51f1bc2474e423bbfadad54e7980e79c
-2026-09-15-python-child-supervisor-extraction.zh.md: 2e39d41659ed8e0928ae78f2a3bbc81b6e4dcb3d
+2026-09-15-python-child-supervisor-extraction.md: 772a6c127f0d807fa7e87dbb39583c19dde9f640
+2026-09-15-python-child-supervisor-extraction.zh.md: 633aefbf99783347cfbbfccc421742dc083b2758

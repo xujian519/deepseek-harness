@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/core/session/src/index.ts` 长到 1256 行，四个关切共用同一个模块：`SessionStore` 服务、`Session` 类、发布路径，以及一段 306 行的校验器。那段校验器与存储或类不共用任何符号——其中每个函数都接收一个 unknown 值，然后抛出或收窄它——而入口模块只用到其中三个声明，且都在 `Session` 的构造函数内。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把 `core/session` 列为批次 1 的条目；该批次的切法按构造保持行为：无实例状态、无新接口、行为不变，且入口模块再导出被搬走的东西。本 note 记录这一刀实际产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把 `core/session` 列为批次 1 的条目；该批次的切法按构造保持行为：无实例状态、无新接口、行为不变，且入口模块再导出被搬走的东西。本 note 记录这一刀实际产出了什么。
 
 ## Decision
 
@@ -56,7 +56,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个 god 文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本项是批次 1 的条目）
+- [拆分七个 god 文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本项是批次 1 的条目）
 - [提取 python 运行时的成本与日志账本模块](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（批次 1 试点，本 note 沿用其体例）
 - `packages/core/session/src/surface.ts`（`adoptSessionEvent` 校验其事件数据的 surface 管理器）
 - `packages/session-query/session-query/src/index.ts`、`packages/session/session-persistence/src/storage-contract.ts`（再导出的事件采纳的跨包消费者）

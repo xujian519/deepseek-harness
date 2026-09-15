@@ -8,7 +8,7 @@ English | [中文](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)
 
 `packages/experimental/code-runtime-python/src/index.ts` reached 2405 lines holding three concerns that never share a line: child-process supervision, the fd-3 frame reader, and the accounting of everything a run returns in `logs`. Changing the byte budget or the truncation marker meant reading past the spawn, escalation, and teardown code, and the only way to exercise a truncation boundary was to spawn a real python child — the ledger had no surface a test could call.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 1's first item and as the pilot for the whole program, because the sibling backend `packages/code-runtime/code-runtime-worker-thread/src/index.ts` already ships an extracted `OutputLedger` whose boundary cases can be compared against. This note records what the cut produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 1's first item and as the pilot for the whole program, because the sibling backend `packages/code-runtime/code-runtime-worker-thread/src/index.ts` already ships an extracted `OutputLedger` whose boundary cases can be compared against. This note records what the cut produced.
 
 ## Decision
 
@@ -55,6 +55,6 @@ One constraint surfaced: at class-field indentation the two `StrayBuffer` initia
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-1 pilot)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-1 pilot)
 - [Closing out the hardcoded-tunable audit](2026-09-14-hardcoded-tunable-closeout.md) (Issue #88; batch-1 change rule: no constant or default moves)
 - `packages/code-runtime/code-runtime-worker-thread/src/index.ts` (the `OutputLedger` precedent)

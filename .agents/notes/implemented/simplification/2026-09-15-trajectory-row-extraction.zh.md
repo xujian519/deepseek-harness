@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` 曾为 921 行，其中 255 行落在一个 `renderedRecords.map` 回调里：该行的逐记录标记、ARIA 属性、十一个 `data-*` 属性、三个输入处理器，以及它渲染的两个单元格。文件里没有别处读这些值，而账本把它经一个 `RecordPresentation` render prop 传下去，这个 prop 存在的唯一理由是让该行自己算出显示文案。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，并点名了让它留在那里的风险：该行捕获了账本的派生值与回调，显式传递约需 45 个 prop，而 memo 边界一旦处理不慎，就会在父组件每次重渲时重渲每个可见行，把虚拟化的收益还回去。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，并点名了让它留在那里的风险：该行捕获了账本的派生值与回调，显式传递约需 45 个 prop，而 memo 边界一旦处理不慎，就会在父组件每次重渲时重渲每个可见行，把虚拟化的收益还回去。
 
 ## Decision
 
@@ -75,7 +75,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第四刀落地）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第四刀落地）
 - [提取 `Session` 对象与发布观察者](2026-09-15-session-object-extraction.zh.md)（批次 3 第三刀落地）
 - [提取记录检查器](2026-09-14-trajectory-record-inspector-extraction.zh.md)（本文件批次 2 的一刀：`<aside>` 面板与它的拖拽缩放）
 - `packages/client/ui-trajectory/src/client/trajectory-row.tsx`、`packages/client/ui-trajectory/tests/table-row.client.spec.tsx`

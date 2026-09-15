@@ -10,7 +10,7 @@ Status: implemented
 
 文件自身的排列方式在这一点上起了反作用：声明按主题分组，而不是按调用关系分组，因此想改动「某个请求的失败文案如何显示」的读者，必须在同时容纳 virtualizer 接线和指针捕获拖拽的 3200 行里找到 `requestErrorMessage`。六个 presentation 族互不调用；投影层不调用其中任何一个。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为批次 1 的 `ui-trajectory` 项。本记录记下这一刀产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为批次 1 的 `ui-trajectory` 项。本记录记下这一刀产出了什么。
 
 ## Decision
 
@@ -95,7 +95,7 @@ Status: implemented
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本记录是它的批次 1 `ui-trajectory` 项）
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本记录是它的批次 1 `ui-trajectory` 项）
 - `2026-09-14-analyzer-module-extraction.md`（批次 1 同侪，作为独立 pull request 落地；确立了本刀复用的 `src/types.ts` 归宿）
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（批次 1 试点）
 - `packages/AGENTS.md`（包的接缝词汇所在之处）

@@ -8,7 +8,7 @@ English | [中文](2026-09-15-python-child-supervisor-extraction.zh.md)
 
 `packages/experimental/code-runtime-python/src/index.ts` was 1180 lines after the load-time gates came out. What remained was the plugin — `Config` registration, `teardown`, `run`, binding validation, per-run staging — and a 760-line `execute` that owned an entire child process: the spawn, the fd-3 frame reader and its dispatch, the reply channel with its backpressure and backlog caps, the wall timer and abort listener, the SIGTERM → grace → SIGKILL escalation, and the settlement that waits for the process group to empty.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this item in batch 3 as "the config gates and the process supervisor"; the gates [landed first](2026-09-15-python-config-gates-extraction.md), and this is the other half.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this item in batch 3 as "the config gates and the process supervisor"; the gates [landed first](2026-09-15-python-config-gates-extraction.md), and this is the other half.
 
 ## Decision
 
@@ -55,7 +55,7 @@ The entry now holds the plugin's own concerns — registration, the seam's bindi
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's seventh landed cut)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's seventh landed cut)
 - [Extracting the python backend's load-time gates](2026-09-15-python-config-gates-extraction.md) (the first half of this batch-3 item)
 - [Extracting the log ledger](2026-09-14-code-runtime-python-cost-and-ledger.md) (batch 1's cut of this file)
 - `packages/experimental/code-runtime-python/src/supervisor.ts`, `packages/experimental/code-runtime-python/src/index.ts`

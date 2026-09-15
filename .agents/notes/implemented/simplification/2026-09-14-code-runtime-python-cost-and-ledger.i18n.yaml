@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-code-runtime-python-cost-and-ledger.md
-2026-09-14-code-runtime-python-cost-and-ledger.md: 5baa4e44b00ee6ee1a65bf723a8e996ab8fd9e6d
-2026-09-14-code-runtime-python-cost-and-ledger.zh.md: 69b1a8a58fa44e07243c03d41dfcd34fd1b563d3
+2026-09-14-code-runtime-python-cost-and-ledger.md: e8600affe53fa2799ceb590f6ff579d442a9800e
+2026-09-14-code-runtime-python-cost-and-ledger.zh.md: f7db438fd78ab01d2e5908ec36d1b9872226fa0c

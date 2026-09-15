@@ -8,7 +8,7 @@ English | [中文](2026-09-14-fixture-rpc-dispatch-extraction.zh.md)
 
 `packages/client/connection/src/client/fixture.ts` was 2483 lines, and its last coupled region was the `rpc` object: a `call` switch with sixty endpoint arms and an `open` switch with five, 211 lines in all. The table reads no world state directly — every stateful endpoint reaches its state through a remote cluster, a session or workspace API object, a stream opener, or a small helper — but those nineteen values were the world's locals, so the table could not leave while they stayed where they were.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) named this as batch 2's remaining `fixture.ts` item and predicted the cost: the roughly twenty handlers need an interface first. This cut builds that interface and moves the table.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) named this as batch 2's remaining `fixture.ts` item and predicted the cost: the roughly twenty handlers need an interface first. This cut builds that interface and moves the table.
 
 ## Decision
 
@@ -67,7 +67,7 @@ The entry's export list gained `FixtureRpcDeps` and `FixturePageRequest` and los
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this closes batch 2)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this closes batch 2)
 - [Extracting the fixture's configuration remotes](2026-09-14-fixture-configuration-remotes-extraction.md) (the cut this one follows, and the source of three of the dependency slots)
 - [Extracting the fixture's in-memory file system](2026-09-14-fixture-file-system-module-extraction.md) (the cluster that settled what a fixture cluster owns)
 - `packages/client/connection/src/client/fixture-rpc.ts`, `packages/client/connection/tests/fixture-rpc.client.spec.ts`

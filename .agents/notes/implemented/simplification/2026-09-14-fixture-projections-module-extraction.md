@@ -14,7 +14,7 @@ Those 737 lines were not contiguous. `pageOf`, `logReferencesAttachment`, and th
 
 None of the folds read world state. Each takes a log and returns a value, and every one of them is called by `createFixtureWorld` — from `projectionFramesOf(id, log, event)` at 1055 to `projectionValuesOf(snapshot)` at 2457. The dependency runs one way, so the region has a boundary a reader can name.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this cut as the second of its batch-2 `fixture.ts` items, after the history script. This note records what the cut produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this cut as the second of its batch-2 `fixture.ts` items, after the history script. This note records what the cut produced.
 
 ## Decision
 
@@ -118,6 +118,6 @@ The cost is one more file, one more coverage exemption entry carrying a `TODO(gu
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its second batch-2 `fixture.ts` item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its second batch-2 `fixture.ts` item)
 - [Extracting the fixture provider's fx-alpha history script and message vocabulary](2026-09-14-fixture-history-module-extraction.md) (the batch-2 sibling cut in this package)
 - [Extracting the trajectory ledger's record model and presentation helpers](2026-09-14-trajectory-ledger-module-extraction.md) (batch 1, `ui-trajectory`)

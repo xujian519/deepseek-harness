@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/experimental/code-runtime-python/src/index.ts` 把 fd-3 帧读取器——字节缓冲、两条 oversized 帧拒绝路径、敌意帧丢弃——内联在 `PythonCodeRuntime.execute` 的 promise executor 中，夹在账本接线与帧处理器之间。每一个解码结果都只能靠驱动真实 CPython 子进程写出精确字节来触达，因此非法 UTF-8、unsafe integer token、畸形 JSON、两条 oversized 路径与分片计数封存，各自都要花掉 `tests/runtime.spec.ts` 里一个 40–120 秒的子进程用例。当时不存在任何能让测试直接喂入字节序列的表面。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为批次 2 的第一项，并预判它「需要定义携带原始行长度的帧回调协议」。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为批次 2 的第一项，并预判它「需要定义携带原始行长度的帧回调协议」。
 
 ## Decision
 
@@ -58,6 +58,6 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本项是其批次 2 第一项）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本项是其批次 2 第一项）
 - [抽出 python runtime 的 cost 与 log 账本模块](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（同包的批次 1）
 - `packages/experimental/code-runtime-python/tests/runtime.spec.ts`（保留的子进程用例）

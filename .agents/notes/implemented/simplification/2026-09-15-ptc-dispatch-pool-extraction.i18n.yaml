@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-ptc-dispatch-pool-extraction.md
-2026-09-15-ptc-dispatch-pool-extraction.md: f07dc2c0adc321e1752b18636ed41023d04d68f3
-2026-09-15-ptc-dispatch-pool-extraction.zh.md: 1e806cf0039764f2bcdeccaa996b9e7d7da183ec
+2026-09-15-ptc-dispatch-pool-extraction.md: 850d2162d537a4c81a85de8705bc6c57d01b0208
+2026-09-15-ptc-dispatch-pool-extraction.zh.md: e5b4422aaf2d5d51efaee7c7580790a0b644fbb2

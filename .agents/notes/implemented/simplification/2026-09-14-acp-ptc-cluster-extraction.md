@@ -8,7 +8,7 @@ English | [中文](2026-09-14-acp-ptc-cluster-extraction.zh.md)
 
 Two entry modules carried module-level code that shares no symbol with the handlers beside it. `packages/acp/acp/src/index.ts` reached 543 lines and its `apply` 341, with the `session/list` keyset cursor — an opaque base64url token, its decode/encode pair, and the byte-stable ordering comparison — sitting in the same module scope as ACP handshake, admission, and teardown. `packages/core/tools/src/ptc.ts` reached 678 lines, where the `run_code` schema text per language (a flavor table keyed by runtime language plus the resolver that reads the mounted runtime) and the JSON presentation of a completion value both lived outside `createRunCodeTool`, next to code that never calls them.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) lists both as batch-1 items, the batch whose cuts preserve behavior by construction: no instance state, no new interface, no behavior change, and the entry module re-exports what moved. This note records what those two cuts produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) lists both as batch-1 items, the batch whose cuts preserve behavior by construction: no instance state, no new interface, no behavior change, and the entry module re-exports what moved. This note records what those two cuts produced.
 
 ## Decision
 
@@ -61,7 +61,7 @@ Batch 1's no-behavior-change rule held: no constant, default, or schema value mo
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is a batch-1 item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is a batch-1 item)
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.md) (the batch-1 pilot, whose note this one follows)
 - `packages/core/tools/src/index.ts` (the `SDK_RENDERERS` table the flavor keys are checked against)
 - `packages/acp/acp/src/session.ts` (the session record the `listSessions` handler reads)

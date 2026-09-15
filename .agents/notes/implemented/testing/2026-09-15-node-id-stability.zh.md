@@ -11,7 +11,7 @@ Status: implemented
 - `convertType` 先分配再递归，于是同一个 `getStart()` 的外层形式与被它包住的节点由调用顺序决定先后，而不是由结构决定：union 与它的第一个成员、conditional 与它的 check 类型、`Payload['name']` 与 `Payload`、`string[]` 与 `string`。
 - `resolvedRemoteCodecType` 在自己的 `convert` 闭包里、对自己那对 `completed`/`active` 缓存分配 id，因此一个作者写下的 Remote 边界会为它经该节点转换的每种编译器类型各铸一个 id，顺序由缓存未命中决定。
 
-`tests/__snapshots__/type-model.spec.ts.snap` 记录了这些 id——仅 type-model fixture 就有 18 个同址位置，快照里 578 处出现、282 个不同——因此访问顺序一变，它们就改名，并以快照 diff 而非失败的形式到达。[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)正因如此把 `analyzer.ts` 留在批次 3，也正因如此规定：这个测试缺席时它的切分不得开始。
+`tests/__snapshots__/type-model.spec.ts.snap` 记录了这些 id——仅 type-model fixture 就有 18 个同址位置，快照里 578 处出现、282 个不同——因此访问顺序一变，它们就改名，并以快照 diff 而非失败的形式到达。[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)正因如此把 `analyzer.ts` 留在批次 3，也正因如此规定：这个测试缺席时它的切分不得开始。
 
 ## Decision
 
@@ -67,6 +67,6 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（本改动为其批次 3 条目解开前置条件的计划）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（本改动为其批次 3 条目解开前置条件的计划）
 - [提取 `Session` 对象与发布观察者](../simplification/2026-09-15-session-object-extraction.zh.md)（批次 3 第三刀落地）
 - `packages/typert/generator/tests/node-id-stability.spec.ts`、`packages/typert/generator/tests/type-model.spec.ts`

@@ -14,7 +14,7 @@ Status: implemented
 
 没有一个 fold 读世界状态。每个都取一份 log、返回一个值，且每一个都被 `createFixtureWorld` 调用——从 1055 行的 `projectionFramesOf(id, log, event)` 到 2457 行的 `projectionValuesOf(snapshot)`。依赖只有一个方向，因此这块区域有一条读者能说出口的边界。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为批次 2 `fixture.ts` 条目的第二项（在历史脚本之后）。本 note 记录这一刀产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为批次 2 `fixture.ts` 条目的第二项（在历史脚本之后）。本 note 记录这一刀产出了什么。
 
 ## Decision
 
@@ -118,6 +118,6 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 `fixture.ts` 条目的第二项）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 `fixture.ts` 条目的第二项）
 - [提取 fixture provider 的 fx-alpha 历史脚本与消息词汇](2026-09-14-fixture-history-module-extraction.zh.md)（本包内同批的另一刀）
 - [提取 trajectory ledger 的 record 模型与呈现辅助](2026-09-14-trajectory-ledger-module-extraction.zh.md)（批次 1，`ui-trajectory`）

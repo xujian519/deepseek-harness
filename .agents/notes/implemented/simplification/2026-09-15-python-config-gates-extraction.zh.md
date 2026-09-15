@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/experimental/code-runtime-python/src/index.ts` 曾为 1638 行，其中约 450 行属于加载期准入而非运行期：`Config` 接口、门禁所依据的那组固定上限、解释器查找与版本探测，以及一个在注册任何东西之前先跑 168 行门禁与解释器解析的构造函数。真正监督子进程的代码——spawn、fd-3 帧、信号升级、结算——排在这一切之后。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一项放在批次 3，并点名了使它留在那里的风险：构造函数位于一个 `/* jscpd:ignore-start */` 块内，该块的注释声明其形状与兄弟后端 `code-runtime-worker-thread` 平行，而计划第 1 条要求动该块之前先做出对侧改动或改写注释。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一项放在批次 3，并点名了使它留在那里的风险：构造函数位于一个 `/* jscpd:ignore-start */` 块内，该块的注释声明其形状与兄弟后端 `code-runtime-worker-thread` 平行，而计划第 1 条要求动该块之前先做出对侧改动或改写注释。
 
 ## Decision
 
@@ -64,7 +64,7 @@ Status: implemented
 
 ## Related
 
-- [拆分这七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；这是批次 3 第六刀落地）
+- [拆分这七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；这是批次 3 第六刀落地）
 - [提取 analyzer 的类型图](2026-09-15-analyzer-type-graph-extraction.zh.md)（批次 3 第五刀落地）
 - [提取日志台账](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（本文件在批次 1 的那一刀，也是其门禁上限首次被测量的地方）
 - `packages/experimental/code-runtime-python/src/config.ts`、`packages/experimental/code-runtime-python/tests/config.spec.ts`

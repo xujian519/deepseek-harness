@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-15-node-id-stability.md
-2026-09-15-node-id-stability.md: 07a2a1794bf699de3d4200675f5035b386750d52
-2026-09-15-node-id-stability.zh.md: d1b88c6f73e80f123c381453b8f043f6e4b69a90
+2026-09-15-node-id-stability.md: 2ec883e6615bd3c1e8bc633f1b78932f81f0b7b4
+2026-09-15-node-id-stability.zh.md: 150d08527374407b077ccc5881de6a4982f8ece5

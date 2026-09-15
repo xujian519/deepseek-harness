@@ -8,7 +8,7 @@ Status: implemented
 
 加载期门禁搬走之后，`packages/experimental/code-runtime-python/src/index.ts` 曾为 1180 行。剩下的是插件本体——`Config` 注册、`teardown`、`run`、binding 校验、每次运行的脚本落盘——外加一个 760 行的 `execute`，它掌管着整整一个子进程：spawn、fd-3 帧读取器与其分发、带回压与积压上限的回复通道、墙钟定时器与中止监听、SIGTERM → 宽限 → SIGKILL 升级，以及要等进程组清空才落地的结算。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一项记在批次 3，名为「配置门禁与进程监管」；门禁[已先行落地](2026-09-15-python-config-gates-extraction.zh.md)，这里是另一半。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一项记在批次 3，名为「配置门禁与进程监管」；门禁[已先行落地](2026-09-15-python-config-gates-extraction.zh.md)，这里是另一半。
 
 ## Decision
 
@@ -55,7 +55,7 @@ Status: implemented
 
 ## Related
 
-- [拆分这七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；这是批次 3 第七刀落地）
+- [拆分这七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；这是批次 3 第七刀落地）
 - [提取 python 后端的加载期门禁](2026-09-15-python-config-gates-extraction.zh.md)（本批次项的前一半）
 - [提取日志台账](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（本文件在批次 1 的那一刀）
 - `packages/experimental/code-runtime-python/src/supervisor.ts`、`packages/experimental/code-runtime-python/src/index.ts`
