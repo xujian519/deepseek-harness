@@ -86,6 +86,40 @@ const DEFAULT_TRAY_GROUP = 'tray'
 const BRIDGE_SOCKET_PREFIX = 'dsh-desktop-bridge-'
 
 /**
+ * Accelerators that own the platform editing surface. `globalShortcut.register`
+ * claims its binding system-wide — Chromium in every other application loses
+ * the accelerator too — so the bridge refuses them at the earliest point it
+ * sees the string, before any OS-side claim exists to unwind.
+ *
+ * Two branches, because the two key families have different modifier rules:
+ * - Letter bindings (copy, paste, cut, select-all, undo) require a primary
+ *   Cmd/Ctrl/Super/Meta modifier; `Shift+C` alone is just an uppercase C and
+ *   must stay available to plugins.
+ * - Windows traditional editing keys (Insert for copy/paste, Delete for cut)
+ *   are meaningful under Shift alone (`Shift+Insert` pastes, `Shift+Delete`
+ *   cuts), so any modifier stack qualifies.
+ *
+ * Other editing keys — arrows, Home/End, function keys — are not claimed
+ * system-wide by the shell menu and stay out of this list.
+ */
+const RESERVED_LETTER_ACCELERATOR_PATTERN =
+  /^(?:CmdOrCtrl|Cmd|Command|Ctrl|Control|Super|Meta)(?:\+(?:Shift|Alt|Option|Super|Meta))*\+[CVXAZ]$/iu
+const RESERVED_TRADITIONAL_EDIT_KEY_PATTERN =
+  /^(?:(?:CmdOrCtrl|Cmd|Command|Ctrl|Control|Shift|Alt|Option|Super|Meta)\+)+(?:Insert|Delete)$/iu
+
+/**
+ * Whether an accelerator string matches one of the reserved editing bindings.
+ * @param accelerator - Electron accelerator string supplied by a backend caller.
+ * @returns true when the bridge must refuse the registration.
+ */
+function isReservedAccelerator(accelerator: string): boolean {
+  return (
+    RESERVED_LETTER_ACCELERATOR_PATTERN.test(accelerator) ||
+    RESERVED_TRADITIONAL_EDIT_KEY_PATTERN.test(accelerator)
+  )
+}
+
+/**
  * Resolve a bridge socket path. Windows uses a named pipe carrying the pid;
  * POSIX uses a Unix domain socket in the OS temp directory, also named per
  * pid. A repo-nested userData directory would exceed the ~104-byte Unix
@@ -390,6 +424,9 @@ export class BridgeServer {
 
   private registerGlobalShortcut(params: unknown): { ok: true } {
     const { accelerator } = (params ?? {}) as { accelerator: string }
+    if (isReservedAccelerator(accelerator)) {
+      throw new Error(`accelerator ${accelerator} is reserved for system editing`)
+    }
     const registered = globalShortcut.register(accelerator, () => {
       this.notify('desktop/shortcut-triggered', { accelerator })
     })

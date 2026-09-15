@@ -341,6 +341,43 @@ describe('BridgeServer', () => {
     expect(response.error?.message).toContain('already registered')
   })
 
+  it.each([
+    'Cmd+C', 'Cmd+V', 'Cmd+X', 'Cmd+A', 'Cmd+Z',
+    'CmdOrCtrl+Shift+Z', 'Ctrl+V', 'Control+Alt+C',
+    // Multi-modifier stacks and the Windows traditional editing keys must
+    // also be refused; a narrower pattern would let a plugin claim them.
+    'Cmd+Shift+Alt+C', 'Super+V', 'Meta+X',
+    'Ctrl+Insert', 'Shift+Insert', 'Shift+Delete',
+  ])(
+    'rejects %s as a reserved editing accelerator',
+    async (accelerator) => {
+      client?.write(JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator },
+      }) + '\n')
+      const response = await waitForFrame(candidate => candidate.id === 1)
+      expect(response.error?.code).toBe(-32000)
+      expect(response.error?.message).toContain('reserved for system editing')
+      // The refusal must land before any OS-side claim: otherwise a plugin
+      // could still steal Cmd+C system-wide and only fail afterwards.
+      expect(mocks.registerShortcut).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['Shift+C', 'Alt+F4', 'Cmd+K', 'Ctrl+P', 'F5', 'Insert'])(
+    'accepts %s because it is not a reserved editing accelerator',
+    async (accelerator) => {
+      // Guard against an over-broad pattern: Shift+C is just an uppercase C,
+      // Alt+F4 / Cmd+K / Ctrl+P / F5 are window or plugin bindings, and a
+      // bare Insert with no modifier is not a clipboard operation.
+      client?.write(JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'desktop/registerGlobalShortcut', params: { accelerator },
+      }) + '\n')
+      const response = await waitForFrame(candidate => candidate.id === 1)
+      expect(response.result).toEqual({ ok: true })
+      expect(mocks.registerShortcut).toHaveBeenCalledWith(accelerator, expect.any(Function))
+    },
+  )
+
   it('sets the tray tooltip and menu group through setTray', async () => {
     const double = makeTrayDouble()
     bridge.initTray(double.tray, { onShow: () => {}, onQuit: () => {} })
