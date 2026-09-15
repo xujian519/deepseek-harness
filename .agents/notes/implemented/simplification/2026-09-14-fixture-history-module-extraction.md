@@ -14,7 +14,7 @@ The second was the fixture's message vocabulary: the four constructors that wrap
 
 The two regions read that vocabulary and nothing else in common. A reader changing how the live world renders an image had to find `FIXTURE_IMAGE_DATA` between the history script's terminal-output sample and its read samples, and neither region had a call edge into the 2400 lines of world-building below it.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this cut as its batch-2 `fixture.ts` item. This note records what the cut produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this cut as its batch-2 `fixture.ts` item. This note records what the cut produced.
 
 ## Decision
 
@@ -101,7 +101,7 @@ The fixture's behavior is unchanged, and the cut has a cost worth naming: the hi
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)
 - `src/client/trajectory-record-inspector.tsx` and `src/client/trajectory-resize-handle.ts` (the batch-2 sibling cut in `ui-trajectory`, landing as its own pull request)
 - [Extracting the trajectory ledger's record model and presentation helpers](2026-09-14-trajectory-ledger-module-extraction.md) (batch 1, `ui-trajectory`; established the `src/types.ts` home this cut deviates from)
 - `packages/AGENTS.md` (where a package's seam vocabulary lives)

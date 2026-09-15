@@ -128,6 +128,6 @@ const settingsRemotes: FixtureSettingsRemotes = {
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 的 `fixture.ts` 条目）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 的 `fixture.ts` 条目）
 - [提取 fixture 的内存文件系统](2026-09-14-fixture-file-system-module-extraction.zh.md)（点出这个边界问题、并给出本刀所用模板的那一刀）
 - [提取 fixture provider 的投影折叠](2026-09-14-fixture-projections-module-extraction.zh.md)（再往前一刀）

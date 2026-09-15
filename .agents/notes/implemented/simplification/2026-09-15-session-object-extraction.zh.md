@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/core/session/src/index.ts` 曾为 904 行，三个主题共用它：`Context`／`Events` 声明与 `SessionStore` 服务、`Session` 对象，以及两条发布路径都要用的监听器分发 helper。仅这个类就占 382 行（126–507），而 store 还从同一个模块取三样东西：它的 `enter`、`detachEntered`、`liveEntryFor` 读写的 `SessionEntry`／`attachments` 对，以及 `announce`、`emitDisposed`、`flush` 解析的观察者。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，并点名它的两条约束：`attachments` 与 `SessionEntry` 必须同址，且类的类型字符串被 `tests/typert.spec.ts` 逐字断言。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，并点名它的两条约束：`attachments` 与 `SessionEntry` 必须同址，且类的类型字符串被 `tests/typert.spec.ts` 逐字断言。
 
 ## Decision
 
@@ -60,7 +60,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第三刀落地）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第三刀落地）
 - [提取会话的增量折叠](2026-09-14-session-folds-extraction.zh.md)（批次 3 针对本文件的第一刀）
 - [提取 `run_code` 的子分发车道](2026-09-15-ptc-dispatch-pool-extraction.zh.md)（批次 3 第二刀落地）
 - `packages/core/session/src/session.ts`、`packages/core/session/src/observers.ts`、`packages/core/session/tests/typert.spec.ts`

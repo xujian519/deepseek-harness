@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/experimental/code-runtime-python/src/index.ts` 长到 2405 行，装着三个彼此从不共用一行的关切：子进程监管、fd-3 帧读取器，以及运行期在 `logs` 里返回的一切的计价。改一次字节预算或截断标记，都要先读完成进程、升级、teardown 那一段；而要碰一次截断边界，唯一手段是真的拉起一个 python 子进程——台账没有任何测试能调用的面。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀定为批次 1 的首项，也是整个计划的试点，理由是兄弟后端 `packages/code-runtime/code-runtime-worker-thread/src/index.ts` 已经有一个抽好的 `OutputLedger`，两者可以对拍同一组边界案例。本 note 记录这一刀实际产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀定为批次 1 的首项，也是整个计划的试点，理由是兄弟后端 `packages/code-runtime/code-runtime-worker-thread/src/index.ts` 已经有一个抽好的 `OutputLedger`，两者可以对拍同一组边界案例。本 note 记录这一刀实际产出了什么。
 
 ## Decision
 
@@ -55,6 +55,6 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本条是它的批次 1 试点）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本条是它的批次 1 试点）
 - [收编硬编码可调参数审计](2026-09-14-hardcoded-tunable-closeout.zh.md)（Issue #88；批次 1 的改动规则：不移动任何常量或默认值）
 - `packages/code-runtime/code-runtime-worker-thread/src/index.ts`（`OutputLedger` 先例）

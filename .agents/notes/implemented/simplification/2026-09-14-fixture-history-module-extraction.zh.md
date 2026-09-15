@@ -14,7 +14,7 @@ Status: implemented
 
 这两个区域读取同一份词汇，除此之外没有共同点。想改动实时世界如何渲染图片的读者，必须在历史脚本的终端输出样本与 read 样本之间找到 `FIXTURE_IMAGE_DATA`；而这两个区域与它下面那 2400 行世界构建代码之间也没有任何调用边。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为它的批次 2 `fixture.ts` 项。本记录记下这一刀产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀列为它的批次 2 `fixture.ts` 项。本记录记下这一刀产出了什么。
 
 ## Decision
 
@@ -101,7 +101,7 @@ fixture 的行为未变，而这次切割有一处代价值得点名：历史脚
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本记录是它的批次 2 `fixture.ts` 项）
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本记录是它的批次 2 `fixture.ts` 项）
 - `src/client/trajectory-record-inspector.tsx` 与 `src/client/trajectory-resize-handle.ts`（`ui-trajectory` 里的批次 2 同侪切口，作为独立 pull request 落地）
 - [Extracting the trajectory ledger's record model and presentation helpers](2026-09-14-trajectory-ledger-module-extraction.zh.md)（批次 1，`ui-trajectory`；确立了本刀偏离的 `src/types.ts` 归宿）
 - `packages/AGENTS.md`（包的接缝词汇所在之处）

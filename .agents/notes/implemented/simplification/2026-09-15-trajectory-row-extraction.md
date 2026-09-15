@@ -8,7 +8,7 @@ English | [中文](2026-09-15-trajectory-row-extraction.zh.md)
 
 `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` was 921 lines, and 255 of them sat inside one `renderedRecords.map` callback: the row's per-record markers, its ARIA attributes, its eleven `data-*` attributes, its three input handlers, and the two cells it renders. Nothing else in the file read those values, and the ledger passed them through a `RecordPresentation` render prop that existed only so the row could compute its own display strings.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3 and names the risk that keeps it there: the row captures the ledger's derivations and callbacks, passing them explicitly costs roughly 45 props, and a memo boundary handled carelessly re-renders every visible row on each parent render, giving back the virtualizer's benefit.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3 and names the risk that keeps it there: the row captures the ledger's derivations and callbacks, passing them explicitly costs roughly 45 props, and a memo boundary handled carelessly re-renders every visible row on each parent render, giving back the virtualizer's benefit.
 
 ## Decision
 
@@ -75,7 +75,7 @@ The last row is the boundary of this guard, recorded rather than papered over: t
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's fourth landed cut)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's fourth landed cut)
 - [Extracting the `Session` object and the publication observers](2026-09-15-session-object-extraction.md) (batch 3's third landed cut)
 - [Extracting the record inspector](2026-09-14-trajectory-record-inspector-extraction.md) (batch 2's cut of this file: the `<aside>` panel and its resize drag)
 - `packages/client/ui-trajectory/src/client/trajectory-row.tsx`, `packages/client/ui-trajectory/tests/table-row.client.spec.tsx`

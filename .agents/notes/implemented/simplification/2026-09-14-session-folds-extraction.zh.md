@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/core/session/src/index.ts` 曾为 950 行。`Session` 类拥有事件日志，并且在它旁边还拥有三套增量折叠缓存：当前生效的请求头部、最近解析出的路由元数据、以及派生的 LLM 消息历史。这些缓存及其方法占据 452–542 行——91 行、六个私有字段——并且共用同一个输入：那个类同时也在追加写入的日志数组。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把 `core/session` 放在批次 3；该批次的切法坐落在语义上，每一刀都必须说明它保住了什么。这一刀的证据是已经存在的覆盖：`tests/request-header.spec.ts`（10 例）、`tests/derived-cache.spec.ts`（6 例）以及 `tests/surface.spec.ts` 中的 `deriveMessages with surface`，都经由 `Session` 走三套折叠；该包不带任何 `jscpd:ignore` 对称契约、没有浏览器 lane、也没有覆盖率豁免，因此罩住 `packages/*/*/src` 的逐文件门禁会让丢路径的切法变红，而不是静默通过。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把 `core/session` 放在批次 3；该批次的切法坐落在语义上，每一刀都必须说明它保住了什么。这一刀的证据是已经存在的覆盖：`tests/request-header.spec.ts`（10 例）、`tests/derived-cache.spec.ts`（6 例）以及 `tests/surface.spec.ts` 中的 `deriveMessages with surface`，都经由 `Session` 走三套折叠；该包不带任何 `jscpd:ignore` 对称契约、没有浏览器 lane、也没有覆盖率豁免，因此罩住 `packages/*/*/src` 的逐文件门禁会让丢路径的切法变红，而不是静默通过。
 
 ## Decision
 
@@ -60,7 +60,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本条是批次 3 的首项）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本条是批次 3 的首项）
 - [提取会话头部与事件校验](2026-09-14-session-validation-extraction.zh.md)（同包的批次 1 切法）
 - `packages/core/session/src/surface.ts`（折叠读取的 surface，以及 `deriveEventMessage`）
 - `packages/core/session/src/request-header.ts`（`foldRequestHeader`，头部缓存所镜像的纯折叠）

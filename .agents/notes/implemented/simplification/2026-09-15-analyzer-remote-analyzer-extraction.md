@@ -8,7 +8,7 @@ English | [中文](2026-09-15-analyzer-remote-analyzer-extraction.zh.md)
 
 `packages/typert/generator/src/analyzer.ts` was 2206 lines and still held two clusters. The type modeler had moved to `src/type-graph.ts`; what remained was the Remote/RPC analyzer — the decorator and gateway readings that decide an invocation, the type-meta maps a lookup or Context argument comes from, the strict JSON boundary every wire field projects to, and the invocation models the emitter consumes — interleaved with the package walk that calls it. All 22 of its members were private, so nothing outside the file named the cluster, and a reader who wanted the RPC contract had to find it between `collectExplicitServices` and `collectEvents`.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) named this slice and predicted its shape: with the graph owning that state, only three of its call sites leave the file. Measured before the move, those three are the cluster's writes into the state the graph owns — `allocateNodeId`, `setNode`, and `setDeclaration`. Every other dependency of the cluster is a read.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) named this slice and predicted its shape: with the graph owning that state, only three of its call sites leave the file. Measured before the move, those three are the cluster's writes into the state the graph owns — `allocateNodeId`, `setNode`, and `setDeclaration`. Every other dependency of the cluster is a read.
 
 ## Decision
 
@@ -60,7 +60,7 @@ The id-stability test guards the move. `tests/node-id-stability.spec.ts` pins th
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's eighth landed cut)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's eighth landed cut)
 - [Extracting the analyzer's type graph](2026-09-15-analyzer-type-graph-extraction.md) (the cut that left this one measured at three call sites)
 - [Pinning the analyzer's node ids](../testing/2026-09-15-node-id-stability.md) (the guard for every analyzer move)
 - `packages/typert/generator/src/remote-analyzer.ts`, `packages/typert/generator/tests/remote-invocation-identity.spec.ts`

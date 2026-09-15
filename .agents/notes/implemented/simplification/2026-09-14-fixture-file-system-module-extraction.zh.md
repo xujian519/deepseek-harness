@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-[投影那一刀](2026-09-14-fixture-projections-module-extraction.zh.md)把 `packages/client/connection/src/client/fixture.ts` 留在了 2897 行，并写明了它为什么停在那儿：此前每一刀提取的都是**模块级纯函数**，而 `createFixtureWorld`（704–2875）那 2172 行的函数体里，没有哪块区域符合这个条件。[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这里剩下的活儿归入批次 2——*需要先把接口定形的切割*——但没有点名那个接口是什么。悬着的问题是**一个簇怎么拿到世界的状态**。
+[投影那一刀](2026-09-14-fixture-projections-module-extraction.zh.md)把 `packages/client/connection/src/client/fixture.ts` 留在了 2897 行，并写明了它为什么停在那儿：此前每一刀提取的都是**模块级纯函数**，而 `createFixtureWorld`（704–2875）那 2172 行的函数体里，没有哪块区域符合这个条件。[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这里剩下的活儿归入批次 2——*需要先把接口定形的切割*——但没有点名那个接口是什么。悬着的问题是**一个簇怎么拿到世界的状态**。
 
 按每块区域捕获了什么状态来分类，问题就有答案了。逐块对照其自身的符号引用：
 
@@ -95,7 +95,7 @@ const directoryPickerRemotes = createDirectoryPickerRemotes(FIXTURE_HOME)
 
 它补了测试：`tests/fixture-file-system.client.spec.ts`，22 例。`vitest.config.ts` 未改动。
 
-这正是[计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)自己的验收标准——*某个测试变得可行、某个接口变得显式、某个方法变得可读*——而这正是本刀的证成，且模块正是让它可行的原因：每条分支跑的都是模块级数据，或当场造出的工厂，中间没有世界、log、session 或传输。`vitest.config.ts` 里 `fixture.ts` 那条注释写的是 `TODO(gui): cover and remove`；对这块区域，这件事现在是做完了，而不是被另一个文件继承下去。
+这正是[计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)自己的验收标准——*某个测试变得可行、某个接口变得显式、某个方法变得可读*——而这正是本刀的证成，且模块正是让它可行的原因：每条分支跑的都是模块级数据，或当场造出的工厂，中间没有世界、log、session 或传输。`vitest.config.ts` 里 `fixture.ts` 那条注释写的是 `TODO(gui): cover and remove`；对这块区域，这件事现在是做完了，而不是被另一个文件继承下去。
 
 以 `--coverage.reporter=json-summary` 实测，该模块为 statements、branches、functions、lines 四项 100%（82 行、87 条语句、67 条分支、16 个函数）。模块内没有任何 `v8 ignore`；入口那六处抑制全都落在搬迁区间之外。
 
@@ -142,6 +142,6 @@ const directoryPickerRemotes = createDirectoryPickerRemotes(FIXTURE_HOME)
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 `fixture.ts` 条目的一项）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 `fixture.ts` 条目的一项）
 - [提取 fixture provider 的投影 fold 家族](2026-09-14-fixture-projections-module-extraction.zh.md)（本文件内的上一刀，也是命名了这条边界问题的那一刀）
 - [提取 fixture provider 的 fx-alpha 历史脚本与消息词汇](2026-09-14-fixture-history-module-extraction.zh.md)（本包内批次 2 的第一刀）

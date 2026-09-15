@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-history-module-extraction.md
-2026-09-14-fixture-history-module-extraction.md: 1b9c762728726d6a66a088a3ecce9cba24f8ca4d
-2026-09-14-fixture-history-module-extraction.zh.md: 19555c33e086f7a88a8aa8ced5109ba8f83f2cd6
+2026-09-14-fixture-history-module-extraction.md: cb9cd479151de7f6dcd876e6ff5ff4fb50f00ba7
+2026-09-14-fixture-history-module-extraction.zh.md: ca9aa51ca4fa011bf8861b58e3de9c31c8533705

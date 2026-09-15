@@ -10,7 +10,7 @@ English | [中文](2026-09-14-trajectory-ledger-module-extraction.zh.md)
 
 The file had one visible ordering property working against it. Declarations are grouped by topic, not by who calls whom, so a reader changing how a request's failure text is displayed had to find `requestErrorMessage` among 3200 lines that also hold the virtualizer wiring and the pointer-capture drag. The six presentation families do not call each other; the projection layer does not call any of them.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 1's `ui-trajectory` item. This note records what the cut produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 1's `ui-trajectory` item. This note records what the cut produced.
 
 ## Decision
 
@@ -95,7 +95,7 @@ One asymmetry the cut preserves rather than creates: `trajectory-record-presenta
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-1 `ui-trajectory` item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-1 `ui-trajectory` item)
 - `2026-09-14-analyzer-module-extraction.md` (batch-1 sibling, landing as its own pull request; established the `src/types.ts` home this cut reuses)
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.md) (the batch-1 pilot)
 - `packages/AGENTS.md` (where a package's seam vocabulary lives)

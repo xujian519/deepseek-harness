@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-session-folds-extraction.md
-2026-09-14-session-folds-extraction.md: bba8cd28431c816d67ca7ef16024c399ead3a4f8
-2026-09-14-session-folds-extraction.zh.md: d5ca3caf70766ab900521bb71494f4666ce8425d
+2026-09-14-session-folds-extraction.md: 3dfa2fae25f40281a8e8c7e04f9cc294c0618e7f
+2026-09-14-session-folds-extraction.zh.md: 3b181783dd61fe70f146d2c86385132da0b4be74

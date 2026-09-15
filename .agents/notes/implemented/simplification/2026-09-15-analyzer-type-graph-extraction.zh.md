@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/typert/generator/src/analyzer.ts` 曾为 2806 行，且把两簇塞在同一个 `FaceAnalyzer` 类里：Remote/RPC 分析器（标记、网关、边界、codec 类型、invocation，以及 type-meta 查找声明）与类型建模器（`convertType`、`members`、`signature`、`ensureDeclaration`、`targetForReference`，以及它们之下的 id 分配）。两者写同一组私有 map——`nodes`、`declarations`、`declarationStates` 与 `nodeOrdinals`——而 remote 簇还在两处直接以自己铸造的 id（`#remote-codec:`）写它们，于是这些状态没有所有者。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，并点名了它的难点：`allocateNodeId` 铸造 `type:<file>:<line>:<column>#<ordinal>`，因此一个 id 是「某个源位置上的访问顺序」的函数，而在有测试钉住该顺序之前这一刀不能开工。那个测试[已先行落地](../../implemented/testing/2026-09-15-node-id-stability.zh.md)。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一刀放在批次 3，并点名了它的难点：`allocateNodeId` 铸造 `type:<file>:<line>:<column>#<ordinal>`，因此一个 id 是「某个源位置上的访问顺序」的函数，而在有测试钉住该顺序之前这一刀不能开工。那个测试[已先行落地](../../implemented/testing/2026-09-15-node-id-stability.zh.md)。
 
 ## Decision
 
@@ -55,7 +55,7 @@ Status: implemented
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第五刀落地）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是批次 3 第五刀落地）
 - [钉住 analyzer 的节点 id](../testing/2026-09-15-node-id-stability.zh.md)（本刀的前置件）
 - [提取 `Session` 对象与发布观察者](2026-09-15-session-object-extraction.zh.md)（批次 3 第三刀落地）
 - `packages/typert/generator/src/type-graph.ts`、`packages/typert/generator/tests/node-id-stability.spec.ts`

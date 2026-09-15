@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-trajectory-record-inspector-extraction.md
-2026-09-14-trajectory-record-inspector-extraction.md: aaea8ab464b0cc8c4545092f87d4df469989db31
-2026-09-14-trajectory-record-inspector-extraction.zh.md: 173da07bccdc0dda378ef75c99b275893cafe67b
+2026-09-14-trajectory-record-inspector-extraction.md: 1caa5030bf7d8c15605f7afe97fa2b9d0d3b90c2
+2026-09-14-trajectory-record-inspector-extraction.zh.md: caff1b24f346ae8f1d69709397df404bcaa2237b

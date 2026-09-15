@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-analyzer-type-graph-extraction.md
-2026-09-15-analyzer-type-graph-extraction.md: b662a0813e15414d6384ca5c191e7c965a506b6b
-2026-09-15-analyzer-type-graph-extraction.zh.md: 5a3860b20f30906c3034ec77f10505b35b99e319
+2026-09-15-analyzer-type-graph-extraction.md: c236d8a27eba74e0b942a8e5386a4bc3df1ffced
+2026-09-15-analyzer-type-graph-extraction.zh.md: 98b739cf0b8d4ba8d0d99b1e1850663e611d0c8e

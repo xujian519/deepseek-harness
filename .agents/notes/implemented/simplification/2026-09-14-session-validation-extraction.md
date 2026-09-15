@@ -8,7 +8,7 @@ English | [中文](2026-09-14-session-validation-extraction.zh.md)
 
 `packages/core/session/src/index.ts` reached 1256 lines with four concerns sharing one module: the `SessionStore` service, the `Session` class, the publication path, and a 306-line block of validators. That block shares no symbol with the store or the class — every function in it takes an unknown value and either throws or narrows it — and the entry module spends only three of its declarations, all inside `Session`'s constructor.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) lists `core/session` as a batch-1 item, the batch whose cuts preserve behavior by construction: no instance state, no new interface, no behavior change, and the entry module re-exports what moved. This note records what that cut produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) lists `core/session` as a batch-1 item, the batch whose cuts preserve behavior by construction: no instance state, no new interface, no behavior change, and the entry module re-exports what moved. This note records what that cut produced.
 
 ## Decision
 
@@ -56,7 +56,7 @@ No `jscpd:ignore` block was touched; the moved region contains no such marker.
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is a batch-1 item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is a batch-1 item)
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.md) (the batch-1 pilot, whose note this one follows)
 - `packages/core/session/src/surface.ts` (the surface manager whose event data `adoptSessionEvent` validates)
 - `packages/session-query/session-query/src/index.ts`, `packages/session/session-persistence/src/storage-contract.ts` (cross-package consumers of the re-exported event adoption)

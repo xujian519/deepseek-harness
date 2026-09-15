@@ -98,7 +98,7 @@ Two asymmetries the cut preserves rather than creates. `trajectory-detail-tabs.t
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `ui-trajectory` inspector item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `ui-trajectory` inspector item)
 - [Extracting the trajectory ledger's record model and presentation helpers](2026-09-14-trajectory-ledger-module-extraction.md) (batch-1 sibling; settled `src/types.ts` as the package's vocabulary home, and kept the tab tables in the entry under batch 1's no-constant-moves rule)
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.md) (the batch-1 pilot)
 - `packages/AGENTS.md` (where a package's seam vocabulary lives)

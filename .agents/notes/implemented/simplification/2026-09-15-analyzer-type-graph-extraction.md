@@ -8,7 +8,7 @@ English | [中文](2026-09-15-analyzer-type-graph-extraction.zh.md)
 
 `packages/typert/generator/src/analyzer.ts` was 2806 lines and held two clusters in one `FaceAnalyzer` class: the Remote/RPC analyzer (markers, gateways, boundaries, codec types, invocations, and the type-meta lookup declarations) and the type modeler (`convertType`, `members`, `signature`, `ensureDeclaration`, `targetForReference`, and the id allocation under them). Both wrote the same four private maps — `nodes`, `declarations`, `declarationStates`, and `nodeOrdinals` — and the remote cluster reached them directly at two sites with ids it minted itself (`#remote-codec:`), so neither side owned the state.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3 and names what makes it hard: `allocateNodeId` mints `type:<file>:<line>:<column>#<ordinal>`, so an id is a function of visit order at one source position, and the cut could not start until a test pinned that order. That test [landed first](../../implemented/testing/2026-09-15-node-id-stability.md).
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) holds this cut in batch 3 and names what makes it hard: `allocateNodeId` mints `type:<file>:<line>:<column>#<ordinal>`, so an id is a function of visit order at one source position, and the cut could not start until a test pinned that order. That test [landed first](../../implemented/testing/2026-09-15-node-id-stability.md).
 
 ## Decision
 
@@ -55,7 +55,7 @@ English | [中文](2026-09-15-analyzer-type-graph-extraction.zh.md)
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's fifth landed cut)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is batch 3's fifth landed cut)
 - [Pinning the analyzer's node ids](../testing/2026-09-15-node-id-stability.md) (this cut's precondition)
 - [Extracting the `Session` object and the publication observers](2026-09-15-session-object-extraction.md) (batch 3's third landed cut)
 - `packages/typert/generator/src/type-graph.ts`, `packages/typert/generator/tests/node-id-stability.spec.ts`

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-code-runtime-python-frame-reader.md
-2026-09-14-code-runtime-python-frame-reader.md: cee774a5203597ef151742ea78b80e3895f5c9f7
-2026-09-14-code-runtime-python-frame-reader.zh.md: afcb76317636b9f23ef1be77a68b2e695bcff4b6
+2026-09-14-code-runtime-python-frame-reader.md: 55fc3b01ada889351e006550e0c7db1958f90f62
+2026-09-14-code-runtime-python-frame-reader.zh.md: c67aaea7ee737f8a170d6df446be3c104b059710

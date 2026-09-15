@@ -10,7 +10,7 @@ English | [中文](2026-09-14-analyzer-module-extraction.zh.md)
 
 The tail is not homogeneous. It is three clusters with no edge between them: reading syntax nodes (declaration and member text, modifiers, JSDoc, literal models), reading `package.json` export maps, and resolving modules and filesystem paths. Each cluster was reachable only through the file that also held the analyzer, so changing how `package.json#exports` maps to source files meant finding that code below 2700 lines of extraction logic.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 1's `analyzer` item and estimates three cuts of about 250 lines each. This note records what the cut produced.
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 1's `analyzer` item and estimates three cuts of about 250 lines each. This note records what the cut produced.
 
 ## Decision
 
@@ -82,7 +82,7 @@ The move also surfaced that `packageExportSpecifier` and `firstSentence` already
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-1 `analyzer` item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-1 `analyzer` item)
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.md) (the batch-1 pilot)
 - [Closing out the hardcoded-tunable audit](2026-09-14-hardcoded-tunable-closeout.md) (Issue #88; batch-1 change rule: no constant or default moves)
 - `packages/AGENTS.md` (where a package's seam vocabulary lives)

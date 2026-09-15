@@ -98,7 +98,7 @@ inspector 现在是包内最大的模块，732 行 JSX。它仍是单组件、�
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是它批次 2 的 `ui-trajectory` inspector 项）
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是它批次 2 的 `ui-trajectory` inspector 项）
 - [Extracting the trajectory ledger's record model and presentation helpers](2026-09-14-trajectory-ledger-module-extraction.zh.md)（批次 1 同族；定下 `src/types.ts` 作为包的词汇归属处，并按批次 1 的「不移动常量」规则把 tab 表留在入口）
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（批次 1 试点）
 - `packages/AGENTS.md`（包的接缝词汇归属处）

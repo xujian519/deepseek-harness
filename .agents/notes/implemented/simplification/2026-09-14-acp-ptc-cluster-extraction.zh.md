@@ -8,7 +8,7 @@ Status: implemented
 
 两个入口模块都带着与身旁 handler 不共用任何符号的模块级代码。`packages/acp/acp/src/index.ts` 长到 543 行、`apply` 占 341 行，而 `session/list` 的 keyset 游标——一个不透明的 base64url token、它的解码/编码对，以及按字节稳定的排序比较——与 ACP 握手、准入、teardown 共处同一模块作用域。`packages/core/tools/src/ptc.ts` 长到 678 行，其中 `run_code` 各语言的 schema 文本（按运行时语言索引的 flavor 表，加读取已挂载运行时的解析器）与完成值的 JSON 呈现都位于 `createRunCodeTool` 之外，旁边是从不调用它们的代码。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)把这两者都列为批次 1 的项。批次 1 的切法按构造保持行为：无实例状态、无新接口、行为不变，且入口模块再导出被搬走的东西。本 note 记录这两刀实际产出了什么。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这两者都列为批次 1 的项。批次 1 的切法按构造保持行为：无实例状态、无新接口、行为不变，且入口模块再导出被搬走的东西。本 note 记录这两刀实际产出了什么。
 
 ## Decision
 
@@ -61,7 +61,7 @@ flavor 簇整体搬迁，因此该语言的 `description` 与 `code` 参数说�
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本条是它的批次 1 项）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本条是它的批次 1 项）
 - [提取 python 运行期的字节计价与日志台账模块](2026-09-14-code-runtime-python-cost-and-ledger.zh.md)（批次 1 试点，本 note 沿用其体例）
 - `packages/core/tools/src/index.ts`（flavor 键被校验对齐的 `SDK_RENDERERS` 表）
 - `packages/acp/acp/src/session.ts`（`listSessions` handler 读取的会话记录）

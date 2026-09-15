@@ -6,7 +6,7 @@ English | [中文](2026-09-14-fixture-file-system-module-extraction.zh.md)
 
 ## Problem
 
-[The projection cut](2026-09-14-fixture-projections-module-extraction.md) left `packages/client/connection/src/client/fixture.ts` at 2897 lines and named the reason it stopped there: every cut so far had extracted **module-level pure functions**, and the 2172-line body of `createFixtureWorld` (704–2875) held regions that do not qualify. [The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) put what remained here in batch 2 — *cuts that need an interface settled first* — without naming what that interface would be. The open question was **how a cluster reaches the world's state**.
+[The projection cut](2026-09-14-fixture-projections-module-extraction.md) left `packages/client/connection/src/client/fixture.ts` at 2897 lines and named the reason it stopped there: every cut so far had extracted **module-level pure functions**, and the 2172-line body of `createFixtureWorld` (704–2875) held regions that do not qualify. [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) put what remained here in batch 2 — *cuts that need an interface settled first* — without naming what that interface would be. The open question was **how a cluster reaches the world's state**.
 
 Sorting the body's regions by what state they capture answers it. Reading each region against its own symbol references:
 
@@ -95,7 +95,7 @@ One documentation change lands with the move: the 8-line JSDoc at `HEAD` 1280–
 
 It wrote the tests: `tests/fixture-file-system.client.spec.ts`, 22 cases. `vitest.config.ts` is unchanged.
 
-This is the cut's justification under [the plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md)'s own acceptance standard — *a test that becomes possible, an interface that becomes explicit, or a method that becomes readable* — and the module is what makes it possible: every branch runs against module-level data or a factory built on the spot, with no world, log, session, or transport in the way. The comment at `vitest.config.ts` for `fixture.ts` said `TODO(gui): cover and remove`; for this region that is now done rather than inherited by another file.
+This is the cut's justification under [the plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md)'s own acceptance standard — *a test that becomes possible, an interface that becomes explicit, or a method that becomes readable* — and the module is what makes it possible: every branch runs against module-level data or a factory built on the spot, with no world, log, session, or transport in the way. The comment at `vitest.config.ts` for `fixture.ts` said `TODO(gui): cover and remove`; for this region that is now done rather than inherited by another file.
 
 Measured with `--coverage.reporter=json-summary`, the module reports 100% statements, branches, functions, and lines (82 lines, 87 statements, 67 branches, 16 functions). The module carries no `v8 ignore`; the entry's six suppressions all sit outside the moved ranges.
 
@@ -142,6 +142,6 @@ Two stale points this cut leaves alone. `fixture.ts` carries two stacked doc com
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)
 - [Extracting the fixture provider's projection folds](2026-09-14-fixture-projections-module-extraction.md) (the previous cut in this file, and the one that named this boundary question)
 - [Extracting the fixture provider's fx-alpha history script and message vocabulary](2026-09-14-fixture-history-module-extraction.md) (the first batch-2 cut in this package)

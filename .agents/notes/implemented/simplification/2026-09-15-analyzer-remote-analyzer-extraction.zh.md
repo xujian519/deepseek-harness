@@ -8,7 +8,7 @@ Status: implemented
 
 `packages/typert/generator/src/analyzer.ts` 曾为 2206 行，仍塞着两簇。类型建模器已搬到 `src/type-graph.ts`；留下的是 Remote/RPC 分析器——决定一次调用的装饰器与 gateway 读取、lookup 或 Context 参数取自哪张 type-meta 映射、每个线上字段投影到的严格 JSON 边界，以及生成器消费的调用模型——它与调用它的包遍历交错在一起。它的 22 个成员全是私有的，因此文件之外无人叫得出这一簇的名字，想看 RPC 契约的读者只能在 `collectExplicitServices` 与 `collectEvents` 之间找它。
 
-[拆分计划](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)点名了这一刀并预判了它的形态：状态归类型图之后，它只剩三处调用点需要出文件。搬移前实测，这三处正是该簇写入类型图所拥有状态的地方——`allocateNodeId`、`setNode` 与 `setDeclaration`。该簇其余的依赖全是读取。
+[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)点名了这一刀并预判了它的形态：状态归类型图之后，它只剩三处调用点需要出文件。搬移前实测，这三处正是该簇写入类型图所拥有状态的地方——`allocateNodeId`、`setNode` 与 `setDeclaration`。该簇其余的依赖全是读取。
 
 ## Decision
 
@@ -60,7 +60,7 @@ id 稳定性测试是这次搬移的守卫。`tests/node-id-stability.spec.ts` �
 
 ## Related
 
-- [拆分七个上帝文件](../../proposed/simplification/2026-09-14-god-file-split-plan.zh.md)（本计划；这是批次 3 第八刀落地）
+- [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（本计划；这是批次 3 第八刀落地）
 - [提取 analyzer 的类型图](2026-09-15-analyzer-type-graph-extraction.zh.md)（正是它把这一刀测得只剩三处调用点）
 - [钉住 analyzer 的节点 id](../testing/2026-09-15-node-id-stability.zh.md)（每次 analyzer 搬移的守卫）
 - `packages/typert/generator/src/remote-analyzer.ts`、`packages/typert/generator/tests/remote-invocation-identity.spec.ts`

@@ -8,7 +8,7 @@ English | [中文](2026-09-14-code-runtime-python-frame-reader.zh.md)
 
 `packages/experimental/code-runtime-python/src/index.ts` kept the fd-3 frame reader — the byte buffering, both oversized-frame rejections, and the hostile-frame drops — inline in `PythonCodeRuntime.execute`'s promise executor, between the ledger wiring and the frame handlers. Every decode outcome was reachable only by driving a real CPython child to write the exact bytes, so the illegal-UTF-8 case, the unsafe-integer token, malformed JSON, both oversized paths, and the fragment-count seal each cost a 40–120 s subprocess case in `tests/runtime.spec.ts`. No surface existed that a test could hand a byte sequence to.
 
-[The split plan](../../proposed/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 2's first item, and predicted it would need "a frame callback protocol carrying the raw line length".
+[The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) names this cut as batch 2's first item, and predicted it would need "a frame callback protocol carrying the raw line length".
 
 ## Decision
 
@@ -58,6 +58,6 @@ Two fragile points stay with the subprocess suite and are worth naming. The seal
 
 ## Related
 
-- [Splitting the seven god files](../../proposed/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 first item)
+- [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 first item)
 - [Extracting the python runtime's cost and log-ledger modules](2026-09-14-code-runtime-python-cost-and-ledger.md) (batch 1 of the same package)
 - `packages/experimental/code-runtime-python/tests/runtime.spec.ts` (the subprocess cases that stay)

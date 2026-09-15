@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-python-config-gates-extraction.md
-2026-09-15-python-config-gates-extraction.md: c5da60dff275b22bd09515d2c17a32fd511fe790
-2026-09-15-python-config-gates-extraction.zh.md: 07db305d862e7b4338f9653a332c67850c510e04
+2026-09-15-python-config-gates-extraction.md: 7a6cb20ff29e8256d681c35f0a601743d0785c59
+2026-09-15-python-config-gates-extraction.zh.md: 475f91eaa5cc3ad6164ebffd50840133884c45fc
