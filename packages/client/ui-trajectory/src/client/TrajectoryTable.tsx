@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TrajectoryCellProps } from './trajectory-record.ts'
 import { trajectoryRecordId } from './trajectory-record.ts'
@@ -15,11 +14,10 @@ import type { TrajectoryTurnModel } from './layout.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
 
-import { assistantToolCalls, collapseAssistantRecords, collapseTurnRecords, filterRecords, flattenRecords, indexRequestBoundaries, indexRequestBoundaryRuns, indexRequestNumbers, requestIdentity, requestKey, sectionLabel, stateOf } from './trajectory-record-model.ts'
-import { RecordListText, RecordPresentation } from './trajectory-record-presentation.tsx'
+import { collapseAssistantRecords, collapseTurnRecords, filterRecords, flattenRecords, indexRequestBoundaries, indexRequestBoundaryRuns, indexRequestNumbers, requestIdentity, requestKey } from './trajectory-record-model.ts'
+import { TrajectoryRow } from './trajectory-row.tsx'
 import { RecordInspector } from './trajectory-record-inspector.tsx'
 import { detailTabs } from './trajectory-detail-tabs.ts'
-import { KIND_ICON, KIND_LABEL_KEY } from './trajectory-kind.tsx'
 import { useResizeHandle } from './trajectory-resize-handle.ts'
 import type { SelectedRequest } from './trajectory-record-inspector.tsx'
 import type { DetailTab, TableRecord, TrajectoryRequestNumber } from '../types.ts'
@@ -64,10 +62,6 @@ function useStableVirtualRowStructure(
 
 type TrajectorySplitStyle = CSSProperties & {
   '--trajectory-tool-request-width': string
-}
-
-type RequestBoundaryStyle = CSSProperties & {
-  '--request-boundary-offset': string
 }
 
 type VirtualSpacerStyle = CSSProperties & {
@@ -308,11 +302,11 @@ export function TrajectoryTable({
       '--trajectory-tool-request-width': `calc(58cqw - ${toolRequestOffset}px)`,
     }
 
-  const activateTab = (tab: DetailTab) => {
+  const activateTab = useCallback((tab: DetailTab) => {
     tabHistory.current.delete(tab)
     tabHistory.current.add(tab)
     setActiveTab(tab)
-  }
+  }, [])
 
   const clearInspectorSelection = () => {
     setSelectedRecordId(null)
@@ -356,14 +350,14 @@ export function TrajectoryTable({
       : trajectoryRecordId(record.cell)
   }, [allRecords, recordFocus])
 
-  const selectRequest = (
+  const selectRequest = useCallback((
     request: SelectedRequest,
     tab: 'overview' | 'timing' = 'overview',
   ) => {
     setSelectedRecordId(null)
     setSelectedRequest(request)
     activateTab(tab)
-  }
+  }, [activateTab])
 
   const openRecordSummary = (target: TableRecord) => {
     const targetAt = allRecords.findIndex(record => record.cell.index === target.cell.index)
@@ -628,261 +622,39 @@ export function TrajectoryTable({
                 />
               </tr>
             )}
-            {renderedRecords.map(({ record, position, terminalRequestBoundary }) => (
-              <RecordPresentation
-                key={trajectoryVirtualRecordKey(record)}
-                cell={record.cell}
-                t={t}
-              >
-                {({ displayText, listDisplayText, resultText, toolCallOnly, toolCallText }) => {
-                  const isCollapsedSummary = record.collapsedSummary !== undefined
-                  const isRequestOnly = record.cell.requestOnly === true
-                  const isInitialSystem = record.cell.kind === 'system'
-                && record.cell.index === allRecords[0]?.cell.index
-                  const key = requestKey(record.turn, record.group)
-                  const request = requestBoundaries.get(key) === record.cell.index
-                && !isCollapsedSummary
-                && (record.turn === null || !collapsedTurns.has(record.turn))
-                    ? requestNumbers.get(key)
-                    : undefined
-                  const requestInfo = request === undefined
-                    ? undefined
-                    : sessionRequestNumbers?.find(candidate => candidate.number === request)
-                  const requestStatus = requestInfo?.status
-                ?? (record.cell.isError === true ? 'error' : undefined)
-                  const requestRunIndex = requestBoundaryRuns.get(record.cell.index) ?? 0
-                  const requestBoundaryStyle: RequestBoundaryStyle = {
-                    '--request-boundary-offset': `${requestRunIndex * 8}px`,
-                  }
-                  const requestLabel = request === undefined
-                    ? undefined
-                    : t(requestInfo?.purpose === 'compaction'
-                      ? 'request.labelCompaction'
-                      : 'request.label', { request })
-                  const requestSelected = requestInfo !== undefined
-                && selectedRequest?.identity === requestIdentity(requestInfo)
-                  const sectionActive = record.turn === null
+            {renderedRecords.map(({ record, position, terminalRequestBoundary }) => {
+              const isCollapsedSummary = record.collapsedSummary !== undefined
+              const timelineFocus = isCollapsedSummary || timelineFocusIndexes === null
+                ? undefined
+                : timelineFocusIndexes.has(record.cell.index) ? 'inside' : 'outside'
+              return (
+                <TrajectoryRow
+                  key={trajectoryVirtualRecordKey(record)}
+                  record={record}
+                  position={position}
+                  terminalRequestBoundary={terminalRequestBoundary}
+                  selected={selectedIndex === record.cell.index}
+                  sectionActive={record.turn === null
                     ? activeSection === record.section
-                    : activeTurn === record.turn
-                  return (
-                    <tr
-                      tabIndex={isRequestOnly ? -1 : 0}
-                      aria-rowindex={position + 1 + historyRowOffset}
-                      aria-label={isCollapsedSummary
-                        ? t('request.collapsedSummary', {
-                          kind: t(record.collapsedSummaryKind === 'turn'
-                            ? 'request.collapsedTurn'
-                            : 'request.collapsedAssistant'),
-                          summary: record.collapsedSummary,
-                        })
-                        : isRequestOnly
-                          ? t('request.rowAriaCompaction', { request: request ?? '' })
-                          : t('request.rowAria', {
-                            request: request === undefined ? '' : t('request.rowPrefix', { request }),
-                            kind: t(KIND_LABEL_KEY[record.cell.kind]),
-                            content: listDisplayText || t('request.noContent'),
-                          })}
-                      aria-selected={!isCollapsedSummary && !isRequestOnly && selectedIndex === record.cell.index}
-                      data-kind={record.cell.kind}
-                      data-trajectory-row-key={trajectoryVirtualRecordKey(record)}
-                      data-virtual-position={virtualizationEnabled ? position : undefined}
-                      data-record-index={!isCollapsedSummary && !isRequestOnly
-                        ? record.cell.index
-                        : undefined}
-                      data-request-only={isRequestOnly || undefined}
-                      data-terminal-request-boundary={terminalRequestBoundary || undefined}
-                      data-group-start={record.groupStart || undefined}
-                      data-turn-start={record.turnStart || undefined}
-                      data-error={record.cell.isError || undefined}
-                      data-running={stateOf(record) === 'running' || undefined}
-                      data-turn-end={record.turnEnd || undefined}
-                      data-collapsed-summary={record.collapsedSummaryKind}
-                      data-selected={!isCollapsedSummary && selectedIndex === record.cell.index || undefined}
-                      data-timeline-focus={isCollapsedSummary || timelineFocusIndexes === null
-                        ? undefined
-                        : timelineFocusIndexes.has(record.cell.index) ? 'inside' : 'outside'}
-                      onClick={isRequestOnly
-                        ? undefined
-                        : isCollapsedSummary
-                          ? () => {
-                            if (record.collapsedSummaryKind === 'turn' && record.turn !== null) {
-                              onToggleTurn(record.turn)
-                            } else onToggleAssistant(trajectoryRecordId(record.cell))
-                          }
-                          : () => { selectRecord(record.cell.index) }}
-                      onDoubleClick={(event) => {
-                        if (isCollapsedSummary || isRequestOnly) return
-                        if (record.turn !== null && collapsedTurns.has(record.turn)) {
-                          event.preventDefault()
-                          onToggleTurn(record.turn)
-                          return
-                        }
-                        if (
-                          record.cell.kind === 'message'
-                      && assistantToolCalls(allRecords, record.cell.index).length > 0
-                        ) {
-                          event.preventDefault()
-                          onToggleAssistant(trajectoryRecordId(record.cell))
-                          return
-                        }
-                        if (!record.turnStart) return
-                        if (record.turn === null) return
-                        if (allRecords.filter(candidate =>
-                          candidate.turn === record.turn
-                      && candidate.cell.requestOnly !== true
-                      && candidate.cell.kind !== 'system').length <= 1) return
-                        event.preventDefault()
-                        onToggleTurn(record.turn)
-                      }}
-                      onKeyDown={(event) => {
-                        if (isRequestOnly) return
-                        if (event.key !== 'Enter' && event.key !== ' ') return
-                        event.preventDefault()
-                        if (isCollapsedSummary) {
-                          if (record.collapsedSummaryKind === 'turn' && record.turn !== null) {
-                            onToggleTurn(record.turn)
-                          } else onToggleAssistant(trajectoryRecordId(record.cell))
-                          return
-                        }
-                        selectRecord(record.cell.index)
-                      }}
-                    >
-                      <td className={css.event}>
-                        {request !== undefined && (
-                          <button
-                            type="button"
-                            className={requestSelected
-                              ? `${css.requestBoundaryControl} ${css.requestBoundaryControlActive}`
-                              : css.requestBoundaryControl}
-                            aria-label={requestLabel}
-                            aria-pressed={requestSelected}
-                            data-label={requestLabel}
-                            data-request-run-index={requestRunIndex}
-                            data-request-status={requestStatus}
-                            style={requestBoundaryStyle}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              if (requestInfo !== undefined) {
-                                selectRequest({ identity: requestIdentity(requestInfo) })
-                              }
-                            }}
-                            onDoubleClick={(event) => { event.stopPropagation() }}
-                          />
-                        )}
-                        {record.turn !== null
-                    && activeTurn === record.turn
-                    && !isInitialSystem && (
-                          <span className={css.turnRail} aria-hidden="true" />
-                        )}
-                        {!isCollapsedSummary && selectedIndex === record.cell.index && (
-                          <span className={css.selectionRail} aria-hidden="true" />
-                        )}
-                        {!isCollapsedSummary
-                    && !isRequestOnly
-                    && record.turnStart && (
-                          <span
-                            className={sectionActive
-                              ? `${css.turnLabel} ${css.turnLabelActive}`
-                              : css.turnLabel}
-                            aria-label={sectionLabel(record.turn, t)}
-                          >
-                            {record.turn === null
-                              ? sectionLabel(record.turn, t)
-                              : (
-                                <>
-                                  <span className={css.turnLabelFull} aria-hidden="true">
-                                    {sectionLabel(record.turn, t)}
-                                  </span>
-                                  <span className={css.turnLabelCompact} aria-hidden="true">
-                                    #{record.turn}
-                                  </span>
-                                </>
-                              )}
-                          </span>
-                        )}
-                        <div className={css.eventInner}>
-                          {!isCollapsedSummary && !isRequestOnly && (
-                            <span
-                              className={css.kindSlot}
-                            >
-                              <span
-                                className={`${css.kindTag} ${
-                                  record.cell.kind === 'system'
-                                    ? css.systemNeutral
-                                    : record.cell.kind === 'context'
-                                      ? css.contextGreen
-                                      : record.cell.kind === 'compacted'
-                                        ? css.compacted
-                                        : record.cell.kind === 'tool'
-                                          ? css.toolAmber
-                                          : record.cell.kind === 'message'
-                                            ? css.assistantVioletBright
-                                            : record.cell.kind === 'subtool'
-                                              ? css.subtoolAmber
-                                              : css[record.cell.kind]
-                                }`}
-                                data-role-kind={record.cell.kind}
-                              >
-                                <Tooltip
-                                  label={t(KIND_LABEL_KEY[record.cell.kind])}
-                                  side="right"
-                                >
-                                  <span className={css.kindTagIcon} aria-hidden="true">
-                                    {KIND_ICON[record.cell.kind]}
-                                  </span>
-                                </Tooltip>
-                                <span className={css.kindTagLabel}>
-                                  {t(KIND_LABEL_KEY[record.cell.kind])}
-                                </span>
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className={css.content}>
-                        {isRequestOnly
-                          ? null
-                          : record.collapsedSummary !== undefined
-                            ? (
-                              <span className={css.collapsedTurnContent} title={record.collapsedSummary}>
-                                <span className={css.collapsedTurnEllipsis}>…</span>
-                                <span className={css.collapsedTurnText}>{record.collapsedSummary}</span>
-                              </span>
-                            )
-                            : (
-                              <span
-                                className={resultText === undefined ? css.contentText : css.resultPreview}
-                                title={resultText === undefined
-                                  ? listDisplayText
-                                  : `${listDisplayText} → ${resultText}`}
-                              >
-                                <span className={resultText === undefined ? undefined : css.resultRequest}>
-                                  <RecordListText
-                                    displayText={displayText}
-                                    toolCallOnly={toolCallOnly}
-                                    toolCallText={toolCallText}
-                                    t={t}
-                                  />
-                                </span>
-                                {resultText !== undefined && (
-                                  <span className={record.cell.isError ? `${css.inlineResult} ${css.error}` : css.inlineResult}>
-                                    <span className={css.arrow}>→</span>
-                                    <span className={resultText === t('record.noOutput')
-                                      ? `${css.inlineResultText} ${css.noOutputText}`
-                                      : css.inlineResultText}
-                                    >
-                                      {resultText}
-                                    </span>
-                                  </span>
-                                )}
-                              </span>
-                            )}
-                      </td>
-                    </tr>
-                  )
-                }}
-              </RecordPresentation>
-            ))}
+                    : activeTurn === record.turn}
+                  timelineFocus={timelineFocus}
+                  historyRowOffset={historyRowOffset}
+                  virtualizationEnabled={virtualizationEnabled}
+                  allRecords={allRecords}
+                  requestBoundaries={requestBoundaries}
+                  requestBoundaryRuns={requestBoundaryRuns}
+                  requestNumbers={requestNumbers}
+                  sessionRequestNumbers={sessionRequestNumbers}
+                  selectedRequestIdentity={selectedRequest?.identity}
+                  collapsedTurns={collapsedTurns}
+                  t={t}
+                  onSelectRecord={selectRecord}
+                  onSelectRequest={selectRequest}
+                  onToggleTurn={onToggleTurn}
+                  onToggleAssistant={onToggleAssistant}
+                />
+              )
+            })}
             {virtualBottom > 0 && (
               <tr className={css.virtualSpacer} data-virtual-spacer="bottom" aria-hidden="true">
                 <td

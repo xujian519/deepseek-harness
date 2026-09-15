@@ -460,14 +460,14 @@ export function TrajectoryView({
   const allAssistantsCollapsed = collapsibleAssistantIds.length > 0
     && collapsibleAssistantIds.every(index => collapsedAssistants.has(index))
 
-  const toggleTurn = (turn: number) => {
+  const toggleTurn = useCallback((turn: number) => {
     setCollapsedTurns((current) => {
       const collapsed = new Set(current)
       if (collapsed.has(turn)) collapsed.delete(turn)
       else collapsed.add(turn)
       return collapsed
     })
-  }
+  }, [])
 
   const toggleAllTurns = () => {
     setCollapsedTurns((current) => {
@@ -481,14 +481,14 @@ export function TrajectoryView({
     })
   }
 
-  const toggleAssistant = (id: string) => {
+  const toggleAssistant = useCallback((id: string) => {
     setCollapsedAssistants((current) => {
       const collapsed = new Set(current)
       if (collapsed.has(id)) collapsed.delete(id)
       else collapsed.add(id)
       return collapsed
     })
-  }
+  }, [])
 
   const toggleAllAssistants = () => {
     setCollapsedAssistants((current) => {
