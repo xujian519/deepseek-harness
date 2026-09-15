@@ -111,7 +111,7 @@ describe('tsdown client artifact', () => {
     await fiber.await()
     const events = ctx.uiConversation.events
     const views = ctx.uiConversation.views
-    expect(slots.entries('conversation.view').map(entry => entry.options.id)).toEqual(['document'])
+    expect(slots.entries('conversation.view').map(entry => entry.options.id)).toEqual(['documentDeliverables'])
     expect(events.entries().map(entry => entry.kind)).toContain('documentDeliverables')
     expect(views.entries().map(entry => entry.target)).toEqual(['documentDeliverables'])
     await fiber.dispose()
@@ -127,15 +127,15 @@ describe('tsdown client artifact', () => {
       byId: { s1: { projectionValues: { agentPreset: 'document' }, cwd: '/tmp/w' } },
     })
     await fiber.await()
-    expect(viewSetters).toEqual([['s1', 'document']])
+    expect(viewSetters).toEqual([['s1', 'documentDeliverables']])
     // A non-document session switch does not fire again.
     sessionsList.update((draft) => { draft.current = 's2' })
     await Promise.resolve()
-    expect(viewSetters).toEqual([['s1', 'document']])
+    expect(viewSetters).toEqual([['s1', 'documentDeliverables']])
     // Re-entering the document session switches again (session entry only).
     sessionsList.update((draft) => { draft.current = 's1' })
     await Promise.resolve()
-    expect(viewSetters).toEqual([['s1', 'document'], ['s1', 'document']])
+    expect(viewSetters).toEqual([['s1', 'documentDeliverables'], ['s1', 'documentDeliverables']])
     await fiber.dispose()
   })
 

@@ -235,12 +235,13 @@ export function StudioView({
         ? <p className={css.empty}>{t('studio.empty')}</p>
         : (
           <>
-            <div className={css.listHeader}>
+            <div className={css.listHeader} data-document-deliverables-list>
               <div className={css.files}>
                 {produced.map(file => (
                   <button
                     key={file.path}
                     type="button"
+                    data-document-deliverable={file.path}
                     className={`${css.file}${file.path === selectedPath ? ` ${css.fileActive}` : ''}`}
                     title={file.path}
                     onClick={() => { setSelectedPath(file.path) }}

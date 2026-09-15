@@ -116,7 +116,8 @@
     "tests/complex-history.perf.ts",
     "tests/pwsh-terminal.e2e.ts",
     "tests/workflow-run.e2e.ts",
-    "tests/patent-teams-panel.e2e.ts"
+    "tests/patent-teams-panel.e2e.ts",
+    "tests/document-studio-panel.e2e.ts"
   ],
   "references": [
     {

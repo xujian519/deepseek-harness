@@ -104,6 +104,8 @@
     "apps/web/tests/complex-history.perf.ts",
     "apps/web/tests/pwsh-terminal.e2e.ts",
     "apps/web/tests/workflow-run.e2e.ts",
+    "apps/web/tests/patent-teams-panel.e2e.ts",
+    "apps/web/tests/document-studio-panel.e2e.ts",
     "apps/web/stress-tests/reasoning-chunks.stress.ts",
     "apps/cli/tests/**/*.ts",
     "apps/desktop/scripts/**/*.ts",

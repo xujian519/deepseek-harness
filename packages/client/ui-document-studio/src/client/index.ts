@@ -25,7 +25,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the agentPreset Session-projection key (summary.projectionValues).
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import {
-  documentDeliverablesDefinition, documentDeliverablesViewDefinition,
+  DOCUMENT_DELIVERABLES_TARGET, documentDeliverablesDefinition, documentDeliverablesViewDefinition,
 } from './document-deliverables.ts'
 import { parentDir } from './paths.ts'
 import { StudioView } from './StudioView.tsx'
@@ -61,7 +61,9 @@ export function apply(ctx: ClientContext): void {
 
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
-    id: 'document',
+    // The shell activates a selected view by its slot id, so the id must equal
+    // the ConversationViewDefinition target the studio reads its snapshot from.
+    id: DOCUMENT_DELIVERABLES_TARGET,
     order: 20,
     locale: NS,
     label: () => ctx.locale.bind(NS)('view.document'),
@@ -111,7 +113,7 @@ export function apply(ctx: ClientContext): void {
     const attempt = (sessionId: SessionId): boolean => {
       const conversation = ctx.get('conversation')
       if (conversation === undefined) return false
-      return conversation.setActiveView(sessionId, 'document')
+      return conversation.setActiveView(sessionId, DOCUMENT_DELIVERABLES_TARGET)
     }
     const maybeSwitch = (): void => {
       const state = ctx.sessions.list.getSnapshot()
