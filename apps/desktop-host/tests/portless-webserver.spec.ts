@@ -41,7 +41,7 @@ describe('PortlessWebServer', () => {
     web.register({
       kind: 'prefix',
       path: '/sidebar/file',
-      handler: (req, res) => {
+      handler: (_req, res) => {
         res.writeHead(200, { 'content-type': 'image/png' })
         res.end(Buffer.from([1, 2, 3]))
       },
@@ -55,7 +55,7 @@ describe('PortlessWebServer', () => {
 
   it('derives the node face Host from the request URL, keeping an explicit one', async () => {
     const web = new PortlessWebServer()
-    const seen: Array<string | undefined> = []
+    const seen: Array<string | string[] | undefined> = []
     web.register({
       kind: 'exact',
       path: '/sidebar/host',

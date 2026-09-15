@@ -71,6 +71,7 @@ files:
 |---|---|
 | [`src/index.ts`](src/index.ts) | 公共 API：分析器、生成器、工作区生成器、渲染器、目录投影 |
 | [`src/analyzer.ts`](src/analyzer.ts) | `WorkspaceAnalyzer`：face 程序、check/write 模式、分批、发现、源码索引 |
+| [`src/remote-analyzer.ts`](src/remote-analyzer.ts) | `RemoteAnalyzer`：调用装饰器与 gateway、线上边界、codec 类型、调用身份校验 |
 | [`src/type-graph.ts`](src/type-graph.ts) | `TypeGraph`：声明与节点模型、写入它的类型转换，以及节点 id 分配 |
 | [`src/node-text.ts`](src/node-text.ts) | 语法节点读取：声明与成员文本、修饰符、JSDoc、字面量模型 |
 | [`src/package-exports.ts`](src/package-exports.ts) | 读取 `package.json` 导出映射：已发布子路径、face 归属、源码目标 |
