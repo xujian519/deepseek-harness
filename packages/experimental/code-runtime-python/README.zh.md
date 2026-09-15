@@ -69,7 +69,8 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`PythonCodeRuntime`——spawn、预算、隔离、拆卸；重新导出协议词汇 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`PythonCodeRuntime`——spawn、隔离、拆卸；重新导出协议词汇与配置面 |
+| [`src/config.ts`](src/config.ts) | 宿主侧：插件声明的 `Config` 字段、判定一组配置是否可用的加载期门禁、解释器解析与探测，以及门禁所依据的宿主与帧上限 |
 | [`src/frame-reader.ts`](src/frame-reader.ts) | 宿主侧：fd-3 帧读取器——按换行组帧、其字节数与分片数上限、敌意帧丢弃 |
 | [`src/output-ledger.ts`](src/output-ledger.ts) | 宿主侧：`logs` 账本——log 帧与游离字节捕获、截断，以及与帧读取器共享的分片原语 |
 | [`src/cost.ts`](src/cost.ts) | 宿主侧：序列化 JSON 字节计价、管道两侧共用的截断标记文本、诊断消息上限 |
