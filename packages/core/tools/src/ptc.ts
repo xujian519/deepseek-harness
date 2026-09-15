@@ -15,6 +15,7 @@ import { defineTool, parameterSchemaSpecToJsonSchema } from './schema.ts'
 import { TOOL_RUNTIME_SCHEDULER } from './index.ts'
 import type { PtcDispatchLog, ToolDefinition, ToolExecutionResult, ToolRuntime, ToolRunContext } from './index.ts'
 import { renderValue } from './json-render.ts'
+import { DispatchPool } from './ptc-dispatch-pool.ts'
 import { resolveFlavor, TYPESCRIPT_FLAVOR } from './run-code-flavor.ts'
 import type {} from './types.ts'
 
@@ -153,126 +154,14 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
       exec.signal.addEventListener('abort', onOuterAbort, { once: true })
 
       let dispatches = 0
-      // The per-run scheduler uses the registry's staged interface and follows
-      // the same concurrency rules as the native loop. It also follows the
-      // native loop's SEQUENCING: every ordered stage (the dispatch-start
-      // append, prepare = pre-execute/guards, finalize/finish = post-execute,
-      // context deferral, the settle append) runs inside ONE driver lane, so
-      // ordered policy stages never overlap each other and only the
-      // around-dispatch/body stage runs concurrently. Starts are strictly
-      // submission-ordered; results commit in submission order through the
-      // head-of-line cursor. Consecutive parallel-classified calls overlap up
-      // to maxParallel; an exclusive call waits for the pool to drain, runs
-      // alone, and holds its barrier until its COMMIT (post-execute included)
-      // completes, exactly like a native exclusive group. Classification is
-      // re-read via executionMode() immediately before each start (a registry
-      // mutation while queued can flip a call exclusive), matching the native
-      // scheduler's lazy reclassification.
-      interface PendingDispatch {
-        /** Ordered stage: append the start event, await prepare (pre-execute/guards), launch the body into `flight`. */
-        start(): Promise<void>
-        classify(): 'parallel' | 'exclusive'
-        abandon(): void
-        /** Ordered stage: post-execute + context deferral + settle event, in submission order. */
-        commit(): Promise<void>
-        /** The launched around-dispatch/body stage; resolved until start() replaces it. */
-        flight: Promise<void>
-        /** True once the dispatch stage parked its outcome; the commit cursor waits on it. */
-        settled: boolean
-        /** The classification this entry started under; an exclusive holds its barrier through commit(). */
-        mode?: 'parallel' | 'exclusive'
-      }
-      const pendingQueue: PendingDispatch[] = []
-      const inFlight = new Set<Promise<void>>()
-      /** Tracked settle-event side work (log-content listener + append), drained at run settlement. */
-      const logWork = new Set<Promise<void>>()
-      const commitQueue: PendingDispatch[] = []
-      let exclusiveActive = false
-      let driving = false
-      let driverRun: Promise<void> = Promise.resolve()
-      let wake: (() => void) | undefined
-      const wakeup = (): void => {
-        const release = wake
-        wake = undefined
-        release?.()
-      }
-      /**
-       * The single ordered lane. Each pass commits the head-of-line settled
-       * dispatch (ordered post-execute), then starts the next queued entry if
-       * its slot is free (ordered pre-execute), and otherwise sleeps until a
-       * body settles or a new submission arrives. One run reaching the
-       * empty-queues/empty-pool state is quiescence.
-       */
-      const drive = (): Promise<void> => {
-        if (driving) return driverRun
-        driving = true
-        driverRun = (async () => {
-          try {
-            for (;;) {
-              // Create the wakeup promise before inspecting state so a settle or submission arriving
-              // between the checks and the await below cannot be lost.
-              const signal = new Promise<void>((resolve) => { wake = resolve })
-              const commitHead = commitQueue[0]
-              if (commitHead !== undefined && commitHead.settled) {
-                commitQueue.shift()
-                await commitHead.commit()
-                // The barrier covers post-execute: later starts wait for the
-                // exclusive call's full pipeline, as under the native loop.
-                if (commitHead.mode === 'exclusive') exclusiveActive = false
-                continue
-              }
-              const head = pendingQueue[0]
-              if (head !== undefined) {
-                if (runController.signal.aborted) {
-                  pendingQueue.shift()
-                  head.abandon()
-                  continue
-                }
-                // Reclassify at start time (fail-closed on registry changes).
-                const mode = head.classify()
-                const capacity = !exclusiveActive
-                  && (mode === 'exclusive' ? inFlight.size === 0 : inFlight.size < maxParallel)
-                if (capacity) {
-                  if (mode === 'exclusive') exclusiveActive = true
-                  head.mode = mode
-                  pendingQueue.shift()
-                  // Joined before start() so the commit cursor sees submission
-                  // order; nothing commits it until `settled` flips.
-                  commitQueue.push(head)
-                  await head.start()
-                  const flight: Promise<void> = head.flight.finally(() => {
-                    inFlight.delete(flight)
-                    wakeup()
-                  })
-                  inFlight.add(flight)
-                  continue
-                }
-              }
-              if (pendingQueue.length === 0 && commitQueue.length === 0 && inFlight.size === 0) return
-              await signal
-            }
-          } finally {
-            driving = false
-            wake = undefined
-          }
-        })()
-        return driverRun
-      }
-      /** Every dispatch settled AND committed; nothing can start (the run is aborted at call time). */
-      const drainDispatches = async (): Promise<void> => {
-        // The abort already fired: the driver abandons queued-unstarted
-        // entries, awaits the live pool, and drains the ordered commit lane —
-        // including a commit already in progress when the program returned.
-        await drive()
-        // Every settle event is appended inside the open run_code turn
-        // (tasks self-remove on settlement).
-        while (logWork.size > 0) await Promise.allSettled([...logWork])
-      }
-
       // Read through a call, not a bare property: the abort state genuinely
       // changes across awaits, and a direct `.aborted` re-check after one
-      // would be narrowed away by control flow analysis.
+      // would be narrowed away by control flow analysis. The lane reads the
+      // same call to abandon queued-unstarted dispatches once the run is over.
       const runOver = (): boolean => runController.signal.aborted
+      // The per-run lane: the native loop's concurrency rules over the
+      // registry's staged interface, reclassifying each start.
+      const pool = new DispatchPool({ maxParallel, isRunOver: runOver })
 
       const binding = (name: string): CodeBindingFunction => async (rawArgs: unknown): Promise<JsonValue> => {
         if (runOver()) {
@@ -300,16 +189,16 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
           const settle = (result: ToolExecutionResult): void => {
             // The program gets its value NOW: the log-content listener (for
             // example, a spill backend) must never delay the binding or occupy
-            // a dispatch slot. The event append is tracked side work; the run's
-            // settlement drains logWork so every settle event is still appended
-            // inside the open turn (shapeDispatchLog is contained, so this
-            // chain cannot reject).
+            // a dispatch slot. The event append is side work tracked by the
+            // pool; the run's settlement drains it so every settle event is
+            // still appended inside the open turn (shapeDispatchLog is
+            // contained, so this chain cannot reject).
             resolve(result.isError
               ? { isError: true, message: result.error.message }
               : { isError: false, value: result.value })
             const agent = exec.agent
             if (agent === undefined) return
-            const task: Promise<void> = (async () => {
+            pool.track((async () => {
               // The listener may replace the durable copy with a preview and
               // locator; the program's value and model-visible result are
               // untouched.
@@ -332,10 +221,9 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                 isError: result.isError,
                 content: logged,
               })
-            })().finally(() => { logWork.delete(task) })
-            logWork.add(task)
+            })())
           }
-          pendingQueue.push({
+          pool.submit({
             flight: Promise.resolve(),
             settled: false,
             // Re-read per driver pass against the same agent view the SDK
@@ -388,16 +276,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               // failure cannot stop the turn through a recovering program.
               if (result.concludesTurn) exec.concludeTurn()
               settle(result)
-              // Backpressure on pending event-append tasks: each task retains
-              // a full result while a slow backend stores it, so the pool cap
-              // bounds their count. Beyond the cap, the
-              // ordered lane waits, so later sub-calls cannot start and
-              // pending I/O/memory cannot grow without bound.
-              while (logWork.size > maxParallel) await Promise.race(logWork)
             },
           })
-          wakeup()
-          void drive()
         })
         // A budget expiry or outer cancel that occurs while this call was in
         // flight already aborted the dispatch; stop the program now rather
@@ -444,7 +324,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
           // closing the turn (queued-unstarted ones are abandoned unlogged).
           // Binding failures remain observable through their individual promises.
           runController.abort('run_code settled')
-          await drainDispatches()
+          await pool.drain()
         }
 
         if (result.error) {

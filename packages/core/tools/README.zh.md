@@ -112,6 +112,7 @@ ctx.tools.register(defineTool({
 | [`src/json-schema.ts`](src/json-schema.ts) | 强制执行的原始 JSON Schema 子集与校验 |
 | [`src/presentation.ts`](src/presentation.ts) | 带 `card` 标签的 UI 呈现意图 |
 | [`src/ptc.ts`](src/ptc.ts) | PTC mode：SDK 生成、`run_code` 分发桥接层、结算 |
+| [`src/ptc-dispatch-pool.ts`](src/ptc-dispatch-pool.ts) | 每次运行的分发车道：按提交顺序启动与提交、独占屏障、有界的附带工作 |
 | [`src/run-code-flavor.ts`](src/run-code-flavor.ts) | 各语言的 `run_code` schema 文本与运行时语言→flavor 解析 |
 | [`src/json-render.ts`](src/json-render.ts) | `run_code` 完成值的迭代式、缩进封顶 JSON 呈现 |
 | [`src/ts-types.ts`](src/ts-types.ts) | TypeScript SDK 类型渲染 |
