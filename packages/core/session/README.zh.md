@@ -92,6 +92,8 @@ session.deriveMessages()         // the derived model history
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`SessionStore` 服务、存储生命周期、`fork`、`flush` |
+| [`src/session.ts`](src/session.ts) | `Session` 对象：追加式日志、surface、折叠，以及存储挂接 |
+| [`src/observers.ts`](src/observers.ts) | `session/event` 与 `session/disposed` 的监听器分发 |
 | [`src/types.ts`](src/types.ts) | `SessionEventMap`、`SessionEvent`、`UserMessage`、`SessionHeader`、`TurnEndReasonMap` |
 | [`src/surface.ts`](src/surface.ts) | 有序 surface 投影、替换校验、`deriveEventMessage` |
 | [`src/folds.ts`](src/folds.ts) | `Session` 提供的三种增量折叠：请求头部、请求上下文、派生消息 |

@@ -92,6 +92,8 @@ The package is built on event sourcing: a `Session` is an append-only log of typ
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `SessionStore` service, store lifecycle, `fork`, `flush` |
+| [`src/session.ts`](src/session.ts) | The `Session` object: append-only log, surface, folds, and the store attachment |
+| [`src/observers.ts`](src/observers.ts) | Listener dispatch for `session/event` and `session/disposed` |
 | [`src/types.ts`](src/types.ts) | `SessionEventMap`, `SessionEvent`, `UserMessage`, `SessionHeader`, `TurnEndReasonMap` |
 | [`src/surface.ts`](src/surface.ts) | Ordered surface projection, replacement validation, `deriveEventMessage` |
 | [`src/folds.ts`](src/folds.ts) | The three incremental folds a `Session` serves: request header, request context, derived messages |
