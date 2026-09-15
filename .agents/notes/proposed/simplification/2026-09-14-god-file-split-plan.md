@@ -15,7 +15,7 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 | `packages/typert/generator/src/analyzer.ts` | 3235 | Pure build-time library | yes |
 | `packages/experimental/code-runtime-python/src/index.ts` | 1801 | One class, one oversized method | yes — pilot landed |
 | `packages/core/session/src/index.ts` | 904 | Four concerns sharing a module | yes |
-| `packages/core/tools/src/ptc.ts` | 678 | One 386-line tool factory | yes |
+| `packages/core/tools/src/ptc.ts` | 372 | One tool factory over the extracted dispatch lane | yes |
 | `packages/acp/acp/src/index.ts` | 543 | One 341-line `apply` | yes |
 | `packages/client/better-sidebar/src/client/state.ts` | 1900 | Clone center | no |
 | `packages/client/better-sidebar/src/client/Sidebar.tsx` | 1775 | Clone center | no |
@@ -23,7 +23,7 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 | `packages/self-evolve/self-evolve-basic/src/index.ts` | 1857 | Flat since the audit | no |
 | `packages/subagent/subagent/src/continuation.ts` | 550 | Converged from 1483 | no — the issue closes it |
 
-Five entries are outside this plan, each for a stated reason rather than by omission. `continuation.ts` converged and the issue itself recommends closing it. `better-sidebar`'s `state.ts` and `Sidebar.tsx` are flagged by the issue as clone centers: their remedy is deduplication, and cutting two files that already mirror each other would turn one in-file clone into a cross-file one — that work belongs to the M1 dedup family, not here. `core/tools/src/index.ts` and `self-evolve-basic/src/index.ts` are at or below the size the issue recorded, and this plan's own standard — every cut justified by a test that becomes possible, an interface that becomes explicit, or a method that becomes readable — has no answer for them yet; they stay open on the issue rather than entering a batch without a reason. Line counts are as measured on 2026-09-14, after the pilot, the session-folds extraction, and the fixture RPC dispatch extraction.
+Five entries are outside this plan, each for a stated reason rather than by omission. `continuation.ts` converged and the issue itself recommends closing it. `better-sidebar`'s `state.ts` and `Sidebar.tsx` are flagged by the issue as clone centers: their remedy is deduplication, and cutting two files that already mirror each other would turn one in-file clone into a cross-file one — that work belongs to the M1 dedup family, not here. `core/tools/src/index.ts` and `self-evolve-basic/src/index.ts` are at or below the size the issue recorded, and this plan's own standard — every cut justified by a test that becomes possible, an interface that becomes explicit, or a method that becomes readable — has no answer for them yet; they stay open on the issue rather than entering a batch without a reason. Line counts are as measured when each extraction landed, most recently 2026-09-15: after the pilot, the session-folds extraction, the fixture RPC dispatch extraction, and the ptc dispatch-pool extraction.
 
 A structural survey of the seven in scope found that size is not what makes them hard to split. Every one already has visible cuts — module-level pure functions, already-extracted helpers, section boundaries a reader can see. What none of them has is a settled answer to **where a cut boundary belongs**, and several carry explicit contracts that a naive split would break silently:
 
@@ -71,7 +71,7 @@ The pilot is `code-runtime-python`, because its ledger cut has the strongest sin
 
 These do not land until the change can show what it preserves.
 
-- `ptc.ts` dispatch pool: the ordered commit lane, the exclusive barrier, backpressure, and the wakeup-order defense are all behavior, not structure.
+- `ptc.ts` dispatch pool: the ordered commit lane, the exclusive barrier, backpressure, and the wakeup-order defense are all behavior, not structure. [Landed](../../implemented/simplification/2026-09-15-ptc-dispatch-pool-extraction.md) into `src/ptc-dispatch-pool.ts` — `DispatchPool` takes `{ maxParallel, isRunOver }`, the transport submits, tracks side work, and drains, and `tests/ptc-dispatch-pool.spec.ts` drives the lane through eight cases; `ptc.ts` is 372 lines.
 - `core/session`: the three incremental folds [landed](../../implemented/simplification/2026-09-14-session-folds-extraction.md) into `src/folds.ts` — `SessionFolds` takes the log array by reference and the surface, `Session` keeps three one-line delegations, and `index.ts` is 904 lines. The `Session` class remains open, whose `attachments` WeakMap and `SessionEntry` must stay co-located, and whose type string is asserted verbatim by a test.
 - `code-runtime-python`: the config gates and the process supervisor.
 - `ui-trajectory`: the row renderer. It captures roughly 30 `useMemo` derivations and 15 callbacks; passing them explicitly costs about 45 props, and a memo boundary handled carelessly re-renders every visible row on each parent render, giving back the virtualizer's benefit. Its stability is currently deliberate, as the `useStableVirtualRowStructure` hook documents.
@@ -106,5 +106,6 @@ These do not land until the change can show what it preserves.
 - `.agents/audits/2026-09-11-tech-debt-issue-manifest.md` Issue #86
 - `docs/TECH_DEBT.md` (M6, and the ledger entry that names the two files the audit missed)
 - [Extracting the session's incremental folds](../../implemented/simplification/2026-09-14-session-folds-extraction.md) (batch 3's first landed cut)
+- [Extracting the `run_code` sub-dispatch lane](../../implemented/simplification/2026-09-15-ptc-dispatch-pool-extraction.md) (batch 3's second landed cut)
 - `packages/code-runtime/code-runtime-worker-thread/src/index.ts` (the `OutputLedger` precedent)
 - `packages/experimental/code-runtime-python/src/index.ts`, `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx`
