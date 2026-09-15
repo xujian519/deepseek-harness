@@ -63,7 +63,7 @@ hygiene 门禁在 master 红(#78,`verify-package-dependencies` 3 条违规,源�
 | M1 小工具复制流行病 | 已收敛(2026-09-14 收口,余下均为成文裁定的契约变体) | #87 |
 | M3 settings 三个竞态 | 已收敛 | #80 |
 | M4 hooks 桥行为缺口 | 修复就绪,待合并 | #81 |
-| M6 上帝文件 | 开放(行数已更新) | #86 |
+| M6 上帝文件 | 已收尾(2026-09-15,七个在范围文件全部拆完;余下四个候选待证成,见 M6 段) | #86(已关闭) |
 | M8 硬编码可调参数 | 已收敛(2026-09-14 逐项定性,余下均为成文裁定的固定项) | #88 |
 | M9 legacy shim | 已收敛(2026-09-14,原 shim 已随 Session Controller refactor 删除) | #98 |
 | L2 死导出与失效注释引用 | 已收敛 | #93 |
@@ -280,6 +280,12 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **修复**:fsync 文件与父目录,Windows 权限语义补测试。
 
 ### M6. 上帝文件
+
+**2026-09-15 收尾**:Issue #86 已关闭,其清单上七个在范围的文件全部拆完——`client/connection/src/client/fixture.ts` 4052 → 2288、`client/ui-trajectory/src/client/TrajectoryTable.tsx` 3208 → 693、`typert/generator/src/analyzer.ts` 3235 → 1253、`experimental/code-runtime-python/src/index.ts` 2441 → 364、`core/session/src/index.ts` 1281 → 488、`core/tools/src/ptc.ts` 386 → 372、`acp/acp/src/index.ts` 543 → 503(`apply` 仍 341 行;此行的起始值此前记为 543 且被当作现值,2026-09-15 实测为 503)。四条贯穿规则、十二文件清单、每批落地了什么都记在 `.agents/notes/implemented/simplification/2026-09-14-god-file-split-plan.md`,逐刀的记录见 09-14/09-15 各条台账项。
+
+清单上余下四个候选,均因缺证成理由而未动,留在本段等待有人能说出切割换来什么:`client/better-sidebar/src/client/state.ts`(1900)与 `Sidebar.tsx`(1775)——#86 已把它们点为克隆中心,其正解是去重,再拆只会把一处文件内克隆变成一处跨文件克隆;`core/tools/src/index.ts`(1913)与 `self-evolve/self-evolve-basic/src/index.ts`(1857)——两者都在 #86 记录的行数之下或持平。`subagent/subagent/src/continuation.ts`(550)已从 1483 收敛,随 #86 销案。
+
+下表是 2026-08-17 探查时的原始记录,除本段点名的文件外未逐行复核(其中 `host/apiproxy` 已随上游删除)。
 
 | 文件 | 行数 | 承载职责 |
 |---|---|---|
