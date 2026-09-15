@@ -71,10 +71,11 @@ files:
 |---|---|
 | [`src/index.ts`](src/index.ts) | 公共 API：分析器、生成器、工作区生成器、渲染器、目录投影 |
 | [`src/analyzer.ts`](src/analyzer.ts) | `WorkspaceAnalyzer`：face 程序、check/write 模式、分批、发现、源码索引 |
+| [`src/type-graph.ts`](src/type-graph.ts) | `TypeGraph`：声明与节点模型、写入它的类型转换，以及节点 id 分配 |
 | [`src/node-text.ts`](src/node-text.ts) | 语法节点读取：声明与成员文本、修饰符、JSDoc、字面量模型 |
 | [`src/package-exports.ts`](src/package-exports.ts) | 读取 `package.json` 导出映射：已发布子路径、face 归属、源码目标 |
 | [`src/module-path.ts`](src/module-path.ts) | 模块与路径解析：引用目标、包身份、诊断、文件系统辅助 |
-| [`src/types.ts`](src/types.ts) | `TypertAnalysisError` 与拆分出的分析器模块共享的词汇 |
+| [`src/types.ts`](src/types.ts) | `TypertAnalysisError`、`SourceEditQueued` 与拆分出的分析器模块共享的词汇 |
 | [`src/model.ts`](src/model.ts) | 与编译器无关的模型类型 |
 | [`src/emitter.ts`](src/emitter.ts) | `FaceModelEmitter`：Zod schema 与声明生成、Remote 声明 |
 | [`src/workspace.ts`](src/workspace.ts) | `WorkspaceTypertGenerator`：发现、生成、导出与文件清单校验 |
