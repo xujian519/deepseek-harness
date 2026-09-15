@@ -69,8 +69,9 @@ Completion values and binding arguments cross as exact JSON: values serialize wi
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `PythonCodeRuntime` — spawn, containment, teardown; re-exports the protocol vocabulary and the configuration surface |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `PythonCodeRuntime` — registration, binding validation, per-run staging; re-exports the protocol vocabulary and the configuration surface |
 | [`src/config.ts`](src/config.ts) | Host side: the `Config` fields the plugin declares, the load-time gates that admit a configured set, the interpreter resolution and probe, and the host and frame limits the gates are written against |
+| [`src/supervisor.ts`](src/supervisor.ts) | Host side: the child supervisor — one run's spawn, fd-3 frames, reply channel, timing and abort wiring, and the kill escalation whose settlement awaits the process group |
 | [`src/frame-reader.ts`](src/frame-reader.ts) | Host side: the fd-3 frame reader — newline-delimited frame assembly, its byte and fragment-count caps, hostile-frame drops |
 | [`src/output-ledger.ts`](src/output-ledger.ts) | Host side: the `logs` ledger — log-frame and stray-byte capture, truncation, and the fragment primitives the frame reader shares |
 | [`src/cost.ts`](src/cost.ts) | Host side: serialized-JSON byte pricing, the truncation-marker text both sides of the pipe use, and the diagnostic message cap |
