@@ -71,6 +71,7 @@ The generator is built on one separation: extraction and emission are decoupled 
 |---|---|
 | [`src/index.ts`](src/index.ts) | Public API: analyzer, emitter, workspace generator, renderer, catalog projection |
 | [`src/analyzer.ts`](src/analyzer.ts) | `WorkspaceAnalyzer`: face programs, check/write modes, batching, discovery, source index |
+| [`src/remote-analyzer.ts`](src/remote-analyzer.ts) | `RemoteAnalyzer`: invocation decorators and gateways, wire boundaries, codec types, invocation identity |
 | [`src/type-graph.ts`](src/type-graph.ts) | `TypeGraph`: the declaration and node model, the type conversion that writes it, and node-id allocation |
 | [`src/node-text.ts`](src/node-text.ts) | Syntax-node readings: declaration and member text, modifiers, JSDoc, literal models |
 | [`src/package-exports.ts`](src/package-exports.ts) | `package.json` export-map reading: published subpaths, face ownership, source targets |
