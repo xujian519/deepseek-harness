@@ -13,6 +13,11 @@ const harness = await vi.hoisted(async () => {
   const windows: FakeWindow[] = []
   const hosts: FakeHost[] = []
   const handlers = new Map<string, (event: { senderFrame: { url: string } }) => unknown>()
+  /** Every menu built through Menu.buildFromTemplate, in call order. */
+  const builtMenus: { template: unknown[]; popup: ReturnType<typeof vi.fn> }[] = []
+  /** Every template handed to Menu.setApplicationMenu, in call order. */
+  const installedAppMenus: unknown[][] = []
+  const openExternal = vi.fn(async () => undefined)
   let pluginsEnabled = false
   let preparing = deferred()
   let prepared = deferred()
@@ -23,8 +28,12 @@ const harness = await vi.hoisted(async () => {
   class FakeWindow extends EventEmitter {
     destroyed = false
     readonly urls: string[] = []
+    /** Handler captured from webContents.setWindowOpenHandler for direct invocation. */
+    windowOpenHandler: ((details: { url: string }) => { action: string }) | undefined = undefined
     readonly webContents = Object.assign(new EventEmitter(), {
-      setWindowOpenHandler: vi.fn(),
+      setWindowOpenHandler: vi.fn((handler: (details: { url: string }) => { action: string }) => {
+        this.windowOpenHandler = handler
+      }),
       openDevTools: vi.fn(),
       getURL: () => this.urls.at(-1) ?? '',
       send: vi.fn((channel: string, state: { phase?: string }) => {
@@ -75,6 +84,7 @@ const harness = await vi.hoisted(async () => {
   })
   return {
     windows, hosts, handlers, app, FakeWindow, FakeHost,
+    builtMenus, installedAppMenus, openExternal,
     dialog: { showErrorBox: vi.fn(), showMessageBox: vi.fn() },
     applyRelease: vi.fn(() => { preparing.resolve(); return prepared.promise }),
     assertProfileRuntime: vi.fn(),
@@ -87,6 +97,7 @@ const harness = await vi.hoisted(async () => {
     set pluginsEnabled(value: boolean) { pluginsEnabled = value },
     reset() {
       windows.length = 0; hosts.length = 0; handlers.clear(); app.removeAllListeners()
+      builtMenus.length = 0; installedAppMenus.length = 0; openExternal.mockClear()
       app.isPackaged = true
       pluginsEnabled = false
       preparing = deferred(); prepared = deferred(); hostStarted = deferred()
@@ -102,9 +113,31 @@ vi.mock('electron', () => ({
   ipcMain: {
     handle: (channel: string, handler: (event: { senderFrame: { url: string } }) => unknown) => { harness.handlers.set(channel, handler) },
   },
-  Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
+  Menu: {
+    // buildFromTemplate returns a menu-shaped object carrying its template so
+    // both `Menu.setApplicationMenu(Menu.buildFromTemplate(t))` and
+    // `Menu.buildFromTemplate(t).popup(...)` can be inspected from tests.
+    buildFromTemplate: vi.fn((template: unknown[]) => {
+      const popup = vi.fn()
+      harness.builtMenus.push({ template, popup })
+      return { template, popup }
+    }),
+    setApplicationMenu: vi.fn((menu: { template: unknown[] }) => {
+      harness.installedAppMenus.push(menu.template)
+    }),
+  },
   globalShortcut: { register: vi.fn(() => true), unregister: vi.fn(), unregisterAll: vi.fn(), isRegistered: vi.fn(() => false) },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
+  shell: { openExternal: harness.openExternal },
+  // Tray stubs: main.ts wraps tray setup in a try/catch that logs on failure,
+  // so a missing export does not fail tests but does fill stderr with noise.
+  nativeImage: { createFromPath: vi.fn(() => ({ setTemplateImage: vi.fn() })) },
+  Tray: class {
+    setToolTip = vi.fn()
+    setContextMenu = vi.fn()
+    on = vi.fn()
+    destroy = vi.fn()
+  },
 }))
 vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: 'desktop-test-profile' }) }))
 vi.mock('../src/project-manager.ts', () => ({
@@ -366,5 +399,92 @@ describe('desktop main startup', () => {
     expect(host.stop).toHaveBeenCalledTimes(1)
     expect(window.urls).toEqual(['dsh-app://shell/startup.html'])
     expect(harness.windows).toHaveLength(1)
+  })
+
+  it('installs the platform editing roles in the base application menu', async () => {
+    // Without `editMenu` macOS drops Cmd+C/V/X/A/Z everywhere except native
+    // form controls, and Windows/Linux lose them on read-only selections; the
+    // role entries are the sole wiring for those accelerators.
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const roles = harness.installedAppMenus.at(-1)?.map(entry => (entry as { role?: string }).role)
+    expect(roles).toContain('editMenu')
+    expect(roles).toContain('viewMenu')
+    expect(roles).toContain('windowMenu')
+  })
+
+  it('hands a target=_blank http(s) URL to the OS browser and denies the window', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const handler = window.windowOpenHandler
+    expect(handler).toBeDefined()
+    expect(handler!({ url: 'https://example.com/doc' })).toEqual({ action: 'deny' })
+    expect(harness.openExternal).toHaveBeenCalledWith('https://example.com/doc')
+    // Non-http schemes (dsh-app, mailto, javascript) must not reach the OS
+    // browser: openExternal would surface them without a chance to review.
+    harness.openExternal.mockClear()
+    expect(handler!({ url: 'dsh-app://shell/startup.html' })).toEqual({ action: 'deny' })
+    expect(harness.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('hands an external will-navigate URL to the OS browser after preventing default', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const event = { preventDefault: vi.fn() }
+    window.webContents.emit('will-navigate', event, 'https://example.com/external')
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(harness.openExternal).toHaveBeenCalledWith('https://example.com/external')
+    // The internal dsh-app scheme stays inside the shell: no preventDefault,
+    // no hand-off to the OS browser.
+    harness.openExternal.mockClear()
+    const internal = { preventDefault: vi.fn() }
+    window.webContents.emit('will-navigate', internal, 'dsh-app://app/index.html')
+    expect(internal.preventDefault).not.toHaveBeenCalled()
+    expect(harness.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('pops a copy-only context menu over a non-empty selection', async () => {
+    // Electron ships no default context menu for a webContents, so the shell
+    // must draw one itself; without this listener a right-click on a chat
+    // message or code block yields nothing and the mouse path to the
+    // clipboard stays closed even after `editMenu` opens the keyboard path.
+    // Select All is deliberately absent: the user already scoped the copy by
+    // selecting, and Chrome/Safari/macOS all decline to widen it here.
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const builtBefore = harness.builtMenus.length
+    window.webContents.emit('context-menu', {}, { isEditable: false, selectionText: 'hello' })
+    const built = harness.builtMenus.slice(builtBefore)
+    expect(built).toHaveLength(1)
+    const roles = built[0]!.template.map(entry => (entry as { role?: string }).role)
+    expect(roles).toEqual(['copy'])
+    expect(built[0]!.popup).toHaveBeenCalledWith({ window })
+  })
+
+  it('pops an editing context menu with cut/copy/paste over an editable field', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const builtBefore = harness.builtMenus.length
+    window.webContents.emit('context-menu', {}, { isEditable: true, selectionText: '' })
+    const built = harness.builtMenus.slice(builtBefore)
+    expect(built).toHaveLength(1)
+    const roles = built[0]!.template.map(entry => (entry as { role?: string }).role)
+    expect(roles).toEqual(expect.arrayContaining(['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll']))
+    expect(built[0]!.popup).toHaveBeenCalledWith({ window })
+  })
+
+  it('draws no context menu when nothing is selected and the target is not editable', async () => {
+    // An empty menu would show up as a blank popup; the listener must stay
+    // silent so the platform treats the right-click as unhandled.
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const builtBefore = harness.builtMenus.length
+    window.webContents.emit('context-menu', {}, { isEditable: false, selectionText: '' })
+    expect(harness.builtMenus.slice(builtBefore)).toHaveLength(0)
   })
 })

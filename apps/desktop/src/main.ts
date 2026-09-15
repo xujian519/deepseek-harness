@@ -11,6 +11,7 @@ import {
   Menu,
   nativeImage,
   protocol,
+  shell,
   Tray,
   type IpcMainInvokeEvent,
 } from 'electron'
@@ -95,6 +96,26 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
   return port
 }
 
+/**
+ * Hand an http(s) destination to the OS browser. The shell never opens a
+ * second BrowserWindow, so any renderer-initiated external navigation that
+ * reaches `setWindowOpenHandler` or `will-navigate` must leave through here
+ * or the click is silently dropped.
+ * @param url - the URL the renderer tried to open.
+ */
+function openExternalIfHttp(url: string): void {
+  let protocol: string
+  try {
+    protocol = new URL(url).protocol
+  } catch {
+    // A renderer can hand us a syntactically invalid URL; there is nothing
+    // external to open and the shell never navigates, so drop it silently.
+    return
+  }
+  if (protocol !== 'http:' && protocol !== 'https:') return
+  void shell.openExternal(url).catch((error: unknown) => { console.error('dsh desktop: shell.openExternal failed', error) })
+}
+
 function createWindow(preload: string, show = false): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -110,18 +131,50 @@ function createWindow(preload: string, show = false): BrowserWindow {
       webSecurity: true,
     },
   })
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalIfHttp(url)
+    return { action: 'deny' }
+  })
   window.webContents.on('will-navigate', (event, url) => {
-    if (new URL(url).protocol !== `${SCHEME}:`) event.preventDefault()
+    const target = new URL(url)
+    if (target.protocol !== `${SCHEME}:`) {
+      event.preventDefault()
+      openExternalIfHttp(url)
+    }
     const page = emergencyPages.get(window)
     if (page === undefined || page.busy || window.webContents.getURL() !== page.url) return
-    const action = new URL(url)
-    if (action.protocol !== 'dsh-recovery:' || !['restart', 'plugins', 'reset'].includes(action.hostname)) return
-    if (action.hostname !== 'restart' && !profileRecoveryAvailable()) return
+    if (target.protocol !== 'dsh-recovery:' || !['restart', 'plugins', 'reset'].includes(target.hostname)) return
+    if (target.hostname !== 'restart' && !profileRecoveryAvailable()) return
     page.busy = true
-    void recoverApplication(action.hostname as RecoveryAction).catch(async (error: unknown) => {
+    void recoverApplication(target.hostname as RecoveryAction).catch(async (error: unknown) => {
       if (!window.isDestroyed()) await showEmergencyDocument(window, `${page.message}\n${desktopErrorState(error).message}`)
     }).catch((error: unknown) => { console.error(error) }).finally(() => { page.busy = false })
+  })
+  // Electron ships no default context menu for a webContents, so without this
+  // listener a right-click on a selection or an editable field yields nothing.
+  // The Edit menu roles below cover the accelerator path; this covers the
+  // pointer path with the same clipboard operations.
+  window.webContents.on('context-menu', (_event, params) => {
+    const template: Electron.MenuItemConstructorOptions[] = []
+    if (params.isEditable) {
+      template.push(
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+      )
+    } else if (params.selectionText !== '') {
+      // A non-empty selection already scopes the copy; offering Select All
+      // here would silently widen it to the whole page, which Chrome, Safari,
+      // and the macOS native menu all decline to do.
+      template.push({ role: 'copy' })
+    }
+    if (template.length === 0) return
+    Menu.buildFromTemplate(template).popup({ window })
   })
   return window
 }
@@ -466,6 +519,14 @@ async function main(): Promise<void> {
 
   // The shell owns the base application menu; backend-registered menu groups
   // are appended after these entries when the bridge rebuilds the menu.
+  //
+  // The `editMenu` / `viewMenu` / `windowMenu` roles are what dispatch the
+  // platform editing and window accelerators (Cmd/Ctrl+C, V, X, A, Z, R, W,
+  // M, and their Shift variants) to the focused webContents. Electron does
+  // not wire those accelerators on its own: omit `editMenu` and macOS loses
+  // copy/paste everywhere except native form controls, while Windows and
+  // Linux lose it on read-only selections. Locale-owned labels do not apply
+  // here: Electron supplies the localized text for role entries.
   const appMenuTemplate: Electron.MenuItemConstructorOptions[] = [
     {
       label: process.platform === 'darwin' ? app.name : messages.application,
@@ -481,6 +542,9 @@ async function main(): Promise<void> {
         { role: 'quit' },
       ],
     },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
   ]
   bridge.setAppMenuBase(appMenuTemplate)
   Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate))
