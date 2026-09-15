@@ -24,7 +24,7 @@ import { TeamsCard } from './TeamsCard.tsx'
 import { TeamsView } from './TeamsView.tsx'
 import { en, NS, zh, type PatentTeamsKey } from './locales.ts'
 import { patentTeamsCardDefinition } from './teams-definition.ts'
-import { patentTeamsViewDefinition, patentTeamsViewSourceDefinition } from './teams-view.ts'
+import { PATENT_TEAMS_TARGET, patentTeamsViewDefinition, patentTeamsViewSourceDefinition } from './teams-view.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -52,7 +52,9 @@ export function apply(ctx: ClientContext): void {
   }, TeamsCard))
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
-    id: 'teams',
+    // The shell activates a selected view by its slot id, so the id must equal
+    // the ConversationViewDefinition target the Teams tab reads its snapshot from.
+    id: PATENT_TEAMS_TARGET,
     order: 30,
     locale: NS,
     label: () => ctx.locale.bind(NS)('view.teams'),

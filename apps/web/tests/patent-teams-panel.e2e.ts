@@ -35,7 +35,7 @@ describe.skipIf(MODE === 'record')('web e2e: patent-teams card and Teams view', 
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
 
     const groupRow = page.locator('[role="treeitem"]').first()
@@ -76,7 +76,9 @@ describe.skipIf(MODE === 'record')('web e2e: patent-teams card and Teams view', 
     await page.getByRole('tab', { name: 'Teams' }).click()
     await page.locator('[data-patent-teams-team="search-team"]').waitFor({ timeout: 15_000 })
     const view = page.locator('[data-patent-teams-team="search-team"]')
-    await view.getByText('Search CNIPR for the filing family').waitFor({ timeout: 10_000 })
+    // The dashboard renders the task subject in the task list, the DAG node,
+    // and several activity-feed entries; assert the first occurrence is visible.
+    await view.getByText('Search CNIPR for the filing family').first().waitFor({ timeout: 10_000 })
 
     const snapshot = (await captureStableAria(page, '[data-patent-teams-team="search-team"]', scaffold.workspaceCwd))
       .split(SEED_ID).join('{{seededId}}')
