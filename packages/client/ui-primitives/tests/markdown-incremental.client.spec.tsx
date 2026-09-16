@@ -9,6 +9,7 @@ import type { Root, RootContent } from 'mdast'
 import { MarkdownText } from './markdown-test-components.tsx'
 import { IncrementalMarkdownParser } from '../src/markdown/incremental.ts'
 import { parseGfm } from '../src/markdown/parse.ts'
+import { StreamFrameGate } from '../src/markdown/stream-frame-gate.ts'
 
 afterEach(cleanup)
 
@@ -201,6 +202,67 @@ describe('incremental parsing is actually in effect', () => {
     live.rerender(<MarkdownText text={doc} />)
     expect(live.container.querySelector('a')?.getAttribute('href')).toBe('https://example.com/target')
     live.unmount()
+  })
+})
+
+describe('coalescing one growing top-level block', () => {
+  /**
+   * A reply that streams as one unclosable block — a single paragraph or a
+   * list — cannot freeze, so every frame re-parses all of it and the source
+   * handed to the grammar grows with the square of the reply. Frame admission
+   * is what bounds that. The grammar's measured cost (0.7 ms/KB) and the frame
+   * clock (one chunk per 16 ms) are modelled here so the counts are the same on
+   * any machine; the renderer's own use of the gate is covered by
+   * markdown-stream-frames.
+   */
+  it('holds a stream of one unclosable block to a bounded share of the frame clock', () => {
+    const COST_MS_PER_BYTE = 0.7 / 1024
+    const FRAME_MS = 16
+    const FRAMES = 1_000
+    const ITEM = '- a list item with several words in it that keeps the list open\n'
+    let clock = 0
+    let parses = 0
+    let busyMs = 0
+    let lastParseAt = 0
+    let maxLagMs = 0
+    const gate = new StreamFrameGate(() => clock)
+    // The grammar's own work is the modelled cost, so the frame admits one
+    // block that always spans the whole slice and can never freeze.
+    const oneBlock = (candidate: string): Root => {
+      parses += 1
+      const cost = candidate.length * COST_MS_PER_BYTE
+      clock += cost
+      busyMs += cost
+      return {
+        type: 'root',
+        children: [{
+          type: 'paragraph',
+          children: [],
+          position: {
+            start: { line: 1, column: 1, offset: 0 },
+            end: { line: 1, column: candidate.length + 1, offset: candidate.length },
+          },
+        }],
+      }
+    }
+    const parser = new IncrementalMarkdownParser(oneBlock)
+    let text = ''
+    for (let frame = 0; frame < FRAMES; frame += 1) {
+      text += ITEM
+      if (gate.claim(text.length)) {
+        gate.measure(() => parser.update(text))
+        lastParseAt = clock
+      }
+      clock += FRAME_MS
+      maxLagMs = Math.max(maxLagMs, clock - lastParseAt)
+    }
+    // Without admission, every frame parses and the duty cycle passes 100%.
+    expect(parses).toBeLessThan(FRAMES / 2)
+    // An over-budget frame buys a cool-down of three times its own cost, which
+    // caps the share of the frame clock the stream can occupy at a quarter.
+    expect(busyMs / clock).toBeLessThan(0.3)
+    // The text on screen trails by at most that cool-down.
+    expect(maxLagMs).toBeLessThan(250)
   })
 })
 
