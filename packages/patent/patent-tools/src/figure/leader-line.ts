@@ -5,10 +5,20 @@
  * class="node">` + `<title>`=DOT 节点 id + `<polygon>`/`<ellipse>` 轮廓
  * + `<text>` 标签；节点组内不嵌套 `<g>`——若出现则组解析在首个 `</g>`
  * 截断，退化为内嵌标号告警，不会越界），把参考标号绘制在节点轮廓之外
- * 并用 `<line>` 引线
- * 指向节点。候选锚点按右/左/上/下尝试，取第一个与任何节点轮廓或已
- * 放置标号都不相交的位置；无可用位置或节点缺轮廓时退化为在匹配文本
- * 尾部内嵌标号并输出警告，绝不画出压盖图面的引线。
+ * 并用 `<line>` 引线指向节点。候选锚点按右/左/上/下尝试，取第一个与
+ * 节点轮廓、已放置标号、图内已绘线条（`<g class="edge">` 内的边路径、
+ * 箭头与边标签）都不相交的位置——《专利审查指南》第一部分第一章 4.3
+ * 要求剖面线不得妨碍附图标记线和主线条的清楚识别，故引线不与其他线条
+ * 共线或压盖。无可用位置、节点缺轮廓或所在组含缩放/旋转/翻转时退化为在
+ * 匹配文本尾部内嵌标号并输出警告，绝不画出压盖图面的引线。
+ *
+ * 坐标帧：节点组坐标按其所在组的累计平移换算到根坐标系后再放置，引线组
+ * 注入根元素末尾，因此引线的位置与图面一致。放置后若标号或引线越出根元素
+ * 声明的画布（viewBox/width/height），按需扩边——越界侧补足、视口起点外移，
+ * 使标号完整可见：画布之外的标号在 SVG 与光栅输出中都不可见。识别纯平移
+ * 帧（含 Graphviz 15 的 `scale(1 1) rotate(0) translate(4 40)` 恒等形态），
+ * 其余变换下坐标不可换算，退化为内嵌标号并告警。
+ *
  * 输入安全检查复用 svg-annotate 的 assertSafeSvg。
  *
  * @module @deepseek-ai/dsh-patent-tools/figure/leader-line
@@ -38,11 +48,17 @@ export type LeaderLineResult = {
 /** SVG 用户单位下的矩形（min < max）。 */
 type Rect = { minX: number; minY: number; maxX: number; maxY: number }
 
-/** 引线候选锚点：线段两端、标号文本位置与占用区（线段细条 + 文本框）。 */
+/** SVG 用户单位下的线段。 */
+type Segment = { x1: number; y1: number; x2: number; y2: number }
+
+/** 根坐标系下的平移帧；undefined 表示该组含缩放/旋转/翻转，坐标不可换算。 */
+type Frame = { tx: number; ty: number }
+
+/** 引线候选锚点：线段两端、标号文本位置与占用区（引线细条 + 标号文本框，固定两项）。 */
 type AnchorPlacement = {
-  line: { x1: number; y1: number; x2: number; y2: number }
+  line: Segment
   text: { x: number; y: number; anchor: 'start' | 'middle' | 'end' }
-  occupied: Rect[]
+  occupied: readonly [Rect, Rect]
 }
 
 /** 解析后的节点组。 */
@@ -55,10 +71,32 @@ type ParsedNodeGroup = {
   title: string
   /** 组内全部文本元素的可见拼接（小写，用于参考匹配）。 */
   text: string
-  /** 轮廓 bbox；组内无 polygon/ellipse 时 undefined。 */
+  /** 轮廓 bbox（组坐标系）；组内无 polygon/ellipse 时 undefined。 */
   bbox: Rect | undefined
+  /** 组坐标系到根坐标系的平移帧。 */
+  frame: Frame | undefined
   /** 命中的参考序号；未命中 -1。 */
   referenceIndex: number
+}
+
+/** 图内已绘线条在根坐标系下的占用（边路径折线、箭头多边形、边标签文本框）。 */
+type Obstacles = {
+  rects: Rect[]
+  segments: Segment[]
+}
+
+/** 根元素声明的画布。 */
+type Canvas = {
+  /** 根元素开标签原文。 */
+  tag: string
+  minX: number
+  minY: number
+  width: number
+  height: number
+  /** 根元素声明的 width（数值/单位 + 数值到用户单位的比例）；未声明时 undefined。 */
+  widthAttr: { value: number; unit: string; ratio: number } | undefined
+  /** 根元素声明的 height（数值/单位 + 数值到用户单位的比例）；未声明时 undefined。 */
+  heightAttr: { value: number; unit: string; ratio: number } | undefined
 }
 
 /** 引线长度（SVG 用户单位）。 */
@@ -70,6 +108,34 @@ const NUMERAL_TEXT_HEIGHT = 12
 /** 标号每字符估算宽度（font-size 10）。 */
 const NUMERAL_CHAR_WIDTH = 6
 
+/** 画布扩边时的安全边距（用户单位），保证标号与引线不贴边。 */
+const CANVAS_PAD = 2
+
+/** 边路径三次贝塞尔的采样段数（折线近似，用于引线避让）。 */
+const EDGE_SAMPLES = 8
+
+/** 文本框估算：字宽相对 font-size 的比例（ASCII 与 CJK 分别取窄/满宽）。 */
+const ASCII_WIDTH_RATIO = 0.55
+const CJK_WIDTH_RATIO = 1
+
+/** 文本框估算：基线到框顶/框底相对 font-size 的比例。 */
+const TEXT_ASCENT_RATIO = 0.8
+const TEXT_DESCENT_RATIO = 0.25
+
+/** CJK 字符（含全角标点）判定，用于文本框估算。 */
+const CJK_CHAR_PATTERN = /[\u3000-\u9fff\uff00-\uffef]/
+
+/** CSS 长度单位到 px 的换算（无 viewBox 时用户单位即 px）。 */
+const LENGTH_UNIT_PX: Record<string, number> = {
+  '': 1,
+  px: 1,
+  pt: 4 / 3,
+  pc: 16,
+  in: 96,
+  cm: 96 / 2.54,
+  mm: 96 / 25.4,
+}
+
 /** 坐标格式化（最多 1 位小数）。 */
 function fmtCoord(value: number): string {
   return String(Math.round(value * 10) / 10)
@@ -78,6 +144,66 @@ function fmtCoord(value: number): string {
 /** 两矩形是否相交（共享边界不算）。 */
 function overlaps(a: Rect, b: Rect): boolean {
   return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY
+}
+
+/** 点是否落在矩形内（含边界）。 */
+function pointInRect(x: number, y: number, rect: Rect): boolean {
+  return x >= rect.minX && x <= rect.maxX && y >= rect.minY && y <= rect.maxY
+}
+
+/** 三点有向面积符号（>0 逆时针、<0 顺时针、=0 共线）。 */
+function orientation(ax: number, ay: number, bx: number, by: number, cx: number, cy: number): number {
+  return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+}
+
+/** 点 (px,py) 是否落在线段 (ax,ay)-(bx,by) 上（已知共线）。 */
+function onSegment(ax: number, ay: number, bx: number, by: number, px: number, py: number): boolean {
+  return px >= Math.min(ax, bx) && px <= Math.max(ax, bx) && py >= Math.min(ay, by) && py <= Math.max(ay, by)
+}
+
+/** 两线段是否相交（含共线重叠与端点接触）。 */
+function segmentsIntersect(a: Segment, b: Segment): boolean {
+  const d1 = orientation(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1)
+  const d2 = orientation(a.x1, a.y1, a.x2, a.y2, b.x2, b.y2)
+  const d3 = orientation(b.x1, b.y1, b.x2, b.y2, a.x1, a.y1)
+  const d4 = orientation(b.x1, b.y1, b.x2, b.y2, a.x2, a.y2)
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+  if (d1 === 0 && onSegment(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1)) return true
+  if (d2 === 0 && onSegment(a.x1, a.y1, a.x2, a.y2, b.x2, b.y2)) return true
+  if (d3 === 0 && onSegment(b.x1, b.y1, b.x2, b.y2, a.x1, a.y1)) return true
+  if (d4 === 0 && onSegment(b.x1, b.y1, b.x2, b.y2, a.x2, a.y2)) return true
+  return false
+}
+
+/** 线段是否穿过矩形（含端点落在矩形内）。 */
+function segmentIntersectsRect(segment: Segment, rect: Rect): boolean {
+  if (pointInRect(segment.x1, segment.y1, rect) || pointInRect(segment.x2, segment.y2, rect)) return true
+  const { minX, minY, maxX, maxY } = rect
+  const edges: Segment[] = [
+    { x1: minX, y1: minY, x2: maxX, y2: minY },
+    { x1: maxX, y1: minY, x2: maxX, y2: maxY },
+    { x1: maxX, y1: maxY, x2: minX, y2: maxY },
+    { x1: minX, y1: maxY, x2: minX, y2: minY },
+  ]
+  return edges.some(edge => segmentsIntersect(segment, edge))
+}
+
+/** 矩形按平移换算到根坐标系。 */
+function translateRect(rect: Rect, frame: Frame): Rect {
+  return {
+    minX: rect.minX + frame.tx,
+    minY: rect.minY + frame.ty,
+    maxX: rect.maxX + frame.tx,
+    maxY: rect.maxY + frame.ty,
+  }
+}
+
+/** 取标签的数值属性；缺失或非有限值时 undefined。 */
+function numberAttr(tag: string, name: string): number | undefined {
+  const match = new RegExp(`\\b${name}="([^"]+)"`).exec(tag)
+  if (match === null) return undefined
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : undefined
 }
 
 /** 从 `<polygon>` 的 points 属性解析轮廓 bbox；点对非法时 undefined。 */
@@ -103,23 +229,234 @@ function polygonBBox(pointsAttr: string): Rect | undefined {
 
 /** 从 `<ellipse ...>` 标签解析轮廓 bbox；属性缺失/非法时 undefined。 */
 function ellipseBBox(ellipseTag: string): Rect | undefined {
-  const num = (name: string): number | undefined => {
-    const match = new RegExp(`\\b${name}="([^"]+)"`).exec(ellipseTag)
-    if (match === null) return undefined
-    const value = Number(match[1])
-    return Number.isFinite(value) ? value : undefined
-  }
-  const cx = num('cx')
-  const cy = num('cy')
-  const rx = num('rx')
-  const ry = num('ry')
+  const cx = numberAttr(ellipseTag, 'cx')
+  const cy = numberAttr(ellipseTag, 'cy')
+  const rx = numberAttr(ellipseTag, 'rx')
+  const ry = numberAttr(ellipseTag, 'ry')
   if (cx === undefined || cy === undefined || rx === undefined || ry === undefined) return undefined
   return { minX: cx - rx, minY: cy - ry, maxX: cx + rx, maxY: cy + ry }
 }
 
+/** 估算文本宽度（CJK 按满宽、其余按窄宽）。 */
+function estimateTextWidth(text: string, fontSize: number): number {
+  let width = 0
+  for (const char of text) width += fontSize * (CJK_CHAR_PATTERN.test(char) ? CJK_WIDTH_RATIO : ASCII_WIDTH_RATIO)
+  return width
+}
+
+/** 估算 `<text>` 元素在组坐标系的文本框（基线上下按 font-size 比例展开）。 */
+function textBBox(textElement: string): Rect | undefined {
+  const x = numberAttr(textElement, 'x')
+  const y = numberAttr(textElement, 'y')
+  if (x === undefined || y === undefined) return undefined
+  const fontSize = numberAttr(textElement, 'font-size') ?? 10
+  const anchor = /\btext-anchor="(\w+)"/.exec(textElement)?.[1] ?? 'start'
+  const width = estimateTextWidth(textElementContent(textElement), fontSize)
+  const minX = anchor === 'end' ? x - width : anchor === 'middle' ? x - width / 2 : x
+  return {
+    minX,
+    minY: y - fontSize * TEXT_ASCENT_RATIO,
+    maxX: minX + width,
+    maxY: y + fontSize * TEXT_DESCENT_RATIO,
+  }
+}
+
+/**
+ * 解析 `<g>` 的 transform：只接受恒等与平移，返回相对父组的平移；
+ * 含缩放/旋转/翻转时 undefined（坐标不可换算，调用方退化为内嵌标号）。
+ * @param tag - `<g ...>` 开标签原文。
+ * @returns 该组自身的平移；不可换算时 undefined。
+ */
+function parseGroupTransform(tag: string): Frame | undefined {
+  const attr = /\btransform="([^"]*)"/.exec(tag)
+  if (attr === null) return { tx: 0, ty: 0 }
+  let tx = 0
+  let ty = 0
+  const fnPattern = /([a-zA-Z]+)\s*\(([^)]*)\)/g
+  let match: RegExpExecArray | null
+  while ((match = fnPattern.exec(attr[1] as string)) !== null) {
+    const name = (match[1] as string).toLowerCase()
+    const values = (match[2] as string).trim().split(/[\s,]+/).filter(value => value !== '').map(Number)
+    if (values.some(value => !Number.isFinite(value))) return undefined
+    if (name === 'translate') {
+      tx += values[0] ?? 0
+      ty += values[1] ?? 0
+    } else if (name === 'scale') {
+      if (values[0] !== 1 || values[1] !== 1) return undefined
+    } else if (name === 'rotate') {
+      if (values[0] !== 0 || values.length !== 1) return undefined
+    } else if (name === 'matrix') {
+      if (values.length !== 6 || values[0] !== 1 || values[1] !== 0 || values[2] !== 0 || values[3] !== 1) return undefined
+      tx += values[4] as number
+      ty += values[5] as number
+    } else {
+      return undefined
+    }
+  }
+  return { tx, ty }
+}
+
+/** 组作用域：起止偏移与该作用域内的累计平移（根坐标系）。 */
+type GroupScope = { start: number; end: number; frame: Frame | undefined }
+
+/**
+ * 扫描全部 `<g>` 作用域并累计各自到根坐标系的平移。
+ * @param svgText - SVG 文本。
+ * @returns 作用域列表（闭合顺序）；frame 为 undefined 表示含非平移变换。
+ */
+function groupScopes(svgText: string): GroupScope[] {
+  const scopes: GroupScope[] = []
+  const stack: { start: number; frame: Frame | undefined }[] = []
+  const tagPattern = /<g\b[^>]*>|<\/g\s*>/g
+  let match: RegExpExecArray | null
+  while ((match = tagPattern.exec(svgText)) !== null) {
+    if (match[0].startsWith('</')) {
+      const open = stack.pop()
+      if (open === undefined) continue
+      scopes.push({ start: open.start, end: match.index, frame: open.frame })
+      continue
+    }
+    const parent = stack.length === 0 ? { tx: 0, ty: 0 } : (stack[stack.length - 1] as { frame: Frame | undefined }).frame
+    const own = parseGroupTransform(match[0])
+    stack.push({
+      start: match.index + match[0].length,
+      frame: parent === undefined || own === undefined
+        ? undefined
+        : { tx: parent.tx + own.tx, ty: parent.ty + own.ty },
+    })
+  }
+  return scopes
+}
+
+/**
+ * 取偏移处最内层组的平移帧。
+ * @param scopes - {@link groupScopes} 结果。
+ * @param offset - 文档内偏移。
+ * @returns 根坐标系平移；未嵌套在任何组内时为恒等；含非平移变换时 undefined。
+ */
+function frameAt(scopes: readonly GroupScope[], offset: number): Frame | undefined {
+  let innermost: GroupScope | undefined
+  for (const scope of scopes) {
+    if (scope.start <= offset && offset < scope.end && (innermost === undefined || scope.start > innermost.start)) {
+      innermost = scope
+    }
+  }
+  return innermost === undefined ? { tx: 0, ty: 0 } : innermost.frame
+}
+
+/** 三次贝塞尔在 t 处的点。 */
+function cubicPoint(
+  start: { x: number; y: number },
+  control1: { x: number; y: number },
+  control2: { x: number; y: number },
+  end: { x: number; y: number },
+  t: number,
+): { x: number; y: number } {
+  const inv = 1 - t
+  const a = inv * inv * inv
+  const b = 3 * inv * inv * t
+  const c = 3 * inv * t * t
+  const d = t * t * t
+  return {
+    x: a * start.x + b * control1.x + c * control2.x + d * end.x,
+    y: a * start.y + b * control1.y + c * control2.y + d * end.y,
+  }
+}
+
+/** 点按平移换算到根坐标系。 */
+function translatePoint(point: { x: number; y: number }, frame: Frame): { x: number; y: number } {
+  return { x: point.x + frame.tx, y: point.y + frame.ty }
+}
+
+/**
+ * 把 SVG path 的 M/L/C 段采样成根坐标系折线；命令或数值非法时返回空列表。
+ * @param d - path 的 d 属性值。
+ * @param frame - 该 path 所在组的平移帧。
+ * @returns 折线段列表。
+ */
+function samplePath(d: string, frame: Frame): Segment[] {
+  const segments: Segment[] = []
+  const commandPattern = /([MLC])([^MLC]*)/g
+  let cursor: { x: number; y: number } | undefined
+  let match: RegExpExecArray | null
+  while ((match = commandPattern.exec(d)) !== null) {
+    const numbers = (match[2] as string).trim().split(/[\s,]+/).filter(value => value !== '').map(Number)
+    if (numbers.some(value => !Number.isFinite(value))) return []
+    const command = match[1] as string
+    if (command === 'M') {
+      if (numbers.length < 2) return []
+      cursor = { x: numbers[0] as number, y: numbers[1] as number }
+      continue
+    }
+    if (command === 'L') {
+      if (cursor === undefined || numbers.length < 2) return []
+      const start = cursor
+      const end = { x: numbers[0] as number, y: numbers[1] as number }
+      segments.push(toSegment(start, end, frame))
+      cursor = end
+      continue
+    }
+    if (cursor === undefined) return []
+    let start = cursor
+    for (let offset = 0; offset + 6 <= numbers.length; offset += 6) {
+      const control1 = { x: numbers[offset] as number, y: numbers[offset + 1] as number }
+      const control2 = { x: numbers[offset + 2] as number, y: numbers[offset + 3] as number }
+      const end = { x: numbers[offset + 4] as number, y: numbers[offset + 5] as number }
+      let previous = start
+      for (let step = 1; step <= EDGE_SAMPLES; step += 1) {
+        const point = cubicPoint(start, control1, control2, end, step / EDGE_SAMPLES)
+        segments.push(toSegment(previous, point, frame))
+        previous = point
+      }
+      start = end
+    }
+    if (start === cursor) return []
+    cursor = start
+  }
+  return segments
+}
+
+/** 两点按平移换算为根坐标系下的线段。 */
+function toSegment(a: { x: number; y: number }, b: { x: number; y: number }, frame: Frame): Segment {
+  const start = translatePoint(a, frame)
+  const end = translatePoint(b, frame)
+  return { x1: start.x, y1: start.y, x2: end.x, y2: end.y }
+}
+
+/**
+ * 收集图内已绘线条在根坐标系下的占用：边组内的路径折线、箭头多边形与边标签。
+ * 边组之外的 `<path>`/`<polygon>`（如背景矩形）不计入，避免整幅图被当成障碍。
+ * @param svgText - SVG 文本。
+ * @param scopes - {@link groupScopes} 结果。
+ * @returns 障碍矩形与障碍线段。
+ */
+function edgeObstacles(svgText: string, scopes: readonly GroupScope[]): Obstacles {
+  const rects: Rect[] = []
+  const segments: Segment[] = []
+  const edgePattern = /<g\b[^>]*\bclass="edge"[^>]*>[\s\S]*?<\/g>/g
+  let match: RegExpExecArray | null
+  while ((match = edgePattern.exec(svgText)) !== null) {
+    const frame = frameAt(scopes, match.index)
+    if (frame === undefined) continue
+    const raw = match[0]
+    for (const path of raw.matchAll(/<path\b[^>]*\bd="([^"]*)"/g)) {
+      segments.push(...samplePath(path[1] as string, frame))
+    }
+    for (const polygon of raw.matchAll(/<polygon\b[^>]*\bpoints="([^"]*)"/g)) {
+      const rect = polygonBBox(polygon[1] as string)
+      if (rect !== undefined) rects.push(translateRect(rect, frame))
+    }
+    for (const text of raw.matchAll(/<text\b[^>]*>[\s\S]*?<\/text>/gi)) {
+      const rect = textBBox(text[0])
+      if (rect !== undefined) rects.push(translateRect(rect, frame))
+    }
+  }
+  return { rects, segments }
+}
+
 /**
  * 为节点 bbox 生成右/左/上/下四个候选锚点（引线从轮廓边缘出发，标号在线端外侧）。
- * @param bbox - 节点轮廓。
+ * @param bbox - 节点轮廓（根坐标系）。
  * @param numeral - 标号文本（决定文本框宽度）。
  * @returns 按尝试顺序排列的候选。
  */
@@ -168,6 +505,26 @@ function candidatePlacements(bbox: Rect, numeral: string): AnchorPlacement[] {
   return [right, left, top, bottom]
 }
 
+/**
+ * 候选是否可用：引线线段与标号文本框都不得压盖节点轮廓、已放置标号或图内已绘线条。
+ * @param candidate - 候选锚点。
+ * @param nodeRects - 全部节点轮廓（根坐标系）。
+ * @param placedRects - 已放置标号的占用区。
+ * @param obstacles - 图内已绘线条的占用。
+ * @returns 位置可用时 true。
+ */
+function isFree(
+  candidate: AnchorPlacement,
+  nodeRects: readonly Rect[],
+  placedRects: readonly Rect[],
+  obstacles: Obstacles,
+): boolean {
+  const blockers = [...nodeRects, ...placedRects, ...obstacles.rects]
+  if (!candidate.occupied.every(rect => blockers.every(other => !overlaps(rect, other)))) return false
+  if (obstacles.segments.some(segment => segmentsIntersect(candidate.line, segment))) return false
+  return !obstacles.segments.some(segment => segmentIntersectsRect(segment, candidate.occupied[1]))
+}
+
 /** 渲染一条引线 + 标号文本的 SVG 片段。 */
 function leaderLineFragment(placement: AnchorPlacement, numeral: string): string {
   const line = placement.line
@@ -201,12 +558,118 @@ function embedNumeralInGroup(groupRaw: string, numeral: string): string {
   return groupRaw.slice(0, last.index) + whole.slice(0, insertAt) + escaped + whole.slice(insertAt) + tail
 }
 
+/** 解析根元素声明的 width/height：数值 + 单位 + 单位到 px 的换算。 */
+function sizeAttribute(tag: string, name: string): { value: number; unit: string; px: number } | undefined {
+  const match = new RegExp(`(?:^|\\s)${name}="([0-9.]+)([a-z%]*)"`, 'i').exec(tag)
+  if (match === null) return undefined
+  const value = Number(match[1])
+  const unit = (match[2] as string).toLowerCase()
+  const factor = LENGTH_UNIT_PX[unit]
+  if (!Number.isFinite(value) || value <= 0 || factor === undefined) return undefined
+  return { value, unit, px: value * factor }
+}
+
+/**
+ * 解析根元素画布：viewBox 优先；缺省时按 width/height（长度单位换算为 px）合成等价视口。
+ * @param svgText - SVG 文本。
+ * @returns 画布信息；根元素缺失或尺寸不可知时 undefined（调用方跳过扩边）。
+ */
+function parseCanvas(svgText: string): Canvas | undefined {
+  const tagMatch = /<svg\b[^>]*>/i.exec(svgText)
+  if (tagMatch === null) return undefined
+  const tag = tagMatch[0]
+  const width = sizeAttribute(tag, 'width')
+  const height = sizeAttribute(tag, 'height')
+  const box = /\bviewBox="([^"]*)"/i.exec(tag)
+  if (box !== null) {
+    const values = (box[1] as string).trim().split(/[\s,]+/).map(Number)
+    if (values.length !== 4 || values.some(value => !Number.isFinite(value))) return undefined
+    const [, , boxWidth, boxHeight] = values as [number, number, number, number]
+    if (boxWidth <= 0 || boxHeight <= 0) return undefined
+    return {
+      tag,
+      minX: values[0] as number,
+      minY: values[1] as number,
+      width: boxWidth,
+      height: boxHeight,
+      widthAttr: width === undefined ? undefined : { value: width.value, unit: width.unit, ratio: width.value / boxWidth },
+      heightAttr: height === undefined ? undefined : { value: height.value, unit: height.unit, ratio: height.value / boxHeight },
+    }
+  }
+  if (width === undefined || height === undefined) return undefined
+  return {
+    tag,
+    minX: 0,
+    minY: 0,
+    width: width.px,
+    height: height.px,
+    widthAttr: { value: width.px, unit: 'px', ratio: 1 },
+    heightAttr: { value: height.px, unit: 'px', ratio: 1 },
+  }
+}
+
+/** 改写根元素开标签的 viewBox（缺省时插入）。 */
+function replaceViewBox(tag: string, minX: number, minY: number, width: number, height: number): string {
+  const value = `${fmtCoord(minX)} ${fmtCoord(minY)} ${fmtCoord(width)} ${fmtCoord(height)}`
+  if (/\bviewBox="/i.test(tag)) return tag.replace(/\bviewBox="[^"]*"/i, () => `viewBox="${value}"`)
+  return tag.replace(/<svg\b/i, match => `${match} viewBox="${value}"`)
+}
+
+/** 改写根元素开标签的 width/height 数值（保留单位）。 */
+function replaceSizeAttribute(tag: string, name: string, value: number, unit: string): string {
+  return tag.replace(
+    new RegExp(`((?:^|\\s)${name}=")[0-9.]+[a-z%]*(")`, 'i'),
+    (_whole, head: string, tail: string) => `${head}${fmtCoord(value)}${unit}${tail}`,
+  )
+}
+
+/**
+ * 放置几何越出画布时扩展视口：越界侧补 {@link CANVAS_PAD} 安全边距。
+ * 向右下越界靠放大尺寸，向左上越界靠外移 viewBox 起点（图面本身不动）。
+ * @param svgText - SVG 文本。
+ * @param canvas - 根元素声明的画布。
+ * @param geometry - 已放置的引线与标号占用区（根坐标系）。
+ * @returns 扩边后的 SVG 文本；未越界时原样返回。
+ */
+function expandCanvas(svgText: string, canvas: Canvas, geometry: readonly Rect[]): string {
+  const maxX = canvas.minX + canvas.width
+  const maxY = canvas.minY + canvas.height
+  let neededMinX = canvas.minX
+  let neededMinY = canvas.minY
+  let neededMaxX = maxX
+  let neededMaxY = maxY
+  for (const rect of geometry) {
+    neededMinX = Math.min(neededMinX, rect.minX)
+    neededMinY = Math.min(neededMinY, rect.minY)
+    neededMaxX = Math.max(neededMaxX, rect.maxX)
+    neededMaxY = Math.max(neededMaxY, rect.maxY)
+  }
+  if (neededMinX === canvas.minX && neededMinY === canvas.minY && neededMaxX === maxX && neededMaxY === maxY) {
+    return svgText
+  }
+  const minX = neededMinX < canvas.minX ? neededMinX - CANVAS_PAD : canvas.minX
+  const minY = neededMinY < canvas.minY ? neededMinY - CANVAS_PAD : canvas.minY
+  const outMaxX = neededMaxX > maxX ? neededMaxX + CANVAS_PAD : maxX
+  const outMaxY = neededMaxY > maxY ? neededMaxY + CANVAS_PAD : maxY
+  const width = outMaxX - minX
+  const height = outMaxY - minY
+  let tag = replaceViewBox(canvas.tag, minX, minY, width, height)
+  if (canvas.widthAttr !== undefined) {
+    tag = replaceSizeAttribute(tag, 'width', width * canvas.widthAttr.ratio, canvas.widthAttr.unit)
+  }
+  if (canvas.heightAttr !== undefined) {
+    tag = replaceSizeAttribute(tag, 'height', height * canvas.heightAttr.ratio, canvas.heightAttr.unit)
+  }
+  return svgText.replace(canvas.tag, () => tag)
+}
+
 /**
  * 在 Graphviz SVG 的节点组外侧绘制引线标号。
  *
  * 匹配语义与 annotateSvg 一致：按参考传入顺序取首个文本命中，每个节点
  * 组至多命中一个参考，同一参考可命中多个组（同号多处标注）。命中组缺
- * 轮廓或四向候选均冲突时退化为内嵌标号并告警。
+ * 轮廓、所在组坐标不可换算或四向候选均冲突时退化为内嵌标号并告警。
+ * 标号越出根元素声明画布时按需扩边，保证引线与标号完整可见。
  * @param svgText - Graphviz 渲染的 SVG 文本（WASM 与 CLI 输出同构）。
  * @param references - 参考标号列表（label 匹配组内可见文本）。
  * @param options - 大小上限等选项。
@@ -223,6 +686,7 @@ export function annotateSvgWithLeaderLines(
   validateSvgReferences(references)
   if (references.length === 0) return { svg: svgText, warnings: [] }
 
+  const scopes = groupScopes(svgText)
   const groups: ParsedNodeGroup[] = []
   const groupPattern = /<g\b[^>]*\bclass="node"[^>]*>[\s\S]*?<\/g>/g
   let groupMatch: RegExpExecArray | null
@@ -249,25 +713,35 @@ export function annotateSvgWithLeaderLines(
       title: titleMatch === null ? '' : titleMatch[1] as string,
       text,
       bbox,
+      frame: frameAt(scopes, groupMatch.index),
       referenceIndex,
     })
   }
 
   const warnings: string[] = []
-  const bboxes: Rect[] = groups.map(group => group.bbox).filter((bbox): bbox is Rect => bbox !== undefined)
+  const obstacles = edgeObstacles(svgText, scopes)
+  const nodeRects = groups
+    .filter((group): group is ParsedNodeGroup & { bbox: Rect; frame: Frame } => group.bbox !== undefined && group.frame !== undefined)
+    .map(group => translateRect(group.bbox, group.frame))
   const embedded = new Map<number, string>()
   const fragments: string[] = []
   const placed: Rect[] = []
   for (const [index, group] of groups.entries()) {
     if (group.referenceIndex < 0) continue
     const numeral = (references[group.referenceIndex] as SvgAnnotateReference).numeral.trim()
+    if (group.frame === undefined) {
+      embedded.set(index, embedNumeralInGroup(group.raw, numeral))
+      warnings.push(`节点 "${group.title}" 所在组的坐标含缩放/旋转，标号 ${numeral} 已内嵌`)
+      continue
+    }
     if (group.bbox === undefined) {
       embedded.set(index, embedNumeralInGroup(group.raw, numeral))
       warnings.push(`节点 "${group.title}" 缺少形状轮廓，标号 ${numeral} 已内嵌`)
       continue
     }
-    const chosen = candidatePlacements(group.bbox, numeral).find(candidate =>
-      candidate.occupied.every(rect => [...bboxes, ...placed].every(other => !overlaps(rect, other))))
+    const bbox = translateRect(group.bbox, group.frame)
+    const chosen = candidatePlacements(bbox, numeral).find(candidate =>
+      isFree(candidate, nodeRects, placed, obstacles))
     if (chosen === undefined) {
       embedded.set(index, embedNumeralInGroup(group.raw, numeral))
       warnings.push(`节点 "${group.title}" 周边无引线空间，标号 ${numeral} 已内嵌`)
@@ -290,10 +764,11 @@ export function annotateSvgWithLeaderLines(
     cursor = end
   }
   result += svgText.slice(cursor)
-  if (fragments.length > 0) {
-    const closeIndex = result.toLowerCase().lastIndexOf('</svg>')
-    const fragment = `<g id="leader-lines">\n${fragments.join('\n')}\n</g>\n`
-    result = result.slice(0, closeIndex) + fragment + result.slice(closeIndex)
-  }
+  if (fragments.length === 0) return { svg: result, warnings }
+  const closeIndex = result.toLowerCase().lastIndexOf('</svg>')
+  const fragment = `<g id="leader-lines">\n${fragments.join('\n')}\n</g>\n`
+  result = result.slice(0, closeIndex) + fragment + result.slice(closeIndex)
+  const canvas = parseCanvas(result)
+  if (canvas !== undefined) result = expandCanvas(result, canvas, placed)
   return { svg: result, warnings }
 }
