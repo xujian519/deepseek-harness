@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-conversation-target-claim-lifetime.md
+2026-09-16-conversation-target-claim-lifetime.md: 6ea067e1fcf164a2bae3c102e1808a8c63b09793
+2026-09-16-conversation-target-claim-lifetime.zh.md: b291dbb661d059adcd5ae6003b51e904cf127d79

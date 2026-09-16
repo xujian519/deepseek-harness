@@ -28,14 +28,20 @@ import { ConversationViewRegistry } from './view-registry.ts'
 export interface ConversationBinding {
   readonly snapshot: ObservableSnapshot<ConversationSnapshot>
   /**
-   * Add one selected target to the Session's monotonic active set.
+   * Select one target as the shell's View.
+   * The shell shows one View at a time, so selecting a target releases the
+   * previous one; a released target stays materialized but stops updating while
+   * no subscriber claims it.
    * @param target - registered or subsequently registered Conversation target.
    */
-  activate(target: string): void
+  select(target: string): void
   /**
    * Resolve one target-owned snapshot source.
-   * The first subscriber activates the target unless shell selection already
-   * activated it; activation lasts for the remaining Session lifetime.
+   * A target is assembled while the shell selects it or at least one
+   * subscriber claims it. The returned unsubscribe releases this subscriber's
+   * claim, so the last one leaves the target materialized but no longer
+   * updating until {@link ConversationBinding.select} or another subscriber
+   * claims it again.
    * @param target - registered Conversation target.
    * @returns identity-stable source following the target.
    */
@@ -74,8 +80,11 @@ class BoundConversation implements ConversationBinding {
         getSnapshot: () => views.get(target),
         subscribe: (listener) => {
           const unsubscribe = this.snapshot.subscribe(listener)
-          this.activate(target)
-          return unsubscribe
+          if (this.assembler.retainTarget(target)) this.snapshot.set(this.currentSnapshot())
+          return () => {
+            unsubscribe()
+            this.assembler.releaseTarget(target)
+          }
         },
       }
       this.targetSources.set(target, source)
@@ -83,8 +92,8 @@ class BoundConversation implements ConversationBinding {
     return source as ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined>
   }
 
-  activate(target: string): void {
-    if (this.assembler.activateTarget(target)) this.snapshot.set(this.currentSnapshot())
+  select(target: string): void {
+    if (this.assembler.selectTarget(target)) this.snapshot.set(this.currentSnapshot())
   }
 
   rebuild(): void { this.publish(this.assembler.rebuildRegistry()) }

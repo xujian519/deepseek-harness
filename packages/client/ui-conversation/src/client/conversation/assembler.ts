@@ -168,7 +168,8 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   private readonly revised = new Set<InternalContext>()
   private readonly dependents = new Map<string, Set<InternalContext>>()
   private readonly views = new Map<string, ViewState>()
-  private readonly activeTargets = new Set<string>()
+  private readonly subscribers = new Map<string, number>()
+  private selectedTarget: string | undefined
   private hasMore = false
   private replacePending = true
   private timelineDirty = true
@@ -334,13 +335,12 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (this.replacePending) {
       this.replaceLocationData()
       let published = false
-      for (const target of this.activeTargets) {
-        const view = this.views.get(target)
-        if (view === undefined) continue
+      for (const view of this.views.values()) {
+        if (!this.isActive(view.target)) continue
         const builder = view.builder ?? view.definition.create()
         view.builder = builder
         view.snapshot = builder.replace({
-          nodes: this.buildTargetNodes(target, this.contextsByTarget.get(target)),
+          nodes: this.buildTargetNodes(view.target, this.contextsByTarget.get(view.target)),
           timeline: this.locationIndex.snapshot(),
         })
         published = true
@@ -356,12 +356,11 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     let published = false
     if (this.applyDirtyLocationData()) this.timelineDirty = true
     const timelineDirty = this.timelineDirty
-    for (const target of this.activeTargets) {
-      const view = this.views.get(target)
-      if (view === undefined) continue
+    for (const view of this.views.values()) {
+      if (!this.isActive(view.target)) continue
       const builder = view.builder
       if (builder === undefined) continue
-      const upserts = this.buildTargetUpserts(target, this.dirtyByTarget.get(target))
+      const upserts = this.buildTargetUpserts(view.target, this.dirtyByTarget.get(view.target))
       if (upserts.length === 0 && !timelineDirty) continue
       view.snapshot = builder.apply({
         upserts,
@@ -377,19 +376,63 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   }
 
   /**
-   * Add one target to the monotonic active set and materialize its current snapshot.
-   * Pending Context work is flushed before the first complete replacement.
+   * Select one target as the shell's View and materialize it when it becomes
+   * active. The shell shows one View at a time, so selecting a target releases
+   * the previous selection: a released target keeps its builder and snapshot
+   * but stops receiving updates while no subscriber claims it. Pending Context
+   * work is flushed before the first complete replacement.
    * @param target - registered or subsequently registered view target.
-   * @returns whether any active target snapshot changed.
+   * @returns whether the assembled snapshot changed.
    */
-  activateTarget(target: string): boolean {
-    const view = this.views.get(target)
-    if (this.activeTargets.has(target)) return false
+  selectTarget(target: string): boolean {
+    if (this.selectedTarget === target) return false
+    const previous = this.selectedTarget
+    const wasActive = this.isActive(target)
     const published = this.flush()
-    this.activeTargets.add(target)
-    if (view === undefined) return published
-    this.replaceView(view)
-    return true
+    this.selectedTarget = target
+    return this.materialize(target, wasActive)
+      || published
+      || this.reportsActivity(previous)
+      || this.reportsActivity(target)
+  }
+
+  /**
+   * Add one subscriber's claim on a target, materializing it when the claim
+   * makes it active. The claim keeps the target in the assembled set until
+   * {@link releaseTarget} removes it.
+   * @param target - registered or subsequently registered view target.
+   * @returns whether the assembled snapshot changed.
+   */
+  retainTarget(target: string): boolean {
+    const claims = this.subscribers.get(target) ?? 0
+    const wasActive = claims > 0 || this.selectedTarget === target
+    const published = this.flush()
+    this.subscribers.set(target, claims + 1)
+    return this.materialize(target, wasActive) || published
+  }
+
+  /**
+   * Remove one subscriber's claim on a target. A target that no subscriber and
+   * no shell selection claims keeps its builder and snapshot but stops
+   * receiving updates until it is claimed again.
+   * @param target - target released by one subscriber.
+   */
+  releaseTarget(target: string): void {
+    const claims = this.subscribers.get(target)
+    if (claims === undefined) return
+    if (claims === 1) this.subscribers.delete(target)
+    else this.subscribers.set(target, claims - 1)
+  }
+
+  /**
+   * Read the shell-selected target's latest snapshot when its owner classifies
+   * that snapshot as visible activity. Subscribers report no activity, so the
+   * assembly keeps an unselected target live without changing the shell phase.
+   * @returns target ids contributing visible activity.
+   */
+  activityTargets(): ReadonlySet<string> {
+    const selected = this.selectedTarget
+    return this.reportsActivity(selected) ? new Set([selected as string]) : new Set()
   }
 
   /**
@@ -407,22 +450,39 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     return this.snapshot(target) as ConversationViewSnapshotMap[Target] | undefined
   }
 
-  /**
-   * Read targets whose owners classify their latest snapshot as visible activity.
-   * @returns target ids contributing visible activity.
-   */
-  activityTargets(): ReadonlySet<string> {
-    const active = new Set<string>()
-    for (const target of this.activeTargets) {
-      const view = this.views.get(target)
-      if (view === undefined) continue
-      if (view.isActive?.(view.snapshot) === true) active.add(view.target)
-    }
-    return active
-  }
-
   private sortedInputs(): SessionEventLikeEntry[] {
     return [...this.inputs.values()].sort((left, right) => left.event.seq - right.event.seq)
+  }
+
+  /**
+   * @param target - view target.
+   * @returns whether the shell selects it or at least one subscriber claims it.
+   */
+  private isActive(target: string): boolean {
+    return this.selectedTarget === target || (this.subscribers.get(target) ?? 0) > 0
+  }
+
+  /**
+   * Give a target that just became active its first complete replacement.
+   * @param target - target that gained its first claim.
+   * @param wasActive - whether the target already received incremental updates.
+   * @returns whether a replacement snapshot was published.
+   */
+  private materialize(target: string, wasActive: boolean): boolean {
+    const view = this.views.get(target)
+    if (wasActive || view === undefined) return false
+    this.replaceView(view)
+    return true
+  }
+
+  /**
+   * @param target - view target, when the shell selects one.
+   * @returns whether that target's latest snapshot reads as visible activity.
+   */
+  private reportsActivity(target: string | undefined): boolean {
+    if (target === undefined) return false
+    const view = this.views.get(target)
+    return view !== undefined && view.isActive?.(view.snapshot) === true
   }
 
   private matchInput(input: SessionEventLikeEntry): ConversationPublication {
@@ -650,7 +710,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   private markDirty(context: InternalContext): void {
     this.dirty.add(context)
     const target = context.definition.target
-    if (target === undefined || !this.activeTargets.has(target)) return
+    if (target === undefined || !this.isActive(target)) return
     const contexts = this.dirtyByTarget.get(target) ?? new Set<InternalContext>()
     contexts.add(context)
     this.dirtyByTarget.set(target, contexts)

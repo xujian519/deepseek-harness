@@ -152,7 +152,7 @@ function packedInputs(entries: readonly SessionLiveEventEntry[]): SessionEventLi
 function assembler(entries: readonly SessionEventLikeEntry[] = [], hasMore = false): ConversationNodeAssembler {
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
   value.replaceWindow(entries, hasMore)
-  value.activateTarget('chat')
+  value.retainTarget('chat')
   return value
 }
 

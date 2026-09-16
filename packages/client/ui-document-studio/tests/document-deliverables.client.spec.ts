@@ -75,7 +75,7 @@ function assembler(entries: readonly SessionLiveEventEntry[]): ConversationNodeA
   const views = new TestViewDefinitions()
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), views)
   // Snapshot building is lazy: activate every view before the first flush.
-  for (const view of views.entries()) value.activateTarget(view.target)
+  for (const view of views.entries()) value.retainTarget(view.target)
   value.replaceWindow(entries, false)
   value.flush()
   return value

@@ -166,10 +166,10 @@ describe('Conversation inject API', () => {
     await b.runtime.dispose()
   })
 
-  it('activates a target before committing an explicit View selection', async () => {
+  it('selects a target before committing an explicit View selection', async () => {
     const b = await bench()
     const binding = b.runtime.ctx.uiConversation.binding(ROOT)
-    const activate = vi.spyOn(binding, 'activate')
+    const select = vi.spyOn(binding, 'select')
     const removeChat = b.slots.register(
       { name: 'conversation.view', id: 'chat', order: 0 },
       (() => null) as never,
@@ -179,11 +179,11 @@ describe('Conversation inject API', () => {
       (() => null) as never,
     )
     await Promise.resolve()
-    activate.mockClear()
+    select.mockClear()
 
     const body = b.conversationApi(ROOT)
     body.injected.openView('trajectory', 'call-1')
-    expect(activate).toHaveBeenLastCalledWith('trajectory')
+    expect(select).toHaveBeenLastCalledWith('trajectory')
     expect(body.instance.store.getSnapshot()).toMatchObject({
       view: 'trajectory',
       viewRequest: { view: 'trajectory', focus: 'call-1' },
@@ -191,7 +191,7 @@ describe('Conversation inject API', () => {
 
     const header = b.headerApi(ROOT)
     header.injected.selectView('chat')
-    expect(activate).toHaveBeenLastCalledWith('chat')
+    expect(select).toHaveBeenLastCalledWith('chat')
     expect(header.instance.store.getSnapshot().view).toBe('chat')
 
     removeTrajectory()
@@ -202,7 +202,7 @@ describe('Conversation inject API', () => {
   it('restores the selected View when a cached Session becomes current', async () => {
     const b = await bench()
     const binding = b.runtime.ctx.uiConversation.binding(ROOT)
-    const activate = vi.spyOn(binding, 'activate')
+    const select = vi.spyOn(binding, 'select')
     const removeChat = b.slots.register(
       { name: 'conversation.view', id: 'chat', order: 0 },
       (() => null) as never,
@@ -215,18 +215,18 @@ describe('Conversation inject API', () => {
       }))
 
       b.runtime.ctx.uiSession.adapter.resolve(ROOT)
-      expect(activate).toHaveBeenLastCalledWith('chat')
-      activate.mockClear()
+      expect(select).toHaveBeenLastCalledWith('chat')
+      select.mockClear()
 
       removeCustom = b.slots.register(
         { name: 'conversation.view', id: 'custom', order: 10 },
         (() => null) as never,
       )
       await b.runtime.flush()
-      expect(activate).not.toHaveBeenCalled()
+      expect(select).not.toHaveBeenCalled()
 
       await b.runtime.sessions.setCurrent(ROOT)
-      expect(activate).toHaveBeenLastCalledWith('custom')
+      expect(select).toHaveBeenLastCalledWith('custom')
     } finally {
       removeCustom?.()
       removeChat()

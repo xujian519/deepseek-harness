@@ -166,7 +166,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   }
   const activateView = (sessionId: SessionId, preferred: string | null): void => {
     const active = resolveActiveView(viewTabs(), preferred)
-    if (active !== undefined) uiConversation.binding(sessionId).activate(active.id)
+    if (active !== undefined) uiConversation.binding(sessionId).select(active.id)
   }
   const restoreView = (sessionId: SessionId): void => {
     activateView(sessionId, readConversationViewPreference(sessionId))

@@ -65,7 +65,7 @@ function at(seq: number, type: string, data: unknown): SessionLiveEventEntry {
 function createAssembler(): ConversationNodeAssembler {
   const definitions = new TestViewDefinitions()
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), definitions)
-  for (const view of definitions.entries()) value.activateTarget(view.target)
+  for (const view of definitions.entries()) value.retainTarget(view.target)
   return value
 }
 

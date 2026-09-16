@@ -309,11 +309,11 @@ Unknown fallback 展示了 Registry ownership：fallback 只处理没有任何�
 
 [`ConversationViewRegistry`](../../../../packages/client/ui-conversation/src/client/conversation/view-registry.ts) 为每个 target 保存独立的 builder factory，不共享某个 Session 的排序或缓存。
 
-shell 选择或 target source 的首个 subscriber 会把该 target 加入 Session 单调增长的 active-target set。Assembler 按唯一 target 索引每个 Context，但不会为 inactive target 创建 builder、Node 或 snapshot。首次激活会 flush 尚未发布的 target-neutral 工作、创建 builder，并从该 target 的当前 Context 调用一次 `replace({ nodes, timeline })`。
+shell 选择或 target source 的 subscriber 会认领该 target，只要两者之一仍然存在它就保持 active（见[认领生命周期决策](2026-09-16-conversation-target-claim-lifetime.zh.md)）。Assembler 按唯一 target 索引每个 Context，但不会为 inactive target 创建 builder、Node 或 snapshot。首次激活会 flush 尚未发布的 target-neutral 工作、创建 builder，并从该 target 的当前 Context 调用一次 `replace({ nodes, timeline })`。
 
-Session binding 可用、缓存的 binding 成为 current 或 View roster 变化时，shell 会同步解析持久化选择，再显式激活已注册的偏好 View 或 Chat fallback。Tab 与 focus action 在更新选择状态前先激活解析出的 target。blank Session 不渲染 View slot；`ConversationSnapshot.activeTargets` 只从已物化的 active snapshot 派生，不查询 inactive target Context 的 activity。
+Session binding 可用、缓存的 binding 成为 current 或 View roster 变化时，shell 会同步解析持久化选择，再显式选中已注册的偏好 View 或 Chat fallback。Tab 与 focus action 在更新选择状态前先选中解析出的 target。blank Session 不渲染 View slot；`ConversationSnapshot.activeTargets` 只从被选中 target 的已物化 snapshot 派生，不查询 inactive target Context 的 activity。
 
-普通 prepend 与 append flush 只对 active target 调用 `apply({ upserts, timeline })`。完整 window replace 与 Registry rebuild 只对 active target 调用 `replace()`。取消订阅不会移除 target，因此返回已打开的 View 不会重建。
+普通 prepend 与 append flush 只对 active target 调用 `apply({ upserts, timeline })`。完整 window replace 与 Registry rebuild 只对 active target 调用 `replace()`。释放最后一个认领会让 target 保持已物化但不再更新，因此返回被释放的 View 会经由同一条首次激活路径重建一次。
 
 [`ChatSnapshotBuilder`](../../../../packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts) 维护 `order`、带身份稳定 Node 与 Turn-process source 的 keyed `nodes` store、turn/step `locations` index、`timeline`，以及由 StatsPills 使用并镜像到顶层公共兼容字段的 `legacy` slice。
 
@@ -416,7 +416,7 @@ Append 不扫描历史 Context；prepend 只 replay Match、Location 或 Reader 
 
 State update 与 publication cadence 分离后，Assistant 的每条 live delta 与每个历史 packed run 都会被 fold，同时每三个 animation frame 最多 materialize 一次。Assistant view 读取前置 Step Location 阶段刚写入的同一 projection。Turn Process 对持续 Assistant chunk 直接返回已有 open data 和 Node，不再重复派生或编码；Turn Tail 到 `turn/end` 才执行完整 Match 扫描。Step/Turn close 与 final Event 会立即发布最新 State。
 
-inactive target 会保留 Definition State 和 target Context 索引，但不保留 builder、已物化 Node 或 snapshot。已挂载的内建或第三方 View 通过正常订阅激活自己的 target；已经打开的 target 则继续接收增量更新。
+inactive target 会保留 Definition State 和 target Context 索引，但不保留 builder、已物化 Node 或 snapshot。已挂载的内建或第三方 View 通过正常订阅认领自己的 target；仍被选中或仍被订阅的 target 则继续接收增量更新。
 
 Step/Turn 是业务间共享聚合的稳定宿主。Turn Tail 和 Deliverables 无需由 renderer 扫描全局 Nodes 即可派生值；Slot-level `useTurnData()` 把常见读取限制到当前 Node 所属 Turn，并通过 keyed Location source 隔离无关更新。
 

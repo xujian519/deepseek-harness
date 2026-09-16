@@ -70,7 +70,7 @@ class TestViewDefinitions {
 class ConversationNodeAssembler extends RuntimeConversationNodeAssembler {
   constructor(events: TestEventDefinitions, views: TestViewDefinitions) {
     super(events, views)
-    for (const view of views.entries()) this.activateTarget(view.target)
+    for (const view of views.entries()) this.retainTarget(view.target)
   }
 }
 
@@ -103,7 +103,7 @@ function testView(
   }
 }
 
-function trackedView(target: string) {
+function trackedView(target: string, isActive?: (snapshot: readonly ConversationViewNode[]) => boolean) {
   const replace = vi.fn(({ nodes }: { readonly nodes: readonly ConversationViewNode[] }) => nodes)
   const apply = vi.fn(({ upserts }: { readonly upserts: readonly ConversationViewNode[] }) => upserts)
   const create = vi.fn(() => ({
@@ -114,8 +114,49 @@ function trackedView(target: string) {
   const definition: ConversationViewDefinition<ConversationViewNode, readonly ConversationViewNode[]> = {
     target,
     create,
+    ...(isActive === undefined ? {} : { isActive }),
   }
   return { definition, create, replace, apply }
+}
+
+/** Two single-Context targets, so one can be claimed and the other left out. */
+function twoTargets(isActive?: (snapshot: readonly ConversationViewNode[]) => boolean) {
+  type State = { readonly updates: number }
+  const definition = (
+    target: string,
+    buildViewNode: NonNullable<ConversationNodeDefinition<State>['buildViewNode']>,
+  ): ConversationNodeDefinition<State> => ({
+    kind: `active-${target}`,
+    target,
+    match: (event) => {
+      const type = event.type as string
+      if (type === 'active/start') return { id: 'one', role: 'start' }
+      if (type === 'active/update') return { id: 'one', role: 'update' }
+      return null
+    },
+    start: () => ({ updates: 0 }),
+    update: context => ({ updates: context.state.updates + 1 }),
+    buildViewNode,
+  })
+  const chat = trackedView('chat', isActive)
+  const trajectory = trackedView('trajectory', isActive)
+  const build = (target: string) => vi.fn((context: ConversationNodeContext<State>): ConversationViewNode => ({
+    key: context.key,
+    kind: context.kind,
+    id: context.id,
+    target,
+    data: context.state,
+  }))
+  const buildChat = build('chat')
+  const buildTrajectory = build('trajectory')
+  const assembler = new RuntimeConversationNodeAssembler(
+    new TestEventDefinitions([
+      definition('chat', buildChat),
+      definition('trajectory', buildTrajectory),
+    ]),
+    new TestViewDefinitions([chat.definition, trajectory.definition]),
+  )
+  return { assembler, chat, trajectory, buildChat, buildTrajectory }
 }
 
 function at(seq: SessionSeq, type: string, data: unknown): SessionEvent {
@@ -220,54 +261,22 @@ describe('ConversationNodeAssembler', () => {
     expect(listener).toHaveBeenCalledTimes(2)
   })
 
-  it('reports a replacement only when an active target has a registered builder', () => {
+  it('reports a replacement only when a claimed target has a registered builder', () => {
     const assembler = new RuntimeConversationNodeAssembler(
       new TestEventDefinitions([]),
       new TestViewDefinitions([]),
     )
 
-    expect(assembler.activateTarget('registered-later')).toBe(false)
+    expect(assembler.retainTarget('registered-later')).toBe(false)
+    expect(assembler.selectTarget('registered-later')).toBe(false)
+    expect(assembler.activityTargets().size).toBe(0)
     assembler.replaceWindow([], false)
 
     expect(assembler.flush()).toBe(false)
   })
 
-  it('updates only active targets and never deactivates one after first use', () => {
-    type State = { readonly updates: number }
-    const definition = (
-      target: string,
-      buildViewNode: NonNullable<ConversationNodeDefinition<State>['buildViewNode']>,
-    ): ConversationNodeDefinition<State> => ({
-      kind: `active-${target}`,
-      target,
-      match: (event) => {
-        const type = event.type as string
-        if (type === 'active/start') return { id: 'one', role: 'start' }
-        if (type === 'active/update') return { id: 'one', role: 'update' }
-        return null
-      },
-      start: () => ({ updates: 0 }),
-      update: context => ({ updates: context.state.updates + 1 }),
-      buildViewNode,
-    })
-    const chat = trackedView('chat')
-    const trajectory = trackedView('trajectory')
-    const build = (target: string) => vi.fn((context: ConversationNodeContext<State>): ConversationViewNode => ({
-      key: context.key,
-      kind: context.kind,
-      id: context.id,
-      target,
-      data: context.state,
-    }))
-    const buildChat = build('chat')
-    const buildTrajectory = build('trajectory')
-    const assembler = new RuntimeConversationNodeAssembler(
-      new TestEventDefinitions([
-        definition('chat', buildChat),
-        definition('trajectory', buildTrajectory),
-      ]),
-      new TestViewDefinitions([chat.definition, trajectory.definition]),
-    )
+  it('updates only claimed targets and releases one when its last claim leaves', () => {
+    const { assembler, chat, trajectory, buildChat, buildTrajectory } = twoTargets()
 
     assembler.replaceWindow([input(at(SessionSeq(1), 'active/start', {}))], false)
     expect(assembler.flush()).toBe(false)
@@ -276,7 +285,7 @@ describe('ConversationNodeAssembler', () => {
     expect(buildChat).not.toHaveBeenCalled()
     expect(buildTrajectory).not.toHaveBeenCalled()
 
-    expect(assembler.activateTarget('chat')).toBe(true)
+    expect(assembler.retainTarget('chat')).toBe(true)
     expect(chat.replace).toHaveBeenCalledOnce()
     expect(trajectory.replace).not.toHaveBeenCalled()
     expect(buildChat).toHaveBeenCalledOnce()
@@ -288,7 +297,7 @@ describe('ConversationNodeAssembler', () => {
     expect(trajectory.apply).not.toHaveBeenCalled()
     expect(buildTrajectory).not.toHaveBeenCalled()
 
-    expect(assembler.activateTarget('trajectory')).toBe(true)
+    expect(assembler.retainTarget('trajectory')).toBe(true)
     expect(trajectory.replace).toHaveBeenCalledOnce()
     expect((assembler.snapshot('trajectory') as readonly ConversationViewNode[])
       .map(node => node.data)).toEqual([{ updates: 1 }])
@@ -297,10 +306,90 @@ describe('ConversationNodeAssembler', () => {
     expect(assembler.flush()).toBe(true)
     expect(chat.apply).toHaveBeenCalledTimes(2)
     expect(trajectory.apply).toHaveBeenCalledOnce()
-    expect(assembler.activateTarget('chat')).toBe(false)
-    expect(assembler.activateTarget('trajectory')).toBe(false)
+    expect(assembler.retainTarget('chat')).toBe(false)
+    expect(assembler.retainTarget('trajectory')).toBe(false)
     expect(chat.replace).toHaveBeenCalledOnce()
     expect(trajectory.replace).toHaveBeenCalledOnce()
+
+    // One of chat's two claims leaves; the remaining claim still receives work.
+    assembler.releaseTarget('chat')
+    assembler.append(input(at(SessionSeq(4), 'active/update', {})))
+    expect(assembler.flush()).toBe(true)
+    expect(chat.apply).toHaveBeenCalledTimes(3)
+
+    // The last claim leaves: the target keeps its snapshot but stops updating.
+    assembler.releaseTarget('chat')
+    const released = assembler.snapshot('chat')
+    assembler.append(input(at(SessionSeq(5), 'active/update', {})))
+    expect(assembler.flush()).toBe(true)
+    expect(chat.apply).toHaveBeenCalledTimes(3)
+    expect(trajectory.apply).toHaveBeenCalledTimes(3)
+    expect(assembler.snapshot('chat')).toBe(released)
+
+    // Re-claiming rebuilds exactly once and lands on the content a
+    // continuously assembled target would hold.
+    expect(assembler.retainTarget('chat')).toBe(true)
+    expect(chat.replace).toHaveBeenCalledTimes(2)
+    expect((assembler.snapshot('chat') as readonly ConversationViewNode[])
+      .map(node => node.data)).toEqual([{ updates: 4 }])
+
+    // Re-claiming with nothing new to assemble returns the same content.
+    const rebuilt = assembler.snapshot('chat')
+    assembler.releaseTarget('chat')
+    expect(assembler.snapshot('chat')).toBe(rebuilt)
+    // Releasing a target that holds no claim is a no-op.
+    assembler.releaseTarget('chat')
+    expect(assembler.retainTarget('chat')).toBe(true)
+    expect(chat.replace).toHaveBeenCalledTimes(3)
+    expect(assembler.snapshot('chat')).toEqual(rebuilt)
+  })
+
+  it('selects one target at a time and releases the previous selection', () => {
+    const { assembler, chat, trajectory, buildTrajectory } = twoTargets()
+
+    assembler.replaceWindow([input(at(SessionSeq(1), 'active/start', {}))], false)
+    expect(assembler.selectTarget('chat')).toBe(true)
+    expect(chat.replace).toHaveBeenCalledOnce()
+    // A Definition without an activity classification reports none.
+    expect(assembler.activityTargets().size).toBe(0)
+
+    assembler.append(input(at(SessionSeq(2), 'active/update', {})))
+    expect(assembler.flush()).toBe(true)
+    expect(chat.apply).toHaveBeenCalledOnce()
+
+    expect(assembler.selectTarget('trajectory')).toBe(true)
+    expect(trajectory.replace).toHaveBeenCalledOnce()
+    expect(buildTrajectory).toHaveBeenCalledOnce()
+
+    assembler.append(input(at(SessionSeq(3), 'active/update', {})))
+    expect(assembler.flush()).toBe(true)
+    expect(chat.apply).toHaveBeenCalledOnce()
+    expect(trajectory.apply).toHaveBeenCalledOnce()
+    expect(assembler.selectTarget('trajectory')).toBe(false)
+
+    // Reselecting a released View rebuilds it once from current Contexts.
+    expect(assembler.selectTarget('chat')).toBe(true)
+    expect(chat.replace).toHaveBeenCalledTimes(2)
+    expect((assembler.snapshot('chat') as readonly ConversationViewNode[])
+      .map(node => node.data)).toEqual([{ updates: 2 }])
+  })
+
+  it('reports visible activity for the selected target alone', () => {
+    const { assembler, chat } = twoTargets(snapshot => snapshot.length > 0)
+
+    expect(assembler.activityTargets().size).toBe(0)
+    assembler.replaceWindow([input(at(SessionSeq(1), 'active/start', {}))], false)
+    expect(assembler.selectTarget('chat')).toBe(true)
+    expect(assembler.activityTargets()).toEqual(new Set(['chat']))
+
+    // A subscriber keeps another target assembled without reporting activity.
+    expect(assembler.retainTarget('trajectory')).toBe(true)
+    expect(assembler.activityTargets()).toEqual(new Set(['chat']))
+
+    // Activity follows the live selection rather than accumulating.
+    expect(assembler.selectTarget('trajectory')).toBe(true)
+    expect(assembler.activityTargets()).toEqual(new Set(['trajectory']))
+    expect(chat.replace).toHaveBeenCalledOnce()
   })
 
   it('appends through an exact business-id Context without replaying unrelated Contexts', () => {

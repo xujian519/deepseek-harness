@@ -150,7 +150,7 @@ function foldOnce(entries: readonly SessionEventLikeEntry[]): { readonly ms: num
   const started = performance.now()
   const assembler = new ConversationNodeAssembler(new BenchEventDefinitions(), new BenchViewDefinitions())
   assembler.replaceWindow(entries, false)
-  assembler.activateTarget('chat')
+  assembler.retainTarget('chat')
   const snapshot = assembler.snapshot('chat') as ChatSnapshot | undefined
   return { ms: performance.now() - started, nodes: snapshot?.order.length ?? 0 }
 }
