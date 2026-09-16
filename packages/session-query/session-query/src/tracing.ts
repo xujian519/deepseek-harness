@@ -27,8 +27,8 @@ interface EventLogAnalysis {
 /**
  * Classify a raw event log with one canonical surface fold.
  * @param sessionId - owner of the event log.
- * @param events - detached raw event log.
- * @returns lightweight records in ascending log order.
+ * @param events - borrowed raw event log from one corpus observation, read but never retained.
+ * @returns detached lightweight records in ascending log order.
  */
 export function eventRecords(
   sessionId: SessionId,
@@ -40,7 +40,7 @@ export function eventRecords(
 /**
  * Fold and return the current model surface after validating the whole log.
  * @param sessionId - owner used in query diagnostics.
- * @param events - detached raw event log from one corpus observation.
+ * @param events - borrowed raw event log from one corpus observation.
  * @returns detached current surface events in folded order.
  */
 export function currentSurfaceEvents(
@@ -64,7 +64,7 @@ export function currentSurfaceEvents(
 /**
  * Trace one target after one canonical surface fold and whole-log validation.
  * @param sessionId - owner of the event log.
- * @param events - detached raw event log.
+ * @param events - borrowed raw event log from one corpus observation.
  * @param seq - target event seq.
  * @returns direct surface replacements and relationships to cited source events.
  */
