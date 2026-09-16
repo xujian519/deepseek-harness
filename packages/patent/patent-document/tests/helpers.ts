@@ -11,6 +11,7 @@ export function successHandle(): SubprocessHandle {
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,
+    control: undefined,
     collected: {},
     done: Promise.resolve({ exitCode: 0, signal: null }),
     terminate() {},

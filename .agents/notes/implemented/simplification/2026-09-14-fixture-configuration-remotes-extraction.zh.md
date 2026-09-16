@@ -126,6 +126,8 @@ const settingsRemotes: FixtureSettingsRemotes = {
 
 这一刀确认的模板就是文件系统那一刀的模板，如今连它的退化情形也记下了：**一个簇把世界的值作为参数接收，并持有它自己改动的状态——而当它什么都不接收时，它就什么都不接收。** 当簇读到的每个值都归它自己所有时，零参数工厂就是正确答案。
 
+该模块族及其兄弟 fixture 模块——`fixture.ts`、各抽取出的 `fixture-*` 模块及其 spec——后续被上游以 `@deepseek-ai/dsh-remote-mock` 与 `apps/web/tests/assembled-remote.ts` 整体取代。
+
 ## Related
 
 - [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀是其批次 2 的 `fixture.ts` 条目）

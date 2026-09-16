@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-15-patent-preset-cnlaw-mcp-first.md
-2026-09-15-patent-preset-cnlaw-mcp-first.md: d974636c1da57ca72a07c1317d8fd125fd8862bd
+2026-09-15-patent-preset-cnlaw-mcp-first.md: 014145b4a94e23d95690015b10a63c726e1cec2a
 2026-09-15-patent-preset-cnlaw-mcp-first.zh.md: 07d35f14c7b683112675fbfae6f55c56e0018d58

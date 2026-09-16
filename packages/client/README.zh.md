@@ -45,6 +45,7 @@ kind: "package-group"
 | [`resources/`](resources/README.zh.md) | 统一资源模型：`useResource` 会话标准钩子背后的协议提供方 | `ctx.resources` |
 | [`ui-sidebar-files/`](ui-sidebar-files/README.zh.md) | 右侧 Sidebar 的工作区文件树 tab 类型 | — |
 | [`ui-sidebar-documentpreview/`](ui-sidebar-documentpreview/README.zh.md) | 在右侧 Sidebar 按 `text` tab 类型预览可读文件 | `ctx.documentPreviews` |
+| [`ui-sidebar-terminal/`](ui-sidebar-terminal/README.zh.md) | 右侧 Sidebar 的交互式 shell tab 类型，并支持恢复保留的宿主终端 | — |
 | [`ui-sidebar-right/`](ui-sidebar-right/README.zh.md) | 承载右侧 Sidebar：每会话一块停靠面，架在停靠套件与 tab 类型注册表之上 | `ctx.sidebarRight` / `ctx.sidebarRightTabs` |
 | [`ui-dockkit/`](ui-dockkit/README.zh.md) | 提供停靠布局引擎——由可逆操作组成的标签格分裂树——以及渲染并驱动它的组件 | — |
 | [`ui-brand-official/`](ui-brand-official/README.zh.md) | 用官方名称与标记填充通用浏览器品牌 slot | — |
@@ -75,6 +76,7 @@ kind: "package-group"
 | [`ui-settings-general/`](ui-settings-general/README.zh.md) | 提供常规设置分区 | — |
 | [`ui-settings-models/`](ui-settings-models/README.zh.md) | 提供模型提供方配置与 DeepSeek 引导 | — |
 | [`ui-settings-plugin-inventory/`](ui-settings-plugin-inventory/README.zh.md) | 向「插件」设置贡献只读的 Host Loader 清单标签页 | — |
+| [`ui-settings-unarchive-sessions/`](ui-settings-unarchive-sessions/README.zh.md) | 提供「已归档会话」设置页：归档集合，可按会话标题或 Workspace 过滤，每行一个取消归档操作 | — |
 | [`ui-plugin-market/`](ui-plugin-market/README.zh.md) | 向「插件」设置分区贡献只读的插件市场标签页 | — |
 | [`ui-deliverables/`](ui-deliverables/README.zh.md) | 生成已产出文件的轮次尾部与可点击的最终响应文件引用 | — |
 | [`ui-document-studio/`](ui-document-studio/README.zh.md) | 贡献文档工作台：列出已交付文件的对话视图标签页，含宿主预览与打开／在文件夹中显示／打印动作 | — |

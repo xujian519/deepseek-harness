@@ -215,13 +215,15 @@ export function apply(ctx: Context, config: Config): void {
     return [ours, ...theirs ?? []]
   }
 
-  // SessionStart runs detached; its outcome is also stored as a startup gate
-  // so the first `agent/pre-step` awaits it and folds any context into the
-  // admitted batch (injection alone can miss a step whose messages were
-  // already claimed). The gate stays stored until a step consumes it, because
-  // the hook usually resolves before the first prompt arrives.
-  ctx.on('agent/session-start', ({ agent, source }) => {
-    const run = runPoint('SessionStart', source, sessionStartPayload(agent, source), { agent, signal: detached.signal })
+  // SessionStart's outcome is also stored as a startup gate so the first
+  // `agent/pre-step` awaits it and folds any context into the admitted batch
+  // (injection alone can miss a step whose messages were already claimed). The
+  // gate stays stored until a step consumes it, because the hook usually
+  // resolves before the first prompt arrives. `agent/created` is a serial
+  // listener, so awaiting the run here also keeps creation behind the hook.
+  ctx.on('agent/created', async ({ agent, source, signal }) => {
+    const ownerSignal = signal === undefined ? detached.signal : AbortSignal.any([signal, detached.signal])
+    const run = runPoint('SessionStart', source, sessionStartPayload(agent, source), { agent, signal: ownerSignal })
       .then((merged) => {
         if (merged.stop) {
           agent.cancel({ kind: 'hook', reason: hookStopReason('SessionStart', merged) })
@@ -234,6 +236,7 @@ export function apply(ctx: Context, config: Config): void {
       })
     sessionStartGates.set(agent, run)
     detached.track(run)
+    await run
   })
 
   // --- UserPromptSubmit → PreStepDecision. The prompt text is the payload; no

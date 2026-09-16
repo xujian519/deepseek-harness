@@ -12,7 +12,7 @@ The harness had no open plugin catalog or managed-install pipeline: every instal
 
 New `@deepseek-ai/dsh-host-plugin-market` provides `ctx.pluginMarket` as a capability seam (Service Definition + default provider):
 
-- **Catalog protocol** — user-registered HTTPS sources validated against wire schemas under `docs/schemas/` (source manifest, query, provider page, snapshot). Only declared query parameters are sent; every entry is provenance-stamped.
+- **Catalog protocol** — user-registered HTTPS sources validated against wire schemas under `docs/schemas/` (source manifest, query, provider page, snapshot). Only declared query parameters are sent; every entry carries the `source` providerId of the source that served it.
 - **Restricted client** — `restricted-fetch.ts` enforces HTTPS-only, no URL credentials or fragments, blocks loopback/private/link-local/metadata targets before and after DNS resolution, re-validates every redirect, and caps size, timeout, and redirect depth.
 - **Managed install** — `install.ts` snapshots the profile manifests before `pnpm add`, rolls back on failure, and persists durable receipts keying uninstall (receipt/profile match verified). The provider re-runs the registry preview as the install gate: deprecated, dist-less, or lifecycle-script packages never reach the profile.
 - **CLI** — `dsh plugin source add|remove|list`, `search`, `preview`, `install`, `uninstall` run the same pipeline against the resolved profile.

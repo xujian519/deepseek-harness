@@ -52,7 +52,7 @@ export type PatentCaseSearchOutput = {
 /** Injected case-law search (tests override; production wires ctx.patentKnowledge.caseLawSearch). */
 export type PatentCaseSearchDeps = {
   search?: (query: string, options?: CaseLawSearchOptions) => CaseLawHit[]
-  /** Resolved knowledge.db path, used for the setup-required check and output provenance. */
+  /** Resolved knowledge.db path, used for the setup-required check and surfaced as the output's `dbPath` field. */
   dbPath?: string
 }
 

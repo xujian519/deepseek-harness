@@ -8,7 +8,7 @@ Status: implemented
 
 2026-08-28 的清扫把跨包小工具族折叠进 `@deepseek-ai/dsh-value`、`@deepseek-ai/dsh-util-values` 与 `@deepseek-ai/dsh-timeout`,2026-09-12 的几批（#110–#114）又收敛了一批复发的副本。Issue #87 要求按当时的代码树重测这些族:台账两次写下「已收敛 / 0 剩余」而副本仍活着,而它确实测过的四个族(`sleep`、abort race、`hasExactKeys`、`isAbortError`)也已经与叙述不符。
 
-2026-09-14 按 `7a031dcbe8` 复测后,`packages/*/*/src` 内仍有三处真实副本,且都推翻台账: [`ask-question-row.tsx`](../../../../packages/client/ui-tool/src/client/tool/toolviews/ask-question-row.tsx) 的 `isRecord`(09-12 批次漏记)、[`ContextBody.tsx`](../../../../packages/client/ui-chat/src/client/chat/ContextBody.tsx) 的 `asRecord`(所在包早已在兄弟文件里 import 共享版)、以及 [`core/session/src/surface.ts`](../../../../packages/core/session/src/surface.ts) 的 `isDeepEqualJson`——它留下的理由(「替代 `node:util` 的 `isDeepStrictEqual` 以保持本模块浏览器安全」)已不描述任何事实:该模块早已 import `dsh-value` 的 `isRecord`,而 `dsh-util-values` 本就是该包的依赖,且通篇没有 `node:` 导入。
+2026-09-14 按当日 fork 树复测后,`packages/*/*/src` 内仍有三处真实副本,且都推翻台账: [`ask-question-row.tsx`](../../../../packages/client/ui-tool/src/client/tool/toolviews/ask-question-row.tsx) 的 `isRecord`(09-12 批次漏记)、[`ContextBody.tsx`](../../../../packages/client/ui-chat/src/client/chat/ContextBody.tsx) 的 `asRecord`(所在包早已在兄弟文件里 import 共享版)、以及 [`core/session/src/surface.ts`](../../../../packages/core/session/src/surface.ts) 的 `isDeepEqualJson`——它留下的理由(「替代 `node:util` 的 `isDeepStrictEqual` 以保持本模块浏览器安全」)已不描述任何事实:该模块早已 import `dsh-value` 的 `isRecord`,而 `dsh-util-values` 本就是该包的依赖,且通篇没有 `node:` 导入。
 
 把两份副本并排读还暴露出共享版的一个缺陷。`deepEqualJson` 用 `key in right` 判定键存在,而 `in` 会看见继承来的名字。`JSON.parse('{"__proto__":{}}')` 造出的是**自有** `__proto__` 数据属性,于是把它与 `{"other":1}` 相比时,`right['__proto__']` 读成 `Object.prototype`(一个键、自有可枚举键为 0),递归在空键集上恒真,两份记录被判相等。本地副本用的是 `Object.hasOwn`,没有这个缺陷。
 

@@ -122,7 +122,7 @@ describe('@deepseek-ai/dsh-openviking real Loader composition', () => {
     interface Round { got: boolean }
     let round: Round = { got: false }
     for (let attempt = 0; attempt < 30 && !round.got; attempt += 1) {
-      context.emit('agent/created', { agent })
+      context.emit('agent/created', { agent, source: 'startup' })
       context.emit('session/event', { id: 'comp-s1' } as never, {
         type: 'user/message', seq: attempt + 1, time: Date.now(),
         data: { content: [{ type: 'text', text: `composition probe ${attempt}` }], source: { kind: 'user' } },

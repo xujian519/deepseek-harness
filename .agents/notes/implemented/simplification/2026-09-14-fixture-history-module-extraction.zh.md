@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-`packages/client/connection/src/client/fixture.ts` 达到 4052 行。它不是测试夹具：它是浏览器模式的 `ClientConnectionRpc` provider，在没有服务端的情况下伪造出一个会话，经 `src/client/index.ts` 再导出，由包内两个 spec 消费。它构建的世界之上压着两类互不相干的内容。
+`packages/client/connection` 的 `src/client/fixture.ts` 达到 4052 行。它不是测试夹具：它是浏览器模式的 `ClientConnectionRpc` provider，在没有服务端的情况下伪造出一个会话，经 `src/client/index.ts` 再导出，由包内两个 spec 消费。它构建的世界之上压着两类互不相干的内容。
 
 第一类是编写好的数据。`buildAlphaLog` 是一个 328 行的脚本，产出 75 个 turn 的会话事件（约 150+ 条消息，按 `PAGE_MESSAGES=50` 分四页），并把它们的 `seq` 重新编号。有十七个样本只为被它渲染而存在：`USER_MARKDOWN_LITERAL`、`sgr` 包装器及被它转义的终端输出样本、两组搜索结果与它们的文本投影、七个 `READ_SAMPLE_*` 片段、`WEB_SEARCH_META`、`WEB_FETCH_META`，以及 `FIXTURE_SYSTEM_PROMPT`。
 
@@ -98,6 +98,8 @@ Status: implemented
 fixture 的行为未变，而这次切割有一处代价值得点名：历史脚本与消息词汇现在各自住在名字说明其读者的文件里，因此改动 fixture 如何构建消息要从 `fixture-messages.ts` 入手，改动随包发出的日志要从 `fixture-alpha-log.ts` 入手。历史脚本从消息模块 import 八个名字，消息模块不从历史脚本 import 任何东西。
 
 `fixture.ts` 仍有 3475 行。计划在它内部剩余的切口属于世界自身，本刀刻意没有动：`createFixtureFaces` 与 `createFixtureConnectionRpc` 是本包的两个 provider 入口，切分它们的内部需要定下一个这次搬迁不必做的边界决定。
+
+该模块族及其兄弟 fixture 模块——`fixture.ts`、各抽取出的 `fixture-*` 模块及其 spec——后续被上游以 `@deepseek-ai/dsh-remote-mock` 与 `apps/web/tests/assembled-remote.ts` 整体取代。
 
 ## Related
 

@@ -6,7 +6,7 @@ English | [中文](2026-09-14-fixture-history-module-extraction.zh.md)
 
 ## Problem
 
-`packages/client/connection/src/client/fixture.ts` was 4052 lines. It is not a test fixture: it is the browser-mode `ClientConnectionRpc` provider that fabricates a session without a server, re-exported through `src/client/index.ts` and consumed by two specs in the package. Two unrelated kinds of content sat above the world it builds.
+`packages/client/connection`'s `src/client/fixture.ts` was 4052 lines. It is not a test fixture: it is the browser-mode `ClientConnectionRpc` provider that fabricates a session without a server, re-exported through `src/client/index.ts` and consumed by two specs in the package. Two unrelated kinds of content sat above the world it builds.
 
 The first was authored data. `buildAlphaLog` is a 328-line script that produces 75 turns of session events (~150+ messages, four pages at `PAGE_MESSAGES=50`) and renumbers their `seq`. Seventeen samples exist only to be rendered by it: `USER_MARKDOWN_LITERAL`, the `sgr` wrapper and the terminal-output sample it escapes, two search result sets with their text projections, the seven `READ_SAMPLE_*` fragments, `WEB_SEARCH_META`, `WEB_FETCH_META`, and `FIXTURE_SYSTEM_PROMPT`.
 
@@ -98,6 +98,8 @@ The per-file coverage gate needs no new exemption. The plan allows adding `vites
 The fixture's behavior is unchanged, and the cut has a cost worth naming: the history script and the message vocabulary now live in files whose names say which reader they serve, so a change to how the fixture builds messages starts in `fixture-messages.ts` and a change to the shipped log starts in `fixture-alpha-log.ts`. The history script imports eight names from the message module and the message module imports nothing from it.
 
 `fixture.ts` is still 3475 lines. The plan's remaining cuts inside it are the world's own regions, and this cut left them alone deliberately: `createFixtureFaces` and `createFixtureConnectionRpc` are the package's two provider entry points, and carving their internals needs a boundary decision this move did not have to make.
+
+The module family and its sibling fixture modules — `fixture.ts`, the extracted `fixture-*` modules, and their specs — were later replaced wholesale by upstream with `@deepseek-ai/dsh-remote-mock` and `apps/web/tests/assembled-remote.ts`.
 
 ## Related
 

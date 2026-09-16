@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-[历史脚本那一刀](2026-09-14-fixture-history-module-extraction.zh.md)之后，`packages/client/connection/src/client/fixture.ts` 为 3475 行。三类内容共用这个文件：浏览器模式 provider 应答用的 wire 类型、据以推导它们的 session 查询镜像，以及同时服务两者的 1596 行主体 `createFixtureWorld`。
+[历史脚本那一刀](2026-09-14-fixture-history-module-extraction.zh.md)之后，`packages/client/connection` 的 `src/client/fixture.ts` 为 3475 行。三类内容共用这个文件：浏览器模式 provider 应答用的 wire 类型、据以推导它们的 session 查询镜像，以及同时服务两者的 1596 行主体 `createFixtureWorld`。
 
 第四类夹在中间。`sid`（443 行）到 `backscanGoal`（1170 行）之间的 737 行，读整份 session log 并返回某一个投影单元的当前值：plan 模式、在 fixture 预设上的 permission select、最近一次 request context、token 与 context 统计、`model/selection` 值、控制事件推进的逐 key frame，以及 goal 回扫。
 
@@ -115,6 +115,8 @@ Status: implemented
 代价是多一个文件、多一条带着比本刀更长寿的 `TODO(gui)` 的覆盖率豁免条目，以及一条被移到其所描述函数上的注释。模块以五条语句从 `@deepseek-ai/dsh-llm`、`dsh-session`、`dsh-tool-todo` 导入九个名字，入口反向导入十二个；除此之外流向未变。
 
 `fixture.ts` 仍是 2897 行。计划在它内部的剩余切口是查询镜像与世界自身的区域；1596 行的 `createFixtureWorld` 现在是本包最大的单一函数体，切割它需要一个本刀不必做的边界决定。
+
+该模块族及其兄弟 fixture 模块——`fixture.ts`、各抽取出的 `fixture-*` 模块及其 spec——后续被上游以 `@deepseek-ai/dsh-remote-mock` 与 `apps/web/tests/assembled-remote.ts` 整体取代。
 
 ## Related
 

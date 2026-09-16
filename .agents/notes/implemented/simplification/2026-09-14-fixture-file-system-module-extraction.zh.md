@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-[投影那一刀](2026-09-14-fixture-projections-module-extraction.zh.md)把 `packages/client/connection/src/client/fixture.ts` 留在了 2897 行，并写明了它为什么停在那儿：此前每一刀提取的都是**模块级纯函数**，而 `createFixtureWorld`（704–2875）那 2172 行的函数体里，没有哪块区域符合这个条件。[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这里剩下的活儿归入批次 2——*需要先把接口定形的切割*——但没有点名那个接口是什么。悬着的问题是**一个簇怎么拿到世界的状态**。
+[投影那一刀](2026-09-14-fixture-projections-module-extraction.zh.md)把 `packages/client/connection` 的 `src/client/fixture.ts` 留在了 2897 行，并写明了它为什么停在那儿：此前每一刀提取的都是**模块级纯函数**，而 `createFixtureWorld`（704–2875）那 2172 行的函数体里，没有哪块区域符合这个条件。[拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这里剩下的活儿归入批次 2——*需要先把接口定形的切割*——但没有点名那个接口是什么。悬着的问题是**一个簇怎么拿到世界的状态**。
 
 按每块区域捕获了什么状态来分类，问题就有答案了。逐块对照其自身的符号引用：
 
@@ -139,6 +139,8 @@ const directoryPickerRemotes = createDirectoryPickerRemotes(FIXTURE_HOME)
 三个延后的 remote 簇[此后已落地](2026-09-14-fixture-configuration-remotes-extraction.zh.md)，进入 `fixture-configuration-remotes.ts`。剩余区域是 `rpc` 派发表（以当前入口计 2249–2459 行，211 行）——它需要先把它那约 20 个 handler 编成一个 interface 才能搬，是个比文件系统更大的边界决定。
 
 本刀留下两处陈旧点。`fixture.ts` 在 `referenceRemotes` 上方堆了两条文档注释（1209–1210 行）：属于其上方 `goalView` 声明的 Goal Remote 那句，紧挨着描述该常量本身的 reference-discovery 那句。以及计划自己的 30–31 行仍写着 `fixture.ts` 含有 `jscpd:ignore` 块——那个块在上一刀里已经移到 `fixture-projections.ts`。
+
+该模块族及其兄弟 fixture 模块——`fixture.ts`、各抽取出的 `fixture-*` 模块及其 spec——后续被上游以 `@deepseek-ai/dsh-remote-mock` 与 `apps/web/tests/assembled-remote.ts` 整体取代。
 
 ## Related
 

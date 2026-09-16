@@ -3,6 +3,7 @@
  */
 
 import { JsonTree, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { AssistantRequestConfig, RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TrajectorySourceBlock } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
@@ -13,10 +14,12 @@ import { jsonTreeLabels, markdownLabels } from '../types.ts'
 export function RequestOptions({
   options,
   preview = false,
+  stringWrapping,
   t,
 }: {
   options: AssistantRequestConfig | undefined
   preview?: boolean
+  stringWrapping: JsonTreeProps['stringWrapping']
   t: TrajectoryTranslate
 }) {
   if (options === undefined) {
@@ -25,6 +28,8 @@ export function RequestOptions({
   return (
     <JsonTree
       data={options}
+      stringWrapping={stringWrapping}
+      collapsedStringLines={preview ? 3 : 12}
       label={t('options.json')}
       labels={jsonTreeLabels(t)}
       className={preview ? css.jsonPreview : css.jsonPayload}
@@ -75,12 +80,14 @@ export function RecordPayload({
   direction,
   preview = false,
   renderImages,
+  stringWrapping,
   t,
 }: {
   record: TableRecord
   direction: 'input' | 'output'
   preview?: boolean
   renderImages: RenderMessageImages
+  stringWrapping: JsonTreeProps['stringWrapping']
   t: TrajectoryTranslate
 }) {
   const value = direction === 'input' ? record.cell.inputDetail : record.cell.outputDetail
@@ -100,6 +107,8 @@ export function RecordPayload({
     return (
       <JsonTree
         data={json}
+        stringWrapping={stringWrapping}
+        collapsedStringLines={preview ? 3 : 12}
         label={t('record.resultJson')}
         labels={jsonTreeLabels(t)}
         className={payloadClassName}
@@ -144,6 +153,8 @@ export function RecordPayload({
     return (
       <JsonTree
         data={json}
+        stringWrapping={stringWrapping}
+        collapsedStringLines={preview ? 3 : 12}
         label={t(direction === 'input' ? 'record.payloadJson' : 'record.outputJson')}
         labels={jsonTreeLabels(t)}
         className={payloadClassName}
@@ -166,10 +177,12 @@ export function RecordPayload({
 export function RecordSchema({
   record,
   preview = false,
+  stringWrapping,
   t,
 }: {
   record: TableRecord
   preview?: boolean
+  stringWrapping: JsonTreeProps['stringWrapping']
   t: TrajectoryTranslate
 }) {
   if (!record.cell.schemaDetail) {
@@ -187,6 +200,8 @@ export function RecordSchema({
           <h4 className={css.schemaParametersTitle}>{t('record.parameters')}</h4>
           <JsonTree
             data={schema.parameters}
+            stringWrapping={stringWrapping}
+            collapsedStringLines={preview ? 3 : 12}
             label={t('record.namedParametersJson', { name: schema.name })}
             labels={jsonTreeLabels(t)}
             className={css.schemaTree}
@@ -230,7 +245,12 @@ function parseToolSchema(value: string): ParsedToolSchema | undefined {
   }
 }
 
-function parseJsonContainer(value: string): object | undefined {
+/**
+ * Parse one recorded payload that may carry a JSON container.
+ * @param value - Recorded payload text.
+ * @returns The parsed container, or undefined for a scalar or malformed payload.
+ */
+export function parseJsonContainer(value: string): object | undefined {
   try {
     const parsed: unknown = JSON.parse(value)
     return typeof parsed === 'object' && parsed !== null ? parsed : undefined

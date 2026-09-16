@@ -126,6 +126,8 @@ The cost is one more file, one more `tsconfig.client.json` entry, and 53 authore
 
 The template this cut confirms is the file-system cut's, now with its degenerate case recorded: **a cluster takes the world's values as parameters and owns the state it mutates — and when it takes nothing, it takes nothing.** A zero-parameter factory is the correct answer when every value the cluster reads is one it owns.
 
+The module family and its sibling fixture modules — `fixture.ts`, the extracted `fixture-*` modules, and their specs — were later replaced wholesale by upstream with `@deepseek-ai/dsh-remote-mock` and `apps/web/tests/assembled-remote.ts`.
+
 ## Related
 
 - [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this is its batch-2 `fixture.ts` item)

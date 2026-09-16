@@ -22,7 +22,7 @@ import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-agent'
 export type {
   SessionTitleEventData,
-  SessionTitleModelProvenance,
+  SessionTitleModelIdentity,
   SessionTitleSnapshot,
   SessionTitleSource,
   SessionTitleUserMessage,
@@ -31,7 +31,7 @@ export type {
 import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 import type {
   SessionTitleEventData,
-  SessionTitleModelProvenance,
+  SessionTitleModelIdentity,
   SessionTitleSnapshot,
   SessionTitleSource,
   SessionTitleUserMessage,
@@ -99,7 +99,7 @@ export interface SessionTitleProviderRequest {
   /** All eligible human messages through this generation revision. */
   readonly messages: readonly SessionTitleUserMessage[]
   /** Exact current logged main-request route, when one has been recorded. */
-  readonly route?: SessionTitleModelProvenance
+  readonly route?: SessionTitleModelIdentity
   /** Cancellation for supersession, disposal, timeout composition, or the explicit caller. */
   readonly signal: AbortSignal
 }
@@ -111,7 +111,7 @@ export interface SessionTitleProviderResult {
   /** Exact seqs from `request.messages` used by this result. */
   readonly messageSeqs: readonly SessionSeq[]
   /** Auxiliary LLM route, when generation used a model. */
-  readonly model?: SessionTitleModelProvenance
+  readonly model?: SessionTitleModelIdentity
 }
 
 /** One optional asynchronous title implementation registered with the service. */
@@ -550,7 +550,7 @@ export class SessionTitleService extends Service {
     session: Session,
     state: SessionTitleWorkState,
     pending: PendingAutomaticWork,
-    route: SessionTitleModelProvenance,
+    route: SessionTitleModelIdentity,
   ): void {
     delete state.pending
     this.defer(async () => {
@@ -572,7 +572,7 @@ export class SessionTitleService extends Service {
   private startProvider(
     session: Session,
     work: ActiveProviderWork,
-    route?: SessionTitleModelProvenance,
+    route?: SessionTitleModelIdentity,
   ): Promise<SessionTitleSnapshot | undefined> {
     const run = Promise.resolve().then(() => this.runProvider(session, work, route))
     return this.track(run, work.registration)
@@ -582,7 +582,7 @@ export class SessionTitleService extends Service {
   private async runProvider(
     session: Session,
     work: ActiveProviderWork,
-    route?: SessionTitleModelProvenance,
+    route?: SessionTitleModelIdentity,
   ): Promise<SessionTitleSnapshot | undefined> {
     try {
       this.assertCurrent(session, work)
@@ -645,7 +645,7 @@ export class SessionTitleService extends Service {
       previous = index
     }
     const modelCandidate = candidate.model
-    let model: SessionTitleModelProvenance | undefined
+    let model: SessionTitleModelIdentity | undefined
     if (modelCandidate !== undefined) {
       if (modelCandidate === null || typeof modelCandidate !== 'object') {
         throw new Error('session-title provider result model must contain non-empty provider and model strings')

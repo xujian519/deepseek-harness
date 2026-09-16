@@ -25,6 +25,7 @@ function makeHandle(options: {
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,
+    control: undefined,
     // SubprocessCollectedOutputs declares optional keys; omit absent readers
     // instead of assigning undefined (exactOptionalPropertyTypes).
     collected: {

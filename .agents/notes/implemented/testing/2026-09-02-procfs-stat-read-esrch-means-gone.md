@@ -14,7 +14,7 @@ The `spawnSubprocess` process-group spec failed once on the Linux CI lane with `
 
 ## Consequences
 
-The Linux exit poll now recognizes all three procfs signals of a vanished task: `ENOENT` before open, `ESRCH` on the post-open read, and zombie state `Z`. Sibling probes keep their own policies: `terminal-bash`'s `processIsRunning` treats any procfs read error as gone; `lsp-stdio`'s `processAlive` still rethrows non-`ENOENT` read errors and carries the same latent race, left unchanged because it has not failed and its owner may prefer the broader catch. Verification evidence: the pre-fix failure is CI run 33510696039 on 9bbdc210; the signature is Linux-procfs-specific and the workspace host is macOS without a Linux container, so the next Linux lane after this change is the post-fix reproduction.
+The Linux exit poll now recognizes all three procfs signals of a vanished task: `ENOENT` before open, `ESRCH` on the post-open read, and zombie state `Z`. Sibling probes keep their own policies: `terminal-bash`'s `processIsRunning` treats any procfs read error as gone; `lsp-stdio`'s `processAlive` still rethrows non-`ENOENT` read errors and carries the same latent race, left unchanged because it has not failed and its owner may prefer the broader catch. Verification evidence: the pre-fix failure is CI run 33510696039 on the fork master commit of 2026-09-01; the signature is Linux-procfs-specific and the workspace host is macOS without a Linux container, so the next Linux lane after this change is the post-fix reproduction.
 
 ## Alternatives considered
 

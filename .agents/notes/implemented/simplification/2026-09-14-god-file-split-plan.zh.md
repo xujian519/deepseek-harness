@@ -10,7 +10,7 @@ Issue #86 要求拆分 `packages/` 下体量过大的文件。它的清单列了
 
 | 文件 | 行数 | 形态 | 本 note |
 | --- | --- | --- | --- |
-| `packages/client/connection/src/client/fixture.ts` | 2288 | 随包发布的浏览器模式 provider（不是测试夹具） | 在 |
+| `packages/client/connection` 的 `src/client/fixture.ts` | 2288 | 随包发布的浏览器模式 provider（不是测试夹具） | 在 |
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 693 | 一份账本，行与检查器均已抽出 | 在 |
 | `packages/typert/generator/src/analyzer.ts` | 1253 | 落在抽出的类型图与 Remote/RPC 分析器之上的包分析器 | 在——两刀均已落地 |
 | `packages/experimental/code-runtime-python/src/index.ts` | 364 | 插件本体：注册、binding 校验、脚本落盘 | 在——两半均已落地 |

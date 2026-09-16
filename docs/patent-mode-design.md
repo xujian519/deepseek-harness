@@ -44,7 +44,7 @@
 | 目标 | `tool-goal` | 跨轮长目标（一个案子 = 一个 goal） |
 | 计划 | `plan-mode`（隔离组） | 撰写 / 答复等长结构化任务的先规划后执行 |
 | 子代理 | `tool-subagent`（spawn）+ `tool-subagent-fork` | 专家角色调度与互评（§8.4） |
-| 工作流 | `workflow-worker-thread` + `tool-workflow` | 脚本化多阶段流水线（如检索→比对→结论） |
+| 工作流 | `workflow-ptc` + `tool-workflow` | 脚本化多阶段流水线（如检索→比对→结论） |
 | 确认 | `tool-ask-user` | HITL 确认点（检索式确认、布局确认、放行确认） |
 | 步骤 | `tool-todo` | 多阶段作业的步骤跟踪 |
 | 压缩 | `compaction-basic` 组 | 长会话上下文管理 |
@@ -194,8 +194,8 @@
         provider: fork
         toolName: subagent_fork
         backgroundMode: continuable
-    - id: workflow-worker-thread
-      name: '@deepseek-ai/dsh-workflow-worker-thread'
+    - id: workflow-ptc
+      name: '@deepseek-ai/dsh-workflow-ptc'
       config:
         provider: spawn
     - id: tool-workflow

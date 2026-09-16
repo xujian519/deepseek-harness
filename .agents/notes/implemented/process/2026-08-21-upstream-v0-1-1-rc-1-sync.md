@@ -6,11 +6,11 @@ English | [中文](2026-08-21-upstream-v0-1-1-rc-1-sync.zh.md)
 
 ## Problem
 
-Upstream released `dsh-v0.1.1-rc.1` (`528c682e06`), 172 commits and 2303 files ahead of the rc.8 base (`141eb6fef8`) the fork had merged. The fork carries 107 first-parent commits of its own work (desktop, patent, self-evolve, plugin-market, the `dsh-timeout-guard` rename) on the same base, so a plain merge produced 87 conflicted files across docs, Agent Notes, READMEs, CI workflows, two source files, and two snapshots.
+Upstream released `dsh-v0.1.1-rc.1`, 172 commits and 2303 files ahead of the `dsh-v0.1.0-rc.8` base the fork had merged. The fork carries 107 first-parent commits of its own work (desktop, patent, self-evolve, plugin-market, the `dsh-timeout-guard` rename) on the same base, so a plain merge produced 87 conflicted files across docs, Agent Notes, READMEs, CI workflows, two source files, and two snapshots.
 
 ## Decision
 
-Merge forward in one merge commit (`Merge upstream v0.1.1-rc.1 (528c682e06) into fork`), with conflict resolution by category:
+Merge forward in one merge commit (`Merge upstream v0.1.1-rc.1 into fork`), with conflict resolution by category:
 
 - **`remote-events.ts`**: take the upstream `credentials/reference-updated` rename; keep the fork's `@deepseek-ai/cordis/*` forwarded-event names, which match the fork's rescoped cordis-host-runner emits.
 - **`gen-cordis-catalog.ts`**: keep both sides' additions — the fork's `desktop`/`@deepseek-ai` rows and the upstream `authorization` rows.

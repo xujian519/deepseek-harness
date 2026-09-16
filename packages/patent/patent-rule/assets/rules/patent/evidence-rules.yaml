@@ -85,7 +85,7 @@ rules:
         - 证据未被篡改
       conditions:
         - evidence_content_hash_available
-        - evidence_provenance_clear
+        - evidence_source_uri_or_doc_version_available
     evidenceAssessment:
       assessmentType: triple-attribute
       dimensions:

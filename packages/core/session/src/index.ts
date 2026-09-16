@@ -15,6 +15,7 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, PrepareSessionOptions, SessionEvent, SessionHeader, SessionId } from './types.ts'
+import type { SessionMessageProjection } from './surface.ts'
 import { Session, attachments } from './session.ts'
 import type { SessionEntry } from './session.ts'
 import { collectSessionCallbacks, invokeContainedSessionObservers } from './observers.ts'
@@ -24,7 +25,7 @@ export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'
 export type { AssistantMessage, SystemMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
-export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult } from './surface.ts'
+export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult, SessionMessageProjection, SessionMessageProjectionContext } from './surface.ts'
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
@@ -126,6 +127,29 @@ export class SessionForkError extends Error {
 export class SessionStore extends Service {
   private store = new Map<SessionId, SessionEntry>()
   private counter = 0
+  private readonly projections: SessionMessageProjection[] = []
+
+  /** Borrowed definitions for detached replay; contributions live until their registering fibers unload. */
+  get messageProjections(): readonly SessionMessageProjection[] {
+    return this.projections
+  }
+
+  /**
+   * Register one event interpreter for live creation, restore, and fork.
+   * Disposing the contribution makes sessions that used it refuse further derivation.
+   * @param projection - pure definition owned by the event's plugin.
+   * @returns the fiber-owned disposer.
+   * @throws when another definition already owns this event type.
+   */
+  registerMessageProjection(projection: SessionMessageProjection): () => Promise<void> {
+    if (this.projections.some(item => item.type === projection.type)) {
+      throw new Error(`session message projection "${projection.type}" is already registered`)
+    }
+    return this.ctx.effect(() => {
+      this.projections.push(projection)
+      return () => { this.projections.splice(this.projections.indexOf(projection), 1) }
+    }, 'sessions.registerMessageProjection()')
+  }
 
   constructor(ctx: Context) {
     super(ctx, 'sessions')
@@ -213,6 +237,7 @@ export class SessionStore extends Service {
             options.meta,
             options.inheritedEventCount,
             eventState,
+            this.projections,
           )
         case undefined:
           break
@@ -234,7 +259,7 @@ export class SessionStore extends Service {
       ...meta?.delegationDepth === undefined ? {} : { delegationDepth: meta.delegationDepth },
       ...meta?.agentPreset === undefined ? {} : { agentPreset: meta.agentPreset },
     }
-    return Session.create(sessionId, seed, header, options?.inheritedEventCount)
+    return Session.create(sessionId, seed, header, options?.inheritedEventCount, this.projections)
   }
 
   /**

@@ -27,7 +27,7 @@ import {
   IconChevronRightOutline14,
   IconNewChatOutline16,
   IconPlusOutline16,
-  IconSendOutline16,
+  IconSendOutline14,
   IconStopFill16,
   MarkdownText,
   Menu,
@@ -637,7 +637,7 @@ export function SideChatView(props: {
               disabled={composer.trim() === '' || busy !== null}
               title={t('sideChatSend')}
             >
-              <IconSendOutline16 />
+              <IconSendOutline14 size={16} />
             </button>
           )}
         </div>

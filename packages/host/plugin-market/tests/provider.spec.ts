@@ -107,7 +107,7 @@ describe('source persistence', () => {
 })
 
 describe('catalog wiring', () => {
-  it('searches a registered source and stamps provenance', async () => {
+  it('searches a registered source and stamps the `source` providerId', async () => {
     const added = await provider.addSource('https://example.dev/manifest.json')
     const page = await provider.search(added.id, { q: 'plugin' })
     expect(page.items[0]).toMatchObject({ package: 'dsh-p1', source: 'example.dev' })

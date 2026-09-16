@@ -6,13 +6,13 @@ Status: implemented
 
 ## Problem
 
-`packages/client/connection/src/client/fixture.ts` 曾为 2483 行，它最后一块耦合区域就是 `rpc` 对象：一个含六十条端点臂的 `call` switch 与一个含五条臂的 `open`，合计 211 行。该表不直接读任何世界状态——每个有状态的端点都经由某个 remote 簇、session 或 workspace API 对象、流式 opener，或一个小 helper 到达状态——但这些十九个值都是世界里的局部量，只要它们留在原处，这张表就搬不走。
+`packages/client/connection` 的 `src/client/fixture.ts` 曾为 2483 行，它最后一块耦合区域就是 `rpc` 对象：一个含六十条端点臂的 `call` switch 与一个含五条臂的 `open`，合计 211 行。该表不直接读任何世界状态——每个有状态的端点都经由某个 remote 簇、session 或 workspace API 对象、流式 opener，或一个小 helper 到达状态——但这些十九个值都是世界里的局部量，只要它们留在原处，这张表就搬不走。
 
 [拆分计划](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)把这一项列为批次 2 在 `fixture.ts` 上剩下的条目，并预告了代价：那约二十个 handler 需要先有一个 interface。本刀建好那个 interface，并把表搬走。
 
 ## Decision
 
-`packages/client/connection/src/client/fixture-rpc.ts`（318 行）导出 `createFixtureRpc(deps: FixtureRpcDeps): ClientConnectionRpc`；`fixture.ts` 为 2288 行。
+`packages/client/connection` 的 `src/client/fixture-rpc.ts`（318 行）导出 `createFixtureRpc(deps: FixtureRpcDeps): ClientConnectionRpc`；`fixture.ts` 为 2288 行。
 
 | 搬走的东西 | 在新模块中的形态 |
 | --- | --- |
@@ -63,11 +63,13 @@ Status: implemented
 
 ## Consequences
 
-`fixture.ts` 减少 195 行，`fixture-rpc.ts` 为 318 行，因此净增即依赖清单加上模块头。点名 `fixture.ts` 与 `fixture-projections.ts` 的两条 `TODO(gui)` 覆盖率条目保持不变；本刀未新增任何条目。批次 2 至此清空——计划已在上一刀把它的 `typert/generator` 条目移入批次 3——Issue #86 因批次 3 的其余条目保持开放。
+`fixture.ts` 减少 195 行，`fixture-rpc.ts` 为 318 行，因此净增即依赖清单加上模块头。点名 `fixture.ts` 与 `fixture-projections.ts` 的两条 `TODO(gui)` 覆盖率条目随该模块族其后的移除一并消失（见下）；本刀未新增任何条目。批次 2 至此清空——计划已在上一刀把它的 `typert/generator` 条目移入批次 3——Issue #86 因批次 3 的其余条目保持开放。
+
+该模块族及其兄弟 fixture 模块——`fixture.ts`、各抽取出的 `fixture-*` 模块及其 spec——后续被上游以 `@deepseek-ai/dsh-remote-mock` 与 `apps/web/tests/assembled-remote.ts` 整体取代。
 
 ## Related
 
 - [拆分七个上帝文件](../../implemented/simplification/2026-09-14-god-file-split-plan.zh.md)（计划；本刀清空批次 2）
 - [提取 fixture 的配置类 remote](2026-09-14-fixture-configuration-remotes-extraction.zh.md)（本刀承接的上一刀，也是三个依赖槽位的来源）
 - [提取 fixture 的内存文件系统](2026-09-14-fixture-file-system-module-extraction.zh.md)（定下「一个簇拥有什么」的切法）
-- `packages/client/connection/src/client/fixture-rpc.ts`、`packages/client/connection/tests/fixture-rpc.client.spec.ts`
+- `packages/client/connection` 的 `src/client/fixture-rpc.ts` 与 `tests/fixture-rpc.client.spec.ts`

@@ -17,14 +17,16 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
+import { DEFAULT_MAX_INSTRUCTION_BYTES, RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
+import { registerServerContext } from './server-context.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
 // Side-effect type import: declaration-merges `ctx.systemPrompt` onto Context.
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
-export type { McpResult } from './tools.ts'
+export { createMcpToolDefinition } from './tools.ts'
+export type { McpResult, McpToolDefinitionOptions } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -33,15 +35,8 @@ export const name = 'mcp-client'
 /** Services required by this plugin. */
 export const inject = ['tools', 'systemPrompt']
 
-/** Default timeout for individual MCP tool calls (ms). */
+/** Default timeout for individual MCP tool calls and resource requests (ms). */
 const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
-
-/**
- * Prompt order for the surfaced server-instructions section, inside the tool
- * guidance band (100–199) and clear of the section orders other harness
- * packages use there (subagent 116/116.5, report 117, SDK code-mode 150).
- */
-const MCP_INSTRUCTIONS_SECTION_ORDER = 155
 
 /** Valid `serverName`, kept below the public tool-name budget. */
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
@@ -73,12 +68,14 @@ export interface StdioConfig {
   env: Record<string, string>
   /** Working directory for the child process. */
   cwd: string
-  /** Per-tool-call timeout in milliseconds. */
+  /** Timeout per tool call or resource request in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
   /** Surface the server's `instructions` (MCP initialize response) as a system-prompt section. */
   surfaceInstructions: boolean
+  /** Maximum UTF-8 bytes of attributed server instructions (default 32768). */
+  maxInstructionBytes?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
 }
@@ -97,12 +94,14 @@ export interface StreamableHttpConfig {
   url: string
   /** Additional headers attached to MCP requests. */
   headers: Record<string, string>
-  /** Per-tool-call timeout in milliseconds. */
+  /** Timeout per tool call or resource request in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
   /** Surface the server's `instructions` (MCP initialize response) as a system-prompt section. */
   surfaceInstructions: boolean
+  /** Maximum UTF-8 bytes of attributed server instructions (default 32768). */
+  maxInstructionBytes?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
 }
@@ -134,6 +133,7 @@ export const Config = z.union([
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
     surfaceInstructions: z.boolean().default(true),
+    maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
     reconnect: Reconnect,
   }),
   z.object({
@@ -144,6 +144,7 @@ export const Config = z.union([
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
     surfaceInstructions: z.boolean().default(true),
+    maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
     reconnect: Reconnect,
   }),
 ]) as unknown as z<ConfigInput, Config>
@@ -186,24 +187,17 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // loop, and the live tool registrations; disposal stops reconnection,
   // quiesces in-flight work, and unregisters the current generation.
   const connection = startConnection(ctx, config, reconnect)
-
-  ctx.effect(() => {
-    return () => connection.dispose()
-  }, 'mcp-client.connection')
-
-  // Surface the server's own instructions (MCP initialize response) as a
-  // prompt section so the model sees the server's collaboration rules, which
-  // the tool bridge alone would otherwise drop. The text provider re-reads
-  // the live generation on every assembly, so a reconnect that returns new
-  // instructions is reflected without re-registration, and an absent or
-  // empty value contributes nothing (rendering drops empty sections).
-  if (config.surfaceInstructions) {
-    ctx.effect(() => ctx.systemPrompt.section({
-      name: `mcp:${config.serverName}:instructions`,
-      order: MCP_INSTRUCTIONS_SECTION_ORDER,
-      text: () => connection.instructions,
-    }), 'mcp-client.instructions')
-  }
+  registerServerContext(ctx, config.serverName, connection, config.surfaceInstructions)
+  let stopping: Promise<void> | undefined
+  const dispose = (): Promise<void> => stopping ??= connection.dispose()
+  // Cordis announces unload before awaiting an unfinished apply(). Closing
+  // the transport here releases startup requests that are still awaiting a reply.
+  // oxlint-disable-next-line typescript/no-misused-promises -- Cordis contains observer failures; the effect also awaits this promise.
+  ctx.on('internal/plugin', (fiber) => {
+    if (fiber !== ctx.fiber || fiber.uid !== null) return
+    return dispose()
+  }, { global: true })
+  ctx.effect(() => dispose, 'mcp-client.connection')
 
   // Block plugin activation on the initial connection + tool discovery so
   // Cordis consumers observe the tools immediately after the fiber activates.

@@ -4,6 +4,7 @@
  */
 
 import { IconChevronRightOutline14, JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import { structuredPatch } from 'diff'
 import type { ConversationPromptSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TrajectoryTranslate } from './locales.ts'
@@ -33,8 +34,13 @@ function ToolGlyph() {
 
 export function ToolCatalog({
   tools,
+  stringWrapping,
   t,
-}: { tools: ConversationPromptSnapshot['tools']; t: TrajectoryTranslate }) {
+}: {
+  tools: ConversationPromptSnapshot['tools']
+  stringWrapping: JsonTreeProps['stringWrapping']
+  t: TrajectoryTranslate
+}) {
   if (tools.length === 0) return <p className={css.noPayload}>{t('record.toolsMissing')}</p>
   return (
     <div className={css.toolCatalog}>
@@ -52,6 +58,7 @@ export function ToolCatalog({
             )}
             <JsonTree
               data={tool.parameters}
+              stringWrapping={stringWrapping}
               label={t('record.namedParametersJson', { name: tool.name })}
               labels={jsonTreeLabels(t)}
               className={css.toolCatalogTree}

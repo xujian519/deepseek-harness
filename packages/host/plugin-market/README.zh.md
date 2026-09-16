@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="what-it-does"></a>
 ## 能力
 
-- **目录协议**——源是 manifest（见 [`docs/schemas/catalog-source.schema.json`](docs/schemas/catalog-source.schema.json)），声明身份、署名、传输 base URL 与支持的查询参数。查询发往 `baseUrl + /v1/plugins`；分页遵循 [`catalog-provider-page.schema.json`](docs/schemas/catalog-provider-page.schema.json)。只发送源声明的参数；每条条目都盖上来源 provenance。
+- **目录协议**——源是 manifest（见 [`docs/schemas/catalog-source.schema.json`](docs/schemas/catalog-source.schema.json)），声明身份、署名、传输 base URL 与支持的查询参数。查询发往 `baseUrl + /v1/plugins`；分页遵循 [`catalog-provider-page.schema.json`](docs/schemas/catalog-provider-page.schema.json)。只发送源声明的参数；每条条目都带上服务它的源的 `source`（providerId）。
 - **受限网络**——`restricted-fetch.ts` 强制仅 HTTPS、禁止 URL 凭据与 fragment、在 DNS 解析前后封锁 loopback/私网/链路本地/metadata 目标、逐个重校验重定向，并限制响应大小、超时与重定向深度。
 - **受管安装**——`install.ts` 在 `pnpm add` 前快照 profile 的 `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`，失败回滚，每次成功安装持久化 receipt。卸载前校验 receipt 与当前 profile 一致再执行 `pnpm remove`。provider 以 registry 预览作为安装门禁：deprecated、无 dist、带生命周期脚本的包不会经市场进入 profile。
 - **CLI**——`dsh plugin source add|remove|list`、`dsh plugin search`、`dsh plugin preview`、`dsh plugin install`、`dsh plugin uninstall` 对解析出的 profile 运行同一管线。

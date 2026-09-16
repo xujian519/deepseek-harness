@@ -1,6 +1,6 @@
 /**
  * Tests for the catalog client: source manifest validation, endpoint
- * derivation, supported-parameter filtering, and provenance stamping.
+ * derivation, supported-parameter filtering, and stamping the `source` providerId.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -77,7 +77,7 @@ describe('fetchSourceManifest', () => {
 })
 
 describe('searchCatalog', () => {
-  it('sends only the parameters the source supports and stamps provenance', async () => {
+  it('sends only the parameters the source supports and stamps the `source` providerId', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
       items: [{ id: 'p1', name: 'Plugin One', package: 'dsh-p1', version: '1.0.0' }],
     }), { status: 200 }))

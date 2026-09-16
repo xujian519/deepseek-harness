@@ -12,8 +12,8 @@ English | [中文](2026-08-20-mcp-client-surfaces-server-instructions.zh.md)
 
 `dsh-mcp-client` now surfaces a server's instructions as a prompt section:
 
-- **Capture**: after a successful connect, `client.getInstructions()` (SDK 1.29) is read and kept as the live generation's value; a reconnect replaces it.
-- **Registration**: when `surfaceInstructions` (default `true`) is enabled, the value registers as the `mcp:<serverName>:instructions` section at order 155, inside the tool-guidance band (100–199) and clear of the orders other harness packages use there (subagent 116/116.5, report 117, SDK code-mode 150).
+- **Capture**: after a successful connect, `generation.getInstructions()` (SDK 2.0.0) is read and kept as the live generation's value; a reconnect replaces it.
+- **Registration**: the upstream-owned `server-context.ts` publishes the value as the `mcp:<server>` section at `getSectionOrder('MCP_SERVERS')` (3100), the MCP server-context band it shares with the `mcp-resource-servers` listing. The fork's contribution to that registration is the `surfaceInstructions` switch (default `true`, validated on both transport variants), threaded into `registerServerContext`: `false` skips the section while the resource registration above it still runs.
 - **Dynamic text**: the section's text is a provider that re-reads the live generation on every assembly, so a reconnect that returns different instructions is reflected without re-registration; an absent or empty value renders nothing (rendering drops empty sections).
 - **Config**: `surfaceInstructions` is a validated field on both transport variants, so a deployment that states the same protocol in its own persona can turn it off.
 - **Dependency**: `inject` grew from `['tools']` to `['tools', 'systemPrompt']`; `@deepseek-ai/dsh-system-prompt` joined peer and dev dependencies. `systemPrompt` is a harness core service (agent-loop requires it), so requiring it fails loud at load rather than silently rendering no section.
@@ -26,7 +26,7 @@ English | [中文](2026-08-20-mcp-client-surfaces-server-instructions.zh.md)
 
 ## Consequences
 
-- `packages/mcp/mcp-client`: `connection.ts` exposes `instructions` on the connection handle; `index.ts` registers the section; 5 new apply.spec cases cover registration, empty-value rendering, the disabled switch, disposal, and per-`serverName` namespacing. Unit (107) and real-protocol e2e (22) suites pass.
+- `packages/mcp/mcp-client`: `connection.ts` exposes `instructions` on the connection handle; `server-context.ts` registers the section; 5 new apply.spec cases cover registration, empty-value rendering, the disabled switch, disposal, and per-`serverName` namespacing. Unit (107) and real-protocol e2e (22) suites pass.
 - The generated config catalog (`docs/config-catalog.md`, doc-sync) reflects `Requires: tools, systemPrompt` and the new field.
 - No agent-loop, `SessionEventMap`, or session-format change, so no TS/Python SDK expected-output sync and no `SESSION_FORMAT_VERSION` bump.
 - The AgentRQ plugin's own `agentrq:protocol` section stays as its rendered tool-name mapping; its server's raw instructions now arrive independently, and it can set `guidance: false` when it wants only the raw copy.

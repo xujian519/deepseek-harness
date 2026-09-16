@@ -3,9 +3,19 @@
  * one selected session request across that selection's detail tabs.
  */
 
-import { useMemo } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { IconChevronRightOutline14, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  CodeBlock,
+  IconCheckOutline16,
+  IconChevronRightOutline14,
+  IconCopyOutline16,
+  IconWrapLinesOutline16,
+  JsonTree,
+  MarkdownText,
+  writeClipboard,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
   DetailTab,
@@ -14,9 +24,10 @@ import type {
   TableRecord,
   TrajectoryRequestNumber,
 } from '../types.ts'
-import { markdownLabels } from '../types.ts'
+import { jsonTreeLabels, markdownLabels } from '../types.ts'
 import type { TrajectoryTranslate } from './locales.ts'
-import { formatElapsedSeconds } from './trajectory-record.ts'
+import { formatElapsedSeconds, trajectoryRecordId } from './trajectory-record.ts'
+import { type CodeProgram, codeProgram } from './code-program.ts'
 import {
   requestErrorMessage,
   requestIdentity,
@@ -31,7 +42,7 @@ import {
   messageSourceLabel,
   parentRecords,
 } from './trajectory-record-presentation.tsx'
-import { RecordPayload, RecordSchema, RequestOptions } from './trajectory-record-payload.tsx'
+import { RecordPayload, RecordSchema, RequestOptions, parseJsonContainer } from './trajectory-record-payload.tsx'
 import { RecordTiming, RequestTiming, formatDurationMs } from './trajectory-timing.tsx'
 import { RequestUsagePanel, TokenRows, UsageRows } from './trajectory-usage-panel.tsx'
 import { MarkdownRecordContent } from './trajectory-markdown-content.tsx'
@@ -67,6 +78,10 @@ export interface RecordInspectorProps {
   selectedRequest: SelectedRequest | null
   /** Tab the detail panel is showing. */
   activeTab: DetailTab
+  /** Wrapping control shared by all JSON inspectors. */
+  stringWrapping?: JsonTreeProps['stringWrapping']
+  /** Wrapping default captured when the current tab was activated. */
+  codeWrappingOnOpen: boolean
   /** Whether long thinking blocks render expanded. */
   thinkingExpanded: boolean
   /** Inspector width in pixels, or null while it follows the split default. */
@@ -90,12 +105,31 @@ export interface RecordInspectorProps {
 function OverviewSection({
   label,
   onOpen,
+  actions,
   children,
 }: {
   label: string
   onOpen: () => void
+  actions?: ReactNode
   children: ReactNode
 }) {
+  const previewRef = useRef<HTMLDivElement>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const measureOverflow = useCallback((preview: HTMLElement) => {
+    setHasMore(preview.scrollHeight - preview.clientHeight - preview.scrollTop > 1)
+  }, [])
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current as HTMLDivElement
+    const measure = () => { measureOverflow(preview) }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(preview)
+    for (const child of preview.children) observer.observe(child)
+    return () => { observer.disconnect() }
+  }, [children, measureOverflow])
+
   return (
     <section className={css.overviewSection}>
       <h3 className={css.overviewHeading}>
@@ -107,15 +141,174 @@ function OverviewSection({
           <span>{label}</span>
           <IconChevronRightOutline14 className={css.overviewTitleIcon} size={12} />
         </button>
+        {actions}
       </h3>
       <div
+        ref={previewRef}
         className={`${css.overviewPreview} ${css.summaryScrollRegion}`}
         data-summary-scroll-region=""
+        data-scroll-more={hasMore || undefined}
+        onScroll={(event) => { measureOverflow(event.currentTarget) }}
       >
         {children}
       </div>
     </section>
   )
+}
+
+/**
+ * Copy one inspector payload with transient success/failure feedback.
+ * @param props - The exact text to copy, its idle label, and the locale seat.
+ * @returns The copy button.
+ */
+function InspectorCopyButton({ text, label, t }: {
+  text: string
+  label: string
+  t: TrajectoryTranslate
+}) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  useEffect(() => {
+    if (state === 'idle') return
+    const timer = setTimeout(() => { setState('idle') }, 1_500)
+    return () => { clearTimeout(timer) }
+  }, [state])
+  const title = state === 'idle' ? label : t(state === 'copied' ? 'copied' : 'copy.failed')
+  return (
+    <button
+      type="button"
+      className={css.programAction}
+      data-state={state}
+      aria-label={title}
+      title={title}
+      onClick={() => { void writeClipboard(text).then((ok) => { setState(ok ? 'copied' : 'failed') }) }}
+    >
+      {state === 'copied' ? <IconCheckOutline16 size={12} /> : <IconCopyOutline16 size={12} />}
+    </button>
+  )
+}
+
+/**
+ * Render one recorded program's source, with its original arguments and the shared wrap control.
+ * @param props - The resolved program, the wrapping preference captured on open, and the locale seat.
+ * @returns The source panel, standalone or as an overview section.
+ */
+function ProgramInput({ program, initialWrapped, stringWrapping, onOpen, t }: {
+  program: CodeProgram
+  initialWrapped: boolean
+  stringWrapping: JsonTreeProps['stringWrapping']
+  onOpen?: () => void
+  t: TrajectoryTranslate
+}) {
+  const contentsId = useId()
+  const [wrapped, setWrapped] = useState(initialWrapped)
+  const [showJson, setShowJson] = useState(false)
+  const actions = (
+    <span className={css.programActions}>
+      {!showJson && program.language !== undefined && (
+        <span className={css.programLanguage}>{program.language}</span>
+      )}
+      {!showJson && (
+        <button
+          type="button"
+          className={css.programAction}
+          aria-label={t('record.wrapLines')}
+          title={t('record.wrapLines')}
+          aria-pressed={wrapped}
+          aria-controls={contentsId}
+          onClick={() => {
+            const next = !wrapped
+            setWrapped(next)
+            stringWrapping?.setDefault(next)
+          }}
+        >
+          <IconWrapLinesOutline16 size={12} />
+        </button>
+      )}
+      {onOpen === undefined && (
+        <button
+          type="button"
+          className={css.programAction}
+          aria-label={t('code.originalJson')}
+          title={t('code.originalJson')}
+          aria-pressed={showJson}
+          aria-controls={contentsId}
+          onClick={() => { setShowJson(value => !value) }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6 2H5a2 2 0 0 0-2 2v2a2 2 0 0 1-2 2 2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h1" />
+            <path d="M10 2h1a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0-2 2v2a2 2 0 0 1-2 2h-1" />
+          </svg>
+        </button>
+      )}
+      <InspectorCopyButton
+        text={showJson ? program.rawInput : program.source}
+        label={t(showJson ? 'copy.json' : 'code.copySource')}
+        t={t}
+      />
+    </span>
+  )
+  const body = (
+    <div id={contentsId} className={css.programContent} data-wrap={wrapped}>
+      {showJson
+        ? <JsonTree data={program.arguments} label={t('record.parametersJson')}
+          labels={jsonTreeLabels(t)} stringWrapping={stringWrapping} />
+        : <CodeBlock code={program.source} lang={program.language} lineNumbers showHeader={false}
+          className={css.programSource} copyLabel={t('code.copySource')} copiedLabel={t('copied')} />}
+    </div>
+  )
+  return onOpen === undefined
+    ? (
+      <section className={css.programPanel}>
+        <header className={css.overviewHeading}>
+          <span>{t('code.source')}</span>
+          {actions}
+        </header>
+        {body}
+      </section>
+    )
+    : <OverviewSection label={t('code.source')} onOpen={onOpen} actions={actions}>{body}</OverviewSection>
+}
+
+/**
+ * Render one recorded program's captured output, verbatim or as a JSON tree.
+ * @param props - The selected record, the wrapping control, and the locale seat.
+ * @returns The output panel, standalone or as an overview section.
+ */
+function ProgramOutput({ record, stringWrapping, onOpen, t }: {
+  record: TableRecord
+  stringWrapping: JsonTreeProps['stringWrapping']
+  onOpen?: () => void
+  t: TrajectoryTranslate
+}) {
+  const output = record.cell.outputDetail
+  const json = output === undefined || record.cell.isError === true ? undefined : parseJsonContainer(output)
+  const actions = output === undefined ? undefined : (
+    <span className={css.programActions}>
+      <InspectorCopyButton text={output} label={t('code.copyOutput')} t={t} />
+    </span>
+  )
+  const body = (
+    <div className={css.programContent}>
+      {output === undefined || output === ''
+        ? <p className={css.noPayload}>{t(stateOf(record) === 'running' ? 'code.running' : 'record.noOutput')}</p>
+        : json !== undefined
+          ? <JsonTree data={json} label={t('record.outputJson')} labels={jsonTreeLabels(t)}
+            stringWrapping={stringWrapping} collapsedStringLines={onOpen === undefined ? 12 : 3} />
+          : <pre className={`${css.programOutput} ${record.cell.isError === true ? css.programError : ''}`}>{output}</pre>}
+    </div>
+  )
+  return onOpen === undefined
+    ? (
+      <section className={css.programPanel}>
+        <header className={css.overviewHeading}>
+          <span>{t('code.output')}</span>
+          {actions}
+        </header>
+        {body}
+      </section>
+    )
+    : <OverviewSection label={t('code.output')} onOpen={onOpen} actions={actions}>{body}</OverviewSection>
 }
 
 /**
@@ -135,6 +328,8 @@ export function RecordInspector({
   selected,
   selectedRequest,
   activeTab,
+  stringWrapping,
+  codeWrappingOnOpen,
   thinkingExpanded,
   detailsWidth,
   resizeHandlers,
@@ -154,6 +349,7 @@ export function RecordInspector({
   const selectedSystemPrompt = selectedPrompt?.system ?? selected?.cell.systemPromptDetail
   const promptSelected = selectedSystemPrompt !== undefined
   const selectedState = selected === undefined ? undefined : stateOf(selected)
+  const selectedProgram = selected === undefined ? undefined : codeProgram(selected.cell)
   const selectedRequestInfo = selectedRequest === null
     ? undefined
     : sessionRequestNumbers?.find(request =>
@@ -335,7 +531,9 @@ export function RecordInspector({
         id="trajectory-detail-panel"
         className={activeTab === 'overview'
           ? `${css.detailBody} ${css.detailBodySummary}`
-          : css.detailBody}
+          : selectedProgram !== undefined && (activeTab === 'input' || activeTab === 'output')
+            ? `${css.detailBody} ${css.detailBodyProgram}`
+            : css.detailBody}
         role="tabpanel"
         aria-labelledby={`trajectory-detail-${activeTab}`}
       >
@@ -442,7 +640,7 @@ export function RecordInspector({
             <div className={css.overviewSections}>
               {selectedRequestOptions !== undefined && (
                 <OverviewSection label={t('tab.options')} onOpen={() => { onActivateTab('options') }}>
-                  <RequestOptions options={selectedRequestOptions} preview t={t} />
+                  <RequestOptions options={selectedRequestOptions} preview stringWrapping={stringWrapping} t={t} />
                 </OverviewSection>
               )}
               <OverviewSection label={t('tab.usage')} onOpen={() => { onActivateTab('usage') }}>
@@ -453,6 +651,7 @@ export function RecordInspector({
                   assistant={selectedRequestAssistant}
                   anchor={selectedRequestAnchor}
                   request={selectedRequestInfo}
+                  preview
                   t={t}
                 />
               </OverviewSection>
@@ -460,7 +659,7 @@ export function RecordInspector({
           </>
         )}
         {selectedRequestInfo !== undefined && activeTab === 'options' && (
-          <RequestOptions options={selectedRequestOptions} t={t} />
+          <RequestOptions options={selectedRequestOptions} stringWrapping={stringWrapping} t={t} />
         )}
         {selectedRequestInfo !== undefined && activeTab === 'usage' && (
           <RequestUsagePanel
@@ -496,7 +695,7 @@ export function RecordInspector({
             )
         )}
         {selectedPrompt !== undefined && activeTab === 'tools' && (
-          <ToolCatalog tools={selectedPrompt.tools} t={t} />
+          <ToolCatalog tools={selectedPrompt.tools} stringWrapping={stringWrapping} t={t} />
         )}
         {!promptSelected
           && selected?.cell.kind === 'compacted'
@@ -546,6 +745,9 @@ export function RecordInspector({
           && selectedState !== undefined
           && activeTab === 'overview' && (
           <>
+            {selectedProgram !== undefined && selectedProgram.description !== '' && (
+              <p className={css.programDescription}>{selectedProgram.description}</p>
+            )}
             <dl
               className={`${css.overview} ${css.summaryScrollRegion}`}
               data-summary-scroll-region=""
@@ -637,40 +839,59 @@ export function RecordInspector({
               )}
             </dl>
             <div className={css.overviewSections}>
-              {isMarkdownRecord(selected)
+              {selectedProgram !== undefined
                 ? (
                   <>
-                    <OverviewSection label={t('tab.preview')} onOpen={() => { onActivateTab('rendered') }}>
-                      <MarkdownRecordContent
-                        record={selected}
-                        renderImages={renderImages}
-                        rendered
-                        preview
-                        thinkingExpanded={thinkingExpanded}
-                        onThinkingExpandedChange={onThinkingExpandedChange}
-                        onOpenCall={onOpenCallSummary}
-                        t={t}
-                      />
-                    </OverviewSection>
+                    <ProgramInput
+                      key={`preview:${trajectoryRecordId(selected.cell)}`}
+                      program={selectedProgram}
+                      initialWrapped={codeWrappingOnOpen}
+                      stringWrapping={stringWrapping}
+                      onOpen={() => { onActivateTab('input') }}
+                      t={t}
+                    />
+                    <ProgramOutput
+                      record={selected}
+                      stringWrapping={stringWrapping}
+                      onOpen={() => { onActivateTab('output') }}
+                      t={t}
+                    />
                   </>
                 )
-                : (
-                  <>
-                    {selected.cell.inputDetail && (
-                      <OverviewSection label={t('tab.payload')} onOpen={() => { onActivateTab('input') }}>
-                        <RecordPayload record={selected} direction="input" preview renderImages={renderImages} t={t} />
+                : isMarkdownRecord(selected)
+                  ? (
+                    <>
+                      <OverviewSection label={t('tab.preview')} onOpen={() => { onActivateTab('rendered') }}>
+                        <MarkdownRecordContent
+                          record={selected}
+                          renderImages={renderImages}
+                          rendered
+                          preview
+                          thinkingExpanded={thinkingExpanded}
+                          onThinkingExpandedChange={onThinkingExpandedChange}
+                          onOpenCall={onOpenCallSummary}
+                          t={t}
+                        />
                       </OverviewSection>
-                    )}
-                    {selected.cell.outputDetail && (
-                      <OverviewSection label={t('tab.result')} onOpen={() => { onActivateTab('output') }}>
-                        <RecordPayload record={selected} direction="output" preview renderImages={renderImages} t={t} />
+                    </>
+                  )
+                  : (
+                    <>
+                      {selected.cell.inputDetail && (
+                        <OverviewSection label={t('tab.payload')} onOpen={() => { onActivateTab('input') }}>
+                          <RecordPayload record={selected} direction="input" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                        </OverviewSection>
+                      )}
+                      {selected.cell.outputDetail && (
+                        <OverviewSection label={t('tab.result')} onOpen={() => { onActivateTab('output') }}>
+                          <RecordPayload record={selected} direction="output" preview renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+                        </OverviewSection>
+                      )}
+                      <OverviewSection label={t('tab.schema')} onOpen={() => { onActivateTab('schema') }}>
+                        <RecordSchema record={selected} preview stringWrapping={stringWrapping} t={t} />
                       </OverviewSection>
-                    )}
-                    <OverviewSection label={t('tab.schema')} onOpen={() => { onActivateTab('schema') }}>
-                      <RecordSchema record={selected} preview t={t} />
-                    </OverviewSection>
-                  </>
-                )}
+                    </>
+                  )}
               {selectedAssistantRequestTarget !== undefined && (
                 <OverviewSection
                   label={t('timing.request')}
@@ -678,12 +899,12 @@ export function RecordInspector({
                     onSelectRequest(selectedAssistantRequestTarget, 'timing')
                   }}
                 >
-                  <RecordTiming record={selected} t={t} />
+                  <RecordTiming record={selected} preview t={t} />
                 </OverviewSection>
               )}
               {(selected.cell.kind === 'tool' || selected.cell.kind === 'subtool') && (
                 <OverviewSection label={t('tab.timing')} onOpen={() => { onActivateTab('timing') }}>
-                  <RecordTiming record={selected} t={t} />
+                  <RecordTiming record={selected} preview t={t} />
                 </OverviewSection>
               )}
             </div>
@@ -712,16 +933,28 @@ export function RecordInspector({
           />
         )}
         {!promptSelected && selected !== undefined && activeTab === 'source' && (
-          <MessageSource record={selected} t={t} />
+          <MessageSource record={selected} stringWrapping={stringWrapping} t={t} />
         )}
         {!promptSelected && selected !== undefined && activeTab === 'input' && (
-          <RecordPayload record={selected} direction="input" renderImages={renderImages} t={t} />
+          selectedProgram === undefined
+            ? <RecordPayload record={selected} direction="input" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+            : (
+              <ProgramInput
+                key={`input:${trajectoryRecordId(selected.cell)}`}
+                program={selectedProgram}
+                initialWrapped={codeWrappingOnOpen}
+                stringWrapping={stringWrapping}
+                t={t}
+              />
+            )
         )}
         {!promptSelected && selected !== undefined && activeTab === 'output' && (
-          <RecordPayload record={selected} direction="output" renderImages={renderImages} t={t} />
+          selectedProgram === undefined
+            ? <RecordPayload record={selected} direction="output" renderImages={renderImages} stringWrapping={stringWrapping} t={t} />
+            : <ProgramOutput record={selected} stringWrapping={stringWrapping} t={t} />
         )}
         {!promptSelected && selected !== undefined && activeTab === 'schema' && (
-          <RecordSchema record={selected} t={t} />
+          <RecordSchema record={selected} stringWrapping={stringWrapping} t={t} />
         )}
         {!promptSelected && selected !== undefined && activeTab === 'timing' && (
           <RecordTiming record={selected} t={t} />

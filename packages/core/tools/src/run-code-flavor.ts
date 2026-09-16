@@ -6,12 +6,12 @@
  * @module @deepseek-ai/dsh-tools/src/run-code-flavor
  */
 
-import type { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
+import type { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
 
 /**
  * The language-specific `run_code` schema text: the tool `description` and its
  * `code` parameter description, kept together so a language's two model-facing
- * strings share one source of truth. Keyed by `CodeRuntime.language`, mirroring
+ * strings share one source of truth. Keyed by `PtcRuntime.language`, mirroring
  * `SDK_RENDERERS` in {@link ./index.ts}. The emitted flavor MUST match the
  * semantics the same language's SDK instructions promise, so the model never
  * receives a TypeScript schema beside a Python SDK (or vice versa).
@@ -61,17 +61,17 @@ const PYTHON_FLAVOR: RunCodeFlavor = {
  * {@link RUN_CODE_FLAVORS} here and `SDK_RENDERERS` in {@link ./index.ts} — are
  * checked against this union with `satisfies`, so a language added to one and
  * not the other fails `typecheck` instead of waiting for a runtime that reports
- * it. The tables stay declared `Record<string, …>` because `CodeRuntime.language`
+ * it. The tables stay declared `Record<string, …>` because `PtcRuntime.language`
  * is an unconstrained `string`: this union pins what the harness ships, while the
  * `Object.hasOwn` guards reject what a mounted runtime may report.
  */
-export type CodeSdkLanguage = 'typescript' | 'python'
+export type PtcSdkLanguage = 'typescript' | 'python'
 
-/** Per-language `run_code` schema flavors (see {@link RunCodeFlavor}); one entry per {@link CodeSdkLanguage}. */
+/** Per-language `run_code` schema flavors (see {@link RunCodeFlavor}); one entry per {@link PtcSdkLanguage}. */
 const RUN_CODE_FLAVORS: Record<string, RunCodeFlavor> = {
   typescript: TYPESCRIPT_FLAVOR,
   python: PYTHON_FLAVOR,
-} satisfies Record<CodeSdkLanguage, RunCodeFlavor>
+} satisfies Record<PtcSdkLanguage, RunCodeFlavor>
 
 /**
  * Resolve the {@link RunCodeFlavor} for the loaded runtime's language, read at
@@ -79,18 +79,18 @@ const RUN_CODE_FLAVORS: Record<string, RunCodeFlavor> = {
  * the SDK section's language. `peekRuntime` returns `undefined` only when no
  * runtime is mounted, which reaches this function through definition readers
  * and `schemas()` — the doc-catalog harvest is the only shipped one, and none
- * of them feeds a model, because `wireSchemas` calls `requireCodeRuntime`
+ * of them feeds a model, because `wireSchemas` calls `requirePtcRuntime`
  * before projecting — so that path degrades to {@link TYPESCRIPT_FLAVOR}. A
  * mounted runtime whose language has no flavor entry fails loud, exactly as
- * `requireCodeRuntime` rejects it at assembly. Keeping this table in step with
- * `SDK_RENDERERS` is the compiler's job ({@link CodeSdkLanguage}); what this
+ * `requirePtcRuntime` rejects it at assembly. Keeping this table in step with
+ * `SDK_RENDERERS` is the compiler's job ({@link PtcSdkLanguage}); what this
  * guard owns is the runtime-supplied language neither table knows, which never
  * yields a wrong-language schema for a real runtime.
  * @param peekRuntime - reads the mounted code runtime without throwing.
  * @returns the flavor for that runtime's language, or the TypeScript fallback when none is mounted.
  * @throws Error when a mounted runtime reports a language neither table declares.
  */
-export function resolveFlavor(peekRuntime: () => CodeRuntime | undefined): RunCodeFlavor {
+export function resolveFlavor(peekRuntime: () => PtcRuntime | undefined): RunCodeFlavor {
   const runtime = peekRuntime()
   if (runtime === undefined) {
     // No runtime mounted: reached by definition readers and `schemas()`, of

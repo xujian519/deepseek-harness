@@ -6,13 +6,13 @@ English | [中文](2026-09-14-fixture-rpc-dispatch-extraction.zh.md)
 
 ## Problem
 
-`packages/client/connection/src/client/fixture.ts` was 2483 lines, and its last coupled region was the `rpc` object: a `call` switch with sixty endpoint arms and an `open` switch with five, 211 lines in all. The table reads no world state directly — every stateful endpoint reaches its state through a remote cluster, a session or workspace API object, a stream opener, or a small helper — but those nineteen values were the world's locals, so the table could not leave while they stayed where they were.
+`packages/client/connection`'s `src/client/fixture.ts` was 2483 lines, and its last coupled region was the `rpc` object: a `call` switch with sixty endpoint arms and an `open` switch with five, 211 lines in all. The table reads no world state directly — every stateful endpoint reaches its state through a remote cluster, a session or workspace API object, a stream opener, or a small helper — but those nineteen values were the world's locals, so the table could not leave while they stayed where they were.
 
 [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) named this as batch 2's remaining `fixture.ts` item and predicted the cost: the roughly twenty handlers need an interface first. This cut builds that interface and moves the table.
 
 ## Decision
 
-`packages/client/connection/src/client/fixture-rpc.ts` (318 lines) exports `createFixtureRpc(deps: FixtureRpcDeps): ClientConnectionRpc`; `fixture.ts` is 2288 lines.
+`packages/client/connection`'s `src/client/fixture-rpc.ts` (318 lines) exports `createFixtureRpc(deps: FixtureRpcDeps): ClientConnectionRpc`; `fixture.ts` is 2288 lines.
 
 | Moved | Form in the new module |
 | --- | --- |
@@ -63,11 +63,13 @@ The entry's export list gained `FixtureRpcDeps` and `FixturePageRequest` and los
 
 ## Consequences
 
-`fixture.ts` loses 195 lines and `fixture-rpc.ts` is 318, so the net growth is the dependency list plus the module header. The two `TODO(gui)` coverage entries that name `fixture.ts` and `fixture-projections.ts` stay; this cut added none. Batch 2 is now empty — the plan moved its `typert/generator` item to batch 3 in the previous PR — and Issue #86 stays open for batch 3's remaining items.
+`fixture.ts` loses 195 lines and `fixture-rpc.ts` is 318, so the net growth is the dependency list plus the module header. The two `TODO(gui)` coverage entries that named `fixture.ts` and `fixture-projections.ts` went with the family's later removal (below); this cut added none. Batch 2 is now empty — the plan moved its `typert/generator` item to batch 3 in the previous PR — and Issue #86 stays open for batch 3's remaining items.
+
+The module family and its sibling fixture modules — `fixture.ts`, the extracted `fixture-*` modules, and their specs — were later replaced wholesale by upstream with `@deepseek-ai/dsh-remote-mock` and `apps/web/tests/assembled-remote.ts`.
 
 ## Related
 
 - [Splitting the seven god files](../../implemented/simplification/2026-09-14-god-file-split-plan.md) (the plan; this closes batch 2)
 - [Extracting the fixture's configuration remotes](2026-09-14-fixture-configuration-remotes-extraction.md) (the cut this one follows, and the source of three of the dependency slots)
 - [Extracting the fixture's in-memory file system](2026-09-14-fixture-file-system-module-extraction.md) (the cluster that settled what a fixture cluster owns)
-- `packages/client/connection/src/client/fixture-rpc.ts`, `packages/client/connection/tests/fixture-rpc.client.spec.ts`
+- `packages/client/connection`'s `src/client/fixture-rpc.ts` and `tests/fixture-rpc.client.spec.ts`

@@ -59,7 +59,7 @@ export class PluginMarketController extends TypertRemoteService {
    * Query one source's catalog.
    * @param sourceId - the source to query.
    * @param query - search parameters; unsupported ones are dropped by the provider.
-   * @returns one page of provenance-stamped entries.
+   * @returns one page of entries, each stamped with its `source` providerId.
    * @throws RemoteError when the source query fails or no provider is mounted.
    */
   @Remote

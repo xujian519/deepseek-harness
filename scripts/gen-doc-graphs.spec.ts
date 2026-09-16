@@ -2,7 +2,8 @@
  * Tests for the event-relation collector's demand-driven call-site indexing:
  * the single-file fast path and the global fallback must recover the same
  * helper-parameter event names, including shapes that defeat the locality
- * proof (alias escapes and global script files).
+ * proof (alias escapes, global script files, and exported helpers, whose every
+ * call site necessarily lives in another module).
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -61,6 +62,27 @@ const FIXTURE: Record<string, string> = {
   'packages/fix/pkgc/src/helper.ts':
     "function scriptFire(args: [string]): void { void gEvents.dispatch('emit', args) }\n",
   'packages/fix/pkgc/src/caller.ts': "scriptFire(['pkgc/script-event'])\n",
+  // pkgd mirrors the session publication observers: an EXPORTED dispatch
+  // helper, whose every call site therefore lives in another module, sits
+  // beside a non-exported one in the same file. The exported shape is
+  // reachable only through the global fallback — the locality proof fails on
+  // the export modifier itself — and the leading array element is a
+  // non-literal exactly as in
+  // `collectSessionCallbacks(this.ctx, [entry.carrier, 'session/created', session])`,
+  // so the event slot is the second element rather than the first.
+  'packages/fix/pkgd/src/observers.ts': [
+    "import { EventsService } from '../../../../vendor/cordis/src/events.ts'",
+    'declare const events: EventsService',
+    "export function fireExported(args: unknown[]): void { void events.dispatch('emit', args) }",
+    "function fireLocalPkgd(args: unknown[]): void { void events.dispatch('emit', args) }",
+    "fireLocalPkgd([{ id: 'subject' }, 'pkgd/local-event'])",
+    '',
+  ].join('\n'),
+  'packages/fix/pkgd/src/index.ts': [
+    "import { fireExported } from './observers.ts'",
+    "fireExported([{ id: 'subject' }, 'pkgd/exported-event'])",
+    '',
+  ].join('\n'),
 }
 
 const root = mkdtempSync(join(tmpdir(), 'gen-doc-graphs-'))
@@ -94,5 +116,17 @@ describe('event relation call-site indexing', () => {
     // pkgc alone: the script helper is the first demand, so a wrongly passing
     // proof would index helper.ts only and lose the caller.ts call site.
     expect(dispatchersOf(['pkgc'], 'pkgc/script-event')).toEqual(['pkgc'])
+  })
+
+  it('recovers an exported helper through the global fallback, next to a local one', () => {
+    // pkgd: `fireExported` is exported, so the locality proof fails on the
+    // export modifier alone and the repository index must supply the call site
+    // in index.ts. Its event slot is the second array element — the non-literal
+    // head mirrors `[entry.carrier, 'session/created', session]` from the
+    // session publication observers. The non-exported `fireLocalPkgd` in the
+    // same file keeps the fast path honest: widening the exported case must not
+    // disturb it.
+    expect(dispatchersOf(['pkgd'], 'pkgd/exported-event')).toEqual(['pkgd'])
+    expect(dispatchersOf(['pkgd'], 'pkgd/local-event')).toEqual(['pkgd'])
   })
 })

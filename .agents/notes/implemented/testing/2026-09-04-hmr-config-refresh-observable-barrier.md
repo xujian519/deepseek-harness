@@ -6,7 +6,7 @@ English | [中文](2026-09-04-hmr-config-refresh-observable-barrier.zh.md)
 
 ## Problem
 
-The config-refresh cases in `packages/boot/app-boot/tests/hmr-config.spec.ts` observe real filesystem events through chokidar. Two of them failed intermittently under CI concurrency.
+The config-refresh cases in `packages/boot/app-boot/tests/watch-config.spec.ts` observe real filesystem events through chokidar. Two of them failed intermittently under CI concurrency.
 
 The `serializes refreshes and waits for them during disposal` case wrote a second file version, slept a fixed 250 ms, then disposed. Disposal closes the chokidar watcher before awaiting the running refresh, so when the change event arrived after that window under parallel load the edit was never queued and `observed` stayed at `['one']` instead of `['one', 'two']`.
 

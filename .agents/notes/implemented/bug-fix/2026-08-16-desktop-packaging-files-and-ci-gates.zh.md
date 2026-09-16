@@ -6,7 +6,7 @@
 
 ## 问题
 
-桌面外壳发布后暴露了两个缺陷。第一，打包后的应用启动即崩溃，报 `ERR_MODULE_NOT_FOUND: Cannot find module '.../app.asar/dist/bridge-server.js'`：`electron-builder.yml` 的 `files` 显式列出 `dist` 文件（`main.js`、`server-manager.js`、`preload.cjs`），漏掉了 `main.ts` 静态 import 的 `bridge-server.js`、`navigation.js` 和 `tray.js`。此前该列表已经漏过一次模块（`server-manager.js`，由 `a2f7b7bc8a` 修复），所以显式列表这个模式本身就是缺陷。第二，把 fork CI 从上游 larger-runner 标签切换为标准托管 runner 后，暴露出本 PR 自身代码的五个门禁失败：`scripts/desktop-package.ts` 及 spec 中的 `duplication` 克隆、`verify-cordis-config` 缺少 desktop 包在 `tsconfig.base.json` 中的 paths、过期的 `docs/module-graph.md`、`knip` 报告 `desktop-app` bundle 依赖未使用，以及 vitest 无法解析 desktop-shell 测试中的 `@deepseek-ai/dsh-desktop`。
+桌面外壳发布后暴露了两个缺陷。第一，打包后的应用启动即崩溃，报 `ERR_MODULE_NOT_FOUND: Cannot find module '.../app.asar/dist/bridge-server.js'`：`electron-builder.yml` 的 `files` 显式列出 `dist` 文件（`main.js`、`server-manager.js`、`preload.cjs`），漏掉了 `main.ts` 静态 import 的 `bridge-server.js`、`navigation.js` 和 `tray.js`。此前该列表已经漏过一次模块（`server-manager.js`，由更早的一次桌面打包修改补上），所以显式列表这个模式本身就是缺陷。第二，把 fork CI 从上游 larger-runner 标签切换为标准托管 runner 后，暴露出本 PR 自身代码的五个门禁失败：`scripts/desktop-package.ts` 及 spec 中的 `duplication` 克隆、`verify-cordis-config` 缺少 desktop 包在 `tsconfig.base.json` 中的 paths、过期的 `docs/module-graph.md`、`knip` 报告 `desktop-app` bundle 依赖未使用，以及 vitest 无法解析 desktop-shell 测试中的 `@deepseek-ai/dsh-desktop`。
 
 ## 决策
 

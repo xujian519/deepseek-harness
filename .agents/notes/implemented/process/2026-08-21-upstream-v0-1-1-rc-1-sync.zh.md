@@ -6,11 +6,11 @@ Status: implemented
 
 ## 问题
 
-上游发布了 `dsh-v0.1.1-rc.1`（`528c682e06`），相对 fork 已合并的 rc.8 基线（`141eb6fef8`）领先 172 个提交、2303 个文件。fork 在同一基线上承载 107 个 first-parent 自有提交（desktop、patent、self-evolve、plugin-market、`dsh-timeout-guard` 改名），因此直接 merge 在文档、Agent Notes、README、CI workflow、两个源码文件与两个快照上产生了 87 个冲突文件。
+上游发布了 `dsh-v0.1.1-rc.1`，相对 fork 已合并的 `dsh-v0.1.0-rc.8` 基线领先 172 个提交、2303 个文件。fork 在同一基线上承载 107 个 first-parent 自有提交（desktop、patent、self-evolve、plugin-market、`dsh-timeout-guard` 改名），因此直接 merge 在文档、Agent Notes、README、CI workflow、两个源码文件与两个快照上产生了 87 个冲突文件。
 
 ## 决策
 
-以单个 merge 提交前向合并（`Merge upstream v0.1.1-rc.1 (528c682e06) into fork`），按类别解决冲突：
+以单个 merge 提交前向合并（`Merge upstream v0.1.1-rc.1 into fork`），按类别解决冲突：
 
 - **`remote-events.ts`**：采用上游的 `credentials/reference-updated` 改名；保留 fork 的 `@deepseek-ai/cordis/*` 转发事件名，与 fork rescope 后的 cordis-host-runner emit 一致。
 - **`gen-cordis-catalog.ts`**：两侧新增都保留——fork 的 `desktop`／`@deepseek-ai` 行与上游的 `authorization` 行。

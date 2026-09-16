@@ -6,7 +6,7 @@ English | [中文](2026-09-14-fixture-file-system-module-extraction.zh.md)
 
 ## Problem
 
-[The projection cut](2026-09-14-fixture-projections-module-extraction.md) left `packages/client/connection/src/client/fixture.ts` at 2897 lines and named the reason it stopped there: every cut so far had extracted **module-level pure functions**, and the 2172-line body of `createFixtureWorld` (704–2875) held regions that do not qualify. [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) put what remained here in batch 2 — *cuts that need an interface settled first* — without naming what that interface would be. The open question was **how a cluster reaches the world's state**.
+[The projection cut](2026-09-14-fixture-projections-module-extraction.md) left `packages/client/connection`'s `src/client/fixture.ts` at 2897 lines and named the reason it stopped there: every cut so far had extracted **module-level pure functions**, and the 2172-line body of `createFixtureWorld` (704–2875) held regions that do not qualify. [The split plan](../../implemented/simplification/2026-09-14-god-file-split-plan.md) put what remained here in batch 2 — *cuts that need an interface settled first* — without naming what that interface would be. The open question was **how a cluster reaches the world's state**.
 
 Sorting the body's regions by what state they capture answers it. Reading each region against its own symbol references:
 
@@ -139,6 +139,8 @@ The cost is one more file, one more `tsconfig.client.json` entry, and one consta
 The three deferred remote clusters [have since landed](2026-09-14-fixture-configuration-remotes-extraction.md) in `fixture-configuration-remotes.ts`. The remaining region is the `rpc` dispatch table (2249–2459, 211 lines in the entry as it stands now), which needs its roughly 20 handlers compiled into an interface before it can move — a larger boundary decision than the file system's.
 
 Two stale points this cut leaves alone. `fixture.ts` carries two stacked doc comments above `referenceRemotes` (1209–1210): the Goal Remote line that belongs to the `goalView` declaration above it, then the reference-discovery line that describes the constant. And the plan's own lines 30–31 still say `fixture.ts` contains a `jscpd:ignore` block, which moved to `fixture-projections.ts` in the previous cut.
+
+The module family and its sibling fixture modules — `fixture.ts`, the extracted `fixture-*` modules, and their specs — were later replaced wholesale by upstream with `@deepseek-ai/dsh-remote-mock` and `apps/web/tests/assembled-remote.ts`.
 
 ## Related
 
