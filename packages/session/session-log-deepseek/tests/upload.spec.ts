@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, expectTypeOf, it } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
@@ -190,6 +190,20 @@ describe('incremental DeepSeek session-log upload', () => {
       type: 'session-log-deepseek/delivery-accepted',
       seq: 2,
     })
+  })
+
+  it('derives the watermark from the log length and reads only the unaccepted suffix', async () => {
+    const { ctx, session } = await harness('suffix-read')
+    session.append('turn/start', { turn: 1 })
+    session.append('step/start', { turn: 1, step: 1 })
+    await (await ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: session.id })).accept()
+
+    session.append('step/end', { turn: 1, step: 1 })
+    const reads = vi.spyOn(session, 'snapshotEvents')
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: session.id })
+
+    expect(prepared.fields.dsh_session_log).toMatchObject({ afterSeq: 1, throughSeq: 3 })
+    expect(reads.mock.calls).toEqual([[SessionLogOffset(2)]])
   })
 
   it('reconstructs a persisted cursor and ignores an inherited parent watermark in a fork', async () => {

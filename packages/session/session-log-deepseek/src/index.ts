@@ -165,10 +165,11 @@ export function apply(ctx: Context, config: Config): void {
       if (session === undefined) return undefined
 
       const afterSeq = acceptedThrough(session)
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-      const snapshot = session.snapshotEvents()
-      const throughSeq = snapshot.at(-1)?.seq
-      if (throughSeq === undefined) return undefined
+      // The log-length contiguity contract makes the last appended seq the
+      // watermark, so this needs no event read; an empty log has none.
+      const lastSeq = session.seq - 1
+      if (lastSeq < 0) return undefined
+      const throughSeq = SessionSeq(lastSeq)
       // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       const suffix = session.snapshotEvents(SessionLogOffset(afterSeq + 1))
       const value: DeepSeekSessionLogExtension = {
