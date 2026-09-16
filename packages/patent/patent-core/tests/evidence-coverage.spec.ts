@@ -508,7 +508,7 @@ rules:
         - evidence_direction_clear
         - evidence_source_identified
         - evidence_content_hash_available
-        - evidence_provenance_clear
+        - evidence_source_uri_or_doc_version_available
         - publication_date_available
         - filing_date_available
         - evidence_legalized

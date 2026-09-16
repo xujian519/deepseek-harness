@@ -42,6 +42,7 @@ function realSubprocess(): SubprocessRuntime {
         stdin: undefined,
         stdout: undefined,
         stderr: undefined,
+        control: undefined,
         collected: {
           stdout: { readFrom: () => ({ text: stdoutBuf, nextOffset: stdoutBuf.length, lossy: false }) },
           stderr: { readFrom: () => ({ text: stderrBuf, nextOffset: stderrBuf.length, lossy: false }) },

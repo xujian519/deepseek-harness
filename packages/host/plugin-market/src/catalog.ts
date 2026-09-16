@@ -1,8 +1,8 @@
 /**
  * Catalog client: fetch and validate a source manifest, then query a source's
  * `/v1/plugins` endpoint with only the parameters it supports. Every remote
- * payload passes through the wire schemas; entries are provenance-stamped
- * with the source that served them.
+ * payload passes through the wire schemas; entries carry the `source`
+ * providerId of the source that served them.
  * @module @deepseek-ai/dsh-host-plugin-market/catalog
  */
 
@@ -57,7 +57,7 @@ const PARAM_ORDER = ['q', 'category', 'capability', 'cursor', 'limit', 'sort', '
  * @param options - fetch bounds.
  * @param resolve - DNS resolver override (tests).
  * @param fetchImpl - fetch override (tests).
- * @returns one provenance-stamped page.
+ * @returns one page of entries, each stamped with its `source` providerId.
  */
 export async function searchCatalog(
   source: PluginMarketSource,

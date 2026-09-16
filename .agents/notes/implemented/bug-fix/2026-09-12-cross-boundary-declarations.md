@@ -29,7 +29,7 @@ Each fact is now stated where it crosses.
 
 ## Consequences
 
-Six published declaration sets now list a dependency they require, the client contract has one tool-call identity, and an ACP client sees the version this build actually is. Two limits are recorded rather than fixed: the dependency gate selects only client-faced and configured-host packages, so a plain host package could still import an undeclared workspace package (measured today: no such value import remains anywhere in `src`); and the Electron bridge speaks plain strings on its own side of the wire, so `MenuId`/`NotificationId` exist only where the backend consumes the notification. The cost is that brands are erased at runtime — the pins are the three specs, and a cast that brands a string of the wrong provenance would compile.
+Six published declaration sets now list a dependency they require, the client contract has one tool-call identity, and an ACP client sees the version this build actually is. Two limits are recorded rather than fixed: the dependency gate selects only client-faced and configured-host packages, so a plain host package could still import an undeclared workspace package (measured today: no such value import remains anywhere in `src`); and the Electron bridge speaks plain strings on its own side of the wire, so `MenuId`/`NotificationId` exist only where the backend consumes the notification. The cost is that brands are erased at runtime — the pins are the three specs, and a cast that brands a string the backend never issued would compile.
 
 ## Testing
 

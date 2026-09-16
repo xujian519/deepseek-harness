@@ -6,9 +6,9 @@ Status: implemented
 
 ## Problem
 
-台账 L2 记了三处死导出并在 2026-08-28 清扫中修复，issue #93 发现同类仍在。`SessionTitleLlmConfigSchema`（[session-title-llm](../../../../packages/session/session-title-llm/src/index.ts)）把 `SessionTitleLlmConfigFields` 包进 `z.object`，全仓零引用；两个同族标题提供方各自用共享字段表拼装自己的对象，故该包装函数是字段表抽取留下的一件残留。`SESSION_QUERY_SQLITE_PATH_KEY`（[session-query-sqlite](../../../../packages/session-query/session-query-sqlite/src/index.ts)）命名了一个启动期上下文槽位，而它所镜像的 Context 合并键也没有读者：`10bb9cbf4a` 删除了 TUI 与 legacy 入口点，而那里持有唯一的提供方（`hostCtx.provide(SESSION_QUERY_SQLITE_PATH_KEY, queryIndexPath)`）与唯一的消费方（`path: !!js launcherSessionQueryPath ?? './.sessions/session-query.db'`）。该键的 catalog 豁免把文档归属推给了一个从未描述它的包 README。
+台账 L2 记了三处死导出并在 2026-08-28 清扫中修复，issue #93 发现同类仍在。`SessionTitleLlmConfigSchema`（[session-title-llm](../../../../packages/session/session-title-llm/src/index.ts)）把 `SessionTitleLlmConfigFields` 包进 `z.object`，全仓零引用；两个同族标题提供方各自用共享字段表拼装自己的对象，故该包装函数是字段表抽取留下的一件残留。`SESSION_QUERY_SQLITE_PATH_KEY`（[session-query-sqlite](../../../../packages/session-query/session-query-sqlite/src/index.ts)）命名了一个启动期上下文槽位，而它所镜像的 Context 合并键也没有读者：上游 `dsh-v0.1.0-rc.7` 的清扫删除了 TUI 与 legacy 入口点，而那里持有唯一的提供方（`hostCtx.provide(SESSION_QUERY_SQLITE_PATH_KEY, queryIndexPath)`）与唯一的消费方（`path: !!js launcherSessionQueryPath ?? './.sessions/session-query.db'`）。该键的 catalog 豁免把文档归属推给了一个从未描述它的包 README。
 
-三处引用指向不存在的路径。`chunks/editor.tsx` 与 `chunks/terminal.tsx` 引用 `docs/plans/2026-08-12-lazy-chunks-design.md`，而这两条注释是本仓库中指向 `docs/plans/` 目录的唯一引用——该目录并不存在。`tests/plugin-shape.spec.ts` 引用 `packages/ui/jsonrpc`，该路径已被 `3fc35c91ff` 改名为 `packages/sdk/server`。
+三处引用指向不存在的路径。`chunks/editor.tsx` 与 `chunks/terminal.tsx` 引用 `docs/plans/2026-08-12-lazy-chunks-design.md`，而这两条注释是本仓库中指向 `docs/plans/` 目录的唯一引用——该目录并不存在。`tests/plugin-shape.spec.ts` 引用 `packages/ui/jsonrpc`，该路径已由上游 `dsh-v0.1.0-rc.7` 的包布局重构改名为 `packages/sdk/server`。
 
 `verify-doc-refs` 抓不到这两处 `.tsx` 引用：其 `PATTERNS` 只覆盖 `packages/**/*.ts`，于是同一编写面的 `.tsx` 一半不受检查。它的取词模式还会匹配任意更长路径中的形如文档的片段，因此只补扩展名会报出两个并不指向仓库文件的夹具路径。
 

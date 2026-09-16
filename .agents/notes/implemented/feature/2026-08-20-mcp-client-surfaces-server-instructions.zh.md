@@ -12,8 +12,8 @@ Status: implemented
 
 `dsh-mcp-client` 现在把服务器的 instructions 表面化为提示 section：
 
-- **捕获**：连接成功后读取 `client.getInstructions()`（SDK 1.29），作为当前世代的值保留；重连时替换。
-- **注册**：启用 `surfaceInstructions`（默认 `true`）时，该值注册为 `mcp:<serverName>:instructions` section，order 155，位于工具指引带（100–199）内，避开其他 harness 包使用的 order（subagent 116/116.5、report 117、SDK code-mode 150）。
+- **捕获**：连接成功后读取 `generation.getInstructions()`（SDK 2.0.0），作为当前世代的值保留；重连时替换。
+- **注册**：由上游拥有的 `server-context.ts` 把该值发布为 `mcp:<server>` section，order 取自 `getSectionOrder('MCP_SERVERS')`（3100），与 `mcp-resource-servers` 列表同处 MCP 服务器上下文带。fork 对这个注册的贡献是 `surfaceInstructions` 开关（默认 `true`，两个传输变体上都经校验），穿入 `registerServerContext`：为 `false` 时跳过该 section，而其上方的资源注册照常执行。
 - **动态文本**：section 的 text 是 provider，每次组装时重新读取当前世代，因此重连返回不同 instructions 时无需重新注册即可反映；缺失或空值不渲染任何内容（渲染阶段会丢弃空 section）。
 - **配置**：`surfaceInstructions` 是两个传输变体上的校验字段，部署若在自己的 persona 中声明了相同协议可以关闭。
 - **依赖**：`inject` 从 `['tools']` 扩展为 `['tools', 'systemPrompt']`；`@deepseek-ai/dsh-system-prompt` 加入 peer 与 dev 依赖。`systemPrompt` 是 harness 核心服务（agent-loop 依赖它），因此强制要求它会在加载时 fail loud，而不是静默渲染不出 section。
@@ -26,7 +26,7 @@ Status: implemented
 
 ## 影响
 
-- `packages/mcp/mcp-client`：`connection.ts` 在连接句柄上暴露 `instructions`；`index.ts` 注册 section；新增 5 个 apply.spec 用例覆盖注册、空值渲染、关闭开关、dispose 与按 `serverName` 命名空间隔离。单测（107）与真实协议 e2e（22）全部通过。
+- `packages/mcp/mcp-client`：`connection.ts` 在连接句柄上暴露 `instructions`；`server-context.ts` 注册 section；新增 5 个 apply.spec 用例覆盖注册、空值渲染、关闭开关、dispose 与按 `serverName` 命名空间隔离。单测（107）与真实协议 e2e（22）全部通过。
 - 生成的配置目录（`docs/config-catalog.md`，doc-sync）反映 `Requires: tools, systemPrompt` 与新字段。
 - 不改 agent-loop、`SessionEventMap` 或会话格式，因此无需同步 TS/Python SDK 预期输出，也不 bump `SESSION_FORMAT_VERSION`。
 - AgentRQ 插件自己的 `agentrq:protocol` section 保留为其渲染的工具名映射；其服务器的原始 instructions 现在独立到达，且当它只需要原始副本时可设 `guidance: false`。

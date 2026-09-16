@@ -49,6 +49,15 @@ jobs:
         # bypasses the root `test` script that upstream builds through.
         run: pnpm run build:native-system
 
+      - name: Prepare bubblewrap
+        # The workflow lanes pin the Session file policy through real sandbox
+        # confinement, and the Linux chain prefers `bwrap` over Landlock
+        # (packages/sandbox/sandbox-local). The hosted image restricts
+        # unprivileged user namespaces, so upstream's coverage lane provisions
+        # the sandbox from the shared script before running tests; this job
+        # owns that step instead of inheriting it from another runner.
+        run: bash scripts/prepare-ci-bubblewrap.sh
+
       - name: Unit tests
         # The free 2-core runner executes the native systemd containment path
         # (probe + scope launch + settle chains) far slower than upstream's

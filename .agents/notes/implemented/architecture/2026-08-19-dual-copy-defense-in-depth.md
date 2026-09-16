@@ -44,5 +44,5 @@ Three independent layers, so no single layout failure reaches the user as a cras
 ## Remaining risks
 
 - `DSH_AUTO_PNPM_INSTALL` needs pnpm on PATH; a packaged machine without pnpm degrades to the manual-fix warning (the string key keeps a same-version dual copy non-fatal meanwhile).
-- A pre-fix (symbol-keyed) `dsh-tools` copy that a plugin hoists still re-breaks a fixed app; that window closes only when the npm ecosystem ships the string key (upstream merge and release of the [string-key commit](https://github.com/xujian519/deepseek-harness/commit/8d031d46c8)).
+- A pre-fix (symbol-keyed) `dsh-tools` copy that a plugin hoists still re-breaks a fixed app; that window closes only when the npm ecosystem ships the string key (upstream merges the string-key fix and publishes a release that carries it).
 - Multi-install `$DSH_HOME` sharing (community #227) is mitigated but not solved here; heal still re-points the fallback at the last-launched install, and the diagnostic now makes the mixed load identifiable.

@@ -17,7 +17,7 @@ Status: implemented
 | 工具 | 契约 |
 |---|---|
 | `market_source_list` | 列出每个已注册目录源：稳定 source id、provider id、显示名、内置标志，以及它接受哪些查询参数。 |
-| `market_plugin_search` | 查询某个源。省略 `sourceId` 时命中内置目录；用 `q` / `category` / `capability` 过滤，用 `limit` 限定页大小。返回一页带来源标记的条目。 |
+| `market_plugin_search` | 查询某个源。省略 `sourceId` 时命中内置目录；用 `q` / `category` / `capability` 过滤，用 `limit` 限定页大小。返回一页条目，每条都带上自己的 `source`（providerId）。 |
 | `market_plugin_preview` | 针对 npm 仓库预检一个 `name@version`：是否解析成功、任何拒绝原因、声明的生命周期脚本，以及其 engines 是否接受当前运行的 Node。 |
 
 每个动词从构造上就只读。它们不会安装包、不会编辑 profile、不会改 `cordis.yml`。安装仍由操作者驱动的 `dsh plugin` CLI 负责，因此 Agent 绝不在没有操作者明确决策的情况下落地一个包。

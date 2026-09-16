@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-`appendTeamEvent` 还带着移植时的过渡性守卫：在运行时探测 harness 的 `KNOWN_SESSION_EVENT_TYPES`，静默丢弃运行构建不认识的每一个 `patent-teams/*` 事件。该守卫写于 `Session.append` 暴露 `ignorable: true` 写入选项（`012e897ace`）之前。在本 fork 内，生成的词汇表已收录全部九个类型，守卫恒放行，探测成了死代码；而作为发布插件装到 upstream harness 构建上时，守卫会把整段团队记录静默丢弃在会话日志之外——两处注释也早已偏离现实。
+`appendTeamEvent` 还带着移植时的过渡性守卫：在运行时探测 harness 的 `KNOWN_SESSION_EVENT_TYPES`，静默丢弃运行构建不认识的每一个 `patent-teams/*` 事件。该守卫写于 `Session.append` 暴露 `ignorable: true` 写入选项之前。在本 fork 内，生成的词汇表已收录全部九个类型，守卫恒放行，探测成了死代码；而作为发布插件装到 upstream harness 构建上时，守卫会把整段团队记录静默丢弃在会话日志之外——两处注释也早已偏离现实。
 
 ## 决策
 

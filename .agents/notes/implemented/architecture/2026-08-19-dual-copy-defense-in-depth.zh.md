@@ -44,5 +44,5 @@
 ## Remaining risks
 
 - `DSH_AUTO_PNPM_INSTALL` 需要 PATH 上有 pnpm；没有 pnpm 的打包机器退化为手动修复警告（期间字符串键让同版本双副本不致命）。
-- 插件 hoist 的"修复前（Symbol 键）`dsh-tools` 副本"仍会让修复后的 app 重新崩溃；该窗口只有等 npm 生态发布字符串键（上游合入并发布 [字符串键提交](https://github.com/xujian519/deepseek-harness/commit/8d031d46c8)）后才会关闭。
+- 插件 hoist 的"修复前（Symbol 键）`dsh-tools` 副本"仍会让修复后的 app 重新崩溃；该窗口只有等 npm 生态发布字符串键（上游合入字符串键修复并发布携带它的版本）后才会关闭。
 - 多安装共享 `$DSH_HOME`（社区 #227）在此仅被缓解而非解决：heal 仍会把 fallback 重指向最后启动的安装，但诊断错误已让混合加载可识别。

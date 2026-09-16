@@ -25,7 +25,7 @@ kind: "package-reference"
 
 把该包作为 Loader 条目挂进服务于浏览器插件发现表面的 profile（`dsh-web-app` bundle 就是这样）。条目独立于其提供方注册 `pluginMarket` 命名空间，因此提供方缺失会在调用时产生命名的 `internal` 失败，而不是缺失命名空间。其生成的描述符进入严格 Typert 注册表。
 
-`listSources()` 返回宿主已注册的每个目录源，包含 `builtin` 标记，浏览器据此分辨离线捆绑目录与网络目录。`search(sourceId, query)` 把一条 `CatalogQuery` 转发到某个源，返回带来源印记的 `CatalogPage`；不支持的查询字段由提供方丢弃。`preview(ref)` 对 `name@version` 引用向注册表做预检，并返回 `InstallPreview`，不触碰 profile。
+`listSources()` 返回宿主已注册的每个目录源，包含 `builtin` 标记，浏览器据此分辨离线捆绑目录与网络目录。`search(sourceId, query)` 把一条 `CatalogQuery` 转发到某个源，返回 `CatalogPage`，其中每条条目都带上 `source`（providerId）；不支持的查询字段由提供方丢弃。`preview(ref)` 对 `name@version` 引用向注册表做预检，并返回 `InstallPreview`，不触碰 profile。
 
 每个方法都把 seam 抛出的 `PluginMarketError` 映射为 `TypertRemoteFailure`，其 `code` 是业务闭集码，因此浏览器看到 `source-not-found`、`preview-failed`、`network` 等，而非不透明传输错误。任何其他失败变成 `internal` 并携带提供方消息。浏览器侧的 `result.error` 因此是携带业务码的类型化失败。
 

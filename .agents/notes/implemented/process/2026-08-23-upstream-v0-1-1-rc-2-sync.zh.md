@@ -6,11 +6,11 @@ Status: implemented
 
 ## 问题
 
-上游发布了 `dsh-v0.1.1-rc.2`（`b150a551b8`），相对 fork 在 PR #20 合并的 rc.1 基线（`528c682e06`）变化 431 个文件（+8101/−2039）。上游 rc.2 以图像管线统一为主：`read_image` 规范化准入与确定性缩放、结果信封中的 `originalDimensions`、`saveImage` 在源事实之外返回规范引用、以及停用的 image-region 工具。fork 的自有面（patent、self-evolve、desktop、synapse、plugin-market、`dsh-timeout-guard` 改名）位于同一 rc.1 基线之上。
+上游发布了 `dsh-v0.1.1-rc.2`，相对 fork 在 PR #20 合并的 `dsh-v0.1.1-rc.1` 基线变化 431 个文件（+8101/−2039）。上游 rc.2 以图像管线统一为主：`read_image` 规范化准入与确定性缩放、结果信封中的 `originalDimensions`、`saveImage` 在源事实之外返回规范引用、以及停用的 image-region 工具。fork 的自有面（patent、self-evolve、desktop、synapse、plugin-market、`dsh-timeout-guard` 改名）位于同一 rc.1 基线之上。
 
 ## 决策
 
-以一个合并提交（`Merge upstream v0.1.1-rc.2 (b150a551b8) into fork`）前向合并，按类别解决冲突：
+以一个合并提交（`Merge upstream v0.1.1-rc.2 into fork`）前向合并，按类别解决冲突：
 
 - **冲突（9 个文件，全部为文档）**：`docs/event-producer-consumer.{md,zh.md}`、`docs/module-graph.{md,zh.md}`、`packages/fs/tool-fs/README.md` 与 `README.zh.md` 及其 `.i18n.yaml` 配对记录。生成类图谱文档以 fork 侧为合并基线，随后从合并后的源码树重新生成——既纳入上游变更（`llm/stream` 源码行号移动、`host-apiproxy` 删除的 `permission-presets` 依赖），又保留 fork 内容。手写 tool-fs README 双侧合并：保留 fork 的 `timeout-guard` 措辞，采纳上游新增的 `No attachment-region tool` 限制条目。
 - **无源码冲突**：fork 代码不触及重构后的 attachment/`read_image` seam；合并树上的 `typecheck`、`lint`（89 规则）与单元测试均通过，无需进一步源码改动。

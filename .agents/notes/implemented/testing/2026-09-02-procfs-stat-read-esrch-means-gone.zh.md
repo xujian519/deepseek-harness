@@ -14,7 +14,7 @@ Status: implemented
 
 ## 后果
 
-Linux 退出轮询现在识别任务消失的全部三种 procfs 信号：open 前的 `ENOENT`、open 后 read 的 `ESRCH`、以及僵尸态 `Z`。同形的兄弟探测保持各自策略：`terminal-bash` 的 `processIsRunning` 把任何 procfs 读取错误视为已消失；`lsp-stdio` 的 `processAlive` 仍重新抛出非 `ENOENT` 的读取错误，携带同样的潜在竞态，此处不改，因为它尚未失败，且其所有者可能更倾向更宽的 catch。验证证据：修复前失败为 CI run 33510696039（提交 9bbdc210）；该签名是 Linux procfs 特有，而工作区主机是 macOS 且无 Linux 容器，故本次变更后的下一个 Linux lane 即为修复后复现。
+Linux 退出轮询现在识别任务消失的全部三种 procfs 信号：open 前的 `ENOENT`、open 后 read 的 `ESRCH`、以及僵尸态 `Z`。同形的兄弟探测保持各自策略：`terminal-bash` 的 `processIsRunning` 把任何 procfs 读取错误视为已消失；`lsp-stdio` 的 `processAlive` 仍重新抛出非 `ENOENT` 的读取错误，携带同样的潜在竞态，此处不改，因为它尚未失败，且其所有者可能更倾向更宽的 catch。验证证据：修复前失败为 CI run 33510696039（2026-09-01 的 fork master 提交）；该签名是 Linux procfs 特有，而工作区主机是 macOS 且无 Linux 容器，故本次变更后的下一个 Linux lane 即为修复后复现。
 
 ## 落选方案
 

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { BUILTIN_SOURCE, searchBuiltinCatalog } from '../src/builtin-catalog.ts'
 
 describe('searchBuiltinCatalog', () => {
-  it('returns every entry by default, stamping the bundled provenance', () => {
+  it('returns every entry by default, stamping the bundled source\'s providerId', () => {
     const page = searchBuiltinCatalog()
     expect(page.items.length).toBeGreaterThan(0)
     expect(page.items.every(item => item.source === BUILTIN_SOURCE.providerId)).toBe(true)

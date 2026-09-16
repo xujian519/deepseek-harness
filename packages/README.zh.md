@@ -24,7 +24,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 <a id="package-groups"></a>
 ## 包分组
 
-每个包只属于一个组；新包加入现有组，新组则更新其自身 README 与本表。
+新包加入现有组，新组则更新其自身 README 与本表。
 
 | 组 | 职责 |
 |---|---|
@@ -36,11 +36,13 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`feedback/`](feedback/README.zh.md) | 人类反馈的采集与命令 |
 | [`identity/`](identity/README.zh.md) | 共享匿名身份 |
 | [`llm/`](llm/README.zh.md) | LLM（大语言模型）能力系列：抽象服务 + 提供方适配器 |
-| [`e2b/`](e2b/README.zh.md) | E2B 远程运行时提供方 |
 | [`subprocess/`](subprocess/README.zh.md) | 子进程能力系列：Service Definition + 本地进程树提供方 |
+| [`ssh/`](ssh/README.zh.md) | POSIX 远端连接及配套文件系统、子进程与沙箱提供方 |
 | [`shell/`](shell/README.zh.md) | Bash 能力系列：执行器 seam、本地实现、面向模型的工具 |
 | [`terminal/`](terminal/README.zh.md) | 持久 PTY 能力系列：限定所有者范围的会话、本地实现、面向模型的工具 |
-| [`code-runtime/`](code-runtime/README.zh.md) | 代码执行能力系列：Service Definition + worker 线程提供方 + PTC mode Consumer |
+| [`ptc-runtime/`](ptc-runtime/README.zh.md) | PTC 执行能力族：Service Definition + 沙箱 Node 提供方 + PTC mode Consumer |
+| [`computer-use/`](computer-use/README.zh.md) | 按名称独占注册桌面提供方 |
+| [`browser-use/`](browser-use/README.zh.md) | 按名称独占注册浏览器提供方 |
 | [`sandbox/`](sandbox/README.zh.md) | 进程限制 seam；bwrap、Landlock、Seatbelt 后端 |
 | [`fs/`](fs/README.zh.md) | 文件系统能力系列：seam、本地实现、面向模型的文件工具、发现工具 |
 | [`lsp/`](lsp/README.zh.md) | LSP 能力系列：seam、通用 stdio 提供方和 `lsp` 工具 |
@@ -50,8 +52,8 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`memory/`](memory/README.zh.md) | 外部记忆与上下文数据库集成（OpenViking） |
 | [`subagent/`](subagent/README.zh.md) | subagent 能力系列：提供方注册表约定和面向模型的委托工具 |
 | [`jobs/`](jobs/README.zh.md) | 通用后台任务运行时和面向模型的作业控制工具 |
-| [`experimental/`](experimental/README.zh.md) | 私有原型与内部专用插件 |
-| [`workflow/`](workflow/README.zh.md) | 工作流 seam、worker 线程引擎、面向模型的 `workflow`／`ralph` 工具 |
+| [`experimental/`](experimental/README.zh.md) | 预稳定原型，包含显式私有例外 |
+| [`workflow/`](workflow/README.zh.md) | 工作流 seam、PTC 进程引擎、面向模型的 `workflow`／`ralph` 工具 |
 | [`webhook/`](webhook/README.zh.md) | 已验证外部事件、受信规则与即发即弃 Workspace 会话 |
 | [`web/`](web/README.zh.md) | Web 能力系列：seam、搜索／获取提供方、面向模型的 Web 工具 |
 | [`attachment/`](attachment/README.zh.md) | 持久附件标识、校验、本地内容寻址存储 |
@@ -81,16 +83,16 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`host/`](host/README.zh.md) | web GUI 宿主半侧：API 网关 + HTTP 路由服务器 |
 | [`client/`](client/README.zh.md) | web GUI 浏览器半侧：shell、协议层、对象服务、slot、`ui-*` 插件 |
 | [`desktop/`](desktop/README.zh.md) | 桌面操作系统集成：Service Definition + Electron shell 提供方 + 沙盒化目录选择桥 + CLI 驱动的 macOS 原生工具 |
-| [`test-support/`](test-support/README.zh.md) | 支持基础设施（testkit、不变式、回放、Loader 冒烟测试） |
+| [`test-support/`](test-support/README.zh.md) | 测试基础设施（testkit、回放、Loader 冒烟测试） |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.zh.md) | 运行时诊断：按包归属的运行时不变式检查与报告 |
-| [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；不注册产品服务或事件，运行期依赖只出现在确实需要它的原语里（`zod`、`undici`、`dsh-util-values`） |
+| [`util/`](util/README.zh.md) | 组间共享的低层工具（`Branded<B>`、home/路径辅助函数、超时、留存）；运行期依赖只出现在确实需要它的原语里（`zod`、`undici`、`dsh-util-values`） |
 
 -----
 
 <a id="release-expectations"></a>
 ## 发布预期
 
-大多数组属于产品组，提供稳定 API。例外：`e2b/` 是 POC，`experimental/` 不发布，`test-support/`、`runtime-diagnostics/` 与 `util/` 是兼容性预期较低的支持组。
+大多数组属于产品组，提供稳定 API。例外：`experimental/` 发布时不提供稳定性或支持承诺，`test-support/`、`runtime-diagnostics/` 与 `util/` 是兼容性预期较低的支持组。
 
 -----
 

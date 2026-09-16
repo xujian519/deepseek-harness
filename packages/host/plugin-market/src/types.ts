@@ -52,7 +52,7 @@ export interface CatalogQuery {
   locale?: string
 }
 
-/** One catalog entry as served by a source, plus host-injected provenance. */
+/** One catalog entry as served by a source, plus the host-injected `source` providerId. */
 export interface CatalogItem {
   /** Provider-claimed stable item identifier. */
   id: string
@@ -72,13 +72,13 @@ export interface CatalogItem {
   homepage?: string
   /** SPDX license identifier. */
   license?: string
-  /** The source providerId this entry came from (host-injected provenance). */
+  /** The source providerId this entry came from. */
   source: string
 }
 
 /** One page of catalog results. */
 export interface CatalogPage {
-  /** This page's entries, provenance-stamped. */
+  /** This page's entries, each stamped with its `source` providerId. */
   items: readonly CatalogItem[]
   /** Continuation cursor for the next page, absent on the last page. */
   nextCursor?: string

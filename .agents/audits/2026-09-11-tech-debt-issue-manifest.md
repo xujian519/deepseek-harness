@@ -1,6 +1,6 @@
 # 技术债务 / 异味代码 Issue 跟踪清单（草稿，待确认后创建）
 
-- 日期：2026-09-11；仓库 `xujian519/deepseek-harness`（fork，`origin`）；基线提交 `dc50e9045f`
+- 日期：2026-09-11；仓库 `xujian519/deepseek-harness`（fork，`origin`）；基线提交：2026-09-11 当日的 fork master
 - 范围：`packages/`、`apps/`、`scripts/`、`python/`；排除 `vendor/`（vendored，改动须走 sync 程序）与构建残留目录
 - 方法：门禁实跑 + 8 个并行只读探查代理（债务标记 / 抑制与逃生口 / 跨包复制 / 体量与复杂度 / 硬编码参数 / 死代码与失效引用 / 测试质量 / 架构不变量与文档一致性）+ 主会话逐条回读 `file:line` 复核
 - 复核纪律：子代理给出的每条候选都经主会话回读源码确认；本清单只保留已复核属实的条目，被证伪的条目集中在第 5 节「不建 issue」，不在正文出现
@@ -92,7 +92,7 @@
         safeHostDependencyExports lists unused @deepseek-ai/dsh-subagent export snapshotSubagentDescriptor
 ```
 
-这是 fork 自身桌面侧栏改造（`aee23304a9 feat(desktop): remount the workspace sidebar and repair its portless transports`，PR #73）留下的分类缺口，不是上游引入。它当前阻断任何触达该门禁的 PR。
+这是 fork 自身桌面侧栏改造（`feat(desktop): remount the workspace sidebar and repair its portless transports`，PR #73）留下的分类缺口，不是上游引入。它当前阻断任何触达该门禁的 PR。
 
 **Deliverables**
 
@@ -124,7 +124,7 @@ e2b POC 组的生命周期缺口集中且长期未动（最旧 TODO 44 天）：
 
 **Expected behavior**：对照 terminal seam 的 `TerminalBackendCleanupError` + AggregateError 回滚设计补齐 quiescence 与回滚；`ready` 失败至少落日志；teardown 区分错误类型而不是只捕获 `SandboxNotFoundError`。
 
-**Environment**：`packages/e2b/*`，当前基线 `dc50e9045f`。
+**Environment**：`packages/e2b/*`，当前基线为 2026-09-11 当日的 fork master。
 
 **Evidence**：`grep -rn 'TODO(e2b' packages/e2b` 命中 7 条，全部与 08-30 审计 H4 描述一致；台账 H4 标记「仍开放」。
 
@@ -192,7 +192,7 @@ node -e "require.resolve('@deepseek-ai/dsh-value',{paths:['packages/session/sess
 
 **Environment**：本机 macOS arm64；`@deepseek-ai/dsh-value` 只在 `node_modules/.pnpm/node_modules/` 下存在，不在解析路径上。
 
-**Evidence**：引入自 commit `ac5ff49b75 refactor: sink isPlainObject, the errno tests, and deepFreeze into dsh-value`（2026-08-30）；该 commit 未改动此包 `package.json`。类型导入清单（16 组，全部 `import type`）：api-settings-controller、host-synapse(×2)、mcp-client、patent-document、patent-teams、patent-tools(×10 文件)、token-meter、tool-cordis(×2)、tool-fs-search、tool-literature(×2)、tool-plugin-market、tool-ralph、tool-self-evolve、tool-subagent、tool-workflow。
+**Evidence**：引入自 commit `refactor: sink isPlainObject, the errno tests, and deepFreeze into dsh-value`（2026-08-30）；该 commit 未改动此包 `package.json`。类型导入清单（16 组，全部 `import type`）：api-settings-controller、host-synapse(×2)、mcp-client、patent-document、patent-teams、patent-tools(×10 文件)、token-meter、tool-cordis(×2)、tool-fs-search、tool-literature(×2)、tool-plugin-market、tool-ralph、tool-self-evolve、tool-subagent、tool-workflow。
 
 ---
 
@@ -227,7 +227,7 @@ ACP 握手里上报的 `agentInfo.version` 是硬编码 `'0.0.1'`，而包实际
 
 **Expected behavior**：从包版本派生（构建期注入或读取 `package.json`），并在测试中断言两者一致。
 
-**Environment**：基线 `dc50e9045f`，`packages/acp/acp/package.json` 的 `version` 为 `0.1.5-rc.2`。
+**Environment**：基线为 2026-09-11 当日的 fork master，`packages/acp/acp/package.json` 的 `version` 为 `0.1.5-rc.2`。
 
 **Evidence**：台账 M8 已登记该常量（原行号 239，现 182），至今未修。
 
@@ -279,7 +279,7 @@ AGENTS.md 要求空的 catch「命名它吞掉什么、为什么别的路径到�
 - 逐个决定拆分方案并入 PR；生成文件（`extensions/tool-cordis/src/api-catalog.ts` 7843、`cordis-client-runner/src/client/slot-catalog.ts` 2714 等）不在范围内。
 - 拆分优先级建议：`fixture.ts` 的 `createFixtureWorld` → `code-runtime-python`（新债）→ `analyzer.ts` → `core/session` → `ptc.ts`/`acp apply`。
 
-**Evidence**：`wc -l` 于基线 `dc50e9045f`；`packages/*/*/src` 下 ≥1000 行文件 35 个、≥1200 行 19 个；src 内 ≥250 行函数 64 个，主体是客户端 React 组件。
+**Evidence**：`wc -l` 于 2026-09-11 当日的 fork master 基线；`packages/*/*/src` 下 ≥1000 行文件 35 个、≥1200 行 19 个；src 内 ≥250 行函数 64 个，主体是客户端 React 组件。
 
 ---
 
@@ -534,7 +534,7 @@ AGENTS.md 要求默认值是一个显式的 `resolve(request): Spec` 步骤，�
 
 **Resolution**
 
-该 legacy shim 已不存在。`packages/api/remotes/src/agent-lookup.ts` 在 2026-08-22 的 Session Controller refactor（`d26acfa2e3`）中被整体删除，其 subagent ownership 检查随后在新的 Session Controller 中以 `session/agent-busy` 重新实现；旧错误码 `'agent-busy'` 与 `ApiRemote*` 符号在当前树中无残留。当前 `session/agent-busy` 是已文档化的当前设计，不是 shim。`SESSION_FORMAT_VERSION` 现为 3。详见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
+该 legacy shim 已不存在。`packages/api/remotes/src/agent-lookup.ts` 在 2026-08-22 的 Session Controller refactor 中被整体删除，其 subagent ownership 检查随后在新的 Session Controller 中以 `session/agent-busy` 重新实现；旧错误码 `'agent-busy'` 与 `ApiRemote*` 符号在当前树中无残留。当前 `session/agent-busy` 是已文档化的当前设计，不是 shim。`SESSION_FORMAT_VERSION` 现为 3。详见 `.agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md`。
 
 **Evidence**：台账 M9 原文；`SESSION_FORMAT_VERSION = 2/3` 现况；git history of `packages/api/remotes/src/agent-lookup.ts`。
 

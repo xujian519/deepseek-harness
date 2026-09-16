@@ -14,8 +14,7 @@ import type { Message } from '@deepseek-ai/dsh-llm'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { EpochHeader, RequestContext, SessionEvent } from './types.ts'
 import { foldRequestHeader } from './request-header.ts'
-import { deriveEventMessage } from './surface.ts'
-import type { SessionSurface } from './surface.ts'
+import type { SurfaceManager } from './surface.ts'
 
 /** Cache state for the request header, the request context, and the derived messages. */
 export class SessionFolds {
@@ -31,16 +30,17 @@ export class SessionFolds {
   private derived: Message[] = []
   /** Surface position (nodes projected) the cache has reached. */
   private derivedNodes = 0
-  /** {@link SessionSurface.replaceGeneration} the cache was built under. */
+  /** {@link SurfaceManager.contentGeneration} the cache was built under. */
   private derivedGeneration = 0
 
   /**
    * @param log - the session's live event log; appends by its owner are visible here.
-   * @param surface - the ordered surface over that same log.
+   * @param surface - the ordered surface over that same log; it also owns the
+   *   committed message projections the derived history must apply.
    */
   constructor(
     private readonly log: readonly SessionEvent[],
-    private readonly surface: SessionSurface,
+    private readonly surface: SurfaceManager,
   ) {}
 
   /**
@@ -85,21 +85,21 @@ export class SessionFolds {
    * append records its `surfaceOp`, so a raw event with no marker (a chunk, a
    * turn boundary) is correctly absent, and a compaction `replace` deletes the
    * shadowed nodes from the derivation. The projection rules are
-   * {@link deriveEventMessage}, folded per node.
+   * {@link deriveEventMessage}, with logged message projections applied
+   * without changing node membership or message identity.
    *
-   * CACHED: each surface node is projected exactly once, when first seen — a
-   * call costs O(new nodes), and a surface rewrite (a `replace`;
-   * {@link SessionSurface.replaceGeneration}) rebuilds. The returned array is
+   * CACHED: pure tail growth costs O(new nodes); a replacement or message projection
+   * ({@link SessionSurface.contentGeneration}) rebuilds. The returned array is
    * a fresh snapshot per call (later appends never grow an array a caller
    * already holds); the `Message` objects in it are SHARED and **deep-frozen**.
-   * Their content reuses the already frozen durable event data, so the cache
-   * needs no second deep clone and consumers still cannot mutate the log.
+   * Unchanged content reuses frozen event data; projected blocks are frozen
+   * derived copies. Consumers cannot mutate the log through either form.
    * @returns a fresh array of the shared, frozen derived history.
    */
   deriveMessages(): Message[] {
     const surface = this.surface
     const nodes = surface.nodes
-    const generation = surface.replaceGeneration
+    const generation = surface.contentGeneration
     if (generation !== this.derivedGeneration) {
       this.derived = []
       this.derivedNodes = 0
@@ -109,7 +109,7 @@ export class SessionFolds {
       // Surface sequences are built from this.log — seq is always a valid
       // index by construction. The non-null assertion expresses that invariant.
       // oxlint-disable-next-line typescript/no-non-null-assertion
-      const msg = deriveEventMessage(this.log[seq]!)
+      const msg = this.surface.deriveEventMessage(this.log[seq]!)
       // A surface node is one of the five message-producing types, but an
       // empty-content assistant/message (a max-tokens step that hosts only
       // usage) derives to null and must not enter the transcript.

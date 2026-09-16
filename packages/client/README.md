@@ -45,6 +45,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`resources/`](resources/README.md) | Unified resource model: protocol providers behind the `useResource` session standard hook | `ctx.resources` |
 | [`ui-sidebar-files/`](ui-sidebar-files/README.md) | Right-Sidebar workspace file tree tab type | — |
 | [`ui-sidebar-documentpreview/`](ui-sidebar-documentpreview/README.md) | Previews readable files in the right Sidebar under the `text` tab kind | `ctx.documentPreviews` |
+| [`ui-sidebar-terminal/`](ui-sidebar-terminal/README.md) | Right-Sidebar interactive shell tab type, with recovery of retained Host terminals | — |
 | [`ui-sidebar-right/`](ui-sidebar-right/README.md) | Holds the right Sidebar: one docking surface per session, over the docking kit and the tab-type registry | `ctx.sidebarRight` / `ctx.sidebarRightTabs` |
 | [`ui-dockkit/`](ui-dockkit/README.md) | Provides the docking layout engine — a split tree of tabbed panes with invertible operations — and the components that render and drive it | — |
 | [`ui-brand-official/`](ui-brand-official/README.md) | Fills the generic browser-brand slots with the official name and marks | — |
@@ -75,6 +76,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-settings-general/`](ui-settings-general/README.md) | Provides the general settings section | — |
 | [`ui-settings-models/`](ui-settings-models/README.md) | Provides model-provider configuration and DeepSeek onboarding | — |
 | [`ui-settings-plugin-inventory/`](ui-settings-plugin-inventory/README.md) | Contributes the read-only Host Loader inventory tab to Plugins settings | — |
+| [`ui-settings-unarchive-sessions/`](ui-settings-unarchive-sessions/README.md) | Provides the Archived sessions settings page: the archive set with a title/Workspace filter and one Unarchive action per row | — |
 | [`ui-plugin-market/`](ui-plugin-market/README.md) | Contributes the read-only Plugin market tab to the Plugins settings section | — |
 | [`ui-deliverables/`](ui-deliverables/README.md) | Produces the produced-files turn tail and clickable final-response file references | — |
 | [`ui-document-studio/`](ui-document-studio/README.md) | Contributes the document studio: a produced-files conversation view tab with host preview and open / show-in-folder / print actions | — |

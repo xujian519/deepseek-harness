@@ -8,9 +8,9 @@ English | [中文](2026-09-12-snapshot-corpus-repair.zh.md)
 
 `pnpm run test:snapshot`, the keyless replay tier, was red on master: 14 cases across 4 files. Nothing surfaced it because the fork's CI job runs `vitest run`, which excludes `vitest.snapshot.config.ts`. Four independent drifts had accumulated, each a merged change to model- or protocol-visible output whose fixture was never updated:
 
-- `todo_write` grew a `tags` property (`daebc0e82f`) while the tool-schema sidecars of `sdk/system-prompt-in-history`, `session/subagent-tool-filter`, and `session/macos-tools-validation` kept the old schema.
-- `SESSION_FORMAT_VERSION` moved to 3 (`f7a6221158`) while the `macos-tools-validation` directory held only a v2 generation, so the corpus policy rejected the selected generation.
-- `str_replace_editor` left the default tool set (`36a4665144`) while the `macos-tools-validation` sidecar still listed it.
+- `todo_write` grew a `tags` property while the tool-schema sidecars of `sdk/system-prompt-in-history`, `session/subagent-tool-filter`, and `session/macos-tools-validation` kept the old schema.
+- `SESSION_FORMAT_VERSION` moved to 3 while the `macos-tools-validation` directory held only a v2 generation, so the corpus policy rejected the selected generation.
+- `str_replace_editor` left the default tool set while the `macos-tools-validation` sidecar still listed it.
 - The client surface began re-exporting the host `ToolCallId` (Issue #83) and the ACP handshake began advertising the package version (Issue #84), which `session/cordis-inspect-jsdoc` and every `snapshots/acp` stdout expectation still pinned to their old values.
 
 Repairing the fixtures exposed two defects underneath the drift:

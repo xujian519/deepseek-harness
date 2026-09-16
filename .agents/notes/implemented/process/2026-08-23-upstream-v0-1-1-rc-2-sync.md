@@ -6,11 +6,11 @@ English | [中文](2026-08-23-upstream-v0-1-1-rc-2-sync.zh.md)
 
 ## Problem
 
-Upstream released `dsh-v0.1.1-rc.2` (`b150a551b8`), 431 files changed (+8101/−2039) against the rc.1 base (`528c682e06`) the fork merged in PR #20. Upstream rc.2 is dominated by the image-pipeline unification: `read_image` canonical admission with deterministic downscaling, `originalDimensions` in the result envelope, `saveImage` returning the canonical ref beside source facts, and the retired image-region tool. The fork's own surfaces (patent, self-evolve, desktop, synapse, plugin-market, the `dsh-timeout-guard` rename) sit on the same rc.1 base.
+Upstream released `dsh-v0.1.1-rc.2`, 431 files changed (+8101/−2039) against the `dsh-v0.1.1-rc.1` base the fork merged in PR #20. Upstream rc.2 is dominated by the image-pipeline unification: `read_image` canonical admission with deterministic downscaling, `originalDimensions` in the result envelope, `saveImage` returning the canonical ref beside source facts, and the retired image-region tool. The fork's own surfaces (patent, self-evolve, desktop, synapse, plugin-market, the `dsh-timeout-guard` rename) sit on the same rc.1 base.
 
 ## Decision
 
-Merge forward in one merge commit (`Merge upstream v0.1.1-rc.2 (b150a551b8) into fork`), with conflict resolution by category:
+Merge forward in one merge commit (`Merge upstream v0.1.1-rc.2 into fork`), with conflict resolution by category:
 
 - **Conflicts (9 files, all documentation)**: `docs/event-producer-consumer.{md,zh.md}`, `docs/module-graph.{md,zh.md}`, `packages/fs/tool-fs/README.md` and `README.zh.md` plus their `.i18n.yaml` pair records. The generated graph docs took the fork side as the merge baseline and were then regenerated from the merged tree, which folds in the upstream changes (the `llm/stream` source-line move, the dropped `permission-presets` dependency of `host-apiproxy`) while keeping fork content. The hand-written tool-fs README merged both sides: the fork's `timeout-guard` wording stays, the upstream `No attachment-region tool` limitation bullet is adopted.
 - **No source conflicts**: fork code does not touch the reworked attachment/`read_image` seams; `typecheck`, `lint` (89 rules), and the unit suite pass on the merged tree without further source changes.

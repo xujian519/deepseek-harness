@@ -3,7 +3,8 @@
  * served as an always-available source so `ctx.pluginMarket` works out of the
  * box without a registered online source. The data is a release-bundled
  * snapshot — it refreshes with each publish, never over the network. Entries
- * are provenance-stamped at query time; search is a pure in-memory filter.
+ * get the bundled source's providerId in `source` at query time; search is a
+ * pure in-memory filter.
  * @module @deepseek-ai/dsh-host-plugin-market/builtin-catalog
  */
 
@@ -26,7 +27,7 @@ export const BUILTIN_SOURCE: PluginMarketSource = {
   builtin: true,
 }
 
-/** The bundled entries, without host provenance (added at query time). */
+/** The bundled entries, without the host-injected `source` (added at query time). */
 const BUILTIN_ITEMS: readonly Omit<CatalogItem, 'source'>[] = [
   {
     id: 'dsh-tool-bash',
@@ -87,10 +88,10 @@ const BUILTIN_ITEMS: readonly Omit<CatalogItem, 'source'>[] = [
 
 /**
  * Search the bundled catalog. Filters by free text, then exact category and
- * capability, and clamps to the requested page size. Provenance is stamped
- * with the bundled source's providerId.
+ * capability, and clamps to the requested page size. Each entry's `source` is
+ * the bundled source's providerId.
  * @param query - the search parameters.
- * @returns one provenance-stamped page.
+ * @returns one page of entries, each stamped with its `source` providerId.
  */
 export function searchBuiltinCatalog(query: CatalogQuery = {}): CatalogPage {
   const q = query.q?.trim().toLowerCase()

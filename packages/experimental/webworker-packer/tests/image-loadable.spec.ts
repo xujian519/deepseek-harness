@@ -328,9 +328,13 @@ const archive = async (): Promise<Uint8Array> =>
       fiber: { state: FiberState.ACTIVE },
       parent: { tree },
     }
+    // The packed plugin reads services off its context; this hand-built stand-in
+    // answers every lookup with absence so the package falls back to the same
+    // createRequire walk the Worker runtime gives it.
     inventory.apply({
       baseUrl,
       loader: tree,
+      get: () => undefined,
       deepseekLlmApiExtensions: {
         register: (field: string, contribution: { readonly prepare: Prepare }): void => {
           expect(field).toBe('dsh_plugin_packages')

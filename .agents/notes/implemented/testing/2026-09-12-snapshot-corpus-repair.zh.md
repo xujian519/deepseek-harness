@@ -8,9 +8,9 @@ Status: implemented
 
 `pnpm run test:snapshot`(keyless 回放层)在 master 上是红的:4 个文件、14 个用例失败。它没有浮出水面,是因为 fork 的 CI 跑的是 `vitest run`,不包含 `vitest.snapshot.config.ts`。累积的漂移有四处,每一处都是「已合并的对模型/协议可见输出的改动、其 fixture 从未更新」:
 
-- `todo_write` 新增 `tags`(`daebc0e82f`),而 `sdk/system-prompt-in-history`、`session/subagent-tool-filter`、`session/macos-tools-validation` 的 tool-schema 侧录仍是旧 schema。
-- `SESSION_FORMAT_VERSION` 升到 3(`f7a6221158`),而 `macos-tools-validation` 目录只有 v2 代,语料策略因此拒绝其选中代。
-- `str_replace_editor` 退出默认工具集(`36a4665144`),而 `macos-tools-validation` 的侧录仍在列它。
+- `todo_write` 新增 `tags`,而 `sdk/system-prompt-in-history`、`session/subagent-tool-filter`、`session/macos-tools-validation` 的 tool-schema 侧录仍是旧 schema。
+- `SESSION_FORMAT_VERSION` 升到 3,而 `macos-tools-validation` 目录只有 v2 代,语料策略因此拒绝其选中代。
+- `str_replace_editor` 退出默认工具集,而 `macos-tools-validation` 的侧录仍在列它。
 - 客户端面开始再导出宿主 `ToolCallId`(Issue #83)、ACP 握手上报包版本(Issue #84),而 `session/cordis-inspect-jsdoc` 与全部 `snapshots/acp` 的 stdout 期望仍钉着旧值。
 
 修 fixture 时又暴露出漂移之下的两个缺陷:

@@ -6,7 +6,7 @@ English | [中文](2026-09-14-fixture-projections-module-extraction.zh.md)
 
 ## Problem
 
-After [the history-module cut](2026-09-14-fixture-history-module-extraction.md), `packages/client/connection/src/client/fixture.ts` was 3475 lines. Three kinds of content share it: the wire types the browser-mode provider answers with, the session-query mirrors that derive them, and `createFixtureWorld`, the 1596-line body that serves both.
+After [the history-module cut](2026-09-14-fixture-history-module-extraction.md), `packages/client/connection`'s `src/client/fixture.ts` was 3475 lines. Three kinds of content share it: the wire types the browser-mode provider answers with, the session-query mirrors that derive them, and `createFixtureWorld`, the 1596-line body that serves both.
 
 A fourth kind sat in the middle. Between `sid` (443) and `backscanGoal` (1170), 737 lines read a whole session log and return one projection unit's current value: plan mode, the permission select over the fixture's presets, the last request context, token and context statistics, the `model/selection` value, the per-key frames a control event advances, and the goal backscan.
 
@@ -115,6 +115,8 @@ Those are the same gaps the entry's own exemption entry records. `fixture.ts` is
 The cost is one more file, one more coverage exemption entry carrying a `TODO(gui)` that outlives this cut, and one comment moved to the function it describes. The module imports nine names in five statements from `@deepseek-ai/dsh-llm`, `dsh-session`, and `dsh-tool-todo`, and the entry imports twelve back; nothing else changed direction.
 
 `fixture.ts` is still 2897 lines. The plan's remaining cuts inside it are the query mirrors and the world's own regions; `createFixtureWorld` at 1596 lines is now the largest single body in the package, and carving it needs a boundary decision this move did not have to make.
+
+The module family and its sibling fixture modules — `fixture.ts`, the extracted `fixture-*` modules, and their specs — were later replaced wholesale by upstream with `@deepseek-ai/dsh-remote-mock` and `apps/web/tests/assembled-remote.ts`.
 
 ## Related
 

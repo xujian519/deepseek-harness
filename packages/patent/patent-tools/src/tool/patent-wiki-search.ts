@@ -50,7 +50,7 @@ export type PatentWikiSearchOutput = {
 export type PatentWikiSearchDeps = {
   searchIn?: (prefix: string, keyword: string, limit: number) => WikiCardMeta[]
   formatAsContext?: (id: string, maxChars: number) => string
-  /** Resolved wiki directory, surfaced in the output provenance field. */
+  /** Resolved wiki directory, surfaced as the output's `wikiDir` field. */
   wikiDir?: string
 }
 

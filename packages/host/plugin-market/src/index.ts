@@ -66,7 +66,7 @@ export abstract class PluginMarket extends Service {
    * Query one source's catalog.
    * @param sourceId - the source to query.
    * @param query - search parameters; unsupported ones are dropped.
-   * @returns one page of provenance-stamped entries.
+   * @returns one page of entries, each stamped with its `source` providerId.
    */
   abstract search(sourceId: string, query?: CatalogQuery): Promise<CatalogPage>
 

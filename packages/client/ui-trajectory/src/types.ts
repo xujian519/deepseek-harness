@@ -70,8 +70,8 @@ export function jsonTreeLabels(t: TrajectoryTranslate): JsonTreeLabels {
     copyCompactJson: t('copy.compactJson'),
     copied: t('copied'),
     copyFailed: t('copy.failed'),
-    collapseNode: t('json.collapseNode'),
-    expandNode: t('json.expandNode'),
+    collapseNode: t('collapse'),
+    expandNode: t('expand'),
     copyButtonTitle: action => t('copy.optionsHint', { action }),
   }
 }

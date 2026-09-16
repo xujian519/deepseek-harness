@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/bug-fix/2026-08-26-hygiene-gate-debt-and-conflict.md
-2026-08-26-hygiene-gate-debt-and-conflict.md: 09e491fd78e02d3d5bedb380a9f443d787ed1041
-2026-08-26-hygiene-gate-debt-and-conflict.zh.md: 25867002d05aa448c7dfbb2f4436076efb28c6c6
+2026-08-26-hygiene-gate-debt-and-conflict.md: d278e10e7695919f6f1a172c422600585d97abd8
+2026-08-26-hygiene-gate-debt-and-conflict.zh.md: d6803dd6ae9453543cbb8a6211b908ab62dc50ee

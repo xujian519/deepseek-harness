@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:dsh:plugin-market:schema:catalog-snapshot:1.0.0",
   "title": "DSH plugin-market catalog snapshot entry",
-  "description": "The normalized entry model the host exposes after provenance stamping. Entries never carry install commands, scripts, or remote URLs.",
+  "description": "The normalized entry model the host exposes after stamping each entry's source providerId. Entries never carry install commands, scripts, or remote URLs.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "name", "package", "version", "source"],

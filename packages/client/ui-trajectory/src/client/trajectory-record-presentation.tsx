@@ -5,15 +5,18 @@
 
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { TrajectoryCellKind, TrajectoryCellProps } from './trajectory-record.ts'
+import { IconCodeOutline16, JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { TrajectoryCellProps } from './trajectory-record.ts'
 import { trajectoryPreviewText } from './trajectory-preview.ts'
+import { PTC_TOOL_NAME, codeProgram } from './code-program.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import css from './TrajectoryTable.module.css'
 import type { ParentRecords, TableRecord } from '../types.ts'
 import { jsonTreeLabels } from '../types.ts'
 
 interface ToolCallTextParts {
+  program: boolean
   name: string
   args?: string
 }
@@ -41,7 +44,11 @@ export function messageSourceLabel(source: unknown, t: TrajectoryTranslate): str
   return `${kind[0]?.toUpperCase() ?? ''}${kind.slice(1)}`
 }
 
-export function MessageSource({ record, t }: { record: TableRecord; t: TrajectoryTranslate }) {
+export function MessageSource({ record, stringWrapping, t }: {
+  record: TableRecord
+  stringWrapping: JsonTreeProps['stringWrapping']
+  t: TrajectoryTranslate
+}) {
   const source = record.cell.messageSource
   if (source === undefined) return <p className={css.noPayload}>{t('source.notRecorded')}</p>
   const data = typeof source === 'object' && source !== null
@@ -50,6 +57,8 @@ export function MessageSource({ record, t }: { record: TableRecord; t: Trajector
   return (
     <JsonTree
       data={data}
+      stringWrapping={stringWrapping}
+      collapsedStringLines={12}
       label={t('source.messageJson')}
       labels={jsonTreeLabels(t)}
       className={css.jsonPayload}
@@ -109,6 +118,8 @@ export function markdownSource(record: TableRecord): string | undefined {
 
 function recordDisplayText(cell: TrajectoryCellProps, t: TrajectoryTranslate): string {
   if (isToolCallOnly(cell, t)) return ''
+  const program = codeProgram(cell)
+  if (program !== undefined) return `${PTC_TOOL_NAME} · ${program.description.replace(/\s+/g, ' ')}`
   if (cell.previewMarkdown !== undefined) {
     const preview = trajectoryPreviewText(cell.previewMarkdown)
     if (cell.text === '') return preview
@@ -130,13 +141,15 @@ function recordResultText(cell: TrajectoryCellProps): string | undefined {
 }
 
 function toolCallTextParts(
-  kind: TrajectoryCellKind,
+  cell: TrajectoryCellProps,
   text: string,
 ): ToolCallTextParts | undefined {
-  if (kind !== 'tool' && kind !== 'subtool') return undefined
+  if (cell.kind !== 'tool' && cell.kind !== 'subtool') return undefined
+  const program = cell.toolName === PTC_TOOL_NAME
   const separator = text.indexOf(' · ')
-  if (separator === -1) return { name: text }
+  if (separator === -1) return { name: text, program }
   return {
+    program,
     name: text.slice(0, separator),
     args: text.slice(separator + 3),
   }
@@ -169,7 +182,7 @@ export function RecordPresentation({
   const displayText = useMemo(
     () => recordDisplayText(cell, t),
     [
-      cell.kind, cell.text, cell.previewMarkdown,
+      cell.kind, cell.text, cell.toolName, cell.previewMarkdown,
       cell.inputDetail, cell.outputDetail, cell.thinkingDetail, t,
     ],
   )
@@ -178,7 +191,7 @@ export function RecordPresentation({
     [cell.result, cell.resultPreviewMarkdown],
   )
   const toolCallOnly = isToolCallOnly(cell, t)
-  const toolCallText = toolCallTextParts(cell.kind, displayText)
+  const toolCallText = toolCallTextParts(cell, displayText)
   const listDisplayText = toolCallOnly
     ? t('record.toolCallOnly')
     : toolCallText === undefined
@@ -208,10 +221,11 @@ export function RecordListText({
   return (
     <>
       <span className={css.toolCallNameTypeface}>
+        {toolCallText.program && <IconCodeOutline16 className={css.programIcon} size={12} />}
         {toolCallText.name || '—'}
       </span>
       {toolCallText.args !== undefined && (
-        <span className={css.toolCallPayload}>
+        <span className={toolCallText.program ? css.programSummary : css.toolCallPayload}>
           {toolCallText.args}
         </span>
       )}

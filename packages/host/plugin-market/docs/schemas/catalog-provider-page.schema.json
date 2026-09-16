@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:dsh:plugin-market:schema:catalog-provider-page:1.0.0",
   "title": "DSH plugin-market catalog provider page",
-  "description": "The wire response to a GET /v1/plugins query. Entries must not embed install commands, scripts, or remote URLs; the host stamps provenance.",
+  "description": "The wire response to a GET /v1/plugins query. Entries must not embed install commands, scripts, or remote URLs; the host stamps each entry's source providerId.",
   "type": "object",
   "additionalProperties": false,
   "required": ["items"],

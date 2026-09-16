@@ -34,7 +34,7 @@
 | API Key | `DEEPSEEK_API_KEY` 写入仓库根 `.env`（或导出）；可选 `DEEPSEEK_BASE_URL` | 决策记录中记录所用模型名与配置 |
 | Python | `pip install swebench datasets`（验证 harness 与数据集导出） | 若完全复用官方 `swebench` harness 做验证，则此为其必需依赖 |
 | 网络 | GitHub（repo 检出）、Docker Hub（镜像）、Hugging Face（数据集，建议 `HF_TOKEN`） | 导出时记录数据集 revision 用于复现 |
-| 本仓库 | 检出**含 P1-10 脚手架**的 master（>= `d1836d45`），`pnpm install` 通过 | 子集/评分/决策全部经 `pnpm eval:self-evolve` |
+| 本仓库 | 检出**含 P1-10 脚手架**的 master（脚手架 = `packages/test-support/self-evolve-eval`），`pnpm install` 通过 | 子集/评分/决策全部经 `pnpm eval:self-evolve` |
 
 **环境自检（开跑前 15 分钟）**：`pnpm install` + `pnpm dsh --profile headless "echo ok"`（需 key）+ `pnpm exec vitest run packages/test-support/self-evolve-eval`（111 用例全绿，2026-08-23 实测）+ `docker pull swebench/swebench_verified:<一个子集镜像>` 成功（该镜像仅 P-C 官方判定路径需要）。
 

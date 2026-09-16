@@ -50,7 +50,6 @@ function dshBuildWorkflows(): string[] {
 const workspaceBuildWorkflows = new Set([
   'build-exe-for-python-sdk.yml',
   'ci.yml',
-  'e2b-e2e.yml',
   'e2e.yml',
   'release.yml',
   'release-publish.yml',

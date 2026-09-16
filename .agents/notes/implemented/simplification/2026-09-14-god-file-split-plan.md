@@ -10,7 +10,7 @@ Issue #86 asks that the oversized files under `packages/` be split. Its inventor
 
 | File | Lines | Form | In this note |
 | --- | --- | --- | --- |
-| `packages/client/connection/src/client/fixture.ts` | 2288 | Shipped browser-mode provider (not a test fixture) | yes |
+| `packages/client/connection`'s `src/client/fixture.ts` | 2288 | Shipped browser-mode provider (not a test fixture) | yes |
 | `packages/client/ui-trajectory/src/client/TrajectoryTable.tsx` | 693 | One ledger over the extracted row and inspector | yes |
 | `packages/typert/generator/src/analyzer.ts` | 1253 | The package analyzer over the extracted type graph and Remote/RPC analyzer | yes — both slices landed |
 | `packages/experimental/code-runtime-python/src/index.ts` | 364 | The plugin: registration, binding validation, staging | yes — both slices landed |

@@ -77,7 +77,7 @@ export type KgAdapter = {
 /** Injected knowledge-graph adapter (tests override; production wires a PatentKgAdapter over knowledge.db). */
 export type PatentKgQueryDeps = {
   adapter?: KgAdapter
-  /** Resolved knowledge.db path, used for the setup-required check and output provenance. */
+  /** Resolved knowledge.db path, used for the setup-required check and surfaced as the output's `dbPath` field. */
   dbPath?: string
 }
 

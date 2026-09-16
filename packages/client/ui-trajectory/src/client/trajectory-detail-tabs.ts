@@ -5,6 +5,7 @@
 
 import type { DetailTab, TableRecord } from '../types.ts'
 import type { TrajectoryKey } from './locales.ts'
+import { codeProgram } from './code-program.ts'
 import { isMarkdownRecord } from './trajectory-record-presentation.tsx'
 
 /** One inspector tab and the locale key naming it. */
@@ -62,8 +63,11 @@ export function detailTabs(record: TableRecord): readonly DetailTabItem[] {
   }
   return [
     { id: 'overview', labelKey: 'tab.summary' },
-    ...(record.cell.inputDetail ? [{ id: 'input', labelKey: 'tab.payload' } as const] : []),
-    ...(record.cell.outputDetail ? [{ id: 'output', labelKey: 'tab.result' } as const] : []),
+    ...(record.cell.inputDetail ? [{
+      id: 'input', labelKey: codeProgram(record.cell) === undefined ? 'tab.payload' : 'code.source',
+    } as const] : []),
+    ...(record.cell.outputDetail || codeProgram(record.cell) !== undefined
+      ? [{ id: 'output', labelKey: 'tab.result' } as const] : []),
     { id: 'schema', labelKey: 'tab.schema' },
     { id: 'timing', labelKey: 'tab.timing' },
   ]

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md
-2026-09-14-legacy-agent-busy-shim-removed.md: fa4aa36657ea4ef3872bde8985a1f7d105d601af
-2026-09-14-legacy-agent-busy-shim-removed.zh.md: 107f32dd64a6a9ac4c9c135229b9829215da3c99
+2026-09-14-legacy-agent-busy-shim-removed.md: e89a2e9f0b564fff02ec5c55a0bbd7192e8cbe86
+2026-09-14-legacy-agent-busy-shim-removed.zh.md: 40dbee77f9df309f916dc6754d6913b57b6f72ae

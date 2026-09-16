@@ -21,7 +21,7 @@ Status: proposed
 **knip — 两项,归属不同。**
 
 - `@deepseek-ai/dsh-fs`(`packages/memory/openviking` 的 unused devDependency):`src/` 与 `tests/` 均未 import,且 `package.json` 在 `dependencies` 与 `devDependencies` 里都声明了。确属冗余,无关债务;修复是删掉声明。
-- `@xmanrui/dsh-im`(`packages/bundle/im` 的 unused dependency)与该包的 knip.json 配置 hints:`packages/bundle/im` 由 HEAD `3350947517 feat(bundle): integrate @xmanrui/dsh-im` 引入,属自由化插件工作。其 `src/index.ts` 是 `export {}` — 纯 patch 载体的静态包、无运行时 API;`@xmanrui/dsh-im` 只出现在 `cordis.patch.yml`(YAML)、README 与注释里,knip 的静态 TS 分析看不到 YAML 里的 `name:` 引用,于是报 dependency unused。该 bundle 也没有自己的 `knip.json`,落入根 knip.json 的 `packages/*/*` 默认规则,其 `tests/` entry/project pattern 在这个无测试包里匹配不到,同时触发 "Refine entry pattern (no matches)" 与 "Refine project pattern (no matches)" 两条 hints。`self-evolve-app`、`base`、`desktop-app`、`web-app` 等 bundle 已带 `ignoreDependencies: ["@deepseek-ai/.+"]`;`@xmanrui/dsh-im` 是外部包,需要单独的豁免。
+- `@xmanrui/dsh-im`(`packages/bundle/im` 的 unused dependency)与该包的 knip.json 配置 hints:`packages/bundle/im` 由 HEAD 的 `feat(bundle): integrate @xmanrui/dsh-im` 引入,属自由化插件工作。其 `src/index.ts` 是 `export {}` — 纯 patch 载体的静态包、无运行时 API;`@xmanrui/dsh-im` 只出现在 `cordis.patch.yml`(YAML)、README 与注释里,knip 的静态 TS 分析看不到 YAML 里的 `name:` 引用,于是报 dependency unused。该 bundle 也没有自己的 `knip.json`,落入根 knip.json 的 `packages/*/*` 默认规则,其 `tests/` entry/project pattern 在这个无测试包里匹配不到,同时触发 "Refine entry pattern (no matches)" 与 "Refine project pattern (no matches)" 两条 hints。`self-evolve-app`、`base`、`desktop-app`、`web-app` 等 bundle 已带 `ignoreDependencies: ["@deepseek-ai/.+"]`;`@xmanrui/dsh-im` 是外部包,需要单独的豁免。
 
 ### `test:coverage` 失败的根因
 

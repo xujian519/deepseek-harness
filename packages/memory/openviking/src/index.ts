@@ -137,10 +137,9 @@ export function apply(ctx: Context, config: Config): void {
     sync = sessionSync
 
     // Adopt live sessions and their future siblings; subagents own sessions too.
+    // `agent/created` carries every session-start edge (startup/resume/clear/
+    // compact), so it subsumes the retired `agent/session-start` event.
     ctx.on('agent/created', (payload: { agent: Agent }) => {
-      sessionSync.adopt(payload.agent.session)
-    })
-    ctx.on('agent/session-start', (payload: { agent: Agent }) => {
       sessionSync.adopt(payload.agent.session)
     })
     ctx.on('agent/disposed', (payload: { agent: Agent }) => {
@@ -165,7 +164,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.on('agent/pre-step', (payload, next) => openvikingPreStep(recall, repoContext, startupMap, current, payload, next), { prepend: true })
 
-  ctx.on('agent/session-start', () => { openvikingSessionStart(repoContext, startupMap) })
+  ctx.on('agent/created', () => { openvikingSessionStart(repoContext, startupMap) })
 
   ctx.on('agent/disposed', (payload) => {
     recall.forget(String(payload.agent.id))

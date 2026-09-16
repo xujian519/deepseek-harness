@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CSSProperties } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TrajectoryCellProps } from './trajectory-record.ts'
 import { trajectoryRecordId } from './trajectory-record.ts'
 import {
@@ -76,6 +77,8 @@ interface OlderLoadAnchor {
 
 /** Props for the trajectory ledger. */
 export interface TrajectoryTableProps {
+  /** Wrapping control shared by all JSON inspectors. */
+  stringWrapping?: JsonTreeProps['stringWrapping']
   /** Trajectory locale seat. */
   t: TrajectoryTranslate
   /** Slot-backed durable image renderer shared with the Chat gallery. */
@@ -132,6 +135,7 @@ export interface TrajectoryTableProps {
  */
 export function TrajectoryTable({
   t,
+  stringWrapping,
   renderImages,
   requestNumbers: sessionRequestNumbers,
   turns,
@@ -158,7 +162,8 @@ export function TrajectoryTable({
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<SelectedRequest | null>(null)
   const [activeTab, setActiveTab] = useState<DetailTab>('overview')
-  const [thinkingExpanded, setThinkingExpanded] = useState(false)
+  const [codeWrappingOnOpen, setCodeWrappingOnOpen] = useState(false)
+  const [thinkingDisclosure, setThinkingDisclosure] = useState<{ recordId: string; expanded: boolean }>()
   const appliedRecordSelection = useRef<TrajectoryTableProps['recordSelection']>(null)
   const appliedRecordFocus = useRef<TrajectoryTableProps['recordFocus']>(null)
   const tabHistory = useRef<Set<DetailTab>>(new Set(['overview']))
@@ -188,6 +193,15 @@ export function TrajectoryTable({
   const selected = selectedTemplate === undefined
     ? undefined
     : currentRecord(selectedTemplate)
+  const thinkingExpanded = thinkingDisclosure?.recordId === selectedRecordId
+    ? thinkingDisclosure.expanded
+    : selected?.cell.kind === 'message'
+      && Boolean(selected.cell.thinkingDetail?.trim())
+  const setThinkingExpanded = (expanded: boolean) => {
+    if (selectedRecordId !== null) {
+      setThinkingDisclosure({ recordId: selectedRecordId, expanded })
+    }
+  }
   const selectedIndex = selected?.cell.index ?? null
   useEffect(() => {
     onSelectedIndexChange?.(selectedIndex)
@@ -303,10 +317,11 @@ export function TrajectoryTable({
     }
 
   const activateTab = useCallback((tab: DetailTab) => {
+    setCodeWrappingOnOpen(stringWrapping?.getDefault() ?? false)
     tabHistory.current.delete(tab)
     tabHistory.current.add(tab)
     setActiveTab(tab)
-  }, [])
+  }, [stringWrapping])
 
   const clearInspectorSelection = () => {
     setSelectedRecordId(null)
@@ -319,6 +334,7 @@ export function TrajectoryTable({
   }
 
   const selectRecord = useCallback((index: number) => {
+    setCodeWrappingOnOpen(stringWrapping?.getDefault() ?? false)
     const record = allRecords.find(candidate => candidate.cell.index === index)
     onRecordSelect?.(index)
     setSelectedRequest(null)
@@ -328,7 +344,7 @@ export function TrajectoryTable({
     const available = new Set(tabs.map(tab => tab.id))
     const recent = [...tabHistory.current].reverse().find(tab => available.has(tab))
     setActiveTab(recent ?? tabs[0]?.id ?? 'overview')
-  }, [allRecords, onRecordSelect])
+  }, [allRecords, onRecordSelect, stringWrapping])
   useEffect(() => {
     if (
       recordSelection === null
@@ -678,6 +694,8 @@ export function TrajectoryTable({
         selected={selected}
         selectedRequest={selectedRequest}
         activeTab={activeTab}
+        stringWrapping={stringWrapping}
+        codeWrappingOnOpen={codeWrappingOnOpen}
         thinkingExpanded={thinkingExpanded}
         detailsWidth={detailsWidth}
         resizeHandlers={resizeHandlers}

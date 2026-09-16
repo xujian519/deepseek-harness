@@ -67,7 +67,7 @@ function evaluateCondition(name: string, ctx: ConditionContext): boolean | undef
     case 'evidence_content_hash_available':
     case 'content_hash_provided':
       return Boolean(ctx.span.contentHash)
-    case 'evidence_provenance_clear':
+    case 'evidence_source_uri_or_doc_version_available':
       return Boolean(ctx.span.sourceUri) || Boolean(ctx.span.docVersion)
     case 'evidence_has_source_uri':
       return Boolean(ctx.span.sourceUri)

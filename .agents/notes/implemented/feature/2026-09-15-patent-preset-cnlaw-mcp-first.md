@@ -18,7 +18,7 @@ The persona now states **MCP first, REST as fallback**, and says so per capabili
 - Graph navigation leads with `cnlaw_graph_ground(article, law, ipc, k)` and `cnlaw_graph_patent(pn)`, each immediately followed by its `curl` equivalent as the fallback.
 - The case decision chain leads with `cnlaw_case_record` / `cnlaw_case_get` / `cnlaw_case_chain` / `cnlaw_case_similar`, again with REST fallbacks.
 - The persona names `cnlaw_inventive_step` as the **first** step of legal verification — one call returns the four-step evidence pack (D1 / distinguishing features / actual technical problem / technical teaching) with `source_path` per step, so the creative-step argument is built on the pack instead of assembled by hand from separate searches.
-- Provenance labels drop the port: `cnlaw(:8100)` and `cnlaw(:8001/graph)` become `cnlaw`, so citation discipline no longer encodes which channel produced the evidence. Discipline 7 (no source, retract the claim) and the evidence-appendix requirement are unchanged.
+- Source labels drop the port: `cnlaw(:8100)` and `cnlaw(:8001/graph)` become `cnlaw`, so citation discipline no longer encodes which channel produced the evidence. Discipline 7 (no source, retract the claim) and the evidence-appendix requirement are unchanged.
 
 The endpoint inventory stays in the prompt because it is the fallback, and because the MCP surface is a strict subset of the REST surface: `:8100 /search`, `/search/decisions`, `/search/judgments`, and the `:8001` IPC routes have no tools. The split is `:8001` graph/case/workflow endpoints on MCP, everything else on REST.
 
@@ -29,7 +29,7 @@ The preset remains optional-enhancement, not a hard dependency: a deployment tha
 - **Replace the curl instructions with the tools.** Rejected: it breaks every deployment that has no bridge (the preset's current contract is that cnlaw is optional), and it strands the `:8100` semantic-search endpoints, which have no MCP face.
 - **Leave the persona alone and let the tool descriptions carry the discovery.** Rejected: the preset is where the calling convention lives; the model follows an explicit prompt over an unmentioned tool, and the 2026-09-03 note already established that the preset is the single home for this discipline.
 - **Name the bridge requirement in the preset's prerequisites instead of the persona.** Rejected as the only change: the ordering between channels is a per-capability judgment (graph/case on MCP, search on REST), not a deployment prerequisite, and a prerequisite line would still leave the ordering unstated.
-- **Keep provenance as `cnlaw(:8100)` / `cnlaw(:8001/graph)`.** Rejected: the label named the channel, so the same evidence carried a different label depending on which channel fetched it — an audit trail should name the source, not the transport.
+- **Keep the source labels as `cnlaw(:8100)` / `cnlaw(:8001/graph)`.** Rejected: the label named the channel, so the same evidence carried a different label depending on which channel fetched it — an audit trail should name the source, not the transport.
 
 ## Consequences
 

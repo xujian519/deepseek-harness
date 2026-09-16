@@ -31,6 +31,7 @@ function cliHandle(): SubprocessHandle {
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,
+    control: undefined,
     collected: { stdout: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) }, stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) } },
     done: Promise.resolve({ exitCode: 0, signal: null }),
     terminate() {},

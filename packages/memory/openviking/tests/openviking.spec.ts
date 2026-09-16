@@ -76,8 +76,7 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     await fiber.await()
     await new Promise(resolve => setTimeout(resolve, 100))
     const agent = { session: { id: 's1' } } as never
-    ;(ctx.emit as never as (event: string, ...args: unknown[]) => unknown)('agent/created', { agent })
-    ;(ctx.emit as never as (event: string, ...args: unknown[]) => unknown)('agent/session-start', { agent, source: { kind: 'user' } })
+    ;(ctx.emit as never as (event: string, ...args: unknown[]) => unknown)('agent/created', { agent, source: 'startup' })
     await new Promise(resolve => setTimeout(resolve, 100))
     const emitAny = (event: string, ...args: unknown[]): void => {
       ;(ctx.emit as never as (event: string, ...args: unknown[]) => unknown)(event, ...args)

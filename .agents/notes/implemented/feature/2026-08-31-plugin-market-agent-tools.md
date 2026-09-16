@@ -17,7 +17,7 @@ Ship [`@deepseek-ai/dsh-tool-plugin-market`](../../../../packages/extensions/too
 | Tool | Contract |
 |---|---|
 | `market_source_list` | List every registered catalog source: stable source id, provider id, display name, built-in flag, and the query parameters it accepts. |
-| `market_plugin_search` | Query one source. Omit `sourceId` to hit the bundled catalog; filter with `q` / `category` / `capability`, bound the page with `limit`. Returns one page of provenance-stamped entries. |
+| `market_plugin_search` | Query one source. Omit `sourceId` to hit the bundled catalog; filter with `q` / `category` / `capability`, bound the page with `limit`. Returns one page of entries, each stamped with its `source` providerId. |
 | `market_plugin_preview` | Check one `name@version` against the npm registry: whether it resolved, any rejection reasons, the declared lifecycle scripts, and whether its engines accept the running Node. |
 
 Every verb is read-only by construction. None of them installs a package, edits a profile, or changes `cordis.yml`. Installation stays on the operator-driven `dsh plugin` CLI, so an Agent never commits a package without an explicit operator decision.

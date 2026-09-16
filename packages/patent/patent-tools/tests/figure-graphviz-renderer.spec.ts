@@ -55,6 +55,7 @@ function handleWith(outcome: { exitCode: number | null; signal: NodeJS.Signals |
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,
+    control: undefined,
     collected: { stdout: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) }, stderr: { readFrom: () => ({ text: stderr, nextOffset: 0, lossy: false }) } },
     done: Promise.resolve(outcome),
     terminate() {},
@@ -175,6 +176,7 @@ describe('probeGraphviz', () => {
       stdin: undefined,
       stdout: undefined,
       stderr: undefined,
+      control: undefined,
       collected: {},
       done: Promise.resolve({ exitCode: 0, signal: null }),
       terminate() {},
@@ -307,6 +309,7 @@ describe('renderWithGraphviz', () => {
           stdin: undefined,
           stdout: undefined,
           stderr: undefined,
+          control: undefined,
           collected: { stdout: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) }, stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) } },
           done: new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>((resolve) => {
             signal?.addEventListener('abort', () => { resolve({ exitCode: null, signal: 'SIGTERM' }) }, { once: true })
@@ -411,6 +414,7 @@ describe('renderWithGraphviz', () => {
           stdin: undefined,
           stdout: undefined,
           stderr: undefined,
+          control: undefined,
           collected: {},
           done: Promise.resolve({ exitCode: null, signal: 'SIGTERM' }),
           terminate() {},

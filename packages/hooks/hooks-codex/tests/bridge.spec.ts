@@ -22,7 +22,11 @@ import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent
  */
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+const contexts: Context[] = []
+afterEach(async () => {
+  for (const ctx of contexts.splice(0)) await ctx.fiber.dispose()
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 
 function configDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-hooks-codex-'))
@@ -46,6 +50,7 @@ async function harness(
   pluginConfig?: Partial<HooksCodex.Config>,
 ): Promise<Context> {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalSubprocessRuntime)
@@ -71,6 +76,27 @@ async function waitFor(predicate: () => boolean, timeout = 5000, interval = 10):
 }
 
 describe('hooks-codex bridge', () => {
+  it('awaits a registry-announced resume hook without a creation signal', async () => {
+    const dir = configDir()
+    const marker = join(dir, 'resume-hook-ran')
+    const capture = script(dir, 'resume.sh', `#!/usr/bin/env bash\necho "resumed context"\ntouch "${marker}"\n`)
+    writeHooks(dir, { SessionStart: [{ matcher: 'resume', hooks: [{ type: 'command', command: capture }] }] })
+    const ctx = await harness(dir, new MockAdapter([]))
+    const session = ctx.sessions.create(SessionId('registry-resume'))
+    const inject = vi.fn()
+    const agent = { id: session.id, session, ctx, inject } as unknown as Agent
+
+    ctx.effect(() => ctx.agents.enter(agent, undefined))
+    await ctx.agents.announce(agent, 'resume')
+
+    // The hook must run even though the announcement carries no creation signal.
+    expect(existsSync(marker)).toBe(true)
+    // Delivery goes through the startup gate that the first `agent/pre-step`
+    // folds into its admitted batch, so the bridge must NOT also inject: the
+    // two paths together would deliver the same context twice.
+    expect(inject).not.toHaveBeenCalled()
+  })
+
   it('a PreToolUse hook (exit 2) denies a tool the regex matcher matches as a substring', async () => {
     const dir = configDir()
     const deny = script(dir, 'deny.sh', '#!/usr/bin/env bash\necho "codex blocked it" >&2\nexit 2\n')
@@ -283,16 +309,20 @@ describe('hooks-codex bridge', () => {
     ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
     const warn = vi.fn()
     ctx.logger.warn = warn as never
-    await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' }) // fires agent/session-start
-    await waitFor(() => existsSync(marker))
-    const pid = Number(readFileSync(pidFile, 'utf8').trim())
-    await fiber.dispose()
-    // Disposal reaches quiescence only after the aborted run settles and the process is reaped, so
-    // `kill(pid, 0)` must report ESRCH. Untracked fire-and-forget work would remain.
-    expect(() => process.kill(pid, 0)).toThrow()
-    // runHook resolves an aborted run as a non-blocking error, so draining must
-    // not log a rejected continuation.
-    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SessionStart hook failed'))
+    const creating = ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    try {
+      await waitFor(() => existsSync(marker))
+      const pid = Number(readFileSync(pidFile, 'utf8').trim())
+      await fiber.dispose()
+      await creating
+      // The aborted hook must be reaped before bridge disposal resolves.
+      expect(() => process.kill(pid, 0)).toThrow()
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SessionStart hook failed'))
+    } finally {
+      await fiber.dispose()
+      await creating
+      await ctx.fiber.dispose()
+    }
   })
 
   it('has the namespace-plugin export shape (no stray default) so the Loader keeps name/inject/apply', () => {

@@ -6,7 +6,7 @@ English | [中文](2026-08-27-patent-teams-ignorable-session-events.zh.md)
 
 ## Problem
 
-`appendTeamEvent` carried an interim guard from the port: it probed the harness's `KNOWN_SESSION_EVENT_TYPES` at runtime and silently dropped every `patent-teams/*` event the running build did not recognize. The guard was written before `Session.append` exposed the `ignorable: true` writer option (`012e897ace`). Inside this fork the generated vocabulary already includes all nine types, so the guard passes and the probe is dead weight; installed on an upstream harness build, the guard silently discards the entire team record from the session log, and the comments describing both facts had drifted from reality.
+`appendTeamEvent` carried an interim guard from the port: it probed the harness's `KNOWN_SESSION_EVENT_TYPES` at runtime and silently dropped every `patent-teams/*` event the running build did not recognize. The guard was written before `Session.append` exposed the `ignorable: true` writer option. Inside this fork the generated vocabulary already includes all nine types, so the guard passes and the probe is dead weight; installed on an upstream harness build, the guard silently discards the entire team record from the session log, and the comments describing both facts had drifted from reality.
 
 ## Decision
 
