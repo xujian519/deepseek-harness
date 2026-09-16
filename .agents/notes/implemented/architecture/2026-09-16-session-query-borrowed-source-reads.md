@@ -35,7 +35,7 @@ Measured on the same 50,000-event live session:
 | Field | Decision |
 |---|---|
 | User operation | A point read of one event's context window, and a read of the current model surface, over a stored Session; each completes when the caller holds the returned snapshot |
-| Workload | 45,000 turns of `turn/start` plus a 1 KiB `user/message`: 90,000 events and 46 MB of distinct user text. Each turn's text differs, so the stored log occupies real memory instead of sharing one string |
+| Workload | 45,000 turns of `turn/start` plus a 745-byte `user/message` (`HISTORY_READ_TEXT_BYTES`, the size the gate asserts for every turn): 90,000 events and 33.5 MB of distinct user text. Each turn's text differs, so the stored log occupies real memory instead of sharing one string |
 | Entry path | `readEvent` and `readSurface` on a private root holding the fixture's durable log. The SQLite query engine is mounted as the production composition of `ctx.sessionQuery` but never queried, and no search result enters the measurement |
 | Clock | Wall clock around the endpoint call only. The child mounts its Host and the parent copies the fixture into the sample root before timing starts; five samples per endpoint in fresh processes, with the median enforced |
 | Memory | `heapUsed` immediately after the call, before collection, for transient growth; post-GC `heapUsed` and `resourceUsage().maxRSS` for retained and peak. A separate child runs the same read under a fixed 128 MB old-space limit |
@@ -50,7 +50,7 @@ Measured on the same 50,000-event live session:
 | `readSurface` transient heap | +190.8 MB | +127.6 MB |
 | 128 MB old space | Both endpoints exhaust the heap | Both complete |
 
-Negative control: restoring the removed copy in `borrow` fails five of the gate's six cases — both time budgets and both constrained-heap completions (`SIGABRT`, `Reached heap limit ... JavaScript heap out of memory`). Excluded from this gate: Gateway transport, Client fold, browser paint, and model latency. The workload also holds a single stored Session, so the gate does not measure the corpus walk a read used to perform before reading; that removal is pinned by the package tests and by its own measured listing cost.
+Negative control: restoring the removed copy in `borrow` restores the pre-change allocation, which the gate rejects on every non-timing case — both transient-heap budgets, and both constrained-heap completions (`SIGABRT`, `Reached heap limit ... JavaScript heap out of memory`). The two time budgets are CI signals: the recorded reference median multiplied by the shared time scale (313.3 ms → 627 ms) exceeds the 438 ms budget, which the gate's calibration case asserts in place of a reference-machine run. Excluded from this gate: Gateway transport, Client fold, browser paint, and model latency. The workload also holds a single stored Session, so the gate does not measure the corpus walk a read used to perform before reading; that removal is pinned by the package tests and by its own measured listing cost.
 
 ## Alternatives considered
 
@@ -69,7 +69,7 @@ Borrowed events are read-only in the strong sense: a live owner's are deeply fro
 
 ## Testing
 
-- `pnpm exec vitest run packages/session-query/session-query/tests` — 100 passed.
+- `pnpm exec vitest run packages/session-query/session-query/tests` — 101 passed.
 - `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 passed across the model-facing tool, the session-reference context plugin that consumes `readSurface`, and the SQLite backend.
 - New case `copies only the returned window instead of the whole log` asserts the clone count per endpoint with a spy on `structuredClone`: at most one detach per returned event plus the header, and fewer than 1.5 detach passes for `readSession`. It also asserts the returned window is still a detached copy that leaves the session untouched.
 - Negative control: reintroducing the removed bulk clone into `borrowLive` fails that case with `expected 203 to be less than or equal to 3`.

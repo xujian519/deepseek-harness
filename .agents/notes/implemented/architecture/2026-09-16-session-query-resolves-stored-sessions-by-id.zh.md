@@ -42,14 +42,15 @@ Status: implemented
 
 一次存储会话读取现在的成本是它自身的工作加上一次常数级观察，因此读取延迟不再随用户积累的会话数量增长。以一次一个会话方式读取历史的工具与上下文插件——`session_event_read`、交付物打开器、以及 session-reference 上下文源——都去掉了随用户全部历史增长的每次调用成本。
 
-失败分类不变：会话不存在、后端不可读、日志损坏、header 冲突都保持原有错误码。`SESSION_QUERY_SOURCE_CONFLICT` 检测到的分歧，现在是在 `stat` 与日志读取之间观察到，而不是在列举与日志读取之间。
+会话不存在、后端不可读、日志损坏、header 冲突的失败分类不变。有一类确实变了：当存储日志的 header 对本构建而言在结构上属于外来格式时——后端列举会略过它、单 id 观察会拒绝它——现在报 `SESSION_QUERY_PERSISTENCE_FAILED`，并以该版本拒绝为 cause，而列举预检当时报的是 `SESSION_QUERY_SESSION_NOT_FOUND`。该拒绝会给出后端期望的升级方向，而全库列举仍然略过该会话。`SESSION_QUERY_SOURCE_CONFLICT` 检测到的分歧，现在是在 `stat` 与日志读取之间观察到，而不是在列举与日志读取之间。
 
 ## Testing
 
-- `pnpm exec vitest run packages/session-query/session-query/tests` — 100 通过。
+- `pnpm exec vitest run packages/session-query/session-query/tests` — 101 通过。
 - `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 通过，覆盖面向模型的工具、session-reference 上下文插件与 SQLite 后端。
 - 新增用例 `observes one stored session per cold read instead of listing the corpus`：断言冷点读执行零次列举、一次 `stat`；信号到达该观察；不存在的 id 仍报 `SESSION_QUERY_SESSION_NOT_FOUND`。
-- 负向控制：把列举预检放回 `borrow`，该用例（连同套件中另外十个用例）以 `expected [AbortSignal] to deeply equal []` 失败。
+- 新增用例 `refuses a stored log this build cannot read instead of reporting it absent`：复现后端自身的不对称（列举略过结构上外来的 header、单 id 观察拒绝它），断言该拒绝以 `SESSION_QUERY_PERSISTENCE_FAILED` 为码、并以该拒绝为 cause 到达调用方，且全库列举仍把该会话报告为不存在。
+- 负向控制：把列举预检放回 `borrow`，该用例（连同套件中另外十个用例）以 `expected [AbortSignal] to deeply equal []` 失败；保留预检、但其后仍执行该 id 的观察，则该用例以期望 `{ code: 'SESSION_QUERY_PERSISTENCE_FAILED' }`、实收 `SESSION_QUERY_SESSION_NOT_FOUND` 失败。
 - `cancellableExactReads` 现在为每个读取声明它实际执行的预检（`list` 或 `stat`），而不是一个布尔值，因此取消用例把信号断言在该读取真正发起的持久化调用上；全库列举保留各自的信号断言。
 - `benchmarks/session-open` 与 `benchmarks/session-history-read` 在 required 门禁中均通过。
 

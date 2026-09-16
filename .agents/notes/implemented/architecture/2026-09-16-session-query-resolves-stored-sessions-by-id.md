@@ -42,14 +42,15 @@ The measured endpoints on the 90,000-event synthetic log of [`benchmarks/session
 
 A stored-Session read now costs its own work plus one flat observation, so read latency no longer grows with how many Sessions a user has accumulated. Tools and context plugins that read history one Session at a time — `session_event_read`, the deliverables opener, and the session-reference context source — lose a per-call cost that scaled with the user's entire history.
 
-Failure classification is unchanged: a missing Session, an unreadable backend, a corrupt log, and conflicting headers keep their existing error codes. The divergence the `SESSION_QUERY_SOURCE_CONFLICT` check detects is now observed between a `stat` and the log read rather than between a listing and the log read.
+Failure classification is unchanged for a missing Session, an unreadable backend, a corrupt log, and conflicting headers. One case does change: a stored log whose header is structurally foreign to this build, which the backend's listing omits and its single-id observation refuses, now reports `SESSION_QUERY_PERSISTENCE_FAILED` with the version refusal as its cause, where the listing preflight reported `SESSION_QUERY_SESSION_NOT_FOUND`. The refusal names the upgrade direction the backend intends, and the corpus listing keeps omitting that Session. The divergence the `SESSION_QUERY_SOURCE_CONFLICT` check detects is now observed between a `stat` and the log read rather than between a listing and the log read.
 
 ## Testing
 
-- `pnpm exec vitest run packages/session-query/session-query/tests` — 100 passed.
+- `pnpm exec vitest run packages/session-query/session-query/tests` — 101 passed.
 - `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 passed across the model-facing tool, the session-reference context plugin, and the SQLite backend.
 - New case `observes one stored session per cold read instead of listing the corpus` asserts a cold point read performs zero listings and one `stat`, that the signal reaches the observation, and that an absent id is still reported as `SESSION_QUERY_SESSION_NOT_FOUND`.
-- Negative control: restoring the listing preflight in `borrow` fails that case (and ten other cases in the suite) with `expected [AbortSignal] to deeply equal []`.
+- New case `refuses a stored log this build cannot read instead of reporting it absent` drives the backend's own asymmetry (a listing that omits a structurally foreign header, a single-id observation that refuses it) and asserts the refusal reaches the caller as `SESSION_QUERY_PERSISTENCE_FAILED` with that refusal as its cause, and that the corpus listing still reports the Session as absent.
+- Negative control: restoring the listing preflight in `borrow` fails that case (and ten other cases in the suite) with `expected [AbortSignal] to deeply equal []`; keeping the preflight while the id observation still runs afterwards fails it with `expected { code: 'SESSION_QUERY_PERSISTENCE_FAILED' }` against the reported `SESSION_QUERY_SESSION_NOT_FOUND`.
 - `cancellableExactReads` now names each read's preflight (`list` or `stat`) instead of a boolean, so the cancellation cases assert the signal on the persistence call the read actually makes; the corpus-wide listings keep their own signal assertions.
 - `benchmarks/session-open` and `benchmarks/session-history-read` both pass in the required lane.
 

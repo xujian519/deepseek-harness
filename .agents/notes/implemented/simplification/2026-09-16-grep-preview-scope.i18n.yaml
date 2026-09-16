@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-16-grep-preview-scope.md
-2026-09-16-grep-preview-scope.md: 841ae1cddd6d2fe2d217f130fbbd27c1b82872d4
-2026-09-16-grep-preview-scope.zh.md: 9197dd8accc4af1c02811585cf51b8ae89ed8582
+2026-09-16-grep-preview-scope.md: 0a04ff2cad1fa8c99f5050dd5dd4fc1992a496ac
+2026-09-16-grep-preview-scope.zh.md: a4d7086ad30e34fcf182842b7ff2508bbd5922b7

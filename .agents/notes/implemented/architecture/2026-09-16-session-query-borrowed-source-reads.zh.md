@@ -35,7 +35,7 @@ Status: implemented
 | 字段 | 决定 |
 |---|---|
 | 用户操作 | 对一份存储会话执行"读取某个事件的上下文窗口"与"读取当前模型表层"；各自在调用方拿到返回快照时完成 |
-| 负载 | 45,000 轮 `turn/start` 加一条 1 KiB 的 `user/message`：90,000 个事件、46 MB 各不相同的用户文本。每轮文本都不同，因此存储日志占用真实内存，而不是共享同一个字符串 |
+| 负载 | 45,000 轮 `turn/start` 加一条 745 字节的 `user/message`（`HISTORY_READ_TEXT_BYTES`，门禁会断言每一轮都是这一尺寸）：90,000 个事件、33.5 MB 各不相同的用户文本。每轮文本都不同，因此存储日志占用真实内存，而不是共享同一个字符串 |
 | 入口 | 在保存 fixture durable 日志的私有根目录上调用 `readEvent` 与 `readSurface`。SQLite 查询引擎作为 `ctx.sessionQuery` 的生产组合被挂载但从不查询，测量中不包含任何搜索结果 |
 | 时钟 | 只测量端点调用本身的墙钟时间。子进程挂载 Host、父进程把 fixture 复制进样本根目录，均发生在计时开始之前；每个端点五个全新进程样本，按中位数执行预算 |
 | 内存 | 调用后立即（回收前）的 `heapUsed` 用于瞬时增长；GC 后的 `heapUsed` 与 `resourceUsage().maxRSS` 用于常驻与峰值。另一个子进程在固定 128 MB old-space 上限下运行同一读取 |
@@ -50,7 +50,7 @@ Status: implemented
 | `readSurface` 瞬时堆 | +190.8 MB | +127.6 MB |
 | 128 MB old space | 两个端点都耗尽堆 | 两者均完成 |
 
-负向控制：把被移除的复制放回 `borrow`，门禁六个用例中五个失败——两个时间预算与两个受限堆完成检查（`SIGABRT`、`Reached heap limit ... JavaScript heap out of memory`）。本门禁不覆盖：Gateway 网络传输、Client fold、浏览器 paint、模型时延。负载也只含一个存储会话，因此门禁不测量读取此前执行的整库遍历；该移除由本包测试与它自身实测的列举成本钉住。
+负向控制：把被移除的复制放回 `borrow` 即恢复改动前的分配量，门禁在所有非时间用例上都会拒绝它——两个瞬时堆预算，以及两个受限堆完成检查（`SIGABRT`、`Reached heap limit ... JavaScript heap out of memory`）。两个时间预算是 CI 信号：在参考机上记录的中位数乘以共享时间倍率（313.3 ms → 627 ms）超过 438 ms 预算，这一点由门禁自身的校准用例断言，而不是靠参考机上的一次运行。本门禁不覆盖：Gateway 网络传输、Client fold、浏览器 paint、模型时延。负载也只含一个存储会话，因此门禁不测量读取此前执行的整库遍历；该移除由本包测试与它自身实测的列举成本钉住。
 
 ## Alternatives considered
 
@@ -69,7 +69,7 @@ Status: implemented
 
 ## Testing
 
-- `pnpm exec vitest run packages/session-query/session-query/tests` — 100 通过。
+- `pnpm exec vitest run packages/session-query/session-query/tests` — 101 通过。
 - `pnpm exec vitest run packages/session-query/tool-session-query/tests packages/context/session-reference/tests packages/session-query/session-query-sqlite/tests` — 221 通过，覆盖面向模型的工具、消费 `readSurface` 的 session-reference 上下文插件，以及 SQLite 后端。
 - 新增用例 `copies only the returned window instead of the whole log`：用 `structuredClone` 上的 spy 断言每个端点的克隆次数——每个返回事件至多一次分离加 header，`readSession` 少于 1.5 遍分离。同时断言返回的窗口仍是分离副本，不会触动会话本身。
 - 负向控制：把被移除的全量克隆重新放回 `borrowLive`，该用例以 `expected 203 to be less than or equal to 3` 失败。

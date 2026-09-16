@@ -32,9 +32,12 @@ Measured on 80,000 parsed matches (27 MiB of `rg --json`), the shape of a broad 
 | `parseGrepMatches` (split + per-line `JSON.parse`) | 84 ms |
 | three retention passes, before | 131 ms |
 | three retention passes, after | 1.7 ms |
+| the spill artifact's own complete preview, over-cap path only | ≈ 44 ms before and after (derived, below) |
 | `formatGrepOutput` over the retained page | 0.1 ms |
 
 The retained value is identical before and after, compared as serialized JSON over both the whole `RetainedItems` and its kept rows.
+
+The spill row is arithmetic, not a separate measurement: 131 ms for the three passes' 240,000 previews is 0.55 µs each, so the spill artifact's single pass over the same 80,000 matches costs about 44 ms. A broad search's total preview work therefore falls from about 175 ms to about 44 ms — the three retention passes are what this change removed, while the recovery file keeps its complete preview by contract.
 
 ## Testing
 
