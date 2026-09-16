@@ -337,12 +337,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
       let published = false
       for (const view of this.views.values()) {
         if (!this.isActive(view.target)) continue
-        const builder = view.builder ?? view.definition.create()
-        view.builder = builder
-        view.snapshot = builder.replace({
-          nodes: this.buildTargetNodes(view.target, this.contextsByTarget.get(view.target)),
-          timeline: this.locationIndex.snapshot(),
-        })
+        this.replaceView(view)
         published = true
       }
       this.locationIndex.publishData()
