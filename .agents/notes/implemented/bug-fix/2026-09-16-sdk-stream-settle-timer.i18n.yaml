@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-16-sdk-stream-settle-timer.md
+2026-09-16-sdk-stream-settle-timer.md: 30b5988e10ef1ab8ad3196b931b111315a9e0ac0
+2026-09-16-sdk-stream-settle-timer.zh.md: 143e228546d10cd72113e5f282d462351bb2b0a6

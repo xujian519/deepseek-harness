@@ -481,6 +481,18 @@ describe('HarnessClient', () => {
     await expect(client.request('initialize', {})).rejects.toThrow('exit code: 3')
   })
 
+  it('clears the stream-settle timer once the death it waited for is observed', async () => {
+    const client = processClient(fakeLaunch({ FAKE_EXIT_BEFORE_INIT: '1' }))
+    cleanups.push(() => client.close())
+    await client.initialize({ cwd: process.cwd(), provider: 'p', model: 'm' }).catch(() => {})
+    // The settle window must not outlive the request that armed it.
+    vi.useFakeTimers()
+    try {
+      await expect(client.request('initialize', {})).rejects.toThrow(TransportClosedError)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { vi.useRealTimers() }
+  })
+
   it('flushes an unterminated stderr line into the tail at close', async () => {
     const client = processClient(fakeLaunch({ FAKE_STDERR_NO_NEWLINE: 'no trailing newline', FAKE_EXIT_BEFORE_INIT: '1' }))
     cleanups.push(() => client.close())
