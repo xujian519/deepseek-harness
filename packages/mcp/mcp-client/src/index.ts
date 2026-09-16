@@ -122,6 +122,12 @@ const Reconnect: z<ReconnectConfig> = z.object({
   maxAttempts: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(RECONNECT_DEFAULTS.maxAttempts),
 })
 
+// Each transport variant keeps a complete, directly readable config schema; the
+// repeated server-independent fields are deliberate. Extracting them would need
+// either an object spread — which `verify-config-catalog` rejects as a non-plain
+// schema key — or `z.intersect`, which would replace the two declared object
+// schemas with composed ones.
+/* jscpd:ignore-start */
 export const Config = z.union([
   z.object({
     transport: z.const('stdio'),
@@ -148,6 +154,7 @@ export const Config = z.union([
     reconnect: Reconnect,
   }),
 ]) as unknown as z<ConfigInput, Config>
+/* jscpd:ignore-end */
 
 // ---- Plugin apply ----
 
