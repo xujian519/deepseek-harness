@@ -269,16 +269,26 @@ export class TypertGatewayService extends Service implements TypertGateway {
     return this.srcClaims.has(endpoint)
   }
 
-  private collectSrcClaims(): ReadonlySet<string> {
-    const claims = new Set<string>()
+  /**
+   * Iterate each active Service's original receiver with its raw `typertRemote` value.
+   * Consumers keep their own binding checks: the claim scan needs only an object exposing a
+   * string namespace, while descriptor resolution validates the whole binding.
+   */
+  private *remoteBindingValues(): Generator<{ serviceKey: string; original: object; value: unknown }> {
     for (const [serviceKey, definition] of Object.entries(this.ctx.reflect.props)) {
       if (definition.type !== 'service') continue
       const receiver = this.ctx.get(serviceKey) as unknown
       if (!isObject(receiver)) continue
       const original = originalOf(receiver)
-      const binding = Reflect.get(original, 'typertRemote') as unknown
-      if (!isObject(binding) || typeof Reflect.get(binding, 'namespace') !== 'string') continue
-      const namespace = Reflect.get(binding, 'namespace') as string
+      yield { serviceKey, original, value: Reflect.get(original, 'typertRemote') as unknown }
+    }
+  }
+
+  private collectSrcClaims(): ReadonlySet<string> {
+    const claims = new Set<string>()
+    for (const { original, value } of this.remoteBindingValues()) {
+      if (!isObject(value) || typeof Reflect.get(value, 'namespace') !== 'string') continue
+      const namespace = Reflect.get(value, 'namespace') as string
       for (const candidate of remoteMethods(original)) {
         claims.add(endpointOf(namespace, candidate.exportName ?? candidate.method))
       }
@@ -635,12 +645,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
 
   private resolveSrcDescriptor(namespace: string, method: string, endpoint: string): InvocationDescriptor {
     const candidates: InvocationDescriptor[] = []
-    for (const [serviceKey, definition] of Object.entries(this.ctx.reflect.props)) {
-      if (definition.type !== 'service') continue
-      const receiver = this.ctx.get(serviceKey) as unknown
-      if (!isObject(receiver)) continue
-      const original = originalOf(receiver)
-      const value = Reflect.get(original, 'typertRemote') as unknown
+    for (const { serviceKey, original, value } of this.remoteBindingValues()) {
       if (value === undefined) continue
       const binding = readBinding(value, original, serviceKey, endpoint)
       if (binding.namespace !== namespace) continue
