@@ -463,25 +463,25 @@ hygiene 16/16 PASS、doc-sync 43/43 PASS、duplication 0 clones / 2350 files / 4
 - **M6 better-sidebar** `state.ts` 1900 / `Sidebar.tsx` 1775：不变，缺证成理由
 - **M6 `core/tools/src/index.ts`**：1913 → **1932（+19）**，恶化
 - **M6 `self-evolve-basic/src/index.ts`**：1857，不变
-- **M10 sdk `settleStreams` 定时器泄漏**：`client.ts:444-449` → `:464-469`，立为 Issue #170
-- **M10 gateway 同构扫描循环**：`index.ts:117-134`/`:233-260` → `:272-287`/`:636-664`，立为 Issue #171
+- **M10 sdk `settleStreams` 定时器泄漏**：`client.ts:444-449` → `:464-469`，立为 Issue #170——**2026-09-16 已收敛**（PR #173）：改为手写 promise 并在 `streamsSettled` 先结算时清定时器，等待时长不变；见 `.agents/notes/implemented/bug-fix/2026-09-16-sdk-stream-settle-timer.md`
+- **M10 gateway 同构扫描循环**：`index.ts:117-134`/`:233-260` → `:272-287`/`:636-664`，立为 Issue #171——**2026-09-16 已收敛**（PR #175）：六步前缀抽为 `remoteBindingValues()` 生成器，两个消费方各自保留分叉校验，行为不变；见 `.agents/notes/implemented/simplification/2026-09-16-gateway-remote-service-scan.md`
 - **M10 llm-deepseek vs llm-pi-ai 平行重建**：llm-deepseek 已集中到 `common/defaults.ts`；llm-pi-ai 仍内联，部分收敛
 
 ### 本轮新增（立为 Issue）
 
-- **#168** 上游合并带入 23 处空 `.catch(() => {})` 缺紧邻理由（#85 回归）：集中在 `ssh/`（20 处）、`ptc-runtime-node`（1）、`browser-use-stagehand-native`（1）、`subprocess-ssh`（1）
-- **#169** `workspace.create(path, title?)` 的 `title` 参数已死：TODO 明确指向修复方案（删除参数 + README 对）
-- **#170** sdk/client `settleStreams` race 获胜方不清 timer（M10 行号漂移立案）
-- **#171** api/gateway `collectSrcClaims` 与 `resolveSrcDescriptor` 同构扫描循环（M10 行号漂移立案）
+- **#168** 上游合并带入 23 处空 `.catch(() => {})` 缺紧邻理由（#85 回归）：集中在 `ssh/`（20 处）、`ptc-runtime-node`（1）、`browser-use-stagehand-native`（1）、`subprocess-ssh`（1）——**2026-09-16 已落地**（PR #176）：按同一规则复判当前树得 24 处（多出 `ssh/src/helper-processes.ts` 的预备超时释放），已逐处补紧邻理由并归入既有五种形态；见 `.agents/notes/implemented/bug-fix/2026-09-16-merged-in-catch-sites.md`
+- **#169** `workspace.create(path, title?)` 的 `title` 参数已死：TODO 明确指向修复方案（删除参数 + README 对）——**2026-09-16 已落地**（PR #174）：参数与 `@param` 子句删除，新建标题一律由路径末段派生（重命名仍走 `Workspace.setTitle`）；测试、README 对、`docs/subsystems/workspace` 对与生成的 Cordis 目录同步；见 `.agents/notes/implemented/simplification/2026-09-16-workspace-create-derived-title.md`
+- **#170** sdk/client `settleStreams` race 获胜方不清 timer（M10 行号漂移立案）——**2026-09-16 已落地**（PR #173）：先写回归测试（假定时器下 `vi.getTimerCount()` 由 1 转 0）再改实现
+- **#171** api/gateway `collectSrcClaims` 与 `resolveSrcDescriptor` 同构扫描循环（M10 行号漂移立案）——**2026-09-16 已落地**（PR #175）：抽取 `remoteBindingValues()` 生成器；网关全套 287 用例通过且 `src/index.ts` 保持 100% 覆盖
 
 ### 台账条目 → Issue 关联（本轮新增）
 
 | 台账条目 | 状态 | Issue |
 |---|---|---|
-| 空 catch 回归（#85 后续） | 开放 | #168 |
-| workspace `title` 死参数 | 开放 | #169 |
-| M10 settleStreams 定时器 | 开放 | #170 |
-| M10 gateway 同构循环 | 开放 | #171 |
+| 空 catch 回归（#85 后续） | 已收敛 | #168 / PR #176 |
+| workspace `title` 死参数 | 已收敛 | #169 / PR #174 |
+| M10 settleStreams 定时器 | 已收敛 | #170 / PR #173 |
+| M10 gateway 同构循环 | 已收敛 | #171 / PR #175 |
 | L5 kick() / bridge-client / identity | 已收敛 | — |
 | M8 agentInfo.version / maxParallelSubCalls | 已收敛 | — |
 | M10 acp whenIdle / hooks 双桥 | 已收敛 | — |
