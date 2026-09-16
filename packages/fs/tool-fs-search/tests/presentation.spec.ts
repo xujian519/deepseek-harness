@@ -17,7 +17,7 @@ import {
   searchViewFromMeta,
 } from '../src/presentation.ts'
 import type { GrepMatch } from '../src/search-core.ts'
-import { retainGlobPaths, retainGrepMatches } from '../src/search-core.ts'
+import { retainGrepMatches } from '../src/search-core.ts'
 
 const match = (path: string, lineNumber: number, line: string): GrepMatch => ({ path, lineNumber, line })
 
@@ -93,17 +93,24 @@ describe('grepSearchMeta', () => {
 })
 
 describe('globSearchMeta', () => {
+  // The inline page `glob`'s card projection receives: the capped page plus the
+  // complete result's size, in the modification-time order a page keeps.
+  const globPage = (paths: string[], maxResults: number): Parameters<typeof globSearchMeta>[0] => ({
+    items: paths.slice(0, maxResults),
+    truncated: paths.length > maxResults,
+    seen: paths.length,
+  })
+
   it('projects the path list with total and a false truncation flag within the cap', () => {
-    expect(globSearchMeta(retainGlobPaths(['a.ts', 'b.ts'], 10), WIDE)).toEqual({ shape: 'paths', paths: ['a.ts', 'b.ts'], truncated: false, total: 2 })
+    expect(globSearchMeta(globPage(['a.ts', 'b.ts'], 10), WIDE)).toEqual({ shape: 'paths', paths: ['a.ts', 'b.ts'], truncated: false, total: 2 })
   })
 
   it('reports the pre-cap total and truncation from the shared retention pass', () => {
-    expect(globSearchMeta(retainGlobPaths(['a.ts', 'b.ts', 'c.ts'], 2), WIDE)).toEqual({ shape: 'paths', paths: ['a.ts', 'b.ts'], truncated: true, total: 3 })
+    expect(globSearchMeta(globPage(['a.ts', 'b.ts', 'c.ts'], 2), WIDE)).toEqual({ shape: 'paths', paths: ['a.ts', 'b.ts'], truncated: true, total: 3 })
   })
 
   it('drops trailing paths until the serialized meta fits the byte cap, marking it truncated', () => {
-    const retained = retainGlobPaths([`${'a'.repeat(100)}.ts`, `${'b'.repeat(100)}.ts`, `${'c'.repeat(100)}.ts`], 10)
-    const meta = globSearchMeta(retained, 180)
+    const meta = globSearchMeta(globPage([`${'a'.repeat(100)}.ts`, `${'b'.repeat(100)}.ts`, `${'c'.repeat(100)}.ts`], 10), 180)
     expect(meta.shape).toBe('paths')
     if (meta.shape !== 'paths') throw new Error('unreachable')
     expect(meta.truncated).toBe(true)

@@ -336,6 +336,9 @@ export function previewLine(line: string, maxBytes: number): string {
  * ({@link module:@deepseek-ai/dsh-tool-fs-search/presentation} `grepSearchMeta`)
  * consume, so text and card never disagree about which matches survived.
  *
+ * Only the kept prefix is previewed: the retainer discards the rest, and the
+ * spill artifact previews the complete list through its own pass.
+ *
  * @param matches - every match the search parsed (the canonical value's matches).
  * @param maxMatches - the inline match cap (the `grepMaxMatches` config).
  * @param maxLineBytes - the per-matched-line preview budget in bytes.
@@ -343,22 +346,11 @@ export function previewLine(line: string, maxBytes: number): string {
  */
 export function retainGrepMatches(matches: GrepMatch[], maxMatches: number, maxLineBytes: number): RetainedItems<GrepMatch> {
   const retainer = new ItemRetainer<GrepMatch>({ kind: 'head', maxItems: maxMatches })
-  for (const match of matches) retainer.push({ ...match, line: previewLine(match.line, maxLineBytes) })
-  return retainer.finish()
-}
-
-/**
- * Apply the shared inline cap to a canonical `glob` path list: keep the first
- * `maxResults`. The single retention pass both the model-facing render and the
- * search-card projection consume.
- *
- * @param paths - every path the search discovered (the canonical value's paths).
- * @param maxResults - the inline path cap (the `globMaxResults` config).
- * @returns the retention outcome over the paths.
- */
-export function retainGlobPaths(paths: string[], maxResults: number): RetainedItems<string> {
-  const retainer = new ItemRetainer<string>({ kind: 'head', maxItems: maxResults })
-  for (const path of paths) retainer.push(path)
+  let index = 0
+  for (const match of matches) {
+    retainer.push(index < maxMatches ? { ...match, line: previewLine(match.line, maxLineBytes) } : match)
+    index += 1
+  }
   return retainer.finish()
 }
 
