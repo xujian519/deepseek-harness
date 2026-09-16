@@ -19,6 +19,9 @@ const BINARY_SAMPLE_BYTES = 8192
 const realpath = promisify(realpathCallback.native)
 // Bound one non-abortable FileHandle.read so cancellation is observed between chunks.
 const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024
+// Children resolved concurrently by one listing: keeps the libuv pool busy on a
+// large directory without queueing the whole directory at once.
+const LIST_BATCH_SIZE = 32
 
 /**
  * A path component that is expected to be a directory is a regular file (e.g.
@@ -276,7 +279,7 @@ async function resolveListedChildTarget(parent: LocalTarget, name: string): Prom
  * a resolved target plus stat metadata when still available; file contents are
  * never read.
  * @param target - the resolved directory to list; a missing or non-directory target throws.
- * @param signal - aborts the listing, checked between children (`FS_ABORTED`).
+ * @param signal - aborts the listing, checked before each batch of children (`FS_ABORTED`).
  * @returns one entry per direct child, sorted by name.
  */
 export async function listDirectory(target: LocalTarget, signal?: AbortSignal): Promise<LocalDirEntry[]> {
@@ -299,24 +302,30 @@ export async function listDirectory(target: LocalTarget, signal?: AbortSignal): 
   }
   throwIfAborted(signal, 'list')
 
+  const sorted = entries.sort((left, right) => left.name.localeCompare(right.name))
   const result: LocalDirEntry[] = []
-  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+  for (let start = 0; start < sorted.length; start += LIST_BATCH_SIZE) {
     throwIfAborted(signal, 'list')
-    try {
-      const childTarget = await resolveListedChildTarget(target, entry.name)
-      const childInfo = await probe(childTarget.targetKey)
-      result.push({
-        name: entry.name,
-        type: childInfo?.type ?? 'other',
-        target: childTarget,
-        ...(childInfo ? { version: childInfo.version } : {}),
-        ...(childInfo?.type === 'file' ? { size: childInfo.size } : {}),
-      })
-    } catch (error: unknown) {
-      throw listingIoError(localDisplayPath(target.displayPath, entry.name), error)
-    }
-    throwIfAborted(signal, 'list')
+    // One child's realpath and stat are independent of its siblings', so a batch
+    // overlaps their threadpool round trips; entries still land in name order.
+    const resolved = await Promise.all(sorted.slice(start, start + LIST_BATCH_SIZE).map(async (entry): Promise<LocalDirEntry> => {
+      try {
+        const childTarget = await resolveListedChildTarget(target, entry.name)
+        const childInfo = await probe(childTarget.targetKey)
+        return {
+          name: entry.name,
+          type: childInfo?.type ?? 'other',
+          target: childTarget,
+          ...(childInfo ? { version: childInfo.version } : {}),
+          ...(childInfo?.type === 'file' ? { size: childInfo.size } : {}),
+        }
+      } catch (error: unknown) {
+        throw listingIoError(localDisplayPath(target.displayPath, entry.name), error)
+      }
+    }))
+    result.push(...resolved)
   }
+  throwIfAborted(signal, 'list')
   return result
 }
 

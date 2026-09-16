@@ -277,6 +277,22 @@ describe('listDirectory', () => {
     })
   })
 
+  it('lists more children than one batch in name order and maps a later failure', async () => {
+    const root = join(dir, 'wide')
+    await mkdir(root)
+    // Created in reverse so the assertion pins the sort, not insertion order.
+    for (let index = 39; index >= 0; index -= 1) await writeFile(join(root, `file-${String(index).padStart(3, '0')}.txt`), 'x')
+    const entries = await listDirectory(localTarget(root))
+    expect(entries.map(entry => entry.name)).toEqual(
+      Array.from({ length: 40 }, (_, index) => `file-${String(index).padStart(3, '0')}.txt`),
+    )
+    expect(entries.every(entry => entry.type === 'file' && entry.size === 1)).toBe(true)
+
+    // A child that fails to resolve sorts into the second batch.
+    await symlink(join(root, 'zz-loop'), join(root, 'zz-loop'))
+    await expect(listDirectory(localTarget(root))).rejects.toMatchObject({ code: 'FS_IO_ERROR' })
+  })
+
   it('rejects missing, non-directory, and aborted listing requests', async () => {
     await expect(listDirectory(localTarget(join(dir, 'missing')))).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
     const file = join(dir, 'a.txt')
