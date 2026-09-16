@@ -20,7 +20,7 @@
  * (VSCode semantics — a drop on a file row targets its parent directory),
  * and `busy` gates new drags while one upload is in flight.
  */
-import { useCallback, useEffect, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
@@ -146,6 +146,11 @@ export function FileTree(props: {
   } = props
   const [data, setData] = useState<Record<string, LevelData>>({})
   const dataRef = useRef(data)
+  /** Membership sets for the per-row checks below: every rendered row tests
+   *  the same path lists, so a Set keeps a deep tree linear. The props stay
+   *  arrays because the loader effect below depends on their identity. */
+  const expandedSet = useMemo(() => new Set(expanded), [expanded])
+  const revealedSet = useMemo(() => new Set(revealed), [revealed])
   /** The row whose path was just copied ("copied" label replaces its button). */
   const [copiedPath, setCopiedPath] = useState<string | null>(null)
   /** Open context menu: the row path (and whether it is a directory) plus the cursor position. */
@@ -441,7 +446,7 @@ export function FileTree(props: {
     const entries = level.entries ?? []
     return entries.map((entry) => {
       if (entry.isDir) {
-        const isOpen = expanded.includes(entry.path)
+        const isOpen = expandedSet.has(entry.path)
         return (
           <div key={entry.path}>
             <div
@@ -450,9 +455,9 @@ export function FileTree(props: {
               className={clsx(
                 css.explorerRow, css.explorerDir, entry.hidden && css.explorerHidden,
                 dropTarget === entry.path && css.explorerRowDropTarget,
-                revealed.includes(entry.path) && css.explorerRowRevealed,
+                revealedSet.has(entry.path) && css.explorerRowRevealed,
               )}
-              data-dsh-revealed={revealed.includes(entry.path) ? 'true' : undefined}
+              data-dsh-revealed={revealedSet.has(entry.path) ? 'true' : undefined}
               style={{ paddingLeft: depth * 22 + 6 }}
               onClick={() => { onToggle(entry.path) }}
               onKeyDown={(event) => {
@@ -482,9 +487,9 @@ export function FileTree(props: {
           className={clsx(
             css.explorerRow, entry.hidden && css.explorerHidden, entry.broken && css.explorerBroken,
             dropTarget === parentOf(entry.path) && css.explorerRowDropTarget,
-            revealed.includes(entry.path) && css.explorerRowRevealed,
+            revealedSet.has(entry.path) && css.explorerRowRevealed,
           )}
-          data-dsh-revealed={revealed.includes(entry.path) ? 'true' : undefined}
+          data-dsh-revealed={revealedSet.has(entry.path) ? 'true' : undefined}
           style={{ paddingLeft: depth * 22 + 6 }}
           title={entry.broken ? `${entry.path} — ${t('brokenSymlink')}` : entry.path}
           onClick={() => { onOpenFile(entry.path) }}

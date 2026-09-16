@@ -315,40 +315,45 @@ function processPresentationInputChanged(
     && previous.data.step !== next.data.step
 }
 
+/** One turn's process-presentation record. The fold mutates these fields and
+ *  returns the map as read-only; consumers never write them. */
 interface TurnProcessPresentation {
-  readonly control?: ChatNode<'turn-process'>
-  readonly openingHumanAnchor?: number
-  readonly earliestProcessAnchor?: number
+  control?: ChatNode<'turn-process'>
+  openingHumanAnchor?: number
+  earliestProcessAnchor?: number
 }
 
 function turnProcessPresentations(
   nodes: readonly ChatConversationViewNode[],
 ): ReadonlyMap<number, TurnProcessPresentation> {
   const presentations = new Map<number, TurnProcessPresentation>()
+  /** One turn's record, created on first use and folded in place: readers only
+   *  look up the finished map, so a per-node copy would only add garbage. */
+  const recordFor = (turn: number): TurnProcessPresentation => {
+    let record = presentations.get(turn)
+    if (record === undefined) {
+      record = {}
+      presentations.set(turn, record)
+    }
+    return record
+  }
   for (const raw of nodes) {
     const node = raw as ChatNode
-    if (node.kind === 'turn-process') {
-      presentations.set(node.data.turn, { ...presentations.get(node.data.turn), control: node })
-    }
+    if (node.kind !== 'turn-process') continue
+    recordFor(node.data.turn).control = node
   }
   for (const raw of nodes) {
     const node = raw as ChatNode
     const location = node.location
     if (location.kind !== 'turn' && location.kind !== 'step') continue
-    const current: TurnProcessPresentation = presentations.get(location.turn.turn) ?? {}
+    const current = recordFor(location.turn.turn)
     if ((node.kind === 'user' || node.kind === 'steering')
       && node.anchorSeq < (current.control?.data.controlAnchorSeq ?? Number.POSITIVE_INFINITY)) {
-      presentations.set(location.turn.turn, {
-        ...current,
-        openingHumanAnchor: Math.min(current.openingHumanAnchor ?? node.anchorSeq, node.anchorSeq),
-      })
+      current.openingHumanAnchor = Math.min(current.openingHumanAnchor ?? node.anchorSeq, node.anchorSeq)
       continue
     }
     if (TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)) continue
-    presentations.set(location.turn.turn, {
-      ...current,
-      earliestProcessAnchor: Math.min(current.earliestProcessAnchor ?? node.anchorSeq, node.anchorSeq),
-    })
+    current.earliestProcessAnchor = Math.min(current.earliestProcessAnchor ?? node.anchorSeq, node.anchorSeq)
   }
   return presentations
 }
@@ -402,14 +407,15 @@ export function orderedVisibleChatNodes(
 ): ChatConversationViewNode[] {
   const visible = nodes.filter(node => node.visibility === 'visible')
   const presentations = turnProcessPresentations(visible)
-  return visible.sort((left, right) => {
-    const leftPosition = presentationPosition(left, presentations)
-    const rightPosition = presentationPosition(right, presentations)
-    return leftPosition.anchor - rightPosition.anchor
-      || leftPosition.rank - rightPosition.rank
-      || leftPosition.originalAnchor - rightPosition.originalAnchor
-      || left.key.localeCompare(right.key)
-  })
+  // Sort keys are derived once per node; deriving them inside the comparator
+  // would repeat the fold lookup and its allocations on every comparison.
+  return visible
+    .map(node => ({ node, position: presentationPosition(node, presentations) }))
+    .sort((left, right) => left.position.anchor - right.position.anchor
+      || left.position.rank - right.position.rank
+      || left.position.originalAnchor - right.position.originalAnchor
+      || left.node.key.localeCompare(right.node.key))
+    .map(entry => entry.node)
 }
 
 function referenceMessageSeq(node: ChatConversationViewNode): number | undefined {
@@ -1003,7 +1009,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
         || previous.kind !== node.kind
         || previous.anchorSeq !== node.anchorSeq
         || previous.visibility !== node.visibility
-        || locationIdentity(previous.location) !== locationIdentity(node.location)
+        || !sameLocation(previous.location, node.location)
       structural ||= nodeStructural
       if (!nodeStructural) contentOnly.push(node)
       if (processPresentationInputChanged(previous as ChatNode | undefined, node as ChatNode, nodeStructural)) {
@@ -1057,9 +1063,13 @@ function turnsOf(nodes: readonly ChatConversationViewNode[]): ReadonlySet<number
   return turns
 }
 
-function locationIdentity(location: ConversationLocation): string {
-  const coordinates = locationCoordinates(location)
-  return `${location.kind}:${coordinates.turn ?? ''}:${coordinates.step ?? ''}`
+/** Compare two Locations by kind and turn/step coordinates, without a key string. */
+function sameLocation(left: ConversationLocation, right: ConversationLocation): boolean {
+  if (left.kind !== right.kind) return false
+  const leftCoordinates = locationCoordinates(left)
+  const rightCoordinates = locationCoordinates(right)
+  return leftCoordinates.turn === rightCoordinates.turn
+    && leftCoordinates.step === rightCoordinates.step
 }
 
 /** Chat target factory contributed to the Conversation view registry. */

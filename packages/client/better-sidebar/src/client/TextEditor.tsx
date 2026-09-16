@@ -59,8 +59,10 @@ export const HTML_IFRAME_SANDBOX = 'allow-scripts allow-popups allow-downloads a
 export function TextEditor(props: FileViewerProps) {
   const { ctx, scope, path, viewerId, content, truncated } = props
   const [mode, setMode] = useState<ViewMode>('preview')
-  /** The editor's current text (null while clean); preview renders this. */
-  const [draft, setDraft] = useState<string | null>(null)
+  /** The editor's live text (null while clean); the preview renders it and a
+   *  save writes it. It lives in a ref rather than state so an edit-mode
+   *  keystroke renders nothing: only the clean→dirty transition does. */
+  const draftRef = useRef<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const hostRef = useRef<HTMLDivElement>(null)
@@ -78,6 +80,9 @@ export function TextEditor(props: FileViewerProps) {
   const mdRef = useRef<HTMLDivElement>(null)
 
   const hidePopup = (): void => {
+    // Every editor update and keystroke reaches here; skip the write when the
+    // popup is already hidden so a same-value update costs no render.
+    if (popupRef.current === null) return
     popupRef.current = null
     setPopup(null)
   }
@@ -106,7 +111,7 @@ export function TextEditor(props: FileViewerProps) {
   // A new file (tab switch) starts clean: fresh preview mode, no draft.
   useEffect(() => {
     setMode('preview')
-    setDraft(null)
+    draftRef.current = null
     setDirty(false)
     setSaveState('idle')
     hidePopup()
@@ -137,10 +142,12 @@ export function TextEditor(props: FileViewerProps) {
         themeComp.of(dark),
         ...(language !== null ? [language] : []),
         CodeMirrorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            setDraft(update.state.doc.toString())
-            setDirty(true)
-          }
+          if (!update.docChanged) return
+          const becameDirty = draftRef.current === null
+          draftRef.current = update.state.doc.toString()
+          // Later keystrokes only refresh the ref: React already shows the
+          // dirty dot, and the preview reads the ref when it next renders.
+          if (becameDirty) setDirty(true)
         }),
         keymap.of([
           {
@@ -232,7 +239,7 @@ export function TextEditor(props: FileViewerProps) {
     setSaveState('saving')
     api.fsWrite(scope, path, view.state.doc.toString()).then(() => {
       savingRef.current = false
-      setDraft(null)
+      draftRef.current = null
       setDirty(false)
       setSaveState('saved')
     }).catch(() => {
@@ -243,15 +250,22 @@ export function TextEditor(props: FileViewerProps) {
 
   const markdown = viewerId === 'markdown'
   const html = viewerId === 'html'
-  /** The markdown source the preview renders (draft wins over saved content). */
-  const mdText = draft ?? content ?? ''
+  /** The markdown source the preview renders (the live draft wins over saved
+   *  content). Read from the editor's ref: the preview renders after the mode
+   *  flip that discovers the draft, so it never shows a stale frame. */
+  const mdText = draftRef.current ?? content ?? ''
   /** The preview source: `mdText` with local image destinations rewritten to
-   *  absolute media URLs (see {@link rewriteLocalImageUrls}); the raw
-   *  `mdText` stays untouched for selection/line lookup and for mermaid-block
-   *  detection, which are unaffected by image syntax. */
-  const previewText = markdown
-    ? rewriteLocalImageUrls(mdText, scope, path, window.location.origin)
-    : mdText
+   *  absolute media URLs (see {@link rewriteLocalImageUrls}); the raw `mdText`
+   *  stays untouched for selection/line lookup and for mermaid-block
+   *  detection, which are unaffected by image syntax. Memoized on primitives
+   *  and computed only for a preview render, so edit-mode keystrokes never
+   *  re-scan the source. */
+  const previewText = useMemo(
+    () => (markdown && mode === 'preview'
+      ? rewriteLocalImageUrls(mdText, scope, path, window.location.origin)
+      : mdText),
+    [markdown, mode, mdText, scope.sessionId, scope.cwd, path],
+  )
   /** md/mermaid block split for the preview (mermaid fences lift out). Split
    *  only in preview mode: edit-mode keystrokes must not re-scan the source. */
   const mdBlocks = useMemo(
