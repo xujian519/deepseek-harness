@@ -175,6 +175,23 @@ function packageFrom(anchor: string, name: string): string | undefined {
 }
 
 /**
+ * Whether a peer range accepts the version the profile would supply.
+ *
+ * A prerelease host release and a prerelease peer range can overlap while
+ * default semver comparison still reports no match (`^1.0.0-rc.1` against
+ * `1.0.1-rc.2`), because a prerelease comparator only matches its own
+ * [major, minor, patch] tuple. Desktop ships prereleases, so prerelease
+ * versions count on both sides — every peer comparison in this file goes
+ * through here, whether the version comes from the runtime inventory or from
+ * a profile-resolved package.
+ * @param version - Version the profile would resolve for the peer.
+ * @param range - Peer range the dependent declares.
+ */
+function peerAccepts(version: string, range: string): boolean {
+  return satisfies(version, range, { includePrerelease: true })
+}
+
+/**
  * Prove active plugin dependencies stay local and share the host's exact package instances.
  * @param profile - Profile with its generated host links present.
  * @param root - Immutable runtime directory.
@@ -243,7 +260,7 @@ export function validateDesktopPluginGraph(
       const host = shared.get(name)
       if (host !== undefined && name in deps) throw new Error(`desktop profile: ${chain} must declare ${name} as a peer dependency`)
       if (host !== undefined) {
-        if (peer && !satisfies(host.version, range)) {
+        if (peer && !peerAccepts(host.version, range)) {
           throw new Error(`desktop profile: ${chain} requires ${name}@${range}, found ${host.version}`)
         }
         continue
@@ -255,10 +272,7 @@ export function validateDesktopPluginGraph(
         throw new Error(`desktop profile: ${chain} resolves ${name} outside its owned packages`)
       }
       const dependency = manifest(target)
-      // A prerelease host release and a prerelease peer range can overlap while
-      // default semver comparison still reports no match, so prerelease versions
-      // count on both sides.
-      if (peer && !satisfies(dependency.version, range, { includePrerelease: true })) {
+      if (peer && !peerAccepts(dependency.version, range)) {
         throw new Error(`desktop profile: ${chain} requires ${name}@${range}, found ${dependency.version}`)
       }
       visit(target, `${chain} -> ${name}`)
