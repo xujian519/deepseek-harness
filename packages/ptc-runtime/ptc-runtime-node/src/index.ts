@@ -172,6 +172,7 @@ export class NodePtcRuntime extends PtcRuntime {
         if (handle !== undefined) {
           try {
             handle.terminate()
+            // Teardown joins the killed handle; the run's own failure or value is already settled.
             await Promise.all([handle.done.catch(() => {}), handle.waitForExit()])
             const drained = await Promise.all([
               drainOutput(handle.stdout, this.config.graceMs),

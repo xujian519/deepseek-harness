@@ -240,6 +240,7 @@ export async function runSshHelper(transport: HelperTransport): Promise<void> {
   })
   const closed = Promise.withResolvers<undefined>()
   peer.once('closed', () => {
+    // The peer is already closed; close() is best-effort teardown with no requester.
     void close().catch(() => {})
     closed.resolve(undefined)
   })

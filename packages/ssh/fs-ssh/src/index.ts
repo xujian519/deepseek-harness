@@ -62,6 +62,7 @@ export class SshFileSystem extends FileSystem {
           if (next.value.length > 0) yield next.value
         }
       } finally {
+        // The consumer's failure or abort is the authority; closing the remote stream must not replace it.
         if (!ended) await call('fs.streamClose', { id }, z.null()).catch(() => {})
       }
     })()
