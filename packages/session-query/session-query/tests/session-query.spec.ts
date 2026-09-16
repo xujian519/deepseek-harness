@@ -5,10 +5,12 @@ import SessionStore, { SessionLogOffset, SessionSeq, SESSION_FORMAT_VERSION, Ses
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@deepseek-ai/dsh-session'
 import SessionPersistence, {
+  SessionFormatUnsupportedError,
   SessionPersistenceCorruptionError,
   SessionPersistenceNotFoundError,
   SessionPersistenceRevision,
   SessionReadOnlyError,
+  sessionFormatVersionRefusal,
 } from '@deepseek-ai/dsh-session-persistence'
 import type {
   SessionAccess,
@@ -1165,6 +1167,33 @@ describe('session-query exact reads', () => {
       .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
     expect(TestPersistence.statCalls).toBe(2)
     expect(TestPersistence.readCalls).toEqual([target.id])
+  })
+
+  it('refuses a stored log this build cannot read instead of reporting it absent', async () => {
+    const foreign = header('foreign-format')
+    TestPersistence.reset([{ meta: foreign, events: eventLog('foreign') }])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+    // The JSONL backend omits a structurally foreign header from a listing and
+    // refuses it from one id, so the target lookup meets a refusal and the query
+    // must report that refusal instead of absence.
+    const rawPath = '/store/project/foreign-format/42.jsonl'
+    const refusal = new SessionFormatUnsupportedError(
+      `${sessionFormatVersionRefusal(foreign.id, SESSION_FORMAT_VERSION + 1)} (raw log: ${rawPath})`,
+      { kind: 'jsonl', path: rawPath },
+    )
+    TestPersistence.listOverride = () => Promise.resolve([])
+    TestPersistence.statOverride = () => Promise.reject(refusal)
+
+    const failure: unknown = await ctx.sessionQuery
+      .readEvent({ sessionId: foreign.id, seq: SessionSeq(0) })
+      .then(() => undefined, (error: unknown) => error)
+
+    expect(failure).toMatchObject({ code: 'SESSION_QUERY_PERSISTENCE_FAILED' })
+    expect((failure as { cause?: unknown }).cause).toBe(refusal)
+    expect([TestPersistence.listCalls, TestPersistence.statCalls, TestPersistence.readCalls.length]).toEqual([0, 1, 0])
+    // The corpus listing keeps reporting the session the way the backend does: absent.
+    await expect(ctx.sessionQuery.listSessions()).resolves.toEqual([])
   })
 
   it('merges authoritative persistence with live precedence and detects conflicts', async () => {
