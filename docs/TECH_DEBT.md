@@ -432,3 +432,64 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - M6 上帝文件拆分(优先级:continuation.ts → tools/index.ts → api-proxy.ts)、M7 typert 契约测试恢复、L1 CLAUDE.md 布局同步、M9 legacy shim 清理(验证消费者后)、L2 死代码删除
 
 > 备注:59 处 TODO/FIXME 中,除本报告列为债务的之外,其余为常规记账(命名规范、多属「待办优化」而非缺陷)。FIXME(timeout-policy 改名)必须在首个 tagged release 前决定——已于 2026-08-19 以 `dsh-timeout-policy` → `dsh-timeout-guard` 执行完毕。
+
+## 2026-09-16 更新（快速盘点 + 上游 v0.1.6-alpha.1 合并后对账）
+
+复测基线：分支 `sync/upstream-dsh-v0.1.6-alpha.1` HEAD（含上游 v0.1.6-alpha.1 合并 + 6 处 unit lane 修复）。方法与逐条证据见 [全仓技术债务快速盘点与 Issue 清单](../.agents/audits/2026-09-16-tech-debt-issue-manifest.md)。
+
+### 门禁基线
+
+hygiene 16/16 PASS、doc-sync 43/43 PASS、duplication 0 clones / 2350 files / 479556 lines、typecheck PASS、lint 0/0 (4830 files)。`test:coverage` 未跑（CI 拥有该信号）。
+
+### 已收敛（本轮销案）
+
+- **L5 `kick()` 空 catch**：`agent.ts:229` 已有紧邻注释「Reported failures and cancellation are contained at the driver boundary.」
+- **L5 desktop bridge-client 写路径泄漏**：08-28 修复保持（`bridge-client.ts:179` catch 内调 `settle`）
+- **L5 identity 首启并发窗口**：JSDoc 已明写权衡与收敛保证（`anonymous-user-id/src/index.ts:57-88`）
+- **M8 `agentInfo.version` 硬编码**：`acp/acp/src/index.ts:69` 读 `package.json`、`:195` 用 `AGENT_VERSION`
+- **M8 `maxParallelSubCalls` 三处事实源**：`core/tools/src/index.ts:757` `DEFAULT_MAX_PARALLEL_SUB_CALLS` + `:761` `resolveMaxParallelSubCalls` + `:777` schema `.default(...)`，request/spec 模板收敛
+- **M10 acp `whenIdle()` 无 rejection 处理**：`acp/acp/src/session.ts:437` 改为 `await` + try/catch → `failures.push(...)`
+- **M10 hooks 双桥镜像复制**：`hooks-codex/src/index.ts` 有 `/* jscpd:ignore-start */` + 明写理由；两桥功能集已有意分歧（claude-code 支持 subagent start/stop + env + substitution；codex 只 5 个点 + regex-only + snake_case）
+- **hygiene 门禁 08-28 三簇红**：hygiene 16/16 PASS，vendor rescope / onboarding-copy / client 包 peer+dev 均已收敛
+
+### 仍开放（行号漂移，内容不变）
+
+- **L5 魔法哨兵** `resumeSessionId === ''`：`agent-loop/src/index.ts:281,357` → `:427`（合并为单处 `undefined || === ''`）
+- **L5 `whenIdle()` 自旋**：`agent.ts:195-200` → `:211-215`
+- **L5 `isAborted` 平凡包装**：`tools/index.ts:1889-1892` → `:1862-1864`
+- **L5 skill-filesystem abort listener**：`:167` → `:172`（台账已定性无害）
+- **L5 llm-pi-ai 错误分类靠正则**：`stream.ts:31-70` → `:35-72`（XXX 注释保留，等上游）
+- **L5 tool-todo 双 schema 库混用**：`index.ts:11-13` → `:9-10`
+- **M6 better-sidebar** `state.ts` 1900 / `Sidebar.tsx` 1775：不变，缺证成理由
+- **M6 `core/tools/src/index.ts`**：1913 → **1932（+19）**，恶化
+- **M6 `self-evolve-basic/src/index.ts`**：1857，不变
+- **M10 sdk `settleStreams` 定时器泄漏**：`client.ts:444-449` → `:464-469`，立为 Issue #170
+- **M10 gateway 同构扫描循环**：`index.ts:117-134`/`:233-260` → `:272-287`/`:636-664`，立为 Issue #171
+- **M10 llm-deepseek vs llm-pi-ai 平行重建**：llm-deepseek 已集中到 `common/defaults.ts`；llm-pi-ai 仍内联，部分收敛
+
+### 本轮新增（立为 Issue）
+
+- **#168** 上游合并带入 23 处空 `.catch(() => {})` 缺紧邻理由（#85 回归）：集中在 `ssh/`（20 处）、`ptc-runtime-node`（1）、`browser-use-stagehand-native`（1）、`subprocess-ssh`（1）
+- **#169** `workspace.create(path, title?)` 的 `title` 参数已死：TODO 明确指向修复方案（删除参数 + README 对）
+- **#170** sdk/client `settleStreams` race 获胜方不清 timer（M10 行号漂移立案）
+- **#171** api/gateway `collectSrcClaims` 与 `resolveSrcDescriptor` 同构扫描循环（M10 行号漂移立案）
+
+### 台账条目 → Issue 关联（本轮新增）
+
+| 台账条目 | 状态 | Issue |
+|---|---|---|
+| 空 catch 回归（#85 后续） | 开放 | #168 |
+| workspace `title` 死参数 | 开放 | #169 |
+| M10 settleStreams 定时器 | 开放 | #170 |
+| M10 gateway 同构循环 | 开放 | #171 |
+| L5 kick() / bridge-client / identity | 已收敛 | — |
+| M8 agentInfo.version / maxParallelSubCalls | 已收敛 | — |
+| M10 acp whenIdle / hooks 双桥 | 已收敛 | — |
+| hygiene 08-28 三簇红 | 已收敛 | — |
+
+### 遗留
+
+- `test:coverage` 未跑（CI 拥有该信号）；覆盖率豁免其余约 90 条未逐条重审
+- 09-12 遗留：非严格插件 schema 静默吞掉拼错配置键、keyless 快照层不在 fork CI 内
+- 09-13 遗留：中英指针集合不变量升格为 quick doc 叶门（#127 follow-up）
+- L5 余项与 M6 四候选保持台账登记不立案（缺独立可评审修复单元 / 缺证成理由）
