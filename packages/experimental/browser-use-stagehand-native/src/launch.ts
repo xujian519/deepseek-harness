@@ -34,6 +34,7 @@ export async function launchChromium(config: NativeBrowserConfig, signal: AbortS
     await closed
     await rm(profile, { recursive: true, force: true })
   })()
+  // The caller's abort reason is the authority; close() has no other requester.
   const abort = () => { void close().catch(() => {}) }
   try {
     signal.throwIfAborted()

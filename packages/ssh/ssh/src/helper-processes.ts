@@ -111,6 +111,7 @@ export class RemoteProcesses {
     const directory = join(this.root, id)
     const record: ProcessRecord = {
       request, directory, endpoints: {}, controller: new AbortController(),
+      // The expiry release is timer-driven with no caller; close() reports it through cleanups.
       expiry: setTimeout(() => { void this.release(id).catch(() => {}) }, this.preparationMs),
     }
     this.records.set(id, record)
@@ -185,6 +186,7 @@ export class RemoteProcesses {
       record.terminal = terminal
       record.controller.signal.throwIfAborted()
       const socket = await (record.endpoints.terminal as Endpoint).connected
+      // Forwarded output has no observer; the terminal outcome is what the caller receives.
       const output = pipeline(terminal.output, socket).catch(() => {})
       const done = terminal.done.then(outcome => ({ outcome, spills: {}, collected: {} }))
       record.done = done
@@ -192,7 +194,7 @@ export class RemoteProcesses {
         await terminal.terminate()
         await output
         await this.rememberCompleted(id, record, done)
-      }, () => this.finishFailed(id, record, done)).catch(() => {})
+      }, () => this.finishFailed(id, record, done)).catch(() => {}) // Terminal completion chain; record.done carries its outcome to done().
       return
     }
     const stdio = request.stdio as NonNullable<Request['stdio']>
@@ -203,6 +205,7 @@ export class RemoteProcesses {
     record.ordinary = ordinary
     const control = ordinary.control
     if (record.endpoints.control !== undefined && control === undefined) {
+      // The missing control channel is the reported error; the handle's teardown observes its exit.
       void ordinary.done.catch(() => {})
       throw new Error('Remote subprocess provider did not establish fd 7')
     }
@@ -228,12 +231,14 @@ export class RemoteProcesses {
           collector.seal()
         })
       } else {
+        // A broken forward must not replace the process outcome done() reports.
         streams.push(pipeline(stream, socket).catch(() => {}))
       }
     }
     if (record.endpoints.stdin !== undefined) {
       const socket = await record.endpoints.stdin.connected
       socket.end()
+      // Stdin forwarding has no observer; the process outcome is the authority.
       void pipeline(socket, ordinary.stdin as Writable).catch(() => {})
     }
     if (record.endpoints.control !== undefined) {
@@ -242,6 +247,7 @@ export class RemoteProcesses {
       socket.pipe(channel).pipe(socket)
       socket.on('error', () => { channel.destroy() })
       channel.on('error', () => { socket.destroy() })
+      // Control-socket closure is joined, not reported; the process outcome is the authority.
       streams.push(finished(socket, { readable: false, cleanup: true }).catch(() => {}))
     }
     const done = ordinary.done.finally(() => {
@@ -270,7 +276,7 @@ export class RemoteProcesses {
       await ordinary.waitForExit()
       await Promise.all([...streams, ...forwarded])
       await this.rememberCompleted(id, record, done)
-    }, () => this.finishFailed(id, record, done)).catch(() => {})
+    }, () => this.finishFailed(id, record, done)).catch(() => {}) // Ordinary completion chain; record.done carries its outcome to done().
   }
 
   /**
@@ -359,6 +365,7 @@ export class RemoteProcesses {
     record.release ??= this.trackCleanup(async () => {
       clearTimeout(record.expiry)
       record.controller.abort(new Error('SSH process reservation closed'))
+      // Preparation and startup failures already reached their callers; release keeps its own error.
       await record.preparing?.catch(() => {})
       await Promise.all(Object.values(record.endpoints).map(closeEndpoint))
       await record.start?.catch(() => {})
@@ -412,6 +419,7 @@ export class RemoteProcesses {
     })
     const endpoint: Endpoint = { path, capability: capability.toString('hex'), server, connected: connected.promise, pending: new Set() }
     server.maxConnections = 8
+    // Reservation awaiters receive this rejection; the guard covers the pre-attachment window.
     void connected.promise.catch(() => {})
     server.on('connection', (socket: Socket) => {
       endpoint.pending.add(socket)

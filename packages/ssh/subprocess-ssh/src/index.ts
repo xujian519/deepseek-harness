@@ -108,6 +108,7 @@ class RemoteProcess implements SubprocessHandle {
       }
       throw error
     })
+    // done keeps its caller; the guard covers the window before one awaits it.
     void this.done.catch(() => {})
   }
 
@@ -148,6 +149,7 @@ class RemoteProcess implements SubprocessHandle {
       this.committed = true
     } catch (error) {
       this.terminate()
+      // The startup error is the authority; termination must not replace it.
       await this.termination?.catch(() => {})
       for (const socket of this.sockets) socket.destroy()
       throw error
@@ -276,6 +278,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     spec.signal?.throwIfAborted()
     const handle = new RemoteProcess(this.ctx.ssh, spec)
     this.live.add(handle)
+    // Bookkeeping after a failure the handle already reported to its own consumers.
     void handle.done.then(() => handle.waitForExit()).then(() => handle.streamsClosed)
       .then(() => { this.live.delete(handle) }).catch(() => {})
     return handle
@@ -308,8 +311,10 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
       const started = await ssh.request('process.start', { id }, z.object({ pid: z.number().int().positive() }).strict(), signal)
       signal.throwIfAborted()
       const done = ssh.request('process.done', { id }, doneSchema, undefined, true).then(result => ({ exitCode: result.outcome.exitCode, signal: result.outcome.signal as NodeJS.Signals | null }))
+      // The returned handle exposes done; the guard covers the window before a caller awaits it.
       void done.catch(() => {})
       let closing: Promise<void> | undefined
+      // The caller's abort is the authority; failed termination releases the helper lease.
       const abort = (): void => { void handle.terminate().catch(() => { void ssh.dispose().catch(() => {}) }) }
       const handle: SubprocessTerminalHandle = {
         pid: started.pid, output, done,
@@ -333,6 +338,7 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     } catch (error) {
       socket?.destroy()
       try { await ssh.request('process.terminate', { id }, z.null()) } catch (cleanupError) {
+        // RemoteCleanupError is the reported failure; the lease release has no other surface.
         void ssh.dispose().catch(() => {})
         throw new RemoteCleanupError([error, cleanupError], 'SSH terminal allocation failed and remote cleanup is unknown')
       }

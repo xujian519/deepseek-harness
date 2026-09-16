@@ -154,6 +154,7 @@ export class SshConnection extends Service {
     this.sockets.add(socket)
     socket.once('close', () => {
       this.sockets.delete(socket)
+      // The closed socket's forward has no consumer; dispose() settles the tracked operation.
       void this.track(cancelForward()).catch(() => {})
     })
     await new Promise<void>((resolve, reject) => {
@@ -190,6 +191,7 @@ export class SshConnection extends Service {
     this.lifetime.abort(new Error('SSH connection is closing'))
     if (this.heartbeat !== undefined) clearInterval(this.heartbeat)
     try {
+      // Startup failure is already recorded by fail(); disposal must still release the helper.
       await this.ready.catch(() => {})
       if (this.failure === undefined) await this.rpc?.request('close', {}, z.null(), AbortSignal.timeout(this.config.requestTimeoutMs))
     } finally {
@@ -217,6 +219,7 @@ export class SshConnection extends Service {
 
   private track<T>(operation: Promise<T>): Promise<T> {
     this.operations.add(operation)
+    // The operation's own caller receives the rejection; dispose() settles this guard.
     void operation.finally(() => { this.operations.delete(operation) }).catch(() => {})
     return operation
   }
