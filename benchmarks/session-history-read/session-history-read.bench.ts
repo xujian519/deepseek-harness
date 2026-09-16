@@ -9,7 +9,7 @@ import {
   type BuiltBenchmarkWorkerRun,
 } from '../support/built-worker.ts'
 import { CI_TIME_SCALE, ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
-import { HISTORY_READ_EVENTS } from './session-history-read.constants.ts'
+import { HISTORY_READ_EVENTS, HISTORY_READ_TEXT_BYTES, HISTORY_READ_TURNS, historyReadText } from './session-history-read.constants.ts'
 import type {
   HistoryReadBenchmarkScenario,
   HistoryReadWorkerReport,
@@ -182,6 +182,12 @@ class HistoryReadBenchmarkSuite {
 }
 
 describe('Session history-read calibration', () => {
+  it('carries the declared user-text size in every turn', () => {
+    for (const turn of [1, HISTORY_READ_TURNS / 2, HISTORY_READ_TURNS]) {
+      expect(Buffer.byteLength(historyReadText(turn))).toBe(HISTORY_READ_TEXT_BYTES)
+    }
+  })
+
   it('rejects the pre-change read cost in CI time on both endpoints', () => {
     expect(READ_EVENT_BUDGET_MS).toBe(438)
     expect(READ_SURFACE_BUDGET_MS).toBe(775)
