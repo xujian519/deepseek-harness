@@ -69,3 +69,6 @@ dist/
 skills-lock.json
 .agents/skills/archify/
 native/system/test/bin/
+
+# Desktop runtime descriptor (generated into whichever directory is used as the runtime root)
+desktop-runtime.json
