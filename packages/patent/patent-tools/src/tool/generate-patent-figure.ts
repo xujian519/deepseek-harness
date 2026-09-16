@@ -48,6 +48,7 @@ import type {
 } from '../figure/dot-builder.ts'
 import { resolvePageBundle } from '../figure/dot-builder.ts'
 import { annotateSvgWithLeaderLines } from '../figure/leader-line.ts'
+import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { SvgAnnotateError } from '../figure/svg-annotate.ts'
 
 /** 原始 DOT 输入大小上限（字节）。 */
@@ -268,6 +269,50 @@ function collectComponents(input: StructuralFigureInput): { id: string; label: s
   }
 }
 
+/** 从 DOT 文本提取双引号 label 属性值（`\n` 还原为换行）；HTML 形式标签不提取。 */
+function dotLabels(dot: string): string[] {
+  const labels: string[] = []
+  const pattern = /\blabel\s*=\s*"((?:[^"\\]|\\.)*)"/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(dot)) !== null) {
+    labels.push((match[1] as string).replace(/\\(.)/g, (_all, char: string) => (char === 'n' ? '\n' : char)))
+  }
+  return labels
+}
+
+/** 收集本图将出现在图面上的词语（节点名 + 边标签；raw_dot 取 DOT 的 label 属性）。 */
+function collectFigureWording(input: StructuralFigureInput): string[] {
+  switch (input.figure_type) {
+    case 'flowchart':
+      return input.steps.flatMap(step => [
+        step.label,
+        ...step.next.flatMap(next => (typeof next === 'string' ? [] : [next.label])),
+      ])
+    case 'block_diagram':
+      return [
+        ...input.blocks.map(block => block.label),
+        ...input.connections.flatMap(connection => (connection.label === undefined ? [] : [connection.label])),
+      ]
+    case 'component_hierarchy': {
+      const labels: string[] = []
+      const visit = (node: HierarchyNode): void => {
+        labels.push(node.label)
+        for (const child of node.children ?? []) visit(child)
+      }
+      for (const root of input.tree) visit(root)
+      return labels
+    }
+    case 'template':
+      return []
+    case 'raw_dot':
+      /* v8 ignore next -- apply() only routes raw_dot here with dot set; the guard serves standalone library callers */
+      return input.dot === undefined ? [] : dotLabels(input.dot)
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new figure type here. */
+    default:
+      return assertNever(input.figure_type, 'structural figure input')
+  }
+}
+
 /** 构造索引用 analysis（确定性生成：组件/连接由输入还原，置信度 1；figureFamily 供跨图续号检索）。 */
 function indexAnalysis(
   output: GeneratePatentFigureOutput,
@@ -328,7 +373,9 @@ const DESCRIPTION = [
   '',
   '色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用墨色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用。',
   '',
-  '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。',
+  '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
+  '',
+  '图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。',
   '',
   '本机未安装 Graphviz 时返回 setup_required 与安装引导。',
 ].join('\n')
@@ -728,6 +775,10 @@ async function generatePanels(
   if (panelStructurals.some(ps => ps.leaderLines) && format !== 'svg') {
     warnings.push(`引线标号仅支持 SVG 矢量输出；本次 ${format} 保持内嵌标号`)
   }
+  warnings.push(...figureWordingWarnings(
+    panelStructurals.flatMap(ps => collectFigureWording(ps.structural)),
+    mergedNumerals.map(entry => entry.numeral),
+  ))
   let indexed = false
   if ((input.persist_index ?? true) && deps.upsertIndex !== undefined) {
     indexed = true
@@ -981,6 +1032,10 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       } else if (leaderLinesActive) {
         await annotateRenderedSvg(outcome.path, result.numeralMap, result.warnings)
       }
+      result.warnings.push(...figureWordingWarnings(
+        collectFigureWording(normalized),
+        result.numeralMap.map(entry => entry.numeral),
+      ))
       let indexed = false
       if ((normalized.persist_index ?? true) && deps.upsertIndex !== undefined) {
         try {

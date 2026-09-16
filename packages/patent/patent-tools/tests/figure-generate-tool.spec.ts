@@ -762,6 +762,71 @@ describe('generate_patent_figure leader lines', () => {
     }
   })
 
+  it('图面用语检查：注释词语、非中文词语与非数字标号各出一条警告，合规输入无警告', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    try {
+      const { render } = graphSvgRenderer()
+      const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const flagged = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'block_diagram',
+        blocks: [{ id: 'a', label: '注：温度传感器' }, { id: 'b', label: 'Controller' }],
+        connections: [],
+        numerals: { b: 'S101' },
+        leader_lines: false,
+        persist_index: false,
+      }, 'w1')
+      expect(flagged.isError).toBe(false)
+      expect((valueOf(flagged) as { warnings: string[] }).warnings).toEqual([
+        expect.stringContaining('"注：温度传感器" 疑似非必需注释'),
+        expect.stringContaining('"Controller" 应当使用中文'),
+        expect.stringContaining('"S101" 应当使用阿拉伯数字'),
+      ])
+
+      const rawDot = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'raw_dot',
+        dot: 'digraph G { a [label="如图1所示"]; }',
+        leader_lines: false,
+        persist_index: false,
+      }, 'w2')
+      expect((valueOf(rawDot) as { warnings: string[] }).warnings).toEqual([
+        expect.stringContaining('"如图1所示" 疑似非必需注释（正文引用）'),
+      ])
+
+      const clean = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'block_diagram',
+        blocks: [{ id: 'a', label: '温度传感器' }],
+        connections: [],
+        leader_lines: false,
+        persist_index: false,
+      }, 'w3')
+      expect((valueOf(clean) as { warnings: string[] }).warnings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('标注工具对非阿拉伯数字标号给出警告', async () => {
+    const dir = tempDir()
+    try {
+      const svgPath = join(dir, 'graph.svg')
+      writeFileSync(svgPath, '<svg xmlns="http://www.w3.org/2000/svg"><text>Input Sensor</text></svg>')
+      const tool = createAddPatentFigureReferencesTool({ cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'add_patent_figure_references', {
+        svg_path: 'graph.svg',
+        references: [{ label: 'Input Sensor', numeral: 'S101' }],
+      }, 'w4')
+      expect(result.isError).toBe(false)
+      expect((valueOf(result) as { warnings: string[] }).warnings).toEqual([
+        expect.stringContaining('"S101" 应当使用阿拉伯数字'),
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('标注校验被拒时降级为警告（不吞掉渲染产物）', async () => {
     const dir = tempDir()
     try {

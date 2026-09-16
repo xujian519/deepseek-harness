@@ -16,6 +16,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 import { SvgAnnotateError, annotateSvg } from '../figure/svg-annotate.ts'
 import { annotateSvgWithLeaderLines } from '../figure/leader-line.ts'
+import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import type { SvgAnnotateReference } from '../figure/svg-annotate.ts'
 
 /** 依赖注入。cwd 为路径基准，默认 process.cwd()。 */
@@ -49,6 +50,10 @@ const DESCRIPTION = [
   '为已有 SVG 附图追加专利参考标号：按组件文本匹配标注，输出 *_annotated.svg（不改动原图）。默认在匹配文本末尾内嵌「 (标号)」；leader_lines=true 时改用引线模式，标号置于组件外侧并以引线相连（仅 Graphviz/同构节点组 SVG 支持）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。',
   '',
   '匹配规则：子串匹配（大小写不敏感）；每个文本元素至多命中一个参考；同名组件出现在多个位置时全部同号标注；未命中的参考列为警告返回。',
+  '',
+  '标号形式：非阿拉伯数字标号（如 S101）按《专利审查指南》第一部分第一章 4.3「附图标记应当使用阿拉伯数字编号」返回警告（照常标注）。',
+  '',
+  '引线模式：标号置于组件轮廓外侧，引线避开图内已绘的边线与箭头，并在越出画布时扩展画布使之完整可见；无可放置位置或缺轮廓时退化为内嵌标号并警告。',
 ].join('\n')
 
 /**
@@ -121,7 +126,12 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
       const base = args.output_filename ?? `${baseName(absPath)}_annotated`
       const outPath = resolve(dir, `${base}.svg`)
       await writeFile(outPath, result.svg, 'utf8')
-      return { path: relative(cwd, outPath), numReferences: args.references.length, warnings: result.warnings }
+      // 图面用语检查：标号由调用方给出，非阿拉伯数字标号违反指南 4.3。
+      const warnings = [
+        ...result.warnings,
+        ...figureWordingWarnings([], args.references.map(reference => reference.numeral)),
+      ]
+      return { path: relative(cwd, outPath), numReferences: args.references.length, warnings }
     },
   })
 }
