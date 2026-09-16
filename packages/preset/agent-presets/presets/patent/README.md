@@ -56,7 +56,7 @@ This revises docs/patent-mode-design.md §9, which described a no-engine file li
 
 The knowledge tools require a knowledge.db. Install one with the patent-knowledge-install bin, or point Config.sourceDbPath at an existing knowledge.db; see packages/patent/patent-knowledge/README.md. Without a database the knowledge tools fail loud at execute time.
 
-The cnlaw legal base is an optional enhancement: when the local semantica-cnlaw REST services (:8100 search, :8001 graph/case API) and Neo4j (7687) run on the host, law text, examination guidelines, and case decisions are verified through cnlaw with source_path provenance; without them the discipline falls back to patent_case_search / patent_kg_query (see Known Limitations).
+The cnlaw legal base is an optional enhancement: when the local semantica-cnlaw services (:8100 search, :8001 graph/case API) and Neo4j (7687) run on the host, law text, examination guidelines, and case decisions are verified through cnlaw with source_path provenance; without them the discipline falls back to patent_case_search / patent_kg_query (see Known Limitations). A deployment that additionally mounts the cnlaw MCP bridge (`@deepseek-ai/dsh-mcp-client` over `cnlaw_mcp_launcher.py`) reaches the :8001 graph, case, and inventive-step endpoints as `mcp__cnlaw__*` tools, which the persona names first; the :8100 semantic-search and :8001 IPC endpoints have no tool and stay on REST through curl.
 
 ## Model Experience
 
@@ -64,7 +64,7 @@ The model sees the Chinese patent-agent persona (professional identity, seven wo
 
 ## Known Limitations and Deferred Work
 
-- Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified preferentially against the local cnlaw REST base (an optional deployment enhancement, see Prerequisites) and otherwise through patent_case_search plus web_fetch (when a fetch provider is mounted) and the `99-知识库/` baseline. Shipped profiles mount no fetch provider (SSRF protection is deferred), so web_fetch fails with WEB_PROVIDER_UNAVAILABLE until one is added.
+- Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified preferentially against the local cnlaw base (an optional deployment enhancement, see Prerequisites) — its MCP tools where mounted, REST through curl otherwise — and otherwise through patent_case_search plus web_fetch (when a fetch provider is mounted) and the `99-知识库/` baseline. Shipped profiles mount no fetch provider (SSRF protection is deferred), so web_fetch fails with WEB_PROVIDER_UNAVAILABLE until one is added.
 - patent_pdf_download requires a working ego-browser (ego lite) on the host: the ego-browser CLI must be installed and on the PATH (macOS only), or the tool fails loud with setup guidance. knowledge_note_save writes files under the workspace `99-知识库/` directory (a native knowledge.db write API is deferred).
 - The 4 rewritten analysis skills inherit Sati's methodology but have not yet been reviewed against current Chinese patent practice; cross-check their checklists against the user's patent-legal baseline before relying on them.
 - The design doc's `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` is a Sati user-level asset not shipped here; law text is verified at use time instead.

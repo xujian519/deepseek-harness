@@ -224,7 +224,10 @@ export function validateDesktopPluginGraph(
         throw new Error(`desktop profile: ${chain} resolves ${name} outside its owned packages`)
       }
       const dependency = manifest(target)
-      if (peer && !satisfies(dependency.version, range)) {
+      // A prerelease host release and a prerelease peer range can overlap while
+      // default semver comparison still reports no match, so prerelease versions
+      // count on both sides.
+      if (peer && !satisfies(dependency.version, range, { includePrerelease: true })) {
         throw new Error(`desktop profile: ${chain} requires ${name}@${range}, found ${dependency.version}`)
       }
       if (host === undefined) visit(target, `${chain} -> ${name}`)

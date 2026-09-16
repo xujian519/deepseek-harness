@@ -15,8 +15,9 @@ import { PortlessWebServer } from '../src/index.ts'
  * plugin against the host-provided portless webServer/webRuntime, then serves
  * one of its fenced routes through the seam. That plugin is the first-party
  * sidebar, kept as the fixture because its host half is a real fenced route
- * owner and because the desktop composition mounts it unchanged (see
- * .agents/notes/implemented/architecture/2026-09-10-desktop-workspace-sidebar-remount.md).
+ * owner; the desktop composition carries its row disabled (see
+ * .agents/notes/implemented/architecture/2026-09-15-desktop-unmounts-workspace-sidebar.md),
+ * so this fixture mounts a shape no shipped composition serves.
  *
  * The sidebar is wired through a fixture module (the same pattern as the
  * headless/web startup boots) rather than its bare package name: Loader's

@@ -9,11 +9,11 @@ import { linkDesktopHostPackages, unlinkDesktopHostPackages, validateDesktopPlug
 import { runtimeFixture, writePackage } from './runtime-fixture.ts'
 
 const roots: string[] = []
-function fixture() {
+function fixture(version = '1.0.0') {
   const root = mkdtempSync(join(tmpdir(), 'desktop-profile-'))
   roots.push(root)
   const dsh = join(root, 'dsh')
-  const runtime = runtimeFixture(dsh)
+  const runtime = runtimeFixture(dsh, version)
   const profile = join(root, 'profile')
   createPluginProfile(profile)
   linkDesktopHostPackages(profile, dsh, runtime)
@@ -51,6 +51,16 @@ it('rejects incompatible peers only when the plugin is enabled', () => {
   writePackage(join(profile, 'node_modules'), 'plugin', { peerDependencies: { '@deepseek-ai/cordis': '^2.0.0' } })
   expect(() =>{  validateDesktopPluginGraph(profile, dsh, runtime, ['plugin']) }).toThrow(/found 1.0.0/u)
   expect(() =>{  validateDesktopPluginGraph(profile, dsh, runtime, []) }).not.toThrow()
+})
+it('accepts a prerelease peer range against a prerelease host release', () => {
+  const { dsh, runtime, profile } = fixture('1.0.1-rc.2')
+  writePackage(join(profile, 'node_modules'), 'plugin', { peerDependencies: { '@deepseek-ai/cordis': '^1.0.0-rc.1' } })
+  expect(() =>{  validateDesktopPluginGraph(profile, dsh, runtime, ['plugin']) }).not.toThrow()
+})
+it('rejects a prerelease peer range that excludes the host release', () => {
+  const { dsh, runtime, profile } = fixture('1.0.0-rc.2')
+  writePackage(join(profile, 'node_modules'), 'plugin', { peerDependencies: { '@deepseek-ai/cordis': '^2.0.0-rc.1' } })
+  expect(() =>{  validateDesktopPluginGraph(profile, dsh, runtime, ['plugin']) }).toThrow(/found 1.0.0-rc.2/u)
 })
 it('refuses to satisfy a plugin dependency from an ancestor CLI project', () => {
   const { root, dsh, runtime, profile } = fixture()

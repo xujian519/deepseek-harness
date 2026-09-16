@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-15-desktop-unmounts-workspace-sidebar.md
+2026-09-15-desktop-unmounts-workspace-sidebar.md: 71ef94c979d50a114f0294616c8e268c5e1f75f8
+2026-09-15-desktop-unmounts-workspace-sidebar.zh.md: 0cda79da7d4e2bc60a14c4298d68b8f86eddf4d0

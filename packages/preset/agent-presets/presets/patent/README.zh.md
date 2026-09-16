@@ -56,7 +56,7 @@ skills/ 下随附 13 个技能：
 
 知识工具需要 knowledge.db。用 patent-knowledge-install bin 安装，或将 Config.sourceDbPath 指向已有 knowledge.db；见 packages/patent/patent-knowledge/README.md。缺库时知识工具在执行期 fail-loud。
 
-cnlaw 法律底座为可选增强：本机运行 semantica-cnlaw 的 REST 服务（:8100 检索、:8001 图谱/案件 API）与 Neo4j（7687）时，法条/审查指南/判例核验走 cnlaw 并保留 source_path 溯源；未运行时纪律回退 patent_case_search / patent_kg_query（见 Known Limitations）。
+cnlaw 法律底座为可选增强：本机运行 semantica-cnlaw 的服务（:8100 检索、:8001 图谱/案件 API）与 Neo4j（7687）时，法条/审查指南/判例核验走 cnlaw 并保留 source_path 溯源；未运行时纪律回退 patent_case_search / patent_kg_query（见 Known Limitations）。若部署另外挂载了 cnlaw 的 MCP 桥（`@deepseek-ai/dsh-mcp-client` 起 `cnlaw_mcp_launcher.py`），:8001 的图谱/案件/创造性三步法端点即以 `mcp__cnlaw__*` 工具形态可用，persona 优先指名它们；:8100 的语义检索与 :8001 的 IPC 端点没有对应工具，仍走 REST（curl）。
 
 ## Model Experience
 
@@ -64,7 +64,7 @@ cnlaw 法律底座为可选增强：本机运行 semantica-cnlaw 的 REST 服务
 
 ## Known Limitations and Deferred Work
 
-- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文优先经本机 cnlaw REST 核验（可选底座，见前置条件），cnlaw 不可用时经 patent_case_search 加 web_fetch（挂载 fetch provider 时）与 `99-知识库/` 基线核验。发货 profile 不挂 fetch provider（SSRF 防护延后），未添加前 web_fetch 会以 WEB_PROVIDER_UNAVAILABLE 失败。
+- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文优先经本机 cnlaw 底座核验（可选底座，见前置条件）——挂载时走 MCP 工具，否则走 REST（curl）；cnlaw 不可用时经 patent_case_search 加 web_fetch（挂载 fetch provider 时）与 `99-知识库/` 基线核验。发货 profile 不挂 fetch provider（SSRF 防护延后），未添加前 web_fetch 会以 WEB_PROVIDER_UNAVAILABLE 失败。
 - patent_pdf_download 需要宿主机可用的 ego-browser（ego lite）：ego-browser CLI 必须安装并在 PATH 上（仅 macOS），否则工具以 setup 指引 fail-loud。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；法条原文在使用时核验。
