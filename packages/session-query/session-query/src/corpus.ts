@@ -3,21 +3,12 @@
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent, SessionHeader, SessionId , SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
+import type { SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import type { SessionRecord } from './types.ts'
 import { SessionQueryError } from './config.ts'
 import { readColdSessionLog, type ColdSessionLog } from './cold-read.ts'
 import { assertSessionHeadersCompatible } from './sources.ts'
-
-/** Detached source selected for one exact read. */
-export interface LogicalSession {
-  /** Cloned source header. */
-  header: SessionHeader
-  /** Exact fork-inherited event count paired with {@link header}. */
-  inheritedEventCount: SessionLogOffset
-  /** Cloned raw event log. */
-  events: SessionEvent[]
-}
 
 /** Borrowed source visible only during one synchronous batch projection. */
 export interface LogicalSessionSource {
@@ -25,6 +16,19 @@ export interface LogicalSessionSource {
   readonly header: SessionHeader
   /** Raw events selected with `header`; valid only for the projection call. */
   readonly events: readonly SessionEvent[]
+}
+
+/**
+ * Borrowed source selected for one exact read.
+ *
+ * A live owner exposes its deep-frozen log snapshot, and a stored log is
+ * either equally frozen or handed over as independently owned events, so
+ * neither the header nor an event may be mutated. Callers clone every value
+ * they return.
+ */
+export interface BorrowedSession extends LogicalSessionSource {
+  /** Exact fork-inherited event count paired with {@link header}. */
+  readonly inheritedEventCount: SessionLogOffset
 }
 
 /** One source-projection result in a batch logical-corpus observation. */
@@ -81,43 +85,37 @@ export class SessionCorpus {
   }
 
   /**
-   * Load one logical source, preferring a detached live snapshot.
+   * Borrow one logical source, preferring a live snapshot.
    *
-   * A known live target never consults persistence, so an optional backend's
-   * failure cannot make current in-memory history unreadable.
+   * Nothing is copied: a live owner exposes its frozen log snapshot, and a
+   * stored log is read into an adoptable seed whose events are either frozen
+   * by the backend or owned by this call. A known live target never consults
+   * persistence, so an optional backend's failure cannot make current
+   * in-memory history unreadable. A cold target costs one single-session
+   * observation plus its own log read, never a walk over the whole corpus.
    * @param sessionId - session to resolve.
    * @param signal - optional cancellation for persisted source resolution.
-   * @returns detached live-preferred header and events.
+   * @returns a borrowed live-preferred header and event log.
    */
-  async load(sessionId: SessionId, signal?: AbortSignal): Promise<LogicalSession> {
+  async borrow(sessionId: SessionId, signal?: AbortSignal): Promise<BorrowedSession> {
     signal?.throwIfAborted()
     const live = this._ctx.sessions.get(sessionId)
-    if (live !== undefined) {
-      const snapshot = snapshotLive(live)
-      signal?.throwIfAborted()
-      return snapshot
-    }
+    if (live !== undefined) return borrowLive(live)
     const persistence = this._persistence
     if (persistence === undefined) throw notFound(sessionId)
-    const listed = (await listPersisted(persistence, signal)).find(header => header.id === sessionId)
+    const observed = await statPersisted(persistence, sessionId, signal)
     signal?.throwIfAborted()
-    if (listed === undefined) throw notFound(sessionId)
+    if (observed === undefined) throw notFound(sessionId)
     const loaded = await inspectPersisted(persistence, sessionId, signal)
     signal?.throwIfAborted()
     const attached = this._ctx.sessions.get(sessionId)
-    if (attached !== undefined) {
-      const snapshot = snapshotLive(attached)
-      signal?.throwIfAborted()
-      return snapshot
-    }
-    assertSessionHeadersCompatible(loaded.header, listed)
-    const snapshot = {
-      header: structuredClone(loaded.header),
+    if (attached !== undefined) return borrowLive(attached)
+    assertSessionHeadersCompatible(loaded.header, observed.header)
+    return {
+      header: loaded.header,
       inheritedEventCount: loaded.inheritedEventCount,
-      events: loaded.events.map(event => structuredClone(event)),
+      events: loaded.events,
     }
-    signal?.throwIfAborted()
-    return snapshot
   }
 
   /**
@@ -144,7 +142,7 @@ export class SessionCorpus {
       if (session === undefined) {
         unresolved.push(id)
       } else {
-        resolved.set(id, projectSource(id, sourceLive(session), project, signal))
+        resolved.set(id, projectSource(id, borrowLive(session), project, signal))
       }
     }
     if (unresolved.length === 0) return orderedResults(ids, resolved)
@@ -175,7 +173,7 @@ export class SessionCorpus {
         const attached = this._ctx.sessions.get(sessionId)
         resolved.set(sessionId, attached === undefined
           ? { sessionId, status: 'rejected', reason: notFound(sessionId) }
-          : projectSource(sessionId, sourceLive(attached), project, signal))
+          : projectSource(sessionId, borrowLive(attached), project, signal))
         return
       }
       try {
@@ -184,7 +182,7 @@ export class SessionCorpus {
         signal?.throwIfAborted()
         const attached = this._ctx.sessions.get(sessionId)
         if (attached !== undefined) {
-          resolved.set(sessionId, projectSource(sessionId, sourceLive(attached), project, signal))
+          resolved.set(sessionId, projectSource(sessionId, borrowLive(attached), project, signal))
           return
         }
         assertSessionHeadersCompatible(loaded.header, listed)
@@ -243,9 +241,14 @@ function projectSource<Value>(
   }
 }
 
-function sourceLive(session: Session): LogicalSessionSource {
-  // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-  return { header: session.header, events: session.snapshotEvents() }
+/** Borrow one live Session's frozen log snapshot without copying it. */
+function borrowLive(session: Session): BorrowedSession {
+  return {
+    header: session.header,
+    inheritedEventCount: session.inheritedEventCount,
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    events: session.snapshotEvents(),
+  }
 }
 
 function orderedResults<Value>(
@@ -266,6 +269,23 @@ async function listPersisted(
     if (signal?.aborted) signal.throwIfAborted()
     throw new SessionQueryError(
       `session persistence listing failed: ${errorMessage(error)}`,
+      'SESSION_QUERY_PERSISTENCE_FAILED',
+      { cause: error },
+    )
+  }
+}
+
+async function statPersisted(
+  persistence: SessionPersistence,
+  sessionId: SessionId,
+  signal?: AbortSignal,
+): Promise<SessionPersistenceSnapshot | undefined> {
+  try {
+    return await persistence.stat(sessionId, signal === undefined ? undefined : { signal })
+  } catch (error: unknown) {
+    if (signal?.aborted) signal.throwIfAborted()
+    throw new SessionQueryError(
+      `session persistence observation failed: ${errorMessage(error)}`,
       'SESSION_QUERY_PERSISTENCE_FAILED',
       { cause: error },
     )
@@ -293,15 +313,6 @@ async function inspectPersisted(
       'SESSION_QUERY_PERSISTENCE_FAILED',
       { cause: error },
     )
-  }
-}
-
-function snapshotLive(session: Session): LogicalSession {
-  return {
-    header: structuredClone(session.header),
-    inheritedEventCount: session.inheritedEventCount,
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-    events: session.snapshotEvents().map(event => structuredClone(event)),
   }
 }
 

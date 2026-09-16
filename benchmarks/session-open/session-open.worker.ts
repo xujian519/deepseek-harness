@@ -1,7 +1,6 @@
 /** Isolated worker for cold Session phase, first-history, and Agent-resume benchmarks. */
 
 import { performance } from 'node:perf_hooks'
-import { scheduler } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop, { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
@@ -32,6 +31,12 @@ import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import { SessionHistoryController } from '../../packages/api/session-controller/src/history.ts'
 import { installModelSelectionProjection } from '../../packages/api/session-controller/src/model-selection-projection.ts'
 import { assertBuiltBenchmarkRuntime } from '../support/built-worker.ts'
+import {
+  collectGarbage,
+  memoryDelta,
+  type BenchmarkMemoryDelta,
+  type BenchmarkMemorySnapshot,
+} from '../support/process-memory.ts'
 import { SYNTHETIC_SESSION_ID } from './session-open.constants.ts'
 
 /** Worker scenario selected by the parent benchmark. */
@@ -40,23 +45,6 @@ export type SessionOpenBenchmarkScenario =
   | 'phase-steady'
   | 'first-history'
   | 'agent-resume'
-
-/** One post-GC process memory observation. */
-export interface BenchmarkMemorySnapshot {
-  readonly heapUsedMb: number
-  readonly externalMb: number
-  readonly arrayBuffersMb: number
-  readonly rssMb: number
-  readonly peakRssMb: number
-}
-
-/** Memory retained by one benchmark endpoint relative to its initialized Host. */
-export interface BenchmarkMemoryDelta {
-  readonly heapUsedMb: number
-  readonly externalMb: number
-  readonly arrayBuffersMb: number
-  readonly rssMb: number
-}
 
 /** Timings and memory emitted by one isolated scenario. */
 export interface SessionOpenWorkerReport {
@@ -89,42 +77,6 @@ class BenchmarkSessionQuery extends SessionQueryEngine {
     _exec?: SessionSearchExecContext,
   ): Promise<SessionEventSearchPage> {
     return Promise.reject(new Error('search is outside the Session opening benchmark'))
-  }
-}
-
-function megabytes(bytes: number): number {
-  return Math.round(bytes / 104_857.6) / 10
-}
-
-function memorySnapshot(): BenchmarkMemorySnapshot {
-  const memory = process.memoryUsage()
-  return {
-    heapUsedMb: megabytes(memory.heapUsed),
-    externalMb: megabytes(memory.external),
-    arrayBuffersMb: megabytes(memory.arrayBuffers),
-    rssMb: megabytes(memory.rss),
-    peakRssMb: Math.round(process.resourceUsage().maxRSS / 102.4) / 10,
-  }
-}
-
-async function collectGarbage(): Promise<BenchmarkMemorySnapshot> {
-  const gc = (globalThis as typeof globalThis & { gc?: () => void }).gc
-  if (gc === undefined) throw new Error('Session opening benchmark requires --expose-gc')
-  gc()
-  await scheduler.yield()
-  gc()
-  return memorySnapshot()
-}
-
-function memoryDelta(
-  before: BenchmarkMemorySnapshot,
-  after: BenchmarkMemorySnapshot,
-): BenchmarkMemoryDelta {
-  return {
-    heapUsedMb: Math.round((after.heapUsedMb - before.heapUsedMb) * 10) / 10,
-    externalMb: Math.round((after.externalMb - before.externalMb) * 10) / 10,
-    arrayBuffersMb: Math.round((after.arrayBuffersMb - before.arrayBuffersMb) * 10) / 10,
-    rssMb: Math.round((after.rssMb - before.rssMb) * 10) / 10,
   }
 }
 

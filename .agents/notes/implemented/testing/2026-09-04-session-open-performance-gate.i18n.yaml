@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-04-session-open-performance-gate.md
-2026-09-04-session-open-performance-gate.md: eaf7c6045bca12329d81cf9c968fb191229b0add
-2026-09-04-session-open-performance-gate.zh.md: e9bf13460aafbd962a1d15b7a7d240f0b4be6b4e
+2026-09-04-session-open-performance-gate.md: 5ab7e21c1bfdfd02c6ede13b5125e495c1ed95ea
+2026-09-04-session-open-performance-gate.zh.md: 6e9d52321c369e8407654b7aad0434d22a05d407

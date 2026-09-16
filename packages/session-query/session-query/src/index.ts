@@ -182,18 +182,18 @@ export abstract class SessionQueryEngine extends Service {
    * @throws when persistence, header compatibility, or replay validation fails.
    */
   async readSession(sessionId: SessionId): Promise<SessionLogSnapshot> {
-    const loaded = await this._corpus.load(sessionId)
+    const borrowed = await this._corpus.borrow(sessionId)
     Session.create(
       sessionId,
-      loaded.events,
-      loaded.header,
-      loaded.inheritedEventCount,
+      borrowed.events,
+      borrowed.header,
+      borrowed.inheritedEventCount,
       currentSessionMessageProjections,
     )
     return {
-      session: structuredClone(loaded.header),
-      inheritedEventCount: loaded.inheritedEventCount,
-      events: loaded.events.map(snapshotSessionEvent),
+      session: structuredClone(borrowed.header),
+      inheritedEventCount: borrowed.inheritedEventCount,
+      events: borrowed.events.map(snapshotSessionEvent),
     }
   }
 
@@ -267,8 +267,8 @@ export abstract class SessionQueryEngine extends Service {
    * @returns event records in ascending seq order.
    */
   async listEvents(sessionId: SessionId): Promise<SessionEventRecord[]> {
-    const loaded = await this._corpus.load(sessionId)
-    return tracing.eventRecords(sessionId, loaded.events)
+    const borrowed = await this._corpus.borrow(sessionId)
+    return tracing.eventRecords(sessionId, borrowed.events)
   }
 
   /**
@@ -296,8 +296,8 @@ export abstract class SessionQueryEngine extends Service {
     sessionId: SessionId,
     filters: readonly SessionEventResultFilter[],
   ): Promise<SessionEventSearchDocument[]> {
-    const loaded = await this._corpus.load(sessionId)
-    const documents = buildSessionEventSearchDocuments(sessionId, loaded.events)
+    const borrowed = await this._corpus.borrow(sessionId)
+    const documents = buildSessionEventSearchDocuments(sessionId, borrowed.events)
     return filterSessionEventDocuments(documents, filters)
   }
 
@@ -308,12 +308,12 @@ export abstract class SessionQueryEngine extends Service {
    * @throws when source resolution fails or the session surface is invalid.
    */
   async readSurface(sessionId: SessionId): Promise<SessionSurfaceSnapshot> {
-    const loaded = await this._corpus.load(sessionId)
+    const borrowed = await this._corpus.borrow(sessionId)
     return {
-      session: structuredClone(loaded.header),
-      inheritedEventCount: loaded.inheritedEventCount,
-      capturedThroughSeq: loaded.events.at(-1)?.seq ?? null,
-      events: tracing.currentSurfaceEvents(sessionId, loaded.events),
+      session: structuredClone(borrowed.header),
+      inheritedEventCount: borrowed.inheritedEventCount,
+      capturedThroughSeq: borrowed.events.at(-1)?.seq ?? null,
+      events: tracing.currentSurfaceEvents(sessionId, borrowed.events),
     }
   }
 
@@ -338,11 +338,11 @@ export abstract class SessionQueryEngine extends Service {
    * @throws when source resolution fails, the target is absent, or surface/source-event validation fails.
    */
   async traceEvent(request: SessionEventTraceRequest, signal?: AbortSignal): Promise<SessionEventTraceObservation> {
-    const loaded = await this._corpus.load(request.sessionId, signal)
+    const borrowed = await this._corpus.borrow(request.sessionId, signal)
     signal?.throwIfAborted()
     return {
-      session: loaded.header,
-      ...tracing.traceEvent(request.sessionId, loaded.events, request.seq),
+      session: structuredClone(borrowed.header),
+      ...tracing.traceEvent(request.sessionId, borrowed.events, request.seq),
     }
   }
 
@@ -367,9 +367,9 @@ export abstract class SessionQueryEngine extends Service {
     after: number,
     signal?: AbortSignal,
   ): Promise<SessionEventWindow> {
-    const loaded = await this._corpus.load(sessionId, signal)
+    const borrowed = await this._corpus.borrow(sessionId, signal)
     signal?.throwIfAborted()
-    const target = loaded.events[seq]
+    const target = borrowed.events[seq]
     if (target === undefined || target.seq !== seq) {
       throw new SessionQueryError(
         `session "${sessionId}" has no event at seq ${seq}`,
@@ -377,15 +377,15 @@ export abstract class SessionQueryEngine extends Service {
       )
     }
     const startSeq = SessionSeq(Math.max(0, seq - before))
-    const endSeq = SessionSeq(Math.min(loaded.events.length - 1, seq + after))
+    const endSeq = SessionSeq(Math.min(borrowed.events.length - 1, seq + after))
     const targetSnapshot = snapshotSessionEvent(target)
-    const events = loaded.events.slice(startSeq, endSeq + 1)
+    const events = borrowed.events.slice(startSeq, endSeq + 1)
       .map(event => event === target
         ? targetSnapshot
         : snapshotSessionEvent(event))
     return {
-      session: structuredClone(loaded.header),
-      inheritedEventCount: loaded.inheritedEventCount,
+      session: structuredClone(borrowed.header),
+      inheritedEventCount: borrowed.inheritedEventCount,
       target: targetSnapshot,
       events,
       startSeq,

@@ -79,7 +79,7 @@ This section explains the design decisions behind the service and points at the 
 The service is built on one separation and three commitments:
 
 - **Live-preferred logical corpus.** Every read resolves one consistent observation: live `ctx.sessions` wins, optional `ctx.sessionPersistence` fills the rest, and conflicting immutable headers fail rather than merge.
-- **Detached results.** All returned headers, events, and records are cloned; nothing exposes live state or a retained subscription.
+- **Detached results.** All returned headers, events, and records are cloned; nothing exposes live state or a retained subscription. Source resolution itself borrows and copies nothing, so a read pays for what it returns rather than for the size of the log it read.
 - **Exact reads concrete, search abstract.** Reads, filters, and traces are implemented here once; the two full-text methods are the only abstract surface a backend owns.
 - **One canonical surface fold.** `listEvents`, `readSurface`, and `traceEvent` validate the whole log with the same `dsh-session` fold, so search and traces agree with model-history derivation.
 
@@ -104,7 +104,7 @@ The decision history lives in the [unified service decision](../../../.agents/no
 
 ### Corpus resolution
 
-`SessionCorpus` binds optional `ctx.sessionPersistence` through a fiber and resolves each read live-first: a known live target is snapshotted without consulting persistence; otherwise the session is listed, read completely through a short-lived read handle, and re-checked for a live attachment before cloning. A cold log whose writer crashed mid-turn is balanced in memory with `interruptedTurnClosers` — persistence is never mutated by a read. Header compatibility is asserted between listed and loaded observations. Batch title reads run one metadata listing and bounded-concurrency reads, isolating per-session failures while cancellation rejects the whole batch.
+`SessionCorpus` binds optional `ctx.sessionPersistence` through a fiber and resolves each read live-first: a known live target is borrowed without consulting persistence; otherwise one single-session observation resolves the target by id, its complete log is read through a short-lived read handle, and a live attachment is re-checked before the result is returned. Resolution copies no event: a live owner exposes its frozen log snapshot, and a stored log is either frozen by the backend or handed over as independently owned events, so each endpoint clones exactly the values it returns. A cold log whose writer crashed mid-turn is balanced in memory with `interruptedTurnClosers` — persistence is never mutated by a read. Header compatibility is asserted between the observed header and the loaded one. Batch title reads run one metadata listing and bounded-concurrency reads, isolating per-session failures while cancellation rejects the whole batch.
 
 ### Observation cache
 

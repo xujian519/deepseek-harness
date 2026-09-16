@@ -22,7 +22,7 @@ Every Session endpoint runs at two user-lifecycle points. `first-open` starts wi
 
 Each access-kind and endpoint sample runs in a fresh compiled Node child process. Module imports, Host service initialization, and fixture preparation finish before measurement; the measured process performs no extra parse warm-up. Normal-heap mode runs five independent samples, reports every sample plus minimum, median, and maximum, and enforces access-specific fixed budgets against the median. Another child runs the same path under a fixed 128 MB old-space limit and checks only that it completes; extra GC caused by the constrained heap does not enter the normal timing baseline.
 
-The lane contains three independent Session-opening benchmarks and retains the Client-fold benchmark:
+The lane contains three independent Session-opening benchmarks, the Client-fold benchmark, and the Session-history-read benchmark:
 
 | Benchmark | Measured path | Timing metrics |
 |---|---|---|
@@ -30,6 +30,7 @@ The lane contains three independent Session-opening benchmarks and retains the C
 | First history | Reads each access kind through the Host Session history controller until it produces the first paginated snapshot | Separate first-open and reopen end-to-end budgets; each includes source stat, reading, restoration, projection, pagination, and snapshot construction, while first open additionally includes migration; both exclude Gateway network transport, Client fold, and browser paint |
 | Agent resume | Calls `ctx.agents.resume()` for each access kind until Agent creation, setup, publication, and loop startup finish | Separate first-open and reopen end-to-end budgets; neither path runs after first-history or reuses that benchmark's cache |
 | Client fold | Folds small and large v2 history windows through the real `ConversationNodeAssembler` and every Chat Definition | The large window's absolute time and scaling relative to the small window each have a fixed budget |
+| Session history read | Resolves a point read and a surface read of a 90,000-event stored Session through the real `ctx.sessionQuery` over the JSONL backend | Each endpoint has an end-to-end budget and a transient-heap budget; both also run under the 128 MB old-space limit, which the pre-change whole-log copy could not fit |
 
 The phase profile invokes each layer's production entry point explicitly and does not copy any decode, migration, restore, or projection algorithm. First-history and Agent-resume each run their real higher-level entry point against fresh first-open and reopen roots, so component measurements do not stand in for end-to-end results and one scenario cannot warm another's process or Session cache. The sum of the four phases is diagnostic only; an outer clock independently measures each end-to-end result.
 

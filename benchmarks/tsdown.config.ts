@@ -56,4 +56,11 @@ export default defineConfig([
     clean: true,
     tsconfig: 'tsconfig.client.json',
   },
+  {
+    ...shared,
+    entry: { 'session-history-read.worker': 'session-history-read/session-history-read.worker.ts' },
+    outDir: '.dsh-build/session-history-read',
+    clean: true,
+    tsconfig: 'tsconfig.host.json',
+  },
 ])

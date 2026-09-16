@@ -22,7 +22,7 @@ Session benchmark 使用固定参数合成 released-v0 输入：200 轮，每轮
 
 每个 access kind 与 endpoint 的样本都在全新、已编译的 Node 子进程中运行。模块加载、Host 服务初始化和 fixture 准备在测量开始前完成；测量进程不执行额外的预热解析。正常堆模式运行五个独立样本，报告全部样本及最小值、中位数和最大值，并以中位数执行各访问状态独立的固定预算。另一个子进程使用固定 128 MB old-space 上限运行同一路径，只判断能否完成；低堆限制引起的额外 GC 不进入正常时间基线。
 
-该 lane 包含三个独立的 Session 打开 benchmark，并保留 Client fold benchmark：
+该 lane 包含三个独立的 Session 打开 benchmark、Client fold benchmark，以及 Session 历史读取 benchmark：
 
 | Benchmark | 被测路径 | 时间指标 |
 |---|---|---|
@@ -30,6 +30,7 @@ Session benchmark 使用固定参数合成 released-v0 输入：200 轮，每轮
 | 首屏历史 | 两种 access kind 分别经 Host Session history controller 读取到首个分页 snapshot | First open 与 reopen 各有一个端到端预算；均包含 source stat、读取、Session restore、projection、分页与 snapshot 构造，first open 还包含 migration；两者都不包含 Gateway 网络传输、Client fold 或浏览器 paint |
 | Agent resume | 对两种 access kind 分别调用 `ctx.agents.resume()`，直到 Agent 创建、setup、发布与 loop 启动完成 | First open 与 reopen 各有一个端到端预算；两条路径都不与首屏历史串行，也不依赖它留下的 cache |
 | Client fold | 大小两个 v2 history window 经真实 `ConversationNodeAssembler` 与全部 Chat Definition fold | 大窗口的绝对时间与相对小窗口的缩放比各自使用固定预算 |
+| Session 历史读取 | 经真实 `ctx.sessionQuery` 在 JSONL 后端上对一份 90,000 事件的存储会话执行点读与表层读取 | 每个端点各有端到端预算与瞬时堆预算；两者同时运行在 128 MB old-space 上限下，而改动前的整份日志复制无法在该上限内完成 |
 
 阶段剖面显式调用各层正式入口，不复制 decode、migration、restore 或 projection 算法。首屏历史和 Agent resume 分别以新的 first-open 与 reopen 根目录运行真实上层入口，因此组件数据不冒充端到端结果，一个场景也不会给另一个场景预热进程或 Session cache。四阶段之和仅用于解释成本；首屏与 Agent resume 的端到端时间各自由外层时钟直接测量。
 

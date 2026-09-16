@@ -902,6 +902,9 @@ importers:
       '@deepseek-ai/dsh-session-query':
         specifier: workspace:^
         version: link:../packages/session-query/session-query
+      '@deepseek-ai/dsh-session-query-sqlite':
+        specifier: workspace:^
+        version: link:../packages/session-query/session-query-sqlite
       '@deepseek-ai/dsh-session-stats':
         specifier: workspace:^
         version: link:../packages/session/session-stats
@@ -929,6 +932,12 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:^
         version: link:../packages/typert/protocol
+      '@deepseek-ai/dsh-value':
+        specifier: workspace:^
+        version: link:../packages/util/value
+      '@deepseek-ai/dsh-util-values':
+        specifier: workspace:^
+        version: link:../packages/util/values
       '@xterm/headless':
         specifier: ^6.0.0
         version: 6.0.0
