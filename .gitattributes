@@ -10,9 +10,10 @@
 
 # STEP/IGES CAD fixtures are FreeCAD exporter output; ISO 10303-21 clear-text
 # encoding leaves insignificant trailing whitespace the generator re-emits, so
-# the trailing-space gate is disabled for the extension rather than hand-edited.
-*.step -whitespace
-*.iges -whitespace
+# only the end-of-line check is disabled for the extension; end-of-file checks
+# still apply.
+*.step whitespace=-blank-at-eol
+*.iges whitespace=-blank-at-eol
 
 # Pairing records are generated from the three confirmed owner-blob pairs.
 # The worktree-local installer registers the fail-closed driver command.

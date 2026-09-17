@@ -48,7 +48,7 @@ import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
 import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
 import { createGenerateStructureFigureTool } from './tool/generate-structure-figure.ts'
 import type { GenerateStructureFigureDeps } from './tool/generate-structure-figure.ts'
-import type { StructureViewName } from './figure/freecad-structure-script.ts'
+import { STRUCTURE_VIEWS, type StructureViewName } from './figure/freecad-structure-script.ts'
 import { renderStructureViews } from './figure/freecad-renderer.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
@@ -235,8 +235,8 @@ export interface Config {
   structureFigureEnabled?: boolean
   /** 结构线稿 TechDraw 投影比例默认；缺省 1。 */
   structureFigureScale?: number
-  /** 结构线稿缺省视图集；缺省 iso/front/top/right。 */
-  structureFigureViews?: string[]
+  /** 结构线稿缺省视图集；缺省 iso/front/top/right。元素受限为受支持视图名（非法值在加载时被 schema 拒绝）。 */
+  structureFigureViews?: StructureViewName[]
 }
 
 /** Figure/image model route used by the figure-analysis tool. */
@@ -270,7 +270,7 @@ export const Config: z<Config> = z.object({
   freecadExecutable: z.string(),
   structureFigureEnabled: z.boolean(),
   structureFigureScale: z.number(),
-  structureFigureViews: z.array(z.string()),
+  structureFigureViews: z.array(z.union(STRUCTURE_VIEWS)),
 })
 
 /** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
@@ -566,7 +566,7 @@ export function apply(ctx: Context, config: Config): void {
   const structureRender: GenerateStructureFigureDeps['render'] = structureSubprocess === undefined
     ? structureNoSubprocess
     : spec => renderStructureViews(structureSubprocess, spec, config.freecadExecutable)
-  const structureViews = config.structureFigureViews as readonly StructureViewName[] | undefined
+  const structureViews = config.structureFigureViews
   ctx.tools.register(createGenerateStructureFigureTool({
     render: structureRender,
     ...(config.structureFigureEnabled === undefined ? {} : { enabled: config.structureFigureEnabled }),

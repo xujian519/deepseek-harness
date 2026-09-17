@@ -3911,7 +3911,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。
 
-批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增。
+批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。
 
 产物为纯几何片段，不含模板边框/标题栏/图号，符合《专利审查指南》第一部分第一章 4.3（墨色线条、图号不入像素）。
 
@@ -3941,7 +3941,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "scale": {
       "type": "number",
-      "description": "TechDraw 投影比例；缺省取部署配置或 1"
+      "description": "TechDraw 投影比例（正数）；缺省取部署配置或 1"
     },
     "show_hidden": {
       "type": "boolean",
@@ -3949,7 +3949,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "callouts": {
       "type": "array",
-      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?}]",
+      "description": "件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -3978,7 +3978,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "figure_number": {
       "type": "integer",
-      "description": "图号，默认 1（批量时作为起始图号）"
+      "description": "图号（正整数），默认 1（批量时作为起始图号）"
     },
     "invention_name": {
       "type": "string",

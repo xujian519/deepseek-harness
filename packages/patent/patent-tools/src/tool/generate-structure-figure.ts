@@ -122,7 +122,7 @@ export type GenerateStructureFigureOutput = {
   numeralMap: { componentId: string; label: string; numeral: string; figure: number }[]
   /** 组件列表（与 analyze_patent_figure 输出同构）。 */
   components: FigureComponent[]
-  /** 警告（provenance、非阿拉伯数字标号等）。 */
+  /** 警告（生成方式说明、非阿拉伯数字标号等）。 */
   warnings: string[]
   /** 是否已写入附图索引。 */
   indexed: boolean
@@ -297,7 +297,7 @@ const DESCRIPTION = [
   '',
   '件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。',
   '',
-  '批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增。',
+  '批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。',
   '',
   '产物为纯几何片段，不含模板边框/标题栏/图号，符合《专利审查指南》第一部分第一章 4.3（墨色线条、图号不入像素）。',
 ].join('\n')
@@ -314,10 +314,10 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
     parameters: {
       model_path: { type: 'string', required: true, description: '模型文件路径（STEP/IGES/BREP），或其目录（批量）' },
       views: { type: 'array', items: { type: 'string', enum: STRUCTURE_VIEWS }, description: '请求视图，缺省 iso/front/top/right' },
-      scale: { type: 'number', description: 'TechDraw 投影比例；缺省取部署配置或 1' },
+      scale: { type: 'number', description: 'TechDraw 投影比例（正数）；缺省取部署配置或 1' },
       show_hidden: { type: 'boolean', description: '绘制隐藏线（虚线），默认 false' },
-      callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?}]' },
-      figure_number: { type: 'integer', description: '图号，默认 1（批量时作为起始图号）' },
+      callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）' },
+      figure_number: { type: 'integer', description: '图号（正整数），默认 1（批量时作为起始图号）' },
       invention_name: { type: 'string', description: '发明名称（附图说明模板句）' },
       persist_index: { type: 'boolean', description: '默认 true：写入附图索引（供 search_patent_figure 检索）' },
     },
@@ -362,14 +362,27 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
       const views = normalizeViews(input.views, deps.defaultViews ?? DEFAULT_STRUCTURE_VIEWS)
       const scale = input.scale ?? deps.defaultScale ?? DEFAULT_STRUCTURE_SCALE
+      // scale 来自模型 JSON 或 Config：schema 只约束为 number，正有限性须运行时复核
+      // （与 normalizeCallouts 同一理由：模型实参/部署值必须在此 fail-loud）。
+      if (!Number.isFinite(scale) || scale <= 0) {
+        throw new PatentToolError('invalid_tool_input', `scale 必须是正有限数，收到 ${String(scale)}`, { tool: 'generate_structure_figure' })
+      }
       const showHidden = input.show_hidden ?? false
       const baseFigure = input.figure_number ?? 1
+      if (!Number.isInteger(baseFigure) || baseFigure < 1) {
+        throw new PatentToolError('invalid_tool_input', `figure_number 必须是正整数，收到 ${String(input.figure_number)}`, { tool: 'generate_structure_figure' })
+      }
       const callouts = normalizeCallouts(input.callouts).map(callout => ({
         numeral: callout.numeral,
         point3d: callout.point3d,
         ...(callout.label === undefined ? {} : { label: callout.label }),
       }))
       const modelPaths = await resolveModelPaths(input.model_path, cwd)
+      // 目录批量逐模型出图，但 callouts 的 point3d 是某个模型的专属坐标：把同一组
+      // 3D 锚点套到目录内其余模型会落到错误位置，故 fail-loud 拒绝而非静默误标。
+      if (modelPaths.length > 1 && callouts.length > 0) {
+        throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿', { tool: 'generate_structure_figure' })
+      }
 
       const figures: StructureFigureView[] = []
       const warnings: string[] = ['由 3D 模型（FreeCAD TechDraw）投影生成的结构线稿']
@@ -399,15 +412,22 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       }
 
       // 标号表/组件由 callouts 还原（件号 → 名称）；无 callouts 则为纯几何线稿。
-      const numeralMap: GenerateStructureFigureOutput['numeralMap'] = []
-      const components: FigureComponent[] = []
-      for (const figure of figures) {
-        for (const callout of callouts) {
-          const label = callout.label ?? ''
-          numeralMap.push({ componentId: callout.numeral, label, numeral: callout.numeral, figure: figure.figureNumber })
-          components.push({ refNumber: callout.numeral, name: label, kind: 'mechanical', description: label })
-        }
-      }
+      // numeralMap 逐图展开（同一标号在每张图各占一行）；组件列表只派生一次，不随
+      // 图数累加，否则每个索引条目会被其他图的组件重复污染。
+      const components: FigureComponent[] = callouts.map((callout): FigureComponent => ({
+        refNumber: callout.numeral,
+        name: callout.label ?? '',
+        kind: 'mechanical',
+        description: callout.label ?? '',
+      }))
+      const numeralMap: GenerateStructureFigureOutput['numeralMap'] = figures.flatMap(figure =>
+        callouts.map(callout => ({
+          componentId: callout.numeral,
+          label: callout.label ?? '',
+          numeral: callout.numeral,
+          figure: figure.figureNumber,
+        })),
+      )
 
       const invention = resolveInvention(input.invention_name)
       const sentences = figures.map(figure => `图${figure.figureNumber}是${invention}的${FIGURE_TYPE_NAMES.structure}`)

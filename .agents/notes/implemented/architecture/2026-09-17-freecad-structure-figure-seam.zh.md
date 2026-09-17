@@ -24,7 +24,7 @@ Status: implemented
 
 **成功判定只看退出码加 manifest 存在。**`freecadcmd` 对 `~/Library/Preferences/FreeCAD` 与缓存写失败仅告警、非致命（STEP 载入/投影/导出均成功），且 macOS 下这些路径不随重定向的 HOME 迁移——已知无害局限。反过来，`freecadcmd` 吞掉未捕获的 Python 异常并以退出码 0 结束，故脚本包裹 `main()`，失败时 `traceback.print_exc()` + `sys.exit(1)`；没有这层包裹，失败的投影会看起来像成功。因此 stderr 文本绝不作为失败依据，只摘引进错误消息。
 
-**工具层复用附图不变量。**输出 SVG 经与 Graphviz 路径同一的 `assertSafeSvg` 门禁，件号名称/标号经 `figureWordingWarnings`，每张图以 `analysis.figureType='structure'`、`modelUsed='freecad-structure'` 持久化进 `figureIndexStore`。`model_path` 为目录时按排序渲染每个受支持模型、图号递增，各自渲染进独立的 `fig{N}/` 子目录，批内 manifest/脚本/模板/home 文件互不冲突。
+**工具层复用附图不变量。**输出 SVG 经与 Graphviz 路径同一的 `assertSafeSvg` 门禁，件号名称/标号经 `figureWordingWarnings`，每张图以 `analysis.figureType='structure'`、`modelUsed='freecad-structure'` 持久化进 `figureIndexStore`。`model_path` 为目录时按排序渲染每个受支持模型、图号递增，各自渲染进独立的 `fig{N}/` 子目录，批内 manifest/脚本/模板/home 文件互不冲突；目录形式与 `callouts` 同用会被 `invalid_tool_input` 拒绝——件号 `point3d` 是单个模型的坐标，把同一 3D 锚点投影到其余模型会落到几何之外。组件列表只从 `callouts` 派生一次（不跨图累加），故每个逐图索引条目携带相同的件号组件而不重复。
 
 ## Alternatives considered
 
@@ -37,7 +37,8 @@ Status: implemented
 
 ## Consequences
 
-- 新增 Config 面：`freecadExecutable`、`structureFigureEnabled`、`structureFigureScale`、`structureFigureViews`；发现顺序与 Graphviz 同构（覆盖值 → `DSH_FREECAD_CMD` → 平台候选路径 → `PATH`）。
+- 新增 Config 面：`freecadExecutable`、`structureFigureEnabled`、`structureFigureScale`、`structureFigureViews`；发现顺序与 Graphviz 同构（覆盖值 → `DSH_FREECAD_CMD` → 平台候选路径 → `PATH`）。`structureFigureViews` 为受支持视图名的 `z.union`，未知配置值在配置加载时即被拒绝，而不会在之后表现为误导性的 `invalid_tool_input`。
+- 模型传入的 `scale`（有限且 > 0）与 `figure_number`（正整数）在工具层于渲染前校验：工具输入 schema 只约束其类型，未校验的值会让 FreeCAD 产出退化的 `width="0mm"` SVG 或不透明的投影失败。
 - `index.ts` 带一处 TypeScript 解析器缺陷的绕行：返回对象字面量的 `async` 箭头直接作三元分支、且整条赋值给以索引访问类型（`GenerateStructureFigureDeps['render']`）标注的 const 时会误解析（TS1359）；该分支被提升为具名常量 `structureNoSubprocess`。
 - 工具数断言（`registration.spec.ts`、双语 README）从 27 → 28。
 - Python 脚本内的件号放置自洽（简单外向偏移），不共享 TypeScript 引线的碰撞原语。TS/Python 放置数学的统一推迟到 Python 侧放置出现第二个消费者时再做。

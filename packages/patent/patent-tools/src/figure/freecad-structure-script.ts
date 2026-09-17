@@ -271,12 +271,13 @@ def make_view(doc, page, shape_obj, view_name, index):
     return view
 
 
-def callout_fragments(view, center, bbox, geometry_cx, geometry_cy):
+def callout_fragments(view, center, bbox):
     """
     把件号投影到视图并生成引线 + 数字文本（y-down SVG 帧）。
 
     锚点 = projectPoint(point3d) - C，再翻转 y（片段帧 y 向上 → SVG y 向下）。
-    件号沿「几何中心 → 锚点」外向偏移 LEADER_OFFSET，落在实体外侧。
+    片段按投影几何居中于原点，故几何中心恒为 (0,0)，引线方向即锚点向量本身；
+    件号沿该外向偏移 LEADER_OFFSET，落在实体外侧。
     返回 (svg_片段列表, 锚点信息列表, 扩展包围盒)。
     """
     c_x, c_y = center
@@ -289,13 +290,11 @@ def callout_fragments(view, center, bbox, geometry_cx, geometry_cy):
         projected = view.projectPoint(App.Vector(px, py, pz))
         anchor_x = projected.x - c_x
         anchor_y = -(projected.y - c_y)  # 翻转到 y-down
-        dir_x = anchor_x - geometry_cx
-        dir_y = anchor_y - geometry_cy
-        length = math.hypot(dir_x, dir_y)
+        length = math.hypot(anchor_x, anchor_y)
         if length < 1e-9:
             unit_x, unit_y = 1.0, 0.0
         else:
-            unit_x, unit_y = dir_x / length, dir_y / length
+            unit_x, unit_y = anchor_x / length, anchor_y / length
         text_x = anchor_x + unit_x * LEADER_OFFSET
         text_y = anchor_y + unit_y * LEADER_OFFSET
         fragments.append(
@@ -339,9 +338,7 @@ def build_view_svg(view, shape, view_name):
     # 片段帧（y-up）几何范围。
     geo_min_x, geo_max_x = bbox[0] - c_x, bbox[1] - c_x
     geo_min_y, geo_max_y = bbox[2] - c_y, bbox[3] - c_y
-    geometry_cx = (geo_min_x + geo_max_x) / 2.0
-    geometry_cy = (-(geo_max_y) + -(geo_min_y)) / 2.0  # y-down 帧的几何中心
-    callout_svg, anchors, extent = callout_fragments(view, center, bbox, geometry_cx, geometry_cy)
+    callout_svg, anchors, extent = callout_fragments(view, center, bbox)
     min_x = min(geo_min_x, extent[0]) - CANVAS_PADDING
     max_x = max(geo_max_x, extent[1]) + CANVAS_PADDING
     min_y = min(-geo_max_y, extent[2]) - CANVAS_PADDING

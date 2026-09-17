@@ -2034,8 +2034,8 @@ export interface Config {
   structureFigureEnabled?: boolean
   /** 结构线稿 TechDraw 投影比例默认；缺省 1。 */
   structureFigureScale?: number
-  /** 结构线稿缺省视图集；缺省 iso/front/top/right。 */
-  structureFigureViews?: string[]
+  /** 结构线稿缺省视图集；缺省 iso/front/top/right。元素受限为受支持视图名（非法值在加载时被 schema 拒绝）。 */
+  structureFigureViews?: StructureViewName[]
 }
 
 /** Figure/image model route used by the figure-analysis tool. */
@@ -2048,6 +2048,9 @@ export interface ImageModelConfig {
 
 /** 渲染器模式：wasm=内置引擎（默认，SVG 零系统依赖）；cli=系统 dot 子进程。 */
 export type FigureRendererMode = 'wasm' | 'cli'
+
+/** 结构视图名。 */
+export type StructureViewName = (typeof STRUCTURE_VIEWS)[number]
 ```
 
 Source: [`packages/patent/patent-tools/src/index.ts:195`](../packages/patent/patent-tools/src/index.ts)

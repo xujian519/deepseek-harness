@@ -140,7 +140,7 @@ describe('generate_structure_figure success', () => {
       ])
       expect(value.components[0]).toEqual({ refNumber: '100', name: '立柱', description: '立柱', kind: 'mechanical' })
       expect(value.indexed).toBe(true)
-      // provenance 告警
+      // 生成方式告警
       expect(value.warnings.some(w => w.includes('FreeCAD TechDraw'))).toBe(true)
       // 渲染 spec 传递
       expect(calls[0]?.views).toEqual(['iso', 'front'])
@@ -284,6 +284,49 @@ describe('generate_structure_figure wording & validation', () => {
       const { render } = okRenderer()
       const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
       await expect(tool.execute({ model_path: empty }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('批量目录与 callouts 同用报 invalid_tool_input，且不落到渲染器', async () => {
+    const dir = tempDir()
+    const modelDir = join(dir, 'models')
+    mkdirSync(modelDir, { recursive: true })
+    writeModel(modelDir, 'a.step')
+    writeModel(modelDir, 'b.step')
+    try {
+      const { render, calls } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: modelDir, views: ['iso'], callouts: twoCallouts }, exec))
+        .rejects.toMatchObject({ code: 'invalid_tool_input' })
+      expect(calls).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('scale 非正数报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: model, views: ['iso'], scale: 0 }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+      await expect(tool.execute({ model_path: model, views: ['iso'], scale: -2 }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('figure_number 非正整数报 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const model = writeModel(dir, 'a.step')
+    try {
+      const { render } = okRenderer()
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: dir, cwd: dir })
+      await expect(tool.execute({ model_path: model, views: ['iso'], figure_number: 0 }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+      await expect(tool.execute({ model_path: model, views: ['iso'], figure_number: -1 }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
