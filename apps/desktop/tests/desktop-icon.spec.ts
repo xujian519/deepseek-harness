@@ -23,9 +23,12 @@ describe('desktop packaging icons', () => {
 
   beforeAll(() => {
     // The config module builds its default export from process.env at import;
-    // unsigned mode keeps that import free of signing and notary inputs.
+    // unsigned mode keeps that import free of signing and notary inputs. The
+    // target platform is part of that environment: without it the default
+    // export resolves to the build host and throws on a non-packaging host.
     vi.stubEnv('DSH_DESKTOP_APP_ID', UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_APP_ID)
-    vi.stubEnv('DSH_DESKTOP_UNSIGNED', '1')
+    vi.stubEnv('DSH_DESKTOP_TARGET_PLATFORM', UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_TARGET_PLATFORM)
+    vi.stubEnv('DSH_DESKTOP_UNSIGNED', UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_UNSIGNED)
   })
 
   afterAll(async () => {
