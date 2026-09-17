@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  DESKTOP_ICON_DIR_ENV,
   resolveDesktopAppId,
   resolveDesktopIconDir,
   resolveMacOSNotarizationEnvironment,
@@ -32,11 +31,12 @@ export function createElectronBuilderConfig(
 ) {
   const appId = resolveDesktopAppId(env)
   const productName = resolveDesktopProductName(env)
-  const iconDir = resolveDesktopIconDir(env)
+  // The repository ships its brand icons in assets/; DSH_DESKTOP_ICON_DIR replaces them.
+  const iconDir = resolveDesktopIconDir(env) ?? fileURLToPath(new URL('./assets', import.meta.url))
   const iconFile = (fileName) => {
     const iconPath = join(iconDir, fileName)
     if (!existsSync(iconPath)) {
-      throw new Error(`desktop release environment: ${DESKTOP_ICON_DIR_ENV} does not contain ${fileName}`)
+      throw new Error(`desktop package: icon directory ${iconDir} does not contain ${fileName}`)
     }
     return iconPath
   }
@@ -99,7 +99,7 @@ export function createElectronBuilderConfig(
     ],
     mac: {
       category: 'public.app-category.developer-tools',
-      icon: iconDir === undefined ? undefined : iconFile('icon.icns'),
+      icon: iconFile('icon.icns'),
       // `null` stops electron-builder from falling back to a keychain identity
       // when the release inputs are absent; `undefined` would not.
       identity: unsigned ? null : macOSSigning?.signingIdentity,
@@ -129,7 +129,7 @@ export function createElectronBuilderConfig(
     },
     win: {
       forceCodeSigning: !unsigned,
-      icon: iconDir === undefined ? undefined : iconFile('icon.ico'),
+      icon: iconFile('icon.ico'),
       signtoolOptions: {
         sign: windowsSigner,
         signingHashAlgorithms: ['sha256'],

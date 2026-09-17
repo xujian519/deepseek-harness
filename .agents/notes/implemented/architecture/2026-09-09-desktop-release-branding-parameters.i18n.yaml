@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-desktop-release-branding-parameters.md
-2026-09-09-desktop-release-branding-parameters.md: 8d50ff6af010106d5acecfd0d3fd2ab34a69c774
-2026-09-09-desktop-release-branding-parameters.zh.md: 6ab14521f585fd74e16967b3e0de140cc7a5e425
+2026-09-09-desktop-release-branding-parameters.md: 2e35c734719611c87b9461c6a5a9b196dedcbd9f
+2026-09-09-desktop-release-branding-parameters.zh.md: 296d4f74c63f81ced61e9938c21408ae4ab64dc4

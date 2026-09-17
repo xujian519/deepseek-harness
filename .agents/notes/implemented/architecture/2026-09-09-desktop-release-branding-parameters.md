@@ -10,7 +10,7 @@ The desktop shell hardcodes the `DeepSeek Harness` product name and ships no app
 
 ## Decision
 
-`DSH_DESKTOP_PRODUCT_NAME` brands the packaged application and defaults to `DeepSeek Harness`; values beyond 64 characters or containing control characters and path separators fail packaging. `DSH_DESKTOP_ICON_DIR` points at a directory holding `icon.icns` and `icon.ico`; when set, each platform target requires its own file and packaging fails otherwise, and when unset the release keeps the default Electron icon. Update artifact names stay on the fixed `deepseek-harness-` template because branded names may contain spaces and the updater metadata plus upload paths key on that stable template. The repository assets under `apps/desktop/assets/` carry the application and tray icon set; the icon files are packaging inputs selected through the environment variable, and the tray icons are runtime assets for shell-owned tray UI.
+`DSH_DESKTOP_PRODUCT_NAME` brands the packaged application and defaults to `DeepSeek Harness`; values beyond 64 characters or containing control characters and path separators fail packaging. `DSH_DESKTOP_ICON_DIR` points at a directory holding `icon.icns` and `icon.ico` that replace the bundled brand icons; when set, each platform target requires its own file and packaging fails otherwise, and when unset packaging ships the brand icons committed under `apps/desktop/assets/`. Update artifact names stay on the fixed `deepseek-harness-` template because branded names may contain spaces and the updater metadata plus upload paths key on that stable template. The repository assets under `apps/desktop/assets/` carry the application and tray icon set; the icon files are the default packaging inputs, overridable through the environment variable, and the tray icons are runtime assets for shell-owned tray UI.
 
 ## Alternatives considered
 
@@ -20,4 +20,4 @@ The desktop shell hardcodes the `DeepSeek Harness` product name and ships no app
 
 ## Consequences
 
-Branded releases set three environment variables (`DSH_DESKTOP_APP_ID`, `DSH_DESKTOP_PRODUCT_NAME`, `DSH_DESKTOP_ICON_DIR`) on top of the signing inputs. Environment resolution tests cover defaults, valid values, and rejections; a packaged `:dir` build verifies name and icon placement without signing credentials.
+A release sets `DSH_DESKTOP_APP_ID` on top of the signing inputs; the name and icon parameters only ride releases that override them. Environment resolution tests cover defaults, valid values, and rejections; configuration tests pin the bundled icon default, the environment override, and the missing-file refusal; a packaged `:dir` build verifies name and icon placement without signing credentials.

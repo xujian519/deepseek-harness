@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`DSH_DESKTOP_PRODUCT_NAME` 为安装包指定品牌名称，缺省 `DeepSeek Harness`；超过 64 字符、包含控制字符或路径分隔符的值会让打包失败。`DSH_DESKTOP_ICON_DIR` 指向包含 `icon.icns` 与 `icon.ico` 的目录；设置后各平台目标要求各自的文件，缺失即打包失败，未设置时发布保留 Electron 默认图标。更新产物名称保持固定的 `deepseek-harness-` 模板，因为品牌名可能包含空格，而更新元数据与上传路径都以该稳定模板为准。仓库 `apps/desktop/assets/` 下的资产承载应用与托盘图标集；icon 文件是通过环境变量选择的打包输入，托盘图标是壳侧托盘 UI 的运行时资产。
+`DSH_DESKTOP_PRODUCT_NAME` 为安装包指定品牌名称，缺省 `DeepSeek Harness`；超过 64 字符、包含控制字符或路径分隔符的值会让打包失败。`DSH_DESKTOP_ICON_DIR` 指向包含 `icon.icns` 与 `icon.ico` 的目录，用于替换内置品牌图标；设置后各平台目标要求各自的文件，缺失即打包失败，未设置时打包使用 `apps/desktop/assets/` 内置的品牌图标。更新产物名称保持固定的 `deepseek-harness-` 模板，因为品牌名可能包含空格，而更新元数据与上传路径都以该稳定模板为准。仓库 `apps/desktop/assets/` 下的资产承载应用与托盘图标集；icon 文件是默认打包输入，可被环境变量覆盖，托盘图标是壳侧托盘 UI 的运行时资产。
 
 ## 已否决的替代方案
 
@@ -20,4 +20,4 @@ Status: implemented
 
 ## 后果
 
-品牌化发布在签名输入之外设置三个环境变量（`DSH_DESKTOP_APP_ID`、`DSH_DESKTOP_PRODUCT_NAME`、`DSH_DESKTOP_ICON_DIR`）。环境解析测试覆盖缺省、合法值与拒绝路径；不打签名凭据的 `:dir` 打包可验证名称与图标落位。
+发布在签名输入之外只要求 `DSH_DESKTOP_APP_ID`；名称与图标参数仅随需要覆盖它们的发布设置。环境解析测试覆盖缺省、合法值与拒绝路径；配置测试固定内置图标缺省、环境变量覆盖与缺文件拒绝；不打签名凭据的 `:dir` 打包可验证名称与图标落位。

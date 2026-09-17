@@ -6,7 +6,7 @@ export const DESKTOP_APP_ID_ENV = 'DSH_DESKTOP_APP_ID'
 /** Environment variable that supplies the packaged application name shown to users. */
 export const DESKTOP_PRODUCT_NAME_ENV = 'DSH_DESKTOP_PRODUCT_NAME'
 
-/** Environment variable that supplies a directory holding icon.icns and icon.ico for branded builds. */
+/** Environment variable that supplies a directory holding icon.icns and icon.ico that replace the bundled brand icons. */
 export const DESKTOP_ICON_DIR_ENV = 'DSH_DESKTOP_ICON_DIR'
 
 /** Application name used when the packaging environment does not brand the release. */
@@ -75,7 +75,8 @@ export function resolveDesktopProductName(env) {
 }
 
 /**
- * Resolve the branded icon directory, or undefined when the release keeps the default icon.
+ * Resolve the icon directory override, or undefined when packaging keeps the
+ * brand icons bundled in the desktop assets directory.
  * @param {NodeJS.ProcessEnv} env - Packaging environment.
  * @returns {string | undefined} Directory expected to hold icon.icns and icon.ico.
  */
