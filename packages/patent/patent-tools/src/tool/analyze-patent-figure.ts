@@ -32,6 +32,8 @@ import { checkImageCapability } from '../figure/image-capability.ts'
 import type { FigureAnalysisEngine } from '../figure/analysis-engine.ts'
 import { PatentToolError } from '../error.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
+import { COMPONENT_SCHEMA, FIGURE_COMPONENT_KINDS } from './internal/figure-schemas.ts'
+import type { FigureComponentKind } from './internal/figure-schemas.ts'
 
 /** 附图类型（PatentVision 分类 + 专利实务常见图型）。 */
 export const FIGURE_TYPES = [
@@ -61,19 +63,10 @@ export const FIGURE_TYPE_NAMES: Record<FigureType, string> = {
 }
 
 /** 组件类型（PatentVision ComponentType 对齐）。 */
-export const FIGURE_COMPONENT_KINDS = [
-  'mechanical',
-  'electrical',
-  'software',
-  'interface',
-  'sensor',
-  'actuator',
-  'controller',
-  'unknown',
-] as const
+export { FIGURE_COMPONENT_KINDS }
 
 /** Component kind (mechanical / electrical / software / ... / unknown). */
-export type FigureComponentKind = (typeof FIGURE_COMPONENT_KINDS)[number]
+export type { FigureComponentKind }
 
 /** 组件连接关系类型。 */
 export const FIGURE_CONNECTION_KINDS = ['electrical', 'mechanical', 'data_flow', 'unknown'] as const
@@ -539,16 +532,6 @@ export function renderFigureAnalysis(value: FigureAnalysisResult): string {
 const DESCRIPTION = [
   '分析专利说明书附图（多模态）：把图片随请求发送给配置的附图模型（imageModel，须声明图片输入），识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文，提升图文对齐准确率。',
 ].join('\n')
-const COMPONENT_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    refNumber: { type: 'string', required: true },
-    name: { type: 'string', required: true },
-    kind: { type: 'string', required: true, enum: FIGURE_COMPONENT_KINDS },
-    description: { type: 'string', required: true },
-  },
-} as const
 
 const CONNECTION_SCHEMA = {
   type: 'object',

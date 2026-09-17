@@ -50,6 +50,7 @@ import { resolvePageBundle } from '../figure/dot-builder.ts'
 import { annotateSvgWithLeaderLines } from '../figure/leader-line.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { SvgAnnotateError } from '../figure/svg-annotate.ts'
+import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
 
 /** 原始 DOT 输入大小上限（字节）。 */
 const RAW_DOT_MAX_BYTES = 200_000
@@ -451,28 +452,6 @@ const PANEL_SCHEMA = {
     template: { type: 'string', enum: DIAGRAM_TEMPLATE_NAMES, description: '面板内置模板' },
     dot: { type: 'string', description: '面板原始 DOT' },
     numerals: { type: 'object', additionalProperties: true, description: '面板显式标号（组件 id → 标号；优先于顶层 numerals）' },
-  },
-} as const
-
-const NUMERAL_MAP_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    componentId: { type: 'string', required: true },
-    label: { type: 'string', required: true },
-    numeral: { type: 'string', required: true },
-    figure: { type: 'integer', required: true },
-  },
-} as const
-
-const COMPONENT_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    refNumber: { type: 'string', required: true },
-    name: { type: 'string', required: true },
-    kind: { type: 'string', required: true, enum: ['mechanical', 'electrical', 'software', 'interface', 'sensor', 'actuator', 'controller', 'unknown'] },
-    description: { type: 'string', required: true },
   },
 } as const
 

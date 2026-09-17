@@ -18,14 +18,22 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { delimiter, dirname, join } from 'node:path'
-import type { SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import { delimiter, join } from 'node:path'
+import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import {
   STRUCTURE_MANIFEST_FILENAME,
   buildStructureScript,
   type StructureCallout,
   type StructureViewName,
 } from './freecad-structure-script.ts'
+import {
+  SPAWN_GRACE_MS,
+  describeRenderFailure,
+  quietStdio,
+  renderStderr,
+  spawnVersionProbe,
+  startRenderDeadline,
+} from './subprocess-render.ts'
 
 /** 各平台常见 FreeCAD console 可执行文件安装路径。 */
 export const FREECAD_CMD_CANDIDATES: readonly string[] = [
@@ -45,26 +53,11 @@ const RENDER_TIMEOUT_MS = 120_000
 /** 版本探测超时（毫秒；freecadcmd --version 需加载运行时，较 dot -V 慢）。 */
 const PROBE_TIMEOUT_MS = 20_000
 
-/** SIGTERM → SIGKILL 宽限（与 graphviz-renderer 一致）。 */
-const GRACE_MS = 3_000
-
-/** 单流内存输出上限。 */
-const MAX_OUTPUT_BYTES = 100_000
-
 /** 渲染脚本临时文件名（写入 outputDir，与 SVG/manifest 同目录）。 */
 const STRUCTURE_RENDER_SCRIPT_FILENAME = '.freecad-structure-render.py'
 
 /** 子进程 HOME/临时目录名（写入 outputDir 内，隔离 FreeCAD 副作用）。 */
 const STRUCTURE_HOME_DIRNAME = '.freecad-home'
-
-/** 渲染 spawn 的 stdio 配置（无输入，仅收集 stdout/stderr）。 */
-function renderStdio(): SubprocessSpawnSpec['stdio'] {
-  return {
-    stdin: 'ignore',
-    stdout: { maxBytes: MAX_OUTPUT_BYTES },
-    stderr: { maxBytes: MAX_OUTPUT_BYTES },
-  }
-}
 
 /**
  * 生成 FreeCAD 缺失/路径失效时的安装引导文案。
@@ -138,15 +131,7 @@ export async function probeFreeCad(
   timer.unref()
   /* v8 ignore stop */
   try {
-    const handle = subprocess.spawn({
-      argv: [executable, '--version'],
-      cwd: dirname(executable) || process.cwd(),
-      stdio: renderStdio(),
-      graceMs: GRACE_MS,
-      signal: controller.signal,
-    })
-    const outcome = await handle.done
-    const text = `${handle.collected.stdout?.readFrom(0).text ?? ''} ${handle.collected.stderr?.readFrom(0).text ?? ''}`
+    const { outcome, text } = await spawnVersionProbe(subprocess, executable, '--version', controller.signal)
     if (outcome.exitCode !== 0) {
       return { ready: false, executable, message: `freecadcmd --version 失败（退出码 ${outcome.exitCode ?? '未知'}）：${text.trim()}` }
     }
@@ -230,23 +215,14 @@ export async function renderStructureViews(
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, code: 'render_failed', error: `准备 FreeCAD 脚本失败：${message}` }
   }
-  const controller = new AbortController()
-  const state: { timedOut: boolean } = { timedOut: false }
-  const timer = setTimeout(() => {
-    state.timedOut = true
-    controller.abort()
-  }, RENDER_TIMEOUT_MS)
-  timer.unref()
-  const onCallerAbort = (): void => { controller.abort() }
-  spec.signal?.addEventListener('abort', onCallerAbort, { once: true })
-  if (spec.signal?.aborted === true) controller.abort()
+  const deadline = startRenderDeadline(RENDER_TIMEOUT_MS, spec.signal)
   try {
     const handle = subprocess.spawn({
       argv: [executable, scriptPath],
       cwd: spec.outputDir,
-      stdio: renderStdio(),
-      graceMs: GRACE_MS,
-      signal: controller.signal,
+      stdio: quietStdio(),
+      graceMs: SPAWN_GRACE_MS,
+      signal: deadline.signal,
       // 隔离 FreeCAD 副作用：HOME/临时/缓存指向 outputDir 内子目录（best-effort）。
       env: {
         HOME: homeDir,
@@ -260,21 +236,11 @@ export async function renderStructureViews(
     })
     const outcome = await handle.done
     if (outcome.exitCode !== 0) {
-      const stderr = (handle.collected.stderr?.readFrom(0).text ?? '').trim()
-      let cause: string
-      if (state.timedOut) {
-        cause = '渲染超时'
-      } else if (spec.signal?.aborted === true) {
-        cause = '被调用方取消'
-      } else if (outcome.exitCode === null) {
-        cause = `被信号 ${outcome.signal ?? '未知'} 终止`
-      } else {
-        cause = `退出码 ${outcome.exitCode}`
-      }
+      const cause = describeRenderFailure(outcome, deadline.timedOut(), spec.signal)
       return {
         ok: false,
         code: spec.signal?.aborted === true ? 'aborted' : 'render_failed',
-        error: `FreeCAD 结构投影失败（${cause}）：${stderr || '无 stderr 输出'}`,
+        error: `FreeCAD 结构投影失败（${cause}）：${renderStderr(handle) || '无 stderr 输出'}`,
       }
     }
     if (!existsSync(manifestPath)) {
@@ -289,7 +255,6 @@ export async function renderStructureViews(
       error: `FreeCAD 结构投影调用失败：${message}`,
     }
   } finally {
-    clearTimeout(timer)
-    spec.signal?.removeEventListener('abort', onCallerAbort)
+    deadline.dispose()
   }
 }

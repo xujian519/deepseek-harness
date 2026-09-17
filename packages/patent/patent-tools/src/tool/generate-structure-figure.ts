@@ -31,6 +31,7 @@ import {
   type StructureViewName,
 } from '../figure/freecad-structure-script.ts'
 import type { StructureRenderOutcome, StructureRenderSpec } from '../figure/freecad-renderer.ts'
+import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
 
 /** 结构线稿在索引中的模型标识（FreeCAD TechDraw 投影，无 LLM 参与）。 */
 export const STRUCTURE_FIGURE_MODEL_USED = 'freecad-structure'
@@ -263,28 +264,6 @@ const CALLOUT_SCHEMA = {
       items: { type: 'number' },
     },
     label: { type: 'string', description: '可选部件名称（写入标号表/manifest，不进图面像素）' },
-  },
-} as const
-
-const NUMERAL_MAP_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    componentId: { type: 'string', required: true },
-    label: { type: 'string', required: true },
-    numeral: { type: 'string', required: true },
-    figure: { type: 'integer', required: true },
-  },
-} as const
-
-const COMPONENT_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    refNumber: { type: 'string', required: true },
-    name: { type: 'string', required: true },
-    kind: { type: 'string', required: true, enum: ['mechanical', 'electrical', 'software', 'interface', 'sensor', 'actuator', 'controller', 'unknown'] },
-    description: { type: 'string', required: true },
   },
 } as const
 

@@ -13,9 +13,17 @@
 
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { delimiter, dirname, join } from 'node:path'
-import type { SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import { delimiter, join } from 'node:path'
+import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type { DotEngine, DotFormat } from './dot-builder.ts'
+import {
+  SPAWN_GRACE_MS,
+  describeRenderFailure,
+  renderStderr,
+  spawnVersionProbe,
+  startRenderDeadline,
+  stdinStdio,
+} from './subprocess-render.ts'
 import { DEFAULT_SVG_MAX_BYTES, SvgAnnotateError, assertSafeSvg } from './svg-annotate.ts'
 
 /** 各平台常见 Graphviz dot 安装路径。 */
@@ -29,35 +37,11 @@ export const DOT_CANDIDATES: readonly string[] = [
   'C:\\ProgramData\\chocolatey\\bin\\dot.exe',
 ]
 
-/** 渲染 spawn 的 stdio 配置（stdin 承载 DOT 文本，输出流设内存上限）。 */
-function renderStdio(dot: string): SubprocessSpawnSpec['stdio'] {
-  return {
-    stdin: dot !== '' ? { data: dot } : 'ignore',
-    stdout: { maxBytes: MAX_OUTPUT_BYTES },
-    stderr: { maxBytes: MAX_OUTPUT_BYTES },
-  }
-}
-
-/** 探测 spawn 的 stdio 配置（无输入，仅收集版本输出）。 */
-function probeStdio(): SubprocessSpawnSpec['stdio'] {
-  return {
-    stdin: 'ignore',
-    stdout: { maxBytes: MAX_OUTPUT_BYTES },
-    stderr: { maxBytes: MAX_OUTPUT_BYTES },
-  }
-}
-
 /** 单次渲染超时（毫秒）。 */
 const RENDER_TIMEOUT_MS = 60_000
 
 /** 版本探测超时（毫秒）。 */
 const PROBE_TIMEOUT_MS = 5_000
-
-/** SIGTERM → SIGKILL 宽限（与 patent-data subprocess-runner 一致）。 */
-const GRACE_MS = 3_000
-
-/** 单流内存输出上限。 */
-const MAX_OUTPUT_BYTES = 100_000
 
 /**
  * 生成 Graphviz 缺失/路径失效时的安装引导文案。
@@ -131,15 +115,7 @@ export async function probeGraphviz(
   timer.unref()
   /* v8 ignore stop */
   try {
-    const handle = subprocess.spawn({
-      argv: [executable, '-V'],
-      cwd: dirname(executable) || process.cwd(),
-      stdio: probeStdio(),
-      graceMs: GRACE_MS,
-      signal: controller.signal,
-    })
-    const outcome = await handle.done
-    const text = `${handle.collected.stdout?.readFrom(0).text ?? ''} ${handle.collected.stderr?.readFrom(0).text ?? ''}`
+    const { outcome, text } = await spawnVersionProbe(subprocess, executable, '-V', controller.signal)
     if (outcome.exitCode !== 0) {
       return { ready: false, executable, message: `dot -V 失败（退出码 ${outcome.exitCode ?? '未知'}）：${text.trim()}` }
     }
@@ -239,39 +215,20 @@ export async function renderWithGraphviz(
   }
   const filename = sanitizeDotFilename(spec.filename)
   const outputPath = join(spec.outputDir, `${filename}.${spec.format}`)
-  const controller = new AbortController()
-  const state: { timedOut: boolean } = { timedOut: false }
-  const timer = setTimeout(() => {
-    state.timedOut = true
-    controller.abort()
-  }, RENDER_TIMEOUT_MS)
-  timer.unref()
-  const onCallerAbort = (): void => { controller.abort() }
-  spec.signal?.addEventListener('abort', onCallerAbort, { once: true })
-  if (spec.signal?.aborted === true) controller.abort()
+  const deadline = startRenderDeadline(RENDER_TIMEOUT_MS, spec.signal)
   try {
     const handle = subprocess.spawn({
       // graphviz >= 15 rejects a trailing '-' as an unknown option; stdin input needs no file argument.
       argv: [executable, `-T${spec.format}`, `-K${spec.engine}`, '-o', outputPath],
       cwd: spec.outputDir,
-      stdio: renderStdio(spec.dot),
-      graceMs: GRACE_MS,
-      signal: controller.signal,
+      stdio: stdinStdio(spec.dot),
+      graceMs: SPAWN_GRACE_MS,
+      signal: deadline.signal,
     })
     const outcome = await handle.done
     if (outcome.exitCode !== 0) {
-      const stderr = (handle.collected.stderr?.readFrom(0).text ?? '').trim()
-      let cause: string
-      if (state.timedOut) {
-        cause = '渲染超时'
-      } else if (spec.signal?.aborted === true) {
-        cause = '被调用方取消'
-      } else if (outcome.exitCode === null) {
-        cause = `被信号 ${outcome.signal ?? '未知'} 终止`
-      } else {
-        cause = `退出码 ${outcome.exitCode}`
-      }
-      return { ok: false, code: spec.signal?.aborted === true ? 'aborted' : 'render_failed', error: `Graphviz 渲染失败（${cause}）：${stderr || '无 stderr 输出'}` }
+      const cause = describeRenderFailure(outcome, deadline.timedOut(), spec.signal)
+      return { ok: false, code: spec.signal?.aborted === true ? 'aborted' : 'render_failed', error: `Graphviz 渲染失败（${cause}）：${renderStderr(handle) || '无 stderr 输出'}` }
     }
     if (!existsSync(outputPath)) {
       return { ok: false, code: 'render_failed', error: `Graphviz 未生成输出文件：${outputPath}` }
@@ -285,7 +242,6 @@ export async function renderWithGraphviz(
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, code: spec.signal?.aborted === true ? 'aborted' : 'render_failed', error: `Graphviz 渲染调用失败：${message}` }
   } finally {
-    clearTimeout(timer)
-    spec.signal?.removeEventListener('abort', onCallerAbort)
+    deadline.dispose()
   }
 }
