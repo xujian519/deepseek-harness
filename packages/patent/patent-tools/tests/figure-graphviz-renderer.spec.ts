@@ -253,10 +253,13 @@ describe('sanitizeDotFilename', () => {
 })
 
 describe('renderWithGraphviz', () => {
+  // 产物校验（A2）要求 SVG 含 <svg> 根元素与 </svg>；裸 <svg/> 会被判为截断产物。
+  const MINIMAL_SVG = '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+
   function okOutput(filename = 'fig1'): string {
     const dir = tempDir()
     const path = join(dir, `${filename}.svg`)
-    writeFileSync(path, '<svg/>')
+    writeFileSync(path, MINIMAL_SVG)
     return path
   }
 
@@ -333,7 +336,7 @@ describe('renderWithGraphviz', () => {
     const { dot: dotPath } = fakeDot()
     const dir = tempDir()
     try {
-      writeFileSync(join(dir, 'f.svg'), '<svg/>')
+      writeFileSync(join(dir, 'f.svg'), MINIMAL_SVG)
       const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
       const result = await renderWithGraphviz(runtime, { dot: '', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
       expect(result).toEqual({ ok: true, path: join(dir, 'f.svg') })

@@ -789,9 +789,11 @@ async function generatePanels(
           analyzedAt: new Date().toISOString(),
           analysis: indexAnalysis(po.output, style, input.figure_family),
         })
-      } catch {
-        // 索引写入是可选增强：任一面板写入失败静默降级，不阻断生成结果返回。
+      } catch (error) {
+        // 索引写入是可选增强：任一面板写入失败降级为警告，不阻断生成结果返回；
+        // 留痕失败原因——索引缺失会使 search_patent_figure 漏检、figure_family 续号漏号。
         indexed = false
+        warnings.push(`面板 ${po.suffix} 附图索引写入失败（不阻断）：${error instanceof Error ? error.message : String(error)}`)
       }
     }
   }
@@ -1045,8 +1047,10 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
             analysis: indexAnalysis(result, style, normalized.figure_family),
           })
           indexed = true
-        } catch {
-          // 索引写入是可选增强：写入失败静默降级，不阻断生成结果返回。
+        } catch (error) {
+          // 索引写入是可选增强：写入失败降级为警告，不阻断生成结果返回；
+          // 留痕失败原因——索引缺失会使 search_patent_figure 漏检、figure_family 续号漏号。
+          result.warnings.push(`附图索引写入失败（不阻断）：${error instanceof Error ? error.message : String(error)}`)
         }
       }
       return { ...result, indexed }

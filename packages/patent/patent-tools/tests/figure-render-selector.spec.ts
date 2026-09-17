@@ -52,11 +52,18 @@ function fakeSubprocess(
   return { runtime, calls }
 }
 
-/** onSpawn 侧预写 dot 输出占位文件（渲染器在退出码 0 后校验文件存在）。 */
+/** 按输出扩展名给出能通过产物校验（A2）的占位内容：svg 含根元素、png 带 magic bytes、pdf 带 %PDF 头。 */
+function placeholderFor(path: string): string | Buffer {
+  if (path.endsWith('.png')) return Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  if (path.endsWith('.pdf')) return '%PDF-1.4\n'
+  return '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+}
+
+/** onSpawn 侧预写 dot 输出占位文件（渲染器在退出码 0 后校验文件存在与内容）。 */
 function fakeCli(): { runtime: SubprocessRuntime; calls: SubprocessSpawnSpec[] } {
   return fakeSubprocess((spawnSpec) => {
     const out = spawnSpec.argv[spawnSpec.argv.indexOf('-o') + 1]
-    if (out !== undefined) writeFileSync(out, 'cli-placeholder')
+    if (out !== undefined) writeFileSync(out, placeholderFor(out))
     return cliHandle()
   })
 }

@@ -12,9 +12,11 @@
  */
 
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'
 import type { SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import type { DotEngine, DotFormat } from './dot-builder.ts'
+import { DEFAULT_SVG_MAX_BYTES, SvgAnnotateError, assertSafeSvg } from './svg-annotate.ts'
 
 /** 各平台常见 Graphviz dot 安装路径。 */
 export const DOT_CANDIDATES: readonly string[] = [
@@ -186,6 +188,40 @@ export function sanitizeDotFilename(filename: string): string {
 }
 
 /**
+ * 校验渲染产物内容：dot 退出码 0 不保证产物完整（可能截断/空文件）。
+ * svg 复用 {@link assertSafeSvg}（统一安全入口）；png/pdf 校验非空 + magic bytes。
+ * @param outputPath - 已存在的产物路径。
+ * @param format - 输出格式（决定校验方式）。
+ * @returns 产物无效时的原因文本；合规时 undefined。
+ */
+async function validateRenderedFile(outputPath: string, format: DotFormat): Promise<string | undefined> {
+  let bytes: Buffer
+  try {
+    bytes = await readFile(outputPath)
+  } catch (error) {
+    return `读取渲染产物失败：${error instanceof Error ? error.message : String(error)}`
+  }
+  if (bytes.length === 0) return '渲染产物为空文件'
+  if (format === 'svg') {
+    try {
+      assertSafeSvg(bytes.toString('utf8'), DEFAULT_SVG_MAX_BYTES)
+      return undefined
+    } catch (error) {
+      return `渲染产物 SVG 校验失败：${error instanceof SvgAnnotateError ? error.message : String(error)}`
+    }
+  }
+  if (format === 'png') {
+    // PNG 签名：89 50 4E 47（\x89PNG）；仅查前 4 字节即可判定非截断的空/错格式产物。
+    const valid = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    return valid ? undefined : '渲染产物不是合法 PNG（magic bytes 不符，可能截断）'
+  }
+  // PDF 以 %PDF 头开始；容忍前置字节，只在首 1KB 内查找。
+  return bytes.subarray(0, 1024).toString('latin1').includes('%PDF')
+    ? undefined
+    : '渲染产物不是合法 PDF（缺 %PDF 头，可能截断）'
+}
+
+/**
  * 用 Graphviz 渲染 DOT 为图片文件。
  * @param subprocess - 注入的 subprocess 服务。
  * @param spec - 渲染请求。
@@ -239,6 +275,10 @@ export async function renderWithGraphviz(
     }
     if (!existsSync(outputPath)) {
       return { ok: false, code: 'render_failed', error: `Graphviz 未生成输出文件：${outputPath}` }
+    }
+    const invalid = await validateRenderedFile(outputPath, spec.format)
+    if (invalid !== undefined) {
+      return { ok: false, code: 'render_failed', error: `Graphviz 渲染产物无效：${invalid}` }
     }
     return { ok: true, path: outputPath }
   } catch (error) {

@@ -169,7 +169,7 @@ function declaredCanvas(svg: string): { minX: number; minY: number; width: numbe
   }
 }
 
-/** 引线组内每个标号的文本锚点框（估算宽 6/字符 + 2、高 12，与放置逻辑同源）。 */
+/** 引线组内每个标号的文本锚点框（测试侧保守估算：宽 6/字符 + 2、高 12，只用于“是否落在画布内”的包含判定）。 */
 function numeralBoxes(svg: string): { minX: number; minY: number; maxX: number; maxY: number }[] {
   const group = /<g id="leader-lines">([\s\S]*?)<\/g>/.exec(svg)?.[1] ?? ''
   const boxes: { minX: number; minY: number; maxX: number; maxY: number }[] = []
@@ -303,12 +303,14 @@ describe('annotateSvgWithLeaderLines', () => {
     expect(svg.indexOf('</svg>')).toBeGreaterThan(leaderGroup)
   })
 
-  it('右向标号越出画布时扩展画布：标号与引线完整可见', () => {
+  it('右向标号越出画布时扩展画布：标号与引线完整可见，大幅扩边告警', () => {
     const { svg, warnings } = annotateSvgWithLeaderLines(TIGHT_RIGHT_SVG, [{ label: '温度传感器', numeral: '100' }])
-    expect(warnings).toEqual([])
+    // 单边扩边 18%（>15% 阈值）→ B3 告警（同一物理页面下字号会被压细）。
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('扩边')
     // 节点右边缘（用户坐标 144）加 10pt 引线再加标号文本框越出 150pt 画布，向右扩 2pt 安全边距。
-    expect(declaredCanvas(svg)).toEqual({ minX: 0, minY: 0, width: 179, height: 60 })
-    expect(svg).toContain('width="179pt"')
+    expect(declaredCanvas(svg)).toEqual({ minX: 0, minY: 0, width: 177.5, height: 60 })
+    expect(svg).toContain('width="177.5pt"')
     expect(svg).toContain('height="60pt"')
     expect(numeralsInsideCanvas(svg)).toBe(true)
     expect(svg).toContain('<line x1="144" y1="28" x2="154" y2="28"')
@@ -316,11 +318,13 @@ describe('annotateSvgWithLeaderLines', () => {
 
   it('左向标号越出画布左边界时把 viewBox 起点左移，其余内容不动', () => {
     const { svg, warnings } = annotateSvgWithLeaderLines(TIGHT_LEFT_SVG, [{ label: '靶件', numeral: '100' }])
-    expect(warnings).toEqual([])
+    // 单边扩边 20%（>15% 阈值）→ B3 告警。
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('扩边')
     expect(svg).toContain('<line x1="4" y1="28" x2="-6" y2="28"')
-    expect(declaredCanvas(svg)).toEqual({ minX: -31, minY: 0, width: 181, height: 60 })
-    expect(svg).toContain('viewBox="-31 0 181 60"')
-    expect(svg).toContain('width="181pt"')
+    expect(declaredCanvas(svg)).toEqual({ minX: -29.5, minY: 0, width: 179.5, height: 60 })
+    expect(svg).toContain('viewBox="-29.5 0 179.5 60"')
+    expect(svg).toContain('width="179.5pt"')
     expect(numeralsInsideCanvas(svg)).toBe(true)
   })
 

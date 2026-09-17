@@ -84,6 +84,9 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
     expect(svg).toContain('<svg')
     expect(svg).toContain('温度传感器 (100)')
     expect(svg).not.toContain('fillcolor')
+    // 防回退：图号只属于文件名与附图说明，绝不烧进像素；grayscale 不得出现 semantic 彩色填充。
+    expect(svg).not.toContain('图1')
+    expect(svg).not.toContain('fill="light')
     expect(statSync((result as { ok: true; path: string }).path).size).toBeGreaterThan(1000)
   })
 
@@ -211,6 +214,9 @@ describe.skipIf(!vizAvailable)('real WASM rendering (bundled @viz-js/viz, no `do
     const svg = readFileSync(outcome.path, 'utf8')
     expect(svg).toContain('<svg')
     expect(svg).toContain('温度传感器 (100)')
+    // 防回退（WASM 路径同 CLI）：图号不烧进像素；grayscale 不得出现 semantic 彩色填充。
+    expect(svg).not.toContain('图1')
+    expect(svg).not.toContain('fill="light')
     expect(statSync(outcome.path).size).toBeGreaterThan(1000)
     // 与 CLI 渲染同一链路：SVG 后处理标注在 WASM 输出上同样可用（Phase 0：两引擎结构一致）。
     const annotated = annotateSvg(svg, [
@@ -246,7 +252,8 @@ describe.skipIf(!vizAvailable)('real WASM rendering (bundled @viz-js/viz, no `do
     expect(annotated.svg).toContain('>102</text>')
     expect(annotated.svg).toContain('>温度传感器<')
     expect(annotated.svg).not.toContain('(100)')
-    expect(annotated.warnings).toEqual([])
+    // 无内嵌/未命中退化即为成功；裸 DOT 画布紧凑，为容纳图外标号而扩边会触发 B3 告警，不属退化。
+    expect(annotated.warnings.filter(w => w.includes('已内嵌') || w.includes('未命中'))).toEqual([])
   })
 
   afterAll(() => {

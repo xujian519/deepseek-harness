@@ -73,6 +73,8 @@ type ParsedNodeGroup = {
   text: string
   /** 轮廓 bbox（组坐标系）；组内无 polygon/ellipse 时 undefined。 */
   bbox: Rect | undefined
+  /** 组内首个文本元素的 font-size（无文本时 {@link FALLBACK_FONT_SIZE}）；标号几何与图面 scale 的依据。 */
+  fontSize: number
   /** 组坐标系到根坐标系的平移帧。 */
   frame: Frame | undefined
   /** 命中的参考序号；未命中 -1。 */
@@ -99,17 +101,35 @@ type Canvas = {
   heightAttr: { value: number; unit: string; ratio: number } | undefined
 }
 
-/** 引线长度（SVG 用户单位）。 */
+/** 引线长度基线（SVG 用户单位，scale=1）；实际长度随图面 scale 归一（见 {@link drawingScale}）。 */
 const LEADER_GAP = 10
 
-/** 标号文本行高（font-size 10 的估算值，用于占位与碰撞判定）。 */
-const NUMERAL_TEXT_HEIGHT = 12
-
-/** 标号每字符估算宽度（font-size 10）。 */
-const NUMERAL_CHAR_WIDTH = 6
-
-/** 画布扩边时的安全边距（用户单位），保证标号与引线不贴边。 */
+/** 画布扩边安全边距基线（用户单位，scale=1），保证标号与引线不贴边。 */
 const CANVAS_PAD = 2
+
+/** 标号文本行高相对 font-size 的比例（占位与碰撞判定用）。 */
+const NUMERAL_TEXT_HEIGHT_RATIO = 1.2
+
+/** 标号文本框在估算字宽之外的额外留白相对 font-size 的比例。 */
+const NUMERAL_PAD_RATIO = 0.2
+
+/** 标号基线相对锚点的微调（font-size 的分数）：左右向垂直居中、上下向让位引线端。 */
+const TEXT_BASELINE_MID_RATIO = 0.35
+const TEXT_GAP_RATIO = 0.3
+const TEXT_BOTTOM_DROP_RATIO = 0.9
+
+/** 图面 scale 基线 font-size：节点中位 font-size 等于它时 scale=1，几何常量按原值生效。 */
+const BASELINE_FONT_SIZE = 10
+
+/** 缺省 font-size（文本元素未声明或非法时，与 Graphviz 默认一致）。 */
+const FALLBACK_FONT_SIZE = 10
+
+/** 图面 scale 归一的上下限，避免极端 font-size 使引线几何失控。 */
+const MIN_SCALE = 0.5
+const MAX_SCALE = 4
+
+/** 画布单边扩边超过此比例时告警（同一物理页面下字号会被压细）。 */
+const CANVAS_EXPAND_WARN_RATIO = 0.15
 
 /** 边路径三次贝塞尔的采样段数（折线近似，用于引线避让）。 */
 const EDGE_SAMPLES = 8
@@ -237,6 +257,12 @@ function ellipseBBox(ellipseTag: string): Rect | undefined {
   return { minX: cx - rx, minY: cy - ry, maxX: cx + rx, maxY: cy + ry }
 }
 
+/** 读取文本元素声明的 font-size；缺失或非法（≤ 0）时回退 {@link FALLBACK_FONT_SIZE}。 */
+function readFontSize(textElement: string): number {
+  const size = numberAttr(textElement, 'font-size')
+  return size === undefined || size <= 0 ? FALLBACK_FONT_SIZE : size
+}
+
 /** 估算文本宽度（CJK 按满宽、其余按窄宽）。 */
 function estimateTextWidth(text: string, fontSize: number): number {
   let width = 0
@@ -249,7 +275,7 @@ function textBBox(textElement: string): Rect | undefined {
   const x = numberAttr(textElement, 'x')
   const y = numberAttr(textElement, 'y')
   if (x === undefined || y === undefined) return undefined
-  const fontSize = numberAttr(textElement, 'font-size') ?? 10
+  const fontSize = readFontSize(textElement)
   const anchor = /\btext-anchor="(\w+)"/.exec(textElement)?.[1] ?? 'start'
   const width = estimateTextWidth(textElementContent(textElement), fontSize)
   const minX = anchor === 'end' ? x - width : anchor === 'middle' ? x - width / 2 : x
@@ -455,54 +481,127 @@ function edgeObstacles(svgText: string, scopes: readonly GroupScope[]): Obstacle
 }
 
 /**
- * 为节点 bbox 生成右/左/上/下四个候选锚点（引线从轮廓边缘出发，标号在线端外侧）。
- * @param bbox - 节点轮廓（根坐标系）。
- * @param numeral - 标号文本（决定文本框宽度）。
- * @returns 按尝试顺序排列的候选。
+ * 由全部节点文本的 font-size 中位数推导图面 scale（相对 {@link BASELINE_FONT_SIZE}，
+ * 限幅 [{@link MIN_SCALE}, {@link MAX_SCALE}]）。大字号/大图面下引线间隙与扩边边距
+ * 同比放大，避免绝对阈值与画布尺寸脱钩（外部报告第 7 条根因）。
+ * @param fontSizes - 各节点组的 font-size。
+ * @returns scale 因子；无节点时 1。
  */
-function candidatePlacements(bbox: Rect, numeral: string): AnchorPlacement[] {
-  const width = numeral.length * NUMERAL_CHAR_WIDTH + 2
+function drawingScale(fontSizes: readonly number[]): number {
+  if (fontSizes.length === 0) return 1
+  const sorted = [...fontSizes].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0
+    ? ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2
+    : (sorted[mid] as number)
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, median / BASELINE_FONT_SIZE))
+}
+
+/**
+ * 为节点 bbox 生成右/左/上/下四个正交候选锚点（引线从轮廓边缘出发，标号在线端外侧）。
+ * 标号文本框宽/高与基线微调均由节点实读 font-size 推导（与边标签宽共用
+ * {@link estimateTextWidth}），引线长度与走廊用图面 scale 归一的 gap。
+ * @param bbox - 节点轮廓（根坐标系）。
+ * @param numeral - 标号文本。
+ * @param fontSize - 节点实读 font-size（标号与之一致）。
+ * @param gap - 已按图面 scale 归一的引线长度。
+ * @returns 按尝试顺序排列的正交候选。
+ */
+function candidatePlacements(bbox: Rect, numeral: string, fontSize: number, gap: number): AnchorPlacement[] {
+  const width = estimateTextWidth(numeral, fontSize) + fontSize * NUMERAL_PAD_RATIO
   const cx = (bbox.minX + bbox.maxX) / 2
   const cy = (bbox.minY + bbox.maxY) / 2
-  const halfH = NUMERAL_TEXT_HEIGHT / 2
+  const textHeight = fontSize * NUMERAL_TEXT_HEIGHT_RATIO
+  const halfH = textHeight / 2
+  const midOffset = fontSize * TEXT_BASELINE_MID_RATIO
+  const textGap = fontSize * TEXT_GAP_RATIO
+  const bottomDrop = fontSize * TEXT_BOTTOM_DROP_RATIO
   const right: AnchorPlacement = {
-    line: { x1: bbox.maxX, y1: cy, x2: bbox.maxX + LEADER_GAP, y2: cy },
-    text: { x: bbox.maxX + LEADER_GAP + 3, y: cy + 3.5, anchor: 'start' },
+    line: { x1: bbox.maxX, y1: cy, x2: bbox.maxX + gap, y2: cy },
+    text: { x: bbox.maxX + gap + textGap, y: cy + midOffset, anchor: 'start' },
     occupied: [
-      { minX: bbox.maxX, minY: cy - 1, maxX: bbox.maxX + LEADER_GAP, maxY: cy + 1 },
-      { minX: bbox.maxX + LEADER_GAP, minY: cy - halfH, maxX: bbox.maxX + LEADER_GAP + 3 + width, maxY: cy + halfH },
+      { minX: bbox.maxX, minY: cy - 1, maxX: bbox.maxX + gap, maxY: cy + 1 },
+      { minX: bbox.maxX + gap, minY: cy - halfH, maxX: bbox.maxX + gap + textGap + width, maxY: cy + halfH },
     ],
   }
   const left: AnchorPlacement = {
-    line: { x1: bbox.minX, y1: cy, x2: bbox.minX - LEADER_GAP, y2: cy },
-    text: { x: bbox.minX - LEADER_GAP - 3, y: cy + 3.5, anchor: 'end' },
+    line: { x1: bbox.minX, y1: cy, x2: bbox.minX - gap, y2: cy },
+    text: { x: bbox.minX - gap - textGap, y: cy + midOffset, anchor: 'end' },
     occupied: [
-      { minX: bbox.minX - LEADER_GAP, minY: cy - 1, maxX: bbox.minX, maxY: cy + 1 },
-      { minX: bbox.minX - LEADER_GAP - 3 - width, minY: cy - halfH, maxX: bbox.minX - LEADER_GAP, maxY: cy + halfH },
+      { minX: bbox.minX - gap, minY: cy - 1, maxX: bbox.minX, maxY: cy + 1 },
+      { minX: bbox.minX - gap - textGap - width, minY: cy - halfH, maxX: bbox.minX - gap, maxY: cy + halfH },
     ],
   }
   const top: AnchorPlacement = {
-    line: { x1: cx, y1: bbox.minY, x2: cx, y2: bbox.minY - LEADER_GAP },
-    text: { x: cx, y: bbox.minY - LEADER_GAP - 3, anchor: 'middle' },
+    line: { x1: cx, y1: bbox.minY, x2: cx, y2: bbox.minY - gap },
+    text: { x: cx, y: bbox.minY - gap - textGap, anchor: 'middle' },
     occupied: [
-      { minX: cx - 1, minY: bbox.minY - LEADER_GAP, maxX: cx + 1, maxY: bbox.minY },
+      { minX: cx - 1, minY: bbox.minY - gap, maxX: cx + 1, maxY: bbox.minY },
       {
         minX: cx - width / 2,
-        minY: bbox.minY - LEADER_GAP - 3 - NUMERAL_TEXT_HEIGHT,
+        minY: bbox.minY - gap - textGap - textHeight,
         maxX: cx + width / 2,
-        maxY: bbox.minY - LEADER_GAP - 3,
+        maxY: bbox.minY - gap - textGap,
       },
     ],
   }
   const bottom: AnchorPlacement = {
-    line: { x1: cx, y1: bbox.maxY, x2: cx, y2: bbox.maxY + LEADER_GAP },
-    text: { x: cx, y: bbox.maxY + LEADER_GAP + 9, anchor: 'middle' },
+    line: { x1: cx, y1: bbox.maxY, x2: cx, y2: bbox.maxY + gap },
+    text: { x: cx, y: bbox.maxY + gap + bottomDrop, anchor: 'middle' },
     occupied: [
-      { minX: cx - 1, minY: bbox.maxY, maxX: cx + 1, maxY: bbox.maxY + LEADER_GAP },
-      { minX: cx - width / 2, minY: bbox.maxY + LEADER_GAP, maxX: cx + width / 2, maxY: bbox.maxY + LEADER_GAP + NUMERAL_TEXT_HEIGHT },
+      { minX: cx - 1, minY: bbox.maxY, maxX: cx + 1, maxY: bbox.maxY + gap },
+      { minX: cx - width / 2, minY: bbox.maxY + gap, maxX: cx + width / 2, maxY: bbox.maxY + gap + textHeight },
     ],
   }
   return [right, left, top, bottom]
+}
+
+/**
+ * 为节点 bbox 生成四个斜向候选锚点（右上/左上/右下/左下），供正交四向均无空间
+ * 时的二次扫描（B4）：密集图中先占位者可能把后处理节点挤成正交内嵌，斜向锚点
+ * 多一个逃逸方向。引线自轮廓角点沿 45° 外向，标号在线端外侧。
+ * @param bbox - 节点轮廓（根坐标系）。
+ * @param numeral - 标号文本。
+ * @param fontSize - 节点实读 font-size。
+ * @param gap - 已按图面 scale 归一的引线长度（斜向取 45° 分量）。
+ * @returns 按尝试顺序排列的斜向候选。
+ */
+function diagonalPlacements(bbox: Rect, numeral: string, fontSize: number, gap: number): AnchorPlacement[] {
+  const width = estimateTextWidth(numeral, fontSize) + fontSize * NUMERAL_PAD_RATIO
+  const midOffset = fontSize * TEXT_BASELINE_MID_RATIO
+  const textGap = fontSize * TEXT_GAP_RATIO
+  const component = gap * Math.SQRT1_2
+  const corners: { x: number; y: number; dx: number; dy: number; anchor: 'start' | 'end' }[] = [
+    { x: bbox.maxX, y: bbox.minY, dx: 1, dy: -1, anchor: 'start' },
+    { x: bbox.minX, y: bbox.minY, dx: -1, dy: -1, anchor: 'end' },
+    { x: bbox.maxX, y: bbox.maxY, dx: 1, dy: 1, anchor: 'start' },
+    { x: bbox.minX, y: bbox.maxY, dx: -1, dy: 1, anchor: 'end' },
+  ]
+  return corners.map((corner) => {
+    const endX = corner.x + corner.dx * component
+    const endY = corner.y + corner.dy * component
+    const textX = endX + corner.dx * textGap
+    const textY = endY + corner.dy * textGap + midOffset
+    const boxMinX = corner.anchor === 'end' ? textX - width : textX
+    // 走廊取线段包围盒（不加厚）：斜向引线自角点出发，加厚会使走廊回推到轮廓内而与自身节点重叠。
+    const corridor: Rect = {
+      minX: Math.min(corner.x, endX),
+      minY: Math.min(corner.y, endY),
+      maxX: Math.max(corner.x, endX),
+      maxY: Math.max(corner.y, endY),
+    }
+    const textBox: Rect = {
+      minX: boxMinX,
+      minY: textY - fontSize * TEXT_ASCENT_RATIO,
+      maxX: boxMinX + width,
+      maxY: textY + fontSize * TEXT_DESCENT_RATIO,
+    }
+    return {
+      line: { x1: corner.x, y1: corner.y, x2: endX, y2: endY },
+      text: { x: textX, y: textY, anchor: corner.anchor },
+      occupied: [corridor, textBox] as const,
+    }
+  })
 }
 
 /**
@@ -525,13 +624,13 @@ function isFree(
   return !obstacles.segments.some(segment => segmentIntersectsRect(segment, candidate.occupied[1]))
 }
 
-/** 渲染一条引线 + 标号文本的 SVG 片段。 */
-function leaderLineFragment(placement: AnchorPlacement, numeral: string): string {
+/** 渲染一条引线 + 标号文本的 SVG 片段（标号 font-size 与节点实读一致）。 */
+function leaderLineFragment(placement: AnchorPlacement, numeral: string, fontSize: number): string {
   const line = placement.line
   const text = placement.text
   return [
     `<line x1="${fmtCoord(line.x1)}" y1="${fmtCoord(line.y1)}" x2="${fmtCoord(line.x2)}" y2="${fmtCoord(line.y2)}" stroke="black" stroke-width="1"/>`,
-    `<text x="${fmtCoord(text.x)}" y="${fmtCoord(text.y)}" font-size="10" text-anchor="${text.anchor}" xml:space="preserve">${escapeXmlText(numeral)}</text>`,
+    `<text x="${fmtCoord(text.x)}" y="${fmtCoord(text.y)}" font-size="${fmtCoord(fontSize)}" text-anchor="${text.anchor}" xml:space="preserve">${escapeXmlText(numeral)}</text>`,
   ].join('\n')
 }
 
@@ -624,14 +723,17 @@ function replaceSizeAttribute(tag: string, name: string, value: number, unit: st
 }
 
 /**
- * 放置几何越出画布时扩展视口：越界侧补 {@link CANVAS_PAD} 安全边距。
- * 向右下越界靠放大尺寸，向左上越界靠外移 viewBox 起点（图面本身不动）。
+ * 放置几何越出画布时扩展视口：越界侧补 pad（已按图面 scale 归一的 {@link CANVAS_PAD}）安全边距。
+ * 向右下越界靠放大尺寸，向左上越界靠外移 viewBox 起点（图面本身不动）。单边扩边幅
+ * 超 {@link CANVAS_EXPAND_WARN_RATIO} 时 push 告警（扩边越多同一物理页面字号越细）。
  * @param svgText - SVG 文本。
  * @param canvas - 根元素声明的画布。
  * @param geometry - 已放置的引线与标号占用区（根坐标系）。
+ * @param pad - 已按 scale 归一的安全边距。
+ * @param warnings - 告警收集器（扩边幅超阈时追写）。
  * @returns 扩边后的 SVG 文本；未越界时原样返回。
  */
-function expandCanvas(svgText: string, canvas: Canvas, geometry: readonly Rect[]): string {
+function expandCanvas(svgText: string, canvas: Canvas, geometry: readonly Rect[], pad: number, warnings: string[]): string {
   const maxX = canvas.minX + canvas.width
   const maxY = canvas.minY + canvas.height
   let neededMinX = canvas.minX
@@ -647,12 +749,16 @@ function expandCanvas(svgText: string, canvas: Canvas, geometry: readonly Rect[]
   if (neededMinX === canvas.minX && neededMinY === canvas.minY && neededMaxX === maxX && neededMaxY === maxY) {
     return svgText
   }
-  const minX = neededMinX < canvas.minX ? neededMinX - CANVAS_PAD : canvas.minX
-  const minY = neededMinY < canvas.minY ? neededMinY - CANVAS_PAD : canvas.minY
-  const outMaxX = neededMaxX > maxX ? neededMaxX + CANVAS_PAD : maxX
-  const outMaxY = neededMaxY > maxY ? neededMaxY + CANVAS_PAD : maxY
+  const minX = neededMinX < canvas.minX ? neededMinX - pad : canvas.minX
+  const minY = neededMinY < canvas.minY ? neededMinY - pad : canvas.minY
+  const outMaxX = neededMaxX > maxX ? neededMaxX + pad : maxX
+  const outMaxY = neededMaxY > maxY ? neededMaxY + pad : maxY
   const width = outMaxX - minX
   const height = outMaxY - minY
+  const growth = Math.max((width - canvas.width) / canvas.width, (height - canvas.height) / canvas.height)
+  if (growth > CANVAS_EXPAND_WARN_RATIO) {
+    warnings.push(`引线标号使画布单边扩边约 ${Math.round(growth * 100)}%（超 ${Math.round(CANVAS_EXPAND_WARN_RATIO * 100)}% 阈值）：同一物理页面下字号会被压细，建议缩小 DOT margin 或节点尺寸后重渲`)
+  }
   let tag = replaceViewBox(canvas.tag, minX, minY, width, height)
   if (canvas.widthAttr !== undefined) {
     tag = replaceSizeAttribute(tag, 'width', width * canvas.widthAttr.ratio, canvas.widthAttr.unit)
@@ -696,7 +802,15 @@ export function annotateSvgWithLeaderLines(
     const textParts: string[] = []
     const textPattern = /<text\b[^>]*>[\s\S]*?<\/text>/gi
     let textMatch: RegExpExecArray | null
-    while ((textMatch = textPattern.exec(raw)) !== null) textParts.push(textElementContent(textMatch[0]))
+    let fontSize = FALLBACK_FONT_SIZE
+    let sawText = false
+    while ((textMatch = textPattern.exec(raw)) !== null) {
+      textParts.push(textElementContent(textMatch[0]))
+      if (!sawText) {
+        fontSize = readFontSize(textMatch[0])
+        sawText = true
+      }
+    }
     const polygonMatch = /<polygon\b[^>]*\bpoints="([^"]*)"/.exec(raw)
     const ellipseMatch = /<ellipse\b[^>]*>/.exec(raw)
     let bbox: Rect | undefined
@@ -713,6 +827,7 @@ export function annotateSvgWithLeaderLines(
       title: titleMatch === null ? '' : titleMatch[1] as string,
       text,
       bbox,
+      fontSize,
       frame: frameAt(scopes, groupMatch.index),
       referenceIndex,
     })
@@ -723,9 +838,15 @@ export function annotateSvgWithLeaderLines(
   const nodeRects = groups
     .filter((group): group is ParsedNodeGroup & { bbox: Rect; frame: Frame } => group.bbox !== undefined && group.frame !== undefined)
     .map(group => translateRect(group.bbox, group.frame))
+  // 图面 scale 归一：引线间隙与扩边边距按节点中位 font-size 缩放（scale=1 时取基线常量原值）。
+  const scale = drawingScale(groups.map(group => group.fontSize))
+  const gap = LEADER_GAP * scale
+  const pad = CANVAS_PAD * scale
   const embedded = new Map<number, string>()
   const fragments: string[] = []
   const placed: Rect[] = []
+  // 正交四向均无空间的节点暂缓，待首轮放置完成后二次扫描斜向锚点（B4）。
+  const pending: { index: number; group: ParsedNodeGroup; bbox: Rect; numeral: string }[] = []
   for (const [index, group] of groups.entries()) {
     if (group.referenceIndex < 0) continue
     const numeral = (references[group.referenceIndex] as SvgAnnotateReference).numeral.trim()
@@ -740,15 +861,26 @@ export function annotateSvgWithLeaderLines(
       continue
     }
     const bbox = translateRect(group.bbox, group.frame)
-    const chosen = candidatePlacements(bbox, numeral).find(candidate =>
+    const chosen = candidatePlacements(bbox, numeral, group.fontSize, gap).find(candidate =>
       isFree(candidate, nodeRects, placed, obstacles))
     if (chosen === undefined) {
-      embedded.set(index, embedNumeralInGroup(group.raw, numeral))
-      warnings.push(`节点 "${group.title}" 周边无引线空间，标号 ${numeral} 已内嵌`)
+      pending.push({ index, group, bbox, numeral })
       continue
     }
     placed.push(...chosen.occupied)
-    fragments.push(leaderLineFragment(chosen, numeral))
+    fragments.push(leaderLineFragment(chosen, numeral, group.fontSize))
+  }
+  // 二次扫描：正交四向失败的节点改试斜向锚点，仍无空间才退化为内嵌标号。
+  for (const item of pending) {
+    const chosen = diagonalPlacements(item.bbox, item.numeral, item.group.fontSize, gap).find(candidate =>
+      isFree(candidate, nodeRects, placed, obstacles))
+    if (chosen === undefined) {
+      embedded.set(item.index, embedNumeralInGroup(item.group.raw, item.numeral))
+      warnings.push(`节点 "${item.group.title}" 周边无引线空间，标号 ${item.numeral} 已内嵌`)
+      continue
+    }
+    placed.push(...chosen.occupied)
+    fragments.push(leaderLineFragment(chosen, item.numeral, item.group.fontSize))
   }
   references.forEach((ref, index) => {
     if (!groups.some(group => group.referenceIndex === index)) {
@@ -769,6 +901,6 @@ export function annotateSvgWithLeaderLines(
   const fragment = `<g id="leader-lines">\n${fragments.join('\n')}\n</g>\n`
   result = result.slice(0, closeIndex) + fragment + result.slice(closeIndex)
   const canvas = parseCanvas(result)
-  if (canvas !== undefined) result = expandCanvas(result, canvas, placed)
+  if (canvas !== undefined) result = expandCanvas(result, canvas, placed, pad, warnings)
   return { svg: result, warnings }
 }

@@ -4,7 +4,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as tool from '../src/index.ts'
 
-/** The 27 tools registered by patent-tools (render_patent_document is owned by dsh-patent-document). */
+/** The 28 tools registered by patent-tools (render_patent_document is owned by dsh-patent-document). */
 const EXPECTED_TOOLS = [
   'patent_search',
   'patent_metadata',
@@ -29,6 +29,7 @@ const EXPECTED_TOOLS = [
   'patent_workflow',
   'search_patent_figure',
   'generate_patent_figure',
+  'generate_structure_figure',
   'add_patent_figure_references',
   'patent_pdf_download',
   'knowledge_note_save',
@@ -42,7 +43,7 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     expect(typeof tool.apply).toBe('function')
   })
 
-  it('registers all 27 tools via ctx.plugin (direct mount)', async () => {
+  it('registers all 28 tools via ctx.plugin (direct mount)', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)

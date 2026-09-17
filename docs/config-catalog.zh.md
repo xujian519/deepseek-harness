@@ -2030,6 +2030,14 @@ export interface Config {
   workbenchCaseRoot?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
   dotFont?: string
+  /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 generate_structure_figure 使用。 */
+  freecadExecutable?: string
+  /** 结构线稿门禁（generate_structure_figure）；默认 false（CAD 隔离、默认关闭，未开启即 fail-loud）。 */
+  structureFigureEnabled?: boolean
+  /** 结构线稿 TechDraw 投影比例默认；缺省 1。 */
+  structureFigureScale?: number
+  /** 结构线稿缺省视图集；缺省 iso/front/top/right。 */
+  structureFigureViews?: string[]
 }
 
 /** Figure/image model route used by the figure-analysis tool. */
@@ -2044,7 +2052,7 @@ export interface ImageModelConfig {
 export type FigureRendererMode = 'wasm' | 'cli'
 ```
 
-来源：[`packages/patent/patent-tools/src/index.ts:169`](../packages/patent/patent-tools/src/index.ts)
+来源：[`packages/patent/patent-tools/src/index.ts:195`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 

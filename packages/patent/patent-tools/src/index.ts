@@ -46,6 +46,10 @@ import { createRuleCheckTool } from './tool/rule-check.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
 import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
+import { createGenerateStructureFigureTool } from './tool/generate-structure-figure.ts'
+import type { GenerateStructureFigureDeps } from './tool/generate-structure-figure.ts'
+import type { StructureViewName } from './figure/freecad-structure-script.ts'
+import { renderStructureViews } from './figure/freecad-renderer.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
@@ -98,6 +102,28 @@ export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisR
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps } from './tool/search-patent-figure.ts'
 export { createGeneratePatentFigureTool, FIGURE_GENERATOR_MODEL_USED } from './tool/generate-patent-figure.ts'
+export { createGenerateStructureFigureTool, STRUCTURE_FIGURE_MODEL_USED } from './tool/generate-structure-figure.ts'
+export type {
+  GenerateStructureFigureInput,
+  GenerateStructureFigureOutput,
+  GenerateStructureFigureDeps,
+  StructureCalloutInput,
+  StructureFigureView,
+  StructureManifest,
+  StructureManifestView,
+  StructureManifestAnchor,
+} from './tool/generate-structure-figure.ts'
+export { findFreeCadCmd, probeFreeCad, renderStructureViews, freecadInstallMessage, FREECAD_CMD_CANDIDATES } from './figure/freecad-renderer.ts'
+export type { FreeCadProbeResult, StructureRenderOutcome, StructureRenderSpec, StructureRenderErrorCode } from './figure/freecad-renderer.ts'
+export {
+  buildStructureScript,
+  STRUCTURE_VIEWS,
+  DEFAULT_STRUCTURE_VIEWS,
+  STRUCTURE_VIEW_DIRECTIONS,
+  structureSvgFilename,
+  STRUCTURE_MANIFEST_FILENAME,
+} from './figure/freecad-structure-script.ts'
+export type { StructureViewName, StructureCallout, StructureScriptParams } from './figure/freecad-structure-script.ts'
 export type {
   GeneratePatentFigureInput,
   GeneratePatentFigureOutput,
@@ -203,6 +229,14 @@ export interface Config {
   workbenchCaseRoot?: string
   /** DOT 字体名覆盖；默认 Helvetica，含 CJK 文本时按平台候选（PingFang SC / Microsoft YaHei / Noto Sans CJK SC）。 */
   dotFont?: string
+  /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 generate_structure_figure 使用。 */
+  freecadExecutable?: string
+  /** 结构线稿门禁（generate_structure_figure）；默认 false（CAD 隔离、默认关闭，未开启即 fail-loud）。 */
+  structureFigureEnabled?: boolean
+  /** 结构线稿 TechDraw 投影比例默认；缺省 1。 */
+  structureFigureScale?: number
+  /** 结构线稿缺省视图集；缺省 iso/front/top/right。 */
+  structureFigureViews?: string[]
 }
 
 /** Figure/image model route used by the figure-analysis tool. */
@@ -233,6 +267,10 @@ export const Config: z<Config> = z.object({
   workbenchBaseUrl: z.string(),
   workbenchCaseRoot: z.string(),
   dotFont: z.string(),
+  freecadExecutable: z.string(),
+  structureFigureEnabled: z.boolean(),
+  structureFigureScale: z.number(),
+  structureFigureViews: z.array(z.string()),
 })
 
 /** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
@@ -512,6 +550,31 @@ export function apply(ctx: Context, config: Config): void {
     ...(config.figureMargin === undefined ? {} : { marginCm: config.figureMargin }),
   }))
   ctx.tools.register(createAddPatentFigureReferencesTool({}))
+
+  // Structure line-art figure: an independent tool parallel to generate_patent_figure,
+  // projecting STEP/IGES/BREP models through the host FreeCAD (TechDraw) via
+  // ctx.subprocess. CAD-isolated and off by default (Config.structureFigureEnabled);
+  // when the gate is closed or freecadcmd is missing it fails loud with setup
+  // guidance at execute — it never silently degrades to a schematic.
+  const structureSubprocess = subprocess
+  // 注：返回对象字面量的 async 箭头不能直接作三元分支（TS 解析器缺陷），故先提升为具名常量。
+  const structureNoSubprocess: GenerateStructureFigureDeps['render'] = () => Promise.resolve({
+    ok: false,
+    code: 'not_installed',
+    error: 'generate_structure_figure 需要 subprocess 服务（宿主未挂载），无法调用 FreeCAD。',
+  })
+  const structureRender: GenerateStructureFigureDeps['render'] = structureSubprocess === undefined
+    ? structureNoSubprocess
+    : spec => renderStructureViews(structureSubprocess, spec, config.freecadExecutable)
+  const structureViews = config.structureFigureViews as readonly StructureViewName[] | undefined
+  ctx.tools.register(createGenerateStructureFigureTool({
+    render: structureRender,
+    ...(config.structureFigureEnabled === undefined ? {} : { enabled: config.structureFigureEnabled }),
+    outputDir: resolveFigureOutputDir(config),
+    upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
+    ...(config.structureFigureScale === undefined ? {} : { defaultScale: config.structureFigureScale }),
+    ...(structureViews === undefined ? {} : { defaultViews: structureViews }),
+  }))
 
   // PDF download: wire the runner through a browser-backend cold decision.
   // The unified ego stack routes the download to ego-browser only; browseros-neo

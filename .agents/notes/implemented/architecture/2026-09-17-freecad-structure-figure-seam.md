@@ -1,0 +1,55 @@
+# Agent Note: FreeCAD structure-figure seam and TechDraw projection decisions
+
+Status: implemented
+
+English | [中文](2026-09-17-freecad-structure-figure-seam.zh.md)
+
+## Problem
+
+`generate_patent_figure` draws Graphviz diagrams: flowcharts, block diagrams, component hierarchies. It cannot draw a mechanical structure whose geometry already exists as a CAD model (STEP/IGES/BREP). Faking such a figure as a block diagram loses the point of a structure line-art drawing under CNIPA Guidelines Part I Chapter 1 §4.3, and hand-drawing geometry the model already carries duplicates truth. The host may have FreeCAD installed; the harness must not silently degrade when it is absent, and a heavyweight CAD dependency must not leak into the default tool surface.
+
+## Decision
+
+Ship an independent tool `generate_structure_figure` in `@deepseek-ai/dsh-patent-tools`, parallel to `generate_patent_figure`, that projects CAD models into black-and-white multi-view SVG through the host `freecadcmd` (FreeCAD 1.1, TechDraw). Every decision below was machine-verified against FreeCAD 1.1.3 on macOS before it was written down.
+
+**Capability seam.** The service definition is the render-outcome contract `StructureRenderOutcome` (`{ ok: true, manifestPath }` or `{ ok: false, code: 'not_installed' | 'render_failed' | 'aborted', error }`), deliberately shaped like `GraphvizRenderOutcome` so the tool layer handles both renderers with the same outcome-mapping code. The provider is `src/figure/freecad-renderer.ts` (path discovery, probe, subprocess spawn); the consumer is `src/tool/generate-structure-figure.ts`, which depends only on an injected `render` function and never touches `ctx.subprocess` itself. The Python script is a pure function (`buildStructureScript` in `src/figure/freecad-structure-script.ts`) so script construction is unit-testable without FreeCAD; the renderer writes it into the output directory and spawns `freecadcmd <script.py>`. The script is embedded source, not a shipped asset, because the package `files` list ships only `lib/index.js` plus types.
+
+**CAD isolation, default off, fail-loud.** The tool is gated behind `Config.structureFigureEnabled` (default `false`). A closed gate, a missing `subprocess` service, or a missing `freecadcmd` all fail at execute with `setup_required` and install guidance — the tool never falls back to a schematic. Subprocess HOME/XDG/temp directories are redirected into a `.freecad-home` subdirectory of the output directory to contain side effects.
+
+**Page + minimal template, one `DrawViewPart` per view.** TechDraw only projects a view that belongs to a `DrawPage` carrying a template, so the script writes its own minimal blank SVG template (one invisible page rect) and sets `doc.FileName` into the output directory — TechDraw copies the template next to the document file, and an in-memory document without a filename resolves that copy to `/` and fails. Each requested view is a single `TechDraw::DrawViewPart` with explicit `Direction`/`XDirection`; `DrawProjGroup.addProjection(str)` throws `TypeError: wrong type` in 1.1.3 and is avoided. The legacy `Drawing` workbench was removed in FreeCAD 1.1 and is not used.
+
+**Output is the raw `viewPartAsSvg` fragment, not a rendered page.** `TechDraw.viewPartAsSvg(view)` returns a pure `<g fill="none" stroke="#000000">` geometry fragment with no template border, title block, or figure number — exactly what §4.3 demands — so the script wraps the fragment into a standalone `<svg viewBox=…>` instead of exporting the page. The fragment frame is y-up (math convention) while SVG canvases are y-down, so the fragment goes inside `<g transform="scale(1,-1)">`.
+
+**Callouts anchor on the Python side via `projectPoint`.** `DrawViewPart.projectPoint(App.Vector)` shares the fragment coordinate frame (verified: both produce coordinates like `M -10 2.5`), so the script projects each callout's 3D point, subtracts the frame center, flips y, and draws the leader line plus numeral there. Anchoring in Python keeps the numeral on the real projected vertex; doing it in TypeScript would require re-deriving TechDraw's projection on the outside. The frame center C is the center of the **tight projected-geometry bounding box**, sampled by discretizing every edge (`discretize(Number=32)`) and projecting each sample: TechDraw centers the fragment on the projected geometry, and under rotated views (iso) C is *not* the projection of the model AABB center — using the AABB projection visibly misplaces callouts.
+
+**Success is exit code plus manifest presence only.** `freecadcmd` treats `~/Library/Preferences/FreeCAD` and cache write failures as non-fatal warnings (STEP load, projection, and export all succeed), and on macOS those paths do not follow the redirected HOME — a known harmless limitation. Conversely, `freecadcmd` swallows uncaught Python exceptions and exits 0, so the script wraps `main()` and re-raises failures as `traceback.print_exc()` + `sys.exit(1)`; without that wrapper a failed projection would look like success. stderr text is therefore never a failure criterion; it is only quoted into the error message.
+
+**Tool layer reuses the figure invariants.** Output SVGs pass the same `assertSafeSvg` gate as the Graphviz path, callout labels/numerals pass `figureWordingWarnings`, and each figure persists to `figureIndexStore` with `analysis.figureType='structure'` and `modelUsed='freecad-structure'`. A directory `model_path` renders every supported model in sorted order with incrementing figure numbers, each into its own `fig{N}/` subdirectory so manifest/script/template/home files never collide across a batch.
+
+## Alternatives considered
+
+- **Extend `generate_patent_figure` with a `structure` figure type.** Rejected: the input schemas share almost nothing (DOT-oriented steps/nodes vs. model path/views/callouts), the gates differ (CAD default-off vs. always-on), and one tool with two disjoint modes degrades both descriptions. Two tools keep each schema honest.
+- **`DrawProjGroup.addProjection`** for standard view sets. Rejected: throws `TypeError: wrong type` in FreeCAD 1.1.3 (machine-verified); single `DrawViewPart` objects with explicit directions are stable.
+- **Exporting the rendered `DrawPage` as SVG** (which includes the template). Rejected: page export carries template geometry and page furniture; patent figures must contain neither borders nor figure numbers in the pixels.
+- **Shipping the Python script as a package asset.** Rejected: the `files` list ships `lib/index.js` + types only; an asset needs packaging and runtime path resolution. A pure builder function returning source text is testable without FreeCAD and needs no packaging change.
+- **Judging success on stderr cleanliness.** Rejected: FreeCAD emits `system.cfg`/transcoder warnings on healthy runs; treating them as fatal would fail every render on some hosts.
+- **For leader-line geometry (shipped alongside in `src/figure/leader-line.ts`): deriving the drawing scale from the median node bbox size.** Rejected during implementation in favor of the median of each node group's **actually-read `font-size`** relative to a baseline of 10: font size is what the geometric constants (gap, padding, text height) were tuned against, it is already read per group for the unified text-width model, and bbox medians conflate label length with drawing scale.
+
+## Consequences
+
+- New Config surface: `freecadExecutable`, `structureFigureEnabled`, `structureFigureScale`, `structureFigureViews`; discovery order mirrors Graphviz (override → `DSH_FREECAD_CMD` → platform candidates → `PATH`).
+- `index.ts` carries one workaround for a TypeScript parser defect: an object-literal-returning `async` arrow used directly as a ternary branch, assigned to a const annotated with an indexed-access type (`GenerateStructureFigureDeps['render']`), misparses (TS1359); the branch is hoisted into its own named const `structureNoSubprocess`.
+- The tool count assertions (`registration.spec.ts`, both READMEs) moved 27 → 28.
+- Numeral placement in the Python script is self-contained (simple outward offset); it does not share the TypeScript leader-line collision primitives. Unifying the placement math across TS/Python is deferred until a second consumer of the Python-side placement exists.
+
+## Testing
+
+- `tests/figure-freecad-structure-script.spec.ts` — pure-function assertions on the built script (API usage, view table, payload round-trip) without FreeCAD.
+- `tests/figure-freecad-renderer.spec.ts` — mocked `SubprocessRuntime`: discovery order, probe, exit-code classification, env isolation, timeout, abort.
+- `tests/structure-figure-tool.spec.ts` — mocked render: gate, single/batch, wording warnings, safe-SVG gate, index persistence and its degraded path.
+- `tests/figure-freecad-real-render.spec.ts` — `describe.skipIf(!hasFreeCad)` end-to-end over the committed fixture `tests/fixtures/structure-bracket.step` (generated by the committed `generate-structure-fixture.py`; an always-on test asserts the fixture's ISO-10303-21 header signature matches that generator): iso+front projections contain `<path`, black stroke only, no border/figure number, and both callout anchors land inside their view bbox.
+
+## Related
+
+- [Capability seams](2026-06-13-capability-seams.md) — the seam vocabulary (service definition / provider / consumer) this note follows.
+- `src/figure/graphviz-renderer.ts` — the contract `freecad-renderer.ts` mirrors (discovery, probe, outcome shape, SIGTERM→SIGKILL grace).
