@@ -414,17 +414,25 @@ describe('reassignTask', () => {
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
     await setupClaimedMemberTask(h, captain)
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => { release = resolve })
-    h.agents.set('member-1', fakeAgent('member-1', h.workspace, { whenIdle: () => gate }))
+    const gate = Promise.withResolvers<undefined>()
+    const enteredWait = Promise.withResolvers<undefined>()
+    // Wait for the committed handoff before writing the foreign one. A sleep
+    // here races the first locked phase, and a phase that outlasts the sleep
+    // adopts the foreign value as its own baseline, so no change is detected.
+    h.agents.set('member-1', fakeAgent('member-1', h.workspace, {
+      whenIdle: () => {
+        enteredWait.resolve(undefined)
+        return gate.promise
+      },
+    }))
     const reassigning = h.ctx.patentTeams.reassignTask(captain, { task_id: 't1', assignee: 'captain' }, new AbortController().signal)
       .catch((error: unknown) => error)
     // While the old member quiesces, a concurrent mutation changes the handoff.
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await enteredWait.promise
     const team = await readTeam(join(h.workspace, h.stateDir), 'alpha')
     team!.tasks[0]!.handoffId = 'foreign-handoff'
     await writeTeam(join(h.workspace, h.stateDir), team!)
-    release()
+    gate.resolve(undefined)
     const result = await reassigning
     expect(String(result)).toContain('changed during reassignment')
   })
