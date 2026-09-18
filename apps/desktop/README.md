@@ -74,6 +74,14 @@ Native dialog details include at most 1,200 UTF-16 code units and eight diagnost
 
 Recovery waits for Host shutdown before changing plugin activation. The native recovery action calls the shared app-boot recovery function under the profile transaction lock. It disables third-party bundles and renames the profile’s `cordis.patch.yml` to `cordis.patch.yml.bak-<timestamp>` (with an ordinal on collisions) without parsing it; the next startup creates an empty patch. Installed packages and earlier backups remain. The home-level patch is unchanged. The Electron console records the backup path (or its absence) and the unchanged home-level patch. Invalid profile data, rename failures, or write failures are reported as recovery-operation errors; completed changes remain, and Desktop does not restart as though recovery succeeded. Desktop has no profile-reset action or emergency HTML document.
 
+### Shell surface
+
+The Desktop profile composes the Web surface plus a desktop overlay: `@deepseek-ai/dsh-desktop-shell` occupies `ctx.desktop` and calls Electron Main over the socket named by `DSH_DESKTOP_BRIDGE_PATH`, and `@deepseek-ai/dsh-macos-tools` adds the darwin-only native tools. The workspace sidebar stays named but disabled because it overlaps the Web surface’s own right Sidebar. The overlay names packages outside the dsh CLI installation’s dependency closure, so the Host seeds the profile resolution table from its own manifest while the installation anchor keeps locating the installation for bundle resolution and package operations.
+
+Electron Main owns the bridge. It listens before the Host child spawns, hands that child the socket path through its environment, registers the shell’s application menu as the bridge’s menu base, and hands over the tray it creates, so plugins can contribute menu entries, tray entries, global shortcuts, and notifications. The socket closes with the quit sequence. Closing the window hides it while the tray owns the application, and a quit sequence closes every window as usual. Without `DSH_DESKTOP_BRIDGE_PATH` — headless development and tests — the provider still loads and rejects `ctx.desktop` calls with `DesktopError('bridge-disconnected')`.
+
+The Web UI probes `window.desktop.printHtmlToPdf` and falls back to the browser print dialog when it is absent. The preload exposes it only to the application document, and Main accepts the call only from the owned window’s top frame on `dsh-app://app`: it rasterizes the document in a hidden window and saves the bytes through the OS save dialog. A request whose HTML exceeds the shell’s 4 MiB ceiling is rejected before that window opens.
+
 
 ## Develop
 

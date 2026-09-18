@@ -1,7 +1,12 @@
-/** Origin-scoped boot, native directory selection, and update presentation with native confirmation actions. */
+/**
+ * Origin-scoped boot, native directory selection, print-to-PDF, and update
+ * presentation with native confirmation actions.
+ */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
+import {
+  DESKTOP_IPC, SCHEME, type DesktopPrintApi, type DshDesktopProductApi, type DesktopUpdatePresentation,
+} from './ipc.ts'
 import { markDocumentPlatform } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
 import { syncWindowsAppearance } from './preload-windows.ts'
@@ -28,6 +33,11 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
     ready: () => ipcRenderer.invoke(DESKTOP_IPC.boot) as Promise<unknown>,
     failed: (message: string) => ipcRenderer.invoke(DESKTOP_IPC.bootFailed, message) as Promise<void>,
   })
+  const print: DesktopPrintApi = {
+    printHtmlToPdf: payload =>
+      ipcRenderer.invoke(DESKTOP_IPC.printToPdf, payload) as ReturnType<DesktopPrintApi['printHtmlToPdf']>,
+  }
+  contextBridge.exposeInMainWorld('desktop', print)
 }
 
 markDocumentPlatform()

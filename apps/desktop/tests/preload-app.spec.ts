@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
-import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
+import { DESKTOP_IPC, type DesktopPrintApi, type DshDesktopProductApi } from '../src/ipc.ts'
 
 const electron = vi.hoisted(() => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
@@ -66,6 +66,24 @@ it('exposes a directory picker only to the local application document', async ()
     vi.stubGlobal('location', new URL(url))
     await import('../src/preload-app.ts')
     expect(electron.contextBridge.exposeInMainWorld.mock.calls.some(([name]) => name === '__DSH_DIRECTORY_PICKER__')).toBe(false)
+  }
+})
+
+it('exposes the print bridge under window.desktop only to the local application document', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'desktop')?.[1] as DesktopPrintApi
+  electron.ipcRenderer.invoke.mockResolvedValue({ path: '/out/report.pdf' })
+  await expect(api.printHtmlToPdf({ html: '<h1>报告</h1>', suggestedName: 'report' }))
+    .resolves.toEqual({ path: '/out/report.pdf' })
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith(DESKTOP_IPC.printToPdf,
+    { html: '<h1>报告</h1>', suggestedName: 'report' })
+  for (const url of ['dsh-app://shell/startup.html', 'https://example.com/']) {
+    vi.resetModules()
+    electron.contextBridge.exposeInMainWorld.mockClear()
+    vi.stubGlobal('location', new URL(url))
+    await import('../src/preload-app.ts')
+    expect(electron.contextBridge.exposeInMainWorld.mock.calls.some(([name]) => name === 'desktop')).toBe(false)
   }
 })
 

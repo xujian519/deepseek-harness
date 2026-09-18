@@ -10,11 +10,13 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   powerMonitor,
   nativeTheme,
   protocol,
   session,
   shell,
+  Tray,
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
@@ -22,6 +24,9 @@ import { resolveDesktopPaths } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
+import { BridgeServer, removeStaleBridgeSockets, resolveBridgePath } from './bridge-server.ts'
+import { printHtmlToPdf } from './print.ts'
+import { isTemplateTrayIcon, shouldHideOnClose, trayIconPath } from './tray.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { formatDesktopMessage, resolveDesktopLocale } from './locale.ts'
@@ -40,6 +45,9 @@ import { DesktopMandatoryUpdateWindow } from './mandatory-update-window.ts'
 import { DesktopPolicyTestAuth } from './policy-test-auth.ts'
 import { DesktopUpdateDialog, type UpdateDialogOptions } from './update-dialog.ts'
 import { readDesktopRuntime } from './runtime-tree.ts'
+
+/** Renderer-supplied print documents stay well below the 4 MiB preview ceiling. */
+const MAX_PRINT_HTML_BYTES = 4 * 1024 * 1024
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -220,6 +228,16 @@ async function main(): Promise<void> {
     finally { ordinaryDialogs.delete(controller) }
   }
   const appPreload = fileURLToPath(new URL('./preload-app.cjs', import.meta.url))
+  // The bridge socket must listen before the Host child spawns: the child
+  // receives the path once, at boot, through its scrubbed environment.
+  removeStaleBridgeSockets()
+  const bridgePath = resolveBridgePath()
+  const bridge = new BridgeServer(() => mainWindow, app.getName())
+  await withStartupDeadline('opening the desktop bridge', bridge.start(bridgePath))
+  // Registered before the shell's own quit work so the socket closes with the
+  // quit sequence rather than outliving it.
+  app.on('before-quit', () => { bridge.dispose() })
+  let tray: Tray | undefined
   const applicationUrl = `${SCHEME}://app/`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
@@ -249,7 +267,7 @@ async function main(): Promise<void> {
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
-      hostInspectPort, process.env, onFailure,
+      hostInspectPort, { ...process.env, DSH_DESKTOP_BRIDGE_PATH: bridgePath }, onFailure,
       development ? join(app.getAppPath(), '.desktop-build', 'targets', `${process.platform === 'darwin' ? 'mac' : 'win'}-${process.arch}`, 'runtime', 'primary-runtime')
         : join(process.resourcesPath, 'runtime', 'primary-runtime'),
       development ? 'link' : 'runtime', resources)
@@ -412,6 +430,19 @@ async function main(): Promise<void> {
   })
 
   installDesktopDirectoryPicker(() => mainWindow)
+
+  ipcMain.handle(DESKTOP_IPC.printToPdf, async (event, payload: unknown) => {
+    assertProductSender(event)
+    // Renderer input is untrusted: validate the closed channel's arguments
+    // before the hidden print window touches anything.
+    if (typeof payload !== 'object' || payload === null) return { error: 'invalid payload' }
+    const html = (payload as { html?: unknown }).html
+    const suggestedName = (payload as { suggestedName?: unknown }).suggestedName
+    if (typeof html !== 'string' || html.length === 0) return { error: 'invalid html' }
+    if (html.length > MAX_PRINT_HTML_BYTES) return { error: 'html too large' }
+    if (suggestedName !== undefined && typeof suggestedName !== 'string') return { error: 'invalid suggestedName' }
+    return printHtmlToPdf(mainWindow, html, suggestedName ?? 'document')
+  })
 
   ipcMain.handle(DESKTOP_IPC.boot, async (event) => {
     assertDesktopSender(event, ['app'])
@@ -602,10 +633,43 @@ async function main(): Promise<void> {
     ...hideCommands,
     { role: 'quit', ...(process.platform === 'win32' ? { label: currentDesktopLocale().messages.exitApplication } : {}) },
   ]
-  Menu.setApplicationMenu(process.platform === 'win32' ? null : Menu.buildFromTemplate([{
+  const applicationMenuTemplate: MenuItemConstructorOptions[] = [{
     label: darwin ? app.name : currentDesktopLocale().messages.application,
     submenu: applicationItems(),
-  }, ...platformMenus]))
+  }, ...platformMenus]
+  // The bridge keeps this base so plugin-contributed menus follow the shell's own entries.
+  bridge.setAppMenuBase(applicationMenuTemplate)
+  Menu.setApplicationMenu(process.platform === 'win32' ? null : Menu.buildFromTemplate(applicationMenuTemplate))
+
+  // A tray-less environment (some Linux sessions) keeps every other behavior;
+  // Tray construction throwing is the one failure the shell tolerates here.
+  try {
+    const trayIcon = nativeImage.createFromPath(trayIconPath(app.getAppPath(), process.platform))
+    if (isTemplateTrayIcon(process.platform)) trayIcon.setTemplateImage(true)
+    tray = new Tray(trayIcon)
+    tray.setToolTip(app.getName())
+    tray.setContextMenu(Menu.buildFromTemplate([
+      {
+        label: formatDesktopMessage(messages.trayShow, { name: app.getName() }),
+        click: () => { focusPrimaryWindow() },
+      },
+      { type: 'separator' },
+      {
+        label: formatDesktopMessage(messages.trayQuit, { name: app.getName() }),
+        click: () => { quitting = true; app.quit() },
+      },
+    ]))
+    tray.on('click', () => { focusPrimaryWindow() })
+  } catch (error) {
+    console.error('dsh desktop: tray setup failed:', error)
+    tray = undefined
+  }
+  if (tray !== undefined) {
+    bridge.initTray(tray, {
+      onShow: () => { focusPrimaryWindow() },
+      onQuit: () => { quitting = true; app.quit() },
+    })
+  }
 
   if (process.platform === 'win32') {
     ipcMain.handle(DESKTOP_IPC.windowsMenu, (event, name: unknown, x: unknown, y: unknown) => {
@@ -660,6 +724,14 @@ async function main(): Promise<void> {
     const window = createWindow(appPreload, true, true)
     mainWindow = window
     window.on('focus', automaticCheck)
+    window.on('close', (event) => {
+      // A quit sequence closes every window; only a user-initiated close of the
+      // last window belongs to the tray, which keeps the application running.
+      if (shouldHideOnClose(quitting || shuttingDown, tray !== undefined)) {
+        event.preventDefault()
+        window.hide()
+      }
+    })
     window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
     window.webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
       if (isMainFrame && code !== -3 && !quitting && !window.isDestroyed()) {

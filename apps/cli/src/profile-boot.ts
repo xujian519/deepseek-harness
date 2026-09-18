@@ -249,8 +249,13 @@ async function composeProfile(
 ): Promise<ComposedProfile> {
   const profile = resolvedProfile?.profile ?? prepareProfile(name, true, fromDefaultProfile)
   if (resolvedProfile !== undefined) writeFileSync(join(profile.dir, PROFILE_ROOT_FILENAME), PROFILE_ROOT_CONFIG)
-  const resolutionOptions = { installAnchor: resolvedProfile?.installAnchor ?? INSTALL_ANCHOR, profile }
-  if (resolvedProfile !== undefined && resolutionMode !== 'runtime') healIsolatedProfileModuleFallback(resolvedProfile)
+  const resolutionOptions = {
+    installAnchor: resolvedProfile?.resolutionAnchor ?? resolvedProfile?.installAnchor ?? INSTALL_ANCHOR,
+    profile,
+  }
+  if (resolvedProfile !== undefined && resolutionMode !== 'runtime') {
+    healIsolatedProfileModuleFallback({ installAnchor: resolutionOptions.installAnchor, profile })
+  }
   const resolution = resolutionMode === 'runtime' || resolvedProfile !== undefined
     ? await createProfileResolutionGeneration(resolutionOptions)
     : await healProfilesModuleFallback(resolutionOptions)
@@ -264,6 +269,14 @@ export interface ResolvedProfileRuntime {
   profile: Profile
   /** Absolute package.json path of the application's dsh installation. */
   installAnchor: string
+  /**
+   * Absolute package.json path whose dependency closure seeds the profile
+   * resolution table, defaulting to `installAnchor`. An application whose
+   * overlay mounts packages outside the installation's own closure names its
+   * own package here; `installAnchor` keeps locating the installation for
+   * bundle resolution and package operations in either case.
+   */
+  resolutionAnchor?: string
 }
 
 /** Options for {@link runProfile}. */

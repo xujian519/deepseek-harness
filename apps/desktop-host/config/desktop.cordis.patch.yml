@@ -1,0 +1,36 @@
+# The Electron desktop composition: the browser surface plus the shell surface.
+#
+# The browser half arrives unchanged with the Web profile's bundles — the
+# application window is served the same Web UI, over the Host's authenticated
+# loopback URL. Only the rows below differ.
+
+# The desktop-shell provider occupies ctx.desktop: it calls the Electron main
+# process over the bridge socket (DSH_DESKTOP_BRIDGE_PATH) for dialogs,
+# notifications, menu items, global shortcuts, and tray customization, and it
+# degrades to warn-only when the variable is absent (headless development).
+- insert:
+    - id: desktop-shell
+      name: '@deepseek-ai/dsh-desktop-shell'
+
+# The macOS native tools package: open/reveal, browser URLs, clipboard
+# read/write, notifications, speech, and app control driven through system
+# CLIs. Host effects beyond the session resolve one-time approval through the
+# approval seam. darwin-only: every executable it spawns is macOS-specific.
+- insert:
+    - id: macos-tools
+      name: '@deepseek-ai/dsh-macos-tools'
+      disabled: !!js process.platform !== 'darwin'
+
+# Deliberately disabled: the workspace sidebar anchors to the same right edge
+# as the web-app bundle's own right Sidebar (`ui-sidebar-right`, whose file tab
+# and document preview are the product's), so a desktop app mounting both draws
+# two overlapping panels with no way to tell them apart. Keeping the row named
+# is what makes the opt-out visible here rather than an absent row, and what
+# makes re-mounting — or dropping the name for good — a deliberate edit. The
+# toggle cluster that opened the panel lives in the client half, so nothing
+# renders while the row is off. See
+# .agents/notes/implemented/architecture/2026-09-15-desktop-unmounts-workspace-sidebar.md.
+- insert:
+    - id: better-sidebar
+      name: '@deepseek-ai/dsh-better-sidebar'
+      disabled: true
