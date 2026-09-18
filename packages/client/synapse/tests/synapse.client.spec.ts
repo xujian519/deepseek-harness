@@ -18,8 +18,7 @@ Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
 interface SessionListFace {
   getSnapshot(): {
     ids: string[]
-    byId: Record<string, { displayTitle: string; cwd?: string; blank: boolean }>
-    current: string | undefined
+    byId: Record<string, { displayTitle: string; cwd?: string; blank: boolean; retainedBy: Record<string, number> }>
   }
   subscribe(listener: () => void): () => void
 }
@@ -30,6 +29,9 @@ interface SessionSubscriber {
 }
 
 interface FakeRuntime {
+  uiWorkspace: {
+    openSession: (id: string) => void
+  }
   sessions: {
     list: SessionListFace
     open: (id: string) => void
@@ -48,9 +50,10 @@ interface FakeRuntime {
 
 function makeRuntime(): FakeRuntime {
   const effects: Array<() => void> = []
+  const uiWorkspace = { openSession: vi.fn() }
   const sessions = {
     list: {
-      getSnapshot: () => ({ ids: [], byId: {}, current: undefined }),
+      getSnapshot: () => ({ ids: [], byId: {} }),
       subscribe: () => () => {},
     },
     open: vi.fn(),
@@ -67,7 +70,7 @@ function makeRuntime(): FakeRuntime {
     startSession: vi.fn(),
     create: vi.fn(async () => ({ workspaceId: 'w-new' })),
   }
-  return { sessions, workspaces, effects }
+  return { sessions, workspaces, uiWorkspace, effects }
 }
 
 function boot(): { runtime: FakeRuntime; dispose: () => void } {
@@ -75,6 +78,7 @@ function boot(): { runtime: FakeRuntime; dispose: () => void } {
   const ctx = {
     sessions: runtime.sessions,
     workspaces: runtime.workspaces,
+    uiWorkspace: runtime.uiWorkspace,
     effect: (body: () => unknown) => {
       const result = body()
       if (typeof result === 'function') runtime.effects.push(result as () => void)
@@ -121,7 +125,7 @@ describe('synapse browser half', () => {
     }
     bridge('synapse:activate-session', { sessionId: 's-1' })
     bridge('synapse:open-session', { sessionId: 's-2' })
-    expect(runtime.sessions.open).toHaveBeenCalledTimes(2)
+    expect(runtime.uiWorkspace.openSession).toHaveBeenCalledTimes(2)
     dispose()
   })
 
@@ -140,8 +144,7 @@ describe('synapse browser half', () => {
     const sessions = runtime.sessions as { list: SessionListFace }
     sessions.list.getSnapshot = () => ({
       ids: current === undefined ? [] : [current],
-      byId: current === undefined ? {} : { [current]: { displayTitle: '新会话', blank: false } },
-      current,
+      byId: current === undefined ? {} : { [current]: { displayTitle: '新会话', blank: false, retainedBy: { mainView: 1 } } },
     })
     sessions.list.subscribe = (listener) => { listeners.push(listener); return () => {} }
     const create = runtime.sessions.create as ReturnType<typeof vi.fn<() => Promise<string>>>

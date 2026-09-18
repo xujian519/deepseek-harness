@@ -796,6 +796,9 @@
       "@deepseek-ai/dsh-headless": [
         "./packages/bundle/headless/src"
       ],
+      "@deepseek-ai/dsh-hmr": [
+        "./packages/boot/hmr/src"
+      ],
       "@deepseek-ai/dsh-home-paths": [
         "./packages/util/home-paths/src"
       ],
@@ -880,6 +883,12 @@
       "@deepseek-ai/dsh-native-command": [
         "./packages/util/native-command/src"
       ],
+      "@deepseek-ai/dsh-office-to-pdf": [
+        "./packages/document/office-to-pdf/src"
+      ],
+      "@deepseek-ai/dsh-office-to-pdf/types": [
+        "./packages/document/office-to-pdf/src/types.ts"
+      ],
       "@deepseek-ai/dsh-openviking": [
         "./packages/memory/openviking/src"
       ],
@@ -933,6 +942,18 @@
       ],
       "@deepseek-ai/dsh-plan-mode/invariant": [
         "./packages/plan/plan-mode/src/invariant.ts"
+      ],
+      "@deepseek-ai/dsh-plugin-manager": [
+        "./packages/boot/plugin-manager/src"
+      ],
+      "@deepseek-ai/dsh-plugin-manager/types": [
+        "./packages/boot/plugin-manager/src/types.ts"
+      ],
+      "@deepseek-ai/dsh-plugin-manager/operations": [
+        "./packages/boot/plugin-manager/src/operations.ts"
+      ],
+      "@deepseek-ai/dsh-plugin-manager/tools": [
+        "./packages/boot/plugin-manager/src/tools.ts"
       ],
       "@deepseek-ai/dsh-plugin-package-inventory-deepseek": [
         "./packages/llm/plugin-package-inventory-deepseek/src"
@@ -1087,6 +1108,9 @@
       "@deepseek-ai/dsh-skill-badge": [
         "./packages/skill/skill-badge/src"
       ],
+      "@deepseek-ai/dsh-skill-office": [
+        "./packages/skill/skill-office/src"
+      ],
       "@deepseek-ai/dsh-skill-filesystem": [
         "./packages/skill/skill-filesystem/src"
       ],
@@ -1217,10 +1241,10 @@
         "./packages/extensions/tool-plugin-market/src"
       ],
       "@deepseek-ai/dsh-tool-present": [
-        "./packages/fs/tool-present/src"
+        "./packages/deliverables/tool-present/src"
       ],
       "@deepseek-ai/dsh-tool-present/types": [
-        "./packages/fs/tool-present/src/types.ts"
+        "./packages/deliverables/tool-present/src/types.ts"
       ],
       "@deepseek-ai/dsh-tool-pwsh-persistent": [
         "./packages/shell/tool-pwsh-persistent/src"
@@ -1323,6 +1347,12 @@
       ],
       "@deepseek-ai/dsh-workflow-ptc": [
         "./packages/workflow/workflow-ptc/src"
+      ],
+      "@deepseek-ai/dsh-workspace-changes": [
+        "./packages/deliverables/workspace-changes/src"
+      ],
+      "@deepseek-ai/dsh-workspace-changes/types": [
+        "./packages/deliverables/workspace-changes/src/types.ts"
       ],
       "@deepseek-ai/dsh-workspace": [
         "./packages/workspace/workspace/src"

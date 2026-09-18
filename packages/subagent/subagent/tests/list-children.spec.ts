@@ -1366,17 +1366,18 @@ describe('SubagentRuntime.listDescendants', () => {
 
 describe('subagent listing cold-read concurrency config', () => {
   it('defaults coldReadConcurrency to 4', () => {
-    expect(SubagentRuntime.Config.parse({})).toEqual({ coldReadConcurrency: 4 })
+    expect(SubagentRuntime.Config({})).toEqual({ coldReadConcurrency: 4, maxDepth: 1, maxActiveSubagents: 8 })
   })
 
   it('accepts a custom coldReadConcurrency', () => {
-    expect(SubagentRuntime.Config.parse({ coldReadConcurrency: 8 })).toEqual({ coldReadConcurrency: 8 })
+    expect(SubagentRuntime.Config({ coldReadConcurrency: 8 }))
+      .toEqual({ coldReadConcurrency: 8, maxDepth: 1, maxActiveSubagents: 8 })
   })
 
   it('rejects non-positive coldReadConcurrency', () => {
-    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: 0 })).toThrow()
-    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: -1 })).toThrow()
-    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: 1.5 })).toThrow()
+    expect(() => SubagentRuntime.Config({ coldReadConcurrency: 0 })).toThrow()
+    expect(() => SubagentRuntime.Config({ coldReadConcurrency: -1 })).toThrow()
+    expect(() => SubagentRuntime.Config({ coldReadConcurrency: 1.5 })).toThrow()
   })
 
   it('lists with a custom coldReadConcurrency', async () => {

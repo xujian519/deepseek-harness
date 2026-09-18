@@ -60,9 +60,15 @@ describe('tsdown client artifact', () => {
     return { handoff: handoff!, exports: exports as { apply: (ctx: Context) => void; inject: string[] } }
   }
 
+  interface SessionEntry {
+    id: string
+    projectionValues?: { agentPreset?: string }
+    cwd?: string
+    retainedBy: Record<string, number>
+  }
+
   interface SessionsState {
-    current: string | undefined
-    byId: Record<string, { projectionValues?: { agentPreset?: string }; cwd?: string } | undefined>
+    byId: Record<string, SessionEntry | undefined>
   }
 
   async function harness(exports: { apply: (ctx: Context) => void }, state: SessionsState) {
@@ -107,7 +113,7 @@ describe('tsdown client artifact', () => {
 
   it.skipIf(code === undefined)('mounts the view tab and the produced-file targets, and disposes them', async () => {
     const { exports } = await loadArtifact()
-    const { ctx, fiber, slots } = await harness(exports, { current: undefined, byId: {} })
+    const { ctx, fiber, slots } = await harness(exports, { byId: {} })
     await fiber.await()
     const events = ctx.uiConversation.events
     const views = ctx.uiConversation.views
@@ -123,17 +129,25 @@ describe('tsdown client artifact', () => {
   it.skipIf(code === undefined)('auto-switches a document-preset session to the studio view', async () => {
     const { exports } = await loadArtifact()
     const { fiber, viewSetters, sessionsList } = await harness(exports, {
-      current: 's1',
-      byId: { s1: { projectionValues: { agentPreset: 'document' }, cwd: '/tmp/w' } },
+      byId: {
+        s1: { id: 's1', projectionValues: { agentPreset: 'document' }, cwd: '/tmp/w', retainedBy: { mainView: 1 } },
+        s2: { id: 's2', retainedBy: {} },
+      },
     })
     await fiber.await()
     expect(viewSetters).toEqual([['s1', 'documentDeliverables']])
     // A non-document session switch does not fire again.
-    sessionsList.update((draft) => { draft.current = 's2' })
+    sessionsList.update((draft) => {
+      draft.byId.s1!.retainedBy = {}
+      draft.byId.s2!.retainedBy = { mainView: 1 }
+    })
     await Promise.resolve()
     expect(viewSetters).toEqual([['s1', 'documentDeliverables']])
     // Re-entering the document session switches again (session entry only).
-    sessionsList.update((draft) => { draft.current = 's1' })
+    sessionsList.update((draft) => {
+      draft.byId.s2!.retainedBy = {}
+      draft.byId.s1!.retainedBy = { mainView: 1 }
+    })
     await Promise.resolve()
     expect(viewSetters).toEqual([['s1', 'documentDeliverables'], ['s1', 'documentDeliverables']])
     await fiber.dispose()
@@ -151,8 +165,7 @@ describe('tsdown client artifact', () => {
         children: { 'conversation.view': { kind: 'list', scope: 'session' } },
       }, (_p: { renderSlot?: unknown }) => null)
       const sessionsList = createSnapshotStore<SessionsState>({
-        current: 's1',
-        byId: { s1: { projectionValues: { agentPreset: 'document' } } },
+        byId: { s1: { id: 's1', projectionValues: { agentPreset: 'document' }, retainedBy: { mainView: 1 } } },
       })
       ctx.provide('sessions', { list: sessionsList, binding: () => undefined } as never)
       // Setter reports false until it exists: exercise the retry cadence.

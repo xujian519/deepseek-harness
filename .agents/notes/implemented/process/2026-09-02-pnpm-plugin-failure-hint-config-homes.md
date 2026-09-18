@@ -21,4 +21,4 @@ The hint also had the wrong trigger: it keyed on the forwarded spec looking git-
 
 ## Consequences
 
-`dsh plugin` failures carry an actionable hint for the two blocking classes observed in practice and stay silent otherwise, so the hint never competes with an unrelated cause. The git hint text documents pnpm's self-contradictory 10.34 behavior — warning that the `pnpm` package.json field is unread while enforcing this allowlist from it — so a future pnpm that makes `pnpm-workspace.yaml` (or `allowBuilds`) the real enforcement home again needs a matching update to the hint and the test in [apps/cli/tests/plugin-failure-hints.spec.ts](../../../../apps/cli/tests/plugin-failure-hints.spec.ts).
+`dsh plugin` failures carry an actionable hint for the two blocking classes observed in practice and stay silent otherwise, so the hint never competes with an unrelated cause. The git hint text documents pnpm's self-contradictory 10.34 behavior — warning that the `pnpm` package.json field is unread while enforcing this allowlist from it — so a future pnpm that makes `pnpm-workspace.yaml` (or `allowBuilds`) the real enforcement home again needs a matching update to the hint.

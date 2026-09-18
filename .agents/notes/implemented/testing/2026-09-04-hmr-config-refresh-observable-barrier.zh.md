@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-`packages/boot/app-boot/tests/watch-config.spec.ts` 的配置刷新用例通过 chokidar 观察真实文件系统事件，其中两个用例在 CI 并发下间歇失败。
+`packages/boot/app-boot/tests/config-reload.spec.ts` 的配置刷新用例通过 chokidar 观察真实文件系统事件，其中两个用例在 CI 并发下间歇失败。
 
 `serializes refreshes and waits for them during disposal` 用例写入第二版文件后固定 sleep 250 ms 再调用 dispose。dispose 会先关闭 chokidar watcher 再等待运行中的刷新，因此在并行负载下变更事件若在该窗口之后到达，编辑从未入队，`observed` 停在 `['one']` 而非 `['one', 'two']`。
 

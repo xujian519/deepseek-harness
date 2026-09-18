@@ -45,6 +45,7 @@ function stubFace(setActiveView: () => boolean) {
     effect: (fn: () => () => void) => { fn(); return () => undefined },
     locale: { register: dictionaries, bind },
     sessions: { open },
+    uiWorkspace: { openSession: open },
     conversation: { setActiveView: landing },
     slots: { inject: injectSlot, register },
   }
@@ -121,6 +122,8 @@ describe('plugin lifecycle', () => {
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     ctx.provide('conversation', { setActiveView: () => true } as never)
     await ctx.plugin(TestSessions).await()
+    const opened: SessionIdOf[] = []
+    ctx.provide('uiWorkspace', { openSession: (id: SessionIdOf) => { opened.push(id) } } as never)
     ctx.slots.register({
       name: 'root',
       children: { 'conversation.view': { kind: 'list', scope: 'session' } },
@@ -133,7 +136,7 @@ describe('plugin lifecycle', () => {
     expect([zh['view.board'], en['view.board']]).toContain(t('view.board'))
     const boardFace = ctx.slots.entries('conversation.view')[0]!.inject?.(sid('s-current') as never) as unknown as BoardViewInjected
     boardFace.openSession(sid('s-target'))
-    expect((ctx.sessions as unknown as TestSessions).opened).toEqual([sid('s-target')])
+    expect(opened).toEqual([sid('s-target')])
     await fiber.dispose()
     expect(ctx.slots.entries('conversation.view')).toEqual([])
     // The dictionaries ride the fiber: after unload the key falls back to itself.

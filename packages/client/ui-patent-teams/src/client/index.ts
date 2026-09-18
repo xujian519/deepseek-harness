@@ -12,6 +12,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: pulls the ui-workspace Context merge (ctx.uiWorkspace).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 // Type-only: pulls the slots Context merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the Chat SlotMap entry and ChatNodeDataMap (keyed renderer seat).
@@ -34,7 +36,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Required services for the Definitions, the keyed renderer, the view, and copy. */
-export const inject = ['uiConversation', 'slots', 'sessions', 'locale']
+export const inject = ['uiConversation', 'slots', 'sessions', 'locale', 'uiWorkspace']
 
 /** Register the fold Definitions, dictionary, the keyed Chat renderer, and the Teams view. */
 export function apply(ctx: ClientContext): void {
@@ -47,7 +49,7 @@ export function apply(ctx: ClientContext): void {
     key: 'patent-teams',
     locale: NS,
     inject: (): { openSession: (id: SessionId) => void } => ({
-      openSession: (id: SessionId) => { ctx.sessions.open(id) },
+      openSession: (id: SessionId) => { ctx.uiWorkspace.openSession(id) },
     }),
   }, TeamsCard))
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
@@ -66,7 +68,7 @@ export function apply(ctx: ClientContext): void {
         throw new Error(`ui-patent-teams: session "${sessionId}" is unavailable`)
       }
       return {
-        openSession: (id: SessionId) => { ctx.sessions.open(id) },
+        openSession: (id: SessionId) => { ctx.uiWorkspace.openSession(id) },
         loadOlder: () => session.loadOlder(),
       }
     },

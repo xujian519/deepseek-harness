@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createAssistantMessage, LlmAttemptId } from '@deepseek-ai/dsh-llm'
@@ -24,7 +24,6 @@ afterEach(() => { vi.unstubAllGlobals() })
 function sessionSnapshot(): SessionSnapshot {
   return {
     sessionId: SESSION_ID,
-    queue: [],
     pendingSubmissions: [],
     running: false,
     subagent: null,
@@ -71,22 +70,27 @@ function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBind
   const list = createSnapshotStore<SessionListState>({
     ids: [],
     byId: {},
-    current: undefined,
     phase: 'ready',
     subagentsByParent: {},
     jobsBySession: {},
-    currentAddress: undefined,
   })
-  const sessions = {
+  const reference = {
+    sessionId: SESSION_ID,
+    binding,
+    ready: Promise.resolve(binding),
+    release: () => {},
+    [Symbol.dispose]() {},
+  }
+  const sessions: ISessions = {
     list,
     searchResultLimit: 50,
     create: () => Promise.reject(new Error('unused fake Sessions operation')),
-    open: () => {},
-    openSubagent: () => {},
+    retain: () => reference,
+    using: async (_target, _options, operation) => await operation(reference),
+    retainInfo: () => createSnapshotStore({ referenceCount: 1, retainedBy: {} }),
     subagentAddress: () => undefined,
     setSubagentCatalogOpen: () => {},
     refreshSubagents: () => Promise.reject(new Error('unused fake Sessions operation')),
-    clear: () => {},
     refresh: () => Promise.reject(new Error('unused fake Sessions operation')),
     search: () => Promise.reject(new Error('unused fake Sessions operation')),
     fork: () => Promise.reject(new Error('unused fake Sessions operation')),
@@ -94,7 +98,7 @@ function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBind
     scopeOf: candidate => candidate === binding.ctx ? SESSION_ID : undefined,
     sessionOf: candidate => candidate === binding.ctx ? binding.session : undefined,
     binding: id => id === SESSION_ID ? binding : undefined,
-  } satisfies ISessions
+  }
   return { sessions, binding }
 }
 
@@ -109,21 +113,14 @@ function eventDefinition(kind: string): ConversationNodeDefinition<null> {
   }
 }
 
-function viewDefinition(target: string): ConversationViewDefinition<ConversationViewNode, null> & {
-  readonly replace: Mock
-  readonly apply: Mock
-} {
-  const replace = vi.fn(() => null)
-  const apply = vi.fn(() => null)
+function viewDefinition(target: string): ConversationViewDefinition<ConversationViewNode, null> {
   return {
     target,
     create: () => ({
       empty: null,
-      replace,
-      apply,
+      replace: () => null,
+      apply: () => null,
     }),
-    replace,
-    apply,
   }
 }
 
@@ -135,6 +132,7 @@ async function bootRegistries(): Promise<{
   views: ConversationViewRegistry
 }> {
   const ctx = new Context()
+  onTestFinished(async () => { await ctx.fiber.dispose() })
   const { sessions, binding } = fakeSessions(ctx)
   const uiConversation = new UiConversation(ctx, sessions)
   return {
@@ -381,7 +379,7 @@ describe('Conversation registries', () => {
     rebuild.mockRestore()
   })
 
-  it('materializes each target on selection or first subscriber and rebuilds it on the next claim', async () => {
+  it('activates each target on explicit selection or first use and never deactivates it', async () => {
     const { uiConversation, binding, views } = await bootRegistries()
     const chat = viewDefinition('chat')
     const trajectory = viewDefinition('trajectory')
@@ -392,51 +390,28 @@ describe('Conversation registries', () => {
     await Promise.resolve()
 
     const conversation = uiConversation.binding(binding)
+    const chatSource = conversation.target('chat')
     const trajectorySource = conversation.target('trajectory')
     expect(createChat).not.toHaveBeenCalled()
     expect(createTrajectory).not.toHaveBeenCalled()
-    expect(trajectorySource.getSnapshot()).toBeUndefined()
 
     conversation.select('chat')
     expect(createChat).toHaveBeenCalledOnce()
 
-    // A first subscriber claims an unselected target and observes its build.
+    const unsubscribeChat = chatSource.subscribe(vi.fn())
     const trajectoryListener = vi.fn()
     const unsubscribeTrajectory = trajectorySource.subscribe(trajectoryListener)
+    unsubscribeChat()
+    const unsubscribeTrajectoryAgain = trajectorySource.subscribe(vi.fn())
+    unsubscribeTrajectoryAgain()
+    expect(createChat).toHaveBeenCalledOnce()
     expect(createTrajectory).toHaveBeenCalledOnce()
-    expect(trajectory.replace).toHaveBeenCalledOnce()
     expect(trajectoryListener).toHaveBeenCalledOnce()
-
-    // An arriving and leaving second subscriber neither rebuilds nor releases
-    // the target while the first claim remains.
-    const unsubscribeExtra = trajectorySource.subscribe(vi.fn())
-    unsubscribeExtra()
-    expect(trajectory.replace).toHaveBeenCalledOnce()
-
-    // Selecting an already claimed target does not rebuild it.
-    conversation.select('trajectory')
-    expect(trajectory.replace).toHaveBeenCalledOnce()
-
-    // Selecting chat releases trajectory once its last claim leaves, and
-    // rebuilds the released chat selection.
-    conversation.select('chat')
-    unsubscribeTrajectory()
-    expect(chat.replace).toHaveBeenCalledTimes(2)
-    expect(trajectorySource.getSnapshot()).toBeNull()
-    expect(trajectory.replace).toHaveBeenCalledOnce()
-
-    // The next claim rebuilds the target exactly once and reaches every
-    // subscriber of the Session snapshot.
-    const rebuilt = vi.fn()
-    const unsubscribeRebuilt = trajectorySource.subscribe(rebuilt)
-    expect(createTrajectory).toHaveBeenCalledOnce()
-    expect(trajectory.replace).toHaveBeenCalledTimes(2)
-    expect(rebuilt).toHaveBeenCalledOnce()
-    expect(trajectoryListener).toHaveBeenCalledTimes(2)
-    unsubscribeRebuilt()
 
     disposeTrajectory()
     await Promise.resolve()
     expect(trajectorySource.getSnapshot()).toBeUndefined()
+    expect(trajectoryListener).toHaveBeenCalledTimes(2)
+    unsubscribeTrajectory()
   })
 })

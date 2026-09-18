@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-04-hmr-config-refresh-observable-barrier.md
-2026-09-04-hmr-config-refresh-observable-barrier.md: ddf8a6eced1a6ccc6c1a895548c71e1607eaccc3
-2026-09-04-hmr-config-refresh-observable-barrier.zh.md: 9c5fe220f8e8fe22ce7f395f8a4285c962187ba6
+2026-09-04-hmr-config-refresh-observable-barrier.md: 8e99f5672345d573f91a4c5c10ed0e5dbd140f0d
+2026-09-04-hmr-config-refresh-observable-barrier.zh.md: 17513851558bb587cc01858d5790596e84278981

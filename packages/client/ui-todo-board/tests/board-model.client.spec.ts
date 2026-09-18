@@ -17,11 +17,9 @@ const wid = (id: string): WorkspaceSnapshot['items'][number]['workspaceId'] =>
 const EMPTY_LIST: SessionListState = {
   ids: [],
   byId: {},
-  current: undefined,
   phase: 'pending',
   subagentsByParent: {},
   jobsBySession: {},
-  currentAddress: undefined,
 }
 
 const NO_WORKSPACES: readonly WorkspaceSnapshot['items'][number][] = []
@@ -37,6 +35,7 @@ function summary(
     running: false,
     blank: false,
     updatedAt: 1,
+    retainedBy: {},
     ...(todos === undefined ? {} : { projectionValues: { todosLatest: todos } }),
     ...extra,
   }
@@ -46,11 +45,13 @@ function list(
   entries: readonly SessionSummary[],
   current?: string,
 ): SessionListState {
+  const currentId = current === undefined ? undefined : sid(current)
   return {
     ...EMPTY_LIST,
     ids: entries.map(entry => entry.id),
-    byId: Object.fromEntries(entries.map(entry => [entry.id, entry])),
-    current: current === undefined ? undefined : sid(current),
+    byId: Object.fromEntries(entries.map(entry => [entry.id,
+      entry.id === currentId ? { ...entry, retainedBy: { ...entry.retainedBy, mainView: 1 } } : entry,
+    ])),
   }
 }
 

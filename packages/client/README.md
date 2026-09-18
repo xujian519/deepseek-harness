@@ -35,13 +35,14 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`locale/`](locale/README.md) | Provides localization preferences and message dictionaries | `ctx.locale` |
 | [`test-runtime/`](../test-support/client-runtime/README.md) | Shared repository test support for client feature packages | — |
 | [`ui-renderer/`](ui-renderer/README.md) | Binds slot data to React and mounts the assembled application | `ctx.uiRenderer` |
-| [`ui-slots/`](ui-slots/README.md) | Defines how UI features register and compose extension slots | — |
+| [`ui-slots/`](ui-slots/README.md) | Defines typed extension Slots and reusable Component Factories | — |
 | [`ui-session/`](ui-session/README.md) | Adapts Session Controller state into standard Slot sources and hooks | — |
 | [`ui-theme/`](ui-theme/README.md) | Applies the selected color theme | — |
 | [`ui-primitives/`](ui-primitives/README.md) | Provides shared React controls, icons, and content renderers | — |
 | [`ui-attachment/`](ui-attachment/README.md) | Registers composer and message-image attachment presentation | — |
 | [`ui-layout/`](ui-layout/README.md) | Arranges the main application regions | — |
 | [`ui-sidebar/`](ui-sidebar/README.md) | Presents workspace and session navigation | — |
+| [`ui-sidebar-browser/`](ui-sidebar-browser/README.md) | Browses sandboxed HTTP(S) pages, including loopback services, in right-Sidebar tabs | — |
 | [`resources/`](resources/README.md) | Unified resource model: protocol providers behind the `useResource` session standard hook | `ctx.resources` |
 | [`ui-sidebar-files/`](ui-sidebar-files/README.md) | Right-Sidebar workspace file tree tab type | — |
 | [`ui-sidebar-documentpreview/`](ui-sidebar-documentpreview/README.md) | Previews readable files in the right Sidebar under the `text` tab kind | `ctx.documentPreviews` |
@@ -75,14 +76,15 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-settings/`](ui-settings/README.md) | Hosts the settings interface and its extension areas | — |
 | [`ui-settings-general/`](ui-settings-general/README.md) | Provides the general settings section | — |
 | [`ui-settings-models/`](ui-settings-models/README.md) | Provides model-provider configuration and DeepSeek onboarding | — |
+| [`ui-plugin-manager/`](ui-plugin-manager/README.md) | Contributes the sidebar Plugins panel: install, enable, disable, retry, and compose installed packages | — |
 | [`ui-settings-plugin-inventory/`](ui-settings-plugin-inventory/README.md) | Contributes the read-only Host Loader inventory tab to Plugins settings | — |
 | [`ui-settings-unarchive-sessions/`](ui-settings-unarchive-sessions/README.md) | Provides the Archived sessions settings page: the archive set with a title/Workspace filter and one Unarchive action per row | — |
 | [`ui-plugin-market/`](ui-plugin-market/README.md) | Contributes the read-only Plugin market tab to the Plugins settings section | — |
-| [`ui-deliverables/`](ui-deliverables/README.md) | Produces the produced-files turn tail and clickable final-response file references | — |
+| [`ui-deliverables/`](ui-deliverables/README.md) | Produces the changed-files card with its comparison tabs, delivery cards, and clickable final-response file references | — |
 | [`ui-document-studio/`](ui-document-studio/README.md) | Contributes the document studio: a produced-files conversation view tab with host preview and open / show-in-folder / print actions | — |
 | [`ui-message-feedback/`](ui-message-feedback/README.md) | The feedback surface: per-message Like/Dislike in the assistant-message action strip, and the feedback dialog behind both ratings and `/feedback` | — |
 | [`ui-directory-picker-browse/`](ui-directory-picker-browse/README.md) | In-app directory browsing surface for the workspace directory flow | — |
-| [`ui-directory-picker-native/`](ui-directory-picker-native/README.md) | Native directory-picker surface driving the host's OS chooser | — |
+| [`ui-directory-picker-native/`](ui-directory-picker-native/README.md) | Native directory-picker surface driving the local Desktop or Host OS chooser | — |
 | [`better-sidebar/`](better-sidebar/README.md) | Presents the per-session workspace right sidebar: explorer, editor, terminal, git, side chat, subagent, and browser tabs | `ctx.betterSidebar` (client) |
 | [`ui-open-in-app/`](ui-open-in-app/README.md) | Session-header split button opening the workspace directory in an installed application | — |
 | [`ui-patent-teams/`](ui-patent-teams/README.md) | Restores the PatentTeams monitor to the Web UI: one durable team card and the fixed Teams conversation view | — |

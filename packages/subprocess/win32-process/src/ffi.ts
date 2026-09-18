@@ -39,7 +39,7 @@ export interface StartupInfoInput {
   cb: number
   dwFlags: number
   /** SW_* value consulted when dwFlags carries STARTF_USESHOWWINDOW. */
-  wShowWindow?: number
+  wShowWindow: number
   hStdInput: NativePtr
   hStdOutput: NativePtr
   hStdError: NativePtr
