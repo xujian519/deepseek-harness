@@ -144,6 +144,7 @@ export function BrowserView(props: TabComponentProps) {
   }
 
   const goBack = (): void => {
+    /* v8 ignore next -- the same condition disables the button, and a disabled control swallows its activation. */
     if (cursor <= 0) return
     const next = history[cursor - 1] as string
     setCursor(cursor - 1)
@@ -153,6 +154,7 @@ export function BrowserView(props: TabComponentProps) {
   }
 
   const goForward = (): void => {
+    /* v8 ignore next -- the same condition disables the button, and a disabled control swallows its activation. */
     if (cursor >= history.length - 1) return
     const next = history[cursor + 1] as string
     setCursor(cursor + 1)
@@ -219,6 +221,7 @@ export function BrowserView(props: TabComponentProps) {
           title={t('browserOpenExternal')}
           disabled={url === undefined}
           onClick={() => {
+            /* v8 ignore next -- the button is disabled while url is undefined, so this handler only ever runs with one. */
             if (url !== undefined) window.open(url, '_blank', 'noopener')
           }}
         >

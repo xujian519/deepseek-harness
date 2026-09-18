@@ -1366,17 +1366,18 @@ describe('SubagentRuntime.listDescendants', () => {
 
 describe('subagent listing cold-read concurrency config', () => {
   it('defaults coldReadConcurrency to 4', () => {
-    expect(SubagentRuntime.Config.parse({})).toEqual({ coldReadConcurrency: 4 })
+    expect(SubagentRuntime.Config({})).toEqual({ coldReadConcurrency: 4, maxDepth: 1, maxActiveSubagents: 8 })
   })
 
   it('accepts a custom coldReadConcurrency', () => {
-    expect(SubagentRuntime.Config.parse({ coldReadConcurrency: 8 })).toEqual({ coldReadConcurrency: 8 })
+    expect(SubagentRuntime.Config({ coldReadConcurrency: 8 }))
+      .toEqual({ coldReadConcurrency: 8, maxDepth: 1, maxActiveSubagents: 8 })
   })
 
   it('rejects non-positive coldReadConcurrency', () => {
-    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: 0 })).toThrow()
-    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: -1 })).toThrow()
-    expect(() => SubagentRuntime.Config.parse({ coldReadConcurrency: 1.5 })).toThrow()
+    expect(() => SubagentRuntime.Config({ coldReadConcurrency: 0 })).toThrow()
+    expect(() => SubagentRuntime.Config({ coldReadConcurrency: -1 })).toThrow()
+    expect(() => SubagentRuntime.Config({ coldReadConcurrency: 1.5 })).toThrow()
   })
 
   it('lists with a custom coldReadConcurrency', async () => {
@@ -1401,5 +1402,46 @@ describe('subagent listing cold-read concurrency config', () => {
         activity: 'running', hasChildren: false,
       },
     ])
+  })
+
+  it('falls back to the default cap for a config that omits coldReadConcurrency', async () => {
+    // Direct construction skips the Cordis loader, which resolves the schema
+    // default before the constructor reads the field.
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    const root = mkdtempSync(join(tmpdir(), 'dsh-subagent-cold-default-'))
+    roots.push(root)
+    const persistence = await ctx.plugin(JsonlSessionPersistence, { root })
+    persistenceDisposers.push(() => persistence.dispose())
+    await ctx.plugin(TestSessionQuery)
+    const subagents = new SubagentRuntime(ctx, { maxDepth: 1, maxActiveSubagents: 8 })
+
+    const parentId = SessionId('cold-default-parent')
+    for (let index = 0; index < 5; index += 1) {
+      await authorChild(
+        ctx,
+        `00000000-0000-4000-8000-00000000ee0${index}`,
+        { parentSession: parentId, origin: 'subagent' },
+        childEvents(descriptorPayload(`cold child ${index}`)),
+      )
+    }
+
+    const observe = ctx.sessionQuery.observeSession.bind(ctx.sessionQuery)
+    let inFlight = 0
+    let peak = 0
+    const reads = vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation(async (id, options) => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await new Promise(resolve => setTimeout(resolve, 5))
+      inFlight -= 1
+      return observe(id, options)
+    })
+
+    const entries = await subagents.listChildren(parentId)
+    expect(reads).toHaveBeenCalledTimes(5)
+    expect(peak).toBe(4)
+    expect(entries.map(entry => entry.kind === 'child' ? entry.label : entry.reason))
+      .toEqual(['cold child 0', 'cold child 1', 'cold child 2', 'cold child 3', 'cold child 4'])
   })
 })

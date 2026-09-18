@@ -16,7 +16,8 @@ import type { Context } from '../src/context-types.ts'
 import { api } from '../src/client/api.ts'
 import { EditorHost } from '../src/client/EditorHost.tsx'
 import { createBetterSidebarService } from '../src/client/service.ts'
-import { allLeaves, createSidebarStore, type SidebarTab } from '../src/client/state.ts'
+import { allLeaves, createSidebarStore, floatTab, type SidebarTab } from '../src/client/state.ts'
+import { t } from '../src/client/locales.ts'
 import { resetChunks } from '../src/client/chunk-loader.ts'
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -29,6 +30,11 @@ const propText = (value: unknown): string =>
 const Marker = (label: string): ((props: Record<string, unknown>) => ReactNode) =>
   props => createElement('div', { 'data-testid': 'viewer' }, `${label}:${propText(props.content ?? props.customData)}:${propText(props.truncated ?? false)}`)
 
+/** Unique per-test session ids: the store persists per-session state on a
+ *  200ms debounce, and a shared id let a previous test's late timer write
+ *  leak into this store's setSession restore (the free-window spec's rule). */
+let sessionSeq = 0
+
 function setup(): {
   store: ReturnType<typeof createSidebarStore>
   ctx: Context
@@ -38,8 +44,9 @@ function setup(): {
   const store = createSidebarStore()
   const service = createBetterSidebarService(store)
   service.registerTab({ id: 'editor', title: 'Editor', dedupeKey: tab => tab.path, component: () => null })
-  store.setSession('editor-home-session')
-  const sessionsSnapshot = { byId: { 'editor-home-session': { cwd: '/tmp' } }, current: 'editor-home-session' }
+  const sessionId = `editor-host-${++sessionSeq}`
+  store.setSession(sessionId)
+  const sessionsSnapshot = { byId: { [sessionId]: { cwd: '/tmp' } }, current: sessionId }
   const ctx = {
     betterSidebar: service,
     get: (name: string) => name === 'betterSidebar' ? service : undefined,
@@ -63,7 +70,7 @@ function mountHost(ctx: Context, store: ReturnType<typeof createSidebarStore>, t
     root.render(createElement(EditorHost, {
       ctx,
       store,
-      scope: { sessionId: 'editor-home-session', cwd: '/tmp' },
+      scope: { sessionId: store.getSnapshot().sessionId as string, cwd: '/tmp' },
       tab: tab(),
       expanded: [],
       revealed: [],
@@ -503,5 +510,165 @@ describe('EditorHost path input edges', () => {
     })
     expect((input).value).toBe('a.ts')
     s.mounted.unmount()
+  })
+})
+
+describe('EditorHost open-with and settle edges', () => {
+  const openEditorFor = (s: ReturnType<typeof setup>): void => {
+    s.ctx.betterSidebar.openTab({
+      type: 'editor', title: 'a.ts', path: '/tmp/a.ts', id: 'editor:/tmp/a.ts', meta: { treeOpen: true },
+    })
+  }
+
+  it('a failed URL open is logged and never surfaces to the editor', async () => {
+    vi.spyOn(api, 'openExternal').mockRejectedValue(new Error('opener gone'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const s = setup()
+    openEditorFor(s)
+    const { container, unmount } = mountHost(s.ctx, s.store, s.tabByPath('/tmp/a.ts'))
+    await flushed()
+    openFileMenu(container)
+    act(() => {
+      menuItems().find(item => item.getAttribute('aria-haspopup') === 'menu')!
+        .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    })
+    act(() => {
+      menuItems().find(item => item.querySelector('[class*="openWithName"]')?.textContent === 'VS Code')!
+        .click()
+    })
+    await flushed()
+    expect(errorSpy).toHaveBeenCalledWith('open external failed', expect.anything())
+    errorSpy.mockRestore()
+    unmount()
+  })
+
+  it('the pushpin unpins an already-pinned target', async () => {
+    const s = setup()
+    s.store.setPrefs({
+      ...s.store.getPrefs(),
+      pluginSettings: { editor: { openWith: { pinned: ['vscode'], customEditors: [], sshHost: '' } } },
+    })
+    openEditorFor(s)
+    const { container, unmount } = mountHost(s.ctx, s.store, s.tabByPath('/tmp/a.ts'))
+    await flushed()
+    openFileMenu(container)
+    // Every target keeps its pushpin row inside the submenu; a pinned target
+    // additionally surfaces as a direct row at the top level.
+    act(() => {
+      menuItems().find(item => item.getAttribute('aria-haspopup') === 'menu')!
+        .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    })
+    const row = menuItems().find(
+      item => item.querySelector('[class*="openWithName"]')?.textContent === 'VS Code',
+    )!
+    const pin = row.querySelector<HTMLElement>(`[role="button"][aria-label="${t('unpinOpenWith')}"]`)!
+    act(() => { pin.click() })
+    await flushed()
+    expect(s.store.getPrefs().pluginSettings['editor']?.openWith).toMatchObject({ pinned: [] })
+    unmount()
+  })
+
+  it('a repeated toolbar report is ignored while a changed one still applies', async () => {
+    const s = setup()
+    let report: ((state: Record<string, unknown>) => void) | undefined
+    s.service.registerFileViewer({
+      id: 'test:fake', exts: ['fake'], fetchStrategy: 'none',
+      component: ((props: Record<string, unknown>) => {
+        useEffect(() => { report = props.onToolbarState as (state: Record<string, unknown>) => void }, [])
+        return Marker('fake')(props)
+      }) as never,
+    })
+    s.service.openTab({ type: 'editor', title: 'x.fake', path: '/tmp/x.fake', id: 'editor:/tmp/x.fake' })
+    const { container, unmount } = mountHost(s.ctx, s.store, s.tabByPath('/tmp/x.fake'))
+    await flushed()
+    const state = { modes: true, mode: 'preview', dirty: false, editable: false, saveState: 'idle' }
+    const activeMode = (): string | undefined =>
+      container.querySelector('[class*="editorModeActive"]')?.textContent ?? undefined
+    await act(async () => { report?.({ ...state }); await new Promise((resolve) => { setTimeout(resolve, 0) }) })
+    expect(activeMode()).toBe('Preview')
+    // The identical report (a fresh object, same JSON) keeps the same state.
+    await act(async () => { report?.({ ...state }); await new Promise((resolve) => { setTimeout(resolve, 0) }) })
+    expect(activeMode()).toBe('Preview')
+    await act(async () => {
+      report?.({ ...state, mode: 'edit' })
+      await new Promise((resolve) => { setTimeout(resolve, 0) })
+    })
+    expect(activeMode()).toBe('Edit')
+    unmount()
+  })
+
+  it('an fsRead settling after unmount updates nothing', async () => {
+    let release!: (value: unknown) => void
+    vi.spyOn(api, 'fsRead').mockReturnValue(new Promise((resolve) => { release = resolve }) as never)
+    const s = setup()
+    s.service.registerFileViewer({ id: 'test:fsr', exts: ['fsr'], fetchStrategy: 'fsRead', component: Marker('fsr') as never })
+    s.service.openTab({ type: 'editor', title: 'x.fsr', path: '/tmp/x.fsr', id: 'editor:/tmp/x.fsr' })
+    const mounted = mountHost(s.ctx, s.store, s.tabByPath('/tmp/x.fsr'))
+    mounted.unmount()
+    await act(async () => {
+      release({ kind: 'text', content: 'late', truncated: false })
+      await new Promise((resolve) => { setTimeout(resolve, 0) })
+    })
+  })
+
+  it('a failing fsRead reports the Error message', async () => {
+    vi.spyOn(api, 'fsRead').mockRejectedValue(new Error('disk exploded'))
+    const s = setup()
+    s.service.registerFileViewer({ id: 'test:fsr', exts: ['fsr'], fetchStrategy: 'fsRead', component: Marker('fsr') as never })
+    s.service.openTab({ type: 'editor', title: 'x.fsr', path: '/tmp/x.fsr', id: 'editor:/tmp/x.fsr' })
+    const { container, unmount } = mountHost(s.ctx, s.store, s.tabByPath('/tmp/x.fsr'))
+    await flushed()
+    expect(container.textContent).toContain('disk exploded')
+    unmount()
+  })
+
+  it('a custom load rejecting with a non-Error reports the string form', async () => {
+    const s = setup()
+    s.service.registerFileViewer({
+      id: 'test:custom', exts: ['custom'], fetchStrategy: 'custom',
+      load: async () => { throw 'plain boom' },
+      component: Marker('custom') as never,
+    })
+    s.service.openTab({ type: 'editor', title: 'x.custom', path: '/tmp/x.custom', id: 'editor:/tmp/x.custom' })
+    const { container, unmount } = mountHost(s.ctx, s.store, s.tabByPath('/tmp/x.custom'))
+    await flushed()
+    expect(container.textContent).toContain('plain boom')
+    unmount()
+  })
+
+  it('a custom load rejection landing after unmount updates nothing', async () => {
+    const s = setup()
+    let reject!: (reason: unknown) => void
+    s.service.registerFileViewer({
+      id: 'test:custom', exts: ['custom'], fetchStrategy: 'custom',
+      load: () => new Promise((_resolve, refuse) => { reject = refuse }),
+      component: Marker('custom') as never,
+    })
+    s.service.openTab({ type: 'editor', title: 'x.custom', path: '/tmp/x.custom', id: 'editor:/tmp/x.custom' })
+    const mounted = mountHost(s.ctx, s.store, s.tabByPath('/tmp/x.custom'))
+    mounted.unmount()
+    await act(async () => {
+      reject(new Error('late boom'))
+      await new Promise((resolve) => { setTimeout(resolve, 0) })
+    })
+  })
+
+  it('open to the side from a floated tab splits the right tree\'s first pane', async () => {
+    const s = setup()
+    const tab: SidebarTab = {
+      id: 'editor:/tmp/a.ts', type: 'editor', title: 'a.ts', path: '/tmp/a.ts', meta: { treeOpen: true },
+    }
+    s.ctx.betterSidebar.openTab(tab)
+    // The tab now lives in a free window: it belongs to no pane, so the side
+    // open falls back to the right tree's first leaf.
+    s.store.reduce(state => floatTab(state, tab.id, 300, 300))
+    const { container, unmount } = mountHost(s.ctx, s.store, () => tab)
+    await flushed()
+    openFileMenu(container, 'b.ts')
+    act(() => { menuItems().find(item => item.textContent === 'Open to the Side')!.click() })
+    const tabs = allLeaves(s.store.getSnapshot().state!.splits).flatMap(leaf => leaf.tabs)
+    expect(tabs.map(candidate => candidate.path)).toEqual([undefined, '/tmp/b.ts'])
+    expect(tabs.at(-1)!.meta).toEqual({ treeOpen: false })
+    unmount()
   })
 })

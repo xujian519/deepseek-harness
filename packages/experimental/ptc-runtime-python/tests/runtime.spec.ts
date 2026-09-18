@@ -28,7 +28,7 @@ import type { PtcBindingFunction, PtcJsonValue, PtcRunResult } from '@deepseek-a
  * records the same race and solves it with argv-based identity; recording the
  * mkdtempSync results is the fs-mock equivalent.
  */
-const { failNextCopyOf, stagedDirs, tempDirs, tempFiles } = vi.hoisted(() => ({
+const { failNextCopyOf, stagedDirs, tempDirs, tempFiles, procStatRead } = vi.hoisted(() => ({
   failNextCopyOf: { value: undefined as string | undefined },
   stagedDirs: [] as string[],
   // Test-created temp dirs/files, registered by the helpers below and removed
@@ -38,6 +38,9 @@ const { failNextCopyOf, stagedDirs, tempDirs, tempFiles } = vi.hoisted(() => ({
   // tests themselves build).
   tempDirs: [] as string[],
   tempFiles: [] as string[],
+  // Injected `/proc/<pid>/stat` reads for the process-identity reader: its
+  // Linux arm is unreachable on a Darwin host without a stubbed platform.
+  procStatRead: { line: undefined as string | undefined, failRead: false },
 }))
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
@@ -54,6 +57,15 @@ vi.mock('node:fs', async (importOriginal) => {
       const dir = actual.mkdtempSync(prefix)
       if (basename(prefix).startsWith('dsh-ptc-runtime-python-')) stagedDirs.push(dir)
       return dir
+    },
+    readFileSync(...args: Parameters<typeof actual.readFileSync>): ReturnType<typeof actual.readFileSync> {
+      const [path] = args
+      if (typeof path === 'string' && path.startsWith('/proc/')
+        && (procStatRead.line !== undefined || procStatRead.failRead)) {
+        if (procStatRead.failRead) throw Object.assign(new Error('simulated ENOENT on stat'), { code: 'ENOENT' })
+        return procStatRead.line as string
+      }
+      return actual.readFileSync(...args)
     },
   }
 })
@@ -789,6 +801,25 @@ describe('PythonPtcRuntime — process identity', () => {
       // signals the pgid without the identity re-check instead of paying a `ps`
       // fork per signal.
       expect(own).toBeUndefined()
+    }
+  })
+
+  it('reads the Linux start time past the last comm parenthesis and degrades on an unreadable entry', () => {
+    // The field is positional after the comm field, which may itself contain a
+    // closing parenthesis: `(a)b)` must resolve to the state field, so the
+    // starttime stays field 22. The read failure is the reaped-leader shape.
+    const original = process.platform
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    try {
+      procStatRead.line = '4321 (a)b) S 1 4321 4321 0 -1 4194304 100 0 0 0 1 1 0 0 20 0 1 0 987654321 0'
+      expect(readProcessStart(4321)).toBe('987654321')
+      procStatRead.line = undefined
+      procStatRead.failRead = true
+      expect(readProcessStart(4321)).toBeUndefined()
+    } finally {
+      procStatRead.line = undefined
+      procStatRead.failRead = false
+      Object.defineProperty(process, 'platform', { value: original, configurable: true })
     }
   })
 })

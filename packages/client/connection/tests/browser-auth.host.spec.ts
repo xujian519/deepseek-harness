@@ -285,4 +285,68 @@ describe('BrowserAuth', () => {
     }
     expect(entries[entries.length - 1]).toMatch(/^dsh-auth-.*=v1\./u)
   })
+
+  it('keeps unnamed, already-minted, and unreadable cookie segments out of the jar bound', async () => {
+    const store = new RecordCredentials()
+    const auth = await createAuth(store)
+    const authority = '127.0.0.1:3080'
+    const target = new URL(auth.authenticatedUrl(`http://${authority}`))
+    const mintedName = `dsh-auth-${createHash('sha256').update(authority).digest().toString('base64url')}`
+    const res = response()
+    expect(auth.authorizeIndex(request(`${target.pathname}${target.search}`, authority, {
+      // No '=': unreadable as a name. The second one is the name being minted.
+      // The third is a prefixed cookie whose value carries no valid payload.
+      cookie: `unnamed; ${mintedName}=stale; dsh-auth-other=not-a-v1-value`,
+    }), res.value)).toBe(false)
+    const entries = res.state.headers?.['set-cookie'] as readonly string[]
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatch(/^dsh-auth-.*=v1\./u)
+  })
+
+  it('evicts unreadable cookies before readable ones when the jar exceeds the bound', async () => {
+    const store = new RecordCredentials()
+    const auth = await createAuth(store)
+    const nameFor = (authority: string): string =>
+      'dsh-auth-' + createHash('sha256').update(authority).digest().toString('base64url')
+    const currentAuthority = '127.0.0.1:9999'
+    const issuedAt = Date.now()
+    const readableNames: string[] = []
+    const cookies = [
+      // Prefixed-looking but carries no name at all, so it counts toward nothing.
+      'dsh-auth-unnamed',
+      // The name this exchange mints: the browser replaces it, so it is never evicted.
+      signedCookie(store, nameFor(currentAuthority), {
+        version: 1,
+        authority: currentAuthority,
+        issuedAt: issuedAt - 60_000,
+        expiresAt: issuedAt + 60_000,
+      }),
+      'dsh-auth-unreadable=not-a-v1-value',
+    ]
+    for (let i = 0; i < MAX_BROWSER_COOKIES; i += 1) {
+      const authority = `127.0.0.1:${String(5000 + i)}`
+      const name = nameFor(authority)
+      readableNames.push(name)
+      cookies.push(signedCookie(store, name, {
+        version: 1,
+        authority,
+        issuedAt: issuedAt + i * 1000,
+        expiresAt: issuedAt + i * 1000 + 30 * 24 * 60 * 60 * 1000,
+      }))
+    }
+    const target = new URL(auth.authenticatedUrl(`http://${currentAuthority}`))
+    const res = response()
+    expect(auth.authorizeIndex(request(`${target.pathname}${target.search}`, currentAuthority, {
+      cookie: cookies.join('; '),
+    }), res.value)).toBe(false)
+    const entries = res.state.headers?.['set-cookie'] as readonly string[]
+    const cleared = entries.slice(0, -1).filter(entry => entry.includes('Max-Age=0'))
+    // 33 counted cookies exceed the 32-cookie jar: the unreadable one has no
+    // readable mint time, so it counts as oldest and goes with the older signed one.
+    expect(cleared).toEqual([
+      expect.stringMatching(/^dsh-auth-unreadable=/u),
+      expect.stringMatching(new RegExp(`^${readableNames[0]}=`, 'u')),
+    ])
+    expect(entries[entries.length - 1]).toMatch(new RegExp(`^${nameFor(currentAuthority)}=v1\\.`, 'u'))
+  })
 })

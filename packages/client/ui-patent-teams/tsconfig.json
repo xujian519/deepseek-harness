@@ -42,6 +42,9 @@
       "path": "../../patent/patent-teams"
     },
     {
+      "path": "../ui-workspace"
+    },
+    {
       "path": "../../api/session-controller/tsconfig.client.json"
     }
   ]

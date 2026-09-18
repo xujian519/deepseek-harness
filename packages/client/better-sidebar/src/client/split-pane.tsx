@@ -77,6 +77,7 @@ function Divider(props: { dir: 'row' | 'col'; onResize: (deltaFrac: number) => v
         last.current = {
           x: event.clientX,
           y: event.clientY,
+          /* v8 ignore next -- the divider only renders inside the split container it measures. */
           size: box === undefined ? 1 : (dir === 'row' ? box.width : box.height),
         }
         setDragging(true)

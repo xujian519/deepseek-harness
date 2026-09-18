@@ -450,6 +450,41 @@ describe('Linux scope establishment and quiescence', () => {
     result.owner.cleanup?.()
   })
 
+  it('reports an unpublished launcher pid as an unobservable group instead of probing it', async () => {
+    // spawn() resolves before Node publishes a pid, so the residue check holds
+    // no group identifier to read; the injected probe asserts the shortcut.
+    const probe = vi.fn(() => { throw new Error('probed without a launcher pid') })
+    const { child, result } = launch(async () => activeUnit(), {
+      sleep: async () => { await new Promise((resolve) => { setImmediate(resolve) }) },
+      processGroupHasLiveMembers: probe,
+    })
+    const waiting = result.owner.waitForExit()
+    await new Promise((resolve) => { setImmediate(resolve) })
+    child.pid = undefined
+    child.exit(null, 'SIGTERM')
+    await expect(result.direct).rejects.toThrow('before its bootstrap consumed')
+    await waiting
+    expect(probe).not.toHaveBeenCalled()
+    result.owner.cleanup?.()
+  })
+
+  it('settles a signalled range through the native group probe when no liveness hook is injected', async () => {
+    // The liveness hook is a test seam whose absence must fall through to the
+    // native probe. No process owns this group id (groups are pids, bounded by
+    // pid_max), so that probe finds no live members: an unreadable /proc off
+    // Linux, no matching entry on it.
+    const { child, result } = launch(async () => activeUnit(), {
+      sleep: async () => { await new Promise((resolve) => { setImmediate(resolve) }) },
+    })
+    child.pid = 2 ** 31 - 1
+    const waiting = result.owner.waitForExit()
+    await new Promise((resolve) => { setImmediate(resolve) })
+    child.exit(null, 'SIGTERM')
+    await expect(result.direct).rejects.toThrow('before its bootstrap consumed')
+    await waiting
+    result.owner.cleanup?.()
+  })
+
   it('preserves a recorded pre-exec failure even when cancellation also terminates the bootstrap', async () => {
     const { child, result, requestPath } = launch(async () => missingUnit())
     const files = linuxLaunchFilesFromLocator(requestPath)
@@ -1077,4 +1112,29 @@ describe('Linux ordinary launch adapters', () => {
     if (requestPath === undefined) throw new Error('spawn did not receive a request locator')
     expect(existsSync(linuxLaunchFilesFromLocator(requestPath).directory)).toBe(false)
   })
+})
+
+it('observes native task counts independently from process-tree membership', () => {
+  const terminalSpec = { argv: ['/bin/bash', '-i'], cwd: process.cwd(), rows: 24, cols: 80, terminalType: 'xterm-256color', graceMs: 100 }
+  const scope = prepareLinuxTerminalScope(terminalSpec, {}, { spawnSync: childProcessMocks.spawnSync })
+  const owner = scope.bindOwner({ running: () => true, signal: () => true, settled: Promise.resolve() })
+  try {
+    for (const tasks of [1, 2, 0]) {
+      childProcessMocks.spawnSync.mockReturnValue({ status: 0, stdout: `LoadState=loaded\nActiveState=active\nTasksCurrent=${tasks}\n` })
+      expect(owner.inspectTaskCount?.()).toBe(tasks)
+    }
+    for (const response of [
+      { status: 0, stdout: 'LoadState=loaded\nActiveState=active\nTasksCurrent=[not set]\n' },
+      { status: 0, stdout: 'LoadState=not-found\nActiveState=inactive\n' },
+      { status: 0, stdout: 'LoadState=loaded\nActiveState=inactive\n' },
+      { status: 1, stdout: '' },
+      { status: 0, stdout: null },
+      { status: null, error: new Error('manager unavailable') },
+    ]) {
+      childProcessMocks.spawnSync.mockReturnValue(response)
+      expect(owner.inspectTaskCount?.()).toBeUndefined()
+    }
+    childProcessMocks.spawnSync.mockReturnValue({ status: 0, stdout: 'LoadState=loaded\nActiveState=active\nTasksCurrent=invalid\n' })
+    expect(() => owner.inspectTaskCount?.()).toThrow('non-numeric')
+  } finally { scope.cleanup() }
 })

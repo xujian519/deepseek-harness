@@ -39,6 +39,7 @@ function normalizeLocalPath(path: string): string {
   }
   if (drive !== undefined) return `${drive}\\${out.join('\\')}`
   const separator = path.startsWith('\\') ? '\\' : '/'
+  /* v8 ignore next -- callers pass an absolute path (drive paths return above), so the root is always a separator. */
   const root = path.startsWith('/') ? '/' : path.startsWith('\\') ? '\\\\' : ''
   return `${root}${out.join(separator)}`
 }
@@ -137,6 +138,7 @@ export function rewriteLocalImageUrls(
   const labelRe = /!\[([^\]]*)\](?:\[((?:[^\][]|\[[^\]]*\])*)\])?/g
   let labelMatch: RegExpExecArray | null
   while ((labelMatch = labelRe.exec(inline)) !== null) {
+    /* v8 ignore next -- the pattern's alt group always participates, so match[1] is a string. */
     const alt = labelMatch[1] ?? ''
     const ref = labelMatch[2]
     imageLabels.add(ref !== undefined && ref !== '' ? ref.toLowerCase() : alt.toLowerCase())

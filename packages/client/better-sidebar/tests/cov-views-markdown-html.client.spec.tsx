@@ -112,6 +112,22 @@ describe('sanitizer edges', () => {
     await unmount(root)
   })
 
+  it('skips wrapper attribute names React cannot forward', async () => {
+    const { container, root } = await renderDocument([
+      '<details open class="tag" data-ü="x">',
+      '',
+      'inside the fold',
+      '',
+    ].join('\n'))
+    const details = container.querySelector('details')!
+    expect(details.className).toBe('tag')
+    // A data-* name outside the ASCII identifier set is not forwarded: React
+    // would warn and drop it anyway.
+    expect(details.hasAttribute('data-ü')).toBe(false)
+    expect(details.textContent).toContain('inside the fold')
+    await unmount(root)
+  })
+
   it('skips an HTML leaf whose content is whitespace only', async () => {
     // After the unmatched close, the trailing whitespace becomes its own html
     // part; sanitizing it leaves nothing, so no leaf is emitted for it.

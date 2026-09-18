@@ -137,6 +137,7 @@ export function TabBar(props: {
   // does not overflow leaves the event alone so the page scrolls normally.
   useEffect(() => {
     const el = listRef.current
+    /* v8 ignore next -- the tab-list div renders unconditionally, so its ref is attached before this effect runs. */
     if (el === null) return
     const onWheel = (event: WheelEvent): void => {
       if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
@@ -322,10 +323,13 @@ export function TabBar(props: {
           })()}
           onSelect={(id) => {
             const target = tabMenu
+            /* v8 ignore next -- onSelect is reachable only while the menu is open, which requires a non-null context target. */
             if (target === null) return
             setTabMenu(null)
             const index = tabs.findIndex(tab => tab.id === target.tabId)
+            /* v8 ignore next -- `index` reads the same render-time tab list that gates the menu open state. */
             if (index < 0) return
+            /* v8 ignore next -- the trailing else-if has no false arm: every menu id is one of the handled entries. */
             if (id === 'float') {
               onFloatTab(target.tabId)
             } else if (id === 'pinWorkspace') {
@@ -348,6 +352,7 @@ export function TabBar(props: {
           }}
           portal
           align="start"
+          /* v8 ignore next -- the Menu calls getAnchorRect only while open, and this menu is open exactly when `tabMenu` is set. */
           getAnchorRect={() => (tabMenu === null ? null : new DOMRect(tabMenu.x, tabMenu.y, 0, 0))}
           anchor={<span />}
         />

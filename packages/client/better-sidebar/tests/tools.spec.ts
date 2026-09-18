@@ -211,6 +211,8 @@ describe('boundBytes', () => {
     expect(boundBytes('€', 1)).toEqual({ text: '', truncated: true })
     // ASCII pages truncate at the byte cap directly.
     expect(boundBytes('hello', 3)).toEqual({ text: 'hel', truncated: true })
+    // A zero cap retains nothing (the byte walk stands down immediately).
+    expect(boundBytes('hello', 0)).toEqual({ text: '', truncated: true })
   })
 
   it('every retained prefix decodes without U+FFFD', () => {

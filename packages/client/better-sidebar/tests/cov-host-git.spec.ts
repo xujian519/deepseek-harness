@@ -58,6 +58,12 @@ describe('porcelain parser degenerate rows', () => {
     ])
   })
 
+  it('parses a worktree list whose last record has no frame separator', () => {
+    // Data written without a trailing separator still yields the record.
+    const records = git.parseWorktreeList('worktree /repos/only\nbranch refs/heads/main')
+    expect(records).toEqual([{ path: '/repos/only', branch: 'main', locked: false, prunable: false }])
+  })
+
   it('skips log rows without a hash/subject pair and fills missing fields', () => {
     const rows = git.parseLogLines(['garbage-without-separators', 'h1\x1fsubject-only'].join('\n'))
     // The malformed row is dropped; the thin row keeps the hash fallbacks.

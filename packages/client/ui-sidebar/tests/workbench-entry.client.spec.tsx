@@ -16,9 +16,9 @@ import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 const neverHook = (() => { throw new Error('shell must not read global hooks') }) as never
-type AttentionSnapshot = Parameters<Parameters<SidebarRootComponentProps['useSessionPendingInteraction']>[0]>[0]
+type AttentionSnapshot = Parameters<Parameters<SidebarRootComponentProps['useSessionStatus']>[0]>[0]
 const noAttention: AttentionSnapshot = new Map()
-const useSessionPendingInteraction: SidebarRootComponentProps['useSessionPendingInteraction'] = selector => selector(noAttention)
+const useSessionStatus: SidebarRootComponentProps['useSessionStatus'] = selector => selector(noAttention)
 const t: SidebarRootComponentProps['t'] = key =>
   (en as Record<string, string>)[key] ?? (commonEn as Record<string, string>)[key] ?? key
 
@@ -38,7 +38,7 @@ function mountRootedShell({ appRoot = true }: { appRoot?: boolean } = {}) {
   const shell = (): ReactNode => (
     <SidebarRoot
       collapsed={collapsed} width={300}
-      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction}
+      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
       usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook}
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}

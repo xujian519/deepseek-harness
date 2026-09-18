@@ -7,6 +7,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject, NS } from '../src/client/index.ts'
+import { apply as applyHost } from '../src/index.ts'
 import { PluginMarketTab } from '../src/client/PluginMarketTab.tsx'
 import type { PluginMarketTabInjected } from '../src/client/PluginMarketTab.tsx'
 
@@ -126,5 +127,12 @@ describe('ui-plugin-market browser plugin', () => {
     expect(b.slots.entries('settings.plugins.tab')).toHaveLength(0)
     expect(() => b.locale.register(NS, 'zh', {})).not.toThrow()
     await b.ctx.fiber.dispose()
+  })
+})
+
+describe('plugin market node half', () => {
+  it('contributes no host behavior', () => {
+    // The node half exists only so the plugin appears in the Loader tree.
+    expect(applyHost).not.toThrow()
   })
 })

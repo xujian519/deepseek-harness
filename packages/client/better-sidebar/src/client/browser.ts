@@ -148,6 +148,7 @@ export function normalizeBrowserUrl(input: string, selfOrigin: string, allowedLo
   // The protocol backstop: any URL that still parses to a non-http(s)
   // scheme (e.g. ftp://, ws:// — which carry `//` and skip the list) is
   // refused here.
+  /* v8 ignore next -- a forbidden scheme already returned above and every other input is prefixed with https://. */
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return { kind: 'blocked', reason: 'scheme' }
   // The GUI's own origin is ALLOWED (the user may browse the GUI itself in
   // the sidebar; the sandbox renders it in an opaque origin like any other

@@ -152,6 +152,65 @@ describe('MermaidMarkdown swap', () => {
     expect(container.querySelector('[data-mermaid-diagram]')).toBeNull()
     unmount()
   })
+
+  it('a rejection settling after unmount updates nothing', async () => {
+    let reject!: (reason: unknown) => void
+    renderMermaid.mockImplementation(() => new Promise((_resolve, refuse) => { reject = refuse }))
+    const { unmount } = await renderText(FENCE)
+    unmount()
+    await act(async () => {
+      reject(new Error('late boom'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  })
+
+  it('re-scans a swapped block: an unchanged source is left alone, a changed one re-renders in place', async () => {
+    const { container, rerender, unmount } = await renderText('plain document')
+    const wrapper = container.querySelector<HTMLElement>('[class*="mermaidMarkdown"]')!
+    // A shiki-style block (the language class on <code>) is recognized even
+    // though its banner infostring is not the plain "mermaid" shape.
+    const block = document.createElement('div')
+    block.className = 'md-code-block'
+    block.innerHTML = '<code class="language-mermaid">graph TD; X-->Y;</code>'
+    wrapper.append(block)
+    await rerender('plain document plus a tail')
+    expect(block.getAttribute('data-mermaid-processed')).toBe('true')
+    expect(renderMermaid).toHaveBeenLastCalledWith(expect.stringContaining('dsh-md-mermaid-'), 'graph TD; X-->Y;')
+    const callsAfterMount = renderMermaid.mock.calls.length
+
+    // The block carries the same fence source again: the mount is untouched.
+    const same = document.createElement('code')
+    same.className = 'language-mermaid'
+    same.textContent = 'graph TD; X-->Y;'
+    block.append(same)
+    await rerender('plain document plus another tail')
+    expect(renderMermaid.mock.calls.length).toBe(callsAfterMount)
+
+    // A changed fence source re-renders the SAME mount with the new source.
+    same.textContent = 'graph TD; Z-->W;'
+    await rerender('plain document plus a third tail')
+    expect(renderMermaid.mock.calls.length).toBe(callsAfterMount + 1)
+    expect(renderMermaid.mock.calls.at(-1)?.[1]).toBe('graph TD; Z-->W;')
+
+    // A block that no longer reads as a mermaid fence gets its code children
+    // back and drops its mount (no further render).
+    same.remove()
+    await rerender('plain document plus a fourth tail')
+    expect(renderMermaid.mock.calls.length).toBe(callsAfterMount + 1)
+    expect(block.querySelector('code')).not.toBeNull()
+    expect(block.hasAttribute('data-mermaid-processed')).toBe(false)
+
+    // A banner-only block (the infostring carries "mermaid", no <code> body)
+    // still classifies as a mermaid fence and reads an empty source.
+    const banner = document.createElement('div')
+    banner.className = 'md-code-block'
+    banner.innerHTML = '<div><div><span>mermaid</span></div></div>'
+    wrapper.append(banner)
+    await rerender('plain document plus a fifth tail')
+    expect(banner.getAttribute('data-mermaid-processed')).toBe('true')
+    unmount()
+  })
 })
 
 describe('MermaidMarkdown copy + zoom', () => {
@@ -193,6 +252,39 @@ describe('MermaidMarkdown copy + zoom', () => {
     expect(frame).not.toBeNull()
     act(() => { frame.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
     expect(document.querySelector('[data-mermaid-modal]')).toBeNull()
+    unmount()
+  })
+
+  it('a second copy while the label shows writes nothing, and the label resets on its timer', async () => {
+    const primitives = await import('@deepseek-ai/dsh-client-ui-primitives')
+    const clipboard = vi.spyOn(primitives, 'writeClipboard').mockResolvedValue(true)
+    clipboard.mockClear()
+    const { container, unmount } = await renderText(FENCE)
+    const button = container.querySelector<HTMLButtonElement>('[class*="mermaidCopy"]')!
+    // Fake timers go active BEFORE the click so the label-reset timeout is
+    // the fake one this test advances.
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        button.click()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(button.textContent).toContain('Copied')
+      expect(clipboard).toHaveBeenCalledTimes(1)
+      // The re-click while the label is already showing is ignored.
+      await act(async () => {
+        button.click()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(clipboard).toHaveBeenCalledTimes(1)
+      await act(async () => { vi.advanceTimersByTime(1000) })
+      expect(button.textContent).toContain('Copy')
+      expect(button.textContent).not.toContain('Copied')
+    } finally {
+      vi.useRealTimers()
+    }
     unmount()
   })
 

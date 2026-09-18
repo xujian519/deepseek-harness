@@ -117,7 +117,7 @@ export function apply(ctx: ClientContext): void {
     }
     const maybeSwitch = (): void => {
       const state = ctx.sessions.list.getSnapshot()
-      const current = state.current
+      const current = Object.values(state.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
       if (current === undefined || current === previous) return
       previous = current
       stopRetry()
@@ -134,7 +134,7 @@ export function apply(ctx: ClientContext): void {
     const tick = (): void => {
       if (retryFor === undefined) return
       const state = ctx.sessions.list.getSnapshot()
-      if (state.current !== retryFor) {
+      if (Object.values(state.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id !== retryFor) {
         stopRetry()
         return
       }

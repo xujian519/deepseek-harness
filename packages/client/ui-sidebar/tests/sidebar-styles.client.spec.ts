@@ -89,7 +89,9 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.newSession[data-dsh-personal-workbench-entry]:hover')?.get('background'))
       .toBe(declarations('.newSession:hover')?.get('background'))
     // The rail overrides arrive later in the sheet, so they still win the tie.
-    expect(css.indexOf('.collapsed .newSession {')).toBeGreaterThan(
+    // Anchored at a line start: the Windows titlebar rules carry the same
+    // `.collapsed .newSession` prefix earlier in the sheet.
+    expect(css.indexOf('\n.collapsed .newSession {')).toBeGreaterThan(
       css.indexOf('.newSession[data-dsh-personal-workbench-entry] {'),
     )
   })

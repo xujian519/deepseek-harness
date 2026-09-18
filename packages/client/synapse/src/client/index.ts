@@ -12,10 +12,14 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 // WorkspaceId import also pulls the workspaces-service Context merge (ctx.workspaces).
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
+// Type-only: pulls the ui-workspace Context merge (ctx.uiWorkspace).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+// Type-only: declares the retention sources a Session summary reports.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** Required client services: the session and workspace services. */
-export const inject = ['sessions', 'workspaces']
+export const inject = ['sessions', 'workspaces', 'uiWorkspace']
 
 /** One canvas session row sent to `/synapse/api/sessions/sync`. */
 interface SessionRow {
@@ -52,14 +56,16 @@ const SYNC_DEBOUNCE_MS = 300
 export function apply(ctx: ClientContext): void {
   const currentSession = (): { id: SessionId; title: string; cwd: string | null } | null => {
     const snapshot = ctx.sessions.list.getSnapshot()
-    const id = snapshot.current
+    const id = Object.values(snapshot.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
     if (id === undefined) return null
     const session = snapshot.byId[id]
+    /* v8 ignore next -- byId is a Record<SessionId, SessionSummary>: the row Object.values found is addressable under its own id */
     return session === undefined ? null : { id, title: session.displayTitle, cwd: session.cwd ?? null }
   }
   const sessionRows = (): SessionRow[] =>
     ctx.sessions.list.getSnapshot().ids.flatMap((id) => {
       const session = ctx.sessions.list.getSnapshot().byId[id]
+      /* v8 ignore next -- a snapshot's ids are keys of its byId row map, so every listed id resolves */
       return session === undefined ? [] : [{
         id,
         title: session.displayTitle,
@@ -114,11 +120,13 @@ export function apply(ctx: ClientContext): void {
   const pendingRpc = new Map<string, PendingRpc>()
   const settle = (requestId: string, value: unknown, error?: string): void => {
     const pending = pendingRpc.get(requestId)
+    /* v8 ignore start -- no producer registers a pending RPC in this half, so a settle can only miss its waiter */
     if (pending === undefined) return
     pendingRpc.delete(requestId)
     window.clearTimeout(pending.timer)
     if (error === undefined) pending.resolve(value)
     else pending.reject(new Error(error))
+    /* v8 ignore stop */
   }
   const setView = (view: 'dialog' | 'map'): void => {
     const showingMap = view === 'map'
@@ -245,7 +253,7 @@ export function apply(ctx: ClientContext): void {
     }
     if (data.type === 'synapse:open-session') {
       if (typeof data.sessionId !== 'string') return
-      try { ctx.sessions.open(data.sessionId as SessionId); close() } catch { send('synapse:bridge-error', { message: '关联的 DSH 会话已不可用' }) }
+      try { ctx.uiWorkspace.openSession(data.sessionId as SessionId); close() } catch { send('synapse:bridge-error', { message: '关联的 DSH 会话已不可用' }) }
       return
     }
     if (data.type === 'synapse:activate-session') {
@@ -253,7 +261,7 @@ export function apply(ctx: ClientContext): void {
       // without closing the map; the sessions-list subscription re-sends
       // synapse:current-session so the map follows the new highlight.
       if (typeof data.sessionId !== 'string') return
-      try { ctx.sessions.open(data.sessionId as SessionId) } catch { send('synapse:bridge-error', { message: '关联的 DSH 会话已不可用' }) }
+      try { ctx.uiWorkspace.openSession(data.sessionId as SessionId) } catch { send('synapse:bridge-error', { message: '关联的 DSH 会话已不可用' }) }
       return
     }
     if (data.type === 'synapse:fork-session') {

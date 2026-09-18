@@ -192,8 +192,9 @@ export function assertReleasedEventPayload(event: SessionFormatEvent, version: 0
     // An external plugin's ignorable event is preserved through the identity
     // v0->v1 edge (see v1->v2, where ignorable unknowns are ultimately dropped).
     const record = releasedV0Record(event, `${event.type} ${event.seq} envelope`)
-    if (record['ignorable'] === true) return
     /* v8 ignore next -- coordinate validation refuses non-ignorable unknown events before payload validation. */
+    if (record['ignorable'] === true) return
+    /* v8 ignore next -- the same coordinate-validation refusal makes this arm unreachable. */
     throw new SessionFormatUnsupportedMigrationError(
       `format v0 contains unknown historical event type ${JSON.stringify(event.type)} at seq ${event.seq}; migration refuses unknown historical events even when ignorable`,
     )

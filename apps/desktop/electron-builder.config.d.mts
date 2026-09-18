@@ -12,8 +12,12 @@ export interface DesktopElectronBuilderConfig {
     { readonly from: string, readonly to: 'dsh', readonly filter: readonly ['**/*'] },
     { readonly from: string, readonly to: 'dsh/node_modules', readonly filter: readonly ['**/*'] },
   ]
+  readonly extraMetadata: { readonly dshDesktopAppId: string }
   readonly asarUnpack: readonly string[]
-  readonly extraResources: readonly [{ readonly from: string, readonly to: 'runtime' }]
+  readonly extraResources: readonly [
+    { readonly from: string, readonly to: 'runtime' },
+    { readonly from: string, readonly to: 'icon.png' },
+  ]
   readonly mac: {
     readonly icon: string
     readonly identity: string | undefined
@@ -27,10 +31,23 @@ export interface DesktopElectronBuilderConfig {
   }
   readonly win: {
     readonly icon: string
+    readonly forceCodeSigning: boolean
+    readonly signtoolOptions: {
+      readonly publisherName: string | undefined
+      readonly sign: ((configuration: { path: string, hash: string, isNest: boolean }) => Promise<void>) | undefined
+      readonly signingHashAlgorithms: readonly string[]
+    }
   }
   readonly nsis: {
     readonly include: string
+    readonly oneClick: false
+    readonly perMachine: false
+    readonly allowElevation: false
+    readonly allowToChangeInstallationDirectory: false
+    readonly installerLanguages: readonly ['en_US', 'zh_CN']
   }
+  readonly beforeBuild: () => Promise<boolean>
+  readonly beforePack: (context: { readonly appOutDir: string }) => Promise<void>
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
   readonly publish: readonly [{ readonly provider: 'generic', readonly url: string }] | null
 }
@@ -40,12 +57,14 @@ export interface DesktopElectronBuilderConfig {
  * @param env - Packaging environment.
  * @param hostPlatform - Build-host platform used when no explicit target is present.
  * @param hostArch - Build-host architecture used when no explicit target is present.
+ * @param preparedRuntime - Verified private qualification runtime; ordinary releases use target-owned resources.
  * @returns electron-builder configuration.
  */
 export function createElectronBuilderConfig(
   env?: NodeJS.ProcessEnv,
   hostPlatform?: NodeJS.Platform,
   hostArch?: string,
+  preparedRuntime?: string,
 ): DesktopElectronBuilderConfig
 
 declare const electronBuilderConfig: DesktopElectronBuilderConfig

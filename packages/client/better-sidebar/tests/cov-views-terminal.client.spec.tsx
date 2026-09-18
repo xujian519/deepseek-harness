@@ -31,6 +31,8 @@ vi.mock('@xterm/addon-fit', () => ({ get FitAddon() { return FakeFitAddon } }))
 /** The xterm Terminal stand-in: records options, handlers and writes. */
 class FakeTerminal {
   static instances: FakeTerminal[] = []
+  /** Makes `open` throw for the next mount (the deferred-open failure path). */
+  static throwOnOpen = false
   options: Record<string, unknown>
   cols = 80
   rows = 24
@@ -62,7 +64,9 @@ class FakeTerminal {
     return { dispose: () => { this.dataHandler = undefined } }
   }
   emitData(data: string): void { this.dataHandler?.(data) }
-  open(): void {}
+  open(): void {
+    if (FakeTerminal.throwOnOpen) throw new Error('renderer refused')
+  }
   refresh(): void {}
   write(data: string): void { this.written.push(data) }
   dispose(): void { this.disposed += 1 }
@@ -86,12 +90,28 @@ class FakeFetch {
   disposed = false
   private response: Response
   private outputController: ReadableStreamDefaultController<Uint8Array> | undefined
+  private inputReader: ReadableStreamDefaultReader<Uint8Array> | undefined
   readonly promise: Promise<Response>
-  constructor(url: string, init: RequestInit, failed: { status: number; body: string } | undefined) {
+  constructor(
+    url: string,
+    init: RequestInit,
+    failed: { status: number; body: string; textRejects?: boolean } | undefined,
+    nullBody = false,
+  ) {
     this.url = url
     this.init = init
     if (failed !== undefined) {
-      this.response = new Response(failed.body, { status: failed.status })
+      this.response = new Response(failed.textRejects === true ? null : failed.body, { status: failed.status })
+      if (failed.textRejects === true) {
+        // A refusal whose body cannot be read: the view falls back to the
+        // status alone.
+        Object.defineProperty(this.response, 'text', { value: () => Promise.reject(new Error('body gone')) })
+      }
+      this.promise = Promise.resolve(this.response)
+    } else if (nullBody) {
+      // A success status with NO response body: the view must treat it as a
+      // failure and reconnect instead of reading an absent stream.
+      this.response = new Response(null, { status: 200 })
       this.promise = Promise.resolve(this.response)
     } else {
       const output = new ReadableStream<Uint8Array>({
@@ -107,6 +127,7 @@ class FakeFetch {
     void (async () => {
       try {
         const reader = body.getReader()
+        this.inputReader = reader
         for (;;) {
           const { done, value } = await reader.read()
           if (done) break
@@ -128,16 +149,22 @@ class FakeFetch {
   end(): void {
     this.outputController?.close()
   }
+  /** Cancel the request body from the client side (an aborted upload). */
+  cancelInput(): void {
+    void this.inputReader?.cancel()
+  }
 }
 
 /** Install the fake fetch; `failNext` makes the NEXT terminal request a
  *  refusal and `rejectNext` makes it reject (a network failure). */
 function installFakeFetch(): {
   instances: () => FakeFetch[]
-  failNext: (status: number, body: string) => void
+  failNext: (status: number, body: string, mode?: 'textRejects') => void
+  nullBodyNext: () => void
   rejectNext: () => void
 } {
-  let failNext: { status: number; body: string } | null = null
+  let failNext: { status: number; body: string; textRejects?: boolean } | null = null
+  let nullBodyNext = false
   let rejectNext = false
   const instances: FakeFetch[] = []
   const impl = (url: string | URL, init: RequestInit): Promise<Response> => {
@@ -146,15 +173,18 @@ function installFakeFetch(): {
       return Promise.reject(new Error('network down'))
     }
     const failed = failNext
+    const nullBody = nullBodyNext
     failNext = null
-    const fake = new FakeFetch(String(url), init, failed ?? undefined)
+    nullBodyNext = false
+    const fake = new FakeFetch(String(url), init, failed ?? undefined, nullBody)
     instances.push(fake)
     return fake.promise
   }
   vi.stubGlobal('fetch', impl)
   return {
     instances: () => instances,
-    failNext: (status, body) => { failNext = { status, body } },
+    failNext: (status, body, mode) => { failNext = { status, body, ...(mode === undefined ? {} : { textRejects: true }) } },
+    nullBodyNext: () => { nullBodyNext = true },
     rejectNext: () => { rejectNext = true },
   }
 }
@@ -169,9 +199,25 @@ async function flush(): Promise<void> {
 
 const fakeFetch = { current: installFakeFetch() }
 
+/** The ResizeObserver stand-in: keeps its callback so tests can drive a
+ *  host resize deterministically. */
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
 beforeEach(() => {
   FakeTerminal.instances = []
+  FakeTerminal.throwOnOpen = false
   FakeFetch.instances = []
+  FakeResizeObserver.instances = []
   fakeFetch.current = installFakeFetch()
 })
 
@@ -206,11 +252,7 @@ function mountTerminal(tabId: string, cwd: string | undefined = '/ws'): {
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 300 })
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 1 })
   vi.stubGlobal('cancelAnimationFrame', () => {})
-  vi.stubGlobal('ResizeObserver', class {
-    observe(): void {}
-    disconnect(): void {}
-    unobserve(): void {}
-  })
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver)
   act(() => { root.render(createElement(TerminalView, { scope, tabId, store })) })
   return {
     container,
@@ -376,6 +418,149 @@ describe('TerminalView close handling', () => {
   })
 })
 
+describe('TerminalView theming', () => {
+  it('the dark scheme picks the dark surface tokens and ANSI palette', () => {
+    document.documentElement.style.colorScheme = 'dark'
+    document.body.setAttribute('data-ds-dark-theme', '')
+    try {
+      // An empty cwd keeps the cwd parameter off the stream URL.
+      const { unmount, lastTerm, lastFetch } = mountTerminal('terminal:1', '')
+      expect(lastFetch().url).toBe('http://localhost:3000/sidebar/ws/terminal?sessionId=s1&tab=terminal%3A1')
+      const theme = lastTerm().options.theme as Record<string, string>
+      expect(theme.background).toBe('#111114')
+      expect(theme.foreground).toBe('#e6e6e6')
+      expect(theme.selectionBackground).toBe('rgba(255,255,255,0.22)')
+      expect(theme.black).toBe('#282c34')
+      unmount()
+    } finally {
+      document.documentElement.style.colorScheme = ''
+      document.body.removeAttribute('data-ds-dark-theme')
+    }
+  })
+
+  it('a scheme flip re-themes the live terminal in place', async () => {
+    const { unmount, lastTerm } = mountTerminal('terminal:1')
+    try {
+      const light = (lastTerm().options.theme as Record<string, string>).black
+      document.documentElement.style.colorScheme = 'dark'
+      await act(async () => {
+        document.body.setAttribute('data-ds-dark-theme', '')
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect((lastTerm().options.theme as Record<string, string>).black).not.toBe(light)
+      expect((lastTerm().options.theme as Record<string, string>).black).toBe('#282c34')
+    } finally {
+      document.documentElement.style.colorScheme = ''
+      document.body.removeAttribute('data-ds-dark-theme')
+      unmount()
+    }
+  })
+})
+
+describe('TerminalView transport edges', () => {
+  it('a LinkProvider line past the buffer answers with no links', () => {
+    const { unmount, lastTerm } = mountTerminal('terminal:1')
+    const callback = vi.fn()
+    lastTerm().linkProvider!.provideLinks(9, callback)
+    expect(callback).toHaveBeenCalledWith(undefined)
+    unmount()
+  })
+
+  it('cancelling the input stream ends the upload and a later unmount sends nothing', async () => {
+    const { unmount, lastFetch } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    await flush()
+    fake.cancelInput()
+    await flush()
+    expect(fake.ended).toBe(true)
+    unmount()
+    await flush()
+    expect(fake.sent.some(frame => frame.includes('"close"') || frame.includes('"park"'))).toBe(false)
+  })
+
+  it('a refusal whose body cannot be read falls back to the status text', async () => {
+    fakeFetch.current.failNext(500, 'unused', 'textRejects')
+    const { container, unmount } = mountTerminal('terminal:1')
+    await flush()
+    expect(container.textContent).toContain('500')
+    unmount()
+  })
+
+  it('a 200 without a response body is treated as a failure and schedules a retry', async () => {
+    vi.useFakeTimers()
+    fakeFetch.current.nullBodyNext()
+    const { unmount } = mountTerminal('terminal:1')
+    await flush()
+    // The reconnect ladder scheduled its next attempt.
+    expect(fakeFetch.current.instances()).toHaveLength(1)
+    await act(async () => { vi.advanceTimersByTime(2000) })
+    await flush()
+    expect(fakeFetch.current.instances()).toHaveLength(2)
+    unmount()
+  })
+
+  it('a host stream close drops the connection and reconnects', async () => {
+    const { container, unmount, lastFetch } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    await flush()
+    expect(container.textContent).not.toContain('disconnected')
+    fake.end()
+    await flush()
+    expect(container.textContent).toContain('disconnected')
+    unmount()
+  })
+
+  it('a host resize refits the grid and re-announces it', async () => {
+    const { unmount, lastFetch } = mountTerminal('terminal:1')
+    const fake = lastFetch()
+    await flush()
+    const before = fake.sent.filter(frame => frame.includes('resize')).length
+    const observer = FakeResizeObserver.instances.at(-1)!
+    act(() => { observer.callback([], observer) })
+    await flush()
+    expect(fake.sent.filter(frame => frame.includes('resize')).length).toBeGreaterThan(before)
+    unmount()
+  })
+
+  it('a failing xterm open is logged and the view still tears down', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    FakeTerminal.throwOnOpen = true
+    const { unmount, lastTerm } = mountTerminal('terminal:1')
+    expect(errorSpy).toHaveBeenCalledWith('[dsh-better-sidebar] xterm open failed:', expect.anything())
+    expect(lastTerm().disposed).toBe(0)
+    unmount()
+    expect(lastTerm().disposed).toBe(1)
+    errorSpy.mockRestore()
+  })
+
+  it('a failure settling after unmount neither retries nor reports', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    fakeFetch.current.rejectNext()
+    const { container, unmount } = mountTerminal('terminal:1')
+    unmount()
+    await flush()
+    expect(container.textContent).not.toContain('node-pty')
+    expect(errorSpy).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('the deps banner retry clears the banner and reconnects', async () => {
+    vi.spyOn(api, 'terminalDeps').mockResolvedValue({
+      ok: false, cause: 'binding gone', command: 'npm rebuild', profile: null,
+    })
+    fakeFetch.current.failNext(503, JSON.stringify({ error: { code: PTY_DEPS_MISSING } }))
+    const { container, unmount } = mountTerminal('terminal:1')
+    await flush()
+    const retry = [...container.querySelectorAll<HTMLButtonElement>('button')].at(-1)!
+    act(() => { retry.click() })
+    await flush()
+    expect(container.textContent).not.toContain('npm rebuild')
+    expect(FakeFetch.instances.length).toBe(2)
+    unmount()
+  })
+})
+
 describe('TerminalDepsBanner (direct)', () => {
   it('copies the repair command and retries', async () => {
     const primitives = await import('@deepseek-ai/dsh-client-ui-primitives')
@@ -397,6 +582,45 @@ describe('TerminalDepsBanner (direct)', () => {
     const retry = [...container.querySelectorAll('button')].at(-1)!
     act(() => { retry.click() })
     expect(onRetry).toHaveBeenCalledTimes(1)
+    act(() => { root.unmount() })
+    container.remove()
+  })
+
+  it('a failed copy never flips the label; a successful one resets it on its timer', async () => {
+    const primitives = await import('@deepseek-ai/dsh-client-ui-primitives')
+    const clipboard = vi.spyOn(primitives, 'writeClipboard').mockResolvedValue(false)
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    act(() => {
+      root.render(createElement(TerminalDepsBanner, {
+        deps: { ok: false, cause: 'x', command: 'npm rebuild', profile: null },
+        onRetry: () => {},
+      }))
+    })
+    const copy = [...container.querySelectorAll<HTMLButtonElement>('button')][0]!
+    await act(async () => {
+      copy.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(clipboard).toHaveBeenCalledWith('npm rebuild')
+    expect(copy.textContent).not.toContain('Copied')
+
+    clipboard.mockResolvedValue(true)
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        copy.click()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(copy.textContent).toContain('Copied')
+      await act(async () => { vi.advanceTimersByTime(2000) })
+      expect(copy.textContent).not.toContain('Copied')
+    } finally {
+      vi.useRealTimers()
+    }
     act(() => { root.unmount() })
     container.remove()
   })

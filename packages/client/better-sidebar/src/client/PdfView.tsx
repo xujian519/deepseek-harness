@@ -46,11 +46,13 @@ export function PdfView(props: { scope: SessionScope; path: string; title: strin
     const block = (): void => {
       setInteractionBlocked(true)
       if (frameRef.current !== null) frameRef.current.style.pointerEvents = 'none'
+      /* v8 ignore next -- the shield div renders unconditionally, so its ref is attached whenever this listener runs. */
       if (shieldRef.current !== null) shieldRef.current.style.pointerEvents = 'auto'
     }
     const unblock = (): void => {
       setInteractionBlocked(false)
       if (frameRef.current !== null) frameRef.current.style.pointerEvents = ''
+      /* v8 ignore next -- the shield div renders unconditionally, so its ref is attached whenever this listener runs. */
       if (shieldRef.current !== null) shieldRef.current.style.pointerEvents = 'none'
     }
     const blockForResize = (event: PointerEvent): void => {

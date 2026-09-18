@@ -81,6 +81,9 @@ export async function searchFiles(root: string, query: string, opts: FsSearchOpt
   let truncated = false as boolean
 
   const walk = async (dir: string): Promise<void> => {
+    // Every truncation path returns through the loop or the post-recursion
+    // check below, so the walk is never re-entered once truncated.
+    /* v8 ignore next -- unreachable: each budget stop returns, leaving no caller that re-enters the walk */
     if (truncated) return
     const level = await opendir(dir).catch(() => undefined)
     if (level === undefined) return

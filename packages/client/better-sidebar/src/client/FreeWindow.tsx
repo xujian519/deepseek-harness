@@ -127,6 +127,7 @@ export function FreeWindow(props: {
       const pending = pendingRef.current
       const drag = dragRef.current
       const root = rootRef.current
+      /* v8 ignore next -- both the release flush and the unmount cleanup cancel the pending frame, so the refs are never null here. */
       if (pending === null || drag === null || root === null) return
       drag.applied = pending
       root.style.left = `${pending.x}px`
@@ -162,6 +163,7 @@ export function FreeWindow(props: {
   /** Release a drag: `pane` (when set) docks instead of moving. */
   const finishDrag = (mode: 'move' | 'resize', geo: { x: number; y: number; w: number; h: number }, pane: HTMLElement | null): void => {
     const drag = dragRef.current
+    /* v8 ignore next -- both callers check the same drag ref first, and `committed` is set here right before the ref is cleared. */
     if (drag === null || drag.committed) return
     drag.committed = true
     dragRef.current = null
@@ -287,11 +289,13 @@ export function FreeWindow(props: {
           ]}
           onSelect={(id) => {
             setMenu(null)
+            /* v8 ignore next -- the trailing else-if has no false arm: the menu renders exactly "dock" and "close". */
             if (id === 'dock') onDock(null)
             else if (id === 'close') onClose()
           }}
           portal
           align="start"
+          /* v8 ignore next -- the Menu primitive calls getAnchorRect only while open, and this menu is open exactly when `menu` is set. */
           getAnchorRect={() => (menu === null ? null : new DOMRect(menu.x, menu.y, 0, 0))}
           anchor={<span />}
         />
@@ -307,6 +311,7 @@ export function FreeWindow(props: {
         className={css.floatResize}
         onPointerDown={(event) => {
           if (event.button !== 0) return
+          /* v8 ignore next -- the resize handle has no portaled descendants, so a pointerdown it receives is always contained. */
           if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return
           event.preventDefault()
           capturePointer(event.currentTarget, event.pointerId)

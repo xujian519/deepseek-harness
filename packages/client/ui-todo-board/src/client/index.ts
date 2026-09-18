@@ -12,13 +12,15 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // owning package) must be in the program for the register call to type.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+// Type-only: pulls the ui-workspace Context merge (ctx.uiWorkspace).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { BoardView, type BoardViewInjected } from './BoardView.tsx'
 import { en, NS, zh } from './locales.ts'
 
 export type { BoardViewInjected } from './BoardView.tsx'
 
 /** Required services: the conversation slot, session open, conversation views, and the locale service. */
-export const inject = ['slots', 'sessions', 'conversation', 'locale']
+export const inject = ['slots', 'sessions', 'conversation', 'locale', 'uiWorkspace']
 
 /**
  * Client plugin body: register the board view tab. The registration rides
@@ -40,7 +42,7 @@ export function apply(ctx: Context): void {
     inject: (sessionId: SessionId): BoardViewInjected => ({
       openSession: (target: SessionId) => {
         if (target === sessionId) return
-        ctx.sessions.open(target)
+        ctx.uiWorkspace.openSession(target)
         // The badge promises the session's work, so land on its Chat view
         // rather than whichever tab that session happened to leave open. The
         // target's conversation seat mounts with the switch, so the first

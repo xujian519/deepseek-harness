@@ -9,7 +9,9 @@ import {
   unlinkSync, writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import * as yaml from 'js-yaml'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
@@ -17,15 +19,18 @@ import {
   divergentProfileCoreVersions,
   ensureProfileVersionPins,
   healProfilesModuleFallback,
+  healIsolatedProfileModuleFallback,
   initProfile,
   installedPackageVersion,
+  unlinkProfileModuleFallback,
   loadProfile,
   loadProfileDirectory,
+  profileCoreOverrides,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
-  profileCoreOverrides,
-  profilePnpmWorkspace,
+  PROFILE_VERSION_PINNED_PACKAGES,
   readProfileManifest,
+  readProfilePatches,
   resolveBundleDir,
   resolveProfileDir,
   writeProfileManifest,
@@ -90,9 +95,84 @@ function stageProfile(home: string, name: string, bundleAnchor: string): Profile
     }],
     patchPath: join(dir, PROFILE_PATCH_FILENAME),
     patches: [],
-    patchReload: 'live',
   }
 }
+
+describe('healIsolatedProfileModuleFallback', () => {
+  it.each([false, true])('resolves peers from each installation without sharing profile state (Web fallback: %s)', async (webFallback) => {
+    const home = tmp()
+    const webAnchor = stageInstallation({ commander: {} })
+    if (webFallback) await healProfilesModuleFallback({ installAnchor: webAnchor, home })
+    const sharedCommander = join(home, 'profiles', 'node_modules', 'commander')
+    const sharedTarget = webFallback ? readlinkSync(sharedCommander) : undefined
+    const bundleAnchor = stageInstallation({ 'bundle-only': {} }, 'external-bundle')
+    const anchorA = stageInstallation({ commander: {}, 'pnpm-owned': {} })
+    const anchorB = stageInstallation({ commander: {}, 'pnpm-owned': {} })
+    const profileA = stageProfile(home, 'desktop-a', bundleAnchor)
+    const profileB = stageProfile(home, 'desktop-b', bundleAnchor)
+    const consumerA = join(profileA.dir, 'node_modules', 'custom-plugin', 'index.js')
+    const consumerB = join(profileB.dir, 'node_modules', 'custom-plugin', 'index.js')
+    for (const consumer of [consumerA, consumerB]) {
+      mkdirSync(join(consumer, '..'), { recursive: true })
+      writeFileSync(consumer, 'module.exports = require("commander")\n')
+      writeFileSync(join(consumer, '..', 'package.json'), JSON.stringify({
+        name: 'custom-plugin', peerDependencies: { commander: '*' },
+      }))
+    }
+    const installed = join(profileA.dir, 'node_modules', 'pnpm-owned')
+    mkdirSync(installed)
+    writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'pnpm-owned', main: 'index.js' }))
+    writeFileSync(join(installed, 'index.js'), 'module.exports = "profile-installed"\n')
+
+    healIsolatedProfileModuleFallback({ installAnchor: anchorA, profile: profileA })
+    healIsolatedProfileModuleFallback({ installAnchor: anchorB, profile: profileB })
+    healIsolatedProfileModuleFallback({ installAnchor: anchorA, profile: profileA })
+
+    expect(realpathSync.native(createRequire(consumerA).resolve('commander')))
+      .toBe(realpathSync.native(join(anchorA, '..', 'node_modules', 'commander', 'index.js')))
+    expect(realpathSync.native(createRequire(consumerB).resolve('commander')))
+      .toBe(realpathSync.native(join(anchorB, '..', 'node_modules', 'commander', 'index.js')))
+    expect(realpathSync.native(createRequire(consumerA).resolve('pnpm-owned'))).toBe(realpathSync.native(join(installed, 'index.js')))
+    expect(readFileSync(join(installed, 'index.js'), 'utf8')).toContain('profile-installed')
+    expect(realpathSync.native(createRequire(consumerA).resolve('bundle-only')))
+      .toBe(realpathSync.native(join(bundleAnchor, '..', 'node_modules', 'bundle-only', 'index.js')))
+    expect(existsSync(join(home, 'profiles', 'node_modules'))).toBe(webFallback)
+    if (webFallback) expect(readlinkSync(sharedCommander)).toBe(sharedTarget)
+
+    healIsolatedProfileModuleFallback({ installAnchor: anchorA, profile: { ...profileA, layers: [] } })
+    expect(existsSync(join(profileA.dir, 'node_modules', 'bundle-only'))).toBe(false)
+    expect(existsSync(join(profileB.dir, 'node_modules', 'bundle-only'))).toBe(true)
+    expect(realpathSync.native(createRequire(consumerA).resolve('commander')))
+      .toBe(realpathSync.native(join(anchorA, '..', 'node_modules', 'commander', 'index.js')))
+  })
+})
+
+describe('unlinkProfileModuleFallback', () => {
+  it('detaches only this profile projections and restores missing packages from a relocated installation', () => {
+    const home = tmp()
+    const anchor = stageInstallation({ fallback: {}, '@scope/peer': {}, replaced: {} })
+    const nextAnchor = stageInstallation({ fallback: {}, '@scope/peer': {}, replaced: {} })
+    const bundleAnchor = stageInstallation({}, 'selected-bundle')
+    const profile = stageProfile(home, 'desktop', bundleAnchor)
+    const other = stageProfile(home, 'other', bundleAnchor)
+    unlinkProfileModuleFallback(profile.dir)
+    healIsolatedProfileModuleFallback({ installAnchor: anchor, profile })
+    healIsolatedProfileModuleFallback({ installAnchor: anchor, profile: other })
+    const modules = join(profile.dir, 'node_modules')
+    unlinkSync(join(modules, 'replaced'))
+    mkdirSync(join(modules, 'replaced'))
+    writeFileSync(join(modules, 'replaced', 'sentinel'), 'pnpm')
+    unlinkProfileModuleFallback(profile.dir)
+    unlinkProfileModuleFallback(profile.dir)
+    expect(existsSync(join(modules, 'fallback'))).toBe(false)
+    expect(existsSync(join(modules, '@scope/peer'))).toBe(false)
+    expect(readFileSync(join(modules, 'replaced', 'sentinel'), 'utf8')).toBe('pnpm')
+    expect(existsSync(join(other.dir, 'node_modules', 'fallback'))).toBe(true)
+    healIsolatedProfileModuleFallback({ installAnchor: nextAnchor, profile })
+    expect(realpathSync(join(modules, 'fallback'))).toBe(realpathSync(join(nextAnchor, '..', 'node_modules', 'fallback')))
+    expect(readFileSync(join(modules, 'replaced', 'sentinel'), 'utf8')).toBe('pnpm')
+  })
+})
 
 describe('resolveProfileDir', () => {
   it('joins the home and rejects traversal-shaped names', () => {
@@ -104,6 +184,33 @@ describe('resolveProfileDir', () => {
   })
 })
 
+it('composes current files from profile data and retains launch overlay and telemetry precedence', () => {
+  const home = tmp()
+  const installAnchor = stageInstallation({ base: { patch: '- insert:\n  - id: session-telemetry-otel\n    name: telemetry\n' } })
+  const dir = resolveProfileDir('test', home)
+  initProfile(dir, ['base'])
+  const patchPath = join(dir, 'application.patch.yml')
+  writeFileSync(patchPath, '- id: session-telemetry-otel\n  disabled: true\n')
+  writeFileSync(join(home, PROFILE_PATCH_FILENAME), '- id: session-telemetry-otel\n  disabled: false\n')
+  const context = {
+    name: 'test', dir, patchPath, installAnchor, home, cwd: home,
+    startedBundles: ['base'],
+    overlays: [{ id: 'session-telemetry-otel', disabled: false }], telemetryDisabledEnv: 'false',
+  }
+  expect(composeEntries([readProfilePatches('test', context)])[0]?.disabled).toBe(true)
+  const enabled = { ...context, telemetryDisabledEnv: undefined }
+  expect(composeEntries([readProfilePatches('test', enabled)])[0]?.disabled).toBe(false)
+  const patches = readProfilePatches('test', enabled)
+  patches.at(-1)!.disabled = true
+  expect(context.overlays[0]?.disabled).toBe(false)
+  writeFileSync(join(home, PROFILE_PATCH_FILENAME), '- id: session-telemetry-otel\n  disabled: true\n')
+  expect(composeEntries([readProfilePatches('test', { ...enabled, overlays: [] })])[0]?.disabled).toBe(true)
+  writeFileSync(join(home, PROFILE_PATCH_FILENAME), '[]\n')
+  expect(composeEntries([readProfilePatches('test', { ...enabled, overlays: [] })])[0]?.disabled).toBe(true)
+  writeFileSync(patchPath, '- id: session-telemetry-otel\n  disabled: false\n')
+  expect(composeEntries([readProfilePatches('test', { ...enabled, overlays: [] })])[0]?.disabled).toBe(false)
+})
+
 describe('initProfile', () => {
   it('creates manifest, user patch layer, and pnpm workspace once, never overwriting', () => {
     const home = tmp()
@@ -111,139 +218,113 @@ describe('initProfile', () => {
     initProfile(dir, ['@deepseek-ai/dsh-base'])
     const manifest = readProfileManifest('t', dir)
     expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base'])
-    expect(manifest.dsh?.profile?.patchReload).toBe('live')
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('[]')
     expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('nodeLinker: hoisted')
     // Re-init keeps user edits.
     writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '- id: x\n  config: {}\n')
-    initProfile(dir, ['other'], 'startup')
+    initProfile(dir, ['other'])
     expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base'])
-    expect(readProfileManifest('t', dir).dsh?.profile?.patchReload).toBe('live')
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('- id: x')
-  })
-
-  it('writes version pins into a new profile workspace and omits them without pins', () => {
-    const pinned = tmp()
-    initProfile(pinned, ['@deepseek-ai/dsh-base'], undefined, { overrides: { '@deepseek-ai/dsh-tools': '0.1.0-rc.7' } })
-    const pinnedWorkspace = readFileSync(join(pinned, 'pnpm-workspace.yaml'), 'utf8')
-    expect(pinnedWorkspace).toContain('overrides:')
-    expect(pinnedWorkspace).toContain('"@deepseek-ai/dsh-tools": "0.1.0-rc.7"')
-    const plain = tmp()
-    initProfile(plain, ['@deepseek-ai/dsh-base'])
-    expect(readFileSync(join(plain, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('overrides:')
   })
 })
 
 describe('profile version pins', () => {
-  it('profilePnpmWorkspace emits overrides only when pins are given', () => {
-    const base = profilePnpmWorkspace()
-    expect(base).toContain('nodeLinker: hoisted')
-    expect(base).not.toContain('overrides:')
-    const pinned = profilePnpmWorkspace({ '@deepseek-ai/dsh-tools': '0.1.0-rc.7', '@deepseek-ai/cordis': '4.0.1' })
-    expect(pinned).toContain('overrides:')
-    expect(pinned).toContain('"@deepseek-ai/dsh-tools": "0.1.0-rc.7"')
-    expect(pinned).toContain('"@deepseek-ai/cordis": "4.0.1"')
+  const PINNED_VERSION = '9.9.9'
+  const PINNED_OVERRIDES: Record<string, string> = {
+    '@deepseek-ai/dsh-tools': PINNED_VERSION,
+    '@deepseek-ai/cordis': PINNED_VERSION,
+  }
+
+  /** Stage an installation anchor whose node_modules carry both pinned core packages. */
+  function stagePinnedInstallation(): string {
+    const anchor = stageInstallation({})
+    for (const packageName of PROFILE_VERSION_PINNED_PACKAGES) {
+      const dir = join(anchor, '..', 'node_modules', packageName)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: packageName, version: PINNED_VERSION }))
+    }
+    return anchor
+  }
+
+  /** Write one profile-local copy of `packageName` with the given manifest body. */
+  function writeProfileCopy(profileDir: string, packageName: string, manifest: Record<string, unknown>): void {
+    const dir = join(profileDir, 'node_modules', packageName)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+  }
+
+  function readWorkspace(file: string): Record<string, unknown> {
+    return yaml.load(readFileSync(file, 'utf8')) as Record<string, unknown>
+  }
+
+  it('reads an installed version from the anchor and nothing for a package it lacks', () => {
+    const anchor = stageInstallation({ 'installed-pkg': {} })
+    expect(installedPackageVersion(anchor, 'installed-pkg')).toBe('0.0.0')
+    expect(installedPackageVersion(anchor, 'dsh-fixture-package-not-installed')).toBeUndefined()
   })
 
-  it('profileCoreOverrides resolves installed versions from the installation anchor', () => {
-    const anchor = stageInstallation({
-      '@deepseek-ai/dsh-tools': {},
-      '@deepseek-ai/cordis': {},
-    })
-    expect(profileCoreOverrides(anchor)).toEqual({
-      '@deepseek-ai/dsh-tools': '0.0.0',
-      '@deepseek-ai/cordis': '0.0.0',
-    })
+  it('pins every core package the installation resolves at the installation version', () => {
+    expect(profileCoreOverrides(stagePinnedInstallation())).toEqual(PINNED_OVERRIDES)
   })
 
-  it('installedPackageVersion returns undefined for an unresolvable package', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {} })
-    expect(installedPackageVersion(anchor, '@deepseek-ai/dsh-no-such-package')).toBeUndefined()
-  })
-
-  it('loadProfile initializes a missing profile with the installation-pinned workspace', () => {
-    const anchor = stageInstallation({
-      '@deepseek-ai/dsh-base': { patch: '[]' },
-      '@deepseek-ai/dsh-web-app': { patch: '[]' },
-      '@deepseek-ai/dsh-tools': {},
-    })
-    const profile = loadProfile('t', 'web', anchor, tmp())
-    expect(readFileSync(join(profile.dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('"@deepseek-ai/dsh-tools": "0.0.0"')
-  })
-
-  it('ensureProfileVersionPins backfills pins idempotently and keeps unrelated keys', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+  it('leaves a profile with no pnpm workspace alone', () => {
     const dir = tmp()
-    initProfile(dir, ['@deepseek-ai/dsh-base'])
-    writeFileSync(join(dir, 'pnpm-workspace.yaml'), [
-      'packages:',
-      '  - .',
-      '',
-      'nodeLinker: hoisted',
-      'autoInstallPeers: false',
-      '',
-      'allowBuilds:',
-      '  node-pty: true',
-      '',
-    ].join('\n'))
-    expect(ensureProfileVersionPins(dir, anchor)).toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
-    const updated = readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')
-    expect(updated).toContain('overrides:')
-    expect(updated).toContain('allowBuilds:')
-    expect(updated).toContain('node-pty: true')
-    // Idempotent: a second run rewrites nothing.
-    expect(ensureProfileVersionPins(dir, anchor)).toEqual([])
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation())).toEqual([])
+    expect(existsSync(join(dir, 'pnpm-workspace.yaml'))).toBe(false)
   })
 
-  it('ensureProfileVersionPins corrects a stale pin to the installation version', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+  it('writes every missing core pin and keeps the other workspace keys', () => {
     const dir = tmp()
-    initProfile(dir, ['@deepseek-ai/dsh-base'], undefined, { overrides: { '@deepseek-ai/dsh-tools': '0.1.0-rc.6' } })
-    expect(ensureProfileVersionPins(dir, anchor)).toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
-    expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('0.0.0')
+    const file = join(dir, 'pnpm-workspace.yaml')
+    writeFileSync(file, 'packages:\n  - .\nnodeLinker: hoisted\n')
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation()))
+      .toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    const written = readWorkspace(file)
+    expect(written.packages).toEqual(['.'])
+    expect(written.nodeLinker).toBe('hoisted')
+    expect(written.overrides).toEqual(PINNED_OVERRIDES)
+    // Idempotent: a second pass finds every pin already at the installed version.
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation())).toEqual([])
   })
 
-  it('ensureProfileVersionPins skips an uninitialized profile', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {} })
-    expect(ensureProfileVersionPins(tmp(), anchor)).toEqual([])
-  })
-
-  it('ensureProfileVersionPins tolerates an empty workspace file', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+  it('rewrites only the pins that differ and keeps unrelated overrides', () => {
     const dir = tmp()
-    initProfile(dir, ['@deepseek-ai/dsh-base'])
-    writeFileSync(join(dir, 'pnpm-workspace.yaml'), '')
-    expect(ensureProfileVersionPins(dir, anchor)).toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
-    expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('overrides:')
+    const file = join(dir, 'pnpm-workspace.yaml')
+    writeFileSync(file, yaml.dump({
+      packages: ['.'],
+      overrides: { '@deepseek-ai/cordis': PINNED_VERSION, 'other-plugin': '1.0.0' },
+    }))
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation())).toEqual(['@deepseek-ai/dsh-tools'])
+    expect(readWorkspace(file).overrides).toEqual({ ...PINNED_OVERRIDES, 'other-plugin': '1.0.0' })
   })
 
-  it('divergentProfileCoreVersions names only installed copies whose version differs', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
+  it.each([
+    { label: 'empty', content: '' },
+    { label: 'null document', content: 'null\n' },
+    { label: 'non-mapping overrides value', content: 'overrides: "not-a-mapping"\n' },
+    { label: 'null overrides value', content: 'overrides: null\n' },
+  ])('treats a workspace document with $label as having no existing pins', ({ content }) => {
     const dir = tmp()
-    initProfile(dir, ['@deepseek-ai/dsh-base'])
-    // No physical copy yet — resolution falls through to the installation fallback.
+    const file = join(dir, 'pnpm-workspace.yaml')
+    writeFileSync(file, content)
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation()))
+      .toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    expect(readWorkspace(file).overrides).toEqual(PINNED_OVERRIDES)
+  })
+
+  it('reports only the pinned packages whose profile copy diverges from the installation', () => {
+    const anchor = stagePinnedInstallation()
+    const dir = tmp()
+    // A package with no physical copy resolves through the healed installation
+    // fallback, which is not divergence.
     expect(divergentProfileCoreVersions(dir, anchor)).toEqual([])
-    mkdirSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools'), { recursive: true })
-    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
-      JSON.stringify({ name: '@deepseek-ai/dsh-tools', version: '0.1.0-rc.6' }))
-    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([
-      '@deepseek-ai/dsh-tools@0.1.0-rc.6 (installation: 0.0.0)',
-    ])
-    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
-      JSON.stringify({ name: '@deepseek-ai/dsh-tools', version: '0.0.0' }))
-    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([])
-  })
-
-  it('divergentProfileCoreVersions reports a copy missing its version field', () => {
-    const anchor = stageInstallation({ '@deepseek-ai/dsh-tools': {}, '@deepseek-ai/cordis': {} })
-    const dir = tmp()
-    initProfile(dir, ['@deepseek-ai/dsh-base'])
-    mkdirSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools'), { recursive: true })
-    writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-tools', 'package.json'),
-      JSON.stringify({ name: '@deepseek-ai/dsh-tools' }))
-    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([
-      '@deepseek-ai/dsh-tools@unknown (installation: 0.0.0)',
-    ])
+    writeProfileCopy(dir, '@deepseek-ai/dsh-tools', { name: '@deepseek-ai/dsh-tools', version: PINNED_VERSION })
+    writeProfileCopy(dir, '@deepseek-ai/cordis', { name: '@deepseek-ai/cordis' })
+    expect(divergentProfileCoreVersions(dir, anchor))
+      .toEqual([`@deepseek-ai/cordis@unknown (installation: ${PINNED_VERSION})`])
+    writeProfileCopy(dir, '@deepseek-ai/cordis', { name: '@deepseek-ai/cordis', version: '0.1.0' })
+    expect(divergentProfileCoreVersions(dir, anchor))
+      .toEqual([`@deepseek-ai/cordis@0.1.0 (installation: ${PINNED_VERSION})`])
   })
 })
 
@@ -315,7 +396,6 @@ describe('loadProfile', () => {
     const profile = loadProfile('t', 'demo', anchor, home)
     expect(profile.layers.map(layer => layer.packageName)).toEqual(['bundle-a', 'bundle-b'])
     expect(profile.patches).toHaveLength(1)
-    expect(profile.patchReload).toBe('live')
     const entries = composeEntries([
       ...profile.layers.map(layer => layer.patches),
       profile.patches,
@@ -327,7 +407,6 @@ describe('loadProfile', () => {
     writeProfileManifest(dir, { name: 'bare' })
     const bare = loadProfile('t', 'demo', anchor, home)
     expect(bare.layers).toEqual([])
-    expect(bare.patchReload).toBe('live')
   })
 
   it('auto-initializes only shipped templates and fails loud otherwise', () => {
@@ -339,19 +418,14 @@ describe('loadProfile', () => {
     // cannot be asserted to fail here: the source-plane test runner resolves
     // @deepseek-ai/* through tsconfig paths regardless of the staged anchor.
     expect(PROFILE_TEMPLATES.web?.bundles).toContain('@deepseek-ai/dsh-base')
-    expect(PROFILE_TEMPLATES.web?.patchReload).toBe('live')
-    expect(PROFILE_TEMPLATES.headless?.patchReload).toBe('startup')
     expect(PROFILE_TEMPLATES.acp).toEqual({
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'],
-      patchReload: 'startup',
     })
     expect(PROFILE_TEMPLATES.sdk).toEqual({
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-sdk-app'],
-      patchReload: 'startup',
     })
     expect(PROFILE_TEMPLATES['sdk-minimal']).toEqual({
       bundles: ['@deepseek-ai/dsh-sdk-minimal'],
-      patchReload: 'startup',
     })
     try {
       loadProfile('t', 'web', anchor, home)
@@ -360,8 +434,6 @@ describe('loadProfile', () => {
     }
     expect(readProfileManifest('t', resolveProfileDir('web', home)).dsh?.profile?.bundles)
       .toEqual([...PROFILE_TEMPLATES.web?.bundles ?? []])
-    expect(readProfileManifest('t', resolveProfileDir('web', home)).dsh?.profile?.patchReload)
-      .toBe('live')
   })
 
   it('normalizes only the exact installation-owned headless bundle tuple', () => {
@@ -377,12 +449,10 @@ describe('loadProfile', () => {
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless',
     ])
     const retiredManifest = readProfileManifest('t', stock)
-    delete retiredManifest.dsh!.profile!.patchReload
     writeProfileManifest(stock, retiredManifest)
     loadProfile('t', 'headless', anchor, home)
     expect(readProfileManifest('t', stock).dsh?.profile).toEqual({
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'],
-      patchReload: 'startup',
     })
 
     const customHome = tmp()
@@ -394,38 +464,6 @@ describe('loadProfile', () => {
     expect(readProfileManifest('t', custom).dsh?.profile?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless', 'custom-bundle',
     ])
-  })
-
-  it('adds a shipped reload default only to an exact stock tuple and preserves explicit choices', () => {
-    const anchor = stageInstallation({
-      '@deepseek-ai/dsh-base': { patch: '[]\n' },
-      '@deepseek-ai/dsh-web-app': { patch: '[]\n' },
-    })
-    const stockHome = tmp()
-    const stock = resolveProfileDir('web', stockHome)
-    initProfile(stock, PROFILE_TEMPLATES.web?.bundles ?? [])
-    const stockManifest = readProfileManifest('t', stock)
-    delete stockManifest.dsh!.profile!.patchReload
-    writeProfileManifest(stock, stockManifest)
-    expect(loadProfile('t', 'web', anchor, stockHome).patchReload).toBe('live')
-    expect(readProfileManifest('t', stock).dsh?.profile?.patchReload).toBe('live')
-
-    const explicitHome = tmp()
-    const explicit = resolveProfileDir('web', explicitHome)
-    initProfile(explicit, PROFILE_TEMPLATES.web?.bundles ?? [], 'startup')
-    expect(loadProfile('t', 'web', anchor, explicitHome).patchReload).toBe('startup')
-  })
-
-  it('fails loud on an unknown patch reload value from disk', () => {
-    const anchor = stageInstallation({})
-    const home = tmp()
-    const dir = resolveProfileDir('demo', home)
-    initProfile(dir, [])
-    const manifest = readProfileManifest('t', dir)
-    const rawProfile = manifest.dsh!.profile as { patchReload?: string }
-    rawProfile.patchReload = 'sometimes'
-    writeProfileManifest(dir, manifest)
-    expect(() => loadProfile('t', 'demo', anchor, home)).toThrow('patchReload must be "live" or "startup"')
   })
 
   it('fails loud when a listed bundle declares no dsh.bundle', () => {
@@ -571,7 +609,6 @@ describe('healProfilesModuleFallback', () => {
       }],
       patchPath: join(dir, PROFILE_PATCH_FILENAME),
       patches: [],
-      patchReload: 'live',
     }
 
     await healProfilesModuleFallback({ installAnchor: installationAnchor, profile, home })
@@ -616,7 +653,6 @@ describe('healProfilesModuleFallback', () => {
       })),
       patchPath: join(dir, PROFILE_PATCH_FILENAME),
       patches: [],
-      patchReload: 'live',
     }
 
     await healProfilesModuleFallback({ installAnchor: installationAnchor, profile, home })
@@ -656,7 +692,6 @@ describe('healProfilesModuleFallback', () => {
       })),
       patchPath: join(dir, PROFILE_PATCH_FILENAME),
       patches: [],
-      patchReload: 'live',
     }
 
     await healProfilesModuleFallback({ installAnchor: installationAnchor, profile, home })

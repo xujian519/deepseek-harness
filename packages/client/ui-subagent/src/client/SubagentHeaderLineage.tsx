@@ -9,7 +9,8 @@ import {
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
-  IconChevronDownOutline14, IconChevronRightOutline14, IconRefreshOutline14, StateDot,
+  IconChevronDownOutline14, IconChevronRightOutline14, IconRefreshOutline14,
+  StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
@@ -25,6 +26,7 @@ type Catalogs = SessionListState['subagentsByParent']
 /** Business actions supplied by the slot registration. */
 export interface SubagentCatalogInjected {
   openChild: (address: SubagentAddress) => void
+  openChildAside: (address: SubagentAddress) => void
   refresh: (parentSessionId: SessionId) => void
   setCatalogOpen: (parentSessionId: SessionId, open: boolean) => void
 }
@@ -43,6 +45,7 @@ interface CatalogRowsProps {
   level: number
   now: number
   openChild: (address: SubagentAddress) => void
+  openChildAside: (address: SubagentAddress) => void
   refresh: (parentSessionId: SessionId) => void
   toggleBranch: (childSessionId: SessionId) => void
   closeCatalog: () => void
@@ -242,7 +245,7 @@ function CatalogLoadingRows({
 /** Render one catalog level and recurse only through explicitly expanded rows. */
 function CatalogRows({
   parentSessionId, currentSessionId, catalog, catalogs, summaries, expanded, level, now,
-  openChild, refresh, toggleBranch, closeCatalog, t,
+  openChild, openChildAside, refresh, toggleBranch, closeCatalog, t,
 }: CatalogRowsProps & { t: TranslateNS<typeof NS> }) {
   const emptyLoading = catalog.state === 'loading' && catalog.entries.length === 0
   const reserveDisclosure = catalog.entries.some(
@@ -331,6 +334,12 @@ function CatalogRows({
           openChild({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
           closeCatalog()
         }
+        const openAside = (event: MouseEvent<HTMLButtonElement>): void => {
+          event.preventDefault()
+          event.stopPropagation()
+          openChildAside({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
+          closeCatalog()
+        }
         const handleKey = (event: KeyboardEvent<HTMLDivElement>): void => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
@@ -396,6 +405,18 @@ function CatalogRows({
                     )}
                   </span>
                 )}
+                {!isCurrent && (
+                  <button
+                    type="button"
+                    className={css.sidebarButton}
+                    aria-label={t('open.sidebar', { label })}
+                    title={t('open.sidebar', { label })}
+                    onClick={openAside}
+                    onKeyDown={(event) => { event.stopPropagation() }}
+                  >
+                    <IconChevronRightOutline14 />
+                  </button>
+                )}
               </div>
             </div>
             {isExpanded && !knownLeaf && (
@@ -424,6 +445,7 @@ function CatalogRows({
                       level={level + 1}
                       now={now}
                       openChild={openChild}
+                      openChildAside={openChildAside}
                       refresh={refresh}
                       toggleBranch={toggleBranch}
                       closeCatalog={closeCatalog}
@@ -486,7 +508,7 @@ function catalogMenuPosition(trigger: HTMLButtonElement): CSSProperties {
 /** One trigger-plus-tree dropdown over the catalog rooted at `rootSessionId`. */
 function CatalogDropdown({
   rootSessionId, currentSessionId, displayTitle, openTitle, variant, separator = false,
-  useSessions, openChild, refresh, setCatalogOpen, t,
+  useSessions, openChild, openChildAside, refresh, setCatalogOpen, t,
 }: CatalogDropdownProps) {
   const ancestorSwitcher = variant === 'switcher' && openTitle !== undefined
   const catalogs = useSessions(state => state.subagentsByParent)
@@ -670,8 +692,8 @@ function CatalogDropdown({
 
   // Visibility needs evidence of children (entries, summary-known descendants,
   // or a failed load worth retrying). A bare loading catalog is not evidence:
-  // selecting any session schedules a refresh whose loading snapshot would
-  // otherwise flash the action in and out on childless sessions.
+  // an opened menu or another active catalog consumer can start a refresh whose
+  // loading snapshot would otherwise flash the action on childless sessions.
   const visible = presentedCatalog !== undefined
     && (variant === 'switcher'
       || presentedCatalog.state === 'error'
@@ -788,6 +810,7 @@ function CatalogDropdown({
             level={1}
             now={now}
             openChild={openChild}
+            openChildAside={openChildAside}
             refresh={refresh}
             toggleBranch={toggleBranch}
             closeCatalog={() => { changeOpen(false) }}
@@ -806,13 +829,13 @@ function CatalogDropdown({
  */
 export function SubagentHeaderLineage({
   lineageSessionId, displayTitle, openTitle,
-  useSessions, openChild, refresh, setCatalogOpen, t,
+  useSessions, openChild, openChildAside, refresh, setCatalogOpen, t,
 }: SubagentHeaderLineageProps) {
   const parentId = useSessions((state) => {
     const summary = state.byId[lineageSessionId]
     return summary?.origin === 'subagent' ? summary.parentId : undefined
   })
-  const shared = { useSessions, openChild, refresh, setCatalogOpen, t }
+  const shared = { useSessions, openChild, openChildAside, refresh, setCatalogOpen, t }
   if (parentId === undefined) {
     return (
       <CatalogDropdown

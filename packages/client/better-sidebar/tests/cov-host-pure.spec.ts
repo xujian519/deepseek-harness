@@ -198,6 +198,15 @@ describe('live-activity parser malformed rows', () => {
     expect(contentText([{ type: 'tool_use' }])).toBeUndefined()
   })
 
+  it('lastActivity scans past a hole that precedes both findings', () => {
+    // The hole sits between the newest tool call and an older message, so the
+    // backward scan must skip it before it has found either field.
+    const events: SidebarSessionEvent[] = new Array<SidebarSessionEvent>(3)
+    events[0] = { type: 'assistant/message', seq: 0, time: 0, data: { message: { content: [{ type: 'text', text: 'early answer' }] } } }
+    events[2] = { type: 'tool/call', seq: 2, time: 2, data: { callId: 'c1', name: 'bash', arguments: 'ls' } }
+    expect(lastActivity(events)).toEqual({ text: 'early answer', tool: { name: 'bash', args: 'ls' } })
+  })
+
   it('lastActivity skips array holes and non-string tool fields', () => {
     // A sparse leading hole exercises the undefined-event guard in the
     // backward scan (a torn log read).

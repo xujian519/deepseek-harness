@@ -9,7 +9,7 @@
  *   the chunk component rendered.
  */
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement, type ComponentType, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
@@ -43,6 +43,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   // Defensive: drop any containers left by failed assertions.
   for (const el of document.querySelectorAll('body > div')) el.remove()
 })
@@ -190,5 +191,79 @@ describe('built-in descriptor contract (render-prop functions)', () => {
     expect(second.querySelector('[data-testid="chunk-rendered"]')).not.toBeNull()
     unmountSecond()
     expect(calls).toBe(1)
+  })
+})
+
+describe('built-in viewer descriptor surface', () => {
+  it('every viewer resolves a localized title and an icon at any size', () => {
+    const viewers = builtinViewers()
+    expect(viewers.map(viewer => viewer.id)).toEqual(
+      ['image', 'pdf', 'markdown', 'html', 'code', 'binary-download'],
+    )
+    for (const viewer of viewers) {
+      const title = typeof viewer.title === 'function' ? viewer.title() : viewer.title
+      expect(title, viewer.id).toBeTruthy()
+      const icon = typeof viewer.icon === 'function' ? viewer.icon(18) : viewer.icon
+      expect(icon, viewer.id).toBeTruthy()
+    }
+  })
+
+  it('the html viewer exposes its settings rows with localized copy', () => {
+    const html = builtinViewers().find(viewer => viewer.id === 'html')!
+    for (const toggle of html.settings?.toggles ?? []) {
+      const title = typeof toggle.title === 'function' ? toggle.title() : toggle.title
+      const desc = typeof toggle.desc === 'function' ? toggle.desc() : toggle.desc
+      expect(title, toggle.key).toBeTruthy()
+      expect(desc, toggle.key).toBeTruthy()
+    }
+  })
+
+  it('the image viewer renders the resolved media url as the img src', () => {
+    const image = builtinViewers().find(viewer => viewer.id === 'image')!
+    const { container, unmount } = mount(createElement(image.component, {
+      mediaUrl: 'http://gui.origin/sidebar/file?path=x',
+      title: 'shot.png',
+    } as unknown as FileViewerProps))
+    const img = container.querySelector('img')
+    expect(img?.getAttribute('src')).toBe('http://gui.origin/sidebar/file?path=x')
+    expect(img?.getAttribute('alt')).toBe('shot.png')
+    unmount()
+  })
+
+  it('the binary-download viewer renders the download link instead of a preview', () => {
+    const binary = builtinViewers().find(viewer => viewer.id === 'binary-download')!
+    const { container, unmount } = mount(createElement(binary.component, {
+      scope: { sessionId: 's1', cwd: '/p' },
+      path: '/p/archive.bin',
+    } as unknown as FileViewerProps))
+    const link = container.querySelector('a')
+    expect(link?.getAttribute('href')).toContain('/sidebar/file?')
+    expect(link?.getAttribute('href')).toContain('download=1')
+    expect(link?.hasAttribute('download')).toBe(true)
+    unmount()
+  })
+
+  it('the pdf viewer fetches the media route and mounts the blob-backed frame', async () => {
+    const createObjectURL = vi.fn(() => 'blob:dsh-pdf')
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }))
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }))
+    vi.stubGlobal('fetch', fetchSpy)
+    const pdf = builtinViewers().find(viewer => viewer.id === 'pdf')!
+    const { container, unmount } = mount(createElement(pdf.component, {
+      scope: { sessionId: 's1', cwd: '/p' },
+      path: '/p/doc.pdf',
+      title: 'doc.pdf',
+    } as unknown as FileViewerProps))
+    await act(async () => {})
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining('/sidebar/file?'), expect.anything())
+    expect(createObjectURL).toHaveBeenCalled()
+    const frame = container.querySelector('iframe')
+    expect(frame?.getAttribute('src')).toBe('blob:dsh-pdf')
+    expect(frame?.getAttribute('title')).toBe('doc.pdf')
+    unmount()
   })
 })

@@ -167,6 +167,7 @@ function closeBlock(block: OpenBlock): ContentBlock {
         name: block.name ?? '',
         arguments: block.text,
       }
+    /* v8 ignore next 2 -- OpenBlock.kind is a closed union this module assembles; no wire value reaches the default. */
     default:
       return assertNever(block.kind, 'tool-call block kind')
   }

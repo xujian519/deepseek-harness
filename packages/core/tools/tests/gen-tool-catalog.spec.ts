@@ -27,8 +27,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     const names = catalog.flatMap(entry => entry.schemas.map(s => s.name)).sort()
     expect(names).toEqual([
       'add_patent_figure_references', 'analyze_patent_figure', 'ask_user_question', 'bash', 'bash',
-      'claim_chart_build', 'cordis_define', 'cordis_inspect_list', 'cordis_inspect_query',
-      'cordis_inspect_self', 'cordis_run', 'cordis_stop', 'cordis_undefine', 'create_goal',
+      'claim_chart_build', 'cordis_inspect_list', 'cordis_inspect_query', 'create_goal',
       'document_deliver', 'draft_claims', 'draft_specification', 'edit', 'evaluate_evidence',
       'exit_plan_mode', 'flexible_plan', 'generate_patent_figure', 'generate_structure_figure',
       'get_goal', 'glob', 'grep',
@@ -43,7 +42,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'patent_teams_create', 'patent_teams_create_task', 'patent_teams_delete',
       'patent_teams_reassign_task', 'patent_teams_remove_member', 'patent_teams_send_message',
       'patent_teams_status', 'patent_teams_update_task', 'patent_wiki_search', 'patent_worker_validate',
-      'patent_workflow', 'patent_workflow_run', 'present', 'pwsh', 'pwsh', 'ralph', 'read', 'read_image',
+      'patent_workflow', 'patent_workflow_run', 'plugin_manager', 'present', 'pwsh', 'pwsh', 'ralph', 'read', 'read_image',
       'read_mcp_resource', 'recognize_chemical_structure', 'render_patent_document', 'rule_check',
       'run_code', 'schedule_create', 'schedule_delete', 'schedule_list', 'search_patent_figure',
       'self_evolve_inspect_patterns', 'self_evolve_now', 'send_message', 'send_message',

@@ -183,6 +183,7 @@ export function transcriptRows(entries: readonly SidebarHistoryEntry[]): Sidecha
   for (let index = 0; index < events.length; index++) {
     if (index <= seedEnd) continue
     const event = events[index]
+    /* v8 ignore next -- the loop index stays below events.length, so the slot always holds an event. */
     if (event === undefined) continue
     const data = event.data
     switch (event.type) {

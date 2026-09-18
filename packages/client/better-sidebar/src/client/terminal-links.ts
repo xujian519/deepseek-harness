@@ -103,6 +103,7 @@ export function findTerminalUrlsInLine(line: string): TerminalUrlMatch[] {
   let m: RegExpExecArray | null
   while ((m = TERMINAL_URL_REGEX.exec(line)) !== null) {
     const trimmed = trimUnbalancedTrailingParens(m[0])
+    /* v8 ignore next -- a match always opens with the scheme, so trimming parens can never empty it. */
     if (trimmed.length > 0) {
       matches.push({ start: m.index, text: trimmed })
     }

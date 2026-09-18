@@ -44,6 +44,9 @@ export function boundBytes(text: string, maxBytes: number): { text: string; trun
   // character that started before `end` spills past the cap. Stop at the
   // first non-continuation byte — the retained prefix is then intact.
   let end = maxBytes
+  // The loop runs only with `end` inside the buffer (byteLength > maxBytes),
+  // so `buf[end]` is always a byte; the fallback serves noUncheckedIndexedAccess.
+  /* v8 ignore next -- unreachable: end <= maxBytes < byteLength, so the indexed byte always exists */
   while (end > 0 && ((buf[end] ?? 0) & 0xc0) === 0x80) end -= 1
   return { text: buf.subarray(0, end).toString('utf8'), truncated: true }
 }

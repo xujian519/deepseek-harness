@@ -121,6 +121,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
 
   useEffect(() => {
     const host = hostRef.current
+    /* v8 ignore next -- the host div renders unconditionally, so its ref is attached before this effect runs. */
     if (host === null) return
     // The custom font prefs (side card settings, terminal card) resolve at
     // mount; store changes re-apply them live below.
@@ -253,6 +254,7 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
     }
 
     const connect = (): void => {
+      /* v8 ignore next -- the unmount cleanup clears the retry timer, and every failure path checks `closed` before scheduling one. */
       if (closed) return
       const url = streamUrl()
       setLastUrl(url)

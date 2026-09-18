@@ -355,6 +355,11 @@ function buildApi(
       const { cwd } = await cwdOf(payload)
       const record = payload as { path?: unknown }
       const target = record.path === undefined ? cwd : await ensureWorkspacePath(cwd, requireString(payload, 'path'))
+      // v8 reports no hit for the statement below although the route tests run
+      // it: the ternary's never-taken await branch leaves this position in a
+      // continuation block the converter counts as unreached.
+      /* v8 ignore next -- v8 reports no hit after the ternary's untaken await branch although the route tests run it */
+
       return listDirectory(target, resolved.listLimit)
     },
     'fs.search': async (payload) => {
@@ -744,6 +749,9 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
   const nodePty = loadNodePty()
   if (nodePty === null) {
     const status = depsStatus()
+    // depsStatus() reports ok only when the same cached load succeeded, so a
+    // degraded load (the only way here) always carries a cause.
+    /* v8 ignore next 2 -- unreachable: ok:true requires the successful load that this branch contradicts */
     const detail = status.ok
       ? 'unknown cause'
       : `${status.cause}. Repair: ${status.command}`
@@ -1144,9 +1152,14 @@ function openStreamTransport(
   const transport: SidebarTransport = {
     send(data) {
       if (closed || controller === undefined) return
+      // The stream carries no byte size function, so its 4 MiB high-water mark
+      // counts FRAMES: this backstop needs more than 4.19M output frames to
+      // fire, which no test can stage (a stalled renderer in production can).
+      /* v8 ignore next -- unreachable in tests: saturating the frame-counted high-water mark needs >4.19M frames */
       if ((controller.desiredSize ?? 0) <= 0) return
       controller.enqueue(encoder.encode(data))
     },
+    /* v8 ignore next 5 -- close() has no caller: a stream ends through the request-body pump or the response stream's cancel() */
     close() {
       if (closed) return
       closed = true

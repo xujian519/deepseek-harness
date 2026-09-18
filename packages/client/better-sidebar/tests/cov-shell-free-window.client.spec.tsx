@@ -361,6 +361,25 @@ describe('FreeWindow resize handle', () => {
     }
   })
 
+  it('a lostpointercapture on the resize handle settles with the applied size', async () => {
+    const h = mountWindow(makeFloat())
+    try {
+      const { resize } = h.win()
+      act(() => {
+        resize.dispatchEvent(pointer('pointerdown', 400, 250))
+        resize.dispatchEvent(pointer('pointermove', 420, 280))
+      })
+      await flushFrame()
+      act(() => { resize.dispatchEvent(pointer('lostpointercapture', 400, 250)) })
+      expect(h.calls.resize).toEqual([[320, 230]])
+      // The settled drag ignores the late cancel too.
+      act(() => { resize.dispatchEvent(pointer('pointercancel', 0, 0)) })
+      expect(h.calls.resize).toHaveLength(1)
+    } finally {
+      h.unmount()
+    }
+  })
+
   it('a cancel mid-resize commits the last applied size', async () => {
     const h = mountWindow(makeFloat())
     try {

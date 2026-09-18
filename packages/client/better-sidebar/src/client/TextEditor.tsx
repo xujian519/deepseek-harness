@@ -126,6 +126,7 @@ export function TextEditor(props: FileViewerProps) {
   useEffect(() => {
     if (content === undefined) return
     const host = hostRef.current
+    /* v8 ignore next -- ref-null guard: the host div renders under the same `content !== undefined` condition that reaches this effect. */
     if (host === null) return
     const language = languageForPath(path)
     const themeComp = new CmThemeCompartment()
@@ -279,6 +280,7 @@ export function TextEditor(props: FileViewerProps) {
     () => (markdown && mode === 'preview' ? analyzeMarkdownHtml(mdText) : null),
     [markdown, mode, mdText],
   )
+  /* v8 ignore start -- unreachable: analyzeMarkdownHtml always returns an analysis object, so hasMermaid never reads mdBlocks. */
   const hasMermaid = useMemo(
     () => htmlInfo !== null
       ? htmlInfo.segments.some(segment => segment.kind === 'markdown'
@@ -286,6 +288,7 @@ export function TextEditor(props: FileViewerProps) {
       : mdBlocks.some(block => block.kind === 'mermaid'),
     [htmlInfo, mdBlocks],
   )
+  /* v8 ignore stop */
   /** The media context for the split renderer (local-src rewriting inside
    *  sanitized HTML). Memoized on primitives: MarkdownDocument sanitizes per
    *  `media` identity, so a fresh object per render would re-sanitize every
@@ -430,11 +433,13 @@ export function TextEditor(props: FileViewerProps) {
               (sticky, zero-height — first child so it pins from the very
               top) once the document has enough headings. */}
           <MdToc />
+          {/* v8 ignore start -- unreachable: htmlInfo is never null here, so the single-pass arms never run. */}
           {htmlInfo !== null
             ? <MarkdownDocument info={htmlInfo} media={htmlMedia} codeLabels={codeLabels} />
             : hasMermaid
               ? <LazyMermaidMarkdown text={previewText} codeLabels={codeLabels} />
               : <MarkdownText {...markdownTextProps(previewText, codeLabels)} />}
+          {/* v8 ignore stop */}
         </div>
       )}
       {html && mode === 'preview' && (

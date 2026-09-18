@@ -18,6 +18,15 @@
       "path": "../../api/workspace-controller/tsconfig.client.json"
     },
     {
+      "path": "../ui-workspace"
+    },
+    {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-session"
+    },
+    {
       "path": "../../core/session"
     }
   ]

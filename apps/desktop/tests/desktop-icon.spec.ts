@@ -12,6 +12,8 @@ const UNSIGNED_MAC_ENVIRONMENT = {
   DSH_DESKTOP_APP_ID: 'com.example.desktop',
   DSH_DESKTOP_TARGET_PLATFORM: 'darwin',
   DSH_DESKTOP_UNSIGNED: '1',
+  // Packaging resolves mandatory-update policy metadata before any artifact work.
+  DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.invalid',
 }
 
 function portablePath(value: string): string {
@@ -29,6 +31,10 @@ describe('desktop packaging icons', () => {
     vi.stubEnv('DSH_DESKTOP_APP_ID', UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_APP_ID)
     vi.stubEnv('DSH_DESKTOP_TARGET_PLATFORM', UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_TARGET_PLATFORM)
     vi.stubEnv('DSH_DESKTOP_UNSIGNED', UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_UNSIGNED)
+    vi.stubEnv(
+      'DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN',
+      UNSIGNED_MAC_ENVIRONMENT.DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN,
+    )
   })
 
   afterAll(async () => {

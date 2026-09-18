@@ -108,7 +108,7 @@ A side conversation is a child session the plugin creates itself, seeded with th
 
 Read these when the package contract is not enough: the composition that mounts it, the roster that serves its client bundle, and the group this package belongs to.
 
-- [Desktop composition patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml) — the composition that carries the sidebar row disabled; drop that line there to mount it, or delete the row to leave it out on desktop.
+- [Desktop app](../../../apps/desktop/README.md) — the desktop shell whose profile composition mounts this package's sidebar row.
 - [Client modules](../modules/README.md) — how the `dsh.client` bundle and its externals are composed and served.
 - [Client group map](../README.md) — the browser half this package belongs to.
 

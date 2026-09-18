@@ -32,6 +32,7 @@ function summary(id: string, todos: readonly TodoItem[] | null | undefined) {
     running: false,
     blank: false,
     updatedAt: 1,
+    retainedBy: {},
     ...(todos === undefined ? {} : { projectionValues: { todosLatest: todos } }),
   }
 }
@@ -56,12 +57,14 @@ function stateOf(
 ): SessionListState {
   return {
     ids: entries.map(entry => entry.id),
-    byId: Object.fromEntries(entries.map(entry => [entry.id as string, entry])),
-    current: current === undefined ? undefined : sid(current),
+    byId: Object.fromEntries(entries.map(entry => [entry.id as string,
+      entry.id === (current === undefined ? undefined : sid(current))
+        ? { ...entry, retainedBy: { ...entry.retainedBy, mainView: 1 } }
+        : entry,
+    ])),
     phase: 'ready',
     subagentsByParent: {},
     jobsBySession: {},
-    currentAddress: undefined,
   } as unknown as SessionListState
 }
 

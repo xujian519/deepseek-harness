@@ -120,6 +120,7 @@ function tokenizeHtml(source: string): HtmlToken[] {
     if (inComment(match.index)) continue
     const closing = match[1] === '/'
     const tag = (match[2] as string).toLowerCase()
+    /* v8 ignore next -- the attribute group always participates, so match[3] is a string. */
     let attrs = match[3] ?? ''
     // Self-closing syntax (`<div/>`) behaves as void regardless of the name.
     const selfClosing = /\/\s*$/.test(attrs)
@@ -224,6 +225,7 @@ export function splitHtmlBlocks(text: string): MdHtmlSegment[] {
 
   const flushMarkdown = (): void => {
     // Separator blank lines around HTML runs carry no markdown semantics.
+    /* v8 ignore next -- the length guard keeps the index in range; the ?? arm is the noUncheckedIndexedAccess guard. */
     while (markdown.length > 0 && isBlank(markdown[markdown.length - 1] ?? '')) markdown.pop()
     if (markdown.length === 0) return
     segments.push({ kind: 'markdown', text: markdown.join('\n') })

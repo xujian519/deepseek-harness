@@ -45,6 +45,7 @@ export const CLOSE_FENCE_RE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/
  * @returns the info word, or null when the line is not a valid opening fence.
  */
 export function fenceInfo(rest: string, fence: string): string | null {
+  /* v8 ignore next -- split() always yields the first element; the ?? arm is the noUncheckedIndexedAccess guard. */
   const info = rest.trimStart().split(/\s+/)[0] ?? ''
   // CommonMark: a backtick fence's info string may not contain backticks —
   // such a line is not an opening fence at all.
@@ -81,6 +82,7 @@ export function splitMermaidBlocks(text: string): MdBlock[] {
     markdown = []
   }
   while (index < lines.length) {
+    /* v8 ignore next -- the loop guard keeps the index in range; the ?? arm is the noUncheckedIndexedAccess guard. */
     const line = lines[index] ?? ''
     const fenceMatch = OPEN_FENCE_RE.exec(line)
     if (fenceMatch === null) {
@@ -103,6 +105,7 @@ export function splitMermaidBlocks(text: string): MdBlock[] {
     const code: string[] = []
     index += 1
     while (index < lines.length) {
+      /* v8 ignore next -- the loop guard keeps the index in range; the ?? arm is the noUncheckedIndexedAccess guard. */
       const candidate = lines[index] ?? ''
       const close = CLOSE_FENCE_RE.exec(candidate)
       if (close !== null && (close[1] as string).charAt(0) === char && (close[1] as string).length >= length) break

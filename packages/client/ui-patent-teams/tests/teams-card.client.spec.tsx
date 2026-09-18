@@ -44,17 +44,18 @@ function listState(overrides: Partial<SessionListState> = {}): SessionListState 
   return {
     ids: [PARENT_ID, CHILD_ID],
     byId: {
-      [PARENT_ID]: { id: PARENT_ID, displayTitle: 'captain', running: true, blank: false, updatedAt: 0 },
+      [PARENT_ID]: {
+        id: PARENT_ID, displayTitle: 'captain', running: true, blank: false, updatedAt: 0,
+        retainedBy: { mainView: 1 },
+      },
       [CHILD_ID]: {
         id: CHILD_ID, displayTitle: 'alice', parentId: PARENT_ID, origin: 'subagent',
-        running: true, blank: false, updatedAt: 0,
+        running: true, blank: false, updatedAt: 0, retainedBy: {},
       },
     },
-    current: PARENT_ID,
     phase: 'ready',
     subagentsByParent: {},
     jobsBySession: {},
-    currentAddress: undefined,
     ...overrides,
   }
 }
@@ -78,7 +79,7 @@ const runtimeShare = {
   useConversation: (() => undefined) as TeamsCardProps['useConversation'],
   useChat: (() => undefined) as TeamsCardProps['useChat'],
   useTrajectory: (() => undefined) as TeamsCardProps['useTrajectory'],
-  useSessionPendingInteraction: (() => undefined) as TeamsCardProps['useSessionPendingInteraction'],
+  useSessionStatus: (() => undefined) as TeamsCardProps['useSessionStatus'],
   useProjection: () => undefined,
   useInput: () => { throw new Error('unused') },
   inputActions: { setDraft: () => {}, submit: () => {} } as unknown as TeamsCardProps['inputActions'],
@@ -451,6 +452,8 @@ describe('plugin lifecycle', () => {
     ctx.provide('remote', { $on: () => () => {} } as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     await ctx.plugin(TestSessions).await()
+    const opened: SessionId[] = []
+    ctx.provide('uiWorkspace', { openSession: (id: SessionId) => { opened.push(id) } } as never)
     ctx.slots.register({
       name: 'root',
       children: {
@@ -466,7 +469,7 @@ describe('plugin lifecycle', () => {
     const cardEntry = ctx.slots.entries('conversation.chat.node')[0]!
     const cardFace = cardEntry.inject?.() as unknown as { openSession: (id: SessionId) => void }
     cardFace.openSession(CHILD_ID)
-    expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID])
+    expect(opened).toEqual([CHILD_ID])
     // The view entry resolves its drain verb from the session face and fails
     // loud when the session binding is absent.
     const viewEntry = ctx.slots.entries('conversation.view')[0]! as unknown as {
@@ -483,7 +486,7 @@ describe('plugin lifecycle', () => {
     if (viewFace === undefined) throw new Error('expected the view inject to bind a session')
     await viewFace.loadOlder()
     viewFace.openSession(CHILD_ID)
-    expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID, CHILD_ID])
+    expect(opened).toEqual([CHILD_ID, CHILD_ID])
     expect(() => viewEntry.inject?.('ghost' as SessionId)).toThrow(/unavailable/)
     await fiber.dispose()
     expect(ctx.slots.entries('conversation.chat.node')).toEqual([])

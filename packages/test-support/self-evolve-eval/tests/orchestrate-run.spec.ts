@@ -170,6 +170,23 @@ describe('runCampaign execute path', () => {
     expect(mocks.collectPrediction).not.toHaveBeenCalled()
   })
 
+  it('reports the retried run as the terminal exit and names the retry', async () => {
+    const dir = await tempDir()
+    mocks.loadTaskManifest.mockResolvedValue([task('t-retried')])
+    installManifest()
+    mocks.indexSwebenchRows.mockReturnValue(new Map([['t-retried', { instance_id: 't-retried' }]]))
+    mocks.normalizeSwebenchRow.mockReturnValue(workspace('t-retried').row)
+    mocks.prepareTaskWorkspace.mockResolvedValue(workspace('t-retried'))
+    mocks.runAgent
+      .mockResolvedValueOnce({ exitCode: 3, seconds: 1, timeout: false, spawnError: null })
+      .mockResolvedValueOnce({ exitCode: 4, seconds: 1, timeout: false, spawnError: null })
+    const summary = await runCampaign(options(dir, { armMode: 'baseline' }))
+    expect(mocks.runAgent).toHaveBeenCalledTimes(2)
+    expect(summary.failed).toBe(1)
+    const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as { tasks: Array<{ baselineError?: string }> }
+    expect(results.tasks[0]?.baselineError).toBe('agent exited 4 after retry')
+  })
+
   it('does not retry a timed-out agent and reports it as final', async () => {
     const dir = await tempDir()
     mocks.loadTaskManifest.mockResolvedValue([task('t-timeout')])

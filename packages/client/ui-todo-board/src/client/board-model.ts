@@ -121,7 +121,7 @@ function scopedSessions(
   const summariesOf = (ids: readonly SessionId[]): readonly SessionSummary[] => ids
     .map(id => list.byId[id])
     .filter((summary): summary is SessionSummary => summary !== undefined)
-  const current = list.current
+  const current = Object.values(list.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
   if (current !== undefined) {
     const owner = ownerOf(current)
     if (owner !== undefined) return summariesOf(owner.sessionIds)

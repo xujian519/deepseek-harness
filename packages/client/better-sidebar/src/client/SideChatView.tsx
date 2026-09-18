@@ -457,6 +457,7 @@ export function SideChatView(props: {
 
   const growComposer = (): void => {
     const field = composerRef.current
+    /* v8 ignore next -- ref-null guard: onChange only fires while the composer textarea is mounted. */
     if (field === null) return
     field.style.height = '0px'
     field.style.height = `${Math.min(field.scrollHeight, COMPOSER_MAX_HEIGHT)}px`
@@ -482,6 +483,7 @@ export function SideChatView(props: {
   }
 
   const handleCancel = async (): Promise<void> => {
+    /* v8 ignore next -- disabled arm: the stop button renders only for a bound thread and is disabled while another action is in flight. */
     if (threadId === undefined || busy !== null) return
     try {
       await api.sidechatCancel(threadId)
@@ -491,6 +493,7 @@ export function SideChatView(props: {
   }
 
   const handleSave = async (): Promise<void> => {
+    /* v8 ignore next -- disabled arm: the save button renders only for a bound thread and is disabled without a completed turn. */
     if (threadId === undefined || !canSave || busy !== null) return
     setBusy('saving')
     setError(null)

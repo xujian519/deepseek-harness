@@ -308,6 +308,7 @@ describe('LocalSubprocessRuntime', () => {
       done: Promise.resolve({ exitCode: 0, signal: null }),
       write: async () => {},
       resize: async () => {},
+      inspectActivity: async () => ({ state: 'unknown' as const, revision: 0 }),
       inspectForeground: async () => undefined,
       signalForeground: async () => 1,
       terminate,
@@ -336,6 +337,7 @@ describe('LocalSubprocessRuntime', () => {
       done: Promise.resolve({ exitCode: 0, signal: null }),
       write: async () => {},
       resize: async () => {},
+      inspectActivity: async () => ({ state: 'unknown' as const, revision: 0 }),
       inspectForeground: async () => undefined,
       signalForeground: async () => 1,
       terminate: vi.fn(async () => { throw firstFailure }),
@@ -389,6 +391,7 @@ describe('LocalSubprocessRuntime', () => {
       done: Promise.resolve({ exitCode: 0, signal: null }),
       write: async () => {},
       resize: async () => {},
+      inspectActivity: async () => ({ state: 'unknown' as const, revision: 0 }),
       inspectForeground: async () => undefined,
       signalForeground: async () => 1,
       terminate: vi.fn(async () => { throw failure }),
@@ -492,6 +495,7 @@ describe('LocalSubprocessRuntime', () => {
     let launcherRunning: (() => boolean) | undefined
     let launcherSignal: ((signal: 'SIGTERM' | 'SIGKILL') => boolean) | undefined
     let launcherSettlement: Promise<unknown> | undefined
+    let launcherLiveMembers: (() => boolean | undefined) | undefined
     const directProbe = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
       if (signal === 0) return true
       throw Object.assign(new Error('denied'), { code: 'EPERM' })
@@ -514,10 +518,16 @@ describe('LocalSubprocessRuntime', () => {
       terminateForHostExit: vi.fn(),
     }
     const launcherStates: boolean[] = []
-    const bindOwner = vi.fn((direct: { running(): boolean; signal(signal: 'SIGTERM' | 'SIGKILL'): boolean; settled: Promise<unknown> }) => {
+    const bindOwner = vi.fn((direct: {
+      running(): boolean
+      signal(signal: 'SIGTERM' | 'SIGKILL'): boolean
+      settled: Promise<unknown>
+      hasLiveMembers?(): boolean | undefined
+    }) => {
       launcherRunning = () => direct.running()
       launcherSignal = signal => direct.signal(signal)
       launcherSettlement = direct.settled
+      launcherLiveMembers = () => direct.hasLiveMembers?.()
       launcherStates.push(direct.running())
       return owner
     })
@@ -545,9 +555,14 @@ describe('LocalSubprocessRuntime', () => {
       signalProcess: () => {},
     }
 
+    const processGroupHasLiveMembers = vi.fn(() => true)
     vi.resetModules()
     mockWin32ForIsolatedRuntime()
     mockNodePtyForIsolatedRuntime(nodePtySpawn)
+    vi.doMock('../src/process-inspector.ts', async importOriginal => ({
+      ...await importOriginal<typeof import('../src/process-inspector.ts')>(),
+      linuxProcessGroupHasLiveMembers: processGroupHasLiveMembers,
+    }))
     vi.doMock('../src/linux-scope.ts', () => ({
       signalLinuxDirectProcess,
       launchLinuxScope: vi.fn(),
@@ -588,6 +603,8 @@ describe('LocalSubprocessRuntime', () => {
       expect(bindOwner).toHaveBeenCalledOnce()
       expect(launcherStates).toEqual([true])
       expect(launcherRunning?.()).toBe(true)
+      expect(launcherLiveMembers?.()).toBe(true)
+      expect(processGroupHasLiveMembers).toHaveBeenCalledExactlyOnceWith(123)
       expect(launcherSignal?.('SIGTERM')).toBe(false)
       expect(terminalKill).not.toHaveBeenCalled()
       directProbe.mockImplementationOnce(() => true)
@@ -615,6 +632,7 @@ describe('LocalSubprocessRuntime', () => {
       directProbe.mockRestore()
       unmockLazyRequireForIsolatedRuntime()
       vi.doUnmock('../src/linux-scope.ts')
+      vi.doUnmock('../src/process-inspector.ts')
       unmockWin32ForIsolatedRuntime()
       vi.resetModules()
     }

@@ -108,7 +108,7 @@ side 会话是插件自行创建的子会话，种子是父会话截至点击时
 
 当包约定不够用时阅读以下页面：挂载它的组合、提供其客户端 bundle 的 roster，以及本包所属的组。
 
-- [桌面组合 patch](../../../apps/desktop-host/config/desktop.cordis.patch.yml)——以停用状态携带侧边栏行的组合；在其中去掉 `disabled` 即挂载，删除整行即让桌面彻底不再携带。
+- [桌面应用](../../../apps/desktop/README.zh.md)——桌面外壳，其 profile 组合挂载本包的侧边栏行。
 - [客户端模块](../modules/README.zh.md)——`dsh.client` bundle 及其 external 如何组合与提供。
 - [客户端组地图](../README.zh.md)——本包所属的浏览器半侧。
 

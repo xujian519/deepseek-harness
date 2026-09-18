@@ -148,6 +148,7 @@ export function apply(ctx: Context): void {
        *  navigation, …) ever removes it from <body>. Cheap: childList only,
        *  no subtree, no attribute filtering. */
       const guardAnchor = (): void => {
+        /* v8 ignore next -- idempotence guard: mount() returns early while mounted, and unmount() clears the observer with the flag. */
         if (bodyObserver !== undefined) return
         bodyObserver = new MutationObserver(() => {
           if (host !== undefined && !document.body.contains(host)) {

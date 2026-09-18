@@ -111,6 +111,22 @@ describe('jobs.output malformed envelopes', () => {
     })
   })
 
+  it('drops feed rows that are not job_output calls or whose call was never seen', () => {
+    const capture: { on?: (session: unknown, event: SidebarSessionEvent) => void } = {}
+    const api = buildJobsApi(ctxWith({ get: () => undefined }, undefined, undefined, capture), 4096)
+    const emit = capture.on!
+    // A tool/call for another tool never enters the mirror.
+    emit({ id: 's1' }, callEvent(0, 'read_file', 'r1', { path: 'x' }))
+    // A tool/result the tracer cannot read is dropped before the pairing.
+    emit({ id: 's1' }, resultEvent(1, undefined))
+    // A result whose call was never mirrored is dropped.
+    emit({ id: 's1' }, jobResult(2, 'never-seen', 'stale line'))
+    // The surviving pair still reads back end to end.
+    emit({ id: 's1' }, callEvent(3, 'job_output', 'c2', JSON.stringify({ job_id: 'bash-1' })))
+    emit({ id: 's1' }, jobResult(4, 'c2', 'live line'))
+    expect(api.output({ sessionId: 's1', id: 'bash-1' })).toEqual({ text: 'live line', truncated: false, read: true })
+  })
+
   it('ignores feed events whose session has no id and non-mirror events', () => {
     const capture: { on?: (session: unknown, event: SidebarSessionEvent) => void } = {}
     buildJobsApi(ctxWith({ get: () => undefined }, undefined, undefined, capture), 4096)

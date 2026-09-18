@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { SettingsProvider, SettingsConflictError, type SettingsNamespace, type SettingsScope, type SettingsUpdateSource } from '../src/index.ts'
+import { SettingsProvider, SettingsConflictError, settingsNamespace, type SettingsNamespace, type SettingsScope, type SettingsUpdateSource } from '../src/index.ts'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { MemorySettings } from './memory.ts'
 
@@ -80,6 +80,11 @@ describe('settings namespace validation', () => {
   it.each(['', 'UI', '9lives', 'a_b', '-lead'])('rejects %j at the service', async (value) => {
     const { ctx } = await boot()
     expect(() => ctx.settings.register(value, ThemeSchema)).toThrow(TypeError)
+  })
+
+  it('brands a valid namespace for out-of-service callers and rejects an invalid one', () => {
+    expect(settingsNamespace('ui-theme')).toBe('ui-theme')
+    expect(() => settingsNamespace('UI')).toThrow(TypeError)
   })
 })
 
@@ -863,6 +868,60 @@ describe('SettingsProvider.installSection', () => {
 
     const unloading = consumer.dispose()
     provider.pushExternal({ 'helper-ns': { theme: 'racing' } })
+    await unloading
+    expect(changes).toEqual(['user'])
+  })
+
+  it('routes the consumer validator into the namespace it registers', async () => {
+    const { ctx } = await boot()
+    const entry = { theme: 'entry' }
+    const consumer = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        child.settings.installSection(child, 'helper-ns', HelperSchema, entry, {
+          setSource: () => {},
+          onChange: () => {},
+          validate: (value) => {
+            if (value.theme === 'blocked') throw new Error('theme blocked by the consumer')
+          },
+        })
+      },
+    })
+    await consumer
+    // The validator reaches the namespace, so a write the consumer could not
+    // act on is refused at the update rather than stored.
+    await expect(ctx.settings.update('helper-ns', { theme: 'blocked' }))
+      .rejects.toThrow('theme blocked by the consumer')
+  })
+
+  it('suppresses a change queued while the consumer starts unloading', async () => {
+    // The watcher callback runs from a queued microtask, so a commit landing in
+    // the consumer's last active turn is still pending when teardown flips the
+    // owner to UNLOADING; notifying then would re-derive released resources.
+    const { ctx, provider } = await boot({ doc: { 'helper-ns': { theme: 'user' } } })
+    const entry = { theme: 'entry' }
+    let current: () => { theme: string } = () => entry
+    const changes: string[] = []
+    const consumer = ctx.plugin({
+      inject: ['settings'],
+      apply: (child: Context) => {
+        child.settings.installSection(child, 'helper-ns', HelperSchema, entry, {
+          setSource: (source) => {
+            current = source
+          },
+          onChange: () => {
+            changes.push(current().theme)
+          },
+        })
+      },
+    })
+    await consumer
+    await vi.waitFor(() => {
+      expect(changes).toEqual(['user'])
+    })
+
+    provider.pushExternal({ 'helper-ns': { theme: 'racing' } })
+    const unloading = consumer.dispose()
     await unloading
     expect(changes).toEqual(['user'])
   })
