@@ -6,7 +6,7 @@
  * agent-opens.spec.ts, which owns the tool's acceptance contract.
  */
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AgentOpenRegistry, registerOpenTool, type AgentOpenRequest } from '../src/agent-opens.ts'
@@ -91,6 +91,26 @@ describe('sidebar_open classifier edges', () => {
       // EACCES — so the generic "cannot open" branch reports it.
       await expect(tool.execute({ target: join(dir, 'plain', 'child.txt') }, exec('s1'))).rejects.toThrow(/cannot open/)
     } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports an http URL that cannot be parsed at all', async () => {
+    const tool = mountOpenTool(new AgentOpenRegistry())
+    // No host at all: the scheme matches, the parse does not.
+    await expect(tool.execute({ target: 'https://' }, exec('s1'))).rejects.toThrow(/not a valid URL/)
+  })
+
+  it('reports a target the process may not read', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-sidebar-opens-locked-'))
+    writeFileSync(join(dir, 'inside.txt'), 'x')
+    // The enclosing directory denies access, so stat() fails with EACCES.
+    chmodSync(dir, 0o000)
+    try {
+      const tool = mountOpenTool(new AgentOpenRegistry())
+      await expect(tool.execute({ target: join(dir, 'inside.txt') }, exec('s1'))).rejects.toThrow(/is not readable/)
+    } finally {
+      chmodSync(dir, 0o700)
       rmSync(dir, { recursive: true, force: true })
     }
   })

@@ -92,6 +92,7 @@ export async function writeWorkspaceUpload(input: WorkspaceUploadInput): Promise
     // Wait for the stream to fully close before unlinking (Windows locks open
     // files), then remove our own uniquely named temp file.
     stream.destroy()
+    /* v8 ignore next -- unreachable: `closed` is built with only a resolve callback, so it cannot reject */
     await closed.catch(() => {})
     await rm(tmp, { force: true }).catch(() => {})
     throw error

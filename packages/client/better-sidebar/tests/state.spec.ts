@@ -1332,6 +1332,174 @@ describe('pinned terminals (v0.17.0)', () => {
   })
 })
 
+describe('cross-tree moves and remaining reducer arms', () => {
+  const state = (): SidebarState => makeDefaultState()
+
+  /** The right tree's pane holding the seeded tab, plus the bottom tree's pane. */
+  function bothTrees(bottomOpen = true): { s: SidebarState; rightPane: string; bottomPane: string } {
+    const s = toggleBottomPanel(state())
+    expect(s.bottomOpen).toBe(bottomOpen)
+    return {
+      s,
+      rightPane: (s.splits as SidebarLeaf).id,
+      bottomPane: (s.bottomSplits as SidebarLeaf).id,
+    }
+  }
+
+  it('a cross-panel drop of an unknown tab id is a strict no-op', () => {
+    const { s, rightPane, bottomPane } = bothTrees()
+    expect(moveTabToEdge(s, rightPane, 'tab:ghost', bottomPane, 'center')).toBe(s)
+    expect(moveTabToEdge(s, rightPane, 'tab:ghost', bottomPane, 'up')).toBe(s)
+  })
+
+  it('a cross-panel column edge drop splits the target pane below/above', () => {
+    let s = state()
+    s = openTabInActivePane(s, { id: 'terminal:1', type: 'terminal', title: 'T' })
+    s = toggleBottomPanel(s)
+    const rightPane = (s.splits as SidebarLeaf).id
+    const bottomPane = (s.bottomSplits as SidebarLeaf).id
+    const dragged = (s.splits as SidebarLeaf).tabs.find(tab => tab.id !== 'terminal:1')!.id
+    const after = moveTabToEdge(s, rightPane, dragged, bottomPane, 'down')
+    // The target tree split COLUMN-wise with the tab in its own fresh leaf.
+    const split = after.bottomSplits as Extract<SplitNode, { kind: 'split' }>
+    expect(split.dir).toBe('col')
+    expect(split.children[1]).toMatchObject({ kind: 'leaf' })
+    expect((split.children[1] as SidebarLeaf).tabs.map(tab => tab.id)).toEqual([dragged])
+    expect(after.activePane).toBe((split.children[1] as SidebarLeaf).id)
+    // The source pane keeps its own active pointer (the dragged tab was not it).
+    expect((after.splits as SidebarLeaf).active).toBe('terminal:1')
+  })
+
+  it('unpinning a terminal that carries no pin is a strict no-op', () => {
+    const s = openTabInActivePane(state(), { id: 'terminal:1', type: 'terminal', title: 'T' })
+    expect(setTabPin(s, 'terminal:1', null)).toBe(s)
+  })
+
+  it('keeps a single-leading-backslash root when expanding ancestors', () => {
+    const next = revealPaths(makeDefaultState(), '\\w', ['\\w\\src\\a.ts'])
+    expect(next.revealed).toEqual(['\\w\\src\\a.ts'])
+    expect(next.expanded).toContain('\\w\\src')
+  })
+
+  it('moveFloat rewrites only the addressed window', () => {
+    const g = globalThis as Record<string, unknown>
+    const previous = g.window
+    g.window = { innerWidth: 1024, innerHeight: 768 }
+    try {
+      let s = state()
+      s = floatTab(openTabInActivePane(s, { id: 'a', type: 'db', title: 'a' }), 'a', 200, 200)
+      s = floatTab(openTabInActivePane(s, { id: 'b', type: 'db', title: 'b' }), 'b', 200, 200)
+      const [first, second] = s.floats
+      const moved = moveFloat(s, second!.id, 400, 400)
+      expect(moved.floats[0]).toEqual(first)
+      // The requested point clamps into the 1024x768 viewport (the 744-tall
+      // window leaves 24px of vertical room).
+      expect(moved.floats[1]).toMatchObject({ x: 400, y: 24 })
+      expect(second!.x).not.toBe(400)
+    } finally {
+      if (previous === undefined) delete g.window
+      else g.window = previous
+    }
+  })
+
+  it('a persisted pin without a homeCwd keeps the workspace scope only', () => {
+    const g = globalThis as Record<string, unknown>
+    g.window = { clearTimeout: () => {}, setTimeout: () => 0, innerWidth: 1024, innerHeight: 768 }
+    g.localStorage = { getItem: () => null, setItem: () => {} }
+    try {
+      const raw = jsonClone(makeDefaultState())
+      const leaf = raw.splits as SidebarLeaf
+      leaf.tabs.push({ id: 'terminal:5', type: 'terminal', title: 'T5', pin: { scope: 'workspace' } })
+      leaf.active = 'terminal:5'
+      const restored = sanitizeState(raw)!
+      const tab = (restored.splits as SidebarLeaf).tabs.find(candidate => candidate.id === 'terminal:5')!
+      expect(tab.pin).toEqual({ scope: 'workspace' })
+    } finally {
+      delete g.window
+      delete g.localStorage
+    }
+  })
+
+  it('rejects a persisted nextTerminal below 1 or missing', () => {
+    const base: Record<string, unknown> = {
+      panelOpen: true,
+      width: 400,
+      nextTerminal: 1,
+      activePane: 'pane:1',
+      expanded: [],
+      splits: { kind: 'leaf', id: 'pane:1', active: null, tabs: [] },
+    }
+    expect(sanitizeState({ ...base, nextTerminal: 0 })).toBeUndefined()
+    expect(sanitizeState({ ...base, nextTerminal: 1.5 })).toBeUndefined()
+    const missing = { ...base }
+    delete missing.nextTerminal
+    expect(sanitizeState(missing)).toBeUndefined()
+  })
+
+  it('rejects an unknown tree-node kind and a split with non-array children/sizes', () => {
+    const base: Record<string, unknown> = {
+      panelOpen: true,
+      width: 400,
+      nextTerminal: 1,
+      activePane: 'pane:1',
+      expanded: [],
+      splits: { kind: 'leaf', id: 'pane:1', active: null, tabs: [] },
+    }
+    expect(sanitizeState({ ...base, splits: { kind: 'bogus', id: 'x:1' } })).toBeUndefined()
+    expect(sanitizeState({
+      ...base,
+      splits: { kind: 'split', id: 'split:1', dir: 'row', sizes: [0.5, 0.5], children: 'junk' },
+    })).toBeUndefined()
+    expect(sanitizeState({
+      ...base,
+      splits: { kind: 'split', id: 'split:1', dir: 'row', sizes: 'junk', children: [] },
+    })).toBeUndefined()
+  })
+})
+
+describe('cross-session panel width', () => {
+  it('clamps a stored global width to the fixed ceiling without a viewport', () => {
+    // Node environment: no window, so the ceiling is PANEL_MAX and only the
+    // floor and the fixed ceiling apply.
+    const g = globalThis as Record<string, unknown>
+    g.localStorage = {
+      getItem: (key: string) => (key === 'dsh-sidebar:v1:width' ? '500' : null),
+      setItem: () => {},
+    }
+    try {
+      const store = createSidebarStore()
+      store.setSession('w0')
+      expect(store.getSnapshot().state!.width).toBe(500)
+      const clamped = createSidebarStore()
+      g.localStorage = {
+        getItem: (key: string) => (key === 'dsh-sidebar:v1:width' ? '5000' : null),
+        setItem: () => {},
+      }
+      clamped.setSession('w1')
+      expect(clamped.getSnapshot().state!.width).toBe(640)
+    } finally {
+      delete g.localStorage
+    }
+  })
+
+  it('adopts the stored global width for a fresh session', () => {
+    const g = globalThis as Record<string, unknown>
+    g.window = { clearTimeout: () => {}, setTimeout: () => 0, innerWidth: 1024, innerHeight: 768 }
+    g.localStorage = {
+      getItem: (key: string) => (key === 'dsh-sidebar:v1:width' ? '500' : null),
+      setItem: () => {},
+    }
+    try {
+      const store = createSidebarStore()
+      store.setSession('w1')
+      expect(store.getSnapshot().state!.width).toBe(500)
+    } finally {
+      delete g.window
+      delete g.localStorage
+    }
+  })
+})
+
 describe('URL reset escape hatch (issue #369)', () => {
   // Same browser-global stubs as the v0.12.0 block above; loadState reads
   // window.location.search (reset param) and localStorage (persisted state).

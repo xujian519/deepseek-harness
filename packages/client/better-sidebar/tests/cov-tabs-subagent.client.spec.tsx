@@ -550,6 +550,192 @@ describe('SubagentView topology', () => {
   })
 })
 
+describe('SubagentView remaining arms', () => {
+  const jobsSnapshot = (jobs: unknown[]): SidebarSessionList => ({
+    current: 'root',
+    byId: { root: { id: 'root', displayTitle: 'Main' } },
+    subagentsByParent: { root: catalog([]) },
+    jobsBySession: { root: jobs as NonNullable<SidebarSessionList['jobsBySession']>[string] },
+  })
+
+  it('an error catalog without a message keeps the retry affordance', async () => {
+    const store = makeStore({
+      current: 'root',
+      byId: { root: { id: 'root', displayTitle: 'M' } },
+      subagentsByParent: { root: { entries: [], parentAvailable: false, state: 'error', error: null } },
+      jobsBySession: {},
+    })
+    const { ctx, calls } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    const retry = container.querySelector('button[class*="subagentErrorRetry"]') as HTMLButtonElement
+    expect(retry).not.toBeNull()
+    await act(async () => { retry.click() })
+    expect(calls.refresh).toEqual(['root'])
+    unmount()
+  })
+
+  it('a loading child catalog that already has entries renders its rows instead of loading rows', () => {
+    const store = makeStore({
+      current: 'root',
+      byId: {
+        root: { id: 'root', displayTitle: 'M' },
+        b: { id: 'b', displayTitle: 'Child B', origin: 'subagent', parentId: 'root' },
+        c: { id: 'c', displayTitle: 'Child C', origin: 'subagent', parentId: 'b' },
+      },
+      subagentsByParent: {
+        root: catalog([{ kind: 'child', id: 'b', activity: 'idle', hasChildren: true, mode: 'continuable', label: 'B' }]),
+        b: {
+          entries: [{ kind: 'child', id: 'c', activity: 'inactive', hasChildren: false, mode: 'one-shot', label: 'C' }],
+          parentAvailable: true,
+          state: 'loading',
+          error: null,
+        },
+      },
+      jobsBySession: {},
+    })
+    const { ctx } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    // Rows already arrived: the group must not claim to be busy.
+    expect(container.querySelector('[role="group"][aria-busy="true"]')).toBeNull()
+    expect(container.textContent).toContain('C')
+    unmount()
+  })
+
+  it('a summary-backed ready-but-empty catalog shows the loading rows, not the empty state', () => {
+    const store = makeStore({
+      current: 'root',
+      byId: {
+        root: { id: 'root', displayTitle: 'M' },
+        a: { id: 'a', displayTitle: 'Child A', origin: 'subagent', parentId: 'root' },
+      },
+      subagentsByParent: { root: catalog([]) },
+      jobsBySession: {},
+    })
+    const { ctx } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    expect(container.querySelector('[role="tree"][aria-busy="true"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('No subagents')
+    unmount()
+  })
+
+  it('a missing session id renders no rows and leaves the refresh inert', () => {
+    const store = makeStore({ current: undefined, byId: {}, subagentsByParent: {}, jobsBySession: {} })
+    const { ctx, calls } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: undefined as unknown as string, active: true, ctx }),
+    )
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(0)
+    const refresh = container.querySelector('button[aria-label="Refresh"]') as HTMLButtonElement
+    expect(refresh.disabled).toBe(true)
+    act(() => { refresh.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
+    expect(calls.refresh).toEqual([])
+    // Arrow keys over an empty tree are safe.
+    const body = container.querySelector('[class*="subagentBody"]') as HTMLElement
+    for (const key of ['ArrowDown', 'ArrowUp', 'Home', 'End']) {
+      act(() => { body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })) })
+    }
+    unmount()
+  })
+
+  it('an unrelated key on the root card does nothing; ArrowUp without focus starts at the end', () => {
+    const store = makeStore(topology())
+    const { ctx, calls } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    const rootItem = container.querySelector('[role="treeitem"][aria-level="0"]') as HTMLElement
+    act(() => {
+      rootItem.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true, cancelable: true }))
+    })
+    expect(calls.open).toEqual([])
+    const rows = [...container.querySelectorAll<HTMLElement>('[role="treeitem"]:not([aria-disabled="true"])')]
+    expect(document.activeElement).not.toBe(rows.at(-1))
+    const body = container.querySelector('[class*="subagentBody"]') as HTMLElement
+    act(() => {
+      body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    })
+    // No row held the keyboard: the walk enters from the far end.
+    expect(document.activeElement).toBe(rows.at(-1))
+    unmount()
+  })
+
+  it('a branch that appears after mount is observed once; a repeat snapshot is a no-op', () => {
+    const withBranch = (hasChildren: boolean): SidebarSessionList => ({
+      current: 'root',
+      byId: {
+        root: { id: 'root', displayTitle: 'M' },
+        b: { id: 'b', displayTitle: 'Child B', origin: 'subagent', parentId: 'root' },
+      },
+      subagentsByParent: {
+        root: catalog([
+          { kind: 'child', id: 'b', activity: 'idle', hasChildren, mode: 'continuable', label: 'B' },
+        ]),
+      },
+      jobsBySession: {},
+    })
+    const store = makeStore(withBranch(false))
+    const { ctx, calls } = makeCtx(store)
+    const { unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    // A leaf child consumes no catalog of its own.
+    expect(calls.catalogOpen).toEqual([['root', true]])
+    act(() => { store.set(withBranch(true)) })
+    expect(calls.catalogOpen).toContainEqual(['b', true])
+    // The same branch again (a fresh snapshot): already observed, no re-open.
+    const before = calls.catalogOpen.length
+    act(() => { store.set(withBranch(true)) })
+    expect(calls.catalogOpen.length).toBe(before)
+    unmount()
+  })
+
+  it('clicking the selected job row again closes the dock; the kill button disarms on its timer', async () => {
+    vi.useFakeTimers()
+    const store = makeStore(jobsSnapshot([
+      { id: 'j1', kind: 'bash', label: 'watch', status: 'running', startedAt: 1_000 },
+    ]))
+    const { ctx } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    const row = container.querySelector('button[aria-label*="watch"]') as HTMLButtonElement
+    await act(async () => { row.click() })
+    expect(container.querySelector('[class*="jobsPane"]')).not.toBeNull()
+    await act(async () => { row.click() })
+    expect(container.querySelector('[class*="jobsPane"]')).toBeNull()
+    const kill = container.querySelector('button[aria-label="Kill"]') as HTMLButtonElement
+    act(() => { kill.click() })
+    expect(container.querySelector('button[aria-label="Click again to confirm kill"]')).not.toBeNull()
+    await act(async () => { vi.advanceTimersByTime(3_000) })
+    expect(container.querySelector('button[aria-label="Click again to confirm kill"]')).toBeNull()
+    unmount()
+    vi.useRealTimers()
+  })
+
+  it('a selected job leaving the mirror closes the dock without a click', async () => {
+    const store = makeStore(jobsSnapshot([
+      { id: 'j1', kind: 'bash', label: 'watch', status: 'running', startedAt: 1_000 },
+    ]))
+    const { ctx } = makeCtx(store)
+    const { container, unmount } = mount(
+      createElement(SubagentView, { sessionId: 'root', active: true, ctx }),
+    )
+    const row = container.querySelector('button[aria-label*="watch"]') as HTMLButtonElement
+    await act(async () => { row.click() })
+    expect(container.querySelector('[class*="jobsPane"]')).not.toBeNull()
+    store.set(jobsSnapshot([]))
+    await act(async () => { await Promise.resolve() })
+    expect(container.querySelector('[class*="jobsPane"]')).toBeNull()
+    unmount()
+  })
+})
+
 describe('SubagentView jobs extras', () => {
   function jobsSnapshot(jobs: unknown[]): SidebarSessionList {
     return {

@@ -14,7 +14,10 @@ import { join } from 'node:path'
 import { writeWorkspaceUpload } from '../src/fs-operations.ts'
 
 /** The scripted failure the fake createWriteStream performs (null = behave normally). */
-let script: 'write-error-after-first-chunk' | 'end-callback-error' | 'error-before-successful-end' | null = null
+let script: 'write-error-after-first-chunk' | 'end-callback-error' | 'error-before-successful-end' | 'backpressure' | null = null
+
+/** Ordered record of the scripted stream's write/drain interleaving. */
+const streamLog: string[] = []
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
@@ -22,6 +25,32 @@ vi.mock('node:fs', async (importOriginal) => {
     ...actual,
     createWriteStream: vi.fn((path: string, options?: { flags?: string }) => {
       if (script === null) return actual.createWriteStream(path, options)
+      if (script === 'backpressure') {
+        // A real file stream underneath, with the first write reporting a
+        // full buffer and announcing drain on the next tick.
+        const underlying = actual.createWriteStream(path, options)
+        const proxy = new EventEmitter() as EventEmitter & {
+          write: (buffer: Buffer) => boolean
+          end: (cb?: (error?: Error | null) => void) => void
+          destroy: () => void
+        }
+        let first = true
+        proxy.write = (buffer: Buffer): boolean => {
+          streamLog.push(`write:${buffer.toString('utf8')}`)
+          const accepted = underlying.write(buffer)
+          if (first) {
+            first = false
+            queueMicrotask(() => { streamLog.push('drain'); proxy.emit('drain') })
+            return false
+          }
+          return accepted
+        }
+        proxy.end = (cb?: (error?: Error | null) => void) => { underlying.end(cb) }
+        proxy.destroy = () => { underlying.destroy() }
+        underlying.on('error', (error: Error) => { proxy.emit('error', error) })
+        underlying.on('close', () => { proxy.emit('close') })
+        return proxy
+      }
       const stream = new EventEmitter() as EventEmitter & {
         write: (buffer: Buffer) => boolean
         end: (cb?: (error?: Error | null) => void) => void
@@ -108,6 +137,21 @@ describe('upload stream failures', () => {
       // read-only and failed, so the temp file survives; the original rename
       // error is what the caller saw.
       expect(leftovers(dir)).toHaveLength(1)
+    }
+  })
+
+  it('waits for drain before writing the next chunk', async () => {
+    streamLog.length = 0
+    script = 'backpressure'
+    try {
+      const result = await writeWorkspaceUpload({
+        cwd: root, dir: root, relativePath: 'backpressure.txt', chunks: chunksOf('a', 'b'), limit: 1024,
+      })
+      expect(result.size).toBe(2)
+      // The second chunk is written only after the buffer reported drain.
+      expect(streamLog).toEqual(['write:a', 'drain', 'write:b'])
+    } finally {
+      script = null
     }
   })
 

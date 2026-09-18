@@ -185,6 +185,7 @@ function runGit(cwd: string, args: string[], timeoutMs = 30_000): Promise<string
     let stderr = ''
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
+      /* v8 ignore next -- every runGit caller passes a command name; the fallback only satisfies noUncheckedIndexedAccess */
       reject(new GitCommandError(`git ${args[0] ?? ''} timed out after ${timeoutMs}ms`, 'git-error', args.join(' ')))
     }, timeoutMs)
     child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8') })
@@ -259,6 +260,9 @@ export function repoRoots(cwd: string): Promise<string[]> {
       repoRootsInFlight.delete(cwd)
       return roots
     },
+    // discoverRepoRoots never rejects: both git probes are caught and a
+    // failed readdir degrades to an empty candidate list.
+    /* v8 ignore next 4 -- unreachable: discovery swallows every failure and resolves */
     (error: unknown) => {
       repoRootsInFlight.delete(cwd)
       throw error

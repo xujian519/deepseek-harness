@@ -44,6 +44,7 @@ export function useViewportSize(): ViewportSize {
     height: typeof window === 'undefined' ? 0 : window.innerHeight,
   }))
   useEffect(() => {
+    /* v8 ignore next -- only a DOM lane runs effects; the SSR lane renders without one and never executes this. */
     if (typeof window === 'undefined') return
     let frame: number | null = null
     const measure = (): void => {

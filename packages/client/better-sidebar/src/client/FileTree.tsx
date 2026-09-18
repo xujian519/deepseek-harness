@@ -643,6 +643,7 @@ export function FileTree(props: {
         ]}
         onSelect={(id) => {
           const target = rowMenu
+          /* v8 ignore next -- the Menu renders rows only while rowMenu is set, so a select always carries the target. */
           if (target === null) return
           setRowMenu(null)
           if (id === 'open-new-tab') {
@@ -667,12 +668,14 @@ export function FileTree(props: {
             return
           }
           copyPath(
+            /* v8 ignore next -- the row menu only renders under a cwd, so this branch always has one. */
             id === 'relative' ? relativeTo(cwd ?? '', target.path) : target.path,
             target.path,
           )
         }}
         portal
         align="start"
+        /* v8 ignore next -- the Menu asks for the anchor rect only while it is open, which implies a row menu. */
         getAnchorRect={() => (rowMenu === null ? null : new DOMRect(rowMenu.x, rowMenu.y, 0, 0))}
         anchor={<span />}
       />

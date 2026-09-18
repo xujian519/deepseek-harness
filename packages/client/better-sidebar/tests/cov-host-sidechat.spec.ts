@@ -138,6 +138,32 @@ describe('sidechat-core seed and snapshot edges', () => {
     expect(hasDanglingToolCall(events, 0)).toBe(false)
   })
 
+  it('clears pending tool calls at a step boundary inside the open turn', () => {
+    const events = [
+      ev('turn/start', 0, { turn: 1 }),
+      ev('tool/call', 1, { callId: 'c1', name: 'bash', arguments: 'ls' }),
+      ev('step/end', 2, { turn: 1, step: 1 }),
+      ev('tool/result', 3, { message: { source: { callId: 'c1' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'late' }] }] } }),
+    ]
+    const snapshot = buildOpenTurnSnapshot(events)!
+    // The step boundary dropped the call identity, so the late result renders
+    // as an unmatched tool row rather than the call's own name.
+    expect(snapshot).toContain('- `tool`')
+    expect(snapshot).toContain('Result: late')
+    expect(snapshot).not.toContain('`bash`')
+  })
+
+  it('closes a log that ends in a torn row with a zero timestamp', () => {
+    const events: SidechatLogEvent[] = new Array<SidechatLogEvent>(2)
+    events[0] = ev('turn/start', 0, { turn: 4 })
+    const { seed } = buildSidechatInheritance(events)
+    const close = seed.at(-1)!
+    // The last row is a hole: the synthetic close has no time to inherit.
+    expect(close.type).toBe('turn/end')
+    expect(close.time).toBe(0)
+    expect(close.data).toEqual({ turn: 4, reason: { kind: 'interrupted' } })
+  })
+
   it('falls back to the snapshot when a tool call is still executing', () => {
     const events = [
       ev('user/message', 0, { content: [{ type: 'text', text: 'q' }] }),
@@ -349,6 +375,32 @@ describe('sidechat routes optional-service degradation', () => {
         message: anyString(thrown instanceof Error ? 'resume exploded' : 'resume string failure'),
       })
     }
+  })
+
+  it('cold-resumes without a recorded preset through the no-op setup', async () => {
+    const child = agent('child')
+    const table = services(undefined, child)
+    table.agents.get = vi.fn(() => undefined)
+    // The persisted record carries no preset selection, so the composition
+    // is the no-op setup the resume path installs.
+    table.sessionController.inspect = vi.fn(async () => ({ meta: {}, events: [] as SidechatLogEvent[] }))
+    const api = buildSidechatApi(ctxWith(table))
+    await api['sidechat.prompt']({ childId: 'child', text: 'no preset' })
+    const resumeOptions = table.resume.mock.calls[0]![0] as { setup: (ctx: unknown) => Promise<void> }
+    await expect(resumeOptions.setup({})).resolves.toBeUndefined()
+    expect(table.mount).not.toHaveBeenCalled()
+  })
+
+  it('releases a cold-resumed thread agent through the dispose route', async () => {
+    const child = agent('child')
+    const table = services(undefined, child)
+    const dispose = vi.fn(async () => {})
+    table.agents.get = vi.fn(() => undefined)
+    table.agents.resume = vi.fn(async () => ({ agent: child, dispose }))
+    const api = buildSidechatApi(ctxWith(table))
+    await api['sidechat.prompt']({ childId: 'child', text: 'cold thread' })
+    await api['sidechat.dispose']({ childId: 'child' })
+    expect(dispose).toHaveBeenCalledTimes(1)
   })
 
   it('cold-resumes through the persisted preset composition', async () => {

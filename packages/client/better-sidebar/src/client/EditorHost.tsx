@@ -198,6 +198,7 @@ export function EditorHost(props: {
    *  dialog, not a sidebar error. */
   const openWith = (targetId: string, absolute: string): void => {
     const target = openWithTargets.find(item => item.id === targetId)
+    /* v8 ignore next -- menu rows are built from the resolved open-with targets, so the id always resolves. */
     if (target === undefined) return
     if (target.kind === 'reveal') {
       void api.openExternal({ action: 'reveal', path: absolute }).catch(
@@ -206,6 +207,7 @@ export function EditorHost(props: {
       return
     }
     const url = openWithUrl(target, absolute, openWithConfig)
+    /* v8 ignore next -- resolveOpenWithTargets admits only targets with a scheme and a {path} template, so openWithUrl always answers. */
     if (url === undefined) return
     void api.openExternal({ action: 'url', url }).catch(
       (error: unknown) => { console.error('open external failed', error) },
@@ -294,6 +296,7 @@ export function EditorHost(props: {
     setLoad({ status: 'loading' })
     const mediaUrlOf = (): string => mediaUrl(scope, path)
     const apply = (action: EditorLoadAction): void => {
+      /* v8 ignore next -- the fsRead and custom-load callbacks return on `cancelled` before reaching apply. */
       if (cancelled) return
       switch (action.kind) {
         case 'binary':

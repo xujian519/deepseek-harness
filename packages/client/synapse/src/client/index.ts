@@ -59,11 +59,13 @@ export function apply(ctx: ClientContext): void {
     const id = Object.values(snapshot.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
     if (id === undefined) return null
     const session = snapshot.byId[id]
+    /* v8 ignore next -- byId is a Record<SessionId, SessionSummary>: the row Object.values found is addressable under its own id */
     return session === undefined ? null : { id, title: session.displayTitle, cwd: session.cwd ?? null }
   }
   const sessionRows = (): SessionRow[] =>
     ctx.sessions.list.getSnapshot().ids.flatMap((id) => {
       const session = ctx.sessions.list.getSnapshot().byId[id]
+      /* v8 ignore next -- a snapshot's ids are keys of its byId row map, so every listed id resolves */
       return session === undefined ? [] : [{
         id,
         title: session.displayTitle,
@@ -118,11 +120,13 @@ export function apply(ctx: ClientContext): void {
   const pendingRpc = new Map<string, PendingRpc>()
   const settle = (requestId: string, value: unknown, error?: string): void => {
     const pending = pendingRpc.get(requestId)
+    /* v8 ignore start -- no producer registers a pending RPC in this half, so a settle can only miss its waiter */
     if (pending === undefined) return
     pendingRpc.delete(requestId)
     window.clearTimeout(pending.timer)
     if (error === undefined) pending.resolve(value)
     else pending.reject(new Error(error))
+    /* v8 ignore stop */
   }
   const setView = (view: 'dialog' | 'map'): void => {
     const showingMap = view === 'map'

@@ -256,6 +256,7 @@ export function GitView(props: {
 
   /** Append the next history page (lazy: only when the user asks for more). */
   const loadMoreLog = async (): Promise<void> => {
+    /* v8 ignore next -- disabled arm: the pager renders only while more history exists and is disabled while a page is loading. */
     if (logLoadingMore || logEnded) return
     const generation = refreshGeneration.current
     const target = selectedRef.current
@@ -383,6 +384,8 @@ export function GitView(props: {
 
   const stagedEntries = (status?.entries ?? []).filter(isStagedEntry)
   const unstagedEntries = (status?.entries ?? []).filter(isUnstagedEntry)
+  /** The branch the status row reports; '' while the checkout is unknown. */
+  const currentBranch = status?.branch ?? ''
 
   const renderEntry = (entry: GitStatusEntry, staged: boolean): ReactNode => {
     return (
@@ -445,11 +448,11 @@ export function GitView(props: {
         )}
         <select
           className={css.gitBranchSelect}
-          value={status?.branch ?? ''}
+          value={currentBranch}
           onChange={(event) => { void checkout(event.target.value) }}
           disabled={busy || (status !== null && !status.isRepo)}
         >
-          {(status?.branch ?? '') !== '' && <option value={(status as GitStatusResult).branch ?? ''}>{(status as GitStatusResult).branch ?? ''}</option>}
+          {currentBranch !== '' && <option value={currentBranch}>{currentBranch}</option>}
           {branchNames.filter(name => name !== status?.branch).map(name => <option key={name} value={name}>{name}</option>)}
         </select>
         <button
@@ -501,6 +504,7 @@ export function GitView(props: {
 
           <div className={css.gitCommit}>
             <Input
+              /* v8 ignore next -- the bundled stylesheet always defines this class, so the empty-object arm is unreachable. */
               {...(css.gitCommitInput === undefined ? {} : { className: css.gitCommitInput })}
               placeholder={t('commitPlaceholder')}
               value={commitMsg}
@@ -590,6 +594,7 @@ export function GitView(props: {
             ]}
             onSelect={(id) => {
               const target = fileMenu
+              /* v8 ignore next -- the menu reports a selection only while its rows are mounted, so the captured target is never null. */
               if (target === null) return
               setFileMenu(null)
               if (id === 'open') {
@@ -598,6 +603,7 @@ export function GitView(props: {
                 // resolved path escapes the session workspace, but a
                 // racing repo switch could still reach here with a path
                 // the host would reject. No-op in that case.
+                /* v8 ignore next -- the item list and this handler resolve the same render's path, so a shown item is always inside. */
                 if (!isWithinWorkspace(scope.cwd ?? '', resolved)) return
                 onOpenFile(resolved)
                 return
@@ -619,10 +625,12 @@ export function GitView(props: {
                 copy(relativeTo(repoRoot ?? selectedWorktree ?? scope.cwd ?? '', target.entry.path))
                 return
               }
+              /* v8 ignore next -- every other row id returns above, so only 'absolute' can reach this guard. */
               if (id === 'absolute') copy(resolveSidebarPath(repoRoot ?? selectedWorktree ?? scope.cwd, target.entry.path))
             }}
             portal
             align="start"
+            /* v8 ignore next -- the Menu queries the anchor rect only while the list is open, which is exactly while fileMenu is set. */
             getAnchorRect={() => (fileMenu === null ? null : new DOMRect(fileMenu.x, fileMenu.y, 0, 0))}
             anchor={<span />}
           />
@@ -642,6 +650,7 @@ export function GitView(props: {
             ]}
             onSelect={(id) => {
               const target = historyMenu
+              /* v8 ignore next -- the menu reports a selection only while its rows are mounted, so the captured target is never null. */
               if (target === null) return
               setHistoryMenu(null)
               if (id === 'view') {
@@ -669,6 +678,7 @@ export function GitView(props: {
                 })
                 return
               }
+              /* v8 ignore next -- every other row id returns above, so only 'cherryPick' can reach this guard. */
               if (id === 'cherryPick') {
                 runConfirmed({
                   title: t('cherryPickTitle'),
@@ -680,6 +690,7 @@ export function GitView(props: {
             }}
             portal
             align="start"
+            /* v8 ignore next -- the Menu queries the anchor rect only while the list is open, which is exactly while historyMenu is set. */
             getAnchorRect={() => (historyMenu === null ? null : new DOMRect(historyMenu.x, historyMenu.y, 0, 0))}
             anchor={<span />}
           />
@@ -698,6 +709,7 @@ export function GitView(props: {
                   disabled={busy}
                   onClick={() => {
                     const pending = confirm
+                    /* v8 ignore next -- the footer button only renders while a confirmation is open, so the value is never null. */
                     if (pending === null) return
                     setConfirm(null)
                     void pending.onConfirm()

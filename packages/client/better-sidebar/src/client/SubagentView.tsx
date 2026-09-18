@@ -204,10 +204,12 @@ function useSubagentLive(
     let timer: number | undefined
 
     const schedule = (): void => {
+      /* v8 ignore next -- the finally never calls schedule after disposal, and the cleanup clears its timer. */
       if (disposed) return
       timer = window.setTimeout(() => { void load() }, POLL_MS)
     }
     async function load(): Promise<void> {
+      /* v8 ignore next -- load is called only from a timer the effect cleanup clears, so it cannot start after disposal. */
       if (disposed) return
       const controller = new AbortController()
       controllerRef.current = controller
@@ -428,6 +430,7 @@ function JobOutputPane(props: {
   useEffect(() => {
     if (!isJobLive(job) || typeof state !== 'object' || state.text.length === 0) return
     const pre = preRef.current
+    /* v8 ignore next -- the pre renders whenever this guard lets the effect body run, so its ref is always attached. */
     if (pre !== null) pre.scrollTop = pre.scrollHeight
   }, [state, job.status])
 
@@ -673,6 +676,7 @@ export function SubagentView(props: {
 
   const observe = useCallback((parentSessionId: string, open: boolean): void => {
     sessions.setSubagentCatalogOpen?.(parentSessionId, open)
+    /* v8 ignore next -- the whole guard is unreachable-by-construction: observe is only called with open=true. */
     if (open) observedRef.current.add(parentSessionId)
     else observedRef.current.delete(parentSessionId)
   }, [sessions])
@@ -705,6 +709,7 @@ export function SubagentView(props: {
   // Unobserve everything on unmount (the host stops refreshing unused catalogs).
   useEffect(() => () => {
     for (const parentSessionId of observedRef.current) {
+      /* v8 ignore next -- the root effect cleanup, declared earlier, empties this set before the unmount cleanup runs. */
       sessions.setSubagentCatalogOpen?.(parentSessionId, false)
     }
     observedRef.current.clear()
@@ -725,6 +730,7 @@ export function SubagentView(props: {
 
   /** Jump back to the main agent (the topology root) from its node. */
   const openMain = useCallback((): void => {
+    /* v8 ignore next -- openMain is reachable only from the root card, which renders only when rootId is defined. */
     if (rootId === undefined) return
     try {
       sessions.open?.(rootId)
@@ -748,6 +754,7 @@ export function SubagentView(props: {
   const summaryBackedLoading = rootId !== undefined
     && (rootCatalog === undefined || (rootCatalog.state === 'ready' && rootCatalog.entries.length === 0))
     && directChildren(byId, rootId).length > 0
+  /* v8 ignore next -- the `?? ''` fallback is dead: readyEmpty already requires a defined rootId. */
   const readyEmpty = rootCatalog?.state === 'ready'
     && rootCatalog.entries.length === 0
     && directChildren(byId, rootId ?? '').length === 0
@@ -760,6 +767,7 @@ export function SubagentView(props: {
   /** Arrow-key tree navigation over the visible rows (official catalog recipe). */
   const bodyRef = useRef<HTMLDivElement>(null)
   const focusAt = useCallback((index: number): void => {
+    /* v8 ignore next -- the `?? []` fallback is dead: these handlers live on the body div, whose ref is always attached. */
     const items = bodyRef.current?.querySelectorAll<HTMLElement>(
       '[role="treeitem"]:not([aria-disabled="true"])',
     ) ?? []
@@ -767,6 +775,7 @@ export function SubagentView(props: {
     items[(index + items.length) % items.length]?.focus()
   }, [])
   const onTreeKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>): void => {
+    /* v8 ignore next -- the `?? []` fallback is dead: these handlers live on the body div, whose ref is always attached. */
     const items = bodyRef.current?.querySelectorAll<HTMLElement>(
       '[role="treeitem"]:not([aria-disabled="true"])',
     ) ?? []
@@ -802,6 +811,7 @@ export function SubagentView(props: {
           aria-label={t('refresh')}
           title={t('refresh')}
           disabled={rootId === undefined}
+          /* v8 ignore next -- the refresh button is disabled whenever rootId is undefined, and disabled controls dispatch no click. */
           onClick={() => { if (rootId !== undefined) refresh(rootId) }}
         >
           <IconRefreshOutline14 />

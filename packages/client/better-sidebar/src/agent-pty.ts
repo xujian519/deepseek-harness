@@ -83,6 +83,7 @@ function signalNameOf(signal: number | null | undefined): string | null {
 
 /** Locate the first occurrence of `needle` in `transcript`, returning its line/column. */
 function locateNeedle(transcript: string, needle: string): { line: number; column: number } | undefined {
+  /* v8 ignore next -- unreachable: waitFor, the only caller, refuses an empty needle before locating */
   if (needle === '') return undefined
   const idx = transcript.indexOf(needle)
   if (idx === -1) return undefined

@@ -159,6 +159,24 @@ describe('tab drag-and-drop', () => {
     }
   })
 
+  it('drops with an unparseable payload are ignored at the tab and at the strip', () => {
+    const bar = mountBar([
+      { id: 't1', type: 'editor', title: 'A' },
+      { id: 't2', type: 'git', title: 'B' },
+    ])
+    try {
+      const tabEls = [...bar.container.querySelectorAll<HTMLElement>('[class*="tabList"] > [class*="tab"]')]
+      act(() => { tabEls[1]!.dispatchEvent(dragEvent('dragover')) })
+      act(() => { tabEls[1]!.dispatchEvent(dragEvent('drop', { getData: () => 'not json' })) })
+      const barEl = bar.container.querySelector<HTMLElement>('[class*="tabBar"]')!
+      act(() => { barEl.dispatchEvent(dragEvent('drop', { getData: () => 'not json' })) })
+      expect(bar.calls.onDropTab).toEqual([])
+      expect(document.body.hasAttribute('data-dsh-tab-dragging')).toBe(false)
+    } finally {
+      bar.unmount()
+    }
+  })
+
   it('a page-mode wheel delta scrolls by the whole scrollport', () => {
     const bar = mountBar(baseTabs)
     try {
@@ -182,6 +200,20 @@ describe('close button and + menu', () => {
       act(() => { close.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
       expect(bar.calls.onClose).toEqual(['t1'])
       expect(bar.calls.onActivate).toEqual([])
+    } finally {
+      bar.unmount()
+    }
+  })
+
+  it('Escape dismisses the + menu without opening a tab', () => {
+    const bar = mountBar([{ id: 't1', type: 'editor', title: 'A' }], [{ id: 'opt-plain', label: 'Plain' }])
+    try {
+      const plus = bar.container.querySelector<HTMLElement>('[class*="tabBarPlus"]')!
+      act(() => { plus.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
+      expect(menuRows()).toHaveLength(1)
+      act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+      expect(menuRows()).toHaveLength(0)
+      expect(bar.calls.onNewTab).toEqual([])
     } finally {
       bar.unmount()
     }
@@ -242,6 +274,12 @@ describe('tab context menu entries', () => {
       act(() => { rowWith(t('pinToWorkspace')).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
       expect(bar.calls.onPin.at(-1)).toEqual(['t2', 'workspace'])
 
+      // The global scope row pins through the same submenu.
+      openContextMenu(bar, 'Term')
+      act(() => { rowWith(t('pinTerminal')).dispatchEvent(new MouseEvent('mouseover', { bubbles: true })) })
+      act(() => { rowWith(t('pinToGlobal')).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
+      expect(bar.calls.onPin.at(-1)).toEqual(['t2', 'global'])
+
       // A PINNED terminal shows a single unpin row.
       bar.rerender([
         { id: 't1', type: 'editor', title: 'A' },
@@ -284,6 +322,21 @@ describe('tab context menu entries', () => {
       act(() => { rowWith(t('close')).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) })
       expect(bar.calls.onClose).toEqual(['pinned:home:t9'])
       expect(bar.calls.onFloat).toEqual([])
+    } finally {
+      bar.unmount()
+    }
+  })
+
+  it('Escape closes the tab context menu without dispatching anything', () => {
+    const bar = mountBar(tabs)
+    try {
+      openContextMenu(bar, 'A')
+      expect(menuRows().length).toBeGreaterThan(0)
+      act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+      expect(menuRows()).toHaveLength(0)
+      expect(bar.calls.onClose).toEqual([])
+      expect(bar.calls.onFloat).toEqual([])
+      expect(bar.calls.onPin).toEqual([])
     } finally {
       bar.unmount()
     }

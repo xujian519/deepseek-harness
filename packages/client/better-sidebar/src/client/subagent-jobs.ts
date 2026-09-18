@@ -105,6 +105,7 @@ export function collectTreeJobs(
   for (const sessionId of treeSessionIds(byId, rootId)) {
     const jobs = jobsBySession[sessionId]
     if (jobs === undefined || jobs.length === 0) continue
+    /* v8 ignore next -- treeSessionIds walks the summaries themselves, so every id it yields is a key of byId. */
     const ownerTitle = byId[sessionId]?.displayTitle ?? sessionId
     for (const job of jobs) rows.push({ ownerSessionId: sessionId, ownerTitle, job })
   }

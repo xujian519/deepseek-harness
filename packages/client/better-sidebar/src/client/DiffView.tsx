@@ -56,6 +56,7 @@ export interface ParsedDiff {
 function parseHunkHeader(line: string): { oldStart: number; newStart: number; header: string } | null {
   const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line)
   if (match === null) return null
+  /* v8 ignore next -- the trailing (.*) group always participates, so match[5] is a string. */
   return { oldStart: Number(match[1]), newStart: Number(match[3]), header: match[5] ?? '' }
 }
 

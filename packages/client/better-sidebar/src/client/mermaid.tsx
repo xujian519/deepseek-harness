@@ -73,6 +73,7 @@ function MermaidZoomModal({ svg, onClose }: { svg: SVGSVGElement; onClose: () =>
 
   const applyTransform = (): void => {
     const node = svgRef.current
+    /* v8 ignore next -- svgRef is set by the mount effect before any zoom/drag handler can run. */
     if (node === null) return
     const { scale, tx, ty } = zoomRef.current
     node.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`
@@ -81,6 +82,7 @@ function MermaidZoomModal({ svg, onClose }: { svg: SVGSVGElement; onClose: () =>
   /** Zoom by `delta` keeping the stage point (centerX/centerY) fixed. */
   const zoom = useCallback((delta: number, centerX?: number, centerY?: number): void => {
     const stage = stageRef.current
+    /* v8 ignore next -- zoom runs only from handlers bound while the stage ref is attached. */
     if (stage === null) return
     const rect = stage.getBoundingClientRect()
     const cx = centerX ?? rect.width / 2
@@ -111,6 +113,7 @@ function MermaidZoomModal({ svg, onClose }: { svg: SVGSVGElement; onClose: () =>
   // node's lifetime (removed on unmount; the preview copy is untouched).
   useEffect(() => {
     const stage = stageRef.current
+    /* v8 ignore next -- the stage div renders unconditionally, so its ref is attached before this effect runs. */
     if (stage === null) return
     svgRef.current = svg
     stage.appendChild(svg)
@@ -124,6 +127,7 @@ function MermaidZoomModal({ svg, onClose }: { svg: SVGSVGElement; onClose: () =>
     const stage = stageRef.current
     const node = svgRef.current
     const overlay = overlayRef.current
+    /* v8 ignore next -- the mount effect above this one attaches all three refs before the listeners are bound. */
     if (stage === null || node === null || overlay === null) return
 
     const onWheel = (event: WheelEvent): void => {
@@ -347,6 +351,7 @@ export function MermaidMarkdown({ text, codeLabels }: MermaidMarkdownProps): Rea
 
   useLayoutEffect(() => {
     const container = containerRef.current
+    /* v8 ignore next -- the wrapper div renders unconditionally, so its ref is attached before this layout effect runs. */
     if (container === null) return
     const mounts = mountsRef.current
     const seen = new Set<HTMLElement>()

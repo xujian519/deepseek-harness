@@ -146,9 +146,13 @@ async function classifyTarget(raw: string, cwd: string): Promise<{ kind: AgentOp
     } catch {
       throw new Error(`"${raw}" is not a valid URL`)
     }
+    // The https?:// test above fixes the parsed protocol and guarantees a
+    // non-empty host, so neither refusal can fire.
+    /* v8 ignore next 3 -- unreachable: the scheme test above admits only http/https with a host */
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       throw new Error('sidebar_open only accepts http:// and https:// URLs')
     }
+    /* v8 ignore next -- unreachable: the URL parser rejects an empty host for http/https */
     const title = parsed.hostname !== '' ? parsed.hostname : raw
     return { kind: 'url', target: raw, title }
   }

@@ -119,6 +119,7 @@ function sanitizeTagProps(tag: string, attrs: string): Record<string, string> | 
   for (const attr of element.attributes) {
     if (/^on/i.test(attr.name) || !/^[a-zA-Z][a-zA-Z0-9:._-]*$/.test(attr.name)) continue
     if (attr.name === 'style') continue
+    /* v8 ignore next -- DOMPurify keeps `for` only on <label>/<output>, and neither tag opens a wrapper run (HTML_BLOCK_TAGS). */
     props[attr.name === 'class' ? 'className' : attr.name === 'for' ? 'htmlFor' : attr.name] = attr.value
   }
   return props
@@ -136,6 +137,7 @@ function runInlineHtmlPass(container: HTMLElement, media: MarkdownHtmlMedia): vo
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
       const parent = (node as Text).parentElement
+      /* v8 ignore next -- the walker root is an element, so every text node it visits has an element parent. */
       if (parent === null) return NodeFilter.FILTER_REJECT
       if (parent.closest('code, pre, .md-code-block, [data-mermaid-processed], [data-html-inline]')) {
         return NodeFilter.FILTER_REJECT
@@ -176,10 +178,12 @@ function MarkdownSegment({ text, hasMermaid, media, codeLabels }: MarkdownSegmen
   const containerRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const container = containerRef.current
+    /* v8 ignore next -- the ref div renders unconditionally, so it is attached before this layout effect runs. */
     if (container === null) return
     runInlineHtmlPass(container, media)
     let scheduled = false
     const observer = new MutationObserver(() => {
+      /* v8 ignore next -- one observer callback per microtask checkpoint, and the queued pass clears the flag first. */
       if (scheduled) return
       scheduled = true
       queueMicrotask(() => {

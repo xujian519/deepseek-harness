@@ -40,6 +40,7 @@ let sourceListener: (() => void) | undefined
 const listeners = new Set<Listener>()
 
 function read(): WcoSnapshot {
+  /* v8 ignore next -- read() runs only for a source that attach()/setWcoSourceForTests just installed. */
   if (source === undefined) return WCO_NONE
   try {
     // A present-but-NOT-visible API is a PHANTOM: headless Chromium and

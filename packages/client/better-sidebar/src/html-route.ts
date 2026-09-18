@@ -99,12 +99,16 @@ export function decodeHtmlUrl(pathname: string): HtmlDecodeResult {
     // Rebuild the platform-neutral forward-slash form `//server/share/...`;
     // requireAbsolute() resolves it to the platform's own UNC/POSIX spelling.
     path = `//${tail.join('/')}`
-  } else if (/^[A-Za-z]:$/.test(tail[0] ?? '')) {
+  // The tail is non-empty here, so the drive test's fallback only satisfies
+  // noUncheckedIndexedAccess; the range below keeps this line's branch data
+  // out of the gate without hiding the path assignments.
+  } else /* v8 ignore start -- unreachable: tail.length === 0 returned above */ if (/^[A-Za-z]:$/.test(tail[0] ?? '')) {
     // A Windows drive segment ('D:') is the FIRST path segment of an encoded
     // drive path. Rejoining it with a leading slash would yield '/D:/work/...'
     // which node's path.resolve() mangles into 'D:\D:\work\...' on Windows —
     // the html route's workspace fence would then reject every drive path.
     // Keep the drive form slash-free so requireAbsolute() resolves it verbatim.
+    /* v8 ignore stop */
     path = tail.join('/')
   } else {
     path = `/${tail.join('/')}`

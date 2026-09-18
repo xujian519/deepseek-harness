@@ -775,6 +775,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
       // A CONTENT open that focuses an existing FLOATING tab is already in
       // sight (free windows render regardless of panel state): expanding a
       // panel for it would point the user at a pane the content is not in.
+      /* v8 ignore next -- `activated ??= tab` above defines it whenever !isCreation, so the ?? arm cannot run. */
       if (
         !isCreation
         && floatWithTab(landed, activated?.id ?? tab.id) !== undefined
@@ -841,6 +842,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
     })
     if (closed !== undefined) {
       const sessionId = scope?.sessionId ?? store.getSnapshot().sessionId
+      /* v8 ignore next -- the store publishes sessionId and state together, so a closed tab always has one. */
       if (sessionId !== undefined) {
         const descriptor = tabs.get(closed.type)
         // An explicit scope (with its optional cwd) rides to the callback.
@@ -883,6 +885,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
     })
     if (activated !== undefined) {
       const sessionId = scope?.sessionId ?? store.getSnapshot().sessionId
+      /* v8 ignore next -- the store publishes sessionId and state together, so an activated tab always has one. */
       if (sessionId !== undefined) {
         const descriptor = tabs.get(activated.type)
         // An explicit scope (with its optional cwd) rides to the callback.
@@ -950,5 +953,6 @@ function findPaneIdOf(state: SidebarState, tabId: string): string {
   for (const leaf of allLeaves(state.splits).concat(allLeaves(state.bottomSplits))) {
     if (leaf.tabs.some(t => t.id === tabId)) return leaf.id
   }
+  /* v8 ignore next -- both callers reach here only for a tab found in a tree (floats return earlier). */
   return state.activePane ?? ''
 }

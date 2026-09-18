@@ -160,6 +160,9 @@ function createJobOutputMirror(ctx: Context): { entries(sessionId: string): read
     if (list.length > MIRROR_MAX_ENTRIES) {
       const removed = list.splice(0, list.length - MIRROR_MAX_ENTRIES)
       const ids = callIds.get(sessionId)
+      // push() runs only after a call identity was recorded for the session,
+      // so the identity set exists here.
+      /* v8 ignore next -- unreachable: a push always follows a recorded call identity */
       if (ids !== undefined) {
         for (const entry of removed) {
           if (entry.kind === 'call') ids.delete(entry.callId)
@@ -209,6 +212,7 @@ export function buildJobsApi(ctx: Context, outputLimit: number): SidebarJobsRout
       let read = false
       for (const trace of [...bySeq.values()].sort((left, right) => left.seq - right.seq)) {
         if (trace.kind === 'call') {
+          /* v8 ignore next -- unreachable: traceOf returns a call trace only after parsing a string job id */
           if (trace.jobId !== undefined) jobOf.set(trace.callId, trace.jobId)
         } else if (jobOf.get(trace.callId) === id) {
           read = true

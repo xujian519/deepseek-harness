@@ -629,9 +629,11 @@ export function patchTab(
   const walk = (node: SplitNode): SplitNode => {
     if (node.kind === 'leaf') {
       const tabs = node.tabs.map(tab => (tab.id === tabId ? apply(tab) : tab))
+      /* v8 ignore next -- Array#map always returns a fresh array, so this identity arm is never taken. */
       return tabs === node.tabs ? node : { ...node, tabs }
     }
     const children = node.children.map(walk)
+    /* v8 ignore next -- Array#map always returns a fresh array, so this identity arm is never taken. */
     return children === node.children ? node : { ...node, children }
   }
   const splits = walk(state.splits)
@@ -1778,6 +1780,7 @@ export class SidebarStore {
    * @returns whether the tab is still open in that session's state.
    */
   tabOpen(sessionId: string, tabId: string): boolean {
+    /* v8 ignore next -- the snapshot fallback is dead: setSession records every selected session in bySession. */
     const state = this.bySession.get(sessionId)
       ?? (this.snapshot.sessionId === sessionId ? this.snapshot.state : undefined)
     return state !== undefined && tabOpenIn(state, tabId)

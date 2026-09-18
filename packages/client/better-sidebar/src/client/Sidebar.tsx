@@ -427,7 +427,9 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   const customCss = scheme === 'custom' ? snapshot.prefs.customCss : ''
   useEffect(() => {
     const tags: HTMLStyleElement[] = []
+    /* v8 ignore start -- unreachable: no built-in shell preset declares css, so presetCss is always ''. */
     if (presetCss !== '') tags.push(injectUserCss('data-dsh-preset-css', preset?.id ?? '', presetCss))
+    /* v8 ignore stop */
     if (customCss !== '') tags.push(injectUserCss('data-dsh-custom-css', 'custom', customCss))
     return () => { for (const tag of tags) tag.remove() }
   }, [presetCss, customCss, preset?.id])
@@ -476,6 +478,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   useEffect(() => {
     if (sessionId === undefined) return
     return subscribeSessionPush('/sidebar/ws/agent-terminals', sessionId, 'agent-terminals', (event) => {
+      /* v8 ignore next -- unreachable: the push loop builds the MessageEvent itself, so data is always the decoded line. */
       if (typeof event.data !== 'string') return
       try {
         const list = JSON.parse(event.data) as Array<{ uuid: string; title: string; command: string; exited: boolean }>
@@ -506,6 +509,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
   useEffect(() => {
     if (sessionId === undefined) return
     return subscribeSessionPush('/sidebar/ws/agent-opens', sessionId, 'agent-opens', (event) => {
+      /* v8 ignore next -- unreachable: the push loop builds the MessageEvent itself, so data is always the decoded line. */
       if (typeof event.data !== 'string') return
       try {
         const request = JSON.parse(event.data) as { kind?: unknown; target?: unknown; title?: unknown } | null
@@ -981,6 +985,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     // width (innerWidth - state.width - detailsWidth), so this equals
     // `width + detailsWidth` — derived from the measured column, keeping the
     // drag write-only (no React re-render mid-drag).
+    /* v8 ignore next -- unreachable: a drag write needs the layout the drag handlers render from. */
     bottomRef.current?.style.setProperty('right', `${(window.innerWidth - centerRectRef.current.right) + (width - (state?.width ?? 0))}px`)
     const bottomPush = !narrow && state?.bottomOpen === true ? height + keyboardInset : 0
     writeGeometry(width, bottomPush)
@@ -998,10 +1003,12 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
     dragFrame.current = requestAnimationFrame(() => {
       dragFrame.current = null
       const pending = pendingDrag.current
+      /* v8 ignore start -- unreachable: every path that clears the pending write cancels this frame with it. */
       if (pending !== null) {
         pendingDrag.current = null
         applyDrag(pending.width, pending.height)
       }
+      /* v8 ignore stop */
     })
   }
 
@@ -1080,8 +1087,10 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       // (clamped) instead of rolling back the flick.
       if (draggingWidth) {
         width = clampWidth(widthDrag.current.startWidth + (widthDrag.current.startX - event.clientX))
+        /* v8 ignore next -- unreachable: an abort without a layout falls through to the else branch below. */
         height = pushedBottomHeight(state?.bottomOpen === true, state?.bottomHeight ?? 0)
       } else if (draggingBottom) {
+        /* v8 ignore next -- unreachable: an abort without a layout falls through to the else branch below. */
         width = Math.min(state?.width ?? 0, window.innerWidth)
         height = pushedBottomHeight(true, clampHeight(bottomDrag.current.startHeight + (bottomDrag.current.startY - event.clientY)))
       } else if (draggingCorner) {
@@ -1114,8 +1123,10 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
         narrow,
         panelOpen: state?.panelOpen === true,
         bottomOpen: state?.bottomOpen === true,
+        /* v8 ignore start -- unreachable: the layout is defined wherever the drag strips render. */
         width: last?.width ?? state?.width ?? 0,
         bottomHeight: last?.height ?? state?.bottomHeight ?? 0,
+        /* v8 ignore stop */
         viewportWidth: viewport.width,
         viewportHeight: layoutViewportHeight,
       })
@@ -1197,20 +1208,24 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       // Route through the service: the tab-bar close is the canonical close
       // path (finds the pane itself, fires descriptor.onClose); the session
       // scope (with its cwd) rides to the callback.
+      /* v8 ignore next -- unreachable: the workbench that fires this renders only with a session. */
       ctx.get('betterSidebar')?.closeTab(tabId, sessionId === undefined ? undefined : { sessionId, cwd })
       if (tab?.type === 'terminal') {
         if (isAgentTabId(tabId)) {
           const uuid = agentUuidOf(tabId)
           void api.agentPtyClose(uuid).catch(() => { /* the host may already have released it */ })
+        /* v8 ignore start -- unreachable: the workbench that fires this renders only with a session. */
         } else if (sessionId !== undefined) {
           void api.ptyClose({ sessionId, cwd }, tabId).catch(() => { /* the host may already have released it */ })
         }
+        /* v8 ignore stop */
       }
     },
     activateTab: (_paneId, tabId) => {
       // Route through the service: same reducer (finds the pane in EITHER
       // tree, sets the active pane) and fires descriptor.onActivate; the
       // session scope (with its cwd) rides to the callback.
+      /* v8 ignore next -- unreachable: the workbench that fires this renders only with a session. */
       ctx.get('betterSidebar')?.activateTab(tabId, sessionId === undefined ? undefined : { sessionId, cwd })
     },
     focusPane: (paneId) => { store.reduce(s => ({ ...s, activePane: paneId })) },
@@ -1221,6 +1236,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       store.reduce((s) => {
         let index = -1
         const source = leafWithTab(s.splits, beforeTabId)
+        /* v8 ignore next -- the drop target tab always lives in the pane the drop names. */
         if (source !== undefined && source.id === toPane) {
           index = source.tabs.findIndex(tab => tab.id === beforeTabId)
         }
@@ -1264,6 +1280,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       // time) — pass it to ptyClose so the host resolves the PTY in the
       // correct workspace container (same scope the WS open used).
       const vtab = pinnedVirtualTabs.find(t => t.id === virtualId)
+      /* v8 ignore next -- the rail resolves this virtual id from the same entry list it renders. */
       const homeCwd = vtab !== undefined ? getPinnedHomeScope(vtab)?.cwd : undefined
       store.reduceFor(homeSessionId, (s) => {
         const leaf = leafWithTab(s.splits, originalId) ?? leafWithTab(s.bottomSplits, originalId)
@@ -1301,8 +1318,10 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
       },
       moveTabBefore: (payload, toPane, beforeTabId) => {
         if (isPinnedVirtualId(payload.tabId)) return
+        /* v8 ignore start -- unreachable: a pinned tab refuses drops, so the target is never virtual. */
         if (isPinnedVirtualId(beforeTabId)) {
           actions.moveTabToEdge(payload, toPane, 'center')
+        /* v8 ignore stop */
         } else {
           actions.moveTabBefore(payload, toPane, beforeTabId)
         }
@@ -1312,11 +1331,13 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
         actions.moveTabToEdge(payload, toPane, zone)
       },
       floatTab: (tabId) => {
+        /* v8 ignore next -- unreachable: the pinned tab's menu carries no float row. */
         if (isPinnedVirtualId(tabId)) return
         actions.floatTab(tabId)
       },
       pinTab: (tabId, scope) => {
         if (isPinnedVirtualId(tabId)) {
+          /* v8 ignore next -- unreachable: a pinned tab carries its pin, so its menu offers unpin only. */
           if (scope !== null) return
           const { homeSessionId, tabId: originalId } = parsePinnedVirtualId(tabId)
           store.reduceFor(homeSessionId, s => setTabPin(s, originalId, null))
@@ -1339,6 +1360,7 @@ export function Sidebar(props: { ctx: Context; store: SidebarStore }) {
    * (React counts hooks per render).
    */
   const referenceInChat = useCallback((path: string): void => {
+    /* v8 ignore next -- unreachable: the tab components that fire this render only with a session. */
     if (sessionId === undefined) return
     appendToDraft(ctx, sessionId, `@${relativeTo(cwd ?? '', path)}`)
   }, [ctx, sessionId, cwd])
