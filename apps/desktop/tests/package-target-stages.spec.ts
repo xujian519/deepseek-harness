@@ -53,3 +53,18 @@ it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free and creates no
   for (const call of run.run.mock.calls) expect(call[3].env).not.toHaveProperty('DSH_DESKTOP_WINDOWS_TOKEN_PIN')
   expect(writeFileSync).not.toHaveBeenCalled()
 })
+
+it('keeps an unsigned macOS target on the plain builder path and carries the mode into preparation', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64'), environment, run)
+  expect(stages.filter(stage => stage.startsWith('exec electron-builder')))
+    .toEqual(['exec electron-builder --config electron-builder.config.mjs --mac --arm64 --publish never'])
+  expect(run.run.mock.calls[stages.indexOf('run prepare:dsh')]![3].env).toMatchObject({ DSH_DESKTOP_UNSIGNED: '1' })
+  expect(writeFileSync).not.toHaveBeenCalled()
+})
+
+it('carries the signed mode into preparation for a macOS release build', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--dir'], 'darwin', 'arm64'), environment, run)
+  expect(run.run.mock.calls[stages.indexOf('run prepare:dsh')]![3].env).toMatchObject({ DSH_DESKTOP_UNSIGNED: '0' })
+})
