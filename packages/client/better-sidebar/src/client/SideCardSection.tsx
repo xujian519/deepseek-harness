@@ -715,26 +715,44 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
   }
 
   /**
-   * Commit one declaratively-declared text/number row. Numbers are parsed
-   * and clamped to the toggle's declared min/max (an unparsable input falls
-   * back to the CURRENT stored value, mirroring the width row); text rows
-   * persist as-is (empty is meaningful, e.g. the theme-default font).
-   * Returns the canonical value the row should display.
+   * Commit one numeric row's draft through the store that owns the row.
+   *
+   * The parsed value is clamped to the toggle's declared min/max (an
+   * unparsable input falls back to the CURRENT stored value, mirroring the
+   * width row).
+   * @param toggle - row descriptor carrying the optional bounds.
+   * @param raw - the committed draft.
+   * @param current - CURRENT stored value, used when the draft is unparsable.
+   * @param store - writes the clamped value to the row's owner.
+   * @returns the canonical value the row should display.
    */
+  const commitNumericRow = (
+    toggle: SidebarSettingToggle,
+    raw: string,
+    current: unknown,
+    store: (value: number) => void,
+  ): string => {
+    const parsed = Number(raw)
+    const fallback = scalarText(current)
+    /* v8 ignore next -- unreachable: a committed draft is sanitized, so the parse is always finite. */
+    if (!Number.isFinite(parsed)) return fallback
+    let clamped = Math.round(parsed)
+    if (toggle.min !== undefined) clamped = Math.max(toggle.min, clamped)
+    if (toggle.max !== undefined) clamped = Math.min(toggle.max, clamped)
+    store(clamped)
+    return String(clamped)
+  }
+
+  /** Commit one declaratively-declared text/number row. Text rows persist as-is
+   *  (empty is meaningful, e.g. the theme-default font). */
   const onCommitSetting = (toggle: SidebarSettingToggle, raw: string): string => {
-    if (toggle.type === 'number') {
-      const parsed = Number(raw)
-      const fallback = scalarText(prefs[toggle.key as keyof SidebarPrefs])
-      /* v8 ignore next -- unreachable: a number row's input only ever holds a numeric string (a non-numeric draft is sanitized). */
-      if (!Number.isFinite(parsed)) return fallback
-      let clamped = Math.round(parsed)
-      if (toggle.min !== undefined) clamped = Math.max(toggle.min, clamped)
-      if (toggle.max !== undefined) clamped = Math.min(toggle.max, clamped)
-      applyPref({ [toggle.key]: clamped })
-      return String(clamped)
+    if (toggle.type !== 'number') {
+      applyPref({ [toggle.key]: raw })
+      return raw
     }
-    applyPref({ [toggle.key]: raw })
-    return raw
+    return commitNumericRow(toggle, raw, prefs[toggle.key as keyof SidebarPrefs], (value) => {
+      applyPref({ [toggle.key]: value })
+    })
   }
 
   /**
@@ -783,20 +801,14 @@ export function SideCardSection({ store, service }: SideCardSectionProps) {
 
   /** Commit one plugin-owned text/number row (clamped like the host rows). */
   const onPluginCommitSetting = (descriptorId: string, toggle: SidebarSettingToggle, raw: string): string => {
-    if (toggle.type === 'number') {
-      const parsed = Number(raw)
-      const blob: Record<string, unknown> = prefs.pluginSettings[descriptorId] ?? {}
-      const fallback = scalarText(blob[toggle.key])
-      /* v8 ignore next -- unreachable: a number row's input only ever holds a numeric string (a non-numeric draft is sanitized). */
-      if (!Number.isFinite(parsed)) return fallback
-      let clamped = Math.round(parsed)
-      if (toggle.min !== undefined) clamped = Math.max(toggle.min, clamped)
-      if (toggle.max !== undefined) clamped = Math.min(toggle.max, clamped)
-      applyPluginSetting(descriptorId, toggle.key, clamped)
-      return String(clamped)
+    if (toggle.type !== 'number') {
+      applyPluginSetting(descriptorId, toggle.key, raw)
+      return raw
     }
-    applyPluginSetting(descriptorId, toggle.key, raw)
-    return raw
+    const blob: Record<string, unknown> = prefs.pluginSettings[descriptorId] ?? {}
+    return commitNumericRow(toggle, raw, blob[toggle.key], (value) => {
+      applyPluginSetting(descriptorId, toggle.key, value)
+    })
   }
 
   const commitWidth = (): void => {
