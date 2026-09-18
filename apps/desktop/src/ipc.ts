@@ -1,12 +1,14 @@
 /** Typed preload operations exposed only by the Electron shell. */
 
 import type { IpcMainInvokeEvent } from 'electron'
+import type { PrintToPdfResult } from './print.ts'
 
 /** IPC channel names kept private to the desktop application bundle. */
 export const DESKTOP_IPC = {
   boot: 'dsh-desktop:boot',
   bootFailed: 'dsh-desktop:boot-failed',
   directoryPick: 'dsh-desktop:directory-pick',
+  printToPdf: 'dsh-desktop:print-to-pdf',
   updatesStatus: 'dsh-desktop:updates-status',
   updatesOpen: 'dsh-desktop:updates-open',
   updatesPresentation: 'dsh-desktop:updates-presentation',
@@ -58,6 +60,19 @@ export interface DshDesktopProductApi {
     open(): Promise<void>
     subscribe(listener: (state: DesktopUpdatePresentation) => void): () => void
   }
+}
+
+/**
+ * Print bridge exposed to the Web UI renderer under `window.desktop`, the name
+ * its `DesktopPrintBridge` contract already probes.
+ */
+export interface DesktopPrintApi {
+  /**
+   * Rasterize one HTML document in a hidden window and save it through the OS save dialog.
+   * @param payload - the standalone HTML document and the default file name.
+   * @returns the saved path, a cancellation marker, or an error message.
+   */
+  printHtmlToPdf(payload: { html: string; suggestedName?: string }): Promise<PrintToPdfResult>
 }
 
 /** Scheme of Desktop-owned application documents. */

@@ -76,6 +76,14 @@ macOS 上自定义应用菜单还会声明标准的 File、Window 和应用菜�
 
 包事务独占 `$DSH_HOME/profiles/desktop-runtime/lock`，直到 pnpm 进程退出。pnpm 运行前，共享模块回退辅助函数只删除其拥有的链接，保留 pnpm 管理的目录；开发 Host 在启动时重建所需链接。链接清理保留目标目录。原生构建遵循 pnpm 配置的构建策略；发布准备使用独立的构建期允许列表。
 
+### 外壳面
+
+Desktop profile 组合的是 Web 面加上一份桌面叠加层：`@deepseek-ai/dsh-desktop-shell` 占据 `ctx.desktop`，并通过 `DSH_DESKTOP_BRIDGE_PATH` 命名的套接字调用 Electron 主进程；`@deepseek-ai/dsh-macos-tools` 提供仅 darwin 的原生工具。workspace 侧栏保留为具名但禁用，因为它与 Web 面自带的右侧 Sidebar 重叠。叠加层挂载的包不在 dsh CLI 安装的依赖闭包内，因此 Host 以自身清单播种 profile 解析表，而安装锚点仍负责定位安装，供 bundle 解析与包操作使用。
+
+Electron 主进程拥有这座桥：它在宿主子进程启动之前先监听，把套接字路径经由子进程环境交给它，把外壳的应用菜单注册为桥的菜单基座，并把自己创建的托盘交付给桥——插件因此可以贡献菜单项、托盘项、全局快捷键与通知。套接字随退出序列关闭。在托盘拥有应用期间，关闭窗口会变为隐藏；而退出序列照常关闭所有窗口。缺少 `DSH_DESKTOP_BRIDGE_PATH` 时（无头开发与测试），提供者仍会加载，并以 `DesktopError('bridge-disconnected')` 拒绝 `ctx.desktop` 调用。
+
+Web UI 探测 `window.desktop.printHtmlToPdf`，缺失时退回浏览器打印对话框。preload 只对应用文档暴露它，主进程也只接受来自 `dsh-app://app` 上拥有者窗口顶层框架的调用：它在隐藏窗口中栅格化文档，并通过系统保存对话框保存字节。HTML 超过外壳 4 MiB 上限的请求会在该窗口打开之前被拒绝。
+
 ## 开发
 
 `dev:desktop` 会构建当前 Host、客户端 bundle、Web 前端和 Electron 壳，把已构建的 CLI 包、私有 Desktop Host 包及其 workspace 依赖投影为一次性桌面 npm 项目，然后直接启动 Electron；这条路径不从 npm 解析 dsh：

@@ -8,6 +8,8 @@ import type { MenuItemConstructorOptions, MessageBoxOptions } from 'electron'
 import { DESKTOP_IPC, type DesktopUpdateState } from '../src/ipc.ts'
 import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { DesktopHostUncleanExitError } from '../src/host-process.ts'
+import { resolveBridgePath } from '../src/bridge-server.ts'
+import { printHtmlToPdf } from '../src/print.ts'
 import { en } from '../src/locale.ts'
 import { DesktopUpdatePreparationError } from '../src/update-error.ts'
 
@@ -15,6 +17,30 @@ type InvokeEvent = { sender?: unknown; senderFrame: { url: string } }
 type InvokeHandler = (event: InvokeEvent, ...args: unknown[]) => unknown
 
 vi.mock('../src/web-document.ts', () => ({ authenticateWebHost: async () => 'test-cookie', serveWebDocument: vi.fn(), forwardWebRequest: vi.fn() }))
+vi.mock('../src/print.ts', () => ({ printHtmlToPdf: vi.fn(async () => ({ path: '/out/document.pdf' })) }))
+
+// The real bridge binds a pid-suffixed socket that a second import in this
+// process cannot rebind, so this file keeps its path helpers and fakes the
+// server; bridge-server.spec.ts covers the socket protocol itself.
+const bridgeState = vi.hoisted(() => ({ instances: [] as BridgeSpies[] }))
+interface BridgeSpies {
+  start: ReturnType<typeof vi.fn>
+  setAppMenuBase: ReturnType<typeof vi.fn>
+  initTray: ReturnType<typeof vi.fn>
+  dispose: ReturnType<typeof vi.fn>
+  tray?: unknown
+}
+vi.mock('../src/bridge-server.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/bridge-server.ts')>(),
+  BridgeServer: class {
+    readonly start = vi.fn(async (_path: string) => {})
+    readonly setAppMenuBase = vi.fn()
+    readonly initTray = vi.fn((tray: unknown, _actions: unknown) => { this.tray = tray })
+    readonly dispose = vi.fn()
+    tray?: unknown
+    constructor(..._args: unknown[]) { bridgeState.instances.push(this) }
+  },
+}))
 
 const harness = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events')
@@ -28,6 +54,7 @@ const harness = await vi.hoisted(async () => {
   let windowFailure: Error | undefined
   const powerMonitor = new EventEmitter()
   const hosts: FakeHost[] = []
+  const trays: FakeTray[] = []
   const handlers = new Map<string, InvokeHandler>()
   let pluginsEnabled = false
   let prepareUpdate: (() => Promise<boolean>) | undefined
@@ -112,10 +139,16 @@ const harness = await vi.hoisted(async () => {
       readonly packageManager?: { pnpm: string; nodeBin: string },
     ) { hosts.push(this) }
   }
+  class FakeTray extends EventEmitter {
+    readonly setToolTip = vi.fn()
+    readonly setContextMenu = vi.fn()
+    constructor(readonly icon: unknown) { super(); trays.push(this) }
+  }
   const app = Object.assign(new EventEmitter(), {
     isPackaged: true,
     name: 'Desktop test',
     whenReady: () => Promise.resolve(),
+    getName: (): string => 'Desktop test',
     getLocale: (): string => 'en-US',
     getVersion: () => '1.0.0',
     getAppPath: () => 'desktop-test-app',
@@ -134,7 +167,7 @@ const harness = await vi.hoisted(async () => {
   })
   return {
     failWindow(error: Error) { windowFailure = error },
-    windows, hosts, handlers, app, FakeWindow, FakeHost, powerMonitor,
+    windows, hosts, handlers, app, FakeWindow, FakeHost, FakeTray, powerMonitor,
     menu, popup, socketHeaders: vi.fn(), updateCheck, updateDownload, updateInstall,
     ipcOn: vi.fn<(channel: string, listener: (event: { sender: unknown; senderFrame: unknown }, ...args: unknown[]) => void) => void>(),
     get updateState() { return updateState },
@@ -150,6 +183,7 @@ const harness = await vi.hoisted(async () => {
       pluginsEnabled = false
       return 'desktop-test-profile/cordis.patch.yml.bak-1789555200000'
     }),
+    get trays() { return trays },
     get preparing() { return preparing }, get prepared() { return prepared },
     get hostStarted() { return hostStarted }, get navigated() { return navigated },
     get dialogShown() { return dialogShown }, get quitCompleted() { return quitCompleted },
@@ -162,7 +196,7 @@ const harness = await vi.hoisted(async () => {
     set pluginsEnabled(value: boolean) { pluginsEnabled = value },
     set closeWindowsOnQuit(value: boolean) { closeWindowsOnQuit = value },
     reset() {
-      windows.length = 0; hosts.length = 0; handlers.clear(); app.removeAllListeners()
+      windows.length = 0; hosts.length = 0; trays.length = 0; handlers.clear(); app.removeAllListeners()
       powerMonitor.removeAllListeners()
       app.isPackaged = true
       windowFailure = undefined
@@ -209,6 +243,8 @@ vi.mock('electron', () => ({
   session: { defaultSession: { webRequest: { onBeforeSendHeaders: harness.socketHeaders } } },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
   powerMonitor: harness.powerMonitor,
+  nativeImage: { createFromPath: (path: string) => ({ path, setTemplateImage: vi.fn() }) },
+  Tray: harness.FakeTray,
 }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>()
@@ -279,6 +315,7 @@ beforeEach(() => {
   testAuth.login.mockResolvedValue('cancelled')
   vi.useFakeTimers()
   harness.reset()
+  bridgeState.instances.length = 0
   harness.dialog.showMessageBox.mockImplementation((options: { title?: string }) => {
     if (options.title !== en.startupFailed) return Promise.resolve({ response: 1 })
     harness.dialogShown.resolve()
@@ -703,6 +740,69 @@ describe('desktop main startup', () => {
     await harness.navigated.promise
     return harness.hosts[0]!
   }
+
+  it('starts the shell bridge before the Host and hands its path to the Host environment', async () => {
+    const host = await readyForUpdate()
+    const bridge = bridgeState.instances[0]!
+    expect(bridge.start).toHaveBeenCalledWith(resolveBridgePath())
+    expect(host.environment?.DSH_DESKTOP_BRIDGE_PATH).toBe(resolveBridgePath())
+    expect(bridge.start.mock.invocationCallOrder[0]).toBeLessThan(host.start.mock.invocationCallOrder[0]!)
+  })
+
+  it('gives the bridge the shell menu base and the tray it must customize', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    await readyForUpdate()
+    const bridge = bridgeState.instances[0]!
+    expect(bridge.setAppMenuBase).toHaveBeenCalledTimes(1)
+    // The base is the shell's own application menu, which the bridge keeps
+    // ahead of the menu groups the backend registers.
+    const base = bridge.setAppMenuBase.mock.calls[0]?.[0] as MenuItemConstructorOptions[]
+    expect(base[0]?.label).toBe(harness.app.name)
+    const tray = harness.trays[0]
+    expect(tray).toBeDefined()
+    expect(bridge.initTray.mock.calls[0]?.[0]).toBe(tray)
+    const actions = bridge.initTray.mock.calls[0]?.[1] as { onShow: () => void; onQuit: () => void }
+    expect(actions.onShow).toBeTypeOf('function')
+    expect(actions.onQuit).toBeTypeOf('function')
+  })
+
+  it('hides the window instead of closing it while the tray owns the application', async () => {
+    await readyForUpdate()
+    const window = harness.windows[0]!
+    window.hide.mockClear()
+    const preventDefault = vi.fn()
+    window.emit('close', { preventDefault })
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(window.hide).toHaveBeenCalledOnce()
+  })
+
+  it('closes the shell bridge when the application quits', async () => {
+    await readyForUpdate()
+    const bridge = bridgeState.instances[0]!
+    expect(bridge.dispose).not.toHaveBeenCalled()
+    harness.app.emit('before-quit', { preventDefault: vi.fn() })
+    expect(bridge.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('prints only for the owned application frame and validates the payload', async () => {
+    await readyForUpdate()
+    const printed = vi.mocked(printHtmlToPdf)
+    await expect(invoke(DESKTOP_IPC.printToPdf, 'shell', { html: '<h1>x</h1>' }) as Promise<unknown>)
+      .rejects.toThrow('unowned renderer')
+    await expect(invoke(DESKTOP_IPC.printToPdf, 'app', null)).resolves.toEqual({ error: 'invalid payload' })
+    await expect(invoke(DESKTOP_IPC.printToPdf, 'app', { html: '' })).resolves.toEqual({ error: 'invalid html' })
+    await expect(invoke(DESKTOP_IPC.printToPdf, 'app', { html: 'x'.repeat(4 * 1024 * 1024 + 1) }))
+      .resolves.toEqual({ error: 'html too large' })
+    await expect(invoke(DESKTOP_IPC.printToPdf, 'app', { html: '<h1>x</h1>', suggestedName: 7 }))
+      .resolves.toEqual({ error: 'invalid suggestedName' })
+    // Invalid payloads never reach the hidden print window.
+    expect(printed).not.toHaveBeenCalled()
+    await expect(invoke(DESKTOP_IPC.printToPdf, 'app', { html: '<h1>x</h1>', suggestedName: 'report' }))
+      .resolves.toEqual({ path: '/out/document.pdf' })
+    expect(printed).toHaveBeenCalledWith(harness.windows[0], '<h1>x</h1>', 'report')
+    await invoke(DESKTOP_IPC.printToPdf, 'app', { html: '<h1>x</h1>' })
+    expect(printed).toHaveBeenLastCalledWith(harness.windows[0], '<h1>x</h1>', 'document')
+  })
 
   it('hides the workspace before intentional Host shutdown can look like reconnection', async () => {
     const host = await readyForUpdate()
@@ -1240,7 +1340,9 @@ describe('desktop main startup', () => {
     await harness.preparing.promise
     const window = harness.windows[0]!
     window.webContents.emit('render-process-gone', {}, { reason: 'clean-exit' })
-    window.close()
+    // A user close hides the window while the tray owns the application, so
+    // only destroying it produces the closed window this case is about.
+    window.destroy()
     window.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
     expect(harness.dialog.showMessageBox).not.toHaveBeenCalled()
   })
@@ -1308,7 +1410,8 @@ describe('desktop main startup', () => {
       profileResolution: 'runtime',
       profile: 'desktop-test-profile',
     })
-    expect(harness.hosts[0]!.environment).toBe(process.env)
+    expect(harness.hosts[0]!.environment).toMatchObject(process.env)
+    expect(harness.hosts[0]!.environment?.DSH_DESKTOP_BRIDGE_PATH).toBe(resolveBridgePath())
     expect(harness.hosts[0]!.start).toHaveBeenCalledTimes(1)
     expect(harness.windows).toHaveLength(1)
     expect(window.urls).toEqual(['dsh-app://app/'])

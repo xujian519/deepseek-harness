@@ -7,17 +7,21 @@
   "type": "module",
   "main": "lib/index.js",
   "files": [
-    "lib/index.js"
+    "lib/index.js",
+    "config/desktop.cordis.patch.yml"
   ],
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-app-boot": "workspace:^",
+    "@deepseek-ai/dsh-better-sidebar": "workspace:^",
     "@deepseek-ai/dsh-client-connection": "workspace:^",
+    "@deepseek-ai/dsh-desktop-shell": "workspace:^",
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
     "@deepseek-ai/dsh-jobs": "workspace:^",
+    "@deepseek-ai/dsh-macos-tools": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-skill-office": "workspace:^"
   }

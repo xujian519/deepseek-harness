@@ -1,6 +1,7 @@
 /** Launch the Desktop profile through the Web application and report its URL to Electron. */
 
 import { delimiter, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { loadLayeredEnv, loadProfileDirectory } from '@deepseek-ai/dsh-app-boot'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -10,17 +11,26 @@ import * as desktopOffice from './office.ts'
 
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 
+/** Desktop composition overlay shipped beside this entry. */
+const DESKTOP_PATCH = fileURLToPath(new URL('../config/desktop.cordis.patch.yml', import.meta.url))
+/** Package whose dependency closure carries the desktop-only mounts the overlay names. */
+const DESKTOP_RESOLUTION_ANCHOR_PACKAGE = '@deepseek-ai/dsh-desktop-host'
+
 async function main(): Promise<void> {
   const runtimeDir = process.argv[2] as string
   const projectDir = process.argv[3] as string
   const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
+  // The overlay mounts packages only this package declares, and the profile
+  // resolution table carries only names reachable from its anchor's dependency
+  // closure, so the table anchors here instead of on the dsh CLI package.
+  const resolutionAnchor = join(runtimeDir, 'node_modules', ...DESKTOP_RESOLUTION_ANCHOR_PACKAGE.split('/'), 'package.json')
   const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
   const application = runProfile({
     environment: loadLayeredEnv('dsh'),
     profile: 'desktop',
     resolutionMode: process.argv[5] === 'runtime' ? 'runtime' : 'link',
-    resolvedProfile: { profile, installAnchor },
-    patchFiles: [],
+    resolvedProfile: { profile, installAnchor, resolutionAnchor },
+    patchFiles: [DESKTOP_PATCH],
     args: ['--no-open', '--port', '19387'],
     ...(process.argv[6] === undefined ? {} : {
       packageManager: {

@@ -732,9 +732,15 @@ importers:
       '@deepseek-ai/dsh-app-boot':
         specifier: workspace:^
         version: link:../../packages/boot/app-boot
+      '@deepseek-ai/dsh-better-sidebar':
+        specifier: workspace:^
+        version: link:../../packages/client/better-sidebar
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:^
         version: link:../../packages/client/connection
+      '@deepseek-ai/dsh-desktop-shell':
+        specifier: workspace:^
+        version: link:../../packages/desktop/shell
       '@deepseek-ai/dsh-home-paths':
         specifier: workspace:^
         version: link:../../packages/util/home-paths
@@ -744,6 +750,9 @@ importers:
       '@deepseek-ai/dsh-jobs':
         specifier: workspace:^
         version: link:../../packages/jobs/jobs
+      '@deepseek-ai/dsh-macos-tools':
+        specifier: workspace:^
+        version: link:../../packages/desktop/macos-tools
       '@deepseek-ai/dsh-skill-office':
         specifier: workspace:^
         version: link:../../packages/skill/skill-office
