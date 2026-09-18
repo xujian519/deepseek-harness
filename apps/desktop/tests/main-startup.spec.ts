@@ -1170,6 +1170,19 @@ describe('desktop main startup', () => {
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('window creation failed')
   })
 
+  it('reports the stalled startup stage instead of waiting without a deadline', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await harness.hostStarted.promise
+    // The Host accepted the start but never reports readiness, which used to
+    // leave a running shell with no window and nothing on stderr.
+    await vi.advanceTimersByTimeAsync(180_000)
+    await harness.dialogShown.promise
+    expect(harness.dialog.showMessageBox.mock.calls.some(call =>
+      (call.at(-1) as MessageBoxOptions).detail?.includes('startup did not finish starting the desktop backend'))).toBe(true)
+  })
+
   it('accepts Web fatal reports only from the primary application frame', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise

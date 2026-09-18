@@ -1,8 +1,8 @@
 /** Startup deadline that turns a stalled shell start into a reported failure. */
 
 /**
- * Milliseconds the shell allows the bridge, profile transaction, and backend
- * to finish. A profile verification pass hashes the packaged seed and the
+ * Milliseconds the shell allows the profile transaction and backend to
+ * finish. A profile verification pass hashes the packaged seed and the
  * profile's local tarballs, and the backend boots every installed plugin, so
  * the limit covers both on a slow disk while still bounding a stuck start.
  */

@@ -33,6 +33,7 @@ import { DesktopUpdateJournal } from './update-journal.ts'
 import { DesktopUpdatePreparationError } from './update-error.ts'
 import { DesktopUpdateSchedule, resolveDesktopUpdateScheduleConfig } from './update-schedule.ts'
 import { desktopUpdateErrorSummary, presentDesktopUpdate } from './update-presentation.ts'
+import { withStartupDeadline } from './startup-deadline.ts'
 import { desktopErrorState } from './startup-error.ts'
 import { DesktopMandatoryUpdatePolicy, resolveDesktopPolicyConfig, type DesktopPolicyState } from './mandatory-update-policy.ts'
 import { DesktopMandatoryUpdateWindow } from './mandatory-update-window.ts'
@@ -300,7 +301,7 @@ async function main(): Promise<void> {
       updateStoppedHost = false
       if (restoreHost) {
         // Only confirmed process exit permits replacement before another installation confirmation.
-        const hostReady = backend.start(async () => {})
+        const hostReady = withStartupDeadline('restarting the desktop host', backend.start(async () => {}))
         startup = hostReady
         const recovery = hostReady.then(async () => {
           if (quitting) return
@@ -325,9 +326,9 @@ async function main(): Promise<void> {
   const reconcileBackend = (): Promise<void> => {
     startup ??= (async () => {
       await navigateMain(applicationUrl)
-      await backend.start(async () => {
+      await withStartupDeadline('starting the desktop backend', backend.start(async () => {
         await manager.applyRelease(app.isPackaged)
-      })
+      }))
       if (backend.host !== undefined) updateJournal?.action('workspace-ready')
       // The existing Web document resumes through the boot IPC response.
     })().catch((error: unknown) => {
