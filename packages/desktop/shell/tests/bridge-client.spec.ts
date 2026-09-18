@@ -142,6 +142,23 @@ describe('BridgeClient', () => {
     await expect(client.call('echo', { after: true })).resolves.toEqual({ after: true })
   })
 
+  it('wraps a non-Error synchronous write failure before rejecting the call', async () => {
+    const socket = (client as unknown as { socket: Socket }).socket
+    const original = socket.write.bind(socket)
+    socket.write = () => { throw 'write EPIPE' }
+    try {
+      const failure = await client.call('echo', { value: 1 }).then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      // The caller awaits an Error; a primitive throw must not reach it raw.
+      expect(failure).toBeInstanceOf(Error)
+      expect((failure as Error).message).toBe('write EPIPE')
+    } finally {
+      socket.write = original
+    }
+  })
+
   it('rejects pending calls and reports close when the server ends the socket', async () => {
     const promise = client.call('never-answered', {})
     serverSocket?.end()

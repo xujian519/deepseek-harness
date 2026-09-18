@@ -42,6 +42,19 @@ describe('loadOptionalPatches', () => {
     expect(loadOptionalPatches(NAME, join(tmp(), PROFILE_PATCH_FILENAME))).toBeUndefined()
   })
 
+  it('reads an empty document as zero patches, not a misconfiguration', () => {
+    // A bundle ships cordis.patch.yml unconditionally and may have nothing to
+    // patch in a given release, so an empty layer mounts nothing.
+    const dir = tmp()
+    const file = join(dir, PROFILE_PATCH_FILENAME)
+    writeFileSync(file, '')
+    expect(loadOptionalPatches(NAME, file)).toEqual([])
+    writeFileSync(file, '# this release patches nothing\n')
+    expect(loadOptionalPatches(NAME, file)).toEqual([])
+    writeFileSync(file, 'null\n')
+    expect(loadOverlayPatches(NAME, file)).toEqual([])
+  })
+
   it('parses a patch list and preserves !!js expressions as loader expression nodes', () => {
     const dir = tmp()
     writeFileSync(join(dir, PROFILE_PATCH_FILENAME), [

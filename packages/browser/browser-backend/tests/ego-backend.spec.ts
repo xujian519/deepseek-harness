@@ -97,6 +97,34 @@ describe('default command lookup', () => {
     await backend.probe()
     expect(mockAccess).toHaveBeenCalledWith(expect.any(String), 1) // constants.X_OK
   })
+
+  it('resolves Windows script wrappers by presence instead of the executable bit', async () => {
+    mockAccess.mockClear()
+    mockAccess.mockImplementation((path) => {
+      if (String(path).endsWith('.exe')) return undefined
+      throw new Error('ENOENT')
+    })
+    const backend = createEgoBackend({ platform: 'win32' })
+    expect((await backend.probe()).status).toBe('ok')
+    expect(mockAccess).toHaveBeenCalledWith(expect.stringMatching(/ego-browser\.exe$/), 0) // constants.F_OK
+    expect(mockAccess).not.toHaveBeenCalledWith(expect.any(String), 1) // constants.X_OK
+  })
+
+  it('searches only the harness home bin when the environment has no PATH', async () => {
+    const original = process.env.PATH
+    delete process.env.PATH
+    try {
+      mockAccess.mockClear()
+      mockAccess.mockReturnValue(undefined)
+      const backend = createEgoBackend({ platform: 'darwin' })
+      expect((await backend.probe()).status).toBe('ok')
+      expect(mockAccess).toHaveBeenCalledWith(expect.stringMatching(/\.local\/bin\/ego-browser$/), 1) // constants.X_OK
+      expect(mockAccess).toHaveBeenCalledTimes(1)
+    } finally {
+      if (original === undefined) delete process.env.PATH
+      else process.env.PATH = original
+    }
+  })
 })
 
 describe('default connection probe', () => {
@@ -128,6 +156,23 @@ describe('default connection probe', () => {
     mockSpawn.mockReturnValueOnce({ status: 0, stdout: 'other', stderr: '' } as never)
     const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
     expect((await backend.probe()).status).toBe('warn')
+  })
+
+  it('reports warn with a null exit when the probe died without a status', async () => {
+    mockSpawn.mockReturnValueOnce({ status: null, signal: 'SIGKILL', stdout: '', stderr: '' } as never)
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
+    const probe = await backend.probe()
+    expect(probe.status).toBe('warn')
+    expect(probe.detail).toContain('exit null')
+  })
+
+  it('reports warn when the connection probe throws a non-Error', async () => {
+    const failure: unknown = 'spawn boom'
+    mockSpawn.mockImplementationOnce(() => { throw failure })
+    const backend = createEgoBackend({ platform: 'darwin', doctorCheck: true, isCommandExecutable: () => true })
+    const probe = await backend.probe()
+    expect(probe.status).toBe('warn')
+    expect(probe.detail).toContain('connection probe threw: spawn boom')
   })
 
   it('runs the connection probe through the shell on Windows', async () => {

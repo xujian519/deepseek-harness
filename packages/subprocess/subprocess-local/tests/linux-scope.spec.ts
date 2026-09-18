@@ -450,6 +450,41 @@ describe('Linux scope establishment and quiescence', () => {
     result.owner.cleanup?.()
   })
 
+  it('reports an unpublished launcher pid as an unobservable group instead of probing it', async () => {
+    // spawn() resolves before Node publishes a pid, so the residue check holds
+    // no group identifier to read; the injected probe asserts the shortcut.
+    const probe = vi.fn(() => { throw new Error('probed without a launcher pid') })
+    const { child, result } = launch(async () => activeUnit(), {
+      sleep: async () => { await new Promise((resolve) => { setImmediate(resolve) }) },
+      processGroupHasLiveMembers: probe,
+    })
+    const waiting = result.owner.waitForExit()
+    await new Promise((resolve) => { setImmediate(resolve) })
+    child.pid = undefined
+    child.exit(null, 'SIGTERM')
+    await expect(result.direct).rejects.toThrow('before its bootstrap consumed')
+    await waiting
+    expect(probe).not.toHaveBeenCalled()
+    result.owner.cleanup?.()
+  })
+
+  it('settles a signalled range through the native group probe when no liveness hook is injected', async () => {
+    // The liveness hook is a test seam whose absence must fall through to the
+    // native probe. No process owns this group id (groups are pids, bounded by
+    // pid_max), so that probe finds no live members: an unreadable /proc off
+    // Linux, no matching entry on it.
+    const { child, result } = launch(async () => activeUnit(), {
+      sleep: async () => { await new Promise((resolve) => { setImmediate(resolve) }) },
+    })
+    child.pid = 2 ** 31 - 1
+    const waiting = result.owner.waitForExit()
+    await new Promise((resolve) => { setImmediate(resolve) })
+    child.exit(null, 'SIGTERM')
+    await expect(result.direct).rejects.toThrow('before its bootstrap consumed')
+    await waiting
+    result.owner.cleanup?.()
+  })
+
   it('preserves a recorded pre-exec failure even when cancellation also terminates the bootstrap', async () => {
     const { child, result, requestPath } = launch(async () => missingUnit())
     const files = linuxLaunchFilesFromLocator(requestPath)

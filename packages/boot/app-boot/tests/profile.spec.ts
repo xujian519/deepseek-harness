@@ -11,18 +11,24 @@ import {
 import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import * as yaml from 'js-yaml'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   composeEntries,
+  divergentProfileCoreVersions,
+  ensureProfileVersionPins,
   healProfilesModuleFallback,
   healIsolatedProfileModuleFallback,
   initProfile,
+  installedPackageVersion,
   unlinkProfileModuleFallback,
   loadProfile,
   loadProfileDirectory,
+  profileCoreOverrides,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
+  PROFILE_VERSION_PINNED_PACKAGES,
   readProfileManifest,
   readProfilePatches,
   resolveBundleDir,
@@ -219,6 +225,106 @@ describe('initProfile', () => {
     initProfile(dir, ['other'])
     expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base'])
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('- id: x')
+  })
+})
+
+describe('profile version pins', () => {
+  const PINNED_VERSION = '9.9.9'
+  const PINNED_OVERRIDES: Record<string, string> = {
+    '@deepseek-ai/dsh-tools': PINNED_VERSION,
+    '@deepseek-ai/cordis': PINNED_VERSION,
+  }
+
+  /** Stage an installation anchor whose node_modules carry both pinned core packages. */
+  function stagePinnedInstallation(): string {
+    const anchor = stageInstallation({})
+    for (const packageName of PROFILE_VERSION_PINNED_PACKAGES) {
+      const dir = join(anchor, '..', 'node_modules', packageName)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: packageName, version: PINNED_VERSION }))
+    }
+    return anchor
+  }
+
+  /** Write one profile-local copy of `packageName` with the given manifest body. */
+  function writeProfileCopy(profileDir: string, packageName: string, manifest: Record<string, unknown>): void {
+    const dir = join(profileDir, 'node_modules', packageName)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+  }
+
+  function readWorkspace(file: string): Record<string, unknown> {
+    return yaml.load(readFileSync(file, 'utf8')) as Record<string, unknown>
+  }
+
+  it('reads an installed version from the anchor and nothing for a package it lacks', () => {
+    const anchor = stageInstallation({ 'installed-pkg': {} })
+    expect(installedPackageVersion(anchor, 'installed-pkg')).toBe('0.0.0')
+    expect(installedPackageVersion(anchor, 'dsh-fixture-package-not-installed')).toBeUndefined()
+  })
+
+  it('pins every core package the installation resolves at the installation version', () => {
+    expect(profileCoreOverrides(stagePinnedInstallation())).toEqual(PINNED_OVERRIDES)
+  })
+
+  it('leaves a profile with no pnpm workspace alone', () => {
+    const dir = tmp()
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation())).toEqual([])
+    expect(existsSync(join(dir, 'pnpm-workspace.yaml'))).toBe(false)
+  })
+
+  it('writes every missing core pin and keeps the other workspace keys', () => {
+    const dir = tmp()
+    const file = join(dir, 'pnpm-workspace.yaml')
+    writeFileSync(file, 'packages:\n  - .\nnodeLinker: hoisted\n')
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation()))
+      .toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    const written = readWorkspace(file)
+    expect(written.packages).toEqual(['.'])
+    expect(written.nodeLinker).toBe('hoisted')
+    expect(written.overrides).toEqual(PINNED_OVERRIDES)
+    // Idempotent: a second pass finds every pin already at the installed version.
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation())).toEqual([])
+  })
+
+  it('rewrites only the pins that differ and keeps unrelated overrides', () => {
+    const dir = tmp()
+    const file = join(dir, 'pnpm-workspace.yaml')
+    writeFileSync(file, yaml.dump({
+      packages: ['.'],
+      overrides: { '@deepseek-ai/cordis': PINNED_VERSION, 'other-plugin': '1.0.0' },
+    }))
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation())).toEqual(['@deepseek-ai/dsh-tools'])
+    expect(readWorkspace(file).overrides).toEqual({ ...PINNED_OVERRIDES, 'other-plugin': '1.0.0' })
+  })
+
+  it.each([
+    { label: 'empty', content: '' },
+    { label: 'null document', content: 'null\n' },
+    { label: 'non-mapping overrides value', content: 'overrides: "not-a-mapping"\n' },
+    { label: 'null overrides value', content: 'overrides: null\n' },
+  ])('treats a workspace document with $label as having no existing pins', ({ content }) => {
+    const dir = tmp()
+    const file = join(dir, 'pnpm-workspace.yaml')
+    writeFileSync(file, content)
+    expect(ensureProfileVersionPins(dir, stagePinnedInstallation()))
+      .toEqual(['@deepseek-ai/dsh-tools', '@deepseek-ai/cordis'])
+    expect(readWorkspace(file).overrides).toEqual(PINNED_OVERRIDES)
+  })
+
+  it('reports only the pinned packages whose profile copy diverges from the installation', () => {
+    const anchor = stagePinnedInstallation()
+    const dir = tmp()
+    // A package with no physical copy resolves through the healed installation
+    // fallback, which is not divergence.
+    expect(divergentProfileCoreVersions(dir, anchor)).toEqual([])
+    writeProfileCopy(dir, '@deepseek-ai/dsh-tools', { name: '@deepseek-ai/dsh-tools', version: PINNED_VERSION })
+    writeProfileCopy(dir, '@deepseek-ai/cordis', { name: '@deepseek-ai/cordis' })
+    expect(divergentProfileCoreVersions(dir, anchor))
+      .toEqual([`@deepseek-ai/cordis@unknown (installation: ${PINNED_VERSION})`])
+    writeProfileCopy(dir, '@deepseek-ai/cordis', { name: '@deepseek-ai/cordis', version: '0.1.0' })
+    expect(divergentProfileCoreVersions(dir, anchor))
+      .toEqual([`@deepseek-ai/cordis@0.1.0 (installation: ${PINNED_VERSION})`])
   })
 })
 

@@ -432,6 +432,19 @@ describe('released event and payload inventory', () => {
     }) }).not.toThrow()
   })
 
+  it('refuses an unknown non-ignorable historical event in a released v0 source artifact', () => {
+    // The v0 source policy admits the retired legacy names but still refuses an
+    // event the released vocabulary never had.
+    const v0 = {
+      header: { version: 0, id: 'validation', createdAt: 1, isSeeded: false, delegationDepth: 0 },
+      inheritedEventCount: 0,
+      events: [{ type: 'plugin/unknown', seq: 0, time: 1, data: {} }],
+    } as const
+
+    expect(() => { assertReleasedV0SourceArtifact(v0) })
+      .toThrow('format v0 contains unknown historical event type "plugin/unknown" at seq 0')
+  })
+
   it('permits empty Assistant source-event references only under the released-v1 policy', () => {
     const assistant = {
       type: 'assistant/message', seq: 1, time: 2, data: {},
@@ -638,6 +651,29 @@ describe('released event and payload inventory', () => {
     }) }).toThrow(/does not match/)
     expect(() => { assertPayload('user/message', { ...message, content: [textBlock] }) })
       .toThrow(/content does not match/)
+
+    // A non-clear mutation renders the goal snapshot instead of `cleared`.
+    const blockChange = {
+      kind: 'goal/change', version: 1, operation: 'block',
+      goal: {
+        id: 'goal', revision: 2, objective: 'ship', phase: 'blocked', maxGoalRounds: 3,
+        blockedReason: { code: 'waiting', message: 'Wait' },
+      },
+      roundsStarted: 1, createdAt: 1, updatedAt: 2,
+    } as const
+    const blockContent = [{
+      type: 'text',
+      text: `<goal_state>${JSON.stringify({
+        goal: blockChange.goal, roundsStarted: blockChange.roundsStarted,
+        createdAt: blockChange.createdAt, updatedAt: blockChange.updatedAt,
+      })}</goal_state>`,
+    }]
+    expect(() => {
+      assertPayload('user/message', {
+        id: 'legacy-goal-block', role: 'user', content: blockContent,
+        source: { kind: 'goal', goalId: 'goal', revision: 2, round: 0, change: blockChange },
+      })
+    }).not.toThrow()
   })
 
   it('refuses malformed logical headers, cuts, event envelopes, and surface metadata', () => {
@@ -721,6 +757,18 @@ describe('released event and payload inventory', () => {
     for (const [type, data] of cases) {
       expect(() => { assertPayload(type, data) }, type).not.toThrow()
     }
+  })
+
+  it('accepts patent-teams task payloads that omit every optional member', () => {
+    expect(() => {
+      assertPayload('patent-teams/task-created', {
+        teamId: 'team-1', taskId: 'task-1', subject: 'subject', dependencies: [],
+      })
+    }).not.toThrow()
+    // assignee, output, attempt, and attemptId are all optional on an update.
+    expect(() => {
+      assertPayload('patent-teams/task-updated', { teamId: 'team-1', taskId: 'task-1', status: 'pending' })
+    }).not.toThrow()
   })
 
   it('refuses every relationship-specific invalid payload branch', () => {
