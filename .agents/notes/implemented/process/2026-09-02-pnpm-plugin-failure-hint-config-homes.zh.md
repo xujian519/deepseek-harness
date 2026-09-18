@@ -21,4 +21,4 @@ Status: implemented
 
 ## Consequences
 
-`dsh plugin` 的失败对实战中观察到的两类阻塞给出可行动的提示，其余情况保持沉默，提示不会与无关原因竞争。git 提示的文案记录了 pnpm 10.34 自相矛盾的行为——警告 `package.json` 的 `pnpm` 字段不再读取、却又从这里执行这份许可清单——将来若某个 pnpm 版本让 `pnpm-workspace.yaml`（或 `allowBuilds`）重新成为真正的执行位置，需要同步更新提示。
+`dsh plugin` 的失败对实战中观察到的两类阻塞给出可行动的提示，其余情况保持沉默，提示不会与无关原因竞争。git 提示的文案记录了 pnpm 10.34 自相矛盾的行为——警告 `package.json` 的 `pnpm` 字段不再读取、却又从这里执行这份许可清单——将来若某个 pnpm 版本让 `pnpm-workspace.yaml`（或 `allowBuilds`）重新成为真正的执行位置，需要同步更新提示与 [apps/cli/tests/plugin-failure-hints.spec.ts](../../../../apps/cli/tests/plugin-failure-hints.spec.ts) 中的测试。
