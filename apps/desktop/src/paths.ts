@@ -16,7 +16,8 @@ export interface DesktopPaths {
  */
 export function resolveDesktopPaths(dshHome: string = resolveDshHome()): DesktopPaths {
   return {
-    profile: join(dshHome, 'profiles', 'desktop'),
-    lock: join(dshHome, 'profiles', 'desktop', 'lock'),
+    // 'profiles/desktop' stays with the dsh CLI profiles that already occupy it.
+    profile: join(dshHome, 'profiles', 'desktop-runtime'),
+    lock: join(dshHome, 'profiles', 'desktop-runtime', 'lock'),
   }
 }
