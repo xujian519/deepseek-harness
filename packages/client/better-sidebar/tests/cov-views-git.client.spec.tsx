@@ -227,7 +227,13 @@ describe('GitView checkout overview', () => {
       const refs = [...harness.container.querySelectorAll<HTMLElement>('[class*="gitLogRef"]')]
         .map(node => node.textContent)
       expect(refs).toEqual(['main', 'v1', 'origin/main'])
-      expect(textOf(harness.container)).toContain('Ada · 2020-01-02')
+      // The meta line dates a 2020 commit in the viewer's own time zone, and
+      // the fixture's 03:04+08:00 falls on the previous day west of UTC, so the
+      // day comes from that instant rather than from a literal.
+      const logged = new Date(Date.parse(logEntry(0).date))
+      const pad = (value: number): string => String(value).padStart(2, '0')
+      expect(textOf(harness.container))
+        .toContain(`Ada · ${logged.getFullYear()}-${pad(logged.getMonth() + 1)}-${pad(logged.getDate())}`)
     } finally {
       harness.unmount()
     }

@@ -10,7 +10,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { anyString } from './matchers.ts'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { apply } from '../src/index.ts'
 import { listDirectory } from '../src/fs-tree.ts'
 import { ensureWorkspacePath, ensureWorkspaceWritePath } from '../src/path-security.ts'
@@ -152,14 +152,17 @@ describe('workspace guards against non-Error resolution failures', () => {
   })
 
   it('refuses a write target whose ancestors cannot be resolved at all', async () => {
-    // Every realpath below the workspace reports ENOENT, so the ancestor walk
-    // reaches its own parent (the filesystem root) and refuses the target.
+    // Every realpath the walk performs reports ENOENT, so it climbs to the
+    // filesystem root and refuses the target. The target sits outside the
+    // workspace, which the fault exempts: a target below it would meet that
+    // exempted ancestor and resolve there instead.
     faults = [{
       op: 'realpath',
       when: path => path !== workspace,
       error: Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
     }]
-    await expect(ensureWorkspaceWritePath(workspace, join(root, 'dsh-fault-walk', 'file.txt'))).rejects.toMatchObject({
+    const outside = join(dirname(root), 'dsh-fault-walk', 'file.txt')
+    await expect(ensureWorkspaceWritePath(workspace, outside)).rejects.toMatchObject({
       code: 'fs-error',
       message: anyString('cannot resolve target'),
     })
