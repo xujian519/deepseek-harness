@@ -49,7 +49,8 @@ fork 的 `.github/workflows/ci-fork.yml` 原先运行 lint、typecheck、duplica
 - 类似 `apps/desktop-host` 的 constraints 漂移，会在引入它的那个 pull request 上让 `node-hygiene` 变红。
 - 被度量的 `packages/*/*/src` 集合内的覆盖率回归会让 `node-coverage` 变红。登记在 `vitest.config.ts` 中的 fork 本地族（`packages/patent/*`、`packages/web/synapse`、`packages/self-evolve/*`、`packages/client/ui-agent-preset` 以及文档工作台）仍留在度量之外。
 - 该门禁的首次运行就找到了 fork 唯一一个低于阈值的文件 `packages/client/better-sidebar/src/pty-manager.ts`——这是上游任何 lane 都看不到的缺口，因为该包是 fork 独有的。
-- fork CI 的总时长增加一个覆盖率聚合的时间，它是工作流中最长的 job：首次运行在 4 核 runner 上实测 20 分钟，且只在 pull request 上运行。
+- fork CI 的总时长增加一个覆盖率聚合的时间，它是工作流中最长的 job：首次运行在 4 核 runner 上以最初的"四进程"预算实测 20 分钟，且只在 pull request 上运行。下面降低的预算会把其中一部分墙钟时间换回每进程的余量。
+- 这条 lane 的头两次运行失败的都不是门禁本身，而是负载敏感的用例。第 1 次运行全部测试通过、报出 `pty-manager.ts` 的阈值缺口；第 2 次运行跑在修复该文件的代码上，阈值缺口为 0，却触发了两个在第 1 次运行中通过的用例：`packages/experimental/ptc-runtime-python/tests/runtime.spec.ts` 撞上它自己注释里为"覆盖率 lane 的 V8 插桩 + 多 worker 共享一机"而预留的 60 秒墙钟上限，以及 `packages/preset/agent-presets/tests/mount.spec.ts` 一个两条拒绝路径相互竞争的挂载断言。四个插桩进程跑在四个核上，比上游十六核六进程、也比 fork 未插桩的三进程都更拥挤，因此 `DSH_COVERAGE_MAX_WORKERS` 降到 2。第三次运行才能确认这个姿态；若仍有负载敏感失败，工作应转到对应的测试本身，而不是继续调这个预算。
 - 两个新 job 重复支付 `node-checks` 已经支付过的安装步骤。GitHub Actions 的 job 之间不共享工作区，这是保持单元 lane 前置条件不变的代价。
 
 ## 验证
