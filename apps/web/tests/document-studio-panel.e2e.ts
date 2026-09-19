@@ -2,11 +2,13 @@
 // composition. No model call is involved — the seeded session log carries one
 // `document_deliver` registration call, and the assertion chain is the whole
 // delivery path: log replay → session history → Conversation Node fold → the
-// `documentDeliverables` view snapshot behind the Deliverables tab. The tab is
-// activated by its slot id, so this guards the slot-id-equals-target contract:
-// a mismatched id leaves the target unactivated and the view stuck on its empty
-// state, which is exactly the regression this scenario rejects.
-import { readFile } from 'node:fs/promises'
+// `documentDeliverables` view snapshot behind the Deliverables tab → the
+// preview read of a produced file through the session's `workspaceFiles`
+// Remote. The tab is activated by its slot id, so this guards the
+// slot-id-equals-target contract: a mismatched id leaves the target
+// unactivated and the view stuck on its empty state, which is exactly the
+// regression this scenario rejects.
+import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
@@ -24,6 +26,11 @@ const STUDIO_EXPECTED = join(SNAPSHOT_DIR, 'studio.expected.md')
 const MODE = webSnapshotMode()
 const SEED_ID = 'document-studio-panel-web-e2e'
 
+// The registration log names the produced files; the preview reads their bytes
+// from the Session workspace, so the scenario writes the same two paths there.
+const CLAIMS_HTML = '<!doctype html><h1>CLAIMS_FIXTURE</h1>'
+const SPECIFICATION_MD = '# SPECIFICATION_FIXTURE\n\nDelivered claims, as text.'
+
 describe.skipIf(MODE === 'record')('web e2e: document studio Deliverables view', () => {
   let scaffold: WebScaffold
   let browser: Browser
@@ -33,6 +40,8 @@ describe.skipIf(MODE === 'record')('web e2e: document studio Deliverables view',
   beforeAll(async () => {
     scaffold = await launchWebScaffold({})
     await seedSession(scaffold, await readFile(FIXTURE, 'utf8'), SEED_ID)
+    await writeFile(join(scaffold.workspaceCwd, 'claims.html'), CLAIMS_HTML)
+    await writeFile(join(scaffold.workspaceCwd, 'specification.md'), SPECIFICATION_MD)
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
@@ -71,4 +80,20 @@ describe.skipIf(MODE === 'record')('web e2e: document studio Deliverables view',
   it('keeps its snapshot inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'studio.expected.md'])
   })
+
+  it('previews a produced file through the session workspace read', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-document-studio-preview'))
+    await page.getByRole('tab', { name: 'Deliverables' }).click()
+    const list = page.locator('[data-document-deliverables-list]')
+    await list.waitFor({ timeout: 15_000 })
+    // HTML renders in the sandboxed frame, whose document is the host read.
+    await list.locator('[data-document-deliverable="claims.html"]').click()
+    const frame = page.locator('iframe[title="claims.html"]')
+    await expect.poll(() => frame.getAttribute('srcdoc'), { timeout: 15_000 }).toContain('CLAIMS_FIXTURE')
+    expect(await frame.getAttribute('sandbox')).toBe('')
+    // Markdown renders as text in the pane instead.
+    await list.locator('[data-document-deliverable="specification.md"]').click()
+    await page.getByText('SPECIFICATION_FIXTURE', { exact: false }).first().waitFor({ timeout: 15_000 })
+    expect(tripwire.pageErrors).toEqual([])
+  }, 60_000)
 })

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-28-post-sync-debt-sweep.md
-2026-08-28-post-sync-debt-sweep.md: def1e615269fceec0158dfe928aea13db6d6d450
-2026-08-28-post-sync-debt-sweep.zh.md: b3aaa8159822bb3e0879211105f01054abfb16c8
+2026-08-28-post-sync-debt-sweep.md: 3c6e45fba5024f5fa1f7785d0c4bf539494b9d5f
+2026-08-28-post-sync-debt-sweep.zh.md: d4cd4e8b5efb0bb91e5873e02a35931eb314bd3b

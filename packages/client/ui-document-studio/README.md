@@ -1,5 +1,5 @@
 ---
-description: "Document-delivery studio for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the host, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent."
+description: "Document-delivery studio for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the session's `workspaceFiles` Remote, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Document-delivery studio for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the host, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent.
+Document-delivery studio for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): a `conversation.view` tab (`document`, label 交付物) that lists the session's produced files, previews HTML/text through the session's `workspaceFiles` Remote, and offers open / show-in-folder / print actions. It also auto-switches a session to the studio when the session's agent preset is the document agent.
 
 No runtime invariant companion is published; this is a pure-consumer plugin that emits no cordis events and owns no mutable cross-plugin state — its view-slot registration and auto-switch subscriber are plain effects whose disposal the slot ledger's own specs and this package's behavior specs observe directly.
 
@@ -25,15 +25,15 @@ No runtime invariant companion is published; this is a pure-consumer plugin that
 
 - **The studio view** — one entry in the `conversation.view` ring (id `document`, order 20). The tab appears for every session once the plugin is loaded; selecting it shows the studio in the center column.
 - **The produced-file vocabulary** — a turn-scoped `ConversationNodeDefinition` (`documentDeliverables`) folding successful mutation `locations` (diff cards and generic edit cards) **and** `document_deliver` registration calls into turn data, plus a session-scoped view target (`documentDeliverables`) folding every turn in the window into one first-seen ordered list. A registration call augments a mutation-derived entry in place with its announced format and P0/P1 gate state — so shell/officecli-produced outputs (`.docx`, `.pptx`) appear in the studio once the agent registers them, and old sessions degrade to the mutation-derived list with a "no gate record" badge. The derivation is the same vocabulary `ui-deliverables` uses; this package owns its own key so the studio works whether or not `ui-deliverables` is composed in.
-- **The preview** — selecting a file reads its text through the host `host.readFileText` RPC (default 1 MiB read budget, host ceiling 4 MiB; oversized files show the head plus a truncation note). HTML renders in a sandboxed iframe (`sandbox=""`, no scripts); Markdown/JSON/YAML/CSV/LOG renders as text.
-- **The actions** — open with the OS default application, show in folder (opens the containing folder in the OS file manager, only when the host reports native open capability over a loopback authority; the host has no reveal-in-folder intent, so opening the folder itself is the handoff), and print / export PDF (re-reads the file at the 4 MiB ceiling when the preview head is truncated, then prints through the desktop bridge or the browser's print dialog, where "Save as PDF" exports).
+- **The preview** — selecting a file reads one byte window through the session's `remote.workspaceFiles.readBytes`, decoded as UTF-8 (a character the window cut in half is dropped whole). The window is the host's configured cap, so an oversized file shows its head plus a truncation note. HTML renders in a sandboxed iframe (`sandbox=""`, no scripts); Markdown/JSON/YAML/CSV/LOG renders as text.
+- **The actions** — open with the OS default application, show in folder (opens the containing folder in the OS file manager, only when the host reports native open capability over a loopback authority; the host has no reveal-in-folder intent, so opening the folder itself is the handoff), and print / export PDF (re-reads the complete file through `remote.workspaceFiles.readAll` when the preview head was truncated — the host refuses a file above its full-file cap, which the studio reports as too large — then prints through the desktop bridge or the browser's print dialog, where "Save as PDF" exports).
 - **The auto-switch** — when the current session's preset is the document agent, the studio view is activated on session entry. The switch goes through `ctx.conversation.setActiveView`, which is the sanctioned cross-package channel (the per-session store handle is apply-local by design); the setter mounts with the session's conversation seat, so the switch retries for a bounded window.
 
 The shipped Web patch (`packages/bundle/web-app/cordis.patch.yml`) is the only composition that loads this package. Removing its one entry removes the tab, the vocabulary, the preview, and the auto-switch together.
 
 ## Prerequisites
 
-The document agent preset (`document` in `packages/preset/agent-presets/presets/`) is what a document session selects; the studio renders for every session regardless. The `host.readFileText` RPC ships with the host; no OpenDesign or other external process is required.
+The document agent preset (`document` in `packages/preset/agent-presets/presets/`) is what a document session selects; the studio renders for every session regardless. The `workspaceFiles` Remote that serves the reads ships with the Web composition (`dsh-api-workspace-files`); no OpenDesign or other external process is required.
 
 ## Model Experience
 

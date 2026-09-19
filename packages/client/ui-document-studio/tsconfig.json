@@ -49,6 +49,9 @@
     },
     {
       "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/workspace-files/tsconfig.client.json"
     }
   ]
 }

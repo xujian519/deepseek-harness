@@ -12,6 +12,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { DocumentDeliverable } from './document-deliverables.ts'
 import { DOCUMENT_DELIVERABLES_TARGET } from './document-deliverables.ts'
+import type { ReadFileText } from './file-reads.ts'
 import css from './StudioView.module.css'
 
 /** Studio view props: runtime session share + injected callbacks + locale. */
@@ -28,12 +29,11 @@ export interface StudioViewInjected {
   openFile: (path: string) => Promise<void>
   /** Reveal one produced file's containing folder in the OS file manager (only when supported). */
   showInFolder: (path: string) => Promise<void>
-  /** Read one produced file's UTF-8 text (host-capped; `maxBytes` raises the budget for a full read). */
-  readFileText: (path: string, maxBytes?: number) => Promise<{ content: string; truncated: boolean }>
+  /** Read one produced file's bounded text head through the host's window cap. */
+  readFileText: (path: string) => Promise<ReadFileText>
+  /** Read one produced file completely; `truncated` reports the host's full-file cap refusal. */
+  readFileTextComplete: (path: string) => Promise<ReadFileText>
 }
-
-/** The host's absolute read ceiling; a full print read may not exceed it. */
-const PRINT_MAX_BYTES = 4 * 1024 * 1024
 
 /** Stable empty list so the selector never allocates per snapshot. */
 const EMPTY_PRODUCED: readonly DocumentDeliverable[] = []
@@ -101,6 +101,7 @@ export function StudioView({
   openFile,
   showInFolder,
   readFileText,
+  readFileTextComplete,
   t,
 }: StudioViewProps): ReactNode {
   const produced = useConversation(snapshot => snapshot.views.get(DOCUMENT_DELIVERABLES_TARGET)?.produced ?? EMPTY_PRODUCED)
@@ -199,12 +200,12 @@ export function StudioView({
   const onPrint = async (): Promise<void> => {
     if (selectedPath === null || htmlPreview === null) return
     setPrintOutcome(null)
-    // The preview read uses the host's default 1 MiB budget; re-read at the
-    // full ceiling so the PDF is not silently the truncated head.
+    // The preview read is the host's bounded window; re-read completely so the
+    // PDF is not silently the cut head.
     let html = htmlPreview
     if (content?.truncated === true) {
       try {
-        const full = await readFileText(selectedPath, PRINT_MAX_BYTES)
+        const full = await readFileTextComplete(selectedPath)
         if (full.truncated) {
           setPrintOutcome({ failed: t('studio.print.tooLarge') })
           return
