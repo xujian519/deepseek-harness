@@ -22,11 +22,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the Client Remote Context merge (ctx.remote, openWorkspacePath included).
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls the generated `workspaceFiles` namespace into the Remote face.
+import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 // Type-only: pulls the agentPreset Session-projection key (summary.projectionValues).
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import {
   DOCUMENT_DELIVERABLES_TARGET, documentDeliverablesDefinition, documentDeliverablesViewDefinition,
 } from './document-deliverables.ts'
+import { createFileReads } from './file-reads.ts'
 import { parentDir } from './paths.ts'
 import { StudioView } from './StudioView.tsx'
 import { en, NS, zh, type DocumentStudioKey } from './locales.ts'
@@ -42,7 +45,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const DOCUMENT_PRESET_ID = 'document'
 
 /** Required services for the view registration, the targets, and the auto-switch. */
-export const inject = ['slots', 'locale', 'uiConversation', 'conversation', 'sessions', 'connection', 'remote', 'remote.session']
+export const inject = ['slots', 'locale', 'uiConversation', 'conversation', 'sessions', 'connection', 'remote', 'remote.session', 'remote.workspaceFiles']
 
 /** Auto-switch retry window and cadence (the view setter mounts with the session seat). */
 const SWITCH_RETRY_MS = 150
@@ -75,6 +78,7 @@ export function apply(ctx: ClientContext): void {
         const result = await ctx.remote.session.openWorkspacePath({ path: resolve(path) })
         if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
       }
+      const reads = createFileReads(ctx.remote.workspaceFiles, sessionId, resolve)
       return {
         isLoopback: connection.isLoopback,
         openFile: openPath,
@@ -82,12 +86,8 @@ export function apply(ctx: ClientContext): void {
         // reveal-in-folder intent, and opening the folder itself is what a
         // file manager handoff means (the ui-deliverables convention).
         showInFolder: (path: string) => openPath(parentDir(path)),
-        // FIXME(port): the removed client runtime served file bytes through
-        // connection.api.host.readFileText; upstream exposes no file-read
-        // Remote, so the preview read fails loud until a replacement lands.
-        readFileText: () => Promise.reject(
-          new Error('document studio: host file reads are unavailable (no file-read Remote after the client-runtime removal)'),
-        ),
+        readFileText: reads.readFileText,
+        readFileTextComplete: reads.readFileTextComplete,
       }
     },
   }, StudioView))

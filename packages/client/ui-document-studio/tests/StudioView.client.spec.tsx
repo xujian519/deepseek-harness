@@ -45,6 +45,7 @@ function injected(overrides: Partial<StudioViewInjected> = {}): StudioViewInject
     openFile: vi.fn(() => Promise.resolve()),
     showInFolder: vi.fn(() => Promise.resolve()),
     readFileText: vi.fn((path: string) => Promise.resolve({ content: `<h1>${path}</h1>`, truncated: false })),
+    readFileTextComplete: vi.fn((path: string) => Promise.resolve({ content: `<h1>${path}</h1>`, truncated: false })),
     ...overrides,
   }
 }
@@ -193,12 +194,10 @@ describe('StudioView', () => {
     ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
       printHtmlToPdf,
     }
-    const readFileText = vi.fn((_path: string, maxBytes?: number) => {
-      if (maxBytes === 4 * 1024 * 1024) return Promise.resolve({ content: '<h1>FULL</h1>', truncated: false })
-      return Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true })
-    })
+    const readFileText = vi.fn(() => Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true }))
+    const readFileTextComplete = vi.fn(() => Promise.resolve({ content: '<h1>FULL</h1>', truncated: false }))
     try {
-      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText })} />)
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText, readFileTextComplete })} />)
       await screen.findByTitle('index.html')
       fireEvent.click(screen.getByText(t('studio.action.print')))
       expect(await screen.findByText(t('studio.print.exported', { path: '/tmp/full.pdf' }))).toBeTruthy()
@@ -217,8 +216,9 @@ describe('StudioView', () => {
       printHtmlToPdf,
     }
     const readFileText = vi.fn(() => Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true }))
+    const readFileTextComplete = vi.fn(() => Promise.resolve({ content: '', truncated: true }))
     try {
-      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText })} />)
+      render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText, readFileTextComplete })} />)
       await screen.findByTitle('index.html')
       fireEvent.click(screen.getByText(t('studio.action.print')))
       expect(await screen.findByText(t('studio.print.failed', { message: t('studio.print.tooLarge') }))).toBeTruthy()

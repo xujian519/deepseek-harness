@@ -33,4 +33,4 @@ Status: implemented
 
 ## 取代关系
 
-部分取代 [2026-08-28-upstream-v0.1.2-alpha.1-sync](../process/2026-08-28-upstream-v0.1.2-alpha.1-sync.zh.md)：其 follow-up 3 在此闭合；follow-up 1（readFileText Remote 网关）与 2（synapse live-reply）仍开放，该 note 保持 active。部分取代 [2026-08-26-hygiene-gate-debt-and-conflict](../../proposed/bug-fix/2026-08-26-hygiene-gate-debt-and-conflict.zh.md)：其第 3 项已实现；`bundle/im` 的 knip 项仍归其窗口。
+部分取代 [2026-08-28-upstream-v0.1.2-alpha.1-sync](../process/2026-08-28-upstream-v0.1.2-alpha.1-sync.zh.md)：其 follow-up 3 在此闭合，其 follow-up 1（readFileText Remote 网关）于 2026-09-19 在 [2026-09-19-document-studio-preview-over-the-workspace-files-remote](2026-09-19-document-studio-preview-over-the-workspace-files-remote.zh.md) 闭合；follow-up 2（synapse live-reply）仍开放，该 note 保持 active。部分取代 [2026-08-26-hygiene-gate-debt-and-conflict](../../proposed/bug-fix/2026-08-26-hygiene-gate-debt-and-conflict.zh.md)：其第 3 项已实现；`bundle/im` 的 knip 项仍归其窗口。

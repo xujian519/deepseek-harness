@@ -93,8 +93,10 @@ describe('tsdown client artifact', () => {
     } as never)
     ctx.provide('connection', { isLoopback: true } as never)
     const remoteSession = {}
-    ctx.provide('remote', { $on: () => () => {}, session: remoteSession } as never)
+    const remoteWorkspaceFiles = {}
+    ctx.provide('remote', { $on: () => () => {}, session: remoteSession, workspaceFiles: remoteWorkspaceFiles } as never)
     ctx.provide('remote.session', remoteSession as never)
+    ctx.provide('remote.workspaceFiles', remoteWorkspaceFiles as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     const locale = await import('@deepseek-ai/dsh-client-locale/client')
     ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
@@ -108,6 +110,7 @@ describe('tsdown client artifact', () => {
     expect(exports.apply).toBeTypeOf('function')
     expect(exports.inject).toEqual([
       'slots', 'locale', 'uiConversation', 'conversation', 'sessions', 'connection', 'remote', 'remote.session',
+      'remote.workspaceFiles',
     ])
   })
 
@@ -175,8 +178,10 @@ describe('tsdown client artifact', () => {
       } as never)
       ctx.provide('connection', { isLoopback: true } as never)
       const remoteSession = {}
-      ctx.provide('remote', { $on: () => () => {}, session: remoteSession } as never)
+      const remoteWorkspaceFiles = {}
+      ctx.provide('remote', { $on: () => () => {}, session: remoteSession, workspaceFiles: remoteWorkspaceFiles } as never)
       ctx.provide('remote.session', remoteSession as never)
+      ctx.provide('remote.workspaceFiles', remoteWorkspaceFiles as never)
       ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
       const locale = await import('@deepseek-ai/dsh-client-locale/client')
       ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
