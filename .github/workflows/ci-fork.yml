@@ -68,6 +68,86 @@ jobs:
       - name: Documentation checks
         run: pnpm run test:docs
 
+  node-hygiene:
+    if: github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / hygiene
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        # This job owns its build. The hygiene aggregate's publint,
+        # built-package-invariants, and node-next-types gates read emitted
+        # lib/ artifacts, so without one they inspect an empty publication
+        # view and pass vacuously. A separate job keeps the unbuilt-tree
+        # precondition the unit lane runs under, which the lib-consuming
+        # suites (webworker-packer image-loadable, client ui-trajectory
+        # client-bundle) depend on to self-skip.
+        run: pnpm run build
+
+      - name: Hygiene gates
+        # Upstream CI never runs this aggregate; it is the local developer
+        # gate. A manifest `files` field out of step with the constraints
+        # table therefore reaches master unnoticed, because the node-checks
+        # lane covers lint, typecheck, and tests but none of these.
+        run: pnpm run hygiene
+
+  node-coverage:
+    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / coverage
+    timeout-minutes: 180
+    env:
+      # Four partitions, as upstream uses; the worker budget is the fork's
+      # 4-core runner share. DSH_COVERAGE_MAX_WORKERS splits into three
+      # instrumented workers and one exempt-heavy worker, which run
+      # concurrently under the aggregate's own gate concurrency.
+      DSH_COVERAGE_PARTITIONS: '4'
+      DSH_COVERAGE_MAX_WORKERS: '4'
+      # The same budget the unit lane grants: managed-scope teardown cases in
+      # subprocess-local and bash-sandbox run past the default 5000ms once
+      # partitions, workers, and sibling gates share one host.
+      DSH_COVERAGE_TEST_TIMEOUT_MS: '90000'
+      # A failed gate aborts the sibling instrumented run instead of waiting
+      # out its multi-minute remainder.
+      DSH_GATE_FAIL_FAST: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare bubblewrap
+        run: bash scripts/prepare-ci-bubblewrap.sh
+
+      - name: Coverage
+        # No build: workspace imports resolve to src through the tsconfig
+        # paths map, and the aggregate builds the native system addon it
+        # needs before the instrumented run.
+        run: pnpm run check:ci:coverage
+
   python-checks:
     if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
