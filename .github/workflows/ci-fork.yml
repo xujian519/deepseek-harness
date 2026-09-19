@@ -111,15 +111,16 @@ jobs:
     name: node 24 / coverage
     timeout-minutes: 180
     env:
-      # Four partitions, as upstream uses. The worker budget stays below the
-      # fork's core count on purpose: DSH_COVERAGE_MAX_WORKERS splits into one
-      # instrumented worker and one exempt-heavy worker, so at most two
-      # instrumented processes share the four cores. Four processes (three
-      # instrumented plus one exempt) left no headroom, and the lane's first two
-      # runs each failed a different load-sensitive case: the ptc-runtime
-      # memory-shape case that budgets 60s of wall clock precisely for this
-      # instrumentation and box-sharing pressure, and an agent-presets mount
-      # assertion whose two refusal paths race.
+      # Four partitions, as upstream uses. With DSH_COVERAGE_PARTITIONS set
+      # they replace the instrumented share of DSH_COVERAGE_MAX_WORKERS, which
+      # then sizes only the exempt-heavy gate: 2 gives it one worker where
+      # upstream's 6 gives two, so the lane runs five Vitest processes on this
+      # job's four cores. What has failed here so far are fixture budgets, not
+      # thresholds — a case whose ceiling assumed a machine several times
+      # faster than this runner, and a fixture row resolving a workspace
+      # package name to a built lib/ that no lane on a clean tree has. Both
+      # sizes and the rule behind them are recorded in
+      # .agents/notes/implemented/process/2026-09-19-fork-ci-hygiene-and-coverage-gates.md.
       DSH_COVERAGE_PARTITIONS: '4'
       DSH_COVERAGE_MAX_WORKERS: '2'
       # The same budget the unit lane grants: managed-scope teardown cases in
@@ -150,7 +151,10 @@ jobs:
       - name: Coverage
         # No build: workspace imports resolve to src through the tsconfig
         # paths map, and the aggregate builds the native system addon it
-        # needs before the instrumented run.
+        # needs before the instrumented run. The Loader's own entry-module
+        # import does not travel that map — it resolves a row's specifier
+        # through Node — so a preset fixture must name a file, never a
+        # workspace package whose exports point at an unbuilt lib/.
         run: pnpm run check:ci:coverage
 
   python-checks:
