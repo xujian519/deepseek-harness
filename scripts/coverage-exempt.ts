@@ -44,6 +44,11 @@ export const coverageExemptHeavySuites: readonly CoverageExemptSuite[] = [
     filter: 'packages/experimental/webworker-runtime/tests/',
     exclude: 'packages/experimental/webworker-runtime/tests/**',
   },
+  // A lexical scan of every workspace package source, over scripts/ sources
+  // that coverage never measures: the instrumentation tax lands on the walk
+  // itself, and this suite sits closer to its own 30s budget than any other in
+  // the instrumented gate.
+  { filter: 'scripts/gen-client-catalog.spec.ts', exclude: 'scripts/gen-client-catalog.spec.ts' },
   // Real child-process fixtures over scripts/ sources, which coverage never measures.
   { filter: 'scripts/install-lefthook.spec.ts', exclude: 'scripts/install-lefthook.spec.ts' },
   { filter: 'scripts/oxlint-contract.spec.ts', exclude: 'scripts/oxlint-contract.spec.ts' },
