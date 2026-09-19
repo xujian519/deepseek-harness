@@ -281,7 +281,10 @@ describe('rejecting a composition that cannot be used', () => {
     // Discovery judges a preset's shape and whether its packages resolve, so
     // the roster calls this composition healthy; the schema the Loader applies
     // is what refuses it. The 2026-09-06 persona field rename reached a
-    // deployment exactly this way, and nothing in CI saw it.
+    // deployment exactly this way, and nothing in CI saw it. The row carries
+    // its own fixture schema so the case holds on a clean tree: the shipped
+    // persona package resolves through Node to its built `lib/`, which the
+    // suite's own lanes do not build.
     await expect(agentOn(ctx, 'sess-stale-persona', 'stale-persona'))
       .rejects.toThrow(/\$\.prefix missing required value/)
   })
