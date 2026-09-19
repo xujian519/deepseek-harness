@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-19-fork-ci-hygiene-and-coverage-gates.md
-2026-09-19-fork-ci-hygiene-and-coverage-gates.md: 0ee721c2c5d76d90323f97b490c5afbcaacf4cb8
-2026-09-19-fork-ci-hygiene-and-coverage-gates.zh.md: 020a1351b41bfd1420bb9fdf3274520087aceea6
+2026-09-19-fork-ci-hygiene-and-coverage-gates.md: 28ea09afba71f479351280127926513807313c88
+2026-09-19-fork-ci-hygiene-and-coverage-gates.zh.md: 840f64bbdf874bc6698071db41d09bace3f56731

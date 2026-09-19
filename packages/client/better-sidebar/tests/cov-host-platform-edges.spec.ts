@@ -1,11 +1,12 @@
 /**
- * Platform- and account-dependent host branches that no POSIX runner reaches
- * natively: the Windows spawn-helper skip, the Windows shell-argument shape,
- * the login-shell fallback for an account without a passwd shell, the
- * case-insensitive checkout comparison on win32, the `$DSH_HOME` fallback to
- * the account home, and the Windows repair command without its installer
- * script. Each branch is pinned through an injected platform/env or a
- * delegated module mock.
+ * Platform- and account-dependent host branches that no single runner reaches
+ * on its own: the Windows spawn-helper skip, the POSIX spawn-helper chmod (the
+ * artifact is macOS-only, so a Linux coverage runner never takes that path),
+ * the Windows shell-argument shape, the login-shell fallback for an account
+ * without a passwd shell, the case-insensitive checkout comparison on win32,
+ * the `$DSH_HOME` fallback to the account home, and the Windows repair command
+ * without its installer script. Each branch is pinned through an injected
+ * platform/env or a delegated module mock.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { spawnSync } from 'node:child_process'
@@ -61,6 +62,17 @@ describe('windows shell resolution', () => {
     await withPlatform('win32', () => {
       expect(shellSpawnArgs(['-NoLogo'])).toEqual(['-NoLogo'])
     })
+  })
+})
+
+describe('spawn-helper executable bit', () => {
+  it('restores it on POSIX from a runner that has no helper on disk', async () => {
+    chmodSyncSpy.mockClear()
+    await withPlatform('linux', () => { ensureSpawnHelper() })
+    // The mocked `node:fs` reports every spawn-helper candidate present, so the
+    // macOS artifact's path runs on any host; the `prebuilds/linux` prefix
+    // proves the injected platform, not this machine's layout, drove the call.
+    expect(chmodSyncSpy).toHaveBeenCalledWith(expect.stringContaining(join('prebuilds', 'linux')), 0o755)
   })
 })
 

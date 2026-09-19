@@ -48,13 +48,14 @@ fork 的 `.github/workflows/ci-fork.yml` 原先运行 lint、typecheck、duplica
 
 - 类似 `apps/desktop-host` 的 constraints 漂移，会在引入它的那个 pull request 上让 `node-hygiene` 变红。
 - 被度量的 `packages/*/*/src` 集合内的覆盖率回归会让 `node-coverage` 变红。登记在 `vitest.config.ts` 中的 fork 本地族（`packages/patent/*`、`packages/web/synapse`、`packages/self-evolve/*`、`packages/client/ui-agent-preset` 以及文档工作台）仍留在度量之外。
-- fork CI 的总时长增加一个覆盖率聚合的时间，它是工作流中最长的 job。它只在 pull request 上运行。
+- 该门禁的首次运行就找到了 fork 唯一一个低于阈值的文件 `packages/client/better-sidebar/src/pty-manager.ts`——这是上游任何 lane 都看不到的缺口，因为该包是 fork 独有的。
+- fork CI 的总时长增加一个覆盖率聚合的时间，它是工作流中最长的 job：首次运行在 4 核 runner 上实测 20 分钟，且只在 pull request 上运行。
 - 两个新 job 重复支付 `node-checks` 已经支付过的安装步骤。GitHub Actions 的 job 之间不共享工作区，这是保持单元 lane 前置条件不变的代价。
 
 ## 验证
 
 - 在本次改动的树上执行 `pnpm run build && pnpm run hygiene`：`run-gates: 16 passed, 0 failed, 0 skipped`。同一条命令在声明改动之前会因 `constraints` 变红。
-- 在 Node 24 下完整运行 `DSH_COVERAGE_PARTITIONS=4 pnpm run test:coverage:partitioned`，对每个被度量文件报告语句、分支、函数、行均为 100%。唯一失败的测试是 `packages/util/http-proxy/tests/install.spec.ts` 的 "connects directly when the bypass list covers the target"，即 5000 ms 超时；它在该 macOS 主机上单独运行同样失败，且不属于本 fork 改动的任何包。
+- 在 Node 24 下于 macOS 完整运行 `DSH_COVERAGE_PARTITIONS=4 pnpm run test:coverage:partitioned`，每个被度量文件均为 100%（含 `packages/client/better-sidebar/src/pty-manager.ts`），唯一失败的测试是 `packages/util/http-proxy/tests/install.spec.ts` 的 "connects directly when the bypass list covers the target"（5000 ms 超时；它在该主机上单独运行同样失败，且不属于本 fork 改动的任何包）。这个本地结果**不能**证明该门禁在 Linux 上的行为：`pty-manager.ts` 只在 node-pty 那个仅 macOS 存在的 spawn-helper 产物存在时才恢复其可执行位，因此 Linux runner 报出 `pty-manager.ts:38` 的两处未覆盖位置，并使该文件的语句与分支阈值不达标。`packages/client/better-sidebar/tests/cov-host-platform-edges.spec.ts` 现在在该文件既有的 `node:fs` mock 下注入 `linux` 来钉住这条路径，于是该分支不再依赖宿主机磁盘布局。`better-sidebar` 是 fork 独有包（上游没有它），这正是此前没有任何 lane 度量过该文件的原因。
 - 工作流可解析，`scripts/ci-workflow.spec.ts`（43 个测试）通过；该 spec 读取的是归档的上游工作流，因此只是间接约束这两个新 job。
 - 这两个 job 本身的唯一验证是首次 CI 运行；开发者机器上没有任何东西会执行 GitHub Actions job。
 

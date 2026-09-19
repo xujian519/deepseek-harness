@@ -48,13 +48,14 @@ The `PRIMARY_NODE_VERSION` pin matters here beyond consistency. Under Node 22 th
 
 - A constraints drift of the `apps/desktop-host` kind fails `node-hygiene` on the pull request that introduces it.
 - Coverage regressions in the measured `packages/*/*/src` set fail `node-coverage`. The fork-local families registered in `vitest.config.ts` (`packages/patent/*`, `packages/web/synapse`, `packages/self-evolve/*`, `packages/client/ui-agent-preset`, and the document studio) stay outside the measurement.
-- The fork's CI wall-clock grows by the coverage aggregate, which is the longest job in the workflow. It runs only on pull requests.
+- The gate's first run found the fork's only below-threshold file, `packages/client/better-sidebar/src/pty-manager.ts`, a gap no upstream lane can see because the package is fork-local.
+- The fork's CI wall-clock grows by the coverage aggregate, which is the longest job in the workflow: its first run measured 20 minutes on the 4-core runner, and it runs only on pull requests.
 - Both new jobs duplicate the install step that `node-checks` already pays for. GitHub Actions jobs do not share a workspace, so this is the cost of keeping the unit lane's precondition untouched.
 
 ## Testing
 
 - `pnpm run build && pnpm run hygiene` on this change's tree: `run-gates: 16 passed, 0 failed, 0 skipped`. The same sequence was red on `constraints` before the declaration change.
-- A full `DSH_COVERAGE_PARTITIONS=4 pnpm run test:coverage:partitioned` run under Node 24 reported 100% statements, branches, functions, and lines for every measured file. Its only failing test was `packages/util/http-proxy/tests/install.spec.ts` — "connects directly when the bypass list covers the target", a 5000 ms timeout that also fails in isolation on that macOS host and belongs to no package this fork changes.
+- A full `DSH_COVERAGE_PARTITIONS=4 pnpm run test:coverage:partitioned` run under Node 24 on macOS reported 100% for every measured file, `packages/client/better-sidebar/src/pty-manager.ts` included, and its only failing test was `packages/util/http-proxy/tests/install.spec.ts` — "connects directly when the bypass list covers the target", a 5000 ms timeout that also fails in isolation on that host and belongs to no package this fork changes. That result did not establish the gate's Linux behavior: `pty-manager.ts` restores node-pty's spawn-helper executable bit only where that macOS-only artifact exists, so the Linux runner reports two uncovered locations at `pty-manager.ts:38` and misses the file's statement and branch thresholds. `packages/client/better-sidebar/tests/cov-host-platform-edges.spec.ts` now pins that path by injecting `linux` under its existing `node:fs` mock, so the branch no longer depends on the host's file layout. `better-sidebar` is fork-local, absent from upstream, which is why no earlier lane measured the file.
 - The workflow parses and `scripts/ci-workflow.spec.ts` (43 tests) passes; that spec reads the archived upstream workflows, so it constrains the new jobs only indirectly.
 - The first CI run is the only verification of the jobs themselves; nothing on a developer machine executes a GitHub Actions job.
 
