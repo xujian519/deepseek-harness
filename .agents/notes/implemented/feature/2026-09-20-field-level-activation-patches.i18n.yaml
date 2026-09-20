@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-20-field-level-activation-patches.md
-2026-09-20-field-level-activation-patches.md: 09dd41bd6db89ed88e26ee31bfd921e6de93846a
-2026-09-20-field-level-activation-patches.zh.md: f3b0bf0fe1652857aefbd4e065b90fea08c1235d
+2026-09-20-field-level-activation-patches.md: 760eda3a63b39d95d88d6b821ed21613e110a607
+2026-09-20-field-level-activation-patches.zh.md: 56ecdafa32691806ee3fd3f0421239c525add639

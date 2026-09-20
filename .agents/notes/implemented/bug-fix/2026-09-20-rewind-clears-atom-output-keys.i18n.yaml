@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-rewind-clears-atom-output-keys.md
-2026-09-20-rewind-clears-atom-output-keys.md: 2426e6cabeb559704814ba82521d2936e27eb656
-2026-09-20-rewind-clears-atom-output-keys.zh.md: 4c473605987755911d7fd58f8f57447eb61f7fee
+2026-09-20-rewind-clears-atom-output-keys.md: de18c9fadc0e0485fee8021cabc903bd09607640
+2026-09-20-rewind-clears-atom-output-keys.zh.md: 4743b73436d83667f7f27e7e16b8fbc425de3e25

@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { RuleSetValidationIssue } from '@deepseek-ai/dsh-patent-core'
 import {
   applyRuleOverrides,
   asRecord,
@@ -225,12 +226,84 @@ rules:
 `,
     )
     expect(issues.map(i => i.message)).toEqual([
-      'rule T-NEG-BAD: additionalNegationWords 必须是字符串数组，已忽略',
+      'rule T-NEG-BAD: additionalNegationWords 必须是非空字符串数组，已忽略',
     ])
     const rule = ruleSet.rules[0]
     expect(rule?.check.type).toBe('keyword_blocklist')
     if (rule?.check.type === 'keyword_blocklist') {
       expect(rule.check.additionalNegationWords).toBeUndefined()
+    }
+  })
+
+  it('parseRuleSetFromYaml reports an empty additionalNegationWords instead of dropping it silently', () => {
+    // 空数组曾与「值合法但没写词」无法区分：既不告警也不写入字段，资产作者会以为放行词
+    // 已生效。字段契约是"非空字符串数组"，故空表与非法类型同责；补丁路径
+    // （patent-compliance 的 parseActivationPatch）对同一输入已告警，两侧判据一致。
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: T-NEG-EMPTY
+    name: n
+    severity: minor
+    action: warn
+    check: { type: keyword_blocklist, keywords: ["窃听"], negationContext: true, additionalNegationWords: [] }
+`,
+    )
+    expect(issues.map(i => i.message)).toEqual([
+      'rule T-NEG-EMPTY: additionalNegationWords 必须是非空字符串数组，已忽略',
+    ])
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('keyword_blocklist')
+    if (rule?.check.type === 'keyword_blocklist') {
+      expect(rule.check.additionalNegationWords).toBeUndefined()
+    }
+  })
+
+  it('parseRuleSetFromYaml reports an all-blank additionalNegationWords instead of accepting words that can never apply', () => {
+    // 第三种「声明了却不生效」形态：整表皆空串。空串元素被 hasNegationContext 的
+    // `word.length > 0` 守卫丢弃，豁免不了任何命中，而资产作者以为放行词已生效——与空表
+    // 同责：整表丢弃并告警。带首尾空白的元素不在此列，见下一条用例。
+    for (const raw of ['[""]', '["", ""]']) {
+      const { ruleSet, issues } = parseRuleSetFromYaml(
+        `
+rules:
+  - id: T-NEG-BLANK
+    name: n
+    severity: minor
+    action: warn
+    check: { type: keyword_blocklist, keywords: ["窃听"], negationContext: true, additionalNegationWords: ${raw} }
+`,
+      )
+      expect(issues.map(i => i.message)).toEqual([
+        'rule T-NEG-BLANK: additionalNegationWords 必须是非空字符串数组，已忽略',
+      ])
+      const rule = ruleSet.rules[0]
+      expect(rule?.check.type).toBe('keyword_blocklist')
+      if (rule?.check.type === 'keyword_blocklist') {
+        expect(rule.check.additionalNegationWords).toBeUndefined()
+      }
+    }
+  })
+
+  it('parseRuleSetFromYaml keeps a padded additionalNegationWords entry, which still matches literally', () => {
+    // 带首尾空白的元素按字面参与紧邻前缀匹配（hasNegationContext 的 endsWith 不做 trim），
+    // 语义窄但会生效；关键词那条路径则先 trim 再 indexOf，同样会命中。拒绝它会连带丢弃
+    // 作者真正写下的放行词，故整表保留——判据只拒绝在消费侧恒不生效的形态。
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: T-NEG-PADDED
+    name: n
+    severity: minor
+    action: warn
+    check: { type: keyword_blocklist, keywords: ["窃听"], negationContext: true, additionalNegationWords: ["防 ", "反"] }
+`,
+    )
+    expect(issues.length).toBe(0)
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('keyword_blocklist')
+    if (rule?.check.type === 'keyword_blocklist') {
+      expect(rule.check.additionalNegationWords).toEqual(['防 ', '反'])
     }
   })
 
@@ -524,5 +597,32 @@ rules:
     const merged = applyRuleOverrides(base, new Map([['A1', { action: 'log' }]]))
     expect(merged.version).toBe('2.0')
     expect(merged.rules[0]?.action).toBe('log')
+  })
+
+  it('applyRuleOverrides reports a patch that leaves negation words behind a closed switch', () => {
+    const base = parseRuleSetFromYaml(
+      'rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"], negationContext: true, additionalNegationWords: ["防"] }\n',
+    ).ruleSet
+    const issues: RuleSetValidationIssue[] = []
+    const merged = applyRuleOverrides(base, new Map([['A1', { negationContext: false }]]), issues)
+    // 补丁自身没追加任何词——判据取合并后的词表才能发现这条自相矛盾的声明。
+    expect(issues.map(issue => issue.message)).toEqual([
+      '激活覆盖 A1: 声明了 additionalNegationWords 但未开 negationContext: true，放行词不会生效',
+    ])
+    expect(merged.rules[0]?.check).toEqual({
+      type: 'keyword_blocklist',
+      keywords: ['x'],
+      negationContext: false,
+      additionalNegationWords: ['防'],
+    })
+  })
+
+  it('applyRuleOverrides stays silent when a patch adds negation words with the switch on', () => {
+    const base = parseRuleSetFromYaml(
+      'rules:\n  - id: A1\n    name: a\n    severity: minor\n    action: warn\n    check: { type: keyword_blocklist, keywords: ["x"], negationContext: true }\n',
+    ).ruleSet
+    const issues: RuleSetValidationIssue[] = []
+    applyRuleOverrides(base, new Map([['A1', { additionalNegationWords: ['防'] }]]), issues)
+    expect(issues).toEqual([])
   })
 })

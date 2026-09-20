@@ -40,16 +40,24 @@ const NEGATION_COMPOUNDS = ['无可避免', '不可避免']
  */
 const SENTENCE_BOUNDARIES = ['。', '；', ';', '！', '？', '?', '!', '\n', '…', '—']
 
-/** 否定语境检查选项：窗口大小与否定词表。 */
+/** 否定语境检查选项：窗口大小、否定词表与紧邻前缀词表。 */
 export type NegationContextOptions = {
   /** 否定语境检查窗口（默认 DEFAULT_NEGATION_WINDOW）。 */
   window?: number
-  /** 否定语境词表（默认 DEFAULT_NEGATION_WORDS）。 */
+  /** 否定语境词表（默认 DEFAULT_NEGATION_WORDS）：窗口内任意位置出现即豁免。 */
   negationWords?: readonly string[]
+  /**
+   * 紧邻前缀词表：只在**紧接命中位置之前**出现时豁免（「防窃听」的「防」）。
+   *
+   * 与 `negationWords` 分开是因为两者语义不同——前缀词与被命中词合成一个复合技术
+   * 主题，隔开若干字就不再是同一个词（「检测用户行为，诱导其参与赌博」中的「检测」
+   * 与该句的「赌博」无关）。走 24 字宽松窗口会让这类词变成远距离旁路。
+   */
+  adjacentWords?: readonly string[]
 }
 
 /**
- * 在命中位置前查找否定语境：窗口内出现否定词且无句界分隔。
+ * 在命中位置前查找否定语境：紧邻前缀词命中，或窗口内出现否定词且无句界分隔。
  * @param text - 待检查文本。
  * @param matchStart - 命中位置（字符索引）。
  * @param options - 可选检查选项。
@@ -60,6 +68,10 @@ export function hasNegationContext(text: string, matchStart: number, options?: N
   const words = options?.negationWords ?? DEFAULT_NEGATION_WORDS
   const start = Math.max(0, matchStart - windowSize)
   const window = text.slice(start, matchStart)
+  // 紧邻前缀词与被命中词合成复合词，判定不依赖前文，故先于句界检查
+  // （「乙。本发明提供防窃听装置」的前置句号不该取消「防窃听」的复合词地位）。
+  const adjacent = options?.adjacentWords
+  if (adjacent !== undefined && adjacent.some(word => word.length > 0 && window.endsWith(word))) return true
   if (SENTENCE_BOUNDARIES.some(b => window.includes(b))) return false
   for (const word of words) {
     let searchFrom = 0

@@ -22,11 +22,11 @@ Append rather than redeclare is deliberate. Redeclaring the whole check in the p
 
 Check-level keys apply only to `keyword_blocklist`; on any other check type the patch reports an issue and the rule is left alone.
 
-`additionalNegationWords` and `negationContext` are **orthogonal**: the word list supplies words, the switch is the only thing that enables filtering. Declaring words without `negationContext: true` is reported at both points that can observe it — `parseCheck` for a hand-written asset, `applyActivationPatch` for a patch — instead of passing as a dead declaration. The engine does not auto-enable: a rule carrying `negationContext: false` and a word list is self-contradictory, and silently letting the word list win would hide which of the two is in effect.
+`additionalNegationWords` and `negationContext` are **orthogonal**: the word list supplies words, the switch is the only thing that enables filtering. Declaring words without `negationContext: true` is reported at both points that can observe it — `parseCheck` for a hand-written asset, `applyActivationPatch` for a patch — instead of passing as a dead declaration. The engine does not auto-enable: a rule carrying `negationContext: false` and a word list is self-contradictory, and silently letting the word list win would hide which of the two is in effect. The patch path reads the **merged** word list, so a patch that closes the switch on a rule whose own asset already carries words is reported too.
 
-Domain words stay per-rule. `mergeNegationWords` folds a rule's `additionalNegationWords` over `DEFAULT_NEGATION_WORDS` for that rule's evaluation only. Folding them into the shared default list instead would widen the release surface of every negation-context rule at once — `PAT-RISK-001`, `PAT-ABS-001`, `INV-EVIDENCE-001` and the rest — which is why the two regression cases in `rule-asset-review-samples.spec.ts` exist.
+Domain words stay per-rule, and they match as an **adjacent prefix** rather than through the negation window. `hasNegationContext` receives them as `adjacentWords`, which excuse a hit only when the word ends immediately before it — prefix and hit then form one compound subject (`防` + `窃听`). Routing them through the negation window instead would let a word such as `检测` in `通过检测用户行为，诱导其参与赌博` excuse a hit a dozen characters away, silently dropping a public-order warning. Folding them into the shared default list would widen the release surface of every negation-context rule at once — `PAT-RISK-001`, `PAT-ABS-001`, `INV-EVIDENCE-001` and the rest — which is why the two domain-containment cases in `rule-asset-review-samples.spec.ts` exist.
 
-Every structural failure mode collects a `RuleSetValidationIssue` rather than disappearing: unknown key, unknown rule id, check-level keys on a non-`keyword_blocklist` check, a non-string-array field, a non-boolean switch, and an empty patch. `applyRuleOverrides` takes an optional third `issues` collector, so existing call sites stay valid. `loadPatentFullRuleSet` folds the collector's messages into its own warnings. A patch with any invalid field is skipped whole — a half-applied patch is not applied.
+Every structural failure mode collects a `RuleSetValidationIssue` rather than disappearing: unknown key, unknown rule id, check-level keys on a non-`keyword_blocklist` check, a list field that is not an array, is empty, or carries only empty-string entries, a non-boolean switch, and an empty patch. `applyRuleOverrides` takes an optional third `issues` collector, so existing call sites stay valid. `loadPatentFullRuleSet` folds the collector's messages into its own warnings. A patch with any invalid field is skipped whole — a half-applied patch is not applied.
 
 The asset gains the three ported conclusions the code now supports: `X-REF-003` variant spellings, `EX-SEL-004` negation context with its four domain words, and `IPC-GEN-INV-002` demoted to `log` beside its duplicate `EX-INV-007`.
 
@@ -48,7 +48,7 @@ A review conclusion that only tightens matching now lands in the patch file. `EX
 
 The patch file is validated. `loadActivationOverrides` skips a patch whose field is mistyped, and `loadPatentFullRuleSet` surfaces unknown ids, unknown keys, and the orthogonal-declaration case as warnings.
 
-`asStringArray` is exported from `RuleLoader.ts` so the compliance loader validates list fields with the same rule the asset parser uses.
+`RuleLoader.ts` exports `asStringArray` and `hasNonEmptyWord`, and the compliance loader validates list fields with the same pair the asset parser uses. Neither rejects an entry with leading or trailing whitespace: the negation list matches it literally and the keyword list trims it, so such an entry does take effect.
 
 The asset's patch count moves from 29 to 31. `patent-full-rule-set.spec.ts` asserts the count together with "no warnings", so a future patch that is written but not applicable fails the suite rather than being absorbed.
 
@@ -56,11 +56,13 @@ The asset's patch count moves from 29 to 31. `patent-full-rule-set.spec.ts` asse
 
 `packages/patent/patent-rule/tests/patent-full-rule-set.spec.ts` — the patch count with no warnings; check-level keys append rather than redeclare; the two keys are orthogonal and a missing switch is reported; an unknown id warns; an unknown key warns while the known keys still apply; check-level keys on a non-`keyword_blocklist` rule warn and leave the rule unchanged; a patch that appends words without the switch warns; an empty patch warns.
 
-`packages/patent/patent-rule/tests/rule-asset-review-samples.spec.ts` — each review conclusion as an executable case: the 9 new `X-REF-003` spellings hit, the half-width uppercase spelling still hits, real case numbers stay clear, the four `EX-SEL-004` release words each release their topic, true positives still hit, the negation window's one-sidedness stays pinned, the duplicate pair produces one user-visible warning, and the two cases that fail if the domain words ever move into the shared default list.
+`packages/patent/patent-rule/tests/rule-asset-review-samples.spec.ts` — each review conclusion as an executable case: the 9 new `X-REF-003` spellings hit, the half-width uppercase spelling still hits, real case numbers stay clear, the four `EX-SEL-004` release words each release their topic, true positives still hit, a domain prefix excusing only an adjacent hit, the negation window's one-sidedness stays pinned, the duplicate pair produces one user-visible warning, and the two cases that fail if the domain words ever move into the shared default list.
 
-`packages/patent/patent-rule/tests/rule-loader.spec.ts` — a non-array `additionalNegationWords` is reported and the field dropped.
+`packages/patent/patent-rule/tests/rule-loader.spec.ts` — a non-array, empty, or all-empty-string `additionalNegationWords` is reported and the field dropped, while an entry with leading whitespace is kept; a patch that closes `negationContext` on a rule whose asset carries words is reported, and adding words with the switch on stays silent.
 
-`packages/patent/patent-rule/tests/patent-compliance.spec.ts` — a mistyped list field, an empty list, and a non-boolean switch each skip the whole patch.
+`packages/patent/patent-rule/tests/patent-compliance.spec.ts` — a mistyped list field, an empty list, a list whose entries are all empty strings, and a non-boolean switch each skip the whole patch, while an entry with leading whitespace is kept.
+
+`packages/patent/patent-core/tests/text-utils.spec.ts` — the adjacent-prefix channel in isolation: an adjacent prefix excuses, a distant one does not, the prefix outranks a preceding sentence boundary, and an empty prefix excuses nothing.
 
 ## Related
 

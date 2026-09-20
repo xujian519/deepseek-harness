@@ -16,6 +16,7 @@ import {
   applyRuleOverrides,
   asRecord,
   asStringArray,
+  hasNonEmptyWord,
   isRuleAction,
   loadRuleSetFromFile,
   mergeRuleSets,
@@ -136,18 +137,17 @@ function parseActivationPatch(
     patch.action = record.action
   }
 
-  for (const [key, field] of [
-    ['addKeywords', 'addKeywords'],
-    ['additionalNegationWords', 'additionalNegationWords'],
-  ] as const) {
+  for (const key of ['addKeywords', 'additionalNegationWords'] as const) {
     const raw = record[key]
     if (raw === undefined) continue
     const list = asStringArray(raw)
-    if (list === null || list.length === 0) {
-      warnings.push(`激活覆盖 ${id}: ${field} 必须是非空字符串数组，已跳过`)
+    // 与资产解析器（RuleLoader.parseCheck）同一判据：空表、非法类型与全空串元素都整条跳过
+    // ——三者都让表在消费侧恒不生效。带首尾空白的元素保留：两条消费路径都会让它参与匹配。
+    if (list === null || !hasNonEmptyWord(list)) {
+      warnings.push(`激活覆盖 ${id}: ${key} 必须是非空字符串数组，已跳过`)
       return null
     }
-    patch[field] = list
+    patch[key] = list
   }
 
   if (record.negationContext !== undefined) {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { AtomRegistry, clearStageOutputs, type WorkflowStage } from '@deepseek-ai/dsh-patent-core'
+import {
+  approvalGateAtom,
+  AtomRegistry,
+  clearStageOutputs,
+  extractAtom,
+  type WorkflowStage,
+} from '@deepseek-ai/dsh-patent-core'
 
 /**
  * 回退清理原语的直接单测。
@@ -10,23 +16,17 @@ import { AtomRegistry, clearStageOutputs, type WorkflowStage } from '@deepseek-a
  * 更能定位回归。
  */
 
-/** 构造含多输出键 atom（extract）与零输出键 atom（reasoning）的注册表。 */
+/**
+ * 构造含多输出键 atom（extract）与零输出键 atom（审批门）的注册表。
+ *
+ * 复用出厂 atom 定义而非手抄一份：手抄版曾漏掉 `extractAtom` 的
+ * `extraction_result`，于是"重跑解析失败时旧一代提取结果残留、下游 merge 混用
+ * 两代"这一本套用例要防的缺陷恰好不可发现——断言只覆盖手抄进 outputSchema 的键。
+ */
 function makeAtoms(): AtomRegistry {
   const registry = new AtomRegistry()
-  registry.register({
-    name: 'extract',
-    description: '提取',
-    category: 'extract',
-    inputSchema: ['text'],
-    outputSchema: ['features', 'problems', 'effects'],
-  })
-  registry.register({
-    name: 'reasoning',
-    description: '推理',
-    category: 'reason',
-    inputSchema: [],
-    outputSchema: [],
-  })
+  registry.register(extractAtom)
+  registry.register(approvalGateAtom)
   return registry
 }
 
@@ -35,11 +35,12 @@ describe('clearStageOutputs', () => {
     const atoms = makeAtoms()
     const stages: WorkflowStage[] = [
       { id: 'extract_features', strategy: 'chain', description: '提取', atom: 'extract' },
-      { id: 'check', strategy: 'chain', description: '检查', atom: 'reasoning' },
+      { id: 'check', strategy: 'chain', description: '检查', atom: 'approval-gate' },
     ]
     const state: Record<string, unknown> = {
       input: '交底书',
       extract_features: '旧输出',
+      extraction_result: '旧一代原文（解析失败时残留的那份）',
       features: ['旧特征'],
       problems: ['旧问题'],
       effects: ['旧效果'],

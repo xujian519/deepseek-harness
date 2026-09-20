@@ -3,6 +3,12 @@
  *
  * 声明式执行器（dsh-patent-workflow 的 runWorkflow）与图适配器
  * （graph/adapter.ts 的 retry 回退 router）共用这一条回退语义，故落在 patent-core。
+ *
+ * 删除的键集取 atom 的**全量声明**，与"该阶段本次执行实际写了哪些键"无关：handler
+ * 的写入路径随输入分支（extract 解析失败只写返回原文），按实际写入清理会漏掉上一代
+ * 残留。调用方须保证传入的阶段**都会重跑**——范围之外的阶段不受影响，即使它与范围内
+ * 某阶段共享同一个 atom：同名键在 state 中只存一份，其值来自最后写入者（范围内阶段），
+ * 故清理不丢失不可恢复的产出。
  */
 
 import type { AtomRegistry } from '../atoms/atom.ts'

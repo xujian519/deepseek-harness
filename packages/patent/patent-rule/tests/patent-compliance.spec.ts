@@ -105,8 +105,8 @@ describe('patent compliance loading', () => {
     expect(badAction.byId.size).toBe(0)
     expect(badAction.warnings.some(w => w.includes('非法 action'))).toBe(true)
 
-    // check 级字段非法值：补丁整条跳过（fail-safe，不应用半截补丁）。三种非法形态各一：
-    // 非数组 / 空数组 / 非布尔开关。
+    // check 级字段非法值：补丁整条跳过（fail-safe，不应用半截补丁）。四种非法形态各一：
+    // 非数组 / 空数组 / 元素全为空串的数组 / 非布尔开关。
     writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { addKeywords: "x" }\n', 'utf8')
     const badKeywords = loadActivationOverrides(root)
     expect(badKeywords.byId.size).toBe(0)
@@ -116,6 +116,19 @@ describe('patent compliance loading', () => {
     const emptyWords = loadActivationOverrides(root)
     expect(emptyWords.byId.size).toBe(0)
     expect(emptyWords.warnings.some(w => w.includes('additionalNegationWords 必须是非空字符串数组'))).toBe(true)
+
+    // 元素全为空串的数组与空数组同责：空串被 word.length > 0 守卫丢弃，豁免不了任何命中，
+    // 与资产解析器（RuleLoader.parseCheck）判据一致。带首尾空白的元素则整表保留——它按
+    // 字面参与匹配，会生效，拒绝它会连带丢弃作者真正写下的放行词。
+    writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { additionalNegationWords: [""] }\n', 'utf8')
+    const blankWords = loadActivationOverrides(root)
+    expect(blankWords.byId.size).toBe(0)
+    expect(blankWords.warnings.some(w => w.includes('additionalNegationWords 必须是非空字符串数组'))).toBe(true)
+
+    writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { additionalNegationWords: ["防 ", "反"] }\n', 'utf8')
+    const paddedWords = loadActivationOverrides(root)
+    expect(paddedWords.byId.get('ID1')?.additionalNegationWords).toEqual(['防 ', '反'])
+    expect(paddedWords.warnings.length).toBe(0)
 
     writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { negationContext: "yes" }\n', 'utf8')
     const badFlag = loadActivationOverrides(root)

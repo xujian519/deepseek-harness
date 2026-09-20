@@ -16,7 +16,7 @@ import type {
   RuleViolation,
   StructuralAnalysisCheck,
 } from '@deepseek-ai/dsh-patent-core'
-import { DEFAULT_NEGATION_WORDS, hasNegationContext, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
+import { hasNegationContext, parseCnNumber } from '@deepseek-ai/dsh-patent-core'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { checkSynonymRequirements, type SynonymMap } from './synonym-engine.ts'
 
@@ -27,23 +27,12 @@ function truncate(text: string): string {
   return text.length > EVIDENCE_MAX ? `${text.slice(0, EVIDENCE_MAX)}…` : text
 }
 
-/**
- * 合并否定语境词表：领域追加词（`additionalNegationWords`）叠在共享默认词表之上。
- * 追加词优先走本函数而非加进 `DEFAULT_NEGATION_WORDS`——后者是**全局**词表，
- * 加一个词会同时放大所有否定语境规则（PAT-RISK-001 / PAT-ABS-001 / INV-EVIDENCE-001 …）
- * 的放行面。
- */
-function mergeNegationWords(additional: readonly string[] | undefined): readonly string[] {
-  if (additional === undefined || additional.length === 0) return DEFAULT_NEGATION_WORDS
-  return [...new Set([...DEFAULT_NEGATION_WORDS, ...additional])]
-}
-
 /** 检查单个 keyword_blocklist 条目（"a|b|c" OR 组），返回证据。 */
 function checkKeywordEntry(
   entry: string,
   text: string,
   negationContext: boolean,
-  negationWords: readonly string[],
+  adjacentWords: readonly string[] | undefined,
 ): string[] {
   const alternatives = entry
     .split('|')
@@ -51,6 +40,9 @@ function checkKeywordEntry(
     .filter(s => s.length > 0)
   if (alternatives.length === 0) return []
   const evidence: string[] = []
+  // 默认否定词表由 hasNegationContext 自己填，这里只补领域前缀表；可选属性在
+  // exactOptionalPropertyTypes 下不接受显式 undefined，故按需构造一次（循环不变量）。
+  const contextOptions = adjacentWords === undefined ? undefined : { adjacentWords }
   let searchFrom = 0
   let guard = 0
   while (searchFrom < text.length && guard < 200) {
@@ -61,7 +53,7 @@ function checkKeywordEntry(
       if (index >= 0 && (best === null || index < best.index)) best = { index, word }
     }
     if (best === null) break
-    if (!negationContext || !hasNegationContext(text, best.index, { negationWords })) {
+    if (!negationContext || !hasNegationContext(text, best.index, contextOptions)) {
       evidence.push(best.word)
     }
     searchFrom = best.index + best.word.length
@@ -73,11 +65,15 @@ function checkKeywordBlocklist(check: KeywordBlocklistCheck, text: string): stri
   // 两个键正交：`negationContext` 是唯一的开关，`additionalNegationWords` 只提供词。
   // 「声明了词却没开开关」由 RuleLoader 的加载校验与补丁路径告警（不在这里静默开启，
   // 否则 `negationContext: false` + 词表这种自相矛盾的组合会变成"词表说了算"，读代码看不出来谁生效）。
+  // 领域词走 adjacentWords（紧邻前缀）而非并入 DEFAULT_NEGATION_WORDS：后者是**全局**词表，
+  // 并入会同时放大所有否定语境规则（PAT-RISK-001 / PAT-ABS-001 / INV-EVIDENCE-001 …）
+  // 的放行面，且 24 字窗口会让「防」这类单字前缀对窗口内任意命中生效。
   const negationContext = check.negationContext === true
-  const negationWords = mergeNegationWords(check.additionalNegationWords)
   const evidence: string[] = []
   for (const entry of check.keywords) {
-    evidence.push(...checkKeywordEntry(entry, text, negationContext, negationWords))
+    evidence.push(
+      ...checkKeywordEntry(entry, text, negationContext, check.additionalNegationWords),
+    )
   }
   return evidence
 }

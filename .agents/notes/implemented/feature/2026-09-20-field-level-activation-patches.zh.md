@@ -22,11 +22,11 @@ Status: implemented
 
 check 级键只适用于 `keyword_blocklist`；打在其它 check 类型上时报 issue 并保持规则原样。
 
-`additionalNegationWords` 与 `negationContext` 是**正交**的：词表只提供词，开关是唯一开启过滤的东西。声明了词却没有 `negationContext: true`，在两个能观察到它的点位都会报告——手工资产走 `parseCheck`，补丁走 `applyActivationPatch`——而不是作为一条死声明通过。引擎不会自动开启：一条同时带 `negationContext: false` 与词表的规则是自相矛盾的，让词表静默胜出会掩盖两者中到底哪个在生效。
+`additionalNegationWords` 与 `negationContext` 是**正交**的：词表只提供词，开关是唯一开启过滤的东西。声明了词却没有 `negationContext: true`，在两个能观察到它的点位都会报告——手工资产走 `parseCheck`，补丁走 `applyActivationPatch`——而不是作为一条死声明通过。引擎不会自动开启：一条同时带 `negationContext: false` 与词表的规则是自相矛盾的，让词表静默胜出会掩盖两者中到底哪个在生效。补丁路径读的是**合并后**的词表，所以用 `negationContext: false` 关掉规则自带词表的补丁同样被告警。
 
-域词按规则隔离。`mergeNegationWords` 只在该规则求值时把它的 `additionalNegationWords` 叠在 `DEFAULT_NEGATION_WORDS` 之上。若改为并进共享默认词表，会一次性放大所有否定语境规则的放行面——`PAT-RISK-001`、`PAT-ABS-001`、`INV-EVIDENCE-001` 等等——这正是 `rule-asset-review-samples.spec.ts` 里那两条回归用例存在的原因。
+域词按规则隔离，且以**紧邻前缀**匹配，而非走否定语境窗口。`hasNegationContext` 以 `adjacentWords` 接收它们——只在该词紧接命中位置之前时豁免，此时前缀与命中词合成一个复合主题（`防` + `窃听`）。若改走否定语境窗口，`通过检测用户行为，诱导其参与赌博` 里的 `检测` 就会豁免十余字之外的命中，静默丢弃公序良俗告警。而并进共享默认词表则会一次性放大所有否定语境规则的放行面——`PAT-RISK-001`、`PAT-ABS-001`、`INV-EVIDENCE-001` 等等——这正是 `rule-asset-review-samples.spec.ts` 里那两条「域词不外溢」用例存在的原因。
 
-每一种结构性失效都收集为 `RuleSetValidationIssue` 而不是消失：未知键、未知规则 id、check 级键打在非 `keyword_blocklist` 上、字段不是字符串数组、开关不是布尔值、空补丁。`applyRuleOverrides` 增加可选的第三参 `issues` 收集器，既有调用点不受影响。`loadPatentFullRuleSet` 把收集器的消息并入自身 warnings。任一字段非法的补丁整条跳过——半截补丁不施加。
+每一种结构性失效都收集为 `RuleSetValidationIssue` 而不是消失：未知键、未知规则 id、check 级键打在非 `keyword_blocklist` 上、列表字段非数组 / 为空 / 元素全为空串、开关不是布尔值、空补丁。`applyRuleOverrides` 增加可选的第三参 `issues` 收集器，既有调用点不受影响。`loadPatentFullRuleSet` 把收集器的消息并入自身 warnings。任一字段非法的补丁整条跳过——半截补丁不施加。
 
 资产获得代码现在支持的三条移植结论：`X-REF-003` 变体拼写、`EX-SEL-004` 的否定语境及其四个域词、`IPC-GEN-INV-002` 与重复项 `EX-INV-007` 并列降为 `log`。
 
@@ -48,7 +48,7 @@ check 级键只适用于 `keyword_blocklist`；打在其它 check 类型上时�
 
 补丁文件是被校验的。`loadActivationOverrides` 会跳过字段写错的补丁，`loadPatentFullRuleSet` 把未知 id、未知键、以及正交声明缺失三种情况作为 warning 浮出。
 
-`asStringArray` 从 `RuleLoader.ts` 导出，使合规加载器用与资产解析器同一条判据校验列表字段。
+`RuleLoader.ts` 导出 `asStringArray` 与 `hasNonEmptyWord`，合规加载器用与资产解析器同一对判据校验列表字段。两者都不拒绝带首尾空白的元素：否定词表按字面匹配它，关键词表 trim 后再匹配，所以这样的元素确实会生效。
 
 资产的补丁条数从 29 变为 31。`patent-full-rule-set.spec.ts` 把条数与「无警告」一起断言，所以将来一条写了却不适用的补丁会让套件转红，而不是被吸收。
 
@@ -56,11 +56,13 @@ check 级键只适用于 `keyword_blocklist`；打在其它 check 类型上时�
 
 `packages/patent/patent-rule/tests/patent-full-rule-set.spec.ts` —— 补丁条数且无警告；check 级键是增补而非重声明；两键正交且缺开关被告警；未知 id 告警；未知键告警而已知键仍生效；check 级键打在非 `keyword_blocklist` 规则上告警且规则不变；增补词表但未开开关告警；空补丁告警。
 
-`packages/patent/patent-rule/tests/rule-asset-review-samples.spec.ts` —— 每条评审结论各成一个可执行用例：9 种新 `X-REF-003` 拼写命中，半角大写拼写仍命中，真实案号放行，`EX-SEL-004` 的四个放行词各自放行其主题，真实违规仍命中，否定语境窗口的单向性被钉住，重复项只产出一条用户可见提示，以及两条「域词一旦进共享默认词表即转红」的用例。
+`packages/patent/patent-rule/tests/rule-asset-review-samples.spec.ts` —— 每条评审结论各成一个可执行用例：9 种新 `X-REF-003` 拼写命中，半角大写拼写仍命中，真实案号放行，`EX-SEL-004` 的四个放行词各自放行其主题，真实违规仍命中，领域前缀只豁免紧邻命中，否定语境窗口的单向性被钉住，重复项只产出一条用户可见提示，以及两条「域词一旦进共享默认词表即转红」的用例。
 
-`packages/patent/patent-rule/tests/rule-loader.spec.ts` —— `additionalNegationWords` 非数组时被告警且字段被丢弃。
+`packages/patent/patent-rule/tests/rule-loader.spec.ts` —— `additionalNegationWords` 非数组、为空数组或元素全为空串时被告警且字段被丢弃，带首尾空白的元素则被保留；补丁在自带词表的规则上关掉 `negationContext` 时被告警，开着开关追加词则静默。
 
-`packages/patent/patent-rule/tests/patent-compliance.spec.ts` —— 列表字段写错、空列表、开关非布尔，三种形态各自整条跳过补丁。
+`packages/patent/patent-rule/tests/patent-compliance.spec.ts` —— 列表字段写错、空列表、元素全为空串的列表、开关非布尔，四种形态各自整条跳过补丁，而带首尾空白的元素被保留。
+
+`packages/patent/patent-core/tests/text-utils.spec.ts` —— 紧邻前缀通道单独验证：紧邻前缀豁免，隔开前缀不豁免，前缀判定先于前置句界，空前缀不豁免任何命中。
 
 ## Related
 

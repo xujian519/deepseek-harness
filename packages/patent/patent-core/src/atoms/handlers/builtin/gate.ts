@@ -48,7 +48,7 @@ export const APPROVAL_GRANTED_NODES_KEY = '__approval_granted_nodes__'
  */
 export function isGateApproved(state: PipelineState, nodeName: string): boolean {
   const granted = state[APPROVAL_GRANTED_NODES_KEY]
-  return Array.isArray(granted) && granted.some(id => id === nodeName)
+  return Array.isArray(granted) && granted.includes(nodeName)
 }
 
 /** 已批准审批门在 manifest 路径的占位输出（图路径无输出概念，不需要）。 */

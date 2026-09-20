@@ -66,6 +66,22 @@ export function asStringArray(value: unknown): string[] | null {
   return out
 }
 
+/**
+ * 判定字符串数组是否含至少一个可生效的词：数组非空，且存在长度大于 0 的元素。
+ *
+ * `asStringArray` 只保证元素是字符串。空串元素在两条消费路径上都会被丢弃——
+ * `hasNegationContext` 的 `word.length > 0` 守卫与 `checkKeywordEntry` 的
+ * `filter(s => s.length > 0)`——所以整表皆空串时豁免不了任何命中，而作者以为放行词
+ * 已经生效。带首尾空白的元素**不**在此列：两条路径都会让它参与匹配（否定词表按字面
+ * `endsWith`，关键词先 `trim` 再 `indexOf`），语义窄但会生效，故保留。
+ * 判定不修改元素，存储保留作者写下的原值。
+ * @param list - 待判定的字符串数组。
+ * @returns 含至少一个非空元素时为 true。
+ */
+export function hasNonEmptyWord(list: readonly string[]): boolean {
+  return list.length > 0 && list.some(word => word.length > 0)
+}
+
 function isRecordOfStrings(value: unknown): value is Record<string, string[]> {
   const record = asRecord(value)
   if (record === null) return false
@@ -135,17 +151,22 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
         issues.push({ ruleId, message: `rule ${ruleId}: keyword_blocklist 需要非空 keywords` })
         return null
       }
+      // 空表、非法类型与全空串元素同责：三种形态都让词表在消费侧恒不生效（元素被
+      // hasNegationContext 的 word.length > 0 守卫丢弃），静默丢弃会让资产作者以为
+      // 放行词已生效，补丁路径（patent-compliance 的 parseActivationPatch）对同一输入
+      // 已告警，两侧判据保持一致。带首尾空白的元素保留——它按字面参与匹配，会生效。
       const additionalNegationWords = asStringArray(record.additionalNegationWords)
-      if (record.additionalNegationWords !== undefined && additionalNegationWords === null) {
-        issues.push({ ruleId, message: `rule ${ruleId}: additionalNegationWords 必须是字符串数组，已忽略` })
+      let negationWords: string[] | undefined
+      if (record.additionalNegationWords !== undefined) {
+        if (additionalNegationWords === null || !hasNonEmptyWord(additionalNegationWords)) {
+          issues.push({ ruleId, message: `rule ${ruleId}: additionalNegationWords 必须是非空字符串数组，已忽略` })
+        } else {
+          negationWords = additionalNegationWords
+        }
       }
       // 两键正交：词表不开启过滤，缺开关即"声明了却不生效"——必须显式告警
       // （默认词表是否启用同样只看 negationContext，故这里用 `!== true` 覆盖显式 false）。
-      if (
-        additionalNegationWords !== null &&
-        additionalNegationWords.length > 0 &&
-        record.negationContext !== true
-      ) {
+      if (negationWords !== undefined && record.negationContext !== true) {
         issues.push({
           ruleId,
           message: `rule ${ruleId}: 声明了 additionalNegationWords 但未开 negationContext: true，放行词不会生效`,
@@ -159,9 +180,7 @@ function parseCheck(raw: unknown, issues: RuleSetValidationIssue[], ruleId: stri
         type,
         keywords,
         negationContext: record.negationContext === true,
-        ...(additionalNegationWords !== null && additionalNegationWords.length > 0
-          ? { additionalNegationWords }
-          : {}),
+        ...(negationWords !== undefined ? { additionalNegationWords: negationWords } : {}),
         ...(severityIfFound !== undefined ? { severityIfFound } : {}),
       }
     }
@@ -449,7 +468,7 @@ export type ActivationRulePatch = {
   addKeywords?: string[]
   /** 覆盖否定语境开关。 */
   negationContext?: boolean
-  /** 追加否定语境放行词（叠在共享默认词表之上）。 */
+  /** 追加领域紧邻前缀放行词（语义见 `KeywordBlocklistCheck.additionalNegationWords`）。 */
   additionalNegationWords?: string[]
 }
 
@@ -491,12 +510,14 @@ function applyActivationPatch(
       ? {}
       : { additionalNegationWords: [...(check.additionalNegationWords ?? []), ...patch.additionalNegationWords] }),
   }
-  // 两键正交：补丁增补的词表不开启过滤，缺开关即"增补了却不生效"——
-  // 与 parseCheck 的资产校验同一条判据，补丁路径同样不得静默。
-  if ((patch.additionalNegationWords?.length ?? 0) > 0 && patchedCheck.negationContext !== true) {
+  // 两键正交：词表不开启过滤，缺开关即"有词却不生效"——与 parseCheck 的资产校验同一条
+  // 判据，补丁路径同样不得静默。判据取**合并后**的词表：补丁用 `negationContext: false`
+  // 打在自带词表的规则上（资产里的 EX-SEL-004 即如此），同样造出"关了开关却留着词"的
+  // 矛盾组合，只看补丁自身追加的词会漏报。
+  if ((patchedCheck.additionalNegationWords?.length ?? 0) > 0 && patchedCheck.negationContext !== true) {
     issues?.push({
       ruleId: rule.id,
-      message: `激活覆盖 ${rule.id}: 增补了 additionalNegationWords 但未开 negationContext: true，放行词不会生效`,
+      message: `激活覆盖 ${rule.id}: 声明了 additionalNegationWords 但未开 negationContext: true，放行词不会生效`,
     })
   }
   return { ...next, check: patchedCheck }
@@ -519,15 +540,13 @@ export function applyRuleOverrides(
   issues?: RuleSetValidationIssue[],
 ): RuleSet {
   if (overrides.size === 0) return ruleSet
-  const matched = new Set<string>()
+  const knownIds = new Set(ruleSet.rules.map(rule => rule.id))
   const rules = ruleSet.rules.map((rule) => {
     const patch = overrides.get(rule.id)
-    if (patch === undefined) return rule
-    matched.add(rule.id)
-    return applyActivationPatch(rule, patch, issues)
+    return patch === undefined ? rule : applyActivationPatch(rule, patch, issues)
   })
   for (const id of overrides.keys()) {
-    if (!matched.has(id)) {
+    if (!knownIds.has(id)) {
       issues?.push({ ruleId: id, message: `激活覆盖 ${id}: 规则集中无此 id（拼写错误或规则已移除），补丁未生效` })
     }
   }

@@ -47,6 +47,8 @@ A stage with no atom, or whose atom is not registered, has only its stage-id key
 
 A rewound rerun starts with no key from the rewound stages, whether or not the rerun writes them all. A rerun whose parse fails leaves the affected keys absent rather than stale, so a downstream consumer that needs them sees a missing input instead of an old one.
 
+Clearing per name is safe when the range boundary splits stages that share an atom, because the caller reruns every stage in the range: the state map holds one entry per key, and its value comes from the last writer — the in-range stage — so the clear removes nothing the rerun does not write back.
+
 `Reflect.deleteProperty` now appears once, inside the primitive. A third rewind path has a single function to call.
 
 The graph router's signature changed; its only construction site is `manifestToGraph`.
