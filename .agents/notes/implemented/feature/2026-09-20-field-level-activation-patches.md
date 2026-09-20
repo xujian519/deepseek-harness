@@ -6,7 +6,7 @@ English | [中文](2026-09-20-field-level-activation-patches.zh.md)
 
 ## Problem
 
-`activation-overrides.yaml` is the machine-readable authority for the patent rule-review conclusions: `scripts/port-nuo-rules.ts` regenerates `rules/patent/nuo-*.yaml` from upstream, so a review conclusion that edits those files is erased by the next port. The patch file is the only place a conclusion survives.
+`activation-overrides.yaml` is the machine-readable authority for the patent rule-review conclusions: the seven `nuo-*.yaml` files are verbatim mirrors of Sati's generated rules (the port script did not come across with the migration), so a review conclusion that edits those files is erased the next time they are resynced from upstream. The patch file is the only place a conclusion survives.
 
 The patch could carry one field, `action`. `applyRuleOverrides` spread it over the rule and dropped everything else, so a review that concluded "tighten the match" — add the 9 case-number spellings that `X-REF-003` misses, switch on negation context so `防窃听装置` stops being flagged, extend the negation words with the domain's own — had nowhere to land. The asset's own `EX-SEL-004` entry said so in prose: a `negationContext` follow-up was noted and nothing could apply it.
 
@@ -36,7 +36,7 @@ The asset gains the three ported conclusions the code now supports: `X-REF-003` 
 
 **Let a patch redeclare the whole `check`.** Rejected: the generated `nuo-*.yaml` is the single source for the rule body, and a redeclaration in the patch is a second copy that drifts. Appending fields keeps one home for the rule and one home for the conclusion.
 
-**Edit the generated `nuo-*.yaml` directly.** Rejected: `port-nuo-rules.ts` rewrites those files from upstream, so the conclusion would survive only until the next port.
+**Edit the generated `nuo-*.yaml` directly.** Rejected: those files are verbatim mirrors of Sati's generated rules and a resync from upstream rewrites them, so the conclusion would survive only until the next resync.
 
 **Treat a present `additionalNegationWords` as implying the switch.** Rejected: `negationContext: false` plus a word list is a contradictory declaration, and resolving it silently makes the effective behaviour unreadable from the rule. Reporting it keeps both keys meaningful.
 

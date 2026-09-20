@@ -458,8 +458,8 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
  *   - `addKeywords` / `negationContext` / `additionalNegationWords`：**check 级增补**
  *     （评审结论「这条规则的匹配精度要增强」）——只追加/覆盖开关，不重声明既有 keywords。
  *
- * 增补语义是有意的：`rules/patent/nuo-*.yaml` 由 `scripts/port-nuo-rules.ts` 转换生成，
- * 手改会被下一次重新移植静默抹掉；而让补丁**重声明**整条 check 又会在仓里造出第二份
+ * 增补语义是有意的：`assets/rules/patent/nuo-*.yaml` 是 Sati 侧生成物的逐字镜像，
+ * 从上游再同步会静默覆盖手改；而让补丁**重声明**整条 check 又会在仓里造出第二份
  * 必须同步维护的副本。增补式补丁既不改生成物，也不产生副本。
  */
 export type ActivationRulePatch = {

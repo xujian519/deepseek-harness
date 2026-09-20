@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-`activation-overrides.yaml` 是专利规则评审结论的机器可读权威：`scripts/port-nuo-rules.ts` 会从上游重新生成 `rules/patent/nuo-*.yaml`，所以任何直接改那些文件的评审结论都会被下一次移植抹掉。补丁文件是结论唯一能存活的地方。
+`activation-overrides.yaml` 是专利规则评审结论的机器可读权威：七个 `nuo-*.yaml` 是 Sati 侧生成物的逐字镜像（移植时未带入生成脚本），所以任何直接改那些文件的评审结论都会被下一次从上游再同步抹掉。补丁文件是结论唯一能存活的地方。
 
 而补丁只能携带一个字段 `action`。`applyRuleOverrides` 把它展开到规则上，其余一律丢弃，于是「收紧匹配」类结论——补上 `X-REF-003` 漏掉的 9 种案号拼写、开启否定语境让 `防窃听装置` 不再被误拦、在本域追加放行词——无处落地。资产里 `EX-SEL-004` 那条自己就用文字写明了：留了一条 `negationContext` 的后续，而没有任何东西能施加它。
 
@@ -36,7 +36,7 @@ check 级键只适用于 `keyword_blocklist`；打在其它 check 类型上时�
 
 **让补丁重声明整条 `check`。** 否决：生成的 `nuo-*.yaml` 是规则体的唯一来源，补丁里的重声明是第二份会漂移的副本。追加字段让规则只有一个家、结论也只有一个家。
 
-**直接改生成的 `nuo-*.yaml`。** 否决：`port-nuo-rules.ts` 会从上游重写这些文件，结论只能活到下一次移植。
+**直接改生成的 `nuo-*.yaml`。** 否决：这些文件是 Sati 侧生成物的逐字镜像，从上游再同步会重写它们，结论只能活到下一次同步。
 
 **把「存在 `additionalNegationWords`」当作隐含开启开关。** 否决：`negationContext: false` 加一张词表是自相矛盾的声明，静默解决它会让规则的实际行为无法从文本读出。报告出来才能让两个键各自有意义。
 
