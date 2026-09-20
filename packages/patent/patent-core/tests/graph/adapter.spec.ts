@@ -172,6 +172,89 @@ function makeFlakyExecutor(): { fn: (stage: WorkflowStage) => Promise<string>; c
   }
 }
 
+// ---------------------------------------------------------------------------
+// 回退清理：不残留混代
+// ---------------------------------------------------------------------------
+
+it('manifestToGraph: 回退重跑中某路提取解析失败 → 旧一代 outputSchema 键被清理', async () => {
+  // 两路 extract 分键产出 features / problems；check 回退到第一路。
+  // 第 2 轮特征路返回非 JSON（extract 只写 extraction_result），故 features 无人写回。
+  // 若回退只删 stage-id 键，第 1 轮的 features 会残留成"混代"结果。
+  const manifest: WorkflowManifest = {
+    id: 'equiv_no_stale_outputs',
+    name: '回退清理',
+    caseType: 'test',
+    stages: [
+      {
+        id: 'extract_features',
+        strategy: 'chain',
+        description: '提取特征',
+        atom: 'extract',
+        params: { extraction_type: '提取技术特征', output_key: 'features' },
+      },
+      {
+        id: 'extract_problems',
+        strategy: 'chain',
+        description: '提取问题',
+        atom: 'extract',
+        params: { extraction_type: '提取技术问题', output_key: 'problems' },
+      },
+      {
+        id: 'check',
+        strategy: 'chain',
+        description: '一致性检查',
+        retry: { whenOutputMatches: '不一致', rewindTo: 'extract_features', maxRetries: 1 },
+      },
+    ],
+  }
+  const executor = makeCheckExecutor()
+  const graph = manifestToGraph(manifest, {
+    handlers: globalStageHandlerRegistry,
+    atoms: globalAtomRegistry,
+    executor: executor.fn,
+    provider: makeMixedGenerationProvider(),
+  })
+  const gr = await graph.run({ text: '一种分拣装置，包括传送带与识别传感器。' })
+
+  expect(executor.calls()).toBe(2)
+  expect(gr.state.features).toBeUndefined()
+  expect(gr.state.problems).toEqual(['新问题'])
+  expect(gr.completed).toBe(true)
+})
+
+/** 第 2 轮特征路返回非 JSON（extract 解析失败兜底只写 extraction_result）。 */
+function makeMixedGenerationProvider(): StageProvider {
+  let featureRounds = 0
+  return {
+    callLLM: async (prompt) => {
+      if (prompt.includes('提取技术特征')) {
+        featureRounds += 1
+        return featureRounds > 1 ? '这不是 JSON' : JSON.stringify({ features: ['旧特征'] })
+      }
+      if (prompt.includes('提取技术问题')) {
+        return JSON.stringify({ features: [], problems: [featureRounds > 1 ? '新问题' : '旧问题'] })
+      }
+      return '默认推理结论'
+    },
+    search: async () => [],
+  }
+}
+
+/** 第 1 次"存在不一致"触发回退，之后"一致"；记录 check 调用次数。 */
+function makeCheckExecutor(): { fn: (stage: WorkflowStage) => Promise<string>; calls: () => number } {
+  let calls = 0
+  return {
+    calls: () => calls,
+    fn: async (stage: WorkflowStage) => {
+      if (stage.id === 'check') {
+        calls += 1
+        return calls === 1 ? '存在不一致' : '一致'
+      }
+      return `[${stage.id}] 完成`
+    },
+  }
+}
+
 it('manifestToGraph: 未知 atom fail-fast', () => {
   const manifest: WorkflowManifest = {
     id: 'bad',

@@ -124,6 +124,8 @@ export { getStateString, getStateArray } from './atoms/handler.ts'
 // builtin manifests land in dsh-patent-workflow and re-import these from here.
 export { validateWorkflowManifest } from './workflow/manifest.ts'
 export { compileSignal, signalMatches } from './workflow/signal.ts'
+export { clearStageOutputs } from './workflow/stage-outputs.ts'
+export type { ClearStageOutputsOptions } from './workflow/stage-outputs.ts'
 export { WorkflowError } from './workflow/types.ts'
 export type {
   StageExecutor,

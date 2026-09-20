@@ -6,7 +6,7 @@ import {
   type WorkflowManifest,
   type WorkflowStage,
 } from '@deepseek-ai/dsh-patent-workflow'
-import { globalAtomRegistry, registerBuiltinAtoms, StageHandlerRegistry } from '@deepseek-ai/dsh-patent-core'
+import { AtomRegistry, globalAtomRegistry, registerBuiltinAtoms, StageHandlerRegistry } from '@deepseek-ai/dsh-patent-core'
 
 describe('workflow retry validation', () => {
   it('validate: empty or invalid retry.whenOutputMatches is rejected', () => {
@@ -163,7 +163,7 @@ describe('workflow retry validation', () => {
       name: '状态回滚测试',
       caseType: 'disclosure_analysis',
       stages: [
-        { id: 'extract', strategy: 'chain', description: '提取特征' },
+        { id: 'extract', strategy: 'chain', description: '提取特征', atom: 'rollback_probe' },
         {
           id: 'consistency',
           strategy: 'chain',
@@ -172,12 +172,37 @@ describe('workflow retry validation', () => {
         },
       ],
     }
-    let round = 0
-    const executor = async (stage: WorkflowStage) => {
-      if (stage.id === 'extract') { round += 1; return round === 1 ? '旧特征' : '新特征' }
-      return round === 1 ? '不一致' : '一致'
-    }
-    const result = await runWorkflow(manifest, { input: 'x' }, executor)
+    // 探针 atom 声明两个输出键：out_primary 是主输出，out_extra 不是 stage-id 键。
+    // 回退只删 stage-id 键时，out_extra 会残留上一代值被重跑阶段读到。
+    const atoms = new AtomRegistry()
+    atoms.register({
+      name: 'rollback_probe',
+      description: '回滚探针',
+      category: 'extract',
+      inputSchema: [],
+      outputSchema: ['out_primary', 'out_extra'],
+    })
+    const handlers = new StageHandlerRegistry()
+    const rounds = { n: 0 }
+    const seenExtra: unknown[] = []
+    handlers.register({
+      name: 'rollback_probe',
+      category: 'extract',
+      execute: async ({ state }) => {
+        rounds.n += 1
+        seenExtra.push(state.out_extra)
+        return rounds.n === 1
+          ? { out_primary: '旧特征', out_extra: '陈旧一代（非 stage-id 键）' }
+          : { out_primary: '新特征' }
+      },
+    })
+    const executor = async (stage: WorkflowStage) =>
+      stage.id === 'consistency' ? (rounds.n === 1 ? '不一致' : '一致') : ''
+
+    const result = await runWorkflow(manifest, { input: 'x' }, executor, { atoms, handlers })
+
+    // 重跑阶段不得读到上一代的非 stage-id 键。
+    expect(seenExtra).toEqual([undefined, undefined])
     const extract = result.stages.find(s => s.stageId === 'extract')!
     expect(extract.output).toBe('新特征')
     const consistency = result.stages.find(s => s.stageId === 'consistency')!

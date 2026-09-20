@@ -12,6 +12,7 @@
 import { validateWorkflowManifest } from '../workflow/manifest.ts'
 import { signalMatches } from '../workflow/signal.ts'
 import type { WorkflowContext, WorkflowManifest, WorkflowStage } from '../workflow/types.ts'
+import { clearStageOutputs } from '../workflow/stage-outputs.ts'
 import type { AtomRegistry, StageHandler, StageHandlerRegistry } from '../atoms/index.ts'
 import type { StageProvider } from '../types.ts'
 import { globalAtomRegistry, globalStageHandlerRegistry, isInterruptStageError } from '../atoms/index.ts'
@@ -110,7 +111,7 @@ export function manifestToGraph(manifest: WorkflowManifest, deps: ManifestToGrap
     if (stage === undefined) break
     const nextId = manifest.stages[i + 1]?.id ?? GRAPH_END
     if (stage.retry !== undefined) {
-      builder.setConditionalEdge(stage.id, makeRetryRouter(stage, manifest.stages, nextId))
+      builder.setConditionalEdge(stage.id, makeRetryRouter(stage, manifest.stages, nextId, atoms))
     } else {
       builder.addEdge(stage.id, nextId)
     }
@@ -168,7 +169,12 @@ const rewindCountKey = (stageId: string): string => `_rewind_count_${stageId}`
 const retryExhaustedKey = (stageId: string): string => `${stageId}__retry_exhausted`
 
 /** retry 阶段 → 条件边 router：命中信号回退 rewindTo，否则继续 nextId。 */
-function makeRetryRouter(stage: WorkflowStage, stages: WorkflowStage[], nextId: string): EdgeRouter {
+function makeRetryRouter(
+  stage: WorkflowStage,
+  stages: WorkflowStage[],
+  nextId: string,
+  atoms: AtomRegistry,
+): EdgeRouter {
   const retry = stage.retry
   /* v8 ignore next -- callers only reach here when stage.retry is defined */
   if (retry === undefined) throw new GraphEngineError(`阶段 ${stage.id} 缺少 retry 配置`)
@@ -180,8 +186,7 @@ function makeRetryRouter(stage: WorkflowStage, stages: WorkflowStage[], nextId: 
   const rewindIndex = stages.findIndex(s => s.id === rewindTo)
   const currentIndex = stages.findIndex(s => s.id === stage.id)
   /* v8 ignore next -- validateWorkflowManifest rejects unknown rewindTo targets */
-  const rewindedIds =
-    rewindIndex === -1 || currentIndex === -1 ? [stage.id] : stages.slice(rewindIndex, currentIndex + 1).map(s => s.id)
+  const rewindedStages = rewindIndex === -1 || currentIndex === -1 ? [stage] : stages.slice(rewindIndex, currentIndex + 1)
 
   return (state) => {
     const text = getStateString(state, stage.id, '')
@@ -196,9 +201,7 @@ function makeRetryRouter(stage: WorkflowStage, stages: WorkflowStage[], nextId: 
       return [nextId]
     }
     state[countKey] = count + 1
-    for (const id of rewindedIds) {
-      Reflect.deleteProperty(state, id)
-    }
+    clearStageOutputs({ state, stages: rewindedStages, atoms })
     return [rewindTo]
   }
 }

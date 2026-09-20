@@ -14,6 +14,7 @@
 
 import {
   WorkflowError,
+  clearStageOutputs,
   globalAtomRegistry,
   globalStageHandlerRegistry,
   validateWorkflowManifest,
@@ -197,9 +198,7 @@ export async function runWorkflow(
         // 覆盖从 rewindTo 起的结果与 state 键（防陈旧输出被兜底复用），回退重执行。
         rewindCounts.set(stage.id, rewindCount)
         results.splice(rewindIndex)
-        for (const rewinded of manifest.stages.slice(rewindIndex)) {
-          Reflect.deleteProperty(state, rewinded.id)
-        }
+        clearStageOutputs({ state, stages: manifest.stages.slice(rewindIndex), atoms })
         index = rewindIndex
         continue
       }
