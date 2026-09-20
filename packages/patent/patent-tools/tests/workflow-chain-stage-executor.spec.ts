@@ -32,7 +32,7 @@ describe('createChainStageExecutor', () => {
     expect(output).toBe('ok')
     expect(prompts).toHaveLength(1)
     expect(prompts[0]).toContain('撰写意见陈述书')
-    expect(prompts[0]).toContain('```\n交底书正文\n```')
+    expect(prompts[0]).toContain('<data>\n"交底书正文"\n</data>')
   })
 
   it('有 guidance 时指引插入阶段描述与材料之间', async () => {
@@ -41,6 +41,6 @@ describe('createChainStageExecutor', () => {
       stage({ guidance: '驳回类型解析表：A-充分公开…' }),
       ctx('交底书正文'),
     )
-    expect(prompts[0]).toContain('撰写意见陈述书\n驳回类型解析表：A-充分公开…\n```')
+    expect(prompts[0]).toContain('撰写意见陈述书\n驳回类型解析表：A-充分公开…\n<data>')
   })
 })

@@ -12,6 +12,7 @@
 import { GraphBuilder, type GraphState } from '../index.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
+import { dataBlock } from '../../prompt-hygiene.ts'
 import { formatPriorArtLines, handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
 /** 构建创造性分析子图的选项。 */
@@ -117,9 +118,7 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '- 提取技术特征，构建所属领域技术人员画像',
           '- 确定申请日/优先权日时间基准（如提供）',
           '- 记录发明人声称的技术效果（不以声称的问题为准）',
-          '```',
-          input.slice(0, 8000),
-          '```',
+          dataBlock(input.slice(0, 8000)),
           '请严格输出 JSON：{ features, field, filing_date, inventor_claimed_effect }。',
         ].join('\n')
       },
@@ -138,9 +137,7 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '- 最接近现有技术的检索方向（同技术领域/同技术问题）',
           '- 三层检索式：精确层 → 扩展层 → 语义层',
           '- 含布尔表达式与 IPC 限定（如可推断）',
-          '```',
-          parse.slice(0, 4000),
-          '```',
+          dataBlock(parse.slice(0, 4000)),
           '输出检索策略文本（至少 3 组检索式）。',
         ].join('\n')
       },
@@ -171,11 +168,9 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '三步法第一步：确定最接近的现有技术（D1）。',
           '选择标准：技术领域相同/相近 → 技术问题最接近 → 公开技术特征最多。',
           '不得脱离检索结果自行选择；候选多时逐个试判。',
-          '```',
-          parse.slice(0, 4000),
-          '```',
+          dataBlock(parse.slice(0, 4000)),
           '【现有技术候选】',
-          priorArtText.slice(0, 6000) || '（无检索结果，基于内置知识推断）',
+          priorArtText.length > 0 ? dataBlock(priorArtText.slice(0, 6000)) : '（无检索结果，基于内置知识推断）',
           '',
           '请严格输出 JSON：{ document, technical_field, disclosed_features, rationale }。',
         ].join('\n')
@@ -195,11 +190,9 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '- 基于 D1 公开特征逐一比对，列出区别特征',
           '- 基于区别特征的技术效果客观确定实际解决的技术问题（不得包含解决手段）',
           '- 检查技术问题是否包含对区别特征的指引（事后诸葛亮风险）',
-          '```',
-          parse.slice(0, 4000),
-          '```',
+          dataBlock(parse.slice(0, 4000)),
           '【D1 最接近现有技术】',
-          closest.slice(0, 3000),
+          dataBlock(closest.slice(0, 3000)),
           '',
           '请严格输出 JSON：{ distinguishing_features, actual_technical_problem, effect_of_diff }。',
         ].join('\n')
@@ -218,11 +211,9 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '三步法第三步：判断要求保护的发明对本领域技术人员是否显而易见。',
           '技术启示来源：改进动机/结合启示（D1+D2 能否结合、有无技术障碍）/公知常识/逻辑推理与有限试验。',
           '发明类型差异化：组合/选择/转用/要素变更/开拓性/改进发明。',
-          '```',
-          parse.slice(0, 3000),
-          '```',
+          dataBlock(parse.slice(0, 3000)),
           '【区别特征与实际解决的技术问题】',
-          diff.slice(0, 3000),
+          dataBlock(diff.slice(0, 3000)),
           '',
           '请严格输出 JSON：{ obvious, motivation, evidence, dissenting_factors }。',
         ].join('\n')
@@ -242,9 +233,7 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '- 解决了长期渴望解决的技术问题',
           '- 克服了技术偏见',
           '- 商业成功（如有，须证明与发明特征有因果关系）',
-          '```',
-          parse.slice(0, 3000),
-          '```',
+          dataBlock(parse.slice(0, 3000)),
           '请严格输出 JSON：{ unexpected_effect, long_felt_need, technical_prejudice, commercial_success }。',
         ].join('\n')
       },
@@ -275,7 +264,7 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
           '- 不得仅凭区别特征数量判断创造性',
           '- 结论标注置信度（high/medium/low），回避绝对化表述',
           '',
-          parts.join('\n').slice(0, 8000),
+          dataBlock(parts.join('\n').slice(0, 8000)),
           '',
           '请严格输出 JSON：{ inventive, confidence, key_rationale, report }。',
         ].join('\n')

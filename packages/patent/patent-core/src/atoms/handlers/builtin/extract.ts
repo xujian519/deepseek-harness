@@ -10,6 +10,7 @@ import {
   getStateArray,
   getStateString,
 } from '../../handler.ts'
+import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 
 // ---------------------------------------------------------------------------
@@ -74,9 +75,7 @@ export class ExtractHandler implements StageHandler {
       `你是 ${domain} 领域的技术分析助手。任务：${extractionType}。`,
       ...(isFeatureExtraction ? [FEATURE_MTU_GUIDANCE] : []),
       '请从以下文本中提取结构化结果，严格输出 JSON：',
-      '```',
-      text.slice(0, 8000),
-      '```',
+      dataBlock(text.slice(0, 8000)),
     ].join('\n')
     const res = await callLlm(provider, 'extract', prompt, { schema: EXTRACT_SCHEMA, temperature: 0 }, signal)
     if (!res.ok) return res.error

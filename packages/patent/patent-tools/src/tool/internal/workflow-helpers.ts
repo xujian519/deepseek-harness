@@ -17,6 +17,7 @@ import { basename, isAbsolute, join } from 'node:path'
 import {
   caseWorkflowRunsDir,
   collectPortText,
+  dataBlock,
   type AtomRegistry,
   type PatentModelPort,
   type StageExecutor,
@@ -319,9 +320,7 @@ export function createChainStageExecutor(
       stage.description,
       // 阶段法律指引（法条操作框架/输出要求）紧跟阶段描述，先于材料注入。
       ...(stage.guidance !== undefined ? [stage.guidance] : []),
-      '```',
-      material,
-      '```',
+      dataBlock(material),
     ].join('\n')
     return await call(prompt, { temperature: 0.3 })
   }

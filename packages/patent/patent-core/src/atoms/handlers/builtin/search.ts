@@ -10,6 +10,7 @@ import {
   getStateArray,
   getStateString,
 } from '../../handler.ts'
+import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 
 // ---------------------------------------------------------------------------
@@ -115,9 +116,7 @@ export class KeywordsHandler implements StageHandler {
       '- 避免过于宽泛的常规词汇',
       '',
       '【分析摘要】',
-      '```',
-      input.slice(0, 8000),
-      '```',
+      dataBlock(input.slice(0, 8000)),
       '',
       '请严格输出 JSON：{ "keywords": ["关键词1", "关键词2", ...] }',
     ].join('\n')

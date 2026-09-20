@@ -25,7 +25,7 @@ import { basename, extname, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
-import { collectPortText, tryParseJson } from '@deepseek-ai/dsh-patent-core'
+import { collectPortText, dataBlock, tryParseJson } from '@deepseek-ai/dsh-patent-core'
 import type { PatentModelPort } from '@deepseek-ai/dsh-patent-core'
 import type { ModelModality } from '@deepseek-ai/dsh-llm'
 import { checkImageCapability } from '../figure/image-capability.ts'
@@ -349,7 +349,7 @@ const COMBINED_SCHEMA = {
  */
 export function formatContext(claimContext: string | undefined): string {
   return claimContext && claimContext.trim().length > 0
-    ? `\n【权利要求/技术方案上下文】\n${claimContext.trim().slice(0, 4000)}`
+    ? `\n【权利要求/技术方案上下文】\n${dataBlock(claimContext.trim().slice(0, 4000))}`
     : '\n【权利要求/技术方案上下文】\n（未提供）'
 }
 

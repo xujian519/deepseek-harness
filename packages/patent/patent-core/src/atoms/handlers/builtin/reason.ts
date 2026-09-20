@@ -11,6 +11,7 @@ import {
   getStateArray,
   getStateString,
 } from '../../handler.ts'
+import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
 
 // ---------------------------------------------------------------------------
@@ -46,9 +47,7 @@ export class ReasoningHandler implements StageHandler {
     const input = explicitInput.length > 0 ? explicitInput : collectStateText(state, { fallback: '(无可用上下文)' })
     const prompt = [
       explicitPrompt.length > 0 ? explicitPrompt : defaultPrompt,
-      '```',
-      input.slice(0, 8000),
-      '```',
+      dataBlock(input.slice(0, 8000)),
     ].join('\n')
     const res = await callLlm(provider, 'reasoning', prompt, { temperature: 0.2 }, signal)
     if (!res.ok) return res.error
@@ -129,9 +128,7 @@ export class GroundednessHandler implements StageHandler {
       '- 带 [待确认] 标记的特征：原文无对应明确记载时按 <0.6 打分',
       '',
       '【原始交底书】',
-      '```',
-      source.slice(0, 8000),
-      '```',
+      dataBlock(source.slice(0, 8000)),
       '',
       '【待评估特征】',
       featureLines,

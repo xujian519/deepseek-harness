@@ -11,6 +11,7 @@
 import { GraphBuilder, type GraphState } from '../index.ts'
 import { getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
+import { dataBlock } from '../../prompt-hygiene.ts'
 import { handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
 
 /** 构建充分公开分析子图的选项。 */
@@ -184,9 +185,7 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
           missing || '（无缺失）',
           '',
           '请基于说明书全文复核结构完整性，并评估各章节实质内容是否满足要求：',
-          '```',
-          text.slice(0, 8000),
-          '```',
+          dataBlock(text.slice(0, 8000)),
           '请严格输出 JSON：{ missing_sections, completeness_ok, notes }。',
         ].join('\n')
       },
@@ -202,9 +201,7 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
         return [
           '专利法 A26.3 充分公开审查——第二步：清楚性。',
           '检查：主题是否明确、用词是否准确、描述是否前后矛盾、技术方案是否混乱。',
-          '```',
-          text.slice(0, 8000),
-          '```',
+          dataBlock(text.slice(0, 8000)),
           '请严格输出 JSON：{ issues（problem/location/severity）, clarity_ok }。',
         ].join('\n')
       },
@@ -221,9 +218,7 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
           '专利法 A26.3 充分公开审查——第三步：能够实现性。',
           '判断：本领域技术人员根据说明书公开内容，能否实现权利要求要求保护的技术方案（无需过度实验）。',
           '关注：缺少实施细节、技术手段不完整、功能性限定无实施方式支撑、实验数据缺失。',
-          '```',
-          text.slice(0, 8000),
-          '```',
+          dataBlock(text.slice(0, 8000)),
           '请严格输出 JSON：{ gaps, enablement_ok, skilled_person_assessment }。',
         ].join('\n')
       },
@@ -253,12 +248,10 @@ export function buildEnablementGraph(options: BuildEnablementGraphOptions = {}):
           '- 领域特殊要求（化学需实验证据、计算机需算法流程等）逐一核对',
           '- 结论附置信度（high/medium/low），回避绝对化表述',
           '',
-          parts.join('\n').slice(0, 8000),
+          dataBlock(parts.join('\n').slice(0, 8000)),
           '',
           '（说明书全文供复核）',
-          '```',
-          text.slice(0, 3000),
-          '```',
+          dataBlock(text.slice(0, 3000)),
           '请严格输出 JSON：{ sufficiently_disclosed, confidence, key_rationale, report }。',
         ].join('\n')
       },

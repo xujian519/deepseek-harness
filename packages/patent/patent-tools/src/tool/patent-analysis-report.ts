@@ -17,6 +17,7 @@ import {
   buildAnalysisReport,
   classifyIpc,
   collectPortText,
+  dataBlock,
   tryParseJson,
   type IpcClassification,
   type PatentAnalysisReport,
@@ -78,7 +79,7 @@ async function scoreWithModel(
     '你是专利分析助手。基于下面的专利申请内容，对两项指标各打 0-100 分并给出依据。' +
     '若未提供最接近的现有技术，新颖性评分请给出保守的初步判断并注明。只输出 JSON，不要多余文字：\n' +
     '{"novelty":{"score":0,"rationale":""},"technical_strength":{"score":0,"rationale":""}}\n\n' +
-    text
+    dataBlock(text)
   try {
     const raw = await collectPortText(model, prompt, signal, { temperature: 0.2, schema: SCORE_JSON_SCHEMA })
     const parsed = tryParseJson(raw)

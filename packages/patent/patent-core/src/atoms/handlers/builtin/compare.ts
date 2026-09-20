@@ -10,6 +10,7 @@ import {
   getStateArray,
   getStateString,
 } from '../../handler.ts'
+import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, formatPriorArt, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 
 // ---------------------------------------------------------------------------
@@ -69,13 +70,9 @@ export class CompareHandler implements StageHandler {
     const prompt = [
       `对比范围：${scope}`,
       '权利要求：',
-      '```',
-      claim.slice(0, 4000),
-      '```',
+      dataBlock(claim.slice(0, 4000)),
       '现有技术：',
-      '```',
-      priorArt.slice(0, 6000),
-      '```',
+      dataBlock(priorArt.slice(0, 6000)),
       '请逐项对比，严格输出 JSON（claim_chart 每项含 feature/prior_art_match/identical/note，diff_features 为区别特征）。',
     ].join('\n')
     const res = await callLlm(provider, 'compare', prompt, { schema: COMPARE_SCHEMA, temperature: 0 }, signal)
@@ -176,7 +173,7 @@ export class NoveltyHandler implements StageHandler {
       featureLines,
       '',
       '【现有技术证据】',
-      priorArt.slice(0, 6000),
+      dataBlock(priorArt.slice(0, 6000)),
       '',
       '请严格输出 JSON：assessments 为每个特征的 { feature, prior_art, disclosed, reasoning } 列表，',
       'conclusion 为整体新颖性结论（附置信度）。',

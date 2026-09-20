@@ -24,6 +24,9 @@ export type { CreateLlmModelPortOptions } from './model-port.ts'
 // LLM JSON tolerant parsing.
 export { stripCodeFence, tryParseJson } from './llm-json.ts'
 
+// Prompt-injection isolation for untrusted text spliced into LLM prompts.
+export { dataBlock } from './prompt-hygiene.ts'
+
 // Constitutional rule engine protocol types + text utilities.
 export type {
   CitationAnalysisCheck,

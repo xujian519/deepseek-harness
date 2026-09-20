@@ -10,6 +10,7 @@ import {
   getStateArray,
   getStateString,
 } from '../../handler.ts'
+import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm } from './llm.ts'
 
 /** draft-claims 原子：基于 PFE 与新颖性结果直出权利要求草稿（独立+从属）。 */
@@ -64,11 +65,11 @@ export class DraftClaimsHandler implements StageHandler {
       '- 与新颖性分析结论一致：区别特征应体现在独立权利要求中',
       '',
       '【分析结果】',
-      '```',
-      input.slice(0, 8000),
-      '```',
-      novelty.trim().length > 0 ? `【新颖性结论】\n${novelty.slice(0, 2000)}` : '',
-      revisionHint.trim().length > 0 ? `【上一轮反套话评审意见（仅修订提示，不含评分）】\n${revisionHint}` : '',
+      dataBlock(input.slice(0, 8000)),
+      novelty.trim().length > 0 ? `【新颖性结论】\n${dataBlock(novelty.slice(0, 2000))}` : '',
+      revisionHint.trim().length > 0
+        ? `【上一轮反套话评审意见（仅修订提示，不含评分）】\n${dataBlock(revisionHint)}`
+        : '',
       '',
       '请严格输出 JSON：claims 为权利要求逐条文本数组（第 1 条为独立权利要求），notes 为撰写说明。',
     ].join('\n')

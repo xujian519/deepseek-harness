@@ -27,6 +27,7 @@ import {
   type PinCiteCheckResult,
 } from '../../../claim-chart/runtime/pin-cite-validator.ts'
 import { loadClaimChart, saveClaimChart } from '../../../claim-chart/runtime/store.ts'
+import { dataBlock } from '../../../prompt-hygiene.ts'
 import { callLlm, degraded, parseLlmJson, requireLlm, resolveInputText } from './llm.ts'
 
 /** claim-chart 原子：权利要求要素级证据网格构建。 */
@@ -281,12 +282,10 @@ export class ClaimChartHandler implements StageHandler {
       '你是专利权利要求分析专家。把权利要求拆分为编号要素，并逐要素映射到目标对象。',
       '',
       '【权利要求】',
-      '```',
-      claim.slice(0, 8000),
-      '```',
+      dataBlock(claim.slice(0, 8000)),
       '',
       '【目标对象】',
-      targetLines,
+      dataBlock(targetLines),
       '',
       '要求：',
       '- 要素拆分到最小技术单元（单一技术手段、单一技术效果、可独立比对），可再拆分的必须拆开',
