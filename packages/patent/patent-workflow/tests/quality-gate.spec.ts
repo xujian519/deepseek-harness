@@ -58,6 +58,36 @@ describe('verifyCitations — R1 existence gate', () => {
   })
 })
 
+describe('verifyCitations — arabic numerals', () => {
+  it('an arabic article number is scanned like its chinese form', () => {
+    const report = verifyCitations('根据专利法第22条，本方案具备新颖性。')
+    expect(counts(report)).toMatchObject({ total: 1, valid: 1 })
+  })
+
+  it('an arabic article number beyond the statute maximum is invalid', () => {
+    const report = verifyCitations('根据专利法第99条规定处理。')
+    expect(counts(report)).toMatchObject({ total: 1, invalid: 1 })
+    expect(report.flagged[0]).toMatchObject({
+      raw: '专利法第99条',
+      statute: '专利法',
+      article: 99,
+      verdict: 'invalid',
+    })
+  })
+
+  it('an arabic implementation-detail citation resolves its statute', () => {
+    const report = verifyCitations('根据专利法实施细则第42条提出分案申请。')
+    expect(counts(report)).toMatchObject({ total: 1, valid: 1 })
+  })
+
+  it('a clause number in arabic digits is part of the raw citation', () => {
+    // 回归保护：款号捕获组同样必须写 \d。若它退化，该可选组不匹配，
+    // raw 会回退成不含款号的「专利法第九十九条」，本条断言即失败。
+    const report = verifyCitations('根据专利法第九十九条第3款规定处理。')
+    expect(report.flagged[0]!.raw).toBe('专利法第九十九条第3款')
+  })
+})
+
 describe('verifyCitations — R2 context relevance', () => {
   it('a purpose mentioning the statute topic is valid', () => {
     const report = verifyCitations('根据专利法第二十二条，本方案具备新颖性。')
@@ -118,8 +148,9 @@ describe('verifyCitations — citation scanning mechanics', () => {
     expect(counts(report)).toMatchObject({ total: 1, unverifiable: 1 })
   })
 
-  it('an unparseable article number is skipped', () => {
-    const report = verifyCitations('根据专利法第d条处理。')
+  it('an article number mixing arabic and chinese digits is skipped', () => {
+    // parseCnNumber 只接受纯阿拉伯数字或纯中文数字，「2十」两者都不是 → 该引用被跳过。
+    const report = verifyCitations('根据专利法第2十条处理。')
     expect(counts(report)).toMatchObject({ total: 0 })
   })
 

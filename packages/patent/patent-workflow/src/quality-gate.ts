@@ -158,7 +158,7 @@ const defaultCitationSource: CitationSource = {
 }
 
 const CITATION_PATTERN =
-  /(?:专利法|实施细则)?第([零一二三四五六七八九十百d]+)条(?:第([零一二三四五六七八九十百d]+)款)?/g
+  /(?:专利法|实施细则)?第([零一二三四五六七八九十百\d]+)条(?:第([零一二三四五六七八九十百\d]+)款)?/g
 
 const PURPOSE_CONNECTORS = [
   '专利法实施细则',
