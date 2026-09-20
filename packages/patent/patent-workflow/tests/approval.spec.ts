@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { createApprovalRecord, type ApprovalRecord } from '@deepseek-ai/dsh-patent-workflow'
+import { createApprovalRecord, InMemoryApprovalStore, type ApprovalRecord } from '@deepseek-ai/dsh-patent-workflow'
+
+/** Build a minimal audit record with the given verdict. */
+function record(verdict: ApprovalRecord['verdict'], pendingIndex = 0): ApprovalRecord {
+  return createApprovalRecord({
+    pendingIndex,
+    triggerKeyword: '专利结论',
+    originalOutputPreview: '输出内容',
+    verdict,
+  })
+}
 
 describe('createApprovalRecord', () => {
   it('fills the audit fields and stamps an ISO decidedAt', () => {
@@ -79,5 +89,44 @@ describe('createApprovalRecord', () => {
     })
     const asAudit: ApprovalRecord = record
     expect(asAudit.pendingIndex).toBe(0)
+  })
+})
+
+describe('InMemoryApprovalStore', () => {
+  it('saves records and lists them back in insertion order', () => {
+    const store = new InMemoryApprovalStore()
+    store.saveRecord(record('adopted', 0))
+    store.saveRecord(record('rejected', 1))
+    expect(store.listRecords().map(r => r.pendingIndex)).toEqual([0, 1])
+    expect(store.listRecords()[0]!.verdict).toBe('adopted')
+  })
+
+  it('listRecords returns a copy the caller cannot use to mutate stored records', () => {
+    const store = new InMemoryApprovalStore()
+    store.saveRecord(record('adopted', 0))
+    const listed = store.listRecords()
+    listed.push(record('rejected', 9))
+    listed[0]!.verdict = 'rejected'
+    expect(store.listRecords()).toHaveLength(1)
+    expect(store.listRecords()[0]!.verdict).toBe('adopted')
+  })
+
+  it('stats counts every verdict and derives adoptionRate from the total', () => {
+    const store = new InMemoryApprovalStore()
+    store.saveRecord(record('adopted', 0))
+    store.saveRecord(record('adopted', 1))
+    store.saveRecord(record('modified', 2))
+    store.saveRecord(record('rejected', 3))
+    expect(store.stats()).toEqual({ total: 4, adopted: 2, modified: 1, rejected: 1, adoptionRate: 0.5 })
+  })
+
+  it('stats reports a zero adoptionRate for an empty store', () => {
+    expect(new InMemoryApprovalStore().stats()).toEqual({
+      total: 0,
+      adopted: 0,
+      modified: 0,
+      rejected: 0,
+      adoptionRate: 0,
+    })
   })
 })

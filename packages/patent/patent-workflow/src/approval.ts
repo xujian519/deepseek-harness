@@ -3,6 +3,8 @@
  *
  * 决策留痕：ApprovalRecord（谁、哪个关键词触发、AI 原文摘录、人工如何决策、
  * 何时）——只增审计日志（用于 AdoptionRate 指标与 Golden Benchmark 转换）。
+ * ApprovalStore 是审计存储接口，InMemoryApprovalStore 是它的内存实现（持久化
+ * 实现另议）。
  * 设计原则：审计写入不阻塞审批流程（fail-open）；store 未配置时零开销。
  */
 
@@ -32,6 +34,39 @@ export type ApprovalStore = {
   saveRecord(record: ApprovalRecord): void | Promise<void>
   /** 列出全部审计记录（按决定时间升序）。 */
   listRecords(): ApprovalRecord[]
+}
+
+/**
+ * 内存审计存储：只增数组，闭合 `ApprovalStore` 这一类型 seam 的最小实现。
+ *
+ * 与同包 {@link InMemoryWorkflowRunStore} 一致，`listRecords` 返回深拷贝，
+ * 调用方改动返回值不会污染已存审计记录；Sati 的对应实现返回浅拷贝数组。
+ * 它**不落盘**——需要跨进程留痕时换 `ApprovalStore` 的持久化实现。
+ */
+export class InMemoryApprovalStore implements ApprovalStore {
+  private readonly records: ApprovalRecord[] = []
+
+  /** 追加一条审计记录（只增，不校验重复）。@param record - 待存审计记录。 */
+  saveRecord(record: ApprovalRecord): void {
+    this.records.push(record)
+  }
+
+  /** 列出全部审计记录（按写入顺序，即决定时间升序）。@returns 审计记录的深拷贝列表。 */
+  listRecords(): ApprovalRecord[] {
+    return structuredClone(this.records)
+  }
+
+  /**
+   * 按结论统计，供 AdoptionRate 指标与 Golden Benchmark 取数。
+   * @returns 总条数、三类结论计数，以及 `adopted / total`（空存储时为 0）。
+   */
+  stats(): { total: number; adopted: number; modified: number; rejected: number; adoptionRate: number } {
+    const total = this.records.length
+    const adopted = this.records.filter(r => r.verdict === 'adopted').length
+    const modified = this.records.filter(r => r.verdict === 'modified').length
+    const rejected = this.records.filter(r => r.verdict === 'rejected').length
+    return { total, adopted, modified, rejected, adoptionRate: total > 0 ? adopted / total : 0 }
+  }
 }
 
 /**
