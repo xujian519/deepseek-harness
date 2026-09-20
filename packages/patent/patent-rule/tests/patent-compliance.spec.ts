@@ -105,6 +105,23 @@ describe('patent compliance loading', () => {
     expect(badAction.byId.size).toBe(0)
     expect(badAction.warnings.some(w => w.includes('非法 action'))).toBe(true)
 
+    // check 级字段非法值：补丁整条跳过（fail-safe，不应用半截补丁）。三种非法形态各一：
+    // 非数组 / 空数组 / 非布尔开关。
+    writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { addKeywords: "x" }\n', 'utf8')
+    const badKeywords = loadActivationOverrides(root)
+    expect(badKeywords.byId.size).toBe(0)
+    expect(badKeywords.warnings.some(w => w.includes('addKeywords 必须是非空字符串数组'))).toBe(true)
+
+    writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { additionalNegationWords: [] }\n', 'utf8')
+    const emptyWords = loadActivationOverrides(root)
+    expect(emptyWords.byId.size).toBe(0)
+    expect(emptyWords.warnings.some(w => w.includes('additionalNegationWords 必须是非空字符串数组'))).toBe(true)
+
+    writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { negationContext: "yes" }\n', 'utf8')
+    const badFlag = loadActivationOverrides(root)
+    expect(badFlag.byId.size).toBe(0)
+    expect(badFlag.warnings.some(w => w.includes('negationContext 必须是布尔值'))).toBe(true)
+
     writeFileSync(join(root, 'patent', OVERRIDES), 'overrides:\n  ID1: { action: review }\n', 'utf8')
     const valid = loadActivationOverrides(root)
     expect(valid.byId.get('ID1')?.action).toBe('review')

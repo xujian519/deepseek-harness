@@ -211,6 +211,29 @@ rules:
     }
   })
 
+  it('parseRuleSetFromYaml reports a non-array additionalNegationWords and ignores the field', () => {
+    // 「声明了却不生效」的第二种形态：值本身不是字符串数组。与「缺开关」不同（那条走
+    // 正交性告警），此处字段被丢弃，故规则本身仍成立（keywords 合法）。
+    const { ruleSet, issues } = parseRuleSetFromYaml(
+      `
+rules:
+  - id: T-NEG-BAD
+    name: n
+    severity: minor
+    action: warn
+    check: { type: keyword_blocklist, keywords: ["窃听"], negationContext: true, additionalNegationWords: "防" }
+`,
+    )
+    expect(issues.map(i => i.message)).toEqual([
+      'rule T-NEG-BAD: additionalNegationWords 必须是字符串数组，已忽略',
+    ])
+    const rule = ruleSet.rules[0]
+    expect(rule?.check.type).toBe('keyword_blocklist')
+    if (rule?.check.type === 'keyword_blocklist') {
+      expect(rule.check.additionalNegationWords).toBeUndefined()
+    }
+  })
+
   it('loadRuleSetFromFile throws on structurally invalid file', () => {
     const dir = mkdtempSync(join(tmpdir(), 'rule-test-'))
     const path = join(dir, 'bad.yaml')

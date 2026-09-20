@@ -10,8 +10,17 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDocument } from 'yaml'
-import type { ConstitutionalRule, RuleSet } from '@deepseek-ai/dsh-patent-core'
-import { applyRuleOverrides, asRecord, isRuleAction, loadRuleSetFromFile, mergeRuleSets } from './RuleLoader.ts'
+import type { RuleSet, RuleSetValidationIssue } from '@deepseek-ai/dsh-patent-core'
+import {
+  ACTIVATION_PATCH_KEYS,
+  applyRuleOverrides,
+  asRecord,
+  asStringArray,
+  isRuleAction,
+  loadRuleSetFromFile,
+  mergeRuleSets,
+  type ActivationRulePatch,
+} from './RuleLoader.ts'
 import { candidateRuleDirs } from '../asset-location.ts'
 
 const COMPLIANCE_FILE = 'compliance.yaml'
@@ -104,18 +113,70 @@ export function loadPatentElectricalRuleSet(rulesDir?: string): PatentCompliance
   }
 }
 
-/** 激活评审覆盖补丁：id → 字段级覆盖（当前仅 action）。 */
+/** 激活评审覆盖补丁：id → 字段级补丁（action 整替换 + check 级增补，见 ActivationRulePatch）。 */
 export type ActivationOverrides = {
-  byId: Map<string, Partial<ConstitutionalRule>>
+  byId: Map<string, ActivationRulePatch>
   source: string | null
   warnings: string[]
 }
 
+/** 解析单条补丁对象；无可识别字段时返回 null（并已写入 warnings）。 */
+function parseActivationPatch(
+  id: string,
+  record: Record<string, unknown>,
+  warnings: string[],
+): ActivationRulePatch | null {
+  const patch: ActivationRulePatch = {}
+
+  if (record.action !== undefined) {
+    if (!isRuleAction(record.action)) {
+      warnings.push(`激活覆盖 ${id}: 非法 action ${JSON.stringify(record.action)}，已跳过`)
+      return null
+    }
+    patch.action = record.action
+  }
+
+  for (const [key, field] of [
+    ['addKeywords', 'addKeywords'],
+    ['additionalNegationWords', 'additionalNegationWords'],
+  ] as const) {
+    const raw = record[key]
+    if (raw === undefined) continue
+    const list = asStringArray(raw)
+    if (list === null || list.length === 0) {
+      warnings.push(`激活覆盖 ${id}: ${field} 必须是非空字符串数组，已跳过`)
+      return null
+    }
+    patch[field] = list
+  }
+
+  if (record.negationContext !== undefined) {
+    if (typeof record.negationContext !== 'boolean') {
+      warnings.push(`激活覆盖 ${id}: negationContext 必须是布尔值，已跳过`)
+      return null
+    }
+    patch.negationContext = record.negationContext
+  }
+
+  for (const key of Object.keys(record)) {
+    if (!ACTIVATION_PATCH_KEYS.includes(key)) {
+      warnings.push(`激活覆盖 ${id}: 未知键 "${key}"（允许：${ACTIVATION_PATCH_KEYS.join(' / ')}），已忽略`)
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    warnings.push(`激活覆盖 ${id}: 无有效字段，已跳过`)
+    return null
+  }
+  return patch
+}
+
 /**
  * 加载 nuo 规则激活评审覆盖（activation-overrides.yaml）。
- * 轻量补丁格式：`overrides: { <id>: { action, reason } }`（非标准 RuleSet 形态，
- * 由本函数专门解析）。action 非法时跳过该条并告警（fail-safe：不应用非法覆盖）。
- * 文件不存在时返回空补丁 + 警告（不阻塞专利全量规则加载）。
+ * 轻量补丁格式：`overrides: { <id>: { action?, addKeywords?, negationContext?,
+ * additionalNegationWords?, reason? } }`（非标准 RuleSet 形态，由本函数专门解析；
+ * 字段语义见 `ActivationRulePatch`）。任一字段非法即跳过该条并告警
+ * （fail-safe：不应用半截补丁）。文件不存在时返回空补丁 + 警告（不阻塞专利全量规则加载）。
  * @param rulesDir - 可选的规则根目录覆盖。
  * @returns 激活覆盖（byId 映射、来源、警告）。
  */
@@ -132,18 +193,15 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
         continue
       }
       const raw = asRecord(asRecord(doc.toJS())?.overrides) ?? {}
-      const byId = new Map<string, Partial<ConstitutionalRule>>()
+      const byId = new Map<string, ActivationRulePatch>()
       for (const [id, value] of Object.entries(raw)) {
         const record = asRecord(value)
         if (record === null) {
           warnings.push(`激活覆盖 ${id}: 覆盖值必须是对象，已跳过`)
           continue
         }
-        if (!isRuleAction(record.action)) {
-          warnings.push(`激活覆盖 ${id}: 非法 action "${String(record.action)}"，已跳过`)
-          continue
-        }
-        byId.set(id, { action: record.action })
+        const patch = parseActivationPatch(id, record, warnings)
+        if (patch !== null) byId.set(id, patch)
       }
       return { byId, source: path, warnings }
     } catch (error) {
@@ -201,7 +259,9 @@ export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadRe
   const nuoMerged = mergeRuleSets(nuoRuleSets)
   const { byId, source: overrideSource, warnings: overrideWarnings } = loadActivationOverrides(rulesDir)
   warnings.push(...overrideWarnings)
-  const nuoPatched = applyRuleOverrides(nuoMerged, byId)
+  const patchIssues: RuleSetValidationIssue[] = []
+  const nuoPatched = applyRuleOverrides(nuoMerged, byId, patchIssues)
+  warnings.push(...patchIssues.map(issue => issue.message))
   const merged: RuleSet = {
     version: base.ruleSet.version ?? nuoPatched.version ?? '1.0',
     rules: [...base.ruleSet.rules, ...nuoPatched.rules],
