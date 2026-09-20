@@ -43,6 +43,8 @@ apps/desktop/release/
 apps/desktop/resources/
 .artifacts/
 .dsh-build/
+# Local harness state and agent reports (not source)
+.dsh/
 .build/
 .playwright-mcp/
 .orig
