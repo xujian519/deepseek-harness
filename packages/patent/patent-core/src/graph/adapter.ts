@@ -15,7 +15,14 @@ import type { WorkflowContext, WorkflowManifest, WorkflowStage } from '../workfl
 import { clearStageOutputs } from '../workflow/stage-outputs.ts'
 import type { AtomRegistry, StageHandler, StageHandlerRegistry } from '../atoms/index.ts'
 import type { StageProvider } from '../types.ts'
-import { globalAtomRegistry, globalStageHandlerRegistry, isInterruptStageError } from '../atoms/index.ts'
+import {
+  APPROVAL_GRANTED_KEY,
+  globalAtomRegistry,
+  globalStageHandlerRegistry,
+  isApprovalGateHandler,
+  isGateApproved,
+  isInterruptStageError,
+} from '../atoms/index.ts'
 import type { EdgeRouter, GraphNode, GraphState, StateDelta } from './types.ts'
 import { GRAPH_END, GraphEngineError, GraphInterruptError } from './types.ts'
 import { GraphBuilder, type CompiledGraph } from './engine.ts'
@@ -123,7 +130,13 @@ export function manifestToGraph(manifest: WorkflowManifest, deps: ManifestToGrap
   return builder.compile(first.id)
 }
 
-/** 阶段 → 图节点（对齐 runWorkflow.runStageOnce 语义）。 */
+/** 阶段 → 图节点（对齐 runWorkflow.runStageOnce 语义）。
+ *
+ * 审批门放行按**门粒度**判定：本节点在图中以 `stage.id` 注册（见 manifestToGraph 的
+ * addNode），故门 id 直接取闭包内的 `stage.id`——与 manifest 路径的
+ * `approvalGrants: stageId[]` 同构。命中时把 `APPROVAL_GRANTED_KEY` 注入执行态拷贝，
+ * 共享 state 不出现该键（否则一次放行会泄漏到同 run 内后续所有门）。
+ */
 function makeStageNode(
   stage: WorkflowStage,
   deps: {
@@ -136,7 +149,12 @@ function makeStageNode(
   const handler = stage.atom !== undefined ? deps.handlers.lookup(stage.atom) : undefined
   const mainKey = stage.atom !== undefined ? deps.atoms.lookup(stage.atom)?.outputSchema[0] : undefined
   return async ({ state, provider, signal }) => {
-    const execState = stage.params !== undefined ? { ...state, ...stage.params } : state
+    const approvedGate =
+      handler !== undefined && isApprovalGateHandler(handler) && isGateApproved(state, stage.id)
+    const execState =
+      stage.params !== undefined || approvedGate
+        ? { ...state, ...stage.params, ...(approvedGate ? { [APPROVAL_GRANTED_KEY]: true } : {}) }
+        : state
     const delta: StateDelta = {}
     let output = ''
     if (handler !== undefined) {

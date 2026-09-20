@@ -11,6 +11,7 @@ import type { GraphNode, GraphState, StateDelta } from '../types.ts'
 import { markDegraded, DEGRADATION_SUFFIX } from '../degradation.ts'
 import { runStageHandler } from '../adapter.ts'
 import type { StageHandler } from '../../atoms/index.ts'
+import { APPROVAL_GRANTED_KEY, isApprovalGateHandler, isGateApproved } from '../../atoms/index.ts'
 import { collectStateText } from '../../atoms/handler.ts'
 import { RuleEngine, aggregate, defaultPatentRules, type Verdict } from '../../checker/index.ts'
 import type { RuleCheckResult } from '../../checker/types.ts'
@@ -18,13 +19,22 @@ import type { RuleCheckResult } from '../../checker/types.ts'
 export { collectStateText }
 
 /** 现有 StageHandler → 图节点（注入固定 params，合并进执行态，不污染共享 state）。
+ *
+ * 审批门放行按**门粒度**判定：节点名取自引擎注入的 `nodeName`，命中该节点在共享 state 的
+ * 放行记录时把 `APPROVAL_GRANTED_KEY` 注入执行态拷贝。拿不到节点名（直接构造上下文调用节点）
+ * 时不放行——fail-closed，绝不退化为"任意放行"。
  * @param handler - 要包装为图节点的 StageHandler。
  * @param params - 注入 handler 的固定参数（可选）。
  * @returns 包装后的图节点。
  */
 export function handlerNode(handler: StageHandler, params?: Record<string, unknown>): GraphNode {
-  return async ({ state, provider, signal }) => {
-    const execState = params !== undefined ? { ...state, ...params } : state
+  return async ({ state, provider, signal, nodeName }) => {
+    const approvedGate =
+      nodeName !== undefined && isApprovalGateHandler(handler) && isGateApproved(state, nodeName)
+    const execState =
+      params !== undefined || approvedGate
+        ? { ...state, ...params, ...(approvedGate ? { [APPROVAL_GRANTED_KEY]: true } : {}) }
+        : state
     return runStageHandler(handler, execState, provider, signal)
   }
 }

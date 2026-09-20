@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  APPROVAL_GRANTED_KEY,
   AtomRegistry,
   InterruptStageError,
   StageHandlerRegistry,
@@ -7,8 +8,6 @@ import {
 } from '@deepseek-ai/dsh-patent-core'
 import { runStageOnce } from '@deepseek-ai/dsh-patent-workflow'
 import type { WorkflowStage } from '@deepseek-ai/dsh-patent-core'
-
-const APPROVAL_GRANTED_KEY = '__approval_granted__'
 
 function makeRegistry(handler?: StageHandler): { handlers: StageHandlerRegistry; atoms: AtomRegistry } {
   const handlers = new StageHandlerRegistry()

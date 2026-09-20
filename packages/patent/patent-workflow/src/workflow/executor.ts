@@ -5,7 +5,9 @@
  * - Object.assign(state, segment) 在 handler 产出后立即合并（state 引用共享）；
  * - 主输出键 = atom.outputSchema[0]，兜底 state[stage.id]；
  * - degraded 前缀 [WORKFLOW_DEGRADED] 保留错误信息；
- * - approvedGate 经 APPROVAL_GRANTED_KEY 注入 execState（与图路径同一契约）。
+ * - approvedGate 由 approvalGrants（stageId 白名单）判定，命中时把 APPROVAL_GRANTED_KEY
+ *   注入 execState 执行态拷贝；与图路径同一契约——两条路径都只写执行态、都不写共享 state
+ *   （写共享 state 会让一次放行泄漏到同 run 内后续所有门，见 patent-core 的 gate.ts）。
  */
 
 import {

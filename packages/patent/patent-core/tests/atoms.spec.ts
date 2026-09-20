@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   APPROVAL_GRANTED_KEY,
+  APPROVAL_GRANTED_NODES_KEY,
   AtomRegistry,
   AtomRegistryError,
   InterruptStageError,
@@ -11,6 +12,7 @@ import {
   evidenceCoverage,
   globalAtomRegistry,
   isApprovalGateHandler,
+  isGateApproved,
   isInterruptStageError,
   registerBuiltinAtoms,
   searchAtom,
@@ -174,7 +176,9 @@ describe('builtin handlers', () => {
     })
   })
 
-  it('ApprovalGateHandler：state 含放行标记时直接放行（不中断）', async () => {
+  it('ApprovalGateHandler：执行态含放行标记时直接放行（不中断）', async () => {
+    // 测的是 handler 的**执行态**契约：节点/宿主按门粒度判定后把 APPROVAL_GRANTED_KEY
+    // 注入执行态拷贝。共享 state 永不出现该键（见 isGateApproved 的门粒度用例）。
     const h = LookupStageHandler('approval-gate')!
     const out = await h.execute({
       state: { review_context: '请人工确认', [APPROVAL_GRANTED_KEY]: { 1720000000000: true } },
@@ -187,6 +191,15 @@ describe('builtin handlers', () => {
     expect(isApprovalGateHandler(gate)).toBe(true)
     const extract = LookupStageHandler('extract')!
     expect(isApprovalGateHandler(extract)).toBe(false)
+  })
+
+  it('isGateApproved：按门 id 判定放行（含未命中/形态不符的 false 分支）', () => {
+    expect(isGateApproved({ [APPROVAL_GRANTED_NODES_KEY]: ['gate1', 'gate2'] }, 'gate1')).toBe(true)
+    // 同 run 内未被批准的门不得被放行（一次放行不外溢）。
+    expect(isGateApproved({ [APPROVAL_GRANTED_NODES_KEY]: ['gate1'] }, 'gate2')).toBe(false)
+    expect(isGateApproved({}, 'gate1')).toBe(false)
+    // 形态不符（非数组）按未放行处理，不抛错。
+    expect(isGateApproved({ [APPROVAL_GRANTED_NODES_KEY]: true }, 'gate1')).toBe(false)
   })
 })
 

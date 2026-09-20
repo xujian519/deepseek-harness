@@ -213,6 +213,7 @@ async function runSuperSteps(
         try {
           const outcome = await runNodeWithPolicy(node, policy, {
             state: snapshot,
+            nodeName: name,
             ...(opts.provider !== undefined ? { provider: opts.provider } : {}),
             ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
           })

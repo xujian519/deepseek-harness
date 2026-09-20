@@ -1,12 +1,18 @@
 import { expect, it } from 'vitest'
 import {
+  APPROVAL_GRANTED_KEY,
+  APPROVAL_GRANTED_NODES_KEY,
+  ApprovalGateHandler,
   GraphBuilder,
+  InMemoryCheckpointStore,
   InterruptStageError,
   globalAtomRegistry,
   globalStageHandlerRegistry,
+  grantApproval,
   handlerNode,
   manifestToGraph,
   registerBuiltinAtoms,
+  runGraphWithCheckpoints,
   type StageHandler,
   type StageProvider,
   type WorkflowContext,
@@ -98,6 +104,24 @@ it('handlerNode: InterruptStageError 转 GraphInterruptError（引擎暂停）',
 // manifestToGraph（WorkflowManifest → 图）
 // ---------------------------------------------------------------------------
 
+it('handlerNode: 审批门按门粒度构建执行态放行（共享 state 不含放行布尔）', async () => {
+  // 放行记录里的门 id 与本节点在图内的名字一致 → 放行；不一致 → 仍中断（不外溢）。
+  const buildOnce = (state: Record<string, unknown>) => {
+    const builder = new GraphBuilder()
+    builder.addNode('gate', handlerNode(new ApprovalGateHandler())).addEdge('gate', '__end__')
+    return builder.compile('gate').run(state)
+  }
+
+  const approved = await buildOnce({ [APPROVAL_GRANTED_NODES_KEY]: ['gate'] })
+  expect(approved.completed).toBe(true)
+  expect(approved.interrupted).toBeUndefined()
+  expect(approved.state[APPROVAL_GRANTED_KEY]).toBeUndefined()
+
+  const other = await buildOnce({ [APPROVAL_GRANTED_NODES_KEY]: ['another-gate'] })
+  expect(other.completed).toBe(false)
+  expect(other.interrupted?.node).toBe('gate')
+})
+
 it('manifestToGraph: 简单线性 manifest 输出各阶段结果', async () => {
   const manifest: WorkflowManifest = {
     id: 'equiv_linear',
@@ -116,6 +140,39 @@ it('manifestToGraph: 简单线性 manifest 输出各阶段结果', async () => {
   for (const stage of manifest.stages) {
     expect(gr.state[stage.id]).toBe(await okExecutor(stage, ctx))
   }
+})
+
+it('manifestToGraph: 门粒度放行记录命中后审批门阶段放行（不中断）', async () => {
+  const manifest: WorkflowManifest = {
+    id: 'gate_approved',
+    name: '审批门放行',
+    caseType: 'test',
+    stages: [
+      { id: 'gate', strategy: 'chain', description: '审批', atom: 'approval-gate' },
+      { id: 's2', strategy: 'chain', description: '后续' },
+    ],
+  }
+  const graph = manifestToGraph(manifest, { executor: okExecutor })
+  const store = new InMemoryCheckpointStore()
+
+  // 第一次：审批门中断（未批准）。
+  const first = await runGraphWithCheckpoints(graph, {}, { store, graphId: 'gate_approved' })
+  expect(first.result.completed).toBe(false)
+  expect(first.result.interrupted?.node).toBe('gate')
+
+  // 人工批准该门：门粒度放行记录写入 checkpoint state（不是全局布尔）。
+  const granted = await grantApproval(store, first.checkpointId!)
+  expect(granted!.state[APPROVAL_GRANTED_NODES_KEY]).toEqual(['gate'])
+
+  // resume：门节点按自身 id 判定放行 → handler 收到执行态放行标记 → 不再中断。
+  const second = await runGraphWithCheckpoints(graph, {}, {
+    store,
+    graphId: 'gate_approved',
+    resumeFrom: granted!,
+  })
+  expect(second.result.completed).toBe(true)
+  expect(second.result.interrupted).toBeUndefined()
+  expect(second.result.state.s2).toBe('[s2] 完成。输入: ')
 })
 
 it('manifestToGraph: retry 回退重跑 extract', async () => {
