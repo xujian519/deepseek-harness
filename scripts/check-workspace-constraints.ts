@@ -206,6 +206,18 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The Sati patent document templates (5 template dirs + manifest + tokens.css)
   // ship as package-root assets resolved via import.meta.url.
   '@deepseek-ai/dsh-patent-document': ['assets'],
+  // The State Council holiday arrangements (cn-holidays.yaml) ship as a
+  // package-root asset resolved via import.meta.url.
+  '@deepseek-ai/dsh-patent-deadline': ['assets'],
+  // The writing-pattern corpus (10 seed YAML files) ships as package-root
+  // assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-writing-patterns': ['assets'],
+  // The document template corpus (17 template files) ships as package-root
+  // assets resolved via import.meta.url.
+  '@deepseek-ai/dsh-doc-template': ['assets'],
+  // The document style assets (4 style YAML files) ship as package-root assets
+  // resolved via import.meta.url.
+  '@deepseek-ai/dsh-doc-style': ['assets'],
   '@deepseek-ai/dsh-subprocess': ['lib/control.js'],
   // SSH launches a private helper and shares wire definitions and TLS setup
   // between that helper and the connection owner.

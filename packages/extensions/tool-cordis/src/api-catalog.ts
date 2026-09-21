@@ -6069,7 +6069,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PatentModelEvent',
-    declaration: 'export type PatentModelEvent = {\n    type: \'delta\';\n    text: string;\n} | {\n    type: \'done\';\n    usage?: {\n        inputTokens?: number;\n        outputTokens?: number;\n    };\n};',
+    declaration: 'export type PatentModelEvent = {\n    type: \'delta\';\n    text: string;\n} | {\n    type: \'done\';\n    usage?: PatentModelUsage;\n};',
   },
   {
     name: 'PatentModelMessage',
@@ -6077,11 +6077,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PatentModelPort',
-    declaration: 'export interface PatentModelPort {\n    stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>;\n}',
+    declaration: 'export interface PatentModelPort {\n    stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>;\n    route?: {\n        provider: string;\n        model: string;\n    };\n    bindSession?(sessionId: NonNullable<GenerateOptions[\'sessionId\']>): PatentModelPort;\n}',
   },
   {
     name: 'PatentModelRequest',
     declaration: 'export interface PatentModelRequest {\n    messages: PatentModelMessage[];\n    temperature?: number;\n    schema?: unknown;\n}',
+  },
+  {
+    name: 'PatentModelUsage',
+    declaration: 'export type PatentModelUsage = {\n    inputTokens?: number;\n    outputTokens?: number;\n};',
   },
   {
     name: 'PatentTeamsArchive',
@@ -7493,7 +7497,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'StageExecutor',
-    declaration: 'export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>;',
+    declaration: 'export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext, state: PipelineState) => Promise<string>;',
   },
   {
     name: 'StageHandler',
@@ -8321,7 +8325,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowStage',
-    declaration: 'export type WorkflowStage = {\n    id: string;\n    strategy: WorkflowStrategy;\n    description: string;\n    atom?: string;\n    params?: Record<string, unknown>;\n    guidance?: string;\n    retry?: {\n        whenOutputMatches: string;\n        rewindTo?: string;\n        maxRetries?: number;\n    };\n};',
+    declaration: 'export type WorkflowStage = {\n    id: string;\n    strategy: WorkflowStrategy;\n    description: string;\n    atom?: string;\n    params?: Record<string, unknown>;\n    guidance?: string;\n    consumes?: readonly string[];\n    retry?: {\n        whenOutputMatches: string;\n        rewindTo?: string;\n        maxRetries?: number;\n    };\n};',
   },
   {
     name: 'WorkflowStageResult',

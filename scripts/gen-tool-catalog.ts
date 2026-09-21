@@ -80,6 +80,9 @@ import * as Methodology from '@deepseek-ai/dsh-methodology'
 import * as DocumentDeliver from '@deepseek-ai/dsh-document-deliver'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
+import * as PatentDeadline from '@deepseek-ai/dsh-patent-deadline'
+import * as DocTemplate from '@deepseek-ai/dsh-doc-template'
+import * as WritingPatterns from '@deepseek-ai/dsh-writing-patterns'
 import * as PatentTeams from '@deepseek-ai/dsh-patent-teams'
 import WorkflowEngine from '@deepseek-ai/dsh-workflow'
 import type { WorkflowRun, WorkflowStartRequest } from '@deepseek-ai/dsh-workflow'
@@ -707,7 +710,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(DocumentDeliver)
     },
     note:
-      'document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. The delivery studio folds the logged call into its deliverable list and gate badges.',
+      'document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-tools',
@@ -716,12 +719,12 @@ const TOOL_PACKAGES: ToolPackage[] = [
     requires: ['ctx.tools'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {
-      // All 23 tools register from their factories alone; knowledge/LLM services are
+      // All 29 tools register from their factories alone; knowledge/LLM services are
       // read via ctx.get at execute time (absent here), so booting stays offline.
       await ctx.plugin(PatentTools, {})
     },
     note:
-      'The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.',
+      'The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-document',
@@ -737,6 +740,48 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-deadline',
+    dir: 'patent-deadline',
+    source: 'packages/patent/patent-deadline/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged holiday calendar at load and registers
+      // patent_deadlines from pure date arithmetic; no other service is needed.
+      await ctx.plugin(PatentDeadline, {})
+    },
+    note:
+      'patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-writing-patterns',
+    dir: 'writing-patterns',
+    source: 'packages/patent/writing-patterns/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged pattern corpus at load and registers
+      // query_writing_patterns plus the writing-patterns prompt section.
+      await ctx.plugin(WritingPatterns, {})
+    },
+    note:
+      'query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-doc-template',
+    dir: 'doc-template',
+    source: 'packages/document/doc-template/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged template and style assets at load and
+      // registers the two document tools from them.
+      await ctx.plugin(DocTemplate, {})
+    },
+    note:
+      'list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section.',
   },
   {
     pkg: '@deepseek-ai/dsh-patent-teams',

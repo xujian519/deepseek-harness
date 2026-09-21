@@ -613,6 +613,50 @@ export interface Config {
 
 Source: [`packages/credentials/credentials-local/src/index.ts:65`](../packages/credentials/credentials-local/src/index.ts)
 
+<a id="deepseek-aidsh-doc-template"></a>
+
+## `@deepseek-ai/dsh-doc-template`
+
+Requires: `tools` · `systemPrompt`
+
+```ts config-catalog
+/** Model-facing document-template plugin configuration. */
+export interface Config {
+  /** Template roots layered over the packaged root; a later root overrides an earlier template of the same name. */
+  templateDirs?: string[]
+  /** Style directories layered over the packaged one, in ascending precedence. */
+  styleDirs?: string[]
+  /** Language a template that declares none renders in. */
+  defaultLanguage?: string
+  /** Whether the style disclaimer is injected into rendered documents. */
+  includeDisclaimer?: boolean
+  /** Loaded style name whose guide this agent reads before writing; empty for no section. */
+  styleGuide?: string
+  /** Position of the injected style guide in the assembled system prompt. */
+  styleSectionOrder?: number
+}
+```
+
+Source: [`packages/document/doc-template/src/index.ts:113`](../packages/document/doc-template/src/index.ts)
+
+<a id="deepseek-aidsh-document-deliver"></a>
+
+## `@deepseek-ai/dsh-document-deliver`
+
+Requires: `tools` · `fs`
+
+```ts config-catalog
+/** Document-delivery plugin configuration. */
+export interface Config {
+  /** Style directories layered over the packaged one, in ascending precedence. */
+  styleDirs?: string[]
+  /** Style name the checks use when a registration names no style. */
+  defaultStyle?: string
+}
+```
+
+Source: [`packages/document/document-deliver/src/index.ts:52`](../packages/document/document-deliver/src/index.ts)
+
 <a id="deepseek-aidsh-experimental-agent-team"></a>
 
 ## `@deepseek-ai/dsh-experimental-agent-team`
@@ -1667,7 +1711,7 @@ export interface ReplayModelConfig {
 
 Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · [`SystemPromptUpdate`](../packages/llm/llm/src/index.ts)
 
-Source: [`packages/test-support/llm-replay/src/index.ts:1115`](../packages/test-support/llm-replay/src/index.ts)
+Source: [`packages/test-support/llm-replay/src/index.ts:1135`](../packages/test-support/llm-replay/src/index.ts)
 
 <a id="deepseek-aidsh-llm-retry"></a>
 
@@ -1983,6 +2027,24 @@ export interface AutoCommitConfig {
 
 Source: [`packages/memory/openviking/src/config.ts:51`](../packages/memory/openviking/src/config.ts)
 
+<a id="deepseek-aidsh-patent-deadline"></a>
+
+## `@deepseek-ai/dsh-patent-deadline`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Model-facing patent-deadline plugin configuration. */
+export interface Config {
+  /** Directory holding `cn-holidays.yaml`; defaults to the packaged calendar. */
+  calendarDir?: string
+  /** Warn when an end date falls within this many days (deployment policy, not a legal period). */
+  reminderLeadDays?: number
+}
+```
+
+Source: [`packages/patent/patent-deadline/src/index.ts:84`](../packages/patent/patent-deadline/src/index.ts)
+
 <a id="deepseek-aidsh-patent-document"></a>
 
 ## `@deepseek-ai/dsh-patent-document`
@@ -2044,7 +2106,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/patent/patent-rule/src/index.ts:125`](../packages/patent/patent-rule/src/index.ts)
+Source: [`packages/patent/patent-rule/src/index.ts:128`](../packages/patent/patent-rule/src/index.ts)
 
 <a id="deepseek-aidsh-patent-teams"></a>
 
@@ -2154,7 +2216,7 @@ export type FigureRendererMode = 'wasm' | 'cli'
 export type StructureViewName = (typeof STRUCTURE_VIEWS)[number]
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:195`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:198`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 
@@ -4347,6 +4409,33 @@ export interface Config {
 
 Source: [`packages/deliverables/workspace-changes/src/index.ts:33`](../packages/deliverables/workspace-changes/src/index.ts)
 
+<a id="deepseek-aidsh-writing-patterns"></a>
+
+## `@deepseek-ai/dsh-writing-patterns`
+
+Requires: `tools` · `systemPrompt`
+
+```ts config-catalog
+/** Model-facing writing-pattern plugin configuration. */
+export interface Config {
+  /** Directory holding the pattern YAML files; defaults to the packaged corpus. */
+  patternDir?: string
+  /** Result cap applied when a `query_writing_patterns` call omits its own limit. */
+  matchLimit?: number
+  /** Register the always-on writing-patterns system-prompt section. Defaults to true. */
+  registerSection?: boolean
+  /** Categories whose patterns the section injects; an empty list injects the guidance alone. */
+  sectionCategories?: PatternCategory[]
+  /** Position of the injected section in the assembled system prompt. */
+  sectionOrder?: number
+}
+
+/** One category of the closed {@link PATTERN_CATEGORIES} set. */
+export type PatternCategory = (typeof PATTERN_CATEGORIES)[number]
+```
+
+Source: [`packages/patent/writing-patterns/src/index.ts:74`](../packages/patent/writing-patterns/src/index.ts)
+
 ## Loadable plugins with no config
 
 These load from a `cordis.yml` entry with no `config:` block; they declare no configuration API.
@@ -4421,7 +4510,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-deepseek-llm-api-extensions` ([`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts))
 - `@deepseek-ai/dsh-desktop-directory-picker` — requires `desktop` ([`packages/desktop/directory-picker/src/index.ts`](../packages/desktop/directory-picker/src/index.ts))
 - `@deepseek-ai/dsh-desktop-shell` ([`packages/desktop/shell/src/index.ts`](../packages/desktop/shell/src/index.ts))
-- `@deepseek-ai/dsh-document-deliver` — requires `tools` · `fs` ([`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts))
 - `@deepseek-ai/dsh-experimental-auto-review` — requires `llm` · `permissionPresets` · `sessions` · `tools` ([`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts))
 - `@deepseek-ai/dsh-experimental-client-ui-agent-team` ([`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts))
 - `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` — requires `computerUse` · `tools` · `systemPrompt` ([`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts))
@@ -4503,6 +4591,8 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-cmdline` ([`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts))
 - `@deepseek-ai/dsh-contained-emit` ([`packages/util/contained-emit/src/index.ts`](../packages/util/contained-emit/src/index.ts))
 - `@deepseek-ai/dsh-deque` ([`packages/util/deque/src/index.ts`](../packages/util/deque/src/index.ts))
+- `@deepseek-ai/dsh-doc-style` ([`packages/document/doc-style/src/index.ts`](../packages/document/doc-style/src/index.ts))
+- `@deepseek-ai/dsh-docx-kit` ([`packages/document/docx-kit/src/index.ts`](../packages/document/docx-kit/src/index.ts))
 - `@deepseek-ai/dsh-entry-lifecycle` ([`packages/util/entry-lifecycle/src/index.ts`](../packages/util/entry-lifecycle/src/index.ts))
 - `@deepseek-ai/dsh-experimental-agent-team-profile` ([`packages/experimental/agent-team-profile/src/index.ts`](../packages/experimental/agent-team-profile/src/index.ts))
 - `@deepseek-ai/dsh-experimental-agent-team-web-profile` ([`packages/experimental/agent-team-web-profile/src/index.ts`](../packages/experimental/agent-team-web-profile/src/index.ts))

@@ -46,9 +46,12 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
-| `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. The delivery studio folds the logged call into its deliverable list and gate badges. |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `validate_specification`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `validate_specification`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
+| `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
+| `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
+| `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section. |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
@@ -2625,7 +2628,9 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
 
 ### `document_deliver`
 
-登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。调用会写入会话日志，交付物面板据此展示文件与质量门状态。
+登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
+
+工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
 ```json
 {
@@ -2688,6 +2693,14 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
     "brief_ref": {
       "type": "string",
       "description": "本次交付依据的 brief 文件路径（如 brief.md），可省略"
+    },
+    "style": {
+      "type": "string",
+      "description": "核验所用的书写风格名（如 assistant-neutral、patent-standard）；省略时用本部署配置的默认风格"
+    },
+    "char_budget": {
+      "type": "integer",
+      "description": "全文声明的字数预算（非空白字符数），用于核验篇幅；省略则不核验篇幅"
     }
   },
   "required": [
@@ -2699,7 +2712,7 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
 
 Source: [`packages/document/document-deliver/src/index.ts`](../packages/document/document-deliver/src/index.ts)
 
-document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. The delivery studio folds the logged call into its deliverable list and gate badges.
+document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge.
 
 <a id="deepseek-aidsh-patent-tools"></a>
 
@@ -2798,7 +2811,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `claim_chart_build`
 
-构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。
+构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。
 
 ```json
 {
@@ -2827,6 +2840,9 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "case_id": {
       "type": "string",
       "description": "案卷 ID（提供时结果落盘 data/cases/<case_id>/outputs/）"
+    },
+    "risk": {
+      "description": "侵权模式的评分事实（可选）：{defenses: (high|medium|low)[], remedyExposureRatio: 0–1, estoppelApplied?, dedicationApplied?, equivalents?: 等同三要素认定记录[]}。不提供时不计算风险等级；评分只用这些可复核事实，工具不接受直接给出的分数或等级。"
     }
   },
   "required": [
@@ -3173,7 +3189,7 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
           },
           "atom": {
             "type": "string",
-            "description": "Atom name to auto-execute this stage (e.g. extract)."
+            "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
           },
           "params": {
             "type": "object",
@@ -3231,7 +3247,7 @@ Flexible plan for patent cases (stage-level HITL). create: build a plan (optiona
         },
         "atom": {
           "type": "string",
-          "description": "Atom name to auto-execute this stage (e.g. extract)."
+          "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
         },
         "params": {
           "type": "object",
@@ -3905,6 +3921,27 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
 
+### `parse_office_action`
+
+确定性解析审查意见通知书（不调用模型）：识别驳回类型（专利法 26.3/26.4/22.2/22.3/22.4/25 条等）、引用文献与相关性类别（X/Y/A/E/P）、涉及的权利要求（区间已展开）、审查员论点。用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "审查意见通知书正文（含驳回条款与引用文献的原文）。"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
 ### `patent_analysis_report`
 
 生成标准化的专利分析报告：从权利要求抽取技术特征（类型/重要性），进行 IPC 分类，给出清晰度与完整性等确定性评分，并结合 LLM 对新颖性与技术强度补分，输出创新性洞察与专家考量。适合在评估提案、对比现有技术或提交人工复核前生成结构化分析基线。
@@ -4347,7 +4384,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_workflow`
 
-Run a declarative patent workflow (recap mode): validate the manifest, assemble per-stage outputs into a structured result with degraded-step marking and a summary, then persist the record. Built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_infringement_v1. Supply outputs keyed by stage id; missing stages are marked degraded. No LLM call — this tool finalizes text the agent already produced. Use to finalize multi-stage patent analyses (novelty / disclosure / inventiveness / ...) with a single verifiable result record.
+Run a declarative patent workflow (recap mode): validate the manifest, assemble per-stage outputs into a structured result with degraded-step marking and a summary, then persist the record. Built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_reexamination_v1, patent_infringement_v1. Supply outputs keyed by stage id; missing stages are marked degraded. No LLM call — this tool finalizes text the agent already produced. Use to finalize multi-stage patent analyses (novelty / disclosure / inventiveness / ...) with a single verifiable result record.
 
 ```json
 {
@@ -4389,7 +4426,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_workflow_run`
 
-Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
+Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.
 
 ```json
 {
@@ -4431,6 +4468,10 @@ Automatically execute a declarative patent workflow (atom stages) or a domain gr
     "input": {
       "type": "string",
       "description": "Initial material consumed by the extract atoms."
+    },
+    "claims": {
+      "type": "string",
+      "description": "Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material."
     },
     "chartTargets": {
       "type": "string",
@@ -4492,7 +4533,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `rule_check`
 
-Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match) against the given text and return violations with severity, action and legal basis. Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions). Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance), 'patent-full' (general compliance + full nuo patent rule set, activation-reviewed), or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).
+Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match) against the given text and return violations with severity, action and legal basis. Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions). Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance), 'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed), a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement' (the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish), or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).
 
 ```json
 {
@@ -4504,7 +4545,7 @@ Run deterministic constitutional rule checks (keyword blocklist / pattern / stru
     },
     "scope": {
       "type": "string",
-      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+      "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
     }
   },
   "required": [
@@ -4547,9 +4588,11 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 - 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词与摘要附图
 - 模糊表述、附图说明与图引用一致性、实施例存在性
 - 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例
+- 独立权利要求之间的单一性（A31.1，传 claim_units 时）
+- 权项—实施例覆盖矩阵（A26.3/A26.4，传 coverage_entries 时；覆盖度由 features 与 embodiment_refs 计算，不接受调用方给定的覆盖度结论）
 - 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）
 
-用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis 启用相应校验。
+用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。
 
 注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。
 
@@ -4617,6 +4660,74 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
           "usable"
         ]
       }
+    },
+    "claim_units": {
+      "type": "array",
+      "description": "结构化权利要求（可选）：提供时执行独立权利要求单一性自检（A31.1）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "number",
+            "description": "权利要求编号（与权利要求书一致）"
+          },
+          "kind": {
+            "type": "string",
+            "description": "独立或从属权利要求（仅独立权利要求进入单一性比较）",
+            "enum": [
+              "independent",
+              "dependent"
+            ]
+          },
+          "preamble": {
+            "type": "string",
+            "description": "前序部分，如\"一种智能门锁\""
+          },
+          "characterized": {
+            "type": "string",
+            "description": "\"其特征在于\"之后的特征部分"
+          }
+        },
+        "required": [
+          "number",
+          "kind",
+          "preamble"
+        ]
+      }
+    },
+    "coverage_entries": {
+      "type": "array",
+      "description": "权项—实施例覆盖条目（可选）：提供时计算覆盖矩阵，逐特征判定是否有实施例支持",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "description": "权利要求标识，形如 claim_1"
+          },
+          "features": {
+            "type": "array",
+            "description": "该权利要求的技术特征",
+            "items": {
+              "type": "string"
+            }
+          },
+          "embodiment_refs": {
+            "type": "array",
+            "description": "支持该权利要求的实施例原文片段",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "claim_id",
+          "features",
+          "embodiment_refs"
+        ]
+      }
     }
   }
 }
@@ -4661,7 +4772,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
 
-The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.
+The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document.
 
 <a id="deepseek-aidsh-patent-document"></a>
 
@@ -4736,6 +4847,294 @@ Render a patent-attorney deliverable (patentability opinion, search report, OA r
 Source: [`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
 
 render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess.
+
+<a id="deepseek-aidsh-patent-deadline"></a>
+
+## `@deepseek-ai/dsh-patent-deadline`
+
+### `patent_deadlines`
+
+- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, reexamination, office-action and invalidation responses, and term-compensation requests.
+- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.
+- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to "omit" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.
+- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.
+- Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.
+
+Usage notes:
+  - Dates are YYYY-MM-DD. Supply the notices the case actually received, with how each was delivered.
+  - Read-only and offline; makes no network request.
+  - Results are decision support, not a filing instruction: verify against the notice and the current 审查指南 before acting.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patentType": {
+      "type": "string",
+      "description": "Patent category",
+      "enum": [
+        "invention",
+        "utility-model",
+        "design"
+      ]
+    },
+    "filingDate": {
+      "type": "string",
+      "description": "Application date (international filing date for a PCT case)"
+    },
+    "claimsPriority": {
+      "type": "boolean",
+      "description": "Whether the case claims priority, as stated by the agent or the human handling the case"
+    },
+    "priorityDate": {
+      "type": "string",
+      "description": "Earliest priority date; required when claimsPriority is true"
+    },
+    "isPctNationalPhase": {
+      "type": "boolean",
+      "description": "Whether the case is a PCT application entering the Chinese national phase"
+    },
+    "authorizationPublicationDate": {
+      "type": "string",
+      "description": "Grant publication date (授权公告日)"
+    },
+    "marketingApprovalDate": {
+      "type": "string",
+      "description": "Date the drug obtained marketing approval in China"
+    },
+    "notices": {
+      "type": "array",
+      "description": "Notices received, with their delivery",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "Which document was delivered",
+            "enum": [
+              "office-action-first",
+              "office-action-subsequent",
+              "substantive-exam-notice",
+              "rejection-decision",
+              "grant-notice",
+              "reexamination-notice",
+              "invalidation-transfer"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "description": "How it was delivered; omitted means electronic (dispatch date is the delivery date)",
+            "enum": [
+              "electronic",
+              "postal",
+              "personal",
+              "publication"
+            ]
+          },
+          "dispatchDate": {
+            "type": "string",
+            "description": "Dispatch date on the notice (electronic/postal)"
+          },
+          "enteredDate": {
+            "type": "string",
+            "description": "Day it entered the electronic system, when evidenced later than dispatch"
+          },
+          "actualReceiptDate": {
+            "type": "string",
+            "description": "Actual receipt date, when evidenced"
+          },
+          "handedOverDate": {
+            "type": "string",
+            "description": "Hand-over date for direct delivery"
+          },
+          "publicationDate": {
+            "type": "string",
+            "description": "Announcement date for service by publication"
+          },
+          "designatedMonths": {
+            "type": "number",
+            "description": "Months the notice itself designates"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      }
+    },
+    "restDayRule": {
+      "type": "string",
+      "description": "apply (default) rolls an end date off a rest day; omit reports the period's own end date",
+      "enum": [
+        "apply",
+        "omit"
+      ]
+    }
+  },
+  "required": [
+    "patentType",
+    "filingDate",
+    "claimsPriority"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-deadline/src/index.ts`](../packages/patent/patent-deadline/src/index.ts)
+
+patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record.
+
+<a id="deepseek-aidsh-writing-patterns"></a>
+
+## `@deepseek-ai/dsh-writing-patterns`
+
+### `query_writing_patterns`
+
+- Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a <writing_skills> block
+- A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity
+- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed
+- Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "Pattern category: oa_inventiveness (OA 答复-创造性), oa_novelty (OA 答复-新颖性), oa_clarity (OA 答复-不清楚), claim_drafting (权利要求撰写), spec_drafting (说明书撰写), disclosure (技术交底书), invalidation (无效请求), ipc_strategy (IPC 策略), embodiment (具体实施方式)",
+      "enum": [
+        "oa_inventiveness",
+        "oa_novelty",
+        "oa_clarity",
+        "claim_drafting",
+        "spec_drafting",
+        "disclosure",
+        "invalidation",
+        "ipc_strategy",
+        "embodiment"
+      ]
+    },
+    "query": {
+      "type": "string",
+      "description": "Search keywords; when set, the call searches by keyword instead of matching case features"
+    },
+    "features": {
+      "type": "array",
+      "description": "Technical features or keywords of the case, e.g. [\"创造性三步法\", \"功能性限定\"]",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of patterns to return; defaults to 5"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/writing-patterns/src/index.ts)
+
+query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call.
+
+<a id="deepseek-aidsh-doc-template"></a>
+
+## `@deepseek-ai/dsh-doc-template`
+
+### `list_doc_templates`
+
+- Lists the document templates this deployment can render, with each template's variables, so a `render_doc_template` call can supply them.
+- Filters are optional and combine: category, domain, language, and a case-insensitive query over the name, title, description, and use-when text.
+- Every template also reports the formats it supports. A template that does not list `docx` cannot be rendered to DOCX.
+
+Usage notes:
+  - Read-only and offline; reads the packaged template assets and any configured override directories.
+  - Call this before `render_doc_template`: required variables and their types are only reported here.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "Exact category filter, e.g. claims"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Exact domain filter, e.g. patent"
+    },
+    "language": {
+      "type": "string",
+      "description": "Exact language filter, e.g. zh-CN"
+    },
+    "query": {
+      "type": "string",
+      "description": "Case-insensitive substring over name, title, description, and use-when"
+    }
+  }
+}
+```
+
+Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc-template/src/index.ts)
+
+### `render_doc_template`
+
+- Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.
+- Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.
+- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. The resolved Markdown body is always returned in `markdown`.
+- Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
+
+Usage notes:
+  - Offline; renders the packaged template assets, the configured override directories, and the packaged styles.
+  - A template that declares a writing style carries that style's disclaimer into the rendered document when the deployment enabled disclaimers.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "string",
+      "description": "Template name from list_doc_templates"
+    },
+    "variables": {
+      "type": "object",
+      "description": "Variable values keyed by variable name, without the {{}} wrapping; values are strings",
+      "additionalProperties": true
+    },
+    "format": {
+      "type": "string",
+      "description": "Output format: markdown, html, or docx (default markdown)",
+      "enum": [
+        "markdown",
+        "html",
+        "docx"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "Document title override; defaults to the template title"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or attorney, written into the HTML metadata"
+    },
+    "date": {
+      "type": "string",
+      "description": "Document date, written into the HTML metadata"
+    },
+    "filename": {
+      "type": "string",
+      "description": "Suggested file name stem without extension; defaults to the template name"
+    }
+  },
+  "required": [
+    "template"
+  ]
+}
+```
+
+Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc-template/src/index.ts)
+
+list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section.
 
 <a id="deepseek-aidsh-patent-teams"></a>
 

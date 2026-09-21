@@ -351,7 +351,10 @@
       "@deepseek-ai/dsh-credentials-local": ["./packages/credentials/credentials-local/src"],
       "@deepseek-ai/dsh-deepseek-llm-api-extensions": ["./packages/llm/deepseek-llm-api-extensions/src"],
       "@deepseek-ai/dsh-deque": ["./packages/util/deque/src"],
+      "@deepseek-ai/dsh-doc-style": ["./packages/document/doc-style/src"],
+      "@deepseek-ai/dsh-doc-template": ["./packages/document/doc-template/src"],
       "@deepseek-ai/dsh-document-deliver": ["./packages/document/document-deliver/src"],
+      "@deepseek-ai/dsh-docx-kit": ["./packages/document/docx-kit/src"],
       "@deepseek-ai/dsh-entry-lifecycle": ["./packages/util/entry-lifecycle/src"],
       "@deepseek-ai/dsh-file-reference": ["./packages/context/file-reference/src"],
       "@deepseek-ai/dsh-file-reference-local": ["./packages/context/file-reference-local/src"],
@@ -401,6 +404,7 @@
       "@deepseek-ai/dsh-package-manifest": ["./packages/util/package-manifest/src"],
       "@deepseek-ai/dsh-patent-core": ["./packages/patent/patent-core/src"],
       "@deepseek-ai/dsh-patent-data": ["./packages/patent/patent-data/src"],
+      "@deepseek-ai/dsh-patent-deadline": ["./packages/patent/patent-deadline/src"],
       "@deepseek-ai/dsh-patent-document": ["./packages/patent/patent-document/src"],
       "@deepseek-ai/dsh-patent-knowledge": ["./packages/patent/patent-knowledge/src"],
       "@deepseek-ai/dsh-patent-rule": ["./packages/patent/patent-rule/src"],
@@ -553,7 +557,8 @@
       "@deepseek-ai/dsh-workflow-ptc": ["./packages/workflow/workflow-ptc/src"],
       "@deepseek-ai/dsh-workspace": ["./packages/workspace/workspace/src"],
       "@deepseek-ai/dsh-workspace/invariant": ["./packages/workspace/workspace/src/invariant.ts"],
-      "@deepseek-ai/dsh-workspace-changes": ["./packages/deliverables/workspace-changes/src"]
+      "@deepseek-ai/dsh-workspace-changes": ["./packages/deliverables/workspace-changes/src"],
+      "@deepseek-ai/dsh-writing-patterns": ["./packages/patent/writing-patterns/src"]
       // END generated package aliases
     }
   }

@@ -751,8 +751,17 @@
       "@deepseek-ai/dsh-deque": [
         "./packages/util/deque/src"
       ],
+      "@deepseek-ai/dsh-doc-style": [
+        "./packages/document/doc-style/src"
+      ],
+      "@deepseek-ai/dsh-doc-template": [
+        "./packages/document/doc-template/src"
+      ],
       "@deepseek-ai/dsh-document-deliver": [
         "./packages/document/document-deliver/src"
+      ],
+      "@deepseek-ai/dsh-docx-kit": [
+        "./packages/document/docx-kit/src"
       ],
       "@deepseek-ai/dsh-entry-lifecycle": [
         "./packages/util/entry-lifecycle/src"
@@ -903,6 +912,9 @@
       ],
       "@deepseek-ai/dsh-patent-data": [
         "./packages/patent/patent-data/src"
+      ],
+      "@deepseek-ai/dsh-patent-deadline": [
+        "./packages/patent/patent-deadline/src"
       ],
       "@deepseek-ai/dsh-patent-document": [
         "./packages/patent/patent-document/src"
@@ -1233,6 +1245,9 @@
       ],
       "@deepseek-ai/dsh-tool-literature": [
         "./packages/patent/tool-literature/src"
+      ],
+      "@deepseek-ai/dsh-writing-patterns": [
+        "./packages/patent/writing-patterns/src"
       ],
       "@deepseek-ai/dsh-tool-lsp": [
         "./packages/lsp/tool-lsp/src"
