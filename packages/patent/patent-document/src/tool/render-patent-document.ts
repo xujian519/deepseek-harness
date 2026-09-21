@@ -101,7 +101,7 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
       outputName: {
         type: 'string',
         required: true,
-        description: 'Output filename stem (no extension); only letters, digits, underscore, hyphen, and dot.',
+        description: 'Output filename stem (no extension); letters, digits, underscore, hyphen, dot, and Chinese characters (a Chinese draft name is accepted as written). No path separators, no "..".',
       },
       caseId: {
         type: 'string',

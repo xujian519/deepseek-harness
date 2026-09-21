@@ -17,8 +17,11 @@ import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './
 /** 缺省输出目录（相对 cwd，取代 Sati 的 .sati/documents）。 */
 export const DEFAULT_OUTPUT_DIR = '.dsh/documents'
 
-/** 安全文件名：字母、数字、下划线、连字符、点；禁止路径分隔符。 */
-const SAFE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
+/**
+ * 安全输出文件名：字母、数字、下划线、连字符、点，以及中文（草稿名常用中文，
+ * 与案卷号规则对称）；禁止路径分隔符与 `..` 段。
+ */
+const SAFE_NAME_PATTERN = /^(?!.*\.\.)[A-Za-z0-9._\-\u4e00-\u9fa5]{1,120}$/
 
 /** 安全案卷号：同上，允许中文，且不含 `..` 段（防路径穿越）。 */
 const SAFE_CASE_ID_PATTERN = /^(?!.*\.\.)[A-Za-z0-9._\-\u4e00-\u9fa5]{1,120}$/

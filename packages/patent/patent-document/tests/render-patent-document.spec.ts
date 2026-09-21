@@ -121,6 +121,27 @@ describe('renderPatentDocument', () => {
     }
   })
 
+  it('accepts a Chinese draft name as the output filename', async () => {
+    const dir = makeTempDir()
+    try {
+      const result = await renderPatentDocument(
+        {
+          template: 'patentability-opinion',
+          outputName: '待补案卷号-claims-spec_v1_未放行校验稿',
+          outputDir: dir,
+          format: 'html',
+          sections: { 'meta-title': '中文命名' },
+        },
+        process.cwd(),
+        { subprocess: unusedSubprocess() },
+      )
+      expect(existsSync(result.htmlPath)).toBe(true)
+      expect(result.htmlPath).toContain('待补案卷号-claims-spec_v1_未放行校验稿.html')
+    } finally {
+      cleanup(dir)
+    }
+  })
+
   it('falls back to template tokens.css defaults when no brand is given', async () => {
     const dir = makeTempDir()
     try {
