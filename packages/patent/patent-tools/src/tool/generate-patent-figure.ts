@@ -110,36 +110,8 @@ export type GeneratePatentFigureDeps = {
   marginCm?: number
 }
 
-/** 多面板子图输入（panels 模式；全部面板组件并入一次标号分配，面板后缀拼进文件名 figN<suffix>）。 */
-export type GeneratePatentFigurePanelInput = {
-  /** 面板后缀（字母/数字/下划线/连字符，如 A → fig1A.svg）。 */
-  suffix: string
-  /** 面板图型；缺省从该面板唯一结构输入推断（规则与顶层一致）。 */
-  figure_type?: GenerateFigureType
-  steps?: FlowchartStep[]
-  states?: StateNode[]
-  transitions?: StateTransition[]
-  /** 电路图输入（figure_type=circuit）。 */
-  circuit?: CircuitFigureJson
-  /** 曲线图/坐标图输入（figure_type=plot）。 */
-  plot?: PlotFigureJson
-  /** 剖视图输入（figure_type=cross_section）。 */
-  sections?: SectionFigureJson
-  /** 时序图输入（figure_type=sequence_diagram）。 */
-  sequence?: SequenceFigureJson
-  /** 外观设计视图排布输入（figure_type=appearance_view）。 */
-  appearance_views?: AppearanceFigureJson
-  blocks?: BlockDiagramBlock[]
-  connections?: BlockDiagramConnection[]
-  tree?: HierarchyNode[]
-  template?: DiagramTemplateName
-  dot?: string
-  /** 面板显式标号（组件 id → 标号；优先于顶层 numerals 与家族种子）。 */
-  numerals?: Record<string, string>
-}
-
-/** 生成图输入（与 schema 保持一致）。 */
-export type GeneratePatentFigureInput = {
+/** 顶层输入与多面板子图共用的字段：图型选择与结构/矢量输入（各自的 JSON schema 声明同名字段）。 */
+type SharedFigureInputFields = {
   /** 图型；缺省时从唯一结构输入推断（steps→flowchart、blocks→block_diagram、tree→component_hierarchy、dot→raw_dot、template→template），多输入或无输入须显式指定。 */
   figure_type?: GenerateFigureType
   steps?: FlowchartStep[]
@@ -160,6 +132,18 @@ export type GeneratePatentFigureInput = {
   tree?: HierarchyNode[]
   template?: DiagramTemplateName
   dot?: string
+}
+
+/** 多面板子图输入（panels 模式；全部面板组件并入一次标号分配，面板后缀拼进文件名 figN<suffix>；figure_type 缺省时按本面板唯一结构输入推断）。 */
+export type GeneratePatentFigurePanelInput = SharedFigureInputFields & {
+  /** 面板后缀（字母/数字/下划线/连字符，如 A → fig1A.svg）。 */
+  suffix: string
+  /** 面板显式标号（组件 id → 标号；优先于顶层 numerals 与家族种子）。 */
+  numerals?: Record<string, string>
+}
+
+/** 生成图输入（与 schema 保持一致）。 */
+export type GeneratePatentFigureInput = SharedFigureInputFields & {
   /** 多面板模式（与顶层结构输入互斥）：一次生成多张共享标号系列的面板。 */
   panels?: GeneratePatentFigurePanelInput[]
   figure_number?: number
