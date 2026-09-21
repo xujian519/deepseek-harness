@@ -62,6 +62,8 @@ skills/ 下随附 15 个技能：
 
 cnlaw 法律底座为可选增强：本机运行 semantica-cnlaw 的服务（:8100 检索、:8001 图谱/案件 API）与 Neo4j（7687）时，法条/审查指南/判例核验走 cnlaw 并保留 source_path 溯源；未运行时纪律回退 patent_case_search / patent_kg_query（见 Known Limitations）。若部署另外挂载了 cnlaw 的 MCP 桥（`@deepseek-ai/dsh-mcp-client` 起 `cnlaw_mcp_launcher.py`），:8001 的图谱/案件/创造性三步法端点即以 `mcp__cnlaw__*` 工具形态可用，persona 优先指名它们；:8100 的语义检索与 :8001 的 IPC 端点没有对应工具，仍走 REST（curl）。
 
+OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openviking`，默认 `disabled: true`。运行 OpenViking 服务的部署（参见 [`@deepseek-ai/dsh-openviking`](../../../../memory/openviking/README.zh.md)）复制本 preset、去掉 `disabled`，再通过 `dsh plugin --profile <name> config openviking.endpoint=…` 以及 `.account` / `.user` / `.agentId` / `.apiKey` 写入端点与身份 header；发货 preset 不携带凭据。召回文本以不可信背景数据的形式进入提示，persona 的先验证后引用纪律仍要求每个法条断言带 cnlaw 或 patent_case_search 的 source_path——OpenViking 不替代法律底座。
+
 ## Model Experience
 
 模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、带强制免责声明的输出纪律）、专利计划模式段落、15 个预设内技能，以及专利工具加标准编码工具。人设要求先验证后引用（挂载时每个事实用 web_fetch）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。

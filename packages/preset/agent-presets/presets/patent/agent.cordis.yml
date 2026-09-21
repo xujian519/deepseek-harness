@@ -356,3 +356,20 @@
       config:
         agentStateDir: !!js "process.getBuiltinModule('node:path').join(process.env.DSH_HOME && process.env.DSH_HOME.trim() ? process.env.DSH_HOME : process.getBuiltinModule('node:os').homedir() + '/.dsh', 'self-evolve-benchmark', 'patent-state')"
         targetScore: 80
+
+# ── external memory (opt-in) ────────────────────────────────────────────────
+
+# OpenViking context-database integration: pre-step recall, session mirror +
+# auto-commit, and the OpenViking MCP tool surface (`mcp__openviking__*`).
+# Mirrors the `standard` preset row. Off by default — a patent deployment
+# that runs the OpenViking service duplicates this preset, drops `disabled`,
+# and sets the endpoint and identity headers through
+# `dsh plugin --profile <name> config openviking.endpoint=…` (and
+# `.account` / `.user` / `.agentId` / `.apiKey`); the shipped preset carries
+# no credentials. Recalled text is untrusted background data, so the
+# persona's verify-before-cite discipline still requires source_path from
+# cnlaw / patent_case_search for any legal assertion — recall does not
+# replace the legal base. The row provides no service, so it needs no realm.
+- id: openviking
+  name: '@deepseek-ai/dsh-openviking'
+  disabled: true

@@ -280,3 +280,22 @@
 - id: tool-plugin-manager
   name: '@deepseek-ai/dsh-plugin-manager/tools'
   disabled: true
+
+# ── external memory (opt-in) ────────────────────────────────────────────────
+
+# OpenViking context-database integration: pre-step recall, session mirror +
+# auto-commit, and the OpenViking MCP tool surface (`mcp__openviking__*`).
+# The plugin talks HTTP to a running OpenViking service and never starts one,
+# so a deployment must both run the service and drop `disabled` before the row
+# contributes anything. Off by default: without a service the boot probe only
+# logs one deduplicated warning (see `probeHealth` in the plugin), and the
+# settings seam rejects a non-http(s) endpoint at load, so an accidental
+# enable with the schema default `http://localhost:1933` fails soft rather
+# than blocking a session. Enable by duplicating this preset under a new id
+# and dropping `disabled`, then set the endpoint and identity headers through
+# `dsh plugin --profile <name> config openviking.endpoint=…` (and
+# `.account` / `.user` / `.agentId` / `.apiKey`); the shipped preset carries no
+# credentials. The row provides no service, so it needs no realm.
+- id: openviking
+  name: '@deepseek-ai/dsh-openviking'
+  disabled: true
