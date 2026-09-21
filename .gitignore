@@ -2,6 +2,7 @@ CLAUDE.local.md
 .env
 apps/desktop/.env.windows
 apps/desktop/.env.macos
+apps/desktop/.env.*.bak-*
 apps/desktop/*.p12
 node_modules/
 lib/
@@ -20,6 +21,7 @@ coverage/
 .oxlint-contract-*/
 .oxlintrc.contract-*.json
 oxlint-contract-*.ts
+packages/typert/generator/tests/.generated-model-*/
 .humanize/
 tmp/
 .claude/commands/
