@@ -19,7 +19,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import * as plugin from '../src/index.ts'
 import {
-  createDocumentDeliverTool, missingDeliverableFiles, parseDocumentDeliverArgs,
+  createDocumentDeliverTool, missingDeliverableFiles, parseDocumentDeliverArgs, MAX_CHECK_BYTES,
   type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult,
 } from '../src/tool.ts'
 
@@ -444,6 +444,18 @@ describe('document_deliver deterministic checks', () => {
     const unreadable = await register(ctx, { files: [{ path: temp, format: 'markdown' }], gate: { p0: ['命名规范'] } })
     expect(unreadable.value.gate.checks[0]?.status).toBe('unreadable')
     expect(unreadable.value.gate.checks[0]?.reason).toBeDefined()
+  })
+
+  it('refuses a text deliverable beyond the documented read cap instead of scanning it', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'huge.md')
+    await writeFile(path, `# 报告\n\n${'内'.repeat(MAX_CHECK_BYTES)}\n`)
+    const result = await register(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] } })
+    expect(result.value.gate.checks[0]?.status).toBe('unreadable')
+    expect(result.value.gate.checks[0]?.reason).toContain(`exceeds the ${String(MAX_CHECK_BYTES)}-byte limit`)
+    expect(result.value.gate.checks[0]?.findings).toEqual([])
+    expect(result.content).toContain('无法核验')
   })
 
   it('reports the body findings of a DOCX whose other parts did not project', async () => {

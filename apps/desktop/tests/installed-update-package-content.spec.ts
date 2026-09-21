@@ -72,7 +72,13 @@ async function fixture(body: (context: {
     const engineRelative = join('node_modules/@deepseek-ai/libreoffice-kit-win32-x64')
     const engine = join(dsh, engineRelative)
     await mkdir(join(engine, 'program'), { recursive: true })
-    await writeFile(join(engine, 'package.json'), JSON.stringify({ name: '@deepseek-ai/libreoffice-kit-win32-x64', version: '0.0.1' }))
+    // A realistic engine manifest: electron-builder's package.json cleanup strips
+    // these fields inside the archive, and a beside-archive copy keeps them — the
+    // bytes check has to tell the two apart.
+    await writeFile(join(engine, 'package.json'), JSON.stringify({
+      name: '@deepseek-ai/libreoffice-kit-win32-x64', version: '0.0.1',
+      scripts: { prepack: 'node scripts/prepack.mjs' }, keywords: ['libreoffice'], bugs: 'https://example.invalid',
+    }))
     await writeFile(join(engine, 'program/soffice.exe'), 'inert engine executable fixture')
     const reseal = (directory: string): void => {
       writeDesktopRuntime(directory, descriptor.release, descriptor.sharedPackages.map(entry => entry.name), { platform: 'win32', arch: 'x64' })
@@ -203,11 +209,12 @@ describe('installed update archive contents', () => {
 
   it('identifies changed executable resources for separate signature verification', async () => {
     await fixture(async ({ manifest, source, payload, version, resealRuntime }) => {
-      const executable = join(payload, 'resources/app.asar.unpacked/dsh/tool.exe')
+      const beside = join(payload, 'resources/node_modules/@deepseek-ai/libreoffice-kit-win32-x64/program/soffice.exe')
+      const unpacked = join(payload, 'resources/app.asar.unpacked/dsh/tool.exe')
       await writeFile(join(source, 'dsh/tool.exe'), 'inert changed executable, not a signature')
       await resealRuntime()
       expect((await verifyInstalledUpdatePackageContent(manifest, version, payload, publisher)).resignedExecutables)
-        .toContain(executable)
+        .toEqual([beside, unpacked])
     })
   })
 

@@ -354,10 +354,30 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
 
 const EMPTY: DocumentDeliverablesSnapshot = { produced: [] }
 
-/** Upgrade one stored entry with a later entry's registration metadata, keeping its first seq. */
+/**
+ * Upgrade one stored entry with a later entry's registration metadata, keeping its first seq.
+ *
+ * A later entry with no registration metadata at all is a mutation-derived entry
+ * (a supported file-mutation call records only its target path): the file's bytes
+ * changed after the registration, so the recorded check verdict belongs to text
+ * that is no longer there and is dropped. The announced format, gate, and brief
+ * reference stay, because the registration is still what the deliverable was
+ * declared with.
+ */
 function augmented(previous: DocumentDeliverable, next: DocumentDeliverable): DocumentDeliverable {
+  const isBareMutation = next.format === undefined && next.gate === undefined
+    && next.checks === undefined && next.briefRef === undefined
+  const base: DocumentDeliverable = isBareMutation
+    ? {
+      seq: previous.seq,
+      path: previous.path,
+      ...previous.format === undefined ? {} : { format: previous.format },
+      ...previous.gate === undefined ? {} : { gate: previous.gate },
+      ...previous.briefRef === undefined ? {} : { briefRef: previous.briefRef },
+    }
+    : previous
   return {
-    ...previous,
+    ...base,
     ...next.format !== undefined ? { format: next.format } : {},
     ...next.gate !== undefined ? { gate: next.gate } : {},
     ...next.checks !== undefined ? { checks: next.checks } : {},

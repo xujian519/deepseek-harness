@@ -9,14 +9,15 @@
  *
  * Finding levels. `block` refuses the registration and is reserved for the two
  * findings the shipped quality gate calls P0 with no legitimate reading: a
- * residual `{{placeholder}}` outside a code fence, and a word the selected
- * style forbids outright. Everything else is `warn` — an empty section, a
+ * residual `{{placeholder}}` outside quoted text (a code fence or an inline code
+ * span), and a word the selected style forbids outright. Everything else is `warn` — an empty section, a
  * fragment no declared anchor serves, a word the style only discourages, a
  * format with no text reader, and a declared character budget the document
  * misses. A `warn` finding is reported and the registration proceeds, because
  * each of them has a reading a reviewer may accept (a placeholder shown inside
- * a code sample, an anchor a renderer derives differently, an intentionally
- * short summary). A deployment that needs a forbidden word allowed overrides
+ * a code sample or quoted in inline code while the document talks about that
+ * placeholder, an anchor a renderer derives differently, an intentionally short
+ * summary). A deployment that needs a forbidden word allowed overrides
  * the style asset instead of silencing the check.
  * @module @deepseek-ai/dsh-document-deliver/checks
  */
@@ -192,6 +193,25 @@ function fenceRanges(text: string): TextRange[] {
   return ranges
 }
 
+/** Inline code spans: a backtick run closed by an equally long run on the same line. */
+const INLINE_CODE = /(`+)([^`\n]*?)\1/gu
+
+/**
+ * Quoted spans the placeholder check treats as displayed text rather than residual
+ * content: fenced blocks plus inline code spans.
+ *
+ * A document that quotes the checks — a delivery checklist naming `[TBD]` or
+ * `{{variable}}` inside inline code — carries the very strings this check looks
+ * for, and quoting them is the way such a document talks about them. Both are
+ * reported at `warn` instead of blocking.
+ * @param text - the checked text.
+ * @returns the ranges, in no particular order.
+ */
+function quotedRanges(text: string): TextRange[] {
+  const inline = matches(text, INLINE_CODE).map(match => ({ start: match.index, end: match.index + match.text.length }))
+  return [...fenceRanges(text), ...inline]
+}
+
 /** Strip the markup a heading may carry, so its slug matches what a renderer shows. */
 function renderedHeading(text: string): string {
   return text
@@ -255,6 +275,11 @@ function declaredAnchors(text: string, fences: readonly TextRange[], headings: r
  * Append one check's findings, capped so a badly broken document does not flood
  * the result: the cap is reported as its own line rather than silently dropping
  * the remainder.
+ *
+ * The summary line carries the level of the worst dropped draft, not the check's
+ * default: a blocking style word ranked after the cap must still block, and a run
+ * of merely-reported drafts (a fenced placeholder) must not start blocking just
+ * because it is long.
  * @param into - the finding list to append to.
  * @param check - the check the drafts belong to.
  * @param level - the level a draft without its own carries.
@@ -272,23 +297,27 @@ function report(
     })
   }
   if (drafts.length > MAX_FINDINGS_PER_CHECK) {
+    const dropped = drafts.slice(MAX_FINDINGS_PER_CHECK)
     into.push({
       check,
-      level,
-      detail: `另有 ${String(drafts.length - MAX_FINDINGS_PER_CHECK)} 处同类问题未逐条列出`,
+      level: dropped.some(draft => (draft.level ?? level) === 'block') ? 'block' : 'warn',
+      detail: `另有 ${String(dropped.length)} 处同类问题未逐条列出`,
     })
   }
 }
 
-/** Residual placeholders; one outside a code fence is a block, one inside it is only reported. */
-function placeholderDrafts(text: string, starts: readonly number[], fences: readonly TextRange[]): DraftFinding[] {
+/**
+ * Residual placeholders; one shown as quoted text (fenced block or inline code) is
+ * only reported, everything else blocks.
+ */
+function placeholderDrafts(text: string, starts: readonly number[], quoted: readonly TextRange[]): DraftFinding[] {
   const outside: DraftFinding[] = []
   const inside: DraftFinding[] = []
   for (const pattern of PLACEHOLDER_PATTERNS) {
     for (const match of matches(text, pattern)) {
       const line = lineOf(starts, match.index)
       const draft = { detail: `第 ${String(line)} 行仍有残余占位符 ${JSON.stringify(match.text)}`, line }
-      if (within(fences, match.index)) inside.push({ ...draft, level: 'warn' })
+      if (within(quoted, match.index)) inside.push({ ...draft, level: 'warn' })
       else outside.push(draft)
     }
   }
@@ -374,7 +403,7 @@ export function checkDocumentText(text: string, options: DocumentTextCheckOption
   const fences = fenceRanges(text)
   const headings = headingSpans(text, fences)
   const findings: DocumentCheckFinding[] = []
-  report(findings, 'placeholder', 'block', placeholderDrafts(text, starts, fences))
+  report(findings, 'placeholder', 'block', placeholderDrafts(text, starts, quotedRanges(text)))
   report(findings, 'broken_anchor', 'warn', anchorDrafts(text, starts, fences, headings))
   report(findings, 'empty_section', 'warn', emptySectionDrafts(text, starts, headings))
   report(findings, 'anti_pattern', 'warn', antiPatternDrafts(text, starts, options.style?.sections.antiPatterns ?? []))

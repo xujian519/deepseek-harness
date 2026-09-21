@@ -29,7 +29,7 @@ The tool reads the delivered bytes rather than trusting the declaration. Markdow
 
 | Check | Reported when | Level |
 | --- | --- | --- |
-| `placeholder` | A residual `{{variable}}`, `[TBD]`, `[REPLACE]`, `Lorem ipsum`, or `待补充` remains | `block` outside a code fence, `warn` inside one |
+| `placeholder` | A residual `{{variable}}`, `[TBD]`, `[REPLACE]`, `Lorem ipsum`, or `待补充` remains | `block` outside quoted text, `warn` inside a code fence or an inline code span |
 | `anti_pattern` | The selected style lists the word as forbidden | the style's own `block` or `warn` severity |
 | `empty_section` | A heading's section holds no content before the next heading | `warn` |
 | `broken_anchor` | A `](#fragment)` or `href="#fragment"` names a fragment the document declares no id, named anchor, or heading slug for | `warn` |

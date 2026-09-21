@@ -30,7 +30,7 @@ kind: "package-reference"
 
 | 检查 | 触发条件 | 级别 |
 | --- | --- | --- |
-| `placeholder` | 残留 `{{变量}}`、`[TBD]`、`[REPLACE]`、`Lorem ipsum` 或 `待补充` | 代码块之外 `block`，代码块之内 `warn` |
+| `placeholder` | 残留 `{{变量}}`、`[TBD]`、`[REPLACE]`、`Lorem ipsum` 或 `待补充` | 引用文本之外 `block`，代码块或行内代码之内 `warn` |
 | `anti_pattern` | 所选风格把该词列为禁用 | 沿用风格自身的 `block` / `warn` |
 | `empty_section` | 标题到下一个标题之间没有任何内容 | `warn` |
 | `broken_anchor` | `](#片段)` 或 `href="#片段"` 指向本文档未声明的 id、命名锚点或标题 slug | `warn` |

@@ -1,3 +1,3 @@
 - button "specification.md md P0 1 passed · P1 1"
-- button "claims.html html P0 1 passed · P1 1"
+- button "claims.html html P0 1 passed · P1 1 Machine-checked"
 - text: 2 delivered files

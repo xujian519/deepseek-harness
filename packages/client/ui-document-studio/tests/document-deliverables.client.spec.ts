@@ -340,6 +340,32 @@ describe('document_deliver registrations', () => {
     ])
   })
 
+  it('drops a recorded verdict once a later mutation rewrites the file', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'reg', JSON.stringify({
+        files: [{ path: 'out/report.md', format: 'markdown' }],
+        gate: { p0: ['命名规范'] },
+      })),
+      result(3, 'reg', false, 1, {
+        checks: [{ path: 'out/report.md', format: 'markdown', status: 'checked', findings: [] }],
+      }),
+      // 改写该文件：登记的核验结论属于旧字节，不再成立；格式与质量门声明仍保留。
+      at(4, 'tool/call', { turn: 1, callId: 'w1', name: 'write', arguments: JSON.stringify({ file_path: 'out/report.md', content: 'x' }) }),
+      result(5, 'w1', false, 1),
+    ])
+
+    expect(turnDataOf(value)?.produced).toEqual([
+      { seq: 3, path: 'out/report.md', format: 'markdown', gate: { p0: ['命名规范'], p1: [] }, checks: { status: 'checked', findings: [] } },
+      { seq: 5, path: 'out/report.md' },
+    ])
+    // 折叠后同一路径只留一条：旧核验结论被抹掉，格式与质量门声明保留。
+    const fold = documentDeliverablesViewDefinition.create().replace({ nodes: [], timeline: timelineOf(value) })
+    expect(fold.produced).toEqual([
+      { seq: 3, path: 'out/report.md', format: 'markdown', gate: { p0: ['命名规范'], p1: [] } },
+    ])
+  })
+
   it('attaches no checks for a registration whose result carried none or an unreadable payload', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),

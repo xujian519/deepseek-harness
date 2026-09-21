@@ -256,7 +256,10 @@ async function checkDeliverable(
         findings: checkDocumentText(projected.text, options),
       }
     }
-    const text = await ctx.fs.readText(target, exec.signal)
+    // The text branch reads under the same cap as the DOCX branch, so an oversized
+    // file is reported below instead of being read whole.
+    const bytes = await ctx.fs.readBytes(target, exec.signal, MAX_CHECK_BYTES)
+    const text = new TextDecoder().decode(bytes)
     return { ...base, status: 'checked', findings: checkDocumentText(text, options) }
   } catch (error) {
     // A file the checker cannot read is reported with its reason, never skipped silently.

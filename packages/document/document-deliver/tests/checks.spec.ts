@@ -183,4 +183,33 @@ describe('checkDocumentText', () => {
     expect(findings.filter(finding => finding.check === 'empty_section')).toHaveLength(6)
     expect(findings.at(-1)?.detail).toBe('另有 1 处同类问题未逐条列出')
   })
+
+  it('takes the summary line level from the dropped findings', () => {
+    // 6 条 warn 禁用词之后还有一条 block 级禁用词：汇总行必须仍是 block，否则门禁被绕过。
+    const words = style([
+      ...Array.from({ length: 6 }, (_, i) => ({ word: `warn${String(i)}`, replace: 'x', severity: 'warn' as const })),
+      { word: 'blocked', replace: 'y', severity: 'block' as const },
+    ])
+    const text = `${Array.from({ length: 6 }, (_, i) => `warn${String(i)}`).join(' ')} blocked\n`
+    const findings = checkDocumentText(text, { style: words })
+    expect(findings.filter(finding => finding.check === 'anti_pattern')).toHaveLength(6)
+    expect(findings.at(-1)?.level).toBe('block')
+    // 反向：被丢弃的都是只上报的草稿（围栏内占位符）时，汇总行不得升级为 block。
+    const fenced = `${Array.from({ length: 6 }, (_, i) => `\`\`\`\n{{slot${String(i)}}}\n\`\`\``).join('\n')}\n`
+    expect(checkDocumentText(fenced).filter(finding => finding.level === 'block')).toEqual([])
+  })
+
+  it('reports a placeholder quoted in inline code instead of blocking it', () => {
+    // 复述检查规则的交付文档正文本身就带这些串，行内代码是它在谈论这些串的写法。
+    const quoted = '- [ ] 无占位残留：无 `Lorem ipsum`、无 `[TBD]` / `{{变量}}` / 空槽\n'
+    expect(checkDocumentText(quoted)).toEqual([
+      { check: 'placeholder', level: 'warn', detail: '第 1 行仍有残余占位符 "{{变量}}"', line: 1 },
+      { check: 'placeholder', level: 'warn', detail: '第 1 行仍有残余占位符 "[TBD]"', line: 1 },
+      { check: 'placeholder', level: 'warn', detail: '第 1 行仍有残余占位符 "Lorem ipsum"', line: 1 },
+    ])
+    // 引号里提及仍按残余占位符处理：豁免只给代码跨度，不给"引号引用"。
+    expect(checkDocumentText('- 无 "Lorem ipsum" 之类占位\n').filter(finding => finding.level === 'block')).toHaveLength(1)
+    expect(checkDocumentText('- 客户名称：{{client_name}}\n').filter(finding => finding.level === 'block')).toHaveLength(1)
+    expect(checkDocumentText('- 未填的 `` `{{x}}` `` 与 `{{y}}` 都要替换\n').filter(finding => finding.level === 'block')).toEqual([])
+  })
 })

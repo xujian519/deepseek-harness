@@ -104,6 +104,7 @@ export async function verifyInstalledUpdatePackageContent(manifest: string, vers
   const besideFiles = existsSync(besideArchive)
     ? inventoryDesktopRuntime(besideArchive).map(file => ({ ...file, path: `node_modules/${file.path}` }))
     : []
+  const besidePaths = new Set(besideFiles.map(file => file.path))
   const actualFiles = [...inventoryDesktopRuntime(join(extracted, 'dsh')), ...besideFiles]
     .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
   if (JSON.stringify(actualFiles.map(file => file.path)) !== JSON.stringify(prepared.files.map(file => file.path))) {
@@ -115,8 +116,15 @@ export async function verifyInstalledUpdatePackageContent(manifest: string, vers
     if (runtime.files[index]!.sha256 !== file.sha256 || runtime.files[index]!.bytes !== file.bytes) {
       throw new Error('installed update: non-executable runtime descriptor differs from prepared inputs')
     }
-    const transformed = file.path.startsWith('node_modules/') && file.path.endsWith('/package.json')
-      ? await transform(runtimePath(join(run.root, version, 'dsh'), file.path)) : null
+    // Only the archive's own package.json files are transformed: electron-builder
+    // rewrites them while packing, while a file delivered beside the archive keeps
+    // the prepared bytes, because `createTransformerForExtraFiles` returns no
+    // transformer for it.
+    const packedPackageJson = !besidePaths.has(file.path)
+      && file.path.startsWith('node_modules/') && file.path.endsWith('/package.json')
+    const transformed = packedPackageJson
+      ? await transform(runtimePath(join(run.root, version, 'dsh'), file.path))
+      : null
     const bytes = transformed === null ? file.bytes : Buffer.byteLength(transformed)
     const hash = transformed === null ? file.sha256 : createHash('sha256').update(transformed).digest('hex')
     if (actualFiles[index]!.sha256 !== hash || actualFiles[index]!.bytes !== bytes) {
