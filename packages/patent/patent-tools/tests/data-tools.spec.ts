@@ -89,6 +89,82 @@ describe('patent_metadata', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('not found')
   })
+
+  it('compacts separators, full-width characters, and a CN application check digit', async () => {
+    const seen: string[] = []
+    const tool = createPatentMetadataTool({
+      scrape: async (patent) => {
+        seen.push(patent)
+        return { success: false, patent, url: 'u', data: null, errorCode: 'NOT_FOUND', errorMessage: 'not found', parseWarnings: [] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    for (const [index, input] of ['CN202122978405.0', 'ｃｎ２０２１２２９７８４０５.０', 'CN-218483312-U'].entries()) {
+      await execute(ctx, 'patent_metadata', { patent: input }, `m-c-${index}`)
+    }
+    expect(seen).toEqual(['CN202122978405', 'CN202122978405', 'CN218483312U'])
+  })
+
+  it('rejects a number without a country code with actionable guidance', async () => {
+    const tool = createPatentMetadataTool({ scrape: async () => { throw new Error('must not scrape') } })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: '202122978405' }, 'm-no-cc')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('中国专利可补国家码')
+  })
+
+  it('retries a transient upstream failure and keeps the successful answer', async () => {
+    let calls = 0
+    const tool = createPatentMetadataTool({
+      scrapeRetryDelaysMs: [0, 0],
+      scrape: async (patent) => {
+        calls += 1
+        if (calls === 1) {
+          return { success: false, patent, url: 'u', data: null, errorCode: 'HTTP_ERROR', errorMessage: 'HTTP 503', parseWarnings: [] }
+        }
+        return {
+          success: true, patent, url: 'https://patents.google.com/patent/CN1',
+          data: { title: 'T', application_number: '', inventor_name: '[]', assignee_name_orig: '[]', assignee_name_current: '[]', pub_date: '', filing_date: '', priority_date: '', grant_date: '', expiration_date: '', legal_status: '', ifi_status: '', estimated_expiration: '', pdf_url: '', classifications: '[]', forward_cite_no_family: '[]', forward_cite_yes_family: '[]', backward_cite_no_family: '[]', backward_cite_yes_family: '[]', abstract_text: 'A' },
+          errorCode: '' as const, errorMessage: '', parseWarnings: [],
+        }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-retry')
+    expect(result.isError).toBe(false)
+    expect(calls).toBe(2)
+  })
+
+  it('reports the exhausted retries on a persistent upstream failure', async () => {
+    let calls = 0
+    const tool = createPatentMetadataTool({
+      scrapeRetryDelaysMs: [0],
+      scrape: async (patent) => {
+        calls += 1
+        return { success: false, patent, url: 'u', data: null, errorCode: 'HTTP_ERROR', errorMessage: 'HTTP 503', parseWarnings: [] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-retry-out')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('已重试 1 次仍未成功')
+    expect(calls).toBe(2)
+  })
+
+  it('does not retry a parse failure', async () => {
+    let calls = 0
+    const tool = createPatentMetadataTool({
+      scrapeRetryDelaysMs: [0],
+      scrape: async (patent) => {
+        calls += 1
+        return { success: false, patent, url: 'u', data: null, errorCode: 'PARSE_ERROR', errorMessage: 'bad page', parseWarnings: [] }
+      },
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-parse')
+    expect(result.isError).toBe(true)
+    expect(calls).toBe(1)
+  })
 })
 
 describe('patent_legal_status', () => {
