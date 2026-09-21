@@ -232,13 +232,12 @@ describe('patent-tools plugin wiring', () => {
     expect(ctx.tools.schemas().map(s => s.name)).toContain('recognize_chemical_structure')
   })
 
-  it('fails loud for patent_pdf_download without a patent-data service', async () => {
-    // The ego-browser runner is wired from ctx.patentData; without the service
-    // the tool keeps its fail-loud stub so an uncomposed host fails loudly.
+  it('keeps patent_pdf_download registered without a patent-data service', async () => {
+    // The runner resolves ctx.patentData per call: a host without the service
+    // continues on the browser-free scrape channel instead of failing the batch,
+    // so registration no longer depends on the service being present at apply.
     const ctx = await mounted({})
-    temp = await mkdtemp(join(tmpdir(), 'dsh-patent-tools-pdf-'))
-    const result = await exec(ctx, 'patent_pdf_download', { patents: ['US1A'], outputDir: temp }, 'w-7')
-    expect(result.isError).toBe(true)
+    expect(ctx.tools.schemas().map(s => s.name)).toContain('patent_pdf_download')
   })
 
   it('wires knowledge_note_save to the file writer under Config.noteDir', async () => {

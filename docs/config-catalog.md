@@ -2216,7 +2216,7 @@ export type FigureRendererMode = 'wasm' | 'cli'
 export type StructureViewName = (typeof STRUCTURE_VIEWS)[number]
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:198`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:200`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 

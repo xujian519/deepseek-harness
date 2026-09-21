@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-21-patent-pdf-download-resolves-service-per-call.md
+2026-09-21-patent-pdf-download-resolves-service-per-call.md: 0a2063f1693a0e6995eaf189c7a58c63e03f035b
+2026-09-21-patent-pdf-download-resolves-service-per-call.zh.md: 087d5af7579b655e7f6982ee03dd9ebc93015c3e

@@ -53,7 +53,7 @@ import { STRUCTURE_VIEWS, type StructureViewName } from './figure/freecad-struct
 import { renderStructureViews } from './figure/freecad-renderer.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
-import { createEgoDownloadRunner } from './tool/patent-pdf-download-ego.ts'
+import { createDownloadChannelRunner } from './tool/patent-pdf-download-channel.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
 import { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
 import { createPatentWorkflowTool } from './tool/patent-workflow.ts'
@@ -152,6 +152,8 @@ export type { ChemistryIndexEntry } from './chemistry/index-store.ts'
 export { createPatentPdfDownloadTool } from './tool/patent-pdf-download.ts'
 export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownloadDeps, RunEgo, EgoDownloadItem, EgoDownloadRequest, EgoDownloadResult } from './tool/patent-pdf-download.ts'
 export type { EgoSessionSeam } from './tool/patent-pdf-download-ego.ts'
+export { createDownloadChannelRunner, createScrapeChannelRunner } from './tool/patent-pdf-download-channel.ts'
+export type { DownloadChannelDeps, PatentDataLookup, PatentScrape } from './tool/patent-pdf-download-channel.ts'
 export { createRecognizeChemicalStructureTool, resolveChemicalSourceKey } from './tool/recognize-chemical-structure.ts'
 export type { RecognizeChemicalStructureInput, RecognizeChemicalStructureDeps, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
 export { createFlexiblePlanTool, ATOM_PARAM_DESCRIPTION } from './tool/patent-flexible-plan.ts'
@@ -581,15 +583,14 @@ export function apply(ctx: Context, config: Config): void {
     ...(structureViews === undefined ? {} : { defaultViews: structureViews }),
   }))
 
-  // PDF download: wire the runner through a browser-backend cold decision.
-  // The unified ego stack routes the download to ego-browser only; browseros-neo
-  // / playwright / browser-use stay out of the download path (no intercept/
-  // extract execution yet). Without patent-data the ego channel fails loud at
-  // resolution, as before.
-  const patentData = ctx.get('patentData')
-  const runEgo = patentData !== undefined
-    ? createEgoDownloadRunner(patentData.createEgoSession())
-    : () => Promise.reject(new PatentToolError('setup_required', 'patent_pdf_download 需要 patent-data 服务（preset 挂载 @deepseek-ai/dsh-patent-data 后自动接线 ego 通道）；当前未挂载。', { tool: 'patent_pdf_download' }))
+  // PDF download: the runner resolves ctx.patentData per call, because
+  // patent-data declares inject:['subprocess'] and therefore activates after
+  // this plugin (which injects ['tools'] only) — reading the service here would
+  // freeze it as undefined in the shipped ordering. The unified ego stack routes
+  // the download to ego-browser only; browseros-neo / playwright / browser-use
+  // stay out of the download path, and a host without a usable browser falls
+  // back to a browser-free scrape of the CDN link.
+  const runEgo = createDownloadChannelRunner(() => ctx.get('patentData'))
   ctx.tools.register(createPatentPdfDownloadTool({
     runEgo,
     fetchImpl: globalThis.fetch,
