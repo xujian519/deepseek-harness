@@ -27,6 +27,9 @@ document 组保存文档智能体 preset 的模型侧域插件与 Host 侧 Offic
 | 包 | 职责 | ctx key |
 |---|---|---|
 | [`document-deliver/`](document-deliver/README.zh.md) | 模型可见 `document_deliver`：把交付文件、格式与质量门状态记录进会话日志。 | （注册于 `ctx.tools`） |
+| [`docx-kit/`](docx-kit/README.zh.md) | 仅用 Node 标准库实现 Markdown→DOCX 渲染与 DOCX→文本投影。 | — |
+| [`doc-template/`](doc-template/README.zh.md) | 把随包中文文档模板渲染为 Markdown/HTML/DOCX，提供 `list_doc_templates` 与 `render_doc_template`。 | （注册于 `ctx.tools`） |
+| [`doc-style/`](doc-style/README.zh.md) | 文档样式模型：语气/语态/反模式词/免责声明，含提示词、渲染样式与免责声明三个投影。 | — |
 | [office-to-pdf](office-to-pdf/README.zh.md) | 将已授权 Office 字节转换为完整 PDF，并提供有界队列和缓存 | `ctx.officeToPdf` |
 
 -----

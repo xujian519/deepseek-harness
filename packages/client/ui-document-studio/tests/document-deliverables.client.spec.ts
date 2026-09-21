@@ -12,7 +12,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import {
-  documentDeliverablesDefinition, documentDeliverablesViewDefinition,
+  documentDeliverablesDefinition, documentDeliverablesViewDefinition, parseCheckReports,
   type DocumentDeliverablesSnapshot, type DocumentTurnDeliverables,
 } from '../src/client/document-deliverables.ts'
 
@@ -64,10 +64,11 @@ function rawCall(seq: number, callId: string, name: string, argsRaw: string, tur
   return at(seq, 'tool/call', { turn, step: 1, callId, name, arguments: argsRaw })
 }
 
-function result(seq: number, callId: string, isError = false, turn = 1): SessionLiveEventEntry {
+function result(seq: number, callId: string, isError = false, turn = 1, meta?: unknown): SessionLiveEventEntry {
   return at(seq, 'tool/result', {
     turn, step: 1,
     message: { source: { type: 'tool-result', callId }, content: [{ type: 'tool-result', content: [], isError }] },
+    ...meta === undefined ? {} : { meta },
   })
 }
 
@@ -301,5 +302,76 @@ describe('document_deliver registrations', () => {
     expect(fold.produced).toEqual([
       { seq: 3, path: 'out/report.html', format: 'html', gate: { p0: ['命名规范'], p1: [] } },
     ])
+  })
+
+  it('attaches the machine checks each registration result recorded', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'reg', JSON.stringify({
+        files: [{ path: 'out/report.md', format: 'markdown' }, { path: 'out/deck.pdf', format: 'pdf' }],
+        gate: { p0: ['命名规范'] },
+        char_budget: 500,
+      })),
+      result(3, 'reg', false, 1, {
+        checks: [
+          {
+            path: 'out/report.md',
+            format: 'markdown',
+            status: 'checked',
+            findings: [{ check: 'empty_section', level: 'warn', detail: '第 5 行的标题 "空节" 下没有任何内容', line: 5 }],
+          },
+          { path: 'out/deck.pdf', format: 'pdf', status: 'unchecked', reason: 'pdf 格式没有文本读取器', findings: [] },
+        ],
+      }),
+    ])
+
+    expect(turnDataOf(value)?.produced).toEqual([
+      {
+        seq: 3, path: 'out/report.md', format: 'markdown', gate: { p0: ['命名规范'], p1: [] },
+        checks: {
+          status: 'checked',
+          findings: [{ check: 'empty_section', level: 'warn', detail: '第 5 行的标题 "空节" 下没有任何内容', line: 5 }],
+        },
+      },
+      {
+        seq: 3, path: 'out/deck.pdf', format: 'pdf', gate: { p0: ['命名规范'], p1: [] },
+        checks: { status: 'unchecked', reason: 'pdf 格式没有文本读取器', findings: [] },
+      },
+    ])
+  })
+
+  it('attaches no checks for a registration whose result carried none or an unreadable payload', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      deliver(2, 'no-meta', JSON.stringify({ files: [{ path: 'a.html', format: 'html' }], gate: { p0: ['x'] } })),
+      result(3, 'no-meta'),
+      deliver(4, 'not-a-record', JSON.stringify({ files: [{ path: 'b.html', format: 'html' }], gate: { p0: ['x'] } })),
+      result(5, 'not-a-record', false, 1, { checks: 'nope' }),
+      deliver(6, 'bad-status', JSON.stringify({ files: [{ path: 'c.html', format: 'html' }], gate: { p0: ['x'] } })),
+      result(7, 'bad-status', false, 1, { checks: [{ path: 'c.html', format: 'html', status: 'unknown', findings: [] }] }),
+      deliver(8, 'bad-finding', JSON.stringify({ files: [{ path: 'd.html', format: 'html' }], gate: { p0: ['x'] } })),
+      result(9, 'bad-finding', false, 1, {
+        checks: [{ path: 'd.html', format: 'html', status: 'checked', findings: [{ check: 1, level: 'warn', detail: 'x' }] }],
+      }),
+    ])
+
+    expect(turnDataOf(value)?.produced).toEqual([
+      { seq: 3, path: 'a.html', format: 'html', gate: { p0: ['x'], p1: [] } },
+      { seq: 5, path: 'b.html', format: 'html', gate: { p0: ['x'], p1: [] } },
+      { seq: 7, path: 'c.html', format: 'html', gate: { p0: ['x'], p1: [] } },
+      { seq: 9, path: 'd.html', format: 'html', gate: { p0: ['x'], p1: [] } },
+    ])
+  })
+
+  it('rejects a check report that is not an object, and one whose line is not a whole number', () => {
+    expect(parseCheckReports({ checks: ['nope'] })).toBeUndefined()
+    expect(parseCheckReports({ checks: [{ path: 'a.html', status: 'checked', findings: [{ check: 'x', level: 'warn', detail: 'd', line: 1.5 }] }] })).toBeUndefined()
+    expect(parseCheckReports({
+      checks: [{ path: 'a.html', status: 'checked', findings: [], reason: 7 }],
+    })).toBeUndefined()
+    expect(parseCheckReports(undefined)).toBeUndefined()
+    expect([...(parseCheckReports({
+      checks: [{ path: 'a.html', format: 'html', status: 'checked', findings: [] }],
+    }) ?? new Map()).keys()]).toEqual(['a.html'])
   })
 })

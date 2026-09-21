@@ -30,7 +30,9 @@
 
 .files {
   display: flex;
+  flex: 1 1 auto;
   flex-wrap: wrap;
+  min-width: 0;
   gap: 6px;
 }
 
@@ -44,9 +46,10 @@
 
 .file {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  max-width: 280px;
+  gap: 2px 6px;
+  max-width: 100%;
   padding: 4px 10px;
   border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
@@ -71,7 +74,10 @@
 }
 
 .badge {
-  flex: 0 0 auto;
+  /* A badge shrinks and wraps its text rather than overflowing a chip the
+     panel's narrow layout squeezed below one badge's width. */
+  flex: 0 1 auto;
+  min-width: 0;
   padding: 0 6px;
   border-radius: 4px;
   font-size: 11px;
@@ -87,6 +93,11 @@
 
 .gateMissing {
   color: var(--dsw-alias-label-tertiary);
+}
+
+.checkFindings {
+  background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary)) 12%, transparent);
+  color: var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary));
 }
 
 .actions {

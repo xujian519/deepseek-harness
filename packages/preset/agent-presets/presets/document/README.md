@@ -8,9 +8,10 @@ The `document` agent preset composes a document-delivery agent on the DeepSeek H
 
 Beyond the standard coding rows a document workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, ask-user, todo, web), the preset contributes:
 
-- Six delivery skills in `skills/`: `document-brief` (requirement → delivery spec), `document-html` (single-file HTML artifacts), `document-report` (long reports: Markdown → HTML → PDF-ready), `document-deck` (HTML decks + optional PPTX), `document-word` (`.docx` via the officecli skill), and `document-quality-gate` (P0/P1 pre-delivery checklist).
+- Six delivery skills in `skills/`: `document-brief` (requirement → delivery spec), `document-html` (single-file HTML artifacts), `document-report` (long reports: Markdown → HTML → PDF-ready), `document-deck` (HTML decks + optional PPTX), `document-word` (`.docx` from a template, then officecli for the layout a template does not cover), and `document-quality-gate` (P0/P1 pre-delivery checklist plus the tool-computed checks).
 - An **OpenDesign skill provider**: a second `skill-filesystem` instance named `open-design` that mounts the checkout's `skills/` and `design-templates/` directories when `OPEN_DESIGN_DIR` is set — the same wiring as `examples/opendesign`, built in. Without the variable it registers with no roots (an explicit empty catalog), so the preset works standalone.
-- A **structured deliverable registration**: the `document_deliver` tool records the delivered files, export formats, and the P0/P1 quality-gate result into the session log. The [delivery studio](../../../../../packages/client/ui-document-studio/README.md) derives its file list and gate badges from that log entry, so binary outputs produced outside the mutation tools (`.docx`/`.pptx` via officecli, PDFs from the print action) become visible in the studio when registered.
+- A **structured deliverable registration**: the `document_deliver` tool records the delivered files, export formats, and the P0/P1 quality-gate result into the session log, and reads each delivered file to report its own deterministic findings (residual placeholders, undeclared anchors, empty sections, forbidden style words, the declared length budget) on the result. A blocking finding refuses the registration. The [delivery studio](../../../../../packages/client/ui-document-studio/README.md) derives its file list, gate badges, and machine-check badge from that log entry and its result metadata, so binary outputs produced outside the mutation tools (`.docx`/`.pptx` via officecli, PDFs from the print action) become visible in the studio when registered.
+- A **document template and style row**: `doc-template` registers `list_doc_templates` and `render_doc_template` over the packaged template assets, and injects the `assistant-neutral` writing-style guide (`styleGuide`) as a system-prompt section — the same style `document_deliver` checks against, so the words the model is told to avoid and the words the gate refuses are one list.
 - A document-delivery persona (identity, six work disciplines, the standard workflow, and the output discipline) and a document-flavored plan-mode section: delivery specs, outlines, template choices, and export lists are "plans" — no deliverable files are produced before approval.
 
 ## Skills
@@ -21,8 +22,8 @@ Six skills ship in `skills/`, forming one pipeline: `document-brief` → outline
 - `document-html` — single-file `index.html` pipeline; prefers OpenDesign render templates (web-prototype / saas-landing / dashboard), falls back to a built-in baseline.
 - `document-report` — `report.md` source + `report.html` render with TOC, anchors, and footer.
 - `document-deck` — `deck.html` horizontal-slide deck with magazine layout; optional `.pptx` via officecli.
-- `document-word` — `.docx` via the officecli skill; falls back to Markdown delivery when officecli is unavailable.
-- `document-quality-gate` — P0 (no delivery without passing) and P1 checklist: naming, self-containment, no placeholders, no broken links, sourced facts, accessibility, mobile reflow, budget.
+- `document-word` — `.docx` from `render_doc_template` (format `docx`), saved from the base64 package the tool returns; officecli continues from the same file for headers, footers, page numbers, and TOC fields.
+- `document-quality-gate` — P0 (no delivery without passing) and P1 checklist: naming, self-containment, no placeholders, no broken links, sourced facts, accessibility, mobile reflow, budget; plus the table of tool-computed checks, which the registration refuses on a blocking finding.
 
 ## Prerequisites
 

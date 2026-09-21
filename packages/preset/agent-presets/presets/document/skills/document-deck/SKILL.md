@@ -2,7 +2,7 @@
 name: document-deck
 description: |
   演示文稿管线：章节大纲 → HTML Deck（横向滑动、杂志版式）→ 交付 deck.html，
-  并按需生成 .pptx（officecli 可用时）或给出导出说明。
+  并按需用 officecli 生成 .pptx 或给出导出说明。
 whenToUse: 需要交付演示文稿（路演 Deck、周报、培训课件、方案汇报）。
 ---
 
@@ -23,8 +23,9 @@ whenToUse: 需要交付演示文稿（路演 Deck、周报、培训课件、方�
    - 杂志版式基线：大标题衬线、正文无衬线、数字等宽；
    - 键盘 `→`/`←` 翻页 + 触控/滚轮节流；
    - 演讲者备注：每页 `<aside class="notes">`（打印/导出时隐藏）。
-5. 自检（document-quality-gate）后交付：`deck.html` 路径与摘要。
-6. PPTX：officecli 可用时生成 `deck.pptx` 并校对；否则说明导出途径。
+5. 自检（document-quality-gate）后交付：`deck.html` 路径与摘要；登记时格式填 `html`。
+6. PPTX：officecli 可用时生成 `deck.pptx` 并校对，登记时一并列出；否则说明导出途径。
+   随包模板与 docx 渲染器产出的是文档而非幻灯片，不要用它冒充 .pptx。
 
 ## 硬性规则
 

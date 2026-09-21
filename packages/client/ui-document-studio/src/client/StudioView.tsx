@@ -154,8 +154,34 @@ export function StudioView({
   const selected = produced.find(file => file.path === selectedPath) ?? null
   const selectedName = selected === null ? '' : basename(selected.path)
 
-  // One badge per produced file: the announced export format, and the quality-
-  // gate state (or the visible degrade note when the file was never registered).
+  // One badge per produced file: the announced export format, the quality-gate
+  // state (or the visible degrade note when the file was never registered), and
+  // the machine-derived check outcome when the registration's result carried one.
+  const checkBadge = (checks: DocumentDeliverable['checks']): ReactNode => {
+    if (checks === undefined) return null
+    const details = [
+      ...checks.reason === undefined ? [] : [checks.reason],
+      ...checks.findings.map(finding => finding.detail),
+    ]
+    const title = details.length === 0 ? undefined : details.join('\n')
+    if (checks.status === 'checked') {
+      return checks.findings.length === 0
+        ? <span className={`${css.badge} ${css.gatePassed}`} title={title}>{t('studio.file.checkedPassed')}</span>
+        : (
+          <span className={`${css.badge} ${css.checkFindings}`} title={title}>
+            {t('studio.file.checkedFindings', { count: checks.findings.length })}
+          </span>
+        )
+    }
+    // A status a newer harness records falls through to this visible degrade
+    // note: the badge never claims a check that this console cannot read.
+    return (
+      <span className={`${css.badge} ${css.gateMissing}`} title={title}>
+        {checks.status === 'unreadable' ? t('studio.file.checkedFailed') : t('studio.file.checkedSkipped')}
+      </span>
+    )
+  }
+
   const badge = (file: DocumentDeliverable): ReactNode => (
     <>
       {file.format !== undefined && (
@@ -170,6 +196,7 @@ export function StudioView({
         : (
           <span className={`${css.badge} ${css.gateMissing}`}>{t('studio.file.gateMissing')}</span>
         )}
+      {checkBadge(file.checks)}
     </>
   )
 

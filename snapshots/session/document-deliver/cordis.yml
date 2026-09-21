@@ -1,0 +1,23 @@
+# Live-recording patch: mount the document-delivery plugin over the ordinary
+# headless composition, so a recording pins the document_deliver schema the
+# model receives, the refusal it gets for a document that still carries a
+# placeholder, and the result — including the durable check metadata the
+# delivery studio reads back — of a registration that passes.
+#
+# The shipped `document` agent preset owns this row for real sessions, but a
+# preset is agent-plane and only `dsh-agent-presets` can mount one, which the
+# headless profile does not run.
+#
+# The shell rows are disabled because this scenario registers files that
+# already exist: a directory listing prints the workspace's mtimes, which no
+# committed fixture can reproduce on the next replay.
+
+- id: tool-bash
+  disabled: true
+
+- id: tool-pwsh
+  disabled: true
+
+- insert:
+    - id: tool-document-deliver
+      name: '@deepseek-ai/dsh-document-deliver'

@@ -27,6 +27,9 @@ Each package owns its configuration and lifetime rules; the subsystem reference 
 | Package | Role | ctx key |
 |---|---|---|
 | [`document-deliver/`](document-deliver/README.md) | Model-facing `document_deliver`: record delivered files, formats, and quality-gate state in the session log. | (registers on `ctx.tools`) |
+| [`docx-kit/`](docx-kit/README.md) | Markdown to DOCX rendering and DOCX to text projection over Node's standard library. | — |
+| [`doc-template/`](doc-template/README.md) | Packaged Chinese document templates rendered to Markdown, HTML, and DOCX, with `list_doc_templates` and `render_doc_template`. | (registers on `ctx.tools`) |
+| [`doc-style/`](doc-style/README.md) | Document style model: tone/voice/anti-patterns/disclaimers with the prompt, render-style, and disclaimer projections. | — |
 | [office-to-pdf](office-to-pdf/README.md) | Authorized Office bytes to complete PDFs with bounded queues and caching | `ctx.officeToPdf` |
 
 -----

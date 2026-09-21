@@ -9,13 +9,25 @@
   ],
   "references": [
     {
+      "path": "../docx-kit"
+    },
+    {
+      "path": "../doc-style"
+    },
+    {
       "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
     },
     {
       "path": "../../core/tools"
     },
     {
       "path": "../../fs/fs"
+    },
+    {
+      "path": "../../util/value"
     }
   ]
 }

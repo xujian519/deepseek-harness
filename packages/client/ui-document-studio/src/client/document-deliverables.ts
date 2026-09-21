@@ -20,6 +20,31 @@ import type {
 /** The `document_deliver` registration tool's name, as logged in tool/call. */
 export const DOCUMENT_DELIVER_TOOL = 'document_deliver'
 
+/** Check statuses a `document_deliver` result records. */
+export const DOCUMENT_CHECK_STATUSES = ['checked', 'unchecked', 'unreadable'] as const
+
+/** One machine-derived finding, as the registration recorded it. */
+export interface DocumentCheckFinding {
+  /** The check that produced the finding. */
+  readonly check: string
+  /** `block` refused delivery; `warn` reported it and registered anyway. */
+  readonly level: string
+  /** One line naming what was found and where. */
+  readonly detail: string
+  /** 1-based line of the checked text; absent for a finding with no position. */
+  readonly line?: number
+}
+
+/** One delivered file's deterministic check outcome, as the registration recorded it. */
+export interface DocumentCheckReport {
+  /** `checked` ran over the whole file, `unchecked` has no reader, `unreadable` could not be read. */
+  readonly status: (typeof DOCUMENT_CHECK_STATUSES)[number]
+  /** Why the checks did not run, or ran over incomplete text; absent when they ran over the whole file. */
+  readonly reason?: string
+  /** The findings the harness computed, empty for a clean file. */
+  readonly findings: readonly DocumentCheckFinding[]
+}
+
 /** One produced file with its first-producing turn event seq and optional registration metadata. */
 export interface DocumentDeliverable {
   readonly seq: number
@@ -28,6 +53,12 @@ export interface DocumentDeliverable {
   readonly format?: string
   /** Quality-gate state announced by a `document_deliver` registration. */
   readonly gate?: { readonly p0: readonly string[]; readonly p1: readonly string[] }
+  /**
+   * Machine-derived check outcome recorded on the registration's tool result;
+   * absent for a file that was never registered and for a registration whose
+   * result carried no readable check metadata.
+   */
+  readonly checks?: DocumentCheckReport
   /** Brief reference path announced by a `document_deliver` registration. */
   readonly briefRef?: string
 }
@@ -127,6 +158,54 @@ function normalizeDeliverRegistration(value: unknown): DeliverRegistration | und
   }
 }
 
+/** Narrow one recorded finding, or undefined when any field is malformed. */
+function normalizeCheckFinding(value: unknown): DocumentCheckFinding | undefined {
+  if (!isRecord(value)) return undefined
+  if (typeof value.check !== 'string' || typeof value.level !== 'string' || typeof value.detail !== 'string') return undefined
+  if (value.line !== undefined && (typeof value.line !== 'number' || !Number.isInteger(value.line))) return undefined
+  return {
+    check: value.check,
+    level: value.level,
+    detail: value.detail,
+    ...value.line === undefined ? {} : { line: value.line },
+  }
+}
+
+/**
+ * Narrow the `meta` of one `document_deliver` result to its per-path check
+ * reports.
+ *
+ * The metadata is opaque to the core and may be absent (a result logged before
+ * the checks existed), malformed, or written by a newer harness, so anything
+ * unrecognized rejects the whole payload: the studio then shows no machine-check
+ * badge at all, never a badge computed from a half-read record.
+ * @param meta - the `meta` field of a `tool/result` event.
+ * @returns the reports keyed by delivered path, or undefined when the payload is not a check record.
+ */
+export function parseCheckReports(meta: unknown): ReadonlyMap<string, DocumentCheckReport> | undefined {
+  if (!isRecord(meta) || !Array.isArray(meta.checks)) return undefined
+  const reports = new Map<string, DocumentCheckReport>()
+  for (const entry of meta.checks) {
+    if (!isRecord(entry)) return undefined
+    if (typeof entry.path !== 'string' || !Array.isArray(entry.findings)) return undefined
+    if (!DOCUMENT_CHECK_STATUSES.some(status => status === entry.status)) return undefined
+    if (entry.reason !== undefined && typeof entry.reason !== 'string') return undefined
+    const findings: DocumentCheckFinding[] = []
+    for (const raw of entry.findings) {
+      const finding = normalizeCheckFinding(raw)
+      if (finding === undefined) return undefined
+      findings.push(finding)
+    }
+    const status = entry.status as DocumentCheckReport['status']
+    reports.set(entry.path, {
+      status,
+      ...typeof entry.reason === 'string' ? { reason: entry.reason } : {},
+      findings,
+    })
+  }
+  return reports
+}
+
 /**
  * Extract the produced path from a supported first-party mutation call.
  * Session `tool/call` events are root calls; Code Dispatch children do not
@@ -200,14 +279,20 @@ function pathValue(value: unknown): string | null {
 
 /* jscpd:ignore-end */
 
-function registeredEntries(seq: number, registration: DeliverRegistration): DocumentDeliverable[] {
-  return registration.files.map(file => ({
-    seq,
-    path: file.path,
-    format: file.format,
-    gate: registration.gate,
-    ...registration.briefRef !== undefined ? { briefRef: registration.briefRef } : {},
-  }))
+function registeredEntries(
+  seq: number, registration: DeliverRegistration, checks: ReadonlyMap<string, DocumentCheckReport> | undefined,
+): DocumentDeliverable[] {
+  return registration.files.map((file) => {
+    const report = checks?.get(file.path)
+    return {
+      seq,
+      path: file.path,
+      format: file.format,
+      gate: registration.gate,
+      ...report === undefined ? {} : { checks: report },
+      ...registration.briefRef !== undefined ? { briefRef: registration.briefRef } : {},
+    }
+  })
 }
 
 /** Turn-local successful mutation + registration accumulator; it publishes no view Node. */
@@ -248,7 +333,7 @@ export const documentDeliverablesDefinition: ConversationNodeDefinition<Document
     const callId = String(match.event.data.message.source.callId)
     const call = context.state.calls.get(callId)
     const additions = call?.registration !== undefined
-      ? registeredEntries(match.event.seq, call.registration)
+      ? registeredEntries(match.event.seq, call.registration, parseCheckReports(match.event.data.meta))
       : call === undefined || call.producedPath === null
         ? []
         : [{ seq: match.event.seq, path: call.producedPath }]
@@ -275,6 +360,7 @@ function augmented(previous: DocumentDeliverable, next: DocumentDeliverable): Do
     ...previous,
     ...next.format !== undefined ? { format: next.format } : {},
     ...next.gate !== undefined ? { gate: next.gate } : {},
+    ...next.checks !== undefined ? { checks: next.checks } : {},
     ...next.briefRef !== undefined ? { briefRef: next.briefRef } : {},
   }
 }

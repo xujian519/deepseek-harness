@@ -1,0 +1,14 @@
+version: 1
+scenario: document-deliver
+profile: headless
+composition: document-deliver
+recording: live
+header:
+  class: document-deliver
+  pin: true
+input:
+  task: |
+    工作区里已有 out/draft.md 与 out/final.md，不要修改它们。
+    只做两次 document_deliver 调用：第一次登记 out/draft.md（files 用 [{ path: "out/draft.md", format: "markdown" }]，
+    gate.p0 用 ["命名规范"]，char_budget 用 500）；如果被拒绝，不要修改这个文件，把报错原文贴出来，
+    然后改用 out/final.md 再登记一次（其余参数相同）。最后用一句话说明两次调用的差别。

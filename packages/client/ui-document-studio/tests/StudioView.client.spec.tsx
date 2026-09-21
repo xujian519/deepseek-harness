@@ -23,6 +23,11 @@ interface ProducedFile {
   path: string
   format?: string
   gate?: { p0: string[]; p1: string[] }
+  checks?: {
+    status: string
+    reason?: string
+    findings: Array<{ check: string; level: string; detail: string; line?: number }>
+  }
   briefRef?: string
 }
 
@@ -115,6 +120,40 @@ describe('StudioView', () => {
     expect(screen.getByText('html')).toBeTruthy()
     expect(screen.getByText(t('studio.file.gatePassed', { p0: 1, p1: 1 }))).toBeTruthy()
     expect(screen.getByText(t('studio.file.gateMissing'))).toBeTruthy()
+  })
+
+  it('renders the machine-check badge per recorded status, with its findings as the tooltip', () => {
+    render(
+      <StudioView {...studioProps([
+        {
+          seq: 1, path: 'out/clean.html', format: 'html',
+          checks: { status: 'checked', findings: [] },
+        },
+        {
+          seq: 2, path: 'out/warned.md', format: 'markdown',
+          checks: {
+            status: 'checked',
+            findings: [{ check: 'empty_section', level: 'warn', detail: '第 5 行的标题 "空节" 下没有任何内容', line: 5 }],
+          },
+        },
+        {
+          seq: 3, path: 'out/deck.pdf', format: 'pdf',
+          checks: { status: 'unchecked', reason: 'pdf 格式没有文本读取器', findings: [] },
+        },
+        {
+          seq: 4, path: 'out/partial.docx', format: 'docx',
+          checks: { status: 'unreadable', reason: 'DOCX 结构报告 malformed-xml，投影文本可能不完整', findings: [] },
+        },
+        { seq: 5, path: 'out/unregistered.txt' },
+      ])} />,
+    )
+    expect(screen.getByText(t('studio.file.checkedPassed'))).toBeTruthy()
+    const warned = screen.getByText(t('studio.file.checkedFindings', { count: 1 }))
+    expect(warned.getAttribute('title')).toBe('第 5 行的标题 "空节" 下没有任何内容')
+    expect(screen.getByText(t('studio.file.checkedSkipped')).getAttribute('title')).toBe('pdf 格式没有文本读取器')
+    expect(screen.getByText(t('studio.file.checkedFailed')).getAttribute('title')).toBe('DOCX 结构报告 malformed-xml，投影文本可能不完整')
+    // A file with no recorded checks renders no machine-check badge at all.
+    expect(screen.getByText('unregistered.txt').closest('button')?.textContent).not.toContain(t('studio.file.checkedPassed'))
   })
 
   it('runs the open and show-in-folder actions and gates the folder action on loopback', () => {
