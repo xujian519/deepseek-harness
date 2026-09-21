@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,19 @@ const spillDir = mkdtempSync(join(tmpdir(), 'dsh-bash-exec-spec-'))
 afterAll(() => {
   rmSync(spillDir, { recursive: true, force: true })
 })
+
+/**
+ * A private file barrier that keeps a background command alive until the test
+ * releases it, so a handle's running status is observed while the child still
+ * runs instead of within a wall-clock budget.
+ */
+function commandBarrier(): { command: string; release: () => void } {
+  const path = join(mkdtempSync(join(spillDir, 'barrier-')), 'release')
+  return {
+    command: `while [ ! -f ${JSON.stringify(path)} ]; do sleep 0.02; done`,
+    release: () => { writeFileSync(path, '') },
+  }
+}
 
 async function setup(config: ConstructorParameters<typeof LocalBashExecutor>[1] = {}) {
   const ctx = new Context()
@@ -166,10 +179,13 @@ describe('LocalBashExecutor.run', () => {
 describe('LocalBashExecutor.start (background process handles)', () => {
   it('start returns immediately with a running handle that settles as completed', async () => {
     const { bash } = await setup()
-    const before = Date.now()
-    const proc = await bash.start(bash.resolve({ command: 'sleep 0.2; echo done' }))
-    expect(Date.now() - before).toBeLessThan(150)
+    // The command blocks on a release file this test writes only after start()
+    // returned, so the running status is a state observation: a start() that
+    // awaited the child could not return at all before the release.
+    const barrier = commandBarrier()
+    const proc = await bash.start(bash.resolve({ command: `${barrier.command}; echo done` }))
     expect(proc.status).toBe('running')
+    barrier.release()
     await proc.done
     expect(proc.status).toBe('completed')
     expect(proc.exitCode).toBe(0)
