@@ -329,6 +329,128 @@ describe('abstract and claim coverage edge cases', () => {
   })
 })
 
+describe('validateSpecification: 结构化权利要求（单一性 A31.1）', () => {
+  const UNRELATED = [
+    { number: 1, kind: 'independent' as const, preamble: '一种太阳能发电装置', characterized: '包括光伏板、逆变器和支架' },
+    { number: 2, kind: 'independent' as const, preamble: '一种中药煎煮设备', characterized: '包括药罐、加热盘和温控器' },
+  ]
+
+  it('技术主题无关的独立权利要求 → error，未通过', () => {
+    const out = validateSpecification({ text: VALID_SPEC, claim_units: UNRELATED })
+    const unity = out.violations.find(v => v.rule === 'claim_unity')
+    expect(unity?.severity).toBe('error')
+    expect(unity?.section).toBe('权利要求书')
+    expect(unity?.message).toContain('独立权利要求 1 与 2')
+    expect(unity?.message).toContain('低于 60% 阈值')
+    expect(unity?.suggestion).toContain('专利法第31条第1款')
+    expect(out.passed).toBe(false)
+  })
+
+  it('技术关联度偏低但达阈值 → warning', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      claim_units: [
+        {
+          number: 1,
+          kind: 'independent',
+          preamble: '一种智能门锁',
+          characterized: '包括锁体、指纹识别模块、控制模块和驱动电机，指纹识别模块采集指纹后由控制模块驱动电机开合锁体',
+        },
+        {
+          number: 2,
+          kind: 'independent',
+          preamble: '一种智能门锁的指纹解锁方法',
+          characterized: '通过指纹识别模块采集指纹，由控制模块比对指纹特征后驱动电机开合锁体',
+        },
+      ],
+    })
+    const unity = out.violations.find(v => v.rule === 'claim_unity')
+    expect(unity?.severity).toBe('warning')
+    expect(unity?.message).toContain('接近 60% 阈值')
+  })
+
+  it('单一性良好时不产生违规', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      claim_units: [
+        { number: 1, kind: 'independent', preamble: '一种智能门锁', characterized: '包括锁体、指纹识别模块、控制模块和驱动电机' },
+        {
+          number: 2,
+          kind: 'independent',
+          preamble: '一种智能门锁',
+          characterized: '包括锁体、指纹识别模块、控制模块、驱动电机和报警模块',
+        },
+        { number: 3, kind: 'dependent', preamble: '根据权利要求1所述的智能门锁', characterized: '报警模块为声光报警器' },
+      ],
+    })
+    expect(out.violations.find(v => v.rule === 'claim_unity')).toBeUndefined()
+  })
+
+  it('claim_units 为空数组时不执行单一性检查', () => {
+    const out = validateSpecification({ text: VALID_SPEC, claim_units: [] })
+    expect(out.violations.find(v => v.rule === 'claim_unity')).toBeUndefined()
+  })
+})
+
+describe('validateSpecification: 权项—实施例覆盖矩阵', () => {
+  it('全部特征未获实施例支持 → error', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      coverage_entries: [{ claim_id: 'claim_1', features: ['导电涂层', '散热结构'], embodiment_refs: [] }],
+    })
+    const coverage = out.violations.find(v => v.rule === 'claim_embodiment_coverage')
+    expect(coverage?.severity).toBe('error')
+    expect(coverage?.section).toBe('具体实施方式')
+    expect(coverage?.message).toContain('权利要求 claim_1 的 2/2 项特征未获实施例支持：导电涂层、散热结构')
+    expect(out.passed).toBe(false)
+  })
+
+  it('部分特征未获支持 → warning 并列出未覆盖特征', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      coverage_entries: [
+        { claim_id: 'claim_2', features: ['导电涂层', '散热结构'], embodiment_refs: ['实施例1记载导电涂层采用石墨烯'] },
+      ],
+    })
+    const coverage = out.violations.find(v => v.rule === 'claim_embodiment_coverage')
+    expect(coverage?.severity).toBe('warning')
+    expect(coverage?.message).toContain('1/2')
+    expect(coverage?.message).toContain('散热结构')
+  })
+
+  it('全部特征获支持时不产生违规', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      coverage_entries: [
+        { claim_id: 'claim_1', features: ['导电涂层'], embodiment_refs: ['实施例1记载导电涂层采用石墨烯'] },
+      ],
+    })
+    expect(out.violations.find(v => v.rule === 'claim_embodiment_coverage')).toBeUndefined()
+  })
+
+  it('条目编号非法 → 逐条报错而不是静默丢弃', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      coverage_entries: [{ claim_id: 'claim_x', features: ['导电涂层'], embodiment_refs: ['导电涂层'] }],
+    })
+    const entry = out.violations.find(v => v.rule === 'claim_coverage_entry')
+    expect(entry?.severity).toBe('error')
+    expect(entry?.message).toContain('claim_x')
+    expect(entry?.message).toContain('claim id 格式非法')
+    expect(out.violations.find(v => v.rule === 'claim_embodiment_coverage')).toBeUndefined()
+  })
+
+  it('claim_units 提供时按权利要求总数约束覆盖条目编号', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      claim_units: [{ number: 1, kind: 'independent', preamble: '一种装置' }],
+      coverage_entries: [{ claim_id: 'claim_7', features: ['壳体'], embodiment_refs: ['壳体'] }],
+    })
+    const entry = out.violations.find(v => v.rule === 'claim_coverage_entry')
+    expect(entry?.message).toContain('claim 编号超出权利要求数量')
+  })
+})
+
 describe('renderSpecification with section and no suggestion', () => {
   it('renders section markers and bare lines', () => {
     const out = renderSpecification({

@@ -14,10 +14,10 @@ import {
 } from '@deepseek-ai/dsh-patent-rule'
 
 describe('patent full rule set', () => {
-  it('loadPatentFullRuleSet merges compliance + nuo full rule set (4 + 96 = 100 rules)', () => {
+  it('loadPatentFullRuleSet merges compliance + nuo assets + merged gap assets (4 + 96 + 17 = 117 rules)', () => {
     const loaded = loadPatentFullRuleSet()
     expect(loaded.source).not.toBeNull()
-    expect(loaded.ruleSet.rules.length).toBe(100)
+    expect(loaded.ruleSet.rules.length).toBe(117)
     const ids = new Set(loaded.ruleSet.rules.map(r => r.id))
     expect(ids.has('PAT-RISK-001')).toBe(true)
     expect(ids.has('CON-COMP-0101')).toBe(true)
@@ -59,11 +59,11 @@ describe('patent full rule set', () => {
     expect(clean.blockHits).not.toContain('CON-COMP-0101')
   })
 
-  it('scope differs: patent keeps 4 rules, patent-full keeps 100', () => {
+  it('scope differs: patent keeps 4 rules, patent-full keeps 117', () => {
     const patent = loadPatentComplianceRuleSet()
     const full = loadPatentFullRuleSet()
     expect(patent.ruleSet.rules.length).toBe(4)
-    expect(full.ruleSet.rules.length).toBe(100)
+    expect(full.ruleSet.rules.length).toBe(117)
   })
 
   it('loadActivationOverrides parses 31 patches with no warnings', () => {

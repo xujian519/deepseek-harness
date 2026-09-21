@@ -23,6 +23,11 @@ export interface CreateLlmModelPortOptions {
   temperature?: number
   /** Optional output token cap; omitted leaves the provider default. */
   maxTokens?: number
+  /**
+   * Session identity sent on every request (see
+   * {@link PatentModelPort.bindSession}); omitted leaves the port unattributed.
+   */
+  sessionId?: NonNullable<GenerateOptions['sessionId']>
 }
 
 /**
@@ -37,6 +42,8 @@ export function createLlmModelPort(
   options: CreateLlmModelPortOptions,
 ): PatentModelPort {
   return {
+    route: { provider: options.provider, model: options.model },
+    bindSession: sessionId => createLlmModelPort(stream, { ...options, sessionId }),
     stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent> {
       const { messages, system } = translateRequest(request, options)
       // 逐调用 temperature 覆盖端口固定默认（extract 等原子按调用传 0）。
@@ -48,6 +55,7 @@ export function createLlmModelPort(
         ...(system === undefined ? {} : { system }),
         ...(temperature === undefined ? {} : { temperature }),
         ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
+        ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
         ...(signal === undefined ? {} : { signal }),
       }
       return mapChunks(stream(generate))

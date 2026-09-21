@@ -123,6 +123,71 @@ describe('patent_workflow_run', () => {
     await expect(createPatentWorkflowRunTool().execute({ input: 'x' }, exec)).rejects.toThrow(PatentToolError)
   })
 
+  it('hands a stage its declared upstream outputs and the separately supplied claims', async () => {
+    const prompts: string[] = []
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        prompts.push(request.messages.map(m => m.content).join('\n'))
+        yield { type: 'delta', text: `产出${prompts.length}` }
+        yield { type: 'done' }
+      },
+    }
+    const tool = createPatentWorkflowRunTool({ model, search: async () => [] })
+    const value = (await tool.execute(
+      { manifestId: 'patent_novelty_v1', input: '交底书正文', claims: '1. 一种装置，其特征在于，包括壳体。' },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(value.ok).toBe(true)
+    // 逐项对比阶段声明了 consumes: ['parse','search']，故两者产出与权利要求材料都进提示词。
+    const compare = prompts.find(p => p.includes('逐项对比技术特征与现有技术'))
+    expect(compare).toBeDefined()
+    expect(compare).toContain('## 上游阶段产出: parse')
+    expect(compare).toContain('## 上游阶段产出: search')
+    expect(compare).toContain('产出1')
+    expect(compare).toContain('## 权利要求书（本次调用的 claims 参数）')
+    expect(compare).toContain('1. 一种装置，其特征在于，包括壳体。')
+    // 首个阶段没有上游产出，只有材料与权利要求。
+    const parse = prompts.find(p => p.includes('解析技术交底书'))
+    expect(parse).not.toContain('上游阶段产出')
+  })
+
+  it('runs the reexamination and invalidation manifests with their own grounds table and chart mode', async () => {
+    const prompts: string[] = []
+    const model: PatentModelPort = {
+      stream: async function* (request) {
+        prompts.push(request.messages.map(m => m.content).join('\n'))
+        yield { type: 'delta', text: `产出${prompts.length}` }
+        yield { type: 'done' }
+      },
+    }
+    const tool = createPatentWorkflowRunTool({ model, search: async () => [] })
+    // 同一份驳回决定按两种程序解读：理由表与图表模式都不同。
+    const decision =
+      '本驳回决定认为权利要求 1 不具备创造性（专利法第22条第3款），且该实用新型专利的修改超出原说明书范围（专利法第33条）。'
+
+    const reexam = (await tool.execute(
+      { manifestId: 'patent_reexamination_v1', input: decision },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(reexam.ok).toBe(true)
+    expect(prompts.some(p => p.includes('场景模式：reexamination'))).toBe(true)
+    const reexamNovelty = prompts.find(p => p.includes('新颖性单独对比'))
+    expect(reexamNovelty).toContain('## 上游阶段产出: grounds')
+    expect(reexamNovelty).toContain('创造性缺陷')
+    expect(reexamNovelty).not.toContain('创造性无效')
+
+    prompts.length = 0
+    const invalid = (await tool.execute(
+      { manifestId: 'patent_invalidation_v1', input: decision },
+      exec,
+    )) as PatentWorkflowRunOutput
+    expect(invalid.ok).toBe(true)
+    expect(prompts.some(p => p.includes('场景模式：invalidity'))).toBe(true)
+    const invalidNovelty = prompts.find(p => p.includes('新颖性单独对比'))
+    expect(invalidNovelty).toContain('创造性无效（不具备创造性）')
+    expect(invalidNovelty).not.toContain('创造性缺陷')
+  })
+
   it('throws setup_required for graph mode without a model', async () => {
     await expect(
       createPatentWorkflowRunTool().execute({ graph: 'novelty', input: 'x' }, exec),

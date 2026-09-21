@@ -1,0 +1,8 @@
+version: 1
+scenario: patent-writing-patterns
+profile: headless
+composition: patent-writing-patterns
+recording: live
+header:
+  class: patent-writing-patterns
+  pin: true

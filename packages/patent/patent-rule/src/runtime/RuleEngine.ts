@@ -169,10 +169,17 @@ function confidenceViolation(noun: string, confidence: number, missing: string[]
 /** evaluateText 可选评估选项。 */
 export type EvaluateTextOptions = {
   /**
-   * 领域过滤（分层规则包场景）：已声明 `domain` 且与之不同的规则跳过；
-   * 未声明 `domain` 的规则（通用规则）始终评估。缺省不过滤（向后兼容）。
+   * 领域过滤（分层规则包与作业 scope 场景）：单个域或域列表；已声明 `domain`
+   * 且不在其中的规则跳过，未声明 `domain` 的规则（通用规则）始终评估。
+   * 空串与空数组等同于不过滤。缺省不过滤（向后兼容）。
    */
-  domain?: string
+  domain?: string | readonly string[]
+}
+
+/** 归一化域过滤参数：undefined / "" / 空数组 → 不过滤；单字符串 → 单元素数组。 */
+function normalizeDomains(rawDomain: string | readonly string[] | undefined): readonly string[] {
+  if (rawDomain === undefined || rawDomain === '') return []
+  return typeof rawDomain === 'string' ? [rawDomain] : rawDomain
 }
 
 /**
@@ -190,8 +197,9 @@ export function evaluateText(
   options?: EvaluateTextOptions,
 ): RuleEvaluation {
   const violations: RuleViolation[] = []
+  const domains = normalizeDomains(options?.domain)
   for (const rule of ruleSet.rules) {
-    if (options?.domain !== undefined && rule.domain && rule.domain !== options.domain) continue
+    if (domains.length > 0 && rule.domain && !domains.includes(rule.domain)) continue
     const found = evaluateRule(rule, text, synonyms)
     if (found !== null) violations.push(found)
   }

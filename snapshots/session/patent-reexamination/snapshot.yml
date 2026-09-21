@@ -1,0 +1,20 @@
+version: 1
+scenario: patent-reexamination
+profile: headless
+composition: patent-jobs
+recording: live
+header:
+  class: patent-jobs
+workspace:
+  final: true
+input:
+  task: |
+    这是一件驳回复审（复审答复）作业。只做下面两步，不调用其它工具，不使用 shell，不读写工作区里的其它文件。
+
+    第 1 步：调用 parse_office_action，text 参数传下面这段驳回决定原文，必须逐字原样传入（不要改写、不要省略）：
+
+    本复审请求涉及申请号为 202320123456.7 的实用新型专利申请。审查员认为权利要求 1-2 不具备创造性，不符合专利法第 22 条第 3 款的规定。对比文件 1（CN201234567U，X 类）公开了权利要求 1 中记载的连接结构。此外，权利要求 2 的技术特征不清楚，不符合专利法第 26 条第 4 款的规定；申请人对权利要求的修改超出原说明书记载的范围，不符合专利法第 33 条的规定。因此该申请不具备授权前景。
+
+    第 2 步：调用 patent_workflow，参数 manifestId 传 patent_reexamination_v1，caseId 传 CN2024-0003，outputs 传六个阶段：stageId 依次为 parse、grounds、claim-chart、novelty、inventiveness、approval，每个阶段的 text 各写一句中文（parse 写驳回决定要点，grounds 写援引的复审理由，claim-chart 写要素级映射要点，novelty 写单篇对比结论，inventiveness 写三步法结论，approval 写"已人工确认"）。
+
+    最后用一句话说明两步各自的结果。

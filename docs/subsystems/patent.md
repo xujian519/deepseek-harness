@@ -322,7 +322,24 @@ Source: [`packages/patent/patent-workflow/src/index.ts`](../../packages/patent/p
  */
 interface PatentModelPort {
   stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>
+  /**
+   * Fixed provider route this port sends on. A model-call log records it as the
+   * call's envelope, so "which provider/model produced this stage output" is
+   * answerable without the port's creator; a fail-loud or injected test port has
+   * no route and logs none.
+   */
+  route?: { provider: string; model: string }
+  /**
+   * Rebind this port to one session identity, so every request it serves carries
+   * `sessionId` on the harness call. A call a plugin makes outside the agent loop
+   * is otherwise unattributable, and the keyless replay (which keys recorded
+   * scripts by session) cannot re-serve it. Absent on injected test ports, whose
+   * calls never need to bind to a recorded script.
+   * @param sessionId - the session whose log records the calls.
+   * @returns a port serving the same route under that session identity.
+   */
+  bindSession?(sessionId: NonNullable<GenerateOptions['sessionId']>): PatentModelPort
 }
 ```
 
-The P2.1 adapter `createLlmModelPort(stream, { provider, model })` maps the dsh `LlmRuntime.stream(options: GenerateOptions): AsyncIterable<StreamChunk>` vocabulary into `PatentModelRequest`/`PatentModelEvent` canonical form, and `collectPortText` bridges the port back to the string the LLM-dependent atoms use; provider selection stays with the harness `ctx.llm` adapters and the `agent/request` waterfall (the Sati router is not ported).
+The P2.1 adapter `createLlmModelPort(stream, { provider, model })` maps the dsh `LlmRuntime.stream(options: GenerateOptions): AsyncIterable<StreamChunk>` vocabulary into `PatentModelRequest`/`PatentModelEvent` canonical form, and `collectPortText` bridges the port back to the string the LLM-dependent atoms use; provider selection stays with the harness `ctx.llm` adapters and the `agent/request` waterfall (the Sati router is not ported). A tool that calls the model from inside its own body binds the port with `bindSession(agent.session.id)` first, so the call carries the session identity and `patent/model-call` can record it (see [patent-workflow](../../packages/patent/patent-workflow/README.md)).

@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。下表映射各包的分工；各包契约由子 README 负责，在对应计划阶段落地前所有包均处于脚手架阶段。
+patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植为 harness 插件：无 Sati 进程、无 MCP 桥——专利引擎、工具、规则门禁与知识访问以 `@deepseek-ai/dsh-patent-*` workspace 包运行。下表映射各包的分工，各包契约由子 README 负责。
 
 ## 包
 
@@ -25,10 +25,12 @@ patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植�
 | [`patent-teams/`](patent-teams/README.zh.md) | 持久多智能体团队：队长领导成员、依赖感知任务、邮箱消息、共享任务调度器。 | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.zh.md) | 规则引擎、合规资产、`tools/post-execute` 输出门禁。 | （策略插件） |
 | [`patent-document/`](patent-document/README.zh.md) | 专利文书渲染：模板、品牌注入、PDF。 | （注册于 `ctx.tools`） |
+| [`patent-deadline/`](patent-deadline/README.zh.md) | 专利期限：期限计算、送达日、届满日顺延。 | （注册于 `ctx.tools`） |
+| [`writing-patterns/`](writing-patterns/README.zh.md) | 撰写模式语料、词法选择、`<writing_skills>` 编译、质量评分。 | （注册于 `ctx.tools` + section） |
 | [`tool-literature/`](tool-literature/README.zh.md) | 文献连接器：arXiv/OpenAlex/Semantic Scholar/Crossref。 | （注册于 `ctx.tools`） |
 | [`methodology/`](methodology/README.zh.md) | TRIZ 40 原理 + 39×39 矛盾矩阵。 | （section + 工具） |
 
-各包契约由子 README 负责。在对应计划阶段落地前，所有包均处于脚手架阶段。
+各包契约由子 README 负责。
 
 ## Related documentation
 

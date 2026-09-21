@@ -1,0 +1,54 @@
+{
+  "manifestId": "patent_invalidation_v1",
+  "caseType": "invalidation_analysis",
+  "completed": true,
+  "stages": [
+    {
+      "stageId": "parse",
+      "strategy": "chain",
+      "output": "请求人提交的无效宣告请求书针对授权公告的权利要求 1-5 提出无效，程序文书要点为：请求人主体适格、请求期限与费用符合规定，请求范围明确，合议组已向专利权人转送请求书及证据副本并指定答复期限。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "grounds",
+      "strategy": "chain",
+      "output": "本请求援引的无效理由为：权利要求 1-5 不具备专利法第二十二条第三款规定的创造性，并援引对比文件 1、对比文件 2 与对比文件 3 作为现有技术证据。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "grounds"
+    },
+    {
+      "stageId": "claim-chart",
+      "strategy": "chain",
+      "output": "要素级映射要点为：将权利要求 1 拆分为阀体、伴热夹套、介质通道及连接结构等要素，逐要素比对对比文件 1 的公开内容，并标注各要素的公开位置与差异特征。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "claim-chart"
+    },
+    {
+      "stageId": "novelty",
+      "strategy": "chain",
+      "output": "单篇对比结论为：对比文件 1 未公开权利要求 1 中伴热夹套与阀体之间的螺旋导流结构特征，故权利要求 1 相对于对比文件 1 具备新颖性。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "inventiveness",
+      "strategy": "chain",
+      "output": "三步法结论为：以对比文件 1 为最接近现有技术，区别特征为螺旋导流结构，其解决的技术问题是提高伴热均匀性，且该区别特征未在对比文件 2、3 中给出技术启示，故权利要求 1 具备创造性。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "approval",
+      "strategy": "chain",
+      "output": "已人工确认",
+      "degraded": false,
+      "retries": 0,
+      "atom": "approval-gate"
+    }
+  ],
+  "degradedSteps": [],
+  "summary": "工作流 patent_invalidation_v1（无效宣告分析）: 6/6 阶段完成"
+}

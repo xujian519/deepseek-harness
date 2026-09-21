@@ -1,10 +1,15 @@
 /**
- * src/patent/workflow — 内置 manifest 数据（7 个 + 目录）。
+ * src/patent/workflow — 内置 manifest 数据（8 个 + 目录）。
  *
  * 纯数据常量，零执行依赖。类型契约（WorkflowManifest）来自 dsh-patent-core。
+ *
+ * 收口（未声明 atom）阶段一律用 `consumes` 列出其数据依赖的上游阶段：阶段描述与 guidance
+ * 都不携带上游产出，未声明即读不到（如三步法第二步须看到第一步选定的最接近现有技术）。
+ * 无效宣告与复审共用 `buildContestedManifest`：阶段骨架相同，程序口径（理由表、图表模式）
+ * 由选项给定。
  */
 
-import type { WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
+import type { ChartMode, GroundProgram, WorkflowManifest } from '@deepseek-ai/dsh-patent-core'
 
 /**
  * 内置：专利新颖性分析五阶段 manifest（镜像 Mady patent_novelty.yaml 与 novelty_chain 模板）。
@@ -15,9 +20,19 @@ export const patentNoveltyManifest: WorkflowManifest = {
   caseType: 'novelty_search',
   stages: [
     { id: 'parse', strategy: 'chain', description: '解析技术交底书，提取技术特征' },
-    { id: 'search', strategy: 'react', description: '检索现有技术文献' },
-    { id: 'compare', strategy: 'chain', description: '逐项对比技术特征与现有技术（单独对比原则）' },
-    { id: 'conclude', strategy: 'chain', description: '生成新颖性分析结论（附置信度）' },
+    { id: 'search', strategy: 'react', description: '检索现有技术文献', consumes: ['parse'] },
+    {
+      id: 'compare',
+      strategy: 'chain',
+      description: '逐项对比技术特征与现有技术（单独对比原则）',
+      consumes: ['parse', 'search'],
+    },
+    {
+      id: 'conclude',
+      strategy: 'chain',
+      description: '生成新颖性分析结论（附置信度）',
+      consumes: ['search', 'compare'],
+    },
     {
       id: 'approval',
       strategy: 'chain',
@@ -70,6 +85,7 @@ export const patentDisclosureManifest: WorkflowManifest = {
       id: 'consistency',
       strategy: 'chain',
       description: 'PFE 一致性检查（特征-效果因果链闭合、无孤立特征）',
+      consumes: ['merge', 'groundedness'],
       retry: {
         whenOutputMatches: '不一致|矛盾|缺少|孤立',
         rewindTo: 'extract_problem',
@@ -84,7 +100,12 @@ export const patentDisclosureManifest: WorkflowManifest = {
       description: '逐特征新颖性初判（单独对比原则 + 证据引用）',
       atom: 'novelty',
     },
-    { id: 'report', strategy: 'chain', description: '生成披露分析报告（创新点/保护建议）' },
+    {
+      id: 'report',
+      strategy: 'chain',
+      description: '生成披露分析报告（创新点/保护建议）',
+      consumes: ['merge', 'novelty'],
+    },
     {
       id: 'review_gate',
       strategy: 'chain',
@@ -130,11 +151,13 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'search',
       strategy: 'react',
       description: '检索现有技术文献，筛选最接近现有技术候选（技术领域→技术问题→发明构思）',
+      consumes: ['parse'],
     },
     {
       id: 'closest',
       strategy: 'chain',
       description: '三步法 Step1：确定最接近的现有技术（候选多时逐个试判）',
+      consumes: ['parse', 'search'],
       guidance:
         '边界条件：现有技术证据缺失时，基于技术领域与权利要求主题推断合理的最接近现有技术作为对比基准，并明示其公开了哪些特征；不得仅凭方案复杂或参数特殊直接断定具备创造性——已知手段的简单变体且无预料不到效果时，倾向不具备创造性。',
     },
@@ -142,6 +165,7 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'diff',
       strategy: 'chain',
       description: '三步法 Step2：实质对比确定区别技术特征，客观确定实际解决的技术问题（不得包含解决手段）',
+      consumes: ['closest'],
       guidance:
         '实际解决的技术问题基于区别特征的客观作用重新确定，区别于说明书记载的发明目的；技术问题不得是区别特征本身，也不得包含对该特征的指引。',
     },
@@ -149,6 +173,7 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'hint',
       strategy: 'chain',
       description: '三步法 Step3：技术启示判断（改进动机/结合启示/公知常识/发明构思/逻辑推理与有限试验）',
+      consumes: ['diff'],
       guidance:
         '边界条件：①软件/算法/网络方案——区别特征仅为已知逻辑或流程的简单重组且无显著技术效果，或对标准协议的非标准修改但未克服技术障碍时，倾向不具备创造性；不得把非标准或看似复杂的配置误认为创造性特征。②组合方案——依次判断：区别特征是否属于公知常识、本领域技术人员是否有动机将其结合到最接近现有技术、是否存在阻止结合的相反教导；存在相反教导或结合并非显而易见时，倾向具备创造性。',
     },
@@ -156,8 +181,14 @@ export const patentInventivenessManifest: WorkflowManifest = {
       id: 'secondary',
       strategy: 'chain',
       description: '辅助判断因素复核（预料不到的技术效果/长期渴望难题/克服技术偏见/商业成功）',
+      consumes: ['diff'],
     },
-    { id: 'conclude', strategy: 'chain', description: '生成创造性结论（高/中/低/无，附置信度）+ 反事后诸葛亮自检' },
+    {
+      id: 'conclude',
+      strategy: 'chain',
+      description: '生成创造性结论（高/中/低/无，附置信度）+ 反事后诸葛亮自检',
+      consumes: ['diff', 'hint', 'secondary'],
+    },
     {
       id: 'approval',
       strategy: 'chain',
@@ -185,7 +216,12 @@ export const patentPatentabilityManifest: WorkflowManifest = {
       atom: 'claim-chart',
       params: { chart_mode: 'patentability' },
     },
-    { id: 'draft', strategy: 'chain', description: '基于区别特征布局权利要求（规避 D1）（原子路径不支持，收口模式）' },
+    {
+      id: 'draft',
+      strategy: 'chain',
+      description: '基于区别特征布局权利要求（规避 D1）（原子路径不支持，收口模式）',
+      consumes: ['parse', 'claim-chart'],
+    },
     {
       id: 'approval',
       strategy: 'chain',
@@ -208,17 +244,8 @@ export const patentOaResponseManifest: WorkflowManifest = {
     {
       id: 'parse',
       strategy: 'chain',
-      description: '解析审查意见与权利要求',
-      guidance: [
-        '先解析驳回理由类型，再定主策略。类型对照表：',
-        '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
-        '- B-不清楚/不支持（26.4）：权利要求不清楚或得不到说明书支持 → 从说明书中找对应记载做支持性论证',
-        '- C-新颖性（22.2）：被单篇对比文件公开 → 找出未公开的区别特征，坚持单篇单独对比',
-        '- D-创造性（22.3）：现有技术组合显而易见 → 走三步法论证非显而易见性',
-        '- E-实用性（22.4）：不能制造或使用 → 举证工业化实施可能性',
-        '- F-客体（25条/第5条）：不授权客体 → 论证构成技术方案且产生技术效果',
-        '多种类型并存时，以最核心的驳回理由确定主策略，其余逐条处理。',
-      ].join('\n'),
+      description: '解析审查意见通知书（确定性）：驳回类型、引用文献、涉及权项、审查员论点',
+      atom: 'oa-parse',
     },
     {
       id: 'claim-chart',
@@ -230,8 +257,17 @@ export const patentOaResponseManifest: WorkflowManifest = {
     {
       id: 'draft',
       strategy: 'chain',
-      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费 claim-chart）',
+      description: '撰写意见陈述书（新颖性陈述 + 三步法，消费解析结果与 claim-chart）',
+      consumes: ['parse', 'claim-chart'],
       guidance: [
+        '驳回类型对照表（先按解析结果定主策略，再逐条处理；多种类型并存时以最核心的驳回理由确定主策略）：',
+        '- A-充分公开（专利法26.3）：说明书未清楚完整说明 → 举证实施例、实验数据与本领域可实现性',
+        '- B-不清楚/不支持（26.4）：权利要求不清楚或得不到说明书支持 → 从说明书中找对应记载做支持性论证',
+        '- C-新颖性（22.2）：被单篇对比文件公开 → 找出未公开的区别特征，坚持单篇单独对比',
+        '- D-创造性（22.3）：现有技术组合显而易见 → 走三步法论证非显而易见性',
+        '- E-实用性（22.4）：不能制造或使用 → 举证工业化实施可能性',
+        '- F-客体（25条/第5条）：不授权客体 → 论证构成技术方案且产生技术效果',
+        '',
         '答复方向四选一并说明理由：①纯争辩（不修改）——事实认定有误/结合无技术启示/区别特征认定错误；②修改+争辩——将从属特征并入独权即可克服；③混合策略——重写权利要求（增补区别特征/重新划界）并争辩剩余争议；④放弃答复——缺陷无法克服（如公开不充分涉及全部实施例），须明示当事人。',
         '三步法争辩：第一步锁定最接近现有技术；第二步逐条列出区别特征，按其客观作用确定实际解决的技术问题（不得包含区别特征自身的指引）；第三步反驳结合启示与公知常识认定，强调预料不到的技术效果。',
         '撰写规范：逐条答复每项被驳权利要求；引用对比文件具体段落指出区别；修改时在答复书中列出修改后权利要求全文且不得超出原记载范围（A33）；禁止编造实验数据，禁止无逻辑链的空泛断言。',
@@ -249,34 +285,103 @@ export const patentOaResponseManifest: WorkflowManifest = {
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
 
-/**
- * 内置：无效宣告/复审答复 manifest（无效/复审双场景）。
- */
-export const patentInvalidationManifest: WorkflowManifest = {
-  id: 'patent_invalidation_v1',
-  name: '无效/复审答复',
-  caseType: 'invalidation_analysis',
-  stages: [
-    { id: 'parse', strategy: 'chain', description: '解析无效请求/驳回决定与权利要求' },
-    {
-      id: 'claim-chart',
-      strategy: 'chain',
-      description: '权利要求要素级映射到证据组合（mode=invalidity/reexamination）',
-      atom: 'claim-chart',
-      params: { chart_mode: 'invalidity' },
-    },
-    { id: 'novelty', strategy: 'chain', description: '新颖性单独对比（单篇全覆盖）（原子路径不支持，收口模式）' },
-    { id: 'inventiveness', strategy: 'chain', description: '三步法创造性分析（原子路径不支持，收口模式）' },
-    {
-      id: 'approval',
-      strategy: 'chain',
-      description: '人工确认分析结论',
-      atom: 'approval-gate',
-      params: { review_context: '无效/复审分析结论需人工确认后方可交付' },
-    },
-  ],
-  validation: { requireAllSteps: true, maxRetries: 2 },
+/** 无效宣告与复审答复共用的阶段骨架选项。 */
+type ContestedManifestOptions = {
+  /** manifest id。 */
+  id: string
+  /** manifest 名称（进 run 摘要）。 */
+  name: string
+  /** 案由。 */
+  caseType: string
+  /** 程序中称（无效宣告 / 复审），进阶段描述与人工确认提示。 */
+  label: string
+  /** 理由表口径：无效宣告用无效理由表，复审用复审理由表（多一项实用新型客体缺陷）。 */
+  program: GroundProgram
+  /** 图表模式：决定提示词里的场景模式与落盘 chartId（同案不同模式互不覆盖）。 */
+  chartMode: ChartMode
+  /** `grounds` 阶段描述：两种程序的理由表不同，描述须各自点名。 */
+  groundsDescription: string
 }
+
+/**
+ * 构建无效宣告/复审 manifest：两种程序的阶段骨架相同，差异只在确定性阶段的程序口径。
+ *
+ * 共用一处阶段列表，避免两份清单各自漂移（如补了 `consumes` 只补一边）。
+ * @param options - 程序口径（id、名称、案由、程序中称、理由表、图表模式、理由阶段描述）。
+ * @returns 该程序的 manifest。
+ */
+function buildContestedManifest(options: ContestedManifestOptions): WorkflowManifest {
+  return {
+    id: options.id,
+    name: options.name,
+    caseType: options.caseType,
+    stages: [
+      { id: 'parse', strategy: 'chain', description: `解析${options.label}程序文书与权利要求` },
+      {
+        id: 'grounds',
+        strategy: 'chain',
+        description: options.groundsDescription,
+        atom: 'grounds',
+        params: { ground_program: options.program },
+      },
+      {
+        id: 'claim-chart',
+        strategy: 'chain',
+        description: `权利要求要素级映射到证据组合（mode=${options.chartMode}）`,
+        atom: 'claim-chart',
+        params: { chart_mode: options.chartMode },
+      },
+      {
+        id: 'novelty',
+        strategy: 'chain',
+        description: '新颖性单独对比（单篇全覆盖）（原子路径不支持，收口模式）',
+        consumes: ['grounds', 'claim-chart'],
+      },
+      {
+        id: 'inventiveness',
+        strategy: 'chain',
+        description: '三步法创造性分析（原子路径不支持，收口模式）',
+        consumes: ['grounds', 'claim-chart'],
+      },
+      {
+        id: 'approval',
+        strategy: 'chain',
+        description: '人工确认分析结论',
+        atom: 'approval-gate',
+        params: { review_context: `${options.label}分析结论需人工确认后方可交付` },
+      },
+    ],
+    validation: { requireAllSteps: true, maxRetries: 2 },
+  }
+}
+
+/** 内置：无效宣告分析 manifest（请求人侧的无效理由组合或专利权人侧的答复）。 */
+export const patentInvalidationManifest: WorkflowManifest = buildContestedManifest({
+  id: 'patent_invalidation_v1',
+  name: '无效宣告分析',
+  caseType: 'invalidation_analysis',
+  label: '无效宣告',
+  program: 'invalidation',
+  chartMode: 'invalidity',
+  groundsDescription: '识别请求援引的法定理由（确定性，无效理由表）',
+})
+
+/**
+ * 内置：复审答复 manifest（驳回复审）。
+ *
+ * 与无效宣告同骨架、程序口径不同：理由表取复审表（多一项实用新型客体缺陷，《专利法》
+ * 第 2 条第 3 款），`grounds` 另输出专利权类型；图表模式取 `reexamination`。实用新型是否
+ * 判创造性见 `notice/grounds.ts` 的口径——保留命中的创造性理由、专利权类型单独输出。
+ */
+export const patentReexaminationManifest: WorkflowManifest = buildContestedManifest({
+  id: 'patent_reexamination_v1',
+  name: '复审答复',
+  caseType: 'reexamination_analysis',
+  label: '复审',
+  program: 'reexamination',
+  chartMode: 'reexamination',
+  groundsDescription: '识别驳回决定援引的理由（确定性，复审理由表含实用新型客体缺陷）',
+})
 
 /**
  * 内置：侵权比对 manifest（侵权场景）。
@@ -295,9 +400,16 @@ export const patentInfringementManifest: WorkflowManifest = {
       params: { chart_mode: 'infringement' },
     },
     {
+      id: 'coverage',
+      strategy: 'chain',
+      description: '全面覆盖与等同一致性核验（确定性）：逐被控产品四态结论 + 等同未认定清单',
+      atom: 'coverage',
+    },
+    {
       id: 'report',
       strategy: 'chain',
       description: '生成侵权比对报告（全面覆盖 + 等同 + 现有技术抗辩）',
+      consumes: ['parse', 'claim-chart', 'coverage'],
       guidance: [
         '报告结构：权利要求解释与保护范围界定 → 逐项特征比对表 → 全面覆盖判断 → 等同分析（仅在有差异特征时）→ 结论。',
         '等同按手段-功能-效果三要素逐项检验，并核查三项限制：①禁止反悔——审查历史中放弃的内容不得以等同重新纳入；②捐献规则——说明书有记载但未写入权利要求的方案视为捐献；③现有技术抗辩成立时不构成侵权。',
@@ -316,25 +428,14 @@ export const patentInfringementManifest: WorkflowManifest = {
   validation: { requireAllSteps: true, maxRetries: 2 },
 }
 
-/**
- * 内置 manifest 目录（单一数据源）。
- */
-export type BuiltinPatentManifest = {
-  manifest: WorkflowManifest
-  /** 收口时确定性规则门检查域（caseType 推导的默认值）。 */
-  checkDomains: readonly string[]
-}
-
-/** 内置 patent workflow manifest 实例清单。 */
-export const builtinPatentManifests: readonly BuiltinPatentManifest[] = [
-  { manifest: patentNoveltyManifest, checkDomains: ['patent_novelty'] },
-  { manifest: patentDisclosureManifest, checkDomains: ['patent_disclosure', 'patent_claims'] },
-  { manifest: patentInventivenessManifest, checkDomains: ['patent_inventiveness'] },
-  { manifest: patentPatentabilityManifest, checkDomains: ['patent_novelty'] },
-  { manifest: patentOaResponseManifest, checkDomains: ['patent_claims', 'patent_inventiveness'] },
-  {
-    manifest: patentInvalidationManifest,
-    checkDomains: ['patent_invalidation', 'patent_novelty', 'patent_inventiveness'],
-  },
-  { manifest: patentInfringementManifest, checkDomains: ['patent_infringement'] },
+/** 内置 patent workflow manifest 实例清单（单一数据源）。 */
+export const builtinPatentManifests: readonly WorkflowManifest[] = [
+  patentNoveltyManifest,
+  patentDisclosureManifest,
+  patentInventivenessManifest,
+  patentPatentabilityManifest,
+  patentOaResponseManifest,
+  patentInvalidationManifest,
+  patentReexaminationManifest,
+  patentInfringementManifest,
 ]

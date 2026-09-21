@@ -54,7 +54,7 @@ export {
   patentNoveltyManifest,
   patentOaResponseManifest,
   patentPatentabilityManifest,
-  type BuiltinPatentManifest,
+  patentReexaminationManifest,
 } from './workflow/manifests.ts'
 export { runStageOnce, type RunStageOnceOptions } from './workflow/executor.ts'
 export { compileSignal, signalFor, signalMatches } from './workflow/signal.ts'
@@ -66,7 +66,8 @@ export { compileSignal, signalFor, signalMatches } from './workflow/signal.ts'
  * - 审批门等中断（InterruptStageError）：暂停执行并返回 interrupted（不执行后续阶段）
  * @param manifest - 工作流清单。
  * @param ctx - 工作流上下文。
- * @param executor - 可选调用方阶段执行器（未声明 atom 的阶段回退使用）。
+ * @param executor - 可选调用方阶段执行器（未声明 atom 的阶段回退使用；接收已累积的执行态，
+ *                   按 `stage.consumes` 取上游阶段输出）。
  * @param options - 可选执行配置（handlers/atoms/provider/approvalGrants/persist/runId）。
  * @returns 工作流执行结果。
  */
@@ -137,7 +138,14 @@ export async function runWorkflow(
     while (index + window < manifest.stages.length && window < MAX_PARALLEL_STAGES) {
       const candidate = manifest.stages[index + window]
       if (candidate === undefined) break
-      if (candidate.retry !== undefined || candidate.atom !== groupAtom || groupAtom === undefined) break
+      // 声明 consumes 的阶段排除在并行窗口外：同组阶段并发读写同一 state，
+      // 它可能读到同组上游尚未合并的产出。
+      if (
+        candidate.retry !== undefined ||
+        candidate.consumes !== undefined ||
+        candidate.atom !== groupAtom ||
+        groupAtom === undefined
+      ) break
       window += 1
     }
 

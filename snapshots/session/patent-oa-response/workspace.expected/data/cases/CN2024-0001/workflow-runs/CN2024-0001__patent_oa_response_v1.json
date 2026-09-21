@@ -1,0 +1,40 @@
+{
+  "manifestId": "patent_oa_response_v1",
+  "caseType": "oa_response",
+  "completed": true,
+  "stages": [
+    {
+      "stageId": "parse",
+      "strategy": "chain",
+      "output": "驳回类型为：权利要求 1-3 不具备创造性（专利法第 22 条第 3 款），另有权利要求 3 保护范围不清楚（专利法第 26 条第 4 款）。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "oa-parse"
+    },
+    {
+      "stageId": "claim-chart",
+      "strategy": "chain",
+      "output": "要素级映射要点：权利要求 1-3 的阀体与直管加热结构已被对比文件 1（CN101234567A，X 类）公开，螺旋形加热介质通道由对比文件 2（CN2345678B，Y 类）公开，故需逐要素比对该两篇文献的公开范围与结合启示。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "claim-chart"
+    },
+    {
+      "stageId": "draft",
+      "strategy": "chain",
+      "output": "答复策略：主张对比文件 1 与对比文件 2 不存在结合启示、螺旋形通道在对比文件 2 中的作用机理与本发明不同，并同时修改权利要求 3 以克服不清楚缺陷。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "approval",
+      "strategy": "chain",
+      "output": "已人工确认",
+      "degraded": false,
+      "retries": 0,
+      "atom": "approval-gate"
+    }
+  ],
+  "degradedSteps": [],
+  "summary": "工作流 patent_oa_response_v1（审查意见答复）: 4/4 阶段完成"
+}

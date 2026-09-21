@@ -11,7 +11,7 @@
 
 import { validateWorkflowManifest } from '../workflow/manifest.ts'
 import { signalMatches } from '../workflow/signal.ts'
-import type { WorkflowContext, WorkflowManifest, WorkflowStage } from '../workflow/types.ts'
+import type { StageExecutor, WorkflowManifest, WorkflowStage } from '../workflow/types.ts'
 import { clearStageOutputs } from '../workflow/stage-outputs.ts'
 import type { AtomRegistry, StageHandler, StageHandlerRegistry } from '../atoms/index.ts'
 import type { StageProvider } from '../types.ts'
@@ -72,8 +72,8 @@ export type ManifestToGraphDeps = {
   handlers?: StageHandlerRegistry
   /** 缺省 globalAtomRegistry（解析 atom.outputSchema[0] 主输出键）。 */
   atoms?: AtomRegistry
-  /** 未声明 atom 阶段的执行器（对齐 runWorkflow 的 executor 参数）。 */
-  executor?: (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>
+  /** 未声明 atom 阶段的执行器（与 runWorkflow 的 executor 参数同一类型）。 */
+  executor?: StageExecutor
   provider?: StageProvider
 }
 
@@ -167,7 +167,9 @@ function makeStageNode(
       const existingOutput = execState[stage.id] as string | undefined
       if (output.trim().length === 0) output = existingOutput ?? ''
     } else if (deps.executor !== undefined) {
-      output = await deps.executor(stage, execState)
+      // 图路径的执行态同时充当 executor 的运行上下文（图以 ctx 为初始状态），
+      // 故第二、三参数同为 execState，与 runWorkflow 的 (stage, ctx, state) 语义一致。
+      output = await deps.executor(stage, execState, execState)
     }
     delta[stage.id] = output
     if (output.trim().length === 0 && handler === undefined && deps.executor === undefined) {

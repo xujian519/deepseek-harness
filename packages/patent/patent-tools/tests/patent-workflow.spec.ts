@@ -174,7 +174,7 @@ describe('workflow-helpers', () => {
       runsDir: temp,
       runId: 'case__patent_novelty_v1',
     }
-    const manifest = builtinPatentManifests.find(m => m.manifest.id === 'patent_novelty_v1')?.manifest
+    const manifest = builtinPatentManifests.find(m => m.id === 'patent_novelty_v1')
     if (manifest === undefined) throw new Error('manifest missing')
     const result = {
       manifestId: 'patent_novelty_v1',
@@ -200,6 +200,17 @@ describe('workflow-helpers', () => {
     expect(stageFlagAndPreview({ stageId: 's', strategy: 'chain', output: '', degraded: false, retries: 0 })).toEqual({ flag: '✅', preview: '(无输出)' })
     expect(stageFlagAndPreview({ stageId: 's', strategy: 'chain', output: '短', degraded: true, retries: 0 })).toEqual({ flag: '⚠️ 降级', preview: '短' })
     const long = stageFlagAndPreview({ stageId: 's', strategy: 'chain', output: '长'.repeat(90), degraded: false, retries: 0 })
-    expect(long.preview).toContain('…')
+    expect(long.preview).toBe(`${'长'.repeat(80)}…（截断，完整内容见 run 记录）`)
+  })
+
+  it('atom 阶段的预览上限宽于 executor 阶段（原子输出模型无处可读，需完整呈现）', () => {
+    const output = `${'补'.repeat(120)}{"outcome":"not-covered"}`
+    const executor = stageFlagAndPreview({ stageId: 's', strategy: 'chain', output, degraded: false, retries: 0 })
+    const atom = stageFlagAndPreview({ stageId: 's', strategy: 'chain', atom: 'coverage', output, degraded: false, retries: 0 })
+    expect(executor.preview).not.toContain('outcome')
+    expect(atom.preview).toContain('outcome')
+    expect(atom.preview).not.toContain('截断')
+    const huge = stageFlagAndPreview({ stageId: 's', strategy: 'chain', atom: 'coverage', output: 'x'.repeat(2500), degraded: false, retries: 0 })
+    expect(huge.preview).toBe(`${'x'.repeat(2000)}…（截断，完整内容见 run 记录）`)
   })
 })

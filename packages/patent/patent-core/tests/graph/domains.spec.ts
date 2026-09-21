@@ -407,3 +407,63 @@ it('citation-check: 注册进 DOMAIN_GRAPHS（工具层可按名取构建函数�
   const graph = DOMAIN_GRAPHS['citation-check'].build().compile('check')
   expect(graph.describe().nodes).toContain('check')
 })
+
+// ---------------------------------------------------------------------------
+// numeric_range 节点：确定性轨与语义轨的接线
+// ---------------------------------------------------------------------------
+
+/** 数值范围专项判定返回指定结论，其余提示词原样回显（便于断言提示词内容）。 */
+function verdictProvider(verdict: string): StageProvider {
+  return {
+    callLLM: async (prompt: string) =>
+      prompt.includes('专项新颖性判定') ? JSON.stringify({ verdict, assessments: [] }) : prompt,
+  }
+}
+
+const NUMERIC_TEXT = '一种分拣装置，温度范围为 50-80°C'
+
+it('numeric_range: 无 LLM 时确定性轨仍进状态（降级文本保留）', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph.compile('extract').run({ text: NUMERIC_TEXT, prior_art: [{ title: 'D1', snippet: '温度 60-90°C' }] })
+  expect(String(r.state.numeric_range_result)).toMatch(/需 LLM 专项判定/)
+  expect(r.state.numeric_range_verdict).toBe('overlapped')
+  expect(r.state.numeric_range_agreement).toBe('n_a')
+  expect(String(r.state.numeric_range_deterministic)).toContain('破坏性数值重叠')
+})
+
+it('numeric_range: 语义轨结论一致时记为 agree', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph
+    .compile('extract')
+    .run({ text: NUMERIC_TEXT, prior_art: [{ title: 'D1', snippet: '温度 60-90°C' }] }, { provider: verdictProvider('overlapped') })
+  expect(r.state.numeric_range_verdict).toBe('overlapped')
+  expect(r.state.numeric_range_agreement).toBe('agree')
+  expect(String(r.state.numeric_range_deterministic)).not.toContain('与语义轨结论不一致')
+})
+
+it('numeric_range: 语义轨结论相反时记为 disagree 并在摘要中点名', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph
+    .compile('extract')
+    .run({ text: NUMERIC_TEXT, prior_art: [{ title: 'D1', snippet: '温度 60-90°C' }] }, { provider: verdictProvider('no_overlap') })
+  expect(r.state.numeric_range_agreement).toBe('disagree')
+  expect(String(r.state.numeric_range_deterministic)).toContain('与语义轨结论不一致，请重点复核')
+})
+
+it('numeric_range: 确定性与语义轨两条结论都进结论节点的提示词', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph
+    .compile('extract')
+    .run({ text: NUMERIC_TEXT, prior_art: [{ title: 'D1', snippet: '温度 60-90°C' }] }, { provider: verdictProvider('overlapped') })
+  const report = String(r.state.novelty_report)
+  expect(report).toContain('【数值范围确定性核验】')
+  expect(report).toContain('破坏性数值重叠')
+  expect(report).toContain('【数值范围专项判定】')
+})
+
+it('numeric_range: 无对比文件数值表述时结论为无法判定', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph.compile('extract').run({ text: NUMERIC_TEXT, prior_art: [{ title: 'D1', snippet: '公开传送带' }] })
+  expect(r.state.numeric_range_verdict).toBe('inconclusive')
+  expect(String(r.state.numeric_range_deterministic)).toContain('无法判定')
+})

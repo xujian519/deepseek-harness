@@ -7061,6 +7061,122 @@
       }
     },
     {
+      "key": "event:patent/model-call",
+      "kind": "event",
+      "event": "patent/model-call",
+      "surface": false,
+      "digest": "556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "callSite",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "llmStreamCall",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "usage",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputTokens",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "outputTokens",
+                "type": 5,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "patent/model-call"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:patent/plantask",
       "kind": "event",
       "event": "patent/plantask",
@@ -25950,7 +26066,7 @@
         "packages/patent/patent-workflow/src/types.ts#PatentPlantaskEvent"
       ],
       "sources": [
-        "packages/patent/patent-workflow/src/types.ts:39"
+        "packages/patent/patent-workflow/src/types.ts:80"
       ]
     },
     {
@@ -40080,6 +40196,122 @@
       ]
     },
     {
+      "digest": "556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "callSite",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "llmStreamCall",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "usage",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputTokens",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "outputTokens",
+                "type": 5,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "patent/model-call"
+          }
+        ]
+      },
+      "names": [
+        "event:patent/model-call"
+      ],
+      "sources": []
+    },
+    {
       "digest": "557e148d30b79ee48645850832b30c717d7c3b64641deb5d6133b8b4e91ee0b8",
       "schema": {
         "root": 0,
@@ -41185,9 +41417,9 @@
         ]
       },
       "names": [
-        "SessionEventEnvelope[58].sourceEventSeqs",
-        "SessionEventEnvelope[71].sourceEventSeqs",
-        "SessionEventEnvelope[74].sourceEventSeqs",
+        "SessionEventEnvelope[59].sourceEventSeqs",
+        "SessionEventEnvelope[72].sourceEventSeqs",
+        "SessionEventEnvelope[75].sourceEventSeqs",
         "event:assistant/attempt.data.stream[0][0].dt",
         "event:assistant/attempt.data.stream[0][1].dt",
         "event:assistant/attempt.data.stream[0][2].dt",
@@ -46211,7 +46443,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowStageResult"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:103"
+        "packages/patent/patent-core/src/workflow/types.ts:117"
       ]
     },
     {
@@ -47449,6 +47681,89 @@
       ],
       "sources": [
         "packages/feedback/message-feedback/src/types.ts:46"
+      ]
+    },
+    {
+      "digest": "7ca0801bc43ce8ba5e3f5bab12243dbc64d784f86257707ab8bbc494652fa8e5",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "callSite",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "llmStreamCall",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "model",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "usage",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputTokens",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "outputTokens",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:50"
       ]
     },
     {
@@ -49835,7 +50150,7 @@
         "packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt"
       ],
       "sources": [
-        "packages/patent/patent-core/src/workflow/types.ts:115"
+        "packages/patent/patent-core/src/workflow/types.ts:129"
       ]
     },
     {
@@ -52913,9 +53228,9 @@
         ]
       },
       "names": [
-        "SessionEventEnvelope[58]",
-        "SessionEventEnvelope[71]",
-        "SessionEventEnvelope[74]"
+        "SessionEventEnvelope[59]",
+        "SessionEventEnvelope[72]",
+        "SessionEventEnvelope[75]"
       ],
       "sources": []
     },
@@ -57875,6 +58190,20 @@
       "sources": []
     },
     {
+      "digest": "ae8f246e9a4be18f63f00ef7be9704017a65e2dd9e1f3f61955ad912b5ffb936",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "patent/model-call"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "aec150797b655c5f15ebb7a501454b0c208fbaccec9ace49d7de2171fc02f47d",
       "schema": {
         "root": 0,
@@ -57887,6 +58216,40 @@
       },
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "aec56c91a0f50f29e02ad4275af5df9aac630f165203c2f9d390f0ce40bbd43d",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputTokens",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "outputTokens",
+                "type": 1,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "packages/patent/patent-core/src/types.ts#PatentModelUsage"
+      ],
+      "sources": [
+        "packages/patent/patent-core/src/types.ts:45"
+      ]
     },
     {
       "digest": "aed6b240d36f9983865ad8043cee90edd51e0268ff81374695421308dbb9d439",
@@ -69146,7 +69509,7 @@
         "SessionEventEnvelope[55]",
         "SessionEventEnvelope[56]",
         "SessionEventEnvelope[57]",
-        "SessionEventEnvelope[59]",
+        "SessionEventEnvelope[58]",
         "SessionEventEnvelope[5]",
         "SessionEventEnvelope[60]",
         "SessionEventEnvelope[61]",
@@ -69160,10 +69523,11 @@
         "SessionEventEnvelope[69]",
         "SessionEventEnvelope[6]",
         "SessionEventEnvelope[70]",
-        "SessionEventEnvelope[72]",
+        "SessionEventEnvelope[71]",
         "SessionEventEnvelope[73]",
-        "SessionEventEnvelope[75]",
+        "SessionEventEnvelope[74]",
         "SessionEventEnvelope[76]",
+        "SessionEventEnvelope[77]",
         "SessionEventEnvelope[8]",
         "SessionEventEnvelope[9]"
       ],
@@ -72419,7 +72783,7 @@
         "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
       ],
       "sources": [
-        "packages/patent/patent-workflow/src/types.ts:48"
+        "packages/patent/patent-workflow/src/types.ts:89"
       ]
     },
     {

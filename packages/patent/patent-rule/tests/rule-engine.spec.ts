@@ -266,3 +266,32 @@ describe('RuleEngine', () => {
     expect(result.violations[0]?.message).toMatch(/缺失 novelty/)
   })
 })
+
+describe('RuleEngine domain filter', () => {
+  const domains = ruleSet([
+    { id: 'D-NOV', name: '新颖性域', domain: 'patent_novelty', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['单独对比'] } },
+    { id: 'D-INF', name: '侵权域', domain: 'patent_infringement', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['等同'] } },
+    { id: 'D-UNI', name: '通用域', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['编造'] } },
+  ])
+  const text = '单独对比与等同的认定，不得编造。'
+
+  const ids = (domain?: string | readonly string[]): string[] =>
+    evaluateText(text, domains, undefined, domain === undefined ? undefined : { domain }).violations.map(v => v.ruleId)
+
+  it('evaluates every rule without a filter', () => {
+    expect(ids()).toEqual(['D-NOV', 'D-INF', 'D-UNI'])
+  })
+
+  it('keeps only the named domain plus rules without a domain', () => {
+    expect(ids('patent_novelty')).toEqual(['D-NOV', 'D-UNI'])
+  })
+
+  it('keeps every named domain when passed a list, plus rules without a domain', () => {
+    expect(ids(['patent_infringement', 'patent_novelty'])).toEqual(['D-NOV', 'D-INF', 'D-UNI'])
+  })
+
+  it('treats an empty string or empty list as no filter', () => {
+    expect(ids('')).toEqual(['D-NOV', 'D-INF', 'D-UNI'])
+    expect(ids([])).toEqual(['D-NOV', 'D-INF', 'D-UNI'])
+  })
+})

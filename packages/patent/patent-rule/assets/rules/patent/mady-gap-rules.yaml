@@ -1,0 +1,469 @@
+# Mady 规则资产并入（可确定性执行子集，手写转换，非生成物镜像）
+#
+# 来源：Mady 仓库 domains/rules/data/rules/ 下未随移植带入本仓的规则。并入范围与
+# 转换语义（对应既有 nuo-*.yaml 镜像生成物的同一套映射）：
+#   category_detection(categories[].keywords, minCategories N/M)
+#     → structural_analysis(requiresAll = 各 category, minConfidence ≈ N/M)
+#   regex_pattern(requireAny)            → 期望模式：与既有 X-REF-* 引用完整性规则等价，不重复并入
+#   regex_pattern(antiPatterns)          → keyword_blocklist（命中即违规的模糊/占位指代）
+#   patent_*(requiredElements/Aspects)   → structural_analysis（要素字面可见者）
+#   section_structure/specification_analysis(requiredSections) → structural_analysis（章节名）
+# 未并入的条目及其理由见 .agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.md。
+#
+# 评审结论（沿用 activation-overrides.yaml 的既有口径）：上游 block 一律不直接落 block，
+# 本文件全部落 warn（severity 保留上游等级）；info 级落 log。
+# 未核验的条号按语义命名（不写未核验条号），等同/禁止反悔的依据按现行司法解释写。
+
+version: "1.0"
+
+rules:
+  # ---------------------------------------------------------------------------
+  # 法律条款精确引用：上游 requireAny（须引用到条款）与既有 X-REF-001 等价，
+  # 只并入其 antiPatterns 半——模糊引用是可直接判定的违规
+  # ---------------------------------------------------------------------------
+  con_comp_0103_vague_law_citation:
+    id: CON-COMP-0103
+    name: 法律条款精确引用
+    domain: patent_general
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 撰写规范：法条引用应精确到条、款
+    check:
+      type: keyword_blocklist
+      keywords:
+        - 根据相关法律
+        - 根据法律规定
+        - 相关法规规定
+
+  # ---------------------------------------------------------------------------
+  # 分析结论必须引用法律/事实依据（上游 minCategories 2/3）
+  # ---------------------------------------------------------------------------
+  con_comp_0106_conclusion_needs_basis:
+    id: CON-COMP-0106
+    name: 分析结论必须引用法律依据
+    domain: patent_general
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 撰写规范：分析结论应同时给出结论陈述与法律/事实依据
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 结论陈述
+          description: 分析是否给出结论性陈述
+          patterns:
+            - 结论
+            - 综上
+            - 因此
+            - 判断
+            - 认定
+        - element: 法律依据
+          description: 结论是否有法律依据支撑
+          patterns:
+            - 根据
+            - 依据
+            - 按照
+            - 遵照
+            - 条规定
+            - 款规定
+        - element: 事实依据
+          description: 结论是否有事实依据支撑
+          patterns:
+            - 对比文件
+            - 说明书
+            - 实施例
+            - 证据
+            - 公开
+      # 三项中至少两项（上游 minCategories = 2/3）
+      minConfidence: 0.6
+
+  # ---------------------------------------------------------------------------
+  # 检索—对比文件来源标注：只并入 antiPatterns 半（占位式指代），
+  # requireAny（须给出规范公开号）与既有 X-REF-002 等价
+  # ---------------------------------------------------------------------------
+  ex_src_001_placeholder_citation:
+    id: EX-SRC-001
+    name: 检索—对比文件来源标注
+    domain: patent_general
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 审查指南第二部分第七章
+    check:
+      type: keyword_blocklist
+      keywords:
+        - 对比文件D0
+        - 文献X
+        - 某专利
+
+  # ---------------------------------------------------------------------------
+  # 新颖性—现有技术公开方式（上游 minCategories 1/3）
+  # ---------------------------------------------------------------------------
+  ex_nov_001_publicity_mode:
+    id: EX-NOV-001
+    name: 新颖性—现有技术公开方式
+    domain: patent_novelty
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 专利法第22条第5款；审查指南第二部分第三章2.1
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 出版物公开
+          description: 是否认定出版物公开
+          patterns:
+            - 出版物公开
+            - 公开发表
+            - 公开出版
+        - element: 使用公开
+          description: 是否认定使用公开
+          patterns:
+            - 使用公开
+            - 公开使用
+            - 公开展出
+        - element: 其他方式公开
+          description: 是否涉及其他方式公开
+          patterns:
+            - 其他方式公开
+            - 口头公开
+      minConfidence: 0.34
+
+  # ---------------------------------------------------------------------------
+  # 新颖性—单独对比原则（上游 requiredElements 三项）
+  # ---------------------------------------------------------------------------
+  p_nov_001_single_comparison:
+    id: P-NOV-001
+    name: 新颖性—单独对比原则
+    domain: patent_novelty
+    phase: post_execution
+    severity: critical
+    action: warn
+    legalBasis: 专利法第22条第2款
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 技术特征拆解
+          description: 是否拆解权利要求的技术特征
+          patterns:
+            - 技术特征
+            - 特征拆解
+            - 逐一比对
+            - 逐项对比
+        - element: 单独对比
+          description: 是否对单份对比文件单独比对
+          patterns:
+            - 单独对比
+            - 单独比对
+        - element: 新颖性结论
+          description: 是否给出新颖性结论
+          patterns:
+            - 新颖性
+
+  # ---------------------------------------------------------------------------
+  # 新颖性—现有技术认定标准（上游 requiredElements 三项）
+  # ---------------------------------------------------------------------------
+  p_nov_002_prior_art_finding:
+    id: P-NOV-002
+    name: 新颖性—现有技术认定标准
+    domain: patent_novelty
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 专利法第22条第5款
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 现有技术
+          description: 是否认定为现有技术
+          patterns:
+            - 现有技术
+        - element: 公开日
+          description: 是否载明公开日
+          patterns:
+            - 公开日
+        - element: 申请日
+          description: 是否以申请日为基准
+          patterns:
+            - 申请日
+            - 优先权日
+
+  # ---------------------------------------------------------------------------
+  # 新颖性—抵触申请识别（上游 requiredElements 三项）
+  # ---------------------------------------------------------------------------
+  p_nov_003_conflicting_application:
+    id: P-NOV-003
+    name: 新颖性—抵触申请识别
+    domain: patent_novelty
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 专利法第22条第2款
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 抵触申请
+          description: 是否检查抵触申请
+          patterns:
+            - 抵触申请
+        - element: 在先申请
+          description: 是否识别在先申请
+          patterns:
+            - 在先申请
+        - element: 在后公布
+          description: 是否认定在后公布
+          patterns:
+            - 在后公布
+            - 申请日后公布
+
+  # ---------------------------------------------------------------------------
+  # 实用性—能够制造或使用（本仓原无实用性规则）
+  # ---------------------------------------------------------------------------
+  p_utl_001_industrial_applicability:
+    id: P-UTL-001
+    name: 实用性—能够制造或使用
+    domain: patent_utility
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 专利法第22条第4款
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 能够制造
+          description: 是否说明能够制造
+          patterns:
+            - 能够制造
+            - 可以制造
+            - 可制造
+            - 适于制造
+            - 制造和使用
+            - 制造或使用
+            - 产业上制造
+            - 能够在产业上
+        - element: 能够使用
+          description: 是否说明能够使用
+          patterns:
+            - 能够使用
+            - 可以使用
+            - 可使用
+            - 适于使用
+            - 制造和使用
+            - 制造或使用
+            - 产业应用
+            - 工业应用
+        - element: 产业
+          description: 是否落在产业应用语境
+          patterns:
+            - 产业
+
+  # ---------------------------------------------------------------------------
+  # 说明书—五部分结构完整性（上游 block，评审降为 warn；上游实施细则条号未核验，按语义命名）
+  # ---------------------------------------------------------------------------
+  ex_dis_001_specification_sections:
+    id: EX-DIS-001
+    name: 说明书—五部分结构完整性
+    domain: patent_disclosure
+    phase: post_execution
+    severity: critical
+    action: warn
+    legalBasis: 专利法实施细则关于说明书撰写的规定；审查指南第二部分第二章
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 技术领域
+          description: 技术领域部分
+          patterns:
+            - 技术领域
+        - element: 背景技术
+          description: 背景技术部分
+          patterns:
+            - 背景技术
+        - element: 发明内容
+          description: 发明内容部分
+          patterns:
+            - 发明内容
+        - element: 附图说明
+          description: 附图说明部分（无附图时可缺）
+          patterns:
+            - 附图说明
+        - element: 具体实施方式
+          description: 具体实施方式部分
+          patterns:
+            - 具体实施方式
+            - 实施例
+      # 五部分中至少四项（无附图时附图说明可缺）
+      minConfidence: 0.8
+
+  # ---------------------------------------------------------------------------
+  # 说明书—摘要撰写规范（上游 info/log）
+  # ---------------------------------------------------------------------------
+  ex_spec_003_abstract:
+    id: EX-SPEC-003
+    name: 说明书—摘要撰写规范
+    domain: patent_disclosure
+    phase: post_execution
+    severity: minor
+    action: log
+    legalBasis: 审查指南第二部分第二章2.4
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 技术领域
+          description: 摘要是否写明所属技术领域
+          patterns:
+            - 技术领域
+        - element: 技术方案
+          description: 摘要是否写明技术方案
+          patterns:
+            - 技术方案
+        - element: 用途
+          description: 摘要是否写明主要用途
+          patterns:
+            - 用途
+            - 应用于
+      # 三项中至少两项
+      minConfidence: 0.67
+
+  # ---------------------------------------------------------------------------
+  # 创造性—技术启示判断因素（上游 minCategories 1/3）
+  # ---------------------------------------------------------------------------
+  ex_inv_004_technical_teaching:
+    id: EX-INV-004
+    name: 创造性—技术启示判断因素
+    domain: patent_inventiveness
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 审查指南第二部分第四章3.2.1.1
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 对比文件明确公开
+          description: 技术启示来自对比文件明确公开
+          patterns:
+            - 公开
+            - 记载
+            - 描述
+        - element: 教导或暗示
+          description: 技术启示来自对比文件的教导或暗示
+          patterns:
+            - 技术启示
+            - 教导
+            - 结合启示
+            - 改进动机
+        - element: 公知常识
+          description: 技术启示来自公知常识
+          patterns:
+            - 公知常识
+            - 惯用手段
+            - 常规技术
+      minConfidence: 0.34
+
+  # ---------------------------------------------------------------------------
+  # 侵权判定—等同特征三要素（上游依据为 2001 年司法解释，按现行司法解释改写）
+  # ---------------------------------------------------------------------------
+  jd_inf_001_equivalence_three_elements:
+    id: JD-INF-001
+    name: 侵权判定—等同特征三要素同时满足原则
+    domain: patent_infringement
+    phase: post_execution
+    severity: critical
+    action: warn
+    legalBasis: 法释〔2009〕20 号第 17 条（2016 修正）
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 基本相同的手段
+          description: 是否比对手段是否基本相同
+          patterns:
+            - 基本相同的手段
+            - 手段基本相同
+            - '手段[^。；\n]{0,10}(?:基本相同|实质相同|实质不同|不同)'
+            - '手段[、，且和与][^。；\n]{0,10}(?:功能|效果)'
+        - element: 基本相同的功能
+          description: 是否比对功能是否基本相同
+          patterns:
+            - 基本相同的功能
+            - 功能基本相同
+            - '功能[^。；\n]{0,10}(?:基本相同|实质相同|实质不同|不同)'
+        - element: 基本相同的效果
+          description: 是否比对效果是否基本相同
+          patterns:
+            - 基本相同的效果
+            - 效果基本相同
+            - '效果[^。；\n]{0,10}(?:基本相同|实质相同|实质不同|不同)'
+        - element: 无需创造性劳动
+          description: 是否评价是否需创造性劳动
+          patterns:
+            - 创造性劳动
+            - 显而易见
+
+  # ---------------------------------------------------------------------------
+  # 侵权判定—禁止反悔原则的适用条件（上游仅给要素名，未给现行依据，按语义命名）
+  # ---------------------------------------------------------------------------
+  jd_inf_006_prosecution_history_estoppel:
+    id: JD-INF-006
+    name: 侵权判定—禁止反悔原则的适用条件
+    domain: patent_infringement
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 最高人民法院关于审理侵犯专利权纠纷案件应用法律若干问题的解释（禁止反悔原则）
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 审查历史
+          description: 是否审查授权/确权程序中的修改与陈述
+          patterns:
+            - 审查历史
+            - 审查档案
+            - 审查过程
+        - element: 限缩性修改
+          description: 是否为限缩性修改
+          patterns:
+            - 限缩性修改
+            - 限缩
+        - element: 陈述意见
+          description: 是否为限缩性意见陈述
+          patterns:
+            - 陈述意见
+            - 意见陈述
+        - element: 实质联系
+          description: 是否评价修改/陈述与被主张特征的实质联系
+          patterns:
+            - 实质联系
+
+  # ---------------------------------------------------------------------------
+  # 生物技术领域—生物材料保藏与充分公开（上游含具体复审决定号，保留其依据原文）
+  # ---------------------------------------------------------------------------
+  ipc_c12_dis_001_biological_material:
+    id: IPC-C12-DIS-001
+    name: 生物技术领域—生物材料保藏与充分公开的关系
+    domain: patent_disclosure
+    phase: post_execution
+    severity: major
+    action: warn
+    legalBasis: 专利法第26条第3款；第20174号决定
+    check:
+      type: structural_analysis
+      requiresAll:
+        - element: 生物材料
+          description: 是否涉及生物材料
+          patterns:
+            - 生物材料
+        - element: 保藏机构
+          description: 是否指出保藏机构
+          patterns:
+            - 保藏机构
+        - element: 保藏信息
+          description: 是否给出保藏信息
+          patterns:
+            - 保藏信息
+            - 保藏日期
+            - 保藏编号
+        - element: 能够实现
+          description: 是否说明本领域技术人员能够实现
+          patterns:
+            - 能够实现

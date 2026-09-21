@@ -77,6 +77,20 @@ function snapshotMode(value: string | undefined): SnapshotMode {
 }
 
 const mode = snapshotMode(process.env.DSH_SNAPSHOT)
+/**
+ * Live-record process budgets above the shared cap. A scenario whose turn makes
+ * several provider calls — a full patent manifest chain, or a tool that calls
+ * the model from inside its own body — needs more wall clock than the default
+ * allows; replay keeps the default cap because the recorded script answers
+ * without a provider.
+ */
+const LONG_LIVE_SCENARIOS: Record<string, number> = {
+  'patent-oa-chain': 300_000,
+  'patent-invalidation-chain': 1_800_000,
+  'patent-reexamination-chain': 1_800_000,
+  'patent-infringement-chain': 1_800_000,
+  'patent-claim-chart': 600_000,
+}
 const RUNTIME_WORKSPACE_ENTRIES = ['.agents', '.dsh', '.snapshot-patches'] as const
 
 interface JsonObject {
@@ -1009,6 +1023,7 @@ describe('headless recorded-session snapshots', () => {
       || mode === 'record' && scenario.manifest.recording === 'authored'
       || mode === 'record' && scenario.manifest.sessionFormat !== undefined
     const scenarioTest = skipped ? it.skip : mode === 'replay' ? it.concurrent : it
+    const liveBudget = mode === 'record' ? LONG_LIVE_SCENARIOS[scenario.name] : undefined
     scenarioTest(`${mode}s ${scenario.name} through dsh --profile headless`, async () => {
       let fixtures = await fixtureSessions(scenario)
       const primaryFixture = fixtures[0]
@@ -1049,6 +1064,7 @@ describe('headless recorded-session snapshots', () => {
         result = await runLoaderSmoke({
           label: `${scenario.name} headless snapshot`,
           tempDirPrefix: 'dsh-log-snap-',
+          ...(liveBudget === undefined ? {} : { processTimeoutMs: liveBudget }),
           ...(scenario.manifest.workspace?.parent === 'outside-temp' ? { tempDirParent: outsideTempWorkspaceParent() } : {}),
           binScript: dshBin,
           configPath: join(baseComposition.dir, 'cordis.yml'),
@@ -1194,6 +1210,6 @@ describe('headless recorded-session snapshots', () => {
       } else {
         expect(finalWorkspace, `${scenario.name}: a changed workspace requires workspace.final`).toEqual(initialWorkspace)
       }
-    }, scenario.name === 'provider-cwd' ? 3 * LOADER_SMOKE_TEST_TIMEOUT_MS : LOADER_SMOKE_TEST_TIMEOUT_MS)
+    }, liveBudget ?? (scenario.name === 'provider-cwd' ? 3 * LOADER_SMOKE_TEST_TIMEOUT_MS : LOADER_SMOKE_TEST_TIMEOUT_MS))
   }
 })

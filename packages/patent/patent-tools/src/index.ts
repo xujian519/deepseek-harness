@@ -1,12 +1,12 @@
 /**
- * Function plugin registering the 27 model-facing patent tools ported from Sati:
+ * Function plugin registering the 29 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
- * drafting, specification validation, evidence judgment, rule check, figure
- * analysis + generation, PDF download, chemical recognition, knowledge notes,
- * the workflow/plan state machines, and the personal-workbench case bridge.
- * `render_patent_document` is owned by @deepseek-ai/dsh-patent-document (its
- * apply() registers it); this package re-exports its factory but does not
- * register it.
+ * office-action parsing, drafting, specification validation, evidence judgment,
+ * rule check, figure analysis + generation, PDF download, chemical recognition,
+ * knowledge notes, the workflow/plan state machines, and the personal-workbench
+ * case bridge. `render_patent_document` is owned by
+ * @deepseek-ai/dsh-patent-document (its apply() registers it); this package
+ * re-exports its factory but does not register it.
  * @module @deepseek-ai/dsh-patent-tools
  */
 
@@ -38,6 +38,7 @@ import { createPatentKgQueryTool } from './tool/patent-kg-query.ts'
 import { createPatentEvalTool } from './tool/patent-eval.ts'
 import { createPatentAnalysisReportTool } from './tool/patent-analysis-report.ts'
 import { createClaimChartBuildTool } from './tool/claim-chart-build.ts'
+import { createParseOfficeActionTool } from './tool/parse-office-action.ts'
 import { createDraftClaimsTool } from './tool/draft-claims.ts'
 import { createDraftSpecificationTool } from './tool/draft-specification.ts'
 import { createValidateSpecificationTool } from './tool/validate-specification.ts'
@@ -87,6 +88,8 @@ export { createPatentAnalysisReportTool } from './tool/patent-analysis-report.ts
 export type { PatentAnalysisReportInput, PatentAnalysisReportOutput, PatentAnalysisReportDeps } from './tool/patent-analysis-report.ts'
 export { createClaimChartBuildTool } from './tool/claim-chart-build.ts'
 export type { ClaimChartInput, ClaimChartOutput, ClaimChartTargetInput, ClaimChartBuildDeps } from './tool/claim-chart-build.ts'
+export { createParseOfficeActionTool } from './tool/parse-office-action.ts'
+export type { ParseOfficeActionInput, ParseOfficeActionOutput } from './tool/parse-office-action.ts'
 export { createDraftClaimsTool, draftClaims, DOMAIN_KEYWORDS } from './tool/draft-claims.ts'
 export type { DraftClaimsInput, DraftClaimsOutput, DraftedClaim, ClaimViolation, TechDomain, PatentType } from './tool/draft-claims.ts'
 export { createDraftSpecificationTool, draftSpecification } from './tool/draft-specification.ts'
@@ -151,7 +154,7 @@ export type { PatentPdfDownloadInput, PatentPdfDownloadOutput, PatentPdfDownload
 export type { EgoSessionSeam } from './tool/patent-pdf-download-ego.ts'
 export { createRecognizeChemicalStructureTool, resolveChemicalSourceKey } from './tool/recognize-chemical-structure.ts'
 export type { RecognizeChemicalStructureInput, RecognizeChemicalStructureDeps, ChemicalStructureResult, ChemicalSmilesCandidate } from './tool/recognize-chemical-structure.ts'
-export { createFlexiblePlanTool } from './tool/patent-flexible-plan.ts'
+export { createFlexiblePlanTool, ATOM_PARAM_DESCRIPTION } from './tool/patent-flexible-plan.ts'
 export type { FlexiblePlanToolInput, FlexiblePlanOutput, FlexiblePlanToolDeps, FlexiblePlanAction, FlexiblePlanStageInput } from './tool/patent-flexible-plan.ts'
 export { createPatentWorkflowTool } from './tool/patent-workflow.ts'
 export type { PatentWorkflowInput, PatentWorkflowOutput, PatentWorkflowToolDeps } from './tool/patent-workflow.ts'
@@ -428,7 +431,7 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
- * Register the 26 patent tools.
+ * Register the 29 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */
@@ -481,6 +484,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(createDraftSpecificationTool())
   ctx.tools.register(createValidateSpecificationTool())
   ctx.tools.register(createRuleCheckTool())
+  ctx.tools.register(createParseOfficeActionTool())
   ctx.tools.register(createPatentWorkerValidateTool())
   ctx.tools.register(createPatentPlanTaskTool())
   // Workbench case bridge: talk to the personal-workbench plugin's loopback

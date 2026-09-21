@@ -50,19 +50,22 @@ describe('registry', () => {
     expect(reg.lookup('t')).toBe(h2)
   })
 
-  it('registerBuiltinAtoms 注册 11 个内置原子与 handler', () => {
+  it('registerBuiltinAtoms 注册 14 个内置原子与 handler', () => {
     registerBuiltinAtoms()
     const names = ListAtoms().map(a => a.name).sort()
     expect(names).toEqual([
       'approval-gate',
       'claim-chart',
       'compare',
+      'coverage',
       'draft-claims',
       'extract',
       'groundedness',
+      'grounds',
       'keywords',
       'merge',
       'novelty',
+      'oa-parse',
       'reasoning',
       'search',
     ])

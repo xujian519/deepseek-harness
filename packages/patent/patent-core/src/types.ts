@@ -6,6 +6,7 @@
  */
 
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 
 /** One canonical model request the patent engines issue. */
 export interface PatentModelRequest {
@@ -40,10 +41,13 @@ export interface PatentModelMessage {
   images?: readonly ImageAttachmentRef[]
 }
 
+/** Provider-reported token usage for one patent model call. */
+export type PatentModelUsage = { inputTokens?: number; outputTokens?: number }
+
 /** One streamed canonical model event. */
 export type PatentModelEvent =
   | { type: 'delta'; text: string }
-  | { type: 'done'; usage?: { inputTokens?: number; outputTokens?: number } }
+  | { type: 'done'; usage?: PatentModelUsage }
 
 /**
  * The patent-domain LLM port: an async iterable of canonical events for one request.
@@ -51,6 +55,23 @@ export type PatentModelEvent =
  */
 export interface PatentModelPort {
   stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>
+  /**
+   * Fixed provider route this port sends on. A model-call log records it as the
+   * call's envelope, so "which provider/model produced this stage output" is
+   * answerable without the port's creator; a fail-loud or injected test port has
+   * no route and logs none.
+   */
+  route?: { provider: string; model: string }
+  /**
+   * Rebind this port to one session identity, so every request it serves carries
+   * `sessionId` on the harness call. A call a plugin makes outside the agent loop
+   * is otherwise unattributable, and the keyless replay (which keys recorded
+   * scripts by session) cannot re-serve it. Absent on injected test ports, whose
+   * calls never need to bind to a recorded script.
+   * @param sessionId - the session whose log records the calls.
+   * @returns a port serving the same route under that session identity.
+   */
+  bindSession?(sessionId: NonNullable<GenerateOptions['sessionId']>): PatentModelPort
 }
 
 /** One search hit the workflow atoms' search stage consumes. */

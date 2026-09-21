@@ -9,7 +9,7 @@
 
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   globalAtomRegistry,
@@ -34,6 +34,7 @@ import {
   type FlexibleStage,
 } from '@deepseek-ai/dsh-patent-workflow'
 import { PatentToolError } from '../error.ts'
+import { loggedToolModel } from './internal/model-call-log.ts'
 import {
   buildWorkflowProvider,
   buildWorkflowRunContext,
@@ -135,6 +136,19 @@ export interface FlexiblePlanToolDeps extends WorkflowProviderDeps {
   now?: () => string
 }
 
+/**
+ * `atom` parameter description: the atoms this build can execute, with the params
+ * each one reads. Atoms declared here but absent from the registry fall back to
+ * the caller's executor, so the list is the model's only view of what a plan can
+ * automate; the registration spec asserts it covers every registered atom.
+ */
+export const ATOM_PARAM_DESCRIPTION = [
+  'Atom name to auto-execute this stage. Available atoms:',
+  'approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability),',
+  'compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness,',
+  'grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate.',
+].join(' ')
+
 /** Stage JSON schema shared by create's stages list and add's single stage. */
 const STAGE_SCHEMA = {
   type: 'object',
@@ -144,7 +158,7 @@ const STAGE_SCHEMA = {
     name: { type: 'string', required: true },
     goal: { type: 'string', required: true },
     strategy: { type: 'string', required: true, enum: ['chain', 'react', 'sub_agent'] },
-    atom: { type: 'string', description: 'Atom name to auto-execute this stage (e.g. extract).' },
+    atom: { type: 'string', description: ATOM_PARAM_DESCRIPTION },
     params: { type: 'object', additionalProperties: true, description: 'Static params passed to the stage handler.' },
     artifacts: { type: 'array', items: { type: 'string' } },
     constraintIds: { type: 'array', items: { type: 'string' } },
@@ -153,7 +167,6 @@ const STAGE_SCHEMA = {
 } as const
 
 const ACTIONS_LABEL = 'create / get / run / confirm / rollback / add / remove / reorder / complete / abandon'
-
 const DESCRIPTION = [
   'Flexible plan for patent cases (stage-level HITL). create: build a plan (optional IPC technical-field inference from the disclosure text). run: execute unconfirmed stages (pending + rolled_back) via the atom registry with LLM + prior-art search, exactly like patent_workflow_run. confirm / rollback: freeze or redo one stage; add / remove / reorder: edit stages at runtime; complete / abandon: finish the plan. Plans persist by caseId across calls (unlike patent_plan_task, which is stateless). confirmed stages are frozen, so confirm fixes the output; autoConfirm=true confirms all successful stages at the end of a run.',
 ].join('\n')
@@ -304,6 +317,16 @@ export function renderFlexiblePlan(args: FlexiblePlanToolInput, value: FlexibleP
   }
 }
 
+/** The provider deps with the model port bound to the calling agent's session. */
+function bindModel(
+  deps: FlexiblePlanToolDeps,
+  exec: Pick<ToolRunContext, 'agent'>,
+  manifestId: string,
+): FlexiblePlanToolDeps {
+  const model = loggedToolModel(exec, deps.model, { callSite: 'flexible_plan', manifestId })
+  return model === undefined ? deps : { ...deps, model }
+}
+
 /**
  * Build the `flexible_plan` tool.
  * @param deps - model port, search, handler registry, plan store, cwd, clock.
@@ -389,7 +412,10 @@ export function createFlexiblePlanTool(deps: FlexiblePlanToolDeps = {}): ToolDef
           case 'run': {
             const plan = await loadPlan(store, input.caseId)
             const manifest = toManifest(plan)
-            const provider = buildWorkflowProvider(deps, { caseId: input.caseId })
+            const provider = buildWorkflowProvider(
+              bindModel(deps, exec, manifest.id),
+              { caseId: input.caseId },
+            )
             if (!provider) {
               throw new PatentToolError(
                 'setup_required',

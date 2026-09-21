@@ -18,19 +18,56 @@ import {
   caseWorkflowRunsDir,
   collectPortText,
   dataBlock,
+  getStateString,
   type AtomRegistry,
   type PatentModelPort,
+  type PipelineState,
   type StageExecutor,
   type StageHandlerRegistry,
   type StageProvider,
   type WorkflowContext,
   type WorkflowManifest,
   type WorkflowRunResult,
+  type WorkflowStage,
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { JsonFileWorkflowRunStore, runWorkflow, workflowManifestToMermaid } from '@deepseek-ai/dsh-patent-workflow'
 import { createNuoSearchProvider } from '@deepseek-ai/dsh-patent-data'
 import { PatentToolError } from '../../error.ts'
+
+/** Stage-output preview limit for stages the caller's executor produced. */
+const EXECUTOR_OUTPUT_PREVIEW_LIMIT = 80
+
+/**
+ * Stage-output preview limit for atom stages. Parsed documents and coverage
+ * verdicts are compact (kilobytes at most), but the limit still bounds a run's
+ * model-visible text when an atom emits a large chart or search result.
+ */
+const ATOM_OUTPUT_PREVIEW_LIMIT = 2000
+
+/**
+ * Prompt cap for one consumed upstream stage output. Stage outputs are model
+ * text of unbounded length; a chain of consuming stages would otherwise carry
+ * every earlier stage's full text.
+ */
+const CONSUMED_OUTPUT_LIMIT = 4000
+
+/** Prompt cap for the workflow material and the separately supplied claims. */
+const MATERIAL_PROMPT_LIMIT = 12000
+
+/** Header introducing the claims material block in the chain-stage prompt. */
+const CLAIMS_MATERIAL_HEADER = '## 权利要求书（本次调用的 claims 参数）'
+
+/**
+ * Cap a text block spliced into a prompt and mark the cut. An unmarked cut
+ * reads to the model as the whole document.
+ * @param text - the block text.
+ * @param limit - the maximum number of characters kept.
+ * @returns the block, with a truncation note appended when it was cut.
+ */
+function capPromptBlock(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}\n（截断，完整内容见 run 记录）` : text
+}
 
 /**
  * Resolve the workflow-runs directory for a case id, mirroring Sati's
@@ -219,6 +256,11 @@ export interface BuildWorkflowRunContextOptions {
   caseId?: string
   /** Initial material consumed by the extract atoms. */
   input: string
+  /**
+   * Claims text, when the caller supplies it separately from the initial
+   * material (e.g. an office action as `input` plus the claims under review).
+   */
+  claims?: string
   /** Max prior-art search results (default 5). */
   maxResults?: number
   /** claim-chart target objects JSON (default empty). */
@@ -228,20 +270,28 @@ export interface BuildWorkflowRunContextOptions {
 }
 
 /**
- * Map a tool's input into the workflow context: the atom input keys
- * (text/source_text/extraction_input/claim) all point at the same material.
+ * Map a tool's input into the workflow context, in two material roles:
+ * `text`/`source_text`/`extraction_input`/`input` all point at the initial
+ * material, and `claim`/`claim_text`/`claims` at the claims text — the first two
+ * are the keys the element-level atoms read, `claims` is the key the chain
+ * executor labels its claims block with. Without a separate claims input both
+ * roles point at the same material, so a single-blob caller behaves as before.
  * Shared by patent_workflow_run (manifest + graph) and flexible_plan (run).
  * @param opts - the mapping options.
  * @returns the workflow context.
  */
 export function buildWorkflowRunContext(opts: BuildWorkflowRunContextOptions): WorkflowContext {
+  const claims = opts.claims !== undefined && opts.claims.trim().length > 0 ? opts.claims : undefined
+  const claimText = claims ?? opts.input
   return {
     ...(opts.caseId !== undefined ? { caseId: opts.caseId } : {}),
     input: opts.input,
     text: opts.input,
     source_text: opts.input,
     extraction_input: opts.input,
-    claim: opts.input,
+    claim: claimText,
+    claim_text: claimText,
+    ...(claims !== undefined ? { claims } : {}),
     chart_targets: opts.chartTargets ?? '',
     max_results: String(opts.maxResults ?? 5),
     ...(opts.priorArt !== undefined ? { prior_art: opts.priorArt } : {}),
@@ -296,9 +346,14 @@ export function buildWorkflowProvider(
 
 /**
  * Build a chain-stage executor for atom-less (收口) stages: calls the provider
- * LLM with the stage description as the instruction and the workflow input as
- * the material. Without a usable call seam it fails loud — an echo stub would
- * silently "complete" every stage with the input text.
+ * LLM with the stage description as the instruction, the workflow material, and
+ * the upstream stage outputs the stage declares in `consumes`. Without a usable
+ * call seam it fails loud — an echo stub would silently "complete" every stage
+ * with the input text.
+ *
+ * Untrusted text (material, claims, upstream stage outputs) goes through
+ * `dataBlock`; only the description, guidance and stage ids are spliced into the
+ * instruction area.
  * @param provider - the assembled StageProvider (must exist — callers check first).
  * @param toolLabel - tool name for the setup_required diagnostic.
  * @returns a StageExecutor for atom-less stages.
@@ -308,33 +363,64 @@ export function createChainStageExecutor(
   toolLabel: string,
 ): StageExecutor {
   const call = provider.callLLM
-  return async (stage, ctx) => {
+  return async (stage, ctx, state) => {
     /* v8 ignore next 2 -- buildWorkflowProvider always wires callLLM. */
     if (!call) {
       throw new PatentToolError('setup_required', `${toolLabel}: 模型端口不可用，无法执行收口阶段。`, {})
     }
     /* v8 ignore next -- buildWorkflowRunContext always sets input. */
-    const material = (ctx.input ?? '').slice(0, 12000)
+    const material = ctx.input ?? ''
+    const claims = getStateString(state, 'claims')
     const prompt = [
       '你是资深专利代理师。请完成当前工作流阶段，输出阶段成果文本：',
       stage.description,
       // 阶段法律指引（法条操作框架/输出要求）紧跟阶段描述，先于材料注入。
       ...(stage.guidance !== undefined ? [stage.guidance] : []),
-      dataBlock(material),
+      dataBlock(capPromptBlock(material, MATERIAL_PROMPT_LIMIT)),
+      ...(claims.trim().length > 0
+        ? [CLAIMS_MATERIAL_HEADER, dataBlock(capPromptBlock(claims, MATERIAL_PROMPT_LIMIT))]
+        : []),
+      ...consumedStageBlocks(stage, state),
     ].join('\n')
     return await call(prompt, { temperature: 0.3 })
   }
 }
 
 /**
+ * Render the upstream stage outputs a stage declares in `consumes`, in
+ * declaration order and each under its own header. A declared stage that
+ * produced nothing renders an explicit marker: dropping it silently would let
+ * the stage answer as if the upstream artifact did not exist.
+ * @param stage - the stage whose declared dependencies are rendered.
+ * @param state - the accumulated run state (holds `state[stageId]` outputs).
+ * @returns header + data-block line pairs, empty without declared dependencies.
+ */
+function consumedStageBlocks(stage: WorkflowStage, state: PipelineState): string[] {
+  return (stage.consumes ?? []).flatMap((stageId) => {
+    const text = getStateString(state, stageId)
+    if (text.trim().length === 0) return [`## 上游阶段产出: ${stageId}`, '（该阶段无产出）']
+    return [`## 上游阶段产出: ${stageId}`, dataBlock(capPromptBlock(text, CONSUMED_OUTPUT_LIMIT))]
+  })
+}
+
+/**
  * Compute a stage's recap flag and output preview. Shared by the recap and run
  * tools so the two renderers cannot drift.
+ *
+ * Atom stages get the wider limit: their output is program-produced (parsed
+ * documents, coverage verdicts, chart gaps) and appears nowhere else the model
+ * can read, while an executor stage's text was written by the model itself and
+ * a summary line suffices for the recap. Full outputs always stay in the
+ * result's `stages` field and in the persisted run record.
  * @param stage - the stage result.
  * @returns the degraded flag and the truncated output preview.
  */
 export function stageFlagAndPreview(stage: WorkflowStageResult): { flag: string; preview: string } {
   const flag = stage.degraded ? '⚠️ 降级' : '✅'
-  const preview = stage.output.length > 0 ? `${stage.output.slice(0, 80)}${stage.output.length > 80 ? '…' : ''}` : '(无输出)'
+  const limit = stage.atom !== undefined ? ATOM_OUTPUT_PREVIEW_LIMIT : EXECUTOR_OUTPUT_PREVIEW_LIMIT
+  const preview = stage.output.length > 0
+    ? `${stage.output.slice(0, limit)}${stage.output.length > limit ? '…（截断，完整内容见 run 记录）' : ''}`
+    : '(无输出)'
   return { flag, preview }
 }
 

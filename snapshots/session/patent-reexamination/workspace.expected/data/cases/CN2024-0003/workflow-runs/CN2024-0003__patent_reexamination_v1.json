@@ -1,0 +1,54 @@
+{
+  "manifestId": "patent_reexamination_v1",
+  "caseType": "reexamination_analysis",
+  "completed": true,
+  "stages": [
+    {
+      "stageId": "parse",
+      "strategy": "chain",
+      "output": "驳回决定要点：权利要求1-2不具备创造性（专利法第22条第3款），权利要求2技术特征不清楚（第26条第4款），修改超出原说明书记载范围（第33条）。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "grounds",
+      "strategy": "chain",
+      "output": "援引的复审理由为专利法第22条第3款创造性、第26条第4款清楚性与第33条修改超范围。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "grounds"
+    },
+    {
+      "stageId": "claim-chart",
+      "strategy": "chain",
+      "output": "要素级映射要点：对比文件1（CN201234567U，X类）公开了权利要求1记载的连接结构。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "claim-chart"
+    },
+    {
+      "stageId": "novelty",
+      "strategy": "chain",
+      "output": "单篇对比结论：对比文件1未以一篇文件公开权利要求1-2的全部技术特征，不单独破坏新颖性。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "inventiveness",
+      "strategy": "chain",
+      "output": "三步法结论：以对比文件1为最接近现有技术，区别技术特征未被公开且无技术启示，权利要求1-2具备创造性。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "approval",
+      "strategy": "chain",
+      "output": "已人工确认",
+      "degraded": false,
+      "retries": 0,
+      "atom": "approval-gate"
+    }
+  ],
+  "degradedSteps": [],
+  "summary": "工作流 patent_reexamination_v1（复审答复）: 6/6 阶段完成"
+}

@@ -31,6 +31,7 @@ import type { ModelModality } from '@deepseek-ai/dsh-llm'
 import { checkImageCapability } from '../figure/image-capability.ts'
 import type { FigureAnalysisEngine } from '../figure/analysis-engine.ts'
 import { PatentToolError } from '../error.ts'
+import { loggedToolModel } from './internal/model-call-log.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
 import { COMPONENT_SCHEMA, FIGURE_COMPONENT_KINDS } from './internal/figure-schemas.ts'
 import type { FigureComponentKind } from './internal/figure-schemas.ts'
@@ -589,7 +590,8 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
       // misconfiguration, not a per-call error source — fail loud with setup
       // guidance.
       const route = resolveGateRoute(undefined, deps.gateModel)
-      if (route === undefined || deps.imageModel === undefined) {
+      const figureModel = loggedToolModel(exec, deps.imageModel, { callSite: 'analyze_patent_figure' })
+      if (route === undefined || figureModel === undefined) {
         throw new PatentToolError(
           'setup_required',
           '未配置附图分析模型路由：请在 cordis.yml 为专利工具配置 imageModel（声明图片输入的模型，如 deepseek-official 的 vision 模型），'
@@ -638,7 +640,7 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
       const figureNumber = args.figure_number ?? 1
       // 分析引擎按部署模式在组合点注入（figureAnalysisMode）；缺省为包装既有
       // 单步逻辑的默认引擎。门控与附件入库在引擎之前完成，与模式无关。
-      const engine = deps.analysisEngine ?? singleStepAnalysisEngine(deps.imageModel)
+      const engine = deps.analysisEngine ?? singleStepAnalysisEngine(figureModel)
       let result: FigureAnalysisResult
       try {
         result = await engine.analyze(

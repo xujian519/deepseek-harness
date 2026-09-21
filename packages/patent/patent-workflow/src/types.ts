@@ -7,7 +7,7 @@
  */
 
 import type { Session } from '@deepseek-ai/dsh-session'
-import type { WorkflowRunResult } from '@deepseek-ai/dsh-patent-core'
+import type { PatentModelUsage, WorkflowRunResult } from '@deepseek-ai/dsh-patent-core'
 import type { PlanTask, PlanTaskState } from './plantask.ts'
 
 declare module '@deepseek-ai/dsh-session/types' {
@@ -28,7 +28,48 @@ declare module '@deepseek-ai/dsh-session/types' {
      * @param event - the workflow run result appended to the session log.
      */
     'patent/workflow-run': PatentWorkflowRunEvent
+    /**
+     * One model call the patent pipeline made through the harness LLM seam
+     * outside the agent loop (stage closure text, claim-chart element mapping,
+     * figure analysis). The loop's own calls are `request/*` + `assistant/*`
+     * events; a call issued inside a tool has no such event, so without this
+     * record the request is invisible to the log and the keyless replay cannot
+     * rebuild the call order. Log-only; the request side stays reconstructable
+     * from the tool-call arguments plus the manifest and stage state.
+     * @param event - the completed model call appended to the session log.
+     */
+    'patent/model-call': PatentModelCallEvent
   }
+}
+
+/**
+ * Durable record of one completed patent model call. A call whose stream fails
+ * before completing appends nothing: it produced no visible model output, and
+ * its degraded stage is recorded by the run result.
+ */
+export interface PatentModelCallEvent {
+  /** Which patent surface issued the call (e.g. `patent_workflow_run`). */
+  callSite: string
+  /** Manifest the call ran under, when a workflow run issued it. */
+  manifestId?: string
+  /** Provider route the call was sent on; absent when the port declares no route. */
+  provider?: string
+  /** Model the call was sent to; absent when the port declares no route. */
+  model?: string
+  /** Complete visible output text. */
+  output: string
+  /** Provider-reported token usage, when the port surfaced any. */
+  usage?: PatentModelUsage
+  /** Identifies exactly one call through this context's `ctx.llm.stream()`. */
+  llmStreamCall: true
+}
+
+/** Static labels one tool call attaches to every model call it issues. */
+export interface PatentModelCallContext {
+  /** Patent surface name recorded on each call (`patent_workflow_run`, `claim_chart_build`, …). */
+  callSite: string
+  /** Manifest id recorded on each call, when the surface runs a workflow. */
+  manifestId?: string
 }
 
 /**

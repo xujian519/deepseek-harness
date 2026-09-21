@@ -64,10 +64,41 @@ function validateWorkflowRun(value: unknown, fail: InvariantFailure): void {
 }
 
 /* jscpd:ignore-start -- package companions share replay and dispatch plumbing */
+/** Validate one patent/model-call payload. */
+function validateModelCall(value: unknown, fail: InvariantFailure): void {
+  if (typeof value !== 'object' || value === null) fail('patent/model-call data must be an object')
+  const { callSite, manifestId, provider, model, output, usage, llmStreamCall } = value as Record<string, unknown>
+  if (typeof callSite !== 'string' || callSite.trim() === '') {
+    fail('patent/model-call callSite must be a non-empty string')
+  }
+  if (typeof output !== 'string') fail('patent/model-call output must be a string')
+  if (llmStreamCall !== true) fail('patent/model-call must mark llmStreamCall')
+  if (manifestId !== undefined && typeof manifestId !== 'string') {
+    fail('patent/model-call manifestId must be a string when present')
+  }
+  // The route travels as a pair: half a route cannot name the model that answered.
+  if ((provider === undefined) !== (model === undefined)) {
+    fail('patent/model-call provider and model must be present together')
+  }
+  if (provider !== undefined && (typeof provider !== 'string' || typeof model !== 'string')) {
+    fail('patent/model-call provider and model must be strings')
+  }
+  if (usage !== undefined) {
+    if (typeof usage !== 'object' || usage === null) fail('patent/model-call usage must be an object')
+    for (const field of ['inputTokens', 'outputTokens']) {
+      const count = (usage as Record<string, unknown>)[field]
+      if (count !== undefined && typeof count !== 'number') {
+        fail(`patent/model-call usage.${field} must be a number when present`)
+      }
+    }
+  }
+}
+
 /** Validate the package-owned event fields and ignore unrelated events. */
 function validateEvent(event: SessionEvent, fail: InvariantFailure): void {
   if (event.type === 'patent/plantask') validatePlantask(event.data, fail)
   if (event.type === 'patent/workflow-run') validateWorkflowRun(event.data, fail)
+  if (event.type === 'patent/model-call') validateModelCall(event.data, fail)
 }
 
 /** Install validation for loaded and newly appended patent/* session events. */

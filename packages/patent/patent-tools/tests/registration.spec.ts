@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { globalAtomRegistry, globalStageHandlerRegistry } from '@deepseek-ai/dsh-patent-core'
+import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 import * as tool from '../src/index.ts'
 
-/** The 28 tools registered by patent-tools (render_patent_document is owned by dsh-patent-document). */
+/** The 29 tools registered by patent-tools (render_patent_document is owned by dsh-patent-document). */
 const EXPECTED_TOOLS = [
   'patent_search',
   'patent_metadata',
@@ -17,6 +19,7 @@ const EXPECTED_TOOLS = [
   'draft_specification',
   'validate_specification',
   'rule_check',
+  'parse_office_action',
   'patent_worker_validate',
   'patent_plan_task',
   'recognize_chemical_structure',
@@ -35,6 +38,31 @@ const EXPECTED_TOOLS = [
   'knowledge_note_save',
   'workbench_link_patent_case',
 ]
+
+/**
+ * Atoms a complete composition registers: patent-core's 14 built-ins plus
+ * `slop-gate` (registered by this package, not by registerBuiltinAtoms).
+ */
+const REGISTERED_ATOMS = [
+  'approval-gate',
+  'claim-chart',
+  'compare',
+  'coverage',
+  'draft-claims',
+  'extract',
+  'groundedness',
+  'grounds',
+  'keywords',
+  'merge',
+  'novelty',
+  'oa-parse',
+  'reasoning',
+  'search',
+  'slop-gate',
+]
+
+/** Atoms the built-in manifests declare; `compare`/`reasoning` are graph-only. */
+const DECLARED_ATOMS = REGISTERED_ATOMS.filter(name => name !== 'compare' && name !== 'reasoning')
 
 describe('@deepseek-ai/dsh-patent-tools registration', () => {
   it('exports the function-plugin surface', () => {
@@ -69,6 +97,36 @@ describe('@deepseek-ai/dsh-patent-tools registration', () => {
     await ctx.plugin(tool, {})
     const names = ctx.tools.schemas().map(s => s.name)
     expect(names).not.toContain('render_patent_document')
+  })
+
+  it('每个内置 manifest 声明的 atom 在完整组合下都有契约与 handler（跨包注册：slop-gate 属本包）', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(tool, {})
+    const declared = new Set(
+      builtinPatentManifests.flatMap(manifest =>
+        manifest.stages.flatMap(stage => (stage.atom === undefined ? [] : [stage.atom])),
+      ),
+    )
+    // 断言集合非空，避免 manifest 全部去掉 atom 后本用例空转变绿。
+    expect([...declared].sort()).toEqual(DECLARED_ATOMS)
+    for (const name of declared) {
+      expect(globalAtomRegistry.lookup(name)?.name).toBe(name)
+      expect(globalStageHandlerRegistry.lookup(name)?.name).toBe(name)
+    }
+  })
+
+  it('flexible_plan 的 atom 参数说明覆盖每个已注册原子（新增原子即须同步说明）', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(tool, {})
+    // 完整组合后注册表含 patent-core 的 14 个内置 + 本包注册的 slop-gate。
+    expect(globalAtomRegistry.list().map(atom => atom.name).sort()).toEqual(REGISTERED_ATOMS)
+    for (const atom of globalAtomRegistry.list()) {
+      expect(tool.ATOM_PARAM_DESCRIPTION).toContain(atom.name)
+    }
   })
 })
 

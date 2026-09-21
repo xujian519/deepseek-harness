@@ -9,7 +9,8 @@ function makeRuleGate(): RuleOutputGate {
 describe('RuleOutputGate', () => {
   it('selectGateRules keeps only nuo keyword_blocklist rules (excluding PAT-* and structural)', () => {
     const gateRules = selectGateRules(loadPatentFullRuleSet().ruleSet)
-    expect(gateRules.rules.length).toBe(9)
+    // 9 条 nuo 镜像 + 2 条并入禁令（CON-COMP-0103 模糊法条引用、EX-SRC-001 占位式对比文件指代）
+    expect(gateRules.rules.length).toBe(11)
     for (const r of gateRules.rules) {
       expect(r.check.type).toBe('keyword_blocklist')
       expect(r.id.startsWith('PAT-')).toBe(false)

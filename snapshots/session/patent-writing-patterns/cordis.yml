@@ -1,0 +1,16 @@
+# Live-recording patch: mount the patent-domain writing-pattern plugin over the
+# ordinary headless composition, so a recording pins the pattern corpus the
+# plugin validates at load time, the query_writing_patterns tool, the
+# <writing_skills> section it injects, and the schema the model receives. The
+# shipped `patent` agent preset owns this row for real sessions, but a preset is
+# agent-plane and only `dsh-agent-presets` can mount one, which the headless
+# profile does not run.
+#
+# The recorded session deliberately never calls `query_writing_patterns`: the
+# corpus selection, the compiled block, and the tool result are pinned by that
+# package's own specs, while this scenario pins the composition's model-visible
+# surface (the section text and the tool schema).
+
+- insert:
+    - id: writing-patterns
+      name: '@deepseek-ai/dsh-writing-patterns'

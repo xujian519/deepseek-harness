@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The patent group is the native port of the Sati patent domain into harness plugins per `docs/sati-as-dsh-plugins-plan.md`: no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages. The table below maps each package's half; child READMEs own each package contract, and all packages are scaffold-stage until their plan phase lands.
+The patent group is the native port of the Sati patent domain into harness plugins per `docs/sati-as-dsh-plugins-plan.md`: no Sati process and no MCP bridge — the patent engines, tools, rule gates, and knowledge access run as `@deepseek-ai/dsh-patent-*` workspace packages. The table below maps each package's half, and child READMEs own each package contract.
 
 ## Packages
 
@@ -25,10 +25,12 @@ Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh
 | [`patent-teams/`](patent-teams/README.md) | Durable multi-agent teams: captain-led members, dependency-aware tasks, mailbox messaging, shared-task scheduler. | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.md) | Rule engine, compliance assets, output gates on `tools/post-execute`. | (policy plugin) |
 | [`patent-document/`](patent-document/README.md) | Patent document rendering: templates, brand injection, PDF. | (registers on `ctx.tools`) |
+| [`patent-deadline/`](patent-deadline/README.md) | Patent deadlines: period arithmetic, delivery dates, holiday roll-forward. | (registers on `ctx.tools`) |
+| [`writing-patterns/`](writing-patterns/README.md) | Writing-pattern corpus, lexical selection, `<writing_skills>` compilation, quality scoring. | (registers on `ctx.tools` + section) |
 | [`tool-literature/`](tool-literature/README.md) | Literature connectors: arXiv/OpenAlex/Semantic Scholar/Crossref. | (registers on `ctx.tools`) |
 | [`methodology/`](methodology/README.md) | TRIZ 40 principles + 39x39 contradiction matrix. | (section + tool) |
 
-Child READMEs own each package contract. All packages are scaffold-stage until their plan phase lands.
+Child READMEs own each package contract.
 
 ## Related documentation
 

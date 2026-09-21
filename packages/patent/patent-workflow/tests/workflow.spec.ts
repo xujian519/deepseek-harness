@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AtomRegistry, InterruptStageError, StageHandlerRegistry, WorkflowError, type StageHandler } from '@deepseek-ai/dsh-patent-core'
+import { AtomRegistry, InterruptStageError, StageHandlerRegistry, WorkflowError, type PipelineState, type StageHandler } from '@deepseek-ai/dsh-patent-core'
 import { runWorkflow, runStageOnce, type WorkflowManifest, type WorkflowStage } from '@deepseek-ai/dsh-patent-workflow'
 
 function stage(id: string, overrides: Partial<WorkflowStage> = {}): WorkflowStage {
@@ -228,6 +228,47 @@ describe('runWorkflow — parallel windows', () => {
     )
     expect(result.stages).toHaveLength(1)
     expect(result.stages[0]!.stageId).toBe('a')
+  })
+})
+
+describe('runWorkflow — stage chaining', () => {
+  it('writes an executor stage output into state[stageId] for its declared consumers', async () => {
+    const seen: PipelineState[] = []
+    const result = await runWorkflow(
+      manifest('chain', [stage('first'), stage('second', { consumes: ['first'] })]),
+      { input: 'x' },
+      async (s, _ctx, state) => {
+        seen.push({ ...state })
+        return `${s.id} 产出`
+      },
+    )
+    // 第一阶段执行时上游还没有产出；第二阶段能读到第一阶段写入 state 的输出。
+    expect(seen[0]).toEqual({ input: 'x' })
+    expect(seen[1]).toEqual({ input: 'x', first: 'first 产出' })
+    expect(result.completed).toBe(true)
+  })
+
+  it('keeps a stage declaring consumes out of a parallel window', async () => {
+    let live = 0
+    let maxLive = 0
+    await runWorkflow(
+      manifest('parallel-consumes', [
+        stage('a', { atom: 'extract' }),
+        stage('b', { atom: 'extract' }),
+        stage('c', { atom: 'extract', consumes: ['a'] }),
+      ]),
+      { input: 'x' },
+      async (s) => {
+        live += 1
+        maxLive = Math.max(maxLive, live)
+        await Promise.resolve()
+        live -= 1
+        return `${s.id} 完成`
+      },
+      { atoms: atomRegistry(['extract']) },
+    )
+    // a、b 并发（2 个在跑），c 声明了 consumes 而单跑；并入窗口会看到 3。
+    expect(maxLive).toBe(2)
   })
 })
 

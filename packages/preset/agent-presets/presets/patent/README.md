@@ -2,19 +2,21 @@
 
 English | [中文](README.zh.md)
 
-The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, twelve preset skills, and a patent-specific persona and plan-mode discipline, assembled per docs/patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md. Law text, examination guidelines, and case decisions are verified preferentially against the local cnlaw REST legal base (semantica-cnlaw, see Prerequisites) with the returned source_path recorded, falling back to patent_case_search / patent_kg_query when it is unavailable.
+The `patent` agent preset composes a Chinese-patent-engineering agent on the DeepSeek Harness. It builds on the `standard` preset and adds the patent domain plugins, fifteen preset skills, and a patent-specific persona and plan-mode discipline, assembled per docs/patent-mode-design.md §4–§9 and plan P4.4 of docs/sati-as-dsh-plugins-plan.md. Law text, examination guidelines, and case decisions are verified preferentially against the local cnlaw REST legal base (semantica-cnlaw, see Prerequisites) with the returned source_path recorded, falling back to patent_case_search / patent_kg_query when it is unavailable.
 
 ## What it mounts
 
-Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts nine patent-domain plugins:
+Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, web), the preset mounts ten patent-domain plugins:
 
 - `@deepseek-ai/dsh-patent-data` — the data seam (ctx.patentData: nuo search provider factory + the ego-browser session runner). patent_pdf_download runs its ego-browser download adapter through this service.
 - `@deepseek-ai/dsh-patent-knowledge` — the knowledge.db query service (ctx.patentKnowledge: caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify).
 - `@deepseek-ai/dsh-patent-workflow` — the execution-pipeline service (ctx.patentWorkflow: runWorkflow / runPlantask / approve / reject).
-- `@deepseek-ai/dsh-patent-tools` — 23 model-facing tools: search, metadata, legal status, case/wiki/kg queries, drafting, claim chart, workflow recap, figure analysis, PDF download, knowledge notes.
+- `@deepseek-ai/dsh-patent-tools` — 29 model-facing tools: search, metadata, legal status, case/wiki/kg queries, claim-chart, office-action parsing, drafting, analysis reports, evidence judgment, rule checking, figure generation, PDF download, knowledge notes, and the workflow/plan state machines.
 - `@deepseek-ai/dsh-patent-teams` — the durable multi-agent team service (ctx.patentTeams) surfacing the eleven `patent_teams_*` tools; with `qualityGate: true` it runs the composite completion gate.
 - `@deepseek-ai/dsh-patent-rule` — the rule engine, the output gate on tools/post-execute, and the EVI-011 evidence guards.
 - `@deepseek-ai/dsh-patent-document` — render_patent_document.
+- `@deepseek-ai/dsh-patent-deadline` — patent_deadlines: the statutory and designated deadlines of a case, with the 专利法实施细则 period and delivery rules and a shipped holiday calendar for rest-day roll-forward.
+- `@deepseek-ai/dsh-writing-patterns` — query_writing_patterns over the packaged drafting/office-action pattern corpus, plus the system-prompt section carrying the compiled `<writing_skills>` block.
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources.
 - `@deepseek-ai/dsh-methodology` — the triz tool.
 
@@ -24,13 +26,15 @@ The preset also mounts `@deepseek-ai/dsh-self-evolve-benchmark` behind its own i
 
 ## Skills
 
-Thirteen skills ship in skills/:
+Fifteen skills ship in skills/:
 
 - patent-disclosure-understanding
 - patent-prior-art-search
 - patent-novelty-inventiveness
 - patent-infringement
 - patent-invalidity
+- patent-oa-response
+- patent-reexamination
 - patent-quality-gate
 - patent-workspace-layout
 - patent-team-composition
@@ -44,7 +48,7 @@ Thirteen skills ship in skills/:
 
 `patent-document-polish` is the deliverable-output discipline: pick the scenario template (patentability opinion / search report / OA response / claims-spec / rectification response / re-examination request / invalidation opinion / infringement opinion / litigation pleading), correct (terminology consistency, law-citation format that records the source, numbers/dates/deadlines, numbering levels, legal salutations), and beautify (template rendering, brand injection, A4 layout, md draft → html/pdf or docx), with the delivery release merged into one quality-gate confirmation.
 
-The novelty/inventiveness, infringement, and invalidity skills are rewritten from the Sati skills patent-novelty-analysis, patent-inventiveness-analysis, patent-infringement-checker, and patent-invalidity-checker. Sati tool references (patent_kg_query / patent_case_search / law_search) are replaced by the dsh patent tools, the <memory-context> auto-injection is replaced by explicit must-check lists, and Sati-internal file paths are replaced by workspace-relative paths.
+The novelty/inventiveness, infringement, and invalidity skills are rewritten from the Sati skills patent-novelty-analysis, patent-inventiveness-analysis, patent-infringement-checker, and patent-invalidity-checker. Sati tool references (patent_kg_query / patent_case_search / law_search) are replaced by the dsh patent tools, the <memory-context> auto-injection is replaced by explicit must-check lists, and Sati-internal file paths are replaced by workspace-relative paths. The infringement, invalidity, office-action-response, and reexamination skills now drive the real tool faces: claim_chart_build for the element-level chart, parse_office_action for the office-action parse, and patent_workflow_run with patent_infringement_v1 / patent_invalidation_v1 / patent_oa_response_v1 / patent_reexamination_v1 for the deterministic stages, the approval gate, and the run record. `patent-oa-response` and `patent-reexamination` are new here rather than ported.
 
 ## Knowledge-base strategy
 
@@ -60,12 +64,13 @@ The cnlaw legal base is an optional enhancement: when the local semantica-cnlaw 
 
 ## Model Experience
 
-The model sees the Chinese patent-agent persona (professional identity, seven work disciplines, the standard workflow, and the output discipline with its mandatory disclaimer), the patent plan-mode section, the eight preset skills (seven working skills plus the team and document-discipline skills), and the patent tools plus the standard coding tools. The persona requires verify-before-cite (web_fetch on every fact when mounted), separate comparison, per-feature comparison with citations, and a mandatory disclaimer on every analysis output.
+The model sees the Chinese patent-agent persona (professional identity, seven work disciplines, the standard workflow, and the output discipline with its mandatory disclaimer), the patent plan-mode section, the fifteen preset skills, and the patent tools plus the standard coding tools. The persona requires verify-before-cite (web_fetch on every fact when mounted), separate comparison, per-feature comparison with citations, and a mandatory disclaimer on every analysis output.
 
 ## Known Limitations and Deferred Work
 
 - Legal-text search (ctx.patentKnowledge.legalSearch) has no model-facing tool; law text is verified preferentially against the local cnlaw base (an optional deployment enhancement, see Prerequisites) — its MCP tools where mounted, REST through curl otherwise — and otherwise through patent_case_search plus web_fetch (when a fetch provider is mounted) and the `99-知识库/` baseline. Shipped profiles mount no fetch provider (SSRF protection is deferred), so web_fetch fails with WEB_PROVIDER_UNAVAILABLE until one is added.
 - patent_pdf_download requires a working ego-browser (ego lite) on the host: the ego-browser CLI must be installed and on the PATH (macOS only), or the tool fails loud with setup guidance. knowledge_note_save writes files under the workspace `99-知识库/` directory (a native knowledge.db write API is deferred).
 - The 4 rewritten analysis skills inherit Sati's methodology but have not yet been reviewed against current Chinese patent practice; cross-check their checklists against the user's patent-legal baseline before relying on them.
+- `patent-oa-response` and `patent-reexamination` are new here, not ported: their step order follows the patent_oa_response_v1 / patent_reexamination_v1 manifests and their deadlines come from patent_deadlines, but neither has been reviewed against the current 审查指南 in practice. The reexamination skill keeps a hit inventiveness ground for a utility model and reports the patent subject separately instead of dropping the ground; that handling is recorded in the workbench plan as still awaiting confirmation.
 - The design doc's `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` is a Sati user-level asset not shipped here; law text is verified at use time instead.
 - The self-evolve benchmark is programmatic only: `ctx.selfEvolveBenchmark` mounts no model-facing tool; establish-baseline / optimize loops run from an operator or script that resolves the service for an agent. Its default seams fork children over the host subagents registry, so a child inherits this preset's approval setting (`'never'`) and plan-mode discipline — approval-gated operations are refused in children, and the executor prompt explicitly exits plan semantics so a deliverable can be produced directly.

@@ -525,3 +525,32 @@ it('无 sourcePath 时 pin-cite 格式非法仍打回重做（m4 格式校验无
   expect(prompts[1]!).toMatch(/pin-cite 格式非法/)
   expect(typeof state.claim_chart_doc).toBe('string')
 })
+
+it('未提供源文的目标在提示里标注，其行留空 quote/pinCite 即通过校验', async () => {
+  const prompts: string[] = []
+  const chart = goodChart() as { rows: Array<Record<string, unknown>> }
+  for (const row of chart.rows) {
+    row.quote = ''
+    row.pinCite = ''
+  }
+  const provider: StageProvider = {
+    callLLM: async (prompt: string) => {
+      prompts.push(prompt)
+      return JSON.stringify(chart)
+    },
+  }
+  const handler = new ClaimChartHandler()
+  const state = await handler.execute({
+    state: {
+      claim: CLAIM,
+      chart_targets: JSON.stringify([{ id: 'D1', kind: 'prior-art', title: '对比文件1' }]),
+      chart_mode: 'invalidity',
+    },
+    provider,
+  })
+  expect(prompts).toHaveLength(1) // 空 pin-cite 不触发打回重做
+  expect(prompts[0]!).toMatch(/D1（对比文件：对比文件1，未提供源文）/)
+  expect(prompts[0]!).toMatch(/一律留空串/)
+  const doc = JSON.parse(state.claim_chart_doc as string) as ClaimChart
+  expect(doc.rows.map(row => row.pinCite)).toEqual(['', '', ''])
+})

@@ -4,8 +4,9 @@
  * ModelPort LLM adapter, the constitutional rule protocol types + text
  * utilities, the dual-track checker rule engine, the problem atomization
  * checks, the evidence closed-loop ledger/engine, the structured reasoning
- * primitives, the claim-chart engine, the IPC classifier/standards lookup, and
- * the persistence/path helpers.
+ * primitives, the claim-chart engine, the claim-drafting self-checks (claim unity
+ * and the claim-to-embodiment coverage matrix), the IPC classifier/standards
+ * lookup, and the persistence/path helpers.
  * @module @deepseek-ai/dsh-patent-core
  */
 
@@ -15,6 +16,7 @@ export type {
   PatentModelMessage,
   PatentModelPort,
   PatentModelRequest,
+  PatentModelUsage,
   StageProvider,
   StageSearchHit,
 } from './types.ts'
@@ -63,6 +65,9 @@ export * from './atoms/index.ts'
 
 // Claim-chart engine (element validation / mapping / gap / pin-cite / store).
 export * from './claim-chart/index.ts'
+
+// Claim-drafting self-checks: claim unity (A31.1) and the claim-to-embodiment coverage matrix.
+export * from './claim-coverage/index.ts'
 
 // Patent analysis product contract + deterministic aggregator (Athena-inspired report).
 export * from './analysis-report/index.ts'
@@ -116,6 +121,21 @@ export type { IpcStandardsIndex } from './ipc/ipc-standards-loader.ts'
 export type { IpcClassification, IpcStandardCard } from './ipc/types.ts'
 // Graph engine (Pregel-style superstep) + the three patentability subgraphs.
 export * from './graph/index.ts'
+
+// Deterministic numeric-range novelty check, run beside the LLM semantic track.
+export * from './novelty/index.ts'
+
+// Deterministic parsers for procedure documents (office action, invalidation /
+// reexamination / design grounds).
+export * from './notice/index.ts'
+
+// Response preparation: per-claim amendment plan for an office action and the
+// reexamination preparation sections.
+export * from './response/index.ts'
+
+// Deterministic infringement kernel: all-elements coverage, equivalence
+// consistency, weighted risk grading.
+export * from './infringement/index.ts'
 
 // The atoms barrel and the graph barrel both re-export the structurally identical
 // state readers getStateString / getStateArray; pin the atoms copies so the

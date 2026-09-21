@@ -14,7 +14,7 @@
 
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   DOMAIN_GRAPHS,
@@ -37,6 +37,7 @@ import {
 } from '@deepseek-ai/dsh-patent-core'
 import { builtinPatentManifests } from '@deepseek-ai/dsh-patent-workflow'
 import { PatentToolError } from '../error.ts'
+import { loggedToolModel } from './internal/model-call-log.ts'
 import {
   buildWorkflowProvider,
   buildWorkflowRunContext,
@@ -68,6 +69,8 @@ export type PatentWorkflowRunInput = {
   caseId?: string
   /** Initial material consumed by the extract atoms. */
   input: string
+  /** Claims text, when supplied separately from `input` (element-level atoms read this instead). */
+  claims?: string
   /** claim-chart target objects JSON (default empty). */
   chartTargets?: string
   /** Max prior-art search results (default 5). */
@@ -125,8 +128,12 @@ export interface PatentWorkflowRunDeps extends WorkflowProviderDeps {
 }
 
 const DESCRIPTION = [
-  "Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft) plus other built-in manifests. Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as 'input'. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.",
-].join('\n')
+  'Automatically execute a declarative patent workflow (atom stages) or a domain graph.',
+  'Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report).',
+  'Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array).',
+  'Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material.',
+  'The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.',
+].join(' ')
 /** Render the graph-mode result into model-facing prose. */
 function renderGraphRun(value: PatentWorkflowRunOutput): string {
   const graphState = value.graphState as unknown as GraphState | undefined
@@ -179,7 +186,7 @@ export function renderWorkflowRun(value: PatentWorkflowRunOutput): string {
  * @returns a registry-ready tool definition.
  */
 export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): ToolDefinition {
-  const manifests = new Map(builtinPatentManifests.map(({ manifest }) => [manifest.id, manifest]))
+  const manifests = new Map(builtinPatentManifests.map(manifest => [manifest.id, manifest]))
   const cwd = deps.cwd ?? process.cwd()
 
   return defineTool({
@@ -201,6 +208,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
       },
       caseId: { type: 'string', description: 'Optional case id enabling run/checkpoint persistence.' },
       input: { type: 'string', required: true, description: 'Initial material consumed by the extract atoms.' },
+      claims: { type: 'string', description: 'Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material.' },
       chartTargets: { type: 'string', description: 'claim-chart target objects JSON (default empty).' },
       maxResults: { type: 'number', description: 'Max prior-art search results (default 5).' },
       priorArt: { type: 'string', description: 'Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these).' },
@@ -235,7 +243,7 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
     async execute(args, exec) {
       const input = args
       if (input.graph !== undefined) {
-        return executeGraphRun(input, deps, cwd, exec.signal)
+        return executeGraphRun(input, deps, cwd, exec)
       }
 
       const manifestId = input.manifestId ?? 'patent_disclosure_v1'
@@ -262,7 +270,10 @@ export function createPatentWorkflowRunTool(deps: PatentWorkflowRunDeps = {}): T
         }
       }
 
-      const provider = buildWorkflowProvider(deps, { ...(input.caseId !== undefined ? { caseId: input.caseId } : {}) })
+      const provider = buildWorkflowProvider(
+        bindModel(deps, exec, manifestId),
+        { ...(input.caseId !== undefined ? { caseId: input.caseId } : {}) },
+      )
       if (!provider) {
         throw new PatentToolError(
           'setup_required',
@@ -330,11 +341,22 @@ function parsePriorArt(raw: string): unknown[] {
   return parsed
 }
 
+/** The provider deps with the model port bound to the calling agent's session. */
+function bindModel(
+  deps: PatentWorkflowRunDeps,
+  exec: Pick<ToolRunContext, 'agent'>,
+  manifestId: string,
+): PatentWorkflowRunDeps {
+  const model = loggedToolModel(exec, deps.model, { callSite: 'patent_workflow_run', manifestId })
+  return model === undefined ? deps : { ...deps, model }
+}
+
 /** 装配工作流上下文（manifest 与 graph 两条路径共用同一输入映射）。 */
 function buildRunContext(input: PatentWorkflowRunInput): WorkflowContext {
   return buildWorkflowRunContext({
     ...(input.caseId !== undefined ? { caseId: input.caseId } : {}),
     input: input.input,
+    ...(input.claims !== undefined ? { claims: input.claims } : {}),
     ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
     ...(input.chartTargets !== undefined ? { chartTargets: input.chartTargets } : {}),
     ...(input.priorArt !== undefined ? { priorArt: parsePriorArt(input.priorArt) } : {}),
@@ -356,11 +378,15 @@ async function executeGraphRun(
   input: PatentWorkflowRunInput,
   deps: PatentWorkflowRunDeps,
   cwd: string,
-  signal?: AbortSignal,
+  exec: Pick<ToolRunContext, 'agent' | 'signal'>,
 ): Promise<PatentWorkflowRunOutput> {
   const graphName = input.graph as DomainGraphName
   const def = DOMAIN_GRAPHS[graphName]
-  const provider = buildWorkflowProvider(deps, { ...(input.caseId !== undefined ? { caseId: input.caseId } : {}) })
+  const graphId = `patent_${graphName}`
+  const provider = buildWorkflowProvider(
+    bindModel(deps, exec, graphId),
+    { ...(input.caseId !== undefined ? { caseId: input.caseId } : {}) },
+  )
   if (!provider) {
     throw new PatentToolError(
       'setup_required',
@@ -371,7 +397,6 @@ async function executeGraphRun(
   const workflowCtx = buildRunContext(input)
 
   const graph = def.build({ handlers: deps.handlers ?? globalStageHandlerRegistry }).compile(def.entry)
-  const graphId = `patent_${graphName}`
   let store: CheckpointStore | undefined
   let persistNote = '持久化: 未启用（未提供 caseId）'
   if (input.caseId !== undefined) {
@@ -408,8 +433,7 @@ async function executeGraphRun(
     store,
     graphId,
     provider,
-    /* v8 ignore next -- execute always passes an AbortSignal through. */
-    ...(signal !== undefined ? { signal } : {}),
+    signal: exec.signal,
     ...(resumeFrom !== undefined ? { resumeFrom } : {}),
   })
 

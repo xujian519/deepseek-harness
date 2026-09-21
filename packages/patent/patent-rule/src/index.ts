@@ -66,8 +66,11 @@ export {
   loadPatentComplianceRuleSet,
   loadPatentElectricalRuleSet,
   loadPatentFullRuleSet,
+  patentCaseDomains,
   selectGateRules,
+  PATENT_CASE_DOMAINS,
   type ActivationOverrides,
+  type PatentCaseScope,
   type PatentComplianceLoadResult,
 } from './runtime/patent-compliance.ts'
 export {

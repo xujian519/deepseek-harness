@@ -85,7 +85,7 @@ export interface PatentWorkflowToolDeps {
 }
 
 const DESCRIPTION = [
-  'Run a declarative patent workflow (recap mode): validate the manifest, assemble per-stage outputs into a structured result with degraded-step marking and a summary, then persist the record. Built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_infringement_v1. Supply outputs keyed by stage id; missing stages are marked degraded. No LLM call — this tool finalizes text the agent already produced. Use to finalize multi-stage patent analyses (novelty / disclosure / inventiveness / ...) with a single verifiable result record.',
+  'Run a declarative patent workflow (recap mode): validate the manifest, assemble per-stage outputs into a structured result with degraded-step marking and a summary, then persist the record. Built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_reexamination_v1, patent_infringement_v1. Supply outputs keyed by stage id; missing stages are marked degraded. No LLM call — this tool finalizes text the agent already produced. Use to finalize multi-stage patent analyses (novelty / disclosure / inventiveness / ...) with a single verifiable result record.',
 ].join('\n')
 /**
  * Format a run's stage results into recap-mode lines (flag + stage id +
@@ -128,7 +128,7 @@ export function renderPatentWorkflow(value: PatentWorkflowOutput): string {
  * @returns a registry-ready tool definition.
  */
 export function createPatentWorkflowTool(deps: PatentWorkflowToolDeps = {}): ToolDefinition {
-  const manifests = new Map(builtinPatentManifests.map(({ manifest }) => [manifest.id, manifest]))
+  const manifests = new Map(builtinPatentManifests.map(manifest => [manifest.id, manifest]))
   const cwd = deps.cwd ?? process.cwd()
 
   return defineTool({
@@ -177,7 +177,7 @@ export function createPatentWorkflowTool(deps: PatentWorkflowToolDeps = {}): Too
     },
     async execute(args) {
       /* v8 ignore next -- the built-in manifest catalog is never empty, so the final fallback never fires. */
-      const manifestId = args.manifestId ?? builtinPatentManifests[0]?.manifest.id ?? 'patent_novelty_v1'
+      const manifestId = args.manifestId ?? builtinPatentManifests[0]?.id ?? 'patent_novelty_v1'
       const manifest: WorkflowManifest | undefined = manifests.get(manifestId)
       if (!manifest) {
         const available = [...manifests.keys()]

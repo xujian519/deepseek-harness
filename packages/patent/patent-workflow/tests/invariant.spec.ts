@@ -30,6 +30,20 @@ function workflowRun(overrides: Record<string, unknown> = {}): Record<string, un
   }
 }
 
+/** 合法 model-call 载荷（基于该基线作单字段变异）。 */
+function modelCall(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    callSite: 'patent_workflow_run',
+    manifestId: 'patent_oa_response_v1',
+    provider: 'deepseek-official',
+    model: 'deepseek-v4-flash',
+    output: '阶段成果文本',
+    usage: { inputTokens: 12, outputTokens: 3 },
+    llmStreamCall: true,
+    ...overrides,
+  }
+}
+
 /** 装载 invariant registry + session store + invariant companion。 */
 async function boot(): Promise<Context> {
   const ctx = new Context()
@@ -52,7 +66,32 @@ describe('patent-workflow invariant companion', () => {
       const session = ctx.sessions.create()
       session.append('patent/plantask', plantask() as never)
       session.append('patent/workflow-run', workflowRun() as never)
-      expect(session.snapshotEvents()).toHaveLength(2)
+      session.append('patent/model-call', modelCall() as never)
+      expect(session.snapshotEvents()).toHaveLength(3)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('rejects malformed model-call payloads field by field', async () => {
+    const ctx = await boot()
+    try {
+      const append = (data: unknown) => ctx.sessions.create().append('patent/model-call', data as never)
+      expect(() => append(42)).toThrow(/model-call data must be an object/)
+      expect(() => append(modelCall({ callSite: 7 }))).toThrow(/callSite must be a non-empty string/)
+      expect(() => append(modelCall({ callSite: '  ' }))).toThrow(/callSite must be a non-empty string/)
+      expect(() => append(modelCall({ output: 7 }))).toThrow(/output must be a string/)
+      expect(() => append(modelCall({ llmStreamCall: false }))).toThrow(/must mark llmStreamCall/)
+      expect(() => append(modelCall({ manifestId: 7 }))).toThrow(/manifestId must be a string when present/)
+      // Half a route: an explicit `undefined` value is not JSON-serializable, so
+      // the payload has to drop the key to reach the pair check.
+      const halfRoute = modelCall()
+      delete halfRoute.model
+      expect(() => append(halfRoute)).toThrow(/provider and model must be present together/)
+      expect(() => append(modelCall({ provider: 7 }))).toThrow(/provider and model must be strings/)
+      expect(() => append(modelCall({ usage: 7 }))).toThrow(/usage must be an object/)
+      expect(() => append(modelCall({ usage: { inputTokens: 'x' } }))).toThrow(/usage.inputTokens must be a number/)
+      expect(() => append(modelCall({ usage: { outputTokens: 'x' } }))).toThrow(/usage.outputTokens must be a number/)
     } finally {
       await ctx.fiber.dispose()
     }

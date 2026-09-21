@@ -83,7 +83,7 @@ const CHART_SCHEMA = {
           elementId: { type: 'string' },
           targetId: { type: 'string' },
           quote: { type: 'string', description: '目标对象对应内容的逐字引用（未找到时为空串）' },
-          pinCite: { type: 'string', description: '位置引用，格式 [D1 段[0032] 图3]' },
+          pinCite: { type: 'string', description: '位置引用，格式 [D1 段[0032] 图3]；目标未提供源文时留空串' },
           mapping: { type: 'string', enum: MAPPINGS },
         },
         required: ['elementId', 'targetId', 'quote', 'pinCite', 'mapping'],
@@ -275,7 +275,7 @@ export class ClaimChartHandler implements StageHandler {
             t =>
               `- ${t.id || '(未命名目标)'}（${t.kind === 'prior-art' ? '对比文件' : '被控产品'}${
                 t.title ? `：${t.title}` : ''
-              }）`,
+              }${t.sourcePath === undefined ? '，未提供源文' : ''}）`,
           )
           .join('\n')
     const basePrompt = [
@@ -289,12 +289,15 @@ export class ClaimChartHandler implements StageHandler {
       '',
       '要求：',
       '- 要素拆分到最小技术单元（单一技术手段、单一技术效果、可独立比对），可再拆分的必须拆开',
-      '- 要素编号为 数字+小写字母（1a/1b/1c…），按顺序连续',
+      '- 每个要素四个字段齐全：id、claimNo、text、kind',
+      '- id 为 所属权利要求序号 + 小写字母（1a/1b/1c…、2a/2b…）：同一权利要求内从 a 起连续、不跳号，claimNo 与该数字前缀一致',
+      '- kind 取 preamble（主题名称）/transitional（过渡词）/limitation（技术特征）/means-plus-function（功能性限定）/markush-member（马库什要素）',
       '- 方法权利要求注意各步骤的逻辑顺序与执行主体；结构权利要求注意部件的连接关系与空间位置',
-      '- 要素 text 必须为权利要求原文的连续子串（逐字引用，不得改写）',
-      '- 每个要素对每个目标产出一行：quote 为目标对象对应内容的逐字引用（未找到/证据不足时为空串）',
+      '- 要素 text 必须为所属权利要求原文的连续子串（逐字引用，不得改写）',
+      '- 每个要素对每个目标产出一行，五个字段齐全：elementId、targetId、quote、pinCite、mapping',
+      '- quote 为目标对象对应内容的逐字引用（未找到/证据不足时为空串）',
       '- 无目标对象（【目标对象】为空）时只输出 elements，rows 必须为空数组 []',
-      '- pinCite 格式 [D1 段[0032] 图3]；mapping 取值：literal（字面对应）/literal-construction-dependent/doe（等同，仅侵权）/anticipation（单篇公开，仅对比文件）/obviousness-combination（组合公开，仅对比文件）/partial/not-found/needs-evidence/construction-dependent',
+      '- pinCite 格式 [D1 段[0032] 图3]；标注"未提供源文"的目标没有段落编号可引，针对这类目标的 quote 与 pinCite 一律留空串（不得拿标题或自造段号充数）；mapping 取值：literal（字面对应）/literal-construction-dependent/doe（等同，仅侵权）/anticipation（单篇公开，仅对比文件）/obviousness-combination（组合公开，仅对比文件）/partial/not-found/needs-evidence/construction-dependent',
       `- 场景模式：${mode}`,
       '',
       '请严格输出 JSON。',

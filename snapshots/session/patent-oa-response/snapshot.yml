@@ -1,0 +1,26 @@
+version: 1
+scenario: patent-oa-response
+profile: headless
+composition: patent-jobs
+recording: live
+header:
+  class: patent-jobs
+  pin: true
+  systemPromptSource: text-turn
+workspace:
+  final: true
+input:
+  task: |
+    这是一件中国发明专利申请的审查意见答复作业。只做下面三步，不调用其它工具，被拦下的调用不要重试，不使用 shell，不读写工作区里的其它文件。
+
+    第 1 步：调用 parse_office_action，text 参数传下面这段通知书原文，必须逐字原样传入（不要改写、不要省略）：
+
+    本申请涉及一种阀体伴热夹套结构。审查员认为权利要求 1-3 不具备创造性，不符合专利法第 22 条第 3 款的规定。对比文件 1（CN101234567A，X 类）公开了权利要求 1-3 中记载的阀体与直管加热结构。对比文件 2（CN2345678B，Y 类）公开了螺旋形加热介质通道，其目的是延长介质停留时间。因此权利要求 1 相对于对比文件 1 与对比文件 2 的结合不具备突出的实质性特点。此外，权利要求 3 的保护范围不清楚，不符合专利法第 26 条第 4 款的规定。
+
+    第 2 步：调用 patent_workflow，参数 manifestId 传 patent_oa_response_v1，caseId 传 CN2024-0001，outputs 传四个阶段：stageId 依次为 parse、claim-chart、draft、approval，每个阶段的 text 各写一句中文（parse 写驳回类型，claim-chart 写要素级映射要点，draft 写答复策略，approval 写"已人工确认"）。
+
+    第 3 步：答复时要同步修改说明书的背景技术段落，调用 draft_specification，title 传"一种阀体伴热夹套结构"，technical_problem 传"如何在有限空间内提高伴热介质与阀体的热交换效率"，background 传下面这句话，逐字原样传入（其中对比文件号是尚未核实的占位号）：
+
+    现有技术中，阀体伴热夹套内的加热管多为直管布置（参见 CNXXXXXX），换热效率受限于有限空间。
+
+    最后用一句话说明三步各自的结果；第 3 步若被拦下，照实写出被拦下的信息。

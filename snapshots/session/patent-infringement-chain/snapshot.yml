@@ -1,0 +1,29 @@
+version: 1
+scenario: patent-infringement-chain
+profile: headless
+composition: patent-jobs
+recording: live
+header:
+  class: patent-jobs
+input:
+  task: |
+    这是一件侵权比对分析的整链作业，只做下面两步，不使用 shell，不读写工作区里的其它文件。
+
+    第 1 步：调用 patent_workflow_run，参数 manifestId 传 patent_infringement_v1，input 传下面这段被控产品技术方案，claims 传下面这段权利要求书，chartTargets 传下面这个 JSON 数组的字符串形式（即把整段数组当字符串传，不要传成对象或数组），三处都必须逐字原样传入（不要改写、不要省略）：
+
+    被控产品技术方案：
+    被控产品为一种阀体伴热夹套，包括阀体和焊接在阀体外侧的伴热夹套；伴热夹套内部设有螺旋盘管，盘管内通入加热蒸汽；伴热夹套的材质为碳钢；阀体外壁与伴热夹套内壁之间填充导热硅脂。
+
+    权利要求书：
+    1. 一种阀体伴热夹套结构，其特征在于，包括阀体和设置在阀体外侧的伴热夹套，所述伴热夹套内设有螺旋形加热介质通道。
+    2. 根据权利要求 1 所述的结构，其特征在于，所述伴热夹套的材质为不锈钢。
+    3. 根据权利要求 1 所述的结构，其特征在于，所述伴热夹套与阀体之间设有适当间隙。
+
+    chartTargets：
+    [{"id":"P1","kind":"product","title":"被控产品：阀体伴热夹套（螺旋盘管，碳钢夹套，导热硅脂填充）"}]
+
+    该链运行到"人工确认比对结论"这一步会暂停等待人工确认，这是预期行为。
+
+    第 2 步：如果第 1 步返回了审批门暂停，就再调用一次 patent_workflow_run，参数与第 1 步完全相同，另外传 approveStageIds=["approval"]，让整链跑到完成。
+
+    最后用一句话说明两次调用的结果（第一次停在哪个阶段、第二次是否完成）。

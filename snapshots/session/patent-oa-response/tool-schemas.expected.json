@@ -1,0 +1,2637 @@
+{
+  "initial": [
+    {
+      "name": "add_patent_figure_references",
+      "description": "为已有 SVG 附图追加专利参考标号：按组件文本匹配标注，输出 *_annotated.svg（不改动原图）。默认在匹配文本末尾内嵌「 (标号)」；leader_lines=true 时改用引线模式，标号置于组件外侧并以引线相连（仅 Graphviz/同构节点组 SVG 支持）。用户提供了自绘流程图/框图或已渲染 SVG，需要补标记、与说明书标号对齐时使用。\n\n匹配规则：子串匹配（大小写不敏感）；每个文本元素至多命中一个参考；同名组件出现在多个位置时全部同号标注；未命中的参考列为警告返回。\n\n标号形式：非阿拉伯数字标号（如 S101）按《专利审查指南》第一部分第一章 4.3「附图标记应当使用阿拉伯数字编号」返回警告（照常标注）。\n\n引线模式：标号置于组件轮廓外侧，引线避开图内已绘的边线与箭头，并在越出画布时扩展画布使之完整可见；无可放置位置或缺轮廓时退化为内嵌标号并警告。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "svg_path": {
+            "type": "string",
+            "description": "SVG 图片路径（工作区相对或绝对路径）"
+          },
+          "references": {
+            "type": "array",
+            "description": "参考标号表",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "图内组件文本（子串匹配）"
+                },
+                "numeral": {
+                  "type": "string",
+                  "description": "参考标号（如 20、101）"
+                }
+              },
+              "required": [
+                "label",
+                "numeral"
+              ]
+            }
+          },
+          "output_filename": {
+            "type": "string",
+            "description": "输出文件名（不含扩展名，默认 <原名>_annotated）"
+          },
+          "leader_lines": {
+            "type": "boolean",
+            "description": "true 时改用引线模式（标号置于组件外侧并以引线相连）；默认 false 内嵌「 (标号)」"
+          }
+        },
+        "required": [
+          "svg_path",
+          "references"
+        ]
+      }
+    },
+    {
+      "name": "analyze_patent_figure",
+      "description": "分析专利说明书附图（多模态）：把图片随请求发送给配置的附图模型（imageModel，须声明图片输入），识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文，提升图文对齐准确率。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "image_path": {
+            "type": "string",
+            "description": "附图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp）"
+          },
+          "figure_number": {
+            "type": "number",
+            "description": "附图编号（默认 1，用于附图说明「图N」）"
+          },
+          "claim_context": {
+            "type": "string",
+            "description": "权利要求或技术方案文本（图文对齐，可显著提高组件识别准确率）"
+          },
+          "invention_name": {
+            "type": "string",
+            "description": "发明名称（用于附图说明模板，如「一种供热管道电位采集装置」）"
+          }
+        },
+        "required": [
+          "image_path"
+        ]
+      }
+    },
+    {
+      "name": "bash",
+      "description": "Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`. Attempting a command the sandbox may deny is safe and expected: run it and read the marker rather than assuming the denial. When a command is denied and a wider mode would let it succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry the exact same command once with `sandbox_permissions` (the narrowest wider mode that suffices) plus a one-sentence `justification`. Do not detour through chat to ask permission first — the approval prompt raised by that retry is how the user consents. If the session states approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. Never escalate speculatively: ground the request in a real denial — normally the one this command just hit; escalating up front is fine only when this session already denied the same access. A rejected escalation is final for that command — stop and explain, never work around it — but it does not forbid attempting or escalating other commands later.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The bash command to execute."
+          },
+          "description": {
+            "type": "string",
+            "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
+          },
+          "timeoutMs": {
+            "type": "number",
+            "description": "Timeout in milliseconds. The executor applies its configured default and cap, and kills the command on expiry."
+          },
+          "workdir": {
+            "type": "string",
+            "description": "Working directory for this command. Defaults to the session workspace; a relative path is resolved against it."
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Run in the background and return a job id immediately (collect with job_output, stop with job_kill). No timeout applies."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The wider sandbox mode this command needs. Only valid as a one-shot retry of a command the sandbox just denied; requires justification and user approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact command needs the wider access."
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ]
+      }
+    },
+    {
+      "name": "claim_chart_build",
+      "description": "构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "场景模式：infringement=侵权（被控产品，支持 doe）/invalidity=无效/oa-response=审查意见答复/reexamination=复审/patentability=撰写前可专利性",
+            "enum": [
+              "infringement",
+              "invalidity",
+              "oa-response",
+              "reexamination",
+              "patentability"
+            ]
+          },
+          "claim_text": {
+            "type": "string",
+            "description": "权利要求原文（需拆分的权利要求，可含多条）"
+          },
+          "targets": {
+            "type": "array",
+            "description": "映射目标列表（对比文件/被控产品材料），每项 {id, kind: prior-art|accused-product, title?, source_path?}",
+            "items": {}
+          },
+          "case_id": {
+            "type": "string",
+            "description": "案卷 ID（提供时结果落盘 data/cases/<case_id>/outputs/）"
+          },
+          "risk": {
+            "description": "侵权模式的评分事实（可选）：{defenses: (high|medium|low)[], remedyExposureRatio: 0–1, estoppelApplied?, dedicationApplied?, equivalents?: 等同三要素认定记录[]}。不提供时不计算风险等级；评分只用这些可复核事实，工具不接受直接给出的分数或等级。"
+          }
+        },
+        "required": [
+          "mode",
+          "claim_text",
+          "targets"
+        ]
+      }
+    },
+    {
+      "name": "create_goal",
+      "description": "Create one persisted same-session completion goal when the current direct human request is a long-running objective that should continue across autonomous goal rounds. You may infer that intent without requiring the user to say \"create a goal\". Do not use this for trivial single-turn work. Execution rejects non-human and subagent authority.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "description": "The concrete completion objective inferred from the direct human request."
+          },
+          "max_goal_rounds": {
+            "type": "number",
+            "description": "Optional positive safe-integer limit on automatic continuation rounds."
+          }
+        },
+        "required": [
+          "objective"
+        ]
+      }
+    },
+    {
+      "name": "draft_claims",
+      "description": "根据技术交底书或技术方案撰写权利要求书草案（机械/电学/化学/软件四领域）。当用户要求撰写权利要求、写权利要求书时使用，避免自行手写权利要求文本。输出独立权利要求 + 从属权利要求 + 形式校验报告。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "invention_name": {
+            "type": "string",
+            "description": "发明名称"
+          },
+          "tech_domain": {
+            "type": "string",
+            "description": "技术领域（为空时自动识别）",
+            "enum": [
+              "mechanical",
+              "electrical",
+              "chemical",
+              "software",
+              "general"
+            ]
+          },
+          "patent_type": {
+            "type": "string",
+            "description": "专利类型：发明或实用新型（默认 invention）。实用新型按细则 A23 校验 10 条上限。",
+            "enum": [
+              "invention",
+              "utility_model"
+            ]
+          },
+          "technical_features": {
+            "type": "array",
+            "description": "必要技术特征列表（用于独立权利要求）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "optional_features": {
+            "type": "array",
+            "description": "附加/可选技术特征列表（用于从属权利要求）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prior_art": {
+            "type": "string",
+            "description": "最接近现有技术描述（可选，用于前序部分）"
+          }
+        },
+        "required": [
+          "invention_name",
+          "technical_features"
+        ]
+      }
+    },
+    {
+      "name": "draft_specification",
+      "description": "根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "发明名称（不超过 25 字）"
+          },
+          "tech_domain": {
+            "type": "string",
+            "description": "技术领域（为空时自动识别）",
+            "enum": [
+              "mechanical",
+              "electrical",
+              "chemical",
+              "software",
+              "general"
+            ]
+          },
+          "patent_type": {
+            "type": "string",
+            "description": "专利类型：发明或实用新型（默认 invention）",
+            "enum": [
+              "invention",
+              "utility_model"
+            ]
+          },
+          "technical_problem": {
+            "type": "string",
+            "description": "要解决的技术问题（可选）"
+          },
+          "technical_solution": {
+            "type": "string",
+            "description": "技术方案描述（可选）"
+          },
+          "beneficial_effects": {
+            "type": "string",
+            "description": "有益效果（可选）"
+          },
+          "background": {
+            "type": "string",
+            "description": "背景技术/现有技术描述（可选）"
+          },
+          "drawing_descriptions": {
+            "type": "array",
+            "description": "附图说明（可选，如 \"图1为本发明实施例的整体结构示意图\"）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "figure_analysis": {
+            "type": "array",
+            "description": "附图智能分析结果（可选，未提供 drawing_descriptions 时自动生成附图说明）",
+            "items": {}
+          },
+          "embodiments": {
+            "type": "array",
+            "description": "具体实施方式（可选，可多个实施例）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "has_drawings": {
+            "type": "boolean",
+            "description": "是否有附图（实用新型必须有附图）"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      }
+    },
+    {
+      "name": "edit",
+      "description": "Edit an existing UTF-8 text file by replacing literal text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to edit, resolved by the filesystem backend."
+          },
+          "old_string": {
+            "type": "string",
+            "description": "Literal text to replace. Must match exactly."
+          },
+          "new_string": {
+            "type": "string",
+            "description": "Literal replacement text. Use an empty string to delete the match."
+          },
+          "replace_all": {
+            "type": "boolean",
+            "description": "Replace all matches. Defaults to false; when false, old_string must appear exactly once."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The wider sandbox mode this file operation needs. Only valid as a one-shot retry of an operation the sandbox just denied; requires justification and user approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access."
+          }
+        },
+        "required": [
+          "file_path",
+          "old_string",
+          "new_string"
+        ]
+      }
+    },
+    {
+      "name": "evaluate_evidence",
+      "description": "对专利证据做确定性三性判定（相关性/合法性/真实性）与类型特定检查（电子证据/互联网公开/使用公开四要件/域外证据/公知常识），输出综合评分、举证责任分配与实际适用的证据规则。在 OA 答复、无效宣告论证引用证据前调用，可提前发现证据缺陷。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "snippet": {
+            "type": "string",
+            "description": "待判定证据描述（原文摘录）。"
+          },
+          "sourceUri": {
+            "type": "string",
+            "description": "来源 URI，如 web:https://example.com/page、patent:CN123、file:///path。判定平台可信度与证据类型。"
+          },
+          "docVersion": {
+            "type": "string",
+            "description": "证据日期，如 2023-01-02、2023年1月、20230102、Jan 15, 2023。"
+          },
+          "contentHash": {
+            "type": "string",
+            "description": "内容哈希（真实性/完整性校验）。"
+          },
+          "direction": {
+            "type": "string",
+            "description": "证据方向。",
+            "enum": [
+              "supporting",
+              "contradicting",
+              "neutral"
+            ]
+          },
+          "claimRefs": {
+            "type": "array",
+            "description": "绑定的结论 id 列表。",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceType": {
+            "type": "string",
+            "description": "显式证据类型（缺省按 sourceUri 推断）。",
+            "enum": [
+              "general",
+              "foreign_language",
+              "overseas",
+              "electronic",
+              "witness_testimony",
+              "expert_opinion",
+              "common_knowledge",
+              "notarial_certificate",
+              "burden_of_proof",
+              "standard_of_proof",
+              "prior_art_date",
+              "procedural",
+              "internet_publication",
+              "public_use",
+              "design_comparison"
+            ]
+          },
+          "filingDate": {
+            "type": "string",
+            "description": "专利申请日（公开日是否早于申请日）。"
+          },
+          "caseType": {
+            "type": "string",
+            "description": "案件类型：invalidation / infringement / new_product_method。"
+          },
+          "notarized": {
+            "type": "boolean",
+            "description": "域外证据已公证（EVI-011 条件）。"
+          },
+          "legalized": {
+            "type": "boolean",
+            "description": "域外证据已认证（EVI-011 条件）。"
+          },
+          "translated": {
+            "type": "boolean",
+            "description": "外文证据已附中文译本（EVI-011 条件）。"
+          },
+          "witnessDisclosed": {
+            "type": "boolean",
+            "description": "证人利害关系已披露（EVI-012 条件）。"
+          },
+          "isWellKnown": {
+            "type": "boolean",
+            "description": "待证事实为公知常识（EVI-013 条件）。"
+          },
+          "isUncontested": {
+            "type": "boolean",
+            "description": "待证事实无争议（EVI-013 条件）。"
+          },
+          "deadlineDefined": {
+            "type": "boolean",
+            "description": "举证期限已定义（EVI-051 条件）。"
+          },
+          "submissionWithinDeadline": {
+            "type": "boolean",
+            "description": "证据在期限内提交（EVI-051 条件）。"
+          },
+          "collectionLegal": {
+            "type": "boolean",
+            "description": "证据收集主体/程序/形式合法（EVI-002 条件）。"
+          },
+          "supportingCount": {
+            "type": "number",
+            "description": "支持性证据已计数（EVI-030 证明标准条件）。"
+          },
+          "contradictingCount": {
+            "type": "number",
+            "description": "矛盾证据已计数（EVI-030 证明标准条件）。"
+          },
+          "custodyChainTraceable": {
+            "type": "boolean",
+            "description": "证据保管链可追溯（EVI-050 条件）。"
+          },
+          "integrityVerified": {
+            "type": "boolean",
+            "description": "证据完整性已核验（EVI-050 条件）。"
+          }
+        },
+        "required": [
+          "snippet"
+        ]
+      }
+    },
+    {
+      "name": "exit_plan_mode",
+      "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. Send the COMPLETE plan as markdown, starting with a # heading that names it. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "description": "The complete plan, as markdown, starting with a # heading that names it."
+          }
+        },
+        "required": [
+          "plan"
+        ]
+      }
+    },
+    {
+      "name": "flexible_plan",
+      "description": "Flexible plan for patent cases (stage-level HITL). create: build a plan (optional IPC technical-field inference from the disclosure text). run: execute unconfirmed stages (pending + rolled_back) via the atom registry with LLM + prior-art search, exactly like patent_workflow_run. confirm / rollback: freeze or redo one stage; add / remove / reorder: edit stages at runtime; complete / abandon: finish the plan. Plans persist by caseId across calls (unlike patent_plan_task, which is stateless). confirmed stages are frozen, so confirm fixes the output; autoConfirm=true confirms all successful stages at the end of a run.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Operation: create | get | run | confirm | rollback | add | remove | reorder | complete | abandon.",
+            "enum": [
+              "create",
+              "get",
+              "run",
+              "confirm",
+              "rollback",
+              "add",
+              "remove",
+              "reorder",
+              "complete",
+              "abandon"
+            ]
+          },
+          "caseId": {
+            "type": "string",
+            "description": "Plan key (required for every operation; persists by this id)."
+          },
+          "caseType": {
+            "type": "string",
+            "description": "Orchestration type, e.g. invalidation / infringement / drafting (create)."
+          },
+          "inputText": {
+            "type": "string",
+            "description": "Case input text (create persists it for later runs; run can override it)."
+          },
+          "technicalField": {
+            "type": "string",
+            "description": "Explicit technical field (create; else inferred from inputText)."
+          },
+          "stages": {
+            "type": "array",
+            "description": "Stage definitions (create).",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "goal": {
+                  "type": "string"
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "chain",
+                    "react",
+                    "sub_agent"
+                  ]
+                },
+                "atom": {
+                  "type": "string",
+                  "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
+                },
+                "params": {
+                  "type": "object",
+                  "description": "Static params passed to the stage handler.",
+                  "additionalProperties": true
+                },
+                "artifacts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "constraintIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "articleJudgments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "goal",
+                "strategy"
+              ]
+            }
+          },
+          "stage": {
+            "type": "object",
+            "description": "Single stage definition (add).",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "goal": {
+                "type": "string"
+              },
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "chain",
+                  "react",
+                  "sub_agent"
+                ]
+              },
+              "atom": {
+                "type": "string",
+                "description": "Atom name to auto-execute this stage. Available atoms: approval-gate (params.review_context), claim-chart (params.chart_mode: infringement|invalidity|oa-response|reexamination|patentability), compare, coverage, draft-claims, extract (params.extraction_type, output_key), groundedness, grounds (params.ground_program: invalidation|reexamination|design), keywords, merge, novelty, oa-parse, reasoning, search, slop-gate."
+              },
+              "params": {
+                "type": "object",
+                "description": "Static params passed to the stage handler.",
+                "additionalProperties": true
+              },
+              "artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "constraintIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "articleJudgments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "goal",
+              "strategy"
+            ]
+          },
+          "stageId": {
+            "type": "string",
+            "description": "Target stage id (confirm / rollback / remove)."
+          },
+          "stageIds": {
+            "type": "array",
+            "description": "New stage order (reorder, must include all ids).",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "Abandon reason, kept for audit (abandon)."
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Max prior-art search results for run (default 5)."
+          },
+          "autoConfirm": {
+            "type": "boolean",
+            "description": "When true, run confirms all successful (non-degraded) stages at the end."
+          }
+        },
+        "required": [
+          "action",
+          "caseId"
+        ]
+      }
+    },
+    {
+      "name": "generate_patent_figure",
+      "description": "生成专利风格附图：流程图（方法步骤）、系统框图（组件+连接）、组件层级图、内置模板或原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。\n\n标号体系：每图独立 100 系列（FIG.1=100-199、FIG.2=200-299，默认步进 2，可调）；同一组件跨图出现时用 numerals 显式传入沿用同号，或声明 figure_family 自动续号（同名组件沿用既有标号、新组件取空闲号；缺省每图独立编号）。\n\n图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。\n\n多面板：panels 一次生成 FIG.1A/1B 等多张面板（每面板独立文件 figN+后缀，如 A → fig1A.svg），全部面板组件共享一条连续标号系列，附图说明合并输出。\n\n色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用墨色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用。\n\n引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。\n\n图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。\n\n本机未安装 Graphviz 时返回 setup_required 与安装引导。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "figure_type": {
+            "type": "string",
+            "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、blocks→block_diagram、tree→component_hierarchy、dot→raw_dot、template→template），多输入或无输入须显式指定",
+            "enum": [
+              "flowchart",
+              "block_diagram",
+              "component_hierarchy",
+              "raw_dot",
+              "template"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "description": "流程图步骤（figure_type=flowchart 时必填）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "步骤标识（[A-Za-z0-9_-]，自动清洗）"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "步骤显示文本"
+                },
+                "shape": {
+                  "type": "string",
+                  "description": "box（默认）/ellipse/diamond/parallelogram/cylinder",
+                  "enum": [
+                    "box",
+                    "ellipse",
+                    "diamond",
+                    "parallelogram",
+                    "cylinder"
+                  ]
+                },
+                "next": {
+                  "type": "array",
+                  "description": "后继：字符串 id，或 {id,label}（判断分支必须带边标签）",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "next"
+              ]
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "description": "框图块（figure_type=block_diagram 时必填）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "块名（\\n 换行）"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "input/output/process/storage/decision/default",
+                  "enum": [
+                    "input",
+                    "output",
+                    "process",
+                    "storage",
+                    "decision",
+                    "default"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "connections": {
+            "type": "array",
+            "description": "框图连接（block_diagram）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "数据流说明（可选）"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            }
+          },
+          "tree": {
+            "type": "array",
+            "description": "组件层级树（component_hierarchy，任意深度）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "template": {
+            "type": "string",
+            "description": "内置模板（figure_type=template 时必填）：simple_flowchart/system_block/method_steps/component_hierarchy",
+            "enum": [
+              "simple_flowchart",
+              "system_block",
+              "method_steps",
+              "component_hierarchy"
+            ]
+          },
+          "dot": {
+            "type": "string",
+            "description": "原始 Graphviz DOT（figure_type=raw_dot）"
+          },
+          "panels": {
+            "type": "array",
+            "description": "多面板模式：一次生成多张共享标号系列的面板（fig1A/fig1B…）；与顶层结构输入互斥，列表不可为空",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "suffix": {
+                  "type": "string",
+                  "description": "面板后缀（字母/数字/下划线/连字符；写入 figN+后缀，如 A → fig1A.svg）"
+                },
+                "figure_type": {
+                  "type": "string",
+                  "description": "面板图型；缺省从该面板唯一结构输入推断",
+                  "enum": [
+                    "flowchart",
+                    "block_diagram",
+                    "component_hierarchy",
+                    "raw_dot",
+                    "template"
+                  ]
+                },
+                "steps": {
+                  "type": "array",
+                  "description": "面板流程步骤",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "步骤标识（[A-Za-z0-9_-]，自动清洗）"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "步骤显示文本"
+                      },
+                      "shape": {
+                        "type": "string",
+                        "description": "box（默认）/ellipse/diamond/parallelogram/cylinder",
+                        "enum": [
+                          "box",
+                          "ellipse",
+                          "diamond",
+                          "parallelogram",
+                          "cylinder"
+                        ]
+                      },
+                      "next": {
+                        "type": "array",
+                        "description": "后继：字符串 id，或 {id,label}（判断分支必须带边标签）",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "label"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "next"
+                    ]
+                  }
+                },
+                "blocks": {
+                  "type": "array",
+                  "description": "面板框图块",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "块名（\\n 换行）"
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "input/output/process/storage/decision/default",
+                        "enum": [
+                          "input",
+                          "output",
+                          "process",
+                          "storage",
+                          "decision",
+                          "default"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label"
+                    ]
+                  }
+                },
+                "connections": {
+                  "type": "array",
+                  "description": "面板框图连接（blocks 面板）",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "数据流说明（可选）"
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to"
+                    ]
+                  }
+                },
+                "tree": {
+                  "type": "array",
+                  "description": "面板组件层级树",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "children": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label"
+                    ]
+                  }
+                },
+                "template": {
+                  "type": "string",
+                  "description": "面板内置模板",
+                  "enum": [
+                    "simple_flowchart",
+                    "system_block",
+                    "method_steps",
+                    "component_hierarchy"
+                  ]
+                },
+                "dot": {
+                  "type": "string",
+                  "description": "面板原始 DOT"
+                },
+                "numerals": {
+                  "type": "object",
+                  "description": "面板显式标号（组件 id → 标号；优先于顶层 numerals）",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "suffix"
+              ]
+            }
+          },
+          "figure_number": {
+            "type": "integer",
+            "description": "图号，默认 1（决定标号系列起点）"
+          },
+          "invention_name": {
+            "type": "string",
+            "description": "发明名称（附图说明模板句）"
+          },
+          "numerals": {
+            "type": "object",
+            "description": "显式标号（组件 id → 标号；跨图同件同号续接）",
+            "additionalProperties": true
+          },
+          "numeral_start": {
+            "type": "integer",
+            "description": "自动标号系列起点覆盖"
+          },
+          "numeral_step": {
+            "type": "integer",
+            "description": "标号步进，默认 2"
+          },
+          "figure_family": {
+            "type": "string",
+            "description": "发明家族标识（跨图续号）：声明后同名组件沿用既有标号、新组件续接空闲号；缺省每图独立编号"
+          },
+          "style": {
+            "type": "string",
+            "description": "色彩策略，默认 grayscale",
+            "enum": [
+              "grayscale",
+              "semantic"
+            ]
+          },
+          "filename": {
+            "type": "string",
+            "description": "输出文件名（不含扩展名）"
+          },
+          "format": {
+            "type": "string",
+            "description": "输出格式，默认 svg",
+            "enum": [
+              "svg",
+              "png",
+              "pdf"
+            ]
+          },
+          "engine": {
+            "type": "string",
+            "description": "布局引擎，默认 dot",
+            "enum": [
+              "dot",
+              "neato",
+              "fdp",
+              "circo",
+              "twopi",
+              "sfdp"
+            ]
+          },
+          "page_size": {
+            "type": "string",
+            "description": "页面尺寸（提交规格）；默认取部署配置",
+            "enum": [
+              "a4",
+              "letter"
+            ]
+          },
+          "orient": {
+            "type": "string",
+            "description": "页面方向；默认 portrait，取部署配置",
+            "enum": [
+              "portrait",
+              "landscape"
+            ]
+          },
+          "dpi": {
+            "type": "integer",
+            "description": "渲染分辨率（png 栅格生效）；默认取部署配置"
+          },
+          "margin": {
+            "type": "number",
+            "description": "页边距（厘米，四边同值）；默认取部署配置"
+          },
+          "leader_lines": {
+            "type": "boolean",
+            "description": "引线标号（数字置于部件外侧并以引线相连，仅 SVG 生效）；默认框图/层级图开启、流程图关闭"
+          },
+          "persist_index": {
+            "type": "boolean",
+            "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
+          }
+        }
+      }
+    },
+    {
+      "name": "generate_structure_figure",
+      "description": "从 3D 模型生成专利结构线稿附图：用本机 FreeCAD（TechDraw）把 STEP/IGES/BREP 投影为多视图黑白线稿 SVG（等轴测/三视图等），件号以引线锚定到真实顶点投影，输出到工作区 patent/figures/，返回标号映射表与「图N是…的结构示意图」附图说明。需要机械结构真实投影（而非示意框图）时使用。\n\n默认关闭：结构线稿依赖本机 FreeCAD，需先设 Config.structureFigureEnabled=true；未开启或未安装 freecadcmd 时返回 setup_required 与配置/安装引导。\n\n视图：views 缺省 iso/front/top/right，可选 iso/front/rear/top/bottom/left/right；scale 为 TechDraw 投影比例；show_hidden 开启时绘制隐藏线（虚线）。\n\n件号锚定：callouts 传 [{numeral, point3d:[x,y,z], label?}]，把参考标号绑定到模型 3D 坐标，脚本投影到每个视图的真实 2D 位置并以引线标注；标号应为阿拉伯数字，非数字标号与部件名会触发图面用语告警。\n\n批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。\n\n产物为纯几何片段，不含模板边框/标题栏/图号，符合《专利审查指南》第一部分第一章 4.3（墨色线条、图号不入像素）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "model_path": {
+            "type": "string",
+            "description": "模型文件路径（STEP/IGES/BREP），或其目录（批量）"
+          },
+          "views": {
+            "type": "array",
+            "description": "请求视图，缺省 iso/front/top/right",
+            "items": {
+              "type": "string",
+              "enum": [
+                "iso",
+                "front",
+                "rear",
+                "top",
+                "bottom",
+                "left",
+                "right"
+              ]
+            }
+          },
+          "scale": {
+            "type": "number",
+            "description": "TechDraw 投影比例（正数）；缺省取部署配置或 1"
+          },
+          "show_hidden": {
+            "type": "boolean",
+            "description": "绘制隐藏线（虚线），默认 false"
+          },
+          "callouts": {
+            "type": "array",
+            "description": "件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "numeral": {
+                  "type": "string",
+                  "description": "参考标号（阿拉伯数字字符串）"
+                },
+                "point3d": {
+                  "type": "array",
+                  "description": "锚定的模型 3D 坐标 [x,y,z]（毫米，与模型单位一致）",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "label": {
+                  "type": "string",
+                  "description": "可选部件名称（写入标号表/manifest，不进图面像素）"
+                }
+              },
+              "required": [
+                "numeral",
+                "point3d"
+              ]
+            }
+          },
+          "figure_number": {
+            "type": "integer",
+            "description": "图号（正整数），默认 1（批量时作为起始图号）"
+          },
+          "invention_name": {
+            "type": "string",
+            "description": "发明名称（附图说明模板句）"
+          },
+          "persist_index": {
+            "type": "boolean",
+            "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
+          }
+        },
+        "required": [
+          "model_path"
+        ]
+      }
+    },
+    {
+      "name": "get_goal",
+      "description": "Read the current same-session goal, including its exact id/revision, objective, phase, completed continuation rounds, round limit, blocker reason when present, and whether another continuation is armed. Call this before updating a goal.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "glob",
+      "description": "Find files whose paths match a glob pattern. Returns matching file paths — never directories — including hidden and ignored files (VCS metadata directories are excluded). Up to 100 paths come back in modification-time order; a larger result returns the first 100 paths in modification-time order, says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern to match file paths against (e.g. \"**/*.ts\", \"src/**/*.test.js\"). A pattern with no \"/\" matches the basename at any depth, so \"*\" and \"*.ts\" both search the whole tree; include a separator to anchor the depth."
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it."
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      }
+    },
+    {
+      "name": "grep",
+      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Use read on a matched file for surrounding context.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Regular expression to search for (ripgrep syntax)."
+          },
+          "path": {
+            "type": "string",
+            "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it."
+          },
+          "include": {
+            "type": "string",
+            "description": "One glob filter for which files to search (e.g. \"*.ts\", \"*.{js,jsx}\"). Not a list; negation is not supported."
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      }
+    },
+    {
+      "name": "interrupt_agent",
+      "description": "Request cancellation of a background agent's current turn by its agent id. The target may be your direct child or a deeper agent created under you. Only the current turn stops: messages already queued for the agent stay parked until a later send_message, agents it started keep running, and the agent itself stays available for follow-ups. This call returns as soon as the stop request is accepted, so the target may keep running briefly; interrupting an agent that already finished is an accepted no-op.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "The agent id of the running agent to interrupt."
+          }
+        },
+        "required": [
+          "agent_id"
+        ]
+      }
+    },
+    {
+      "name": "job_kill",
+      "description": "Request cancellation of a running background job by job id. Returns immediately; the job settles as killed once its work actually stops.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Job id returned by the tool that started the background work."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional short reason, recorded in the log and forwarded to the job."
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "name": "job_list",
+      "description": "List your background jobs (running and finished) with their ids, kinds, and statuses.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "job_output",
+      "description": "Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`, which waits up to the configured cap.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Job id returned by the tool that started the background work."
+          },
+          "wait": {
+            "type": "boolean",
+            "description": "Block until the job reaches a terminal status or the timeout expires. A timed-out wait returns [status: running] and leaves the job alive."
+          },
+          "timeout_ms": {
+            "type": "number",
+            "description": "Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum."
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "name": "knowledge_note_save",
+      "description": "把项目专利产出（OA 答复要点、无效分析结论、检索心得）沉淀为知识笔记，后续检索可召回。用于定稿后建议沉淀：如 knowledge_note_save({title, content, project})。同一内容重复保存会自动跳过（幂等）。\n\n注意：dsh 的知识库写 API（knowledge.db personal_note 层）尚未接入，当前落为案卷目录下的笔记文件。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "笔记标题（≤200 字符，作为检索索引词）"
+          },
+          "content": {
+            "type": "string",
+            "description": "笔记正文（≤20,000 字符）"
+          },
+          "project": {
+            "type": "string",
+            "description": "来源项目标签（可选，参与幂等与检索过滤）"
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ]
+      }
+    },
+    {
+      "name": "list_agents",
+      "description": "List your continuable background subagents by durable id and label. Use it to recall which ones you started, not to poll for completion — you are told when one finishes. Status comes from the live registry: running means the agent is working right now, idle means it is loaded but between turns (it may be waiting on agents it started), and ready means it exists only in storage — resumable, not terminal, and not a result waiting to be collected; a `send_message` steers a running child at its nearest step boundary or starts a turn for an idle or ready child, and a direct child remains a `send_message` candidate in every status. The snapshot is not a delivery promise — `send_message` performs the authoritative check and may still fail. Children that could not be read are reported as diagnostics instead of being silently dropped. Scope `descendants` walks the whole tree below you in stable pre-order, annotating each entry with its durable direct-parent session id and depth. You may use `send_message` only for depth-1 entries; deeper entries are candidates for `interrupt_agent` only.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "children (default) lists direct children only; descendants walks the complete tree below you.",
+            "enum": [
+              "children",
+              "descendants"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "parse_office_action",
+      "description": "确定性解析审查意见通知书（不调用模型）：识别驳回类型（专利法 26.3/26.4/22.2/22.3/22.4/25 条等）、引用文献与相关性类别（X/Y/A/E/P）、涉及的权利要求（区间已展开）、审查员论点。用于答复前先拿到结构化事实：先按主驳回类型定答复主策略，再逐条处理。输出只反映通知书原文的措辞，不判断驳回是否成立，也不起草答复。文献未标注相关性类别时不推断类别。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "审查意见通知书正文（含驳回条款与引用文献的原文）。"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
+      "name": "patent_analysis_report",
+      "description": "生成标准化的专利分析报告：从权利要求抽取技术特征（类型/重要性），进行 IPC 分类，给出清晰度与完整性等确定性评分，并结合 LLM 对新颖性与技术强度补分，输出创新性洞察与专家考量。适合在评估提案、对比现有技术或提交人工复核前生成结构化分析基线。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patent_id": {
+            "type": "string",
+            "description": "专利号（可选）"
+          },
+          "title": {
+            "type": "string",
+            "description": "发明名称"
+          },
+          "abstract": {
+            "type": "string",
+            "description": "摘要"
+          },
+          "claims": {
+            "type": "array",
+            "description": "权利要求（权 1 起）",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "claims"
+        ]
+      }
+    },
+    {
+      "name": "patent_case_search",
+      "description": "检索本地专利判例全文（无效复审决定/专利判决，knowledge.db，FTS5 BM25 优先）。用于无效宣告分析、OA 答复时检索相似在先决定的理由论证与证据认定。支持 doc_type（case=无效决定/judgment=判决）与 court（法院）过滤。默认排除 wiki 审查标准卡片（审查标准请用 patent_wiki_search）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "检索关键词（如 创造性 三步法、技术启示、区别特征 预料不到的效果）"
+          },
+          "doc_type": {
+            "type": "string",
+            "description": "文档类型过滤：case=无效复审决定，judgment=专利判决（缺省全部）",
+            "enum": [
+              "case",
+              "judgment"
+            ]
+          },
+          "court": {
+            "type": "string",
+            "description": "审理法院过滤（子串匹配，如 最高人民法院）"
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回条数上限（默认 5，最大 10）"
+          },
+          "include_content": {
+            "type": "boolean",
+            "description": "是否附命中片段（默认 true，截断约 800 字）"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "patent_deadlines",
+      "description": "- Computes the Chinese patent statutory and designated deadlines of one case: priority window and its restoration, priority-claim addition/correction, application fee, substantive-examination request, voluntary amendment, registration and divisional filing, patent term, annual fees with the six-month surcharge window, PCT national-phase entry, reexamination, office-action and invalidation responses, and term-compensation requests.\n- Counts periods from the delivery date. Under 专利法实施细则第4条 as revised and the 2023 审查指南, electronic delivery is the day the document enters the electronic system, presumed to be the dispatch date, so a designated period runs from the dispatch date with no 15-day extension; postal delivery is the evidenced receipt date or 15 days after dispatch, direct delivery is the hand-over day, and service by announcement is one month after publication.\n- Applies 专利法实施细则第5条 by default: the start day is not counted, a month/year period ends on the corresponding day (or the last day of a month that has none), and an end date on a holiday or moved rest day rolls to the next working day. Set restDayRule to \"omit\" for the un-rolled criterion, which reports each period's own end date; both dates are always returned, with rawDueDate holding the un-rolled one.\n- Counts the substantive-examination request from the priority date when the case claims priority, and from the filing date otherwise. Whether the case claims priority is an explicit input, not something inferred from a priority date.\n- Deadlines that start at a notice's delivery (grant, rejection, office-action, reexamination, invalidation) are reported as pending with the exact missing input until that notice's delivery date is supplied; they are never approximated from the filing date.\n\nUsage notes:\n  - Dates are YYYY-MM-DD. Supply the notices the case actually received, with how each was delivered.\n  - Read-only and offline; makes no network request.\n  - Results are decision support, not a filing instruction: verify against the notice and the current 审查指南 before acting.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patentType": {
+            "type": "string",
+            "description": "Patent category",
+            "enum": [
+              "invention",
+              "utility-model",
+              "design"
+            ]
+          },
+          "filingDate": {
+            "type": "string",
+            "description": "Application date (international filing date for a PCT case)"
+          },
+          "claimsPriority": {
+            "type": "boolean",
+            "description": "Whether the case claims priority, as stated by the agent or the human handling the case"
+          },
+          "priorityDate": {
+            "type": "string",
+            "description": "Earliest priority date; required when claimsPriority is true"
+          },
+          "isPctNationalPhase": {
+            "type": "boolean",
+            "description": "Whether the case is a PCT application entering the Chinese national phase"
+          },
+          "authorizationPublicationDate": {
+            "type": "string",
+            "description": "Grant publication date (授权公告日)"
+          },
+          "marketingApprovalDate": {
+            "type": "string",
+            "description": "Date the drug obtained marketing approval in China"
+          },
+          "notices": {
+            "type": "array",
+            "description": "Notices received, with their delivery",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "description": "Which document was delivered",
+                  "enum": [
+                    "office-action-first",
+                    "office-action-subsequent",
+                    "substantive-exam-notice",
+                    "rejection-decision",
+                    "grant-notice",
+                    "reexamination-notice",
+                    "invalidation-transfer"
+                  ]
+                },
+                "mode": {
+                  "type": "string",
+                  "description": "How it was delivered; omitted means electronic (dispatch date is the delivery date)",
+                  "enum": [
+                    "electronic",
+                    "postal",
+                    "personal",
+                    "publication"
+                  ]
+                },
+                "dispatchDate": {
+                  "type": "string",
+                  "description": "Dispatch date on the notice (electronic/postal)"
+                },
+                "enteredDate": {
+                  "type": "string",
+                  "description": "Day it entered the electronic system, when evidenced later than dispatch"
+                },
+                "actualReceiptDate": {
+                  "type": "string",
+                  "description": "Actual receipt date, when evidenced"
+                },
+                "handedOverDate": {
+                  "type": "string",
+                  "description": "Hand-over date for direct delivery"
+                },
+                "publicationDate": {
+                  "type": "string",
+                  "description": "Announcement date for service by publication"
+                },
+                "designatedMonths": {
+                  "type": "number",
+                  "description": "Months the notice itself designates"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            }
+          },
+          "restDayRule": {
+            "type": "string",
+            "description": "apply (default) rolls an end date off a rest day; omit reports the period's own end date",
+            "enum": [
+              "apply",
+              "omit"
+            ]
+          }
+        },
+        "required": [
+          "patentType",
+          "filingDate",
+          "claimsPriority"
+        ]
+      }
+    },
+    {
+      "name": "patent_eval",
+      "description": "评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "评估模式: report(分析报告质量) / retrieval(检索覆盖度) / workflow(流程完整性) / citations(引用合规性) / comprehensive(全面评估)",
+            "enum": [
+              "report",
+              "retrieval",
+              "workflow",
+              "citations",
+              "comprehensive"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "待评估的内容文本（报告正文/检索关键词列表/工作流步骤/引文列表等）"
+          },
+          "required_citations": {
+            "type": "array",
+            "description": "要求必须包含的法条引用列表（如 [\"第二十二条第二款\", \"第二十二条第三款\"]）",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "name": "patent_kg_query",
+      "description": "查询专利知识图谱节点（判例/审查规则/法条/概念）。三种模式：① query 关键词检索（FTS5，附相似/引用关系标注）；② id 按节点 id 展开详情与相似/引用邻居；③ node_type 按类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept，支持 Judgment/LawArticle 别名）。与 patent_wiki_search（wiki 卡片正文）和 law_search（法条原文）互补。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "关键词检索（如 创造性 三步法、Bolar例外、禁止反悔）；与 id 二选一"
+          },
+          "id": {
+            "type": "string",
+            "description": "节点 id（如 CASE_005）；返回节点详情 + 相似/引用邻居；与 query 二选一，id 优先"
+          },
+          "node_type": {
+            "type": "string",
+            "description": "按节点类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept；Judgment=最高法院+地方法院判决，LawArticle=法条条款）"
+          },
+          "expand": {
+            "type": "boolean",
+            "description": "关键词命中后是否做关系扩展（相似/引用），默认 true"
+          },
+          "include_content": {
+            "type": "boolean",
+            "description": "是否附节点正文片段（默认 false，截断约 600 字）"
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回条数上限（默认 5，最大 10）"
+          }
+        }
+      }
+    },
+    {
+      "name": "patent_legal_status",
+      "description": "- Queries patent legal status (Active / Expired / Abandoned) and estimated expiration from Google Patents\n- Batch: pass 1-20 patent numbers; individual failures are reported per-patent without aborting the batch\n- Returns title, status, estimated expiration, filing/grant dates, applicant, inventor, and status event history\n\nUsage notes:\n  - Read-only; makes one network request per patent (concurrency 4 by default)\n  - For CNIPA (China) legal-status transactions use the cnipa-query skill instead",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patents": {
+            "type": "array",
+            "description": "Patent numbers (1-20), e.g. ['US11452699B2', 'US2668287A']",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxConcurrency": {
+            "type": "number",
+            "description": "Max concurrent requests (default 4)"
+          }
+        },
+        "required": [
+          "patents"
+        ]
+      }
+    },
+    {
+      "name": "patent_metadata",
+      "description": "- Fetches patent metadata from Google Patents by patent number (e.g. US11452699B2)\n- Returns structured data: title, inventors, assignees, dates, legal status, estimated expiration, abstract, PDF URL, classifications, citations\n- Validates and normalizes the patent number automatically\n- Use for patent due diligence, prior-art detail lookup, legal status checks\n\nUsage notes:\n  - Read-only; makes one network request per patent\n  - A 'not found' result (patent does not exist) is returned as data with success:false — not an error\n  - Non-fatal parse warnings are surfaced in parseWarnings when the page structure changes",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patent": {
+            "type": "string",
+            "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces)."
+          },
+          "timeout": {
+            "type": "number",
+            "description": "Request timeout in ms (default 30000)"
+          },
+          "returnAbstract": {
+            "type": "boolean",
+            "description": "Include abstract (default true)"
+          },
+          "returnLegal": {
+            "type": "boolean",
+            "description": "Include legal status (default true)"
+          }
+        },
+        "required": [
+          "patent"
+        ]
+      }
+    },
+    {
+      "name": "patent_pdf_download",
+      "description": "从 Google Patents 批量下载专利 PDF：优先经用户 ego-browser（ego lite）做浏览器内下载拦截（复用登录态），拦截不可用或失败时回退为提取 CDN PDF 链接后用 HTTP 直接下载落盘。输入 patents 为公开号列表（CN123456789A、US11452699B2、EP1234567A1、WO2023123456A1…），保存为 `<outputDir>/<patent>.pdf`。每篇结果为 status=ok（带 path 与 method 说明落盘方式）或 status=failed（带 error，且保留 pdfUrl 供手动重试）；失败不中断其余专利。\n\nUsage notes:\n  - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下\n  - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）\n  - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍 429 时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patents": {
+            "type": "array",
+            "description": "专利公开号列表（1-50 篇）",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputDir": {
+            "type": "string",
+            "description": "输出目录（绝对或相对当前工作目录）；默认 <cwd>/专利原文/YYYY-MM-DD"
+          },
+          "pageTimeoutSec": {
+            "type": "number",
+            "description": "每页打开超时（秒），默认 20"
+          },
+          "downloadTimeoutMs": {
+            "type": "number",
+            "description": "每篇下载拦截超时（毫秒），默认 60000"
+          },
+          "timeoutMs": {
+            "type": "number",
+            "description": "整体执行超时（毫秒），默认 180000，上限 300000"
+          },
+          "record": {
+            "type": "boolean",
+            "description": "是否截图留证（默认 false）"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "忽略 MANIFEST 断点续传，强制重下全部（默认 false）"
+          }
+        },
+        "required": [
+          "patents"
+        ]
+      }
+    },
+    {
+      "name": "patent_plan_task",
+      "description": "Human-in-the-loop plan state machine for patent tasks. transition: whitelist-checked state changes (planning → awaiting_approval → executing → awaiting_feedback → replanning → finished). sync: turn plan steps into ordered tasks with blockedBy deps. replan: hash-compare completed steps for incremental resume. Fail-closed on illegal transitions and missing semantic preconditions (executing needs tasks, replanning needs feedback). Stateless: pass the current state on every call.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Operation: transition | sync | replan.",
+            "enum": [
+              "transition",
+              "sync",
+              "replan"
+            ]
+          },
+          "currentState": {
+            "type": "string",
+            "description": "Current state (required for transition)."
+          },
+          "to": {
+            "type": "string",
+            "description": "Target state (required for transition)."
+          },
+          "planSteps": {
+            "type": "array",
+            "description": "Plan steps (sync/replan).",
+            "items": {
+              "type": "string"
+            }
+          },
+          "previousTasks": {
+            "type": "array",
+            "description": "Previous task list (replan, optional: preserve completed steps).",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "description": "Current task list (transition to executing, required: sync first).",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "feedback": {
+            "type": "string",
+            "description": "Feedback driving replanning (transition to replanning, required)."
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "patent_search",
+      "description": "- Searches Google Patents by keyword or boolean query (e.g. '(phase change OR PCM) AND thermal', 'assignee:(Samsung) after:20200101')\n- Returns structured hits: patent number, title, assignee, publication date, abstract, URL\n- Use for prior-art search, novelty pre-screening, competitor/assignee analysis\n\nUsage notes:\n  - Read-only; query syntax follows Google Patents search grammar\n  - Follow up with patent_metadata to fetch full details of a specific hit\n  - A network failure is reported as an error; a genuine zero-result search returns empty hits with warnings",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query in Google Patents syntax: keywords, phrases, boolean (AND/OR/NOT), fielded (assignee:/inventor:), date ranges (after:/before:)."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max hits (1-50, default 10)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "patent_wiki_search",
+      "description": "检索专利 wiki 知识卡片（说明书/权利要求/撰写/附图四目录），用于撰写说明书、权利要求书时查询充分公开、实施例、数值范围、以说明书为依据等撰写标准。支持 dir 目录过滤（specification/claims/drafting/figures）与 include_body 正文片段。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出全部卡片）"
+          },
+          "dir": {
+            "type": "string",
+            "description": "目录过滤：specification=说明书、claims=权利要求、drafting=撰写、figures=附图（缺省全部）",
+            "enum": [
+              "specification",
+              "claims",
+              "drafting",
+              "figures"
+            ]
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回条数上限（默认 5，最大 10）"
+          },
+          "include_body": {
+            "type": "boolean",
+            "description": "是否附带卡片正文片段（默认 false）"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "patent_worker_validate",
+      "description": "Validate a patent worker output against its declared contract (required fields). Missing hard-contract fields mark the output degraded (never interrupts); soft-contract gaps are reported separately. Returns the pass/degraded verdict plus the missing hard/soft field lists. Use for contract-level quality review of patent products (technical analysis, search report, novelty/inventiveness analysis, OA response, quality report).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "workerName": {
+            "type": "string",
+            "description": "Worker name from the built-in catalog (e.g. patent-technical-analyzer, patent-novelty-analyzer, quality_checker)."
+          },
+          "outputText": {
+            "type": "string",
+            "description": "Output text to validate against the worker contract."
+          }
+        },
+        "required": [
+          "workerName",
+          "outputText"
+        ]
+      }
+    },
+    {
+      "name": "patent_workflow",
+      "description": "Run a declarative patent workflow (recap mode): validate the manifest, assemble per-stage outputs into a structured result with degraded-step marking and a summary, then persist the record. Built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_reexamination_v1, patent_infringement_v1. Supply outputs keyed by stage id; missing stages are marked degraded. No LLM call — this tool finalizes text the agent already produced. Use to finalize multi-stage patent analyses (novelty / disclosure / inventiveness / ...) with a single verifiable result record.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "manifestId": {
+            "type": "string",
+            "description": "Workflow manifest id. Defaults to 'patent_novelty_v1'."
+          },
+          "caseId": {
+            "type": "string",
+            "description": "Optional case id for result records; when provided the run persists under `<caseDir>/workflow-runs/`."
+          },
+          "outputs": {
+            "type": "array",
+            "description": "Per-stage outputs keyed by stage id. Missing stages are marked degraded.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "stageId": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageId",
+                "text"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "patent_workflow_run",
+      "description": "Automatically execute a declarative patent workflow (atom stages) or a domain graph. Manifest path: 8 built-in manifests — patent_disclosure_v1 (PFE extraction → prior-art search → per-feature novelty → review gate → claims draft), patent_novelty_v1, patent_inventiveness_v1 (three-step method), patent_patentability_v1, patent_oa_response_v1 (office-action parsing → claim chart → response draft), patent_invalidation_v1 (invalidation grounds → claim chart → novelty + inventiveness), patent_reexamination_v1 (rejection grounds → claim chart → novelty + inventiveness), patent_infringement_v1 (claim chart → all-elements/equivalence check → report). Graph path (graph=novelty|inventiveness|enablement|citation-check): runs a full domain graph (LLM nodes + patent search + deterministic rule gate) in one call; citation-check is a deterministic pure-function graph that verifies every `D<id>`/patent-number citation in the conclusion (inventiveness_conclusion/novelty_report/text) appears in priorArt (pass it as a JSON array). Provide the material as the input argument; pass the claims text separately as claims when it should not be mixed into that material. The review gate pauses the run; re-invoke with resumeCheckpointId (graph) or approveStageIds (manifest) to continue. When caseId is provided, run results, the Mermaid diagram, and graph checkpoints are persisted under `<caseDir>/workflow-runs/`. Requires a model port.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "manifestId": {
+            "type": "string",
+            "description": "Workflow manifest id. Defaults to 'patent_disclosure_v1'."
+          },
+          "graph": {
+            "type": "string",
+            "description": "Domain graph to run end-to-end (takes precedence over manifestId).",
+            "enum": [
+              "novelty",
+              "inventiveness",
+              "enablement",
+              "citation-check"
+            ]
+          },
+          "resumeCheckpointId": {
+            "type": "string",
+            "description": "Graph checkpoint id from a previous interrupted run; resumes from it."
+          },
+          "approveCheckpointId": {
+            "type": "string",
+            "description": "Graph checkpoint id to grant and resume past (approves the gate)."
+          },
+          "approveStageIds": {
+            "type": "array",
+            "description": "Manifest stage ids of already-approved approval gates (e.g. ['review_gate']); skipped on rerun.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "caseId": {
+            "type": "string",
+            "description": "Optional case id enabling run/checkpoint persistence."
+          },
+          "input": {
+            "type": "string",
+            "description": "Initial material consumed by the extract atoms."
+          },
+          "claims": {
+            "type": "string",
+            "description": "Claims text, when supplied separately from `input` (e.g. the office action as input plus the claims under review); element-level atoms then read the claims instead of the initial material."
+          },
+          "chartTargets": {
+            "type": "string",
+            "description": "claim-chart target objects JSON (default empty)."
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Max prior-art search results (default 5)."
+          },
+          "priorArt": {
+            "type": "string",
+            "description": "Existing prior-art evidence entries as a JSON array (graph path; citation-check grounds citations against these)."
+          }
+        },
+        "required": [
+          "input"
+        ]
+      }
+    },
+    {
+      "name": "read",
+      "description": "Read a UTF-8 text file and return line-numbered content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to read, resolved by the filesystem backend."
+          },
+          "offset": {
+            "type": "number",
+            "description": "1-based first line to return. Defaults to 1."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of lines to return. Defaults to 2000."
+          }
+        },
+        "required": [
+          "file_path"
+        ]
+      }
+    },
+    {
+      "name": "read_image",
+      "description": "Read a PNG/JPEG/WebP/GIF file and return the image itself. A path without a file extension is accepted; the format is detected from the file content, so normalized attachment paths can be passed directly without copying or renaming. Harness validates and downscales large supported images before the next model request, so use this tool directly instead of installing image libraries or creating thumbnails merely to inspect an image. Independent files may be read concurrently in small batches. Requires the current model to accept image input.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the image file, resolved by the filesystem backend."
+          }
+        },
+        "required": [
+          "file_path"
+        ]
+      }
+    },
+    {
+      "name": "recognize_chemical_structure",
+      "description": "识别化学式/化学结构：从化学结构图（图片模式，多模态模型两步分析 + RDKit 校验）或文档文本（文本模式，正则候选 → LLM 复核/化合物名称转 SMILES → RDKit 校验）中提取多候选 SMILES、分子式与化合物名称。当交底书/说明书/权利要求含化学结构式（含 Markush 广义结构）、分子式或化合物名称需要转 SMILES 时使用。注意：本工具不直接解析 PDF——图片模式输入须为已导出的图片（jpeg/png/gif/webp），文本模式可传 PDF 文本层提取结果。\n\n当前环境未安装 RDKit（可选原生依赖），本工具暂不可用，调用将返回 needHumanReview=true 的不可用结果。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "image_path": {
+            "type": "string",
+            "description": "化学结构图图片路径（工作区相对或绝对路径，支持 jpg/png/gif/webp；PDF 页请先导出为图片）"
+          },
+          "text": {
+            "type": "string",
+            "description": "文档文本片段（说明书/权利要求）或单独的化合物名称（name→SMILES）"
+          },
+          "mode": {
+            "type": "string",
+            "description": "识别模式：image 走图片两步法；text 走文本三级流水线；auto 按输入分派（默认）",
+            "enum": [
+              "image",
+              "text",
+              "auto"
+            ]
+          },
+          "claim_context": {
+            "type": "string",
+            "description": "权利要求或技术方案文本（图文对齐，可提高识别准确率）"
+          }
+        }
+      }
+    },
+    {
+      "name": "render_patent_document",
+      "description": "Render a patent-attorney deliverable (patentability opinion, search report, OA response, claims-spec chart, invalidation opinion, rectification response, re-examination request, infringement opinion, or litigation pleading) from a shipped Chinese HTML template into files on disk. Pick a template id and an outputName; fill template slots by passing sections as an id -> innerHTML record. Writes an HTML file, and by default also a PDF through headless Chrome (format: html, pdf, or both; default both). Returns the written file paths plus any warnings or the PDF failure reason (the HTML still exists when the PDF fails).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "description": "Template id to render (one of the nine shipped patent templates).",
+            "enum": [
+              "patentability-opinion",
+              "search-report",
+              "oa-response",
+              "claims-spec",
+              "invalidation-opinion",
+              "rectification-response",
+              "re-examination-request",
+              "infringement-opinion",
+              "litigation-pleading"
+            ]
+          },
+          "outputName": {
+            "type": "string",
+            "description": "Output filename stem (no extension); only letters, digits, underscore, hyphen, and dot."
+          },
+          "caseId": {
+            "type": "string",
+            "description": "Optional case id; when given the result lands in data/cases/<caseId>/outputs/ instead of the default directory."
+          },
+          "outputDir": {
+            "type": "string",
+            "description": "Optional explicit output directory (overrides caseId and the default directory)."
+          },
+          "format": {
+            "type": "string",
+            "description": "Output format: html, pdf, or both (default both).",
+            "enum": [
+              "html",
+              "pdf",
+              "both"
+            ]
+          },
+          "sections": {
+            "type": "object",
+            "description": "Record of element id -> HTML innerHTML content to inject into the template.",
+            "additionalProperties": true
+          },
+          "brand": {
+            "type": "object",
+            "description": "Optional inline brand overrides (keys map to the --sati-doc-* CSS variables, e.g. firm, accent).",
+            "additionalProperties": true
+          },
+          "brandPath": {
+            "type": "string",
+            "description": "Optional path to a theme.json whose documents.patent namespace supplies brand overrides."
+          }
+        },
+        "required": [
+          "template",
+          "outputName"
+        ]
+      }
+    },
+    {
+      "name": "rule_check",
+      "description": "Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match) against the given text and return violations with severity, action and legal basis. Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions). Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance), 'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed), a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement' (the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish), or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text to check."
+          },
+          "scope": {
+            "type": "string",
+            "description": "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml."
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
+      "name": "search_patent_figure",
+      "description": "检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由 analyze_patent_figure 写入（见 Config.figureIndexFile）。当前仅关键词检索（向量/语义检索未接入）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）"
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回条数上限（默认 5，最大 10）"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "send_message",
+      "description": "Send a message to a direct continuable child by its agent id. If you are a resident continuable child, you may also target your direct parent. If the target is still working, the message steers its nearest step; if it is idle, the message starts a turn. This call returns no answer from the agent — only confirmation that the message was delivered. A failure means the message was NOT delivered.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "The agent id of your direct continuable child, or your direct parent when you are a resident continuable child."
+          },
+          "message": {
+            "type": "string",
+            "description": "The message to deliver to the agent."
+          }
+        },
+        "required": [
+          "agent_id",
+          "message"
+        ]
+      }
+    },
+    {
+      "name": "skill",
+      "description": "Load the full instructions for an available skill. Call this with the exact skill name from the session skill catalog before acting on a task that names or clearly matches that skill.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The exact skill name from the available skills list."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "name": "subagent",
+      "description": "Delegate a self-contained task to a subagent (a separate agent that works in its own context) to offload focused, independent work — research, a scoped implementation, an analysis — so it does not consume this conversation's context. The subagent returns its result, not its intermediate steps. Give it a complete, standalone prompt: it does not see this conversation. This tool runs in the background by default, immediately returns a durable subagent id, and keeps the child conversation available for later turns. When that run settles, the runtime sends the parent a notice containing its outcome and any final assistant message; `send_message` steers the child's nearest step while it is running and starts a turn while it is idle. Set `run_in_background: false` only when your next action depends on receiving the result.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "A short (3-5 word) description of the delegated task, for display."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The complete, self-contained task for the subagent. It does not share this conversation's context, so include everything it needs."
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Whether to run in the background and return a durable subagent id immediately. Defaults to true. Set false to wait for the result when your next action depends on it."
+          }
+        },
+        "required": [
+          "description",
+          "prompt"
+        ]
+      }
+    },
+    {
+      "name": "subagent_fork",
+      "description": "Delegate a task to a subagent that inherits this conversation: a child agent seeded with all completed turns so far (it does not see the current in-flight turn). Use this when the subtask builds on this conversation's context — a follow-up analysis, a review, a continuation — without consuming this conversation's context for the work itself. You receive its result, not its intermediate steps. This call waits for the subagent and returns its result.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "A short (3-5 word) description of the delegated task, for display."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The task for the subagent. It already sees this conversation's completed turns, so build on them freely and state only what is new."
+          }
+        },
+        "required": [
+          "description",
+          "prompt"
+        ]
+      }
+    },
+    {
+      "name": "todo_write",
+      "description": "Record and update a structured task list for the current work. Send the ENTIRE list every call — it REPLACES the previous list (there are no partial updates, no per-item edits). Use it to plan multi-step work and show progress: add one todo per concrete step before you start. Mark every todo being actively worked on `in_progress` — several at once when work genuinely runs in parallel (e.g. concurrent subagents or background commands), one for sequential work; while work remains, at least one task should be `in_progress`. Mark a todo `completed` the moment it is done (do not batch completions), and allow no `in_progress` item only once all work is complete. Skip the list for trivial single-step tasks. Statuses: `pending` (not started), `in_progress` (being worked on now), `completed` (finished). Optionally attach short `tags` (1-3 lowercase category or component names, e.g. `docs`, `release`) to tasks that belong to a category; omit them when a tag adds nothing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "todos": {
+            "type": "array",
+            "description": "The COMPLETE task list, replacing any previous list.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "What the task is — a short imperative line."
+                },
+                "status": {
+                  "type": "string",
+                  "description": "pending (not started) | in_progress (now) | completed (done).",
+                  "enum": [
+                    "pending",
+                    "in_progress",
+                    "completed"
+                  ]
+                },
+                "tags": {
+                  "type": "array",
+                  "description": "Optional short category labels (1-3, lowercase), e.g. [\"docs\"].",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "content",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "todos"
+        ]
+      }
+    },
+    {
+      "name": "update_goal",
+      "description": "Update the exact current goal revision. edit, pause, and resume require a direct top-level human request. During an automatic continuation of the current goal, complete and blocked are also allowed. blocked is rejected before the configured minimum round count; the model remains responsible for judging that the same condition persisted across those rounds and must explain it in blocked_reason.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "goal_id": {
+            "type": "string",
+            "description": "Exact id returned by get_goal."
+          },
+          "revision": {
+            "type": "number",
+            "description": "Exact positive revision returned by get_goal."
+          },
+          "action": {
+            "type": "string",
+            "description": "edit | pause | resume | complete | blocked",
+            "enum": [
+              "edit",
+              "pause",
+              "resume",
+              "complete",
+              "blocked"
+            ]
+          },
+          "objective": {
+            "type": "string",
+            "description": "Replacement objective; valid only with action edit."
+          },
+          "max_goal_rounds": {
+            "type": "number",
+            "description": "Replacement cap; valid only with action edit."
+          },
+          "blocked_reason": {
+            "type": "string",
+            "description": "Concrete blocking condition; required only with action blocked."
+          }
+        },
+        "required": [
+          "goal_id",
+          "revision",
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "validate_specification",
+      "description": "验证专利说明书是否符合撰写要求（确定性规则，无 LLM 调用）。\n- 结构完整性：技术领域 / 背景技术 / 发明内容 / 附图说明 / 具体实施方式五部分章节\n- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词与摘要附图\n- 模糊表述、附图说明与图引用一致性、实施例存在性\n- 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例\n- 独立权利要求之间的单一性（A31.1，传 claim_units 时）\n- 权项—实施例覆盖矩阵（A26.3/A26.4，传 coverage_entries 时；覆盖度由 features 与 embodiment_refs 计算，不接受调用方给定的覆盖度结论）\n- 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）\n\n用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。\n\n注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "说明书全文（markdown，含章节标题）"
+          },
+          "title": {
+            "type": "string",
+            "description": "发明名称（可选，单独校验长度）"
+          },
+          "abstract": {
+            "type": "string",
+            "description": "摘要（可选，校验长度/关键词/摘要附图）"
+          },
+          "claims": {
+            "type": "string",
+            "description": "权利要求书全文（可选，用于特征覆盖比对）"
+          },
+          "tech_domain": {
+            "type": "string",
+            "description": "技术领域（chemical 时附加化学表征数据校验）",
+            "enum": [
+              "mechanical",
+              "electrical",
+              "chemical",
+              "software",
+              "general"
+            ]
+          },
+          "figure_analysis": {
+            "type": "array",
+            "description": "附图智能分析结果（可选）：提供时执行图文一致性校验",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "usable": {
+                  "type": "boolean",
+                  "description": "分析结果是否可用（组件提取成功）"
+                },
+                "components": {
+                  "type": "array",
+                  "description": "识别的组件列表",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "refNumber": {
+                        "type": "string",
+                        "description": "附图标记号（与图面标号一致）"
+                      }
+                    },
+                    "required": [
+                      "refNumber"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "usable"
+              ]
+            }
+          },
+          "claim_units": {
+            "type": "array",
+            "description": "结构化权利要求（可选）：提供时执行独立权利要求单一性自检（A31.1）",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "number": {
+                  "type": "number",
+                  "description": "权利要求编号（与权利要求书一致）"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "独立或从属权利要求（仅独立权利要求进入单一性比较）",
+                  "enum": [
+                    "independent",
+                    "dependent"
+                  ]
+                },
+                "preamble": {
+                  "type": "string",
+                  "description": "前序部分，如\"一种智能门锁\""
+                },
+                "characterized": {
+                  "type": "string",
+                  "description": "\"其特征在于\"之后的特征部分"
+                }
+              },
+              "required": [
+                "number",
+                "kind",
+                "preamble"
+              ]
+            }
+          },
+          "coverage_entries": {
+            "type": "array",
+            "description": "权项—实施例覆盖条目（可选）：提供时计算覆盖矩阵，逐特征判定是否有实施例支持",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "claim_id": {
+                  "type": "string",
+                  "description": "权利要求标识，形如 claim_1"
+                },
+                "features": {
+                  "type": "array",
+                  "description": "该权利要求的技术特征",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "embodiment_refs": {
+                  "type": "array",
+                  "description": "支持该权利要求的实施例原文片段",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "claim_id",
+                "features",
+                "embodiment_refs"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "web_fetch",
+      "description": "Fetch the content of a specific HTTP(S) URL and return it decoded to text.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The HTTP(S) URL to fetch."
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    {
+      "name": "web_search",
+      "description": "Search the web for current information. Provide 1–4 queries in the required queries array. Returns an optional summary answer and a list of source URLs.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "queries": {
+            "type": "array",
+            "description": "Required search queries; accepts 1–4 items and merges their results.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "queries"
+        ]
+      }
+    },
+    {
+      "name": "workbench_link_patent_case",
+      "description": "把专利案件目录桥接进个人工作台任务树（幂等）：确保 patent_* 类型字典项；找到或创建根任务（标题=案号，source=patent，workspace_path=案件目录）与 L1–L5 五个阶段子任务；读取案件目录的 _matter-log.md，把阶段进展投影为子任务状态。投影优先级：显式 stages 入参 > _matter-log 解析 > 保持现状。_matter-log 解析为行级启发式：一行同时含 L1–L5 阶段码与完成词（完成/通过/✅/已交付/归档）记 done，含进行词（进行/开始/推进/启动）记 doing，后行覆盖前行；一行多阶段共用该行判定。只经工作台 HTTP API 写任务；不写案件目录任何文件；不修改根任务状态（避免级联完成子任务）。工作台插件未挂载或 web 服务不可用时失败（setup_required）。dryRun 只算投影不写。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "caseNumber": {
+            "type": "string",
+            "description": "案件编号（同时是案件目录名与根任务标题）。"
+          },
+          "caseRoot": {
+            "type": "string",
+            "description": "案件根目录覆盖（默认取插件配置 workbenchCaseRoot）。"
+          },
+          "stages": {
+            "type": "array",
+            "description": "显式阶段状态（可选，优先于 _matter-log 解析）。",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "只计算投影，不写入（默认 false）。"
+          }
+        },
+        "required": [
+          "caseNumber"
+        ]
+      }
+    },
+    {
+      "name": "workflow",
+      "description": "Run a JavaScript workflow script that orchestrates subagents at scale. Use this for work that fans out across many independent pieces — an audit over many files, a migration, multi-angle research, adversarial verification of findings — where you write the orchestration as a script instead of delegating turn by turn.\n\nThe workflow's identity rides the `meta` parameter as JSON: required `name` (short kebab-case) and `description` strings, optional `whenToUse` string and `phases` array (`{title, detail?, provider?, model?}`). The `script` parameter is the plain JavaScript body ONLY (NOT TypeScript, and NO `export const meta` statement — meta is a parameter, not code), running with top-level await; end with `return <value>` — the value must be JSON-serializable and is this tool's result.\n\nScript-body hooks:\n- `agent(prompt, opts?): Promise<any>` — run one subagent to completion. Without `opts.schema` it resolves to the child's final text; with `opts.schema` (an object-rooted JSON Schema using ONLY type/properties/required/additionalProperties/items/enum/const/oneOf — no pattern/format/numeric bounds) it resolves to the validated object. Resolves `null` when the child fails (filter with `.filter(Boolean)`). Other opts: `label` (display), `phase` (progress group), and independent `provider`/`model` LLM target overrides (either may be provided alone). Anything else (`effort`/`isolation`/`agentType`) is rejected loudly.\n- `pipeline(items, ...stages): Promise<any[]>` — run each item through the stages independently with NO barrier between stages (prefer this for multi-stage work). Each stage receives `(prev, item, index)`. An ordinary stage throw drops that ITEM to `null` and skips its remaining stages.\n- `parallel(thunks): Promise<any[]>` — run zero-argument functions concurrently and await ALL of them (a barrier; use only when a stage genuinely needs every prior result together). A throwing thunk resolves to `null`.\n- `phase(title)` — start a progress phase; `log(message)` — narrate progress; `args` — the tool call's `args` input, verbatim.\n\nMisused hooks (bad arguments, unknown options, unsupported schemas, tripped caps) throw errors that ALWAYS kill the script — they never dissolve into a per-item `null`.\n\nConstraints: concurrency and total-agent caps apply; no filesystem, network, timers, or Node.js APIs are provided — the agents do the work, the script only coordinates them. The run executes in the foreground: this call returns when the whole script finishes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "The plain-JS workflow script body (top-level await allowed; NO `export const meta` statement; end with `return <json-value>`)."
+          },
+          "meta": {
+            "type": "object",
+            "description": "The workflow identity block (plain JSON — never code).",
+            "additionalProperties": true,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Short kebab-case workflow name."
+              },
+              "description": {
+                "type": "string",
+                "description": "One-line description of what the workflow does."
+              },
+              "whenToUse": {
+                "type": "string",
+                "description": "Optional guidance on when this workflow applies."
+              },
+              "phases": {
+                "type": "array",
+                "description": "Optional phase declarations matched by phase() calls.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "description": "The phase title phase() calls match by exact string."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Optional one-line description of the phase."
+                    },
+                    "provider": {
+                      "type": "string",
+                      "description": "Optional provider override this phase is expected to use."
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Optional model override this phase is expected to use."
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "description": "Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {\"files\": [...]}).",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "script",
+          "meta"
+        ]
+      }
+    },
+    {
+      "name": "write",
+      "description": "Create or fully replace a UTF-8 text file.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to write, resolved by the filesystem backend."
+          },
+          "content": {
+            "type": "string",
+            "description": "Full UTF-8 text content to write."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The wider sandbox mode this file operation needs. Only valid as a one-shot retry of an operation the sandbox just denied; requires justification and user approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access."
+          }
+        },
+        "required": [
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  ],
+  "changes": []
+}

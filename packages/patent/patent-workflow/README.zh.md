@@ -1,5 +1,5 @@
 ---
-description: "专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层与 plantask 人机协作状态机，移植自 Sati。服务把持久的 `patent/plantask` 与 `patent/workflow-run` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。"
+description: "专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层与 plantask 人机协作状态机，移植自 Sati。本包把持久的 `patent/plantask`、`patent/workflow-run` 与 `patent/model-call` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层与 plantask 人机协作状态机，移植自 Sati。服务把持久的 `patent/plantask` 与 `patent/workflow-run` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。
+专利执行管线（`ctx.patentWorkflow`）的 Service Definition：声明式工作流执行器、灵活计划层与 plantask 人机协作状态机，移植自 Sati。本包把持久的 `patent/plantask`、`patent/workflow-run` 与 `patent/model-call` 事件写入调用代理的会话日志，并经可选的 `ctx.approval` 接缝解决 plantask 审批。
 
 ## 目录
 
@@ -26,7 +26,9 @@ kind: "package-reference"
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
-经移植的执行器运行工作流 manifest，并在传入 agent 时把 `patent/workflow-run` 事件写入 `agent.session`。阶段声明 atom 或回退到 `executor`；审批门 `InterruptStageError` 暂停运行并返回 `interrupted` 而非失败，宿主以 `options.approvalGrants` 重跑续接。
+经移植的执行器运行工作流 manifest，并在传入 agent 时把 `patent/workflow-run` 事件写入 `agent.session`。阶段声明 atom 或回退到 `executor`；阶段在 `consumes` 中列出上游阶段 id 时，这些阶段的产出会交给 executor（manifest 与图两条路径都把每个已执行阶段的产出存在该阶段 id 下），原子阶段则直接读共享 state；审批门 `InterruptStageError` 暂停运行并返回 `interrupted` 而非失败，宿主以 `options.approvalGrants` 重跑续接。
+
+`builtinPatentManifests` 是八个内置 manifest 的数据目录：patent_novelty_v1、patent_disclosure_v1、patent_inventiveness_v1、patent_patentability_v1、patent_oa_response_v1、patent_invalidation_v1、patent_reexamination_v1、patent_infringement_v1。无效宣告与复审两个 manifest 共用同一个阶段构建器，差异只在确定性阶段的接线：无效宣告用无效理由表与 `invalidity` 图表模式，复审用复审理由表（多一项专利法第 2 条第 3 款的实用新型客体缺陷理由，专利权类型单独输出）与 `reexamination` 图表模式，后者也让两种案件落盘的对照表互不覆盖。
 
 ### runPlantask(agent, caseId, planSteps, options?)
 
@@ -35,6 +37,10 @@ kind: "package-reference"
 ### approve(caseId) / reject(caseId, feedback?)
 
 针对停在 awaiting_approval 的 plantask 的决策入口：`approve` 续接至 executing，`reject` 带反馈回退至 replanning。以 `caseId` 为键；无匹配的挂起 plantask 时抛错。
+
+### loggedPatentModel(port, agent, context)
+
+包装专利模型端口，使其服务的每次调用向 `agent.session` 追加一条 `patent/model-call` 事件，记录调用点、manifest、provider 路由、token 用量与完整输出文本。agent loop 自己的调用记为 `request/*` 与 `assistant/*`；专利工具在函数体内发起的模型调用两者皆无，请求因此对会话日志不可见，keyless 回放也无法重建调用次序。请求侧无需自己的记录即可重建：工具调用的入参已入日志，manifest 与该轮各阶段产出共同构成提示词。流中途失败、或消费方提前停止消费的调用不追加任何事件——它没有产生完整的可见输出，其降级阶段由本轮结果记录。无 agent 时（直接库调用、单测）原样返回端口。
 
 <a id="approval-wiring"></a>
 ## 审批接线

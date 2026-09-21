@@ -44,6 +44,14 @@ const NUO_RULE_FILES = [
   'nuo-patent-practice-rules.yaml',
 ] as const
 
+/**
+ * 手写并入资产清单（非 nuo 生成物镜像）：`current-law.yaml` 是现行法条口径禁令，
+ * `mady-gap-rules.yaml` 是上游未镜像且可确定性执行规则的转换子集。与 nuo 清单分开列出，
+ * 因为两者来源不同——nuo 文件名对应 Sati 侧生成流程，本清单由本仓手工维护。
+ * 两类都参与 activation-overrides 补丁（同一合并结果集），故评审补丁可同时作用于两者。
+ */
+const MERGED_RULE_FILES = ['current-law.yaml', 'mady-gap-rules.yaml'] as const
+
 /** 专利合规规则集加载结果（规则集、来源、警告）。 */
 export type PatentComplianceLoadResult = {
   ruleSet: RuleSet
@@ -234,9 +242,10 @@ export function selectGateRules(ruleSet: RuleSet): RuleSet {
 }
 
 /**
- * 加载专利全量规则集（compliance.yaml + nuo-*.yaml，经 activation-overrides 降级）。
+ * 加载专利全量规则集（compliance.yaml + nuo-*.yaml + 手写并入资产，经
+ * activation-overrides 降级）。
  * 供 rule_check scope=patent-full 与规则驱动输出门禁（B 链）使用。
- * 任一 nuo 文件缺失/损坏均跳过并告警（不拖垮整个规则集）；compliance 缺失时
+ * 任一并入文件缺失/损坏均跳过并告警（不拖垮整个规则集）；compliance 缺失时
  * 沿用既有「门禁降级为放行」语义。
  * @param rulesDir - 可选的规则根目录覆盖。
  * @returns 加载结果（规则集、来源、警告）。
@@ -246,30 +255,106 @@ export function loadPatentFullRuleSet(rulesDir?: string): PatentComplianceLoadRe
   if (base.source === null) {
     return base
   }
-  const nuoRuleSets: RuleSet[] = []
+  const mergedSets: RuleSet[] = []
   const warnings = [...base.warnings]
-  for (const file of NUO_RULE_FILES) {
+  for (const file of [...NUO_RULE_FILES, ...MERGED_RULE_FILES]) {
     const loaded = loadFirstExistingRuleSet(file, rulesDir)
     if (loaded.source === null) {
-      warnings.push(`nuo 规则文件未找到: ${file}`)
+      warnings.push(`规则文件未找到: ${file}`)
       continue
     }
-    nuoRuleSets.push(loaded.ruleSet)
+    mergedSets.push(loaded.ruleSet)
     warnings.push(...loaded.warnings)
   }
-  const nuoMerged = mergeRuleSets(nuoRuleSets)
+  const mergedRuleSet = mergeRuleSets(mergedSets)
   const { byId, source: overrideSource, warnings: overrideWarnings } = loadActivationOverrides(rulesDir)
   warnings.push(...overrideWarnings)
   const patchIssues: RuleSetValidationIssue[] = []
-  const nuoPatched = applyRuleOverrides(nuoMerged, byId, patchIssues)
+  const patched = applyRuleOverrides(mergedRuleSet, byId, patchIssues)
   warnings.push(...patchIssues.map(issue => issue.message))
   const merged: RuleSet = {
-    version: base.ruleSet.version ?? nuoPatched.version ?? '1.0',
-    rules: [...base.ruleSet.rules, ...nuoPatched.rules],
+    version: base.ruleSet.version ?? patched.version ?? '1.0',
+    rules: [...base.ruleSet.rules, ...patched.rules],
   }
   return {
     ruleSet: merged,
     source: overrideSource ? `${base.source}+${overrideSource}` : base.source,
     warnings,
   }
+}
+
+/** 每一作业 scope 都并入的通用域：compliance 基础规则（`patent`）与通用实务规则（`patent_general`）。 */
+const COMMON_CASE_DOMAINS = ['patent', 'patent_general'] as const
+
+/**
+ * 答复类文书（审查意见答复、复审请求）的域集合，两个作业 scope 共用。
+ *
+ * 构成：通用域 + 答复实践域（逐点回应、答复期限、修改超范围检查）+ 需答复的实体条款域
+ * （新颖性 22.2 / 创造性 22.3 / 实用性 22.4 / 充分公开 26.3 / 权利要求 26.4）
+ * + 审查程序域（A33 修改不超范围、程序与证据规则）。
+ */
+const ANSWER_BRIEF_DOMAINS = [
+  ...COMMON_CASE_DOMAINS,
+  'patent_oa_response',
+  'patent_novelty',
+  'patent_inventiveness',
+  'patent_utility',
+  'patent_disclosure',
+  'patent_claims',
+  'patent_procedure',
+] as const
+
+/** 作业类别 scope（`rule_check` 的 scope 取值，与四类作业 manifest 一一对应）。 */
+export type PatentCaseScope =
+  | 'patent-oa-response'
+  | 'patent-invalidation'
+  | 'patent-reexamination'
+  | 'patent-infringement'
+
+/**
+ * 作业 scope → 评估域（`ConstitutionalRule.domain` 的闭集，见 `assets/rules/patent/**`）。
+ *
+ * 一个 scope 的域 = 通用域 + **本作业交付文书的格式/程序域** + **本作业必须答复或论证的理由条款域**。
+ * 域取值全部取自规则资产：资产中没有 `patent_invalidation` / `patent_reexamination` / `patent_amendment`
+ * 三个域，无效与复审的实体理由（22.2 / 22.3 / 22.4 / 26.3 / 26.4 / 33 条）在资产里分别落在新颖性、
+ * 创造性、实用性、充分公开、权利要求、程序六个域上，故各 scope 的域按其理由来源推导：
+ *
+ * | scope | 对应 manifest | 理由来源 |
+ * | --- | --- | --- |
+ * | `patent-oa-response` | `patent_oa_response_v1` | 驳回类型表（7 类） |
+ * | `patent-invalidation` | `patent_invalidation_v1` | 无效理由表（5 项） |
+ * | `patent-reexamination` | `patent_reexamination_v1` | 复审理由表（6 项） |
+ * | `patent-infringement` | `patent_infringement_v1` | 侵权比对与抗辩 |
+ *
+ * 四个 scope 的并集覆盖 `patent-full` 里的全部域（测试断言）：任一域的规则都至少有一个作业入口，
+ * 新增资产域若不属于任何作业，构建期就会失败而不是只能靠 `patent-full` 触及。
+ *
+ * 答复与复审今日域集合相同：复审理由表 = 无效理由表 + 实用新型客体缺陷（客体规则在通用域），且复审
+ * 请求书与答复文书同构（逐点回应、A33 限制）。两者仍分列——模型按作业选入口，不必知道域表；任一作业
+ * 的资产域分化时（例如上游带来 `patent_invalidation` 域的规则）在此处拆开，scope 名称不变。
+ * 无效 scope 不含答复实践域：该域规则的语义是答复审查意见（逐点回应审查意见、答复期限），对无效请求书
+ * 会误报。侵权 scope 只含侵权域：撰写与审查域的结构完整性规则对侵权意见书会误报。
+ */
+export const PATENT_CASE_DOMAINS: Record<PatentCaseScope, readonly string[]> = {
+  'patent-oa-response': ANSWER_BRIEF_DOMAINS,
+  'patent-reexamination': ANSWER_BRIEF_DOMAINS,
+  'patent-invalidation': [
+    ...COMMON_CASE_DOMAINS,
+    'patent_novelty',
+    'patent_inventiveness',
+    'patent_utility',
+    'patent_disclosure',
+    'patent_claims',
+    'patent_procedure',
+  ],
+  'patent-infringement': [...COMMON_CASE_DOMAINS, 'patent_infringement'],
+}
+
+/**
+ * 解析作业 scope 的评估域；非作业 scope 返回 undefined（调用方据此走全量评估）。
+ * @param scope - `rule_check` 的 scope 取值（模型输入，须按自有键判断，不能落到原型链上）。
+ * @returns 该作业的域列表；非作业 scope 时为 undefined。
+ */
+export function patentCaseDomains(scope: string): readonly string[] | undefined {
+  return Object.hasOwn(PATENT_CASE_DOMAINS, scope) ? PATENT_CASE_DOMAINS[scope as PatentCaseScope] : undefined
 }

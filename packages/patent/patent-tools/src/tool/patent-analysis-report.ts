@@ -13,6 +13,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { loggedToolModel } from './internal/model-call-log.ts'
 import {
   buildAnalysisReport,
   classifyIpc,
@@ -196,7 +197,8 @@ export function createPatentAnalysisReportTool(deps: PatentAnalysisReportDeps = 
       const combined = [input.title, input.abstract, ...input.claims].filter(s => s !== undefined && s !== '').join(' ')
       const ipc = combined.trim().length > 0 ? classifyIpc(combined) : []
       const strategy = buildSuggestedSearchStrategy(combined, ipc)
-      const modelScores = deps.model !== undefined ? await scoreWithModel(deps.model, input, exec.signal) : undefined
+      const model = loggedToolModel(exec, deps.model, { callSite: 'patent_analysis_report' })
+      const modelScores = model !== undefined ? await scoreWithModel(model, input, exec.signal) : undefined
       const report = buildAnalysisReport({
         claims: input.claims,
         ...(input.patent_id !== undefined ? { patentId: input.patent_id } : {}),

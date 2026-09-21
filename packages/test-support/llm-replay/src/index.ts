@@ -445,14 +445,52 @@ export function parseSessionHeader(text: string): {
 }
 
 /**
+ * Canonical chunks for one log-only model call marked with the shared
+ * `llmStreamCall` protocol, or `undefined` for any event that does not mark one.
+ *
+ * The marker identifies exactly one call through the ctx.llm stream seam, and an
+ * owner that marks a call records its complete output; a call a plugin makes
+ * outside the agent loop has no `request/*`/`assistant/*` pair to read instead.
+ * Two recorded forms exist: an owner holding the provider's content blocks
+ * records `rawOutput`, an owner whose seam surfaces visible text only records
+ * `output`. JSONL decoding crosses an untyped durable boundary, so both are read
+ * off the log rather than off a declared type.
+ * @param data - one event's decoded data.
+ * @returns the call's chunks (ending in `finish`), or undefined when unmarked.
+ */
+function markedCallChunks(data: unknown): StreamChunk[] | undefined {
+  if (data === null || typeof data !== 'object') return undefined
+  const record = data as Record<string, unknown>
+  if (record.llmStreamCall !== true) return undefined
+  const usage = record.usage as TokenUsage | undefined
+  const chunks: StreamChunk[] = []
+  if (Array.isArray(record.rawOutput)) {
+    for (const [index, block] of (record.rawOutput as ContentBlock[]).entries()) {
+      chunks.push({ type: 'block-start', index, blockType: block.type })
+      chunks.push({ type: 'block-end', index, block })
+    }
+  } else if (typeof record.output === 'string') {
+    chunks.push({ type: 'block-start', index: 0, blockType: 'text' })
+    chunks.push({ type: 'text-delta', index: 0, text: record.output })
+    chunks.push({ type: 'block-end', index: 0, block: { type: 'text', text: record.output } })
+  } else {
+    throw new Error(
+      'llm-replay: an event marks an LLM stream call but records neither rawOutput blocks nor output text',
+    )
+  }
+  if (usage !== undefined) chunks.push({ type: 'usage', usage })
+  chunks.push({ type: 'finish', reason: { kind: 'stop' } })
+  return chunks
+}
+
+/**
  * Reconstruct the per-`stream()` replay script from a recorded session log.
  *
- * Reads one embedded stream from each Assistant settlement. A `compaction/summary` explicitly marked
- * as one local LLM-stream call becomes a canonical successful stream from its
- * complete `rawOutput` at the summary's log position. A
- * missing assistant terminator means the live stream threw, so derivation
- * rejects and the scenario must provide an explicit override. Multiple calls
- * may share one turn and step when the loop retries.
+ * Reads one embedded stream from each Assistant settlement, plus one entry per
+ * log-only event that marks a local model call (see {@link markedCallChunks}) at
+ * that event's log position. A missing assistant terminator means the live
+ * stream threw, so derivation rejects and the scenario must provide an explicit
+ * override. Multiple calls may share one turn and step when the loop retries.
  * @param events - the recorded session's events.
  * @returns one `chunks` entry per recorded model call, in call order.
  */
@@ -469,27 +507,9 @@ export function deriveReplayScript(events: SessionEvent[]): ReplayEntry[] {
     script.push({ kind: 'chunks', chunks })
   }
   for (const event of events) {
-    if (event.type === 'compaction/summary') {
-      // JSONL decoding crosses an untyped durable boundary, so retain its wider
-      // shape even though current in-process producers enforce this correlation.
-      const persisted: {
-        readonly llmStreamCall?: true
-        readonly rawOutput?: ContentBlock[]
-        readonly usage?: TokenUsage
-      } = event.data
-      if (persisted.llmStreamCall === true) {
-        if (persisted.rawOutput === undefined) {
-          throw new Error('llm-replay: compaction/summary marks an LLM stream call without rawOutput')
-        }
-        const chunks: StreamChunk[] = []
-        for (const [index, block] of persisted.rawOutput.entries()) {
-          chunks.push({ type: 'block-start', index, blockType: block.type })
-          chunks.push({ type: 'block-end', index, block })
-        }
-        if (persisted.usage !== undefined) chunks.push({ type: 'usage', usage: persisted.usage })
-        chunks.push({ type: 'finish', reason: { kind: 'stop' } })
-        script.push({ kind: 'chunks', chunks })
-      }
+    const marked = markedCallChunks(event.data)
+    if (marked !== undefined) {
+      script.push({ kind: 'chunks', chunks: marked })
       continue
     }
     if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') continue

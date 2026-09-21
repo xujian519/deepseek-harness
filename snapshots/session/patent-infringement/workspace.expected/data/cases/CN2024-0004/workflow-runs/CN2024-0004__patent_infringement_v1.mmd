@@ -1,0 +1,10 @@
+flowchart TD
+  parse["解析权利要求与被控产品材料"]
+  claim-chart["权利要求要素级映射到被控产品（mode=infringement，支持等同 doe 行）"]
+  coverage["全面覆盖与等同一致性核验（确定性）：逐被控产品四态结论 + 等同未认定清单"]
+  report["生成侵权比对报告（全面覆盖 + 等同 + 现有技术抗辩）"]
+  approval["人工确认比对结论"]
+  parse --> claim-chart
+  claim-chart --> coverage
+  coverage --> report
+  report --> approval

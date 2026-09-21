@@ -986,6 +986,85 @@ describe('deriveReplayScript', () => {
     ])
   })
 
+  it('inserts a marked patent/model-call output between the calls surrounding it', () => {
+    const callChunks: StreamChunk[] = [
+      { type: 'block-start', index: 0, blockType: 'text' },
+      { type: 'text-delta', index: 0, text: '阶段成果' },
+      { type: 'block-end', index: 0, block: { type: 'text', text: '阶段成果' } },
+      { type: 'usage', usage: { inputTokens: 12, outputTokens: 2 } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ]
+    let seq = 1
+    const events: SessionEvent[] = [
+      streamEvent(seq++, 1, 1, TEXT_CHUNKS),
+      {
+        type: 'patent/model-call',
+        seq: SessionSeq(seq++),
+        time: 0,
+        data: {
+          callSite: 'patent_workflow_run',
+          manifestId: 'patent_oa_response_v1',
+          provider: 'mock',
+          model: 'mock',
+          output: '阶段成果',
+          usage: { inputTokens: 12, outputTokens: 2 },
+          llmStreamCall: true,
+        },
+      } as unknown as SessionEvent,
+      streamEvent(seq++, 1, 2, TEXT_CHUNKS),
+    ]
+
+    expect(deriveReplayScript(events)).toEqual([
+      { kind: 'chunks', chunks: TEXT_CHUNKS },
+      { kind: 'chunks', chunks: callChunks },
+      { kind: 'chunks', chunks: TEXT_CHUNKS },
+    ])
+  })
+
+  it('does not infer a model call from a patent/model-call without the call marker or output text', () => {
+    const base = { callSite: 'patent_workflow_run', seq: SessionSeq(1), time: 0 }
+    const unmarked = {
+      ...base,
+      type: 'patent/model-call',
+      data: { callSite: 'patent_workflow_run', output: 'text' },
+    } as unknown as SessionEvent
+    expect(deriveReplayScript([unmarked])).toEqual([])
+
+    const unmarkedOutput = {
+      ...base,
+      type: 'patent/model-call',
+      data: { callSite: 'patent_workflow_run', llmStreamCall: true },
+    } as unknown as SessionEvent
+    expect(() => deriveReplayScript([unmarkedOutput]))
+      .toThrow(/records neither rawOutput blocks nor output text/)
+  })
+
+  it('reads a marked call that reports no usage, and ignores a non-object payload', () => {
+    const withoutUsage = {
+      type: 'patent/model-call',
+      seq: SessionSeq(1),
+      time: 0,
+      data: { callSite: 'claim_chart_build', output: '无用量', llmStreamCall: true },
+    } as unknown as SessionEvent
+    expect(deriveReplayScript([withoutUsage])).toEqual([{
+      kind: 'chunks',
+      chunks: [
+        { type: 'block-start', index: 0, blockType: 'text' },
+        { type: 'text-delta', index: 0, text: '无用量' },
+        { type: 'block-end', index: 0, block: { type: 'text', text: '无用量' } },
+        { type: 'finish', reason: { kind: 'stop' } },
+      ],
+    }])
+
+    const malformed = {
+      type: 'compaction/summary',
+      seq: SessionSeq(2),
+      time: 0,
+      data: 5,
+    } as unknown as SessionEvent
+    expect(deriveReplayScript([malformed])).toEqual([])
+  })
+
   it('does not infer an LLM call from compaction/summary without raw output', () => {
     const event: SessionEvent<'compaction/summary'> = {
       type: 'compaction/summary',
@@ -1035,7 +1114,7 @@ describe('deriveReplayScript', () => {
     } as unknown as SessionEvent
 
     expect(() => deriveReplayScript([event]))
-      .toThrow('llm-replay: compaction/summary marks an LLM stream call without rawOutput')
+      .toThrow('llm-replay: an event marks an LLM stream call but records neither rawOutput blocks nor output text')
   })
 
   it('rejects a persisted marked compact LLM call without its complete output', () => {

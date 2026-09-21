@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 28 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
+description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 29 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 28 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
+函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 29 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
 
 ## 目录
 
@@ -31,7 +31,8 @@ kind: "package-reference"
 | `patent_kg_query` | 知识 | `ctx.patentKnowledge` 知识图谱 |
 | `patent_eval` | 质量 | 确定性（内联反套话引擎） |
 | `patent_analysis_report` | 分析 | `@deepseek-ai/dsh-patent-core` analysis-report 聚合器 + 可选 ModelPort |
-| `claim_chart_build` | 撰写 | `@deepseek-ai/dsh-patent-core` claim-chart 原子 + ModelPort |
+| `claim_chart_build` | 撰写 | `@deepseek-ai/dsh-patent-core` claim-chart 原子 + ModelPort；`mode: infringement` 另给确定性结论（逐被控产品全面覆盖、等同矛盾；`risk` 给出抗辩与补救事实时给出风险等级） |
+| `parse_office_action` | 分析 | 确定性 `@deepseek-ai/dsh-patent-core` 通知书解析器（驳回类型、引用文献与相关性、涉及权项、审查员论点） |
 | `draft_claims` | 撰写 | 确定性 |
 | `draft_specification` | 撰写 | 确定性 |
 | `validate_specification` | 质量 | 确定性 |

@@ -38,6 +38,20 @@ export function validateWorkflowManifest(
     if (stage.guidance !== undefined && !stage.guidance.trim()) {
       throw new WorkflowError(`阶段 ${stage.id} 的 guidance 不能为空字符串`)
     }
+    if (stage.consumes !== undefined) {
+      if (stage.consumes.length === 0) {
+        throw new WorkflowError(`阶段 ${stage.id} 的 consumes 不能为空数组`)
+      }
+      if (new Set(stage.consumes).size !== stage.consumes.length) {
+        throw new WorkflowError(`阶段 ${stage.id} 的 consumes 有重复的阶段 id`)
+      }
+      for (const upstream of stage.consumes) {
+        // 只认此前已出现过的阶段：自身与后续阶段都还没有产出可拼入。
+        if (upstream === stage.id || !ids.has(upstream)) {
+          throw new WorkflowError(`阶段 ${stage.id} 的 consumes 引用了不存在或非前序的阶段: ${upstream}`)
+        }
+      }
+    }
     if (options?.atomNames && stage.atom !== undefined && !options.atomNames.has(stage.atom)) {
       throw new WorkflowError(`阶段 ${stage.id} 声明了未知 atom: ${stage.atom}`)
     }

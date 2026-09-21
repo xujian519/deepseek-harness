@@ -16,6 +16,7 @@ Function plugin porting the Sati constitutional rule engine into the DeepSeek Ha
 - [Output gate](#output-gate)
 - [EVI-011 evidence guards](#evi-011-evidence-guards)
 - [Rule engine (library API)](#rule-engine-library-api)
+- [Rule assets](#rule-assets)
 - [Configuration](#configuration)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
@@ -32,7 +33,23 @@ The loaded gate is also exposed as `ctx.get('patentRuleGate')` (Context merge, o
 
 ## Rule engine (library API)
 
-The package re-exports the ported rule engine: `evaluateText`, `evaluateRule`, `groupByAction`, `parseRuleSetFromYaml`, `loadRuleSetFromFile`, `loadRuleSetDir`, `mergeRuleSets`, `applyRuleOverrides`, `loadPatentComplianceRuleSet`, `loadPatentElectricalRuleSet`, `loadPatentFullRuleSet`, `loadActivationOverrides`, `selectGateRules`, `loadRulePack`, `loadSynonymsAsset`, `RuleOutputGate`.
+The package re-exports the ported rule engine: `evaluateText`, `evaluateRule`, `groupByAction`, `parseRuleSetFromYaml`, `loadRuleSetFromFile`, `loadRuleSetDir`, `mergeRuleSets`, `applyRuleOverrides`, `loadPatentComplianceRuleSet`, `loadPatentElectricalRuleSet`, `loadPatentFullRuleSet`, `loadActivationOverrides`, `selectGateRules`, `PATENT_CASE_DOMAINS`, `patentCaseDomains`, `loadRulePack`, `loadSynonymsAsset`, `RuleOutputGate`.
+
+## Rule assets
+
+Three families live under `assets/rules/patent/`, distinguished by who owns them and how they load.
+
+| Family | Files | Loaded as |
+| --- | --- | --- |
+| Hand-written compliance | `compliance.yaml`, `electrical-section-h.yaml` | One fixed file name each, by `loadPatentComplianceRuleSet` / `loadPatentElectricalRuleSet` |
+| Generated upstream mirrors | `nuo-*.yaml` | By `loadPatentFullRuleSet`, through the explicit `NUO_RULE_FILES` list |
+| Hand-merged current-law and gap rules | `current-law.yaml`, `mady-gap-rules.yaml` | By `loadPatentFullRuleSet`, through the explicit `MERGED_RULE_FILES` list |
+
+`current-law.yaml` bans superseded statute wording in output text: the two-year infringement limitation, the replaced judicial interpretation as the equivalence basis, and attributing utility-model subject matter to the second paragraph of Article 2. Its checks are `pattern_analysis`, so they never reach the output gate. `mady-gap-rules.yaml` holds upstream rules converted to the engine's five check types — bans whose keywords are literal, and completeness checks whose element terms are literal — with every upstream `block` reviewed down to `warn` (`log` for the upstream `info` level). Two of its bans are `keyword_blocklist`, so the output gate picks them up alongside the mirror rules. `activation-overrides.yaml` applies to the merged result, so a review conclusion can target either family.
+
+### Job scopes
+
+`PATENT_CASE_DOMAINS` maps the four job scopes — `patent-oa-response`, `patent-invalidation`, `patent-reexamination`, `patent-infringement`, named after the four job manifests and exposed through the `rule_check` tool — to the rule `domain` lists each one evaluates. A scope evaluates the common domains (`patent`, `patent_general`) plus its own document and procedure domains and the domains of the clauses it must answer or establish. The union of the four covers every domain in the merged set, so no asset domain lacks a job entry point. Office-action answers and reexamination requests share one domain set, because the reexamination reason table is the invalidation table plus the utility-model subject-matter defect and that defect lives in a common domain; invalidation carries no answer-practice domain and infringement only its own. `evaluateText`'s `domain` option takes one domain or a list.
 
 ## Configuration
 
@@ -57,6 +74,8 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 - **Asset location differs from Sati** — rules resolve from the packaged `assets/rules/` via `import.meta.url` (with an optional `rulesDir` override); the `SATI_RULES_DIR` environment variable, cwd/workspace-root walking, and the project `.sati/rules.yaml` auto-discovery are dropped. `loadRulePack` accepts only an explicit `manifestPath`.
 - **Layered pack default is base only** — `loadRulePack` without a manifest loads only the packaged base pack; domain and override layers require an explicit manifest.
 - **Rule-set loading is fail-soft** — a missing or damaged asset degrades to an empty rule set (the gate passes through) rather than failing the deployment.
+- **Merged assets cover machine-checkable rules only** — upstream rules whose payload is prose (analysis principles, statutory conditions, decision citations) are not converted into checks and stay outside this package; the conversion set, the check-type mapping, and the boundary are recorded in [the merge-boundary note](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.md).
+- **Job scopes filter by domain, not by document type** — the completeness checks in those domains (`structural_analysis`) report missing expected elements on any text, so a scope run over a document of another type still returns those hits; the scope narrows the rule set, it does not classify the text.
 
 ### Dev Note
 

@@ -3,7 +3,8 @@
  *
  * 副作用时序契约（勿改）：
  * - Object.assign(state, segment) 在 handler 产出后立即合并（state 引用共享）；
- * - 主输出键 = atom.outputSchema[0]，兜底 state[stage.id]；
+ * - 主输出键 = atom.outputSchema[0]，兜底 state[stage.id]；executor 阶段的输出同样写入
+ *   state[stage.id]（图适配器亦然），使下游阶段能按 consumes 取到它；
  * - degraded 前缀 [WORKFLOW_DEGRADED] 保留错误信息；
  * - approvedGate 由 approvalGrants（stageId 白名单）判定，命中时把 APPROVAL_GRANTED_KEY
  *   注入 execState 执行态拷贝；与图路径同一契约——两条路径都只写执行态、都不写共享 state
@@ -92,7 +93,10 @@ export async function runStageOnce(
         }
         state[stage.id] = output
       } else if (options.executor) {
-        output = await options.executor(stage, options.ctx)
+        output = await options.executor(stage, options.ctx, state)
+        // 阶段输出一律落到 state[stage.id]（与图适配器同一约定）：后续阶段的 executor
+        // 按 stage.consumes 从这里取上游产出。
+        state[stage.id] = output
       }
       if (output.trim().length > 0) break
       lastError = new Error('阶段执行未产生输出')

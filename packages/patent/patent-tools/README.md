@@ -1,5 +1,5 @@
 ---
-description: "Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 28 model-facing tools across search, metadata, knowledge queries, claim-chart, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract)."
+description: "Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 29 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract)."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 28 model-facing tools across search, metadata, knowledge queries, claim-chart, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract).
+Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 29 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract).
 
 ## Table of Contents
 
@@ -30,7 +30,8 @@ Function plugin porting the Sati patent-domain tool set into the DeepSeek Harnes
 | `patent_kg_query` | knowledge | `ctx.patentKnowledge` knowledge graph |
 | `patent_eval` | quality | deterministic (inline slop engine) |
 | `patent_analysis_report` | analysis | `@deepseek-ai/dsh-patent-core` analysis-report aggregator + optional ModelPort |
-| `claim_chart_build` | drafting | `@deepseek-ai/dsh-patent-core` claim-chart atom + ModelPort |
+| `claim_chart_build` | drafting | `@deepseek-ai/dsh-patent-core` claim-chart atom + ModelPort; `mode: infringement` adds a deterministic conclusion (per accused product all-elements coverage, equivalence contradictions, and a risk level once `risk` supplies the defense and remedy facts) |
+| `parse_office_action` | analysis | deterministic `@deepseek-ai/dsh-patent-core` office-action parser (rejection types, cited references with relevance, affected claims, examiner arguments) |
 | `draft_claims` | drafting | deterministic |
 | `draft_specification` | drafting | deterministic |
 | `validate_specification` | quality | deterministic |

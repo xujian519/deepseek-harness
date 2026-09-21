@@ -14,7 +14,16 @@ import { markDegraded } from '../degradation.ts'
 import { getStateArray, getStateString } from '../state.ts'
 import { globalStageHandlerRegistry, type StageHandlerRegistry } from '../../atoms/index.ts'
 import { dataBlock } from '../../prompt-hygiene.ts'
+import {
+  analyzeNumericRanges,
+  crossCheckNumericVerdict,
+  extractNumericRanges,
+  readNumericVerdict,
+  type NumericRangeInput,
+} from '../../novelty/index.ts'
 import { formatPriorArtLines, handlerNode, llmNode, resolveInput, ruleGateNode } from './shared.ts'
+
+export { extractNumericRanges }
 
 /** 构建新颖性分析子图的选项。 */
 export type BuildNoveltyGraphOptions = {
@@ -28,26 +37,16 @@ export type BuildNoveltyGraphOptions = {
 const NOVELTY_SCOPE = '单独对比原则（新颖性，专利法 A22.2）'
 
 // ---------------------------------------------------------------------------
-// numeric_range —— 数值范围/上下位概念专项判定（新增确定性节点）
+// numeric_range —— 数值范围/上下位概念专项判定（确定性轨 + LLM 语义轨）
 // ---------------------------------------------------------------------------
-
-/** 数值范围表述检测（端点值/区间/带单位）。 */
-const NUMERIC_RANGE_PATTERN =
-  /\d+(?:\.\d+)?\s*(?:[-~～—]|至|到)\s*\d+(?:\.\d+)?|(?:≥|≤|>|<)\s*\d+(?:\.\d+)?|(?:大于|小于|超过|低于|至少|不超过|不低于|不高于|多于|少于)\s*\d+(?:\.\d+)?/g
-
-/** 从文本提取数值范围表述片段（去重）。
- * @param text - 要检测的文本。
- * @returns 去重后的数值范围表述片段列表。
- */
-export function extractNumericRanges(text: string): string[] {
-  if (!text) return []
-  const matches = text.match(NUMERIC_RANGE_PATTERN) ?? []
-  return [...new Set(matches.map(m => m.trim()).filter(Boolean))]
-}
 
 const NUMERIC_RANGE_SCHEMA = {
   type: 'object',
   properties: {
+    verdict: {
+      type: 'string',
+      description: '整体结论：overlapped（破坏新颖性）/ inside_without_endpoint（数值点落入范围且无共同端点）/ no_overlap / inconclusive',
+    },
     assessments: {
       type: 'array',
       items: {
@@ -62,8 +61,21 @@ const NUMERIC_RANGE_SCHEMA = {
       },
     },
   },
-  required: ['assessments'],
+  required: ['verdict', 'assessments'],
 } as const
+
+/**
+ * 对比文件条目 → 确定性核验输入。
+ *
+ * 条目形状沿用 compare/novelty 提示词里的同一条 JSON 投影，因此摘要里的
+ * `prior_art_<n>` 与提示词中 `[n]` 的序号一一对应。
+ */
+function priorArtInput(priorArt: readonly unknown[]): NumericRangeInput['priorArt'] {
+  return priorArt.map((doc, index) => ({
+    docId: `prior_art_${index + 1}`,
+    text: formatPriorArtLines([doc]),
+  }))
+}
 
 const numericRangeNode: GraphNode = async ({ state, provider }) => {
   const features = getStateArray(state, 'features').map(String).join('；')
@@ -74,11 +86,21 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
   if (ranges.length === 0) {
     return { numeric_range_result: '未检测到数值范围表述，无需专项分析', numeric_ranges: [] }
   }
+  // 确定性轨与 LLM 可用性无关：无论语义轨是否降级，结论都进状态。
+  const analysis = analyzeNumericRanges({
+    claims: [{ id: 'claim', text: `${features} ${claim} ${rawText}` }],
+    priorArt: priorArtInput(getStateArray(state, 'prior_art')),
+  })
+  const deterministic = {
+    numeric_range_verdict: analysis.verdict,
+    numeric_range_agreement: analysis.llmAgreement,
+    numeric_range_deterministic: analysis.summary,
+  }
   const degradedRanges = (fallback: string, message: string): Record<string, unknown> => {
     const delta: Record<string, unknown> = {}
     markDegraded(delta, 'numeric_range_result', fallback, 'llm_unavailable', message)
     delta.numeric_ranges = ranges
-    return delta
+    return { ...delta, ...deterministic }
   }
   if (!provider?.callLLM) {
     return degradedRanges(
@@ -102,11 +124,18 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
     '【现有技术证据】',
     priorArtText.length > 0 ? dataBlock(priorArtText.slice(0, 4000)) : '（无证据，标注 confidence 低）',
     '',
-    '请严格输出 JSON：assessments 为每个数值范围的 { range, category, disclosed, reasoning }。',
+    '请严格输出 JSON：verdict 为整体结论，assessments 为每个数值范围的 { range, category, disclosed, reasoning }。',
   ].join('\n')
   try {
     const raw = await provider.callLLM(prompt, { jsonSchema: NUMERIC_RANGE_SCHEMA, temperature: 0.1 })
-    return { numeric_range_result: raw, numeric_ranges: ranges }
+    const checked = crossCheckNumericVerdict(analysis, readNumericVerdict(raw))
+    return {
+      numeric_range_result: raw,
+      numeric_ranges: ranges,
+      numeric_range_verdict: checked.verdict,
+      numeric_range_agreement: checked.llmAgreement,
+      numeric_range_deterministic: checked.summary,
+    }
   } catch (err) {
     return degradedRanges(
       '数值范围专项判定失败（LLM 错误）',
@@ -160,6 +189,7 @@ export function buildNoveltyGraph(options: BuildNoveltyGraphOptions = {}): Graph
       buildPrompt: (state) => {
         const compareResult = getStateString(state, 'novelty_result') || getStateString(state, 'novelty_conclusion')
         const numeric = getStateString(state, 'numeric_range_result')
+        const deterministic = getStateString(state, 'numeric_range_deterministic')
         const coverage = getStateString(state, 'evidence_coverage')
         return [
           '你是专利新颖性分析专家。基于以下逐特征对比结果与数值范围专项判定，生成完整新颖性分析报告。',
@@ -173,6 +203,9 @@ export function buildNoveltyGraph(options: BuildNoveltyGraphOptions = {}): Graph
           '',
           '【数值范围专项判定】',
           numeric.length > 0 ? dataBlock(numeric.slice(0, 4000)) : '（无）',
+          '',
+          '【数值范围确定性核验】',
+          deterministic.length > 0 ? dataBlock(deterministic.slice(0, 2000)) : '（无）',
           '',
           `【证据覆盖】${coverage || 'unknown'}`,
           '',

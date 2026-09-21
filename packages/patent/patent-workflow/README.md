@@ -1,5 +1,5 @@
 ---
-description: "Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, and the plantask human-in-the-loop state machine, ported from Sati. The service appends durable `patent/plantask` and `patent/workflow-run` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam."
+description: "Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, and the plantask human-in-the-loop state machine, ported from Sati. The package appends durable `patent/plantask`, `patent/workflow-run`, and `patent/model-call` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, and the plantask human-in-the-loop state machine, ported from Sati. The service appends durable `patent/plantask` and `patent/workflow-run` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam.
+Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the declarative workflow executor, the flexible-plan layer, and the plantask human-in-the-loop state machine, ported from Sati. The package appends durable `patent/plantask`, `patent/workflow-run`, and `patent/model-call` events to the calling agent's session log and resolves plantask approval through the optional `ctx.approval` seam.
 
 ## Table of Contents
 
@@ -25,7 +25,9 @@ The `PatentWorkflow` service exposes the pipeline entry points and re-exports th
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
-Runs a workflow manifest through the ported executor and appends a `patent/workflow-run` event to `agent.session` when an agent is given. Stages declare an atom or fall back to `executor`; an approval-gate `InterruptStageError` pauses the run and returns `interrupted` instead of failing, and the host resumes by re-running with the stage id in `options.approvalGrants`.
+Runs a workflow manifest through the ported executor and appends a `patent/workflow-run` event to `agent.session` when an agent is given. Stages declare an atom or fall back to `executor`; a stage listing upstream stage ids in `consumes` hands those outputs to the executor (each executed stage stores its output under its own id, in both the manifest and graph paths), an atom stage reads the shared state directly, and an approval-gate `InterruptStageError` pauses the run and returns `interrupted` instead of failing, with the host resuming by re-running with the stage id in `options.approvalGrants`.
+
+`builtinPatentManifests` is the data catalog of the eight built-in manifests: patent_novelty_v1, patent_disclosure_v1, patent_inventiveness_v1, patent_patentability_v1, patent_oa_response_v1, patent_invalidation_v1, patent_reexamination_v1, patent_infringement_v1. The invalidation and reexamination manifests share one stage builder and differ only in how their deterministic stages are wired: the invalidation manifest reads the invalidation grounds table and the `invalidity` chart mode, the reexamination manifest the reexamination table (one extra utility-model subject-matter ground under 专利法第2条第3款, with the patent subject reported separately) and the `reexamination` chart mode, which also keeps the two cases' persisted charts apart.
 
 ### runPlantask(agent, caseId, planSteps, options?)
 
@@ -34,6 +36,10 @@ Drives a plantask plan through planning → awaiting_approval → executing. The
 ### approve(caseId) / reject(caseId, feedback?)
 
 Decision entries for a plantask parked at awaiting_approval: `approve` resumes to executing, `reject` rolls back to replanning with feedback. They key on `caseId` and throw when no pending plantask matches.
+
+### loggedPatentModel(port, agent, context)
+
+Wraps a patent model port so every call it serves appends one `patent/model-call` event to `agent.session`, recording the call site, the manifest, the provider route, the token usage, and the complete output text. The agent loop logs its own calls as `request/*` + `assistant/*`; a model call a patent tool makes inside its body has neither, which leaves the request invisible to the log and the keyless replay unable to rebuild the call order. The request side stays reconstructable without a record of its own: the tool call's arguments are logged, and the manifest plus the run's stage outputs make up the prompt. A call whose stream fails mid-flight, or one a consumer stops consuming, appends nothing — it produced no complete visible output, and its degraded stage is recorded by the run result. Without an agent (direct library use, unit tests) the port is returned unchanged.
 
 ## Approval wiring
 

@@ -1,0 +1,47 @@
+{
+  "manifestId": "patent_infringement_v1",
+  "caseType": "infringement_analysis",
+  "completed": true,
+  "stages": [
+    {
+      "stageId": "parse",
+      "strategy": "chain",
+      "output": "权利要求1包含A、B、C三个技术特征；被控产品材料显示其具备A、B、C'三部分结构，其中C'与C的实现方式存在差异。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "claim-chart",
+      "strategy": "chain",
+      "output": "要素级映射：A对应被控产品进料口，B对应其加热腔，C对应其温控模块；C'仅以等同方式对应C，其余要素为字面覆盖。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "claim-chart"
+    },
+    {
+      "stageId": "coverage",
+      "strategy": "chain",
+      "output": "全面覆盖核验：A、B两要素字面落入；C要素字面不落入、经等同三要素判断成立等同，故整体仍落入权利要求1的保护范围。",
+      "degraded": false,
+      "retries": 0,
+      "atom": "coverage"
+    },
+    {
+      "stageId": "report",
+      "strategy": "chain",
+      "output": "比对报告要点：被控产品与权利要求1的全部技术特征逐一对应，构成相同侵权（就A、B）与等同侵权（就C）并存，建议按全面覆盖原则认定侵权成立。",
+      "degraded": false,
+      "retries": 0
+    },
+    {
+      "stageId": "approval",
+      "strategy": "chain",
+      "output": "已人工确认",
+      "degraded": false,
+      "retries": 0,
+      "atom": "approval-gate"
+    }
+  ],
+  "degradedSteps": [],
+  "summary": "工作流 patent_infringement_v1（侵权比对分析）: 5/5 阶段完成"
+}

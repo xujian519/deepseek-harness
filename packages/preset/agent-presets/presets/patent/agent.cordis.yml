@@ -66,7 +66,10 @@
         · 复用：`cnlaw_case_similar(scenario="…", k=8)` 按相似场景召回历史决策步骤，新案开工前先查一次，避免重复推导。兜底 REST：curl -sG "http://127.0.0.1:8001/api/cnlaw/case/similar" --data-urlencode "scenario=…" --data-urlencode "k=8"。
         字段：category/scenario/reasoning/outcome/confidence/entities/source_paths/decision_maker。需 Neo4j 在跑；作为案件级可审计链，便于复盘与复用。
       - 撰写：draft_claims / draft_specification 起草权利要求与说明书，validate_specification 校验；成品用 render_patent_document 渲染 html/pdf。
-      - 分析：新颖性/创造性/侵权/无效遵循 preset 内对应技能（patent-novelty-inventiveness / patent-infringement / patent-invalidity）的分析框架与检查清单；专利性结论用 patent_workflow / patent_workflow_run 收口。
+      - 期限：答复期限、复审请求期限、年费等一律用 patent_deadlines 按现行细则与指南计算（给定 patentType/filingDate/claimsPriority，并把收到的通知书与其送达方式放进 notices），不自行口算、不在缺送达记录时按申请日估算。
+      - 要素级比对：claim_chart_build（mode = infringement|invalidity|oa-response|reexamination|patentability）把权利要求拆成编号要素并逐要素映射到对比文件或被控产品；侵权模式另出确定性覆盖结论（缺任一要素即不落入、需等同的要素、等同矛盾）与风险等级——风险等级只由 risk 事实推出，未给 risk 时明写未计算。
+      - 程序文书与理由识别：parse_office_action 解析审查意见通知书（驳回类型、引用文献与相关性类别、涉及权项、审查员论点，确定性）；无效/复审/外观设计的法定理由识别走 patent_workflow_run 的 grounds 阶段，理由表由 manifest 决定（无效理由表与复审理由表不同，复审另出专利权类型），未识别到理由时不替文书造理由。
+      - 分析：新颖性/创造性/侵权/无效/复审/OA 答复遵循 preset 内对应技能（patent-novelty-inventiveness / patent-infringement / patent-invalidity / patent-oa-response / patent-reexamination）的分析框架与检查清单；结论用 patent_workflow / patent_workflow_run 按 manifest 收口（8 个内置 manifest：novelty、disclosure、inventiveness、patentability、oa_response、invalidation、reexamination、infringement），材料与权利要求分开传（input=程序文书或技术材料，claims=权利要求书；要素级原子读 claims），人工确认门暂停后带上 approveStageIds 重新调用。
       - 长任务：一个案子注册一个 goal；多阶段作业用 todo 跟踪；需要脚本化流水线时用 workflow。
       - 团队协作：本会话已挂载 dsh-patent-teams（patent_teams_* 工具），复杂案件（OA 答复/无效宣告/全流程撰写）按 preset 技能 patent-team-composition 组建持久团队——检索员 / 撰写员 / 对立审查员 / 技术专家 / 申请人代理 / 文档专员（交付收口），由你做 captain 统一调度与收口；仅当插件被禁用时回退单会话 + subagent_fork 专家互评。
       - 正式文档交付：正式交付文书（专利性意见/检索报告/OA 答复/权利要求书+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书）按 preset 技能 patent-document-polish 走场景→模板映射与 render_patent_document 渲染（或 docx，officecli 可用时）；校正（术语/法条引用/数字/编号/称谓）与美化（模板/品牌/A4），文档专员不改实体结论。
@@ -122,10 +125,8 @@
 
 # The skill REGISTRY lives in the host composition and is layered per scope;
 # these rows register into THIS preset's layer of it. `skill-filesystem`
-# contributes the preset's own `skills/` directory (patent-disclosure-
-# understanding, patent-prior-art-search, patent-novelty-inventiveness,
-# patent-infringement, patent-invalidity, patent-quality-gate,
-# patent-workspace-layout) via `customSkillDirs`, and `tool-skill` gives the
+# contributes the preset's own `skills/` directory via `customSkillDirs` (the
+# full list lives in the package README), and `tool-skill` gives the
 # agent the catalog and loader. `baseUrl` is the preset's own directory, so
 # the root resolves wherever the preset is installed.
 - id: skill-filesystem
@@ -287,12 +288,21 @@
 
 # Function plugins: they register tools and guards into host registries and
 # provide no service, so they need no realm. patent-document registers
-# render_patent_document. patent-rule lives in the shielded group above because
+# render_patent_document and patent-deadline registers patent_deadlines;
+# writing-patterns registers query_writing_patterns plus the drafting section
+# that injects the compiled pattern block. patent-rule lives in the shielded
+# group above because
 # it provides the patentRuleGate service that patent-teams consumes; its
 # tools/post-execute wiring and EVI-011 guards still reach the host registries
 # (only the declared service is isolated).
 - id: patent-document
   name: '@deepseek-ai/dsh-patent-document'
+
+- id: patent-deadline
+  name: '@deepseek-ai/dsh-patent-deadline'
+
+- id: writing-patterns
+  name: '@deepseek-ai/dsh-writing-patterns'
 
 - id: tool-literature
   name: '@deepseek-ai/dsh-tool-literature'

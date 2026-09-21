@@ -1,0 +1,33 @@
+# Live-recording patch: mount the patent-domain tool rows over the ordinary
+# headless composition, so a recording pins the composed patent tool schemas
+# the model receives, the deterministic office-action parser output, the
+# rule-gate refusal for a deliverable that still carries a placeholder patent
+# number, the recap-mode manifest assembly, and the case run artifacts on disk.
+#
+# The shipped `patent` agent preset owns these rows for real sessions, but a
+# preset is agent-plane and only `dsh-agent-presets` can mount one, which the
+# headless profile does not run.
+#
+# What this composition pins beyond the deterministic faces: the LLM-driven
+# patent stages. Their calls go through `ctx.llm` outside the agent loop, but
+# each one appends a `patent/model-call` event, and the replay adapter rebuilds
+# its script from any event marked `llmStreamCall` — the chain scenarios
+# (`patent-oa-chain`, `patent-invalidation-chain`, `patent-reexamination-chain`,
+# `patent-infringement-chain`) replay from that. `writing-patterns` is left out
+# because its drafting section changes the system prompt; the
+# `patent-writing-patterns` scenario pins that section.
+
+- insert:
+    - id: patent-tools
+      name: '@deepseek-ai/dsh-patent-tools'
+
+    - id: patent-deadline
+      name: '@deepseek-ai/dsh-patent-deadline'
+
+    - id: patent-document
+      name: '@deepseek-ai/dsh-patent-document'
+
+    # Owns the delivery-output rule gate (`tools/post-execute`) whose refusal
+    # this scenario records.
+    - id: patent-rule
+      name: '@deepseek-ai/dsh-patent-rule'

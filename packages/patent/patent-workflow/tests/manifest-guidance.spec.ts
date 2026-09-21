@@ -4,22 +4,38 @@ import {
   builtinPatentManifests,
   patentInfringementManifest,
   patentInventivenessManifest,
+  patentInvalidationManifest,
   patentOaResponseManifest,
+  patentReexaminationManifest,
 } from '@deepseek-ai/dsh-patent-workflow'
 
+/** 内置 manifest 目录的完整 id 集（新增作业须在此显式登记）。 */
+const EXPECTED_MANIFEST_IDS = [
+  'patent_disclosure_v1',
+  'patent_infringement_v1',
+  'patent_invalidation_v1',
+  'patent_inventiveness_v1',
+  'patent_novelty_v1',
+  'patent_oa_response_v1',
+  'patent_patentability_v1',
+  'patent_reexamination_v1',
+]
+
 const stageOf = (manifestId: string, stageId: string): string | undefined => {
-  const entry = builtinPatentManifests.find(m => m.manifest.id === manifestId)
-  return entry?.manifest.stages.find(s => s.id === stageId)?.guidance
+  const manifest = builtinPatentManifests.find(m => m.id === manifestId)
+  return manifest?.stages.find(s => s.id === stageId)?.guidance
 }
 
 describe('内置 manifest 的阶段法律指引（guidance）', () => {
-  it('OA parse 含驳回类型对照表；draft 含策略决策树与 A33 限制', () => {
-    const parse = stageOf('patent_oa_response_v1', 'parse')
-    expect(parse).toContain('26.3')
-    expect(parse).toContain('22.2')
-    expect(parse).toContain('单独对比')
-    expect(parse).toContain('最核心的驳回理由')
+  it('OA 答复：parse 定为确定性原子；draft 含驳回类型对照表、策略决策树与 A33 限制', () => {
+    const manifest = builtinPatentManifests.find(m => m.id === 'patent_oa_response_v1')
+    const parse = manifest?.stages.find(s => s.id === 'parse')
+    expect(parse?.guidance).toBeUndefined()
     const draft = stageOf('patent_oa_response_v1', 'draft')
+    expect(draft).toContain('26.3')
+    expect(draft).toContain('22.2')
+    expect(draft).toContain('单独对比')
+    expect(draft).toContain('最核心的驳回理由')
     expect(draft).toContain('纯争辩')
     expect(draft).toContain('放弃答复')
     expect(draft).toContain('A33')
@@ -47,7 +63,7 @@ describe('内置 manifest 的阶段法律指引（guidance）', () => {
   })
 
   it('全部内置 manifest 通过校验且已声明的 guidance 均非空', () => {
-    for (const { manifest } of builtinPatentManifests) {
+    for (const manifest of builtinPatentManifests) {
       validateWorkflowManifest(manifest)
       for (const stage of manifest.stages) {
         if (stage.guidance !== undefined) expect(stage.guidance.trim()).not.toBe('')
@@ -55,13 +71,27 @@ describe('内置 manifest 的阶段法律指引（guidance）', () => {
     }
     // 批次二声明了 guidance 的三个 manifest 在目录中且可按 id 检索
     for (const id of ['patent_oa_response_v1', 'patent_inventiveness_v1', 'patent_infringement_v1']) {
-      expect(builtinPatentManifests.some(m => m.manifest.id === id)).toBe(true)
+      expect(builtinPatentManifests.some(m => m.id === id)).toBe(true)
     }
   })
 
-  it('模块级导出的三个 manifest 与目录实例一致', () => {
-    expect(patentOaResponseManifest.id).toBe('patent_oa_response_v1')
-    expect(patentInventivenessManifest.id).toBe('patent_inventiveness_v1')
-    expect(patentInfringementManifest.id).toBe('patent_infringement_v1')
+  it('模块级导出的 manifest 与目录中的实例一致', () => {
+    const pairs = [
+      [patentOaResponseManifest, 'patent_oa_response_v1'],
+      [patentInventivenessManifest, 'patent_inventiveness_v1'],
+      [patentInfringementManifest, 'patent_infringement_v1'],
+      [patentInvalidationManifest, 'patent_invalidation_v1'],
+      [patentReexaminationManifest, 'patent_reexamination_v1'],
+    ] as const
+    for (const [manifest, id] of pairs) {
+      expect(manifest.id).toBe(id)
+      expect(builtinPatentManifests.find(entry => entry.id === id)).toBe(manifest)
+    }
+  })
+
+  it('目录覆盖八个作业且 id 唯一', () => {
+    const ids = builtinPatentManifests.map(manifest => manifest.id)
+    expect([...ids].sort()).toEqual(EXPECTED_MANIFEST_IDS)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })

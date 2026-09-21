@@ -6,7 +6,7 @@
  * 工具层）共享，解除对执行器文件的类型级耦合。
  */
 
-import type { AtomRegistry, StageHandlerRegistry } from '../atoms/index.ts'
+import type { AtomRegistry, PipelineState, StageHandlerRegistry } from '../atoms/index.ts'
 import type { StageProvider } from '../types.ts'
 
 /** 阶段执行策略：chain / react / sub_agent。 */
@@ -32,6 +32,15 @@ export type WorkflowStage = {
    * 承载该阶段的法条操作框架与输出要求（如三步法边界条件、驳回类型解析表），是纯数据、非运行时路由。
    */
   guidance?: string
+  /**
+   * 可选：本阶段依赖的上游阶段 id，只能引用其之前出现的阶段。
+   *
+   * 声明的是**数据依赖**：执行器按此把上游阶段输出（`state[上游阶段 id]`）拼入提示词。
+   * 阶段描述与 guidance 都不携带上游产出，未声明即读不到——三步法第二步看不到第一步选定的
+   * 最接近现有技术，逐特征新颖性看不到检索证据，都属这一类。原子阶段的 handler 直接读共享
+   * state（其中已有全部阶段输出），无需声明。
+   */
+  consumes?: readonly string[]
   /**
    * 可选：一致性重试循环（对齐 Mady disclosure 管线的 check_consistency 条件回退边）。
    * 本阶段输出匹配 whenOutputMatches（信号：需要重做）时，回退到 rewindTo 阶段
@@ -69,8 +78,13 @@ export type WorkflowContext = {
   [key: string]: unknown
 }
 
-/** 阶段执行器：消费阶段与上下文，产出阶段输出。 */
-export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext) => Promise<string>
+/**
+ * 阶段执行器：消费阶段、运行上下文与已累积的执行态，产出阶段输出。
+ *
+ * `state` 是共享执行态：每个已执行阶段都以自身 id 为键存放其输出（`state[stageId]`，
+ * 与图适配器同一约定），故执行器可按 `stage.consumes` 取用上游产出。
+ */
+export type StageExecutor = (stage: WorkflowStage, ctx: WorkflowContext, state: PipelineState) => Promise<string>
 
 /** 工作流运行选项：处理器/原子注册表、提供方、审批授权、持久化与运行 id。 */
 export type WorkflowRunOptions = {

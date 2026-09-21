@@ -27,7 +27,7 @@ export {
   patentNoveltyManifest,
   patentOaResponseManifest,
   patentPatentabilityManifest,
-  type BuiltinPatentManifest,
+  patentReexaminationManifest,
 } from './manifests.ts'
 export { runStageOnce, type RunStageOnceOptions } from './executor.ts'
 export { compileSignal, signalFor, signalMatches } from './signal.ts'

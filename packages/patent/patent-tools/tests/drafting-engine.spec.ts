@@ -466,6 +466,9 @@ describe('rule_check default scopes', () => {
     expect(full.isError).toBe(false)
     const unknown = await execute(ctx, 'rule_check', { text: 'x', scope: 'bogus' }, 'rc-7')
     expect(unknown.isError).toBe(true)
+    if (!unknown.isError) throw new Error('expected failure')
+    expect(text(unknown)).toContain('patent-oa-response')
+    expect(text(unknown)).toContain('patent-infringement')
   })
 
   it('loads the default layered pack without an injected pack loader', async () => {
@@ -475,6 +478,38 @@ describe('rule_check default scopes', () => {
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('rule_check(pack)')
+  })
+
+  it('filters a job scope to that job domains over the bundled assets', async () => {
+    const sample = '被控产品的壁厚大约为 5mm 左右，与权利要求 1 的数值范围构成等同。侵权诉讼时效为两年。'
+    const ctx = await ctxWith(createRuleCheckTool())
+    const full = await execute(ctx, 'rule_check', { text: sample, scope: 'patent-full' }, 'rc-9')
+    expect(full.isError).toBe(false)
+    if (full.isError) throw new Error('expected success')
+    // 权利要求域规则在 patent-full 下命中，在侵权 scope 下不参与评估（域被过滤）。
+    expect(text(full)).toContain('EX-CLM-001')
+    const scoped = await execute(ctx, 'rule_check', { text: sample, scope: 'patent-infringement' }, 'rc-10')
+    expect(scoped.isError).toBe(false)
+    if (scoped.isError) throw new Error('expected success')
+    expect(text(scoped)).toContain('rule_check(patent-infringement)')
+    expect(text(scoped)).toContain('LAW-TIMELIMIT-001')
+    expect(text(scoped)).not.toContain('EX-CLM-001')
+  })
+
+  it('applies the job domains to an injected loader and reports the job scope in the error list', async () => {
+    const ruleSet = {
+      rules: [
+        { id: 'in-scope', name: '侵权规则', domain: 'patent_infringement', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['等同'] } },
+        { id: 'out-of-scope', name: '权利要求规则', domain: 'patent_claims', severity: 'major', action: 'warn', check: { type: 'keyword_blocklist', keywords: ['等同'] } },
+      ],
+    } as unknown as RuleSet
+    const tool = createRuleCheckTool({ loader: () => ruleSet, synonyms: () => new Map() })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'rule_check', { text: '等同', scope: 'patent-infringement' }, 'rc-11')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('in-scope')
+    expect(text(result)).not.toContain('out-of-scope')
   })
 
   it('renders a structural violation without evidence', async () => {
@@ -577,6 +612,147 @@ describe('claim_chart_build success paths', () => {
       targets: [],
     }, 'cc-5')
     expect(result.isError).toBe(true)
+  })
+})
+
+describe('claim_chart_build 侵权确定性结论', () => {
+  const claimText = '1. 一种装置，其特征在于，包括壳体。'
+  const chartJson = JSON.stringify({
+    elements: [
+      { id: '1a', claimNo: 1, kind: 'preamble', text: '一种装置' },
+      { id: '1b', claimNo: 1, kind: 'limitation', text: '包括壳体' },
+    ],
+    rows: [
+      { elementId: '1a', targetId: '产品A', quote: '为一种装置', pinCite: '[产品A 段[0001]]', mapping: 'literal' },
+      { elementId: '1b', targetId: '产品A', quote: '有壳体', pinCite: '[产品A 段[0002]]', mapping: 'doe' },
+    ],
+  })
+  const equivalentTriplet = {
+    elementId: '1b',
+    targetId: '产品A',
+    sameMeans: true,
+    sameFunction: true,
+    sameEffect: true,
+    inventiveEffortRequired: false,
+    isEquivalent: true,
+  }
+
+  it('存在缺项时报四态"未覆盖"并列出缺项要素', async () => {
+    const ctx = await ctxWith(createClaimChartBuildTool({
+      model: jsonModel(JSON.stringify({
+        elements: [
+          { id: '1a', claimNo: 1, kind: 'preamble', text: '一种装置' },
+          { id: '1b', claimNo: 1, kind: 'limitation', text: '包括壳体' },
+        ],
+        rows: [
+          { elementId: '1a', targetId: '产品A', quote: '为一种装置', pinCite: '[产品A 段[0001]]', mapping: 'literal' },
+          { elementId: '1b', targetId: '产品A', quote: '', pinCite: '[产品A 段[0002]]', mapping: 'not-found' },
+        ],
+      })),
+    }))
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'infringement',
+      claim_text: claimText,
+      targets: [{ id: '产品A', kind: 'accused-product' }],
+    }, 'cc-18')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('被控产品 产品A: 存在未覆盖要素（缺项）')
+    expect(text(result)).toContain('  - 缺项要素: 1b')
+  })
+
+  it('给出覆盖四态与等同矛盾，未给评分事实时不臆测风险等级', async () => {
+    const ctx = await ctxWith(createClaimChartBuildTool({ model: jsonModel(chartJson) }))
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'infringement',
+      claim_text: claimText,
+      targets: [{ id: '产品A', kind: 'accused-product' }],
+    }, 'cc-7')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('## 确定性结论（程序按行级映射判定，未经模型判断）')
+    expect(out).toContain('被控产品 产品A: 全部要素已覆盖，其中部分需按等同认定')
+    expect(out).toContain('需等同认定的要素: 1b')
+    expect(out).toContain('- 等同认定矛盾: 1 条')
+    expect(out).toContain('1b→产品A [doe-without-triplet]')
+    expect(out).toContain('风险等级: 未计算')
+  })
+
+  it('给出等同认定记录与抗辩事实时核验一致性并给出风险等级', async () => {
+    const ctx = await ctxWith(createClaimChartBuildTool({ model: jsonModel(chartJson) }))
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'infringement',
+      claim_text: claimText,
+      targets: [{ id: '产品A', kind: 'accused-product' }],
+      risk: { defenses: ['low'], remedyExposureRatio: 0.5, equivalents: [equivalentTriplet] },
+    }, 'cc-8')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    // 认定记录与图表一致（doe 行有认定且认定等同）→ 无矛盾，等同要素计入覆盖。
+    expect(out).toContain('- 等同认定矛盾: 0 条')
+    expect(out).toContain('风险等级: high（加权 0.850')
+  })
+
+  it('认定记录否定等同而图表按等同落格时报矛盾', async () => {
+    const ctx = await ctxWith(createClaimChartBuildTool({ model: jsonModel(chartJson) }))
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'infringement',
+      claim_text: claimText,
+      targets: [{ id: '产品A', kind: 'accused-product' }],
+      risk: {
+        remedyExposureRatio: 0,
+        estoppelApplied: true,
+        dedicationApplied: true,
+        equivalents: [{ ...equivalentTriplet, isEquivalent: false }],
+      },
+    }, 'cc-9')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('1b→产品A [triplet-denies-doe]')
+    // 禁止反悔与捐献规则均适用：两个维度计 0，风险等级随之下降。
+    expect(text(result)).toContain('风险等级: medium')
+  })
+
+  it('评分事实非法时报输入错误，不静默出分', async () => {
+    const ctx = await ctxWith(createClaimChartBuildTool({ model: jsonModel(chartJson) }))
+    const bad = async (risk: unknown, label: string) => {
+      const outcome = await execute(ctx, 'claim_chart_build', {
+        mode: 'infringement',
+        claim_text: claimText,
+        targets: [{ id: '产品A', kind: 'accused-product' }],
+        risk,
+      }, label)
+      expect(outcome.isError).toBe(true)
+    }
+    await bad({ remedyExposureRatio: 1.5 }, 'cc-10')
+    await bad({ remedyExposureRatio: 0.5, defenses: ['strong'] }, 'cc-11')
+    await bad({ remedyExposureRatio: 0.5, equivalents: [{ ...equivalentTriplet, sameMeans: 'yes' }] }, 'cc-12')
+    await bad([1, 2], 'cc-13')
+    await bad({}, 'cc-15')
+    await bad({ remedyExposureRatio: 0.5, equivalents: 'not-an-array' }, 'cc-16')
+    await bad({ remedyExposureRatio: 0.5, equivalents: [null] }, 'cc-17')
+    await bad({ remedyExposureRatio: 0.5, equivalents: [{ ...equivalentTriplet, elementId: 7 }] }, 'cc-19')
+    await bad({ remedyExposureRatio: 0.5, equivalents: [{ ...equivalentTriplet, elementId: undefined }] }, 'cc-20')
+    await bad({ remedyExposureRatio: 0.5, defenses: 'high' }, 'cc-21')
+  })
+
+  it('非侵权模式不给结论段（覆盖口径不同）', async () => {
+    const ctx = await ctxWith(createClaimChartBuildTool({
+      model: jsonModel(JSON.stringify({
+        elements: [{ id: '1a', claimNo: 1, kind: 'preamble', text: '一种装置' }],
+        rows: [{ elementId: '1a', targetId: 'D1', quote: '', pinCite: '[D1 段[0001]]', mapping: 'not-found' }],
+      })),
+    }))
+    const result = await execute(ctx, 'claim_chart_build', {
+      mode: 'invalidity',
+      claim_text: claimText,
+      targets: [{ id: 'D1', kind: 'prior-art' }],
+    }, 'cc-14')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).not.toContain('确定性结论')
   })
 })
 

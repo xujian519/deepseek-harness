@@ -142,6 +142,28 @@ it('manifestToGraph: 简单线性 manifest 输出各阶段结果', async () => {
   }
 })
 
+it('manifestToGraph: executor 收到累积执行态（consumes 声明的上游产出可读）', async () => {
+  const manifest: WorkflowManifest = {
+    id: 'equiv_consumes',
+    name: '链式依赖',
+    caseType: 'test',
+    stages: [
+      { id: 's1', strategy: 'chain', description: '一' },
+      { id: 's2', strategy: 'chain', description: '二', consumes: ['s1'] },
+    ],
+  }
+  const seen: unknown[] = []
+  const graph = manifestToGraph(manifest, {
+    executor: async (stage, _ctx, state) => {
+      seen.push({ ...state })
+      return `${stage.id} 产出`
+    },
+  })
+  await graph.run({ input: '输入' })
+  expect(seen[0]).not.toHaveProperty('s1')
+  expect(seen[1]).toMatchObject({ input: '输入', s1: 's1 产出' })
+})
+
 it('manifestToGraph: 门粒度放行记录命中后审批门阶段放行（不中断）', async () => {
   const manifest: WorkflowManifest = {
     id: 'gate_approved',

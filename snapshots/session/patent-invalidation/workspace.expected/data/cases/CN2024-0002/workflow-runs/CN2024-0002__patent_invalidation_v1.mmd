@@ -1,0 +1,12 @@
+flowchart TD
+  parse["解析无效宣告程序文书与权利要求"]
+  grounds["识别请求援引的法定理由（确定性，无效理由表）"]
+  claim-chart["权利要求要素级映射到证据组合（mode=invalidity）"]
+  novelty["新颖性单独对比（单篇全覆盖）（原子路径不支持，收口模式）"]
+  inventiveness["三步法创造性分析（原子路径不支持，收口模式）"]
+  approval["人工确认分析结论"]
+  parse --> grounds
+  grounds --> claim-chart
+  claim-chart --> novelty
+  novelty --> inventiveness
+  inventiveness --> approval

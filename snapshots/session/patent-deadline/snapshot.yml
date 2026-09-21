@@ -1,0 +1,9 @@
+version: 1
+scenario: patent-deadline
+profile: headless
+composition: patent-deadline
+recording: live
+header:
+  class: patent-deadline
+  pin: true
+  systemPromptSource: text-turn

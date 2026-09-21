@@ -56,6 +56,7 @@
 | `event:patent-teams/task-validated` | event | `3de55eacf0f371e68d78f99aad63fd0a8b72e6f64d1acc1c1392f0e30dd475c8` | [`event:patent-teams/task-validated`](#persistence-type-eventpatent-teamstask-validated) |
 | `event:patent-teams/team-created` | event | `d3403e99eac7930bea2f320fece4f5170255ed812c6bdb5c0b2057e5c8d47010` | [`event:patent-teams/team-created`](#persistence-type-eventpatent-teamsteam-created) |
 | `event:patent-teams/team-deleted` | event | `6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95` | [`event:patent-teams/team-deleted`](#persistence-type-eventpatent-teamsteam-deleted) |
+| `event:patent/model-call` | event | `556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46` | [`event:patent/model-call`](#persistence-type-eventpatentmodel-call) |
 | `event:patent/plantask` | event | `21031fbcbdff405ad47179a7acc9fb7bcf70e838ee106d70f7aa26604fb61ce5` | [`event:patent/plantask`](#persistence-type-eventpatentplantask) |
 | `event:patent/workflow-run` | event | `81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da` | [`event:patent/workflow-run`](#persistence-type-eventpatentworkflow-run) |
 | `event:permission/preset` | event | `5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b` | [`event:permission/preset`](#persistence-type-eventpermissionpreset) |
@@ -689,6 +690,26 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 来源：[`packages/api/session-controller/src/types.ts:40`](../packages/api/session-controller/src/types.ts)
 
 ### `patent/*`
+
+<a id="patentmodel-call--log-only"></a>
+
+#### `patent/model-call` — log-only
+
+```ts persistence-catalog
+/**
+ * One model call the patent pipeline made through the harness LLM seam
+ * outside the agent loop (stage closure text, claim-chart element mapping,
+ * figure analysis). The loop's own calls are `request/*` + `assistant/*`
+ * events; a call issued inside a tool has no such event, so without this
+ * record the request is invisible to the log and the keyless replay cannot
+ * rebuild the call order. Log-only; the request side stays reconstructable
+ * from the tool-call arguments plus the manifest and stage state.
+ * @param event - the completed model call appended to the session log.
+ */
+'patent/model-call': PatentModelCallEvent
+```
+
+来源：[`packages/patent/patent-workflow/src/types.ts:41`](../packages/patent/patent-workflow/src/types.ts)
 
 <a id="patentplantask--log-only"></a>
 
@@ -2567,7 +2588,7 @@ SHA-256: `e72269f931559e901e5e8fe1cfcbd0669fb795f43cc038ff39fba62f60403c33`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `dt` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `dt` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `index` | 必需 | `number` |
 | `texts` | 必需 | [`event:assistant/attempt.data.stream[0][0].texts`](#persistence-type-eventassistantattemptdatastream00texts) |
 | `time0` | 必需 | `number` |
@@ -2591,7 +2612,7 @@ SHA-256: `71bb3254ec8f1e491ce63b762a7b5f18709de23aa4e8abcc8b886f4b6ce051dd`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `dt` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `dt` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `index` | 必需 | `number` |
 | `texts` | 必需 | [`event:assistant/attempt.data.stream[0][0].texts`](#persistence-type-eventassistantattemptdatastream00texts) |
 | `time0` | 必需 | `number` |
@@ -2608,7 +2629,7 @@ SHA-256: `3860b4757d512a2869be833acb0faf834335b1b056bf3f83df5474dce95f8fa6`
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `args` | 必需 | [`event:assistant/attempt.data.stream[0][0].texts`](#persistence-type-eventassistantattemptdatastream00texts) |
-| `dt` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `dt` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `id` | 必需 | `string` |
 | `index` | 必需 | `number` |
 | `name` | 可选 | `string` |
@@ -2966,7 +2987,7 @@ SHA-256: `5dd766ccd1702a1142ad8b4bd44f2242f8e8a6752669ad3de0a5d224329b1438`
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `shadowedRange` | 必需 | [`event:compaction/prune.data.shadowedRange`](#persistence-type-eventcompactionprunedatashadowedrange) |
-| `shadowedSeqs` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `shadowedSeqs` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `shadowedTokenCount` | 必需 | `number` |
 
 <a id="persistence-type-eventcompactionprunedatashadowedrange"></a>
@@ -3050,7 +3071,7 @@ SHA-256: `9ff2ad8dddb836f75e8f6197fff2371323dfc396c3c6fb667e6e0b42fda79a5c`
 | `provider` | 必需 | `string` |
 | `rawOutput` | 必需 | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
 | `shadowedRange` | 必需 | [`event:compaction/prune.data.shadowedRange`](#persistence-type-eventcompactionprunedatashadowedrange) |
-| `shadowedSeqs` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `shadowedSeqs` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `shadowedTokenCount` | 必需 | `number` |
 | `sourceCommandId` | 可选 | `string` |
 | `summary` | 必需 | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
@@ -3070,7 +3091,7 @@ SHA-256: `3aa261c8516b5c955ed12080e6257a56cbe513f6c9f0ac9274c12e96c196ebca`
 | `provider` | 必需 | `string` |
 | `rawOutput` | 可选 | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
 | `shadowedRange` | 必需 | [`event:compaction/prune.data.shadowedRange`](#persistence-type-eventcompactionprunedatashadowedrange) |
-| `shadowedSeqs` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `shadowedSeqs` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `shadowedTokenCount` | 必需 | `number` |
 | `sourceCommandId` | 可选 | `string` |
 | `summary` | 必需 | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
@@ -3503,6 +3524,20 @@ SHA-256: `6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95`
 | `seq` | 必需 | `number` |
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"patent-teams/team-deleted"` |
+
+<a id="persistence-type-eventpatentmodel-call"></a>
+
+### `event:patent/model-call`
+
+SHA-256: `556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46`
+
+| 属性 | 存在性 | 类型 |
+|---|---|---|
+| `data` | 必需 | [`packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent`](#persistence-type-packagespatentpatent-workflowsrctypestspatentmodelcallevent) |
+| `ignorable` | 可选 | `true` |
+| `seq` | 必需 | `number` |
+| `time` | 必需 | `number` |
+| `type` | 必需 | `"patent/model-call"` |
 
 <a id="persistence-type-eventpatentplantask"></a>
 
@@ -4369,7 +4404,7 @@ SHA-256: `69becfb6b2d3fd5da91518089454cae8ef33f1835637ec44dde35dd077fd4bae`
 | `data` | 必需 | [`event:system/message.data`](#persistence-type-eventsystemmessagedata) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
-| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `surfaceOp` | 必需 | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"system/message"` |
@@ -4715,7 +4750,7 @@ SHA-256: `29af48b840d0cd9e48b6f50bf3b354f8f6340607c5b99220a48e74f60beac9e2`
 | `data` | 必需 | [`event:tool/result.data`](#persistence-type-eventtoolresultdata) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
-| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `surfaceOp` | 必需 | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"tool/result"` |
@@ -4958,7 +4993,7 @@ SHA-256: `314765bdff29c7862fb6ce820f1773563ba3094a680d163ea21180a2591b8578`
 | `data` | 必需 | [`packages/llm/llm/src/message.ts#UserMessage`](#persistence-type-packagesllmllmsrcmessagetsusermessage) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
-| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `surfaceOp` | 必需 | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"user/message"` |
@@ -5607,7 +5642,7 @@ SHA-256: `1cde1bedde79c5e8a56aee9c05c8e0a579cf5bc611deb85b93fa331a16ca978f`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `imageIndexes` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `imageIndexes` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `seq` | 必需 | `number` |
 
 <a id="persistence-type-packagescontextagent-instructionssrcrendertsagentinstructionchange"></a>
@@ -6588,13 +6623,26 @@ SHA-256: `7f5f2a8618c2ece530a18b1358b890fb57fb8c35705e47b66bff2296f8c6e889`
 | `name` | 必需 | `string` |
 | `parameters` | 必需 | [`event:patent/workflow-run.data.interrupted.data`](#persistence-type-eventpatentworkflow-rundatainterrupteddata) |
 
+<a id="persistence-type-packagespatentpatent-coresrctypestspatentmodelusage"></a>
+
+### `packages/patent/patent-core/src/types.ts#PatentModelUsage`
+
+SHA-256: `aec56c91a0f50f29e02ad4275af5df9aac630f165203c2f9d390f0ce40bbd43d`
+
+来源：[`packages/patent/patent-core/src/types.ts:45`](../packages/patent/patent-core/src/types.ts)
+
+| 属性 | 存在性 | 类型 |
+|---|---|---|
+| `inputTokens` | 可选 | `number` |
+| `outputTokens` | 可选 | `number` |
+
 <a id="persistence-type-packagespatentpatent-coresrcworkflowtypestsworkflowinterrupt"></a>
 
 ### `packages/patent/patent-core/src/workflow/types.ts#WorkflowInterrupt`
 
 SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
-来源：[`packages/patent/patent-core/src/workflow/types.ts:115`](../packages/patent/patent-core/src/workflow/types.ts)
+来源：[`packages/patent/patent-core/src/workflow/types.ts:129`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6608,7 +6656,7 @@ SHA-256: `89d84109019586a2c7cc4c04dea68041f9bc22c21fce3853e1d7392d3cde938a`
 
 SHA-256: `76f13244df957cb786e2f48f1aae4300842c535cde25ff7e3f4603627bbcd956`
 
-来源：[`packages/patent/patent-core/src/workflow/types.ts:103`](../packages/patent/patent-core/src/workflow/types.ts)
+来源：[`packages/patent/patent-core/src/workflow/types.ts:117`](../packages/patent/patent-core/src/workflow/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6806,13 +6854,31 @@ SHA-256: `c565de97ddd2fbe66da28c566d7daba0b95bba42f23bd0c5be3fa93090f64f8c`
 - `"planning"`
 - `"replanning"`
 
+<a id="persistence-type-packagespatentpatent-workflowsrctypestspatentmodelcallevent"></a>
+
+### `packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent`
+
+SHA-256: `7ca0801bc43ce8ba5e3f5bab12243dbc64d784f86257707ab8bbc494652fa8e5`
+
+来源：[`packages/patent/patent-workflow/src/types.ts:50`](../packages/patent/patent-workflow/src/types.ts)
+
+| 属性 | 存在性 | 类型 |
+|---|---|---|
+| `callSite` | 必需 | `string` |
+| `llmStreamCall` | 必需 | `true` |
+| `manifestId` | 可选 | `string` |
+| `model` | 可选 | `string` |
+| `output` | 必需 | `string` |
+| `provider` | 可选 | `string` |
+| `usage` | 可选 | [`packages/patent/patent-core/src/types.ts#PatentModelUsage`](#persistence-type-packagespatentpatent-coresrctypestspatentmodelusage) |
+
 <a id="persistence-type-packagespatentpatent-workflowsrctypestspatentplantaskevent"></a>
 
 ### `packages/patent/patent-workflow/src/types.ts#PatentPlantaskEvent`
 
 SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:39`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:80`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6827,7 +6893,7 @@ SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
 SHA-256: `fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:48`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:89`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -7066,7 +7132,7 @@ SHA-256: `8f0a1779e01cc68f46cf1656e3fd95730d0dd062e133cb3cd3276a18ca64dcde`
 | `occurrences` | 必需 | `number` |
 | `patternId` | 必需 | `string` |
 | `summary` | 必需 | `string` |
-| `supportingSeqs` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `supportingSeqs` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `verifierMeta` | 必需 | [`event:patent/workflow-run.data.interrupted.data`](#persistence-type-eventpatentworkflow-rundatainterrupteddata) |
 | `verifierTier` | 必需 | [`event:self-evolve/mined.data.patterns[0].verifierTier`](#persistence-type-eventself-evolvemineddatapatterns0verifiertier) |
 
@@ -7146,7 +7212,7 @@ SHA-256: `9fe0e77a7816b7fdb4b953ec0e2f0cd7bbd22c5de5c3567e612d1b20eb0992e6`
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `maxTokens` | 必需 | `number` |
-| `messageSeqs` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `messageSeqs` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `messages` | 必需 | [`event:session/title-llm-request.data.messages`](#persistence-type-eventsessiontitle-llm-requestdatamessages) |
 | `route` | 必需 | [`packages/session/session-title/src/types.ts#SessionTitleModelIdentity`](#persistence-type-packagessessionsession-titlesrctypestssessiontitlemodelidentity) |
 | `system` | 必需 | `string` |
@@ -7162,7 +7228,7 @@ SHA-256: `b56f6a885da3dc394c69a3e3cc5c0cfc4da15601b63fda4989eee8f40efc5be4`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `messageSeqs` | 必需 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `messageSeqs` | 必需 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `source` | 必需 | [`packages/session/session-title/src/types.ts#SessionTitleSource`](#persistence-type-packagessessionsession-titlesrctypestssessiontitlesource) |
 | `title` | 必需 | `string` |
 
@@ -7503,6 +7569,14 @@ SHA-256: `a7a9db44bc89050c9a84e9be0be3f7c8f1ea2e00b7408f1cc0050966c0235471`
 SHA-256: `7943d3ba0cb0613072cd485d08d701239f637544eff4d93b60e6c9bf3f30b221`
 
 `"patent-teams/team-deleted"`
+
+<a id="persistence-type-patentmodel-call"></a>
+
+### `"patent/model-call"`
+
+SHA-256: `ae8f246e9a4be18f63f00ef7be9704017a65e2dd9e1f3f61955ad912b5ffb936`
+
+`"patent/model-call"`
 
 <a id="persistence-type-patentplantask"></a>
 
@@ -7880,7 +7954,7 @@ SHA-256: `5776e5553ff2dfe3f5bc202dbb1e7c9f93e35a531aebb7764c23b2b6153b2ccc`
 
 以下类型之一：
 
-- [`SessionEventEnvelope[58]`](#persistence-type-sessioneventenvelope58)
+- [`SessionEventEnvelope[59]`](#persistence-type-sessioneventenvelope59)
 - [`SessionEventEnvelope[7]`](#persistence-type-sessioneventenvelope7)
 - [`SessionEventEnvelope[0]`](#persistence-type-sessioneventenvelope0)
 
@@ -7897,9 +7971,9 @@ SHA-256: `e3e77b26f0148755a505f5b8ea843a3be117827d4703bb5754d9dc8ddbef521f`
 | `time` | 必需 | `number` |
 | `type` | 必需 | `string` |
 
-<a id="persistence-type-sessioneventenvelope58"></a>
+<a id="persistence-type-sessioneventenvelope59"></a>
 
-### `SessionEventEnvelope[58]`
+### `SessionEventEnvelope[59]`
 
 SHA-256: `998f22585a5d73ec005365e203f07fc3b3a029e82323fdda3fd7f13b0a9639d0`
 
@@ -7907,14 +7981,14 @@ SHA-256: `998f22585a5d73ec005365e203f07fc3b3a029e82323fdda3fd7f13b0a9639d0`
 |---|---|---|
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
-| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[58].sourceEventSeqs`](#persistence-type-sessioneventenvelope58sourceeventseqs) |
+| `sourceEventSeqs` | 可选 | [`SessionEventEnvelope[59].sourceEventSeqs`](#persistence-type-sessioneventenvelope59sourceeventseqs) |
 | `surfaceOp` | 必需 | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | 必需 | `number` |
 | `type` | 必需 | `string` |
 
-<a id="persistence-type-sessioneventenvelope58sourceeventseqs"></a>
+<a id="persistence-type-sessioneventenvelope59sourceeventseqs"></a>
 
-### `SessionEventEnvelope[58].sourceEventSeqs`
+### `SessionEventEnvelope[59].sourceEventSeqs`
 
 SHA-256: `5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78`
 

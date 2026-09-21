@@ -1,0 +1,12 @@
+flowchart TD
+  parse["解析复审程序文书与权利要求"]
+  grounds["识别驳回决定援引的理由（确定性，复审理由表含实用新型客体缺陷）"]
+  claim-chart["权利要求要素级映射到证据组合（mode=reexamination）"]
+  novelty["新颖性单独对比（单篇全覆盖）（原子路径不支持，收口模式）"]
+  inventiveness["三步法创造性分析（原子路径不支持，收口模式）"]
+  approval["人工确认分析结论"]
+  parse --> grounds
+  grounds --> claim-chart
+  claim-chart --> novelty
+  novelty --> inventiveness
+  inventiveness --> approval

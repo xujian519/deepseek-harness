@@ -28,7 +28,7 @@
 
 | 层 | 内容 | 状态 |
 |---|---|---|
-| **插件层** | `packages/patent/` 9 个 workspace 包：`patent-core`（纯库：atoms 引擎、ModelPort、双轨 checker、evidence 引擎、claim-chart、图引擎，不单独挂载）、`patent-data`（nuo-patent 检索/元数据/法律状态）、`patent-knowledge`（knowledge.db：判例 FTS/法规/wiki/图谱）、`patent-workflow`（workflow/flexible-plan/plantask 状态机 + HITL 审批）、`patent-tools`（23 个模型可见工具）、`patent-rule`（规则引擎 + post-execute 门禁 + 证据守卫）、`patent-document`（render_patent_document：5 个文书模板 → HTML/PDF）、`tool-literature`、`methodology`（TRIZ） | ✅ 已移植（P0–P3 落地，git log 可查） |
+| **插件层** | `packages/patent/` 9 个 workspace 包：`patent-core`（纯库：atoms 引擎、ModelPort、双轨 checker、evidence 引擎、claim-chart、图引擎，不单独挂载）、`patent-data`（nuo-patent 检索/元数据/法律状态）、`patent-knowledge`（knowledge.db：判例 FTS/法规/wiki/图谱）、`patent-workflow`（workflow/flexible-plan/plantask 状态机 + HITL 审批）、`patent-tools`（29 个模型可见工具）、`patent-rule`（规则引擎 + post-execute 门禁 + 证据守卫）、`patent-document`（render_patent_document：5 个文书模板 → HTML/PDF）、`tool-literature`、`methodology`（TRIZ） | ✅ 已移植（P0–P3 落地，git log 可查） |
 | **数据层** | `vendor/nuo-patent` v2.3.1（MIT 数据引擎）、本机 `knowledge.db`（21.5 万节点图谱/7.4 万判例/1500+ wiki 卡片，私有分发）、ego-browser 反爬接缝 | ✅ 就绪 |
 | **技能层（用户级）** | `~/.agents/skills/`：`patent-legal`（撰写四领域/检索/CNIPA 查询/下载/比对）、`document-processing`、`officecli`、`ego-browser`、`browserclaw` | ✅ 就绪，任何会话自动发现 |
 | **预设设计** | `docs/patent-mode-design.md`：五层架构（人设/工具面/技能层/流程层/知识库）、五大流水线 L1–L5、三大 HITL 确认点、七道幻觉防线、证据链契约 | ✅ 已落地（正本 `packages/preset/agent-presets/presets/patent/`） |

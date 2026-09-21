@@ -5,8 +5,9 @@
  * Deterministic rules: five-part structure completeness, invention-title length,
  * abstract length / keywords / drawing, vague wording, drawing-description and
  * figure-mark consistency, embodiment presence, numeric-range endpoints and
- * midpoints, effect-data quantification, chemical characterization, and
- * claim-specification feature coverage (A26.4).
+ * midpoints, effect-data quantification, chemical characterization,
+ * claim-specification feature coverage (A26.4), independent-claim unity (A31.1),
+ * and the claim-to-embodiment coverage matrix.
  *
  * Sati's SMILES-validity spot-check is gated behind the injected
  * `isRdkitAvailable` dependency; RDKit is not bundled in dsh, so that check
@@ -16,6 +17,7 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { checkClaimUnity, checkEmbodimentCoverage, type UnityClaim } from '@deepseek-ai/dsh-patent-core'
 import type { TechDomain } from '../tool/draft-claims.ts'
 
 /** Tool input: the specification fields to validate. */
@@ -32,6 +34,35 @@ export type ValidateSpecificationInput = {
   tech_domain?: TechDomain
   /** Figure-analysis results (optional); enables figure-mark consistency. */
   figure_analysis?: FigureAnalysisResult[]
+  /** Structured claims (optional); enables the independent-claim unity check. */
+  claim_units?: ClaimUnitInput[]
+  /** Claim-to-embodiment entries (optional); enables the coverage matrix. */
+  coverage_entries?: CoverageEntryInput[]
+}
+
+/** One claim of the application, split into its preamble and characterizing part. */
+export type ClaimUnitInput = {
+  /** Claim number as printed in the claims. */
+  number: number
+  /** Whether the claim is an independent claim; only independent claims enter the unity check. */
+  kind: 'independent' | 'dependent'
+  /** Preamble, e.g. "一种智能门锁". */
+  preamble: string
+  /** Characterizing part (after "其特征在于"). */
+  characterized?: string
+}
+
+/**
+ * One claim-to-embodiment entry. Coverage is computed from `features` and
+ * `embodiment_refs`; a caller-supplied coverage verdict is not part of the input.
+ */
+export type CoverageEntryInput = {
+  /** Claim identifier of the form `claim_<n>`. */
+  claim_id: string
+  /** Technical features of that claim. */
+  features: string[]
+  /** Embodiment passages that support the claim. */
+  embodiment_refs: string[]
 }
 
 /** One compliance violation. */
@@ -528,6 +559,8 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
     }
   }
 
+  violations.push(...checkClaimSet(input))
+
   const scored = computeSpecScore(violations)
 
   return {
@@ -535,6 +568,85 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
     score: scored.score,
     violations,
   }
+}
+
+/**
+ * Independent-claim unity (A31.1) and the claim-to-embodiment coverage matrix.
+ *
+ * The coverage matrix is computed from the supplied features and embodiment
+ * refs only; an entry whose claim id is invalid is reported instead of being
+ * dropped, so the caller repairs the entry rather than reading a matrix that
+ * silently omits that claim.
+ * @param input - the specification input under validation.
+ * @returns violations from both claim-set checks, in claim order.
+ */
+function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[] {
+  const violations: SpecViolation[] = []
+  const units = input.claim_units
+  if (units !== undefined && units.length > 0) {
+    const claims: UnityClaim[] = units.map(unit => ({
+      number: unit.number,
+      kind: unit.kind,
+      preamble: unit.preamble,
+      ...(unit.characterized === undefined ? {} : { characterized: unit.characterized }),
+    }))
+    const verdict = checkClaimUnity(claims)
+    if (verdict.grade !== 'good') {
+      // grade 不为 good 时必然存在配对：独立权利要求不足两项时评级恒为 good。
+      const weakest = verdict.pairScores.reduce((left, right) => (right.similarity < left.similarity ? right : left))
+      const pair = `独立权利要求 ${weakest.leftNumber} 与 ${weakest.rightNumber}`
+      const similarity = `技术关联度 ${verdict.score.toFixed(1)}%（启发式相似度）`
+      violations.push(
+        verdict.grade === 'poor'
+          ? {
+            rule: 'claim_unity',
+            severity: 'error',
+            section: '权利要求书',
+            message: `${pair} 的${similarity}低于 60% 阈值，可能不满足单一性`,
+            suggestion: '确认各独立权利要求是否包含相同或相应的特定技术特征（专利法第31条第1款）；否则分案申请或改写为从属权利要求',
+          }
+          : {
+            rule: 'claim_unity',
+            severity: 'warning',
+            section: '权利要求书',
+            message: `${pair} 的${similarity}接近 60% 阈值，建议复核单一性`,
+            suggestion: '补充共同的特定技术特征，避免审查中被要求分案',
+          },
+      )
+    }
+  }
+
+  const entries = input.coverage_entries
+  if (entries === undefined || entries.length === 0) return violations
+  const matrix = checkEmbodimentCoverage(
+    entries.map(entry => ({
+      claimId: entry.claim_id,
+      features: entry.features,
+      embodimentRefs: entry.embodiment_refs,
+    })),
+    units?.length,
+  )
+  for (const item of matrix.items) {
+    if (!item.valid) {
+      violations.push({
+        rule: 'claim_coverage_entry',
+        severity: 'error',
+        section: '权利要求书',
+        message: `覆盖条目 ${item.claimId} 不合法：${item.invalidReason}`,
+        suggestion: '按 claim_<n> 提供条目编号，n 取该申请已存在的权利要求编号',
+      })
+      continue
+    }
+    if (item.coverage === 'full') continue
+    violations.push({
+      rule: 'claim_embodiment_coverage',
+      severity: item.coverage === 'none' ? 'error' : 'warning',
+      section: '具体实施方式',
+      message: `权利要求 ${item.claimId} 的 ${item.uncovered.length}/${item.featureCount} 项特征未获实施例支持：${item.uncovered.join('、')}`,
+      suggestion: '在具体实施方式中补充对应实施例，或删除未获支持的特征（A26.3/A26.4）',
+    })
+  }
+  return violations
 }
 
 const DRAWING_SECTION_RE = /^#{1,3}\s*附图说明\s*\n([\s\S]*?)(?=^#{1,3}\s|\s*$)/m
@@ -581,9 +693,11 @@ const DESCRIPTION = [
   '- 发明名称长度（≤25 字）与摘要长度（≤300 字）、摘要关键词与摘要附图',
   '- 模糊表述、附图说明与图引用一致性、实施例存在性',
   '- 权利要求-说明书特征覆盖（A26.4）、数值范围端点与中间值实施例',
+  '- 独立权利要求之间的单一性（A31.1，传 claim_units 时）',
+  '- 权项—实施例覆盖矩阵（A26.3/A26.4，传 coverage_entries 时；覆盖度由 features 与 embodiment_refs 计算，不接受调用方给定的覆盖度结论）',
   '- 效果数据定量性、化学领域产物表征数据（tech_domain=chemical 时）',
   '',
-  '用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis 启用相应校验。',
+  '用法：说明书初稿完成后调用；传入 text（说明书全文）即可，另可传 title / abstract / claims / tech_domain / figure_analysis / claim_units / coverage_entries 启用相应校验。',
   '',
   '注意：SMILES 合法性抽检依赖 RDKit（本环境未内置），自动跳过，不影响其余规则。',
 ].join('\n')
@@ -628,6 +742,48 @@ export function createValidateSpecificationTool(deps?: ValidateSpecificationDeps
           },
         },
         description: '附图智能分析结果（可选）：提供时执行图文一致性校验',
+      },
+      claim_units: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            number: { type: 'number', required: true, description: '权利要求编号（与权利要求书一致）' },
+            kind: {
+              type: 'string',
+              required: true,
+              enum: ['independent', 'dependent'],
+              description: '独立或从属权利要求（仅独立权利要求进入单一性比较）',
+            },
+            preamble: { type: 'string', required: true, description: '前序部分，如"一种智能门锁"' },
+            characterized: { type: 'string', description: '"其特征在于"之后的特征部分' },
+          },
+        },
+        description: '结构化权利要求（可选）：提供时执行独立权利要求单一性自检（A31.1）',
+      },
+      coverage_entries: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            claim_id: { type: 'string', required: true, description: '权利要求标识，形如 claim_1' },
+            features: {
+              type: 'array',
+              required: true,
+              items: { type: 'string' },
+              description: '该权利要求的技术特征',
+            },
+            embodiment_refs: {
+              type: 'array',
+              required: true,
+              items: { type: 'string' },
+              description: '支持该权利要求的实施例原文片段',
+            },
+          },
+        },
+        description: '权项—实施例覆盖条目（可选）：提供时计算覆盖矩阵，逐特征判定是否有实施例支持',
       },
     },
     output: {

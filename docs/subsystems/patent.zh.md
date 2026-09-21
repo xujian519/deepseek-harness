@@ -322,7 +322,24 @@ Source: [`packages/patent/patent-workflow/src/index.ts`](../../packages/patent/p
  */
 interface PatentModelPort {
   stream(request: PatentModelRequest, signal?: AbortSignal): AsyncIterable<PatentModelEvent>
+  /**
+   * Fixed provider route this port sends on. A model-call log records it as the
+   * call's envelope, so "which provider/model produced this stage output" is
+   * answerable without the port's creator; a fail-loud or injected test port has
+   * no route and logs none.
+   */
+  route?: { provider: string; model: string }
+  /**
+   * Rebind this port to one session identity, so every request it serves carries
+   * `sessionId` on the harness call. A call a plugin makes outside the agent loop
+   * is otherwise unattributable, and the keyless replay (which keys recorded
+   * scripts by session) cannot re-serve it. Absent on injected test ports, whose
+   * calls never need to bind to a recorded script.
+   * @param sessionId - the session whose log records the calls.
+   * @returns a port serving the same route under that session identity.
+   */
+  bindSession?(sessionId: NonNullable<GenerateOptions['sessionId']>): PatentModelPort
 }
 ```
 
-P2.1 适配器 `createLlmModelPort(stream, { provider, model })` 将 dsh `LlmRuntime.stream(options: GenerateOptions): AsyncIterable<StreamChunk>` 词汇映射为 `PatentModelRequest`/`PatentModelEvent` canonical 形态，`collectPortText` 再把端口桥接回依赖 LLM 的 atoms 所用的字符串；provider 选择保留在 harness `ctx.llm` 适配器与 `agent/request` 瀑布（Sati router 不移植）。
+P2.1 适配器 `createLlmModelPort(stream, { provider, model })` 将 dsh `LlmRuntime.stream(options: GenerateOptions): AsyncIterable<StreamChunk>` 词汇映射为 `PatentModelRequest`/`PatentModelEvent` canonical 形态，`collectPortText` 再把端口桥接回依赖 LLM 的 atoms 所用的字符串；provider 选择保留在 harness `ctx.llm` 适配器与 `agent/request` 瀑布（Sati router 不移植）。工具在函数体内调用模型时，先用 `bindSession(agent.session.id)` 绑定端口，调用才带会话身份，`patent/model-call` 才能记录它（见 [patent-workflow](../../packages/patent/patent-workflow/README.zh.md)）。

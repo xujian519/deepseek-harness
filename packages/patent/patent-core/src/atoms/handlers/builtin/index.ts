@@ -8,6 +8,8 @@
  * - draft.ts：draft-claims（权利要求草稿）
  * - gate.ts：approval-gate（人机审批门）
  * - chart.ts：claim-chart（要素级证据网格）
+ * - notice.ts：oa-parse（通知书解析）/ grounds（程序法定理由识别）
+ * - coverage.ts：coverage（侵权全面覆盖与等同一致性核验）
  */
 
 export {
@@ -49,3 +51,12 @@ export {
   isGateApproved,
 } from './gate.ts'
 export { claimChartAtom, ClaimChartHandler } from './chart.ts'
+export {
+  oaParseAtom,
+  OaParseHandler,
+  groundsAtom,
+  GroundsHandler,
+  GROUND_PROGRAMS,
+  type GroundProgram,
+} from './notice.ts'
+export { coverageAtom, CoverageHandler } from './coverage.ts'

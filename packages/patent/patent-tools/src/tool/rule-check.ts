@@ -15,6 +15,7 @@ import {
   loadPatentFullRuleSet,
   loadRulePack,
   loadSynonymsAsset,
+  patentCaseDomains,
   resolveRulePackManifestPath,
   summarizeRulePackLayers,
 } from '@deepseek-ai/dsh-patent-rule'
@@ -62,14 +63,16 @@ export type RuleCheckDeps = {
 }
 
 /** rule_check supported scopes (shared by the description and the runtime error). */
-const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, pack'
+const AVAILABLE_SCOPES = 'patent, patent-electrical, patent-full, patent-oa-response, patent-invalidation, patent-reexamination, patent-infringement, pack'
 
 const DESCRIPTION = [
   'Run deterministic constitutional rule checks (keyword blocklist / pattern / structural / citation range / synonym match)',
   'against the given text and return violations with severity, action and legal basis.',
   'Use before publishing compliance-sensitive output (e.g. patent conclusions, legal opinions).',
   "Scopes: 'patent' (general patent compliance), 'patent-electrical' (H-section electrical rules + general compliance),",
-  "'patent-full' (general compliance + full nuo patent rule set, activation-reviewed),",
+  "'patent-full' (every bundled asset: general compliance + nuo mirrors + hand-written merged rules, activation-reviewed),",
+  "a job scope 'patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement'",
+  "(the 'patent-full' assets restricted to that job's rule domains: its own document plus the clauses it must answer or establish),",
   "or 'pack' (layered rule pack assembled from the project manifest .sati/rules.yaml: base + domains + overrides).",
 ].join(' ')
 
@@ -139,7 +142,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
       ruleSet = loadPatentComplianceRuleSet().ruleSet
     } else if (scope === 'patent-electrical') {
       ruleSet = loadPatentElectricalRuleSet().ruleSet
-    } else if (scope === 'patent-full') {
+    } else if (scope === 'patent-full' || patentCaseDomains(scope) !== undefined) {
       ruleSet = loadPatentFullRuleSet().ruleSet
     } else {
       ruleSet = { rules: [] }
@@ -155,7 +158,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     description: DESCRIPTION,
     parameters: {
       text: { type: 'string', required: true, description: 'The text to check.' },
-      scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
+      scope: { type: 'string', description: "Rule set scope. Defaults to 'patent' (bundled patent compliance rules). A job scope ('patent-oa-response' / 'patent-invalidation' / 'patent-reexamination' / 'patent-infringement') evaluates the full assets filtered to that job's rule domains. 'pack' loads the layered rule pack declared by .sati/rules.yaml." },
     },
     output: {
       schema: {
@@ -177,7 +180,10 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
       if (ruleSet.rules.length === 0) {
         throw new PatentToolError('invalid_tool_input', `rule_check(${scope}): 未加载任何规则（scope 未知或规则集为空）。可用 scope: ${AVAILABLE_SCOPES}`, { tool: 'rule_check', scope })
       }
-      const evaluation = evaluateText(args.text, ruleSet, synonymsCache)
+      // 作业 scope 与 patent-full 同源加载，只在评估期按作业域过滤（规则集本身不变，
+      // 故缓存与 pack 路径不受 scope 影响）。
+      const domains = patentCaseDomains(scope)
+      const evaluation = evaluateText(args.text, ruleSet, synonymsCache, domains === undefined ? undefined : { domain: domains })
       const packHeader = pack !== null
         ? `规则分层: ${summarizeRulePackLayers(pack.layers)}（清单: ${pack.manifestPath ?? '无，默认 rules/base'}）`
         : undefined

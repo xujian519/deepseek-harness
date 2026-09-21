@@ -1,0 +1,24 @@
+version: 1
+scenario: patent-invalidation
+profile: headless
+composition: patent-jobs
+recording: live
+header:
+  class: patent-jobs
+workspace:
+  final: true
+input:
+  task: |
+    这是一件无效宣告请求的收口作业。只做下面两步，不调用其它工具，不使用 shell，不读写工作区里的其它文件。
+
+    第 1 步：调用 patent_workflow，参数 manifestId 传 patent_invalidation_v1，caseId 传 CN2024-0002，outputs 传六个阶段：stageId 依次为 parse、grounds、claim-chart、novelty、inventiveness、approval，每个阶段的 text 各写一句中文（parse 写程序文书要点，grounds 写援引的无效理由，claim-chart 写要素级映射要点，novelty 写单篇对比结论，inventiveness 写三步法结论，approval 写"已人工确认"）。
+
+    第 2 步：调用 patent_workflow_run，参数 graph 传 citation-check，input 传下面这句话（逐字原样传入）：
+
+    无效宣告请求结论：对比文件 1 公开了权利要求 1 的全部技术特征；对比文件 2 与对比文件 3 的结合不足以否定创造性。
+
+    priorArt 传下面这个 JSON 数组的字符串形式（即把整段数组当字符串传，不要传成对象或数组）：
+
+    [{"id":"hit-1","title":"CN101234567A 阀体伴热夹套结构","url":"https://example.test/CN101234567A"}]
+
+    最后用一句话说明两步各自的结果。
