@@ -28,7 +28,7 @@
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；禁用 `enableRunInBackground` 配置（默认为 true）后，该参数会被完全移除。 |
 | `@deepseek-ai/dsh-tool-present` | `present` | `ctx.tools`, `ctx.fs`, `ctx.sessionProjections` | `tool/call`, `deliverables/presented 在成功的最终结果之后`, `tool/result` | - | 交付归调用方 Session 所有；Web ui-deliverables 提供源文件打开与卡片。 |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费方（由 `@deepseek-ai/dsh-pwsh-local` 等 PowerShell 执行器为 `ctx.shell` 提供后端）；除沙箱接口外，它逐项对应 bash 工具调用。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具收集／停止；托管的 `DSH_*` 环境来自 `@deepseek-ai/dsh-shell-env`。每次调用都在新进程中运行，不使用持久 PTY 会话。路径采用原生 `C:\...` 形式，变量采用 `$env:NAME`。 |
-| `@deepseek-ai/dsh-tool-cordis` | `cordis_define`、`cordis_inspect_list`、`cordis_inspect_query`、`cordis_inspect_self`、`cordis_run`、`cordis_stop`、`cordis_undefine` | `ctx.tools`、`ctx.dynamicCordisRunner` | `tool/call`、`tool/result`、`process-local dynamic package lifecycle` | - | 不在任何随产品发布的树中，需要显式选择启用；动态 Package 代码可以访问真实运行时，见 .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md。该工具集注入 `@deepseek-ai/dsh-cordis-host-runner` 提供的 `ctx.dynamicCordisRunner`，后者拥有定义注册表和 vm 沙箱；组合缺少它时这些工具不会激活。运行中的 Package 在停止、undefine 或 DSH 重启前可以注册**额外的**模型可见工具；发生这类工具集变化时，系统会记录完整且有变动的请求头。 |
+| `@deepseek-ai/dsh-tool-cordis` | `cordis_inspect_list`、`cordis_inspect_query` | `ctx.tools`、`ctx.cordisInspect` | `tool/call`、`tool/result` | - | Creator 模式提供两个只读的运行时检查工具。检查注册表由 Cordis host runner 提供；Client 查询需要已连接的页面。持久变更请写成组合包，并用 plugin_manager 安装。 |
 | `@deepseek-ai/dsh-tool-plugin-market` | `market_plugin_preview`、`market_plugin_search`、`market_source_list` | `ctx.tools`、`ctx.systemPrompt`、`ctx.pluginMarket` | `tool/call`、`tool/result` | - | 市场工具集读取 `@deepseek-ai/dsh-host-plugin-market` 提供的 `ctx.pluginMarket`，后者始终从内存提供内置离线目录（`builtin-deepseek`），并通过市场的受限 fetch 提供用户注册的 HTTPS 来源。标准 preset 下这些工具对所有 agent 会话可见；安装始终是操作者在 `dsh plugin` CLI 上的动作，绝不是模型调用。 |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 bash 工具；部署组合提供 PTY 后端，并可覆盖面向模型的环境描述。 |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 pwsh 工具，持久 bash 工具的 Windows 对应物；部署组合提供 pwsh 方言的 PTY 后端，并可覆盖面向模型的环境描述。 |
@@ -49,7 +49,7 @@
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | `interrupt_agent`、`list_agents`、`send_message`、`spawn_teammate`、`team_task_create`、`team_task_get`、`team_task_list`、`team_task_update`、`wait_agent` | `ctx.tools`、`ctx.systemPrompt`、`ctx.agentTeams`、`an exact live Team member Agent` | `tool/call`、`team/member`、`team/message/queued`、`team/message/delivered`、`team/task`、`tool/result` | - | 这 9 个工具限定于隐式 Team Lead 与持久 teammate 作用域。随产品发布的 dsh-base bundle 默认禁用该包；文档中的 Agent Teams profile patch 会启用它，并禁用旧 continuable child 的同名控制工具。 |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给定 improving/worsening 参数对时读取对应的 39×39 矛盾矩阵单元格；registerSection（默认 true）只切换常驻的 tool:triz 提示词区段。 |
-| `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。paper_download 直链优先下载论文 PDF，直链失败时走 browser-use 兜底。 |
+| `@deepseek-ai/dsh-tool-literature` | `paper_download`、`paper_list_sources`、`paper_search` | `ctx.tools` | `tool/call`、`tool/result` | - | paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。 |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | list_doc_templates 列出随包的文档模板及其变量与支持的格式；render_doc_template 用给定变量把其中一个渲染为 Markdown、HTML 或 DOCX，并返回文档、残余占位符与变量警告。部署还可在 `styleGuide` 中指定已加载的书写风格名，把该风格指南作为系统提示段落注入。 |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`、`ctx.fs` | `tool/call`、`tool/result` | - | document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 brief 引用记录进会话日志；文件缺失即报错，工具本身不写任何文件。它还会读取每个交付文件并在工具结果里给出自己的确定性核验结论（残余占位符、未声明锚点、空章节、风格禁用词、声明字数预算），阻断级问题直接拒绝登记。交付工作室把该调用与结果元数据折叠进交付物清单、质量门徽标与机器核验徽标。 |
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`、`analyze_patent_figure`、`claim_chart_build`、`draft_claims`、`draft_specification`、`evaluate_evidence`、`flexible_plan`、`generate_patent_figure`、`generate_structure_figure`、`knowledge_note_save`、`parse_office_action`、`patent_analysis_report`、`patent_case_search`、`patent_eval`、`patent_kg_query`、`patent_legal_status`、`patent_metadata`、`patent_pdf_download`、`patent_plan_task`、`patent_search`、`patent_wiki_search`、`patent_worker_validate`、`patent_workflow`、`patent_workflow_run`、`recognize_chemical_structure`、`rule_check`、`search_patent_figure`、`validate_specification`、`workbench_link_patent_case` | `ctx.tools` | `tool/call`、`tool/result` | - | Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图谱查询，权利要求对照表、通知书解析、撰写、分析报告、说明书校验、证据判定、规则检查、附图分析、PDF 下载、化学结构识别、知识笔记，以及工作流/计划状态机。render_patent_document 由 @deepseek-ai/dsh-patent-document 提供。 |
@@ -61,7 +61,7 @@
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 | `@deepseek-ai/dsh-macos-tools` | `macos_app`、`macos_clipboard_get`、`macos_clipboard_set`、`macos_notify`、`macos_open_path`、`macos_open_url`、`macos_speak` | `ctx.tools`、`ctx.approval（打开/读剪贴板/应用启停的一次性许可；缺失即拒绝）` | `tool/call`、`tool/result`、`受控调用的 approval/asked + approval/decided` | - | 七个基于系统 CLI 的 macOS 原生工具（打开/显示、浏览器网址、剪贴板读写、通知、朗读、应用控制）；每次调用都以参数数组启动绝对路径的可执行文件，绝不使用 shell 字符串。 |
 
-<a id="deepseek-aidsh-mcp-resources"></a>
+<a id="deepseek-aidsh-plugin-manager"></a>
 
 ## `@deepseek-ai/dsh-plugin-manager`
 
@@ -599,7 +599,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 ### `bash`
 
-在持久 bash shell 中运行命令。包括当前目录和已导出环境变量在内的状态会在此 agent 的多次调用之间保留。
+执行一条 bash 命令（`bash -c`）并返回其 stdout/stderr。每次调用都在全新 shell 中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。
 
 ```json
 {
@@ -635,9 +635,9 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 来源：[`packages/shell/tool-bash/src/index.ts`](../packages/shell/tool-bash/src/index.ts)
 
-一个按所有者隔离的持久 bash 工具；部署组合提供 PTY 后端，并可覆盖面向模型的环境描述。
+bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；禁用 `enableRunInBackground` 配置（默认为 true）后，该参数会被完全移除。
 
-<a id="deepseek-aidsh-tool-pwsh-persistent"></a>
+<a id="deepseek-aidsh-tool-present"></a>
 
 ## `@deepseek-ai/dsh-tool-present`
 
@@ -686,7 +686,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 ### `pwsh`
 
-在持久 PowerShell shell 中运行命令。包括当前目录和已导出环境变量在内的状态会在此 agent 的多次调用之间保留。
+执行一条 PowerShell 命令（`pwsh -Command`）并返回其 stdout/stderr。每次调用都在全新 pwsh 进程中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。路径采用原生 Windows 形式（`C:\...`）；用 `$env:NAME` 读取环境变量。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$env:DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。在 Windows 上，被强制终止的命令以 `[exit code: 1]` 结算且不带信号标记——应视为中断，而不是命令失败。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。
 
 ```json
 {
@@ -722,9 +722,9 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 来源：[`packages/shell/tool-pwsh/src/index.ts`](../packages/shell/tool-pwsh/src/index.ts)
 
-一个按所有者隔离的持久 pwsh 工具，持久 bash 工具的 Windows 对应物；部署组合提供 pwsh 方言的 PTY 后端，并可覆盖面向模型的环境描述。
+pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费方（由 `@deepseek-ai/dsh-pwsh-local` 等 PowerShell 执行器为 `ctx.shell` 提供后端）；除沙箱接口外，它逐项对应 bash 工具调用。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具收集／停止；托管的 `DSH_*` 环境来自 `@deepseek-ai/dsh-shell-env`。每次调用都在新进程中运行，不使用持久 PTY 会话。路径采用原生 `C:\...` 形式，变量采用 `$env:NAME`。
 
-<a id="deepseek-aidsh-tool-str-replace-editor"></a>
+<a id="deepseek-aidsh-tool-cordis"></a>
 
 ## `@deepseek-ai/dsh-tool-cordis`
 
@@ -778,6 +778,10 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 ```
 
 来源：[`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)
+
+Creator 模式提供两个只读的运行时检查工具。检查注册表由 Cordis host runner 提供；Client 查询需要已连接的页面。持久变更请写成组合包，并用 plugin_manager 安装。
+
+<a id="deepseek-aidsh-tool-plugin-market"></a>
 
 ## `@deepseek-ai/dsh-tool-plugin-market`
 
@@ -1696,7 +1700,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 两个工具驱动 self-evolve 能力缝：`self_evolve_inspect_patterns` 读取会话投影出的失败模式，`self_evolve_now` 启动一次显式循环。基础提供方仅面向 L1-skill 与 L2-context；L3-workflow 与 L4-harness 请求暂不产生提案。
 
-<a id="deepseek-aidsh-tool-session-query"></a> /tmp/master-tool-catalog.zh.md
+<a id="deepseek-aidsh-tool-session-query"></a>
 
 ## `@deepseek-ai/dsh-tool-session-query`
 
@@ -1995,7 +1999,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `interrupt_agent`
 
-中断一名 teammate 的当前 turn，同时保留其待处理 inbox。仅 Team Lead 可用。
+按 agent id 请求取消一个后台 agent 的当前轮次。目标可以是你的直接子 agent，也可以是你之下更深层的 agent。只有当前轮次会停止：已为该 agent 排队的消息会停在原地，直到之后某次 send_message；它启动的 agent 继续运行；该 agent 本身仍可接受后续消息。本调用在被接受时即返回，因此目标可能还会短暂运行；对已经结束的 agent 发出中断会被当作无操作接受。
 
 ```json
 {
@@ -2016,7 +2020,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `list_agents`
 
-列出 Lead 与所有持久 teammate，以及各自当前的运行时状态。
+按持久 id 与 label 列出你创建的可继续后台 subagent。用它回忆自己启动过哪些，而不要用它轮询完成情况——某个 subagent 结束时你会收到通知。状态来自实时注册表：running 表示该 agent 此刻正在工作；idle 表示它已加载但处于轮次之间（可能在等它启动的 agent）；ready 表示它只存在于存储中——可以继续，既不是终态，也不是等待收取的结果。`send_message` 对 running 子 agent 在其最近的步骤边界施加 steering（中途引导），对 idle 或 ready 子 agent 启动一个轮次；直接子 agent 在任何状态下都是 `send_message` 的候选对象。这份快照不是投递承诺——`send_message` 会做权威检查，仍可能失败。读取失败的子 agent 会作为诊断报告出来，而不是被静默丢弃。`descendants` 范围会按稳定的前序遍历你之下的整棵树，并为每个条目标注其持久的直接父 Session id 与深度。`send_message` 只适用于深度 1 的条目；更深的条目只能作为 `interrupt_agent` 的候选。
 
 ```json
 {
@@ -2038,7 +2042,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `send_message`
 
-向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；idle target 会启动一个 turn；inactive teammate 会冷恢复。
+按 agent id 向直接的可继续子 agent 发送一条消息。如果你是常驻的可继续子 agent，也可以向你的直接父 agent 发送。目标仍在工作时，消息会引导它最近的步骤；目标空闲时，消息会启动一个轮次。本调用不会返回该 agent 的答复——只确认消息已投递。失败意味着消息**没有**投递。
 
 ```json
 {
@@ -2061,6 +2065,10 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 ```
 
 来源：[`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts)
+
+这些是控制可继续后台 subagent 的全局命名工具：绑定提供方的 `tool-subagent` 实例注册不同的委派工具；本包只注册一次 `send_message` 与 `interrupt_agent`，另由单独加载的 `/list-agents` 插件提供 `list_agents`，其目录行使用 sessionProjections 与实时 Agent 注册表。
+
+<a id="deepseek-aidsh-tool-jobs"></a>
 
 ## `@deepseek-ai/dsh-tool-jobs`
 
@@ -2139,7 +2147,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `interrupt_agent`
 
-中断一名 teammate 的当前 turn，同时保留其待处理 inbox。仅 Team Lead 可用。
+中断一名 teammate 的当前轮次，同时保留其待处理 inbox。仅 Team Lead 可用。
 
 ```json
 {
@@ -2173,7 +2181,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `send_message`
 
-向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；idle target 会启动一个 turn；inactive teammate 会冷恢复。
+向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；idle target 会启动一个轮次；inactive teammate 会冷恢复。
 
 ```json
 {
@@ -2421,8 +2429,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 来源：[`packages/experimental/tool-agent-team/src/index.ts`](../packages/experimental/tool-agent-team/src/index.ts)
 
-这 10 个工具限定于隐式 Team Lead 与持久 teammate 作用域。随产品发布的 dsh-base bundle 默认禁用该包；文档中的 Agent Teams profile patch 会启用它，并禁用旧 continuable child 的同名控制工具。
-
+这 9 个工具限定于隐式 Team Lead 与持久 teammate 作用域。随产品发布的 dsh-base bundle 默认禁用该包；文档中的 Agent Teams profile patch 会启用它，并禁用旧 continuable child 的同名控制工具。
 
 <a id="deepseek-aidsh-tool-todo"></a>
 
@@ -2482,6 +2489,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。
 
 <a id="deepseek-aidsh-methodology"></a>
+
 ## `@deepseek-ai/dsh-methodology`
 
 ### `triz`
@@ -2617,6 +2625,8 @@ triz 在无参数时列出 40 条发明原理与 39 个工程参数，并在给�
 ```
 
 来源：[`packages/patent/tool-literature/src/index.ts`](../packages/patent/tool-literature/src/index.ts)
+
+paper_list_sources 与 paper_search 是对四个免 key 公开源（arXiv、OpenAlex、Semantic Scholar、Crossref）的无状态查询；连接器开关属于配置，只会收窄可用的 `db` id。
 
 <a id="deepseek-aidsh-document-deliver"></a>
 
@@ -2774,10 +2784,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 ### `analyze_patent_figure`
 
-分析专利说明书附图：识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文提升识别准确率。
-
-当前为文本态最小路径：图片多模态分析引擎尚未接入，分析基于附图编号与权利要求/技术方案上下文推断，结果置信度与可用性相应降低。
-
+分析专利说明书附图（多模态）：把图片随请求发送给配置的附图模型（imageModel，须声明图片输入），识别附图类型（结构图/流程图/电路图/方框图/示意图/分解图/剖视图）、提取组件与连接关系、核对附图标记并生成专利格式的附图说明文字。当用户提供附图图片并要求撰写附图说明、理解附图内容、核对附图标记一致性时使用。可传入权利要求或技术方案文本作为上下文，提升图文对齐准确率。
 
 ```json
 {
@@ -2811,7 +2818,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 ### `claim_chart_build`
 
 构建权利要求对照表（claim chart）：把权利要求拆分为编号要素，逐要素映射到对比文件或产品证据（每行 pin-cite 引用），并输出 gap list（证据薄弱的要素）。适用于撰写（可专利性布局）、OA 答复、无效/复审、侵权比对等场景。mode=infringement 时另给出确定性结论段：被控产品的全面覆盖四态判定、等同认定与图表映射的矛盾；提供 risk（抗辩成立可能性与补救比例等可复核事实）时按五维权重给出风险等级。
-
 
 ```json
 {
@@ -2858,7 +2864,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 ### `draft_claims`
 
 根据技术交底书或技术方案撰写权利要求书草案（机械/电学/化学/软件四领域）。当用户要求撰写权利要求、写权利要求书时使用，避免自行手写权利要求文本。输出独立权利要求 + 从属权利要求 + 形式校验报告。
-
 
 ```json
 {
@@ -2918,7 +2923,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 ### `draft_specification`
 
 根据技术交底书或技术方案撰写符合要求的专利说明书草案（技术领域/背景技术/发明内容/附图说明/具体实施方式五部分）。当用户要求撰写说明书、写专利申请文件时使用，避免自行手写说明书文本。
-
 
 ```json
 {
@@ -2998,7 +3002,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 ### `evaluate_evidence`
 
 对专利证据做确定性三性判定（相关性/合法性/真实性）与类型特定检查（电子证据/互联网公开/使用公开四要件/域外证据/公知常识），输出综合评分、举证责任分配与实际适用的证据规则。在 OA 答复、无效宣告论证引用证据前调用，可提前发现证据缺陷。
-
 
 ```json
 {
@@ -3318,15 +3321,17 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 ### `generate_patent_figure`
 
-生成专利风格附图：流程图（方法步骤）、系统框图（组件+连接）、组件层级图、内置模板或原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。
+生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。
 
 标号体系：每图独立 100 系列（FIG.1=100-199、FIG.2=200-299，默认步进 2，可调）；同一组件跨图出现时用 numerals 显式传入沿用同号，或声明 figure_family 自动续号（同名组件沿用既有标号、新组件取空闲号；缺省每图独立编号）。
 
-图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。
+图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、states→状态图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。
 
 多面板：panels 一次生成 FIG.1A/1B 等多张面板（每面板独立文件 figN+后缀，如 A → fig1A.svg），全部面板组件共享一条连续标号系列，附图说明合并输出。
 
-色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用墨色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用。
+色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用黑色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用；target_office="pct" 时 semantic 被拒绝（PCT 实施细则 11.13(a) 规定附图不得着色）。
+
+落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。仅 SVG 输出支持落版；fit_to_page=false 时只核算尺寸、不改写画布。
 
 引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
 
@@ -3340,11 +3345,17 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
   "properties": {
     "figure_type": {
       "type": "string",
-      "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、blocks→block_diagram、tree→component_hierarchy、dot→raw_dot、template→template），多输入或无输入须显式指定",
+      "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、states→state_diagram、blocks→block_diagram、tree→component_hierarchy、circuit/plot/sections/sequence/appearance_views→同名图型、dot→raw_dot、template→template），多输入或无输入须显式指定",
       "enum": [
         "flowchart",
+        "state_diagram",
         "block_diagram",
         "component_hierarchy",
+        "circuit",
+        "plot",
+        "cross_section",
+        "sequence_diagram",
+        "appearance_view",
         "raw_dot",
         "template"
       ]
@@ -3409,6 +3420,522 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           "next"
         ]
       }
+    },
+    "states": {
+      "type": "array",
+      "description": "状态图状态（figure_type=state_diagram 时必填）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "状态标识（[A-Za-z0-9_-]，自动清洗）"
+          },
+          "label": {
+            "type": "string",
+            "description": "状态名（initial 伪状态填空串）"
+          },
+          "kind": {
+            "type": "string",
+            "description": "normal（默认，圆角框）/initial（实心小圆，无标号）/final（双圆框）",
+            "enum": [
+              "normal",
+              "initial",
+              "final"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "description": "状态转移（state_diagram；端点必须存在于 states）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "转移条件（简短词语，可选）"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "circuit": {
+      "type": "object",
+      "description": "电路图输入（figure_type=circuit 时必填）：元件按网格行列放置，连线正交走线，T 形结点画实心连接点",
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "电气符号种类",
+                "enum": [
+                  "resistor",
+                  "capacitor",
+                  "inductor",
+                  "diode",
+                  "battery",
+                  "ground",
+                  "switch",
+                  "lamp",
+                  "npn_transistor",
+                  "voltage_source"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "元件名（简短词）"
+              },
+              "col": {
+                "type": "integer",
+                "description": "网格列（0 起）"
+              },
+              "row": {
+                "type": "integer",
+                "description": "网格行（0 起）"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "col",
+              "row"
+            ]
+          }
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          }
+        },
+        "cell_width_mm": {
+          "type": "number",
+          "description": "单元格宽（毫米），默认 18"
+        },
+        "cell_height_mm": {
+          "type": "number",
+          "description": "单元格高（毫米），默认 14"
+        }
+      },
+      "required": [
+        "components",
+        "connections"
+      ]
+    },
+    "plot": {
+      "type": "object",
+      "description": "曲线图/坐标图输入（figure_type=plot 时必填）：坐标轴 + 刻度 + 单位 + 多条序列（用标记形状区分，不用颜色）",
+      "additionalProperties": false,
+      "properties": {
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "marker": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "circle",
+                  "square",
+                  "triangle"
+                ]
+              }
+            },
+            "required": [
+              "points"
+            ]
+          }
+        },
+        "x_label": {
+          "type": "string"
+        },
+        "y_label": {
+          "type": "string"
+        },
+        "x_unit": {
+          "type": "string"
+        },
+        "y_unit": {
+          "type": "string"
+        },
+        "x_range": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "y_range": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "tick_count": {
+          "type": "integer",
+          "description": "每轴刻度数（2..11），默认 5"
+        },
+        "show_grid": {
+          "type": "boolean",
+          "description": "是否画网格线，默认 false"
+        },
+        "width_mm": {
+          "type": "number",
+          "description": "画布宽（毫米），默认 120"
+        },
+        "height_mm": {
+          "type": "number",
+          "description": "画布高（毫米），默认 80"
+        }
+      },
+      "required": [
+        "series",
+        "x_label",
+        "y_label"
+      ]
+    },
+    "sections": {
+      "type": "object",
+      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 剖切位置符号",
+      "additionalProperties": false,
+      "properties": {
+        "outline": {
+          "type": "array",
+          "description": "外轮廓顶点对数组（[[x,y],…]）",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "outline": {
+                "type": "array",
+                "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "hatch": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "angle_deg": {
+                    "type": "number",
+                    "description": "剖面线倾角（度），默认 45"
+                  },
+                  "spacing_mm": {
+                    "type": "number",
+                    "description": "剖面线间距（毫米），默认 3"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "相邻零件取相反方向或不同间距以区分",
+                    "enum": [
+                      "forward",
+                      "backward"
+                    ]
+                  }
+                }
+              }
+            },
+            "required": [
+              "outline"
+            ]
+          }
+        },
+        "cutting_marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "剖切标记字母（如 A）"
+              },
+              "from": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "arrow": {
+                "type": "string",
+                "description": "投射方向",
+                "enum": [
+                  "left",
+                  "right",
+                  "up",
+                  "down"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "from",
+              "to",
+              "arrow"
+            ]
+          }
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 4"
+        }
+      },
+      "required": [
+        "parts"
+      ]
+    },
+    "sequence": {
+      "type": "object",
+      "description": "时序图输入（figure_type=sequence_diagram 时必填）：参与者生命线 + 消息箭线",
+      "additionalProperties": false,
+      "properties": {
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ]
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "默认 sync",
+                "enum": [
+                  "sync",
+                  "return",
+                  "async"
+                ]
+              },
+              "activate": {
+                "type": "boolean",
+                "description": "是否在目标生命线上画激活条，默认 false"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "label"
+            ]
+          }
+        },
+        "box_width_mm": {
+          "type": "number",
+          "description": "参与者盒宽（毫米），默认 30"
+        },
+        "message_spacing_mm": {
+          "type": "number",
+          "description": "消息垂直间距（毫米），默认 10"
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 5"
+        }
+      },
+      "required": [
+        "participants",
+        "messages"
+      ]
+    },
+    "appearance_views": {
+      "type": "object",
+      "description": "外观设计视图排布输入（figure_type=appearance_view 时必填）：把调用方提供的六面视图片段按第一角投影排布并统一比例、逐视图标注视图名称",
+      "additionalProperties": false,
+      "properties": {
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "视图名（六面正投影视图）",
+                "enum": [
+                  "主视图",
+                  "后视图",
+                  "左视图",
+                  "右视图",
+                  "俯视图",
+                  "仰视图"
+                ]
+              },
+              "body": {
+                "type": "string",
+                "description": "调用方提供的视图片段（毫米坐标 SVG 片段）"
+              },
+              "width_mm": {
+                "type": "number"
+              },
+              "height_mm": {
+                "type": "number"
+              },
+              "note": {
+                "type": "string",
+                "description": "备注（写入结果 warnings，不落图面；如省略视图的原因）"
+              }
+            },
+            "required": [
+              "name",
+              "body",
+              "width_mm",
+              "height_mm"
+            ]
+          }
+        },
+        "extras": {
+          "type": "array",
+          "description": "额外单元格（立体图/使用状态参考图）",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "width_mm": {
+                "type": "number"
+              },
+              "height_mm": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "name",
+              "body",
+              "width_mm",
+              "height_mm"
+            ]
+          }
+        },
+        "cell_mm": {
+          "type": "number",
+          "description": "单元格最大边长（毫米），默认 60"
+        },
+        "caption_gap_mm": {
+          "type": "number",
+          "description": "视图名与图形的间距（毫米），默认 3"
+        },
+        "caption_font_mm": {
+          "type": "number",
+          "description": "视图名字高（毫米），默认 3.5"
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 8"
+        },
+        "first_angle": {
+          "type": "boolean",
+          "description": "默认 true：按中国第一角投影排布；false 为第三角"
+        }
+      },
+      "required": [
+        "views"
+      ]
     },
     "blocks": {
       "type": "array",
@@ -3524,6 +4051,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
             "description": "面板图型；缺省从该面板唯一结构输入推断",
             "enum": [
               "flowchart",
+              "state_diagram",
               "block_diagram",
               "component_hierarchy",
               "raw_dot",
@@ -3588,6 +4116,61 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
                 "id",
                 "label",
                 "next"
+              ]
+            }
+          },
+          "states": {
+            "type": "array",
+            "description": "面板状态图状态",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "状态标识（[A-Za-z0-9_-]，自动清洗）"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "状态名（initial 伪状态填空串）"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "normal（默认，圆角框）/initial（实心小圆，无标号）/final（双圆框）",
+                  "enum": [
+                    "normal",
+                    "initial",
+                    "final"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "description": "面板状态转移",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "转移条件（简短词语，可选）"
+                }
+              },
+              "required": [
+                "from",
+                "to"
               ]
             }
           },
@@ -3691,7 +4274,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "numerals": {
             "type": "object",
-            "description": "面板显式标号（组件 id → 标号；优先于顶层 numerals）",
+            "description": "面板显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；优先于顶层 numerals）",
             "additionalProperties": true
           }
         },
@@ -3710,7 +4293,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "numerals": {
       "type": "object",
-      "description": "显式标号（组件 id → 标号；跨图同件同号续接）",
+      "description": "显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；跨图同件同号续接）",
       "additionalProperties": true
     },
     "numeral_start": {
@@ -3786,6 +4369,35 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
       "type": "boolean",
       "description": "引线标号（数字置于部件外侧并以引线相连，仅 SVG 生效）；默认框图/层级图开启、流程图关闭"
     },
+    "target_office": {
+      "type": "string",
+      "description": "目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；仅 SVG 生效",
+      "enum": [
+        "cnipa",
+        "pct",
+        "uspto"
+      ]
+    },
+    "figure_count": {
+      "type": "integer",
+      "description": "本案附图总数（默认 1）：两幅以上才逐幅标注图号（中国指南 4.3、PCT 11.13(k)、37 CFR 1.84(u)）"
+    },
+    "sheet_index": {
+      "type": "integer",
+      "description": "附图页序号，默认 1"
+    },
+    "sheet_total": {
+      "type": "integer",
+      "description": "附图页总数，默认 1（PCT/USPTO 页码写作「序号/总数」）"
+    },
+    "caption": {
+      "type": "string",
+      "description": "图号文字覆盖（缺省按目标法域生成；panels 模式自动追加面板后缀，如 图1A / Fig. 1A）"
+    },
+    "fit_to_page": {
+      "type": "boolean",
+      "description": "默认 true：把图形落版到目标法域幅面（仅 SVG）；false 时只核算尺寸、不改写画布"
+    },
     "persist_index": {
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
@@ -3808,7 +4420,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。
 
-产物为纯几何片段，不含模板边框/标题栏/图号，符合《专利审查指南》第一部分第一章 4.3（墨色线条、图号不入像素）。
+产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。
 
 ```json
 {
@@ -3879,6 +4491,31 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
       "type": "string",
       "description": "发明名称（附图说明模板句）"
     },
+    "target_office": {
+      "type": "string",
+      "description": "目标法域：给定时把每个视图 SVG 落版到该法域的 A4 幅面与页边距，并返回落版尺寸（仅 SVG 产物生效）",
+      "enum": [
+        "cnipa",
+        "pct",
+        "uspto"
+      ]
+    },
+    "sheet_index": {
+      "type": "integer",
+      "description": "附图页序号，默认 1"
+    },
+    "sheet_total": {
+      "type": "integer",
+      "description": "附图页总数，默认 1"
+    },
+    "caption": {
+      "type": "string",
+      "description": "图号文字（如「图1」）；缺省不落图号——多视图如何编号由调用方按整案附图顺序决定"
+    },
+    "fit_to_page": {
+      "type": "boolean",
+      "description": "默认 true：落版到目标法域幅面；false 时只核算尺寸"
+    },
     "persist_index": {
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
@@ -3897,7 +4534,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 把项目专利产出（OA 答复要点、无效分析结论、检索心得）沉淀为知识笔记，后续检索可召回。用于定稿后建议沉淀：如 knowledge_note_save({title, content, project})。同一内容重复保存会自动跳过（幂等）。
 
 注意：dsh 的知识库写 API（knowledge.db personal_note 层）尚未接入，当前落为案卷目录下的笔记文件。
-
 
 ```json
 {
@@ -3986,7 +4622,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 检索本地专利判例全文（无效复审决定/专利判决，knowledge.db，FTS5 BM25 优先）。用于无效宣告分析、OA 答复时检索相似在先决定的理由论证与证据认定。支持 doc_type（case=无效决定/judgment=判决）与 court（法院）过滤。默认排除 wiki 审查标准卡片（审查标准请用 patent_wiki_search）。
 
-
 ```json
 {
   "type": "object",
@@ -4028,7 +4663,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。
 
-
 ```json
 {
   "type": "object",
@@ -4067,7 +4701,6 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 ### `patent_kg_query`
 
 查询专利知识图谱节点（判例/审查规则/法条/概念）。三种模式：① query 关键词检索（FTS5，附相似/引用关系标注）；② id 按节点 id 展开详情与相似/引用邻居；③ node_type 按类型浏览（Case/SupremeCourtJudgment/RegionalCourtJudgment/GuidelineRule/Clause/WikiCard/Concept，支持 Judgment/LawArticle 别名）。与 patent_wiki_search（wiki 卡片正文）和 law_search（法条原文）互补。
-
 
 ```json
 {
@@ -4141,12 +4774,14 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
 
 - 按专利号（如 US11452699B2）从 Google Patents 获取专利元数据
 - 返回结构化数据：标题、发明人、受让人、日期、法律状态、预计到期日、摘要、PDF URL、分类号、引用
-- 自动校验并归一化专利号
+- 自动校验并归一化专利号；CN 申请号保留 12 位形态（CN202122978405.0 → CN202122978405），全角字符、空白与 - / : 分隔符一并折叠
 - 用于专利尽职调查、在先技术详情查询、法律状态核查
 
 使用说明：
   - 只读；每篇专利发起一次网络请求
+  - 必须带国家码；裸申请号（202122978405）会被拒绝——请补 CN 或改用公开号
   - 未找到（专利不存在）以 success:false 的数据返回，而非错误
+  - 上游瞬时失败（HTTP 503、连接被断开）会重试两次后才失败
   - 页面结构变化时的非致命解析告警通过 parseWarnings 返回
 
 ```json
@@ -4155,7 +4790,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
   "properties": {
     "patent": {
       "type": "string",
-      "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces)."
+      "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces, no - / : separators; a CN application check digit is dropped)."
     },
     "timeout": {
       "type": "number",
@@ -4186,7 +4821,6 @@ Usage notes:
   - 重复执行命中 MANIFEST 断点续传（size 匹配即跳过，method=skip），force=true 强制重下
   - record=true 可额外截图留证（输出 `<outputDir>/evidence/`）
   - HTTP 兜底对瞬时失败/限流（429/503）自动重试并按 Retry-After 退避；重试后仍 429 时 error 会注明限流与建议等待时长（并可结合 retryAfterMs），此时应等待后再重试而非立即重试
-
 
 ```json
 {
@@ -4324,10 +4958,10 @@ Usage notes:
 ```
 
 来源：[`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
 ### `patent_wiki_search`
 
 检索专利 wiki 知识卡片（说明书/权利要求/撰写/附图四目录），用于撰写说明书、权利要求书时查询充分公开、实施例、数值范围、以说明书为依据等撰写标准。支持 dir 目录过滤（specification/claims/drafting/figures）与 include_body 正文片段。
-
 
 ```json
 {
@@ -4506,8 +5140,7 @@ Usage notes:
 
 识别化学式/化学结构：从化学结构图（图片模式，多模态模型两步分析 + RDKit 校验）或文档文本（文本模式，正则候选 → LLM 复核/化合物名称转 SMILES → RDKit 校验）中提取多候选 SMILES、分子式与化合物名称。当交底书/说明书/权利要求含化学结构式（含 Markush 广义结构）、分子式或化合物名称需要转 SMILES 时使用。注意：本工具不直接解析 PDF——图片模式输入须为已导出的图片（jpeg/png/gif/webp），文本模式可传 PDF 文本层提取结果。
 
-当前环境未安装 RDKit（可选原生依赖），本工具暂不可用，调用将返回 needHumanReview=true 的不可用结果。
-
+本构建未接入化学识别引擎：识别流水线（VLM 两步法、name→SMILES、RDKit 校验）属后续工作，调用返回 needHumanReview=true 的不可用结果。需要化学结构解析时改走人工复核或外部工具链，不要靠本工具产出 SMILES。
 
 ```json
 {
@@ -4568,7 +5201,6 @@ Usage notes:
 ### `search_patent_figure`
 
 检索已分析的专利附图（索引由 analyze_patent_figure 分析时写入 .sati/figures-index.json）：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引为空时返回提示，需先调用 analyze_patent_figure 分析附图。当前仅关键词检索（向量/语义检索未接入）。
-
 
 ```json
 {
@@ -4813,7 +5445,7 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
     },
     "outputName": {
       "type": "string",
-      "description": "Output filename stem (no extension); only letters, digits, underscore, hyphen, and dot."
+      "description": "Output filename stem (no extension); letters, digits, underscore, hyphen, dot, and Chinese characters (a Chinese draft name is accepted as written). No path separators, no \"..\"."
     },
     "caseId": {
       "type": "string",
@@ -4857,8 +5489,6 @@ Sati 专利领域工具集：检索/元数据/法律状态/判例/wiki/知识图
 来源：[`packages/patent/patent-document/src/index.ts`](../packages/patent/patent-document/src/index.ts)
 
 render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。
-
-<a id="deepseek-aidsh-tool-workflow"></a> /tmp/master-tool-catalog.zh.md
 
 <a id="deepseek-aidsh-patent-deadline"></a>
 
@@ -5006,7 +5636,6 @@ patent_deadlines 报告一件中国专利案件的法定与指定期限，适用
 - 选择方式：传 `query` 按关键词检索；否则用 `features` 把案件特征与模式名称、摘要、步骤名做匹配；否则按 `category` 列出该类目；不带任何参数时列出整个模式库
 - 选择是词法且离线的：工具只挑选模式，不对案件作判断。把返回的步骤应用到正在撰写的段落上
 
-
 Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/writing-patterns/src/index.ts)
 
 ```json
@@ -5098,7 +5727,7 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 使用说明：
   - 离线；渲染随包模板资产、已配置的覆盖目录与随包样式。
-  - 声明了撰写样式的模板，在本部署启用免责声明时把该样式的免责声明带进渲染结果。
+  - 声明了书写风格的模板，在本部署启用免责声明时把该风格的免责声明带进渲染结果。
 
 ```json
 {
@@ -5147,7 +5776,7 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc-template/src/index.ts)
 
-list_doc_templates 报告随包文档模板及其变量与支持格式，render_doc_template 用给定变量把其中一个渲染为 Markdown、HTML 或 DOCX，并返回文档本体、残余占位符与变量警告。
+list_doc_templates 报告随包文档模板及其变量与支持格式，render_doc_template 用给定变量把其中一个渲染为 Markdown、HTML 或 DOCX，并返回文档本体、残余占位符与变量警告。部署还可以在 `styleGuide` 中指定一个已加载的书写风格，该风格指南会作为系统提示词段落注入。
 
 <a id="deepseek-aidsh-patent-teams"></a>
 
@@ -5222,7 +5851,7 @@ Claim one ready task for a member (or yourself). A member cannot own a second un
     },
     "assignee": {
       "type": "string",
-      "description": "Member to claim for (captain only; defaults to the task's assignee)."
+      "description": "Member to claim for (captain only; defaults to the task's assignee). Member names only — \"captain\" is not a member; omit it to claim as the captain."
     }
   },
   "required": [
@@ -5283,7 +5912,7 @@ Create a task in your team's task list. Tasks can depend on other tasks (depende
     },
     "assignee": {
       "type": "string",
-      "description": "Optional member name this task is intended for."
+      "description": "Optional member name this task is intended for. Member names only: the captain is not a member, so never pass \"captain\" here — use reassign_task(assignee=\"captain\") to move a task to the captain."
     },
     "worker": {
       "type": "string",
@@ -5419,7 +6048,7 @@ Update a task status/output. Members must supply the current attempt_id returned
     },
     "status": {
       "type": "string",
-      "description": "New status (in_progress, completed, failed, cancelled).",
+      "description": "New status. Legal moves: pending→claimed, claimed→in_progress, in_progress→completed. A claimed task must enter in_progress before it can be completed; terminal statuses (completed/failed/cancelled) have no way out.",
       "enum": [
         "in_progress",
         "completed",
