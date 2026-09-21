@@ -101,6 +101,7 @@ const edgeJson = JSON.stringify({
     { ref_number: '1', name: '', kind: 'bogus', description: 42 },
     { ref_number: '1', name: '重复标号', kind: 'mechanical' },
     { ref_number: '3', name: '三号件', kind: 'flowchart', description: '三号' },
+    { ref_number: '8', name: '八号件', kind: 'mechanical', description: '八号' },
   ],
   connections: [
     123,
@@ -168,7 +169,8 @@ describe('analyze_patent_figure execute', () => {
       if (result.isError) throw new Error('expected success')
       // confidence clamped to 1; bogus type → 示意图; hostile fields normalized.
       expect(text(result)).toContain('置信度 1.00')
-      expect(text(result)).toContain('附图标记可能不连续')
+      // 步进 2（1、3）一致，8 破坏了步进 → 提示步进不一致
+      expect(text(result)).toContain('附图标记步进不一致：3 后为 8（图内前序步进 2）')
       expect(text(result)).toContain('- 1 未命名部件（unknown）：')
       expect(text(result)).toContain('1 → 3（data_flow）：数据')
     } finally {

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -43,7 +43,7 @@ function writeModel(dir: string, name: string): string {
   return path
 }
 
-type RenderOpts = { unsafe?: boolean; emptyViews?: boolean }
+type RenderOpts = { unsafe?: boolean; emptyViews?: boolean; svg?: string }
 
 type MockRenderer = { render: (spec: StructureRenderSpec) => Promise<StructureRenderOutcome>; calls: StructureRenderSpec[] }
 
@@ -55,9 +55,9 @@ function okRenderer(opts: RenderOpts = {}): MockRenderer {
     render: (spec) => {
       calls.push(spec)
       mkdirSync(spec.outputDir, { recursive: true })
-      const svg = opts.unsafe
+      const svg = opts.svg ?? (opts.unsafe
         ? '<!ENTITY x SYSTEM "file:///etc/passwd"><svg xmlns="http://www.w3.org/2000/svg"></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="#000000"><path d="M0 0 L10 10"/></g></svg>'
+        : '<svg xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="#000000"><path d="M0 0 L10 10"/></g></svg>')
       const views = spec.views.map((name, order) => {
         const path = join(spec.outputDir, `fig${spec.figureNumber}_${name}.svg`)
         writeFileSync(path, svg)
@@ -105,6 +105,36 @@ describe('generate_structure_figure gate', () => {
   })
 })
 
+describe('generate_structure_figure 落版', () => {
+  it('给定 target_office 时把每个视图 SVG 落版为 A4 附图页并返回尺寸', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    // 带物理尺寸与 viewBox 的片段，供落版解析（相当于 freecad 脚本产出的视图 SVG）。
+    const { render } = okRenderer({ svg: '<svg width="200pt" height="150pt" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="#000000"><path d="M0 0 L10 10"/></g></svg>' })
+    try {
+      const tool = createGenerateStructureFigureTool({ render, enabled: true, outputDir: outDir, cwd: dir })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_structure_figure', {
+        model_path: model,
+        views: ['iso'],
+        figure_number: 3,
+        target_office: 'cnipa',
+        sheet_index: 1,
+        sheet_total: 2,
+      }, 's-layout') as { isError: boolean; value: { layout?: { office: string; sheetNumber: string; pageScale: number }; warnings: string[] } }
+      expect(result.isError).toBe(false)
+      expect(result.value.layout?.office).toBe('cnipa')
+      expect(result.value.layout?.sheetNumber).toBe('1')
+      expect(result.value.layout?.pageScale).toBeGreaterThan(0)
+      const written = readFileSync(join(outDir, 'fig3', 'fig3_iso.svg'), 'utf8')
+      expect(written).toContain('width="210mm" height="297mm"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('generate_structure_figure success', () => {
   it('单模型：路径/标号表/组件/附图说明/索引闭环', async () => {
     const dir = tempDir()
@@ -133,7 +163,7 @@ describe('generate_structure_figure success', () => {
       const value = result.value
       expect(value.paths).toEqual(['figs/fig1/fig1_iso.svg', 'figs/fig1/fig1_front.svg'])
       expect(value.figures).toHaveLength(1)
-      expect(value.figureDescription).toBe('图1是一种支架的结构示意图；图中：100-立柱，102-底板。')
+      expect(value.figureDescription).toBe('图1是本发明实施例提供的一种支架的结构示意图；图中：100-立柱，102-底板。')
       expect(value.numeralMap).toEqual([
         { componentId: '100', label: '立柱', numeral: '100', figure: 1 },
         { componentId: '102', label: '底板', numeral: '102', figure: 1 },
@@ -179,7 +209,7 @@ describe('generate_structure_figure success', () => {
       expect(result.value.figures.map(f => f.figureNumber)).toEqual([3, 4])
       expect(calls.map(c => c.figureNumber)).toEqual([3, 4])
       expect(result.value.paths).toEqual(['figs/fig3/fig3_iso.svg', 'figs/fig4/fig4_iso.svg'])
-      expect(result.value.figureDescription).toBe('图3是本申请的结构示意图；图4是本申请的结构示意图。')
+      expect(result.value.figureDescription).toBe('图3是本发明实施例提供的结构示意图；图4是本发明实施例提供的结构示意图。')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -213,7 +243,7 @@ describe('generate_structure_figure success', () => {
       const result = await execute(ctx, 'generate_structure_figure', { model_path: model, views: ['front'] }, 's4') as { value: { numeralMap: unknown[]; components: unknown[]; figureDescription: string } }
       expect(result.value.numeralMap).toEqual([])
       expect(result.value.components).toEqual([])
-      expect(result.value.figureDescription).toBe('图1是本申请的结构示意图。')
+      expect(result.value.figureDescription).toBe('图1是本发明实施例提供的结构示意图。')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

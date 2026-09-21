@@ -8,7 +8,10 @@ import {
   computeSpecScore,
   createValidateSpecificationTool,
   extractClaimFeatures,
+  extractAbstractDrawingNumber,
+  extractClaimMarks,
   extractNumericRanges,
+  knownFigureNumbers,
   renderSpecification,
   validateSpecification,
 } from '../src/tool/validate-specification.ts'
@@ -195,6 +198,31 @@ describe('figure mark consistency', () => {
     const out = checkFigureMarkConsistency(FIGURE_SPEC, figures)
     expect(out[0]?.message).toContain('不可用')
   })
+
+  it('图面标号未在正文与权利要求中提及时报 warning', () => {
+    const figures = [{ usable: true, components: [{ refNumber: '100' }] }]
+    const text = '## 附图说明\n图1是结构示意图；图中：100-壳体；\n## 具体实施方式\n实施例1：装置包括壳体。'
+    const out = checkFigureMarkConsistency(text, figures)
+    expect(out.map(v => v.message).join('\n')).toContain('100 未在说明书正文')
+  })
+
+  it('正文提及标号时不报缺失；数字串中的标号不误判', () => {
+    const figures = [{ usable: true, components: [{ refNumber: '100' }] }]
+    const text = '## 附图说明\n图1是结构示意图；图中：100-壳体；\n## 具体实施方式\n实施例1：壳体100固定连接。'
+    expect(checkFigureMarkConsistency(text, figures)).toEqual([])
+    const noise = '## 附图说明\n图1是结构示意图；图中：100-壳体；\n## 具体实施方式\n实施例1：容量2100毫升。'
+    expect(checkFigureMarkConsistency(noise, figures).map(v => v.message).join('\n')).toContain('未在说明书正文')
+  })
+
+  it('权利要求括号标号必须在图面存在，标号提取去重', () => {
+    expect(extractClaimMarks('一种装置，包括壳体（100）和盖体(102)，所述壳体（100）……')).toEqual(['100', '102'])
+    expect(extractClaimMarks(undefined)).toEqual([])
+    expect(extractClaimMarks('')).toEqual([])
+    const figures = [{ usable: true, components: [{ refNumber: '100' }] }]
+    const text = '## 附图说明\n图1是结构示意图；图中：100-壳体；\n## 具体实施方式\n实施例1：壳体100。'
+    const out = checkFigureMarkConsistency(text, figures, '一种装置，包括壳体（100）和盖体（200）')
+    expect(out.map(v => v.message).join('\n')).toContain('200 在附图中不存在')
+  })
 })
 
 describe('checkSmilesValidity', () => {
@@ -295,7 +323,8 @@ describe('figure mark consistency edge cases', () => {
 
   it('skips non-numeric marks and reports no missing or dangling marks', () => {
     const figures = [{ usable: true, components: [{ refNumber: '1' }, { refNumber: '2' }, { refNumber: 'U1' }] }]
-    const out = checkFigureMarkConsistency('## 附图说明\n图中：1-壳体；2-缓冲层；', figures)
+    const text = '## 附图说明\n图1是结构示意图；图中：1-壳体；2-缓冲层；\n## 具体实施方式\n实施例1：壳体1与缓冲层2连接。'
+    const out = checkFigureMarkConsistency(text, figures)
     expect(out).toEqual([])
   })
 
@@ -310,6 +339,37 @@ describe('abstract and claim coverage edge cases', () => {
   it('accepts an abstract naming the summary figure', () => {
     const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。摘要附图为图1。关键词：检测。' })
     expect(out.violations.find(x => x.rule === 'abstract_drawing')).toBeUndefined()
+  })
+
+  it('warns when the abstract names a figure that does not exist', () => {
+    const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。摘要附图为图9。关键词：检测。' })
+    const v = out.violations.find(x => x.rule === 'abstract_drawing')
+    expect(v?.message).toContain('图9在附图中不存在')
+    expect(v?.suggestion).toContain('核对附图说明')
+  })
+
+  it('extracts the abstract figure number and reconciles it with the analyzed figures', () => {
+    expect(extractAbstractDrawingNumber('摘要附图为图3。关键词：检测。')).toBe(3)
+    expect(extractAbstractDrawingNumber('摘要附图采用图12表示整体结构')).toBe(12)
+    expect(extractAbstractDrawingNumber('本摘要未指定摘要附图')).toBeUndefined()
+    const figures = [
+      { figureNumber: 2, usable: true, components: [{ refNumber: '100' }] },
+    ]
+    expect(knownFigureNumbers('## 附图说明\n图1是结构示意图；图中：100-壳体；', figures)).toEqual([2])
+    expect(knownFigureNumbers('## 附图说明\n图1是主视图；图2是图1的剖视图；')).toEqual([1, 2])
+    expect(knownFigureNumbers('## 技术领域\n本发明涉及一种装置。')).toEqual([])
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      abstract: '摘要内容。摘要附图为图2。关键词：检测。',
+      figure_analysis: figures,
+    })
+    expect(out.violations.filter(x => x.rule === 'abstract_drawing')).toEqual([])
+  })
+
+  it('reports the 4×6 cm readability rule when no summary figure is named', () => {
+    const out = validateSpecification({ text: VALID_SPEC, abstract: '摘要内容。关键词：检测。' })
+    const v = out.violations.find(x => x.rule === 'abstract_drawing')
+    expect(v?.message).toContain('4 厘米×6 厘米')
   })
 
   it('warns at 50% claim coverage and passes when fully covered', () => {

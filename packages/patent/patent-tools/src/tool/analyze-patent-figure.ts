@@ -40,11 +40,15 @@ import type { FigureComponentKind } from './internal/figure-schemas.ts'
 export const FIGURE_TYPES = [
   'structure',
   'flowchart',
+  'state_diagram',
+  'sequence_diagram',
   'circuit',
   'block_diagram',
   'schematic',
   'exploded_view',
   'cross_section',
+  'plot',
+  'appearance_view',
   'unknown',
 ] as const
 
@@ -55,11 +59,15 @@ export type FigureType = (typeof FIGURE_TYPES)[number]
 export const FIGURE_TYPE_NAMES: Record<FigureType, string> = {
   structure: '结构示意图',
   flowchart: '流程图',
+  state_diagram: '状态图',
+  sequence_diagram: '时序图',
   circuit: '电路图',
   block_diagram: '方框图',
   schematic: '原理示意图',
   exploded_view: '分解示意图',
   cross_section: '剖视图',
+  plot: '曲线图',
+  appearance_view: '外观设计视图',
   unknown: '示意图',
 }
 
@@ -241,7 +249,7 @@ export const FIGURE_SPEC_GUIDE = [
   '专利附图是黑白线图，不要求也不允许彩色；虚线表示不可见/隐藏结构，剖面线表示剖切面。',
   '阿拉伯数字为附图标记（引用符号），指向对应部件；说明书正文引用必须与标号一一对应。',
   '箭头表示连接方向、运动方向或流程走向。',
-  '同一部件在不同附图中共用同一标号；标号不得跳号或重复。',
+  '同一部件在不同附图中共用同一标号；同一图内标号按固定步进递增（如 100、102、104），不得重复。',
   "附图说明句式：'图N是本发明实施例提供的{发明名称}的{附图类型}；图中：1-{部件}；2-{部件}；…'",
   '标号识别必须严格依据图面；图面可见但标号模糊、被遮挡或无法确认的部件，不得臆造编号，应注明"无法确认"；仅当部件确实无标号时，才使用 U1/U2… 占位符并注明。',
   '组件描述应包含图面可见的物理形态、空间相对位置与连接关系；图面未显示的信息（材料、参数等）不得补充。',
@@ -280,6 +288,12 @@ function buildFigureDescription(
   return lines.join('\n')
 }
 
+/**
+ * 标号递增检查：图内标号按**固定步进**递增即可——100、102、104 是常见写法
+ * （偶数步进为插号留出位置），因此只有步进发生变化时才提示。
+ * @param components - 图面识别出的组件（标号去重后进入判定）。
+ * @returns 警告文本列表；步进一致时为空数组。
+ */
 function checkReferenceNumbers(components: FigureComponent[]): string[] {
   const warnings: string[] = []
   const numbers = components
@@ -287,14 +301,15 @@ function checkReferenceNumbers(components: FigureComponent[]): string[] {
     .filter(n => /^\d+$/.test(n))
     .map(Number)
     .sort((a, b) => a - b)
-  if (numbers.length === 0) return warnings
-  let previous: number | undefined
-  for (const current of numbers) {
-    if (previous !== undefined && current !== previous + 1) {
-      warnings.push(`附图标记可能不连续：${previous} 后为 ${current}`)
+  if (numbers.length < 2) return warnings
+  const step = (numbers[1] as number) - (numbers[0] as number)
+  for (let index = 1; index < numbers.length; index += 1) {
+    const previous = numbers[index - 1] as number
+    const current = numbers[index] as number
+    if (current - previous !== step) {
+      warnings.push(`附图标记步进不一致：${previous} 后为 ${current}（图内前序步进 ${step}），请核对是否漏标或重号`)
       break
     }
-    previous = current
   }
   return warnings
 }

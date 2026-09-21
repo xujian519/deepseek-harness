@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-21-patent-drawing-office-profiles-and-vector-figures.md
+2026-09-21-patent-drawing-office-profiles-and-vector-figures.md: 680357873bcf618f02e18070b185d79f4cb5eb56
+2026-09-21-patent-drawing-office-profiles-and-vector-figures.zh.md: 6a7cc946167a751cc88a71fc16ef27cfed9df016

@@ -11,11 +11,13 @@
  * CAD 隔离、默认关闭、fail-loud：结构线稿依赖本机 FreeCAD，默认
  * `Config.structureFigureEnabled=false`，未开启或 freecadcmd 缺失均返回
  * setup_required 与配置/安装引导，绝不静默降级为示意图。风格依据《专利审查
- * 指南》第一部分第一章 4.3：墨色线条、阿拉伯数字标记、图号不入像素。
+ * 指南》第一部分第一章 4.3：黑色墨水线条、阿拉伯数字标记、图号不落在几何片段内
+ * （片段本身不含图号；附图总数在两幅以上时由 target_office 落版阶段把「图N」写在
+ * 图形正下方，符合该条「该编号应当标注在相应附图的正下方」）。
  * @module @deepseek-ai/dsh-patent-tools/tool/generate-structure-figure
  */
 
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -31,6 +33,11 @@ import {
   type StructureViewName,
 } from '../figure/freecad-structure-script.ts'
 import type { StructureRenderOutcome, StructureRenderSpec } from '../figure/freecad-renderer.ts'
+import { figureSentence } from '../figure/figure-description.ts'
+import { TARGET_OFFICES, officeProfile, sheetNumberText } from '../figure/office-profile.ts'
+import type { TargetOffice } from '../figure/office-profile.ts'
+import { buildSubmissionPage } from '../figure/submission-page.ts'
+import type { SubmissionLayout } from '../figure/submission-page.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
 
 /** 结构线稿在索引中的模型标识（FreeCAD TechDraw 投影，无 LLM 参与）。 */
@@ -107,6 +114,15 @@ export type GenerateStructureFigureInput = {
   figure_number?: number
   /** 发明名称（附图说明模板句）。 */
   invention_name?: string
+  /** 目标法域（cnipa/pct/uspto）：给定时把每个视图 SVG 落版到该法域的固定幅面附图页（A4 + 页边距）并核算尺寸。 */
+  target_office?: TargetOffice
+  /** 附图页序号与总页数（默认 1/1），写入页码。 */
+  sheet_index?: number
+  sheet_total?: number
+  /** 图号文字（如「图1」）；缺省不落图号——一个模型的多个视图最终如何编号由调用方按整案附图顺序决定。 */
+  caption?: string
+  /** 默认 true：落版到目标法域幅面；false 时只核算尺寸、不改写画布。 */
+  fit_to_page?: boolean
   /** 默认 true：写入附图索引（供 search_patent_figure 检索）。 */
   persist_index?: boolean
 }
@@ -119,6 +135,8 @@ export type GenerateStructureFigureOutput = {
   figures: StructureFigureView[]
   /** 附图说明文字（「图N是…的结构示意图」，可直接落说明书）。 */
   figureDescription: string
+  /** 落版与尺寸核算结果（给定 target_office 时）。 */
+  layout?: SubmissionLayout
   /** 标号映射表（件号 → 名称 → 图号）。 */
   numeralMap: { componentId: string; label: string; numeral: string; figure: number }[]
   /** 组件列表（与 analyze_patent_figure 输出同构）。 */
@@ -157,11 +175,6 @@ function assertRendered(outcome: StructureRenderOutcome): asserts outcome is Ext
     throw new PatentToolError('tool_aborted', 'generate_structure_figure aborted', { tool: 'generate_structure_figure' })
   }
   throw new PatentToolError('tool_execution_failed', outcome.error, { tool: 'generate_structure_figure' })
-}
-
-/** 发明名称缺省兜底（附图说明模板句）。 */
-function resolveInvention(name: string | undefined): string {
-  return name === undefined || name.trim() === '' ? '本申请' : name.trim()
 }
 
 /** 校验并归一件号锚定：point3d 必须是恰好三个有限数（schema DSL 不支持定长数组约束，模型可能送超长/非数字）。 */
@@ -278,7 +291,7 @@ const DESCRIPTION = [
   '',
   '批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。',
   '',
-  '产物为纯几何片段，不含模板边框/标题栏/图号，符合《专利审查指南》第一部分第一章 4.3（墨色线条、图号不入像素）。',
+  '产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。',
 ].join('\n')
 
 /**
@@ -298,6 +311,11 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       callouts: { type: 'array', items: CALLOUT_SCHEMA, description: '件号锚定 [{numeral, point3d:[x,y,z], label?}]；仅单模型（不与目录批量同用）' },
       figure_number: { type: 'integer', description: '图号（正整数），默认 1（批量时作为起始图号）' },
       invention_name: { type: 'string', description: '发明名称（附图说明模板句）' },
+      target_office: { type: 'string', enum: TARGET_OFFICES, description: '目标法域：给定时把每个视图 SVG 落版到该法域的 A4 幅面与页边距，并返回落版尺寸（仅 SVG 产物生效）' },
+      sheet_index: { type: 'integer', description: '附图页序号，默认 1' },
+      sheet_total: { type: 'integer', description: '附图页总数，默认 1' },
+      caption: { type: 'string', description: '图号文字（如「图1」）；缺省不落图号——多视图如何编号由调用方按整案附图顺序决定' },
+      fit_to_page: { type: 'boolean', description: '默认 true：落版到目标法域幅面；false 时只核算尺寸' },
       persist_index: { type: 'boolean', description: '默认 true：写入附图索引（供 search_patent_figure 检索）' },
     },
     output: {
@@ -321,6 +339,21 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
             },
           },
           figureDescription: { type: 'string', required: true },
+          layout: {
+            type: 'object',
+            description: '落版与尺寸核算结果（给定 target_office 时）',
+            additionalProperties: false,
+            properties: {
+              office: { type: 'string', required: true, enum: TARGET_OFFICES },
+              pageScale: { type: 'number', required: true },
+              placedWidthMm: { type: 'number', required: true },
+              placedHeightMm: { type: 'number', required: true },
+              charHeightMm: { type: 'number' },
+              reducedCharHeightMm: { type: 'number' },
+              caption: { type: 'string' },
+              sheetNumber: { type: 'string', required: true },
+            },
+          },
           numeralMap: { type: 'array', required: true, items: NUMERAL_MAP_SCHEMA },
           components: { type: 'array', required: true, items: COMPONENT_SCHEMA },
           warnings: { type: 'array', required: true, items: { type: 'string' } },
@@ -408,8 +441,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
         })),
       )
 
-      const invention = resolveInvention(input.invention_name)
-      const sentences = figures.map(figure => `图${figure.figureNumber}是${invention}的${FIGURE_TYPE_NAMES.structure}`)
+      const sentences = figures.map(figure => figureSentence(figure.figureNumber, FIGURE_TYPE_NAMES.structure, input.invention_name))
       const numeralText = [...new Map(numeralMap.filter(m => m.label !== '').map(m => [m.numeral, `${m.numeral}-${m.label}`])).values()].join('，')
       const figureDescription = numeralText === ''
         ? `${sentences.join('；')}。`
@@ -419,6 +451,39 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
         callouts.flatMap(callout => (callout.label === undefined ? [] : [callout.label])),
         callouts.map(callout => callout.numeral),
       ))
+
+      let layout: SubmissionLayout | undefined
+      if (input.target_office !== undefined) {
+        const profile = officeProfile(input.target_office)
+        let sheetNumber: string
+        try {
+          sheetNumber = sheetNumberText(profile, input.sheet_index ?? 1, input.sheet_total ?? 1)
+        } catch (error) {
+          throw new PatentToolError('invalid_tool_input', `落版参数非法：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
+        }
+        for (const figure of figures) {
+          for (const viewPath of figure.paths) {
+            const page = buildSubmissionPage({
+              drawingSvg: await readFile(resolve(cwd, viewPath), 'utf8'),
+              profile,
+              caption: input.caption,
+              sheetNumber,
+            })
+            warnings.push(...page.warnings.map(w => `落版：${w}`))
+            if (input.fit_to_page ?? true) await writeFile(resolve(cwd, viewPath), page.svg, 'utf8')
+            layout = {
+              office: profile.office,
+              pageScale: page.metrics.pageScale,
+              placedWidthMm: page.metrics.placedWidthMm,
+              placedHeightMm: page.metrics.placedHeightMm,
+              ...(page.metrics.charHeightMm === undefined ? {} : { charHeightMm: page.metrics.charHeightMm }),
+              ...(page.metrics.reducedCharHeightMm === undefined ? {} : { reducedCharHeightMm: page.metrics.reducedCharHeightMm }),
+              ...(input.caption === undefined ? {} : { caption: input.caption }),
+              sheetNumber,
+            }
+          }
+        }
+      }
 
       let indexed = false
       if ((input.persist_index ?? true) && deps.upsertIndex !== undefined) {
@@ -443,6 +508,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
         paths: figures.flatMap(figure => figure.paths),
         figures,
         figureDescription,
+        ...(layout === undefined ? {} : { layout }),
         numeralMap,
         components,
         warnings,
@@ -481,6 +547,9 @@ function renderStructureResult(value: GenerateStructureFigureOutput): { type: 't
     ...value.figures.map(figure => `- 图${figure.figureNumber}（${figure.manifest.views.map(v => v.name).join('/')}）：${figure.paths.join('、')}`),
     '',
     value.figureDescription,
+    ...(value.layout === undefined
+      ? []
+      : ['', `## 落版（${value.layout.office}）`, `- 缩放 ${value.layout.pageScale}，图形 ${value.layout.placedWidthMm}×${value.layout.placedHeightMm} 毫米`, `- 页码 ${value.layout.sheetNumber}`]),
     ...(value.numeralMap.length > 0 ? ['', '## 参考标号', ...value.numeralMap.map(m => `- ${m.numeral} ${m.label}`.trimEnd())] : []),
     ...(value.warnings.length > 0 ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)] : []),
   ]

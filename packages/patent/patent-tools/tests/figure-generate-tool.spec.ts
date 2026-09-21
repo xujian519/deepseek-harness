@@ -92,7 +92,7 @@ describe('generate_patent_figure tool', () => {
       }
       expect(value.value.path).toBe('figs/fig1.svg')
       expect(value.value.numeralMap.map(m => m.numeral)).toEqual(['100', '102', '104'])
-      expect(value.value.figureDescription).toContain('图1是一种自动加热装置的流程图；图中：100-开始，102-处理，104-结束')
+      expect(value.value.figureDescription).toContain('图1是本发明实施例提供的一种自动加热装置的流程图；图中：100-开始，102-处理，104-结束')
       expect(value.value.indexed).toBe(true)
       // render spec 传递
       expect(calls[0]?.dot).toContain('"start" [label="100. 开始", shape=ellipse];')
@@ -166,6 +166,35 @@ describe('generate_patent_figure tool', () => {
       await expect(tool.execute({ figure_type: 'raw_dot', dot: 'x'.repeat(200_001) }, exec)).rejects.toMatchObject({
         code: 'invalid_tool_input',
       })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('numerals 接受数字标号，非标量值报字段级 invalid_tool_input', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({ render: okRenderer(outDir).render, outputDir: outDir, cwd: dir })
+    try {
+      await expect(tool.execute({
+        figure_type: 'block_diagram',
+        blocks: [{ id: 'cpu', label: '处理' }],
+        numerals: { cpu: 100 },
+        persist_index: false,
+      }, exec)).resolves.toMatchObject({ numeralMap: [expect.objectContaining({ numeral: '100' })] })
+
+      const rejected = {
+        figure_type: 'block_diagram',
+        blocks: [{ id: 'cpu', label: '处理' }],
+        numerals: { cpu: ['100'] },
+        persist_index: false,
+      }
+      await expect(tool.execute(rejected, exec)).rejects.toMatchObject({
+        name: 'PatentToolError',
+        code: 'invalid_tool_input',
+      })
+      // 错误消息点名具体字段，调用方据此定位是哪个 numerals 项不合法
+      await expect(tool.execute(rejected, exec)).rejects.toThrow('顶层 numerals["cpu"]')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

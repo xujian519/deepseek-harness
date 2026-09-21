@@ -5,7 +5,7 @@
  * Graphviz DOT 文本，固化专利附图风格规范：
  *
  * - 默认 `grayscale`：黑白线条、零填充色——按《专利审查指南》第一部分
- *   第一章 4.3（2023 修订，2024-01-20 施行，下同），附图一般使用墨色
+ *   第一章 4.3（2023 修订，2024-01-20 施行，下同），附图一般使用黑色
  *   墨水绘制；`semantic` 可选模式允许填充色/边色，但仅当色彩承载技术
  *   内容（色彩即发明信息，如热力图、图像处理阶段图）时使用，依据同条
  *   「必要时可以提交彩色附图」。
@@ -125,6 +125,29 @@ export type HierarchyNode = {
   label: string
   /** 子节点。 */
   children?: readonly HierarchyNode[]
+}
+
+/** 状态图状态类型：normal=圆角框；initial=实心小圆（无标号）；final=双圆框。 */
+export type StateNodeKind = 'normal' | 'initial' | 'final'
+
+/** 状态图状态（软件/算法类专利附图的状态转移图）。 */
+export type StateNode = {
+  /** 状态 id（[A-Za-z0-9_-]，自动清洗）。 */
+  id: string
+  /** 状态名（框内文字；initial 伪状态留空，留空时不参与标号分配）。 */
+  label: string
+  /** 状态类型，默认 normal。 */
+  kind?: StateNodeKind
+}
+
+/** 状态图转移（条件写在箭头上，须为简短词语）。 */
+export type StateTransition = {
+  /** 源状态 id。 */
+  from: string
+  /** 目标状态 id。 */
+  to: string
+  /** 转移条件（简短词语，如「超温」「完成」），可选。 */
+  label?: string
 }
 
 /** 参考标号映射输入：组件 id → 标号（字符串，如 "20"、"101"、"S101"）。 */
@@ -588,6 +611,67 @@ export function buildComponentHierarchyDOT(
   }
   lines.push('')
   for (const [id, parent] of parents) lines.push(`    "${parent}" -> "${id}";`)
+  lines.push('}', '')
+  return lines.join('\n')
+}
+
+/** 状态图构建选项（与层级图同形）。 */
+export type BuildStateDiagramOptions = BuildHierarchyOptions
+
+/**
+ * 构建状态转移图 DOT（软件/算法类专利附图）。
+ * initial 伪状态画实心小圆且不分配标号；其余状态在框内给出状态名与标号，
+ * 转移条件写在箭头上——符合《专利审查指南》第一部分第一章 4.3「流程图、框图
+ * 应当作为附图，并应当在其框内给出必要的文字和符号」。
+ * @param states - 状态列表（按顺序分配标号）。
+ * @param transitions - 转移列表（端点必须存在）。
+ * @param options - 图号 / 色彩 / 字体 / 标号。
+ * @returns DOT 文本。
+ * @throws DotBuildError('empty_input' | 'unknown_id') 状态为空、id 重复或转移端点不存在时。
+ */
+export function buildStateDiagramDOT(
+  states: readonly StateNode[],
+  transitions: readonly StateTransition[],
+  options: BuildStateDiagramOptions = {},
+): string {
+  if (states.length === 0) throw new DotBuildError('empty_input', '状态图至少需要一个状态')
+  const ids = states.map(state => sanitizeId(state.id))
+  const known = new Set<string>()
+  for (const id of ids) {
+    if (known.has(id)) throw new DotBuildError('unknown_id', `状态 id 重复：${id}`)
+    known.add(id)
+  }
+  const labeledIds = states.filter(state => state.label.trim() !== '').map(state => sanitizeId(state.id))
+  const numeralOf = new Map(assignFor(labeledIds, options).map(assignment => [assignment.id, assignment.numeral]))
+  const lines = buildDotHeader('StateDiagram', {
+    rankdir: 'TB',
+    fontName: options.fontName ?? 'Helvetica',
+    filled: false,
+    ...(options.page === undefined ? {} : { page: options.page }),
+  })
+  for (const state of states) {
+    const id = sanitizeId(state.id)
+    const kind = state.kind ?? 'normal'
+    if (kind === 'initial') {
+      lines.push(`    "${id}" [label="", shape=circle, style=filled, fillcolor=black, width=0.25, fixedsize=true];`)
+      continue
+    }
+    const numeral = numeralOf.get(id) ?? ''
+    const text = escapeDotLabel(state.label)
+    const label = numeral === '' || options.embedNumerals === false ? text : `${numeral}. ${text}`
+    lines.push(kind === 'final'
+      ? `    "${id}" [label="${label}", shape=doublecircle];`
+      : `    "${id}" [label="${label}", shape=box, style=rounded];`)
+  }
+  lines.push('')
+  for (const transition of transitions) {
+    const from = sanitizeId(transition.from)
+    const to = sanitizeId(transition.to)
+    if (!known.has(from)) throw new DotBuildError('unknown_id', `转移源状态不存在：${transition.from}`)
+    if (!known.has(to)) throw new DotBuildError('unknown_id', `转移目标状态不存在：${transition.to}`)
+    const label = transition.label === undefined || transition.label.trim() === '' ? '' : escapeDotLabel(transition.label)
+    lines.push(label === '' ? `    "${from}" -> "${to}";` : `    "${from}" -> "${to}" [label="${label}"];`)
+  }
   lines.push('}', '')
   return lines.join('\n')
 }

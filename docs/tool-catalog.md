@@ -3315,15 +3315,17 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `generate_patent_figure`
 
-生成专利风格附图：流程图（方法步骤）、系统框图（组件+连接）、组件层级图、内置模板或原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。
+生成专利风格附图：流程图（方法步骤）、状态图（状态+转移条件）、系统框图（组件+连接）、组件层级图，以及直接绘制 SVG 的电路图、曲线图/坐标图、剖视图（含剖面线与剖切符号）、时序图、外观设计六面视图排布；另有内置模板与原始 DOT，输出 SVG/PNG/PDF 到工作区 patent/figures/，返回参考标号映射表与「图N是…；图中：…」格式的附图说明文字。撰写权利要求/说明书需要配图时使用。
 
 标号体系：每图独立 100 系列（FIG.1=100-199、FIG.2=200-299，默认步进 2，可调）；同一组件跨图出现时用 numerals 显式传入沿用同号，或声明 figure_family 自动续号（同名组件沿用既有标号、新组件取空闲号；缺省每图独立编号）。
 
-图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。
+图型推断：figure_type 缺省时从唯一结构输入推断（steps→流程图、states→状态图、blocks→框图、tree→层级图、dot→原始 DOT、template→模板）；同时提供多个结构输入或全空时须显式指定 figure_type。
 
 多面板：panels 一次生成 FIG.1A/1B 等多张面板（每面板独立文件 figN+后缀，如 A → fig1A.svg），全部面板组件共享一条连续标号系列，附图说明合并输出。
 
-色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用墨色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用。
+色彩策略：默认 grayscale（黑白线条，符合《专利审查指南》第一部分第一章 4.3「附图一般使用黑色墨水绘制」）；semantic 模式允许按块类型填充颜色，仅当色彩承载技术内容时使用；target_office="pct" 时 semantic 被拒绝（PCT 实施细则 11.13(a) 规定附图不得着色）。
+
+落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。仅 SVG 输出支持落版；fit_to_page=false 时只核算尺寸、不改写画布。
 
 引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
 
@@ -3337,11 +3339,17 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   "properties": {
     "figure_type": {
       "type": "string",
-      "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、blocks→block_diagram、tree→component_hierarchy、dot→raw_dot、template→template），多输入或无输入须显式指定",
+      "description": "图型；缺省时从唯一结构输入推断（steps→flowchart、states→state_diagram、blocks→block_diagram、tree→component_hierarchy、circuit/plot/sections/sequence/appearance_views→同名图型、dot→raw_dot、template→template），多输入或无输入须显式指定",
       "enum": [
         "flowchart",
+        "state_diagram",
         "block_diagram",
         "component_hierarchy",
+        "circuit",
+        "plot",
+        "cross_section",
+        "sequence_diagram",
+        "appearance_view",
         "raw_dot",
         "template"
       ]
@@ -3406,6 +3414,522 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
           "next"
         ]
       }
+    },
+    "states": {
+      "type": "array",
+      "description": "状态图状态（figure_type=state_diagram 时必填）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "状态标识（[A-Za-z0-9_-]，自动清洗）"
+          },
+          "label": {
+            "type": "string",
+            "description": "状态名（initial 伪状态填空串）"
+          },
+          "kind": {
+            "type": "string",
+            "description": "normal（默认，圆角框）/initial（实心小圆，无标号）/final（双圆框）",
+            "enum": [
+              "normal",
+              "initial",
+              "final"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "description": "状态转移（state_diagram；端点必须存在于 states）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "转移条件（简短词语，可选）"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "circuit": {
+      "type": "object",
+      "description": "电路图输入（figure_type=circuit 时必填）：元件按网格行列放置，连线正交走线，T 形结点画实心连接点",
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "电气符号种类",
+                "enum": [
+                  "resistor",
+                  "capacitor",
+                  "inductor",
+                  "diode",
+                  "battery",
+                  "ground",
+                  "switch",
+                  "lamp",
+                  "npn_transistor",
+                  "voltage_source"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "元件名（简短词）"
+              },
+              "col": {
+                "type": "integer",
+                "description": "网格列（0 起）"
+              },
+              "row": {
+                "type": "integer",
+                "description": "网格行（0 起）"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "col",
+              "row"
+            ]
+          }
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          }
+        },
+        "cell_width_mm": {
+          "type": "number",
+          "description": "单元格宽（毫米），默认 18"
+        },
+        "cell_height_mm": {
+          "type": "number",
+          "description": "单元格高（毫米），默认 14"
+        }
+      },
+      "required": [
+        "components",
+        "connections"
+      ]
+    },
+    "plot": {
+      "type": "object",
+      "description": "曲线图/坐标图输入（figure_type=plot 时必填）：坐标轴 + 刻度 + 单位 + 多条序列（用标记形状区分，不用颜色）",
+      "additionalProperties": false,
+      "properties": {
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "marker": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "circle",
+                  "square",
+                  "triangle"
+                ]
+              }
+            },
+            "required": [
+              "points"
+            ]
+          }
+        },
+        "x_label": {
+          "type": "string"
+        },
+        "y_label": {
+          "type": "string"
+        },
+        "x_unit": {
+          "type": "string"
+        },
+        "y_unit": {
+          "type": "string"
+        },
+        "x_range": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "y_range": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "tick_count": {
+          "type": "integer",
+          "description": "每轴刻度数（2..11），默认 5"
+        },
+        "show_grid": {
+          "type": "boolean",
+          "description": "是否画网格线，默认 false"
+        },
+        "width_mm": {
+          "type": "number",
+          "description": "画布宽（毫米），默认 120"
+        },
+        "height_mm": {
+          "type": "number",
+          "description": "画布高（毫米），默认 80"
+        }
+      },
+      "required": [
+        "series",
+        "x_label",
+        "y_label"
+      ]
+    },
+    "sections": {
+      "type": "object",
+      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 剖切位置符号",
+      "additionalProperties": false,
+      "properties": {
+        "outline": {
+          "type": "array",
+          "description": "外轮廓顶点对数组（[[x,y],…]）",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "outline": {
+                "type": "array",
+                "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "hatch": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "angle_deg": {
+                    "type": "number",
+                    "description": "剖面线倾角（度），默认 45"
+                  },
+                  "spacing_mm": {
+                    "type": "number",
+                    "description": "剖面线间距（毫米），默认 3"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "相邻零件取相反方向或不同间距以区分",
+                    "enum": [
+                      "forward",
+                      "backward"
+                    ]
+                  }
+                }
+              }
+            },
+            "required": [
+              "outline"
+            ]
+          }
+        },
+        "cutting_marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "剖切标记字母（如 A）"
+              },
+              "from": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "arrow": {
+                "type": "string",
+                "description": "投射方向",
+                "enum": [
+                  "left",
+                  "right",
+                  "up",
+                  "down"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "from",
+              "to",
+              "arrow"
+            ]
+          }
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 4"
+        }
+      },
+      "required": [
+        "parts"
+      ]
+    },
+    "sequence": {
+      "type": "object",
+      "description": "时序图输入（figure_type=sequence_diagram 时必填）：参与者生命线 + 消息箭线",
+      "additionalProperties": false,
+      "properties": {
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ]
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "默认 sync",
+                "enum": [
+                  "sync",
+                  "return",
+                  "async"
+                ]
+              },
+              "activate": {
+                "type": "boolean",
+                "description": "是否在目标生命线上画激活条，默认 false"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "label"
+            ]
+          }
+        },
+        "box_width_mm": {
+          "type": "number",
+          "description": "参与者盒宽（毫米），默认 30"
+        },
+        "message_spacing_mm": {
+          "type": "number",
+          "description": "消息垂直间距（毫米），默认 10"
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 5"
+        }
+      },
+      "required": [
+        "participants",
+        "messages"
+      ]
+    },
+    "appearance_views": {
+      "type": "object",
+      "description": "外观设计视图排布输入（figure_type=appearance_view 时必填）：把调用方提供的六面视图片段按第一角投影排布并统一比例、逐视图标注视图名称",
+      "additionalProperties": false,
+      "properties": {
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "视图名（六面正投影视图）",
+                "enum": [
+                  "主视图",
+                  "后视图",
+                  "左视图",
+                  "右视图",
+                  "俯视图",
+                  "仰视图"
+                ]
+              },
+              "body": {
+                "type": "string",
+                "description": "调用方提供的视图片段（毫米坐标 SVG 片段）"
+              },
+              "width_mm": {
+                "type": "number"
+              },
+              "height_mm": {
+                "type": "number"
+              },
+              "note": {
+                "type": "string",
+                "description": "备注（写入结果 warnings，不落图面；如省略视图的原因）"
+              }
+            },
+            "required": [
+              "name",
+              "body",
+              "width_mm",
+              "height_mm"
+            ]
+          }
+        },
+        "extras": {
+          "type": "array",
+          "description": "额外单元格（立体图/使用状态参考图）",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "width_mm": {
+                "type": "number"
+              },
+              "height_mm": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "name",
+              "body",
+              "width_mm",
+              "height_mm"
+            ]
+          }
+        },
+        "cell_mm": {
+          "type": "number",
+          "description": "单元格最大边长（毫米），默认 60"
+        },
+        "caption_gap_mm": {
+          "type": "number",
+          "description": "视图名与图形的间距（毫米），默认 3"
+        },
+        "caption_font_mm": {
+          "type": "number",
+          "description": "视图名字高（毫米），默认 3.5"
+        },
+        "padding_mm": {
+          "type": "number",
+          "description": "画布留白（毫米），默认 8"
+        },
+        "first_angle": {
+          "type": "boolean",
+          "description": "默认 true：按中国第一角投影排布；false 为第三角"
+        }
+      },
+      "required": [
+        "views"
+      ]
     },
     "blocks": {
       "type": "array",
@@ -3521,6 +4045,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
             "description": "面板图型；缺省从该面板唯一结构输入推断",
             "enum": [
               "flowchart",
+              "state_diagram",
               "block_diagram",
               "component_hierarchy",
               "raw_dot",
@@ -3585,6 +4110,61 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
                 "id",
                 "label",
                 "next"
+              ]
+            }
+          },
+          "states": {
+            "type": "array",
+            "description": "面板状态图状态",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "状态标识（[A-Za-z0-9_-]，自动清洗）"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "状态名（initial 伪状态填空串）"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "normal（默认，圆角框）/initial（实心小圆，无标号）/final（双圆框）",
+                  "enum": [
+                    "normal",
+                    "initial",
+                    "final"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ]
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "description": "面板状态转移",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "转移条件（简短词语，可选）"
+                }
+              },
+              "required": [
+                "from",
+                "to"
               ]
             }
           },
@@ -3688,7 +4268,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
           },
           "numerals": {
             "type": "object",
-            "description": "面板显式标号（组件 id → 标号；优先于顶层 numerals）",
+            "description": "面板显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；优先于顶层 numerals）",
             "additionalProperties": true
           }
         },
@@ -3707,7 +4287,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "numerals": {
       "type": "object",
-      "description": "显式标号（组件 id → 标号；跨图同件同号续接）",
+      "description": "显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；跨图同件同号续接）",
       "additionalProperties": true
     },
     "numeral_start": {
@@ -3783,6 +4363,35 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
       "type": "boolean",
       "description": "引线标号（数字置于部件外侧并以引线相连，仅 SVG 生效）；默认框图/层级图开启、流程图关闭"
     },
+    "target_office": {
+      "type": "string",
+      "description": "目标法域：给定时按该法域的 A4 幅面、页边距、图号写法（图1/Fig. 1/FIG. 1）把图形落版为固定幅面附图页，并核算落版字高与色彩合规；仅 SVG 生效",
+      "enum": [
+        "cnipa",
+        "pct",
+        "uspto"
+      ]
+    },
+    "figure_count": {
+      "type": "integer",
+      "description": "本案附图总数（默认 1）：两幅以上才逐幅标注图号（中国指南 4.3、PCT 11.13(k)、37 CFR 1.84(u)）"
+    },
+    "sheet_index": {
+      "type": "integer",
+      "description": "附图页序号，默认 1"
+    },
+    "sheet_total": {
+      "type": "integer",
+      "description": "附图页总数，默认 1（PCT/USPTO 页码写作「序号/总数」）"
+    },
+    "caption": {
+      "type": "string",
+      "description": "图号文字覆盖（缺省按目标法域生成；panels 模式自动追加面板后缀，如 图1A / Fig. 1A）"
+    },
+    "fit_to_page": {
+      "type": "boolean",
+      "description": "默认 true：把图形落版到目标法域幅面（仅 SVG）；false 时只核算尺寸、不改写画布"
+    },
     "persist_index": {
       "type": "boolean",
       "description": "默认 true：写入附图索引（供 search_patent_figure 检索）"
@@ -3805,7 +4414,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 批量：model_path 传目录时，对目录内每个受支持模型生成一图，图号自 figure_number 起递增；批量模式不支持 callouts（件号 3D 锚点仅对单个模型有效）。
 
-产物为纯几何片段，不含模板边框/标题栏/图号，符合《专利审查指南》第一部分第一章 4.3（墨色线条、图号不入像素）。
+产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。
 
 ```json
 {
@@ -3875,6 +4484,31 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     "invention_name": {
       "type": "string",
       "description": "发明名称（附图说明模板句）"
+    },
+    "target_office": {
+      "type": "string",
+      "description": "目标法域：给定时把每个视图 SVG 落版到该法域的 A4 幅面与页边距，并返回落版尺寸（仅 SVG 产物生效）",
+      "enum": [
+        "cnipa",
+        "pct",
+        "uspto"
+      ]
+    },
+    "sheet_index": {
+      "type": "integer",
+      "description": "附图页序号，默认 1"
+    },
+    "sheet_total": {
+      "type": "integer",
+      "description": "附图页总数，默认 1"
+    },
+    "caption": {
+      "type": "string",
+      "description": "图号文字（如「图1」）；缺省不落图号——多视图如何编号由调用方按整案附图顺序决定"
+    },
+    "fit_to_page": {
+      "type": "boolean",
+      "description": "默认 true：落版到目标法域幅面；false 时只核算尺寸"
     },
     "persist_index": {
       "type": "boolean",
@@ -4134,12 +4768,14 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 - Fetches patent metadata from Google Patents by patent number (e.g. US11452699B2)
 - Returns structured data: title, inventors, assignees, dates, legal status, estimated expiration, abstract, PDF URL, classifications, citations
-- Validates and normalizes the patent number automatically
+- Validates and normalizes the patent number automatically; a CN application number keeps its 12-digit form (CN202122978405.0 → CN202122978405) and full-width characters, whitespace, and - / : separators fold away
 - Use for patent due diligence, prior-art detail lookup, legal status checks
 
 Usage notes:
   - Read-only; makes one network request per patent
+  - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number
   - A 'not found' result (patent does not exist) is returned as data with success:false — not an error
+  - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails
   - Non-fatal parse warnings are surfaced in parseWarnings when the page structure changes
 
 ```json
@@ -4148,7 +4784,7 @@ Usage notes:
   "properties": {
     "patent": {
       "type": "string",
-      "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces)."
+      "description": "Patent number, e.g. 'US11452699B2'. Validated and normalized (uppercase, no spaces, no - / : separators; a CN application check digit is dropped)."
     },
     "timeout": {
       "type": "number",
@@ -4498,7 +5134,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 识别化学式/化学结构：从化学结构图（图片模式，多模态模型两步分析 + RDKit 校验）或文档文本（文本模式，正则候选 → LLM 复核/化合物名称转 SMILES → RDKit 校验）中提取多候选 SMILES、分子式与化合物名称。当交底书/说明书/权利要求含化学结构式（含 Markush 广义结构）、分子式或化合物名称需要转 SMILES 时使用。注意：本工具不直接解析 PDF——图片模式输入须为已导出的图片（jpeg/png/gif/webp），文本模式可传 PDF 文本层提取结果。
 
-当前环境未安装 RDKit（可选原生依赖），本工具暂不可用，调用将返回 needHumanReview=true 的不可用结果。
+本构建未接入化学识别引擎：识别流水线（VLM 两步法、name→SMILES、RDKit 校验）属后续工作，调用返回 needHumanReview=true 的不可用结果。需要化学结构解析时改走人工复核或外部工具链，不要靠本工具产出 SMILES。
 
 ```json
 {
@@ -4803,7 +5439,7 @@ Render a patent-attorney deliverable (patentability opinion, search report, OA r
     },
     "outputName": {
       "type": "string",
-      "description": "Output filename stem (no extension); only letters, digits, underscore, hyphen, and dot."
+      "description": "Output filename stem (no extension); letters, digits, underscore, hyphen, dot, and Chinese characters (a Chinese draft name is accepted as written). No path separators, no \"..\"."
     },
     "caseId": {
       "type": "string",
@@ -5209,7 +5845,7 @@ Claim one ready task for a member (or yourself). A member cannot own a second un
     },
     "assignee": {
       "type": "string",
-      "description": "Member to claim for (captain only; defaults to the task's assignee)."
+      "description": "Member to claim for (captain only; defaults to the task's assignee). Member names only — \"captain\" is not a member; omit it to claim as the captain."
     }
   },
   "required": [
@@ -5270,7 +5906,7 @@ Create a task in your team's task list. Tasks can depend on other tasks (depende
     },
     "assignee": {
       "type": "string",
-      "description": "Optional member name this task is intended for."
+      "description": "Optional member name this task is intended for. Member names only: the captain is not a member, so never pass \"captain\" here — use reassign_task(assignee=\"captain\") to move a task to the captain."
     },
     "worker": {
       "type": "string",
@@ -5406,7 +6042,7 @@ Update a task status/output. Members must supply the current attempt_id returned
     },
     "status": {
       "type": "string",
-      "description": "New status (in_progress, completed, failed, cancelled).",
+      "description": "New status. Legal moves: pending→claimed, claimed→in_progress, in_progress→completed. A claimed task must enter in_progress before it can be completed; terminal statuses (completed/failed/cancelled) have no way out.",
       "enum": [
         "in_progress",
         "completed",
