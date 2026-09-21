@@ -27,6 +27,18 @@ description: 专利作业工作目录与文档组织约定：一个案子一个�
 - 分析报告按案号命名 `03-分析/XX_<类型>.md`，检索报告按日期命名 `01-检索/YYYY-MM-DD_<主题>.md`。
 - 正式交付文档（场景模板渲染 html/pdf 或 docx）与对应 md 定稿同目录存放：检索报告 → `01-检索/`，撰写申请文件 → `04-撰写/`，分析/比对意见 → `03-分析/`，答复/补正/复审文书 → `05-答复/`；命名 `<案号>_<场景>_v<版本>.html|pdf|docx`。渲染产物登记 `_matter-log.md`（动作=交付，见 patent-matter 审计链）。
 
+## 开工前检查（外部依赖）
+
+建案前先确认作业要用到的外部依赖，缺哪项就在该案里避开或明确降级（不要等到工具报错才发现）：
+
+| 依赖 | 用途 | 检查方式 |
+|---|---|---|
+| cnlaw 服务（`:8100` 检索 / `:8001` 图谱与案件链 + Neo4j 7687） | 法条/审查指南/判例核验、创造性四步证据包、案件决策链 | MCP 工具 `mcp__cnlaw__*` 能调用即就绪；不可用时退回 `patent_case_search` / `patent_kg_query` 并说明 |
+| ego-browser（ego lite，PATH 上） | CNIPR/CNIPA/Google Patents 检索与登录态复用 | `pnpm` 之外的 CLI 探测；缺失时 `patent_pdf_download` 自动改走页面解析 + HTTP 下载 |
+| FreeCAD 1.1+（本机 `/Applications/FreeCAD.app`，工具按绝对路径探测，无需进 PATH） | 三维模型结构线稿 `generate_structure_figure` | 仅三维模型的案子需要；无三维模型时可忽略 |
+| RDKit 与化学识别引擎 | 化学结构/名称 → SMILES | **本构建未接入该引擎**（RDKit 只是缺失件之一），化学结构的案子一律人工复核，不要依赖 `recognize_chemical_structure` 出 SMILES |
+| knowledge.db | `patent_case_search` / `patent_wiki_search` / `patent_kg_query` | 缺库时知识工具执行期 fail-loud，按 `packages/patent/patent-knowledge/README.md` 安装 |
+
 ## 质量门禁
 
 证据附录缺失即视为未完成，交付前由 patent-quality-gate 拦截。

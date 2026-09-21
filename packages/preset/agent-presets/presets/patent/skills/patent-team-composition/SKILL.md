@@ -50,7 +50,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t4 | 反馈申请人补充资料：补充清单发出与跟踪 | 案件管理员 | t3 |
 | t5 | 补充合格判定：补充内容是否满足撰写前条件 | 技术专家 | t4 |
 | t6 | 正式文档输出：立案结论与反馈函整理（可专利性意见/公文），矫正 + 美化 | 文档专员 | t5 |
-| t7 | 立案收口：立案结论、下一步撰写移交 | captain | t6 |
+| t7 | 立案收口：`patent_workflow_run(manifestId=patent_patentability_v1)` 记录可专利性结论 + 立案结论、下一步撰写移交 | captain | t6 |
 
 补充循环纪律：每次反馈须有明确补充清单（问题→依据→期望补充内容），判定不合格时列出剩余缺口后重入 t4，禁止模糊反馈。
 
@@ -67,7 +67,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t5 | 对立评审：清楚/支持/充分公开/单一性 | 对立审查员 | t4 |
 | t6 | 技术核验：实施例/效果数据复核 | 技术专家 | t4（与 t5 并行） |
 | t7 | 范围审视：扩张机会与从权布局 | 申请人代理 | t5 |
-| t8 | 质量门禁（内容门禁：worker 契约 + 充分性 + patent-rule） | captain | t6, t7 |
+| t8 | 质量门禁 + 收口：`patent_workflow_run(manifestId=patent_disclosure_v1)` 收口交底书理解结论，`patent_novelty_v1`/`patent_inventiveness_v1` 收口检索与三步法结论；再跑 worker 契约 + 充分性 + patent-rule | captain | t6, t7 |
 | t9 | 正式文档输出：权利要求书+说明书（claims-spec 渲染），矫正 + 美化 | 文档专员 | t8 |
 | t10 | 交付收口：产物登记 + HITL 放行 | captain | t9 |
 
@@ -83,7 +83,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t4 | 答复意见书起草 | 撰写员 | t3 |
 | t5 | 红队评审交付稿 | 对立审查员 | t4 |
 | t6 | 技术核验 | 技术专家 | t4（与 t5 并行） |
-| t7 | 收口：答复期限核验 | captain | t5, t6 |
+| t7 | 收口：答复期限核验 + `patent_workflow_run(manifestId=patent_oa_response_v1)`（parse / claim-chart / draft 阶段记录作为交付依据） | captain | t5, t6 |
 | t8 | 正式文档输出：意见陈述书（oa-response 渲染），矫正 + 美化 | 文档专员 | t7 |
 | t9 | 交付收口：产物登记 + HITL 放行 | captain | t8 |
 
@@ -96,7 +96,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t1 | 补正通知书解析：形式缺陷清单 | 形式审查员 | — |
 | t2 | 补正书与替换页起草 | 撰写员 | t1 |
 | t3 | 缺陷消除核验：逐项对照清单 | 形式审查员 | t2 |
-| t4 | 收口：补正期限核验 | captain | t3 |
+| t4 | 收口：补正期限核验 + 缺陷逐项核验记录（补正无内置 manifest 入口，以替换页对照记录替代工作流阶段记录） | captain | t3 |
 | t5 | 正式文档输出：补正书 + 替换页清单（rectification-response 渲染），矫正 + 美化 | 文档专员 | t4 |
 | t6 | 交付收口：产物登记 + HITL 放行 | captain | t5 |
 
@@ -110,7 +110,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t2 | 复审请求书与修改方案起草 | 撰写员 | t1 |
 | t3 | 请求书评审：争辩强度 + 法条核验 | 对立审查员 | t2 |
 | t4 | 前置审查与合议组模拟：撤销/维持推演 + 结果预判 | 合议组 | t3 |
-| t5 | 策略收口：复审请求定稿 + HITL 确认 | captain | t4 |
+| t5 | 策略收口：`patent_workflow_run(manifestId=patent_reexamination_v1)`（grounds 阶段按复审理由表识别）+ 复审请求定稿 + HITL 确认 | captain | t4 |
 | t6 | 正式文档输出：复审请求书（re-examination-request 渲染），矫正 + 美化 | 文档专员 | t5 |
 | t7 | 交付收口：产物登记 + HITL 放行 | captain | t6 |
 
@@ -126,7 +126,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t4 | 无效请求书/证据清单起草 | 撰写员 | t3 |
 | t5 | 专利权人防御预案：质证、反证、修改权利要求方案 | 专利权人 | t3（与 t4 并行） |
 | t6 | 合议组裁决模拟：口审推演 + 双方论点对抗评估 + 结果预判 | 合议组 | t4, t5 |
-| t7 | 策略收口：对抗结论取舍 + HITL 确认 | captain | t6 |
+| t7 | 策略收口：`patent_workflow_run(manifestId=patent_invalidation_v1)`（grounds 阶段按无效理由表识别）+ 对抗结论取舍 + HITL 确认 | captain | t6 |
 | t8 | 正式文档输出：无效宣告请求书/无效意见（invalidation-opinion 渲染），矫正 + 美化 | 文档专员 | t7 |
 | t9 | 交付收口：产物登记 + HITL 放行 | captain | t8 |
 
@@ -142,7 +142,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 | t4 | 原告主张：诉请 + 判赔计算（实际损失/侵权获利/许可费倍数） | 专利权人 | t3 |
 | t5 | 被告抗辩：不侵权/现有技术抗辩/禁反言/提无效反制 | 被告代理人 | t3（与 t4 并行） |
 | t6 | 庭审对抗模拟：证据采信评估 + 举证责任 + 结果预判 | 裁判 | t4, t5 |
-| t7 | 策略收口：对抗结论取舍 + HITL 确认 | captain | t6 |
+| t7 | 策略收口：`patent_workflow_run(manifestId=patent_infringement_v1)`（report 阶段读对照表与覆盖核验）+ 对抗结论取舍 + HITL 确认 | captain | t6 |
 | t8 | 正式文档输出：侵权比对意见书 + 诉讼文书（infringement-opinion / litigation-pleading 渲染），矫正 + 美化 | 文档专员 | t7 |
 | t9 | 交付收口：产物登记 + HITL 放行 | captain | t8 |
 
@@ -155,6 +155,20 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 3. `patent_teams_create_task` 按对应场景 DAG 建任务，显式标注 dependencies；调度器自动按依赖分派给空闲成员。
 4. 向成员发送案卷上下文：案卷背景、案卷根目录、必读材料路径、产出落盘路径（角色职责契约已由 `add_member(role=...)` 写入成员 persona——立场、输出必含字段、越界禁止、是否触发 HITL；无需再发全文角色简报）。
 
+## 任务状态与角色约束
+
+任务状态只能按序迁移，跨状态提交会被插件拒绝（错误信息会给出允许的下一步）：
+
+| 当前状态 | 允许迁移到 | 说明 |
+|---|---|---|
+| `pending` | `claimed` / `cancelled` | 依赖未完成时不可认领 |
+| `claimed` | `in_progress` / `failed` / `cancelled` | 认领后先进入 `in_progress`，再提交 `completed` |
+| `in_progress` | `completed` / `failed` / `cancelled` | 完成时才提交 output |
+| `completed` / `failed` / `cancelled` | — | 终态不可再改；重做走 `patent_teams_reassign_task` |
+
+- captain 不是团队成员：`assignee` 只接受成员名，不能传 `"captain"`；需要 captain 接手时用 `patent_teams_reassign_task(assignee="captain")`，该入口是唯一允许 captain 作为承接者的地方。
+- 一个成员同时只能拥有一个未完成任务；成员交付前先 `patent_teams_claim_task` 取 attempt_id，`patent_teams_update_task` 必须带当前 attempt_id（任务被接管后旧 id 失效，须重新认领）。
+
 ## 协作纪律
 
 - 单一事实源：团队任务状态只是投影，事件日志与案卷产物落盘（`_matter-log.md`）为唯一事实源；成员完成即回报 captain。
@@ -164,4 +178,5 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 - HITL 确认点不可跳过：权利要求布局、修改方案、无效理由组合、诉请金额、答复策略在动手前用 ask_user 确认或至少说明取舍理由；文档专员交付放行与收口放行合并为一次 ask_user，不重复打扰。
 - 质量门禁：契约化任务（创建时指定 worker）完成后须过组合质量门禁（worker 契约字段 + 内容充分性 + patent-rule 规则；`patent_eval` 综合评分仅作反馈提示），未过按 `gate_feedback` 修订后重新提交；反复未过由 captain 用 `patent_teams_reassign_task` 处理。文档专员任务（`patent-document-renderer`）同样按契约验收：交付场景/矫正清单/渲染产物缺一即打回。
 - 文档交付：正式文档按专利文书输出规范（`patent-document-polish` 技能）走场景→模板映射，渲染 html/pdf（或 docx，officecli 可用时），产物登记 `_matter-log.md`。
+- 收口必经：每个场景的最终收口任务必须包含 `patent_workflow_run`（按场景 manifest：立案=patent_patentability_v1、撰写=patent_disclosure_v1 与 patent_novelty_v1/patent_inventiveness_v1、答复=patent_oa_response_v1、复审=patent_reexamination_v1、无效=patent_invalidation_v1、诉讼=patent_infringement_v1）；交付依据是 stage 记录，不是口头结论；补正类无内置 manifest 入口，以替换页逐项核验记录替代。
 - 收口：全部任务完成后 `patent_teams_delete` 归档团队；归档保留完整成员与任务历史，可随时复查。

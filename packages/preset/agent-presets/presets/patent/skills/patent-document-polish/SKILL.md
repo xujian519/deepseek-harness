@@ -35,7 +35,7 @@ description: 专利正式文档输出规范（文档专员/单会话通用）：
 ## 美化清单
 
 1. **选对模板**：按上表映射选择，模板 slot 逐项填充；缺输入即打回补证，禁止留空渲染。
-2. **渲染**：`render_patent_document` 传 `template`、`outputName`（`<caseId>-<场景>_v<版本>`）、`caseId` 使产物落 `data/cases/<caseId>/outputs/`；有事务所品牌时传 `brand` / `brandPath`。
+2. **渲染**：`render_patent_document` 传 `template`、`outputName`（`<caseId>-<场景>_v<版本>`，中文草稿名可直接使用）、`caseId` 使产物落 `data/cases/<caseId>/outputs/`；有事务所品牌时传 `brand` / `brandPath`。交付件只走这一条渲染路径——不要用 headless Chrome、pandoc、LibreOffice 手工渲染。
 3. **版式**：遵循模板品牌契约（A4、`16mm 18mm 18mm 18mm` 边距、`--sati-doc-*` 变量、语义徽章色）；结论/风险用语义色徽章而非装饰。
 4. **docx 交付**（officecli / docx 能力可用时）：由渲染/定稿 md 转换而来，修订以 tracked changes 呈现，输入原件未被改动；否则交付 html/pdf + md 定稿。
 5. **失败降级**：PDF 失败时 HTML 已存在即算渲染成功，如实报告 `pdfError`。
@@ -43,9 +43,10 @@ description: 专利正式文档输出规范（文档专员/单会话通用）：
 ## 交付流程与 HITL
 
 1. 收齐定稿内容与输入（来源、对比文件路径、法条出处、数字计算依据）。
-2. 按场景选模板 → md 定稿（矫正清单 6 项）→ 渲染（美化清单 5 项）→ 产物与交付摘要。
-3. 交付放行确认与 `patent-quality-gate` 的收口 ask_user **合并为一次**：向用户展示产物路径、矫正要点、渲染结果（含 PDF 失败项），用户确认后才交付；不重复打扰。
-4. 产物登记：`_matter-log.md` 追加交付记录（时间/动作=交付/产物路径/审批人=用户），文件头保留来源与版本元数据（见 patent-matter 审计链）。
+2. 附图与标号：说明书标号回填用 `add_patent_figure_references`（一次补齐摘要/权要/说明书的附图标记），已生成附图的检索用 `search_patent_figure`，图面自检用 `analyze_patent_figure`；不要用临时脚本（`_fig_check.py` 之类）代替这三步——脚本产物不进附图索引、不可复查。
+3. 按场景选模板 → md 定稿（矫正清单 6 项）→ 渲染（美化清单 5 项）→ 产物与交付摘要。
+4. 交付放行确认与 `patent-quality-gate` 的收口 ask_user **合并为一次**：向用户展示产物路径、矫正要点、渲染结果（含 PDF 失败项），用户确认后才交付；不重复打扰。
+5. 产物登记：`_matter-log.md` 追加交付记录（时间/动作=交付/产物路径/审批人=用户），文件头保留来源与版本元数据（见 patent-matter 审计链）。
 
 ## 边界
 

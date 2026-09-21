@@ -12,6 +12,23 @@ description: 专利案件管理：七级工作目录 + 两个跟踪文件、L1�
 1. 目录：`patent-workspace/<案号>/` 下建七级目录（`00-交底书` / `01-检索` / `02-对比文件` / `03-分析` / `04-撰写` / `05-答复` / `99-知识库`；目录命名与落盘规则详见 patent-workspace-layout 技能），加 `_case-registry.md` 与 `_matter-log.md` 两个跟踪文件。
 2. 注册：`_case-registry.md` 追加一行（案号、状态、阶段产物索引）。
 3. 初始化事件日志 `_matter-log.md`，首行记录建案（时间、动作=建案、产物=目录骨架、审批人=用户）。
+4. 建案即生成 `_checklist.md`，按案型勾选（见下表）：勾选即证据，未勾选项不得进入交付。
+
+## 案件检查单（`_checklist.md`）
+
+建案时按案型复制一份，逐项在对应阶段勾选并写产物路径；空着的项就是未完成的阶段。
+
+| 阶段 | 必勾项（撰写案示例） | 证据 |
+|---|---|---|
+| 入口 | 载入 patent-workspace-layout / patent-disclosure-understanding / patent-prior-art-search | 技能加载记录 |
+| 检索 | 检索式经用户确认；多通道执行并记录覆盖范围与未覆盖清单 | `01-检索/YYYY-MM-DD_<主题>.md` |
+| 对比文件 | D1/D2/D3 落盘、公开日核验、双源交叉 | `02-对比文件/D*_<公开号>.pdf` |
+| 撰写 | 要素拆分、权利要求布局（HITL）、说明书五部分、validate_specification | `03-分析/`、`04-撰写/` |
+| 收口 | `patent_workflow_run`（按案型 manifest）留下 stage 记录 | 工作流 run 记录 |
+| 闸门 | `rule_check`（patent-compliance-review）+ 法条/日期/数字核验（patent-fact-check） | 门禁结论 |
+| 交付 | patent-quality-gate 通过、`render_patent_document` 渲染、`_matter-log.md` 登记、工作台桥接 | `05-交付/` 或对应目录产物 |
+
+案型差异：答复案把"撰写"换成 OA 解析 + 逐权项修改对照（`patent_oa_response_v1`）；检索/无效/复审/侵权案把"撰写"换成对应技能的分析流程与要素级比对，收口用该案型 manifest；补正案无 manifest 入口，以替换页逐项核验清单替代收口行。
 
 ## 状态机（六列，按 L1–L5 流水线映射）
 

@@ -15,12 +15,12 @@ Once a deployment mounts that bridge, the preset's prompt contradicted the tool 
 The persona now states **MCP first, REST as fallback**, and says so per capability rather than as a blanket rule:
 
 - Discipline 3 (legal-citation verification) sends the model to `mcp__cnlaw__*` first and keeps `:8100 /search` as the REST path for fields the bridge does not cover.
-- Graph navigation leads with `cnlaw_graph_ground(article, law, ipc, k)` and `cnlaw_graph_patent(pn)`, each immediately followed by its `curl` equivalent as the fallback.
-- The case decision chain leads with `cnlaw_case_record` / `cnlaw_case_get` / `cnlaw_case_chain` / `cnlaw_case_similar`, again with REST fallbacks.
+- Graph navigation goes through `cnlaw_graph_ground(article, law, ipc, k)` and `cnlaw_graph_patent(pn)`; the `:8001` graph endpoints are no longer offered as a `curl` path.
+- The case decision chain goes through `cnlaw_case_record` / `cnlaw_case_get` / `cnlaw_case_chain` / `cnlaw_case_similar`; the `:8001` case endpoints stay REST-only for a deployment without the bridge, never a parallel path to prefer.
 - The persona names `cnlaw_inventive_step` as the **first** step of legal verification — one call returns the four-step evidence pack (D1 / distinguishing features / actual technical problem / technical teaching) with `source_path` per step, so the creative-step argument is built on the pack instead of assembled by hand from separate searches.
 - Source labels drop the port: `cnlaw(:8100)` and `cnlaw(:8001/graph)` become `cnlaw`, so citation discipline no longer encodes which channel produced the evidence. Discipline 7 (no source, retract the claim) and the evidence-appendix requirement are unchanged.
 
-The endpoint inventory stays in the prompt because it is the fallback, and because the MCP surface is a strict subset of the REST surface: `:8100 /search`, `/search/decisions`, `/search/judgments`, and the `:8001` IPC routes have no tools. The split is `:8001` graph/case/workflow endpoints on MCP, everything else on REST.
+The endpoint inventory stays in the prompt for the surfaces that have no MCP face — `:8100 /search`, `/search/decisions`, `/search/judgments`, and the `:8001` IPC routes — and as the working path for a deployment that mounts no bridge. The split is `:8001` graph/case/workflow endpoints on MCP, everything else on REST.
 
 The preset remains optional-enhancement, not a hard dependency: a deployment that mounts no bridge sees the tools absent and the REST instructions — which the persona still carries in full — as the working path.
 
@@ -35,6 +35,6 @@ The preset remains optional-enhancement, not a hard dependency: a deployment tha
 
 - A deployment that mounts the bridge gets structured arguments and structured results for graph and case work, and `cnlaw_inventive_step` collapses the creative-step evidence gathering into one call.
 - A deployment without the bridge pays one failed tool call before falling back. The model sees the tool list, so the failure is legible rather than silent; the REST instructions remain complete in the same paragraph.
-- The persona grows from 10,708 to 11,094 bytes of the 64,536-byte `agent-instructions` ceiling (`maxBytes: 65536`).
+- The persona grows as this discipline is strengthened. The 2026-09-21 utilization audit (48 MCP calls against 202 MCP-eligible-plus-search REST commands in one window) added the case-type routing table and the explicit "do not `curl` the `:8001` graph/case endpoints" wording; the preset's persona prefix block measures 15,999 UTF-8 bytes against the 65,536-byte `agent-instructions` ceiling.
 - The shipped preset and any user-root copy diverge again: a local `patent-cnlaw` snapshot taken before this date lacks the MCP-first ordering. `discoverPresets` scans shipped roots first, so the shipped preset wins the id and the divergence is inert.
 - No recorded-session snapshot pins this text: the patent preset is not part of the keyless shipped-profile matrix, and `verify-agent-preset-config` validates the persona's schema (prefix/suffix) rather than its prose.
