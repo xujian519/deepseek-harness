@@ -833,7 +833,7 @@ describe('recognize_chemical_structure', () => {
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('化学结构识别不可用')
-    expect(text(result)).toContain('rdkit 未安装')
+    expect(text(result)).toContain('化学识别引擎未接入')
   })
 
   it('dispatches auto mode on image-only and text-only input', async () => {

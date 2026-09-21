@@ -89,13 +89,13 @@ export type ChemicalStructureResult = {
   modelUsed: string
 }
 
-/** RDKit 不可用时的警告文案（模型可见）。 */
-const UNAVAILABLE_WARNING = 'rdkit 未安装（化学结构识别为可选能力），本次未执行识别。'
+/** 化学识别引擎未接入时的警告文案（模型可见）。 */
+const UNAVAILABLE_WARNING = '化学识别引擎未接入（VLM 两步法 + name→SMILES + RDKit 校验为后续工作），本次未执行识别。'
 
 const DESCRIPTION = [
   '识别化学式/化学结构：从化学结构图（图片模式，多模态模型两步分析 + RDKit 校验）或文档文本（文本模式，正则候选 → LLM 复核/化合物名称转 SMILES → RDKit 校验）中提取多候选 SMILES、分子式与化合物名称。当交底书/说明书/权利要求含化学结构式（含 Markush 广义结构）、分子式或化合物名称需要转 SMILES 时使用。注意：本工具不直接解析 PDF——图片模式输入须为已导出的图片（jpeg/png/gif/webp），文本模式可传 PDF 文本层提取结果。',
   '',
-  '当前环境未安装 RDKit（可选原生依赖），本工具暂不可用，调用将返回 needHumanReview=true 的不可用结果。',
+  '本构建未接入化学识别引擎：识别流水线（VLM 两步法、name→SMILES、RDKit 校验）属后续工作，调用返回 needHumanReview=true 的不可用结果。需要化学结构解析时改走人工复核或外部工具链，不要靠本工具产出 SMILES。',
 ].join('\n')
 /**
  * Render the canonical chemistry result into model-facing prose.
@@ -159,9 +159,9 @@ export function resolveChemicalSourceKey(args: { image_path?: string; text?: str
  * Build the `recognize_chemical_structure` tool.
  *
  * The full chemistry pipeline (VLM image analysis, LLM name→SMILES, RDKit
- * validation) is deferred because RDKit is not installed in dsh; execute
- * returns a canonical unavailability result after validating the input.
- * A usable result (future RDKit build) is persisted into the injected index.
+ * validation) is not ported: RDKit is only one of its missing pieces, so
+ * execute returns a canonical unavailability result after validating the input.
+ * A usable result (once the engine is ported) is persisted into the injected index.
  * @param deps - optional chemistry-index upsert.
  * @returns a registry-ready tool definition.
  */
