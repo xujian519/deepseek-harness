@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/process/2026-09-21-duplication-detection-below-threshold.md
+2026-09-21-duplication-detection-below-threshold.md: 89db9d90641af046a8775326002a4e14ef43fb73
+2026-09-21-duplication-detection-below-threshold.zh.md: 918a56685e19dcbe5c586229999cf8fa39615e96

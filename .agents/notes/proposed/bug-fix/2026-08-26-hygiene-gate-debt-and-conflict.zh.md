@@ -25,7 +25,7 @@ Status: proposed
 
 ### `test:coverage` 失败的根因
 
-覆盖率门禁在 `vitest.config.ts` 用了 `coverage.perFile: true` + `statements/branches/functions/lines: 100`,要求每个 `src` 文件 100% 覆盖。失败包(`web/synapse`、`patent-*`、`self-evolve-basic`、`self-evolve-eval`、`client/ui-agent-preset`、`host/apiproxy`)的 src 树未被完全覆盖,且没进 vitest exclude 清单,于是走 per-file 100% 门禁。代表例:`packages/web/synapse` 有 6 个 `src` 文件对 5 个 spec;`packages/patent/patent-core` 有 75 个 `src` 文件对 10 个 spec。这些源码多为 GUI(`web/synapse`、`ui-agent-preset`、`apiproxy`)或专利资产,与已排除的 client-UI GUI 债务同类,只是还没登记进 `exclude`。这些包在 `master` 已存在,当前工作区未触碰它们,故为 pre-existing。
+覆盖率门禁在 `vitest.config.ts` 用了 `coverage.perFile: true` + `statements/branches/functions/lines: 100`,要求每个 `src` 文件 100% 覆盖。失败包(`web/synapse`、`patent-*`、`self-evolve-basic`、`self-evolve-eval`、`client/ui-agent-preset`、`host/apiproxy`)的 src 树未被完全覆盖,且没进 vitest exclude 清单,于是走 per-file 100% 门禁。代表例:`packages/web/synapse` 有 6 个 `src` 文件对 5 个 spec;`packages/patent/patent-core` 有 75 个 `src` 文件对 10 个 spec。这些源码多为 GUI(`web/synapse`、`ui-agent-preset`、`apiproxy`)或专利资产,与已排除的 client-UI GUI 债务同类,只是还没登记进 `exclude`。这些包在 `master` 已存在,当前工作区未触碰它们,故为 pre-existing。这些包此后已登记进 `vitest.config.ts` 的 `coverage.exclude`;登记买到了什么、没买到什么、专利族仍欠什么,见下方第 3 条。
 
 ### 与自由化插件窗口的冲突
 
@@ -37,7 +37,13 @@ Status: proposed
 
 1. `scripts/check-workspace-constraints.ts` — **已实施(2026-08-26)。** `checkHierarchyShape()` 现读取 `pnpm-workspace.yaml` 的 `!` 排除 glob(用 `yaml.load`,同 `scripts/gen-third-party-notices.ts`),跳过被排除的 `packages/self-evolve/evaluation` 树,不再把它误判为缺 manifest 的包。
 2. `packages/memory/openviking/package.json` — **已实施(2026-08-26)。** 从 `devDependencies`(knip 标记的那一节)删除冗余的 `@deepseek-ai/dsh-fs`,仅保留 `peerDependencies` 声明。
-3. `test:coverage` 失败确认为 pre-existing,本就超出本次修复范围;需另开债务变更,要么补覆盖、要么把这些包登记进 `vitest.config.ts` 的 `exclude`。**待办。**
+3. `test:coverage` 失败确认为 pre-existing,本就超出本次修复范围:2026-08 走的是「先登记、后评估」路线,而那个被推后的评估现在对专利族已到期。**待办。**
+
+   登记买到了什么、没买到什么。2026-08 的登记(`vitest.config.ts:222-230`)把家族级 glob `'packages/patent/*/src/**/*.{ts,tsx}'` 加进了 `coverage.exclude`,而**不是** `coverage.thresholds.exclude`。两者差别是实质性的:前者把文件从覆盖率报告中移除,后者只让文件免于 per-file 门禁但仍可见。2026-09-21 对该族的一次插桩运行(`pnpm vitest run --coverage --coverage.reporter=json-summary packages/patent`)产出的 `coverage-summary.json` 共 1627 个条目,来自 `packages/patent/*/src` 者 **0 个**,即该族没有任何覆盖率数字。家族级 glob 还意味着今天新增的 patent 子包无需任何配置改动就落在门禁之外。
+
+   登记时写的理由已过期。上方根因节里的 `patent-core` 75 `src` / 10 spec 现在是全族 286 个 `src` 文件与 214 个 spec,故「GUI and patent-asset code without per-branch specs」已不再描述它。
+
+   仍欠的后续是把家族级 glob 换成按包条目,并逐包判定:补覆盖后删除条目,或保留一条带自身理由与到期条件的显式豁免。实测状态、逐包补测优先级与判定标准见[2026-09-21 专利域审阅](../../../audits/2026-09-21-patent-domain-review.md)(§PDR-01;tracker #172)。
 
 `@xmanrui/dsh-im` / `bundle/im` 的 knip 项归属自由化插件窗口:为 `packages/bundle/im` 补 knip 配置(自己的 `knip.json` 或根 `knip.json` 条目),豁免 `@xmanrui/dsh-im` 并修正 entry/project pattern,使其不再报 hints。此处不修,以免撞车。**待办 — 归属窗口。**
 
