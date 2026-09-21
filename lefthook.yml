@@ -53,3 +53,12 @@ pre-push:
   jobs:
     - name: typecheck
       run: pnpm run typecheck
+
+    # Trunk changes land through a pull request, so the `master` ruleset's
+    # required checks run before the merge. The guard reads the destination from
+    # stdin, not from the pushed files, so it declares no `files`/`glob`: a job
+    # whose `files`/`glob` match none of the pushed files never runs, which would
+    # drop the check on every push that does not touch this file.
+    - name: no direct push to master
+      run: node_modules/.bin/tsx scripts/verify-no-trunk-push.ts
+      use_stdin: true
