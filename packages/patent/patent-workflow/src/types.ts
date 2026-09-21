@@ -58,6 +58,15 @@ export interface PatentModelCallEvent {
   model?: string
   /** Complete visible output text. */
   output: string
+  /**
+   * Ordinal of this call among the calls one port wrapper served, counted at
+   * stream start. Records exist in completion order (each is appended after its
+   * stream ends), and concurrent callers — parallel stages of one run — can
+   * complete in a different order than they started; this field is what lets a
+   * reader rebuild the call order. Absent on records written before the field
+   * existed, whose log order is their call order.
+   */
+  callSequence?: number
   /** Provider-reported token usage, when the port surfaced any. */
   usage?: PatentModelUsage
   /** Identifies exactly one call through this context's `ctx.llm.stream()`. */

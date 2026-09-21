@@ -67,7 +67,7 @@ Schemastery 配置，全部字段可选。
 
 #### 模型所见
 
-一个名为 `patent_deadlines` 的已注册工具，必填 `patentType` 枚举（`invention`、`utility-model`、`design`）、`filingDate` 与 `claimsPriority`，可选 `priorityDate`、`isPctNationalPhase`、`authorizationPublicationDate`、`marketingApprovalDate`、`restDayRule` 与 `notices`（每项含文件种类、送达方式（默认电子送达）、对应的送达日期，以及可选的指定期限月数）。结果渲染为 Markdown 表格，列出可计算期限的报告用届满日与期限自身届满日、剩余天数、状态与法律依据，其后依次为点名缺失通知送达记录的待补项、未覆盖年份的日历警告，以及逾期后适用的恢复与延长规则。`claimsPriority` 与 `priorityDate` 相互矛盾时，以点名两个字段的工具错误返回。
+一个名为 `patent_deadlines` 的已注册工具，必填 `patentType` 枚举（`invention`、`utility-model`、`design`）、`filingDate` 与 `claimsPriority`，可选 `priorityDate`、`isPctNationalPhase`、`authorizationPublicationDate`、`marketingApprovalDate`、`restDayRule` 与 `notices`（每项含文件种类、送达方式（默认电子送达）、对应的送达日期，以及可选的指定期限月数）。一个案子里可能收到多份的通知种类（`office-action-subsequent`、`reexamination-notice`）可重复传入，每份各产一行——第一份用原 id，其后为 `<id>-2`、`<id>-3`；其余种类一个案子只有一份，重复传入按工具错误返回，不再静默覆盖。结果渲染为 Markdown 表格，列出可计算期限的报告用届满日与期限自身届满日、剩余天数、状态与法律依据，其后依次为点名缺失通知送达记录的待补项、未覆盖年份的日历警告，以及逾期后适用的恢复与延长规则。`claimsPriority` 与 `priorityDate` 相互矛盾时，以点名两个字段的工具错误返回。
 
 #### Token 影响
 

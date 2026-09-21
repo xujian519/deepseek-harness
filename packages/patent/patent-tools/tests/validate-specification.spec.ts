@@ -449,6 +449,34 @@ describe('validateSpecification: 权项—实施例覆盖矩阵', () => {
     const entry = out.violations.find(v => v.rule === 'claim_coverage_entry')
     expect(entry?.message).toContain('claim 编号超出权利要求数量')
   })
+
+  it('条目缺少技术特征 → 按条目非法报出，不给覆盖率读数', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      coverage_entries: [{ claim_id: 'claim_1', features: [], embodiment_refs: ['实施例1记载导电涂层采用石墨烯'] }],
+    })
+    const entry = out.violations.find(v => v.rule === 'claim_coverage_entry')
+    expect(entry?.message).toContain('未提供技术特征')
+    expect(out.violations.find(v => v.rule === 'claim_embodiment_coverage')).toBeUndefined()
+  })
+
+  it('条目编号断档 → 报出缺失的权利要求编号', () => {
+    const out = validateSpecification({
+      text: VALID_SPEC,
+      claim_units: [
+        { number: 1, kind: 'independent', preamble: '一种装置' },
+        { number: 2, kind: 'dependent', preamble: '根据权利要求 1' },
+        { number: 3, kind: 'dependent', preamble: '根据权利要求 1' },
+      ],
+      coverage_entries: [
+        { claim_id: 'claim_1', features: ['导电涂层'], embodiment_refs: ['实施例1记载导电涂层'] },
+        { claim_id: 'claim_3', features: ['散热结构'], embodiment_refs: ['实施例2记载散热结构'] },
+      ],
+    })
+    const gap = out.violations.find(v => v.rule === 'claim_coverage_gap')
+    expect(gap?.severity).toBe('warning')
+    expect(gap?.message).toContain('缺少权利要求 2')
+  })
 })
 
 describe('renderSpecification with section and no suggestion', () => {

@@ -7065,7 +7065,7 @@
       "kind": "event",
       "event": "patent/model-call",
       "surface": false,
-      "digest": "556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46",
+      "digest": "9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0",
       "schema": {
         "root": 0,
         "nodes": [
@@ -7079,17 +7079,17 @@
               },
               {
                 "name": "ignorable",
-                "type": 3,
+                "type": 4,
                 "optional": true
               },
               {
                 "name": "seq",
-                "type": 5,
+                "type": 2,
                 "optional": false
               },
               {
                 "name": "time",
-                "type": 5,
+                "type": 2,
                 "optional": false
               },
               {
@@ -7104,42 +7104,51 @@
             "kind": "object",
             "properties": [
               {
-                "name": "callSite",
+                "name": "callSequence",
                 "type": 2,
-                "optional": false
+                "optional": true
               },
               {
-                "name": "llmStreamCall",
+                "name": "callSite",
                 "type": 3,
                 "optional": false
               },
               {
+                "name": "llmStreamCall",
+                "type": 4,
+                "optional": false
+              },
+              {
                 "name": "manifestId",
-                "type": 2,
+                "type": 3,
                 "optional": true
               },
               {
                 "name": "model",
-                "type": 2,
+                "type": 3,
                 "optional": true
               },
               {
                 "name": "output",
-                "type": 2,
+                "type": 3,
                 "optional": false
               },
               {
                 "name": "provider",
-                "type": 2,
+                "type": 3,
                 "optional": true
               },
               {
                 "name": "usage",
-                "type": 4,
+                "type": 5,
                 "optional": true
               }
             ],
             "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
           },
           {
             "kind": "primitive",
@@ -7154,20 +7163,16 @@
             "properties": [
               {
                 "name": "inputTokens",
-                "type": 5,
+                "type": 2,
                 "optional": true
               },
               {
                 "name": "outputTokens",
-                "type": 5,
+                "type": 2,
                 "optional": true
               }
             ],
             "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
           },
           {
             "kind": "literal",
@@ -26066,7 +26071,7 @@
         "packages/patent/patent-workflow/src/types.ts#PatentPlantaskEvent"
       ],
       "sources": [
-        "packages/patent/patent-workflow/src/types.ts:80"
+        "packages/patent/patent-workflow/src/types.ts:89"
       ]
     },
     {
@@ -40196,122 +40201,6 @@
       ]
     },
     {
-      "digest": "556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 5,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 5,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 6,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "callSite",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "llmStreamCall",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "manifestId",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "model",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "output",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "usage",
-                "type": 4,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "inputTokens",
-                "type": 5,
-                "optional": true
-              },
-              {
-                "name": "outputTokens",
-                "type": 5,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "literal",
-            "value": "patent/model-call"
-          }
-        ]
-      },
-      "names": [
-        "event:patent/model-call"
-      ],
-      "sources": []
-    },
-    {
       "digest": "557e148d30b79ee48645850832b30c717d7c3b64641deb5d6133b8b4e91ee0b8",
       "schema": {
         "root": 0,
@@ -40770,6 +40659,94 @@
       ],
       "sources": [
         "packages/patent/patent-teams/src/event-types.ts:31"
+      ]
+    },
+    {
+      "digest": "598d1d2f53c1194133976837c47e016be809a151276df15eabceab4989010bf9",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "callSequence",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "callSite",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "llmStreamCall",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "usage",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputTokens",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "outputTokens",
+                "type": 1,
+                "optional": true
+              }
+            ],
+            "indices": []
+          }
+        ]
+      },
+      "names": [
+        "packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent"
+      ],
+      "sources": [
+        "packages/patent/patent-workflow/src/types.ts:50"
       ]
     },
     {
@@ -47684,89 +47661,6 @@
       ]
     },
     {
-      "digest": "7ca0801bc43ce8ba5e3f5bab12243dbc64d784f86257707ab8bbc494652fa8e5",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "callSite",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "llmStreamCall",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "manifestId",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "model",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "output",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "usage",
-                "type": 3,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "inputTokens",
-                "type": 4,
-                "optional": true
-              },
-              {
-                "name": "outputTokens",
-                "type": 4,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          }
-        ]
-      },
-      "names": [
-        "packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent"
-      ],
-      "sources": [
-        "packages/patent/patent-workflow/src/types.ts:50"
-      ]
-    },
-    {
       "digest": "7d226b9fd95b4ba213d4237c22e930a91c3c769c95ca7f92977b9d625ba13438",
       "schema": {
         "root": 0,
@@ -53568,6 +53462,127 @@
       "sources": [
         "packages/webhook/webhook/src/types.ts:74"
       ]
+    },
+    {
+      "digest": "9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "callSequence",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "callSite",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "llmStreamCall",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "manifestId",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "model",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "usage",
+                "type": 5,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputTokens",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "outputTokens",
+                "type": 2,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "patent/model-call"
+          }
+        ]
+      },
+      "names": [
+        "event:patent/model-call"
+      ],
+      "sources": []
     },
     {
       "digest": "9fe0e77a7816b7fdb4b953ec0e2f0cd7bbd22c5de5c3567e612d1b20eb0992e6",
@@ -72783,7 +72798,7 @@
         "packages/patent/patent-workflow/src/types.ts#PatentWorkflowRunEvent"
       ],
       "sources": [
-        "packages/patent/patent-workflow/src/types.ts:89"
+        "packages/patent/patent-workflow/src/types.ts:98"
       ]
     },
     {

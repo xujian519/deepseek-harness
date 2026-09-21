@@ -134,6 +134,9 @@ function checkCoverageEntry(entry: ClaimCoverageEntry, claimCount?: number): Cla
   if (claimCount !== undefined && number > claimCount) return reject('claim 编号超出权利要求数量')
 
   const features = dedupeFeatures(entry.features)
+  // 无特征时没有可核验的对象：两个已给事实列都为空，"全部特征获支持"与"全部特征未获
+  // 支持"都是空真的结论，故按条目非法处理，由消费方报出而不是给出一个覆盖率读数。
+  if (features.length === 0) return reject('未提供技术特征（features 为空），无法核验覆盖度')
   if (entry.embodimentRefs.length === 0) {
     return {
       claimId: entry.claimId,

@@ -431,6 +431,25 @@ it('numeric_range: 无 LLM 时确定性轨仍进状态（降级文本保留）',
   expect(String(r.state.numeric_range_deterministic)).toContain('破坏性数值重叠')
 })
 
+it('numeric_range: 权利要求只写单值参数时同样进确定性轨', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph
+    .compile('extract')
+    .run({ text: '一种分拣装置，输送温度为 70℃', prior_art: [{ title: 'D1', snippet: '输送温度为 60-90℃' }] })
+  expect(r.state.numeric_ranges).toEqual(['70'])
+  expect(r.state.numeric_range_verdict).toBe('inside_without_endpoint')
+  expect(String(r.state.numeric_range_result)).not.toMatch(/无需专项分析/)
+})
+
+it('numeric_range: 两侧都无数值表述时跳过专项轨', async () => {
+  const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
+  const r = await graph
+    .compile('extract')
+    .run({ text: '一种分拣装置，包括传送带', prior_art: [{ title: 'D1', snippet: '公开传送带' }] })
+  expect(String(r.state.numeric_range_result)).toMatch(/无需专项分析/)
+  expect(r.state.numeric_range_verdict).toBeUndefined()
+})
+
 it('numeric_range: 语义轨结论一致时记为 agree', async () => {
   const graph = buildNoveltyGraph({ includeApproval: false, ruleGate: false })
   const r = await graph

@@ -444,9 +444,21 @@ export function parseSessionHeader(text: string): {
   }
 }
 
+/** One log-only model call: the chunks its output replays as, plus its recorded start ordinal. */
+type MarkedCall = {
+  /** Canonical chunks of the recorded output, ending in `finish`. */
+  chunks: StreamChunk[]
+  /**
+   * Ordinal the owning port wrapper recorded at stream start, or `undefined` on a
+   * record written before the field existed. An unrecorded ordinal is not an error:
+   * a run that misses one keeps log order.
+   */
+  sequence: number | undefined
+}
+
 /**
- * Canonical chunks for one log-only model call marked with the shared
- * `llmStreamCall` protocol, or `undefined` for any event that does not mark one.
+ * One log-only model call marked with the shared `llmStreamCall` protocol, or
+ * `undefined` for any event that does not mark one.
  *
  * The marker identifies exactly one call through the ctx.llm stream seam, and an
  * owner that marks a call records its complete output; a call a plugin makes
@@ -456,9 +468,10 @@ export function parseSessionHeader(text: string): {
  * `output`. JSONL decoding crosses an untyped durable boundary, so both are read
  * off the log rather than off a declared type.
  * @param data - one event's decoded data.
- * @returns the call's chunks (ending in `finish`), or undefined when unmarked.
+ * @returns the call's chunks and start ordinal, or undefined when unmarked.
+ * @throws Error when the event marks a call but records neither output form.
  */
-function markedCallChunks(data: unknown): StreamChunk[] | undefined {
+function markedCall(data: unknown): MarkedCall | undefined {
   if (data === null || typeof data !== 'object') return undefined
   const record = data as Record<string, unknown>
   if (record.llmStreamCall !== true) return undefined
@@ -480,17 +493,25 @@ function markedCallChunks(data: unknown): StreamChunk[] | undefined {
   }
   if (usage !== undefined) chunks.push({ type: 'usage', usage })
   chunks.push({ type: 'finish', reason: { kind: 'stop' } })
-  return chunks
+  const ordinal = record.callSequence
+  return { chunks, sequence: Number.isInteger(ordinal) ? (ordinal as number) : undefined }
 }
 
 /**
  * Reconstruct the per-`stream()` replay script from a recorded session log.
  *
  * Reads one embedded stream from each Assistant settlement, plus one entry per
- * log-only event that marks a local model call (see {@link markedCallChunks}) at
- * that event's log position. A missing assistant terminator means the live
- * stream threw, so derivation rejects and the scenario must provide an explicit
- * override. Multiple calls may share one turn and step when the loop retries.
+ * log-only event that marks a local model call (see {@link markedCall}).
+ * A missing assistant terminator means the live stream threw, so derivation
+ * rejects and the scenario must provide an explicit override. Multiple calls may
+ * share one turn and step when the loop retries.
+ *
+ * A call's record is written when its stream ends, so consecutive marked records
+ * are in completion order; when every record of such a run carries its start
+ * ordinal (`callSequence`, written by the owning port wrapper), the run is
+ * reordered by it. That is what keeps a replay script in call order for callers
+ * the run executed concurrently — the replay binds entries by cursor position,
+ * in call order, while the log holds them in completion order.
  * @param events - the recorded session's events.
  * @returns one `chunks` entry per recorded model call, in call order.
  */
@@ -506,16 +527,33 @@ export function deriveReplayScript(events: SessionEvent[]): ReplayEntry[] {
     }
     script.push({ kind: 'chunks', chunks })
   }
+  /**
+   * Consecutive marked calls, in completion order, held back until the run ends.
+   * A run is reordered by start ordinal only when every record of it carries one;
+   * a run with a missing ordinal keeps log order, which is all its records support.
+   */
+  let markedRun: MarkedCall[] = []
+  const flushMarkedRun = (): void => {
+    if (markedRun.length === 0) return
+    const run = markedRun
+    markedRun = []
+    const ordered = run.every(entry => entry.sequence !== undefined)
+      ? [...run].sort((left, right) => Number(left.sequence) - Number(right.sequence))
+      : run
+    for (const entry of ordered) script.push({ kind: 'chunks', chunks: entry.chunks })
+  }
   for (const event of events) {
-    const marked = markedCallChunks(event.data)
+    const marked = markedCall(event.data)
     if (marked !== undefined) {
-      script.push({ kind: 'chunks', chunks: marked })
+      markedRun.push(marked)
       continue
     }
     if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') continue
+    flushMarkedRun()
     const chunks = expandAssistantStream(event.data.stream).map(member => member.chunk)
     close(`${String(event.data.turn)}/${String(event.data.step)}`, chunks)
   }
+  flushMarkedRun()
   return script
 }
 

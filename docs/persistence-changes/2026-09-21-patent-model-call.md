@@ -28,14 +28,14 @@ baseline: false
 changes:
   - root: "event:patent/model-call"
     previous: null
-    after: "556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46"
+    after: "9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0"
     decision: same-version
 ```
 
 <a id="compatibility"></a>
 ## Compatibility
 
-A new root in the same Session format version. Existing logs contain no such event and stay valid; readers that predate it refuse a log carrying it, as every required-on-read event does. The event is log-only and never model-visible on its own: the tool result already carries the stage output, and the event adds the call envelope (call site, manifest, provider route, token usage) plus the complete output text the keyless replay rebuilds the call order from. The request side stays reconstructable without its own record: the tool-call arguments are logged and the manifest plus the run's stage outputs make up the prompt.
+A new root in the same Session format version. Existing logs contain no such event and stay valid; readers that predate it refuse a log carrying it, as every required-on-read event does. The event is log-only and never model-visible on its own: the tool result already carries the stage output, and the event adds the call envelope (call site, manifest, provider route, token usage) plus the complete output text the keyless replay rebuilds the call order from. Records are written when a stream ends, so a port serving concurrent callers logs them in completion order; each record therefore also carries `callSequence`, the ordinal the call started at (`1`-based, per port wrapper, optional for records written before the field existed, whose log order is their call order). The request side stays reconstructable without its own record: the tool-call arguments are logged and the manifest plus the run's stage outputs make up the prompt.
 
 <a id="verification"></a>
 ## Verification

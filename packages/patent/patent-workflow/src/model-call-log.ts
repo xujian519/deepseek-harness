@@ -40,9 +40,15 @@ export function loggedPatentModel(
   // a session id on calls the atoms build themselves.
   const target = port.bindSession?.(session.id) ?? port
   const route = target.route
+  // Ordinal among the calls this wrapper serves, read at stream start: concurrent
+  // callers (parallel stages of one run) may finish in another order than they
+  // started, and the event is appended after its stream ends.
+  let calls = 0
   return {
     ...(route === undefined ? {} : { route }),
     async *stream(request, signal) {
+      calls += 1
+      const callSequence = calls
       let output = ''
       let usage: PatentModelUsage | undefined
       for await (const event of target.stream(request, signal)) {
@@ -55,6 +61,7 @@ export function loggedPatentModel(
         ...(context.manifestId === undefined ? {} : { manifestId: context.manifestId }),
         ...(route === undefined ? {} : { provider: route.provider, model: route.model }),
         output,
+        callSequence,
         ...(usage === undefined ? {} : { usage }),
         llmStreamCall: true,
       })

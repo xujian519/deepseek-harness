@@ -63,6 +63,7 @@ describe('loggedPatentModel', () => {
       provider: 'deepseek-official',
       model: 'deepseek-v4-flash',
       output: '阶段成果',
+      callSequence: 1,
       usage: { inputTokens: 12, outputTokens: 2 },
       llmStreamCall: true,
     }])
@@ -80,7 +81,35 @@ describe('loggedPatentModel', () => {
     const unrouted = loggedPatentModel(portStub([]), agent, { callSite: 'claim_chart_build' })
     expect(unrouted.route).toBeUndefined()
     await drain(unrouted)
-    expect(appended[1]).toEqual({ callSite: 'claim_chart_build', output: '', llmStreamCall: true })
+    expect(appended[1]).toEqual({ callSite: 'claim_chart_build', output: '', callSequence: 1, llmStreamCall: true })
+  })
+
+  it('numbers the calls one wrapper serves in start order, even when they finish out of order', async () => {
+    const { agent, appended } = agentStub()
+    // 两个并发调用（同一 run 的并行阶段）：第二个先结束，事件按完成顺序落盘，
+    // 开始序号让读者仍能重建调用顺序。
+    const gates: (() => void)[] = []
+    let call = 0
+    const port: PatentModelPort = {
+      async *stream() {
+        call += 1
+        const index = call
+        await new Promise<void>(resolve => gates.push(resolve))
+        yield { type: 'delta' as const, text: `call-${String(index)}` }
+        yield { type: 'done' as const }
+      },
+    }
+    const wrapped = loggedPatentModel(port, agent, { callSite: 'patent_workflow_run' })
+    const first = drain(wrapped)
+    const second = drain(wrapped)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(gates).toHaveLength(2)
+    gates[1]?.()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(appended.map(entry => entry.callSequence)).toEqual([2])
+    gates[0]?.()
+    await Promise.all([first, second])
+    expect(appended.map(entry => [entry.callSequence, entry.output])).toEqual([[2, 'call-2'], [1, 'call-1']])
   })
 
   it("rebinds the port to the calling agent's session so its calls are attributable", async () => {

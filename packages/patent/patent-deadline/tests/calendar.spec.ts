@@ -24,6 +24,14 @@ describe('calendar dates', () => {
     expect(() => parseCalendarDate('bad')).toThrow(/不是有效的日期/)
   })
 
+  it('rejects a year whose leading digits would shift the day arithmetic', () => {
+    // Date.UTC reads years 0-99 as 19xx, so 0025-01-15 would shift days to 1925.
+    for (const bad of ['0025-01-15', '1899-12-31', '0001-01-01']) {
+      expect(() => parseCalendarDate(bad)).toThrow(CalendarDateError)
+    }
+    expect(parseCalendarDate('1900-01-01')).toEqual({ year: 1900, month: 1, day: 1 })
+  })
+
   it('knows month lengths including leap years', () => {
     expect(daysInMonth(2024, 2)).toBe(29)
     expect(daysInMonth(2025, 2)).toBe(28)

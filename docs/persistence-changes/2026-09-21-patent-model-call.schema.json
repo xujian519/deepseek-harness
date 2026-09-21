@@ -6,7 +6,7 @@
       "kind": "event",
       "event": "patent/model-call",
       "surface": false,
-      "digest": "556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46",
+      "digest": "9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0",
       "schema": {
         "root": 0,
         "nodes": [
@@ -20,17 +20,17 @@
               },
               {
                 "name": "ignorable",
-                "type": 3,
+                "type": 4,
                 "optional": true
               },
               {
                 "name": "seq",
-                "type": 5,
+                "type": 2,
                 "optional": false
               },
               {
                 "name": "time",
-                "type": 5,
+                "type": 2,
                 "optional": false
               },
               {
@@ -45,42 +45,51 @@
             "kind": "object",
             "properties": [
               {
-                "name": "callSite",
+                "name": "callSequence",
                 "type": 2,
-                "optional": false
+                "optional": true
               },
               {
-                "name": "llmStreamCall",
+                "name": "callSite",
                 "type": 3,
                 "optional": false
               },
               {
+                "name": "llmStreamCall",
+                "type": 4,
+                "optional": false
+              },
+              {
                 "name": "manifestId",
-                "type": 2,
+                "type": 3,
                 "optional": true
               },
               {
                 "name": "model",
-                "type": 2,
+                "type": 3,
                 "optional": true
               },
               {
                 "name": "output",
-                "type": 2,
+                "type": 3,
                 "optional": false
               },
               {
                 "name": "provider",
-                "type": 2,
+                "type": 3,
                 "optional": true
               },
               {
                 "name": "usage",
-                "type": 4,
+                "type": 5,
                 "optional": true
               }
             ],
             "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
           },
           {
             "kind": "primitive",
@@ -95,20 +104,16 @@
             "properties": [
               {
                 "name": "inputTokens",
-                "type": 5,
+                "type": 2,
                 "optional": true
               },
               {
                 "name": "outputTokens",
-                "type": 5,
+                "type": 2,
                 "optional": true
               }
             ],
             "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
           },
           {
             "kind": "literal",

@@ -82,15 +82,20 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
   // 检测源：特征 + 权利要求 + 原始输入文本（数值范围常出现在说明书而非提炼后的特征）。
   const claim = resolveInput(state, ['claim', 'claim_text'])
   const rawText = resolveInput(state, ['text', 'extraction_input'])
-  const ranges = extractNumericRanges(`${features} ${claim} ${rawText}`)
-  if (ranges.length === 0) {
-    return { numeric_range_result: '未检测到数值范围表述，无需专项分析', numeric_ranges: [] }
-  }
   // 确定性轨与 LLM 可用性无关：无论语义轨是否降级，结论都进状态。
   const analysis = analyzeNumericRanges({
     claims: [{ id: 'claim', text: `${features} ${claim} ${rawText}` }],
     priorArt: priorArtInput(getStateArray(state, 'prior_art')),
   })
+  // 门槛取内核的带单位发现，而不是 extractNumericRanges：后者只列区间与单边表述
+  // （面向模型的"数值范围"清单），而数值点同样参与判定——权利要求只写单值参数
+  // （"输送温度为 70℃"）时，落在对比文件范围内、与对比文件端点相同都要判出来。
+  const expressions = analysis.claimRanges
+    .filter(finding => finding.strong)
+    .map(finding => finding.expression)
+  if (expressions.length === 0) {
+    return { numeric_range_result: '未检测到带单位的数值表述，无需专项分析', numeric_ranges: [] }
+  }
   const deterministic = {
     numeric_range_verdict: analysis.verdict,
     numeric_range_agreement: analysis.llmAgreement,
@@ -99,12 +104,12 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
   const degradedRanges = (fallback: string, message: string): Record<string, unknown> => {
     const delta: Record<string, unknown> = {}
     markDegraded(delta, 'numeric_range_result', fallback, 'llm_unavailable', message)
-    delta.numeric_ranges = ranges
+    delta.numeric_ranges = expressions
     return { ...delta, ...deterministic }
   }
   if (!provider?.callLLM) {
     return degradedRanges(
-      `检测到数值范围 ${ranges.length} 处，需 LLM 专项判定（provider 缺失）`,
+      `检测到带单位数值表述 ${expressions.length} 处，需 LLM 专项判定（provider 缺失）`,
       '数值范围专项判定需要 LLM',
     )
   }
@@ -112,26 +117,26 @@ const numericRangeNode: GraphNode = async ({ state, provider }) => {
   const priorArtText = formatPriorArtLines(priorArt)
   const prompt = [
     `你是专利新颖性分析专家。对比范围：${NOVELTY_SCOPE}`,
-    '对以下数值范围表述做专项新颖性判定（审查指南第二部分第三章：数值范围/端点值/上下位概念规则）：',
+    '对以下数值表述做专项新颖性判定（审查指南第二部分第三章：数值范围/端点值/上下位概念规则）：',
     '- 端点值落入现有技术公开范围 → 通常不具备新颖性',
     '- 区间与现有技术区间重叠 → 需比较端点与公开程度',
     '- 参数/性能特征：仅当现有技术明确公开相同参数定义',
     '- 用途限定：不影响方案实质时一般不具有限定作用',
     '',
-    '【数值范围】',
-    ranges.map((r, i) => `[${i + 1}] ${r}`).join('\n'),
+    '【数值表述】',
+    expressions.map((expression, i) => `[${i + 1}] ${expression}`).join('\n'),
     '',
     '【现有技术证据】',
     priorArtText.length > 0 ? dataBlock(priorArtText.slice(0, 4000)) : '（无证据，标注 confidence 低）',
     '',
-    '请严格输出 JSON：verdict 为整体结论，assessments 为每个数值范围的 { range, category, disclosed, reasoning }。',
+    '请严格输出 JSON：verdict 为整体结论，assessments 为每个数值表述的 { range, category, disclosed, reasoning }。',
   ].join('\n')
   try {
     const raw = await provider.callLLM(prompt, { jsonSchema: NUMERIC_RANGE_SCHEMA, temperature: 0.1 })
     const checked = crossCheckNumericVerdict(analysis, readNumericVerdict(raw))
     return {
       numeric_range_result: raw,
-      numeric_ranges: ranges,
+      numeric_ranges: expressions,
       numeric_range_verdict: checked.verdict,
       numeric_range_agreement: checked.llmAgreement,
       numeric_range_deterministic: checked.summary,

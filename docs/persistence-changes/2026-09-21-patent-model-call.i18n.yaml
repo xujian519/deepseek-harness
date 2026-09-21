@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-21-patent-model-call.md
-2026-09-21-patent-model-call.md: dde86af280a77d3fdf8b0d4865b6c3e1901b27cb
-2026-09-21-patent-model-call.zh.md: ce30d0640c20c3a599f22eba5ee23040510f8a72
+2026-09-21-patent-model-call.md: 2facfb4aebee90625cbe643c53933b594dba3d93
+2026-09-21-patent-model-call.zh.md: 3fe07ac5cd55629bed3d02af1fc7369206f5e873

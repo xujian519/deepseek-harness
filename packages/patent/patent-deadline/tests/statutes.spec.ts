@@ -190,6 +190,34 @@ describe('statutory deadline set', () => {
     })
   })
 
+  it('computes one period per recorded notice of a repeatable kind', () => {
+    const query: DeadlineQuery = {
+      ...invention,
+      notices: [
+        { kind: 'office-action-subsequent', delivery: { dispatchDate: date('2025-03-01') } },
+        { kind: 'office-action-subsequent', delivery: { dispatchDate: date('2026-06-01') } },
+      ],
+    }
+    const { computed } = evaluateDeadlines(query, base)
+    // Each notice starts its own two-month period; the earlier one is overdue and stays visible.
+    expect(computed.map(entry => entry.id)).toContain('oa-response-subsequent')
+    expect(computed.map(entry => entry.id)).toContain('oa-response-subsequent-2')
+    expect(find(query, 'oa-response-subsequent')).toMatchObject({ dueDate: '2025-05-01', status: 'overdue' })
+    expect(find(query, 'oa-response-subsequent-2')).toMatchObject({ dueDate: '2026-08-03' })
+    expect(find(query, 'oa-response-subsequent')?.label).toBe('答复后续审查意见通知书（指定期限一般为2个月，以通知书指定为准）（第 1 份通知）')
+  })
+
+  it('rejects a second record of a kind a case receives once', () => {
+    const duplicate: DeadlineQuery = {
+      ...invention,
+      notices: [
+        { kind: 'grant-notice', delivery: { dispatchDate: date('2026-09-01') } },
+        { kind: 'grant-notice', delivery: { dispatchDate: date('2026-10-01') } },
+      ],
+    }
+    expect(() => evaluateDeadlines(duplicate, base)).toThrow(DeadlineQueryError)
+  })
+
   it('uses the 6-month priority window and 15-year term for a design patent', () => {
     const query: DeadlineQuery = {
       kind: 'design',

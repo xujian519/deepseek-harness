@@ -519,8 +519,9 @@ export function apply(ctx: Context, config: Config): void {
     ...(resolveImageInputModalitiesFor === undefined ? {} : { resolveImageInputModalities: resolveImageInputModalitiesFor }),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
     // 两步分析引擎在组合点按 Config 选择注入；缺省 single 由工具内部构造默认单步引擎。
-    ...(config.figureAnalysisMode === 'two-step' && imageModel !== undefined
-      ? { analysisEngine: createTwoStepAnalysisEngine({ model: imageModel }) }
+    // 引擎按调用接收模型端口，故这里不需要（也不应）在组合点捕获模型。
+    ...(config.figureAnalysisMode === 'two-step'
+      ? { analysisEngine: createTwoStepAnalysisEngine() }
       : {}),
   }))
 

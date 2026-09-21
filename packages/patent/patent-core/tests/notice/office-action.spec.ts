@@ -87,6 +87,15 @@ describe('extractCitations', () => {
       { documentNumber: 'CN109876543B', claimsAffected: [2, 3] },
     ])
   })
+
+  it('本文书自身号码的指代不入引用文献，紧邻对照的引用仍保留', () => {
+    expect(extractCitations('本申请公开号CN117000000A，对比文件CN112345678A公开了权利要求1的特征。'))
+      .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [1] }])
+    expect(extractCitations('CN117000000A（本申请）与CN112345678A的区别在于加热结构。'))
+      .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [] }])
+    expect(extractCitations('本申请与CN112345678A的区别在于加热结构。'))
+      .toEqual([{ documentNumber: 'CN112345678A', claimsAffected: [] }])
+  })
 })
 
 describe('extractAffectedClaims', () => {
@@ -104,6 +113,12 @@ describe('extractAffectedClaims', () => {
 
   it('起始号大于结束号时不展开', () => {
     expect(extractAffectedClaims('第5-3项')).toEqual([])
+  })
+
+  it('页与段区间不被当成权项', () => {
+    expect(extractAffectedClaims('对比文件1的说明书第2-3页公开了该结构。')).toEqual([])
+    expect(extractAffectedClaims('参见说明书第3至5段的记载。')).toEqual([])
+    expect(extractAffectedClaims('第2-3页与第4-6项分别对应不同内容')).toEqual([4, 5, 6])
   })
 })
 

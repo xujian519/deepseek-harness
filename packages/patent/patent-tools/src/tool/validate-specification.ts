@@ -633,7 +633,7 @@ function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[] {
         severity: 'error',
         section: '权利要求书',
         message: `覆盖条目 ${item.claimId} 不合法：${item.invalidReason}`,
-        suggestion: '按 claim_<n> 提供条目编号，n 取该申请已存在的权利要求编号',
+        suggestion: '按 claim_<n> 提供条目编号与至少一项技术特征，n 取该申请已存在的权利要求编号',
       })
       continue
     }
@@ -644,6 +644,16 @@ function checkClaimSet(input: ValidateSpecificationInput): SpecViolation[] {
       section: '具体实施方式',
       message: `权利要求 ${item.claimId} 的 ${item.uncovered.length}/${item.featureCount} 项特征未获实施例支持：${item.uncovered.join('、')}`,
       suggestion: '在具体实施方式中补充对应实施例，或删除未获支持的特征（A26.3/A26.4）',
+    })
+  }
+  // 编号断档：内核只在条目编号全部合法时推断，故直接报出矩阵给出的 gaps，不自行补算。
+  for (const gap of matrix.gaps) {
+    violations.push({
+      rule: 'claim_coverage_gap',
+      severity: 'warning',
+      section: '权利要求书',
+      message: `覆盖条目缺少权利要求 ${String(gap)}`,
+      suggestion: '为每个权利要求各提供一条覆盖条目；该权项若已删除，同步调整权利要求书与条目',
     })
   }
   return violations

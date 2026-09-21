@@ -114,11 +114,32 @@ const RELEVANCY_WINDOW_CHARS = 8
 /** 专利文献号：国家/组织代码 + 至少 6 位数字 + 可选种类代码。 */
 const PATENT_NUMBER = /(?:CN|US|WO|EP|JP|KR)\d{6,}[A-Z]?/g
 
+/**
+ * 本文书自身文献号的指代标记：紧接文献号之前的「本申请/本发明/本专利/本案」
+ * （可带"的"与"公开号/申请号/公告号/专利号"）。
+ *
+ * 通知书的抬头与本申请自身号码相邻的写法正是这一种；而「本申请与 CN… 的区别」
+ * 这类对照写法中，标记与文献号之间隔着别的字，故不落在此式内。
+ */
+const SELF_REFERENCE_BEFORE = /(?:本申请|本发明|本专利|本案)\s*(?:的)?\s*(?:公开号|申请号|公告号|专利号)?\s*[）)\s]*$/
+
+/** 文献号之后的自身指代写法：`CN117000000A（本申请）`。 */
+const SELF_REFERENCE_AFTER = /^\s*[（(]?\s*(?:本申请|本发明|本专利|本案)/
+
+/** 上述两个窗口的宽度（UTF-16 码元）。 */
+const SELF_REFERENCE_WINDOW_CHARS = 12
+
 /** 权利要求编号写法。 */
 const CLAIM_NUMBER = /权利要求\s*(\d+)/g
 
-/** 权利要求区间写法：`第1-5项`、`权利要求1至3`、`第1到5项`。 */
-const CLAIM_RANGE = /(?:第|权利要求)\s*(\d+)\s*[-至到]\s*(\d+)\s*项?/g
+/**
+ * 权利要求区间写法：`权利要求1至3`（前缀限定）与 `第1-5项`（后缀限定）。
+ *
+ * 两种写法各一条正则，是因为限定位不同：只写「第」的开区间会把「第2-3页」
+ * 「第3至5段」这类页/段区间当成权项展开。两条都不带可选后缀，故页段区间不命中。
+ */
+const CLAIM_RANGE_QUALIFIED = /权利要求\s*(\d+)\s*[-至到]\s*(\d+)/g
+const CLAIM_RANGE_SUFFIXED = /第\s*(\d+)\s*[-至到]\s*(\d+)\s*项/g
 
 /** 单个权项编号上限：四位数编号在实务中不存在。 */
 const MAX_CLAIM_NUMBER = 999
@@ -294,7 +315,7 @@ function citationRelevancy(text: string, end: number): CitationRelevancy | undef
 }
 
 /**
- * 提取正文提到的权项编号，展开 `第1-5项`、`权利要求1至3`、`第1到5项` 一类区间。
+ * 提取正文提到的权项编号，展开 `权利要求1至3`、`第1-5项` 一类区间。
  * @param text - 通知书正文或其中一段。
  * @returns 升序去重的权项编号；未提到权项时为空数组。
  */
@@ -304,19 +325,38 @@ export function extractAffectedClaims(text: string): number[] {
     const number = Number.parseInt(capture(match, 1), 10)
     if (number > 0 && number <= MAX_CLAIM_NUMBER) claims.add(number)
   }
-  for (const match of eachMatch(text, CLAIM_RANGE)) {
-    const start = Number.parseInt(capture(match, 1), 10)
-    const end = Number.parseInt(capture(match, 2), 10)
-    const withinRange = end - start <= CLAIM_RANGE_SPAN_LIMIT && end <= MAX_CLAIM_NUMBER
-    if (start > 0 && start <= end && withinRange) {
-      for (let number = start; number <= end; number += 1) claims.add(number)
+  for (const pattern of [CLAIM_RANGE_QUALIFIED, CLAIM_RANGE_SUFFIXED]) {
+    for (const match of eachMatch(text, pattern)) {
+      const start = Number.parseInt(capture(match, 1), 10)
+      const end = Number.parseInt(capture(match, 2), 10)
+      const withinRange = end - start <= CLAIM_RANGE_SPAN_LIMIT && end <= MAX_CLAIM_NUMBER
+      if (start > 0 && start <= end && withinRange) {
+        for (let number = start; number <= end; number += 1) claims.add(number)
+      }
     }
   }
   return [...claims].sort((left, right) => left - right)
 }
 
 /**
+ * 一处文献号是否指本条通知书的收件申请本身。
+ * @param text - 通知书正文。
+ * @param match - 文献号在正文中的匹配，`0` 组为号码。
+ * @returns true 表示该号码是本文书自身号码的指代，不是审查员引用的对比文件。
+ */
+function isSelfReference(text: string, match: RegExpExecArray): boolean {
+  const number = capture(match, 0)
+  const before = text.slice(Math.max(0, match.index - SELF_REFERENCE_WINDOW_CHARS), match.index)
+  if (SELF_REFERENCE_BEFORE.test(before)) return true
+  const end = match.index + number.length
+  return SELF_REFERENCE_AFTER.test(text.slice(end, end + SELF_REFERENCE_WINDOW_CHARS))
+}
+
+/**
  * 提取正文引用的对比文件，按首次出现顺序去重。
+ *
+ * 本文书自身的公开号/申请号按 `SELF_REFERENCE_BEFORE` / `SELF_REFERENCE_AFTER` 排除：
+ * 它们出现在通知书抬头，不是审查员引用的对比文件，落进 `citations` 会被下游当成比对对象。
  * @param text - 通知书正文。
  * @returns 引用文献；每项的相关性取文献号之后的标注，权项取同句共现，见 `CitedReference`。
  */
@@ -326,6 +366,7 @@ export function extractCitations(text: string): CitedReference[] {
   for (const match of eachMatch(text, PATENT_NUMBER)) {
     const documentNumber = capture(match, 0)
     if (seen.has(documentNumber)) continue
+    if (isSelfReference(text, match)) continue
     seen.add(documentNumber)
     const reference: CitedReference = {
       documentNumber,

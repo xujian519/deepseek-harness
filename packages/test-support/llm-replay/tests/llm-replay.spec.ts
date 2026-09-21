@@ -868,6 +868,27 @@ describe('prepareSessionSnapshotFixtureForComparison', () => {
 })
 
 describe('deriveReplayScript', () => {
+  /** One `patent/model-call` record without its usage, at `seq`, optionally carrying its start ordinal. */
+  const marked = (output: string, callSequence?: number, seq = 1) => ({
+    type: 'patent/model-call',
+    seq: SessionSeq(seq),
+    time: 0,
+    data: {
+      callSite: 'patent_workflow_run',
+      output,
+      ...(callSequence === undefined ? {} : { callSequence }),
+      llmStreamCall: true,
+    },
+  }) as unknown as SessionEvent
+
+  /** The chunks one recorded output replays as. */
+  const text = (output: string): StreamChunk[] => [
+    { type: 'block-start', index: 0, blockType: 'text' },
+    { type: 'text-delta', index: 0, text: output },
+    { type: 'block-end', index: 0, block: { type: 'text', text: output } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+
   it('expands one finished embedded Assistant stream into one replay entry', () => {
     const events: SessionEvent[] = [streamEvent(1, 1, 1, TEXT_CHUNKS)]
     expect(deriveReplayScript(events)).toEqual([{ kind: 'chunks', chunks: TEXT_CHUNKS }])
@@ -1037,6 +1058,24 @@ describe('deriveReplayScript', () => {
     } as unknown as SessionEvent
     expect(() => deriveReplayScript([unmarkedOutput]))
       .toThrow(/records neither rawOutput blocks nor output text/)
+  })
+
+  it('orders a fully numbered run of marked calls by their recorded start ordinal', () => {
+    // 并发调用按完成顺序落盘（第二个、第三个先结束），开始序号重建调用顺序。
+    expect(deriveReplayScript([marked('c', 2, 1), marked('a', 3, 2), marked('b', 1, 3)]))
+      .toEqual([{ kind: 'chunks', chunks: text('b') }, { kind: 'chunks', chunks: text('c') }, { kind: 'chunks', chunks: text('a') }])
+    // Assistant 结算把标记段切开：跨段的调用不参与重排。
+    expect(deriveReplayScript([marked('c', 2, 1), streamEvent(3, 1, 1, text('loop')), marked('a', 1, 4)]))
+      .toEqual([{ kind: 'chunks', chunks: text('c') }, { kind: 'chunks', chunks: text('loop') }, { kind: 'chunks', chunks: text('a') }])
+  })
+
+  it('keeps the log order of a marked run whose start ordinals are incomplete', () => {
+    // 记录里没有开始序号时保持日志顺序（旧记录的语义）。
+    expect(deriveReplayScript([marked('c', undefined, 1), marked('a', undefined, 2)]))
+      .toEqual([{ kind: 'chunks', chunks: text('c') }, { kind: 'chunks', chunks: text('a') }])
+    // 一段里只有部分带序号时同样保持日志顺序：无法判断缺失项的先后。
+    expect(deriveReplayScript([marked('c', 2, 1), marked('a', undefined, 2)]))
+      .toEqual([{ kind: 'chunks', chunks: text('c') }, { kind: 'chunks', chunks: text('a') }])
   })
 
   it('reads a marked call that reports no usage, and ignores a non-object payload', () => {

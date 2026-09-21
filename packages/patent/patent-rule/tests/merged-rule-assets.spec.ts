@@ -106,6 +106,9 @@ describe('merged rule assets', () => {
 
     expect(hits('实用新型的保护客体见专利法第二条第二款。', 'LAW-UM-SUBJECT-001')).toBe(true)
     expect(hits('实用新型的保护客体见专利法第二条第三款。', 'LAW-UM-SUBJECT-001')).toBe(false)
+    // 两款并列（第二款定义发明、第三款定义实用新型）是正确表述，不命中。
+    expect(hits('专利法第二条第二款定义发明，第二条第三款定义实用新型，二者保护客体不同。', 'LAW-UM-SUBJECT-001')).toBe(false)
+    expect(hits('第二条第二款所定义的实用新型，其保护客体为产品形状构造。', 'LAW-UM-SUBJECT-001')).toBe(true)
   })
 
   it('merged bans fire on the vague/placeholder wording only', () => {

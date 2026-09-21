@@ -46,9 +46,10 @@ export type FigureAnalysisEngine = {
    * 分析一张附图。
    * @param request - 图片附件引用与上下文。
    * @param signal - 取消信号。
+   * @param model - 本次调用的模型端口（工具按调用绑定会话后再传入，故引擎不持有端口）。
    * @returns 结构化附图分析结果；模型传输失败按原始错误抛出（工具层统一映射错误码）。
    */
-  analyze(request: FigureAnalysisRequest, signal: AbortSignal): Promise<FigureAnalysisResult>
+  analyze(request: FigureAnalysisRequest, signal: AbortSignal, model: PatentModelPort): Promise<FigureAnalysisResult>
 }
 
 /** 两步分析第一步（结构抽取）输出 JSON Schema（组合 schema 去除 figure_description）。 */
@@ -116,14 +117,16 @@ function buildDescriptionGenerationPrompt(request: FigureAnalysisRequest, struct
 }
 
 /**
- * 构建 two-step 分析引擎：结构抽取 → 说明生成，两次调用走同一视觉路由。
- * @param input - 载荷，`model` 为门控后的附图模型端口。
+ * 构建 two-step 分析引擎：结构抽取 → 说明生成，两次调用走同一次调用传入的视觉路由。
+ *
+ * 引擎不持有模型端口：端口按调用由工具绑定会话后传入（工具内的调用落 `patent/model-call`
+ * 事件，见 `loggedToolModel`），组合点构造的引擎因此不会绕开会话日志。
  * @returns FigureAnalysisEngine 实例。
  */
-export function createTwoStepAnalysisEngine(input: { model: PatentModelPort }): FigureAnalysisEngine {
+export function createTwoStepAnalysisEngine(): FigureAnalysisEngine {
   return {
     kind: 'two-step',
-    async analyze(request, signal) {
+    async analyze(request, signal, model) {
       const normalizeOptions = {
         imagePath: request.imagePath,
         figureNumber: request.figureNumber,
@@ -131,7 +134,7 @@ export function createTwoStepAnalysisEngine(input: { model: PatentModelPort }): 
         modelUsed: request.modelUsed,
       }
       const structureRaw = await collectPortText(
-        input.model,
+        model,
         buildStructureExtractionPrompt(request),
         signal,
         { images: [request.image] },
@@ -144,7 +147,7 @@ export function createTwoStepAnalysisEngine(input: { model: PatentModelPort }): 
       }
       const structure = normalizeFigureAnalysis(structureRaw, normalizeOptions)
       const descriptionRaw = await collectPortText(
-        input.model,
+        model,
         buildDescriptionGenerationPrompt(request, structure),
         signal,
         { images: [request.image] },

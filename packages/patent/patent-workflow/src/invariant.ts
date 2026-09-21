@@ -67,12 +67,15 @@ function validateWorkflowRun(value: unknown, fail: InvariantFailure): void {
 /** Validate one patent/model-call payload. */
 function validateModelCall(value: unknown, fail: InvariantFailure): void {
   if (typeof value !== 'object' || value === null) fail('patent/model-call data must be an object')
-  const { callSite, manifestId, provider, model, output, usage, llmStreamCall } = value as Record<string, unknown>
+  const { callSite, manifestId, provider, model, output, usage, llmStreamCall, callSequence } = value as Record<string, unknown>
   if (typeof callSite !== 'string' || callSite.trim() === '') {
     fail('patent/model-call callSite must be a non-empty string')
   }
   if (typeof output !== 'string') fail('patent/model-call output must be a string')
   if (llmStreamCall !== true) fail('patent/model-call must mark llmStreamCall')
+  if (callSequence !== undefined && (!Number.isInteger(callSequence) || (callSequence as number) < 1)) {
+    fail('patent/model-call callSequence must be a positive integer when present')
+  }
   if (manifestId !== undefined && typeof manifestId !== 'string') {
     fail('patent/model-call manifestId must be a string when present')
   }

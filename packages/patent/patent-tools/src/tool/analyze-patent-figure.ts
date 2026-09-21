@@ -489,10 +489,10 @@ export function normalizeFigureAnalysis(
 }
 
 /** 默认单步分析引擎：包装既有单步逻辑（一次模型调用），未注入引擎时零行为变化。 */
-function singleStepAnalysisEngine(model: PatentModelPort): FigureAnalysisEngine {
+function singleStepAnalysisEngine(): FigureAnalysisEngine {
   return {
     kind: 'single-step',
-    async analyze(request, signal) {
+    async analyze(request, signal, model) {
       const prompt = buildFigureAnalysisPrompt(request.figureNumber, request.claimContext, request.inventionName, request.imagePath)
       const raw = await collectPortText(model, prompt, signal, { images: [request.image] })
       return normalizeFigureAnalysis(raw, {
@@ -639,8 +639,9 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
 
       const figureNumber = args.figure_number ?? 1
       // 分析引擎按部署模式在组合点注入（figureAnalysisMode）；缺省为包装既有
-      // 单步逻辑的默认引擎。门控与附件入库在引擎之前完成，与模式无关。
-      const engine = deps.analysisEngine ?? singleStepAnalysisEngine(figureModel)
+      // 单步逻辑的默认引擎。门控与附件入库在引擎之前完成，与模式无关；模型端口按调用
+      // 传入（会话绑定后的记录端口），故注入引擎也不会绕开 `patent/model-call`。
+      const engine = deps.analysisEngine ?? singleStepAnalysisEngine()
       let result: FigureAnalysisResult
       try {
         result = await engine.analyze(
@@ -653,6 +654,7 @@ export function createAnalyzePatentFigureTool(deps: AnalyzePatentFigureDeps): To
             modelUsed: deps.modelUsed ?? `${route.provider}/${route.model}`,
           },
           exec.signal,
+          figureModel,
         )
       } catch (error) {
         if (exec.signal.aborted) {

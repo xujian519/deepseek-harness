@@ -47,6 +47,19 @@ export type NoticeKind =
   | 'reexamination-notice'
   | 'invalidation-transfer'
 
+/**
+ * Notice kinds a case may receive more than once, each starting its own period.
+ *
+ * A case commonly receives several 后续审查意见通知书, and a reexamination may produce
+ * more than one 复审通知书; each is a separate starting event, so the report carries one
+ * entry per notice. Every other kind is issued once in a case, and a second record is a
+ * data error that would silently hide the first — it is rejected instead.
+ */
+const REPEATABLE_NOTICE_KINDS: ReadonlySet<NoticeKind> = new Set<NoticeKind>([
+  'office-action-subsequent',
+  'reexamination-notice',
+])
+
 /** A notice together with how it was delivered. */
 export type NoticeInput = {
   kind: NoticeKind
@@ -188,8 +201,7 @@ type EntryBase = {
 export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions): DeadlineReport {
   assertPriorityInputs(query)
   const items: DeadlineItem[] = []
-  const notices = new Map<NoticeKind, NoticeInput>()
-  for (const notice of query.notices ?? []) notices.set(notice.kind, notice)
+  const notices = indexNotices(query.notices ?? [])
 
   const filing = query.filingDate
   const priority = query.priorityDate
@@ -270,7 +282,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
 
   // ── 细则第57条 — voluntary amendment windows.
   if (query.kind === 'invention') {
-    items.push(fromNotice({
+    items.push(...fromNotices({
       id: 'voluntary-amendment-invention',
       label: '主动修改（发明：提出实质审查请求时，或收到进入实质审查阶段通知书之日起3个月内）',
       legalBasis: '专利法实施细则第57条第1款',
@@ -296,7 +308,9 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
   }
 
   // ── 细则第60条第1款 + 第48条 — registration, which also bounds divisional filing.
-  const grantNotice = notices.get('grant-notice')
+  // A case is granted once, so duplicates of this kind are rejected in indexNotices;
+  // the first record is the only one.
+  const grantNotice = notices.get('grant-notice')?.[0]
   if (grantNotice !== undefined) {
     const grant = resolveDeliveryDate(grantNotice.delivery)
     items.push(fromPeriod({
@@ -386,7 +400,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
   }
 
   // ── 专利法第41条 — reexamination request.
-  items.push(fromNotice({
+  items.push(...fromNotices({
     id: 'reexamination-request',
     label: '请求复审（自收到驳回决定之日起3个月）',
     legalBasis: '专利法第41条第1款',
@@ -399,7 +413,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
   }))
 
   // ── Designated periods, which only the notice can start.
-  items.push(fromNotice({
+  items.push(...fromNotices({
     id: 'oa-response-first',
     label: '答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）',
     legalBasis: '专利审查指南第五部分第七章第2.1节',
@@ -410,7 +424,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     query,
     options,
   }))
-  items.push(fromNotice({
+  items.push(...fromNotices({
     id: 'oa-response-subsequent',
     label: '答复后续审查意见通知书（指定期限一般为2个月，以通知书指定为准）',
     legalBasis: '专利审查指南第五部分第七章第2.1节',
@@ -421,7 +435,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     query,
     options,
   }))
-  items.push(fromNotice({
+  items.push(...fromNotices({
     id: 'reexamination-deficiency-response',
     label: '答复复审通知书（指定期限，以通知书指定为准）',
     legalBasis: '专利法实施细则第67条',
@@ -432,7 +446,7 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     query,
     options,
   }))
-  items.push(fromNotice({
+  items.push(...fromNotices({
     id: 'invalidation-response',
     label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
     legalBasis: '专利审查指南第四部分第三章第4.4节',
@@ -591,54 +605,88 @@ function fromDate(args: { base: EntryBase; due: CalendarDate }): ComputedDeadlin
 }
 
 /**
+ * Index the supplied notices by kind, keeping every record of a repeatable kind.
+ * @param supplied - the notices the caller recorded on the case.
+ * @returns the notices per kind, oldest first as supplied.
+ * @throws DeadlineQueryError when a kind that a case receives once is supplied twice.
+ */
+function indexNotices(supplied: readonly NoticeInput[]): ReadonlyMap<NoticeKind, readonly NoticeInput[]> {
+  const byKind = new Map<NoticeKind, NoticeInput[]>()
+  for (const notice of supplied) {
+    const list = byKind.get(notice.kind)
+    if (list === undefined) {
+      byKind.set(notice.kind, [notice])
+      continue
+    }
+    if (!REPEATABLE_NOTICE_KINDS.has(notice.kind)) {
+      throw new DeadlineQueryError(
+        `通知书记录重复：${notice.kind} 在一个案子里只有一份，收到两份记录时无法确定以哪一份为准。`
+        + '请核对通知书，或把多份记录合并为实际送达情形后的那一份。',
+      )
+    }
+    list.push(notice)
+  }
+  return byKind
+}
+
+/**
  * Build a deadline that starts at a notice's delivery date, or a pending entry
  * naming that notice when the case has not recorded it.
+ *
+ * A repeatable kind yields one entry per recorded notice: its id is the base id
+ * for the first record and carries the record's ordinal (`<id>-2`, `<id>-3`) for
+ * the rest, so every period a case actually runs has its own row.
  * @param args - the entry definition.
- * @returns the computed deadline, or the pending entry.
+ * @returns the computed deadlines, or the single pending entry.
  */
-function fromNotice(args: {
+function fromNotices(args: {
   id: string
   label: string
   legalBasis: string
   noticeKind: NoticeKind
   absentReason: string
   months: number
-  notices: ReadonlyMap<NoticeKind, NoticeInput>
+  notices: ReadonlyMap<NoticeKind, readonly NoticeInput[]>
   query: DeadlineQuery
   options: EvaluateOptions
-}): DeadlineItem {
-  const notice = args.notices.get(args.noticeKind)
-  if (notice === undefined) {
-    return pending({
+}): DeadlineItem[] {
+  const recorded = args.notices.get(args.noticeKind) ?? []
+  if (recorded.length === 0) {
+    return [pending({
       id: args.id,
       label: args.label,
       legalBasis: args.legalBasis,
       requiredInput: `${args.noticeKind}（通知的送达记录）`,
       reason: args.absentReason,
-    })
+    })]
   }
-  const resolved = resolveDeliveryDate(notice.delivery)
-  const designated = notice.designatedMonths !== undefined
-    ? `；通知书指定期限 ${String(notice.designatedMonths)} 个月`
-    : ''
-  return fromPeriod({
-    base: {
-      id: args.id,
-      label: args.label,
-      legalBasis: args.legalBasis,
-      query: args.query,
-      options: args.options,
-      triggerBasis: `${resolved.basis}${designated}`,
-    },
-    start: resolved.date,
-    period: { unit: 'month', count: notice.designatedMonths ?? args.months },
+  return recorded.map((notice, index) => {
+    const id = index === 0 ? args.id : `${args.id}-${String(index + 1)}`
+    const resolved = resolveDeliveryDate(notice.delivery)
+    const designated = notice.designatedMonths !== undefined
+      ? `；通知书指定期限 ${String(notice.designatedMonths)} 个月`
+      : ''
+    return fromPeriod({
+      base: {
+        id,
+        label: recorded.length === 1
+          ? args.label
+          : `${args.label}（第 ${String(index + 1)} 份通知）`,
+        legalBasis: args.legalBasis,
+        query: args.query,
+        options: args.options,
+        triggerBasis: `${resolved.basis}${designated}`,
+      },
+      start: resolved.date,
+      period: { unit: 'month', count: notice.designatedMonths ?? args.months },
+    })
   })
 }
 
 /**
  * Report one computed entry: keep the period's own end date, apply the rest-day
  * rule when the query asks for it, and derive the status from the reported date.
- * @param base - the entry's identity, provenance, and inputs.
+ * @param base - the entry's identity, legal basis, trigger basis, and query inputs.
  * @param due - the period's own end date.
  * @returns the computed deadline.
  */

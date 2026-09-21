@@ -16,6 +16,14 @@ export type CalendarDate = {
 
 const DATE_PATTERN = /^(\d{4})-(\d{1,2})-(\d{1,2})$/
 
+/**
+ * Lowest year a patent date can carry. The four-digit form admits leading zeros,
+ * and `Date.UTC` reads years 0-99 as 19xx: a mistyped `0025-01-15` would then
+ * shift by whole days into a different century while month arithmetic kept the
+ * original year, so those years are rejected at the parse boundary instead.
+ */
+const MIN_DATE_YEAR = 1900
+
 /** Thrown when a date string is not a real `YYYY-MM-DD` civil date. */
 export class CalendarDateError extends Error {
   /** The rejected input. */
@@ -44,7 +52,9 @@ export function daysInMonth(year: number, month: number): number {
 /**
  * Parse a `YYYY-MM-DD` civil date, accepting unpadded month and day. Rejects
  * impossible months and days the month does not have (so `2025-02-29` fails) —
- * a mistyped filing date must never silently become a different day.
+ * a mistyped filing date must never silently become a different day. Years below
+ * {@link MIN_DATE_YEAR} are rejected for the same reason: day arithmetic reads
+ * them as 19xx.
  * @param text - the date string.
  * @returns the parsed date.
  */
@@ -54,7 +64,7 @@ export function parseCalendarDate(text: string): CalendarDate {
   const year = Number(match[1])
   const month = Number(match[2])
   const day = Number(match[3])
-  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
+  if (year < MIN_DATE_YEAR || month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
     throw new CalendarDateError(text)
   }
   return { year, month, day }

@@ -56,7 +56,7 @@
 | `event:patent-teams/task-validated` | event | `3de55eacf0f371e68d78f99aad63fd0a8b72e6f64d1acc1c1392f0e30dd475c8` | [`event:patent-teams/task-validated`](#persistence-type-eventpatent-teamstask-validated) |
 | `event:patent-teams/team-created` | event | `d3403e99eac7930bea2f320fece4f5170255ed812c6bdb5c0b2057e5c8d47010` | [`event:patent-teams/team-created`](#persistence-type-eventpatent-teamsteam-created) |
 | `event:patent-teams/team-deleted` | event | `6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95` | [`event:patent-teams/team-deleted`](#persistence-type-eventpatent-teamsteam-deleted) |
-| `event:patent/model-call` | event | `556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46` | [`event:patent/model-call`](#persistence-type-eventpatentmodel-call) |
+| `event:patent/model-call` | event | `9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0` | [`event:patent/model-call`](#persistence-type-eventpatentmodel-call) |
 | `event:patent/plantask` | event | `21031fbcbdff405ad47179a7acc9fb7bcf70e838ee106d70f7aa26604fb61ce5` | [`event:patent/plantask`](#persistence-type-eventpatentplantask) |
 | `event:patent/workflow-run` | event | `81664fc5119d57f14ba526b8480c4264e98f716e12bf717aa01e7d9fac6c76da` | [`event:patent/workflow-run`](#persistence-type-eventpatentworkflow-run) |
 | `event:permission/preset` | event | `5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b` | [`event:permission/preset`](#persistence-type-eventpermissionpreset) |
@@ -3529,7 +3529,7 @@ SHA-256: `6ccaff85d31459a300c449653602514c34489d856e2e1bc31d9a27b77e634d95`
 
 ### `event:patent/model-call`
 
-SHA-256: `556bd9fc5c106b5e42bfd7ac407a89d921cbca9a88769979fcb9ff379e878f46`
+SHA-256: `9f02fcbc7e776511c9029a0c4658ee2dad6b68e466657dba9342ccaf97ed69f0`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6858,12 +6858,13 @@ SHA-256: `c565de97ddd2fbe66da28c566d7daba0b95bba42f23bd0c5be3fa93090f64f8c`
 
 ### `packages/patent/patent-workflow/src/types.ts#PatentModelCallEvent`
 
-SHA-256: `7ca0801bc43ce8ba5e3f5bab12243dbc64d784f86257707ab8bbc494652fa8e5`
+SHA-256: `598d1d2f53c1194133976837c47e016be809a151276df15eabceab4989010bf9`
 
 来源：[`packages/patent/patent-workflow/src/types.ts:50`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
+| `callSequence` | 可选 | `number` |
 | `callSite` | 必需 | `string` |
 | `llmStreamCall` | 必需 | `true` |
 | `manifestId` | 可选 | `string` |
@@ -6878,7 +6879,7 @@ SHA-256: `7ca0801bc43ce8ba5e3f5bab12243dbc64d784f86257707ab8bbc494652fa8e5`
 
 SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:80`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:89`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6893,7 +6894,7 @@ SHA-256: `26647df86465d4f99aef29c880bafd648dc17c4fd73f048144e32ba70f21463d`
 
 SHA-256: `fca31ca0a951596a6b05fe74077009fdd41bbf5898168ec056ea935cc33dee14`
 
-来源：[`packages/patent/patent-workflow/src/types.ts:89`](../packages/patent/patent-workflow/src/types.ts)
+来源：[`packages/patent/patent-workflow/src/types.ts:98`](../packages/patent/patent-workflow/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

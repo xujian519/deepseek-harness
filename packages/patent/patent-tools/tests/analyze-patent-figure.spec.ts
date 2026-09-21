@@ -223,9 +223,38 @@ const STRUCTURE_PASS = JSON.stringify({
 
 describe('figure analysis engine seam', () => {
   it('exposes the two-step engine factory with the seam contract', () => {
-    const engine = createTwoStepAnalysisEngine({ model: capturingModel('', []) })
+    const engine = createTwoStepAnalysisEngine()
     expect(engine.kind).toBe('two-step')
     expect(typeof engine.analyze).toBe('function')
+  })
+
+  it('records every two-step call on the calling session', async () => {
+    // 注入引擎同样按调用接收会话绑定的端口，两次调用各落一条 patent/model-call。
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-fig-log-'))
+    try {
+      await writeFile(join(dir, 'fig1.png'), 'fake-image!')
+      const appended: { callSite: string }[] = []
+      const session = {
+        id: 'session-1',
+        append: (type: string, data: { callSite: string }) => {
+          if (type === 'patent/model-call') appended.push(data)
+          return { type, data, seq: appended.length }
+        },
+      }
+      const model = scriptedModel([STRUCTURE_PASS, '图1是本发明实施例提供的装置的结构示意图。'], [])
+      const tool = createAnalyzePatentFigureTool({
+        imageModel: model,
+        analysisEngine: createTwoStepAnalysisEngine(),
+        saveImage: async () => ref,
+        gateModel: { provider: 'p', model: 'vision' },
+        resolveImageInputModalities: async () => ['text', 'image'],
+        cwd: dir,
+      })
+      await tool.execute({ image_path: 'fig1.png' }, { ...exec, agent: { session } } as never)
+      expect(appended.map(entry => entry.callSite)).toEqual(['analyze_patent_figure', 'analyze_patent_figure'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })
 
@@ -234,7 +263,7 @@ describe('analyze_patent_figure two-step mode', () => {
     const model = scriptedModel(texts, seen)
     return createAnalyzePatentFigureTool({
       imageModel: model,
-      analysisEngine: createTwoStepAnalysisEngine({ model }),
+      analysisEngine: createTwoStepAnalysisEngine(),
       saveImage: async () => ref,
       gateModel: { provider: 'p', model: 'vision' },
       resolveImageInputModalities: async () => ['text', 'image'],
@@ -292,7 +321,7 @@ describe('analyze_patent_figure two-step mode', () => {
     const model = capturingModel('{}', [])
     const tool = createAnalyzePatentFigureTool({
       imageModel: model,
-      analysisEngine: createTwoStepAnalysisEngine({ model }),
+      analysisEngine: createTwoStepAnalysisEngine(),
       saveImage: async () => ref,
       gateModel: { provider: 'p', model: 'vision' },
       resolveImageInputModalities: async () => ['text'],
