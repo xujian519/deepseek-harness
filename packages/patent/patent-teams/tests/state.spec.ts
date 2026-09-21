@@ -163,11 +163,11 @@ describe('task transitions', () => {
   })
 
   it('rejects undeclared and terminal-outgoing transitions', () => {
-    expect(transitionError('pending', 'in_progress')).toBe('task status cannot move from "pending" to "in_progress"')
-    expect(transitionError('claimed', 'completed')).toBe('task status cannot move from "claimed" to "completed"')
-    expect(transitionError('completed', 'pending')).toBe('task status cannot move from "completed" to "pending"')
-    expect(transitionError('failed', 'claimed')).toBe('task status cannot move from "failed" to "claimed"')
-    expect(transitionError('cancelled', 'in_progress')).toBe('task status cannot move from "cancelled" to "in_progress"')
+    expect(transitionError('pending', 'in_progress')).toBe('task status cannot move from "pending" to "in_progress" (allowed next: "claimed", "cancelled")')
+    expect(transitionError('claimed', 'completed')).toBe('task status cannot move from "claimed" to "completed" (allowed next: "in_progress", "failed", "cancelled")')
+    expect(transitionError('completed', 'pending')).toBe('task status cannot move from "completed" to "pending" ("completed" is terminal — retry or reassign the task instead)')
+    expect(transitionError('failed', 'claimed')).toBe('task status cannot move from "failed" to "claimed" ("failed" is terminal — retry or reassign the task instead)')
+    expect(transitionError('cancelled', 'in_progress')).toBe('task status cannot move from "cancelled" to "in_progress" ("cancelled" is terminal — retry or reassign the task instead)')
   })
 })
 

@@ -49,7 +49,7 @@ kind: "package-reference"
 - `team.json` — 持久 `TeamState` 记录（成员、任务、任务序号）。
 - `inbox/<agentKey>.jsonl` — 每代理一个 JSONL 邮箱（`captain` 或成员名）。
 
-团队记录的变更在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）；信箱追加为单行 `O_APPEND` 写入，`add_member` 在锁外解析成员路由并启动子代理（状态准入与持久化仍在锁内复验），单次 spawn 不会阻塞团队的其他工具。任务状态转换由 `TASK_TRANSITIONS` 校验；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查；`patent_teams_archive` 只读地读回归档（工作区级列表 + 单团队详情）。
+团队记录的变更在进程内按团队锁内执行并以原子方式持久化（同目录临时文件 + rename，Windows `EPERM` 时退化为直接写回）；信箱追加为单行 `O_APPEND` 写入，`add_member` 在锁外解析成员路由并启动子代理（状态准入与持久化仍在锁内复验），单次 spawn 不会阻塞团队的其他工具。任务状态转换由 `TASK_TRANSITIONS` 校验，被拒绝的转换会点名允许的下一状态，因此跳步的调用方（典型是 `claimed → completed`）能得知应先进入哪个中间状态，而不是盲目重试；每次认领携带 `attempt_id` 能力，重试/转派后即失效，迟到的成员更新会被拒绝。`patent_teams_delete` 将团队目录归档到 `archive/` 而非删除，保留任务与邮箱供后续复查；`patent_teams_archive` 只读地读回归档（工作区级列表 + 单团队详情）。
 
 <a id="session-events"></a>
 ## 会话事件

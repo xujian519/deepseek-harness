@@ -136,7 +136,9 @@ export const TASK_TRANSITIONS: Readonly<Record<TaskStatus, readonly TaskStatus[]
 }
 
 /**
- * Validate one task status transition.
+ * Validate one task status transition. The error names the legal next step,
+ * because the caller that guessed a jump (typically `claimed → completed`) needs
+ * to know which intermediate status to enter, not only that it was refused.
  * @param current - the task's current status.
  * @param next - the requested status.
  * @returns the transition error, or undefined when allowed.
@@ -144,7 +146,11 @@ export const TASK_TRANSITIONS: Readonly<Record<TaskStatus, readonly TaskStatus[]
 export function transitionError(current: TaskStatus, next: TaskStatus): string | undefined {
   if (current === next) return undefined
   if (!TASK_TRANSITIONS[current].includes(next)) {
-    return `task status cannot move from "${current}" to "${next}"`
+    const allowed = TASK_TRANSITIONS[current]
+    const guidance = allowed.length === 0
+      ? `"${current}" is terminal — retry or reassign the task instead`
+      : `allowed next: ${allowed.map(status => `"${status}"`).join(', ')}`
+    return `task status cannot move from "${current}" to "${next}" (${guidance})`
   }
   return undefined
 }

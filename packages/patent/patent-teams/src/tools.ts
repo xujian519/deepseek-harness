@@ -192,7 +192,7 @@ export function registerPatentTeamsTools(ctx: Context): void {
         items: { type: 'string' },
         description: 'Task ids this task depends on (must be completed before this task can be claimed).',
       },
-      assignee: { type: 'string', description: 'Optional member name this task is intended for.' },
+      assignee: { type: 'string', description: 'Optional member name this task is intended for. Member names only: the captain is not a member, so never pass "captain" here — use reassign_task(assignee="captain") to move a task to the captain.' },
       worker: { type: 'string', description: 'Optional worker contract the task output is validated against on completion (e.g. patent-search-commander, patent-oa-writer).' },
     },
     output: {
@@ -252,7 +252,7 @@ export function registerPatentTeamsTools(ctx: Context): void {
     description: 'Claim one ready task for a member (or yourself). A member cannot own a second unfinished task. The returned attempt_id is required for that member\'s updates and becomes stale after retry/reassignment.',
     parameters: {
       task_id: { type: 'string', required: true, description: 'The task id to claim.' },
-      assignee: { type: 'string', description: 'Member to claim for (captain only; defaults to the task\'s assignee).' },
+      assignee: { type: 'string', description: 'Member to claim for (captain only; defaults to the task\'s assignee). Member names only — "captain" is not a member; omit it to claim as the captain.' },
     },
     output: {
       schema: {
@@ -284,7 +284,7 @@ export function registerPatentTeamsTools(ctx: Context): void {
       status: {
         type: 'string',
         enum: ['in_progress', 'completed', 'failed', 'cancelled'],
-        description: 'New status (in_progress, completed, failed, cancelled).',
+        description: 'New status. Legal moves: pending→claimed, claimed→in_progress, in_progress→completed. A claimed task must enter in_progress before it can be completed; terminal statuses (completed/failed/cancelled) have no way out.',
       },
       output: { type: 'string', description: 'Result summary; set when completing or failing.' },
       attempt_id: { type: 'string', description: 'Current execution capability returned by claim_task (required for members when present on the task).' },
