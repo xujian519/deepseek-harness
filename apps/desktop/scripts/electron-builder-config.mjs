@@ -123,9 +123,11 @@ export function createElectronBuilderConfig(
       'renderer/**/*',
       'assets/**/*',
       'package.json',
-      { from: buildPaths.dsh, to: 'dsh', filter: ['**/*'] },
+      // The Office engine ships beside the archive (see `extraResources`), so it
+      // is excluded from both runtime mappings rather than packed.
+      { from: buildPaths.dsh, to: 'dsh', filter: ['**/*', '!**/@deepseek-ai/libreoffice-kit-*/**'] },
       // electron-builder excludes a source directory's root node_modules.
-      { from: join(buildPaths.dsh, 'node_modules'), to: 'dsh/node_modules', filter: ['**/*'] },
+      { from: join(buildPaths.dsh, 'node_modules'), to: 'dsh/node_modules', filter: ['**/*', '!@deepseek-ai/libreoffice-kit-*/**'] },
     ],
     asarUnpack: [
       '**/*.{node,dylib,dll,so,exe}',
@@ -135,6 +137,15 @@ export function createElectronBuilderConfig(
     ],
     extraResources: [
       { from: buildPaths.runtime, to: 'runtime' },
+      // One Office engine package is the only part of the runtime that cannot
+      // live in the archive: the conversion helper is a separate process that
+      // starts the engine executable and reads its LibreOffice tree through its
+      // own filesystem access. Electron reports archive paths with synthetic
+      // file modes (a packed executable reads as 0644, so the kit rejects it)
+      // and would hand that helper an archive path it cannot open. Node's
+      // resolution from inside `app.asar` walks up to `resources/node_modules`,
+      // so the engine resolves there as ordinary files with their modes.
+      { from: join(buildPaths.dsh, 'node_modules', '@deepseek-ai'), to: 'node_modules/@deepseek-ai', filter: ['libreoffice-kit-*/**'] },
       { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
     ],
     mac: {
@@ -145,8 +156,9 @@ export function createElectronBuilderConfig(
       identity: unsigned ? null : macOSSigning?.signingIdentity,
       forceCodeSigning: !unsigned,
       hardenedRuntime: true,
-      // ASAR-unpacked native runtime files are pre-signed; PAK resources are sealed by their enclosing bundle.
-      signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
+      // ASAR-unpacked native runtime files and the beside-archive Office engine are pre-signed;
+      // PAK resources are sealed by their enclosing bundle.
+      signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/node_modules/@deepseek-ai(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
       notarize: !unsigned,
       target: ['dmg', 'zip'],
     },
@@ -178,20 +190,20 @@ export function createElectronBuilderConfig(
         context.packager.appInfo.version, { platform: resolvedPlatform, arch: resolvedArch })
     },
     afterSign: async context => {
-      if (context.electronPlatformName !== 'darwin') return
+      if (!signedMacOS || context.electronPlatformName !== 'darwin') return
       const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
       if (update !== undefined) {
         await verifyMacOSAppUpdateConfig(appPath, resolveMacOSAppUpdateFeed(context.packager.config.publish),
           context.packager.appInfo.updaterCacheDirName)
       }
-      verifyMacOSSignatureAfterSign(context, macOSSigning ?? resolveMacOSSigningEnvironment(env))
+      verifyMacOSSignatureAfterSign(context, macOSSigning)
     },
     artifactBuildCompleted: artifact => {
-      if (!artifact.file.endsWith('.dmg')) return
+      if (!signedMacOS || !artifact.file.endsWith('.dmg')) return
       return notarizeMacOSDiskImageArtifact(
         artifact,
         env,
-        macOSSigning ?? resolveMacOSSigningEnvironment(env),
+        macOSSigning,
       )
     },
     win: {

@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import type { MenuItemConstructorOptions, MessageBoxOptions } from 'electron'
-import { DESKTOP_IPC, type DesktopUpdateState } from '../src/ipc.ts'
+import { DESKTOP_IPC, SCHEME, type DesktopUpdateState } from '../src/ipc.ts'
+import { serveWebDocument } from '../src/web-document.ts'
 import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { DesktopHostUncleanExitError } from '../src/host-process.ts'
 import { resolveBridgePath } from '../src/bridge-server.ts'
@@ -15,6 +16,7 @@ import { DesktopUpdatePreparationError } from '../src/update-error.ts'
 
 type InvokeEvent = { sender?: unknown; senderFrame: { url: string } }
 type InvokeHandler = (event: InvokeEvent, ...args: unknown[]) => unknown
+type ProtocolHandler = (request: Request) => Promise<Response> | Response
 
 vi.mock('../src/web-document.ts', () => ({ authenticateWebHost: async () => 'test-cookie', serveWebDocument: vi.fn(), forwardWebRequest: vi.fn() }))
 vi.mock('../src/print.ts', () => ({ printHtmlToPdf: vi.fn(async () => ({ path: '/out/document.pdf' })) }))
@@ -56,6 +58,7 @@ const harness = await vi.hoisted(async () => {
   const hosts: FakeHost[] = []
   const trays: FakeTray[] = []
   const handlers = new Map<string, InvokeHandler>()
+  const protocols: { scheme: string; handler: ProtocolHandler }[] = []
   let pluginsEnabled = false
   let prepareUpdate: (() => Promise<boolean>) | undefined
   let publishUpdate: ((state: DesktopUpdateState) => DesktopUpdateState) | undefined
@@ -167,7 +170,7 @@ const harness = await vi.hoisted(async () => {
   })
   return {
     failWindow(error: Error) { windowFailure = error },
-    windows, hosts, handlers, app, FakeWindow, FakeHost, FakeTray, powerMonitor,
+    windows, hosts, handlers, protocols, app, FakeWindow, FakeHost, FakeTray, powerMonitor,
     menu, popup, socketHeaders: vi.fn(), updateCheck, updateDownload, updateInstall,
     ipcOn: vi.fn<(channel: string, listener: (event: { sender: unknown; senderFrame: unknown }, ...args: unknown[]) => void) => void>(),
     get updateState() { return updateState },
@@ -196,7 +199,7 @@ const harness = await vi.hoisted(async () => {
     set pluginsEnabled(value: boolean) { pluginsEnabled = value },
     set closeWindowsOnQuit(value: boolean) { closeWindowsOnQuit = value },
     reset() {
-      windows.length = 0; hosts.length = 0; trays.length = 0; handlers.clear(); app.removeAllListeners()
+      windows.length = 0; hosts.length = 0; trays.length = 0; handlers.clear(); protocols.length = 0; app.removeAllListeners()
       powerMonitor.removeAllListeners()
       app.isPackaged = true
       windowFailure = undefined
@@ -241,7 +244,10 @@ vi.mock('electron', () => ({
   },
   Menu: { setApplicationMenu: harness.menu.setApplicationMenu, buildFromTemplate: harness.menu },
   session: { defaultSession: { webRequest: { onBeforeSendHeaders: harness.socketHeaders } } },
-  protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
+  protocol: {
+    registerSchemesAsPrivileged: vi.fn(),
+    handle: (scheme: string, handler: ProtocolHandler) => { harness.protocols.push({ scheme, handler }) },
+  },
   powerMonitor: harness.powerMonitor,
   nativeImage: { createFromPath: (path: string) => ({ path, setTemplateImage: vi.fn() }) },
   Tray: harness.FakeTray,
@@ -541,6 +547,18 @@ describe('desktop main startup', () => {
       expect(window.options).not.toHaveProperty('vibrancy')
     }
     expect(harness.hosts).toHaveLength(0)
+  })
+
+  it('serves shell documents from the packaged renderer directory and rejects other hosts', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const registration = harness.protocols[0]!
+    expect(registration.scheme).toBe(SCHEME)
+    const shellRequest = new Request('dsh-app://shell/update-dialog.html')
+    await registration.handler(shellRequest)
+    expect(vi.mocked(serveWebDocument)).toHaveBeenCalledWith(shellRequest, join(harness.app.getAppPath(), 'renderer'))
+    const unowned = await registration.handler(new Request('dsh-app://unowned/index.html'))
+    expect(unowned.status).toBe(404)
   })
 
   it('follows the Windows primary document language and palette without trusting other frames', async () => {

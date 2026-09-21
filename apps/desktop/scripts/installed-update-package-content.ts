@@ -1,5 +1,6 @@
 /** Verify identity and update configuration from an extracted installer payload, not a neighboring unpacked build. */
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
@@ -96,7 +97,15 @@ export async function verifyInstalledUpdatePackageContent(manifest: string, vers
     || JSON.stringify(runtime.files.map(file => file.path)) !== JSON.stringify(prepared.files.map(file => file.path))) {
     throw new Error('installed update: packaged runtime does not describe the prepared release')
   }
-  const actualFiles = inventoryDesktopRuntime(join(extracted, 'dsh'))
+  // The Office engine ships beside the archive, where Node's resolution from
+  // inside it can reach an ordinary file tree; those files still belong to the
+  // packaged runtime compared against the prepared release.
+  const besideArchive = join(payload, 'resources/node_modules')
+  const besideFiles = existsSync(besideArchive)
+    ? inventoryDesktopRuntime(besideArchive).map(file => ({ ...file, path: `node_modules/${file.path}` }))
+    : []
+  const actualFiles = [...inventoryDesktopRuntime(join(extracted, 'dsh')), ...besideFiles]
+    .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
   if (JSON.stringify(actualFiles.map(file => file.path)) !== JSON.stringify(prepared.files.map(file => file.path))) {
     throw new Error('installed update: packaged runtime file list differs from prepared inputs')
   }
@@ -117,9 +126,11 @@ export async function verifyInstalledUpdatePackageContent(manifest: string, vers
   return { version, appId: run.appId, applicationFiles: inventory.files.length, dependencies, dependenciesFrozen: false,
     runtimeFiles: runtime.files.length, feedUrl: `${run.origin}/${run.feedKey}`, installed: false,
     resignedExecutables: runtime.files.filter(file => file.path.endsWith('.exe')).map((file) => {
-      if (archive.getFile(join('dsh', file.path), false).unpacked !== true) {
+      const beside = besideFiles.some(entry => entry.path === file.path)
+      // A packed executable cannot carry an independently verified signature.
+      if (!beside && archive.getFile(join('dsh', file.path), false).unpacked !== true) {
         throw new Error('installed update: executable runtime file must be outside ASAR')
       }
-      return join(payload, 'resources/app.asar.unpacked/dsh', file.path)
+      return beside ? join(payload, 'resources', file.path) : join(payload, 'resources/app.asar.unpacked/dsh', file.path)
     }) }
 }

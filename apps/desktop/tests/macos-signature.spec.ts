@@ -41,17 +41,25 @@ describe('desktop macOS release signature', () => {
     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
     const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
     expect(portablePath(config.directories.output)).toContain('/.desktop-build/targets/mac-arm64/artifacts')
-    expect(config.extraResources).toHaveLength(2)
+    expect(config.extraResources).toHaveLength(3)
     expect(config.extraResources[0]?.to).toBe('runtime')
     expect(portablePath(config.extraResources[0]?.from ?? '')).toContain('/.desktop-build/targets/mac-arm64/runtime')
+    // The Office engine is a spawned native tree, so it ships beside the
+    // archive where Node's resolution from inside it reaches ordinary files.
+    const engine = config.extraResources[1]
+    expect(engine?.to).toBe('node_modules/@deepseek-ai')
+    expect(portablePath(engine?.from ?? '')).toContain('/.desktop-build/targets/mac-arm64/dsh/node_modules/@deepseek-ai')
+    expect(engine?.filter).toEqual(['libreoffice-kit-*/**'])
     const [dshFiles, dshNodeModules] = config.files.slice(-2)
     if (!dshFiles || !dshNodeModules || typeof dshFiles === 'string' || typeof dshNodeModules === 'string') {
       throw new Error('desktop DSH resources must use electron-builder file mappings')
     }
     expect(portablePath(dshFiles.from)).toContain('/.desktop-build/targets/mac-arm64/dsh')
     expect(dshFiles.to).toBe('dsh')
+    expect(dshFiles.filter).toEqual(['**/*', '!**/@deepseek-ai/libreoffice-kit-*/**'])
     expect(portablePath(dshNodeModules.from)).toContain('/.desktop-build/targets/mac-arm64/dsh/node_modules')
     expect(dshNodeModules.to).toBe('dsh/node_modules')
+    expect(dshNodeModules.filter).toEqual(['**/*', '!@deepseek-ai/libreoffice-kit-*/**'])
     expect(config.asarUnpack).toEqual(expect.arrayContaining([
       '**/*.{node,dylib,dll,so,exe}',
       '**/@vscode/ripgrep/bin/rg',
@@ -62,7 +70,8 @@ describe('desktop macOS release signature', () => {
         identity: RELEASE_ENVIRONMENT.DSH_DESKTOP_MACOS_SIGNING_IDENTITY,
         forceCodeSigning: true,
         notarize: true,
-        signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
+        signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)',
+          '/Contents/Resources/node_modules/@deepseek-ai(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
       },
       dmg: {
         sign: true,
@@ -83,6 +92,8 @@ describe('desktop macOS release signature', () => {
     const ignored = (path: string): boolean => config.mac.signIgnore.some(pattern => new RegExp(pattern).test(path))
     expect(ignored('/App.app/Contents/Frameworks/Electron.framework/Versions/A/Resources/en.lproj/locale.pak')).toBe(true)
     expect(ignored('/App.app/Contents/Frameworks/Electron.framework/Versions/A/Resources/resources.pak')).toBe(true)
+    // The beside-archive Office engine keeps the signatures runtime preparation applied.
+    expect(ignored('/App.app/Contents/Resources/node_modules/@deepseek-ai/libreoffice-kit-darwin-arm64/bin/libreoffice-kit')).toBe(true)
     for (const path of [
       '/App.app/Contents/Resources/runtime/node/node',
       '/App.app/Contents/Resources/runtime/pnpm/addon.node',

@@ -426,6 +426,10 @@ async function main(): Promise<void> {
       }
       return forwardWebRequest(request, hostUrl, hostCookie)
     }
+    // Shell-owned documents (update and mandatory-update dialogs) ship beside the
+    // application rather than in the Web dist the `app` host serves, and the
+    // preloads recognize them only under this scheme.
+    if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(), 'renderer'))
     return Promise.resolve(new Response(null, { status: 404 }))
   })
 

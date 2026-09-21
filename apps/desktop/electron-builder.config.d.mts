@@ -9,13 +9,14 @@ export interface DesktopElectronBuilderConfig {
     string,
     string,
     string,
-    { readonly from: string, readonly to: 'dsh', readonly filter: readonly ['**/*'] },
-    { readonly from: string, readonly to: 'dsh/node_modules', readonly filter: readonly ['**/*'] },
+    { readonly from: string, readonly to: 'dsh', readonly filter: readonly ['**/*', '!**/@deepseek-ai/libreoffice-kit-*/**'] },
+    { readonly from: string, readonly to: 'dsh/node_modules', readonly filter: readonly ['**/*', '!@deepseek-ai/libreoffice-kit-*/**'] },
   ]
   readonly extraMetadata: { readonly dshDesktopAppId: string }
   readonly asarUnpack: readonly string[]
   readonly extraResources: readonly [
     { readonly from: string, readonly to: 'runtime' },
+    { readonly from: string, readonly to: 'node_modules/@deepseek-ai', readonly filter: readonly ['libreoffice-kit-*/**'] },
     { readonly from: string, readonly to: 'icon.png' },
   ]
   readonly mac: {

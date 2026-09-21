@@ -69,6 +69,11 @@ async function fixture(body: (context: {
     const dsh = join(run.root, version, 'dsh')
     const descriptor = runtimeFixture(dsh, version)
     await writeFile(join(dsh, 'tool.exe'), 'inert executable fixture')
+    const engineRelative = join('node_modules/@deepseek-ai/libreoffice-kit-win32-x64')
+    const engine = join(dsh, engineRelative)
+    await mkdir(join(engine, 'program'), { recursive: true })
+    await writeFile(join(engine, 'package.json'), JSON.stringify({ name: '@deepseek-ai/libreoffice-kit-win32-x64', version: '0.0.1' }))
+    await writeFile(join(engine, 'program/soffice.exe'), 'inert engine executable fixture')
     const reseal = (directory: string): void => {
       writeDesktopRuntime(directory, descriptor.release, descriptor.sharedPackages.map(entry => entry.name), { platform: 'win32', arch: 'x64' })
     }
@@ -76,11 +81,24 @@ async function fixture(body: (context: {
     await cp(dsh, join(source, 'dsh'), { recursive: true })
     const payload = join(root, 'payload')
     await mkdir(join(payload, 'resources'), { recursive: true })
+    // The engine ships beside the archive, so the packaged runtime is the
+    // archive's tree plus this package, refreshed from the source tree.
+    const packagedEngine = join(payload, 'resources/node_modules/@deepseek-ai/libreoffice-kit-win32-x64')
+    const besideArchive = async (): Promise<void> => {
+      await rm(packagedEngine, { recursive: true, force: true })
+      await cp(join(source, 'dsh', engineRelative), packagedEngine, { recursive: true })
+    }
+    await besideArchive()
     await writeFile(join(payload, 'resources/app-update.yml'), JSON.stringify({ provider: 'generic', channel: 'nightly',
       url: `${run.origin}/${run.feedKey.slice(0, -'nightly.yml'.length)}`, publisherName: [publisher],
       updaterCacheDirName: `dsh-update-test-${run.id}-updater` }))
+    const archiveSource = join(root, 'archive-source')
     const seal = async () => {
-      await createPackageWithOptions(source, join(payload, 'resources/app.asar'), { unpack: '**/*.exe' })
+      await rm(archiveSource, { recursive: true, force: true })
+      await cp(source, archiveSource, { recursive: true })
+      await rm(join(archiveSource, 'dsh', engineRelative), { recursive: true })
+      await createPackageWithOptions(archiveSource, join(payload, 'resources/app.asar'), { unpack: '**/*.exe' })
+      await besideArchive()
     }
     await seal()
     await body({ manifest, source, payload, version, seal, resealRuntime: async () => {
@@ -95,7 +113,10 @@ describe('installed update archive contents', () => {
     await fixture(async ({ manifest, payload }) => {
       expect(await verifyInstalledUpdatePackageContent(manifest, version, payload, publisher)).toMatchObject({
         version, applicationFiles: 7, dependenciesFrozen: false, installed: false,
-        resignedExecutables: [join(payload, 'resources/app.asar.unpacked/dsh/tool.exe')],
+        resignedExecutables: [
+          join(payload, 'resources/node_modules/@deepseek-ai/libreoffice-kit-win32-x64/program/soffice.exe'),
+          join(payload, 'resources/app.asar.unpacked/dsh/tool.exe'),
+        ],
       })
     }, version)
   })
@@ -185,7 +206,23 @@ describe('installed update archive contents', () => {
       const executable = join(payload, 'resources/app.asar.unpacked/dsh/tool.exe')
       await writeFile(join(source, 'dsh/tool.exe'), 'inert changed executable, not a signature')
       await resealRuntime()
-      expect((await verifyInstalledUpdatePackageContent(manifest, version, payload, publisher)).resignedExecutables).toEqual([executable])
+      expect((await verifyInstalledUpdatePackageContent(manifest, version, payload, publisher)).resignedExecutables)
+        .toContain(executable)
+    })
+  })
+
+  it('rejects beside-archive runtime content that differs from the prepared release', async () => {
+    await fixture(async ({ manifest, payload, version }) => {
+      await writeFile(join(payload, 'resources/node_modules/@deepseek-ai/libreoffice-kit-win32-x64/package.json'), '{}')
+      await expect(verifyInstalledUpdatePackageContent(manifest, version, payload, publisher)).rejects.toThrow('runtime bytes differ')
+    })
+  })
+
+  it('rejects a packaged runtime missing its beside-archive package', async () => {
+    await fixture(async ({ manifest, payload, version }) => {
+      await rm(join(payload, 'resources/node_modules'), { recursive: true, force: true })
+      await expect(verifyInstalledUpdatePackageContent(manifest, version, payload, publisher))
+        .rejects.toThrow('packaged runtime file list differs')
     })
   })
 })
@@ -253,7 +290,8 @@ describe('installed update verification records', () => {
           extraction: 'extraction', content: 'payload-content', 'changed-input': 'unchanged-inputs' }[failure]
         expect(result.stage).toBe(stage)
         expect(external.archive).toHaveBeenCalledTimes(failure === 'signature' ? 0 : failure === 'unsafe-path' ? 1 : 2)
-        expect(external.signature).toHaveBeenCalledTimes(['success', 'changed-input'].includes(failure) ? 3 : 1)
+        // Installer, application executable, and each resigned runtime executable.
+        expect(external.signature).toHaveBeenCalledTimes(['success', 'changed-input'].includes(failure) ? 4 : 1)
         expect(await readFile(join(record, 'events.jsonl'), 'utf8')).toContain(`"stage":"${stage}"`)
       })
     })
