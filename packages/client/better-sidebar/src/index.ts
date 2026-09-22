@@ -556,6 +556,9 @@ function buildApi(
         if (error instanceof SettingsConflictError) {
           throw new SidebarError('settings-conflict', error.message, 409)
         }
+        // The settings face owns its own refusal status (503 for an entry no
+        // profile makes configurable); only a settings-seam failure maps here.
+        if (error instanceof SidebarError) throw error
         throw new SidebarError('settings-rejected', error instanceof Error ? error.message : String(error), 400)
       }
     },

@@ -139,6 +139,15 @@ describe('redactSecrets', () => {
     )
   })
 
+  it('fails closed when a reachable secret sits under the element schema of an unexpandable container', () => {
+    expect(() => redactSecrets({
+      type: 'lazy',
+      inner: { type: 'object', dict: { token: { type: 'string', meta: { role: 'secret' } } } },
+    } as never, { token: 'x' })).toThrow(
+      /cannot redact a value under schema node type "lazy"/,
+    )
+  })
+
   it('does not fail closed when an unexpandable container holds no value', () => {
     const WithUnion = z.object({ choice: z.union([z.object({ a: z.string() }), z.number()]) })
     const { value, secrets } = redactSecrets(WithUnion as z<never>, {})

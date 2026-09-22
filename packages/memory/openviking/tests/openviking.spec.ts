@@ -11,6 +11,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
 import { apply, Config, createPreInitSync, dedupeWarn, errorLabel, inject, name, probeHealth } from '../src/index.ts'
+import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
 
 describe('@deepseek-ai/dsh-openviking plugin surface', () => {
   it('exports the Cordis function-plugin namespace', () => {
@@ -85,6 +86,32 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     ;(ctx.emit as never as (event: string, ...args: unknown[]) => unknown)('agent/disposed', { agent })
     await fiber.dispose()
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('re-applies a committed live config change to the running client without remounting', async () => {
+    const ctx = new Context()
+    const tmp = await mkdtemp(join(tmpdir(), 'ov-live-'))
+    const stateFile = join(tmp, 'state.json')
+    try {
+      const routes: Array<{ handler(req: unknown, res: unknown): void }> = []
+      ctx.provide('webServer', { register: (route: (typeof routes)[number]) => { routes.push(route); return () => {} } } as never)
+      const live = await liveConfig(ctx, { Config, apply }, { endpoint: 'http://127.0.0.1:1', stateFile })
+      await expect.poll(() => routes.length).toBe(1)
+      const reportedEndpoint = async (): Promise<unknown> => {
+        const res = { writeHead: vi.fn(), end: vi.fn() }
+        routes[0]!.handler({ method: 'GET' }, res)
+        await expect.poll(() => res.end.mock.calls.length).toBe(1)
+        return (JSON.parse(String(res.end.mock.calls[0]![0])) as { endpoint: unknown }).endpoint
+      }
+      expect(await reportedEndpoint()).toBe('http://127.0.0.1:1')
+      const mounted = live.fiber
+      await live.update({ endpoint: 'http://127.0.0.1:9' })
+      expect(live.entry.fiber === mounted).toBe(true)
+      expect(await reportedEndpoint()).toBe('http://127.0.0.1:9')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(tmp, { recursive: true, force: true })
+    }
   })
 
   it('warns when the previous state file was quarantined', async () => {
