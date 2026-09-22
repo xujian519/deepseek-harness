@@ -9,7 +9,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
-import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { SessionId, type SessionId as SessionIdOf } from '@deepseek-ai/dsh-session/types'
 import { apply as hostApply } from '../src/index.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -116,10 +116,10 @@ describe('plugin lifecycle', () => {
     const ctx = new Context()
     await ctx.plugin(SlotRegistry).await()
     // The locale plugin requires the connection handle, the forwarded-event
-    // port, and the settings scope.
+    // port, and the configuration form transport.
     ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
     ctx.provide('remote', { $on: () => () => {} } as never)
-    ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+    ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
     ctx.provide('conversation', { setActiveView: () => true } as never)
     await ctx.plugin(TestSessions).await()
     const opened: SessionIdOf[] = []

@@ -1,16 +1,16 @@
 /**
  * Produced-file text reads over the session-scoped `workspaceFiles` Remote.
  *
- * The preview takes one bounded byte window: `readBytes` refuses a window wider
- * than the Host's configured cap and never fails for a large file, which is what
- * previewing a just-printed deliverable needs. Print takes the complete file
- * through `readAll`, which refuses a file above the Host's full-file cap instead
- * of returning a silently cut head. Both caps are the Host's `Config`, so this
- * plugin names neither.
+ * The preview takes one bounded byte window: `readBytes` with a range never
+ * fails for a large file, which is what previewing a just-printed deliverable
+ * needs. Print takes the complete file through `readBytes` without a range,
+ * which refuses a file above the Host's full-file cap instead of returning a
+ * silently cut head. Both caps are the Host's `Config`, so this plugin names
+ * neither.
  */
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { WorkspaceByteRange, WorkspaceFileBytes } from '@deepseek-ai/dsh-api-workspace-files/types'
+import type { WorkspaceByteReadOptions, WorkspaceFileBytes } from '@deepseek-ai/dsh-api-workspace-files/types'
 
 /** One read's text and whether it is the file's complete text. */
 export interface ReadFileText {
@@ -23,29 +23,20 @@ export interface ReadFileText {
 /** The slice of the Client Remote these reads call. */
 export interface WorkspaceFilesRemote {
   /**
-   * Read one byte window of a workspace file.
+   * Read one byte window of a workspace file, or its complete bytes when no
+   * range is given.
    * @param sessionId - the session whose workspace resolves `path`.
    * @param path - workspace path, absolute or relative to the workspace root.
-   * @param range - the window; an absent `length` means the Host's configured cap.
+   * @param options - the window; an absent `range` reads the complete file
+   * under the Host's full-file cap, and a range's absent `length` means the
+   * Host's configured window cap.
    * @param signal - cancels the call.
    * @returns the window, or the failure the Host declares.
    */
   readBytes(
     sessionId: SessionId,
     path: string,
-    range: WorkspaceByteRange,
-    signal?: AbortSignal,
-  ): Promise<RemoteResult<WorkspaceFileBytes>>
-  /**
-   * Read the complete bytes of a workspace file.
-   * @param sessionId - the session whose workspace resolves `path`.
-   * @param path - workspace path, absolute or relative to the workspace root.
-   * @param signal - cancels the call.
-   * @returns the complete bytes, or the failure the Host declares.
-   */
-  readAll(
-    sessionId: SessionId,
-    path: string,
+    options: WorkspaceByteReadOptions,
     signal?: AbortSignal,
   ): Promise<RemoteResult<WorkspaceFileBytes>>
 }
@@ -90,9 +81,7 @@ function sequenceBytes(lead: number): number {
  * @returns the decoded text and whether the window is the complete file.
  */
 export function decodeByteWindow(window: WorkspaceFileBytes): ReadFileText {
-  const binary = atob(window.data)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+  const bytes = window.data
   let end = bytes.length
   if (!window.eof) {
     // The window is a prefix cut at a byte boundary, so only its final sequence
@@ -133,12 +122,12 @@ export function createFileReads(
   }
   return {
     readFileText: async (path: string): Promise<ReadFileText> => {
-      const result = await remote.readBytes(sessionId, resolve(path), {})
+      const result = await remote.readBytes(sessionId, resolve(path), { range: {} })
       if (!result.ok) throw new Error(result.error.message)
       return decode(path, result.value)
     },
     readFileTextComplete: async (path: string): Promise<ReadFileText> => {
-      const result = await remote.readAll(sessionId, resolve(path))
+      const result = await remote.readBytes(sessionId, resolve(path), {})
       if (result.ok) return decode(path, result.value)
       // Above the Host's full-file cap the complete read is refused, which is
       // the studio's too-large state rather than an error line.

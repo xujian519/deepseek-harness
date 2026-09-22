@@ -7,10 +7,10 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import type { ReactNode } from 'react'
 import {
   CodeBlock,
-  IconCheckOutline16,
-  IconChevronRightOutline14,
-  IconCopyOutline16,
-  IconWrapLinesOutline16,
+  IconCheckOutlineRegular,
+  IconChevronRightOutlineRegular,
+  IconCopyOutlineRegular,
+  IconWrapLinesOutlineRegular,
   JsonTree,
   MarkdownText,
   writeClipboard,
@@ -139,7 +139,7 @@ function OverviewSection({
           onClick={onOpen}
         >
           <span>{label}</span>
-          <IconChevronRightOutline14 className={css.overviewTitleIcon} size={12} />
+          <IconChevronRightOutlineRegular className={css.overviewTitleIcon} size={12} />
         </button>
         {actions}
       </h3>
@@ -182,7 +182,7 @@ function InspectorCopyButton({ text, label, t }: {
       title={title}
       onClick={() => { void writeClipboard(text).then((ok) => { setState(ok ? 'copied' : 'failed') }) }}
     >
-      {state === 'copied' ? <IconCheckOutline16 size={12} /> : <IconCopyOutline16 size={12} />}
+      {state === 'copied' ? <IconCheckOutlineRegular size={12} /> : <IconCopyOutlineRegular size={12} />}
     </button>
   )
 }
@@ -221,7 +221,7 @@ function ProgramInput({ program, initialWrapped, stringWrapping, onOpen, t }: {
             stringWrapping?.setDefault(next)
           }}
         >
-          <IconWrapLinesOutline16 size={12} />
+          <IconWrapLinesOutlineRegular size={12} />
         </button>
       )}
       {onOpen === undefined && (
@@ -628,7 +628,7 @@ export function RecordInspector({
                           ? t('details.compacted')
                           : t('details.assistantMessage')}
                       </span>
-                      <IconChevronRightOutline14
+                      <IconChevronRightOutlineRegular
                         className={css.overviewHierarchyJumpIconTight}
                         size={11}
                       />
@@ -762,7 +762,7 @@ export function RecordInspector({
                       onClick={() => { onActivateTab('source') }}
                     >
                       <span>{messageSourceLabel(selected.cell.messageSource, t)}</span>
-                      <IconChevronRightOutline14
+                      <IconChevronRightOutlineRegular
                         className={css.overviewHierarchyJumpIconTight}
                         size={11}
                       />
@@ -787,7 +787,7 @@ export function RecordInspector({
                         }}
                       >
                         <span>{t('request.label', { request: selectedAssistantRequest ?? '—' })}</span>
-                        <IconChevronRightOutline14
+                        <IconChevronRightOutlineRegular
                           className={css.overviewHierarchyJumpIconTight}
                           size={11}
                         />
@@ -800,7 +800,7 @@ export function RecordInspector({
                         onClick={() => { onOpenRecordSummary(selectedParentMessage) }}
                       >
                         <span>{t('details.assistantMessage')}</span>
-                        <IconChevronRightOutline14
+                        <IconChevronRightOutlineRegular
                           className={css.overviewHierarchyJumpIconTight}
                           size={11}
                         />
@@ -813,7 +813,7 @@ export function RecordInspector({
                         onClick={() => { onOpenRecordSummary(selectedParentTool) }}
                       >
                         <span>{t('details.toolCall')}</span>
-                        <IconChevronRightOutline14
+                        <IconChevronRightOutlineRegular
                           className={css.overviewHierarchyJumpIconTight}
                           size={11}
                         />

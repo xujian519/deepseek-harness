@@ -631,6 +631,12 @@ describe('sendMessage', () => {
     const result = await h.ctx.patentTeams.sendMessage(alice, { to: 'captain', content: 'report' }, new AbortController().signal)
     expect(result.delivered).toBe('live')
     expect(steered).toHaveLength(1)
+    expect((steered[0] as { source: unknown }).source).toEqual({
+      kind: 'patent-teams-report',
+      form: 'relay',
+      from: 'alice',
+      senderSessionId: 'member-1',
+    })
     const unread = await readUnreadMailbox(join(h.workspace, h.stateDir), 'alpha', 'captain')
     expect(unread).toHaveLength(0)
   })

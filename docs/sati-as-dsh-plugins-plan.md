@@ -6,6 +6,7 @@
 - 文档副本：主副本 Sati `docs/sati-as-dsh-plugins-plan.md`；实施副本 deepseek-harness `docs/sati-as-dsh-plugins-plan.md`（2026-08-17 复制）
 - 上游调研：`deepseek-harness/docs/plugin-authoring.md`（插件契约）、`docs/architecture.md`（扩展点地图）、`docs/capability-seams.md`（能力接缝）、`docs/cookbook/adding-a-tool.md`（工具契约）、`docs/cordis-primer.md`（框架语义）、`packages/AGENTS.md`（包规则）、`packages/todo/tool-todo`（参考插件）
 - 前置文档：`deepseek-harness/docs/patent-mode-design.md`（专利模式预设设计，本计划的 preset 组装阶段复用其 §4–§9 内容）
+- 同步记录（2026-09-22，上游 v0.1.7-alpha.1）：P4.4 交付的 preset 目录（`apps/cli/config/agent-presets/patent/`，见 §12.8）随上游 preset 机制重构不再存在；其正本现为 `packages/bundle/web-app/presets/patent.patch.yml` 的 `dsh-agent-preset` 声明。§12.8 与 §13 为当日执行记录，按原样保留。
 
 ---
 

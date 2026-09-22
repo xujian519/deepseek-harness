@@ -63,8 +63,7 @@ function stateOf(
         : entry,
     ])),
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   } as unknown as SessionListState
 }
 

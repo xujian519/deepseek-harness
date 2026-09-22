@@ -1291,7 +1291,7 @@ describe('PythonPtcRuntime — programs and bindings', () => {
           cyclic.self = cyclic
           const error = new Error('placeholder')
           // Writable per spec, so no cast is needed to install a non-string.
-          ;(error as unknown as { message: unknown }).message = cyclic
+          ;(error as { message: unknown }).message = cyclic
           throw error
         },
       }),
@@ -1320,7 +1320,7 @@ describe('PythonPtcRuntime — programs and bindings', () => {
       bindings: tools({
         absent: async () => {
           const error = new Error('placeholder')
-          ;(error as unknown as { message: unknown }).message = undefined
+          ;(error as { message: unknown }).message = undefined
           throw error
         },
       }),

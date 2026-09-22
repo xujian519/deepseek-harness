@@ -67,7 +67,7 @@ function rawCall(seq: number, callId: string, name: string, argsRaw: string, tur
 function result(seq: number, callId: string, isError = false, turn = 1, meta?: unknown): SessionLiveEventEntry {
   return at(seq, 'tool/result', {
     turn, step: 1,
-    message: { source: { type: 'tool-result', callId }, content: [{ type: 'tool-result', content: [], isError }] },
+    message: { source: { kind: 'tool', callId }, content: [], isError },
     ...meta === undefined ? {} : { meta },
   })
 }

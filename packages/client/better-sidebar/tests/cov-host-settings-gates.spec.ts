@@ -2,49 +2,52 @@
  * Side-card settings and tool-gate coverage: a deployment whose settings
  * service carries no sidebar descriptor (schema defaults in effect), the
  * settings commit that re-evaluates both model-facing tool gates, the
- * terminal shell overrides read from a missing settings document, and the
- * `sidebar_open` preference fallback when the namespace resolves no value.
+ * terminal shell overrides read from a missing settings document, the
+ * `sidebar_open` preference fallback when the namespace resolves no value,
+ * and the entry the editor resolves no row for (nothing to read or write).
  */
 import { describe, expect, it } from 'vitest'
 import { apply } from '../src/index.ts'
+import { SIDEBAR_PREFS_DEFAULTS } from '../src/prefs-shared.ts'
 import type { SidebarWebRoute } from '../src/context-types.ts'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 interface Mounted {
   routes: SidebarWebRoute[]
   tools: ToolDefinition[]
-  /** Fire the registered settings watcher (one settings commit). */
-  commit(): void
+  /** One `settings/document-updated` commit for this entry. */
+  commit(ns?: string): void
   cleanup: () => void
 }
 
 /**
- * Mount the plugin with a settings service that registers the side-card
- * namespace but reports NO descriptor: `describe()` returns an empty
- * document set, exactly like a deployment whose settings document has not
- * been materialized yet.
+ * Mount the plugin with a settings service that knows the entry but reports
+ * NO descriptor: `describe()` returns an empty document set, exactly like a
+ * deployment whose settings document has not been materialized yet. The
+ * preferences themselves ride the entry's own volatile Config field.
+ * @param opts - gate inputs plus the editor/form variants under test.
+ * @param opts.rowless - report no configEditor row for this fiber, as when the
+ *   profile carries no entry the settings namespace can bind to.
+ * @param opts.form - form value the settings descriptor reports for the entry
+ *   namespace; absent reports no descriptor at all.
  */
-function mount(opts: { terminalTools: boolean; openTools: boolean }): Mounted {
+function mount(opts: { terminalTools: boolean; openTools: boolean; rowless?: boolean; form?: unknown }): Mounted {
   const routes: SidebarWebRoute[] = []
   const tools: ToolDefinition[] = []
   const cleanups: Array<() => void> = []
-  const watchers: Array<() => void> = []
+  const listeners: Array<(ns: string, revision: number) => void> = []
   const prefs = {
+    ...SIDEBAR_PREFS_DEFAULTS,
     agentTerminalTools: opts.terminalTools,
     agentOpenTools: opts.openTools,
     tabsEnabled: { editor: true, browser: true, terminal: true, git: true },
   }
   const settings = {
-    register: () => ({
-      get: () => prefs,
-      watch: (callback: () => void) => { watchers.push(callback); return () => {} },
-      update: async () => {},
-      replace: async () => {},
-    }),
-    describe: () => [],
+    describe: () => opts.form === undefined ? [] : [{ ns: 'better-sidebar', value: opts.form, revision: 7 }],
     update: async () => {},
   }
   const ctx = {
+    fiber: {},
     webRuntime: { trustedHosts: [] },
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
@@ -57,18 +60,34 @@ function mount(opts: { terminalTools: boolean; openTools: boolean }): Mounted {
       const cleanup = fn()
       if (typeof cleanup === 'function') cleanups.push(cleanup as () => void)
     },
-    inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
-      if (deps.includes('settings')) callback({ settings })
+    inject: (deps: readonly string[], callback: (sctx: {
+      settings: unknown
+      configEditor: unknown
+      on: (event: string, listener: (ns: string, revision: number) => void) => () => void
+    }) => void) => {
+      if (deps.includes('settings') && deps.includes('configEditor')) {
+        callback({
+          settings,
+          configEditor: {
+            entries: () => opts.rowless === true ? [] : [{ fiber: ctx.fiber, options: { id: 'better-sidebar' } }],
+          },
+          // The injected settings context owns the document feed: the plugin
+          // subscribes through it, not through the outer context.
+          on: (event, listener) => {
+            if (event === 'settings/document-updated') listeners.push(listener)
+            return () => {}
+          },
+        })
+      }
       return () => {}
     },
     get: () => undefined,
-    on: () => () => {},
   }
-  apply(ctx as never, undefined)
+  apply(ctx as never, { prefs: { get: () => prefs } })
   return {
     routes,
     tools,
-    commit: () => { for (const watcher of watchers) watcher() },
+    commit: (ns = 'better-sidebar') => { for (const listener of listeners) listener(ns, 1) },
     cleanup: () => { for (const cleanup of cleanups) cleanup() },
   }
 }
@@ -89,7 +108,11 @@ const exec = (sessionId: string): ToolRunContext =>
   ({ signal: { throwIfAborted: () => {}, aborted: false }, agent: { session: { id: sessionId } } }) as unknown as ToolRunContext
 
 /** POST one JSON payload to the /sidebar/api route. */
-async function invoke(route: SidebarWebRoute, method: string, payload: unknown): Promise<{ ok: boolean; value?: unknown }> {
+async function invoke(
+  route: SidebarWebRoute,
+  method: string,
+  payload: unknown,
+): Promise<{ status: number; ok: boolean; value?: unknown; error?: { code: string; message: string } }> {
   const out = { status: 0, body: '' }
   const req = {
     method: 'POST',
@@ -103,7 +126,7 @@ async function invoke(route: SidebarWebRoute, method: string, payload: unknown):
     end: (chunk?: string | Uint8Array) => { out.body += typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? '').toString('utf8') },
   }
   await route.handler(req, res)
-  return JSON.parse(out.body) as { ok: boolean; value?: unknown }
+  return { status: out.status, ...JSON.parse(out.body) as { ok: boolean; value?: unknown } }
 }
 
 describe('settings without a sidebar descriptor', () => {
@@ -141,6 +164,36 @@ describe('settings without a sidebar descriptor', () => {
       const opened = await toolOf(mounted, 'sidebar_open').execute({ target: '/tmp' }, exec('s1')) as { kind: string; delivered: boolean }
       expect(opened.kind).toBe('folder')
       expect(opened.delivered).toBe(false)
+    } finally {
+      mounted.cleanup()
+    }
+  })
+})
+
+describe('settings bound to no resolvable profile entry', () => {
+  it('reports no value, refuses the write, and ignores a commit for the unresolved namespace', async () => {
+    const mounted = mount({ terminalTools: true, openTools: true, rowless: true })
+    try {
+      const read = await invoke(routeOf(mounted, '/sidebar/api'), 'settings.get', {})
+      expect(read.value).toEqual({ value: undefined, revision: undefined, externalDisable: false })
+      const rejected = await invoke(routeOf(mounted, '/sidebar/api'), 'settings.update', { patch: { tabsEnabled: { editor: false } } })
+      expect(rejected).toMatchObject({ status: 503, ok: false, error: { code: 'settings-rejected' } })
+      // No settings document can reach this entry, so a commit carrying the
+      // namespace must not re-register the tools.
+      const registered = mounted.tools.length
+      mounted.commit()
+      expect(mounted.tools).toHaveLength(registered)
+    } finally {
+      mounted.cleanup()
+    }
+  })
+
+  it('reports no value when the form projection is not an object', async () => {
+    const mounted = mount({ terminalTools: true, openTools: false, form: 'not-a-document' })
+    try {
+      const read = await invoke(routeOf(mounted, '/sidebar/api'), 'settings.get', {})
+      // An undefined `value` is absent on the wire, so the client keeps the defaults.
+      expect(read.value).toEqual({ revision: 7, externalDisable: false })
     } finally {
       mounted.cleanup()
     }

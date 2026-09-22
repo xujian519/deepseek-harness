@@ -1,13 +1,10 @@
 /**
- * Plugin configuration: schema, validation, and the user-settings namespace.
+ * Plugin configuration: schema, live values, and endpoint validation.
  * @module @deepseek-ai/dsh-openviking/config
  */
 
+import type { Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
-
-/** Namespace key under which this plugin's settings live in the settings seam. */
-export const SETTINGS_NAMESPACE: SettingsNamespace = settingsNamespace('openviking')
 
 /** Configuration for the indexed-resources prompt contribution. */
 export interface RepoContextConfig {
@@ -47,28 +44,32 @@ export interface AutoCommitConfig {
   intervalMinutes: number
 }
 
-/** Resolved plugin configuration (schema defaults applied). */
+/**
+ * Plugin configuration resolved by the Loader. Every field is a stable
+ * reference, so a settings save reaches running consumers without a remount;
+ * read one with `.get()` at the point of use.
+ */
 export interface Config {
   /** OpenViking HTTP service base URL. */
-  endpoint: string
+  endpoint: Volatile<string>
   /** `X-API-Key` value; empty omits the header. */
-  apiKey: string
+  apiKey: Volatile<string>
   /** `X-OpenViking-Account` value; empty omits the header. */
-  account: string
+  account: Volatile<string>
   /** `X-OpenViking-User` value; empty omits the header. */
-  user: string
+  user: Volatile<string>
   /** `X-OpenViking-Agent` value; empty omits the header. */
-  agentId: string
+  agentId: Volatile<string>
   /** Per-request timeout in milliseconds (1000-300000). */
-  timeoutMs: number
+  timeoutMs: Volatile<number>
   /** Session-sync state file; `~` is expanded. */
-  stateFile: string
+  stateFile: Volatile<string>
   /** Indexed-repositories prompt contribution (enable + cache TTL). */
-  repoContext: RepoContextConfig
+  repoContext: Volatile<RepoContextConfig>
   /** Automatic pre-step recall (enable, scoring, and budget limits). */
-  autoRecall: AutoRecallConfig
+  autoRecall: Volatile<AutoRecallConfig>
   /** Session auto-commit (enable, turn cadence, and wall-clock fallback). */
-  autoCommit: AutoCommitConfig
+  autoCommit: Volatile<AutoCommitConfig>
 }
 
 const repoContextShape = z.object({
@@ -94,21 +95,22 @@ const autoCommitShape = z.object({
 })
 
 export const Config = z.object({
-  endpoint: z.string().default('http://localhost:1933'),
-  apiKey: z.string().default(''),
-  account: z.string().default(''),
-  user: z.string().default(''),
-  agentId: z.string().default('deepseek-harness'),
-  timeoutMs: z.number().min(1000).max(300000).default(30000),
-  stateFile: z.string().default('~/.dsh/openviking/state.json'),
-  repoContext: repoContextShape.default({} as RepoContextConfig),
-  autoRecall: autoRecallShape.default({} as AutoRecallConfig),
-  autoCommit: autoCommitShape.default({} as AutoCommitConfig),
+  endpoint: z.string().pattern(/^https?:\/\/\S+$/u).default('http://localhost:1933').volatile(),
+  apiKey: z.string().default('').volatile(),
+  account: z.string().default('').volatile(),
+  user: z.string().default('').volatile(),
+  agentId: z.string().default('deepseek-harness').volatile(),
+  timeoutMs: z.number().min(1000).max(300000).default(30000).volatile(),
+  stateFile: z.string().default('~/.dsh/openviking/state.json').volatile(),
+  repoContext: repoContextShape.default({}).volatile(),
+  autoRecall: autoRecallShape.default({}).volatile(),
+  autoCommit: autoCommitShape.default({}).volatile(),
 })
 
 /**
  * Reject an invalid endpoint at load time: a non-empty absolute http(s) URL.
- * Used both as the loader-time check and as the settings-seam validator.
+ * The schema pattern refuses the same mistake at a settings write; this check
+ * also covers the URL parse a pattern cannot express.
  * @param endpoint - the configured service base URL.
  * @throws when the endpoint is not an absolute http(s) URL.
  */

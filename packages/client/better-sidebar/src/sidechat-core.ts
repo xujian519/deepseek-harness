@@ -36,10 +36,21 @@ export const LABEL_MAX_CHARS = 48
  *  the two plugins' threads render consistently in either UI). */
 export const SIDE_BOUNDARY_PREFIX = 'Side conversation boundary'
 
-/** The plugin identity stamped on the source of context-injection messages
+/** The message-source kind stamped on the source of context-injection messages
  *  (boundary prompt + parked snapshot), so the transcript recognizes them
  *  structurally — not by text prefix. */
-export const SIDE_INJECTION_PLUGIN = 'dsh-better-sidebar'
+export const SIDE_INJECTION_KIND = 'sidechat'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** Context one side-chat thread's first contact delivers to its own agent.
+     * Readers without this producer retain the recorded content and every
+     * source property; rendering the boundary structurally stays producer-local.
+     * @persistenceAttribution
+     */
+    'sidechat': { kind: 'sidechat' }
+  }
+}
 
 /**
  * The boundary prompt delivered as the thread's first user message: the
@@ -465,9 +476,9 @@ export function threadTrailingPending(entries: readonly SidebarHistoryEntry[]): 
 
 /**
  * The agent preset a session actually runs: newest `agent-preset/selected`
- * event wins, else the creation header (mirror of the dsh-agent-presets
- * resolveSessionPreset helper — replicated here to avoid a host dependency
- * on that package).
+ * event wins, else the creation header (mirror of the host's `agentPreset`
+ * Session projection in `dsh-agent-preset-registry` — replicated here to
+ * avoid a host dependency on that package).
  * @param header - the session creation header.
  * @param events - the session log, oldest first.
  * @returns the newest recorded preset id, else the header's, else undefined.

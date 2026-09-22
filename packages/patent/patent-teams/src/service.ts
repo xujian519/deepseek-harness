@@ -91,13 +91,13 @@ function workspaceOf(agent: Agent): string {
 
 type ParticipantIdentity =
   | { kind: 'captain'; name: typeof CAPTAIN_KEY }
-  | { kind: 'member'; name: string }
+  | { kind: 'member'; name: string; sessionId: string }
 
 /** Re-derive a caller's role from fresh state while holding the team lock. */
 function participantIdentityOf(team: TeamState, agentId: string): ParticipantIdentity | undefined {
   if (team.captainSessionId === agentId) return { kind: 'captain', name: CAPTAIN_KEY }
   const member = team.members.find(candidate => candidate.id === agentId && candidate.status !== 'removed')
-  return member === undefined ? undefined : { kind: 'member', name: member.name }
+  return member === undefined ? undefined : { kind: 'member', name: member.name, sessionId: member.id }
 }
 
 /** Fresh state for a team that still exists; never falls back to stale lookup data. */
@@ -195,11 +195,16 @@ async function waitForMemberIdle(ctx: Context, member: TeamMember, signal: Abort
  * activity to `next-turn`. This prevents reports from waiting behind the
  * captain's entire orchestration turn.
  */
-function steerCaptainReport(captain: Pick<Agent, 'steer'>, from: string, content: string): boolean {
+function steerCaptainReport(
+  captain: Pick<Agent, 'steer'>,
+  from: string,
+  senderSessionId: string,
+  content: string,
+): boolean {
   try {
     captain.steer(createUserMessage({
       content: [{ type: 'text', text: `PatentTeams message from member ${from}:\n\n${content}` }],
-      source: { kind: 'plugin', plugin: 'dsh-patent-teams' },
+      source: { kind: 'patent-teams-report', form: 'relay', from, senderSessionId },
     }))
     return true
   } catch {
@@ -937,7 +942,7 @@ export class PatentTeamsService extends Service {
     if (prepared.kind === 'captain') {
       let delivered: 'live' | 'mailbox' = 'mailbox'
       if (captain !== undefined && prepared.identity.kind === 'member') {
-        delivered = steerCaptainReport(captain, prepared.from, args.content) ? 'live' : 'mailbox'
+        delivered = steerCaptainReport(captain, prepared.from, prepared.identity.sessionId, args.content) ? 'live' : 'mailbox'
       }
       if (delivered === 'live') {
         await withTeamLock(teamLockKey(stateRoot, prepared.fresh.id), () => (

@@ -2,17 +2,19 @@
  * Validate every agent-preset row's `config` against the `Config` schema of
  * the plugin that row names.
  *
- * `dsh-agent-presets` judges preset HEALTH by composition shape and by whether
- * each named package is installed (`discovery.ts`), and never applies a plugin
- * schema. A row whose config no longer matches its plugin therefore stays
- * healthy in the roster and fails only when the preset mounts, where the
- * loader rejects the whole composition:
+ * What a preset corpus gets checked for today is structure, not schemas:
+ * `dsh-agent-preset-registry` activates a declaration's child rows and reports
+ * a failure as a broken roster row, while `verify-runtime-closure` and
+ * `verify-default-product-isolation` check that each named package is
+ * installed. None of them applies a plugin's own `Config`. A row whose config
+ * no longer matches its plugin therefore fails only at activation, which
+ * rejects every later binding to that preset:
  * `failed to apply loader entry persona (@deepseek-ai/dsh-persona): invalid
  * config: $.prefix missing required value`. That is not hypothetical — the
  * 2026-09-06 system-prompt change split `dsh-persona`'s single `text` field
  * into `prefix`/`suffix`, and the stale spelling sat in shipped and authored
  * presets until a deployment failed. This gate applies the same schema the
- * loader applies, before mount.
+ * loader applies, before activation.
  *
  * Validation mirrors the runtime in three places, and each mirror matters:
  * the value under test comes from `exports.default ?? exports`, the way the
@@ -23,7 +25,8 @@
  * evaluates. Rows carrying a `!!js` expression are skipped rather than judged:
  * the loader interpolates that value against a live plugin context before the
  * schema sees it, so judging the parsed node would report a healthy preset as
- * broken — and a broken verdict makes a preset unselectable and uncopyable.
+ * broken — and a broken verdict reaches the chooser, where the preset carries
+ * a failed-to-load badge and cannot be selected as the default.
  *
  * What this proves is narrower than "the config is correct". schemastery
  * merges unknown keys instead of rejecting them, so a misspelled OPTIONAL key
@@ -34,31 +37,23 @@
  * reaching `node:sqlite` emits `ExperimentalWarning`). Those are not this
  * gate's signal; judge it by its exit code and its own report line.
  *
- * The repository preset root is scanned by default. The harness-home root is
- * scanned only with `--home`: it is machine state, and the documentation
- * aggregate that runs this gate in CI must pass on a clean tree.
+ * The corpus is the shipped preset declarations: every `*.patch.yml` under
+ * `packages/bundle/web-app/presets/`. A patch file inserts the rows it carries
+ * instead of listing them at the top level, and an agent-preset declaration
+ * holds its child composition under `config.plugins`, so the walk below follows
+ * both containers before it judges a row.
  */
 
-import { existsSync, globSync, readFileSync } from 'node:fs'
+import { globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { isCordisGroupEntry, isJsExpr, loadCordisYaml } from './cordis-yaml.ts'
+import { isAgentPresetEntry, isCordisGroupEntry, isJsExpr, loadCordisYaml } from './cordis-yaml.ts'
 import { SOURCE_EXTENSIONS, sourcePlaneResolver } from './source-plane.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
-/**
- * Harness-home directory holding locally authored presets.
- *
- * Spelled out rather than imported: `dsh-agent-presets` keeps
- * `USER_PRESET_DIR` package-internal on purpose, so no consumer outside that
- * package addresses the directory by name.
- */
-const USER_PRESET_DIR = '.agent-presets'
-
-/** Preset composition files inside the repository, relative to the root. */
-const SHIPPED_PRESET_GLOB = 'packages/preset/agent-presets/presets/*/agent.cordis.yml'
+/** Preset declaration files inside the repository, relative to the root. */
+const SHIPPED_PRESET_GLOB = 'packages/bundle/web-app/presets/*.patch.yml'
 
 /** Why a row's config is not judged. */
 export type SkipReason = 'disabled' | 'conditional' | 'external' | 'not-source' | 'import-failed' | 'no-config'
@@ -133,11 +128,12 @@ function rowDisabled(row: Record<string, unknown>): boolean {
 /**
  * Judge every row of one parsed composition against the schema its plugin
  * declares, recursing the row containers the loader recurses: a group's
- * `config` list, an `insert` list, and the `insert` lists of an
- * `@deepseek-ai/cordis-plugin-include` row's patches.
+ * `config` list, an `insert` list, and an agent-preset declaration's
+ * `config.plugins`.
  *
  * A group row's own `name` is never judged — `cordis:group` is a container,
- * not a plugin the loader resolves.
+ * not a plugin the loader resolves. An agent-preset declaration is judged like
+ * any other row, and the child composition it carries is judged beside it.
  * @param rows - the parsed composition, or any nested row list.
  * @param resolveRow - resolves one row's plugin specifier.
  * @returns the violations and the judged/skipped counts.
@@ -162,6 +158,11 @@ export async function findConfigViolations(
         await visit(row.config, positional)
         continue
       }
+      // A patch file adds its rows through an `insert` list, so the rows that
+      // matter sit one level below the file's top-level list.
+      if (Array.isArray(row.insert)) await visit(row.insert, positional)
+      // A declaration's `config.plugins` is the composition its Agents run.
+      if (isAgentPresetEntry(row)) await visit(row.config.plugins, positional)
       if (typeof row.name !== 'string' || row.name === '') continue
       if (rowDisabled(row)) {
         skipped.disabled += 1
@@ -214,6 +215,21 @@ function unwrapPlugin(module: Record<string, unknown>): Record<string, unknown> 
   if (value.__esModule !== true) return value
   const second: unknown = value.default ?? value
   return typeof second === 'object' && second !== null ? second as Record<string, unknown> : value
+}
+
+/**
+ * The standard-schema face a plugin's `Config` export carries, or undefined.
+ *
+ * A schemastery schema is a callable object, so both an object and a function
+ * can carry the face; anything else is a module that declares no usable schema.
+ * @param value - the plugin value's `Config` export, or any candidate.
+ * @returns the schema face, or undefined when the value carries none.
+ */
+export function pluginConfigSchema(value: unknown): ConfigSchema | undefined {
+  if ((typeof value !== 'object' && typeof value !== 'function') || value === null || !('~standard' in value)) {
+    return undefined
+  }
+  return value as ConfigSchema
 }
 
 /** Every workspace package name, mapped to its repository-relative directory. */
@@ -280,12 +296,9 @@ function workspaceResolver(): RowResolver {
       // plugin; this gate simply cannot read the schema from here.
       return { kind: 'skip', reason: 'import-failed' }
     }
-    const schema = unwrapPlugin(module).Config
-    // A schemastery schema is a callable object, so both shapes carry it.
-    if ((typeof schema !== 'object' && typeof schema !== 'function') || schema === null || !('~standard' in schema)) {
-      return { kind: 'skip', reason: 'no-config' }
-    }
-    return { kind: 'schema', schema: schema as ConfigSchema }
+    const schema = pluginConfigSchema(unwrapPlugin(module).Config)
+    if (schema === undefined) return { kind: 'skip', reason: 'no-config' }
+    return { kind: 'schema', schema }
   }
 }
 
@@ -305,13 +318,9 @@ export function lineOfRowId(source: string, id: string): number | undefined {
   return index === -1 ? undefined : index + 1
 }
 
-/** Every composition file to judge, with the label used in the report. */
-function compositionFiles(includeHome: boolean): string[] {
-  const files = globSync(SHIPPED_PRESET_GLOB, { cwd: root }).map(file => resolve(root, file))
-  if (!includeHome) return files
-  const homeRoot = dshHomePath(USER_PRESET_DIR)
-  if (!existsSync(homeRoot)) return files
-  return [...files, ...globSync('*/agent.cordis.yml', { cwd: homeRoot }).map(file => resolve(homeRoot, file))]
+/** Every declaration file to judge, in a stable order. */
+function compositionFiles(): string[] {
+  return globSync(SHIPPED_PRESET_GLOB, { cwd: root }).sort().map(file => resolve(root, file))
 }
 
 /**
@@ -333,23 +342,24 @@ export function assertNonEmptyCorpus(files: readonly string[]): void {
  * A preset whose rows are all conditional, external, or schema-less says
  * nothing about the repository — it says the resolver plane decided the
  * outcome, so reporting it as passing would hide a stale preset behind a gate
- * that judged nothing.
- * @param entries - one entry per composition, with its validated row count.
- * @returns the files whose validated count is zero.
+ * that judged nothing. A composition whose only judged row violated the
+ * schema is not unjudged: it said something, and that something is the
+ * violation the caller has to report.
+ * @param entries - one entry per composition, with its judged row count.
+ * @returns the files whose judged count is zero.
  */
 export function unjudgedCompositions(
-  entries: readonly { readonly file: string; readonly validated: number }[],
+  entries: readonly { readonly file: string; readonly judged: number }[],
 ): string[] {
-  return entries.filter(entry => entry.validated === 0).map(entry => entry.file)
+  return entries.filter(entry => entry.judged === 0).map(entry => entry.file)
 }
 
 /**
  * Judge every composition file, reporting violations and the counts that make
  * "no violations" distinguishable from "nothing judged".
- * @param includeHome - whether to also scan the harness-home preset root.
  * @returns violations with their source locations, and the corpus counts.
  */
-async function verify(includeHome: boolean): Promise<{
+async function verify(): Promise<{
   violations: string[]
   presets: number
   rows: number
@@ -357,11 +367,11 @@ async function verify(includeHome: boolean): Promise<{
   skipped: Record<SkipReason, number>
   unjudged: string[]
 }> {
-  const files = compositionFiles(includeHome)
+  const files = compositionFiles()
   assertNonEmptyCorpus(files)
   const resolveRow = workspaceResolver()
   const violations: string[] = []
-  const judged: { file: string; validated: number }[] = []
+  const judged: { file: string; judged: number }[] = []
   const skipped: Record<SkipReason, number> = {
     disabled: 0, conditional: 0, external: 0, 'not-source': 0, 'import-failed': 0, 'no-config': 0,
   }
@@ -374,7 +384,9 @@ async function verify(includeHome: boolean): Promise<{
     rows += countRows(document)
     validated += report.validated
     for (const reason of Object.keys(skipped) as SkipReason[]) skipped[reason] += report.skipped[reason]
-    if (!relative(root, file).startsWith('..')) judged.push({ file, validated: report.validated })
+    if (!relative(root, file).startsWith('..')) {
+      judged.push({ file, judged: report.validated + report.violations.length })
+    }
     for (const violation of report.violations) {
       const id = /^row "(.*)"$/.exec(violation.label)?.[1]
       const line = id === undefined ? undefined : lineOfRowId(source, id)
@@ -398,6 +410,8 @@ function countRows(value: unknown): number {
   if (typeof value !== 'object' || value === null) return 0
   const row = value as Record<string, unknown>
   if (isCordisGroupEntry(row)) return countRows(row.config)
+  if (isAgentPresetEntry(row)) return 1 + countRows(row.config.plugins)
+  if (Array.isArray(row.insert)) return countRows(row.insert)
   return typeof row.name === 'string' ? 1 : 0
 }
 
@@ -410,19 +424,22 @@ function skipSummary(skipped: Record<SkipReason, number>): string {
 }
 
 if (import.meta.main) {
-  const includeHome = process.argv.includes('--home')
-  const result = await verify(includeHome)
+  const result = await verify()
   // A preset whose every row was skipped means the resolver plane, not the
   // preset, decided the outcome; reporting success there would hide a stale
-  // preset behind a gate that judged nothing.
+  // preset behind a gate that judged nothing. Both findings print: a corpus
+  // can hold an unjudged preset and a violating row at once, and the person
+  // fixing the violations must not have to re-run the gate to see them.
   if (result.unjudged.length > 0) {
-    console.error('verify-agent-preset-config: no row was validated in:')
+    console.error('verify-agent-preset-config: no row was judged in:')
     for (const file of result.unjudged) console.error(`- ${file}`)
     console.error(`  skipped: ${skipSummary(result.skipped) || 'none'}`)
-    process.exitCode = 1
-  } else if (result.violations.length > 0) {
+  }
+  if (result.violations.length > 0) {
     console.error('verify-agent-preset-config: preset rows whose config the named plugin rejects:')
     for (const violation of result.violations) console.error(`- ${violation}`)
+  }
+  if (result.unjudged.length > 0 || result.violations.length > 0) {
     process.exitCode = 1
   } else {
     console.log(

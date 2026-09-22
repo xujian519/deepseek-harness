@@ -15,7 +15,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, w
 import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { apply } from '../src/index.ts'
-import { SIDEBAR_PREFS_NS } from '../src/config.ts'
+import { SIDEBAR_PREFS_DEFAULTS } from '../src/prefs-shared.ts'
 import { encodeHtmlUrl } from '../src/html-route.ts'
 import type { SidebarWebRoute, SidebarWebUpgradeRoute } from '../src/context-types.ts'
 import type { SidebarConfig } from '../src/index.ts'
@@ -34,18 +34,10 @@ function gitRun(cwd: string, args: string[]): string {
   return result.stdout
 }
 
-/** A settings service whose describe() exposes the given sidebar prefs. */
-function settingsService(prefs: Record<string, unknown> | undefined, updateImpl?: () => Promise<void>): unknown {
+/** A settings service whose describe() exposes the given entry form. */
+function settingsService(updateImpl?: () => Promise<void>): unknown {
   return {
-    register: () => ({
-      get: () => ({ agentTerminalTools: false, agentOpenTools: false, ...prefs }),
-      watch: () => () => {},
-      update: async () => {},
-      replace: async () => {},
-    }),
-    describe: () => prefs === undefined
-      ? []
-      : [{ ns: SIDEBAR_PREFS_NS, value: prefs, applies: 'live' as const, revision: 0 }],
+    describe: () => [{ ns: 'better-sidebar', value: { prefs: {} }, applies: 'live' as const, revision: 0 }],
     update: updateImpl ?? (async () => {}),
   }
 }
@@ -58,6 +50,7 @@ interface MountOptions {
   subagents?: unknown
   settings?: unknown
   config?: SidebarConfig
+  prefs?: Record<string, unknown>
 }
 
 interface Mounted {
@@ -72,6 +65,7 @@ function mount(opts: MountOptions = {}): Mounted {
   const upgrades: SidebarWebUpgradeRoute[] = []
   const cleanups: Array<() => void> = []
   const ctx = {
+    fiber: {},
     webRuntime: { trustedHosts: [] },
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
@@ -84,8 +78,18 @@ function mount(opts: MountOptions = {}): Mounted {
       const cleanup = fn()
       if (typeof cleanup === 'function') cleanups.push(cleanup as () => void)
     },
-    inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
-      if (deps.includes('settings') && opts.settings !== undefined) callback({ settings: opts.settings })
+    inject: (deps: readonly string[], callback: (sctx: {
+      settings: unknown
+      configEditor: unknown
+      on: (event: string, listener: (ns: string, revision: number) => void) => () => void
+    }) => void) => {
+      if (deps.includes('settings') && deps.includes('configEditor') && opts.settings !== undefined) {
+        callback({
+          settings: opts.settings,
+          configEditor: { entries: () => [{ fiber: ctx.fiber, options: { id: 'better-sidebar' } }] },
+          on: () => () => {},
+        })
+      }
       return () => {}
     },
     get: (key: string) =>
@@ -97,7 +101,9 @@ function mount(opts: MountOptions = {}): Mounted {
     // The jobs mirror subscribes to the session feed; a no-op keeps it inert.
     on: () => () => {},
   }
-  apply(ctx as never, opts.config)
+  // The "Side card" preferences ride the entry's own volatile Config field.
+  const prefs = { ...SIDEBAR_PREFS_DEFAULTS, ...opts.prefs }
+  apply(ctx as never, { ...opts.config, prefs: { get: () => prefs } })
   return {
     routes,
     upgrades,
@@ -229,7 +235,7 @@ describe('session cwd and workspace API edges', () => {
       data: { name: 'job_output', callId: 'c1', arguments: JSON.stringify({ job_id: 'bash-1' }) },
     }, {
       type: 'tool/result', seq: 1, time: 1,
-      data: { message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'tool-result', isError: false, content: [{ type: 'text', text: 'out' }] }] } },
+      data: { message: { source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: 'out' }], isError: false } },
     }]
     const jobsMounted = mount({
       sessions: id => id === 'jobby' ? { header: { cwd: workspace }, events } : undefined,
@@ -261,7 +267,7 @@ describe('session cwd and workspace API edges', () => {
 
   it('maps settings update failures to settings-rejected (Error and non-Error)', async () => {
     for (const thrown of [new Error('schema refused'), 'plain refusal']) {
-      const failing = mount({ settings: settingsService({}, async () => { throw thrown }) })
+      const failing = mount({ settings: settingsService(async () => { throw thrown }) })
       try {
         const result = await invoke(routeOf(failing, '/sidebar/api'), 'settings.update', { patch: {} })
         expect(result).toMatchObject({ ok: false, status: 400, error: { code: 'settings-rejected' } })
@@ -288,7 +294,7 @@ describe('session cwd and workspace API edges', () => {
 
   it('honors the loopback allowlist from the side card prefs', async () => {
     const allowed = mount({
-      settings: settingsService({ browserAllowedLoopback: 'localhost, 127.0.0.1:8443, MyHost' }),
+      prefs: { browserAllowedLoopback: 'localhost, 127.0.0.1:8443, MyHost' },
     })
     try {
       const probeApi = routeOf(allowed, '/sidebar/api')

@@ -475,33 +475,52 @@ export interface SidebarInvariantsService {
   ): () => void
 }
 
-/** The settings service face (mirror of @deepseek-ai/dsh-settings' SettingsProvider). */
+/**
+ * One profile entry's live Config form (mirror of @deepseek-ai/dsh-settings'
+ * SettingsDescriptor — only the slices the sidebar reads).
+ */
+export interface SidebarSettingsDescriptor {
+  /** Profile entry id (the settings namespace). */
+  ns: string
+  /** The entry's projected Config value (the form shape, e.g. `{ prefs: … }`). */
+  value?: unknown
+  /** Monotonic revision of the raw entry configuration this view was read at. */
+  revision: number
+}
+
+/**
+ * The settings service face (mirror of @deepseek-ai/dsh-settings'
+ * SettingsForms). Each plugin ENTRY's Config schema is projected into a form
+ * keyed by the entry's profile id; the sidebar's own "Side card" preferences
+ * are the volatile `prefs` field of its Config.
+ */
 export interface SidebarSettingsService {
+  /** Read every active entry's form (redacted: secrets never ride). */
+  describe(options?: { redactSecrets?: boolean }): SidebarSettingsDescriptor[]
   /**
-   * Register one namespace schema (the resolved value layers schema defaults,
-   * then the composition base, then the user document).
+   * Merge fields into one entry's config. The revision guard refuses a stale
+   * writer with SettingsConflictError; a rejected value throws.
    */
-  register<T>(
-    ns: string,
-    schema: unknown,
-    options?: { base?: Partial<T>; applies?: 'live' | 'restart' },
-  ): {
-    get(): T
-    watch(callback: (next: T, prev: T) => void | Promise<void>): () => void
-    update(patch: object): Promise<void>
-    replace(section: object): Promise<void>
-  }
-  /** Redacted descriptors of every registered namespace (secrets stripped). */
-  describe(options?: { redactSecrets?: boolean }): Array<{
-    ns: string
-    value?: unknown
-    base?: unknown
-    user?: unknown
-    applies: 'live' | 'restart'
-    revision: number
-  }>
-  /** Service-level merge write with the revision guard (a stale writer is refused). */
   update(ns: string, patch: object, expectedRevision?: number): Promise<void>
+}
+
+/** One profile plugin entry row as the configuration editor addresses it
+ *  (mirror of the Loader Entry slice + ConfigEditor.entries()). */
+export interface SidebarConfigEditorEntry {
+  /** The Loader fiber running the entry (identity with the plugin's `ctx.fiber`). */
+  fiber?: unknown
+  /** Entry options; `id` is the profile patch id (the settings namespace). */
+  options: { id?: string }
+}
+
+/**
+ * The configuration-editor face (mirror of @deepseek-ai/dsh-config-editor's
+ * ConfigEditor — only the row listing the sidebar resolves its own entry id
+ * through; the plugin never edits another entry).
+ */
+export interface SidebarConfigEditorService {
+  /** Addressable profile rows with unique patch ids. */
+  entries(): SidebarConfigEditorEntry[]
 }
 
 /**
@@ -547,8 +566,14 @@ export interface SidebarContextShape {
   slots: SidebarSlotsService
   /** The client workspaces service face (file-open funnel). */
   workspaces: SidebarWorkspacesService
-  /** The settings service face (prefs persistence + namespace reads). */
+  /** The settings service face (entry Config forms: describe + update). */
   settings: SidebarSettingsService
+  /**
+   * The configuration-editor face. The settings namespace is the profile ENTRY
+   * id, so the plugin resolves its own entry (by fiber identity) here instead
+   * of hardcoding an id string.
+   */
+  configEditor: SidebarConfigEditorService
   /** The invariant registry face. */
   invariants: SidebarInvariantsService
   /** The tool registry face. */
@@ -577,6 +602,14 @@ export interface SidebarContextShape {
    * {@link ./client/index.tsx}); undefined on the host side.
    */
   betterSidebar: BetterSidebarService
+  /**
+   * Settings form feed: one profile entry's form values, availability, or
+   * page policy changed; the listener receives the entry id and its new
+   * revision. Declared as its own string-keyed overload for the same reason
+   * as the session feed below (this plugin's program keys `on` to the
+   * vendored cordis Events map).
+   */
+  on(event: 'settings/document-updated', listener: (ns: string, revision: number) => void): () => void
   /**
    * String-keyed session feed subscribe (the vendored cordis `on` is keyed
    * to its typed Events map; the harness session feed is a plain string

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Logger } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 
 import { MemoryRecall } from '../src/memory-recall.ts'
 import { RepoContext } from '../src/repo-context.ts'
@@ -23,7 +24,14 @@ function agent(id = 'a1'): Agent {
 }
 
 function userMessage(text: string, _seq = 1): UserMessage {
-  return { content: [{ type: 'text', text }], source: { kind: 'user' } } as UserMessage
+  return createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+}
+
+// A non-user producer this spec uses to prove foreign messages are ignored.
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'recall-test': { kind: 'recall-test' }
+  }
 }
 
 const logger: Logger = { info: vi.fn(), warn: vi.fn() } as never
@@ -87,7 +95,7 @@ describe('MemoryRecall', () => {
     const { client, find } = mockClient()
     const recall = new MemoryRecall(client, recallConfig({ agentSpaces: false }), logger)
     await recall.prepareStep(agent(), 1, [userMessage('hi')], signal())
-    await recall.prepareStep(agent(), 1, [{ content: [{ type: 'text', text: 'ignored' }], source: { kind: 'plugin', plugin: 'x' } } as UserMessage], signal())
+    await recall.prepareStep(agent(), 1, [createUserMessage({ content: [{ type: 'text', text: 'ignored' }], source: { kind: 'recall-test' } })], signal())
     expect(find).not.toHaveBeenCalled()
   })
 

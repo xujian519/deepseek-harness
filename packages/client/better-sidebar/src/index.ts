@@ -19,10 +19,8 @@ import type { IncomingMessage } from 'node:http'
 import type { Context, SidebarHttpRequest, SidebarHttpResponse } from './context-types.ts'
 import {
   Config,
-  PrefsSchema,
   resolveSidebarConfig,
   SIDEBAR_PREFS_DEFAULTS,
-  SIDEBAR_PREFS_NS,
   type ResolvedSidebarConfig,
   type SidebarConfig,
   type SidebarPrefs,
@@ -38,7 +36,7 @@ import { isTrustedApiRequest, isLoopbackHostname } from './trust-fence.ts'
 import { registerBundleRoute } from './bundle-route.ts'
 import { launchExternal } from './open-external.ts'
 import * as git from './git.ts'
-import { SettingsConflictError, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsConflictError, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { defaultShell, ensureSpawnHelper, PtyManager, shellDisplayName } from './pty-manager.ts'
 import { AgentPtyRegistry, clampDims, type AgentTerminalHandle } from './agent-pty.ts'
 import {
@@ -267,11 +265,14 @@ async function readText(path: string, readLimit: number): Promise<{
 type ApiMethod = (payload: unknown) => unknown
 
 /**
- * The live face of the side card settings namespace, bound to the settings
- * service when it is mounted. The DSH settings RPC domain only serves
- * allowlisted namespaces (api-proxy exposedNamespaces), so the client reads
- * and writes THIS namespace through the plugin's own fenced /sidebar routes,
- * which call the seam in-process — no configuration-client gate involved.
+ * The live face of this plugin entry's settings form, bound to the settings
+ * service when it is mounted. The entry's Config carries the user-facing
+ * "Side card" preferences as its volatile `prefs` field, and the settings
+ * service projects that Config into a form keyed by the entry's profile id.
+ * The DSH settings RPC domain only serves allowlisted namespaces (api-proxy
+ * exposedNamespaces), so the client reads and writes THIS entry's form
+ * through the plugin's own fenced /sidebar routes, which call the seam
+ * in-process — no configuration-client gate involved.
  */
 export interface SidebarSettingsFace {
   /** The current resolved value + revision (undefined while the settings service is absent). */
@@ -290,24 +291,22 @@ export interface SidebarSettingsFace {
 
 /**
  * Build the API method table bound to the plugin context, pty manager, agent
- * pty registry, resolved config, and effective terminal shell.
+ * pty registry, resolved config, effective terminal shell, settings face, and
+ * the live "Side card" preferences reader.
  */
 /**
  * Resolve the settings-page terminal shell overrides (the terminal card's
- * gear rows). Empty fields mean "unset": keep the yaml `config.shell` /
- * `shellArgs` (or the platform auto-resolution). The settings page is the
- * runtime complement to the boot-time yaml — same contract, later binding:
- * the values here win for terminals opened afterwards.
+ * gear rows) from the CURRENT preferences. Empty fields mean "unset": keep the
+ * yaml `config.shell` / `shellArgs` (or the platform auto-resolution). The
+ * settings page is the runtime complement to the boot-time yaml — same
+ * contract, later binding: the values here win for terminals opened afterwards.
  */
 function shellOverridesOf(
-  getSettings: () => SidebarSettingsFace | undefined,
+  prefs: () => SidebarPrefs,
 ): { shell?: string | undefined; shellArgs?: string[] | undefined } {
-  const settings = getSettings()
-  const value = settings?.get().value
-  if (value === null || typeof value !== 'object') return {}
-  const record = value as Record<string, unknown>
-  const shell = typeof record.terminalShell === 'string' ? record.terminalShell.trim() : ''
-  const args = typeof record.terminalShellArgs === 'string' ? record.terminalShellArgs.trim() : ''
+  const { terminalShell, terminalShellArgs } = prefs()
+  const shell = terminalShell.trim()
+  const args = terminalShellArgs.trim()
   return {
     shell: shell === '' ? undefined : shell,
     shellArgs: args === '' ? undefined : args.split(/\s+/).filter(Boolean),
@@ -321,6 +320,7 @@ function buildApi(
   resolved: ResolvedSidebarConfig,
   terminalShell: string,
   getSettings: () => SidebarSettingsFace | undefined,
+  prefs: () => SidebarPrefs,
 ): Record<string, ApiMethod> {
   const cwdOf = async (payload: unknown): Promise<{ sessionId: string; cwd: string }> => {
     const sessionId = requireString(payload, 'sessionId')
@@ -556,6 +556,9 @@ function buildApi(
         if (error instanceof SettingsConflictError) {
           throw new SidebarError('settings-conflict', error.message, 409)
         }
+        // The settings face owns its own refusal status (503 for an entry no
+        // profile makes configurable); only a settings-seam failure maps here.
+        if (error instanceof SidebarError) throw error
         throw new SidebarError('settings-rejected', error instanceof Error ? error.message : String(error), 400)
       }
     },
@@ -580,8 +583,7 @@ function buildApi(
       // from the sidebar (unless the user allowlisted it), so probing it would
       // leak nothing the tab could use.
       if (isLoopbackHostname(parsed.hostname)) {
-        const prefs = getSettings()?.get().value as SidebarPrefs | undefined
-        const allowlist = typeof prefs?.browserAllowedLoopback === 'string' ? prefs.browserAllowedLoopback : ''
+        const allowlist = prefs().browserAllowedLoopback
         const allowed = allowlist.trim() !== ''
           && parseLoopbackAllowlist(allowlist)(parsed.hostname, parsed.port)
         if (!allowed) {
@@ -776,13 +778,21 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
   const agentOpenRegistry = new AgentOpenRegistry()
 
   // ── User-facing "Side card" preferences ──────────────────────────────────
-  // Register the namespace with the settings provider so the Settings page
-  // (client half) can render and persist the new-conversation defaults. The
-  // DSH settings RPC domain (api-proxy) only serves allowlisted namespaces to
-  // configuration clients, so the client reaches this namespace through the
-  // plugin's own fenced routes below ('settings.get'/'settings.update'),
-  // which call the seam in-process. Deployments without a settings service
-  // simply never fill the face and the client falls back to the defaults.
+  // The 27 "Side card" preferences are a VOLATILE field of this plugin
+  // entry's own Config (`prefs`, schema PrefsSchema in config.ts), so the
+  // settings page edits them in place and every reader below sees the same
+  // committed value (`config.prefs.get()`). The client half renders and
+  // persists them through the plugin's own fenced routes ('settings.get' /
+  // 'settings.update'), which call the settings seam in-process: the DSH
+  // settings RPC domain (api-proxy) only serves allowlisted namespaces to
+  // configuration clients. Deployments without a settings service keep
+  // working — the routes report undefined and the client keeps the schema
+  // defaults, while the gates below still honor `prefs` set from the profile
+  // patch.
+  const prefsOf = (): SidebarPrefs => config?.prefs?.get() ?? SIDEBAR_PREFS_DEFAULTS
+  // The live settings face, filled while the settings service AND the
+  // configuration editor are mounted (see the inject at the end of this
+  // section).
   let settingsFace: SidebarSettingsFace | undefined
   // The model-facing terminal tools are gated on the side-card setting
   // `agentTerminalTools` (default off): nothing is injected until the user
@@ -793,8 +803,8 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
   // syncOpenToolsGate below); separate disposer (no native deps, and turning
   // the feature off must not release user terminals).
   let openToolsDisposers: (() => void) | null = null
-  const syncToolsGate = (scope: { get(): SidebarPrefs }): void => {
-    if (scope.get().agentTerminalTools) {
+  const syncToolsGate = (): void => {
+    if (prefsOf().agentTerminalTools) {
       if (toolsDisposers === null) {
         // Degraded mode (node-pty unavailable): never register the terminal
         // tools — every one of them would fail at spawn time.
@@ -802,7 +812,10 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
         toolsDisposers = registerTools(
           ctx, agentPtyRegistry,
           sessionId => sessionCwdOf(ctx, sessionId),
-          () => shellOverridesOf(() => settingsFace),
+          // Read the live preferences per call: a settings commit updates the
+          // volatile snapshot in place, so the spawn overrides must not be
+          // captured at registration time.
+          () => shellOverridesOf(prefsOf),
         )
       }
     } else if (toolsDisposers !== null) {
@@ -814,26 +827,59 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
       agentPtyRegistry?.disposeAll()
     }
   }
-  ctx.inject(['settings'], (sctx) => {
-    const ns: SettingsNamespace = settingsNamespace(SIDEBAR_PREFS_NS)
-    // The structural settings mirror types `schema` as unknown, so the
-    // generic is not inferred here; the real service resolves it from the
-    // schemastery schema (PrefsSchema) — narrow the owner scope explicitly.
-    const scope = sctx.settings.register(ns, PrefsSchema) as {
-      get(): SidebarPrefs
-      watch(callback: (next: SidebarPrefs, prev: SidebarPrefs) => void): () => void
+  // The model-facing open tool is gated the same way on `agentOpenTools`
+  // (default off): nothing is injected until the user turns the feature
+  // on, and turning it off mid-session unregisters the tool and drops the
+  // queued (undelivered) open requests. Already-delivered opens keep their
+  // tabs — the tools' only lever is the queue, not the rendered state.
+  const syncOpenToolsGate = (): void => {
+    if (prefsOf().agentOpenTools) {
+      if (openToolsDisposers === null) {
+        openToolsDisposers = registerOpenTool(
+          ctx,
+          agentOpenRegistry,
+          sessionId => sessionCwdOf(ctx, sessionId),
+          prefsOf,
+        )
+      }
+    } else if (openToolsDisposers !== null) {
+      openToolsDisposers()
+      openToolsDisposers = null
+      agentOpenRegistry.drainAll()
     }
+  }
+  // Initial gate state from the entry's resolved Config (profile patch or
+  // cordis.patch.yml), so both model-facing surfaces obey the stored
+  // preferences even in a deployment without a settings service.
+  syncToolsGate()
+  syncOpenToolsGate()
+  // Bind this entry's settings FORM once the settings service and the
+  // configuration editor are mounted. The namespace is the entry's PROFILE ID,
+  // resolved through the editor's rows by fiber identity (never a hardcoded
+  // string), so the form the Settings page renders is exactly this entry's
+  // Config projection.
+  ctx.inject(['settings', 'configEditor'], (injected) => {
+    // The inject callback's ctx is the vendored cordis Context; the two
+    // service faces read below are restated structurally in context-types.ts.
+    const sctx = injected as Context
+    const row = sctx.configEditor.entries().find(candidate => candidate.fiber === ctx.fiber)
+    const ns = row?.options.id as SettingsNamespace | undefined
+    // describe()'s value is the entry's FORM projection — `{ prefs: { … } }`
+    // for this schema — so it is unwrapped back to the flat prefs object the
+    // client parses (the prefs wire contract is unchanged).
     const viewOf = (): { value?: unknown; revision?: number | undefined } => {
+      if (ns === undefined) return { value: undefined, revision: undefined }
       const descriptor = sctx.settings.describe({ redactSecrets: true }).find(candidate => candidate.ns === ns)
-      return descriptor === undefined
-        ? { value: undefined, revision: undefined }
-        : { value: descriptor.value, revision: descriptor.revision }
+      if (descriptor === undefined) return { value: undefined, revision: undefined }
+      const value = descriptor.value
+      const prefs = value !== null && typeof value === 'object' ? (value as { prefs?: unknown }).prefs : undefined
+      return { value: prefs, revision: descriptor.revision }
     }
     // Mutual exclusion with the dsh-web-ui family right panel: the aionui
     // panel's provider choice (`aionui-panel.rightPanel`) is the authority.
     // While it resolves to 'aionui-panel', this sidebar must not mount. The
-    // namespace is read through the settings seam like any other registered
-    // section; absent namespace (no aionui installed) = not disabled.
+    // entry is read through the settings seam like any other; an absent entry
+    // (no aionui installed) = not disabled.
     const externalDisable = (): boolean => {
       const descriptor = sctx.settings.describe({ redactSecrets: true })
         .find(candidate => candidate.ns === 'aionui-panel')
@@ -844,49 +890,39 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
       get: viewOf,
       externalDisable,
       update: async (patch, expectedRevision) => {
-        await sctx.settings.update(ns, patch, expectedRevision)
+        if (ns === undefined) {
+          throw new SidebarError('settings-rejected', 'this sidebar entry is not configurable in the active profile', 503)
+        }
+        // The preferences are ONE Config field: merge the (flat) patch into it
+        // so the sibling Config fields a deployment set survive the write.
+        await sctx.settings.update(ns, { prefs: patch }, expectedRevision)
         return viewOf()
       },
     }
-    // Register (or unregister) the terminal tools from the current setting,
-    // and keep them in sync with every settings commit.
-    syncToolsGate(scope)
-    // The model-facing open tool is gated the same way on `agentOpenTools`
-    // (default off): nothing is injected until the user turns the feature
-    // on, and turning it off mid-session unregisters the tool and drops the
-    // queued (undelivered) open requests. Already-delivered opens keep their
-    // tabs — the tools' only lever is the queue, not the rendered state.
-    const syncOpenToolsGate = (): void => {
-      if (scope.get().agentOpenTools) {
-        if (openToolsDisposers === null) {
-          openToolsDisposers = registerOpenTool(
-            ctx,
-            agentOpenRegistry,
-            sessionId => sessionCwdOf(ctx, sessionId),
-            () => {
-              const view = settingsFace?.get()
-              const value = view?.value
-              return value !== null && typeof value === 'object'
-                ? value as SidebarPrefs
-                : SIDEBAR_PREFS_DEFAULTS
-            },
-          )
-        }
-      } else if (openToolsDisposers !== null) {
-        openToolsDisposers()
-        openToolsDisposers = null
-        agentOpenRegistry.drainAll()
-      }
+    // ONE subscription drives both gates: this entry's form changed (settings
+    // commit, profile reload, or hot reload), so re-evaluate the terminal
+    // tools AND the open tool together. Each gate is idempotent and owns its
+    // own disposer; other entries' updates are ignored.
+    if (ns !== undefined) {
+      const ownNs: SettingsNamespace = ns
+      ctx.effect(() => {
+        const dispose: () => void = sctx.on('settings/document-updated', (updatedNs) => {
+          if (updatedNs !== ownNs) return
+          syncToolsGate()
+          syncOpenToolsGate()
+        })
+        return dispose
+      }, 'dsh-better-sidebar: side card preference gates')
     }
+    // The inject callback re-runs when either service is replaced: re-read the
+    // gates so a settings service appearing after apply still reflects the
+    // stored preferences.
+    syncToolsGate()
     syncOpenToolsGate()
-    // ONE watch subscription drives both gates: settings commits re-evaluate
-    // the terminal tools AND the open tool together (each gate is idempotent
-    // and owns its own disposer).
-    scope.watch(() => { syncToolsGate(scope); syncOpenToolsGate() })
   })
 
   // ── JSON API ────────────────────────────────────────────────────────────
-  const api = buildApi(ctx, ptyManager, agentPtyRegistry, resolved, terminalShell, () => settingsFace)
+  const api = buildApi(ctx, ptyManager, agentPtyRegistry, resolved, terminalShell, () => settingsFace, prefsOf)
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: '/sidebar/api',
@@ -1052,7 +1088,7 @@ export function apply(ctx: Context, config?: SidebarConfig): void {
     path: '/sidebar/ws/terminal',
     handler: (req) => {
       if (!fence(req)) return streamErrorResponse(403, { error: { code: 'forbidden', message: 'forbidden' } })
-      return attachTerminal(ctx, ptyManager, agentPtyRegistry, req, resolved, () => settingsFace)
+      return attachTerminal(ctx, ptyManager, agentPtyRegistry, req, resolved, prefsOf)
     },
   }), 'dsh-better-sidebar: terminal stream')
 
@@ -1274,10 +1310,10 @@ async function attachTerminal(
   agentPtyRegistry: AgentPtyRegistry | null,
   req: SidebarHttpRequest,
   resolved: ResolvedSidebarConfig,
-  getSettings: () => SidebarSettingsFace | undefined,
+  prefs: () => SidebarPrefs,
 ): Promise<Response> {
   try {
-    return await attachTerminalImpl(ctx, ptyManager, agentPtyRegistry, req, resolved, getSettings)
+    return await attachTerminalImpl(ctx, ptyManager, agentPtyRegistry, req, resolved, prefs)
   } catch (error) {
     // An unexpected resolution failure (e.g. sessionCwdOf rejecting a bad
     // cwd) answers the stream with a 500 instead of leaving the client
@@ -1292,7 +1328,7 @@ async function attachTerminalImpl(
   agentPtyRegistry: AgentPtyRegistry | null,
   req: SidebarHttpRequest,
   resolved: ResolvedSidebarConfig,
-  getSettings: () => SidebarSettingsFace | undefined,
+  prefs: () => SidebarPrefs,
 ): Promise<Response> {
   const url = new URL(req.url ?? '/', 'http://dsh.internal')
   const uuid = url.searchParams.get('uuid')
@@ -1323,7 +1359,7 @@ async function attachTerminalImpl(
   const cwd = await sessionCwdOf(ctx, sessionId, url.searchParams.get('cwd') ?? undefined)
   // Settings-page shell overrides win over the yaml/auto shell for
   // terminals opened from now on (existing pty handles keep their shell).
-  const overrides = shellOverridesOf(getSettings)
+  const overrides = shellOverridesOf(prefs)
   const handle = ptyManager.open(sessionId, tabId, cwd, 80, 24, overrides.shell, overrides.shellArgs)
   const { transport, response } = openStreamTransport(req, 'text/plain; charset=utf-8')
   // Replay the transcript, then follow live output.

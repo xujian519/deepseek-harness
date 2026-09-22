@@ -6,7 +6,7 @@
  */
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { WorkspaceFileBytes } from '@deepseek-ai/dsh-api-workspace-files/types'
+import type { WorkspaceByteReadOptions, WorkspaceFileBytes } from '@deepseek-ai/dsh-api-workspace-files/types'
 import { describe, expect, it, vi } from 'vitest'
 import { createFileReads, decodeByteWindow } from '../src/client/file-reads.ts'
 import type { WorkspaceFilesRemote } from '../src/client/file-reads.ts'
@@ -20,7 +20,7 @@ function byteWindow(bytes: readonly number[], eof: boolean): WorkspaceFileBytes 
     version: 'v1',
     bytes: bytes.length,
     offset: 0,
-    data: btoa(String.fromCharCode(...bytes)),
+    data: new Uint8Array(bytes),
     eof,
   }
 }
@@ -30,14 +30,16 @@ function hostFailure(code: string, message: string): RemoteResult<never> {
   return { ok: false, error: { code, message } } as unknown as RemoteResult<never>
 }
 
-/** A scripted Remote face whose two reads answer with the given results. */
+/** A scripted Remote face whose one read answers by call shape: a ranged request gets the window, an absent range the complete result. */
 function remoteFace(
-  bytes: RemoteResult<WorkspaceFileBytes>,
-  all: RemoteResult<WorkspaceFileBytes> = bytes,
-): { remote: WorkspaceFilesRemote; readBytes: ReturnType<typeof vi.fn>; readAll: ReturnType<typeof vi.fn> } {
-  const readBytes = vi.fn(() => Promise.resolve(bytes))
-  const readAll = vi.fn(() => Promise.resolve(all))
-  return { remote: { readBytes, readAll }, readBytes, readAll }
+  window: RemoteResult<WorkspaceFileBytes>,
+  complete: RemoteResult<WorkspaceFileBytes> = window,
+): { remote: WorkspaceFilesRemote; readBytes: ReturnType<typeof vi.fn> } {
+  const readBytes = vi.fn(
+    (_sessionId: SessionId, _path: string, options: WorkspaceByteReadOptions) =>
+      Promise.resolve(options.range === undefined ? complete : window),
+  )
+  return { remote: { readBytes }, readBytes }
 }
 
 const resolve = (path: string): string => `/w/${path}`
@@ -63,12 +65,12 @@ describe('decodeByteWindow', () => {
 
 describe('createFileReads', () => {
   it('reads the preview window through the host cap and reports truncation', async () => {
-    const { remote, readBytes, readAll } = remoteFace({ ok: true, value: byteWindow([0x68, 0x69], false) })
+    const { remote, readBytes } = remoteFace({ ok: true, value: byteWindow([0x68, 0x69], false) })
     const reads = createFileReads(remote, SESSION, resolve)
     await expect(reads.readFileText('out/index.html')).resolves.toEqual({ content: 'hi', truncated: true })
     // No window length travels: the Host's configured cap is the budget.
-    expect(readBytes).toHaveBeenCalledWith(SESSION, '/w/out/index.html', {})
-    expect(readAll).not.toHaveBeenCalled()
+    expect(readBytes).toHaveBeenCalledWith(SESSION, '/w/out/index.html', { range: {} })
+    expect(readBytes).toHaveBeenCalledTimes(1)
   })
 
   it('reports a window failure with the host message', async () => {
@@ -84,11 +86,12 @@ describe('createFileReads', () => {
   })
 
   it('reads the complete file for print', async () => {
-    const { remote, readBytes, readAll } = remoteFace({ ok: true, value: byteWindow([0x46, 0x55, 0x4c, 0x4c], true) })
+    const { remote, readBytes } = remoteFace({ ok: true, value: byteWindow([0x46, 0x55, 0x4c, 0x4c], true) })
     const reads = createFileReads(remote, SESSION, resolve)
     await expect(reads.readFileTextComplete('out/index.html')).resolves.toEqual({ content: 'FULL', truncated: false })
-    expect(readAll).toHaveBeenCalledWith(SESSION, '/w/out/index.html')
-    expect(readBytes).not.toHaveBeenCalled()
+    // An absent range is the complete read: one call, no window request.
+    expect(readBytes).toHaveBeenCalledWith(SESSION, '/w/out/index.html', {})
+    expect(readBytes).toHaveBeenCalledTimes(1)
   })
 
   it('reports the full-file cap refusal as the studio too-large state', async () => {

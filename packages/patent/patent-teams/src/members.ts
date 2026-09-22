@@ -405,8 +405,8 @@ export function installRetiredMemberGuard(ctx: Context, stateDir: string): void 
 
 /**
  * Snapshot each direct continuable child's real driver activity under the
- * captain's session. `listChildren().activity` is only session residency, so
- * live children are refined through the Agent registry exactly like Harness's
+ * captain's session. The catalog reports session residency only, so live
+ * children are refined through the Agent registry exactly like Harness's
  * shipped `list_agents` tool.
  * @param ctx - the plugin context (injects `subagents`).
  * @param captainSessionId - the captain's session id.
@@ -419,7 +419,6 @@ export async function memberActivity(
   const entries = await ctx.subagents.listChildren(brandedSessionId(captainSessionId))
   const activity = new Map<string, 'running' | 'idle' | 'ready'>()
   for (const entry of entries) {
-    if (entry.kind !== 'child') continue
     const live = ctx.get('agents')?.get(entry.id)
     activity.set(entry.id, live === undefined ? 'ready' : live.status)
   }

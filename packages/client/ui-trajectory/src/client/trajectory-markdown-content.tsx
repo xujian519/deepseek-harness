@@ -4,7 +4,7 @@
  */
 
 import { useMemo } from 'react'
-import { IconChevronRightOutline14, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronRightOutlineRegular, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TrajectorySourceBlock } from './trajectory-record.ts'
@@ -69,7 +69,7 @@ function SourceBlocks({
                 <span className={css.sourceBlockLabel}>
                   {t('block.label', { index: index + 1, type: block.type })}
                 </span>
-                <IconChevronRightOutline14 className={css.sourceBlockJumpIcon} size={12} />
+                <IconChevronRightOutlineRegular className={css.sourceBlockJumpIcon} size={12} />
               </button>
             )
             : (
@@ -226,7 +226,7 @@ export function MarkdownRecordContent({
             onClick={() => { onThinkingExpandedChange(!thinkingExpanded) }}
           >
             {t('record.thinking')}
-            <IconChevronRightOutline14 className={css.thinkingChevron} size={12} />
+            <IconChevronRightOutlineRegular className={css.thinkingChevron} size={12} />
           </button>
           {thinkingExpanded && (
             <MarkdownFragment

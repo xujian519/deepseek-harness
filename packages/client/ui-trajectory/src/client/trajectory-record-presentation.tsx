@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { IconCodeOutline16, JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCodeOutlineRegular, JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TrajectoryCellProps } from './trajectory-record.ts'
 import { trajectoryPreviewText } from './trajectory-preview.ts'
@@ -221,7 +221,7 @@ export function RecordListText({
   return (
     <>
       <span className={css.toolCallNameTypeface}>
-        {toolCallText.program && <IconCodeOutline16 className={css.programIcon} size={12} />}
+        {toolCallText.program && <IconCodeOutlineRegular className={css.programIcon} size={12} />}
         {toolCallText.name || '—'}
       </span>
       {toolCallText.args !== undefined && (

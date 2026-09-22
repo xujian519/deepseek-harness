@@ -122,7 +122,7 @@ const pwshCoverageExclusions = spawnSync(resolvePwshPath(), ['-NoLogo', '-NoProf
 
 const testIncludes = [
   'packages/*/*/tests/**/*.spec.{ts,tsx}',
-  'apps/*/tests/**/*.spec.ts',
+  'apps/*/tests/**/*.spec.{ts,tsx}',
   'scripts/**/*.spec.ts',
   'website/tests/**/*.spec.ts',
 ]
@@ -244,6 +244,9 @@ export default defineConfig({
         // The document studio: bundle-spec coverage cannot map the eval'd
         // artifact back to src in the jsdom lane (same as ui-trajectory).
         'packages/client/ui-document-studio/src/*',
+        // Electron guest integration retains its unit specs; per-file coverage
+        // is deferred until a native Electron harness covers guest behavior.
+        'packages/client/ui-sidebar-browser/src/client/electron/**',
         // Trajectory's compact Markdown projection retains deferred branch coverage.
         'packages/client/ui-primitives/src/markdown/plain-text.ts',
         'packages/client/ui-user-questions/src/client/QuestionComposer.tsx',
@@ -325,6 +328,9 @@ export default defineConfig({
         // The Team browser entry binds its source-covered mount lifecycle to
         // the generated Team Remote contribution, which likewise exists only in lib.
         'packages/experimental/client-ui-agent-team/src/client/index.ts',
+        // The speech entry also imports generated Remote definitions; voice-input.e2e.ts
+        // exercises the built entry, while source tests cover mountVoiceInput.
+        'packages/experimental/client-ui-voice-input/src/client/index.ts',
         // Slash/command/input round: per-file gaps deferred with the same
         // client-lane debt. TODO(gui): cover and remove with the lane above.
         'packages/client/ui-commands/src/index.ts',

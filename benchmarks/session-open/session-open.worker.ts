@@ -4,7 +4,7 @@ import { performance } from 'node:perf_hooks'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop, { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
 import SessionStore, {
   interruptedTurnClosers,
   SessionId,

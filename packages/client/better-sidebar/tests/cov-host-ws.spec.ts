@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../src/index.ts'
-import { SIDEBAR_PREFS_NS } from '../src/config.ts'
+import { SIDEBAR_PREFS_DEFAULTS } from '../src/prefs-shared.ts'
 import { PTY_DEPS_MISSING } from '../src/pty-deps.ts'
 import { loadNodePty, resetNodePtyCache } from '../src/pty-deps.ts'
 import type { SidebarHttpRequest, SidebarWebStreamingRoute } from '../src/context-types.ts'
@@ -35,21 +35,11 @@ async function until(poll: () => boolean | Promise<boolean>, timeoutMs = 8000): 
   throw new Error('condition not reached before the deadline')
 }
 
-/** A settings service with a mutable prefs object and a captured watcher. */
-function settingsService(prefs: Record<string, unknown>) {
-  const watchers: Array<() => void> = []
+/** A settings service carrying the entry's settings form. */
+function settingsService() {
   return {
-    watchers,
-    service: {
-      register: () => ({
-        get: () => ({ agentTerminalTools: false, agentOpenTools: false, ...prefs }),
-        watch: (callback: () => void) => { watchers.push(callback); return () => {} },
-        update: async () => {},
-        replace: async () => {},
-      }),
-      describe: () => [{ ns: SIDEBAR_PREFS_NS, value: { tabsEnabled: {}, viewersEnabled: {}, ...prefs }, applies: 'live' as const, revision: 0 }],
-      update: async () => {},
-    },
+    describe: () => [{ ns: 'better-sidebar', value: { prefs: {} }, applies: 'live' as const, revision: 0 }],
+    update: async () => {},
   }
 }
 
@@ -73,8 +63,9 @@ function mountUpgrades(opts: MountOptions = {}): Mounted {
   const streams: SidebarWebStreamingRoute[] = []
   const tools: ToolDefinition[] = []
   const cleanups: Array<() => void> = []
-  const settings = settingsService(opts.prefs ?? {})
+  const settings = settingsService()
   const ctx = {
+    fiber: {},
     webRuntime: { trustedHosts: ['127.0.0.1'] },
     webServer: {
       register: () => () => {},
@@ -87,15 +78,27 @@ function mountUpgrades(opts: MountOptions = {}): Mounted {
       const cleanup = fn()
       if (typeof cleanup === 'function') cleanups.push(cleanup as () => void)
     },
-    inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
-      if (deps.includes('settings')) callback({ settings: settings.service })
+    inject: (deps: readonly string[], callback: (sctx: {
+      settings: unknown
+      configEditor: unknown
+      on: (event: string, listener: (ns: string, revision: number) => void) => () => void
+    }) => void) => {
+      if (deps.includes('settings') && deps.includes('configEditor')) {
+        callback({
+          settings,
+          configEditor: { entries: () => [{ fiber: ctx.fiber, options: { id: 'better-sidebar' } }] },
+          // The injected settings context owns the document feed; a no-op
+          // keeps the gate subscription inert here.
+          on: () => () => {},
+        })
+      }
       return () => {}
     },
     get: () => undefined,
-    on: () => () => {},
   }
   const workspace = opts.workspace ?? mkdtempSync(join(tmpdir(), 'dsh-sidebar-ws-'))
-  apply(ctx as never, opts.config)
+  const prefs = { ...SIDEBAR_PREFS_DEFAULTS, ...opts.prefs }
+  apply(ctx as never, { ...opts.config, prefs: { get: () => prefs } })
   return {
     streams,
     tools,

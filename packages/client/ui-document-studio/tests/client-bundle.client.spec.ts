@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -97,7 +97,7 @@ describe('tsdown client artifact', () => {
     ctx.provide('remote', { $on: () => () => {}, session: remoteSession, workspaceFiles: remoteWorkspaceFiles } as never)
     ctx.provide('remote.session', remoteSession as never)
     ctx.provide('remote.workspaceFiles', remoteWorkspaceFiles as never)
-    ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+    ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
     const locale = await import('@deepseek-ai/dsh-client-locale/client')
     ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
     const fiber = ctx.plugin(exports)
@@ -182,7 +182,7 @@ describe('tsdown client artifact', () => {
       ctx.provide('remote', { $on: () => () => {}, session: remoteSession, workspaceFiles: remoteWorkspaceFiles } as never)
       ctx.provide('remote.session', remoteSession as never)
       ctx.provide('remote.workspaceFiles', remoteWorkspaceFiles as never)
-      ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+      ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
       const locale = await import('@deepseek-ai/dsh-client-locale/client')
       ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
       const fiber = ctx.plugin(exports)

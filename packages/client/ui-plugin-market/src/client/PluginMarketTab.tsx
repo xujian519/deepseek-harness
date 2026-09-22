@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  IconSearchOutline16,
+  IconSearchOutlineRegular,
   LoadFailure,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
@@ -152,7 +152,7 @@ export function PluginMarketTab({ t, listSources, search, preview }: PluginMarke
             <h3 className={css.blockTitle}>{t('search')}</h3>
             <div className={css.searchRow}>
               <label className={css.field}>
-                <IconSearchOutline16 aria-hidden="true" />
+                <IconSearchOutlineRegular aria-hidden="true" />
                 <span className={css.visuallyHidden}>{t('search')}</span>
                 <input
                   type="search"

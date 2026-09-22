@@ -19,7 +19,7 @@ import {
   threadHasCompletedTurn,
   threadTrailingPending,
   SIDE_BOUNDARY_PROMPT,
-  SIDE_INJECTION_PLUGIN,
+  SIDE_INJECTION_KIND,
   SIDE_LABEL_PREFIX,
   type SeedEvent,
 } from '../src/sidechat-core.ts'
@@ -53,7 +53,8 @@ function completedTurn(seq: number, turn: number, over: {
       step: 1,
       message: {
         source: { kind: 'tool', callId: tool.callId },
-        content: [{ type: 'tool-result', toolCallId: tool.callId, isError: false, content: [{ type: 'text', text: tool.result ?? 'ok' }] }],
+        toolCallId: tool.callId,
+        content: [{ type: 'text', text: tool.result ?? 'ok' }],
       },
     }))
   }
@@ -108,7 +109,8 @@ describe('buildSidechatInheritance', () => {
         step: 1,
         message: {
           source: { kind: 'tool', callId: 'c1' },
-          content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'ok' }] }],
+          toolCallId: 'c1',
+          content: [{ type: 'text', text: 'ok' }],
         },
       }),
       ev('assistant/message', 5, { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'a' }] } }),
@@ -163,7 +165,8 @@ describe('buildSidechatInheritance', () => {
         step: 1,
         message: {
           source: { kind: 'tool', callId: 'c1' },
-          content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'hit' }] }],
+          toolCallId: 'c1',
+          content: [{ type: 'text', text: 'hit' }],
         },
       }),
       ev('assistant/chunk', 5, { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'found ' } }),
@@ -231,7 +234,8 @@ describe('buildOpenTurnSnapshot', () => {
         step: 1,
         message: {
           source: { kind: 'tool', callId: 'c1' },
-          content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'file body' }] }],
+          toolCallId: 'c1',
+          content: [{ type: 'text', text: 'file body' }],
         },
       }),
       ev('tool/call', 7, { turn: 1, step: 1, callId: 'c2', name: 'bash', arguments: '{"cmd":"long"}' }),
@@ -336,10 +340,10 @@ describe('boundaryDelivered', () => {
 })
 
 describe('isContextInjectionMessage', () => {
-  it('recognizes plugin-stamped sources structurally', () => {
+  it('recognizes kind-stamped sources structurally', () => {
     expect(isContextInjectionMessage({
       content: [{ type: 'text', text: 'runtime context' }],
-      source: { kind: 'plugin', plugin: SIDE_INJECTION_PLUGIN },
+      source: { kind: SIDE_INJECTION_KIND },
     })).toBe(true)
     expect(isContextInjectionMessage({
       content: [{ type: 'text', text: 'q' }],

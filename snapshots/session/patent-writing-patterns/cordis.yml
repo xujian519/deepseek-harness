@@ -3,7 +3,7 @@
 # plugin validates at load time, the query_writing_patterns tool, the
 # <writing_skills> section it injects, and the schema the model receives. The
 # shipped `patent` agent preset owns this row for real sessions, but a preset is
-# agent-plane and only `dsh-agent-presets` can mount one, which the headless
+# agent-plane and only `dsh-agent-preset-registry` can mount one, which the headless
 # profile does not run.
 #
 # The recorded session deliberately never calls `query_writing_patterns`: the

@@ -117,6 +117,7 @@ export function adoptSessionEvent<T extends SessionEvent>(event: T): T {
     case 'user/message':
       deepFreeze(event.data)
       break
+    case 'developer/message':
     case 'system/message':
     case 'assistant/message':
     case 'tool/result':
@@ -175,11 +176,12 @@ export function assertSessionEventEnvelope(value: unknown, index: number): asser
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
   }
   validateSessionEventData(event as SessionEvent, `seed ${type} at index ${index}`)
-  // Only these six types carry the request/message envelope `assertCurrentLlmShape`
+  // Only these seven types carry the request/message envelope `assertCurrentLlmShape`
   // owns. Other types are plugin-owned or ignorable events from the merge-extensible
   // `SessionEventMap`, with no core envelope to assert.
   switch (type) {
     case 'request/header':
+    case 'developer/message':
     case 'system/message':
     case 'user/message':
     case 'assistant/attempt':
@@ -263,17 +265,18 @@ function assertAdapterDefaults(
   }
 }
 
-/** The four surface event types whose payload carries an identified message. */
+/** The surface event types whose payload carries an identified message. */
 function isMessageEventType(type: unknown): type is SurfaceEventType {
-  return type === 'system/message' || type === 'user/message'
+  return type === 'developer/message' || type === 'system/message' || type === 'user/message'
     || type === 'assistant/message' || type === 'tool/result'
 }
 
 const MESSAGE_ROLE_BY_TYPE: Record<SurfaceEventType, Message['role']> = {
   'system/message': 'system',
+  'developer/message': 'developer',
   'user/message': 'user',
   'assistant/message': 'assistant',
-  'tool/result': 'user',
+  'tool/result': 'tool',
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
@@ -306,9 +309,8 @@ function assertMessageEventShape(event: Record<string, unknown>, subject: string
   }
   const sourceRecord = source as Record<string, unknown>
   if (type === 'system/message') {
-    if (sourceRecord['kind'] !== 'plugin' || typeof sourceRecord['plugin'] !== 'string'
-      || sourceRecord['plugin'] === '') {
-      throw new Error(`${subject} message must have plugin source`)
+    if (sourceRecord['kind'] !== 'system-prompt') {
+      throw new Error(`${subject} message must have system-prompt source`)
     }
     return
   }
@@ -324,14 +326,7 @@ function assertMessageEventShape(event: Record<string, unknown>, subject: string
     || sourceRecord['callId'] === '') {
     throw new Error(`${subject} message must have tool source`)
   }
-  const content = messageRecord['content'] as unknown[]
-  const block = content[0]
-  if (content.length !== 1 || typeof block !== 'object' || block === null
-    || (block as Record<string, unknown>)['type'] !== 'tool-result'
-    || !Array.isArray((block as Record<string, unknown>)['content'])) {
-    throw new Error(`${subject} message must contain one tool-result block`)
-  }
-  if ((block as Record<string, unknown>)['toolCallId'] !== sourceRecord['callId']) {
+  if (messageRecord['toolCallId'] !== sourceRecord['callId']) {
     throw new Error(`${subject} message has mismatched tool call ids`)
   }
 }

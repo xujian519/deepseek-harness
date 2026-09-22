@@ -6,6 +6,7 @@
  */
 
 import z from '@deepseek-ai/schemastery'
+import type { Volatile } from '@deepseek-ai/cordis'
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
@@ -21,7 +22,6 @@ import {
 
 export {
   SIDEBAR_PREFS_DEFAULTS,
-  SIDEBAR_PREFS_NS,
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
@@ -64,56 +64,22 @@ export interface SidebarConfig {
    * the existing default behavior is kept.
    */
   shellArgs?: string[]
-}
-
-/** Schemastery schema for the plugin configuration. */
-export const Config: z<SidebarConfig> = z.object({
-  readLimit: z.number().step(1).min(1).default(512 * 1024),
-  mediaLimit: z.number().step(1).min(1).default(20 * 1024 * 1024),
-  uploadLimit: z.number().step(1).min(1).default(128 * 1024 * 1024),
-  listLimit: z.number().step(1).min(1).default(1000),
-  terminalsPerSession: z.number().step(1).min(1).default(3),
-  reconnectGraceMs: z.number().step(1).min(0).default(30_000),
-  shell: z.string().default(''),
-  shellArgs: z.array(z.string()).default([]),
-})
-
-/** Fully defaulted sidebar host settings. */
-export interface ResolvedSidebarConfig {
-  readLimit: number
-  mediaLimit: number
-  uploadLimit: number
-  listLimit: number
-  terminalsPerSession: number
-  reconnectGraceMs: number
-  /** The configured terminal shell; empty means the host auto-resolves it. */
-  shell: string
-  /** Explicit shell arguments; empty means use the platform defaults. */
-  shellArgs: string[]
-}
-
-/**
- * Apply direct-call defaults after Loader schema validation has normally run.
- *
- * @param config - Deployment-provided sidebar host settings.
- * @returns Complete settings consumed by the host half.
- */
-export function resolveSidebarConfig(config: SidebarConfig | undefined): ResolvedSidebarConfig {
-  return {
-    readLimit: config?.readLimit ?? 512 * 1024,
-    mediaLimit: config?.mediaLimit ?? 20 * 1024 * 1024,
-    uploadLimit: config?.uploadLimit ?? 128 * 1024 * 1024,
-    listLimit: config?.listLimit ?? 1000,
-    terminalsPerSession: config?.terminalsPerSession ?? 3,
-    reconnectGraceMs: config?.reconnectGraceMs ?? 30_000,
-    shell: config?.shell?.trim() ?? '',
-    shellArgs: config?.shellArgs ?? [],
-  }
+  /**
+   * User-facing "Side card" preferences. They are a live Config field of this
+   * plugin entry, so the settings form edits them in place and every reader
+   * holds the same reference (`config.prefs.get()`); both gates and the
+   * terminal shell overrides read through it.
+   */
+  prefs?: Volatile<SidebarPrefs>
 }
 
 // ── User-facing "Side card" preferences ─────────────────────────────────────
 
-/** Schemastery schema for the user-facing preferences (validated by the settings service). */
+/**
+ * Schemastery schema for the user-facing preferences. It is the `prefs` field of
+ * this plugin entry's Config, so the settings service validates and projects it
+ * as the entry's form.
+ */
 export const PrefsSchema: z<SidebarPrefs> = z.object({
   openByDefault: z.boolean().default(false),
   defaultWidthPercent: z.number().step(1).min(WIDTH_PERCENT_MIN).max(WIDTH_PERCENT_MAX).default(WIDTH_PERCENT_DEFAULT),
@@ -151,3 +117,54 @@ export const PrefsSchema: z<SidebarPrefs> = z.object({
   // keys as unknown schema fields.
   pluginSettings: z.dict(z.dict(z.any())).default({}),
 })
+
+/**
+ * Schemastery schema for the plugin configuration. It carries no
+ * `z<SidebarConfig>` annotation: the volatile `prefs` field makes the validated
+ * input a plain {@link SidebarPrefs} while the output is a
+ * `Volatile<SidebarPrefs>`, and one annotation cannot state both.
+ */
+export const Config = z.object({
+  readLimit: z.number().step(1).min(1).default(512 * 1024),
+  mediaLimit: z.number().step(1).min(1).default(20 * 1024 * 1024),
+  uploadLimit: z.number().step(1).min(1).default(128 * 1024 * 1024),
+  listLimit: z.number().step(1).min(1).default(1000),
+  terminalsPerSession: z.number().step(1).min(1).default(3),
+  reconnectGraceMs: z.number().step(1).min(0).default(30_000),
+  shell: z.string().default(''),
+  shellArgs: z.array(z.string()).default([]),
+  prefs: PrefsSchema.default({}).volatile(),
+})
+
+/** Fully defaulted sidebar host settings. */
+export interface ResolvedSidebarConfig {
+  readLimit: number
+  mediaLimit: number
+  uploadLimit: number
+  listLimit: number
+  terminalsPerSession: number
+  reconnectGraceMs: number
+  /** The configured terminal shell; empty means the host auto-resolves it. */
+  shell: string
+  /** Explicit shell arguments; empty means use the platform defaults. */
+  shellArgs: string[]
+}
+
+/**
+ * Apply direct-call defaults after Loader schema validation has normally run.
+ *
+ * @param config - Deployment-provided sidebar host settings.
+ * @returns Complete settings consumed by the host half.
+ */
+export function resolveSidebarConfig(config: SidebarConfig | undefined): ResolvedSidebarConfig {
+  return {
+    readLimit: config?.readLimit ?? 512 * 1024,
+    mediaLimit: config?.mediaLimit ?? 20 * 1024 * 1024,
+    uploadLimit: config?.uploadLimit ?? 128 * 1024 * 1024,
+    listLimit: config?.listLimit ?? 1000,
+    terminalsPerSession: config?.terminalsPerSession ?? 3,
+    reconnectGraceMs: config?.reconnectGraceMs ?? 30_000,
+    shell: config?.shell?.trim() ?? '',
+    shellArgs: config?.shellArgs ?? [],
+  }
+}

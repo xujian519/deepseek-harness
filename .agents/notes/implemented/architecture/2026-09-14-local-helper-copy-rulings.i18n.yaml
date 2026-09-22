@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-14-local-helper-copy-rulings.md
-2026-09-14-local-helper-copy-rulings.md: d1fe5af2d53f14ca7541441e42980b2ec9c51ef9
-2026-09-14-local-helper-copy-rulings.zh.md: f6dc1e9f221e739e244d67db4a7e36df47bd810e
+2026-09-14-local-helper-copy-rulings.md: 6a910de91ad5111b0509ce4fb9bed9898a78e881
+2026-09-14-local-helper-copy-rulings.zh.md: 8aec2eec5d5fe22ef302267fe417b80558960e01

@@ -40,7 +40,7 @@ Each package owns its configuration and lifetime rules; the subsystem reference 
 Consumers own source authorization and presentation.
 
 - [Document conversion](../../docs/subsystems/office-to-pdf.md) — shared operation and generated service reference.
-- [Document preset](../preset/agent-presets/presets/document/preset.yml) — the composition that mounts the delivery plugins.
+- [Document preset](../bundle/web-app/presets/document.patch.yml) — the declaration whose composition mounts the delivery plugins.
 - [Independent kit ownership](../../.agents/notes/implemented/architecture/2026-09-14-independent-libreoffice-kit.md) — engine distribution and application integration.
 - [Workspace Files](../api/workspace-files/README.md) — authorized bounded source reads.
 

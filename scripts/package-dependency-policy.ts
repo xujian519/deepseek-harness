@@ -52,7 +52,6 @@ const SAFE_HOST_DEPENDENCY_EXPORTS = {
   '@deepseek-ai/dsh-llm': ['callConfigEquals', 'createUserMessage'],
   '@deepseek-ai/dsh-session-format': ['sessionFormatLogFilename'],
   '@deepseek-ai/dsh-session/types': ['SessionLogOffset'],
-  '@deepseek-ai/dsh-settings': ['settingsNamespace'],
   '@deepseek-ai/dsh-subagent/client': ['snapshotSubagentDescriptor'],
   '@deepseek-ai/dsh-timeout': ['MAX_TIMER_DELAY_MS'],
   '@deepseek-ai/dsh-tools': ['defineTool'],
@@ -62,9 +61,10 @@ const SAFE_HOST_DEPENDENCY_EXPORTS = {
 
 /** Runtime exports that require every consumer to resolve the provider's shared peer instance. */
 const PEER_REQUIRED_HOST_EXPORTS = {
+  '@deepseek-ai/dsh-client-connection': ['OperatorPeer'],
   '@deepseek-ai/dsh-settings': ['SettingsConflictError'],
   '@deepseek-ai/dsh-subprocess': ['SubprocessExecutableNotFoundError'],
-  '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'scopeOf', 'scopeTarget'],
+  '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'createScope', 'scopeOf', 'scopeTarget'],
   '@deepseek-ai/dsh-session': ['SESSION_FORMAT_VERSION'],
   '@deepseek-ai/dsh-session-persistence': ['SessionPersistenceNotFoundError'],
 } as const satisfies HostDependencyExports

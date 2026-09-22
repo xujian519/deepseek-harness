@@ -12,7 +12,7 @@
       "path": "../../util/value"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../../../vendor/cordis"
@@ -24,7 +24,7 @@
       "path": "../../test-support/client-runtime"
     },
     {
-      "path": "../ui-conversation"
+      "path": "../ui-conversation/tsconfig.client.json"
     },
     {
       "path": "../ui-primitives"
@@ -39,7 +39,7 @@
       "path": "../ui-workspace"
     },
     {
-      "path": "../ui-settings"
+      "path": "../ui-settings/tsconfig.client.json"
     },
     {
       "path": "../ui-slots"
@@ -51,7 +51,7 @@
       "path": "../../api/session-controller/tsconfig.client.json"
     },
     {
-      "path": "../../preset/agent-presets"
+      "path": "../../preset/agent-preset-registry"
     },
     {
       "path": "../../core/session"

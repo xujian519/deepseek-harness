@@ -5,7 +5,7 @@
 # delivery studio reads back — of a registration that passes.
 #
 # The shipped `document` agent preset owns this row for real sessions, but a
-# preset is agent-plane and only `dsh-agent-presets` can mount one, which the
+# preset is agent-plane and only `dsh-agent-preset-registry` can mount one, which the
 # headless profile does not run.
 #
 # The shell rows are disabled because this scenario registers files that

@@ -270,7 +270,17 @@ export class RemoteAnalyzer {
     }
 
     const mode = invocation.kind === 'direct' ? invocation.mode : undefined
-    const resultType = this.remoteResultType(method, mode)
+    const { result: resultType, uplink: uplinkType } = this.remoteResultType(method, mode)
+    const uplink: InvocationModel['uplink'] = uplinkType === undefined
+      ? undefined
+      : {
+        boundary: this.remoteBoundary(
+          uplinkType,
+          `${registration.name}#${binding.namespace}/${exportedMethod}:uplink`,
+          false,
+          'undefined',
+        ),
+      }
     return {
       id: `${registration.name}#${binding.namespace}/${exportedMethod}`,
       service: binding.service,
@@ -281,12 +291,15 @@ export class RemoteAnalyzer {
       invocation: receiver,
       ...(scope === undefined ? {} : { scope }),
       parameters,
+      ...(uplink === undefined ? {} : { uplink }),
       ...(cancellation === undefined ? {} : { cancellation }),
       result: this.remoteBoundary(
         resultType,
         `${registration.name}#${binding.namespace}/${exportedMethod}:result`,
         false,
         'undefined-or-void',
+        false,
+        mode === undefined,
       ),
       location: this.graph.location(method.name),
     }
@@ -409,12 +422,11 @@ export class RemoteAnalyzer {
           }
           const [property] = argument.properties
           if (property === undefined) this.graph.fail(argument, 'Remote() options must contain exactly mode: "stream"')
-          if (!ts.isPropertyAssignment(property)
-            || memberName(property.name) !== 'mode'
-            || stringLiteralValue(property.initializer) !== 'stream') {
-            this.graph.fail(property, 'Remote() options must contain exactly mode: "stream"')
-          }
-          marker = { kind: 'direct', mode: 'stream' }
+          const mode = ts.isPropertyAssignment(property) && memberName(property.name) === 'mode'
+            ? stringLiteralValue(property.initializer)
+            : undefined
+          if (mode !== 'stream') this.graph.fail(property, 'Remote() options must contain exactly mode: "stream"')
+          marker = { kind: 'direct', mode }
         }
       } else if (ts.isCallExpression(expression)
         && this.graph.isTypeMetaSymbol(expression.expression, 'RemoteScope')) {
@@ -440,27 +452,43 @@ export class RemoteAnalyzer {
     return found
   }
 
-  private remoteResultType(method: ts.MethodDeclaration, mode?: 'stream'): ts.TypeNode {
+  /**
+   * The item types a Remote method's authored return type declares. Unary
+   * methods unwrap `Promise<T>`; stream methods unwrap `Iterable<Out>`,
+   * `AsyncIterable<Out>`, or the protocol's `RemoteStream<Out, In>`, whose
+   * second type argument is the uplink item type unless it is `never`.
+   */
+  private remoteResultType(
+    method: ts.MethodDeclaration,
+    mode?: 'stream',
+  ): { readonly result: ts.TypeNode; readonly uplink?: ts.TypeNode } {
     const authored = this.graph.requiredType(method, method.type, 'return')
     if (ts.isTypeReferenceNode(authored)) {
       const symbol = this.checker.getSymbolAtLocation(authored.typeName)
       const resolved = symbol === undefined ? undefined : this.graph.resolveSymbol(symbol)
-      const resultType = authored.typeArguments?.[0]
-      const wrappers = mode === 'stream' ? ['Iterable', 'AsyncIterable'] : ['Promise']
       const declaration = resolved === undefined ? undefined : preferredDeclaration(resolved)
-      if (resolved !== undefined
-        && wrappers.includes(resolved.name)
-        && resultType !== undefined
-        && authored.typeArguments?.length === 1
-        && declaration !== undefined
-        && isStandardLibraryFile(declaration.getSourceFile().fileName)) {
-        return resultType
+      const [result, uplink] = authored.typeArguments ?? []
+      const arity = authored.typeArguments?.length ?? 0
+      if (resolved !== undefined && declaration !== undefined && result !== undefined) {
+        const standard = isStandardLibraryFile(declaration.getSourceFile().fileName)
+        const wrappers = mode === undefined ? ['Promise'] : ['Iterable', 'AsyncIterable']
+        if (standard && wrappers.includes(resolved.name) && arity === 1) return { result }
+        if (mode !== undefined
+          && resolved.name === 'RemoteStream'
+          && this.graph.isTypeMetaSymbol(authored.typeName, 'RemoteStream')
+          && arity <= 2) {
+          return uplink === undefined || this.isNeverType(uplink) ? { result } : { result, uplink }
+        }
       }
     }
-    if (mode === 'stream') {
-      this.graph.fail(method, 'stream Remote methods must return Iterable<T> or AsyncIterable<T>')
+    if (mode !== undefined) {
+      this.graph.fail(method, 'stream Remote methods must return Iterable<Out>, AsyncIterable<Out>, or RemoteStream<Out, In>')
     }
-    return authored
+    return { result: authored }
+  }
+
+  private isNeverType(type: ts.TypeNode): boolean {
+    return (this.checker.getTypeFromTypeNode(type).flags & ts.TypeFlags.Never) !== 0
   }
 
   private isGlobalAbortSignal(type: ts.TypeNode): boolean {
@@ -557,6 +585,7 @@ export class RemoteAnalyzer {
     requireNamed: boolean,
     topLevelAbsence: 'reject' | 'undefined' | 'undefined-or-void' = 'reject',
     optional = false,
+    allowBytes = false,
   ): RemoteBoundaryModel {
     const type = this.graph.convertType(authoredType)
     const declaredType = this.checker.getTypeFromTypeNode(authoredType)
@@ -565,7 +594,7 @@ export class RemoteAnalyzer {
     const resolvedType = optional
       ? this.checker.getNullableType(declaredType, ts.TypeFlags.Undefined)
       : declaredType
-    const codecType = this.resolvedRemoteCodecType(authoredType, resolvedType, topLevelAbsence)
+    const codecType = this.resolvedRemoteCodecType(authoredType, resolvedType, topLevelAbsence, allowBytes)
     const acceptsUndefined = topLevelAbsence !== 'reject' && this.includesRemoteAbsence(resolvedType)
     const rootSymbol = this.namedWorkspaceType(authoredType)
     const imports = new Map<SymbolId, RemoteTypeImportModel>()
@@ -621,6 +650,7 @@ export class RemoteAnalyzer {
     authoredType: ts.TypeNode,
     resolvedType: ts.Type,
     topLevelAbsence: 'reject' | 'undefined' | 'undefined-or-void',
+    allowBytes: boolean,
   ): TypeNodeId {
     this.assertRemoteJsonType(
       resolvedType,
@@ -628,6 +658,7 @@ export class RemoteAnalyzer {
       new Set(),
       topLevelAbsence !== 'reject',
       topLevelAbsence === 'undefined-or-void',
+      allowBytes,
     )
     const completed = new Map<ts.Type, TypeNodeId>()
     const active = new Map<ts.Type, TypeNodeId>()
@@ -663,6 +694,9 @@ export class RemoteAnalyzer {
           return id
         }
         const flags = type.flags
+        if (this.isRemoteByteArray(type)) {
+          return add({ kind: 'reference', name: 'Uint8Array', target: { kind: 'standard', name: 'Uint8Array' }, arguments: [] })
+        }
         if ((flags & ts.TypeFlags.Any) !== 0) return add({ kind: 'keyword', name: 'any' })
         if ((flags & ts.TypeFlags.Unknown) !== 0) return add({ kind: 'keyword', name: 'unknown' })
         if ((flags & ts.TypeFlags.Never) !== 0) return add({ kind: 'keyword', name: 'never' })
@@ -700,7 +734,7 @@ export class RemoteAnalyzer {
         if ((flags & ts.TypeFlags.TypeParameter) !== 0) {
           this.graph.fail(authoredType, 'Remote codec contains an unresolved type parameter')
         }
-        if ((flags & ts.TypeFlags.Object) === 0) {
+        if ((flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) === 0) {
           this.graph.fail(
             authoredType,
             `Remote codec type ${this.checker.typeToString(type, authoredType, ts.TypeFormatFlags.NoTruncation)} has no concrete Zod projection`,
@@ -715,7 +749,9 @@ export class RemoteAnalyzer {
             elements: arguments_.map((argument, index) => {
               const elementFlags = target.elementFlags[index] ?? ts.ElementFlags.Required
               return {
-                type: convert(argument),
+                type: (elementFlags & ts.ElementFlags.Rest) !== 0
+                  ? this.graph.addNode(authoredType, { kind: 'array', element: convert(argument) })
+                  : convert(argument),
                 optional: (elementFlags & ts.ElementFlags.Optional) !== 0,
                 rest: (elementFlags & (ts.ElementFlags.Rest | ts.ElementFlags.Variadic)) !== 0,
               }
@@ -794,6 +830,7 @@ export class RemoteAnalyzer {
     active: Set<ts.Type>,
     allowUndefined: boolean,
     allowVoid: boolean,
+    allowBytes = false,
   ): void {
     const flags = type.flags
     if ((flags & ts.TypeFlags.Undefined) !== 0 && allowUndefined) return
@@ -809,22 +846,26 @@ export class RemoteAnalyzer {
       | ts.TypeFlags.BooleanLike
       | ts.TypeFlags.Null
       | ts.TypeFlags.Never)) !== 0) return
+    if (this.isRemoteByteArray(type)) {
+      if (allowBytes) return
+      this.graph.fail(site, 'Remote Uint8Array is only supported in unary results')
+    }
     if (type.isUnion()) {
       for (const member of type.types) {
-        this.assertRemoteJsonType(member, site, active, allowUndefined, allowVoid)
+        this.assertRemoteJsonType(member, site, active, allowUndefined, allowVoid, allowBytes)
       }
       return
     }
     if (type.isIntersection()) {
       const material = type.types.filter(member => !this.isRemotePhantomConstraint(member))
       if (material.length === 0) this.graph.fail(site, 'Remote boundary contains a symbol-only object')
-      for (const member of material) this.assertRemoteJsonType(member, site, active, false, false)
+      for (const member of material) this.assertRemoteJsonType(member, site, active, false, false, allowBytes)
       return
     }
     if ((flags & ts.TypeFlags.TypeParameter) !== 0) {
       this.graph.fail(site, 'Remote boundary contains an unresolved type parameter')
     }
-    if ((flags & ts.TypeFlags.Object) === 0) {
+    if ((flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) === 0) {
       this.graph.fail(site, `Remote boundary contains non-JSON type ${this.checker.typeToString(type)}`)
     }
     const symbol = type.getSymbol()
@@ -850,6 +891,7 @@ export class RemoteAnalyzer {
             active,
             (elementFlags & ts.ElementFlags.Optional) !== 0,
             false,
+            allowBytes,
           )
         })
         return
@@ -857,7 +899,7 @@ export class RemoteAnalyzer {
       if (this.checker.isArrayType(type) || this.checker.isArrayLikeType(type)) {
         const element = this.checker.getIndexTypeOfType(type, ts.IndexKind.Number)
         if (element === undefined) this.graph.fail(site, 'Remote boundary array has no element type')
-        this.assertRemoteJsonType(element, site, active, false, false)
+        this.assertRemoteJsonType(element, site, active, false, false, allowBytes)
         return
       }
       const properties = this.checker.getPropertiesOfType(type)
@@ -873,17 +915,24 @@ export class RemoteAnalyzer {
           active,
           (property.flags & ts.SymbolFlags.Optional) !== 0,
           false,
+          allowBytes,
         )
       }
       for (const info of this.checker.getIndexInfosOfType(type)) {
         if ((info.keyType.flags & ts.TypeFlags.ESSymbolLike) !== 0) {
           this.graph.fail(site, 'Remote boundary contains a symbol index signature')
         }
-        this.assertRemoteJsonType(info.type, site, active, false, false)
+        this.assertRemoteJsonType(info.type, site, active, false, false, allowBytes)
       }
     } finally {
       active.delete(type)
     }
+  }
+
+  private isRemoteByteArray(type: ts.Type): boolean {
+    const symbol = type.getSymbol()
+    return symbol?.name === 'Uint8Array'
+      && symbol.declarations?.some(declaration => isStandardLibraryFile(declaration.getSourceFile().fileName)) === true
   }
 
   private includesRemoteAbsence(type: ts.Type): boolean {

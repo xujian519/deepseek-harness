@@ -1,5 +1,5 @@
 ---
-description: "面向[文档模式 preset](../../preset/agent-presets/presets/document/preset.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经会话的 `workspaceFiles` Remote 预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。"
+description: "面向[文档模式 preset](../../bundle/web-app/presets/document.patch.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经会话的 `workspaceFiles` Remote 预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-面向[文档模式 preset](../../preset/agent-presets/presets/document/preset.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经会话的 `workspaceFiles` Remote 预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。
+面向[文档模式 preset](../../bundle/web-app/presets/document.patch.yml)的文档交付工作室：一个 `conversation.view` 标签（`document`，标签「交付物」），列出会话已交付文件，经会话的 `workspaceFiles` Remote 预览 HTML/文本，并提供打开 / 在文件夹中显示 / 打印动作。当会话的 agent preset 是文档智能体时，还会自动切换到该视图。
 
 不发布运行时不变式伴生；此纯消费插件不发出 cordis 事件、不持有跨插件可变状态——其视图槽注册与自动切换订阅是普通副作用，其释放由槽账本自身 spec 与本包行为 spec 直接观测。
 
@@ -27,7 +27,7 @@ kind: "package-reference"
 - **交付工作室视图**——`conversation.view` 环形槽的一个条目（id `document`，order 20）。插件加载后每个会话都会出现该标签；选中即在中心列显示工作室。
 - **产物词汇**——一个 turn 级 `ConversationNodeDefinition`（`documentDeliverables`），把成功变更的 `locations`（diff 卡与 generic edit 卡）以及 `document_deliver` 登记调用折叠为 turn 数据；外加一个会话级视图目标（`documentDeliverables`），把窗口内所有 turn 折叠为一份按首次出现排序的去重列表。登记调用会原地升级变更派生的条目，带上声明的格式、P0/P1 质量门状态与其结果记录的机器核验结论——因此经 shell/officecli 产出的二进制产物（`.docx`、`.pptx`）在登记后进入工作室；旧会话降级为变更派生列表并显示"未登记质量门"徽标。同一路径此后被改写时，已记录的核验结论会被抹掉（该结论属于文件已不再持有的文本），声明的格式与质量门保留。推导与 `ui-deliverables` 使用同一词汇；本包自持自己的 key，因此无论是否组合 `ui-deliverables`，工作室都能工作。
 - **预览**——选中文件后经会话的 `remote.workspaceFiles.readBytes` 读取一个字节窗口并按 UTF-8 解码（被窗口从中间切断的字符整字丢弃）。窗口大小即宿主的配置上限，故超限文件显示开头并附截断提示。HTML 在沙箱 iframe（`sandbox=""`，不执行脚本）中渲染；Markdown/JSON/YAML/CSV/LOG 以文本渲染。
-- **动作**——用系统默认应用打开、在文件夹中显示（在操作系统文件管理器中打开产物所在目录；仅当宿主在回环权威下报告原生打开能力时；宿主没有 reveal-in-folder 意图，打开目录本身即交接）、打印 / 导出 PDF（预览头被截断时经 `remote.workspaceFiles.readAll` 重新读取完整文件——文件超过宿主整文件上限时被拒绝，工作室据此报「文件过大」——再经桌面桥或浏览器打印对话框导出，其中「另存为 PDF」完成导出）。
+- **动作**——用系统默认应用打开、在文件夹中显示（在操作系统文件管理器中打开产物所在目录；仅当宿主在回环权威下报告原生打开能力时；宿主没有 reveal-in-folder 意图，打开目录本身即交接）、打印 / 导出 PDF（预览头被截断时经 `remote.workspaceFiles.readBytes`（不带 range）重新读取完整文件——文件超过宿主整文件上限时被拒绝，工作室据此报「文件过大」——再经桌面桥或浏览器打印对话框导出，其中「另存为 PDF」完成导出）。
 - **自动跳转**——当当前会话的 preset 是文档智能体时，进入会话即激活工作室视图。切换经 `ctx.conversation.setActiveView`——这是受认可的跨插件通道（按设计，per-session store 句柄仅限 apply 局部）；setter 随会话的 conversation seat 挂载，因此切换在有限窗口内重试。
 
 Web patch（`packages/bundle/web-app/cordis.patch.yml`）是加载本包的唯一组合。移除其唯一条目即同时移除标签、词汇、预览与自动跳转。
@@ -35,7 +35,7 @@ Web patch（`packages/bundle/web-app/cordis.patch.yml`）是加载本包的唯�
 <a id="prerequisites"></a>
 ## 前提
 
-文档会话选择的是文档模式 preset（`packages/preset/agent-presets/presets/document/`）；工作室对每个会话都渲染，与 preset 无关。承载读取的 `workspaceFiles` Remote 随 Web 组合发货（`dsh-api-workspace-files`）；无需 OpenDesign 或任何外部进程。
+文档会话选择的是文档模式 preset（`packages/bundle/web-app/presets/`）；工作室对每个会话都渲染，与 preset 无关。承载读取的 `workspaceFiles` Remote 随 Web 组合发货（`dsh-api-workspace-files`）；无需 OpenDesign 或任何外部进程。
 
 <a id="model-experience"></a>
 ## 模型体验

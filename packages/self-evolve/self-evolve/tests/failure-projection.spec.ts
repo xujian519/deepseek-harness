@@ -161,7 +161,7 @@ describe('SIG-2 classifyFailure → patternId stability', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope', isError: true }] } as never,
+      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope' }], isError: true } as never,
       error: { name: 'ReadDenied', code: 'DENIED' },
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     const pattern = patternsOf(folded(session))[0]
@@ -333,7 +333,7 @@ describe('classifier edge surfaces', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope', isError: true }] } as never,
+      message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'nope' }], isError: true } as never,
       error: { name: '', code: 'E_EMPTY' },
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     const pattern = patternsOf(folded(session))[0]
@@ -345,7 +345,7 @@ describe('classifier edge surfaces', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', content: [{ type: 'text', text: 'nope', isError: true }] } as never,
+      message: { role: 'tool', content: [{ type: 'text', text: 'nope' }], isError: true } as never,
       error: { name: 'ReadDenied', code: 'E_DENIED' },
     }, { surfaceOp: 'append' })
     const pattern = patternsOf(folded(session))[0]

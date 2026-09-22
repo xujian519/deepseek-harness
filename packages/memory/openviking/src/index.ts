@@ -17,12 +17,16 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { PreToolDecision } from '@deepseek-ai/dsh-tools'
+// Type-only: the Loader's `loader/volatile-update` event declaration this
+// plugin subscribes to for committed live config changes.
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 
 import { errorMessage } from '@deepseek-ai/dsh-value'
 import { OpenVikingClient } from './client.ts'
 import type { ClientCredentials } from './client.ts'
 import { registerOpenVikingCommands } from './commands.ts'
-import { Config, SETTINGS_NAMESPACE, assertValidEndpoint } from './config.ts'
+import { Config, assertValidEndpoint } from './config.ts'
+import type { AutoRecallConfig } from './config.ts'
 import { LearnService } from './learn-service.ts'
 import { mountOpenVikingMcp } from './mcp-surface.ts'
 import { MemoryRecall } from './memory-recall.ts'
@@ -63,12 +67,12 @@ export function dedupeWarn(logger: { warn(message: string, fields?: object): voi
 /** Project the current config onto the client's credential slice. */
 function credentialsOf(config: Config): ClientCredentials {
   return {
-    endpoint: config.endpoint,
-    apiKey: config.apiKey,
-    account: config.account,
-    user: config.user,
-    agentId: config.agentId,
-    timeoutMs: config.timeoutMs,
+    endpoint: config.endpoint.get(),
+    apiKey: config.apiKey.get(),
+    account: config.account.get(),
+    user: config.user.get(),
+    agentId: config.agentId.get(),
+    timeoutMs: config.timeoutMs.get(),
   }
 }
 
@@ -78,36 +82,20 @@ function credentialsOf(config: Config): ClientCredentials {
  * @param config - validated plugin configuration.
  */
 export function apply(ctx: Context, config: Config): void {
-  assertValidEndpoint(config.endpoint)
+  assertValidEndpoint(config.endpoint.get())
   const logger = ctx.logger('openviking')
-
-  // Authoritative configuration source: the resolved settings scope while a
-  // settings service is mounted, the composition entry otherwise. Subsystems
-  // read through `current()` so a committed settings change applies live.
-  let current: () => Config = () => config
 
   const client = new OpenVikingClient(credentialsOf(config))
 
-  // Optional-settings consumer wiring. No-op when no settings service is
-  // mounted (headless profiles, tests). `validate` refuses an endpoint that
-  // is not an absolute http(s) URL at the seam boundary.
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
-      setSource(next) {
-        current = next
-      },
-      onChange() {
-        client.reconfigure(credentialsOf(current()))
-      },
-      validate: (value) => { assertValidEndpoint(value.endpoint) },
-    })
-  })
+  // The client caches its credential slice as plain fields; a committed live
+  // Config change (settings save) re-applies them.
+  ctx.on('loader/volatile-update', () => { client.reconfigure(credentialsOf(config)) })
 
   // Fail-soft boot: probe the service once in the background and warn once;
   // automatic layers stay silent afterward. The plugin never starts a server.
   const warnUnreachable = dedupeWarn(logger, 'service unreachable; automatic memory layers are disabled until it responds')
   ctx.effect(() => {
-    logger.info('openviking plugin mounted', { endpoint: current().endpoint })
+    logger.info('openviking plugin mounted', { endpoint: config.endpoint.get() })
     const controller = new AbortController()
     void probeHealth(client, logger, warnUnreachable, controller.signal)
     return () => { controller.abort() }
@@ -120,20 +108,19 @@ export function apply(ctx: Context, config: Config): void {
   // no-op placeholder makes tool calls settle instead of failing the step.
   let sync: SessionSync = createPreInitSync()
   ctx.effect(async () => {
-    const cfg = current()
-    const { store, quarantined } = await StateStore.open(cfg.stateFile, {
-      endpoint: cfg.endpoint,
-      account: cfg.account,
-      user: cfg.user,
-      agentId: cfg.agentId,
+    const { store, quarantined } = await StateStore.open(config.stateFile.get(), {
+      endpoint: config.endpoint.get(),
+      account: config.account.get(),
+      user: config.user.get(),
+      agentId: config.agentId.get(),
     })
     for (const quarantine of quarantined) {
       logger.warn(`openviking: state file quarantined as ${quarantine.path} (${quarantine.issue})`)
     }
-    const sessionSync = new SessionSync(client, store, () => {
-      const next = current()
-      return { autoCommit: next.autoCommit, stateFile: next.stateFile }
-    }, logger)
+    const sessionSync = new SessionSync(client, store, () => ({
+      autoCommit: config.autoCommit.get(),
+      stateFile: config.stateFile.get(),
+    }), logger)
     sync = sessionSync
 
     // Adopt live sessions and their future siblings; subagents own sessions too.
@@ -158,11 +145,11 @@ export function apply(ctx: Context, config: Config): void {
   // render it through the context-injection channel. The listener is
   // prepended so downstream contributors (agent-instructions, time context)
   // compose the final batch first; recall never rejects a step.
-  const recall = new MemoryRecall(client, () => current().autoRecall, logger)
-  const repoContext = new RepoContext(client, () => current().repoContext, logger)
+  const recall = new MemoryRecall(client, () => config.autoRecall.get(), logger)
+  const repoContext = new RepoContext(client, () => config.repoContext.get(), logger)
   const startupMap = new StartupMap(client)
 
-  ctx.on('agent/pre-step', (payload, next) => openvikingPreStep(recall, repoContext, startupMap, current, payload, next), { prepend: true })
+  ctx.on('agent/pre-step', (payload, next) => openvikingPreStep(recall, repoContext, startupMap, () => config.autoRecall.get(), payload, next), { prepend: true })
 
   ctx.on('agent/created', () => { openvikingSessionStart(repoContext, startupMap) })
 
@@ -206,14 +193,7 @@ export function apply(ctx: Context, config: Config): void {
   registerOpenVikingCommands(ctx, learn)
   registerStatusRoute(ctx, client)
   ctx.effect(() => {
-    const fiber = mountOpenVikingMcp(ctx, {
-      endpoint: current().endpoint,
-      apiKey: current().apiKey,
-      account: current().account,
-      user: current().user,
-      agentId: current().agentId,
-      timeoutMs: current().timeoutMs,
-    })
+    const fiber = mountOpenVikingMcp(ctx, credentialsOf(config))
     return () => fiber.dispose()
   }, 'openviking:mcp')
 }
@@ -252,7 +232,7 @@ export function openvikingSessionStart(repoContext: RepoContext, startupMap: Sta
  * @param recall - the memory recall stager.
  * @param repoContext - repository-list refresher.
  * @param startupMap - library-overview refresher (cadence-driven).
- * @param config - resolved plugin config thunk.
+ * @param autoRecall - live auto-recall settings; the turn cadence comes from here.
  * @param payload - the pre-step payload.
  * @param next - the downstream waterfall decision.
  * @returns the downstream decision (never modified by recall).
@@ -261,7 +241,7 @@ export async function openvikingPreStep(
   recall: MemoryRecall,
   repoContext: RepoContext,
   startupMap: StartupMap,
-  config: () => Config,
+  autoRecall: () => AutoRecallConfig,
   payload: { agent: Agent; step: number; messages: readonly UserMessage[]; signal: AbortSignal },
   next: () => Promise<PreStepDecision>,
 ): Promise<PreStepDecision> {
@@ -271,7 +251,7 @@ export async function openvikingPreStep(
     recall.prepareStep(payload.agent, payload.step, payload.messages, payload.signal),
     repoContext.refresh(payload.signal),
   ])
-  const cadence = config().autoRecall.startupMapEveryTurns
+  const cadence = autoRecall().startupMapEveryTurns
   const turns = recall.userTurnCount(String(payload.agent.id))
   if (cadence > 0 && turns > 0 && turns % cadence === 0 && startupMap.lastRefreshTurn !== turns) {
     startupMap.lastRefreshTurn = turns

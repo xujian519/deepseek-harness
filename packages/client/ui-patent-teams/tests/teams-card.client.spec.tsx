@@ -7,7 +7,7 @@ import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
-import { makeTranslate, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { makeTranslate, stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { TeamsCard, type TeamsCardProps } from '../src/client/TeamsCard.tsx'
 import { TeamsView, type TeamsViewProps } from '../src/client/TeamsView.tsx'
 import { avatarGradient } from '../src/client/teams-avatar.ts'
@@ -54,8 +54,7 @@ function listState(overrides: Partial<SessionListState> = {}): SessionListState 
       },
     },
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
     ...overrides,
   }
 }
@@ -447,10 +446,11 @@ describe('plugin lifecycle', () => {
     await ctx.plugin(SlotRegistry).await()
     new UiConversation(ctx, { binding: () => undefined } as never)
     // The locale plugin requires the connection handle, the forwarded-event
-    // port, and the settings scope; 'locale' backs the slot entries' `t` seat.
+    // port, and the configuration form transport; 'locale' backs the slot
+    // entries' `t` seat.
     ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
     ctx.provide('remote', { $on: () => () => {} } as never)
-    ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+    ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
     await ctx.plugin(TestSessions).await()
     const opened: SessionId[] = []
     ctx.provide('uiWorkspace', { openSession: (id: SessionId) => { opened.push(id) } } as never)

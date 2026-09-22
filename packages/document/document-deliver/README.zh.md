@@ -1,5 +1,5 @@
 ---
-description: "函数插件，供[文档智能体 preset](../../preset/agent-presets/presets/document/preset.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果，并自行读取这些文件、把确定性核验结论与模型自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。"
+description: "函数插件，供[文档智能体 preset](../../bundle/web-app/presets/document.patch.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果，并自行读取这些文件、把确定性核验结论与模型自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，供[文档智能体 preset](../../preset/agent-presets/presets/document/preset.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果，并自行读取这些文件、把确定性核验结论与模型自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。
+函数插件，供[文档智能体 preset](../../bundle/web-app/presets/document.patch.yml)使用：一个模型可见的 `document_deliver` 工具，登记交付的成品文件、导出格式与质量门结果，并自行读取这些文件、把确定性核验结论与模型自述并列。调用写入会话日志，[交付工作室](../../../packages/client/ui-document-studio/README.zh.md)据此从日志与结果元数据推导交付物列表与两列质量门——不新增会话事件类型，也不新增 host 写 RPC。
 
 ## 目录
 

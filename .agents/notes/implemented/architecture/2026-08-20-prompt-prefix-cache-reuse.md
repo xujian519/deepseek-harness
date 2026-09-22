@@ -11,7 +11,7 @@ Every model request re-assembles its **prefix** — the system prompt, tool sche
 The surrounding ground was already in place when this decision shipped:
 
 - **History bytes are stable.** The session log is append-only and `deriveMessages()` caches its projection (`packages/core/session/src/index.ts`): each surface node projects exactly once and a rewrite (`replace`) rebuilds the generation.
-- **Cache telemetry exists end to end.** `TokenUsage` separates `cacheReadTokens`/`cacheWriteTokens` from uncached `inputTokens` (`packages/llm/llm/src/types.ts`); the DeepSeek adapter's `mapUsage` maps `prompt_cache_hit_tokens`/`prompt_tokens_details.cached_tokens` and subtracts hits from `prompt_tokens` (`packages/llm/llm-deepseek/src/protocols/chat-completions/translate.ts`); the pi-ai adapter maps read and write counts; token-meter's `tokenUsage` projection folds all four buckets, and usage reaches the session log via `assistant/chunk` and `assistant/message`.
+- **Cache telemetry exists end to end.** `TokenUsage` separates `cacheReadTokens`/`cacheWriteTokens` from uncached `inputTokens` (`packages/llm/llm/src/types.ts`); the DeepSeek adapter's `mapUsage` (renamed `updateUsage` since) maps `prompt_cache_hit_tokens`/`prompt_tokens_details.cached_tokens` and subtracts hits from `prompt_tokens` (`packages/llm/llm-deepseek/src/translate.ts`); the pi-ai adapter maps read and write counts; token-meter's `tokenUsage` projection folds all four buckets, and usage reaches the session log via `assistant/chunk` and `assistant/message`.
 
 What was missing was **prefix reuse**: no cache identity, no TTL, no persistence, no inheritance into derived sessions — and `system-prompt/assemble`'s waterfall plus per-step variable providers were active prefix-churn sources.
 

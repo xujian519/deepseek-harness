@@ -1,4 +1,4 @@
-import { IconQuestionOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconQuestionOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { isRecord } from '@deepseek-ai/dsh-value'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -134,7 +134,7 @@ function answeredSummary(text: string, t: AskQuestionRowProps['t']): string | nu
 type AskQuestionRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 
 /** Summarizes a pending, answered, cancelled, or interrupted question set. */
-export function AskQuestionRow({ toolName, block, inspect, t }: AskQuestionRowProps) {
+export function AskQuestionRow({ toolName, block, inspect, useDisclosure, t }: AskQuestionRowProps) {
   const model = toolRowModel(toolName, block)
   // Composer verdicts settle the call as specific UserQuestionErrors
   // (ask_user_question handler): 'ASK_CANCELLED' is the user's own
@@ -177,10 +177,11 @@ export function AskQuestionRow({ toolName, block, inspect, t }: AskQuestionRowPr
   }
   return (
     <ToolRow
+      useDisclosure={useDisclosure}
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconQuestionOutline14 />}
+      icon={<IconQuestionOutlineRegular />}
       title={t('ask.rowTitle')}
       summary={summary}
       bodyRaw={transcript === null ? model.bodyRaw : null}

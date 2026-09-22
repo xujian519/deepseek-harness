@@ -20,10 +20,13 @@ import { Session, attachments } from './session.ts'
 import type { SessionEntry } from './session.ts'
 import { collectSessionCallbacks, invokeContainedSessionObservers } from './observers.ts'
 
+import { buildForkSeed } from './fork.ts'
+
+export { buildForkSeed } from './fork.ts'
 export * from './types.ts'
 export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'
-export type { AssistantMessage, SystemMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
+export type { AssistantMessage, DeveloperMessage, SystemMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
 export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult, SessionMessageProjection, SessionMessageProjectionContext } from './surface.ts'
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
@@ -98,16 +101,14 @@ export type SessionForkSource = Session | SessionId
  * Rejection codes for session forking: the fork source id is unknown to the
  * live store (`SESSION_NOT_FOUND`) or names a session object that is not the
  * store's live instance (`SESSION_NOT_LIVE`); the requested child id is
- * already taken (`SESSION_ALREADY_EXISTS`); the boundary is not a contiguous
- * existing seq (`INVALID_BOUNDARY`); or the selected prefix ends inside an
- * open turn (`OPEN_TURN`).
+ * already taken (`SESSION_ALREADY_EXISTS`); or the boundary is not a contiguous
+ * existing seq (`INVALID_BOUNDARY`).
  */
 export type SessionForkErrorCode =
   | 'SESSION_NOT_FOUND'
   | 'SESSION_NOT_LIVE'
   | 'SESSION_ALREADY_EXISTS'
   | 'INVALID_BOUNDARY'
-  | 'OPEN_TURN'
 
 /** Typed error for session fork rejections. */
 export class SessionForkError extends Error {
@@ -416,10 +417,12 @@ export class SessionStore extends Service {
   }
 
   /**
-   * Create a live child session from a stable prefix of a live source.
+   * Create a live child session from an exact prefix of a live source.
    * `boundary` is an inclusive source event seq; omitted means the source's
-   * current last event. The selected slice may end with a between-turn event
-   * but must not end inside an open turn.
+   * current last event. An open tail receives synthetic tool results and
+   * step/turn closers with the forked cause. Closed steps and turns remain
+   * unchanged, including any failed tool calls already missing results.
+   * `inheritedEventCount` counts only copied source events, excluding these closers.
    *
    * @param source - Live source session object or id.
    * @param boundary - Inclusive source event seq to fork through; omitted means
@@ -434,10 +437,13 @@ export class SessionStore extends Service {
       throw new SessionForkError(`session "${childSessionId}" already exists`, 'SESSION_ALREADY_EXISTS')
     }
     const liveSource = this._resolveForkSource(source)
-    const seed = this._forkSeed(liveSource, boundary)
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing fork snapshot read; migration deferred.
+    const events = liveSource.snapshotEvents()
+    const resolved = this._forkBoundary(liveSource.id, events, boundary)
+    const seed = resolved === undefined ? [] : buildForkSeed(events, resolved)
     return this.create(childSessionId, {
       seed,
-      inheritedEventCount: SessionLogOffset(seed.length),
+      inheritedEventCount: SessionLogOffset(resolved === undefined ? 0 : resolved + 1),
       meta: {
         ...liveSource.header.cwd !== undefined ? { cwd: liveSource.header.cwd } : {},
         parentSession: liveSource.id,
@@ -446,50 +452,39 @@ export class SessionStore extends Service {
     })
   }
 
-  private _forkSeed(session: Session, requestedBoundary: SessionSeq | undefined): readonly SessionEvent[] {
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-    const lastEvent = session.snapshotEvents().at(-1)
+  private _forkBoundary(
+    sessionId: SessionId, events: readonly SessionEvent[], requestedBoundary: SessionSeq | undefined,
+  ): SessionSeq | undefined {
+    const lastEvent = events.at(-1)
     let boundary: SessionSeq
     if (requestedBoundary !== undefined) {
       boundary = requestedBoundary
     } else {
-      if (lastEvent === undefined) return []
+      if (lastEvent === undefined) return undefined
       boundary = lastEvent.seq
     }
     if (!Number.isSafeInteger(boundary) || boundary < 0) {
       throw new SessionForkError(
-        `fork boundary for session "${session.id}" must be a non-negative safe integer, got ${String(boundary)}`,
+        `fork boundary for session "${sessionId}" must be a non-negative safe integer, got ${String(boundary)}`,
         'INVALID_BOUNDARY',
       )
     }
-    if (boundary >= session.seq) {
+    if (boundary >= events.length) {
       const lastSeq = lastEvent?.seq
       throw new SessionForkError(
-        `fork boundary ${boundary} does not exist in session "${session.id}" (last seq: ${lastSeq ?? 'none'})`,
+        `fork boundary ${boundary} does not exist in session "${sessionId}" (last seq: ${lastSeq ?? 'none'})`,
         'INVALID_BOUNDARY',
       )
     }
 
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-    const boundaryEvent = session.eventAt(boundary)
+    const boundaryEvent = events[boundary]
     if (boundaryEvent === undefined || boundaryEvent.seq !== boundary) {
       throw new SessionForkError(
-        `fork boundary ${boundary} does not match a contiguous event seq in session "${session.id}"`,
+        `fork boundary ${boundary} does not match a contiguous event seq in session "${sessionId}"`,
         'INVALID_BOUNDARY',
       )
     }
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-    const events = session.snapshotEvents(SessionLogOffset(0), SessionLogOffset(boundary + 1))
-    const lastTurnBoundary = events
-      .findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
-    if (lastTurnBoundary?.type === 'turn/start') {
-      throw new SessionForkError(
-        `fork boundary ${boundary} in session "${session.id}" ends inside open turn ${lastTurnBoundary.data.turn}`,
-        'OPEN_TURN',
-      )
-    }
-
-    return events
+    return boundary
   }
 
   private _resolveForkSource(source: SessionForkSource): Session {

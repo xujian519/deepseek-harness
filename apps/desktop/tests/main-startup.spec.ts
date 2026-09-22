@@ -1,3 +1,4 @@
+import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
@@ -6,7 +7,6 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import type { MenuItemConstructorOptions, MessageBoxOptions } from 'electron'
 import { DESKTOP_IPC, SCHEME, type DesktopUpdateState } from '../src/ipc.ts'
-import { serveWebDocument } from '../src/web-document.ts'
 import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { DesktopHostUncleanExitError } from '../src/host-process.ts'
 import { resolveBridgePath } from '../src/bridge-server.ts'
@@ -92,7 +92,9 @@ const harness = await vi.hoisted(async () => {
       getZoomFactor: () => 1,
       focus: vi.fn(),
       sendInputEvent: vi.fn(),
-      send: vi.fn(),
+      send: vi.fn((channel: string, state: { policy?: { blocking: boolean } }) => {
+        if (channel === 'dsh-desktop:mandatory-state' && state.policy?.blocking) policyBlocked.resolve()
+      }),
     })
     readonly show = vi.fn()
     readonly hide = vi.fn()
@@ -100,11 +102,18 @@ const harness = await vi.hoisted(async () => {
     readonly restore = vi.fn()
     readonly setSize = vi.fn()
     readonly setTitleBarOverlay = vi.fn()
+    readonly setVibrancy = vi.fn()
+    readonly setBackgroundColor = vi.fn()
     constructor(readonly options: { show: boolean; modal?: boolean }) {
-      super(); if (windowFailure !== undefined) throw windowFailure; windows.push(this); if (options.modal) policyBlocked.resolve()
+      super(); if (windowFailure !== undefined) throw windowFailure; windows.push(this)
     }
     isDestroyed() { return this.destroyed }
-    isMinimized() { return false }
+    fullscreen = false
+    isFullScreen() { return this.fullscreen }
+    minimized = false
+    isMinimized() { return this.minimized }
+    visible = true
+    isVisible() { return this.visible }
     isFocused() { return true }
     async loadURL(url: string) {
       this.urls.push(url)
@@ -126,6 +135,7 @@ const harness = await vi.hoisted(async () => {
   class FakeHost {
     readonly updateTasks = vi.fn(async (_action: 'inspect' | 'lock' | 'unlock') => false)
     url = 'http://127.0.0.1:3080/?token=test'
+    fetch = vi.fn(async () => Response.json({ hasApiKey: true, writable: true, localePreference: null }))
     readonly ready = deferred()
     readonly exited = deferred()
     readonly stopping = deferred()
@@ -138,7 +148,7 @@ const harness = await vi.hoisted(async () => {
     constructor(
       readonly node: string, readonly runtime: string, readonly profile: string,
       readonly inspectPort?: number, readonly environment?: NodeJS.ProcessEnv, readonly onFailure?: (error: Error) => void,
-      readonly primaryRuntime?: string, readonly profileResolution?: string,
+      readonly primaryRuntime?: string,
       readonly packageManager?: { pnpm: string; nodeBin: string },
     ) { hosts.push(this) }
   }
@@ -153,10 +163,12 @@ const harness = await vi.hoisted(async () => {
     whenReady: () => Promise.resolve(),
     getName: (): string => 'Desktop test',
     getLocale: (): string => 'en-US',
+    getPreferredSystemLanguages: () => ['en-US'],
     getVersion: () => '1.0.0',
-    getAppPath: () => 'desktop-test-app',
+    getAppPath: (): string => 'desktop-test-app',
     setAboutPanelOptions: vi.fn<(options: Electron.AboutPanelOptionsOptions) => void>(),
     requestSingleInstanceLock: () => true,
+    setAsDefaultProtocolClient: vi.fn(),
     exit: vi.fn(),
     relaunch: vi.fn(),
     quit: vi.fn(() => {
@@ -168,10 +180,18 @@ const harness = await vi.hoisted(async () => {
       }
     }),
   })
+  let accountListener: ((state: AccountView) => void) | undefined
+  const nativeTheme = { themeSource: 'system', shouldUseDarkColors: false }
   return {
     failWindow(error: Error) { windowFailure = error },
-    windows, hosts, handlers, protocols, app, FakeWindow, FakeHost, FakeTray, powerMonitor,
+    windows, hosts, handlers, protocols, app, FakeWindow, FakeHost, FakeTray, powerMonitor, nativeTheme,
     menu, popup, socketHeaders: vi.fn(), updateCheck, updateDownload, updateInstall,
+
+    watchAccount: (listener: (state: AccountView) => void) => {
+      accountListener = listener
+      return () => { accountListener = undefined }
+    },
+    publishAccount(state: AccountView) { accountListener?.(state) },
     ipcOn: vi.fn<(channel: string, listener: (event: { sender: unknown; senderFrame: unknown }, ...args: unknown[]) => void) => void>(),
     get updateState() { return updateState },
     set updateState(value: DesktopUpdateState) { updateState = value },
@@ -181,6 +201,7 @@ const harness = await vi.hoisted(async () => {
     set publishUpdate(value: (state: DesktopUpdateState) => DesktopUpdateState) { publishUpdate = value },
     dialog: { showOpenDialog: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn() },
     openExternal: vi.fn(),
+    protocolHandle: vi.fn<(scheme: string, handler: (request: Request) => Response | Promise<Response>) => void>(),
     applyRelease: vi.fn(() => { preparing.resolve(); return prepared.promise }),
     disableAllPlugins: vi.fn(async () => {
       pluginsEnabled = false
@@ -199,6 +220,7 @@ const harness = await vi.hoisted(async () => {
     set pluginsEnabled(value: boolean) { pluginsEnabled = value },
     set closeWindowsOnQuit(value: boolean) { closeWindowsOnQuit = value },
     reset() {
+      accountListener = undefined
       windows.length = 0; hosts.length = 0; trays.length = 0; handlers.clear(); protocols.length = 0; app.removeAllListeners()
       powerMonitor.removeAllListeners()
       app.isPackaged = true
@@ -211,6 +233,7 @@ const harness = await vi.hoisted(async () => {
       updateCheck.mockReset().mockImplementation(async () => updateState)
       updateDownload.mockReset().mockImplementation(async () => updateState)
       updateInstall.mockReset().mockImplementation(async () => updateState)
+      nativeTheme.themeSource = 'system'; nativeTheme.shouldUseDarkColors = false
       preparing = deferred(); prepared = deferred(); hostStarted = deferred()
       navigated = deferred(); dialogShown = deferred(); quitCompleted = deferred()
       policyBlocked = deferred()
@@ -233,7 +256,8 @@ vi.mock('electron', () => ({
   BrowserWindow: harness.FakeWindow,
   dialog: harness.dialog,
   shell: { openExternal: harness.openExternal },
-  nativeTheme: { themeSource: 'system' },
+  nativeTheme: harness.nativeTheme,
+  net: { fetch: vi.fn() },
   ipcMain: {
     on: harness.ipcOn,
     handle: (channel: string, handler: InvokeHandler) => {
@@ -243,10 +267,15 @@ vi.mock('electron', () => ({
     removeHandler: (channel: string) => { harness.handlers.delete(channel) },
   },
   Menu: { setApplicationMenu: harness.menu.setApplicationMenu, buildFromTemplate: harness.menu },
-  session: { defaultSession: { webRequest: { onBeforeSendHeaders: harness.socketHeaders } } },
+  session: { defaultSession: {
+    setPermissionCheckHandler: vi.fn(), setPermissionRequestHandler: vi.fn(), webRequest: { onBeforeSendHeaders: harness.socketHeaders },
+  } },
   protocol: {
     registerSchemesAsPrivileged: vi.fn(),
-    handle: (scheme: string, handler: ProtocolHandler) => { harness.protocols.push({ scheme, handler }) },
+    handle: (scheme: string, handler: ProtocolHandler) => {
+      harness.protocols.push({ scheme, handler })
+      harness.protocolHandle(scheme, handler)
+    },
   },
   powerMonitor: harness.powerMonitor,
   nativeImage: { createFromPath: (path: string) => ({ path, setTemplateImage: vi.fn() }) },
@@ -293,6 +322,14 @@ vi.mock('../src/update-coordinator.ts', () => ({ DesktopUpdateCoordinator: class
   readonly install = harness.updateInstall
   readonly dispose = vi.fn()
 } }))
+vi.mock('../src/welcome-backend.ts', () => ({
+  connectDesktopWelcome: async () => ({
+    readLocalePreference: async () => null,
+    read: async (): Promise<unknown> => (await harness.hosts.at(-1)!.fetch()).json() as Promise<unknown>,
+    save: async () => ({ ok: true }),
+    account: { watch: harness.watchAccount, state: async () => ({ status: 'signed-out', attempt: null }) },
+  }),
+}))
 
 function invoke(channel: string, origin = channel === DESKTOP_IPC.boot ? 'app' : 'shell', ...args: unknown[]): unknown {
   const handler = harness.handlers.get(channel)
@@ -335,6 +372,7 @@ beforeEach(() => {
   // other architectures, so the host's own arch would fail on arm64 machines.
   vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'x64', resourcesPath: 'desktop-test-resources' })
   vi.stubEnv('DSH_DESKTOP_HOST_INSPECT_PORT', undefined)
+  vi.stubEnv('DSH_DESKTOP_DEV_PROJECT_DIR', undefined)
   vi.stubEnv('DSH_DESKTOP_MANDATORY_UPDATE_CONFIG', undefined)
   vi.stubEnv('DSH_DESKTOP_UPDATE_JOURNAL_DIR', undefined)
 })
@@ -352,6 +390,63 @@ afterEach(async () => {
 })
 
 describe('desktop main startup', () => {
+  it('routes shell update documents and assets through the registered main protocol handler', async () => {
+    const root = join(import.meta.dirname, '..')
+    vi.spyOn(harness.app, 'getAppPath').mockReturnValue(root)
+    const web = await import('../src/web-document.ts')
+    const actual = await vi.importActual<typeof import('../src/web-document.ts')>('../src/web-document.ts')
+    vi.mocked(web.serveWebDocument).mockImplementation(actual.serveWebDocument)
+    try {
+      await readyForUpdate()
+      const registration = harness.protocols.at(-1)
+      if (registration === undefined) throw new Error('main did not register its protocol handler')
+      const handler = registration.handler
+      for (const [name, mime] of [
+        ['update-dialog.html', 'text/html'], ['update-dialog.css', 'text/css'], ['update-dialog.js', 'text/javascript'],
+        ['mandatory-update.html', 'text/html'], ['mandatory-update.css', 'text/css'], ['mandatory-update.js', 'text/javascript'],
+        ['update-close.svg', 'image/svg+xml'],
+      ] as const) {
+        const response = await handler(new Request(`dsh-app://shell/${name}`))
+        expect(response.status).toBe(200)
+        expect(response.headers.get('content-type')).toContain(mime)
+        expect(await response.text()).toBe(readFileSync(join(root, 'renderer', name), 'utf8'))
+      }
+      const head = await handler(new Request('dsh-app://shell/update-dialog.html', { method: 'HEAD' }))
+      expect(head.status).toBe(200)
+      expect(await head.text()).toBe('')
+      expect((await handler(new Request('dsh-app://shell/update-dialog.html', { method: 'POST' }))).status).toBe(405)
+      expect((await handler(new Request('dsh-app://shell/%'))).status).toBe(400)
+      expect((await handler(new Request('dsh-app://shell/%2e%2e%2fpackage.json'))).status).toBe(403)
+      expect((await handler(new Request('dsh-app://shell/missing.html'))).status).toBe(404)
+      expect((await handler(new Request('dsh-app://other/update-dialog.html'))).status).toBe(404)
+    } finally {
+      vi.mocked(web.serveWebDocument).mockReset()
+    }
+  })
+
+  it('serves shell dialogs and their assets without forwarding them to the Host', async () => {
+    await readyForUpdate()
+    const { serveWebDocument, forwardWebRequest } = await import('../src/web-document.ts')
+    const handler = harness.protocolHandle.mock.calls[0]![1]
+    for (const file of ['update-dialog.html', 'update-dialog.js', 'update-dialog.css', 'update-close.svg', 'mandatory-update.html']) {
+      const request = new Request(`dsh-app://shell/${file}`)
+      await handler(request)
+      expect(serveWebDocument).toHaveBeenLastCalledWith(request, join('desktop-test-app', 'renderer'))
+    }
+    expect(forwardWebRequest).not.toHaveBeenCalled()
+    expect((await handler(new Request('dsh-app://unknown/update-dialog.html'))).status).toBe(404)
+  })
+
+  it('installs hidden native DevTools shortcuts in the macOS application menu', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'darwin' })
+    await readyForUpdate()
+    expect(applicationMenuItems().slice(-2)).toEqual([
+      { role: 'toggleDevTools', visible: false },
+      { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
+    ])
+    expect(harness.windows[0]!.options).toMatchObject({ webPreferences: { devTools: true } })
+  })
+
   it.each([
     ['darwin', true, 'en-US'],
     ['darwin', false, 'zh-CN'],
@@ -361,6 +456,8 @@ describe('desktop main startup', () => {
     vi.stubGlobal('process', { ...process, platform })
     harness.app.isPackaged = packaged
     vi.spyOn(harness.app, 'getLocale').mockReturnValue(locale)
+    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([locale])
+    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([locale])
     await readyForUpdate()
     const submenu = applicationMenuItems()
     const options = harness.app.setAboutPanelOptions.mock.calls[0]![0]
@@ -371,7 +468,7 @@ describe('desktop main startup', () => {
   })
 
   it('shows one explained startup login before Host readiness and joins concurrent checks without reopening it', async () => {
-    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 1000, jitter: 0 }
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async () =>
       Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 })))
@@ -414,7 +511,7 @@ describe('desktop main startup', () => {
   })
 
   it.each(['returned', 'cancelled', 'failed'] as const)('requires explicit test login and handles %s without downloading', async (outcome) => {
-    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 10_000, jitter: 0 }
     const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 }))
     vi.stubGlobal('fetch', request)
@@ -441,7 +538,7 @@ describe('desktop main startup', () => {
   })
 
   it('does not open Feishu when the user declines test login', async () => {
-    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'] }
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 })))
     await readyForUpdate()
@@ -451,7 +548,7 @@ describe('desktop main startup', () => {
   })
 
   it('does not require gateway login to download an already available ordinary update', async () => {
-    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'] }
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async () =>
       Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 })))
@@ -463,8 +560,8 @@ describe('desktop main startup', () => {
     expect(testAuth.login).not.toHaveBeenCalled()
   })
 
-  it('retains the same blocking window and running Host after expired test login is cancelled', async () => {
-    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+  it('retains the embedded block and running Host after expired test login is cancelled', async () => {
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 1000, jitter: 0 }
     const request = vi.fn<typeof fetch>().mockImplementation(async () =>
       Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 }))
@@ -474,7 +571,7 @@ describe('desktop main startup', () => {
     const host = await readyForUpdate()
     await harness.policyBlocked.promise
     await vi.advanceTimersByTimeAsync(1000)
-    const modal = harness.windows.find(window => window.options.modal)!
+    const modal = harness.windows[0]!
     const owned = { sender: modal.webContents, senderFrame: modal.webContents.mainFrame }
     harness.dialog.showMessageBox.mockResolvedValue({ response: 0 })
     testAuth.login.mockResolvedValueOnce('cancelled')
@@ -541,7 +638,10 @@ describe('desktop main startup', () => {
     } else if (platform === 'win32') {
       expect(window.options).toMatchObject({ titleBarStyle: 'hidden', titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT } })
       expect(window.options).not.toHaveProperty('vibrancy')
-      expect(harness.menu.setApplicationMenu).toHaveBeenCalledWith(null)
+      expect(harness.menu.mock.calls[0]![0]).toEqual([
+        { role: 'toggleDevTools', visible: false },
+        { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
+      ])
     } else {
       expect(window.options).not.toHaveProperty('titleBarStyle')
       expect(window.options).not.toHaveProperty('vibrancy')
@@ -549,16 +649,93 @@ describe('desktop main startup', () => {
     expect(harness.hosts).toHaveLength(0)
   })
 
-  it('serves shell documents from the packaged renderer directory and rejects other hosts', async () => {
+  it('serves packaged shell documents instead of rejecting the shell origin', async () => {
+    const { serveWebDocument } = await import('../src/web-document.ts')
+    vi.mocked(serveWebDocument).mockResolvedValue(new Response('shell document'))
     await import('../src/main.ts')
     await harness.preparing.promise
     const registration = harness.protocols[0]!
     expect(registration.scheme).toBe(SCHEME)
-    const shellRequest = new Request('dsh-app://shell/update-dialog.html')
-    await registration.handler(shellRequest)
-    expect(vi.mocked(serveWebDocument)).toHaveBeenCalledWith(shellRequest, join(harness.app.getAppPath(), 'renderer'))
-    const unowned = await registration.handler(new Request('dsh-app://unowned/index.html'))
-    expect(unowned.status).toBe(404)
+    const handler = registration.handler
+    const request = new Request('dsh-app://shell/update-dialog.html')
+    expect(await (await handler(request)).text()).toBe('shell document')
+    expect(serveWebDocument).toHaveBeenCalledWith(request, join(harness.app.getAppPath(), 'renderer'))
+    expect((await handler(new Request('dsh-app://foreign/index.html'))).status).toBe(404)
+  })
+
+  it('relays the macOS fullscreen state on transitions and after each load', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    const sent = () => window.webContents.send.mock.calls.filter(([channel]) => channel === DESKTOP_IPC.windowFullscreen)
+    expect(sent()).toHaveLength(0)
+    window.fullscreen = true
+    window.emit('enter-full-screen')
+    expect(sent().at(-1)).toEqual([DESKTOP_IPC.windowFullscreen, true])
+    // A reload re-registers the preload listener; the finished load resends
+    // the current state so fullscreen CSS survives the reload.
+    window.webContents.emit('did-finish-load')
+    expect(sent().at(-1)).toEqual([DESKTOP_IPC.windowFullscreen, true])
+    window.fullscreen = false
+    window.emit('leave-full-screen')
+    expect(sent().at(-1)).toEqual([DESKTOP_IPC.windowFullscreen, false])
+    const relayed = sent().length
+    window.destroyed = true
+    window.emit('enter-full-screen')
+    expect(sent()).toHaveLength(relayed)
+  })
+
+  it.each(['win32', 'linux'] as const)('registers no fullscreen relay on %s', async (platform) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    window.emit('enter-full-screen')
+    window.webContents.emit('did-finish-load')
+    expect(window.webContents.send.mock.calls.filter(([channel]) => channel === DESKTOP_IPC.windowFullscreen)).toHaveLength(0)
+  })
+
+  it('covers the macOS vibrancy reattach gap with an opaque base while minimized or hidden', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    // Minimizing drops the vibrancy material and paints the theme's opaque fill.
+    window.minimized = true
+    window.emit('minimize')
+    expect(window.setVibrancy).toHaveBeenLastCalledWith(null)
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#f9fafb')
+    // Restoring re-requests the material and returns to the transparent base.
+    window.minimized = false
+    window.emit('restore')
+    expect(window.setVibrancy).toHaveBeenLastCalledWith('sidebar')
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#00000000')
+    // Hiding under the dark palette picks the dark opaque fill.
+    harness.nativeTheme.shouldUseDarkColors = true
+    window.visible = false
+    window.emit('hide')
+    expect(window.setVibrancy).toHaveBeenLastCalledWith(null)
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#1b1b1c')
+    window.visible = true
+    window.emit('show')
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#00000000')
+    // A destroyed window ends the backdrop updates.
+    const applied = window.setVibrancy.mock.calls.length
+    window.destroyed = true
+    window.emit('minimize')
+    expect(window.setVibrancy.mock.calls).toHaveLength(applied)
+  })
+
+  it.each(['win32', 'linux'] as const)('registers no backdrop swap on %s', async (platform) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const window = harness.windows[0]!
+    window.minimized = true
+    window.emit('minimize')
+    expect(window.setVibrancy).not.toHaveBeenCalled()
+    expect(window.setBackgroundColor).not.toHaveBeenCalled()
   })
 
   it('follows the Windows primary document language and palette without trusting other frames', async () => {
@@ -586,7 +763,7 @@ describe('desktop main startup', () => {
     window.webContents.mainFrame.url = 'dsh-app://unowned/index.html'
     listener(event, 'zh-CN', '#fff', '#000')
     expect(window.setTitleBarOverlay).not.toHaveBeenCalled()
-    expect(harness.menu.setApplicationMenu).toHaveBeenCalledExactlyOnceWith(null)
+    expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
   })
 
   it('maps Windows caption menus to localized native commands and rejects foreign popup requests', async () => {
@@ -640,10 +817,27 @@ describe('desktop main startup', () => {
       ? ['Desktop test', 'fileMenu', 'editMenu', 'windowMenu']
       : ['Application', 'editMenu'])
     const application = template[0]!.submenu as MenuItemConstructorOptions[]
-    expect(application.map(describeItem)).toEqual(platform === 'darwin'
+    expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
       ? ['about', 'separator', en.checkUpdatesMenu, 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
       : ['about', 'separator', en.checkUpdatesMenu, 'separator', 'quit'])
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
+  })
+
+  it.each(['en-US', 'zh-CN'])('localizes macOS visibility and quit commands without changing the application name (%s)', async (locale) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    vi.spyOn(harness.app, 'getLocale').mockReturnValue(locale)
+    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([locale])
+    const originalName = harness.app.name
+    harness.app.name = '@deepseek-ai/dsh-desktop'
+    try {
+      await import('../src/main.ts')
+      await harness.preparing.promise
+      const commands = applicationMenuItems().filter(item =>
+        item.role === 'hide' || item.role === 'hideOthers' || item.role === 'unhide' || item.role === 'quit')
+      await expect(JSON.stringify(commands, null, 2) + '\n')
+        .toMatchFileSnapshot(`./expected/application-menu-${locale}.json`)
+      expect(harness.app.name).toBe('@deepseek-ai/dsh-desktop')
+    } finally { harness.app.name = originalName }
   })
 
   it('attaches Host socket credentials only to the owned application origin and window', async () => {
@@ -837,6 +1031,19 @@ describe('desktop main startup', () => {
     await harness.quitCompleted.promise
   })
 
+  it('finishes quitting when the native window is destroyed before its closed listener clears ownership', async () => {
+    const host = await readyForUpdate()
+    const window = harness.windows[0]!
+    window.destroyed = true
+    window.hide.mockImplementation(() => { throw new TypeError('Object has been destroyed') })
+    expect(() => { harness.app.quit() }).not.toThrow()
+    expect(window.hide).not.toHaveBeenCalled()
+    await host.stopping.promise
+    window.emit('closed')
+    host.exited.resolve()
+    await harness.quitCompleted.promise
+  })
+
   it('shares the failed-check deadline across focus and resume, while explicit checks reset polling', async () => {
     vi.stubEnv('DSH_DESKTOP_UPDATE_CHECK_INTERVAL_MS', '1000')
     vi.stubEnv('DSH_DESKTOP_UPDATE_CHECK_MAX_BACKOFF_MS', '4000')
@@ -875,14 +1082,15 @@ describe('desktop main startup', () => {
     vi.stubGlobal('fetch', request)
     const host = await readyForUpdate()
     await harness.policyBlocked.promise
-    const modal = harness.windows.find(window => window.options.modal)!
+    const modal = harness.windows[0]!
     expect(modal).toBeDefined()
+    expect(harness.windows).toHaveLength(1)
     const status = harness.handlers.get(MANDATORY_IPC.status)!
     const action = harness.handlers.get(MANDATORY_IPC.action)!
     const owned = { sender: modal.webContents, senderFrame: modal.webContents.mainFrame }
     expect(status(owned)).toMatchObject({ policy: { blocking: true } })
     const unowned = [
-      { ...owned, sender: harness.windows[0]!.webContents },
+      { ...owned, sender: {} },
       { ...owned, senderFrame: { url: 'dsh-app://app/index.html' } },
       { ...owned, senderFrame: { url: 'https://untrusted.example.com/' } },
     ]
@@ -905,7 +1113,10 @@ describe('desktop main startup', () => {
     expect(host.stop).not.toHaveBeenCalled()
     request.mockImplementationOnce(async () => Response.json({ code: 0, data: { biz_code: 0, biz_data: null } }))
     await vi.advanceTimersByTimeAsync(20_000)
-    expect(modal.isDestroyed()).toBe(true)
+    expect(modal.isDestroyed()).toBe(false)
+    await vi.advanceTimersByTimeAsync(150)
+    expect(modal.isDestroyed()).toBe(false)
+    expect(modal.webContents.send.mock.calls.at(-1)).toMatchObject([MANDATORY_IPC.state, { policy: { blocking: false } }])
     expect(host.stop).not.toHaveBeenCalled()
     expect(request.mock.calls[0]![1]!.headers).toMatchObject({ 'x-client-bundle-id': 'com.deepseek.dsh', 'x-client-version': '1.0.0' })
   })
@@ -919,7 +1130,10 @@ describe('desktop main startup', () => {
     harness.dialog.showMessageBox.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => {
       checking.resolve(signal)
       return new Promise((resolve) => { signal.addEventListener('abort', () => { resolve({ response: 0 }) }, { once: true }) })
-    }).mockResolvedValueOnce({ response: 0 })
+    }).mockImplementationOnce(() => {
+      expect((harness.dialog.showMessageBox.mock.calls[0]![0] as { signal: AbortSignal }).signal.aborted).toBe(false)
+      return Promise.resolve({ response: 0 })
+    })
     const submenu = applicationMenuItems()
     const action = submenu.find(item => item.label === 'Check for Updates…')
     expect(action?.click).toBeTypeOf('function')
@@ -1025,7 +1239,7 @@ describe('desktop main startup', () => {
   })
 
   it('queues policy authentication until the ordinary result dialog closes', async () => {
-    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 10_000, jitter: 0 }
     const request = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ code: 0, data: { biz_code: 0, biz_data: null } }))
@@ -1118,7 +1332,7 @@ describe('desktop main startup', () => {
   })
 
   async function answerMandatory(action: 'install' | 'later') {
-    const modal = harness.windows.find(window => window.options.modal && !window.isDestroyed())!
+    const modal = harness.windows[0]!
     const event = { sender: modal.webContents, senderFrame: modal.webContents.mainFrame }
     await vi.waitFor(() => {
       expect(harness.handlers.get(MANDATORY_IPC.status)!(event)).toHaveProperty('confirmation')
@@ -1127,14 +1341,14 @@ describe('desktop main startup', () => {
     await harness.handlers.get(MANDATORY_IPC.action)!(event, action, view.confirmation.version, view.confirmation.revision)
   }
 
-  it('releases the mandatory modal when the confirmed installer quits Electron', async () => {
+  it('closes the main window when the confirmed installer quits Electron', async () => {
     harness.embeddedPolicy = { origin: 'https://policy.example.com', allowedPageOrigins: ['https://downloads.example.com'] }
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 40005, data: {
       show_content: { title: 'Update required', detail: 'Please update' }, desktop_app_link: 'https://downloads.example.com/',
     } })))
     const host = await readyForUpdate()
     await harness.policyBlocked.promise
-    const modal = harness.windows.find(window => window.options.modal)!
+    const modal = harness.windows[0]!
     const preparing = harness.prepareUpdate()
     await answerMandatory('install')
     await host.stopping.promise
@@ -1178,7 +1392,10 @@ describe('desktop main startup', () => {
     await expect(retry).resolves.toBe(false)
     expect(replacement.updateTasks.mock.calls).toEqual([['inspect']])
     expect(replacement.stop).not.toHaveBeenCalled()
-    if (mandatory) expect(harness.windows.find(window => window.options.modal)?.isDestroyed()).toBe(false)
+    if (mandatory) {
+      expect(harness.windows).toHaveLength(1)
+      expect(harness.windows[0]!.isDestroyed()).toBe(false)
+    }
   })
 
   it.each([false, true])('restores a confirmed non-graceful exit without approving installation, mandatory: %s', async (mandatory) => {
@@ -1212,7 +1429,10 @@ describe('desktop main startup', () => {
     await expect(retry).resolves.toBe(false)
     expect(replacement.updateTasks.mock.calls).toEqual([['inspect']])
     expect(replacement.stop).not.toHaveBeenCalled()
-    if (mandatory) expect(harness.windows.find(window => window.options.modal)?.isDestroyed()).toBe(false)
+    if (mandatory) {
+      expect(harness.windows).toHaveLength(1)
+      expect(harness.windows[0]!.isDestroyed()).toBe(false)
+    }
   })
 
   it('does not replace a Host whose failed stop has not confirmed process exit', async () => {
@@ -1307,7 +1527,7 @@ describe('desktop main startup', () => {
     const window = harness.windows[0]!
     const frame = { url: 'dsh-app://app/' }
     Object.assign(window.webContents, { mainFrame: frame })
-    const handler = harness.handlers.get(DESKTOP_IPC.bootFailed)! as unknown as (event: unknown, message: unknown) => void
+    const handler = harness.handlers.get(DESKTOP_IPC.bootFailed)! as (event: unknown, message: unknown) => void
     const event = { sender: window.webContents, senderFrame: frame }
     expect(() => { handler({ ...event, senderFrame: { url: 'https://other.example/' } }, 'untrusted') }).toThrow('unowned renderer')
     expect(() => { handler({ ...event, senderFrame: { ...frame } }, 'subframe') }).toThrow('non-primary frame')
@@ -1404,12 +1624,13 @@ describe('desktop main startup', () => {
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
   })
 
-  it('shows the loading window before profile preparation and starts one actual Host', async () => {
+  it('prepares recovery offscreen and starts one Host before choosing the first visible window', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     expect(harness.windows).toHaveLength(1)
     const window = harness.windows[0]!
-    expect(window.options.show).toBe(true)
+    expect(window.options.show).toBe(false)
+    expect(window.show).not.toHaveBeenCalled()
     expect(window.urls).toEqual(['dsh-app://app/'])
     expect(harness.hosts).toHaveLength(0)
     const retry = invoke(DESKTOP_IPC.boot)
@@ -1425,7 +1646,6 @@ describe('desktop main startup', () => {
       node: process.execPath,
       runtime: join(harness.app.getAppPath(), 'dsh'),
       primaryRuntime: join('desktop-test-resources', 'runtime', 'primary-runtime'),
-      profileResolution: 'runtime',
       profile: 'desktop-test-profile',
     })
     expect(harness.hosts[0]!.environment).toMatchObject(process.env)
@@ -1465,6 +1685,28 @@ describe('desktop main startup', () => {
     expect(harness.hosts).toHaveLength(1)
   })
 
+  it('keeps recovery visible when the backend fails during the welcome preference read', async () => {
+    const preferences = Promise.withResolvers<Response>()
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await harness.hostStarted.promise
+    const host = harness.hosts[0]!
+    host.fetch.mockReturnValueOnce(preferences.promise)
+    const startup = expect(Promise.resolve(invoke(DESKTOP_IPC.boot))).rejects.toThrow('Desktop Host is unavailable')
+    host.ready.resolve()
+    await vi.waitFor(() => { expect(host.fetch).toHaveBeenCalledOnce() })
+    host.exited.resolve()
+    host.onFailure!(new Error('backend exited during startup preferences'))
+    await harness.dialogShown.promise
+    preferences.resolve(Response.json({ hasApiKey: true, localePreference: null }))
+    await startup
+    expect(harness.windows[0]!.urls).not.toContain('http://127.0.0.1:3080/?token=test')
+    const failureDialog = harness.dialog.showMessageBox.mock.calls[0]![0] as { detail: string }
+    expect(failureDialog.detail).toContain('backend exited during startup preferences')
+    expect(harness.windows[0]!.show).not.toHaveBeenCalled()
+  })
+
   it('waits for a pending child to exit on quit without late window navigation', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise
@@ -1484,4 +1726,22 @@ describe('desktop main startup', () => {
     expect(window.urls).toEqual(['dsh-app://app/'])
     expect(harness.windows).toHaveLength(1)
   })
+})
+
+it.each(['failed', 'expired'] as const)('focuses DSH once when browser authorization becomes %s', async (phase) => {
+  await import('../src/main.ts')
+  await harness.preparing.promise
+  harness.prepared.resolve()
+  await harness.hostStarted.promise
+  harness.hosts[0]!.ready.resolve()
+  await Promise.resolve(invoke(DESKTOP_IPC.boot))
+  const window = harness.windows[0]!
+  window.focus.mockClear()
+  const state: AccountView = {
+    status: 'signed-out', links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' },
+    attempt: { id: 'test-failed-attempt' as NonNullable<AccountView['attempt']>['id'], phase },
+  }
+  harness.publishAccount(state)
+  harness.publishAccount(state)
+  expect(window.focus).toHaveBeenCalledTimes(1)
 })

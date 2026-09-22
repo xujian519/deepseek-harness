@@ -9,18 +9,9 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 
 import { apply, Config, createPreInitSync, dedupeWarn, errorLabel, inject, name, probeHealth } from '../src/index.ts'
-import { SETTINGS_NAMESPACE } from '../src/config.ts'
-
-class MemorySettings extends SettingsProvider {
-  readonly writable = true
-  protected load(): Promise<Record<string, unknown>> { return Promise.resolve({}) }
-  protected persist(_ns: SettingsNamespace, _section: Record<string, unknown>): Promise<void> {
-    return Promise.resolve()
-  }
-}
+import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
 
 describe('@deepseek-ai/dsh-openviking plugin surface', () => {
   it('exports the Cordis function-plugin namespace', () => {
@@ -29,14 +20,17 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
   })
 
   it('defaults the endpoint to the local OpenViking service', () => {
-    const config = Config({}) as unknown as {
-      endpoint: string
-      timeoutMs: number
-      stateFile: string
+    const config = Config({})
+    expect(config.endpoint.get()).toBe('http://localhost:1933')
+    expect(config.timeoutMs.get()).toBe(30000)
+    expect(config.stateFile.get()).toBe('~/.dsh/openviking/state.json')
+  })
+
+  it('exposes every field as a live reference', () => {
+    const config = Config({})
+    for (const [field, value] of Object.entries(config)) {
+      expect(typeof (value as { get?: unknown }).get, field).toBe('function')
     }
-    expect(config.endpoint).toBe('http://localhost:1933')
-    expect(config.timeoutMs).toBe(30000)
-    expect(config.stateFile).toBe('~/.dsh/openviking/state.json')
   })
 
   it('rejects a timeout outside the documented range', () => {
@@ -51,18 +45,6 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     const fiber = await ctx.plugin(apply, config)
     await new Promise(resolve => setTimeout(resolve, 30))
     await fiber.dispose()
-  })
-
-  it('registers the openviking settings namespace when a settings service is mounted', async () => {
-    const ctx = new Context()
-    await ctx.plugin(MemorySettings).await()
-    await ctx.plugin(SystemPrompt)
-    await ctx.plugin(ToolRuntime)
-    const fiber = ctx.plugin(apply, Config({}))
-    await fiber.await()
-    expect(ctx.settings.describe().map(row => row.ns)).toContain(SETTINGS_NAMESPACE)
-    await fiber.dispose()
-    expect(ctx.settings.describe().map(row => row.ns)).not.toContain(SETTINGS_NAMESPACE)
   })
 
   it('wires session lifecycle events through the mount', async () => {
@@ -104,6 +86,32 @@ describe('@deepseek-ai/dsh-openviking plugin surface', () => {
     ;(ctx.emit as never as (event: string, ...args: unknown[]) => unknown)('agent/disposed', { agent })
     await fiber.dispose()
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('re-applies a committed live config change to the running client without remounting', async () => {
+    const ctx = new Context()
+    const tmp = await mkdtemp(join(tmpdir(), 'ov-live-'))
+    const stateFile = join(tmp, 'state.json')
+    try {
+      const routes: Array<{ handler(req: unknown, res: unknown): void }> = []
+      ctx.provide('webServer', { register: (route: (typeof routes)[number]) => { routes.push(route); return () => {} } } as never)
+      const live = await liveConfig(ctx, { Config, apply }, { endpoint: 'http://127.0.0.1:1', stateFile })
+      await expect.poll(() => routes.length).toBe(1)
+      const reportedEndpoint = async (): Promise<unknown> => {
+        const res = { writeHead: vi.fn(), end: vi.fn() }
+        routes[0]!.handler({ method: 'GET' }, res)
+        await expect.poll(() => res.end.mock.calls.length).toBe(1)
+        return (JSON.parse(String(res.end.mock.calls[0]![0])) as { endpoint: unknown }).endpoint
+      }
+      expect(await reportedEndpoint()).toBe('http://127.0.0.1:1')
+      const mounted = live.fiber
+      await live.update({ endpoint: 'http://127.0.0.1:9' })
+      expect(live.entry.fiber === mounted).toBe(true)
+      expect(await reportedEndpoint()).toBe('http://127.0.0.1:9')
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(tmp, { recursive: true, force: true })
+    }
   })
 
   it('warns when the previous state file was quarantined', async () => {

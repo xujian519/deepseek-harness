@@ -150,7 +150,7 @@
 
 ## 7. 任务-案件映射
 
-**约定：案件 = 根任务；L1–L5 流水线阶段 = 子任务。** 专利 preset 实挂 7 行 `dsh-patent-*`（组内 6 行 + 组外 patent-document，共 9 个 workspace 包、`patent-core` 纯库不挂载，见 [patent agent.cordis.yml](../packages/preset/agent-presets/presets/patent/agent.cordis.yml)）。
+**约定：案件 = 根任务；L1–L5 流水线阶段 = 子任务。** 专利 preset 实挂 7 行 `dsh-patent-*`（组内 6 行 + 组外 patent-document，共 9 个 workspace 包、`patent-core` 纯库不挂载，见 [patent preset 声明](../packages/bundle/web-app/presets/patent.patch.yml)）。
 
 | 外部 workbench | 专利案件 | 对接方式 |
 |---|---|---|
