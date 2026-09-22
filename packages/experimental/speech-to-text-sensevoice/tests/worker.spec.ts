@@ -299,8 +299,11 @@ it('retains a worker whose idle cleanup cannot observe exit until that range is 
   await worker.transcribe({ audio, language: 'en' }, signal())
   const handle = spawn.mock.results[0]!.value as SubprocessHandle
   const joined = vi.spyOn(handle, 'waitForExit').mockRejectedValueOnce(new Error('range observation failed'))
-  await vi.waitFor(() => { expect(joined).toHaveBeenCalledOnce() }, { timeout: 10000 })
-  expect(warn).toHaveBeenCalledWith('Speech worker idle cleanup failed', expect.any(Error))
+  // The provider releases the same managed range once the worker exits, so its
+  // observation can follow the idle cleanup's; synchronize on the cleanup's
+  // reported failure rather than a call count that second observer also raises.
+  await vi.waitFor(() => { expect(warn).toHaveBeenCalledWith('Speech worker idle cleanup failed', expect.any(Error)) }, { timeout: 10000 })
+  await expect(joined.mock.results[0]!.value).rejects.toThrow('range observation failed')
   await expect(worker.transcribe({ audio, language: 'zh' }, signal())).rejects.toThrow('range observation failed')
   expect(spawn).toHaveBeenCalledOnce()
   expect((await worker.transcribe({ audio, language: 'zh' }, signal())).text).toBe('zh')
