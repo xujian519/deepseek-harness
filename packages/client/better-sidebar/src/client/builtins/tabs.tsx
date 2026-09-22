@@ -8,7 +8,7 @@
  * (the old standalone explorer merged into it).
  */
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import { IconBranchOutline16, IconCodeOutline16, IconFolderOpen16, IconNewChatOutline16, IconPanelLeftOutline16, IconThinkOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconBranchOutlineRegular, IconCodeOutlineRegular, IconFolderOpenRegular, IconNewChatOutlineRegular, IconPanelLeftOutlineRegular, IconThinkOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '../../context-types.ts'
 import { allLeaves, isAgentTabId, type SidebarState } from '../state.ts'
 import { t } from '../locales.ts'
@@ -83,7 +83,7 @@ export function builtinTabs(_ctx: Context, options: BuiltinTabOptions = {}): rea
       // explorer (empty hint + docked tree); with a path it previews/edits
       // the file. Visible in the + menu in the explorer's old slot.
       title: () => t('files'),
-      icon: (size: number) => <IconFolderOpen16 size={size} />,
+      icon: (size: number) => <IconFolderOpenRegular size={size} />,
       order: 10,
       hidden: false,
       dedupeKey: tab => tab.path,
@@ -101,13 +101,13 @@ export function builtinTabs(_ctx: Context, options: BuiltinTabOptions = {}): rea
           options: [
             {
               value: true,
-              icon: (size: number) => <IconPanelLeftOutline16 size={size} />,
+              icon: (size: number) => <IconPanelLeftOutlineRegular size={size} />,
               title: () => t('editorExplorerMerged'),
               desc: () => t('editorExplorerMergedDesc'),
             },
             {
               value: false,
-              icon: (size: number) => <IconCodeOutline16 size={size} />,
+              icon: (size: number) => <IconCodeOutlineRegular size={size} />,
               title: () => t('editorExplorerSplit'),
               desc: () => t('editorExplorerSplitDesc'),
             },
@@ -133,7 +133,7 @@ export function builtinTabs(_ctx: Context, options: BuiltinTabOptions = {}): rea
     {
       id: 'git',
       title: () => t('git'),
-      icon: (size: number) => <IconBranchOutline16 size={size} />,
+      icon: (size: number) => <IconBranchOutlineRegular size={size} />,
       order: 20,
       single: true,
       component: ({ ctx, scope, visible, onOpenDiff }) => (
@@ -148,7 +148,7 @@ export function builtinTabs(_ctx: Context, options: BuiltinTabOptions = {}): rea
     {
       id: 'subagent',
       title: () => t('subagent'),
-      icon: (size: number) => <IconThinkOutline16 size={size} />,
+      icon: (size: number) => <IconThinkOutlineRegular size={size} />,
       order: 30,
       single: true,
       // Declarative settings: the auto-open switches render under this row in
@@ -176,7 +176,7 @@ export function builtinTabs(_ctx: Context, options: BuiltinTabOptions = {}): rea
     {
       id: 'sidechat',
       title: () => t('sideChat'),
-      icon: (size: number) => <IconNewChatOutline16 size={size} />,
+      icon: (size: number) => <IconNewChatOutlineRegular size={size} />,
       order: 35,
       // Codex-style: EVERY side conversation is its own tab. A plain open
       // mints a fresh tab flagged `autoCreate` (the view creates the EMPTY

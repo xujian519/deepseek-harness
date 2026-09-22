@@ -25,7 +25,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the generated `workspaceFiles` namespace into the Remote face.
 import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 // Type-only: pulls the agentPreset Session-projection key (summary.projectionValues).
-import type {} from '@deepseek-ai/dsh-agent-presets/types'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import {
   DOCUMENT_DELIVERABLES_TARGET, documentDeliverablesDefinition, documentDeliverablesViewDefinition,
 } from './document-deliverables.ts'

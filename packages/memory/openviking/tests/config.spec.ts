@@ -5,9 +5,9 @@ import { Config, assertValidEndpoint } from '../src/config.ts'
 
 describe('openviking Config schema', () => {
   it('fills every group with documented defaults', () => {
-    const config = Config({}) as unknown as Record<string, unknown>
-    expect(config.repoContext).toEqual({ enabled: true, cacheTtlMs: 60000 })
-    expect(config.autoRecall).toEqual({
+    const config = Config({})
+    expect(config.repoContext.get()).toEqual({ enabled: true, cacheTtlMs: 60000 })
+    expect(config.autoRecall.get()).toEqual({
       enabled: true,
       limit: 6,
       scoreThreshold: 0.15,
@@ -17,7 +17,13 @@ describe('openviking Config schema', () => {
       refreshSteps: 10,
       startupMapEveryTurns: 5,
     })
-    expect(config.autoCommit).toEqual({ enabled: true, turns: 3, intervalMinutes: 10 })
+    expect(config.autoCommit.get()).toEqual({ enabled: true, turns: 3, intervalMinutes: 10 })
+  })
+
+  it('refuses an endpoint the service could not be reached at', () => {
+    expect(Config({}).endpoint.get()).toBe('http://localhost:1933')
+    expect(() => Config({ endpoint: 'ftp://example.com' })).toThrow()
+    expect(() => Config({ endpoint: '127.0.0.1:1933' })).toThrow()
   })
 
   it('rejects out-of-range recall bounds', () => {
@@ -34,11 +40,9 @@ describe('openviking Config schema', () => {
   })
 
   it('shadows groups with partial configs', () => {
-    const config = Config({ autoRecall: { enabled: false } }) as unknown as {
-      autoRecall: { enabled: boolean; limit: number }
-    }
-    expect(config.autoRecall.enabled).toBe(false)
-    expect(config.autoRecall.limit).toBe(6)
+    const config = Config({ autoRecall: { enabled: false } })
+    expect(config.autoRecall.get().enabled).toBe(false)
+    expect(config.autoRecall.get().limit).toBe(6)
   })
 })
 

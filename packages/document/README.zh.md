@@ -40,7 +40,7 @@ document 组保存文档智能体 preset 的模型侧域插件与 Host 侧 Offic
 消费者负责源文件授权与展示。
 
 - [文档转换](../../docs/subsystems/office-to-pdf.zh.md) — 共享操作和生成的服务参考。
-- [文档 preset](../preset/agent-presets/presets/document/preset.yml) — 挂载交付插件的组合。
+- [文档 preset](../bundle/web-app/presets/document.patch.yml) — 其组合挂载交付插件的声明。
 - [独立 kit 所有权](../../.agents/notes/implemented/architecture/2026-09-14-independent-libreoffice-kit.zh.md) — 引擎分发与应用集成。
 - [工作区文件](../api/workspace-files/README.zh.md) — 已授权的有界源文件读取。
 

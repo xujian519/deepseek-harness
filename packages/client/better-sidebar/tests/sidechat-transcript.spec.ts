@@ -1,13 +1,13 @@
 /**
  * Unit tests for the Side Chat transcript mapping (src/client/sidechat-
  * transcript.ts): the seed cut at session/end-seed, context-injection rows
- * (plugin-stamped sources and the legacy boundary-prefix blob), chunk
+ * (side-chat-kind-stamped sources and the legacy boundary-prefix blob), chunk
  * streaming accumulation superseded by assembled messages, tool call/result
  * pairing, and orphan failed results.
  */
 import { describe, expect, it } from 'vitest'
 import type { SidebarHistoryEntry, SidebarSessionEvent } from '../src/context-types.ts'
-import { SIDE_BOUNDARY_PREFIX, SIDE_BOUNDARY_PROMPT, SIDE_INJECTION_PLUGIN } from '../src/sidechat-core.ts'
+import { SIDE_BOUNDARY_PREFIX, SIDE_BOUNDARY_PROMPT, SIDE_INJECTION_KIND } from '../src/sidechat-core.ts'
 import { collectOwnEvents, toolArgsSummary, transcriptRows, type SidechatTranscriptRow } from '../src/client/sidechat-transcript.ts'
 
 /** One history entry (event + optional view). */
@@ -34,7 +34,7 @@ describe('transcriptRows', () => {
     const entries = [
       entry(ev('user/message', 0, { content: textBlocks('inherited'), source: { kind: 'user' } })),
       entry(ev('session/end-seed', 1)),
-      entry(ev('user/message', 2, { content: textBlocks(`${SIDE_BOUNDARY_PREFIX}\n\nmode`), source: { kind: 'plugin', plugin: SIDE_INJECTION_PLUGIN } })),
+      entry(ev('user/message', 2, { content: textBlocks(`${SIDE_BOUNDARY_PREFIX}\n\nmode`), source: { kind: SIDE_INJECTION_KIND } })),
       entry(ev('user/message', 3, { content: textBlocks('the side question'), source: { kind: 'user' } })),
     ]
     const rows = transcriptRows(entries)
@@ -61,10 +61,10 @@ describe('transcriptRows', () => {
     ])
   })
 
-  it('renders any plugin-sourced context message as an injection row, boundary prefix or not', () => {
+  it('renders any non-user-sourced context message as an injection row, boundary prefix or not', () => {
     const entries = [
       entry(ev('session/end-seed', 0)),
-      entry(ev('user/message', 1, { content: textBlocks('runtime context'), source: { kind: 'plugin', plugin: 'other-plugin' } })),
+      entry(ev('user/message', 1, { content: textBlocks('runtime context'), source: { kind: 'other-producer' } })),
       entry(ev('user/message', 2, { content: textBlocks('q'), source: { kind: 'user' } })),
     ]
     const rows = transcriptRows(entries)
@@ -118,7 +118,9 @@ describe('transcriptRows', () => {
         step: 1,
         message: {
           source: { kind: 'tool', callId: 'c1' },
-          content: [{ type: 'tool-result', toolCallId: 'c1', isError: true, content: [{ type: 'text', text: 'denied' }] }],
+          toolCallId: 'c1',
+          isError: true,
+          content: [{ type: 'text', text: 'denied' }],
         },
         error: { name: 'EACCES', code: 'EACCES' },
       })),
@@ -154,7 +156,9 @@ describe('transcriptRows', () => {
         step: 1,
         message: {
           source: { kind: 'tool', callId: 'gone' },
-          content: [{ type: 'tool-result', toolCallId: 'gone', isError: true, content: [{ type: 'text', text: 'boom' }] }],
+          toolCallId: 'gone',
+          isError: true,
+          content: [{ type: 'text', text: 'boom' }],
         },
         error: { name: 'X', code: 'X' },
       })),

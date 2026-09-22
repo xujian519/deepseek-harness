@@ -82,8 +82,7 @@ New packages join existing groups, and a new group updates its own README and th
 | [`interaction/`](interaction/README.md) | Human-collaboration plane: approval/interaction seams, permission preset, commands, ask-user tool |
 | [`boot/`](boot/README.md) | Shared app-bin boot glue |
 | [`browser/`](browser/README.md) | Browser automation backend family: capability probing, cascade routing, link extraction |
-| [`host/`](host/README.md) | Web-GUI host half: API gateway + HTTP route server |
-| [`client/`](client/README.md) | Web-GUI browser half: shell, wire, object services, slots, `ui-*` plugins |
+| [`host/`](host/README.md) | Web GUI host services, directory picking, application launch, plugin inventory, and product telemetry || [`client/`](client/README.md) | Web-GUI browser half: shell, wire, object services, slots, `ui-*` plugins |
 | [`desktop/`](desktop/README.md) | Desktop OS integration: Service Definition + Electron shell provider + sandboxed directory-picker bridge + CLI-backed macOS native tools |
 | [`test-support/`](test-support/README.md) | Test infrastructure (testkits, replay, Loader smokes) |
 | [`runtime-diagnostics/`](runtime-diagnostics/README.md) | Runtime diagnostics: package-owned invariant checks and reports |

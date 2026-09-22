@@ -16,7 +16,6 @@
  */
 import type { SidebarHistoryEntry } from '../context-types.ts'
 import { isContextInjectionMessage, SIDE_BOUNDARY_PROMPT } from '../sidechat-core.ts'
-import { textBlockParts } from '../subagent-activity.ts'
 import { toolResultTextBlocks } from '../tool-result-text.ts'
 
 /** One compact transcript row rendered in the thread view. `seq` is the
@@ -52,7 +51,7 @@ export type SidechatTranscriptRow =
  * @returns the joined text blocks, or `…` when none is present.
  */
 export function blockText(content: readonly unknown[]): string {
-  const text = textBlockParts(content).join('\n\n')
+  const text = toolResultTextBlocks(content).join('\n\n')
   return text === '' ? '…' : text
 }
 

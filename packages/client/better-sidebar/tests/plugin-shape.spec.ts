@@ -52,8 +52,7 @@ describe('@deepseek-ai/dsh-better-sidebar plugin export shape', () => {
   })
 
   it('registers the side card preferences schema with the documented defaults', async () => {
-    const { PrefsSchema, SIDEBAR_PREFS_NS } = await import('../src/config.ts')
-    expect(SIDEBAR_PREFS_NS).toBe('dsh-better-sidebar')
+    const { PrefsSchema } = await import('../src/config.ts')
     const resolved = (PrefsSchema as unknown as {
       (input: Record<string, unknown> | undefined): Record<string, unknown>
     })(undefined)

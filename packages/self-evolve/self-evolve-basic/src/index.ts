@@ -73,6 +73,19 @@ import type {
   WorkspaceSignal,
 } from './types.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /**
+     * Provider-authored requests the self-evolve loop sends on its own behalf:
+     * proposal judging, reflection, and rewrite prompts. Readers without this
+     * producer retain the recorded content and every source property; the
+     * loop's own judgement of its prompts stays producer-local.
+     * @persistenceAttribution
+     */
+    'self-evolve': { kind: 'self-evolve' }
+  }
+}
+
 const DEFAULT_LEVELS: EvolveLevel[] = ['L1-skill', 'L2-context']
 const DEFAULT_TRIGGERS: TriggerPolicy = {
   'idle-maintenance': { enabled: true, minIntervalMs: 30_000 },
@@ -897,7 +910,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
         signal,
       })
       try {
-        const result = await shell.run(spec)
+        const result = await (await shell.execute(spec)).result()
         if (result.aborted) throw new DOMException('aborted', 'AbortError')
         buildHealthy = result.exitCode === 0 && !result.timedOut
       } catch (error: unknown) {
@@ -953,7 +966,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       stdoutMaxBytes: GIT_OUTPUT_MAX_BYTES,
     })
     try {
-      const result = await shell.run(spec)
+      const result = await (await shell.execute(spec)).result()
       if (result.aborted) throw new DOMException('aborted', 'AbortError')
       if (result.exitCode !== 0) return null
       let total = 0
@@ -983,7 +996,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       stdoutMaxBytes: GIT_OUTPUT_MAX_BYTES,
     })
     try {
-      const result = await shell.run(spec)
+      const result = await (await shell.execute(spec)).result()
       if (result.aborted) throw new DOMException('aborted', 'AbortError')
       return result
     } catch (error: unknown) {
@@ -1053,7 +1066,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
       model: target.model,
       messages: [createUserMessage({
         content: [{ type: 'text', text: payload }],
-        source: { kind: 'plugin', plugin: 'dsh-self-evolve-basic' },
+        source: { kind: 'self-evolve' },
       })],
       system,
       temperature: 0,
@@ -1580,7 +1593,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const text = await streamText(llm.stream({
       provider: agent.options.provider,
       model: agent.options.model,
-      messages: [createUserMessage({ content: [{ type: 'text', text: prompt.slice(0, REFLECTION_MAX_INPUT_CHARS) }], source: { kind: 'plugin', plugin: 'dsh-self-evolve-basic' } })],
+      messages: [createUserMessage({ content: [{ type: 'text', text: prompt.slice(0, REFLECTION_MAX_INPUT_CHARS) }], source: { kind: 'self-evolve' } })],
       temperature: 0,
       maxTokens: REFLECTION_MAX_OUTPUT_TOKENS,
       signal,
@@ -1623,7 +1636,7 @@ export class BasicSelfEvolveEngine extends SelfEvolveEngine {
     const text = await streamText(llm.stream({
       provider: target.provider,
       model: target.model,
-      messages: [createUserMessage({ content: [{ type: 'text', text: prompt }], source: { kind: 'plugin', plugin: 'dsh-self-evolve-basic' } })],
+      messages: [createUserMessage({ content: [{ type: 'text', text: prompt }], source: { kind: 'self-evolve' } })],
       temperature: 0.4,
       maxTokens: 1024,
       signal,

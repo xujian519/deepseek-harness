@@ -7,7 +7,6 @@
  * @module @deepseek-ai/dsh-settings/redact
  */
 
-import { isRecord } from '@deepseek-ai/dsh-value'
 import type z from '@deepseek-ai/schemastery'
 
 /**
@@ -21,7 +20,6 @@ interface SchemaNode {
   dict?: Record<string, SchemaNode>
   /** `dict`/`array` element schema. */
   inner?: SchemaNode
-  /** `tuple`/`union`/`intersect` member schemas. */
   list?: SchemaNode[]
 }
 
@@ -45,7 +43,12 @@ export interface RedactedValue {
   secrets: RedactedSecret[]
 }
 
-/** Assign an own data property without triggering the `__proto__` prototype setter. */
+/** Whether a value is a plain data object the walker may recurse into. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Assign an own data property: a `__proto__` key assigned with `=` invokes the prototype setter instead of creating one. */
 function setDataProperty(target: Record<string, unknown>, key: string, value: unknown): void {
   Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true })
 }
@@ -53,8 +56,8 @@ function setDataProperty(target: Record<string, unknown>, key: string, value: un
 /**
  * Whether a `role('secret')` field is reachable through the container
  * relations the walker follows (`dict` properties, `inner`, `list` members).
- * An unexpandable node (transform, object-member union/intersect/tuple) that
- * still reaches a secret fails closed; one without any reachable secret has
+ * A container the walker cannot expand (`tuple`, and any future node type)
+ * that still reaches a secret fails closed; one without a reachable secret has
  * nothing to redact and passes through.
  */
 function hasReachableSecret(node: SchemaNode): boolean {
@@ -102,15 +105,18 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
       if (!Array.isArray(value)) return value
       return value.map((entry, index) => walk(node.inner, entry, [...path, String(index)], secrets))
     }
+    case 'union':
+    case 'intersect':
+      return (node.list ?? []).reduce((current, child) => walk(child, current, path, secrets), value)
+    case 'transform':
+      return walk(node.inner, value, path, secrets)
     default: {
       // A scalar node cannot nest a secret and passes through. A container the
-      // walker cannot expand (a transform, or a union/intersect/tuple whose
-      // members carry a role('secret') field) could hide one; forwarding its
-      // value verbatim would leak the secret across the wire, so it fails
-      // closed — but only where a secret is actually reachable. Without one
-      // (union members that are all plain scalars, a transform of a scalar
-      // schema) there is nothing to redact and the value passes through like
-      // any other scalar.
+      // walker cannot expand (a tuple, and any future node type) could hide
+      // one, and forwarding its value verbatim would leak the secret across
+      // the wire, so it fails closed — but only where a secret is actually
+      // reachable. Without one there is nothing to redact and the value passes
+      // through like any other scalar.
       if (value === undefined) return value
       if (!hasReachableSecret(node)) return value
       throw new Error(`redactSecrets: cannot redact a value under schema node type "${node.type}"`)
@@ -120,12 +126,8 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
 
 /**
  * Remove every `role('secret')` field a schema declares from a value. The
- * walker follows `object`, `dict`, and `array` containers; a secret must be
- * declared directly on a field reachable through those containers (a secret
- * buried inside a union branch or transform is not reachable and must not be
- * modeled that way). An unexpandable node throws only while a secret is
- * reachable beneath it; nodes without one pass their value through. The input
- * is never mutated.
+ * walker visits every union branch, conservatively removing any field declared
+ * secret by a branch. The input is never mutated.
  * @param schema - live schemastery schema describing the value.
  * @param value - the value to strip; `undefined` yields an empty record with
  *   object-property secret slots still enumerated.
@@ -134,5 +136,11 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
 export function redactSecrets(schema: z<never>, value: unknown): RedactedValue {
   const secrets: RedactedSecret[] = []
   const stripped = walk(schema, value, [], secrets)
-  return { value: stripped, secrets }
+  const positions = new Map<string, RedactedSecret>()
+  for (const secret of secrets) {
+    const key = JSON.stringify(secret.path)
+    const previous = positions.get(key)
+    positions.set(key, { ...secret, set: secret.set || previous?.set === true })
+  }
+  return { value: stripped, secrets: [...positions.values()] }
 }

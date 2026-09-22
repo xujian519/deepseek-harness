@@ -3,7 +3,7 @@
  * schema.
  */
 
-import { IconChevronRightOutline14, JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronRightOutlineRegular, JsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import { structuredPatch } from 'diff'
 import type { ConversationPromptSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -47,7 +47,7 @@ export function ToolCatalog({
       {tools.map((tool, index) => (
         <details className={css.toolCatalogItem} key={`${tool.name}:${index}`}>
           <summary className={css.toolCatalogSummary}>
-            <IconChevronRightOutline14 className={css.toolCatalogChevron} size={12} />
+            <IconChevronRightOutlineRegular className={css.toolCatalogChevron} size={12} />
             <ToolGlyph />
             <span className={css.toolCatalogName}>{tool.name}</span>
             <span className={css.toolCatalogDescription}>{tool.description}</span>

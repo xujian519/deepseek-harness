@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-20-prompt-prefix-cache-reuse.md
-2026-08-20-prompt-prefix-cache-reuse.md: e3d77e51c8b106bf6c35ee38c23cb4a5a1edc805
-2026-08-20-prompt-prefix-cache-reuse.zh.md: 3122121f9da291a5ffc00b43a747c54b0dfe877f
+2026-08-20-prompt-prefix-cache-reuse.md: d3d6f2795265207f4495633127cf95215f5e71d5
+2026-08-20-prompt-prefix-cache-reuse.zh.md: 3ef5f1b442d898e49b2329faf8917cf41bd22786

@@ -47,7 +47,7 @@ describe('projectableEvent', () => {
   it('drops injected user-role messages: workspace instructions, skill catalogs, and runtime context', () => {
     const injections = [
       { content: [{ type: 'text', text: '<system-reminder> Instructions' }], source: { kind: 'agent-instructions' } },
-      { content: [{ type: 'text', text: 'Current runtime context.' }], source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' } },
+      { content: [{ type: 'text', text: 'Current runtime context.' }], source: { kind: 'runtime-context' } },
       { content: [{ type: 'text', text: '<system-reminder> A skill' }], source: { kind: 'skill-catalog' } },
     ]
     for (const data of injections) {
@@ -68,16 +68,14 @@ describe('projectableEvent', () => {
 })
 
 describe('contentText', () => {
-  it('flattens text, tool-call, and nested tool-result blocks', () => {
+  it('flattens text and tool-call blocks and drops blank text', () => {
     const blocks = [
       { type: 'text', text: '第一段' },
       { type: 'tool-call', name: 'bash', arguments: '{}' },
-      { type: 'tool-result', content: [{ type: 'text', text: '结果' }] },
+      { type: 'text', text: '   ' },
     ] as never[]
     const text = contentText(blocks)
-    expect(text).toContain('第一段')
-    expect(text).toContain('bash')
-    expect(text).toContain('结果')
+    expect(text).toBe('第一段\nbash\n{}')
   })
 })
 

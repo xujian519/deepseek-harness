@@ -38,7 +38,7 @@
     { "path": "../../subagent/subagent" },
     { "path": "../connection/tsconfig.client.json" },
     { "path": "../ui-primitives" },
-    { "path": "../ui-settings" },
+    { "path": "../ui-settings/tsconfig.client.json" },
     { "path": "../ui-slots" },
     { "path": "../../util/values" }
   ]

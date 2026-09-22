@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { DisclosureRow, IconUserOutline16, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DisclosureRow, IconUserOutlineRegular, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { shallowEqual } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -78,7 +78,7 @@ export function TeamsCard({ node, sessionId, useSessions, openSession, t }: Team
     >
       <DisclosureRow
         expandable
-        icon={<IconUserOutline16 />}
+        icon={<IconUserOutlineRegular />}
         title={team.name}
         open={open}
         onToggle={() => { setOpen(current => !current) }}

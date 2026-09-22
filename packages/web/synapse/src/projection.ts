@@ -39,7 +39,8 @@ export function isRuntimeContextMessage(message: { kind?: string; text?: unknown
 
 /** Flatten ordered content blocks into one display string. Tool-call blocks
  * carry their call name and raw arguments, so an unfolded card shows what ran
- * without reading the session log.
+ * without reading the session log. A tool result's blocks arrive as this
+ * message's own content, so the fold needs no nested case.
  * @param content The event content blocks, if present.
  * @returns The flattened display string. */
 export function contentText(content: readonly ContentBlock[] | undefined): string {
@@ -47,7 +48,6 @@ export function contentText(content: readonly ContentBlock[] | undefined): strin
   return content.flatMap((block) => {
     if (block.type === 'text') return [block.text]
     if (block.type === 'tool-call') return [block.name, block.arguments]
-    if (block.type === 'tool-result') return [contentText(block.content)]
     return []
   }).filter(value => value.trim() !== '').join('\n')
 }

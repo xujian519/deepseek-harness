@@ -15,7 +15,7 @@ Status: implemented
 ## Decision
 
 - **三处副本收进共享包。** 两处是客户端包,`dsh-value` 进它们的 `devDependencies` 并补 tsconfig reference,与 [`ui-chat`](../../../../packages/client/ui-chat/package.json)、[`file-upload`](../../../../packages/client/file-upload/package.json) 既有的处理一致;`core/session` 本就声明 `dsh-util-values`,而 `deepEqualJson` 正住在那。
-- **共享 `deepEqualJson` 按自有可枚举键比较。** `key in right` 改为 `Object.hasOwn(right, key)`,并在 JSDoc 里写明该保证。这不是措辞差异:[`settings`](../../../../packages/settings/settings/src/index.ts) 与 [`settings-file`](../../../../packages/settings/settings-file/src/index.ts) 把该函数当作「配置是否变化」的闸门,误判相等会静默丢弃一次写入。
+- **共享 `deepEqualJson` 按自有可枚举键比较。** `key in right` 改为 `Object.hasOwn(right, key)`,并在 JSDoc 里写明该保证。这不是措辞差异:[`core/session`](../../../../packages/core/session/src/surface.ts) 与两个 LLM 适配器([`llm-deepseek`](../../../../packages/llm/llm-deepseek/src/index.ts)、[`llm-pi-ai`](../../../../packages/llm/llm-pi-ai/src/index.ts))把该函数当作「记录是否变化」的闸门,误判相等会静默丢弃一次落盘写入或一次重新注册。
 - **只有自带共享版没有的契约,副本才留。** 保留项在台账表里逐条写明理由:四份 `abortable`(分类后的 abort 值、竞速后再查一次信号、`WEB_ABORTED` 域错误、接受「值或 promise」)、三份 `waitWithAbort`(`Error` 逃逸适配、`SessionQueryError`、`Error` 规整)、`sleep` 的两种分叉形态(dispose 宽限用的 `unref` timer、接受 `AbortSignal` 的那个)、`dsh-subagent` 公开导出的三参 `assertPositiveFinite`(前缀分离传、抛 `Error`)、以及 `session-query-sqlite` 的域错误包装。
 - **发布面之外的副本不在范围内。** `apps/` 与 `scripts/` 各有十处 `isRecord`,另有 `scripts/client-build-environment.ts` 的两参 `hasExactKeys`。它们是应用外壳与仓库工具内部的单行收窄谓词;收敛它们要给这两棵树补 workspace 依赖与构建前置,换不到任何共享行为。
 - **188 处内联 `instanceof Error ? <expr>.message` 保持原样。** 每一处都在捕获它的 `catch` 块内就地渲染抛出值,收敛要给约百个文件补依赖与项目引用,换来的只有一步语义(带字符串 `message` 的对象渲染成该 `message` 而非 `[object Object]`)与 hostile-proxy 兜底。
@@ -24,13 +24,13 @@ Status: implemented
 
 - **把 `sleep` 下沉进 `dsh-timeout` 以关掉该族。** 否决:这些实现之间没有需要同步的东西——没有截止、没有取消、没有上限——而四处里有两种分别差在 `unref` 与接受信号上,单一签名就得为一位调用方引入选项。`dsh-timeout` 的身份是截止算术与「超时 vs 取消」的分类,一个裸等待会既无前者也无后者地坐在 `deadline` 旁边。
 - **本批一并收敛 `dsh-subagent` 的三参助手。** 推迟:它是被三个 provider 消费的公开导出,收敛会把它们的抛出类型从 `Error` 变成 `TypeError`。这是机械改动,但影响面与「删除私有本地函数」不同,应自成一批评审。
-- **保留本地 `isDeepEqualJson`,不动共享比较器。** 否决:有缺陷的是共享版,保留副本等于把误判相等留给 settings 这条影响更大的消费路径。
+- **保留本地 `isDeepEqualJson`,不动共享比较器。** 否决:有缺陷的是共享版,保留副本等于把误判相等留给每一条以该比较结果决定是否落盘写入的消费路径。
 - **直接删掉冗余副本而不硬化共享版。** 同样否决——那会把 `core/session` 搬到有缺陷的比较上。
 - **收敛内联三元族。** 否决,理由见 Decision;台账现在记录该裁定,不再推给 issue 待决。
 
 ## Consequences
 
-自此 `core/session`、`settings`、`settings-file`、`llm-pi-ai`、`llm-deepseek` 与 `session-format-v1-to-v2` 都按自有键比较记录。对 JSON 域内的取值,两种判定除上述情形外处处一致,而上述情形此前的答案是错的;比较的其它行为不变。三处收敛的包各少一个本地函数、多一条 import。
+自此 `core/session`、`llm-pi-ai`、`llm-deepseek` 与冻结的 `session-format-v0-to-v1`/`session-format-v1-to-v2` 校验器都按自有键比较记录。对 JSON 域内的取值,两种判定除上述情形外处处一致,而上述情形此前的答案是错的;比较的其它行为不变。三处收敛的包各少一个本地函数、多一条 import。
 
 `.agents/notes/rejected/simplification/2026-07-26-dependency-swaps-rejected-by-nih-audit.md` 曾否决把这份副本换成 `fast-deep-equal`,理由是那会成为核心包的第一个**外部**运行期依赖。本裁定把副本指向 `core/session` 本就依赖的仓内包,因此没有重开该裁决。
 

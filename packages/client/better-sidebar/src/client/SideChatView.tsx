@@ -24,11 +24,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import {
-  IconChevronRightOutline14,
-  IconNewChatOutline16,
-  IconPlusOutline16,
-  IconSendOutline14,
-  IconStopFill16,
+  IconChevronRightOutlineRegular,
+  IconNewChatOutlineRegular,
+  IconPlusOutlineRegular,
+  IconSendOutlineRegular,
+  IconStopFillRegular,
   MarkdownText,
   Menu,
   StateDot,
@@ -172,7 +172,7 @@ function CollapsibleRow(props: {
         )}
       >
         <span className={css.sidechatRowChevron}>
-          <IconChevronRightOutline14 size={12} />
+          <IconChevronRightOutlineRegular size={12} />
         </span>
         {label}
         {meta}
@@ -440,7 +440,7 @@ export function SideChatView(props: {
 
   const menuItems = useMemo<MenuEntry[]>(() => {
     const items: MenuEntry[] = [
-      { id: '$new', label: t('sideChatNew'), icon: <IconPlusOutline16 /> },
+      { id: '$new', label: t('sideChatNew'), icon: <IconPlusOutlineRegular /> },
     ]
     if (threads.length > 0) {
       items.push({ type: 'separator', id: '$sep' })
@@ -524,7 +524,7 @@ export function SideChatView(props: {
     return (
       <div className={css.sidechat}>
         <div className={css.sidechatHero}>
-          <IconNewChatOutline16 />
+          <IconNewChatOutlineRegular />
           <div
             className={clsx(
               css.sidechatHeroTitle,
@@ -629,7 +629,7 @@ export function SideChatView(props: {
               disabled={busy !== null}
               title={t('sideChatCancelTitle')}
             >
-              <IconStopFill16 />
+              <IconStopFillRegular />
             </button>
           ) : (
             <button
@@ -640,7 +640,7 @@ export function SideChatView(props: {
               disabled={composer.trim() === '' || busy !== null}
               title={t('sideChatSend')}
             >
-              <IconSendOutline14 size={16} />
+              <IconSendOutlineRegular size={16} />
             </button>
           )}
         </div>

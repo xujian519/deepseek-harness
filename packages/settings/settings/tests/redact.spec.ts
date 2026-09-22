@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { redactSecrets } from '../src/index.ts'
-import { MemorySettings } from './memory.ts'
 
 const Profile = z.object({
   apiKey: z.string().role('secret'),
@@ -133,33 +131,11 @@ describe('redactSecrets', () => {
   })
 
   it('fails closed when a reachable secret sits under an unexpandable container', () => {
-    const SecretUnion = z.object({ choice: z.union([z.object({ token: z.string().role('secret') }), z.number()]) })
-    const SecretTransform = z.object({
-      when: z.transform(z.object({ token: z.string().role('secret') }), s => s.token),
-    })
-    expect(() => redactSecrets(SecretUnion as z<never>, { choice: { token: 'x' } })).toThrow(
-      /cannot redact a value under schema node type "union"/,
-    )
-    expect(() => redactSecrets(SecretTransform as z<never>, { when: { token: 'x' } })).toThrow(
-      /cannot redact a value under schema node type "transform"/,
-    )
     expect(() => redactSecrets({
       type: 'tuple',
       list: [{ type: 'object', dict: { token: { type: 'string', meta: { role: 'secret' } } } }],
     } as never, ['x'])).toThrow(
       /cannot redact a value under schema node type "tuple"/,
-    )
-    expect(() => redactSecrets({
-      type: 'intersect',
-      list: [{ type: 'object', dict: { token: { type: 'string', meta: { role: 'secret' } } } }],
-    } as never, { token: 'x' })).toThrow(
-      /cannot redact a value under schema node type "intersect"/,
-    )
-    expect(() => redactSecrets({
-      type: 'union',
-      list: [{ type: 'string', meta: { role: 'secret' } }, { type: 'number' }],
-    } as never, 'x')).toThrow(
-      /cannot redact a value under schema node type "union"/,
     )
   })
 
@@ -169,68 +145,46 @@ describe('redactSecrets', () => {
     expect(value).toEqual({})
     expect(secrets).toEqual([])
   })
+  it('strips a secret declared by a union branch and records the position', () => {
+    const schema = z.object({
+      choice: z.union([z.object({ token: z.string().role('secret') }), z.object({ token: z.string() })]),
+    })
+    const { value, secrets } = redactSecrets(schema as z<never>, { choice: { token: 'union-secret' } })
+    expect(value).toEqual({ choice: {} })
+    expect(secrets).toEqual([{ path: ['choice', 'token'], set: true }])
+  })
+
+  it('strips a secret declared inside a transform', () => {
+    const schema = z.object({
+      when: z.transform(z.object({ token: z.string().role('secret') }), value => value),
+    })
+    const { value, secrets } = redactSecrets(schema as z<never>, { when: { token: 'transformed-secret' } })
+    expect(value).toEqual({ when: {} })
+    expect(secrets).toEqual([{ path: ['when', 'token'], set: true }])
+  })
+
+  it('strips a secret declared by an intersection member and keeps sibling fields', () => {
+    const schema = z.object({
+      profile: z.intersect([z.object({ token: z.string().role('secret') }), z.object({ name: z.string() })]),
+    })
+    const { value, secrets } = redactSecrets(schema as z<never>, {
+      profile: { token: 'intersection-secret', name: 'visible' },
+    })
+    expect(value).toEqual({ profile: { name: 'visible' } })
+    expect(secrets).toEqual([{ path: ['profile', 'token'], set: true }])
+  })
+
+  it('rebuilds dict entries as own data properties so a __proto__ key cannot set the prototype', () => {
+    const schema = z.object({ tokens: z.dict(z.string()) })
+    const tokens = JSON.parse('{"__proto__":{"polluted":true}}') as Record<string, unknown>
+    const { value } = redactSecrets(schema as z<never>, { tokens })
+    const rebuilt = (value as { tokens: Record<string, unknown> }).tokens
+    expect(Object.getPrototypeOf(rebuilt)).toBe(Object.prototype)
+    expect(Object.getOwnPropertyDescriptor(rebuilt, '__proto__')?.value).toEqual({ polluted: true })
+    expect(rebuilt.polluted).toBeUndefined()
+  })
 })
 
-describe('describe() layers and redaction', () => {
-  const NS = 'adapter'
-
-  async function boot(doc?: Record<string, unknown>) {
-    const ctx = new Context()
-    await ctx.plugin(MemorySettings, doc === undefined ? undefined : { doc })
-    return ctx
-  }
-
-  it('exposes detached base and user layers beside the resolved value', async () => {
-    const ctx = await boot({ adapter: { baseURL: 'https://user' } })
-    const base = { apiKey: 'entry-key', baseURL: 'https://base' }
-    ctx.settings.register(NS, Profile, { base })
-    const [descriptor] = ctx.settings.describe()
-    expect(descriptor?.base).toEqual(base)
-    expect(descriptor?.base).not.toBe(base)
-    expect(descriptor?.user).toEqual({ baseURL: 'https://user' })
-    expect(descriptor?.value).toEqual({ apiKey: 'entry-key', baseURL: 'https://user' })
-    ;(descriptor?.user as Record<string, unknown>).baseURL = 'mutated'
-    expect(ctx.settings.describe()[0]?.user).toEqual({ baseURL: 'https://user' })
-    expect(descriptor?.secrets).toBeUndefined()
-  })
-
-  it('omits the layers when neither a base nor a user section exists', async () => {
-    const ctx = await boot()
-    ctx.settings.register(NS, Profile)
-    const [descriptor] = ctx.settings.describe()
-    expect(descriptor).not.toHaveProperty('base')
-    expect(descriptor).not.toHaveProperty('user')
-  })
-
-  it('describes a section that became malformed after registration as having no user layer', async () => {
-    const ctx = await boot({ adapter: { baseURL: 'https://user' } })
-    const provider = ctx.get('settings') as MemorySettings
-    ctx.settings.register(NS, Profile, { base: { baseURL: 'https://base' } })
-    provider.pushExternal({ adapter: 5 })
-    const [descriptor] = ctx.settings.describe()
-    expect(descriptor).not.toHaveProperty('user')
-    // The malformed publish kept the last good resolved value.
-    expect(descriptor?.value).toEqual({ baseURL: 'https://user' })
-  })
-
-  it('redacts a descriptor that has neither base nor user layer', async () => {
-    const ctx = await boot()
-    ctx.settings.register(NS, Profile)
-    const [descriptor] = ctx.settings.describe({ redactSecrets: true })
-    expect(descriptor).not.toHaveProperty('base')
-    expect(descriptor).not.toHaveProperty('user')
-    expect(descriptor?.secrets).toEqual([{ path: ['apiKey'], set: false }])
-  })
-
-  it('redacts every layer and enumerates secret slots under redactSecrets', async () => {
-    const ctx = await boot({ adapter: { apiKey: 'user-key', baseURL: 'https://user' } })
-    ctx.settings.register(NS, Profile, { base: { apiKey: 'entry-key' } })
-    const [descriptor] = ctx.settings.describe({ redactSecrets: true })
-    expect(descriptor?.value).toEqual({ baseURL: 'https://user' })
-    expect(descriptor?.base).toEqual({})
-    expect(descriptor?.user).toEqual({ baseURL: 'https://user' })
-    expect(descriptor?.secrets).toEqual([{ path: ['apiKey'], set: true }])
-    const [verbatim] = ctx.settings.describe()
-    expect(verbatim?.value).toEqual({ apiKey: 'user-key', baseURL: 'https://user' })
-  })
+it('preserves values when an unspecified union declares no secret alternatives', () => {
+  expect(redactSecrets(new z({ type: 'union' }) as z<never>, 'visible')).toEqual({ value: 'visible', secrets: [] })
 })

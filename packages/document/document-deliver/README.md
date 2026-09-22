@@ -1,5 +1,5 @@
 ---
-description: "Function plugin for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome, and reads those files to report its own deterministic document checks beside the model's declaration. The call is session-logged, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list and both gate columns from the log and the result metadata — no new session event type, no host write RPC."
+description: "Function plugin for the [document agent preset](../../bundle/web-app/presets/document.patch.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome, and reads those files to report its own deterministic document checks beside the model's declaration. The call is session-logged, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list and both gate columns from the log and the result metadata — no new session event type, no host write RPC."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin for the [document agent preset](../../preset/agent-presets/presets/document/preset.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome, and reads those files to report its own deterministic document checks beside the model's declaration. The call is session-logged, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list and both gate columns from the log and the result metadata — no new session event type, no host write RPC.
+Function plugin for the [document agent preset](../../bundle/web-app/presets/document.patch.yml): one model-facing `document_deliver` tool that records the delivered files, formats, and quality-gate outcome, and reads those files to report its own deterministic document checks beside the model's declaration. The call is session-logged, so the [delivery studio](../../../packages/client/ui-document-studio/README.md) derives the deliverable list and both gate columns from the log and the result metadata — no new session event type, no host write RPC.
 
 ## Table of Contents
 

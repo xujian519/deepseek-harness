@@ -32,11 +32,11 @@ function resultEvent(seq: number, message: unknown): SidebarSessionEvent {
   return { type: 'tool/result', seq, time: seq, data: { message } }
 }
 
-/** A job_output result whose single tool-result block carries `text`. */
+/** A job_output result whose content carries `text` as its text block. */
 function jobResult(seq: number, callId: string, text: string): SidebarSessionEvent {
   return resultEvent(seq, {
     source: { kind: 'tool', callId },
-    content: [{ type: 'tool-result', isError: false, content: [{ type: 'text', text }] }],
+    content: [{ type: 'text', text }],
   })
 }
 
@@ -47,10 +47,10 @@ describe('jobs.output malformed envelopes', () => {
       callEvent(0, 'read_file', 'r1', { path: 'x' }),
       // A result with a non-array content.
       resultEvent(1, { source: { callId: 'r1' }, content: 'text' }),
-      // A result whose blocks are null / non-tool-result / contentless / primitive.
+      // A result whose blocks are null / non-text / textless.
       resultEvent(2, {
         source: { callId: 'r1' },
-        content: [null, { type: 'text', text: 'nope' }, { type: 'tool-result' }, { type: 'tool-result', content: [null, { type: 'text', text: 5 }] }],
+        content: [null, { type: 'tool-call', name: 'read', arguments: '{}' }, { type: 'text', text: 5 }],
       }),
     ]
     const api = buildJobsApi(ctxWith({ get: () => ({ header: {}, events }) }, undefined, undefined), 4096)

@@ -14,7 +14,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import { SideChatView, consumeSidechatSeed, parkSidechatReopen, sidechatThreadIdOf } from '../src/client/SideChatView.tsx'
 import { api } from '../src/client/api.ts'
-import { SIDE_NEW_THREAD_TITLE } from '../src/sidechat-core.ts'
+import { SIDE_INJECTION_KIND, SIDE_NEW_THREAD_TITLE } from '../src/sidechat-core.ts'
 import type { Context, SidebarHistoryEntry, SidebarSessionList } from '../src/context-types.ts'
 import type { SidebarTab } from '../src/client/state.ts'
 
@@ -297,14 +297,15 @@ describe('SideChatView bound thread', () => {
       entry(0, 'turn/end'),
       entry(1, 'session/end-seed'),
       entry(2, 'user/message', { content: [{ type: 'text', text: 'first question' }] }),
-      entry(3, 'user/message', { content: [{ type: 'text', text: 'injected context' }], source: { kind: 'plugin' } }),
+      entry(3, 'user/message', { content: [{ type: 'text', text: 'injected context' }], source: { kind: SIDE_INJECTION_KIND } }),
       entry(4, 'assistant/message', { turn: 0, step: 0, message: { content: [{ type: 'reasoning', text: 'thinking hard' }] } }),
       entry(5, 'assistant/message', { turn: 0, step: 0, message: { content: [{ type: 'text', text: 'the answer' }] } }),
       entry(6, 'tool/call', { callId: 'c1', name: 'bash', arguments: '{"command":"ls -la"}' }),
       entry(7, 'tool/result', {
         message: {
-          source: { callId: 'c1' },
-          content: [{ type: 'tool-result', content: [{ type: 'text', text: 'a.ts' }] }],
+          source: { kind: 'tool', callId: 'c1' },
+          toolCallId: 'c1',
+          content: [{ type: 'text', text: 'a.ts' }],
         },
       }),
       entry(8, 'turn/end'),
@@ -313,13 +314,15 @@ describe('SideChatView bound thread', () => {
       // A call with neither arguments nor a result: nothing to expand.
       entry(10, 'tool/call', { callId: 'c2', name: 'grep' }),
       // A failed orphan result with no text: a static failed line.
-      entry(11, 'tool/result', { error: 'boom', message: { source: { kind: 'tool' }, content: [] } }),
+      entry(11, 'tool/result', { error: { name: 'ToolFailure', code: 'boom' }, message: { source: { kind: 'tool' }, content: [] } }),
       entry(12, 'tool/call', { callId: 'c3', name: 'read', arguments: '{"path":"b.ts"}' }),
       entry(13, 'tool/result', {
-        error: 'nope',
+        error: { name: 'ToolFailure', code: 'nope' },
         message: {
-          source: { callId: 'c3' },
-          content: [{ type: 'tool-result', content: [{ type: 'text', text: 'failed text' }] }],
+          source: { kind: 'tool', callId: 'c3' },
+          toolCallId: 'c3',
+          isError: true,
+          content: [{ type: 'text', text: 'failed text' }],
         },
       }),
     ]))

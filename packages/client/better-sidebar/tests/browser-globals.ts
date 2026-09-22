@@ -55,6 +55,9 @@ if (g.window === undefined) {
     innerWidth: 1024,
     innerHeight: 768,
     getComputedStyle: () => ({ getPropertyValue: () => '' }),
+    // ui-primitives' Tooltip subscribes to pointer/key modality at load.
+    addEventListener: () => {},
+    removeEventListener: () => {},
     // desktop-env.ts reads the shell's URL stamps from location.search
     // (Sidebar renders with parseDesktopEnv even in specs).
     location: { search: '' },

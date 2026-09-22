@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMessage } from '@deepseek-ai/dsh-llm'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionSeq, SESSION_FORMAT_VERSION, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { analyzeUsage, formatReport, loadBaseline, parseLog } from './token-economy-baseline.ts'
 
 const usage = (over: Partial<TokenUsage>): TokenUsage => ({
@@ -36,10 +36,16 @@ const turnStart = (turn: number): SessionEvent<'turn/start'> => ({
   time: time(),
   data: { turn },
 })
+const stepStart = (turn: number, step: number): SessionEvent<'step/start'> => ({
+  type: 'step/start',
+  seq: SessionSeq(seq++),
+  time: time(),
+  data: { turn, step },
+})
 
 const headerLine = (id: string): string => JSON.stringify({
   type: 'session',
-  version: 3,
+  version: SESSION_FORMAT_VERSION,
   id,
   createdAt: 1728000000000,
   cwd: '/tmp/proj',
@@ -93,12 +99,13 @@ describe('parseLog', () => {
   it('parses a plaintext header plus event lines', () => {
     const lines = [headerLine('s1')]
     resetSeq()
-    const events = [turnStart(1), message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))]
+    const events = [turnStart(1), stepStart(1, 1), message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))]
     lines.push(...events.map(event => JSON.stringify(event)))
     const { meta, events: parsed } = parseLog(Buffer.from(`${lines.join('\n')}\n`, 'utf8'))
     expect(meta.id).toBe('s1')
-    expect(parsed).toHaveLength(2)
+    expect(parsed).toHaveLength(3)
     expect(parsed[0]!.type).toBe('turn/start')
+    expect(parsed[1]!.type).toBe('step/start')
   })
 
   it('rejects a log whose committed region contains a seq gap before a turn boundary', () => {
@@ -120,7 +127,7 @@ describe('formatReport', () => {
   it('prints per-turn and total lines', () => {
     resetSeq()
     const baseline = analyzeUsage([turnStart(1), message(1, 1, usage({ inputTokens: 90, cacheReadTokens: 810 }))])
-    const report = formatReport({ id: 's1' as never, createdAt: 0, version: 3, delegationDepth: 0, isSeeded: false }, baseline)
+    const report = formatReport({ id: 's1' as never, createdAt: 0, version: SESSION_FORMAT_VERSION, delegationDepth: 0, isSeeded: false }, baseline)
     expect(report).toContain('Session s1')
     expect(report).toContain('Turn 1: hit 90.00%')
     expect(report).toContain('Total: hit 90.00%')

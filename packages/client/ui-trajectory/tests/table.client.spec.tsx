@@ -631,6 +631,7 @@ describe('TrajectoryTable', () => {
     expect(onLoadOlder).toHaveBeenCalledOnce()
     expect(loadButton.hasAttribute('disabled')).toBe(true)
     expect(screen.getByRole('status').textContent).toBe('Loading earlier history…')
+    expect(screen.getByRole('button', { name: 'Loading earlier history…' }).querySelector('[data-state="ongoing"]')).not.toBeNull()
 
     resolveOlder?.(false)
     await waitFor(() => {
@@ -667,6 +668,7 @@ describe('TrajectoryTable', () => {
     )
 
     expect(screen.getByRole('status').textContent).toContain('Loading trajectory…')
+    expect(screen.getByRole('status').querySelector('[data-state="ongoing"]')).not.toBeNull()
     expect(screen.getByRole('table').getAttribute('data-scroll-ready')).toBeNull()
 
     view.rerender(<TrajectoryTable turns={TURNS} {...FOLD_PROPS} />)

@@ -34,33 +34,21 @@ export interface SidebarJobsRoutes {
 interface ToolResultMessageLike {
   source?: { kind?: unknown; callId?: unknown }
   content?: unknown
-}
-
-/** One 'tool-result' content block (the inner blocks carry the text). */
-interface ToolResultBlockLike {
-  type?: unknown
-  content?: unknown
   isError?: unknown
 }
 
 /**
- * Extract the plain text of a finalized tool result: the text blocks inside
- * the 'tool-result' block, joined with newlines. Error results and
- * non-text blocks contribute nothing.
+ * Extract the plain text of a finalized tool result: its message content's
+ * text blocks, joined with newlines. Non-text blocks contribute nothing.
  */
 function resultText(message: ToolResultMessageLike): string | undefined {
   const parts = toolResultTextBlocks(message.content)
   return parts.length > 0 ? parts.join('\n') : undefined
 }
 
-/** Whether a tool/result is an error result (the inner block's isError flag). */
+/** Whether a tool/result is an error result (the message's isError flag). */
 function resultIsError(message: ToolResultMessageLike): boolean {
-  if (!Array.isArray(message.content)) return false
-  return message.content.some((block) => {
-    if (block === null || typeof block !== 'object') return false
-    return (block as ToolResultBlockLike).type === 'tool-result'
-      && (block as ToolResultBlockLike).isError === true
-  })
+  return message.isError === true
 }
 
 /** Whether a job_output result carries no new output — the controller's

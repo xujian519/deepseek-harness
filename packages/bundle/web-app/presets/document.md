@@ -1,0 +1,48 @@
+# Document agent preset
+
+English | [中文](document.zh.md)
+
+The `document` agent preset composes a document-delivery agent on the DeepSeek Harness. It builds on the `standard` preset and replaces the persona and plan-mode section with document-delivery ones, adds six delivery skills, and mounts an isolated OpenDesign skill provider that gives the agent the full render-template and design-skill library when an OpenDesign checkout is present.
+
+## What it mounts
+
+Beyond the standard coding rows a document workflow needs (shell, filesystem, jobs, skills, goals, plan mode, compaction, delegation, ask-user, todo, web), the preset contributes:
+
+- Six delivery skills in `skills/document/`: `document-brief` (requirement → delivery spec), `document-html` (single-file HTML artifacts), `document-report` (long reports: Markdown → HTML → PDF-ready), `document-deck` (HTML decks + optional PPTX), `document-word` (`.docx` from a template, then officecli for the layout a template does not cover), and `document-quality-gate` (P0/P1 pre-delivery checklist plus the tool-computed checks).
+- An **OpenDesign skill provider**: a second `skill-filesystem` instance named `open-design` that mounts the checkout's `skills/` and `design-templates/` directories when `OPEN_DESIGN_DIR` is set — the same wiring as `examples/opendesign`, built in. Without the variable it registers with no roots (an explicit empty catalog), so the preset works standalone.
+- A **structured deliverable registration**: the `document_deliver` tool records the delivered files, export formats, and the P0/P1 quality-gate result into the session log, and reads each delivered file to report its own deterministic findings (residual placeholders, undeclared anchors, empty sections, forbidden style words, the declared length budget) on the result. A blocking finding refuses the registration. The [delivery studio](../../../client/ui-document-studio/README.md) derives its file list, gate badges, and machine-check badge from that log entry and its result metadata, so binary outputs produced outside the mutation tools (`.docx`/`.pptx` via officecli, PDFs from the print action) become visible in the studio when registered.
+- A **document template and style row**: `doc-template` registers `list_doc_templates` and `render_doc_template` over the packaged template assets, and injects the `assistant-neutral` writing-style guide (`styleGuide`) as a system-prompt section — the same style `document_deliver` checks against, so the words the model is told to avoid and the words the gate refuses are one list.
+- A document-delivery persona (identity, six work disciplines, the standard workflow, and the output discipline) and a document-flavored plan-mode section: delivery specs, outlines, template choices, and export lists are "plans" — no deliverable files are produced before approval.
+
+## Skills
+
+Six skills ship in `skills/document/`, forming one pipeline: `document-brief` → outline → `document-html` / `document-report` / `document-deck` / `document-word` → `document-quality-gate` → delivery.
+
+- `document-brief` — captures goal, audience, format, design system, success criteria, and constraints into `brief.md`; the input contract for every other skill.
+- `document-html` — single-file `index.html` pipeline; prefers OpenDesign render templates (web-prototype / saas-landing / dashboard), falls back to a built-in baseline.
+- `document-report` — `report.md` source + `report.html` render with TOC, anchors, and footer.
+- `document-deck` — `deck.html` horizontal-slide deck with magazine layout; optional `.pptx` via officecli.
+- `document-word` — `.docx` from `render_doc_template` (format `docx`), saved from the base64 package the tool returns; officecli continues from the same file for headers, footers, page numbers, and TOC fields.
+- `document-quality-gate` — P0 (no delivery without passing) and P1 checklist: naming, self-containment, no placeholders, no broken links, sourced facts, accessibility, mobile reflow, budget; plus the table of tool-computed checks, which the registration refuses on a blocking finding.
+
+## Prerequisites
+
+None. The preset is fully functional standalone. For the OpenDesign enhancement, clone OpenDesign and export its root:
+
+```sh
+git clone https://github.com/nexu-io/open-design.git
+export OPEN_DESIGN_DIR="$PWD/open-design"
+```
+
+The `open-design` skill provider then catalogs the checkout's 276 skill/template directories (verified against main 0.20.3). `document-word` additionally benefits from the user-level `officecli` skill when present; without it the agent delivers Markdown and says so.
+
+## Model Experience
+
+The model sees the Chinese document-delivery persona (professional identity, six work disciplines, the standard workflow, and the output discipline: deliverables are files, unsourced facts are withdrawn, no invented brands, self-contained output, mandatory HITL confirmation points, mandatory quality gate), the document plan-mode section, the six preset skills plus any OpenDesign skills (when mounted), and the standard coding tools.
+
+## Known Limitations and Deferred Work
+
+- **PDF is export guidance, not a renderer** — `document-report` / `document-html` deliver self-contained HTML; PDF export happens through the delivery studio's print action (desktop print-to-PDF or browser print), not inside the preset.
+- **`document-word` depends on the user-level `officecli` skill** — the preset cannot bundle it; without it the agent falls back to Markdown.
+- **OpenDesign skills are optional** — without `OPEN_DESIGN_DIR` the agent uses the built-in baseline templates; template variety is reduced but delivery is not blocked.
+- **`document_deliver` registers, it does not convert** — the tool only checks that a declared file exists in the session workspace; PDF export or binary conversion still needs the matching pipeline step (print action / officecli), and files saved outside the workspace cannot be registered.

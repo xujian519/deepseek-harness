@@ -83,13 +83,13 @@ test('callback realpath settles after the current call returns', async () => {
 fs.appendFileSync('/dsh/config/cordis.yml', '- id: llm\n')
 check('appendFileSync', fs.readFileSync('/dsh/config/cordis.yml', 'utf8'), '- id: timer\n- id: llm\n')
 
-fs.mkdirSync('/dsh/config/agent-presets/standard', { recursive: true })
-fs.writeFileSync('/dsh/config/agent-presets/standard/SKILL.md', '# skill\n')
-check('readdirSync names', fs.readdirSync('/dsh/config'), ['agent-presets', 'cordis.yml'])
+fs.mkdirSync('/dsh/config/presets/standard', { recursive: true })
+fs.writeFileSync('/dsh/config/presets/standard/SKILL.md', '# skill\n')
+check('readdirSync names', fs.readdirSync('/dsh/config'), ['cordis.yml', 'presets'])
 const entries = fs.readdirSync('/dsh/config', { withFileTypes: true }) as fs.Dirent[]
 check('readdirSync withFileTypes', entries.map(entry => [entry.name, entry.isFile(), entry.isDirectory()]), [
-  ['agent-presets', false, true],
   ['cordis.yml', true, false],
+  ['presets', false, true],
 ])
 check('Dirent parentPath', entries[0]!.parentPath, '/dsh/config')
 
@@ -161,7 +161,7 @@ await fsp.writeFile('/dsh/promise.txt', 'p')
 check('promises.writeFile', fs.readFileSync('/dsh/promise.txt', 'utf8'), 'p')
 check('promises.stat', (await fsp.stat('/dsh/promise.txt')).isFile(), true)
 await fsp.cp('/dsh/config', '/dsh/config-copy')
-check('promises.cp tree', await fsp.readFile('/dsh/config-copy/agent-presets/standard/SKILL.md', 'utf8'), '# skill\n')
+check('promises.cp tree', await fsp.readFile('/dsh/config-copy/presets/standard/SKILL.md', 'utf8'), '# skill\n')
 await fsp.rm('/dsh/config-copy', { recursive: true })
 check('promises.rm recursive', fs.existsSync('/dsh/config-copy'), false)
 

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
 import { openvikingPreStep, openvikingSessionStart } from '../src/index.ts'
-import type { Config } from '../src/config.ts'
+import type { AutoRecallConfig } from '../src/config.ts'
 import { MemoryRecall } from '../src/memory-recall.ts'
 import { RepoContext } from '../src/repo-context.ts'
 import { StartupMap } from '../src/startup-map.ts'
@@ -17,7 +17,7 @@ function fakes(overrides: {
   recall?: Partial<MemoryRecall>
   repo?: Partial<RepoContext>
   map?: Partial<StartupMap>
-  config?: Partial<Config>
+  autoRecall?: Partial<AutoRecallConfig>
 } = {}) {
   const recall = {
     prepareStep: vi.fn(async () => {}),
@@ -32,13 +32,8 @@ function fakes(overrides: {
     lastRefreshTurn: 0,
     ...overrides.map,
   } as never as StartupMap
-  const config = (() => ({
-    autoRecall: { startupMapEveryTurns: 5 } as Config['autoRecall'],
-    repoContext: { enabled: true, cacheTtlMs: 60000 },
-    autoCommit: { enabled: true, turns: 3, intervalMinutes: 10 },
-    ...overrides.config,
-  })) as () => Config
-  return { recall, repoContext, startupMap, config }
+  const autoRecall = (() => ({ startupMapEveryTurns: 5, ...overrides.autoRecall })) as () => AutoRecallConfig
+  return { recall, repoContext, startupMap, autoRecall }
 }
 
 const payload = (signal: AbortSignal = new AbortController().signal) => ({
@@ -49,7 +44,7 @@ describe('openvikingPreStep', () => {
   it('returns a rejected decision untouched', async () => {
     const f = fakes()
     const next = vi.fn(async () => REJECT)
-    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(), next)
+    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(), next)
     expect(decision).toBe(REJECT)
     expect(f.recall.prepareStep).not.toHaveBeenCalled()
   })
@@ -58,14 +53,16 @@ describe('openvikingPreStep', () => {
     const f = fakes()
     const controller = new AbortController()
     controller.abort()
-    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(controller.signal), async () => ENTER)
+    const decision = await openvikingPreStep(
+      f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(controller.signal), async () => ENTER,
+    )
     expect(decision).toBe(ENTER)
     expect(f.recall.prepareStep).not.toHaveBeenCalled()
   })
 
   it('stages recall and repository context on an accepted step', async () => {
     const f = fakes()
-    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(), async () => ENTER)
+    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(), async () => ENTER)
     expect(decision).toBe(ENTER)
     expect(f.recall.prepareStep).toHaveBeenCalledTimes(1)
     expect(f.repoContext.refresh).toHaveBeenCalledTimes(1)
@@ -75,9 +72,9 @@ describe('openvikingPreStep', () => {
   it('refreshes the startup map on the cadence boundary', async () => {
     const f = fakes({
       recall: { userTurnCount: vi.fn(() => 5) },
-      config: { autoRecall: { startupMapEveryTurns: 5 } as never },
+      autoRecall: { startupMapEveryTurns: 5 },
     })
-    await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(), async () => ENTER)
+    await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(), async () => ENTER)
     expect(f.startupMap.refresh).toHaveBeenCalledTimes(1)
     expect(f.startupMap.lastRefreshTurn).toBe(5)
   })
@@ -86,9 +83,9 @@ describe('openvikingPreStep', () => {
     const f = fakes({
       recall: { userTurnCount: vi.fn(() => 5) },
       map: { lastRefreshTurn: 5 },
-      config: { autoRecall: { startupMapEveryTurns: 5 } as never },
+      autoRecall: { startupMapEveryTurns: 5 },
     })
-    await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(), async () => ENTER)
+    await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(), async () => ENTER)
     expect(f.startupMap.refresh).not.toHaveBeenCalled()
   })
 
@@ -101,7 +98,9 @@ describe('openvikingPreStep', () => {
         }),
       },
     })
-    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(controller.signal), async () => ENTER)
+    const decision = await openvikingPreStep(
+      f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(controller.signal), async () => ENTER,
+    )
     expect(decision).toBe(ENTER)
   })
 
@@ -109,9 +108,9 @@ describe('openvikingPreStep', () => {
     const f = fakes({
       recall: { userTurnCount: vi.fn(() => 5) },
       map: { refresh: vi.fn(async () => { throw new Error('stats down') }) },
-      config: { autoRecall: { startupMapEveryTurns: 5 } as never },
+      autoRecall: { startupMapEveryTurns: 5 },
     })
-    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.config, payload(), async () => ENTER)
+    const decision = await openvikingPreStep(f.recall, f.repoContext, f.startupMap, f.autoRecall, payload(), async () => ENTER)
     expect(decision).toBe(ENTER)
   })
 })

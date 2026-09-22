@@ -25,9 +25,9 @@
 | `@deepseek-ai/dsh-tool-ask-user` | `ask_user_question` | `ctx.tools`、`ctx.userQuestions` | `tool/call`、`tool/result after a UI/provider answers the question` | - | ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类答案。 |
 | `@deepseek-ai/dsh-tools` | `run_code` | `ctx.tools`、`ctx.ptcRuntime (execution time)`、`ctx.systemPrompt` | `tool/call`、`one tool/ptc-dispatch-start + tool/ptc-dispatch pair per bridged sub-call`、`tool/result` | - | 在 `mode: ptc`／`mode: both` 下，它由工具注册表所有，作为可过滤能力层之外的保留传输机制（参见 PTC mode Agent Note）。在 `ptc` 下，它是注册表对协议格式（wire format）的唯一贡献；其他可见能力在使用已加载运行时语言生成的 SDK 章节中声明。程序通过 binding 调用这些能力，调用按照原生并发约定调度：启动顺序和策略遵循提交顺序，并发安全的函数体最多重叠执行 `maxParallelSubCalls` 个。调用会重新进入完整且受守卫保护的工具流水线，并将每个嵌套执行关联到此外层结果。 |
 | `@deepseek-ai/dsh-plan-mode` | `exit_plan_mode` | `ctx.tools`、`ctx.systemPrompt`、`ctx.userQuestions (execution time, opportunistic)` | `tool/call`、`plan/mode inactive on an approved review`、`tool/result` | - | 规划未激活时，exit_plan_mode 仍保留在面向模型的 schema 中，这样状态转换不会在规划策略变更之外额外造成工具目录变动。其执行路径会拒绝规划模式之外的调用；在规划模式下，它通过用户交互 seam 提交计划（批准／根据反馈继续规划），批准后会在步骤边界记录规划模式已停用。 |
-| `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；禁用 `enableRunInBackground` 配置（默认为 true）后，该参数会被完全移除。 |
+| `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs for run_in_background and the job-backed foreground path` | `tool/call`、`tool/result` | - | bash 工具是 bash 执行器 seam 面向模型的消费方。组合了 job 注册表时，每次调用在启动时即注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；未组合注册表时，或 `enableRunInBackground: false` 时，该工具注册的是不含 `run_in_background` 参数的前台专用 schema。 |
 | `@deepseek-ai/dsh-tool-present` | `present` | `ctx.tools`, `ctx.fs`, `ctx.sessionProjections` | `tool/call`, `deliverables/presented 在成功的最终结果之后`, `tool/result` | - | 交付归调用方 Session 所有；Web ui-deliverables 提供源文件打开与卡片。 |
-| `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费方（由 `@deepseek-ai/dsh-pwsh-local` 等 PowerShell 执行器为 `ctx.shell` 提供后端）；除沙箱接口外，它逐项对应 bash 工具调用。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具收集／停止；托管的 `DSH_*` 环境来自 `@deepseek-ai/dsh-shell-env`。每次调用都在新进程中运行，不使用持久 PTY 会话。路径采用原生 `C:\...` 形式，变量采用 `$env:NAME`。 |
+| `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs for run_in_background and the job-backed foreground path` | `tool/call`、`tool/result` | - | pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费方（由 `@deepseek-ai/dsh-pwsh-local` 等 PowerShell 执行器为 `ctx.shell` 提供后端）；除沙箱接口外，它逐项对应 bash 工具调用。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具收集／停止；托管的 `DSH_*` 环境来自 `@deepseek-ai/dsh-shell-env`。每次调用都在新进程中运行，不使用持久 PTY 会话。路径采用原生 `C:\...` 形式，变量采用 `$env:NAME`。 |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_inspect_list`、`cordis_inspect_query` | `ctx.tools`、`ctx.cordisInspect` | `tool/call`、`tool/result` | - | Creator 模式提供两个只读的运行时检查工具。检查注册表由 Cordis host runner 提供；Client 查询需要已连接的页面。持久变更请写成组合包，并用 plugin_manager 安装。 |
 | `@deepseek-ai/dsh-tool-plugin-market` | `market_plugin_preview`、`market_plugin_search`、`market_source_list` | `ctx.tools`、`ctx.systemPrompt`、`ctx.pluginMarket` | `tool/call`、`tool/result` | - | 市场工具集读取 `@deepseek-ai/dsh-host-plugin-market` 提供的 `ctx.pluginMarket`，后者始终从内存提供内置离线目录（`builtin-deepseek`），并通过市场的受限 fetch 提供用户注册的 HTTPS 来源。标准 preset 下这些工具对所有 agent 会话可见；安装始终是操作者在 `dsh plugin` CLI 上的动作，绝不是模型调用。 |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 bash 工具；部署组合提供 PTY 后端，并可覆盖面向模型的环境描述。 |
@@ -58,6 +58,7 @@
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
+| `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 | `@deepseek-ai/dsh-macos-tools` | `macos_app`、`macos_clipboard_get`、`macos_clipboard_set`、`macos_notify`、`macos_open_path`、`macos_open_url`、`macos_speak` | `ctx.tools`、`ctx.approval（打开/读剪贴板/应用启停的一次性许可；缺失即拒绝）` | `tool/call`、`tool/result`、`受控调用的 approval/asked + approval/decided` | - | 七个基于系统 CLI 的 macOS 原生工具（打开/显示、浏览器网址、剪贴板读写、通知、朗读、应用控制）；每次调用都以参数数组启动绝对路径的可执行文件，绝不使用 shell 字符串。 |
 
@@ -99,6 +100,10 @@
       "items": {
         "type": "string"
       }
+    },
+    "registry": {
+      "type": "string",
+      "description": "For install_bundle: the npm registry URL asked first, when the user names one; otherwise the configured registry is asked, and its configured fallbacks while a registry is unreachable."
     },
     "offset": {
       "type": "number",
@@ -599,7 +604,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 ### `bash`
 
-执行一条 bash 命令（`bash -c`）并返回其 stdout/stderr。每次调用都在全新 shell 中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。
+执行一条 bash 命令（`bash -c`）并返回其 stdout/stderr。每次调用都在全新 shell 中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。达到超时的前台命令不会被杀死：它会以同样的方式转入后台，返回其 job id 以及目前已有的输出。
 
 ```json
 {
@@ -615,7 +620,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
     },
     "timeoutMs": {
       "type": "number",
-      "description": "Timeout in milliseconds. The executor applies its configured default and cap, and kills the command on expiry."
+      "description": "Timeout in milliseconds. The executor applies its configured default and cap; on expiry the command moves to the background as a job instead of being killed."
     },
     "workdir": {
       "type": "string",
@@ -635,7 +640,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
 
 来源：[`packages/shell/tool-bash/src/index.ts`](../packages/shell/tool-bash/src/index.ts)
 
-bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；禁用 `enableRunInBackground` 配置（默认为 true）后，该参数会被完全移除。
+bash 工具是 bash 执行器 seam 面向模型的消费方。组合了 job 注册表时，每次调用在启动时即注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；未组合注册表时，或 `enableRunInBackground: false` 时，该工具注册的是不含 `run_in_background` 参数的前台专用 schema。
 
 <a id="deepseek-aidsh-tool-present"></a>
 
@@ -643,7 +648,7 @@ bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_bac
 
 ### `present`
 
-声明交付 Session 文件系统可访问的已有文件。如果你创建或更新的文件是用户要求接收的成果，则必须在写入完成后、最终回复前调用 present，包括通过 Bash 或代码执行创建的文件。在回复中提到文件路径不能替代这次调用。文件必须已存在。用户打开当前源文件；不复制或保存其内容。
+声明选定的已有文件为可通过 Session 文件系统访问的最终交付物。当用户需要单独的文件交付物时使用 present，尤其是 Office 文档、电子表格和幻灯片。若在最终回复中展示结果已经足够，请优先那样做；创建或编辑文件本身并不要求调用 present。通常选择最重要的 1-2 个交付物；需要时可增加，但单次 present 调用最多 4 个文件。文件必须已存在。用户打开当前源文件；不复制或保存其内容。
 
 ```json
 {
@@ -686,7 +691,7 @@ bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_bac
 
 ### `pwsh`
 
-执行一条 PowerShell 命令（`pwsh -Command`）并返回其 stdout/stderr。每次调用都在全新 pwsh 进程中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。路径采用原生 Windows 形式（`C:\...`）；用 `$env:NAME` 读取环境变量。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$env:DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。在 Windows 上，被强制终止的命令以 `[exit code: 1]` 结算且不带信号标记——应视为中断，而不是命令失败。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。
+执行一条 PowerShell 命令（`pwsh -Command`）并返回其 stdout/stderr。每次调用都在全新 pwsh 进程中运行：cwd、变量与函数等状态都不会在调用之间保留——请传 `workdir`，不要用 `cd`。路径采用原生 Windows 形式（`C:\...`）；用 `$env:NAME` 读取环境变量。非零退出以 `[exit code: N]` 报告。当前 harness 环境事实通过托管的 `$env:DSH_*` 变量暴露，需要时请读取。命令可能在文件沙箱下运行；被阻止的文件操作以 `[sandbox: file access denied under <mode> mode]` 报告——这是策略拒绝，不是命令本身的缺陷，不要换别的方式重试。过长输出会被截断为尾部；完整输出保存到文件，可用时报告其路径。在 Windows 上，被强制终止的命令以 `[exit code: 1]` 结算且不带信号标记——应视为中断，而不是命令失败。长时间运行的命令请设 `run_in_background: true`：调用立即返回 job id；用 `job_output` 读取它的输出，用 `job_kill` 停止它。达到超时的前台命令不会被杀死：它会以同样的方式转入后台，返回其 job id 以及目前已有的输出。
 
 ```json
 {
@@ -702,7 +707,7 @@ bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_bac
     },
     "timeoutMs": {
       "type": "number",
-      "description": "Timeout in milliseconds. The executor applies its configured default and cap, and kills the command on expiry."
+      "description": "Timeout in milliseconds. The executor applies its configured default and cap; on expiry the command moves to the background as a job instead of being killed."
     },
     "workdir": {
       "type": "string",
@@ -743,7 +748,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
 
 ### `cordis_inspect_query`
 
-执行 Inspect Provider 显式声明的只读查询。platform、provider 和 method 必须来自 cordis_inspect_list，input 必须符合该方法的 schema。在 cordis_define 前用本 Tool 读取精确 Service 方法、Event mode、Builtin 签名、Tool schema、主题 token，或实时 Slot 树及 props。Host 查询在本地执行；Client 查询等待首个有效页面响应，在页面回答或 Tool 被取消前保持 pending。本 Tool 不能调用业务 Service 方法或修改运行时。查询 Service.listService 和 Event.listEvents 时，先不传 input 浏览紧凑签名目录，再查询精确 service 或 event 获取结构化约定和引用类型。查询 Slots.listSubTree 时，先不传 root 浏览紧凑树，再查询精确 root 获取完整注册约定和 props。
+执行 Inspect Provider 声明的只读查询。platform、provider 和 method 必须来自 cordis_inspect_list，input 必须符合该方法的 schema。在编写 plugin 代码前用本 Tool 读取精确 Service 方法、Event mode、plugin Config schema、Tool schema、主题 token，或实时 Slot 树及 props。Host 查询在本地执行；Client 查询等待首个有效页面响应，在页面回答或 Tool 被取消前保持 pending。本 Tool 不能调用业务 Service 方法或修改运行时。
 
 ```json
 {
@@ -2020,7 +2025,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `list_agents`
 
-按持久 id 与 label 列出你创建的可继续后台 subagent。用它回忆自己启动过哪些，而不要用它轮询完成情况——某个 subagent 结束时你会收到通知。状态来自实时注册表：running 表示该 agent 此刻正在工作；idle 表示它已加载但处于轮次之间（可能在等它启动的 agent）；ready 表示它只存在于存储中——可以继续，既不是终态，也不是等待收取的结果。`send_message` 对 running 子 agent 在其最近的步骤边界施加 steering（中途引导），对 idle 或 ready 子 agent 启动一个轮次；直接子 agent 在任何状态下都是 `send_message` 的候选对象。这份快照不是投递承诺——`send_message` 会做权威检查，仍可能失败。读取失败的子 agent 会作为诊断报告出来，而不是被静默丢弃。`descendants` 范围会按稳定的前序遍历你之下的整棵树，并为每个条目标注其持久的直接父 Session id 与深度。`send_message` 只适用于深度 1 的条目；更深的条目只能作为 `interrupt_agent` 的候选。
+按持久 id 与 label 列出你创建的可继续后台 subagent。用它回忆自己启动过哪些，而不要用它轮询完成情况——某个 subagent 结束时你会收到通知。状态来自实时注册表：running 表示该 agent 此刻正在工作；inactive 表示当前没有轮次在执行，无论该子 agent 已加载还是需要恢复。inactive 不描述任务完成、成功、失败，也不表示在等待其他 agent。`send_message` 对 running 子 agent 在其最近的步骤边界施加 steering（中途引导），对 inactive 子 agent 启动或恢复一个轮次；直接子 agent 在任何状态下都是 `send_message` 的候选对象。这份快照不是投递承诺——`send_message` 会做权威检查，仍可能失败。读取失败的子 agent 仅在 `descendants` 范围下作为诊断报告出来。`descendants` 范围会按稳定的前序遍历你之下的整棵树，并为每个条目标注其持久的直接父 Session id 与深度。`send_message` 只适用于深度 1 的条目；更深的条目只能作为 `interrupt_agent` 的候选。
 
 ```json
 {
@@ -2042,7 +2047,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `send_message`
 
-按 agent id 向直接的可继续子 agent 发送一条消息。如果你是常驻的可继续子 agent，也可以向你的直接父 agent 发送。目标仍在工作时，消息会引导它最近的步骤；目标空闲时，消息会启动一个轮次。本调用不会返回该 agent 的答复——只确认消息已投递。失败意味着消息**没有**投递。
+按 agent id 向直接的可继续子 agent 发送一条消息。如果你是常驻的可继续子 agent，也可以向你的直接父 agent 发送。目标仍在工作时，消息会引导它最近的步骤；目标处于 inactive 时，消息会启动或恢复一个轮次。本调用不会返回该 agent 的答复——只确认消息已投递。失败意味着消息**没有**投递。
 
 ```json
 {
@@ -2155,7 +2160,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Teammate name."
+      "description": "Teammate target returned by spawn_teammate or list_agents."
     }
   },
   "required": [
@@ -2168,7 +2173,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `list_agents`
 
-列出 Lead 与所有持久 teammate，以及各自当前的运行时状态。
+列出 Lead 与所有持久 teammate，以及各自可寻址的 target 与当前可用性。inactive 表示当前没有轮次在执行，而不是任务结果。provisioning 和 failed 描述成员创建过程。
 
 ```json
 {
@@ -2181,7 +2186,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `send_message`
 
-向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；idle target 会启动一个轮次；inactive teammate 会冷恢复。
+向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；inactive target 会启动或恢复一个轮次。
 
 ```json
 {
@@ -2189,7 +2194,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Team member name, or lead."
+      "description": "Member target returned by spawn_teammate or list_agents, including lead."
     },
     "message": {
       "type": "string",
@@ -2324,7 +2329,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     },
     "owner": {
       "type": "string",
-      "description": "Optional member-name filter; use unowned for tasks without an owner."
+      "description": "Optional member target from spawn_teammate or list_agents, matching ownerName; use unowned for tasks without an owner."
     },
     "ready": {
       "type": "boolean",
@@ -2398,7 +2403,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     },
     "owner": {
       "type": "string",
-      "description": "Member name for Lead-only reassign; omit to unassign."
+      "description": "Member target from spawn_teammate or list_agents for Lead-only reassign; omit to unassign."
     }
   },
   "required": [
@@ -6094,7 +6099,7 @@ The durable multi-agent team service for the patent domain: create a team (you b
 
 如果误用钩子（参数错误、未知选项、不受支持的 schema、触发上限），抛出的错误**总会**终止脚本，绝不会退化为单个条目的 `null`。
 
-约束：并发上限和 agent 总数上限均会生效；不提供文件系统、网络、定时器或 Node.js API。具体工作由 agent 完成，脚本只负责编排。该运行在前台执行：整个脚本完成后，调用才会返回。
+约束：并发上限和 agent 总数上限均会生效；不提供文件系统、网络、定时器或 Node.js API。具体工作由 agent 完成，脚本只负责编排。该运行默认在前台执行：整个脚本完成后，调用才会返回。长时间运行时请设 `run_in_background: true`：调用立即返回一个 job id，运行继续在后台编排，其返回值随该 job 的完成通知送达（用 `job_output` 查看、用 `job_kill` 停止）。
 
 ```json
 {
@@ -6160,6 +6165,10 @@ The durable multi-agent team service for the patent domain: create a team (you b
       "type": "object",
       "description": "Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {\"files\": [...]}).",
       "additionalProperties": true
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Run as a background job: return a job id immediately instead of waiting; the return value arrives with the completion notice."
     }
   },
   "required": [
@@ -6170,6 +6179,23 @@ The durable multi-agent team service for the patent domain: create a team (you b
 ```
 
 来源：[`packages/workflow/tool-workflow/src/index.ts`](../packages/workflow/tool-workflow/src/index.ts)
+
+<a id="deepseek-aidsh-tool-workspace-dependencies"></a>
+
+## `@deepseek-ai/dsh-tool-workspace-dependencies`
+
+### `load_workspace_dependencies`
+
+获取捆绑的 Python 与库目录的绝对路径，以及捆绑的 Python 发行版版本。payload 提供时也会返回 Node.js 与 pnpm 的路径。Python 包含 numpy、pandas、python-docx、python-pptx、openpyxl、Pillow、lxml 和 XlsxWriter。除非用户或工作区指令选择了其他环境，否则请用这些库处理 Office 文件。返回 Node.js 与 pnpm 路径时，请使用该 Node 可执行文件与 pnpm 脚本路径运行 pnpm。本工具不会修改 PATH 或包管理器设置。
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/skill/tool-workspace-dependencies/src/index.ts`](../packages/skill/tool-workspace-dependencies/src/index.ts)
 
 <a id="deepseek-aidsh-tool-web"></a>
 

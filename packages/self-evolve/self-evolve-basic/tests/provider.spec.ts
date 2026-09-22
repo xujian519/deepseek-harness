@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
-import type { ShellExecRequest, ShellExecSpec, ShellRunResult } from '@deepseek-ai/dsh-shell'
+import type { ShellExecRequest, ShellExecSpec, ShellExecution, ShellExecutor, ShellRunResult } from '@deepseek-ai/dsh-shell'
 import {
   BasicSelfEvolveEngine,
   eligiblePatterns,
@@ -2118,7 +2118,7 @@ describe('applyCommit across candidate kinds', () => {
 
   it('L1 candidates honor a session cwd and a whenToUse value in the frontmatter', async () => {
     const ctx = new Context()
-    const session = Session.create(SessionId('cwd-session'), [], { version: 3, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj', isSeeded: false })
+    const session = Session.create(SessionId('cwd-session'), [], { version: SESSION_FORMAT_VERSION, id: SessionId('cwd-session'), createdAt: Date.now(), cwd: '/proj', isSeeded: false })
     const writes: { content: string }[] = []
     ctx.provide('sessionProjections', { register: () => () => {}, snapshot: () => projectedState(session) })
     ctx.provide('sessions', { get: (id: string) => (id === session.id ? session : undefined) })
@@ -2297,9 +2297,9 @@ describe('step-reflection gate surfaces (P3.1)', () => {
     session.append('tool/result', {
       turn: 1,
       step: 1,
-      message: { role: 'tool', toolCallId: 'lone', content: [{ type: 'tool-result', toolCallId: 'lone', content: [], isError: true }] } as never,
-      error: { name: 'LoneError' },
-    } as never, { surfaceOp: 'append' })
+      message: { role: 'tool', toolCallId: 'lone', content: [], isError: true } as never,
+      error: { name: 'LoneError', code: 'E_LONE' },
+    }, { surfaceOp: 'append' })
     provideServices(ctx, session)
     fakeLlm(ctx, '{}')
     const engine = new ProbeEngine(ctx, baseConfig())
@@ -2593,29 +2593,36 @@ describe('workspace verifier (P1.9b)', () => {
     })
   }
 
+  /** Run one resolved spec through the real shell and project its foreground result. */
+  async function runSpec(spec: ShellExecSpec): Promise<ShellRunResult> {
+    const outcome = await realRunner(spec.command, spec.workdir, spec.timeoutMs)
+    return {
+      exitCode: outcome.exitCode,
+      signal: outcome.signal,
+      timedOut: outcome.timedOut,
+      aborted: false,
+      timeoutMs: spec.timeoutMs,
+      stdout: { text: outcome.stdout, truncated: false },
+      stderr: { text: outcome.stderr, truncated: false },
+    }
+  }
+
   /** A minimal in-process `ctx.shell` double that runs real commands. */
-  function fakeShell(): { resolve: (request: ShellExecRequest) => ShellExecSpec; run: (spec: ShellExecSpec) => Promise<ShellRunResult> } {
+  function fakeShell(): Pick<ShellExecutor, 'resolve' | 'execute'> {
     return {
       resolve: (request: ShellExecRequest): ShellExecSpec => ({
         command: request.command,
         workdir: request.workdir ?? process.cwd(),
         timeoutMs: request.timeoutMs ?? 60_000,
+        onExpiry: request.onExpiry ?? 'kill',
         stdoutMaxBytes: request.stdoutMaxBytes ?? 1_000_000,
         signal: request.signal,
         sandboxPolicy: undefined,
       }),
-      run: async (spec: ShellExecSpec): Promise<ShellRunResult> => {
-        const outcome = await realRunner(spec.command, spec.workdir, spec.timeoutMs)
-        return {
-          exitCode: outcome.exitCode,
-          signal: outcome.signal,
-          timedOut: outcome.timedOut,
-          aborted: false,
-          timeoutMs: spec.timeoutMs,
-          stdout: { text: outcome.stdout, truncated: false },
-          stderr: { text: outcome.stderr, truncated: false },
-        }
-      },
+      // The engine reads only the handle's foreground projection.
+      execute: async (spec: ShellExecSpec): Promise<ShellExecution> => ({
+        result: async () => await runSpec(spec),
+      } as ShellExecution),
     }
   }
 
@@ -2661,7 +2668,7 @@ describe('workspace verifier (P1.9b)', () => {
 
   function sessionAt(dir: string): Session {
     const id = SessionId(`ws-${Math.random().toString(36).slice(2, 10)}`)
-    const header: SessionHeader = { version: 3, id, createdAt: Date.now(), cwd: dir, isSeeded: false }
+    const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt: Date.now(), cwd: dir, isSeeded: false }
     return Session.create(id, undefined, header)
   }
 

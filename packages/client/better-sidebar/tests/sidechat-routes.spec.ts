@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildSidechatApi } from '../src/sidechat-routes.ts'
 import { SidebarError } from '../src/wire.ts'
-import { SIDE_BOUNDARY_PROMPT, SIDE_INJECTION_PLUGIN, SIDE_NEW_THREAD_TITLE, sideLabel } from '../src/sidechat-core.ts'
+import { SIDE_BOUNDARY_PROMPT, SIDE_INJECTION_KIND, SIDE_NEW_THREAD_TITLE, sideLabel } from '../src/sidechat-core.ts'
 import type { Context } from '../src/context-types.ts'
 
 /** A fake live agent (inject/followup/cancel spied). */
@@ -147,14 +147,14 @@ describe('sidechat.start', () => {
       agentProvider: 'test',
       agentModel: 'model-x',
     })
-    // First contact is SPLIT: the boundary rides agent.inject (plugin-stamped
+    // First contact is SPLIT: the boundary rides agent.inject (kind-stamped
     // context, no wake), the question is the follow-up that wakes the driver.
     expect(child.inject).toHaveBeenCalledTimes(1)
     const injection = child.inject.mock.calls[0]![0] as {
       content: Array<{ type: string; text: string }>
-      source: { kind: string; plugin: string }
+      source: { kind: string }
     }
-    expect(injection.source).toEqual({ kind: 'plugin', plugin: SIDE_INJECTION_PLUGIN })
+    expect(injection.source).toEqual({ kind: SIDE_INJECTION_KIND })
     expect(injection.content[0]!.text.startsWith(SIDE_BOUNDARY_PROMPT)).toBe(true)
     expect(injection.content[0]!.text).not.toContain('explain the event flow')
     expect(child.followup).toHaveBeenCalledTimes(1)
@@ -239,7 +239,7 @@ describe('sidechat.start', () => {
     await api['sidechat.prompt']({ childId, text: 'explain the event flow' })
     expect(child.inject).toHaveBeenCalledTimes(1)
     const injection = child.inject.mock.calls[0]![0] as { content: Array<{ text: string }>; source: { kind: string } }
-    expect(injection.source.kind).toBe('plugin')
+    expect(injection.source.kind).toBe(SIDE_INJECTION_KIND)
     expect(injection.content[0]!.text.startsWith(SIDE_BOUNDARY_PROMPT)).toBe(true)
     expect(injection.content[0]!.text).toContain('`bash` (executing)')
     expect(child.followup).toHaveBeenCalledTimes(1)

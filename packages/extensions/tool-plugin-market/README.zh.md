@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-把本插件挂载到「应当让模型能发现并评估插件」的 agent 预设上。它属于 agent 平面：把三个工具 schema 与 `tool:plugin-market` 提示词章节注册进预设的 scoped 工具层，并解析宿主组合已经提供的 `pluginMarket` 服务。`package/preset/agent-presets/presets/standard/agent.cordis.yml` 预设默认挂载它。
+把本插件挂载到「应当让模型能发现并评估插件」的 agent 预设上。它属于 agent 平面：把三个工具 schema 与 `tool:plugin-market` 提示词章节注册进预设的 scoped 工具层，并解析宿主组合已经提供的 `pluginMarket` 服务。`packages/bundle/web-app/presets/standard.patch.yml` 预设默认挂载它。
 
 ### 最小组合
 

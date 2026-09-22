@@ -2,7 +2,7 @@
 # ordinary headless composition, so a recording pins the calendar asset the
 # plugin loads at load time, the tool it registers, and the schema the model
 # receives. The shipped `patent` agent preset owns this row for real sessions,
-# but a preset is agent-plane and only `dsh-agent-presets` can mount one, which
+# but a preset is agent-plane and only `dsh-agent-preset-registry` can mount one, which
 # the headless profile does not run.
 #
 # The recorded session deliberately never calls `patent_deadlines`: its report

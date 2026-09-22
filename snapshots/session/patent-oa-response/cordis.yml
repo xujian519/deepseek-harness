@@ -5,7 +5,7 @@
 # number, the recap-mode manifest assembly, and the case run artifacts on disk.
 #
 # The shipped `patent` agent preset owns these rows for real sessions, but a
-# preset is agent-plane and only `dsh-agent-presets` can mount one, which the
+# preset is agent-plane and only `dsh-agent-preset-registry` can mount one, which the
 # headless profile does not run.
 #
 # What this composition pins beyond the deterministic faces: the LLM-driven

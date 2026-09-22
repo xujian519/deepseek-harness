@@ -18,8 +18,7 @@ const EMPTY_LIST: SessionListState = {
   ids: [],
   byId: {},
   phase: 'pending',
-  subagentsByParent: {},
-  jobsBySession: {},
+  projectionsBySession: {},
 }
 
 const NO_WORKSPACES: readonly WorkspaceSnapshot['items'][number][] = []

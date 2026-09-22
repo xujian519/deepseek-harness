@@ -11,7 +11,7 @@ Status: implemented
 本决策落地时，周边基础已就绪：
 
 - **历史段字节稳定**：会话日志 append-only，`deriveMessages()` 缓存其投影（`packages/core/session/src/index.ts`）——每个 surface 节点只投影一次，`replace` 重写才重建世代。
-- **缓存遥测已端到端存在**：`TokenUsage` 已把 `cacheReadTokens`/`cacheWriteTokens` 与 uncached `inputTokens` 分开（`packages/llm/llm/src/types.ts`）；DeepSeek adapter 的 `mapUsage` 已映射 `prompt_cache_hit_tokens`/`prompt_tokens_details.cached_tokens` 并从 `prompt_tokens` 扣除命中（`packages/llm/llm-deepseek/src/protocols/chat-completions/translate.ts`）；pi-ai adapter 已映射读写计数；token-meter 的 `tokenUsage` 投影折叠全部四个桶，usage 经 `assistant/chunk` 与 `assistant/message` 进入会话日志。
+- **缓存遥测已端到端存在**：`TokenUsage` 已把 `cacheReadTokens`/`cacheWriteTokens` 与 uncached `inputTokens` 分开（`packages/llm/llm/src/types.ts`）；DeepSeek adapter 的 `mapUsage`（后更名为 `updateUsage`）已映射 `prompt_cache_hit_tokens`/`prompt_tokens_details.cached_tokens` 并从 `prompt_tokens` 扣除命中（`packages/llm/llm-deepseek/src/translate.ts`）；pi-ai adapter 已映射读写计数；token-meter 的 `tokenUsage` 投影折叠全部四个桶，usage 经 `assistant/chunk` 与 `assistant/message` 进入会话日志。
 
 缺失的是**前缀复用**：无缓存身份、无 TTL、无持久化、派生会话不继承——且 `system-prompt/assemble` 瀑布与每步求值的 variable providers 是主动的前缀变化源。
 

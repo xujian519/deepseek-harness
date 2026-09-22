@@ -4,9 +4,9 @@
 
 import type { ReactNode } from 'react'
 import {
-  IconSettingsOutline16,
-  IconSparkle16,
-  IconUserOutline16,
+  IconSettingsOutlineRegular,
+  IconSparkleRegular,
+  IconUserOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TrajectoryCellKind } from './trajectory-record.ts'
 import type { TrajectoryKey } from './locales.ts'
@@ -85,11 +85,11 @@ export const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
 
 /** Icon glyph rendering each ledger cell kind. */
 export const KIND_ICON: Record<TrajectoryCellKind, ReactNode> = {
-  system: <IconSettingsOutline16 size={13} />,
-  user: <IconUserOutline16 size={13} />,
+  system: <IconSettingsOutlineRegular size={13} />,
+  user: <IconUserOutlineRegular size={13} />,
   context: <InformationIcon />,
   compacted: <CompactedIcon />,
-  message: <IconSparkle16 size={13} />,
+  message: <IconSparkleRegular size={13} />,
   tool: <ToolWrenchIcon />,
   subtool: <ToolWrenchIcon />,
 }

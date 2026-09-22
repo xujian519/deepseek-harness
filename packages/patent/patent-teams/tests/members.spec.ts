@@ -440,12 +440,12 @@ describe('installRetiredMemberGuard', () => {
     const stateDir = '.patent-teams-guard'
     const runtime = {
       listChildren: vi.fn(async () => [
-        { kind: 'child', id: 'retired-1', mode: 'continuable', label: 'x', activity: 'inactive', hasChildren: false },
-        { kind: 'child', id: 'live-1', mode: 'continuable', label: 'y', activity: 'inactive', hasChildren: false },
+        { id: 'retired-1', createdAt: 1, mode: 'continuable', label: 'x' },
+        { id: 'live-1', createdAt: 1, mode: 'continuable', label: 'y' },
       ]),
       listDescendants: vi.fn(async () => [
-        { kind: 'child', id: 'retired-1', mode: 'continuable', label: 'x', activity: 'inactive', hasChildren: false, parentId: SessionId('root'), depth: 1 },
-        { kind: 'child', id: 'live-1', mode: 'continuable', label: 'y', activity: 'inactive', hasChildren: false, parentId: SessionId('root'), depth: 1 },
+        { kind: 'child', id: 'retired-1', activity: 'inactive', mode: 'continuable', label: 'x', hasChildren: false, parentId: SessionId('root'), depth: 1 },
+        { kind: 'child', id: 'live-1', activity: 'inactive', mode: 'continuable', label: 'y', hasChildren: false, parentId: SessionId('root'), depth: 1 },
       ]),
       sendMessage: vi.fn(async (_p: Agent, _id: SessionId, _c: unknown, _o: unknown) => 'msg'),
     }
@@ -581,9 +581,9 @@ describe('memberActivity', () => {
     const ctx = new Context()
     ctx.provide('subagents', {
       listChildren: async () => [
-        { kind: 'child', id: 'c1', mode: 'continuable', label: 'x', activity: 'running', hasChildren: false },
-        { kind: 'child', id: 'c2', mode: 'continuable', label: 'y', activity: 'inactive', hasChildren: false },
-        { kind: 'diagnostic', id: 'broken', reason: 'corrupt' },
+        { id: 'c1', createdAt: 1, mode: 'continuable', label: 'x' },
+        { id: 'c2', createdAt: 1, mode: 'continuable', label: 'y' },
+        { id: 'c3', createdAt: 1, mode: 'one-shot' },
       ],
     } as never)
     ctx.provide('agents', {
@@ -593,6 +593,7 @@ describe('memberActivity', () => {
     expect([...activity.entries()]).toEqual([
       ['c1', 'running'],
       ['c2', 'idle'],
+      ['c3', 'ready'],
     ])
   })
 
@@ -600,7 +601,7 @@ describe('memberActivity', () => {
     const ctx = new Context()
     ctx.provide('subagents', {
       listChildren: async () => [
-        { kind: 'child', id: 'c1', mode: 'continuable', label: 'x', activity: 'inactive', hasChildren: false },
+        { id: 'c1', createdAt: 1, mode: 'continuable', label: 'x' },
       ],
     } as never)
     ctx.provide('agents', { get: () => undefined } as never)

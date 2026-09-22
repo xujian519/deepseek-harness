@@ -109,7 +109,7 @@ e2e 门禁针对真实 OpenViking 服务运行（`OPENVIKING_URL`，默认 `http
 ## 已知限制与延后工作
 
 - **服务契约漂移** — 本包实现所引用发布版（0.4.15，本地 e2e 所针对的版本）的 OpenViking 线面；服务器升级可能新增工具（MCP 面自动重新同步），但也可能改变 HTTP 端点语义，本包仅通过失败隐性校验其记录的契约。
-- **Web 状态卡片延后** — 设置表单已生效（`openviking` namespace 在 Web UI 设置页渲染并在 seam 边界校验），`GET /openviking/status` 提供健康与队列 JSON，但浏览器状态卡片（带 client-build 注册的 client `ui-*` 插件）尚未接入 client slot。状态目前可通过路由、`memqueue` 工具与 CLI 获取。
+- **Web 状态卡片延后** — 设置表单已生效（该条目的 volatile 字段在 Web UI 设置页渲染，每次写入都按 Config schema 校验，含 endpoint 的 pattern），`GET /openviking/status` 提供健康与队列 JSON，但浏览器状态卡片（带 client-build 注册的 client `ui-*` 插件）尚未接入 client slot。状态目前可通过路由、`memqueue` 工具与 CLI 获取。
 - **`remember` 作用域** — OpenViking MCP `remember` 工具存入服务器自身的短生命周期会话，而非实时的 `dsh-<session-id>` 流；自动捕获与 `memcommit` 会记录对话本身。
 - **无内嵌服务器** — 插件需要可达的 OpenViking 服务；无服务的部署在启动时看到一次去重告警，自动层静默。
 - **召回块不可信** — 注入的记忆文本是背景数据；模型侧指导禁止执行仅出现在记忆中的指令。

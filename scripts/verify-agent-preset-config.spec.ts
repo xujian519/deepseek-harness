@@ -8,12 +8,13 @@
  * lookalike.
  */
 
+import AgentPreset from '@deepseek-ai/dsh-agent-preset'
 import { Config as PersonaConfig } from '@deepseek-ai/dsh-persona'
 import z from '@deepseek-ai/schemastery'
 import { describe, expect, it } from 'vitest'
 import { loadCordisYaml } from './cordis-yaml.ts'
 import {
-  assertNonEmptyCorpus, findConfigViolations, lineOfRowId, packageNameOf, unjudgedCompositions,
+  assertNonEmptyCorpus, findConfigViolations, lineOfRowId, packageNameOf, pluginConfigSchema, unjudgedCompositions,
   type ConfigSchema, type RowResolution, type RowResolver,
 } from './verify-agent-preset-config.ts'
 
@@ -27,6 +28,9 @@ const FixtureConfig = z.object({
 const OptionalConfig = z.object({
   count: z.number().default(1),
 }) as unknown as ConfigSchema
+
+/** The declaration plugin's own schema, read through the gate's runtime narrowing. */
+const DeclarationConfig = pluginConfigSchema(AgentPreset.Config)!
 
 const JUDGED: RowResolution = { kind: 'schema', schema: FixtureConfig }
 const SKIPPED: Record<string, RowResolution> = {
@@ -42,7 +46,12 @@ function resolverOf(entries: Record<string, RowResolution>): RowResolver {
 
 /** Every row names the fixture plugin unless it says otherwise. */
 const fixtures = (yaml: string, extra: Record<string, RowResolution> = {}): ReturnType<typeof findConfigViolations> =>
-  findConfigViolations(loadCordisYaml(yaml), resolverOf({ '@fixture/plugin': JUDGED, ...SKIPPED, ...extra }))
+  findConfigViolations(loadCordisYaml(yaml), resolverOf({
+    '@fixture/plugin': JUDGED,
+    '@deepseek-ai/dsh-agent-preset': { kind: 'schema', schema: DeclarationConfig },
+    ...SKIPPED,
+    ...extra,
+  }))
 
 describe('judging a preset row against the schema its plugin declares', () => {
   it('accepts a config carrying every required key', async () => {
@@ -174,6 +183,75 @@ describe('walking the row containers the loader walks', () => {
     expect(report.validated).toBe(0)
     expect(report.skipped.external).toBe(0)
   })
+
+  it('recurses into the insert list a patch file adds its rows through', async () => {
+    const report = await fixtures(`
+- insert:
+    - id: target
+      name: '@fixture/plugin'
+      config:
+        required: ok
+`)
+    expect(report.violations).toEqual([])
+    expect(report.validated).toBe(1)
+  })
+
+  it("recurses into a preset declaration's child composition", async () => {
+    const report = await fixtures(`
+- insert:
+    - id: preset-standard
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: standard
+        order: 1
+        plugins:
+          - id: target
+            name: '@fixture/plugin'
+            config:
+              required: ok
+`)
+    expect(report.violations).toEqual([])
+    // The declaration row and its child are both judged.
+    expect(report.validated).toBe(2)
+  })
+
+  it('judges a preset declaration by its own schema beside its children', async () => {
+    const report = await fixtures(`
+- id: preset-broken
+  name: '@deepseek-ai/dsh-agent-preset'
+  config:
+    order: 1
+    plugins: []
+`)
+    expect(report.violations).toHaveLength(1)
+    expect(report.violations[0]?.label).toBe('row "preset-broken"')
+    expect(report.violations[0]?.issues[0]?.path).toEqual(['id'])
+  })
+
+  it('keeps judging the children of a declaration that holds a !!js expression', async () => {
+    // A declaration row whose config carries an expression anywhere — here in
+    // one child's own config — is skipped itself, but the rows it mounts are
+    // still judged one by one.
+    const report = await fixtures(`
+- id: preset-standard
+  name: '@deepseek-ai/dsh-agent-preset'
+  config:
+    id: standard
+    order: 1
+    plugins:
+      - id: conditional
+        name: '@fixture/plugin'
+        config:
+          required: !!js process.platform
+      - id: target
+        name: '@fixture/plugin'
+        config:
+          required: ok
+`)
+    expect(report.violations).toEqual([])
+    expect(report.skipped.conditional).toBe(2)
+    expect(report.validated).toBe(1)
+  })
 })
 
 describe('rows the gate excludes, and why', () => {
@@ -300,14 +378,20 @@ describe('the corpus floors', () => {
   })
 
   it('accepts a non-empty corpus', () => {
-    expect(() => { assertNonEmptyCorpus(['a/agent.cordis.yml']) }).not.toThrow()
+    expect(() => { assertNonEmptyCorpus(['presets/standard.patch.yml']) }).not.toThrow()
   })
 
   it('names every composition where nothing was judged', () => {
     expect(unjudgedCompositions([
-      { file: 'a/agent.cordis.yml', validated: 0 },
-      { file: 'b/agent.cordis.yml', validated: 3 },
-    ])).toEqual(['a/agent.cordis.yml'])
+      { file: 'presets/document.patch.yml', judged: 0 },
+      { file: 'presets/standard.patch.yml', judged: 3 },
+    ])).toEqual(['presets/document.patch.yml'])
+  })
+
+  it('keeps a composition whose only judged row violated out of the unjudged list', () => {
+    expect(unjudgedCompositions([
+      { file: 'presets/minimal.patch.yml', judged: 1 },
+    ])).toEqual([])
   })
 })
 

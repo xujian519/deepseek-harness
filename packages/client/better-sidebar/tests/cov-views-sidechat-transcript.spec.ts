@@ -170,13 +170,13 @@ describe('transcriptRows tool rows', () => {
       entry(ev('tool/result', 2, {
         message: {
           source: { kind: 'tool', callId: 'c1' },
-          // Every malformed shape resultTextOf guards against.
+          // Every malformed shape the text fold guards against.
           content: [
             null,
             'plain string',
-            { type: 'text', text: 'not a tool-result' },
-            { type: 'tool-result', content: 'not-an-array' },
-            { type: 'tool-result', content: [null, { type: 'image', url: 'x' }, { type: 'text', text: 7 }] },
+            { type: 'tool-call', name: 'read', arguments: '{}' },
+            { type: 'text', text: 7 },
+            { type: 'image', url: 'x' },
           ],
         },
       })),
@@ -197,7 +197,7 @@ describe('transcriptRows tool rows', () => {
     const rows = transcriptRows([
       entry(ev('session/end-seed', 0)),
       entry(ev('tool/result', 1, {
-        message: { source: { kind: 'tool' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'alone' }] }] },
+        message: { source: { kind: 'tool' }, content: [{ type: 'text', text: 'alone' }] },
       })),
     ])
     expect(rows).toEqual([{ kind: 'tool', seq: 1, name: 'tool', failed: false, resultText: 'alone' }])
@@ -233,7 +233,7 @@ describe('transcriptRows tool rows', () => {
       // the settled assistant row.
       entry(ev('assistant/message', 5, { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'xy' }] } })),
       entry(ev('tool/result', 6, {
-        message: { source: { kind: 'tool', callId: 'c2' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'out' }] }] },
+        message: { source: { kind: 'tool', callId: 'c2' }, content: [{ type: 'text', text: 'out' }] },
       })),
     ])
     const bash = rows.find(row => row.kind === 'tool' && (row).name === 'bash') as Extract<SidechatTranscriptRow, { kind: 'tool' }>

@@ -119,6 +119,33 @@ export interface TeamMessage {
   readAt?: number
 }
 
+/**
+ * Source stamped on a member report delivered live into the captain's session.
+ *
+ * A report is one agent addressing another, so it declares the `relay` form
+ * and the sender's durable subagent session id — the transcript renders the
+ * sending session from that record rather than from the message text.
+ */
+export interface PatentTeamsReportSource {
+  readonly kind: 'patent-teams-report'
+  readonly form: 'relay'
+  /** Sending member's team display name. */
+  readonly from: string
+  /** Sending member's durable continuable subagent session id. */
+  readonly senderSessionId: string
+}
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** Relayed member report; readers without this producer retain the recorded
+     * content and every source property, while rendering the sending session
+     * from `senderSessionId` stays producer-local.
+     * @persistenceAttribution
+     */
+    'patent-teams-report': PatentTeamsReportSource
+  }
+}
+
 /** The full durable team record. */
 export interface TeamState {
   /** Original team name. */

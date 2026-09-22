@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin on the agent preset that should let the model discover and evaluate plugins. It is agent-plane: it registers the three tool schemas and the `tool:plugin-market` prompt section into the preset's scoped tool layer, and resolves the `pluginMarket` service the host composition already provides. The `package/preset/agent-presets/presets/standard/agent.cordis.yml` preset mounts it by default.
+Mount this plugin on the agent preset that should let the model discover and evaluate plugins. It is agent-plane: it registers the three tool schemas and the `tool:plugin-market` prompt section into the preset's scoped tool layer, and resolves the `pluginMarket` service the host composition already provides. The `packages/bundle/web-app/presets/standard.patch.yml` preset mounts it by default.
 
 ### Minimal composition
 

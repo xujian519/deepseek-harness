@@ -7,44 +7,41 @@
  */
 import { describe, expect, it } from 'vitest'
 import { apply } from '../src/index.ts'
+import { SIDEBAR_PREFS_DEFAULTS } from '../src/prefs-shared.ts'
 import type { SidebarWebRoute } from '../src/context-types.ts'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 interface Mounted {
   routes: SidebarWebRoute[]
   tools: ToolDefinition[]
-  /** Fire the registered settings watcher (one settings commit). */
-  commit(): void
+  /** One `settings/document-updated` commit for this entry. */
+  commit(ns?: string): void
   cleanup: () => void
 }
 
 /**
- * Mount the plugin with a settings service that registers the side-card
- * namespace but reports NO descriptor: `describe()` returns an empty
- * document set, exactly like a deployment whose settings document has not
- * been materialized yet.
+ * Mount the plugin with a settings service that knows the entry but reports
+ * NO descriptor: `describe()` returns an empty document set, exactly like a
+ * deployment whose settings document has not been materialized yet. The
+ * preferences themselves ride the entry's own volatile Config field.
  */
 function mount(opts: { terminalTools: boolean; openTools: boolean }): Mounted {
   const routes: SidebarWebRoute[] = []
   const tools: ToolDefinition[] = []
   const cleanups: Array<() => void> = []
-  const watchers: Array<() => void> = []
+  const listeners: Array<(ns: string, revision: number) => void> = []
   const prefs = {
+    ...SIDEBAR_PREFS_DEFAULTS,
     agentTerminalTools: opts.terminalTools,
     agentOpenTools: opts.openTools,
     tabsEnabled: { editor: true, browser: true, terminal: true, git: true },
   }
   const settings = {
-    register: () => ({
-      get: () => prefs,
-      watch: (callback: () => void) => { watchers.push(callback); return () => {} },
-      update: async () => {},
-      replace: async () => {},
-    }),
     describe: () => [],
     update: async () => {},
   }
   const ctx = {
+    fiber: {},
     webRuntime: { trustedHosts: [] },
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
@@ -57,18 +54,32 @@ function mount(opts: { terminalTools: boolean; openTools: boolean }): Mounted {
       const cleanup = fn()
       if (typeof cleanup === 'function') cleanups.push(cleanup as () => void)
     },
-    inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
-      if (deps.includes('settings')) callback({ settings })
+    inject: (deps: readonly string[], callback: (sctx: {
+      settings: unknown
+      configEditor: unknown
+      on: (event: string, listener: (ns: string, revision: number) => void) => () => void
+    }) => void) => {
+      if (deps.includes('settings') && deps.includes('configEditor')) {
+        callback({
+          settings,
+          configEditor: { entries: () => [{ fiber: ctx.fiber, options: { id: 'better-sidebar' } }] },
+          // The injected settings context owns the document feed: the plugin
+          // subscribes through it, not through the outer context.
+          on: (event, listener) => {
+            if (event === 'settings/document-updated') listeners.push(listener)
+            return () => {}
+          },
+        })
+      }
       return () => {}
     },
     get: () => undefined,
-    on: () => () => {},
   }
-  apply(ctx as never, undefined)
+  apply(ctx as never, { prefs: { get: () => prefs } })
   return {
     routes,
     tools,
-    commit: () => { for (const watcher of watchers) watcher() },
+    commit: (ns = 'better-sidebar') => { for (const listener of listeners) listener(ns, 1) },
     cleanup: () => { for (const cleanup of cleanups) cleanup() },
   }
 }

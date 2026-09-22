@@ -35,7 +35,7 @@ import {
   buildSidechatInheritance,
   resolvePresetId,
   SIDE_BOUNDARY_PROMPT,
-  SIDE_INJECTION_PLUGIN,
+  SIDE_INJECTION_KIND,
   SIDE_NEW_THREAD_TITLE,
   sideLabel,
   type SeedEvent,
@@ -131,13 +131,13 @@ function admitFollowup(agent: Agent, blocks: ContentBlock[]): void {
  * log therefore records two user/message events (injection, then question)
  * instead of one wrapped blob: the transcript shows the question as a user
  * bubble and collapses the injection as a context row. The injection source
- * is stamped `kind: 'plugin'` so recognition is structural; its text still
+ * is stamped with the side-chat kind so recognition is structural; its text still
  * opens with SIDE_BOUNDARY_PREFIX, keeping boundaryDelivered intact.
  */
 function admitFirstContact(agent: Agent, injectionText: string, question: string): void {
   agent.inject(createUserMessage({
     content: textPrompt(injectionText),
-    source: { kind: 'plugin', plugin: SIDE_INJECTION_PLUGIN },
+    source: { kind: SIDE_INJECTION_KIND },
   }))
   admitFollowup(agent, textPrompt(question))
 }

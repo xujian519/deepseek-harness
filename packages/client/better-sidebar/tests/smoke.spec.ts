@@ -10,8 +10,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join, resolve as resolvePath } from 'node:path'
-import { SettingsConflictError, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsConflictError, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { apply, mediaTypeForPath } from '../src/index.ts'
+import { SIDEBAR_PREFS_DEFAULTS } from '../src/config.ts'
 import { encodeHtmlUrl } from '../src/html-route.ts'
 import * as git from '../src/git.ts'
 import { listDirectory } from '../src/fs-tree.ts'
@@ -852,46 +853,33 @@ describe('session cwd resolution over the API route', () => {
 })
 
 describe('side card settings routes', () => {
-  /** A minimal settings seam: register/describe/update with the revision guard. */
-  const createFakeSettings = (pre?: Record<string, Record<string, unknown>>) => {
-    const namespaces = new Map<string, {
-      schema: unknown
-      value: Record<string, unknown> | undefined
-      revision: number
-    }>()
-    for (const [ns, value] of Object.entries(pre ?? {})) {
-      namespaces.set(ns, { schema: (input: unknown) => input, value, revision: 0 })
-    }
-    const resolve = (entry: { schema: unknown; value: Record<string, unknown> | undefined }): unknown => {
-      const schema = entry.schema as (input: unknown) => unknown
-      return entry.value === undefined ? schema(undefined) : schema(entry.value)
-    }
-    return {
-      register(ns: string, schema: unknown) {
-        namespaces.set(ns, { schema, value: undefined, revision: 0 })
-        return { get: () => ({}), watch: () => () => {}, update: async () => {}, replace: async () => {} }
-      },
-      describe() {
-        return [...namespaces.entries()].map(([ns, entry]) => ({
-          ns,
-          value: resolve(entry),
-          applies: 'live' as const,
-          revision: entry.revision,
-        }))
-      },
-      async update(ns: string, patch: Record<string, unknown>, expectedRevision?: number) {
-        const entry = namespaces.get(ns)
-        if (entry === undefined) throw new Error(`settings namespace "${ns}" is not registered`)
-        if (expectedRevision !== undefined && expectedRevision !== entry.revision) {
-          throw new SettingsConflictError(settingsNamespace(ns), expectedRevision, entry.revision)
+  /**
+   * A minimal settings service plus configuration editor: this entry's form
+   * (`{ prefs: … }`, resolved from the schema defaults) addressed by profile
+   * id, the revision guard on writes, and any pre-seeded foreign entries.
+   */
+  const createFakeServices = (foreign: Record<string, unknown> = {}) => {
+    const fiber = {}
+    let revision = 0
+    let stored: Record<string, unknown> = {}
+    const settings = {
+      describe: () => [
+        { ns: 'better-sidebar', value: { prefs: { ...SIDEBAR_PREFS_DEFAULTS, ...stored } }, revision },
+        ...Object.entries(foreign).map(([ns, value]) => ({ ns, value, revision: 0 })),
+      ],
+      async update(_ns: string, patch: Record<string, unknown>, expectedRevision?: number) {
+        if (expectedRevision !== undefined && expectedRevision !== revision) {
+          throw new SettingsConflictError('better-sidebar' as SettingsNamespace, expectedRevision, revision)
         }
-        entry.value = { ...entry.value, ...patch }
-        entry.revision += 1
+        stored = { ...stored, ...((patch as { prefs?: Record<string, unknown> }).prefs ?? {}) }
+        revision += 1
       },
     }
+    const configEditor = { entries: () => [{ fiber, options: { id: 'better-sidebar' } }] }
+    return { fiber, settings, configEditor }
   }
 
-  const mountWithSettings = (settings?: unknown): SidebarWebRoute => {
+  const mountWithSettings = (services?: ReturnType<typeof createFakeServices>): SidebarWebRoute => {
     const routes: SidebarWebRoute[] = []
     const ctx = {
       webRuntime: { trustedHosts: [] },
@@ -903,8 +891,11 @@ describe('side card settings routes', () => {
       sessions: { get: () => undefined },
       tools: { register: () => () => {} },
       effect: (fn: () => unknown) => { fn() },
-      inject: (deps: string[], callback: (sctx: { settings: unknown }) => void) => {
-        if (deps.includes('settings') && settings !== undefined) callback({ settings })
+      fiber: services?.fiber,
+      inject: (deps: string[], callback: (sctx: unknown) => void) => {
+        if (deps.includes('settings') && deps.includes('configEditor') && services !== undefined) {
+          callback({ ...services, on: () => () => {} })
+        }
         return () => {}
       },
       // No jobs/agents services: the jobs routes degrade to a 503.
@@ -943,14 +934,14 @@ describe('side card settings routes', () => {
   })
 
   it('reports externalDisable false when the aionui namespace is absent', async () => {
-    const route = mountWithSettings(createFakeSettings())
+    const route = mountWithSettings(createFakeServices())
     const result = await invoke(route, 'settings.get', {})
     expect(result.ok).toBe(true)
     expect((result.value as { externalDisable?: boolean }).externalDisable).toBe(false)
   })
 
   it('reports externalDisable true while the aionui provider is selected', async () => {
-    const route = mountWithSettings(createFakeSettings({ 'aionui-panel': { rightPanel: 'aionui-panel' } }))
+    const route = mountWithSettings(createFakeServices({ 'aionui-panel': { rightPanel: 'aionui-panel' } }))
     const result = await invoke(route, 'settings.get', {})
     expect(result.ok).toBe(true)
     expect((result.value as { externalDisable?: boolean }).externalDisable).toBe(true)
@@ -968,7 +959,7 @@ describe('side card settings routes', () => {
   })
 
   it('reads the resolved prefs and writes a patch through the seam', async () => {
-    const route = mountWithSettings(createFakeSettings())
+    const route = mountWithSettings(createFakeServices())
     const read = await invoke(route, 'settings.get', {})
     expect(read.ok).toBe(true)
     expect(read.value).toEqual({
@@ -985,6 +976,9 @@ describe('side card settings routes', () => {
         editorExplorer: false,
         terminalShell: '',
         terminalShellArgs: '',
+        titleBarScheme: 'auto',
+        titleBarPresetId: '',
+        customCss: '',
         titleBarCompat: false,
         titleBarStripPx: 40,
         htmlViewerNoSandbox: false,
@@ -1013,7 +1007,7 @@ describe('side card settings routes', () => {
   })
 
   it('refuses a stale write with settings-conflict (409)', async () => {
-    const route = mountWithSettings(createFakeSettings())
+    const route = mountWithSettings(createFakeServices())
     await invoke(route, 'settings.update', { patch: { openByDefault: false } })
     // The second write carries the pre-write revision: the seam refuses it.
     const stale = await invoke(route, 'settings.update', {
@@ -1026,7 +1020,7 @@ describe('side card settings routes', () => {
   })
 
   it('rejects a non-object patch as bad-request', async () => {
-    const route = mountWithSettings(createFakeSettings())
+    const route = mountWithSettings(createFakeServices())
     const result = await invoke(route, 'settings.update', { patch: 'nope' })
     expect(result.ok).toBe(false)
     expect(result.error?.message).toMatch(/plain object/)
@@ -1101,23 +1095,20 @@ describe('agent terminal tool gating', () => {
     let disposed = 0
     // The tools currently registered (registered minus disposed).
     const live = (): number => registered - disposed
-    // A ref container: the watch callback is only assigned inside a closure,
-    // which TypeScript's control-flow analysis ignores (the bare variable
-    // would narrow to null and refuse the optional call).
-    const watcherRef: { current: (() => void) | null } = { current: null }
+    // The plugin reads the side-card preferences from its own `prefs` Config
+    // field; a settings commit refreshes that volatile snapshot in place and
+    // then fires `settings/document-updated`. The listener ref is a container
+    // because TypeScript's control-flow analysis cannot see an assignment made
+    // inside the inject callback.
+    const listenerRef: { current: ((ns: string) => void) | null } = { current: null }
     let enabled = false
+    const prefs = { get: () => ({ ...SIDEBAR_PREFS_DEFAULTS, agentTerminalTools: enabled }) }
+    const fiber = {}
     const settings = {
-      register() {
-        return {
-          get: () => ({ agentTerminalTools: enabled }),
-          watch: (callback: () => void) => { watcherRef.current = callback; return () => {} },
-          update: async () => {},
-          replace: async () => {},
-        }
-      },
-      describe: () => [],
-      async update() {},
+      describe: () => [{ ns: 'better-sidebar', value: { prefs: prefs.get() }, revision: 0 }],
+      update: async () => {},
     }
+    const configEditor = { entries: () => [{ fiber, options: { id: 'better-sidebar' } }] }
     const ctx = {
       webRuntime: { trustedHosts: [] },
       webServer: {
@@ -1128,30 +1119,40 @@ describe('agent terminal tool gating', () => {
       sessions: { get: () => undefined },
       tools: { register: () => { registered += 1; return () => { disposed += 1 } } },
       effect: (fn: () => unknown) => { fn() },
-      inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
-        if (deps.includes('settings')) callback({ settings })
+      fiber,
+      inject: (deps: readonly string[], callback: (sctx: unknown) => void) => {
+        if (deps.includes('settings') && deps.includes('configEditor')) {
+          callback({
+            settings,
+            configEditor,
+            on: (_event: string, listener: (ns: string) => void) => { listenerRef.current = listener; return () => {} },
+          })
+        }
         return () => {}
       },
       // No jobs/agents services: the jobs routes degrade to a 503.
       get: () => undefined,
     }
-    apply(ctx as never)
+    apply(ctx as never, { prefs })
     // Default off: no tools are registered even though the settings service is mounted.
+    expect(live()).toBe(0)
+    // A notification for another entry's namespace leaves the gate alone.
+    listenerRef.current?.('another-entry')
     expect(live()).toBe(0)
     // Flipping the setting on registers all eight tools.
     enabled = true
-    watcherRef.current?.()
+    listenerRef.current?.('better-sidebar')
     expect(live()).toBe(8)
     expect(disposed).toBe(0)
     // Flipping it back off unregisters them (and releases any agent terminals).
     enabled = false
-    watcherRef.current?.()
+    listenerRef.current?.('better-sidebar')
     expect(live()).toBe(0)
     expect(disposed).toBe(8)
     // And a redundant toggle registers them fresh (no double-registration per
     // flip: the guard only skips when the tools are already live).
     enabled = true
-    watcherRef.current?.()
+    listenerRef.current?.('better-sidebar')
     expect(live()).toBe(8)
     expect(registered).toBe(16)
   })
@@ -1162,20 +1163,18 @@ describe('agent sidebar-open tool gating', () => {
     let registered = 0
     let disposed = 0
     const live = (): number => registered - disposed
-    const watcherRef: { current: (() => void) | null } = { current: null }
+    // Same live-commit model as the terminal-tool gate above: the volatile
+    // `prefs` snapshot carries the setting, and the settings commit that
+    // changes it fires `settings/document-updated` for this entry.
+    const listenerRef: { current: ((ns: string) => void) | null } = { current: null }
     let enabled = false
+    const prefs = { get: () => ({ ...SIDEBAR_PREFS_DEFAULTS, agentOpenTools: enabled }) }
+    const fiber = {}
     const settings = {
-      register() {
-        return {
-          get: () => ({ agentOpenTools: enabled, tabsEnabled: {} }),
-          watch: (callback: () => void) => { watcherRef.current = callback; return () => {} },
-          update: async () => {},
-          replace: async () => {},
-        }
-      },
-      describe: () => [],
-      async update() {},
+      describe: () => [{ ns: 'better-sidebar', value: { prefs: prefs.get() }, revision: 0 }],
+      update: async () => {},
     }
+    const configEditor = { entries: () => [{ fiber, options: { id: 'better-sidebar' } }] }
     const ctx = {
       webRuntime: { trustedHosts: [] },
       webServer: {
@@ -1186,28 +1185,35 @@ describe('agent sidebar-open tool gating', () => {
       sessions: { get: () => undefined },
       tools: { register: () => { registered += 1; return () => { disposed += 1 } } },
       effect: (fn: () => unknown) => { fn() },
-      inject: (deps: readonly string[], callback: (sctx: { settings: unknown }) => void) => {
-        if (deps.includes('settings')) callback({ settings })
+      fiber,
+      inject: (deps: readonly string[], callback: (sctx: unknown) => void) => {
+        if (deps.includes('settings') && deps.includes('configEditor')) {
+          callback({
+            settings,
+            configEditor,
+            on: (_event: string, listener: (ns: string) => void) => { listenerRef.current = listener; return () => {} },
+          })
+        }
         return () => {}
       },
       get: () => undefined,
     }
-    apply(ctx as never)
+    apply(ctx as never, { prefs })
     // Default off: no open tool is registered even though the settings service is mounted.
     expect(live()).toBe(0)
     // Flipping the setting on registers the single sidebar_open tool.
     enabled = true
-    watcherRef.current?.()
+    listenerRef.current?.('better-sidebar')
     expect(live()).toBe(1)
     expect(disposed).toBe(0)
     // Flipping it back off unregisters it (and drains the undelivered queue).
     enabled = false
-    watcherRef.current?.()
+    listenerRef.current?.('better-sidebar')
     expect(live()).toBe(0)
     expect(disposed).toBe(1)
     // And a redundant toggle registers it fresh (no double-registration).
     enabled = true
-    watcherRef.current?.()
+    listenerRef.current?.('better-sidebar')
     expect(live()).toBe(1)
     expect(registered).toBe(2)
   })

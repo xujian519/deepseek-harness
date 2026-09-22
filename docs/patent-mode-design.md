@@ -9,6 +9,8 @@
 
 > **当前状态（2026-08-25 两套预设收敛后）**：专利模式唯一正本预设位于仓库 `packages/preset/agent-presets/presets/patent/`（随 `package:desktop` 部署进 app；桌面环境 shipped 根优先，会遮蔽同名 user 版）。团队机制采用 `dsh-patent-teams`（`patent_teams_*` 工具）+ 技能 `patent-team-composition`。与本文档下述条款存在分歧时，以实际预设为准：§4 草案的 `fetch: true` 实际为 `fetch: false`（宿主未挂 fetch provider）；§3 预设技能集实际为 13 个（`patent-matter` / `patent-fact-check` / `patent-compliance-review` / `inventive-step-analysis` / `patent-document-polish` 等）；团队技能名为 `patent-team-composition`（对应 §8.4）。团队角色目录 13 角色，含文档专员 `document-specialist`（按场景输出正式交付文档、矫正与美化，不改实体结论）；`render_patent_document` 提供 9 个场景模板（含补正书、复审请求书、侵权比对意见、诉讼文书）。人设与 `patent-quality-gate` 已并入 docx 交付与 HITL 放行规则。执行记录见 `docs/patent-workbench-plan.md` 与 `docs/patent-workbench-tasks.md`。
 
+> **当前状态（2026-09-22 上游 v0.1.7-alpha.1 同步后）**：preset 随上游改为声明式。专利模式正本是 `packages/bundle/web-app/presets/patent.patch.yml` —— `@deepseek-ai/dsh-web-app` bundle 内一条 id 为 `patent` 的 `@deepseek-ai/dsh-agent-preset` 声明，随应用安装交付；不再存在 preset 目录，也不再读取 `$DSH_HOME/.agent-presets` 用户根，用户自建或覆盖经 bundle patch 安装（见 `editing-cordis-compositions` 技能）。下文凡写 `packages/preset/agent-presets/presets/patent/` 或 `~/.dsh/.agent-presets/patent/` 之处，均指该声明。
+
 ---
 
 ## 1. 核心结论

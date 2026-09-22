@@ -1,13 +1,11 @@
 /**
  * Shared "Side card" preference vocabulary (types + constants), consumed by
- * BOTH halves: the host registers the schemastery schema over these values
- * (config.ts) and the client reads/writes them through the settings RPC
- * (client/prefs.ts, client/SideCardSection.tsx). Kept free of schemastery so
- * the browser bundle never pulls the schema runtime in.
+ * BOTH halves: these values are the plugin entry's `prefs` Config field, whose
+ * schemastery schema lives in config.ts, and the client reads/writes them
+ * through the plugin's own fenced routes (client/prefs.ts,
+ * client/SideCardSection.tsx). Kept free of schemastery so the browser bundle
+ * never pulls the schema runtime in.
  */
-
-/** The user-settings namespace holding the side card preferences. */
-export const SIDEBAR_PREFS_NS = 'dsh-better-sidebar'
 
 /** User-facing side card preferences (new-conversation defaults). */
 export interface SidebarPrefs {

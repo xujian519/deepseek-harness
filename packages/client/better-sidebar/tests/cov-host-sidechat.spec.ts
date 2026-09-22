@@ -143,7 +143,7 @@ describe('sidechat-core seed and snapshot edges', () => {
       ev('turn/start', 0, { turn: 1 }),
       ev('tool/call', 1, { callId: 'c1', name: 'bash', arguments: 'ls' }),
       ev('step/end', 2, { turn: 1, step: 1 }),
-      ev('tool/result', 3, { message: { source: { callId: 'c1' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'late' }] }] } }),
+      ev('tool/result', 3, { message: { source: { callId: 'c1' }, content: [{ type: 'text', text: 'late' }] } }),
     ]
     const snapshot = buildOpenTurnSnapshot(events)!
     // The step boundary dropped the call identity, so the late result renders
@@ -183,7 +183,7 @@ describe('sidechat-core seed and snapshot edges', () => {
       ev('turn/start', 0, { turn: 1 }),
       ev('tool/result', 1, { message: 'not-an-envelope' }),
       ev('tool/result', 2, { message: { content: 'not-an-array' } }),
-      ev('tool/result', 3, { message: { content: [null, { type: 'text' }, { type: 'tool-result' }, { type: 'tool-result', content: 'x' }, { type: 'tool-result', content: [null, { type: 'text', text: 5 }, { type: 'text', text: 'kept' }] }] } }),
+      ev('tool/result', 3, { message: { content: [null, { type: 'text' }, { type: 'tool-result' }, { type: 'text', text: 5 }, { type: 'text', text: 'kept' }] } }),
     ]
     const snapshot = buildOpenTurnSnapshot(events)
     expect(snapshot).toContain('  Result: kept')
@@ -195,13 +195,13 @@ describe('sidechat-core seed and snapshot edges', () => {
       // A call whose id is not a string never pairs with a result.
       ev('tool/call', 1, { callId: 7, name: 'ignored' }),
       // A result with no recognizable callId renders as the generic `tool`.
-      ev('tool/result', 2, { message: { source: {}, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'orphan' }] }] } }),
+      ev('tool/result', 2, { message: { source: {}, content: [{ type: 'text', text: 'orphan' }] } }),
       // A failed result with arguments.
       ev('tool/call', 3, { callId: 'f1', name: 'bash', arguments: 'ls -la' }),
-      ev('tool/result', 4, { error: { message: 'boom' }, message: { source: { callId: 'f1' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: 'stderr text' }] }] } }),
+      ev('tool/result', 4, { error: { name: 'ToolError', code: 'FAILED' }, message: { source: { callId: 'f1' }, content: [{ type: 'text', text: 'stderr text' }], isError: true } }),
       // A successful result with no arguments and an empty result body.
       ev('tool/call', 5, { callId: 'q1', name: 'noop' }),
-      ev('tool/result', 6, { message: { source: { callId: 'q1' }, content: [{ type: 'tool-result', content: [] }] } }),
+      ev('tool/result', 6, { message: { source: { callId: 'q1' }, content: [] } }),
     ]
     const snapshot = buildOpenTurnSnapshot(events)!
     expect(snapshot).toContain('- `tool`\n  Result: orphan')
@@ -262,8 +262,8 @@ describe('sidechat-core seed and snapshot edges', () => {
     expect(boundaryDelivered([ev('user/message', 0, { content: [{ type: 'image' }] })])).toBe(false)
   })
 
-  it('isContextInjectionMessage recognizes plugin-sourced rows and boundary leads', () => {
-    expect(isContextInjectionMessage({ source: { kind: 'plugin' } })).toBe(true)
+  it('isContextInjectionMessage recognizes non-user-sourced rows and boundary leads', () => {
+    expect(isContextInjectionMessage({ source: { kind: 'other-producer' } })).toBe(true)
     expect(isContextInjectionMessage({ content: [{ type: 'text', text: SIDE_BOUNDARY_PROMPT }] })).toBe(true)
     expect(isContextInjectionMessage({ content: 'plain user text' })).toBe(false)
   })
