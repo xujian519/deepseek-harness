@@ -17,6 +17,25 @@ import { keywordScore } from '../src/runtime/keywordMatch.ts'
 
 const testToolSignal = new AbortController().signal
 
+/**
+ * One empty cell off the diagonal, scanned from the shipped matrix: the
+ * matrix has 292 of them, so pinning one cell number would only add a
+ * fixture that breaks when the asset changes.
+ * @returns the improving/worsening parameter numbers of that cell.
+ */
+function emptyOffDiagonalCell(): { improving: number; worsening: number } {
+  const matrix = loadMatrix()
+  for (let worsening = 1; worsening <= matrix.length; worsening += 1) {
+    const row = matrix[worsening - 1] ?? []
+    for (let improving = 1; improving <= row.length; improving += 1) {
+      if (improving !== worsening && (row[improving - 1] ?? []).length === 0) {
+        return { improving, worsening }
+      }
+    }
+  }
+  throw new Error('the shipped matrix has no empty off-diagonal cell')
+}
+
 function ctx(goal: string) {
   return { goal, keywords: extractMethodologyKeywords(goal) }
 }
@@ -318,7 +337,23 @@ describe('dsh-methodology plugin-registered triz tool', () => {
     const value = result.value as { mode: string; recommended: unknown[] }
     expect(value.mode).toBe('lookup')
     expect(value.recommended).toEqual([])
-    expect(text(result)).toContain('Recommended principles: none.')
+    const rendered = text(result)
+    expect(rendered).toContain('Recommended principles: none.')
+    expect(rendered).toContain('physical contradiction')
+  })
+
+  it('reads an empty off-diagonal cell as a matrix gap, not a physical contradiction', async () => {
+    const host = await setupPlugin()
+    const cell = emptyOffDiagonalCell()
+    const result = await execute(host, 'triz', cell, 'off-diagonal')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected triz success')
+    const value = result.value as { mode: string; recommended: unknown[] }
+    expect(value.mode).toBe('lookup')
+    expect(value.recommended).toEqual([])
+    const rendered = text(result)
+    expect(rendered).toContain('Recommended principles: none.')
+    expect(rendered).not.toContain('physical contradiction')
   })
 
   it('rejects an improving parameter outside 1-39', async () => {

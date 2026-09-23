@@ -44,8 +44,9 @@ export function loadMatrix(): number[][][] {
  * Deterministic cell lookup: improving parameter x worsening parameter.
  * @param paramImproving - improving engineering parameter number, 1-39.
  * @param paramWorsening - worsening engineering parameter number, 1-39.
- * @returns recommended inventive principle numbers for that cell (empty for the
- * diagonal, which is a physical contradiction and has no classical entry).
+ * @returns recommended inventive principle numbers for that cell (empty both on
+ * the diagonal, a physical contradiction with no classical entry, and in the
+ * transcription's 292 empty off-diagonal cells).
  */
 export function lookupMatrixCell(paramImproving: number, paramWorsening: number): number[] {
   const row = loadMatrix()[paramWorsening - 1] ?? []

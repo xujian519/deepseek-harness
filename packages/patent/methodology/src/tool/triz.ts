@@ -96,7 +96,12 @@ function renderCatalog(value: { parameters: TrizParameterView[]; principles: Tri
 function renderLookup(value: { improving: TrizParameterView; worsening: TrizParameterView; recommended: TrizPrincipleView[] }): string {
   const header = `Contradiction matrix: improving ${value.improving.label} (${value.improving.number}) → worsening ${value.worsening.label} (${value.worsening.number})`
   if (value.recommended.length === 0) {
-    return header + '\n\nRecommended principles: none. A diagonal cell names a physical contradiction (improving equals worsening), which classical TRIZ resolves by separation rather than a matrix entry.'
+    // 空单元有两种：对角线（同一参数即物理矛盾）与转写本身就留空的非对角线格。
+    // 只有前者是物理矛盾；把 292 个非对角线空格也说成物理矛盾会把结论引向错误方向。
+    const empty = value.improving.number === value.worsening.number
+      ? 'This is a diagonal cell: improving equals worsening, a physical contradiction that classical TRIZ resolves by separation rather than a matrix entry.'
+      : 'The classical matrix lists no recommendation for this pair. This is not a diagonal cell, so a separation move does not apply; check whether the pair names the parameters actually in conflict.'
+    return `${header}\n\nRecommended principles: none. ${empty}`
   }
   const lines = [
     header,

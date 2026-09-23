@@ -21,7 +21,7 @@ Function plugin porting the Sati reasoning-methodology layer into the DeepSeek H
 
 ## triz tool
 
-`triz` is a stateless, read-only tool over the shipped data. Call it with no arguments to list the 39 classic engineering parameters and the 40 inventive principles. Call it with an `improving` and a `worsening` parameter number (each 1-39) to read that contradiction-matrix cell and receive the recommended inventive principle numbers, names, and descriptions. A diagonal cell (improving equals worsening) is a physical contradiction and returns no classical matrix entry.
+`triz` is a stateless, read-only tool over the shipped data. Call it with no arguments to list the 39 classic engineering parameters and the 40 inventive principles. Call it with an `improving` and a `worsening` parameter number (each 1-39) to read that contradiction-matrix cell and receive the recommended inventive principle numbers, names, and descriptions. A diagonal cell (improving equals worsening) is a physical contradiction and returns no classical matrix entry; the transcription also leaves cells empty off the diagonal (292 of the 331 empty cells), which the tool reports as a matrix gap rather than a contradiction.
 
 ## Methodology registry (library API)
 
@@ -77,7 +77,7 @@ Append-only; newly visible result text follows the reusable request prefix and d
 
 - **Registry is a library API, not a mounted section** — the eight methodology components ship for consumers to match and inject, but nothing registers them into the system prompt; a composition must call `injectMethodology` itself.
 - **Static section text** — the `tool:triz` section is fixed prose; it does not adapt to the loaded component set or a per-deployment parameter list.
-- **Classical matrix data only** — the shipped 39x39 matrix is the public Altshuller transcription; empty diagonal cells (physical contradictions) and any newer or derived matrices are not included.
+- **Classical matrix data only** — the shipped 39x39 matrix is the public Altshuller transcription; 331 of its 1521 cells carry no recommendation (39 on the diagonal, which are physical contradictions, and 292 off it), and no newer or derived matrix is included.
 
 ### Dev Note
 
