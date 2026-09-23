@@ -479,7 +479,11 @@ it('adds private deployment cookies to every Platform request without exposing t
   await f.account.startSignIn('en', f.callbackOrigin, 'desktop')
   await f.wait('waiting-browser')
   await fetch(f.callback(), { redirect: 'manual' })
-  await readDetails(f.account)
+  // Read sequentially rather than through `readDetails`: that helper issues both reads
+  // concurrently by design (see the test that keeps the profile flowing while the balance
+  // is held), so the arrival order the next assertion pins would depend on timing.
+  await f.account.getProfile()
+  await f.account.getBalance()
   expect(JSON.stringify(await f.account.getState())).not.toContain('test_gate')
   await f.account.signOut()
   await expect.poll(f.logoutCount).toBe(1)
