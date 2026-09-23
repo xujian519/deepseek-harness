@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-experimental-webworker-runtime/src/storage/memory
  */
 import { dirname, join, normalize, resolve, SEP } from '../module-system/posix-path.ts'
-import { DEFAULT_ROOT, IMAGE_OVERLAY_DIRECTORIES } from '../image-layout.ts'
+import { IMAGE_OVERLAY_DIRECTORIES } from '../image-layout.ts'
 import { parseTar } from './tar.ts'
 import type {
   Vfs, VfsBigIntStats, VfsDir, VfsDirent, VfsEncoding, VfsError, VfsFileHandle, VfsMutation, VfsOpenFile,
@@ -993,7 +993,7 @@ export class MemoryVfs implements Vfs {
  * @param vfs - Filesystem to fill; a fresh one by default.
  * @returns The filled filesystem.
  */
-export function loadVfsImage(image: Uint8Array, root = DEFAULT_ROOT, vfs = new MemoryVfs()): MemoryVfs {
+export function loadVfsImage(image: Uint8Array, root = '/dsh', vfs = new MemoryVfs()): MemoryVfs {
   vfs.seedDirectory(root)
   for (const entry of parseTar(image)) {
     const relativeName = entry.name.startsWith('./') ? entry.name.slice(2) : entry.name
