@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -552,6 +552,44 @@ describe('add_patent_figure_references tool', () => {
       }, 'a3')
       expect(inline.isError).toBe(false)
       expect(readFileSync(join(dir, 'graph_annotated.svg'), 'utf8')).toContain('Input Sensor (20)')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('output_filename 越出图目录时拒绝，且不产生文件', async () => {
+    const root = tempDir()
+    const work = join(root, 'a', 'b')
+    mkdirSync(work, { recursive: true })
+    writeFileSync(join(work, 'fig.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><text>Sensor</text></svg>')
+    const tool = createAddPatentFigureReferencesTool({ cwd: work })
+    try {
+      for (const output_filename of ['../../evil', 'a/b', '\\abs', '..', '', '  ']) {
+        await expect(tool.execute({
+          svg_path: 'fig.svg',
+          references: [{ label: 'Sensor', numeral: '10' }],
+          output_filename,
+        }, exec)).rejects.toMatchObject({ name: 'PatentToolError', code: 'invalid_tool_input' })
+      }
+      // 两级上界落在本轮新建的 root 内：断言不会被其它运行留下的同名文件污染。
+      expect(existsSync(join(root, 'evil.svg'))).toBe(false)
+      expect(existsSync(join(work, 'evil.svg'))).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('中文输出名按原样使用（不做净化改名）', async () => {
+    const dir = tempDir()
+    writeFileSync(join(dir, 'fig.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><text>Sensor</text></svg>')
+    const tool = createAddPatentFigureReferencesTool({ cwd: dir })
+    try {
+      await tool.execute({
+        svg_path: 'fig.svg',
+        references: [{ label: 'Sensor', numeral: '10' }],
+        output_filename: '图1',
+      }, exec)
+      expect(existsSync(join(dir, '图1.svg'))).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

@@ -4,8 +4,12 @@ import { PatentToolError } from '../src/error.ts'
 import {
   createWorkbenchLinkPatentCaseTool,
   parseMatterLogStages,
+  type WorkbenchLinkPatentCaseDeps,
   type WorkbenchLinkPatentCaseOutput,
 } from '../src/tool/workbench-link-patent-case.ts'
+
+/** Signature of the injectable HTTP seam (stubs below stay assignable to it). */
+type FetchJson = NonNullable<WorkbenchLinkPatentCaseDeps['fetchJson']>
 
 const exec = { signal: new AbortController().signal } as unknown as Parameters<ToolDefinition['execute']>[1]
 
@@ -199,6 +203,53 @@ describe('workbench_link_patent_case', () => {
   it('fails closed on an empty case number', async () => {
     const sim = new WorkbenchSim()
     await expect(makeTool(sim, null).execute({ caseNumber: '  ' }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+  })
+
+  it('rejects a case number that is not a single directory name, before any HTTP call', async () => {
+    const sim = new WorkbenchSim()
+    const tool = makeTool(sim, null)
+    for (const caseNumber of ['../x', 'a/b', '..', '.', 'a\\b']) {
+      await expect(tool.execute({ caseNumber }, exec)).rejects.toMatchObject({ code: 'invalid_tool_input' })
+    }
+    expect(sim.calls).toHaveLength(0)
+  })
+
+  it('bounds every workbench request with a signal composed from exec.signal', async () => {
+    const seen: Array<AbortSignal | undefined> = []
+    const controller = new AbortController()
+    const fetchJson: FetchJson = async (_url, init) => {
+      seen.push(init?.signal)
+      if (init?.method === 'POST' || init?.method === 'PATCH') {
+        return { status: 200, json: { ok: true, task: { id: 't1', parentId: null, title: 'CN1', typeCode: 'patent_case', statusCode: 'todo', source: 'patent' } } }
+      }
+      return { status: 200, json: { ok: true, dictionaries: [], tasks: [] } }
+    }
+    const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: '/cases', fetchJson, readMatterLog: async () => null })
+    await tool.execute({ caseNumber: 'CN1' }, { signal: controller.signal } as Parameters<ToolDefinition['execute']>[1])
+    expect(seen.length).toBeGreaterThan(0)
+    // 每个请求的信号都来自组合（不是调用方信号本身），并继承调用方取消。
+    expect(seen.every(signal => signal instanceof AbortSignal && signal !== controller.signal)).toBe(true)
+    controller.abort()
+    expect(seen.every(signal => signal?.aborted === true)).toBe(true)
+  })
+
+  it('reports a caller cancel as tool_aborted, not a request failure', async () => {
+    const controller = new AbortController()
+    const fetchJson = async (): Promise<{ status: number; json: unknown }> => {
+      controller.abort()
+      throw new DOMException('This operation was aborted', 'AbortError')
+    }
+    const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: '/cases', fetchJson, readMatterLog: async () => null })
+    await expect(tool.execute({ caseNumber: 'CN1' }, { signal: controller.signal } as Parameters<ToolDefinition['execute']>[1]))
+      .rejects.toMatchObject({ code: 'tool_aborted' })
+  })
+
+  it('converges a timed-out request (AbortError with the caller still live) into tool_execution_failed', async () => {
+    const fetchJson = async (): Promise<{ status: number; json: unknown }> => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    }
+    const tool = createWorkbenchLinkPatentCaseTool({ baseUrl: 'http://127.0.0.1:3180', caseRoot: '/cases', fetchJson, readMatterLog: async () => null })
+    await expect(tool.execute({ caseNumber: 'CN1' }, exec)).rejects.toMatchObject({ code: 'tool_execution_failed' })
   })
 
   it('fails loud with setup_required when no workbench base URL resolves', async () => {

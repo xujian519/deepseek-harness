@@ -10,10 +10,13 @@
  */
 
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, isAbsolute, join, relative } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
+
+/** 工作台 API 是同机 loopback 服务；单次请求的固定上限（协议预算，不随部署变化）。 */
+const WORKBENCH_REQUEST_TIMEOUT_MS = 15_000
 
 /** The five patent pipeline stages, keyed by their short code. */
 export type WorkbenchStage = 'l1' | 'l2' | 'l3' | 'l4' | 'l5'
@@ -100,8 +103,8 @@ export interface WorkbenchLinkPatentCaseDeps {
   baseUrl?: string
   /** Directory holding `<案号>/` case directories; required. */
   caseRoot: string
-  /** JSON-over-HTTP seam (tests inject a stub). */
-  fetchJson?: (url: string, init?: { method?: string; body?: string }) => Promise<{ status: number; json: unknown }>
+  /** JSON-over-HTTP seam (tests inject a stub). Must forward `init.signal` to its transport. */
+  fetchJson?: (url: string, init?: { method?: string; body?: string; signal?: AbortSignal }) => Promise<{ status: number; json: unknown }>
   /** Matter-log reader seam returning the file text, or null when absent. */
   readMatterLog?: (caseDir: string) => Promise<string | null>
 }
@@ -171,24 +174,41 @@ function expectTask(json: unknown, what: string): WireTask {
  */
 export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseDeps): ToolDefinition {
   const defaultFetchJson =
-    async (url: string, init?: { method?: string; body?: string }): Promise<{ status: number; json: unknown }> => {
+    async (url: string, init?: { method?: string; body?: string; signal?: AbortSignal }): Promise<{ status: number; json: unknown }> => {
       const response = await fetch(url, {
         method: init?.method ?? 'GET',
         ...(init?.body === undefined ? {} : { body: init.body, headers: { 'content-type': 'application/json' } }),
+        ...(init?.signal === undefined ? {} : { signal: init.signal }),
       })
       return { status: response.status, json: await response.json().catch(() => undefined) }
     }
   const fetchJson = deps.fetchJson ?? defaultFetchJson
   const readMatterLog = deps.readMatterLog ?? defaultReadMatterLog
 
-  const call = async <T>(path: string, init?: { method?: string; body?: unknown }, what = path): Promise<T> => {
-    const request = init === undefined
-      ? undefined
-      : {
-        ...(init.method === undefined ? {} : { method: init.method }),
-        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-      }
-    const { status, json } = await fetchJson(`${deps.baseUrl}${path}`, request)
+  /**
+   * 调一次工作台 API。每次请求都有期限：调用方取消与 15s 到点先到者胜，
+   * 否则一条挂起的 loopback 连接会无限期占住这次工具调用。
+   * @param signal - 调用方取消信号（`exec.signal`）。
+   * @param path - API 路径（相对 `deps.baseUrl`）。
+   * @param init - 方法与 JSON body。
+   * @param what - 失败文案里的动作名。
+   * @returns 响应的 JSON 载荷。
+   * @throws PatentToolError 调用方取消（tool_aborted）、请求失败或非 2xx（tool_execution_failed）。
+   */
+  const call = async <T>(signal: AbortSignal, path: string, init?: { method?: string; body?: unknown }, what = path): Promise<T> => {
+    const request = {
+      ...(init?.method === undefined ? {} : { method: init.method }),
+      ...(init?.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(WORKBENCH_REQUEST_TIMEOUT_MS)]),
+    }
+    let response: { status: number; json: unknown }
+    try {
+      response = await fetchJson(`${deps.baseUrl}${path}`, request)
+    } catch (error) {
+      if (signal.aborted) throw new PatentToolError('tool_aborted', 'workbench_link_patent_case aborted')
+      throw new PatentToolError('tool_execution_failed', `工作台 API ${what} 请求失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+    const { status, json } = response
     if (status < 200 || status >= 300) {
       const detail = typeof json === 'object' && json !== null && typeof (json as Record<string, unknown>).error === 'string'
         ? `: ${(json as Record<string, unknown>).error as string}`
@@ -229,10 +249,16 @@ export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseD
       },
       render: (_args, value) => [{ type: 'text', text: renderLinkResult(value as unknown as WorkbenchLinkPatentCaseOutput) }],
     },
-    async execute(args) {
+    async execute(args, exec) {
       const input = args as unknown as WorkbenchLinkPatentCaseInput
       if (input.caseNumber.trim() === '') {
         throw new PatentToolError('invalid_tool_input', 'caseNumber 不能为空')
+      }
+      // caseNumber 同时是案件目录名（也作为工作台 workspacePath）：必须是单段目录名。
+      // 名称检查挡分隔符与 `.`/`..`；包含性检查是最终不变量，同时覆盖 Windows 盘符相对名（`C:案号`）。
+      if (basename(input.caseNumber) !== input.caseNumber || input.caseNumber === '.' || input.caseNumber === '..'
+        || input.caseNumber.includes('\\') || input.caseNumber.includes('\0')) {
+        throw new PatentToolError('invalid_tool_input', `caseNumber 必须是单个案件目录名（不含路径分隔符）：${input.caseNumber}`)
       }
       if (deps.baseUrl === undefined) {
         throw new PatentToolError('setup_required', '工作台 API 基址不可用：web 服务未运行或未配置 workbenchBaseUrl（dsh web profile 内自动取本进程端口）')
@@ -242,30 +268,34 @@ export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseD
         throw new PatentToolError('invalid_tool_input', 'caseRoot 不能为空（入参或插件配置 workbenchCaseRoot）')
       }
       const caseDir = join(caseRoot, input.caseNumber)
+      const escaped = relative(caseRoot, caseDir)
+      if (escaped.startsWith('..') || isAbsolute(escaped)) {
+        throw new PatentToolError('invalid_tool_input', `caseNumber 越出案件根目录：${input.caseNumber}`)
+      }
       const dryRun = input.dryRun === true
       const explicit = new Map((input.stages ?? []).map(s => [s.stage, s.statusCode]))
 
       // 1) 幂等确保 patent_* 类型字典项。
-      const dictList = await call<{ ok?: boolean; dictionaries?: Array<{ code?: unknown }> }>('/api/workbench/dictionaries?kind=type', undefined, '字典列表')
+      const dictList = await call<{ ok?: boolean; dictionaries?: Array<{ code?: unknown }> }>(exec.signal, '/api/workbench/dictionaries?kind=type', undefined, '字典列表')
       const existing = new Set((dictList.dictionaries ?? []).map(d => (typeof d.code === 'string' ? d.code : '')).filter(code => code !== ''))
       const dictionariesEnsured: string[] = []
       if (!dryRun) {
         for (const entry of PATENT_TYPE_DICTIONARIES) {
           if (existing.has(entry.code)) continue
-          await call('/api/workbench/dictionaries', { method: 'POST', body: entry }, `字典创建 ${entry.code}`)
+          await call(exec.signal, '/api/workbench/dictionaries', { method: 'POST', body: entry }, `字典创建 ${entry.code}`)
           dictionariesEnsured.push(entry.code)
         }
       }
 
       // 2) 一次拉全量任务，找根任务与既有阶段子任务。
-      const taskList = await call<{ ok?: boolean; tasks?: unknown[] }>('/api/workbench/tasks', undefined, '任务列表')
+      const taskList = await call<{ ok?: boolean; tasks?: unknown[] }>(exec.signal, '/api/workbench/tasks', undefined, '任务列表')
       const tasks = (taskList.tasks ?? []).map(row => expectTask(row, '任务行'))
       const root = tasks.find(t => t.parentId === null && t.title === input.caseNumber && t.source === 'patent') ?? null
 
       // 3) 建根任务（dryRun 且不存在时保持空串标记）。
       let rootTaskId = root?.id ?? ''
       if (rootTaskId === '' && !dryRun) {
-        const created = await call<{ task?: unknown }>('/api/workbench/tasks', {
+        const created = await call<{ task?: unknown }>(exec.signal, '/api/workbench/tasks', {
           method: 'POST',
           body: {
             title: input.caseNumber,
@@ -292,7 +322,7 @@ export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseD
         let created = false
         if (existingStage === undefined && !dryRun && rootTaskId !== '') {
           const target = explicit.get(stage) ?? heuristic[stage]
-          const createdRow = await call<{ task?: unknown }>('/api/workbench/tasks', {
+          const createdRow = await call<{ task?: unknown }>(exec.signal, '/api/workbench/tasks', {
             method: 'POST',
             body: {
               title: STAGE_NAME[stage],
@@ -313,7 +343,7 @@ export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseD
         const target = explicit.get(stage) ?? heuristic[stage] ?? (current === null ? undefined : (current as WorkbenchTaskStatusCode))
         let changed = false
         if (!dryRun && taskId !== null && target !== undefined && target !== current) {
-          await call(`/api/workbench/tasks/${taskId}`, { method: 'PATCH', body: { statusCode: target } }, `阶段状态更新 ${stage}`)
+          await call(exec.signal, `/api/workbench/tasks/${taskId}`, { method: 'PATCH', body: { statusCode: target } }, `阶段状态更新 ${stage}`)
           changed = true
         }
         stages.push({ stage, typeCode, taskId, statusCode: target ?? current, created, changed })

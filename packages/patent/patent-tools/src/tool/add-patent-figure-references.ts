@@ -10,7 +10,7 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
-import { basename, relative, resolve } from 'node:path'
+import { basename, isAbsolute, relative, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
@@ -30,7 +30,7 @@ export type AddPatentFigureReferencesInput = {
   svg_path: string
   /** 参考标号（label 匹配图内文本；未命中项进 warnings）。 */
   references: SvgAnnotateReference[]
-  /** 输出文件名（不含扩展名，默认 <原名>_annotated）。 */
+  /** 输出文件名（不含扩展名，仅单个文件名、不含目录，默认 <原名>_annotated）。 */
   output_filename?: string
   /** true 时改用引线模式：标号置于组件外侧并以引线相连；默认 false 内嵌「 (标号)」。 */
   leader_lines?: boolean
@@ -124,7 +124,7 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
       }
       const dir = resolve(absPath, '..')
       const base = args.output_filename ?? `${baseName(absPath)}_annotated`
-      const outPath = resolve(dir, `${base}.svg`)
+      const outPath = resolveOutputPath(dir, base)
       await writeFile(outPath, result.svg, 'utf8')
       // 图面用语检查：标号由调用方给出，非阿拉伯数字标号违反指南 4.3。
       const warnings = [
@@ -140,4 +140,28 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
 function baseName(path: string): string {
   const name = basename(path)
   return name.endsWith('.svg') ? name.slice(0, -4) : name
+}
+
+/**
+ * 解析输出路径：`output_filename` 是模型输入，必须解析为图目录内的单个文件。
+ * 名称检查挡分隔符与 `.`/`..`；包含性检查是最终不变量，同时覆盖 Windows 盘符
+ * 相对名（`C:evil`）这类平台特有的名称语义。
+ * 不用 {@link sanitizeDotFilename} 净化：它会替换 `[^\w\-]`，把中文附图名静默改名。
+ * @param dir - 输入 SVG 所在目录（绝对路径）。
+ * @param base - 输出文件名（不含扩展名）。
+ * @returns 输出 SVG 的绝对路径。
+ * @throws PatentToolError 名称为空、为 `.`/`..`、含路径分隔符或 NUL，或解析结果越出 dir。
+ */
+function resolveOutputPath(dir: string, base: string): string {
+  const notASingleName = base.trim() === '' || base === '.' || base === '..'
+    || base.includes('/') || base.includes('\\') || base.includes('\0')
+  if (notASingleName) {
+    throw new PatentToolError('invalid_tool_input', `output_filename 必须是单个文件名（不含目录）：${base}`, { tool: 'add_patent_figure_references' })
+  }
+  const outPath = resolve(dir, `${base}.svg`)
+  const rel = relative(dir, outPath)
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new PatentToolError('invalid_tool_input', `output_filename 越出图目录：${base}`, { tool: 'add_patent_figure_references' })
+  }
+  return outPath
 }
