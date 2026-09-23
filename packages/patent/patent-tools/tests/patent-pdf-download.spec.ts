@@ -28,6 +28,33 @@ function text(result: { content: { type: string; text?: string }[] }): string {
   return result.content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 }
 
+/**
+ * 跑一次「fetch 永挂起、只在 signal 中止时 reject」的兜底场景：调用方在 fetch 真正发起后
+ * 推进假时钟 `advanceMs`，工具应在期限内自行收敛（没有期限的实现会一直挂住，直到测试超时）。
+ * @param dir - 输出目录。
+ * @param args - 工具入参。
+ * @param advanceMs - 推进的假时钟毫秒数。
+ * @returns 工具的规范结果。
+ */
+async function runHangingFallback(dir: string, args: Record<string, unknown>, advanceMs: number): Promise<unknown> {
+  let fetchStarted: () => void = () => {}
+  const started = new Promise<void>((resolve) => { fetchStarted = resolve })
+  const hanging = ((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    fetchStarted()
+    init?.signal?.addEventListener('abort', () => { reject(new Error('aborted at the attempt deadline')) }, { once: true })
+  })) as unknown as typeof fetch
+  const tool = createPatentPdfDownloadTool({
+    runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
+    resolveOutputDir: () => dir,
+    fetchImpl: hanging,
+    fetchFallbackRetry: { maxRetries: 0 },
+  })
+  const pending = tool.execute(args, { signal } as never)
+  await started
+  await vi.advanceTimersByTimeAsync(advanceMs)
+  return pending
+}
+
 describe('normalizePatentNumber', () => {
   it('trims, uppercases and strips separators', () => {
     expect(normalizePatentNumber(' us 11452699 b2 ')).toBe('US11452699B2')
@@ -629,4 +656,37 @@ describe('patent_pdf_download', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('aborts a hanging fetch fallback at the attempt deadline instead of waiting on the caller', async () => {
+    vi.useFakeTimers()
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      const value = (await runHangingFallback(dir, { patents: ['US1A'], timeoutMs: 3_000 }, 3_000)) as {
+        results: Array<{ status: string; networkErrorCode?: string; error?: string }>
+      }
+      const [first] = value.results
+      expect(first?.status).toBe('failed')
+      expect(first?.networkErrorCode).toBe('network_timeout')
+    } finally {
+      vi.useRealTimers()
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 15_000)
+
+  it('keeps a deadline for an absurdly small overall budget (attempt floor)', async () => {
+    vi.useFakeTimers()
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-patent-pdf-'))
+    try {
+      // timeoutMs=1 均分到 1 次尝试后为 0ms，而 networkFetch 只在正整数时才装计时器：
+      // 无下限时兜底会重新变成无期限（该用例在无下限的实现下永不收敛）。
+      const value = (await runHangingFallback(dir, { patents: ['US1A'], timeoutMs: 1 }, 1_000)) as {
+        results: Array<{ status: string; networkErrorCode?: string }>
+      }
+      expect(value.results[0]?.status).toBe('failed')
+      expect(value.results[0]?.networkErrorCode).toBe('network_timeout')
+    } finally {
+      vi.useRealTimers()
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 15_000)
 })

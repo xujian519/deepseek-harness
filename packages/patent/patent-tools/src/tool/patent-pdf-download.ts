@@ -45,6 +45,11 @@ const MIN_PDF_BYTES = 500
 const MANIFEST_FILE = '.MANIFEST.jsonl'
 /** fetch 兜底重试策略：吸收瞬时失败与限流（429/503），按 Retry-After 退避，上限 30s。 */
 const DEFAULT_FETCH_FALLBACK_RETRY: NetworkRetryOptions = { maxRetries: 2, baseDelayMs: 250, maxDelayMs: 30_000 }
+/**
+ * fetch 兜底每次尝试的期限下限。整体预算按尝试次数均分后可能小于 1s（调用方显式传很小的
+ * `timeoutMs`），而 `networkFetch` 只在正整数时才装计时器——无下限会让兜底重新变成无期限。
+ */
+const MIN_FETCH_FALLBACK_TIMEOUT_MS = 1_000
 
 /** 限流重试提示（模型可见，用于替代盲 sleep）。 */
 function rateLimitHint(retryAfterMs: number): string {
@@ -272,14 +277,15 @@ async function sha1OfFile(path: string): Promise<string> {
  * 下载落盘。成功升格为 ok（method=http）；失败标记 failed（保留 pdfUrl 供重试）。
  *
  * 与 Sati 的差异：Sati 经 networkFetch 流式写盘；本端口用注入的 fetchImpl
- * 整读入内存（20MB 级 PDF）落盘。fetch 兜底经 networkFetch 带超时/重试/
- * Retry-After 退避；重试耗尽仍限流时，在失败项给出 networkErrorCode 与
+ * 整读入内存（20MB 级 PDF）落盘。每次尝试都有期限（`options.timeoutMs`，由调用方
+ * 从整体预算均分得出），因此挂起的 CDN 连接会在期限内以 network_timeout 收敛，
+ * 而不是只等调用方取消；重试耗尽仍限流时，在失败项给出 networkErrorCode 与
  * retryAfterMs，并把建议等待时长写入 error，让模型据此重试而非盲 sleep。
  */
 async function fetchPdfFallback(
   item: EgoDownloadItem,
   outputDir: string,
-  options: { signal?: AbortSignal; fetchImpl?: typeof fetch; fetchRetry?: NetworkRetryOptions },
+  options: { signal?: AbortSignal; timeoutMs: number; fetchImpl?: typeof fetch; fetchRetry?: NetworkRetryOptions },
 ): Promise<PatentDownloadItem> {
   if (item.status === 'ok') {
     return {
@@ -321,6 +327,7 @@ async function fetchPdfFallback(
       {
         /* v8 ignore next -- execute always passes exec.signal through. */
         ...(options.signal === undefined ? {} : { signal: options.signal }),
+        timeoutMs: options.timeoutMs,
         fetchImpl: fetchFn,
         retry: options.fetchRetry ?? DEFAULT_FETCH_FALLBACK_RETRY,
       },
@@ -528,11 +535,16 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
         )
       }
 
-      // 兜底：浏览器拦截不可用或失败时，用 fetch 下载 CDN PDF。
+      // 兜底：浏览器拦截不可用或失败时，用 fetch 下载 CDN PDF。把整体预算均分到
+      // 各次尝试（含首次），使每次尝试都有期限；总时长最坏为 尝试次数 × 该值 + 退避。
+      const fallbackRetry = deps.fetchFallbackRetry ?? DEFAULT_FETCH_FALLBACK_RETRY
+      const fallbackAttempts = 1 + (fallbackRetry.maxRetries ?? 0)
+      const fallbackTimeoutMs = Math.max(MIN_FETCH_FALLBACK_TIMEOUT_MS, Math.floor(timeoutMsValue / fallbackAttempts))
       const results = await Promise.all(
         egoResult.items.map(item =>
           fetchPdfFallback(item, outputDir, {
             signal: exec.signal,
+            timeoutMs: fallbackTimeoutMs,
             ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
             ...(deps.fetchFallbackRetry === undefined ? {} : { fetchRetry: deps.fetchFallbackRetry }),
           }),
