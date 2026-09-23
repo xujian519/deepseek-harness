@@ -8,6 +8,7 @@
  * - 关键词匹配：同义词扩展 + 命中前 60 字符窗口否定检测（"不具有/未发现/…"不误报）。
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { CheckRule, CheckType, RuleCheckResult, RuleEngineOptions, Verdict } from './types.ts'
 import { LevelMust, LevelQuality, LevelShould } from './types.ts'
 import {
@@ -236,10 +237,8 @@ function evaluateRule(rule: CheckRule, text: string): { passed: boolean; detail:
     case 'patent_spec':
       [passed, detail] = checkSpec(text, rule)
       break
-    default: {
-      const exhaustive: never = rule.checkType
-      throw new Error(`未知 CheckType: ${String(exhaustive)}`)
-    }
+    default:
+      assertNever(rule.checkType, 'check type')
   }
   if (!passed) return { passed: false, detail }
   // 自定义判定（语义型规则）：如原子化四检验 INV 规则在确定性关键词之外补充检测。

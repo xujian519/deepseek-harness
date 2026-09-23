@@ -96,7 +96,12 @@ export function apply(ctx: ClientContext): void {
     if (!result.ok) throw new Error(result.error.message)
   }
   const style = document.createElement('style')
-  style.textContent = '.dsh-synapse-switch{position:fixed;z-index:80;top:12px;left:50%;display:flex;gap:2px;transform:translateX(-50%);border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:3px;backdrop-filter:blur(10px)}.dsh-synapse-switch button{height:28px;border:0;border-radius:999px;background:transparent;padding:0 11px;color:#6b7280;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}.dsh-synapse-switch button:hover{background:#f3f4f6;color:#111827}.dsh-synapse-switch button.active{background:#111827;color:#fff}.dsh-synapse-switch button:focus-visible{outline:2px solid #111827;outline-offset:2px}body[data-ds-dark-theme] .dsh-synapse-switch{border-color:rgba(255,255,255,.14);background:rgba(21,21,23,.92)}body[data-ds-dark-theme] .dsh-synapse-switch button{color:#9ca3af}body[data-ds-dark-theme] .dsh-synapse-switch button:hover{background:rgba(255,255,255,.08);color:#e6e8eb}body[data-ds-dark-theme] .dsh-synapse-switch button.active{background:rgba(255,255,255,.14);color:#e6e8eb}body[data-ds-dark-theme] .dsh-synapse-switch button:focus-visible{outline-color:#5b8def}.dsh-synapse-overlay{position:fixed;z-index:100;inset:0;background:#f5f7fa}.dsh-synapse-overlay.is-opening{visibility:hidden}.dsh-synapse-overlay[hidden]{display:none}.dsh-synapse-overlay iframe{display:block;width:100%;height:100%;border:0}'
+  // The switch parks at the right end of the conversation header's tab row
+  // (placeSwitch), never across the window's top centre where it covered the
+  // Session header's title and preset/agent status. The `top`/`right` pair here
+  // is the fallback for a surface that publishes no tab row (no Session, a
+  // global panel): the header's own bottom edge, clear of its title row.
+  style.textContent = '.dsh-synapse-switch{position:fixed;z-index:80;top:40px;right:28px;display:flex;gap:2px;border:1px solid #d1d5db;border-radius:999px;background:rgba(255,255,255,.96);padding:3px;backdrop-filter:blur(10px)}.dsh-synapse-switch button{height:28px;border:0;border-radius:999px;background:transparent;padding:0 11px;color:#6b7280;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}.dsh-synapse-switch button:hover{background:#f3f4f6;color:#111827}.dsh-synapse-switch button.active{background:#111827;color:#fff}.dsh-synapse-switch button:focus-visible{outline:2px solid #111827;outline-offset:2px}body[data-ds-dark-theme] .dsh-synapse-switch{border-color:rgba(255,255,255,.14);background:rgba(21,21,23,.92)}body[data-ds-dark-theme] .dsh-synapse-switch button{color:#9ca3af}body[data-ds-dark-theme] .dsh-synapse-switch button:hover{background:rgba(255,255,255,.08);color:#e6e8eb}body[data-ds-dark-theme] .dsh-synapse-switch button.active{background:rgba(255,255,255,.14);color:#e6e8eb}body[data-ds-dark-theme] .dsh-synapse-switch button:focus-visible{outline-color:#5b8def}.dsh-synapse-overlay{position:fixed;z-index:100;inset:0;background:#f5f7fa}.dsh-synapse-overlay.is-opening{visibility:hidden}.dsh-synapse-overlay[hidden]{display:none}.dsh-synapse-overlay iframe{display:block;width:100%;height:100%;border:0}'
   document.head.append(style)
   const host = document.createElement('div')
   host.className = 'dsh-synapse-host'
@@ -104,12 +109,14 @@ export function apply(ctx: ClientContext): void {
   document.body.append(host)
   const dialogButton = host.querySelector('[data-view="dialog"]')
   const mapButton = host.querySelector('[data-view="map"]')
+  const switchEl = host.querySelector('.dsh-synapse-switch')
   const overlay = host.querySelector('.dsh-synapse-overlay')
   const frame = host.querySelector('iframe')
   const frameReady = frame instanceof HTMLIFrameElement
   const buttonsReady = dialogButton instanceof HTMLElement && mapButton instanceof HTMLElement
+  const switchReady = switchEl instanceof HTMLElement
   const overlayReady = overlay instanceof HTMLElement
-  if (!frameReady || !buttonsReady || !overlayReady) {
+  if (!frameReady || !buttonsReady || !switchReady || !overlayReady) {
     style.remove()
     host.remove()
     throw new Error('synapse: failed to build the map switch DOM')
@@ -135,6 +142,44 @@ export function apply(ctx: ClientContext): void {
     mapButton.classList.toggle('active', showingMap)
     mapButton.setAttribute('aria-pressed', String(showingMap))
   }
+  // The conversation tab row publishes data-conversation-tabs (ui-conversation
+  // ConversationSession). Its box spans the conversation column, so parking the
+  // switch against the row's right edge keeps it off the header's title row and
+  // follows an open right sidebar instead of covering it. A surface without the
+  // anchor keeps the stylesheet's fallback corner. The row is re-created with the
+  // Session view, so each placement re-observes whichever node carries it: an
+  // opening sidebar respans the column without a window resize.
+  let observedRow: Element | null = null
+  const placeSwitch = (): void => {
+    const row = document.querySelector('[data-conversation-tabs]')
+    if (row !== observedRow) {
+      if (observedRow !== null) placementObserver?.unobserve(observedRow)
+      if (row !== null) placementObserver?.observe(row)
+      observedRow = row
+    }
+    const rect = row === null ? null : row.getBoundingClientRect()
+    if (rect === null || rect.width === 0 || rect.height === 0) {
+      switchEl.style.removeProperty('left')
+      switchEl.style.removeProperty('top')
+      switchEl.style.removeProperty('right')
+      return
+    }
+    switchEl.style.right = 'auto'
+    switchEl.style.left = `${Math.round(rect.right - switchEl.offsetWidth)}px`
+    // Bottom-aligned with the row: the pill is taller than the 25px row, so
+    // centering it would cross the header's rule into the conversation.
+    switchEl.style.top = `${Math.round(rect.bottom - switchEl.offsetHeight)}px`
+  }
+  let placementFrame = 0
+  const schedulePlaceSwitch = (): void => {
+    if (placementFrame !== 0) return
+    placementFrame = window.requestAnimationFrame(() => {
+      placementFrame = 0
+      placeSwitch()
+    })
+  }
+  const placementObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedulePlaceSwitch)
+  placeSwitch()
   let mapOpenFallback = 0
   let mapOpening = false
   const close = (): void => {
@@ -200,6 +245,8 @@ export function apply(ctx: ClientContext): void {
     syncSessions()
     syncLiveSessions()
     syncTheme()
+    // Session and panel switches respan the tab row's box.
+    schedulePlaceSwitch()
     if (!overlay.hidden) {
       send('synapse:workspaces', { workspaces: workspaceRows() })
       send('synapse:current-session', { session: currentSession() })
@@ -335,16 +382,20 @@ export function apply(ctx: ClientContext): void {
   frame.addEventListener('load', onFrameLoad)
   window.addEventListener('message', onMessage)
   window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('resize', schedulePlaceSwitch)
   ctx.effect(() => () => {
     dialogButton.removeEventListener('click', close)
     mapButton.removeEventListener('click', open)
     frame.removeEventListener('load', onFrameLoad)
     window.removeEventListener('message', onMessage)
     window.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('resize', schedulePlaceSwitch)
     themeObserver?.disconnect()
     unsubscribeSessions()
     unsubscribeWorkspaces()
     window.clearTimeout(syncTimer)
+    if (placementFrame !== 0) window.cancelAnimationFrame(placementFrame)
+    placementObserver?.disconnect()
     for (const unsubscribe of liveUnsubscribers.values()) unsubscribe()
     host.remove()
     style.remove()

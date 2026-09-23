@@ -35,6 +35,7 @@ None: it sends no model requests and mutates no request headers.
 ## Known Limitations and Deferred Work
 
 - The map runs inside an iframe with its own DOM/Markdown stack; it is not part of the React slot system, so theme tokens and accessibility conventions of the host chrome do not apply inside the canvas.
+- The switch is plain DOM too, not a slot occupant: it parks itself at the right end of the conversation tab row through the `data-conversation-tabs` attribute `ui-conversation` publishes, and falls back to the stylesheet's own top-right corner whenever no Session renders that row.
 - The exposed bridge surface (create/fork/send/open/activate) is a deliberate minimal RPC contract with the canvas; adding verbs means extending both `src/client/index.ts` and the canvas app.
 
 ### Dev Note

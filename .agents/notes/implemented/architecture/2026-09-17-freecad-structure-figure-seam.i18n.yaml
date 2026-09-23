@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-17-freecad-structure-figure-seam.md
-2026-09-17-freecad-structure-figure-seam.md: 860071972803929f276cbf42981d919b929d3aaa
-2026-09-17-freecad-structure-figure-seam.zh.md: f5b7b94b0325a6d355f6ee81d59c39ff02273d6a
+2026-09-17-freecad-structure-figure-seam.md: a4568bf7490c2e658405996e59e0f6856fbeedb5
+2026-09-17-freecad-structure-figure-seam.zh.md: 59492858c7e2f83b36772eaf8e3a1c57bf641b6a

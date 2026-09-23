@@ -16,7 +16,7 @@
 
 import type { MethodologyComponent } from '../../types.ts'
 import { detectParamNumbers, lookupMatrixCell, paramLabel, principleNames } from '../../data.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 /** TRIZ-specific triggers; generic 改进/优化/重构 words stay with pdca/first-principles. */
 export const TRIGGERS = [
@@ -55,9 +55,7 @@ export const triz: MethodologyComponent = {
   category: 'creative',
   applicableDomains: ['patent', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     const detected = detectParamNumbers(context.goal)

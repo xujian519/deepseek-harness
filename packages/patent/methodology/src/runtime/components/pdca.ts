@@ -5,7 +5,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['pdca', '改进', '优化', '流程', '质量', '循环', '持续改善', '迭代']
 
@@ -16,9 +16,7 @@ export const pdca: MethodologyComponent = {
   category: 'classical',
   applicableDomains: ['patent', 'legal', 'coding', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {

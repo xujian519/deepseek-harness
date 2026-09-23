@@ -82,6 +82,9 @@ const APPROVE_LABEL = 'Approve'
 /** The review question's keep-planning option label. */
 const KEEP_PLANNING_LABEL = 'Keep planning'
 
+/** The acknowledgement shared by a queued exit and an exit awaiting its accepted pre-step. */
+const LEAVING_NEXT_STEP = 'Leaving plan mode (applies from the next step).'
+
 const EXIT_DESCRIPTION
   = 'Use only in plan mode. Present your plan for the user\'s review and, on approval, leave plan mode. '
   + 'Send the COMPLETE plan as markdown, starting with a # heading that names it. '
@@ -246,7 +249,7 @@ export class PlanModeController extends Service {
               case 'committed':
                 return { kind: 'success', text: 'Plan mode off.' }
               case 'queued':
-                return { kind: 'success', text: 'Leaving plan mode (applies from the next step).' }
+                return { kind: 'success', text: LEAVING_NEXT_STEP }
               case 'cancelled':
                 return { kind: 'success', text: 'Plan mode entry cancelled.' }
               case 'noop':
@@ -254,7 +257,7 @@ export class PlanModeController extends Service {
                 // next accepted pre-step; only a truly inactive session reads
                 // idempotent.
                 return this.loggedActive(agent.session)
-                  ? { kind: 'success', text: 'Leaving plan mode (applies from the next step).' }
+                  ? { kind: 'success', text: LEAVING_NEXT_STEP }
                   : { kind: 'success', text: 'Plan mode is already inactive.' }
               /* v8 ignore next -- closed-union backstop; the compiler rejects a new transition here. */
               default:

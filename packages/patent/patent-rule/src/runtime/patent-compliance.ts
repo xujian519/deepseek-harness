@@ -29,8 +29,7 @@ const ELECTRICAL_FILE = 'electrical-section-h.yaml'
 const ACTIVATION_OVERRIDES_FILE = 'activation-overrides.yaml'
 
 /**
- * nuo 专利规则文件清单（Sati 侧 `port-nuo-rules.ts` 生成物的逐字镜像；该脚本与其读取的
- * `assets/patent-rules/` 原始资产未随移植带入本仓，故各文件头部注释描述的生成流程在本仓不适用）。
+ * nuo 专利规则文件清单（Sati 侧 `port-nuo-rules.ts` 生成物的逐字镜像）。
  * 显式列出而非扫目录：rules/patent/ 还含 evidence-rules.yaml（证据引擎自有格式）、
  * synonyms.yaml（同义词资产）等非宪法规则文件，扫目录会误加载产生噪音。
  */
