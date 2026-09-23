@@ -597,6 +597,21 @@ describe('synapse switch placement', () => {
     expect(switchBox().style.left).toBe('850px')
   })
 
+  it('places the switch when the environment has no ResizeObserver', () => {
+    // `scripts/test-dom-environment.ts` installs a default ResizeObserver in
+    // jsdom, so the absent case is stated here rather than inherited.
+    stubSwitchBox(150, 36)
+    const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    vi.stubGlobal('ResizeObserver', undefined)
+    boot()
+    expect(switchBox().style.left).toBe('1030px')
+
+    row.getBoundingClientRect = () => tabRowRect({ top: 50, right: 1000, width: 1000, height: 26 })
+    window.dispatchEvent(new Event('resize'))
+    flushFrames()
+    expect(switchBox().style.left).toBe('850px')
+  })
+
   it('watches the tab row so a column respan moves the switch without a window resize', () => {
     stubSwitchBox(150, 36)
     FakeResizeObserver.instances.length = 0
