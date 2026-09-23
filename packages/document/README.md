@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The document group holds the model-facing domain plugins for the document agent preset and the Host-side Office conversion service. `document-deliver/` provides the `document_deliver` tool, which records delivered files, formats, and quality-gate state in the session log and backs the delivery studio's file list and quality-gate badges. `office-to-pdf/` converts authorized Office files to reusable PDFs on the Host, through the LibreOffice kit where a target declares a native engine and Node WASM otherwise. Child READMEs own each package contract.
+The document group holds the document agent preset's model-facing plugins and Host-side Office conversion. `document-deliver/` provides the `document_deliver` tool, which records delivered files, formats, and quality-gate state in the session log and backs the delivery studio's file list and quality-gate badges. `doc-template/` renders packaged Chinese templates to Markdown, HTML, and DOCX, `docx-kit/` renders Markdown to DOCX and reads DOCX text, and `doc-style/` owns the tone, voice, anti-pattern, and disclaimer model. `office-to-pdf/` converts authorized Office files to reusable PDFs through the LibreOffice kit where a target declares a native engine and Node WASM otherwise. Child READMEs own each package contract.
 
 ## Table of Contents
 
