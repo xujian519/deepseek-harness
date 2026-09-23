@@ -1,7 +1,7 @@
 {
   "steps": [
     { "op": "initialize" },
-    { "op": "newSession", "waitForConfigOptionUpdate": true },
+    { "op": "newSession" },
     {
       "op": "promptAndCancel",
       "text": "Start a long task; this turn will be cancelled mid-stream.",
