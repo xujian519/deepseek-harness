@@ -92,6 +92,14 @@ export const STRUCTURE_MANIFEST_FILENAME = 'manifest.json'
 /** 脚本内嵌的最小空白 TechDraw 模板文件名（写入 outputDir；不依赖 FreeCAD 自带模板路径）。 */
 export const STRUCTURE_TEMPLATE_FILENAME = '.freecad-structure-template.svg'
 
+/**
+ * 文档 TransientDir 所用的 outputDir 内子目录名（TechDraw 拷贝模板的基准目录）。
+ *
+ * FreeCAD 只在自身缓存目录可写时才派生 TransientDir；沙箱拒绝写
+ * `~/Library/Caches/FreeCAD` 时它保持空串，模板拷贝解析到根目录（/）并失败。
+ */
+export const STRUCTURE_TRANSIENT_DIRNAME = '.freecad-transient'
+
 /** 件号字高（用户单位/毫米；与片段几何同帧，随 scale 一并缩放到画布尺寸）。 */
 export const STRUCTURE_NUMERAL_FONT_SIZE = 6
 
@@ -120,6 +128,7 @@ type ScriptPayload = {
   svgFilenames: Record<string, string>
   manifestFilename: string
   templateFilename: string
+  transientDirname: string
   numeralFontSize: number
   leaderOffset: number
   canvasPadding: number
@@ -159,6 +168,7 @@ export function buildStructureScript(params: StructureScriptParams): string {
     svgFilenames: Object.fromEntries(params.views.map(view => [view, structureSvgFilename(params.figureNumber, view)])),
     manifestFilename: STRUCTURE_MANIFEST_FILENAME,
     templateFilename: STRUCTURE_TEMPLATE_FILENAME,
+    transientDirname: STRUCTURE_TRANSIENT_DIRNAME,
     numeralFontSize: STRUCTURE_NUMERAL_FONT_SIZE,
     leaderOffset: STRUCTURE_LEADER_OFFSET,
     canvasPadding: STRUCTURE_CANVAS_PADDING,
@@ -202,6 +212,7 @@ OUTPUT_DIR = PARAMS["outputDir"]
 SVG_FILENAMES = PARAMS["svgFilenames"]
 MANIFEST_FILENAME = PARAMS["manifestFilename"]
 TEMPLATE_FILENAME = PARAMS["templateFilename"]
+TRANSIENT_DIRNAME = PARAMS["transientDirname"]
 NUMERAL_FONT_SIZE = float(PARAMS["numeralFontSize"])
 LEADER_OFFSET = float(PARAMS["leaderOffset"])
 CANVAS_PADDING = float(PARAMS["canvasPadding"])
@@ -370,10 +381,13 @@ def main():
     if shape is None or shape.isNull():
         raise RuntimeError("无法载入模型或模型为空：%s" % MODEL_PATH)
 
+    transient_dir = os.path.join(OUTPUT_DIR, TRANSIENT_DIRNAME)
+    os.makedirs(transient_dir, exist_ok=True)
     doc = App.newDocument("structure_figure")
-    # TechDraw 重算时会把模板拷进「文档所在目录」；内存文档无文件名会解析到根
-    # 目录（/）导致拷贝失败，故给文档一个 outputDir 内的文件名作为拷贝基准。
-    doc.FileName = os.path.join(OUTPUT_DIR, "structure-figure.FCStd")
+    # TechDraw 拷贝模板以文档 TransientDir 为基准；FreeCAD 只在自身缓存目录可写时
+    # 才派生它，沙箱拒绝写缓存时它保持空串、拷贝落到根目录（/）失败，故显式指向
+    # outputDir 内的可写子目录。
+    doc.TransientDir = transient_dir
     shape_obj = doc.addObject("Part::Feature", "Model")
     shape_obj.Shape = shape
     doc.recompute()
