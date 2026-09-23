@@ -8,7 +8,6 @@ import type {
   ClientRuntimeResponseAcknowledgedFrame,
   ClientRuntimeSessionClosedFrame,
 } from '../../shared/bridge/messages/runtime/index.ts'
-import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { ClientSourceRequestFrame, ClientSourceSessionClosedFrame } from '../../shared/bridge/messages/sources/index.ts'
 import type {
   SourceAcceptedFrame,
@@ -78,6 +77,10 @@ export function dispatchBridgeFrame(frame: WorkerToSourceFrame, handlers: Client
       handlers.sourcesClosed(frame)
       return
     default:
-      return assertNever(frame, 'Worker source frame')
+      return assertNever(frame)
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected Worker source frame: ${JSON.stringify(value)}`)
 }
