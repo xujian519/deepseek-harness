@@ -130,7 +130,6 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
     expectedFinalResponse: 'ERROR_DETAILS_OK',
   },
   'ptc-turn': {
-    patches: [fileURLToPath(new URL('./ptc-turn/runtime.cordis.yml', import.meta.url))],
     expectedFinalResponse: 'CODE_ONE+CODE_TWO',
     expectedTools: { run_code: ['code', 'description'] },
   },
