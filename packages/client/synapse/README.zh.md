@@ -38,6 +38,7 @@ Web 组合以 `dsh.client` 行 `synapse-client` 挂载本包（节点半侧为�
 ## 已知限制与后续
 
 - 地图运行在 iframe 内、使用自带 DOM/Markdown 栈；不属于 React 插槽系统，宿主主题令牌与无障碍约定在画布内不适用。
+- 切换控件同样是纯 DOM，不占插槽：它依据 `ui-conversation` 发布的 `data-conversation-tabs` 属性停靠在会话 tab 行右端；没有会话渲染该行时回退到样式表自身的右上角位置。
 - 暴露的桥接面（create/fork/send/open/activate）是与画布约定的最小 RPC 契约；增加动词需同时扩展 `src/client/index.ts` 与画布 app。
 
 ### 开发备注
