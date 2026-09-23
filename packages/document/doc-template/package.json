@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-doc-template",
   "description": "Function plugin rendering the shipped Chinese document templates: YAML front-matter templates with a typed variable schema, validated resolution reporting residual placeholders and warnings, Markdown/HTML/DOCX renderers, and the list_doc_templates and render_doc_template tools",
-  "version": "0.1.7-alpha.1",
+  "version": "0.1.7-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -28,20 +28,20 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@deepseek-ai/dsh-doc-style": "workspace:^",
-    "@deepseek-ai/dsh-docx-kit": "workspace:^",
-    "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/dsh-doc-style": "workspace:*",
+    "@deepseek-ai/dsh-docx-kit": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
     "marked": "^16.4.2",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-llm": "workspace:^",
-    "@deepseek-ai/dsh-system-prompt": "workspace:^",
-    "@deepseek-ai/dsh-tools": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-system-prompt": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~"
   }
 }
