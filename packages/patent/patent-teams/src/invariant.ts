@@ -11,6 +11,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+import { isNonEmptyString, isOptionalString } from './guards.ts'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-patent-teams'
 
@@ -18,16 +19,6 @@ const PACKAGE_NAME = '@deepseek-ai/dsh-patent-teams'
 export const name = 'patent-teams-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
-
-/** Whether a payload field is a non-empty string. */
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value !== ''
-}
-
-/** Whether a payload field is an optional string. */
-function isOptionalString(value: unknown): value is string | undefined {
-  return value === undefined || typeof value === 'string'
-}
 
 /** Validate one patent-teams/team-created payload. */
 function validateTeamCreated(value: unknown, fail: InvariantFailure): void {

@@ -18,6 +18,7 @@ import { appendFile, mkdir, open, readFile, readdir, rename, rm, writeFile } fro
 import type { FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isENOENT, isRecord } from '@deepseek-ai/dsh-value'
+import { isNonBlankString, isOptionalString } from './guards.ts'
 import type { TaskStatus, TeamMember, TeamMessage, TeamState, TeamTask } from './types.ts'
 
 /** Mailbox key of the captain. */
@@ -709,11 +710,6 @@ async function atomicWriteText(file: string, content: string): Promise<void> {
   })
 }
 
-/** Whether a value is an optional string. */
-function isOptionalString(value: unknown): value is string | undefined {
-  return value === undefined || typeof value === 'string'
-}
-
 /** Whether a value is a finite timestamp/counter number. */
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -723,8 +719,7 @@ function isFiniteNumber(value: unknown): value is number {
 function isTeamMember(value: unknown): value is TeamMember {
   if (!isRecord(value)) return false
   return typeof value['id'] === 'string'
-    && typeof value['name'] === 'string'
-    && value['name'].trim() !== ''
+    && isNonBlankString(value['name'])
     && isOptionalString(value['role'])
     && isOptionalString(value['provider'])
     && isOptionalString(value['model'])
@@ -762,8 +757,7 @@ function isTeamTask(value: unknown): value is TeamTask {
 function isTeamState(value: unknown, expectedId: string): value is TeamState {
   if (!isRecord(value)) return false
   const validShape = value['id'] === expectedId
-    && typeof value['name'] === 'string'
-    && value['name'].trim() !== ''
+    && isNonBlankString(value['name'])
     && isOptionalString(value['description'])
     && typeof value['captainSessionId'] === 'string'
     && value['captainSessionId'] !== ''
