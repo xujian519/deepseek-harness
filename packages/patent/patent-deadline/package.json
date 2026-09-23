@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-patent-deadline",
   "description": "Chinese patent statutory deadlines for the DeepSeek Harness: the period arithmetic of the Implementing Regulations (period start, corresponding day, rest-day roll-forward), delivery-date determination, and the patent_deadlines tool",
-  "version": "0.1.7-alpha.1",
+  "version": "0.1.7-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -28,17 +28,17 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:~",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-llm": "workspace:^",
-    "@deepseek-ai/dsh-system-prompt": "workspace:^",
-    "@deepseek-ai/dsh-tools": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-system-prompt": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~"
   }
 }

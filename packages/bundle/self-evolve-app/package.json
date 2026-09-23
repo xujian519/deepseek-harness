@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-self-evolve-app",
   "description": "The dsh self-evolve opt-in bundle: the self-evolve capability seam, provider, and tools as a profile patch layer",
-  "version": "0.1.7-alpha.1",
+  "version": "0.1.7-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -34,14 +34,14 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-self-evolve": "workspace:^",
-    "@deepseek-ai/dsh-self-evolve-basic": "workspace:^",
-    "@deepseek-ai/dsh-tool-self-evolve": "workspace:^"
+    "@deepseek-ai/dsh-self-evolve": "workspace:*",
+    "@deepseek-ai/dsh-self-evolve-basic": "workspace:*",
+    "@deepseek-ai/dsh-tool-self-evolve": "workspace:*"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:~"
   }
 }

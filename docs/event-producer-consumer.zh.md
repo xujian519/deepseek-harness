@@ -8,7 +8,6 @@
 本矩阵展示哪些包会派发各个 harness 自有事件，以及哪些包会监听这些事件。事件之间存在多对多关系，因此密集的关系数据以表格而非一张大型关系图呈现。接收方和事件名称类型还涵盖有意绕过 `ctx.emit` 的内含派发位置，例如 subagent 生命周期封装。
 
 | 事件 | 模式 | 声明位置 | 派发方 | 监听方 |
-| 事件 | 模式 | 声明位置 | 派发方 | 监听方 |
 | --- | --- | --- | --- | --- |
 | `@deepseek-ai/cordis/dynamic-package` | `emit` | [`packages/extensions/cordis-host-runner/src/types.ts:411`](../packages/extensions/cordis-host-runner/src/types.ts) | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) (`emit`) | `remotes` |
 | `@deepseek-ai/cordis/dynamic-retract` | `emit` | [`packages/extensions/cordis-host-runner/src/types.ts:417`](../packages/extensions/cordis-host-runner/src/types.ts) | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) (`emit`) | `remotes` |
@@ -30,11 +29,11 @@
 | `agent/request-error` | `waterfall` | [`packages/core/agent/src/runtime-types.ts:353`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`compaction-basic`](../packages/compaction/compaction-basic), [`compaction-image-offload`](../packages/compaction/compaction-image-offload), [`llm-retry`](../packages/llm/llm-retry), [`self-evolve-basic`](../packages/self-evolve/self-evolve-basic) |
 | `agent/status` | `emit` | [`packages/core/agent/src/runtime-types.ts:280`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`emit`) | [`agent`](../packages/core/agent), `agent-team`, [`compaction-basic`](../packages/compaction/compaction-basic), [`goal-round-driver`](../packages/goal/goal-round-driver), [`patent-teams`](../packages/patent/patent-teams), [`schedule`](../packages/schedule/schedule), `server`, `session-controller` |
 | `agent/turn-stopping` | `serial` | [`packages/core/agent/src/runtime-types.ts:381`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`serial`) | [`hooks-claude-code`](../packages/hooks/hooks-claude-code), [`hooks-codex`](../packages/hooks/hooks-codex), [`workspace-changes`](../packages/deliverables/workspace-changes) |
-| `api-session/activity` | `emit` | [`packages/api/session-controller/src/types.ts:603`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/added` | `emit` | [`packages/api/session-controller/src/types.ts:583`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/error` | `emit` | [`packages/api/session-controller/src/types.ts:610`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/removed` | `emit` | [`packages/api/session-controller/src/types.ts:589`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/status` | `emit` | [`packages/api/session-controller/src/types.ts:596`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/activity` | `emit` | [`packages/api/session-controller/src/types.ts:609`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/added` | `emit` | [`packages/api/session-controller/src/types.ts:589`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/error` | `emit` | [`packages/api/session-controller/src/types.ts:616`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/removed` | `emit` | [`packages/api/session-controller/src/types.ts:595`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/status` | `emit` | [`packages/api/session-controller/src/types.ts:602`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
 | `app-boot/config-reload` | `emit` | [`packages/boot/app-boot/src/index.ts:45`](../packages/boot/app-boot/src/index.ts) | [`app-boot`](../packages/boot/app-boot) (`emit`) | [`settings`](../packages/settings/settings) |
 | `approval/request` | `waterfall` | [`packages/interaction/user-approval/src/types.ts:85`](../packages/interaction/user-approval/src/types.ts) | [`user-approval`](../packages/interaction/user-approval) (`waterfall`) | [`acp`](../packages/acp/acp), `remotes` |
 | `authorization/settled` | `emit` | [`packages/credentials/authorization/src/index.ts:57`](../packages/credentials/authorization/src/index.ts) | [`authorization`](../packages/credentials/authorization) (`events.dispatch`) | [`authorization`](../packages/credentials/authorization) |

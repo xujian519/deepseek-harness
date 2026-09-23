@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-patent-core",
   "description": "Pure patent-domain library for the DeepSeek Harness: ModelPort, atoms, checker, claim-chart, problem, evidence, reasoning, and graph engines",
-  "version": "0.1.7-alpha.1",
+  "version": "0.1.7-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -28,18 +28,18 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@deepseek-ai/dsh-value": "workspace:^",
+    "@deepseek-ai/dsh-value": "workspace:*",
     "yaml": "^2.9.0",
-    "@deepseek-ai/dsh-util-values": "workspace:^"
+    "@deepseek-ai/dsh-util-values": "workspace:*"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-attachment": "workspace:^",
-    "@deepseek-ai/dsh-llm": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-attachment": "workspace:^",
-    "@deepseek-ai/dsh-llm": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*"
   }
 }

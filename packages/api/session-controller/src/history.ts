@@ -97,6 +97,7 @@ export class SessionHistoryController {
       spec.beforeSeq,
       spec.maxMessages,
       spec.throughSeq,
+      spec.turnWindow,
     )
     const records = pageRecords(page.events)
     return {
@@ -112,7 +113,7 @@ export class SessionHistoryController {
    * @returns a complete opening snapshot followed by gap-free durable events and opted-in assistant frames.
    */
   async *follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
-    validateFollowRequest(request)
+    validateHistoryWindow(request)
     const { address } = request
     const spec = resolveFollowRequest(request)
     const target = addressId(address)
@@ -176,7 +177,7 @@ export class SessionHistoryController {
       signal.throwIfAborted()
       const cursor = source.cursor
       snapshotCursor = cursor
-      const page = paginate(events, undefined, spec.maxMessages)
+      const page = paginate(events, undefined, spec.maxMessages, cursor, spec.turnWindow)
       const assistantStream = spec.assistantStream
         ? this.assistantStreams.get(target)?.snapshot() ?? { revision: 0 }
         : undefined
@@ -309,16 +310,23 @@ function validatePageRequest(request: SessionPageRequest): void {
       || Object.is(request.beforeSeq, -0))) {
     throw new RemoteError('gateway/bad-request', 'beforeSeq must be a non-negative safe integer', {})
   }
+  validateHistoryWindow(request)
+}
+
+function validateHistoryWindow(request: Pick<SessionPageRequest, 'maxMessages' | 'turnWindow'>): void {
   if (request.maxMessages !== undefined
     && (!Number.isSafeInteger(request.maxMessages) || request.maxMessages <= 0)) {
     throw new RemoteError('gateway/bad-request', 'maxMessages must be a positive safe integer', {})
   }
-}
-
-function validateFollowRequest(request: SessionFollowRequest): void {
-  if (request.maxMessages !== undefined
-    && (!Number.isSafeInteger(request.maxMessages) || request.maxMessages <= 0)) {
-    throw new RemoteError('gateway/bad-request', 'maxMessages must be a positive safe integer', {})
+  const window = request.turnWindow
+  if (window !== undefined) {
+    if (!Number.isSafeInteger(window.minMessages) || window.minMessages <= 0
+      || window.minMessages > (request.maxMessages ?? DEFAULT_MAX_MESSAGES)) {
+      throw new RemoteError('gateway/bad-request', 'turnWindow.minMessages must be a positive safe integer no greater than maxMessages', {})
+    }
+    if (!Number.isSafeInteger(window.minTurns) || window.minTurns <= 0) {
+      throw new RemoteError('gateway/bad-request', 'turnWindow.minTurns must be a positive safe integer', {})
+    }
   }
 }
 
@@ -327,11 +335,13 @@ interface PageSpec {
   readonly throughSeq: SessionSeqCursor
   readonly beforeSeq: SessionLogOffset | undefined
   readonly maxMessages: number
+  readonly turnWindow: SessionPageRequest['turnWindow']
 }
 
 /** A validated follow request with this implementation's defaults applied. */
 interface FollowSpec {
   readonly maxMessages: number
+  readonly turnWindow: SessionFollowRequest['turnWindow']
   readonly assistantStream: boolean
 }
 
@@ -343,24 +353,26 @@ function resolveMaxMessages(value: number | undefined): number {
 /**
  * Apply this implementation's defaults to a validated page request.
  * @param request - a request already accepted by {@link validatePageRequest}.
- * @returns the seq cursors to read between and the message limit to honor.
+ * @returns the seq cursors to read between, the message limit to honor, and the trailing-turn floor.
  */
 function resolvePageRequest(request: SessionPageRequest): PageSpec {
   return {
     throughSeq: request.throughSeq === -1 ? -1 : SessionSeq(request.throughSeq),
     beforeSeq: request.beforeSeq === undefined ? undefined : SessionLogOffset(request.beforeSeq),
     maxMessages: resolveMaxMessages(request.maxMessages),
+    turnWindow: request.turnWindow,
   }
 }
 
 /**
  * Apply this implementation's defaults to a validated follow request.
  * @param request - a request already accepted by {@link validateFollowRequest}.
- * @returns the message limit to honor and whether assistant frames are wanted.
+ * @returns the message limit to honor, the trailing-turn floor, and whether assistant frames are wanted.
  */
 function resolveFollowRequest(request: SessionFollowRequest): FollowSpec {
   return {
     maxMessages: resolveMaxMessages(request.maxMessages),
+    turnWindow: request.turnWindow,
     assistantStream: request.assistantStream === true,
   }
 }
@@ -424,13 +436,22 @@ function paginate(
   events: readonly SessionEvent[],
   beforeSeq: SessionLogOffsetType | undefined,
   maxMessages: number,
-  throughSeq: SessionSeqCursor = events.at(-1)?.seq ?? -1,
+  throughSeq: SessionSeqCursor,
+  turnWindow?: SessionPageRequest['turnWindow'],
 ): { readonly events: SessionEvent[]; readonly hasMore: boolean } {
   const end = SessionLogOffset(Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1))
   let count = 0
+  let turns = 0
   let cut = SessionLogOffset(0)
   for (let index = end - 1; index >= 0; index--) {
     const event = events[index] as SessionEvent
+    if (turnWindow !== undefined && event.type === 'turn/start') {
+      turns++
+      if (count >= turnWindow.minMessages && turns >= turnWindow.minTurns) {
+        cut = SessionLogOffset(index)
+        break
+      }
+    }
     if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
     count++
     const sources = event.sourceEventSeqs
