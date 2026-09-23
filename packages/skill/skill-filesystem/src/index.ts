@@ -32,7 +32,7 @@ import {
   type SkillProviderObservation,
   type SkillSource,
 } from '@deepseek-ai/dsh-skill'
-import { assertPositiveInteger, errorMessage } from '@deepseek-ai/dsh-value'
+import { asRecord, assertPositiveInteger, errorMessage } from '@deepseek-ai/dsh-value'
 
 const PROJECT_DSH_RANK = 100
 const PROJECT_AGENTS_RANK = 200
@@ -1034,9 +1034,6 @@ function frontmatterBoolean(data: Record<string, unknown>, key: string): boolean
 }
 
 function optionalMetadata(data: Record<string, unknown>): { metadata?: Record<string, unknown> } {
-  const value = data.metadata
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return { metadata: value as Record<string, unknown> }
-  }
-  return {}
+  const metadata = asRecord(data.metadata)
+  return metadata === null ? {} : { metadata }
 }

@@ -6,6 +6,7 @@
  * @module @deepseek-ai/dsh-hooks-claude-code/config
  */
 
+import { asRecord } from '@deepseek-ai/dsh-value'
 import { matcherDiagnostic, type MatcherGroup } from '@deepseek-ai/dsh-hook-protocol'
 
 const CLAUDE_EVENTS = [
@@ -41,13 +42,6 @@ export interface SubstitutionVars {
   projectDir?: string
 }
 
-/** A plain (non-null, non-array) object, else undefined. */
-function asObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
-}
-
 /**
  * Apply `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PROJECT_DIR}` substitution to a command string.
  * @param command - the raw command from config.
@@ -79,8 +73,8 @@ export function parseClaudeCodeConfig(raw: unknown, vars: SubstitutionVars = {})
   const config: ClaudeCodeHookConfig = {}
   const skipped: SkippedHook[] = []
   // Accept either `{ hooks: { … } }` (a settings file) or the bare event map.
-  const root = asObject(raw)
-  const hooksMap = root ? asObject(root.hooks) ?? root : undefined
+  const root = asRecord(raw)
+  const hooksMap = root ? asRecord(root.hooks) ?? root : undefined
   if (!hooksMap) return { config, skipped }
 
   for (const event of CLAUDE_EVENTS) {
@@ -88,11 +82,11 @@ export function parseClaudeCodeConfig(raw: unknown, vars: SubstitutionVars = {})
     if (!Array.isArray(rawGroups)) continue
     const groups: MatcherGroup[] = []
     for (const rawGroup of rawGroups) {
-      const group = asObject(rawGroup)
+      const group = asRecord(rawGroup)
       if (!group || !Array.isArray(group.hooks)) continue
       const commands: MatcherGroup['hooks'] = []
       for (const rawHook of group.hooks) {
-        const hook = asObject(rawHook)
+        const hook = asRecord(rawHook)
         if (!hook) continue
         const type = typeof hook.type === 'string' ? hook.type : 'command'
         if (type !== 'command') {
