@@ -68,5 +68,5 @@ it('mergeWithSchema fail_on_conflict: 首次写入不冲突', () => {
 
 it('mergeWithSchema: 未知 reducer 抛错', () => {
   const state: GraphState = {}
-  expect(() => { mergeWithSchema(state, results([['n1', { k: 1 }]]), { k: 'bogus' as never }) }).toThrow(/未知 Reducer/)
+  expect(() => { mergeWithSchema(state, results([['n1', { k: 1 }]]), { k: 'bogus' as never }) }).toThrow(/unreachable variant in graph reducer/)
 })

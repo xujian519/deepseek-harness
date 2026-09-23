@@ -7,6 +7,7 @@
  * - fail_on_conflict：同 key 重复写入立即抛 GraphMergeError。
  */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { asRecord } from '@deepseek-ai/dsh-value'
 import type { GraphState, NodeResult, Reducer } from './types.ts'
 import { GraphEngineError } from './types.ts'
@@ -78,10 +79,8 @@ export function mergeWithSchema(state: GraphState, results: NodeResult[], schema
           }
           state[key] = value
           break
-        default: {
-          const exhaustive: never = reducer
-          throw new GraphMergeError(`未知 Reducer: ${String(exhaustive)}`)
-        }
+        default:
+          assertNever(reducer, 'graph reducer')
       }
     }
   }
