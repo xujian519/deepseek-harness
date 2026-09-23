@@ -39,10 +39,10 @@ function text(result: { content: { type: string; text?: string }[] }): string {
 async function runHangingFallback(dir: string, args: Record<string, unknown>, advanceMs: number): Promise<unknown> {
   let fetchStarted: () => void = () => {}
   const started = new Promise<void>((resolve) => { fetchStarted = resolve })
-  const hanging = ((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+  const hanging: typeof fetch = (_url, init) => new Promise<Response>((_resolve, reject) => {
     fetchStarted()
     init?.signal?.addEventListener('abort', () => { reject(new Error('aborted at the attempt deadline')) }, { once: true })
-  })) as unknown as typeof fetch
+  })
   const tool = createPatentPdfDownloadTool({
     runEgo: async () => ({ items: [{ patent: 'US1A', status: 'fallback', pdfUrl: 'https://cdn/US1A.pdf' }] }),
     resolveOutputDir: () => dir,
