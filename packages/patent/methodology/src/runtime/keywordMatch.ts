@@ -4,7 +4,7 @@
  * @module @deepseek-ai/dsh-methodology/runtime/keywordMatch
  */
 
-import type { MethodologyContext } from '../types.ts'
+import type { MethodologyComponent, MethodologyContext } from '../types.ts'
 
 /**
  * Score in [0, 1] = matched trigger tokens / total trigger tokens.
@@ -21,4 +21,15 @@ export function keywordScore(context: MethodologyContext, triggers: readonly str
     if (haystack.includes(trigger.toLowerCase())) matched += 1
   }
   return matched / triggers.length
+}
+
+/**
+ * Build the `identify` implementation for a component that scores the goal by
+ * its own trigger list. Every shipped component scored itself with the same
+ * body, so the policy lives here rather than once per component.
+ * @param triggers - the trigger phrases this methodology recognizes.
+ * @returns an identify function scoring a context against those triggers.
+ */
+export function keywordIdentify(triggers: readonly string[]): MethodologyComponent['identify'] {
+  return context => keywordScore(context, triggers)
 }
