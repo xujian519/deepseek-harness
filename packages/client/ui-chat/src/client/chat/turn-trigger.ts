@@ -1,13 +1,10 @@
 /** Presentation of durable non-human messages claimed to begin a Turn. */
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type { ContextMessageNode } from '../contract/snapshot.ts'
 import type { ChatKey } from '../locale.ts'
 
 /** Existing primitive glyph selected for a Turn trigger's source family. */
 export type TurnTriggerIcon = 'agent' | 'github' | 'goal' | 'job' | 'plugin' | 'request' | 'schedule' | 'subagent' | 'team' | 'webhook'
-
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
-}
 
 function field(source: Record<string, unknown>, key: string): string {
   return typeof source[key] === 'string' ? source[key] : ''
@@ -22,7 +19,7 @@ export function turnTriggerDetails(node: ContextMessageNode): {
   title: ChatKey
   icon: TurnTriggerIcon
 } {
-  const source = record(node.source)
+  const source = asRecord(node.source) ?? {}
   const kind = field(source, 'kind')
   let title: ChatKey = 'message.trigger.request'
   let icon: TurnTriggerIcon = 'request'

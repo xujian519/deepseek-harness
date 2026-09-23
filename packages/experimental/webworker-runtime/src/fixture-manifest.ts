@@ -1,5 +1,7 @@
 /** Browser-readable catalog of built-in Preview filesystem overlays. */
 
+import { asRecord } from '@deepseek-ai/dsh-value'
+
 /** Manifest format version emitted beside the base VFS image. */
 export const PREVIEW_FIXTURE_MANIFEST_VERSION = 1
 
@@ -22,26 +24,20 @@ export interface PreviewFixtureManifest {
   readonly fixtures: readonly PreviewFixtureManifestEntry[]
 }
 
-function recordOf(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
-}
-
 /**
  * Validate the static fixture catalog before it controls Worker fetches.
  * @param value - Parsed JSON response.
  * @returns A detached manifest with unique ids and non-empty overlay lists.
  */
 export function parsePreviewFixtureManifest(value: unknown): PreviewFixtureManifest {
-  const record = recordOf(value)
+  const record = asRecord(value)
   if (record?.version !== PREVIEW_FIXTURE_MANIFEST_VERSION || !Array.isArray(record.fixtures)) {
     throw new Error(`preview fixture manifest must use version ${String(PREVIEW_FIXTURE_MANIFEST_VERSION)}`)
   }
   const fixtures: PreviewFixtureManifestEntry[] = []
   const ids = new Set<string>()
   for (const value of record.fixtures) {
-    const fixture = recordOf(value)
+    const fixture = asRecord(value)
     const id = fixture?.id
     const label = fixture?.label
     const description = fixture?.description
