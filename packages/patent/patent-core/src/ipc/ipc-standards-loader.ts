@@ -4,27 +4,29 @@ import { parseDocument } from 'yaml'
 import type { IpcStandardCard } from './types.ts'
 
 /**
- * IPC examination-standard loader (data source: ipc-standards.yaml).
+ * IPC examination-standard loader (data source: assets/ipc-standards.yaml).
  *
  * Lazily builds an in-memory index supporting query by IPC section, by
  * keyword, and by law article. The YAML asset ships at package-root assets/ so
  * both the source tree and the bundled lib resolve it.
  */
 
-/** Resolve the YAML asset, accepting the source co-located location and the package-root assets location. */
-function resolveStandardsPath(overridePath?: string): string {
-  if (overridePath) return overridePath
-  const candidates = [
-    new URL('../../../assets/ipc-standards.yaml', import.meta.url),
-    new URL('../assets/ipc-standards.yaml', import.meta.url),
-    new URL('./ipc-standards.yaml', import.meta.url),
-  ]
-  for (const url of candidates) {
+/**
+ * 随包资产的两个候选深度：打包单文件（`lib/index.js`）与源树（`src/ipc/`）到包根
+ * 的相对深度不同，各一个候选，两者互斥且都指向 `assets/ipc-standards.yaml`。
+ */
+const STANDARDS_CANDIDATES = [
+  new URL('../assets/ipc-standards.yaml', import.meta.url),
+  new URL('../../assets/ipc-standards.yaml', import.meta.url),
+]
+
+/** Resolve the YAML asset at the shipped package-root assets location. */
+function resolveStandardsPath(): string {
+  for (const url of STANDARDS_CANDIDATES) {
     const path = fileURLToPath(url)
-    /* v8 ignore next -- the first candidate always exists in the shipped package layout */
     if (existsSync(path)) return path
   }
-  /* v8 ignore next -- all three candidates resolve inside the shipped package */
+  /* v8 ignore next -- 资产随包签入：源码与打包布局各命中一个候选 */
   throw new Error('ipc-standards.yaml not found in the shipped asset locations')
 }
 
@@ -59,14 +61,8 @@ function parseStandards(yamlText: string): IpcStandardCard[] {
   })
 }
 
-/**
- * 加载 IPC 标准索引（惰性，进程内单例）。
- * @param overridePath - 可选：覆盖默认 YAML 资产路径。
- * @returns 加载并缓存的 IPC 标准索引。
- */
-export function loadIpcStandards(overridePath?: string): IpcStandardsIndex {
-  if (cachedIndex) return cachedIndex
-  const path = resolveStandardsPath(overridePath)
+/** 解析资产文本为卡片列表并按 IPC 部/法条分组。 */
+function buildIndex(path: string): IpcStandardsIndex {
   const cards = parseStandards(readFileSync(path, 'utf8'))
 
   const bySection = new Map<string, IpcStandardCard[]>()
@@ -84,7 +80,19 @@ export function loadIpcStandards(overridePath?: string): IpcStandardsIndex {
     }
   }
 
-  cachedIndex = { all: cards, bySection, byArticle }
+  return { all: cards, bySection, byArticle }
+}
+
+/**
+ * 加载 IPC 标准索引（惰性，进程内单例）。
+ * @param overridePath - 可选：覆盖默认 YAML 资产路径；覆盖结果不写入单例，故每次调用都按该路径重新解析。
+ * @returns 默认路径的索引进程内缓存；覆盖路径的索引即时构建。
+ */
+export function loadIpcStandards(overridePath?: string): IpcStandardsIndex {
+  // 覆盖路径不进单例：否则一次覆盖会让后续默认调用读到覆盖数据。
+  if (overridePath !== undefined) return buildIndex(overridePath)
+  if (cachedIndex !== null) return cachedIndex
+  cachedIndex = buildIndex(resolveStandardsPath())
   return cachedIndex
 }
 

@@ -27,7 +27,7 @@ it('loadIpcStandards：缺省资产路径经候选位置解析并缓存', () => 
 
 it('loadIpcStandards：fixture 畸形卡片字段兜底（模块重置后走 overridePath）', async () => {
   vi.resetModules()
-  const { loadIpcStandards: freshLoad, queryIpcStandards: freshQuery, formatStandardsAsContext: freshFormat } =
+  const { loadIpcStandards: freshLoad, formatStandardsAsContext: freshFormat } =
     await import('@deepseek-ai/dsh-patent-core')
   const dir = mkdtempSync(join(tmpdir(), 'ipc-fixture-'))
   writeFileSync(join(dir, 'standards.yaml'), [
@@ -69,8 +69,8 @@ it('loadIpcStandards：fixture 畸形卡片字段兜底（模块重置后走 ove
     // 有效卡片保留字段
     expect(index.all[2]!.name).toBe('规则G')
     expect(index.all[2]!.keyPoints).toEqual(['要点A'])
-    // 空 ipcSection/article 不入分组
-    expect(freshQuery('G').map(c => c.id)).toEqual(['G01', 'G02'])
+    // 空 ipcSection/article 不入分组（覆盖路径的索引只由本次返回值承载，不进单例）
+    expect((index.bySection.get('G') ?? []).map(c => c.id)).toEqual(['G01', 'G02'])
     // 无 ipcDetail 的格式化兜底
     const md = freshFormat(index.all.filter(c => c.id === 'G02'))
     expect(md).toContain('[G] 无明细规则')
