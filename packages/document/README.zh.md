@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-document 组保存文档智能体 preset 的模型侧域插件与 Host 侧 Office 转换服务。`document-deliver/` 提供 `document_deliver` 工具，把交付文件、格式与质量门状态记录进会话日志，支撑交付工作室的文件列表与质量门徽标。`office-to-pdf/` 在 Host 上把已授权的 Office 文件转换为可复用的 PDF：目标声明了原生引擎时走 LibreOffice kit，否则走 Node WASM。各包契约由子 README 负责。
+document 组保存文档智能体 preset 的模型侧域插件与 Host 侧 Office 转换。`document-deliver/` 提供 `document_deliver` 工具，把交付文件、格式与质量门状态记录进会话日志，支撑交付工作室的文件列表与质量门徽标。`doc-template/` 把随包中文模板渲染为 Markdown/HTML/DOCX，`docx-kit/` 渲染 Markdown→DOCX 并投影 DOCX→文本，`doc-style/` 负责语气、语态、反模式词与免责声明模型。`office-to-pdf/` 在 Host 上把已授权的 Office 文件转换为可复用的 PDF：目标声明了原生引擎时走 LibreOffice kit，否则走 Node WASM。各包契约由子 README 负责。
 
 ## 目录
 
