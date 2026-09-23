@@ -377,7 +377,7 @@ it('checker：未知 CheckType 抛错；customCheck 空 detail 用 rule.message'
   expect(() => local.evaluate('x', { rules: [{
     id: 'U', name: 'n', description: 'd', level: 0, severity: 'critical', message: 'm',
     checkType: 'bogus' as never, domain: '', fixSuggestion: 's',
-  }] })).toThrow(/未知 CheckType/)
+  }] })).toThrow(/unreachable variant in check type/)
 
   local.register({
     id: 'C1', name: '自定义', description: 'd', level: 1, severity: 'major', message: '兜底消息',

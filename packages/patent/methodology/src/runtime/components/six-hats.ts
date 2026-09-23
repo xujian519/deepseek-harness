@@ -5,7 +5,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['六顶帽', '六顶思考帽', '多角度', '全面评估', 'six hats', '决策审查', '评审']
 
@@ -16,9 +16,7 @@ export const sixHats: MethodologyComponent = {
   category: 'classical',
   applicableDomains: ['patent', 'legal', 'coding', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {

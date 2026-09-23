@@ -200,6 +200,60 @@ function switchButton(view: 'dialog' | 'map'): HTMLButtonElement {
   return host().querySelector(`[data-view="${view}"]`) as HTMLButtonElement
 }
 
+function switchBox(): HTMLElement {
+  return host().querySelector('.dsh-synapse-switch') as HTMLElement
+}
+
+/** Box the conversation tab row reports to the switch placement. */
+interface TabRowBox { top: number; right: number; width: number; height: number }
+
+function tabRowRect(box: TabRowBox): DOMRect {
+  return {
+    x: box.right - box.width,
+    y: box.top,
+    top: box.top,
+    right: box.right,
+    bottom: box.top + box.height,
+    left: box.right - box.width,
+    width: box.width,
+    height: box.height,
+    toJSON: () => box,
+  }
+}
+
+/** Mount the conversation tab row (`data-conversation-tabs`) the switch anchors to. */
+function mountTabRow(box: TabRowBox): HTMLElement {
+  const row = document.createElement('div')
+  row.setAttribute('data-conversation-tabs', '')
+  row.getBoundingClientRect = () => tabRowRect(box)
+  document.body.append(row)
+  return row
+}
+
+/** Give the switch a laid-out box, which jsdom reports as zero for every element. */
+function stubSwitchBox(width: number, height: number): void {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(width)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(height)
+}
+
+/** ResizeObserver stand-in: records the targets it watches and can fire a resize. */
+class FakeResizeObserver {
+  static readonly instances: FakeResizeObserver[] = []
+  readonly observed = new Set<Element>()
+  disconnected = false
+  private readonly notify: () => void
+
+  constructor(notify: () => void) {
+    this.notify = notify
+    FakeResizeObserver.instances.push(this)
+  }
+
+  observe(target: Element): void { this.observed.add(target) }
+  unobserve(target: Element): void { this.observed.delete(target) }
+  disconnect(): void { this.disconnected = true; this.observed.clear() }
+  fire(): void { this.notify() }
+}
+
 /** Run the callbacks the plugin queued through requestAnimationFrame. */
 function flushFrames(): void {
   const callbacks = pendingFrames
@@ -474,6 +528,150 @@ describe('synapse live replies', () => {
     switchButton('map').click()
     flushFrames()
     expect(sent('synapse:live-reply')).toHaveLength(0)
+  })
+})
+
+describe('synapse switch placement', () => {
+  afterEach(() => {
+    document.querySelectorAll('[data-conversation-tabs]').forEach((node) => { node.remove() })
+  })
+
+  it('parks the switch at the right end of the conversation tab row', () => {
+    stubSwitchBox(150, 36)
+    mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    boot()
+    expect(switchBox().style.left).toBe('1030px')
+    expect(switchBox().style.top).toBe('40px')
+    expect(switchBox().style.right).toBe('auto')
+  })
+
+  it('keeps the stylesheet corner while the surface publishes no tab row', () => {
+    stubSwitchBox(150, 36)
+    boot()
+    expect(switchBox().style.left).toBe('')
+    expect(switchBox().style.top).toBe('')
+    expect(switchBox().style.right).toBe('')
+    expect(document.head.querySelector('style')?.textContent)
+      .toContain('.dsh-synapse-switch{position:fixed;z-index:80;top:40px;right:28px')
+  })
+
+  it('returns to the stylesheet corner when the row collapses on either axis', () => {
+    stubSwitchBox(150, 36)
+    const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    boot()
+    expect(switchBox().style.left).toBe('1030px')
+
+    row.getBoundingClientRect = () => tabRowRect({ top: 0, right: 0, width: 0, height: 26 })
+    window.dispatchEvent(new Event('resize'))
+    flushFrames()
+    expect(switchBox().style.left).toBe('')
+    expect(switchBox().style.top).toBe('')
+    expect(switchBox().style.right).toBe('')
+
+    row.getBoundingClientRect = () => tabRowRect({ top: 0, right: 0, width: 1180, height: 0 })
+    window.dispatchEvent(new Event('resize'))
+    flushFrames()
+    expect(switchBox().style.left).toBe('')
+  })
+
+  it('coalesces a resize burst into a single placement frame', () => {
+    stubSwitchBox(150, 36)
+    const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    boot()
+    row.getBoundingClientRect = () => tabRowRect({ top: 50, right: 1000, width: 1000, height: 26 })
+    window.dispatchEvent(new Event('resize'))
+    window.dispatchEvent(new Event('resize'))
+    expect(switchBox().style.left).toBe('1030px')
+
+    flushFrames()
+    expect(switchBox().style.left).toBe('850px')
+  })
+
+  it('follows a session change without waiting for a resize', () => {
+    stubSwitchBox(150, 36)
+    const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    const runtime = boot()
+    row.getBoundingClientRect = () => tabRowRect({ top: 50, right: 1000, width: 1000, height: 26 })
+    runtime.sessions.list.replace([sessionRow({ id: 's-1' })])
+    flushFrames()
+    expect(switchBox().style.left).toBe('850px')
+  })
+
+  it('places the switch when the environment has no ResizeObserver', () => {
+    // `scripts/test-dom-environment.ts` installs a default ResizeObserver in
+    // jsdom, so the absent case is stated here rather than inherited.
+    stubSwitchBox(150, 36)
+    const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    vi.stubGlobal('ResizeObserver', undefined)
+    boot()
+    expect(switchBox().style.left).toBe('1030px')
+
+    row.getBoundingClientRect = () => tabRowRect({ top: 50, right: 1000, width: 1000, height: 26 })
+    window.dispatchEvent(new Event('resize'))
+    flushFrames()
+    expect(switchBox().style.left).toBe('850px')
+  })
+
+  it('watches the tab row so a column respan moves the switch without a window resize', () => {
+    stubSwitchBox(150, 36)
+    FakeResizeObserver.instances.length = 0
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    const first = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    const runtime = boot()
+    const observer = FakeResizeObserver.instances[0]!
+    expect(observer.observed.has(first)).toBe(true)
+
+    // The Session view replaces the row node; the next placement re-observes it.
+    const second = mountTabRow({ top: 50, right: 900, width: 900, height: 26 })
+    first.remove()
+    runtime.sessions.list.replace([sessionRow({ id: 's-1' })])
+    flushFrames()
+    expect(observer.observed.has(first)).toBe(false)
+    expect(observer.observed.has(second)).toBe(true)
+    expect(switchBox().style.left).toBe('750px')
+
+    // A sidebar respan reaches the switch through the observer, not the window.
+    observer.fire()
+    flushFrames()
+    expect(switchBox().style.left).toBe('750px')
+
+    // Losing the row (no Session view) falls back and stops watching it.
+    second.remove()
+    observer.fire()
+    flushFrames()
+    expect(observer.observed.size).toBe(0)
+    expect(switchBox().style.left).toBe('')
+
+    runtime.dispose()
+    expect(observer.disconnected).toBe(true)
+  })
+
+  it('drops the resize listener and the pending placement frame on disposal', () => {
+    stubSwitchBox(150, 36)
+    const row = mountTabRow({ top: 50, right: 1180, width: 1180, height: 26 })
+    const runtime = boot()
+    const box = switchBox()
+    row.getBoundingClientRect = () => tabRowRect({ top: 50, right: 900, width: 900, height: 26 })
+    window.dispatchEvent(new Event('resize'))
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame')
+
+    runtime.dispose()
+    expect(cancel).toHaveBeenCalledWith(1)
+    // The stubbed scheduler never learns of the cancellation, so drop the
+    // callback it still holds before proving the listener is gone too.
+    pendingFrames = []
+    expect(box.style.left).toBe('1030px')
+
+    window.dispatchEvent(new Event('resize'))
+    flushFrames()
+    expect(box.style.left).toBe('1030px')
+  })
+
+  it('disposes a switch that never scheduled a placement frame', () => {
+    stubSwitchBox(150, 36)
+    const runtime = boot()
+    runtime.dispose()
+    expect(document.querySelector('.dsh-synapse-host')).toBeNull()
   })
 })
 

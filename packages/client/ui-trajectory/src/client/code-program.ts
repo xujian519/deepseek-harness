@@ -1,4 +1,5 @@
 /** Read replayable PTC source and language hints from recorded tool arguments and schemas. */
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type { TrajectoryCellProps } from './trajectory-record.ts'
 
 /** Recorded name of the programmatic tool-calling entry point. */
@@ -13,25 +14,19 @@ export interface CodeProgram {
   language: 'typescript' | 'python' | undefined
 }
 
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
-}
-
-function parseRecord(value: string | undefined): Record<string, unknown> | undefined {
-  if (value === undefined) return undefined
+function parseRecord(value: string | undefined): Record<string, unknown> | null {
+  if (value === undefined) return null
   try {
-    return record(JSON.parse(value))
+    return asRecord(JSON.parse(value))
   } catch {
-    return undefined
+    return null
   }
 }
 
 function recordedLanguage(schemaRaw: string | undefined): CodeProgram['language'] {
   const schema = parseRecord(schemaRaw)
-  const properties = record(record(schema?.parameters)?.properties)
-  const description = record(properties?.code)?.description
+  const properties = asRecord(asRecord(schema?.parameters)?.properties)
+  const description = asRecord(properties?.code)?.description
   if (typeof description !== 'string') return undefined
   const typescript = /\bTypeScript\b/i.test(description)
   const python = /\bPython\b/i.test(description)

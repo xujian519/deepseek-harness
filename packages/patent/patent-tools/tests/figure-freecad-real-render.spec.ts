@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -92,6 +91,10 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
       figureNumber: 1,
       outputDir: outDir,
     })
+    // 这条成功断言就是 TransientDir 锚定的端到端保护：缓存目录不可写的沙箱（DSH 默认
+    // workspace-write）下，旧行为会让 TechDraw 把模板拷到根目录（/）而整次渲染失败。
+    // 锚定本身由 figure-freecad-structure-script.spec.ts 断言——文档关闭时 FreeCAD 会
+    // 清掉 TransientDir，进程结束后无法在磁盘上复核那次拷贝。
     expect(result).toEqual({ ok: true, manifestPath: join(outDir, 'manifest.json') })
     if (!result.ok) return
 

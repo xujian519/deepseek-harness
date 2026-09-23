@@ -1,6 +1,7 @@
 /** Map system snapshots and conversation turns to Messages using the configured route capability. */
 
 import { LlmError, requestImageHandleText } from '@deepseek-ai/dsh-llm'
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage } from '@deepseek-ai/dsh-llm'
 import type { ImageAttachmentRef, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import type { DeepSeekConnectionOptions as Connection } from './types.ts'
@@ -18,9 +19,7 @@ function toolInput(raw: string): Record<string, unknown> {
   try { value = JSON.parse(raw) } catch (_invalidToolHistoryJson) {
     return {}
   }
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {}
+  return asRecord(value) ?? {}
 }
 
 function assistant(message: Message, model: string, onReplayDegrade?: (reason: string) => void): WireBlock[] {

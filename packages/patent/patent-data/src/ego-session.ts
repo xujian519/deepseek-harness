@@ -206,8 +206,8 @@ function pathDelimiter(platform: NodeJS.Platform): string {
   return platform === 'win32' ? ';' : ':'
 }
 
-/* jscpd:ignore-start — platform command resolution kept per-domain (browser-backend
-   carries its own copy); the shared home is a future util-group extraction. */
+/* jscpd:ignore-start — platform command resolution stays per-domain: browser-backend
+   carries its own copy of these two helpers. */
 /** File names a command may resolve to on the platform. */
 function commandNames(command: string, platform: NodeJS.Platform): string[] {
   return platform === 'win32' ? [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`] : [command]
