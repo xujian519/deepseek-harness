@@ -230,6 +230,9 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // resolved via import.meta.url.
   '@deepseek-ai/dsh-doc-style': ['assets'],
   '@deepseek-ai/dsh-subprocess': ['lib/control.js'],
+  // The index entry and the invariant companion read the durable team file
+  // through the same guard module, which tsdown hoists into a hashed chunk.
+  '@deepseek-ai/dsh-patent-teams': ['lib/guards-*.js'],
   // SSH launches a private helper and shares wire definitions and TLS setup
   // between that helper and the connection owner.
   '@deepseek-ai/dsh-ssh': [
