@@ -73,6 +73,16 @@ describe('buildStructureScript', () => {
     expect(script).toContain('sys.exit(1)')
   })
 
+  it('每次 open() 都显式指定 UTF-8，写出不依赖宿主 locale', () => {
+    const script = buildStructureScript(params())
+    const opens = script.match(/\bopen\([^)]*\)/g) ?? []
+    // 三处文本写出：模板、每视图 SVG、含中文件号名的 manifest。
+    expect(opens).toHaveLength(3)
+    for (const call of opens) {
+      expect(call).toContain('encoding="utf-8"')
+    }
+  })
+
   it('把文档 TransientDir 锚定到 outputDir 子目录（TechDraw 以它拷贝模板）', () => {
     const script = buildStructureScript(params())
     // FreeCAD 只在自身缓存目录可写时才派生内存文档的 TransientDir；它为空串时

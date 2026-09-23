@@ -374,7 +374,9 @@ def build_view_svg(view, shape, view_name):
 
 def main():
     template_path = os.path.join(OUTPUT_DIR, TEMPLATE_FILENAME)
-    with open(template_path, "w") as handle:
+    # 三处文本写出都显式指定 UTF-8：默认编码取宿主 locale（LANG=C 时为 ascii），
+    # 写含中文标注的 manifest 会 UnicodeEncodeError 退出码 1。
+    with open(template_path, "w", encoding="utf-8") as handle:
         handle.write(MINIMAL_TEMPLATE)
 
     shape = Part.read(MODEL_PATH)
@@ -403,7 +405,7 @@ def main():
         view = make_view(doc, page, shape_obj, view_name, index)
         svg_text, meta = build_view_svg(view, shape, view_name)
         svg_path = os.path.join(OUTPUT_DIR, SVG_FILENAMES[view_name])
-        with open(svg_path, "w") as handle:
+        with open(svg_path, "w", encoding="utf-8") as handle:
             handle.write(svg_text)
         manifest_views.append(
             {
@@ -424,7 +426,7 @@ def main():
         "views": manifest_views,
     }
     manifest_path = os.path.join(OUTPUT_DIR, MANIFEST_FILENAME)
-    with open(manifest_path, "w") as handle:
+    with open(manifest_path, "w", encoding="utf-8") as handle:
         json.dump(manifest, handle, ensure_ascii=False, indent=2)
     sys.stdout.write("STRUCTURE_OK %d views\n" % len(manifest_views))
 
