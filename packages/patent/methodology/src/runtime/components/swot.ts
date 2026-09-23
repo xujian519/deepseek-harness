@@ -5,7 +5,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['swot', '优势', '劣势', '机会', '威胁', '态势', '竞争力', '布局策略']
 
@@ -16,9 +16,7 @@ export const swot: MethodologyComponent = {
   category: 'analytical',
   applicableDomains: ['patent', 'legal', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {
