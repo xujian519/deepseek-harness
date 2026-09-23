@@ -29,7 +29,6 @@
   "files": [
     "lib/index.js",
     "lib/invariant.js",
-    "lib/guards-*.js",
     "lib/types/**/*.d.ts"
   ],
   "scripts": {
