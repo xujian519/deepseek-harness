@@ -1,6 +1,7 @@
 /** Worker-owned request routing for Client read-only source catalogs. */
 
 import { randomUUID } from 'node:crypto'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { toError } from '@deepseek-ai/dsh-value'
 import type {
   ClientSourceCommand,
@@ -138,7 +139,7 @@ export class ClientSourceRouter {
       case 'client-console-event':
         return
       default:
-        assertNever(event)
+        assertNever(event, 'source event')
     }
   }
 
@@ -182,8 +183,4 @@ function matchesCommand(command: ClientSourceCommand, result: ClientSourceResult
   return result.scriptKey === command.scriptKey
     && result.content === command.content
     && (!result.available || result.offset === command.offset)
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unexpected source event: ${JSON.stringify(value)}`)
 }
