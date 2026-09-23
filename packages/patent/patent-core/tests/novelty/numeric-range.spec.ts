@@ -69,6 +69,40 @@ describe('extractNumericFindings: 数值表述提取', () => {
   })
 })
 
+describe('extractNumericFindings: 连接符前的单位（词表与 validate_specification 共享）', () => {
+  it('「数值+单位+连接符+数值」读成一个区间，不拆成两个数值点', () => {
+    const findings = extractNumericFindings('温度 20℃ 至 90℃，厚度 5mg-10mg，宽度 10mm~20mm')
+    expect(findings.map(f => ({
+      expression: f.expression,
+      lower: f.lower,
+      upper: f.upper,
+      unit: f.unit,
+      isPoint: f.isPoint,
+    }))).toEqual([
+      { expression: '20℃ 至 90', lower: 20, upper: 90, unit: '°', isPoint: false },
+      { expression: '5mg-10', lower: 5, upper: 10, unit: 'mg', isPoint: false },
+      { expression: '10mm~20', lower: 10, upper: 20, unit: 'mm', isPoint: false },
+    ])
+  })
+
+  it('连接符集含 en dash 与「到」', () => {
+    const findings = extractNumericFindings('温度 20–90℃，压力 20到30MPa')
+    expect(findings.map(f => [f.lower, f.upper, f.unit])).toEqual([
+      [20, 90, '°'],
+      [20, 30, 'mpa'],
+    ])
+  })
+
+  it('尾随单位缺席时用连接符前写的单位，不把强发现降级为弱发现', () => {
+    const findings = extractNumericFindings('温度 20℃至90，成功率约 70%—75，重量比 50-80')
+    expect(findings.map(f => ({ expression: f.expression, unit: f.unit, strong: f.strong }))).toEqual([
+      { expression: '20℃至90', unit: '°', strong: true },
+      { expression: '70%—75', unit: '%', strong: true },
+      { expression: '50-80', unit: '', strong: false },
+    ])
+  })
+})
+
 describe('extractNumericRanges: 面向模型的片段清单', () => {
   it('只保留范围与单边表述，去重且按位置排序', () => {
     expect(extractNumericRanges('温度范围为 50-80°C，厚度至少 5mm，速度大于 10m/s，压力 ≤ 2MPa，重量 1.5-2.5kg'))

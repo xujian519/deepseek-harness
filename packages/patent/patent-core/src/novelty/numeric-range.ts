@@ -22,6 +22,11 @@
  */
 
 import { tryParseJson } from '../llm-json.ts'
+import {
+  NUMERIC_RANGE_SEPARATOR_CLASS,
+  NUMERIC_UNIT_ALTERNATION,
+  normalizeNumericUnit,
+} from './numeric-vocabulary.ts'
 
 /** 确定性核验结论。 */
 export type NumericRangeVerdict = 'overlapped' | 'inside_without_endpoint' | 'no_overlap' | 'inconclusive'
@@ -81,8 +86,17 @@ const VERDICT_TEXT: Readonly<Record<NumericRangeVerdict, string>> = {
   inconclusive: '未提取到足够的带单位数值表述，无法判定',
 }
 
-/** 闭区间式数值范围：5-10、5～10、5~10、5至10、5到10。 */
-const RANGE_PATTERN = /(\d+(?:\.\d+)?)\s*(?:[-–—~～]|至|到)\s*(\d+(?:\.\d+)?)/g
+/**
+ * 闭区间式数值范围：5-10、5～10、5~10、5至10、5到10、20–90。
+ *
+ * 连接符前允许出现单位（20℃至90℃、5mg-10mg、10mm~20mm）：这是专利文本的常见写法。
+ * 区间的单位取片段末尾的单位，末尾未写时退回连接符前的那个（`20℃至90`、`70%—75`）。
+ * 词表来自 {@link ./numeric-vocabulary.ts}，与规格校验侧共用。
+ */
+const RANGE_PATTERN = new RegExp(
+  `(\\d+(?:\\.\\d+)?)\\s*(?:(${NUMERIC_UNIT_ALTERNATION}))?\\s*(?:[${NUMERIC_RANGE_SEPARATOR_CLASS}])\\s*(\\d+(?:\\.\\d+)?)`,
+  'g',
+)
 
 /**
  * 单边数值表述（长方向词在前，否则"大于等于"会被"大于"截断）。
@@ -114,9 +128,6 @@ const HAN_UNITS = new Set([
   '秒', '分钟', '小时', '天', '日', '周', '月', '年', '倍', '次', '转',
   '帕', '伏', '安', '瓦', '焦', '欧', '赫兹', '分贝',
 ])
-
-/** 摄氏度的三种写法归一为 "°"（与 validate_specification 的单位归一一致）。 */
-const DEGREE_UNITS = new Set(['℃', '°c', '°'])
 
 /** 破坏性重叠的说明。 */
 const OVERLAP_NOTE = '数值范围重叠或存在共同端点，破坏新颖性'
@@ -195,17 +206,27 @@ export function extractNumericFindings(
   text: string,
   owner: { claimId?: string; docId?: string } = {},
 ): NumericRangeFinding[] {
-  const raw: Array<{ index: number; expression: string; lower: number; upper: number; isPoint: boolean }> = []
+  const raw: Array<{
+    index: number
+    expression: string
+    lower: number
+    upper: number
+    isPoint: boolean
+    /** 连接符前写的单位（`20℃至90℃` 的 `℃`）；组不参与匹配时空串。 */
+    leadingUnit: string
+  }> = []
 
   for (const match of text.matchAll(RANGE_PATTERN)) {
     const first = Number(capture(match, 1))
-    const second = Number(capture(match, 2))
+    const second = Number(capture(match, 3))
     raw.push({
       index: match.index,
       expression: match[0],
       lower: Math.min(first, second),
       upper: Math.max(first, second),
       isPoint: false,
+      // 组 2 是可选的连接符前单位，缺席是正常书写形式（`50-80`），故不按编程错误抛出。
+      leadingUnit: match[2] ?? '',
     })
   }
   for (const match of text.matchAll(BOUNDED_PATTERN)) {
@@ -217,6 +238,7 @@ export function extractNumericFindings(
       lower: isLowerBound ? value : Number.NEGATIVE_INFINITY,
       upper: isLowerBound ? Number.POSITIVE_INFINITY : value,
       isPoint: false,
+      leadingUnit: '',
     })
   }
   // 独立数值（数值点）与范围/单边表述并存时也要提取：上游只在整段文本没有任何
@@ -225,12 +247,15 @@ export function extractNumericFindings(
   const remainder = maskMatches(text, [RANGE_PATTERN, BOUNDED_PATTERN])
   for (const match of remainder.matchAll(PLAIN_NUMBER_PATTERN)) {
     const value = Number(match[0])
-    raw.push({ index: match.index, expression: match[0], lower: value, upper: value, isPoint: true })
+    raw.push({ index: match.index, expression: match[0], lower: value, upper: value, isPoint: true, leadingUnit: '' })
   }
 
   raw.sort((left, right) => left.index - right.index)
   return raw.map((finding) => {
-    const unit = extractUnit(text, finding.index + finding.expression.length)
+    // 区间的单位取片段末尾的单位；末尾没写时退回连接符前写的那个（`20℃至90`、`70%—75`），
+    // 否则文本已写明的单位会被丢掉，一条本该参与判定的强发现会静默降级为弱发现。
+    const trailing = extractUnit(text, finding.index + finding.expression.length)
+    const unit = trailing.length > 0 ? trailing : normalizeWrittenUnit(finding.leadingUnit)
     return {
       expression: finding.expression,
       lower: finding.lower,
@@ -297,6 +322,15 @@ function maskMatches(text: string, patterns: readonly RegExp[]): string {
 }
 
 /**
+ * 归一化文本里写出的单位：拉丁单位统一小写（本模块的既有行为），摄氏度四种写法统一为 `°`。
+ * @param written - 原文里写出的单位。
+ * @returns 归一后的单位；空文本返回空串。
+ */
+function normalizeWrittenUnit(written: string): string {
+  return normalizeNumericUnit(written.trim().toLowerCase())
+}
+
+/**
  * 提取紧跟数值片段之后的单位并归一化。
  * @param text - 片段所在文本。
  * @param offset - 片段末尾的字符偏移。
@@ -305,10 +339,7 @@ function maskMatches(text: string, patterns: readonly RegExp[]): string {
 function extractUnit(text: string, offset: number): string {
   const rest = text.slice(offset)
   const latin = LATIN_UNIT_PATTERN.exec(rest)?.[1]
-  if (latin !== undefined) {
-    const unit = latin.trim().toLowerCase()
-    return DEGREE_UNITS.has(unit) ? '°' : unit
-  }
+  if (latin !== undefined) return normalizeWrittenUnit(latin)
   const han = HAN_UNIT_PATTERN.exec(rest)?.[1]
   if (han === undefined) return ''
   if (HAN_UNITS.has(han)) return han

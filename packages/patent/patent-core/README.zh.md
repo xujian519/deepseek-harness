@@ -75,7 +75,7 @@ atoms 层定义工作流阶段词汇：`Atom`/`AtomRegistry`（声明式契约�
 <a id="numeric-range-novelty-check"></a>
 ## 数值范围新颖性核验
 
-`analyzeNumericRanges` 从权利要求与对比文件文本提取数值，按区间相交做确定性判定（数值范围重叠或存在共同端点即破坏新颖性；数值点严格落在对比文件范围内且无共同端点则不破坏），给出 `overlapped`/`inside_without_endpoint`/`no_overlap`/`inconclusive`。只有后接已识别单位的发现算强发现并参与判定；汉字单位表是封闭的，否则"数值 + 两个汉字"的贪心匹配会把"任一""公开"当成单位、把权项编号抬成参数。`crossCheckNumericVerdict` 与 LLM 轨的结论对照并标记一致性；任一具体分歧都记为 `disagree` 并在摘要中要求复核（上游只标记其中一个方向）。新颖性子图的 `numeric_range` 节点把该轨与 LLM 轨并行运行，并把 `numeric_range_verdict`、`numeric_range_agreement`、`numeric_range_deterministic` 写入 state，使 LLM 不可用时确定性结论仍然保留。
+`analyzeNumericRanges` 从权利要求与对比文件文本提取数值，按区间相交做确定性判定（数值范围重叠或存在共同端点即破坏新颖性；数值点严格落在对比文件范围内且无共同端点则不破坏），给出 `overlapped`/`inside_without_endpoint`/`no_overlap`/`inconclusive`。区间允许单位写在连接符之前（`20℃至90℃`、`5mg-10mg`）并读作一个区间；连接符与单位词表与 `validate_specification` 共用（`src/novelty/numeric-vocabulary.ts`），两条路径因此不会对同一文本读出不同结果，而该校验额外要求尾随单位（它要用同单位单值比对端点）。只有后接已识别单位的发现算强发现并参与判定；汉字单位表是封闭的，否则"数值 + 两个汉字"的贪心匹配会把"任一""公开"当成单位、把权项编号抬成参数。`crossCheckNumericVerdict` 与 LLM 轨的结论对照并标记一致性；任一具体分歧都记为 `disagree` 并在摘要中要求复核（上游只标记其中一个方向）。新颖性子图的 `numeric_range` 节点把该轨与 LLM 轨并行运行，并把 `numeric_range_verdict`、`numeric_range_agreement`、`numeric_range_deterministic` 写入 state，使 LLM 不可用时确定性结论仍然保留。
 
 <a id="notice-parsing"></a>
 ## 程序文书解析

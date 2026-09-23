@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { extractNumericFindings } from '@deepseek-ai/dsh-patent-core'
 import {
   checkChemicalCharacterization,
   checkEffectQuantification,
@@ -154,6 +155,55 @@ describe('numeric range helpers', () => {
     const r = checkNumericRangeCoverage('温度为20-90℃，优选20℃、60℃、90℃。')
     expect(r.endpointMissing).toEqual([])
     expect(r.midpointMissing).toEqual([])
+  })
+
+  it('recognizes the separators shared with the novelty track and still requires a trailing unit', () => {
+    expect(extractNumericRanges('温度为20–90℃，压力为20到30MPa。')).toEqual([
+      { min: 20, max: 90, unit: '°' },
+      { min: 20, max: 30, unit: 'MPa' },
+    ])
+    expect(extractNumericRanges('重量比50-80')).toEqual([])
+  })
+})
+
+/**
+ * 同一句专利文本会同时进入两条生产路径：本包的 validate_specification 与
+ * patent-core 的新颖性数值范围核验。每条用例断言两侧读出同一个区间；
+ * `specSideRequiresUnit` 是唯一保留的规则差异——规格校验要求尾随单位（它要用同单位的
+ * 单值比对端点与中点），因此缺单位的写法只由新颖性侧读出区间。
+ */
+const SHARED_VOCABULARY_CASES: ReadonlyArray<{
+  text: string
+  min: number
+  max: number
+  unit: string
+  specSideRequiresUnit: boolean
+}> = [
+  { text: '温度 20℃ 至 90℃', min: 20, max: 90, unit: '°', specSideRequiresUnit: false },
+  { text: '20℃至90℃', min: 20, max: 90, unit: '°', specSideRequiresUnit: false },
+  { text: '厚度 5mg-10mg', min: 5, max: 10, unit: 'mg', specSideRequiresUnit: false },
+  { text: '宽度 10mm~20mm', min: 10, max: 20, unit: 'mm', specSideRequiresUnit: false },
+  { text: '厚度 1-3mm', min: 1, max: 3, unit: 'mm', specSideRequiresUnit: false },
+  { text: '温度为20–90℃', min: 20, max: 90, unit: '°', specSideRequiresUnit: false },
+  { text: '压力为20到30MPa', min: 20, max: 30, unit: 'MPa', specSideRequiresUnit: false },
+  { text: '温度 25°c至30°c', min: 25, max: 30, unit: '°', specSideRequiresUnit: false },
+  { text: '成功率约70%—75%', min: 70, max: 75, unit: '%', specSideRequiresUnit: false },
+  { text: '温度 20℃至90', min: 20, max: 90, unit: '°', specSideRequiresUnit: true },
+  { text: '重量比 50-80', min: 50, max: 80, unit: '', specSideRequiresUnit: true },
+]
+
+describe('numeric range vocabulary shared with the novelty track', () => {
+  it('reads one identical interval per text on both paths', () => {
+    for (const { text, min, max, unit, specSideRequiresUnit } of SHARED_VOCABULARY_CASES) {
+      const novelty = extractNumericFindings(text).filter(finding => !finding.isPoint)
+      expect(novelty, text).toHaveLength(1)
+      expect(novelty[0], text).toMatchObject({ lower: min, upper: max, isPoint: false })
+      // 新颖性侧把拉丁单位统一为小写（`extractUnit` 的既有行为），故按小写比对。
+      expect(novelty[0]?.unit, text).toBe(unit.toLowerCase())
+
+      expect(extractNumericRanges(text), text)
+        .toEqual(specSideRequiresUnit ? [] : [{ min, max, unit }])
+    }
   })
 })
 

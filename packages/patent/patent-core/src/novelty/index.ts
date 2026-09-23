@@ -2,7 +2,14 @@
  * src/patent/novelty — 新颖性领域的确定性判定 barrel。
  *
  * numeric-range.ts：数值范围重叠的确定性核验，与 LLM 语义轨并行并做一致性对照。
+ * numeric-vocabulary.ts：数值范围连接符与单位的共享词表（规格校验侧同用）。
  */
+
+export {
+  NUMERIC_RANGE_SEPARATOR_CLASS,
+  NUMERIC_UNIT_ALTERNATION,
+  normalizeNumericUnit,
+} from './numeric-vocabulary.ts'
 
 export {
   analyzeNumericRanges,

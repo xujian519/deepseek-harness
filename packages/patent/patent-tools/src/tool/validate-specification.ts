@@ -17,7 +17,14 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { checkClaimUnity, checkEmbodimentCoverage, type UnityClaim } from '@deepseek-ai/dsh-patent-core'
+import {
+  NUMERIC_RANGE_SEPARATOR_CLASS,
+  NUMERIC_UNIT_ALTERNATION,
+  checkClaimUnity,
+  checkEmbodimentCoverage,
+  normalizeNumericUnit,
+  type UnityClaim,
+} from '@deepseek-ai/dsh-patent-core'
 import type { TechDomain } from '../tool/draft-claims.ts'
 
 /** Tool input: the specification fields to validate. */
@@ -126,16 +133,21 @@ const VAGUE_TERMS = ['约', '大致', '可能', '优选', '例如', '大约', '�
  * Supported units (longer multi-character units first so alternation cannot
  * truncate "5mg" to "m" or "0.1-2MPa" to "m").
  */
-const UNITS = '°C|℃|MPa|kPa|Pa|rpm|min|mol|mm|cm|kg|mg|ml|mL|％|°|m|g|L|h|s|%'
-
-/** Numeric range (e.g. 20-90℃, 20℃至90℃, 20~90℃). */
+/**
+ * Numeric range (e.g. 20-90℃, 20℃至90℃, 20~90℃, 20–90℃).
+ *
+ * Separators and units come from the vocabulary shared with the novelty
+ * numeric-range track, so the two paths cannot read the same text differently.
+ * The trailing unit stays required here: endpoint and midpoint coverage compares
+ * single values of the same unit, which needs the range unit to be stated.
+ */
 const RANGE_PATTERN = new RegExp(
-  `(\\d+(?:\\.\\d+)?)\\s*(?:${UNITS})?\\s*(?:[~～至\\-—])\\s*(\\d+(?:\\.\\d+)?)\\s*(${UNITS})`,
+  `(\\d+(?:\\.\\d+)?)\\s*(?:${NUMERIC_UNIT_ALTERNATION})?\\s*(?:[${NUMERIC_RANGE_SEPARATOR_CLASS}])\\s*(\\d+(?:\\.\\d+)?)\\s*(${NUMERIC_UNIT_ALTERNATION})`,
   'g',
 )
 
 /** Single value with a unit (e.g. 60℃, 5mm). */
-const VALUE_PATTERN = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${UNITS})`, 'g')
+const VALUE_PATTERN = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${NUMERIC_UNIT_ALTERNATION})`, 'g')
 
 /** Vague-effect boilerplate patterns ("效果显著 / 大幅提升" etc.). */
 const VAGUE_EFFECT_RE =
@@ -150,18 +162,13 @@ const CHEM_CHARACTERIZATION_TERMS = [
 const CLAIM_REF_PATTERN =
   /所述([\u4e00-\u9fa5A-Za-z0-9·\-]{2,24}?)(?=与|和|及|或|、|，|,|；|;|用于|包括|连接|设置|固定|安装|位于|设于|[。])/g
 
-const CLAIM_VALUE_PATTERN = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${UNITS})`, 'g')
+const CLAIM_VALUE_PATTERN = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${NUMERIC_UNIT_ALTERNATION})`, 'g')
 
 /** Overly broad generic terms that do not participate in coverage comparison. */
 const GENERIC_TERMS = new Set([
   '装置', '系统', '方法', '结构', '单元', '模块', '部件', '组件', '步骤', '特征',
   '技术', '方案', '本发明', '申请', '权利要求', '领域', '信息', '数据',
 ])
-
-/** Normalize temperature units to "°" so ℃ / °C / ° stay comparable. */
-function normalizeUnit(unit: string): string {
-  return ['℃', '°C', '°'].includes(unit) ? '°' : unit
-}
 
 /**
  * Extract numeric ranges from the text (kept only when min < max).
@@ -177,7 +184,7 @@ export function extractNumericRanges(text: string): NumericRange[] {
     const max = Number(m[2])
     if (Number.isFinite(min) && Number.isFinite(max) && min < max) {
       /* v8 ignore next -- the range pattern always captures the units group. */
-      ranges.push({ min, max, unit: normalizeUnit(m[3] ?? '') })
+      ranges.push({ min, max, unit: normalizeNumericUnit(m[3] ?? '') })
     }
   }
   return ranges
@@ -192,7 +199,7 @@ function extractNumericValues(text: string): Array<{ value: number; unit: string
     const value = Number(m[1])
     if (Number.isFinite(value)) {
       /* v8 ignore next -- the value pattern always captures the units group. */
-      values.push({ value, unit: normalizeUnit(m[2] ?? '') })
+      values.push({ value, unit: normalizeNumericUnit(m[2] ?? '') })
     }
   }
   return values
@@ -296,7 +303,7 @@ export function extractClaimFeatures(claims: string): string[] {
   CLAIM_VALUE_PATTERN.lastIndex = 0
   while ((m = CLAIM_VALUE_PATTERN.exec(claims)) !== null) {
     /* v8 ignore next -- both number and unit groups always participate in a match. */
-    features.add(`${m[1] ?? ''}${normalizeUnit(m[2] ?? '')}`)
+    features.add(`${m[1] ?? ''}${normalizeNumericUnit(m[2] ?? '')}`)
   }
   return [...features]
 }
