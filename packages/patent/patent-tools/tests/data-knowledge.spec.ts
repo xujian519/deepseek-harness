@@ -369,6 +369,25 @@ describe('patent_wiki_search deeper paths', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).not.toContain('卡片正文')
   })
+
+  it('caps the argument-free listing at limit and states that cap in the parameter descriptions', async () => {
+    const seen: number[] = []
+    const tool = createPatentWikiSearchTool({
+      searchIn: (_prefix, _query, limit) => { seen.push(limit); return [] },
+      formatAsContext: () => '',
+      wikiDir: '/wiki',
+    })
+    const ctx = await ctxWith(tool)
+    const properties = (ctx.tools.get('patent_wiki_search')?.parameters as {
+      properties: Record<string, { description: string }>
+    }).properties
+    expect(properties['limit']?.description).toBe('返回条数上限（默认 5，最大 10）')
+    expect(properties['query']?.description).toContain('条数受 limit 约束')
+
+    await execute(ctx, 'patent_wiki_search', { query: '' }, 'pws-cap-1')
+    await execute(ctx, 'patent_wiki_search', { query: '', limit: 50 }, 'pws-cap-2')
+    expect(seen).toEqual([5, 10])
+  })
 })
 
 describe('patent_kg_query deeper paths', () => {

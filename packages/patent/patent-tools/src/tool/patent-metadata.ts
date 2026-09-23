@@ -155,15 +155,32 @@ const DESCRIPTION = [
   '  - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number',
   "  - A 'not found' result (patent does not exist) is returned as data with success:false — not an error",
   '  - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails',
-  '  - Non-fatal parse warnings are surfaced in parseWarnings when the page structure changes',
+  '  - Non-fatal parse warnings (fields the page structure left empty) are listed under 警告 in the rendered result',
 ].join('\n')
 
-/** Render the canonical metadata value into model-facing Markdown. */
+/**
+ * Render the canonical metadata value into model-facing Markdown.
+ *
+ * Warnings render on both outcomes: a failed lookup still carries the warnings
+ * the scrape collected before it gave up, and the description promises the model
+ * sees them.
+ */
 function renderMetadata(value: PatentMetadataOutput): string {
-  if (!value.success || value.data === null) {
-    return `patent_metadata(${value.patent}): ${value.errorMessage}`
+  const lines = value.success && value.data !== null
+    ? metadataBodyLines(value.data as unknown as StructuredPatentData)
+    : [`patent_metadata(${value.patent}): ${value.errorMessage}`]
+  if (value.parseWarnings.length > 0) {
+    lines.push('', '## 警告', ...value.parseWarnings.map(w => `- ${w.field}: ${w.message}`))
   }
-  const d = value.data as unknown as StructuredPatentData
+  return lines.join('\n')
+}
+
+/**
+ * Render the metadata fields of a successful lookup.
+ * @param d - the mapped structured patent data.
+ * @returns the field lines, before the warning section is appended.
+ */
+function metadataBodyLines(d: StructuredPatentData): string[] {
   const lines = [
     `## ${d.title}`,
     `**patent**: ${d.patent} · **url**: ${d.url}`,
@@ -176,7 +193,7 @@ function renderMetadata(value: PatentMetadataOutput): string {
   ]
   if (d.pdfUrl) lines.push(`**pdf**: ${d.pdfUrl}`)
   if (d.abstractText) lines.push('', d.abstractText)
-  return lines.join('\n')
+  return lines
 }
 
 const WARNING_SCHEMA = {

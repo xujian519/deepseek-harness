@@ -466,4 +466,24 @@ describe('search_patent_figure execute', () => {
       code: 'setup_required',
     })
   })
+
+  it('caps the argument-free listing at limit and states that cap in the parameter descriptions', async () => {
+    const entries = Array.from({ length: 12 }, (_, index) =>
+      makeEntry({ imagePath: `figure-${String(index)}.png`, figureNumber: index + 1 }))
+    const tool = createSearchPatentFigureTool({ loadIndex: async () => ({ entries }) })
+    const ctx = await ctxWith(tool)
+    const properties = (ctx.tools.get('search_patent_figure')?.parameters as {
+      properties: Record<string, { description: string }>
+    }).properties
+    expect(properties['limit']?.description).toBe('返回条数上限（默认 5，最大 10）')
+    expect(properties['query']?.description).toContain('条数受 limit 约束')
+
+    const defaulted = await execute(ctx, 'search_patent_figure', { query: '' }, 'sf-cap-1')
+    if (defaulted.isError) throw new Error('expected success')
+    expect((defaulted.value as SearchPatentFigureOutput).results).toHaveLength(5)
+
+    const aboveMax = await execute(ctx, 'search_patent_figure', { query: '', limit: 50 }, 'sf-cap-2')
+    if (aboveMax.isError) throw new Error('expected success')
+    expect((aboveMax.value as SearchPatentFigureOutput).results).toHaveLength(10)
+  })
 })

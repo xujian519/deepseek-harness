@@ -116,12 +116,19 @@ const DESCRIPTION = [
   'Usage notes:',
   '  - Read-only; query syntax follows Google Patents search grammar',
   '  - Follow up with patent_metadata to fetch full details of a specific hit',
-  '  - A network failure is reported as an error; a genuine zero-result search returns empty hits with warnings',
+  '  - A network failure is reported as an error; a genuine zero-result search returns empty hits',
+  '  - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result',
 ].join('\n')
 
-/** Render the canonical search value into model-facing Markdown. */
+/**
+ * Render the canonical search value into model-facing Markdown.
+ *
+ * Warnings are rendered, not merely carried: the description promises the model
+ * sees them, and a zero-hit render would otherwise state `0 result(s)` without
+ * the reason the upstream reported.
+ */
 function renderSearch(value: PatentSearchOutput): string {
-  const lines = value.hits.map(h =>
+  const hits = value.hits.map(h =>
     [
       `## ${h.title || h.patent}`,
       `**patent**: ${h.patent}${h.publicationDate ? ` · published ${h.publicationDate}` : ''}`,
@@ -130,7 +137,11 @@ function renderSearch(value: PatentSearchOutput): string {
       ...(h.abstract ? [h.abstract] : []),
     ].join('\n'),
   )
-  return [`**patent_search** — ${value.hits.length} result(s) for "${value.query}"`, '', lines.join('\n\n---\n\n')].join('\n')
+  const header = `**patent_search** — ${value.hits.length} result(s) for "${value.query}"`
+  const warningLines = value.warnings.length > 0
+    ? ['', '## 警告', ...value.warnings.map(w => `- ${w}`)]
+    : []
+  return [header, '', hits.join('\n\n---\n\n'), ...warningLines].join('\n')
 }
 
 const HIT_SCHEMA = {

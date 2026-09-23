@@ -19,7 +19,7 @@ import type { FigureIndexEntry, LoadFigureIndexResult } from '../figure/index-st
 
 /** Input for the search_patent_figure tool. */
 export type SearchPatentFigureInput = {
-  /** 检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）。 */
+  /** 检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出已分析附图，条数受 limit 约束）。 */
   query: string
   /** 返回条数上限（默认 5，最大 10）。 */
   limit?: number
@@ -232,6 +232,17 @@ const RESULT_ITEM_SCHEMA = {
 } as const
 
 /**
+ * Result cap applied when a call omits its own `limit`.
+ */
+const DEFAULT_RESULT_LIMIT = 5
+
+/**
+ * Upper bound on `limit`: one call returns at most this many figures in
+ * argument-free listing mode, whatever the caller asks for.
+ */
+const MAX_RESULT_LIMIT = 10
+
+/**
  * Build the `search_patent_figure` tool over an injected index loader.
  * @param deps - the figure-index loader.
  * @returns a registry-ready tool definition.
@@ -241,8 +252,8 @@ export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): Tool
     name: 'search_patent_figure',
     description: '检索已分析的专利附图：按技术特征、部件名称或附图标记关键词返回最相关附图及其分析结果——附图编号、类型、组件与标号、附图说明。撰写说明书/具体实施方式时用于确认技术特征对应的附图与标记。索引由 analyze_patent_figure 写入（见 Config.figureIndexFile）。当前仅关键词检索（向量/语义检索未接入）。',
     parameters: {
-      query: { type: 'string', required: true, description: '检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）' },
-      limit: { type: 'number', description: '返回条数上限（默认 5，最大 10）' },
+      query: { type: 'string', required: true, description: '检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出已分析附图，条数受 limit 约束）' },
+      limit: { type: 'number', description: `返回条数上限（默认 ${String(DEFAULT_RESULT_LIMIT)}，最大 ${String(MAX_RESULT_LIMIT)}）` },
     },
     output: {
       schema: {
@@ -273,7 +284,7 @@ export function createSearchPatentFigureTool(deps: SearchPatentFigureDeps): Tool
           { tool: 'search_patent_figure' },
         )
       }
-      const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
+      const limit = Math.min(Math.max(args.limit ?? DEFAULT_RESULT_LIMIT, 1), MAX_RESULT_LIMIT)
       const query = args.query
       const hits = retrieveFiguresKeyword(loaded.entries, query, limit)
       const results: SearchPatentFigureResultItem[] = hits.map((hit) => {

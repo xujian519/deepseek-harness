@@ -82,7 +82,7 @@ const MODE_LABELS: Readonly<Record<QueryWritingPatternsMode, string>> = {
 const DESCRIPTION = [
   '- Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a <writing_skills> block',
   '- A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity',
-  '- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed',
+  '- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed, capped by `limit`',
   '- Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written',
 ].join('\n')
 

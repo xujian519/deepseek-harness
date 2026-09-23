@@ -4781,7 +4781,7 @@ Usage notes:
   - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number
   - A 'not found' result (patent does not exist) is returned as data with success:false — not an error
   - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails
-  - Non-fatal parse warnings are surfaced in parseWarnings when the page structure changes
+  - Non-fatal parse warnings (fields the page structure left empty) are listed under 警告 in the rendered result
 
 ```json
 {
@@ -4935,7 +4935,8 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 Usage notes:
   - Read-only; query syntax follows Google Patents search grammar
   - Follow up with patent_metadata to fetch full details of a specific hit
-  - A network failure is reported as an error; a genuine zero-result search returns empty hits with warnings
+  - A network failure is reported as an error; a genuine zero-result search returns empty hits
+  - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result
 
 ```json
 {
@@ -4968,7 +4969,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   "properties": {
     "query": {
       "type": "string",
-      "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出全部卡片）"
+      "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出卡片，条数受 limit 约束）"
     },
     "dir": {
       "type": "string",
@@ -5207,7 +5208,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   "properties": {
     "query": {
       "type": "string",
-      "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）"
+      "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出已分析附图，条数受 limit 约束）"
     },
     "limit": {
       "type": "number",
@@ -5632,7 +5633,7 @@ patent_deadlines reports the statutory and designated deadlines of one Chinese p
 
 - Retrieves the patent and legal writing patterns that fit a drafting or office-action situation, compiled into a <writing_skills> block
 - A pattern covers one situation with ordered steps and the rules to follow or avoid: claim drafting, specification drafting, disclosure drafting, IPC strategy, embodiment writing, and office-action replies on inventiveness, novelty, and clarity
-- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed
+- Selection: `query` searches by keyword; otherwise `features` match the case features against pattern names, summaries, and step names; otherwise `category` lists that category; with no argument at all the library is listed, capped by `limit`
 - Selection is lexical and offline: the tool picks patterns, it does not judge the case. Apply the returned steps to the passage being written
 
 ```json

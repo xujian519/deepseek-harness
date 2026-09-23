@@ -4787,7 +4787,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
   - 必须带国家码；裸申请号（202122978405）会被拒绝——请补 CN 或改用公开号
   - 未找到（专利不存在）以 success:false 的数据返回，而非错误
   - 上游瞬时失败（HTTP 503、连接被断开）会重试两次后才失败
-  - 页面结构变化时的非致命解析告警通过 parseWarnings 返回
+  - 页面结构变化留下的空字段以非致命解析告警的形式列在渲染结果的「警告」段
 
 ```json
 {
@@ -4941,7 +4941,8 @@ Usage notes:
 使用说明：
   - 只读；查询语法遵循 Google Patents 检索语法
   - 命中详情请继续用 patent_metadata 获取
-  - 网络失败以错误报告；真正的零结果检索返回空命中并附 warnings
+  - 网络失败以错误报告；真正的零结果检索返回空命中
+  - 非致命告警（家族去重、页面结构变化留下的空字段）列在渲染结果的「警告」段
 
 ```json
 {
@@ -4974,7 +4975,7 @@ Usage notes:
   "properties": {
     "query": {
       "type": "string",
-      "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出全部卡片）"
+      "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出卡片，条数受 limit 约束）"
     },
     "dir": {
       "type": "string",
@@ -5213,7 +5214,7 @@ Usage notes:
   "properties": {
     "query": {
       "type": "string",
-      "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）"
+      "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出已分析附图，条数受 limit 约束）"
     },
     "limit": {
       "type": "number",
@@ -5638,7 +5639,7 @@ patent_deadlines 报告一件中国专利案件的法定与指定期限，适用
 
 - 取回适合当前撰写或答复场景的专利与法律撰写模式，并编译为 <writing_skills> 块
 - 每个模式覆盖一个场景，含有序步骤与应当遵循或避免的规则：权利要求撰写、说明书撰写、交底书撰写、IPC 策略、具体实施方式撰写，以及针对创造性、新颖性、清楚性的审查意见答复
-- 选择方式：传 `query` 按关键词检索；否则用 `features` 把案件特征与模式名称、摘要、步骤名做匹配；否则按 `category` 列出该类目；不带任何参数时列出整个模式库
+- 选择方式：传 `query` 按关键词检索；否则用 `features` 把案件特征与模式名称、摘要、步骤名做匹配；否则按 `category` 列出该类目；不带任何参数时按 `limit` 上限列出模式库
 - 选择是词法且离线的：工具只挑选模式，不对案件作判断。把返回的步骤应用到正在撰写的段落上
 
 Source: [`packages/patent/writing-patterns/src/index.ts`](../packages/patent/writing-patterns/src/index.ts)

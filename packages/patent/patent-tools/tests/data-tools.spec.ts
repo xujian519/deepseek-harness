@@ -7,8 +7,35 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { createPatentSearchTool, baseNumber, dedupeByFamily } from '../src/tool/patent-search.ts'
 import { createPatentMetadataTool } from '../src/tool/patent-metadata.ts'
 import { createPatentLegalStatusTool } from '../src/tool/patent-legal-status.ts'
+import type { PatentData } from '@deepseek-ai/nuo-patent'
 
 const signal = new AbortController().signal
+
+/** Minimal scraped page payload: every field present, every JSON field empty. */
+function minimalPatentData(): PatentData {
+  return {
+    title: 'T',
+    application_number: '',
+    inventor_name: '[]',
+    assignee_name_orig: '[]',
+    assignee_name_current: '[]',
+    pub_date: '',
+    filing_date: '',
+    priority_date: '',
+    grant_date: '',
+    expiration_date: '',
+    legal_status: '',
+    ifi_status: '',
+    estimated_expiration: '',
+    pdf_url: '',
+    classifications: '[]',
+    forward_cite_no_family: '[]',
+    forward_cite_yes_family: '[]',
+    backward_cite_no_family: '[]',
+    backward_cite_yes_family: '[]',
+    abstract_text: 'A',
+  }
+}
 
 async function ctxWith(...tools: ToolDefinition[]): Promise<Context> {
   const ctx = new Context()
@@ -53,6 +80,47 @@ describe('patent_search', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('patent_search')
     expect(text(result)).toContain('CN115690481A')
+  })
+
+  it('renders the non-fatal warnings alongside the hits', async () => {
+    const fake = {
+      query: 'q',
+      total: 3,
+      hits: [
+        { patent: 'CN115690481A', title: 'a', assignee: '', publication_date: '2023-01-01', priority_date: '', abstract: '', url: 'u' },
+        { patent: 'CN115690481B', title: 'b', assignee: '', publication_date: '2024-01-01', priority_date: '', abstract: '', url: 'u' },
+      ],
+      warnings: [],
+    }
+    const tool = createPatentSearchTool({ search: async () => fake })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-warn')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('## 警告')
+    expect(out).toContain('- family 去重：CN115690481* 的 2 篇公开/授权变体合并为 1 篇（保留 CN115690481B 2024-01-01）')
+  })
+
+  it('renders the warnings of a zero-hit search', async () => {
+    const tool = createPatentSearchTool({
+      search: async () => ({ query: 'q', total: 0, hits: [], warnings: ['部分字段未解析：publication_date'] }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-warn-empty')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).toContain('- 部分字段未解析：publication_date')
+  })
+
+  it('renders no warning section when there is nothing to warn about', async () => {
+    const fake = { query: 'q', total: 1, hits: [{ patent: 'CN115690481A', title: 't', assignee: 'a', publication_date: '2023', priority_date: '2022', abstract: 'abs', url: 'u' }], warnings: [] }
+    const tool = createPatentSearchTool({ search: async () => fake })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_search', { query: 'q' }, 's-no-warn')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).not.toContain('## 警告')
   })
 
   it('throws on an empty query', async () => {
@@ -164,6 +232,72 @@ describe('patent_metadata', () => {
     const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-parse')
     expect(result.isError).toBe(true)
     expect(calls).toBe(1)
+  })
+
+  it('renders the non-fatal parse warnings of a successful scrape', async () => {
+    const tool = createPatentMetadataTool({
+      scrape: async patent => ({
+        success: true,
+        patent,
+        url: 'https://patents.google.com/patent/CN1',
+        data: minimalPatentData(),
+        errorCode: '' as const,
+        errorMessage: '',
+        parseWarnings: [
+          { field: 'assigneesCurrent', message: '页面结构变化：申请人字段未解析' },
+          { field: 'legalStatus', message: '页面结构变化：法律状态字段未解析' },
+        ],
+      }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-warn')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('## 警告')
+    expect(out).toContain('- assigneesCurrent: 页面结构变化：申请人字段未解析')
+    expect(out).toContain('- legalStatus: 页面结构变化：法律状态字段未解析')
+  })
+
+  it('renders the parse warnings that accompany a failed lookup', async () => {
+    const tool = createPatentMetadataTool({
+      scrape: async patent => ({
+        success: false,
+        patent,
+        url: 'u',
+        data: null,
+        errorCode: 'NOT_FOUND',
+        errorMessage: 'not found',
+        parseWarnings: [{ field: 'title', message: '页面结构变化：标题未解析' }],
+      }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-warn-fail')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    const out = text(result)
+    expect(out).toContain('not found')
+    expect(out).toContain('## 警告')
+    expect(out).toContain('- title: 页面结构变化：标题未解析')
+  })
+
+  it('renders no warning section when the parse is clean', async () => {
+    const tool = createPatentMetadataTool({
+      scrape: async patent => ({
+        success: true,
+        patent,
+        url: 'https://patents.google.com/patent/CN1',
+        data: minimalPatentData(),
+        errorCode: '' as const,
+        errorMessage: '',
+        parseWarnings: [],
+      }),
+    })
+    const ctx = await ctxWith(tool)
+    const result = await execute(ctx, 'patent_metadata', { patent: 'CN1A' }, 'm-clean')
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected success')
+    expect(text(result)).not.toContain('## 警告')
   })
 })
 

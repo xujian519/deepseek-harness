@@ -54,6 +54,11 @@ describe('query_writing_patterns schema', () => {
     expect(schema.required.sort()).toEqual(['librarySize', 'mode', 'patterns', 'skills'])
     expect(schema.properties['mode']?.enum).toEqual(['search', 'match', 'category', 'catalog'])
   })
+
+  it('states that the argument-free listing is capped by limit', async () => {
+    const ctx = await host()
+    expect(ctx.tools.get('query_writing_patterns')?.description).toContain('listed, capped by `limit`')
+  })
 })
 
 describe('query_writing_patterns output.render', () => {

@@ -2303,7 +2303,7 @@
     },
     {
       "name": "patent_metadata",
-      "description": "- Fetches patent metadata from Google Patents by patent number (e.g. US11452699B2)\n- Returns structured data: title, inventors, assignees, dates, legal status, estimated expiration, abstract, PDF URL, classifications, citations\n- Validates and normalizes the patent number automatically; a CN application number keeps its 12-digit form (CN202122978405.0 → CN202122978405) and full-width characters, whitespace, and - / : separators fold away\n- Use for patent due diligence, prior-art detail lookup, legal status checks\n\nUsage notes:\n  - Read-only; makes one network request per patent\n  - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number\n  - A 'not found' result (patent does not exist) is returned as data with success:false — not an error\n  - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails\n  - Non-fatal parse warnings are surfaced in parseWarnings when the page structure changes",
+      "description": "- Fetches patent metadata from Google Patents by patent number (e.g. US11452699B2)\n- Returns structured data: title, inventors, assignees, dates, legal status, estimated expiration, abstract, PDF URL, classifications, citations\n- Validates and normalizes the patent number automatically; a CN application number keeps its 12-digit form (CN202122978405.0 → CN202122978405) and full-width characters, whitespace, and - / : separators fold away\n- Use for patent due diligence, prior-art detail lookup, legal status checks\n\nUsage notes:\n  - Read-only; makes one network request per patent\n  - A country code is required; a bare application number (202122978405) is rejected — prepend CN or use the publication number\n  - A 'not found' result (patent does not exist) is returned as data with success:false — not an error\n  - A transient upstream failure (HTTP 503, dropped connection) is retried twice before the call fails\n  - Non-fatal parse warnings (fields the page structure left empty) are listed under 警告 in the rendered result",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2430,7 +2430,7 @@
     },
     {
       "name": "patent_search",
-      "description": "- Searches Google Patents by keyword or boolean query (e.g. '(phase change OR PCM) AND thermal', 'assignee:(Samsung) after:20200101')\n- Returns structured hits: patent number, title, assignee, publication date, abstract, URL\n- Use for prior-art search, novelty pre-screening, competitor/assignee analysis\n\nUsage notes:\n  - Read-only; query syntax follows Google Patents search grammar\n  - Follow up with patent_metadata to fetch full details of a specific hit\n  - A network failure is reported as an error; a genuine zero-result search returns empty hits with warnings",
+      "description": "- Searches Google Patents by keyword or boolean query (e.g. '(phase change OR PCM) AND thermal', 'assignee:(Samsung) after:20200101')\n- Returns structured hits: patent number, title, assignee, publication date, abstract, URL\n- Use for prior-art search, novelty pre-screening, competitor/assignee analysis\n\nUsage notes:\n  - Read-only; query syntax follows Google Patents search grammar\n  - Follow up with patent_metadata to fetch full details of a specific hit\n  - A network failure is reported as an error; a genuine zero-result search returns empty hits\n  - Non-fatal warnings (family dedupe, fields the page structure left empty) are listed under 警告 in the rendered result",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2456,7 +2456,7 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出全部卡片）"
+            "description": "检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出卡片，条数受 limit 约束）"
           },
           "dir": {
             "type": "string",
@@ -2766,7 +2766,7 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出全部已分析附图）"
+            "description": "检索关键词（技术特征/部件名/附图标记；空串 = 按附图编号列出已分析附图，条数受 limit 约束）"
           },
           "limit": {
             "type": "number",

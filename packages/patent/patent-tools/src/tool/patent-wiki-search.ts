@@ -71,6 +71,17 @@ function toResult(meta: WikiCardMeta, formatAsContext: (id: string, maxChars: nu
 
 const DESCRIPTION = '检索专利 wiki 知识卡片（说明书/权利要求/撰写/附图四目录），用于撰写说明书、权利要求书时查询充分公开、实施例、数值范围、以说明书为依据等撰写标准。支持 dir 目录过滤（specification/claims/drafting/figures）与 include_body 正文片段。'
 
+/**
+ * Result cap applied when a call omits its own `limit`.
+ */
+const DEFAULT_RESULT_LIMIT = 5
+
+/**
+ * Upper bound on `limit`: one call returns at most this many cards in
+ * argument-free listing mode, whatever the caller asks for.
+ */
+const MAX_RESULT_LIMIT = 10
+
 /** Render the canonical wiki-search value into model-facing prose. */
 function renderWikiSearch(value: PatentWikiSearchOutput): string {
   if (value.results.length === 0) {
@@ -111,9 +122,9 @@ export function createPatentWikiSearchTool(deps: PatentWikiSearchDeps): ToolDefi
     name: 'patent_wiki_search',
     description: DESCRIPTION,
     parameters: {
-      query: { type: 'string', required: true, description: '检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出全部卡片）' },
+      query: { type: 'string', required: true, description: '检索关键词（卡片标题/概念/领域子串匹配；空串 = 按目录列出卡片，条数受 limit 约束）' },
       dir: { type: 'string', enum: ['specification', 'claims', 'drafting', 'figures'], description: '目录过滤：specification=说明书、claims=权利要求、drafting=撰写、figures=附图（缺省全部）' },
-      limit: { type: 'number', description: '返回条数上限（默认 5，最大 10）' },
+      limit: { type: 'number', description: `返回条数上限（默认 ${String(DEFAULT_RESULT_LIMIT)}，最大 ${String(MAX_RESULT_LIMIT)}）` },
       include_body: { type: 'boolean', description: '是否附带卡片正文片段（默认 false）' },
     },
     output: {
@@ -134,7 +145,7 @@ export function createPatentWikiSearchTool(deps: PatentWikiSearchDeps): ToolDefi
         throw new PatentToolError('setup_required', 'wiki 卡片目录不可用：请先运行 patent-knowledge:install 准备本地知识数据。', { tool: 'patent_wiki_search' })
       }
       const prefix = args.dir ? PATENT_WIKI_DIRS[args.dir] : ''
-      const limit = Math.min(Math.max(args.limit ?? 5, 1), 10)
+      const limit = Math.min(Math.max(args.limit ?? DEFAULT_RESULT_LIMIT, 1), MAX_RESULT_LIMIT)
       const includeBody = args.include_body === true
       const formatAsContext = deps.formatAsContext
       const metas = deps.searchIn(prefix, args.query, limit)
