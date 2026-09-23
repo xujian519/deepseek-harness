@@ -25,7 +25,7 @@ Function plugin for the [document agent preset](../../bundle/web-app/presets/doc
 <a id="deterministic-checks"></a>
 ## Deterministic checks
 
-The tool reads the delivered bytes rather than trusting the declaration. Markdown and HTML are read as text; a `.docx` package is projected to text through [`@deepseek-ai/dsh-docx-kit`](../docx-kit/README.md); a format with no text reader (`pdf`, `pptx`, `other`) is reported as `unchecked` with the reason instead of a pass.
+The tool reads the delivered bytes rather than trusting the declaration. Markdown and HTML are read as text; a `.docx` package is projected to text through [`@deepseek-ai/dsh-docx-kit`](../docx-kit/README.md) under the configured `maxArchiveEntries` and `maxUncompressedBytes` budgets; a format with no text reader (`pdf`, `pptx`, `other`) is reported as `unchecked` with the reason instead of a pass. A package that exceeds a read budget is reported `unreadable` with `too-large` in its reason, never truncated.
 
 | Check | Reported when | Level |
 | --- | --- | --- |
@@ -61,6 +61,7 @@ Prefix-stable while the registered tool set and the description are unchanged.
 - **Only the configured style's words are enforced** — a deployment whose documents must avoid words outside the loaded style's list adds them to that style asset (or points `styleDirs` at its own directory). A per-call waiver would let a forbidden word through with no record of why, so the tool has none.
 - **The anchor check is heuristic** — it accepts a fragment declared by an `id`/`name` attribute or by a heading slug under GitHub's rule, so a renderer with a different slug convention can produce a `broken_anchor` warning that is not broken. That check is a warning for exactly that reason.
 - **The size cap skips, it does not truncate** — a deliverable larger than 4 MiB is read no further and reported `unreadable` with its reason; the checks run over nothing rather than over a head that would pass.
+- **The DOCX read budget is a deployment budget** — a package that declares more entries than `maxArchiveEntries` or expands past `maxUncompressedBytes` is reported `unreadable` with `too-large`; a deployment that delivers very large repetitive documents raises the cap in `cordis.yml` rather than getting a partial check.
 
 ### Dev Note
 

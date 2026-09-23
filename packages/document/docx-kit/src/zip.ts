@@ -9,8 +9,8 @@
  * header and a fixed DOS timestamp, so equal input bytes produce equal output.
  */
 
-import { deflateRawSync, inflateRawSync } from 'node:zlib'
-import type { DocxProblem, ZipArchive, ZipCompression, ZipEntry, ZipEntryInput, ZipWriteOptions } from './types.ts'
+import { crc32 as nodeCrc32, deflateRawSync, inflateRawSync } from 'node:zlib'
+import type { DocxProblem, ZipArchive, ZipCompression, ZipEntry, ZipEntryInput, ZipReadLimits, ZipWriteOptions } from './types.ts'
 
 /** Local file header signature. */
 const LOCAL_SIGNATURE = 0x04034b50
@@ -44,8 +44,8 @@ const MAX_NAME_LENGTH = 0xffff
 const FIXED_DOS_DATE = 0x0021
 /** DOS time midnight. */
 const FIXED_DOS_TIME = 0
-/** Reflected CRC-32 polynomial of ITU-T V.42, the checksum ZIP stores. */
-const CRC32_POLYNOMIAL = 0xedb88320
+/** Code `node:zlib` raises when a stream would exceed `maxOutputLength`. */
+const BUFFER_TOO_LARGE = 'ERR_BUFFER_TOO_LARGE'
 
 /** Name codec of the archive format, fixed by the UTF-8 name flag this writer sets. */
 const TEXT_CODEC = new TextEncoder()
@@ -57,14 +57,16 @@ const TEXT_DECODER = new TextDecoder()
  * @returns the checksum as an unsigned 32-bit number.
  */
 export function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff
-  for (const byte of bytes) {
-    crc ^= byte
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc & 1) === 1 ? (crc >>> 1) ^ CRC32_POLYNOMIAL : crc >>> 1
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0
+  return nodeCrc32(bytes)
+}
+
+/**
+ * Whether an inflate failure is the output cap rather than a damaged stream.
+ * @param error - the error `inflateRawSync` threw.
+ * @returns true when the stream was refused for its size.
+ */
+function isBufferTooLarge(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === BUFFER_TOO_LARGE
 }
 
 /**
@@ -269,6 +271,8 @@ interface CentralRecord {
   readonly crc: number
   /** Stored payload byte length. */
   readonly compressedSize: number
+  /** Declared uncompressed byte length, which the read budget is checked against. */
+  readonly uncompressedSize: number
   /** Position of the entry's local file header. */
   readonly localOffset: number
   /** Position after this record. */
@@ -307,6 +311,7 @@ function readCentralRecord(
     method: view.getUint16(offset + 10, true),
     crc: view.getUint32(offset + 16, true),
     compressedSize: view.getUint32(offset + 20, true),
+    uncompressedSize: view.getUint32(offset + 24, true),
     localOffset: view.getUint32(offset + 42, true),
     next,
   }
@@ -317,10 +322,31 @@ function readCentralRecord(
  * @param payload - stored bytes.
  * @param record - the entry's central directory record.
  * @param problems - problem list to append to.
- * @returns the uncompressed data, or `undefined` when the payload is unreadable.
+ * @param maxOutputLength - bytes this entry may expand to; the caller passes the
+ *   bytes its budget has left, so a stream that would push the total past the
+ *   budget is refused instead of allocated.
+ * @returns the uncompressed data, or `undefined` when the payload is unreadable or over budget.
  */
-function decompressEntry(payload: Uint8Array, record: CentralRecord, problems: DocxProblem[]): Uint8Array | undefined {
-  if (record.method === STORE_METHOD) return payload.slice()
+function decompressEntry(
+  payload: Uint8Array,
+  record: CentralRecord,
+  problems: DocxProblem[],
+  maxOutputLength: number,
+): Uint8Array | undefined {
+  if (record.method === STORE_METHOD) {
+    // A stored entry is copied verbatim, so its payload length — not its
+    // declaration — is what has to fit here; a deflated entry gets the same
+    // bound from `maxOutputLength` below.
+    if (payload.length > maxOutputLength) {
+      problems.push({
+        code: 'too-large',
+        part: record.name,
+        detail: `the stored entry holds ${String(payload.length)} bytes, above the ${String(maxOutputLength)} bytes left of the budget`,
+      })
+      return undefined
+    }
+    return payload.slice()
+  }
   if (record.method !== DEFLATE_METHOD) {
     problems.push({
       code: 'unsupported-compression',
@@ -330,8 +356,16 @@ function decompressEntry(payload: Uint8Array, record: CentralRecord, problems: D
     return undefined
   }
   try {
-    return inflateRawSync(payload)
+    return inflateRawSync(payload, { maxOutputLength })
   } catch (error) {
+    if (isBufferTooLarge(error)) {
+      problems.push({
+        code: 'too-large',
+        part: record.name,
+        detail: `the deflate stream expands beyond the ${String(maxOutputLength)} bytes left of the budget`,
+      })
+      return undefined
+    }
     problems.push({
       code: 'corrupt-entry',
       part: record.name,
@@ -347,13 +381,15 @@ function decompressEntry(payload: Uint8Array, record: CentralRecord, problems: D
  * @param view - the archive bytes as a view.
  * @param record - the entry's central directory record.
  * @param problems - problem list to append to.
- * @returns the entry, or `undefined` when its data is unreadable.
+ * @param maxOutputLength - bytes this entry may expand to (see {@link decompressEntry}).
+ * @returns the entry, or `undefined` when its data is unreadable or over budget.
  */
 function readEntry(
   bytes: Uint8Array,
   view: DataView,
   record: CentralRecord,
   problems: DocxProblem[],
+  maxOutputLength: number,
 ): ZipEntry | undefined {
   const headerInRange = record.localOffset + LOCAL_HEADER_LENGTH <= view.byteLength
   if (!headerInRange || view.getUint32(record.localOffset, true) !== LOCAL_SIGNATURE) {
@@ -367,7 +403,7 @@ function readEntry(
     problems.push({ code: 'truncated-entry', part: record.name, detail: 'entry data extends past the archive' })
     return undefined
   }
-  const data = decompressEntry(bytes.subarray(dataOffset, dataOffset + record.compressedSize), record, problems)
+  const data = decompressEntry(bytes.subarray(dataOffset, dataOffset + record.compressedSize), record, problems, maxOutputLength)
   if (data === undefined) return undefined
   if (crc32(data) !== record.crc) {
     problems.push({
@@ -381,13 +417,15 @@ function readEntry(
 }
 
 /**
- * Read a ZIP archive.
+ * Read a ZIP archive under the caller's read budgets.
  * An entry that cannot be read is reported in `problems` and left out of
- * `entries`; only an unreadable archive ends the scan early.
+ * `entries`; the scan ends early only for an archive that declares no readable
+ * directory or that has spent its uncompressed budget.
  * @param bytes - the archive bytes.
+ * @param limits - entry-count and uncompressed-byte budgets the read must stay within.
  * @returns the decompressed entries and one problem per failure.
  */
-export function readZip(bytes: Uint8Array): ZipArchive {
+export function readZip(bytes: Uint8Array, limits: ZipReadLimits): ZipArchive {
   const entries: ZipEntry[] = []
   const problems: DocxProblem[] = []
   const view = dataViewOf(bytes)
@@ -400,16 +438,41 @@ export function readZip(bytes: Uint8Array): ZipArchive {
   if (count === ZIP64_COUNT_SENTINEL || directoryOffset === ZIP64_SENTINEL) {
     return { entries, problems: [{ code: 'unsupported-archive', detail: 'the archive announces ZIP64 extensions' }] }
   }
+  if (count > limits.maxArchiveEntries) {
+    return {
+      entries,
+      problems: [{
+        code: 'too-large',
+        detail: `the archive declares ${String(count)} entries, above the ${String(limits.maxArchiveEntries)}-entry budget`,
+      }],
+    }
+  }
   if (directoryOffset + count * CENTRAL_HEADER_LENGTH > view.byteLength) {
     return { entries, problems: [{ code: 'not-a-zip', detail: 'the central directory lies outside the archive' }] }
   }
+  let total = 0
   let cursor = directoryOffset
   for (let index = 0; index < count; index += 1) {
     const record = readCentralRecord(view, bytes, cursor, problems)
     if (record === undefined) break
     cursor = record.next
-    const entry = readEntry(bytes, view, record, problems)
-    if (entry !== undefined) entries.push(entry)
+    const remaining = limits.maxUncompressedBytes - total
+    if (record.uncompressedSize > remaining) {
+      problems.push({
+        code: 'too-large',
+        part: record.name,
+        detail: `the entry declares ${String(record.uncompressedSize)} uncompressed bytes, above the ${String(Math.max(0, remaining))} bytes left of the budget`,
+      })
+      break
+    }
+    // `inflateRawSync` rejects `maxOutputLength: 0`, so an entry that arrives
+    // with the budget exactly spent may still produce the one byte such an
+    // entry can hold.
+    const entry = readEntry(bytes, view, record, problems, Math.max(1, remaining))
+    if (entry !== undefined) {
+      entries.push(entry)
+      total += entry.data.length
+    }
   }
   return { entries, problems }
 }

@@ -80,6 +80,8 @@ export type DocxProblemCode =
   | 'unsupported-archive'
   /** Entry data lies outside the archive bytes. */
   | 'truncated-entry'
+  /** The archive or an entry exceeds a read budget. */
+  | 'too-large'
   /** Entry compression is neither store nor deflate. */
   | 'unsupported-compression'
   /** Entry data fails to decompress or fails its CRC check. */
@@ -107,6 +109,18 @@ export interface ZipEntry {
   readonly name: string
   /** Uncompressed bytes. */
   readonly data: Uint8Array
+}
+
+/**
+ * Budgets one archive read applies while decompressing. Callers state them
+ * explicitly: a single deflate stream can expand thousands of times its stored
+ * size, so an unbounded reader turns a small file into an arbitrary allocation.
+ */
+export interface ZipReadLimits {
+  /** Largest number of entries the central directory may declare. */
+  readonly maxArchiveEntries: number
+  /** Largest total uncompressed bytes the scan may collect. */
+  readonly maxUncompressedBytes: number
 }
 
 /** Decompressed archive plus the entries that could not be read. */

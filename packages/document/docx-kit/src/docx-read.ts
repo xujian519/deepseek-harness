@@ -34,6 +34,7 @@ import {
   type DocxTextResult,
   type HeadingLevel,
   type ZipEntry,
+  type ZipReadLimits,
 } from './types.ts'
 import { buildXmlTree, scanXml, type XmlNode } from './xml.ts'
 import { readZip } from './zip.ts'
@@ -260,10 +261,11 @@ function groupedLines(entries: readonly ZipEntry[], prefix: string, problems: Do
 /**
  * Project a DOCX package into text.
  * @param bytes - the package bytes.
+ * @param limits - entry-count and uncompressed-byte budgets the archive read must stay within.
  * @returns the projected text, its sections, and every recoverable failure the archive or a part reported.
  */
-export function extractDocxText(bytes: Uint8Array): DocxTextResult {
-  const archive = readZip(bytes)
+export function extractDocxText(bytes: Uint8Array, limits: ZipReadLimits): DocxTextResult {
+  const archive = readZip(bytes, limits)
   const problems = [...archive.problems]
   const document = archive.entries.find(entry => entry.name === DOCUMENT_PART)
   if (document === undefined) {

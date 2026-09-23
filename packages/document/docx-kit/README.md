@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-docx-kit` renders Markdown into a DOCX package and projects a DOCX package back to text. `renderDocx(markdown, options)` accepts six heading levels, plain paragraphs, `- ` and `* ` list items, pipe tables, and inline bold and code spans; `extractDocxText(bytes)` returns the body, header, and footer text with heading levels preserved. Both directions use the ZIP and XML readers of this package over `node:zlib`, and a malformed archive comes back as `problems` rather than an exception. The package registers nothing into a Cordis composition.
+`@deepseek-ai/dsh-docx-kit` renders Markdown into a DOCX package and projects a DOCX package back to text. `renderDocx(markdown, options)` accepts six heading levels, plain paragraphs, `- ` and `* ` list items, pipe tables, and inline bold and code spans; `extractDocxText(bytes, limits)` returns the body, header, and footer text with heading levels preserved, reading under the caller's entry-count and uncompressed-byte budgets. Both directions use the ZIP and XML readers of this package over `node:zlib`, and a malformed archive comes back as `problems` rather than an exception. The package registers nothing into a Cordis composition.
 
 ## Table of Contents
 
@@ -35,10 +35,12 @@ No package in this repository consumes it yet. It is the TypeScript rewrite of t
 import { extractDocxText, renderDocx } from '@deepseek-ai/dsh-docx-kit'
 
 const bytes = renderDocx('# 标题\n\n正文**加粗**', { title: '交付件' })
-const { text, problems } = extractDocxText(bytes)
+const { text, problems } = extractDocxText(bytes, { maxArchiveEntries: 10_000, maxUncompressedBytes: 64 * 1024 * 1024 })
 ```
 
-`renderDocx` returns the package bytes and throws only for a part name that cannot be stored. `extractDocxText` always returns: `text` holds every projected line joined by a blank line, `sections` lists the same lines with their heading levels, and `problems` names every archive or part failure, from `not-a-zip` through `malformed-xml` and `no-text`.
+`renderDocx` returns the package bytes and throws only for a part name that cannot be stored. `extractDocxText` always returns: `text` holds every projected line joined by a blank line, `sections` lists the same lines with their heading levels, and `problems` names every archive or part failure, from `not-a-zip` through `too-large`, `malformed-xml`, and `no-text`.
+
+The read budgets are a required argument rather than a default: one deflate stream can expand a small file thousands of times, so a reader that bounds nothing turns a bounded input into an arbitrary allocation. An archive over either budget is reported as `too-large` and left out, never truncated.
 
 -----
 
@@ -54,7 +56,7 @@ Both directions share the ZIP container and the XML scanner, so each line of the
 | --- | --- |
 | `src/types.ts` | The shared vocabulary: the block model, the text projection, the problem codes, and the part names. |
 | `src/xml.ts` | The XML scanner, the element tree, and entity escaping and decoding. |
-| `src/zip.ts` | The ZIP reader and writer over `node:zlib`, with CRC-32 checksums and per-entry problems. |
+| `src/zip.ts` | The ZIP reader and writer over `node:zlib`, with CRC-32 checksums, per-entry problems, and the caller's read budgets. |
 | `src/markdown.ts` | `parseMarkdown` and `parseInline`: source lines to the block model. |
 | `src/ooxml.ts` | The `word/document.xml` fragments and the two package parts. |
 | `src/docx-write.ts` | `renderDocx`: the block model to fragments to a complete package. |
@@ -101,6 +103,7 @@ None: the package sends nothing to a provider and mutates no request prefix.
 - **Heading levels come from two properties** — `w:pStyle` naming `HeadingN` or the localized numeric form, otherwise an inline `w:outlineLvl` counting from zero; a paragraph carrying neither is a body paragraph, and a style that names a level wins over an outline level.
 - **Parts are decoded as UTF-8** — the ZIP name flag is not consulted, so a legacy CP437 entry name decodes lossily and a UTF-16 document part reports `malformed-xml`.
 - **ZIP64 archives report `unsupported-archive`** — entry data and archives beyond the 32-bit size and offset fields are out of scope.
+- **The read budgets bound memory, not the work** — an archive that fits its budgets is still inflated synchronously, so the caller's process blocks for the duration and no cancellation reaches it.
 - **A table nested in a cell contributes only text** — its paragraphs join the cell text, so its row and cell separators are not projected.
 - **Headers and footers are selected by name prefix** — any `word/header*.xml` or `word/footer*.xml` part is projected in archive order, including a part such as `word/headerStyles.xml`.
 - **Only text and heading levels are read** — styles, numbering, footnotes, comments, images, and deleted text (`w:delText`) are not projected.

@@ -5,10 +5,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { extractDocxText } from '@deepseek-ai/dsh-docx-kit'
+import type { ZipReadLimits } from '@deepseek-ai/dsh-docx-kit'
 import { createRendererRegistry, RendererRegistry } from '../src/renderer-registry.ts'
 import { escapeHtmlText, isPatentStyle } from '../src/renderers/html.ts'
 import { applyDisclaimer } from '../src/renderers/markdown.ts'
 import { DocTemplateError, type Renderer } from '../src/types.ts'
+
+/** Read budgets wide enough that the fixtures below never reach them. */
+const LIMITS: ZipReadLimits = { maxArchiveEntries: 100, maxUncompressedBytes: 1 << 20 }
 
 const PATENT_STYLE = { name: 'patent-standard', disclaimer: '本分析由 AI 辅助生成。' }
 const NEUTRAL_STYLE = { name: 'assistant-neutral', disclaimer: '' }
@@ -101,14 +105,14 @@ describe('DOCX renderer', () => {
   it('writes a DOCX package carrying the title, the disclaimer, and the body', () => {
     const bytes = registry.render('docx', '正文**加粗**', { language: 'zh-CN', title: '交底书', style: PATENT_STYLE })
     expect(bytes).toBeInstanceOf(Uint8Array)
-    const text = extractDocxText(bytes as Uint8Array).text
+    const text = extractDocxText(bytes as Uint8Array, LIMITS).text
     expect(text).toContain('交底书')
     expect(text).toContain('本分析由 AI 辅助生成。')
     expect(text).toContain('正文加粗')
   })
 
   it('omits the title and the disclaimer when the caller supplies neither', () => {
-    const text = extractDocxText(registry.render('docx', '正文', { language: 'zh-CN', style: NEUTRAL_STYLE }) as Uint8Array).text
+    const text = extractDocxText(registry.render('docx', '正文', { language: 'zh-CN', style: NEUTRAL_STYLE }) as Uint8Array, LIMITS).text
     expect(text).toBe('正文')
   })
 })

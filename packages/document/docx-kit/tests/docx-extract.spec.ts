@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { extractDocxText } from '../src/docx-read.ts'
 import { renderDocx } from '../src/docx-write.ts'
 import { writeZip } from '../src/zip.ts'
-import type { DocxProblem, DocxTextResult, ZipEntryInput } from '../src/types.ts'
+import type { DocxProblem, DocxTextResult, ZipEntryInput, ZipReadLimits } from '../src/types.ts'
 
 /** 上游 testdata 的 `word/document.xml` 原文。 */
 const UPSTREAM_DOCUMENT_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -35,6 +35,9 @@ const BODY_PARAGRAPH_CASES: [name: string, properties: string][] = [
 
 const TEXT_CODEC = new TextEncoder()
 
+/** Read budgets wide enough that no fixture in this spec reaches them. */
+const LIMITS: ZipReadLimits = { maxArchiveEntries: 1_000, maxUncompressedBytes: 8 << 20 }
+
 /** One archive part holding the given text. */
 function part(name: string, xml: string): ZipEntryInput {
   return { name, data: TEXT_CODEC.encode(xml) }
@@ -53,7 +56,7 @@ function packageOf(parts: readonly ZipEntryInput[]): Uint8Array {
 
 /** Projection of one document body fragment. */
 function project(body: string): DocxTextResult {
-  return extractDocxText(packageOf([documentPart(body)]))
+  return extractDocxText(packageOf([documentPart(body)]), LIMITS)
 }
 
 /** Projected lines of one document body fragment. */
@@ -68,7 +71,7 @@ function codes(problems: readonly DocxProblem[]): string[] {
 
 describe('extractDocxText body projection', () => {
   it('reads the upstream testdata document', () => {
-    const result = extractDocxText(packageOf([part('word/document.xml', UPSTREAM_DOCUMENT_XML)]))
+    const result = extractDocxText(packageOf([part('word/document.xml', UPSTREAM_DOCUMENT_XML)]), LIMITS)
     expect(result.problems).toEqual([])
     expect(result.text).toContain('专利权利要求')
     expect(result.sections.map(section => section.text)).toEqual([
@@ -166,7 +169,7 @@ describe('extractDocxText headers and footers', () => {
       documentPart('<w:p><w:r><w:t>正文</w:t></w:r></w:p>'),
       part('word/footer1.xml', '<w:document><w:body><w:p><w:r><w:t>页脚</w:t></w:r></w:p></w:body></w:document>'),
       part('word/headerStyles.xml', '<w:document><w:body><w:p><w:r><w:t>前缀命中即计</w:t></w:r></w:p></w:body></w:document>'),
-    ]))
+    ]), LIMITS)
     expect(result.text).toBe('[页眉]\n\n页眉一\n\n页眉二\n\n前缀命中即计\n\n正文\n\n[页脚]\n\n页脚')
     expect(result.problems).toEqual([])
   })
@@ -176,7 +179,7 @@ describe('extractDocxText headers and footers', () => {
       part('word/header1.xml', '<w:document><w:body><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>'
         + '<w:r><w:t>页眉标题</w:t></w:r></w:p></w:body></w:document>'),
       documentPart('<w:p><w:r><w:t>正文</w:t></w:r></w:p>'),
-    ]))
+    ]), LIMITS)
     expect(result.sections.map(section => section.headingLevel)).toEqual([undefined, 2, undefined])
   })
 })
@@ -185,7 +188,7 @@ describe('extractDocxText failures', () => {
   it('reports a package without a document part', () => {
     const result = extractDocxText(packageOf([
       part('word/header1.xml', '<w:document><w:body><w:p><w:r><w:t>页眉</w:t></w:r></w:p></w:body></w:document>'),
-    ]))
+    ]), LIMITS)
     expect(codes(result.problems)).toEqual(['missing-document'])
     expect(result.text).toBe('[页眉]\n\n页眉')
   })
@@ -208,7 +211,7 @@ describe('extractDocxText failures', () => {
   })
 
   it('reports bytes that hold no package', () => {
-    const result = extractDocxText(TEXT_CODEC.encode('not a package'))
+    const result = extractDocxText(TEXT_CODEC.encode('not a package'), LIMITS)
     expect(codes(result.problems)).toEqual(['not-a-zip', 'missing-document', 'no-text'])
     expect(result.text).toBe('')
   })
@@ -216,7 +219,7 @@ describe('extractDocxText failures', () => {
   it('reports a document part written in another encoding as malformed', () => {
     const result = extractDocxText(packageOf([
       { name: 'word/document.xml', data: new Uint8Array([0xff, 0xfe, 0x3c, 0x00]) },
-    ]))
+    ]), LIMITS)
     expect(codes(result.problems)).toEqual(['malformed-xml', 'no-text'])
   })
 })
@@ -224,19 +227,19 @@ describe('extractDocxText failures', () => {
 describe('round trip through renderDocx', () => {
   it('projects the rendered headings, paragraphs, list items, and table rows', () => {
     const source = '# 标题\n\n正文段落。\n\n- 列表项\n\n| a | b |\n| --- | --- |\n| c | d |'
-    const result = extractDocxText(renderDocx(source))
+    const result = extractDocxText(renderDocx(source), LIMITS)
     expect(result.problems).toEqual([])
     expect(result.text).toBe('# 标题\n\n正文段落。\n\n• 列表项\n\n| a | b |\n\n| c | d |')
     expect(result.sections.map(section => section.headingLevel)).toEqual([1, undefined, undefined, undefined, undefined])
   })
 
   it('drops the inline markers, which describe run properties rather than text', () => {
-    expect(extractDocxText(renderDocx('**加粗**与`等宽`')).text).toBe('加粗与等宽')
+    expect(extractDocxText(renderDocx('**加粗**与`等宽`'), LIMITS).text).toBe('加粗与等宽')
   })
 
   it('re-renders the projection of headings and paragraphs byte for byte', () => {
     const source = '# 标题\n\n正文段落。\n\n## 二级标题\n\n又一段'
-    const projected = extractDocxText(renderDocx(source)).text
+    const projected = extractDocxText(renderDocx(source), LIMITS).text
     expect(projected).toBe(source)
     expect([...renderDocx(projected)]).toEqual([...renderDocx(source)])
   })

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@deepseek-ai/dsh-docx-kit` 把 Markdown 渲染为 DOCX 包，也把 DOCX 包投影回纯文本。`renderDocx(markdown, options)` 接受六级标题、普通段落、`- ` 与 `* ` 列表项、管道表格，以及行内加粗与等宽；`extractDocxText(bytes)` 返回正文、页眉与页脚文本并保留标题层级。两个方向都只用本包在 `node:zlib` 之上实现的 ZIP 与 XML 读写，畸形的归档以 `problems` 返回而不抛异常。本包不向 Cordis 组合注册任何东西。
+`@deepseek-ai/dsh-docx-kit` 把 Markdown 渲染为 DOCX 包，也把 DOCX 包投影回纯文本。`renderDocx(markdown, options)` 接受六级标题、普通段落、`- ` 与 `* ` 列表项、管道表格，以及行内加粗与等宽；`extractDocxText(bytes, limits)` 返回正文、页眉与页脚文本并保留标题层级，读取受调用方给出的条目数与解压字节预算约束。两个方向都只用本包在 `node:zlib` 之上实现的 ZIP 与 XML 读写，畸形的归档以 `problems` 返回而不抛异常。本包不向 Cordis 组合注册任何东西。
 
 ## 目录
 
@@ -35,10 +35,12 @@ kind: "package-reference"
 import { extractDocxText, renderDocx } from '@deepseek-ai/dsh-docx-kit'
 
 const bytes = renderDocx('# 标题\n\n正文**加粗**', { title: '交付件' })
-const { text, problems } = extractDocxText(bytes)
+const { text, problems } = extractDocxText(bytes, { maxArchiveEntries: 10_000, maxUncompressedBytes: 64 * 1024 * 1024 })
 ```
 
-`renderDocx` 返回包字节，仅当部件名无法写入时才抛。`extractDocxText` 总会返回：`text` 为全部投影行以空行相连，`sections` 逐行给出同一批行及其标题层级，`problems` 逐项点名归档或部件的失败，从 `not-a-zip` 到 `malformed-xml`、`no-text`。
+`renderDocx` 返回包字节，仅当部件名无法写入时才抛。`extractDocxText` 总会返回：`text` 为全部投影行以空行相连，`sections` 逐行给出同一批行及其标题层级，`problems` 逐项点名归档或部件的失败，从 `not-a-zip` 到 `too-large`、`malformed-xml`、`no-text`。
+
+读取预算为必填参数而非缺省值：一条 deflate 流能把小文件膨胀上千倍，不设界的读取器会把有界的输入变成任意大小的分配。超出任一预算的归档以 `too-large` 报出并整条剔除，绝不截断。
 
 -----
 
@@ -54,7 +56,7 @@ const { text, problems } = extractDocxText(bytes)
 | --- | --- |
 | `src/types.ts` | 共享词汇：块模型、文本投影、问题码与部件名。 |
 | `src/xml.ts` | XML 扫描器、元素树，以及实体转义与解码。 |
-| `src/zip.ts` | 建立在 `node:zlib` 之上的 ZIP 读写，含 CRC-32 校验与逐条目问题。 |
+| `src/zip.ts` | 建立在 `node:zlib` 之上的 ZIP 读写，含 CRC-32 校验、逐条目问题与调用方给出的读取预算。 |
 | `src/markdown.ts` | `parseMarkdown` 与 `parseInline`：源行转块模型。 |
 | `src/ooxml.ts` | `word/document.xml` 片段与另外两个包部件。 |
 | `src/docx-write.ts` | `renderDocx`：块模型转片段再转完整包。 |
@@ -101,6 +103,7 @@ const { text, problems } = extractDocxText(bytes)
 - **标题层级来自两个属性** —— `w:pStyle` 名为 `HeadingN` 或本地化的数字形式，否则取行内的 `w:outlineLvl`（自 0 起算）；两者皆无的段落即正文段落，且命名了层级的样式优先于大纲级别。
 - **部件按 UTF-8 解码** —— 不查看 ZIP 的名称标志，因而遗留 CP437 条目名会被有损解码，UTF-16 的 document 部件会报 `malformed-xml`。
 - **ZIP64 归档报 `unsupported-archive`** —— 超出 32 位长度与偏移字段的条目数据与归档不在范围内。
+- **读取预算约束的是内存而非工作量** —— 在预算内的归档仍同步解压，调用方的进程会在整个解压期间阻塞，取消信号到不了这里。
 - **单元格内嵌套的表格只贡献文本** —— 其段落并入单元格文本，行与单元格分隔符不投影。
 - **页眉页脚按名称前缀选取** —— 任何 `word/header*.xml` 或 `word/footer*.xml` 部件都按归档顺序投影，包括 `word/headerStyles.xml` 这样的部件。
 - **只读取文本与标题层级** —— 样式、编号、脚注、批注、图片与删除文本（`w:delText`）都不投影。

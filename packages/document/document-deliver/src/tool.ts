@@ -17,7 +17,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { FsTarget } from '@deepseek-ai/dsh-fs'
 import { findStyleByName, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
-import { extractDocxText } from '@deepseek-ai/dsh-docx-kit'
+import { extractDocxText, type ZipReadLimits } from '@deepseek-ai/dsh-docx-kit'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { errorMessage } from '@deepseek-ai/dsh-value'
@@ -106,6 +106,8 @@ export interface DocumentDeliverDeps {
   readonly styles: readonly DocumentStyle[]
   /** The style a call that names none is checked against. */
   readonly defaultStyle: DocumentStyle
+  /** Budgets the DOCX archive read must stay within (Config `maxArchiveEntries` / `maxUncompressedBytes`). */
+  readonly docxReadLimits: ZipReadLimits
 }
 
 /** The style a registration resolves to, or a fail-loud error naming the loaded set. */
@@ -224,11 +226,12 @@ export async function missingDeliverableFiles(
  * @param file - the declared path and format.
  * @param style - the style whose forbidden words are enforced.
  * @param charBudget - the declared character budget, when the call declared one.
+ * @param docxReadLimits - budgets the DOCX archive read must stay within.
  * @returns the check report for this file.
  */
 async function checkDeliverable(
   ctx: Context, exec: ToolRunContext, file: { path: string; format: DeliverableFormat },
-  style: DocumentStyle, charBudget: number | undefined,
+  style: DocumentStyle, charBudget: number | undefined, docxReadLimits: ZipReadLimits,
 ): Promise<DeliverableCheckReport> {
   const base = { path: file.path, format: file.format }
   const options = { style, ...charBudget === undefined ? {} : { charBudget } }
@@ -239,7 +242,7 @@ async function checkDeliverable(
   try {
     if (file.format === 'docx') {
       const bytes = await ctx.fs.readBytes(target, exec.signal, MAX_CHECK_BYTES)
-      const projected = extractDocxText(bytes)
+      const projected = extractDocxText(bytes, docxReadLimits)
       const problems = projected.problems.map(problem => problem.code).join('、')
       // An empty projection always carries at least the `no-text` problem, so
       // the joined codes are the reason.
@@ -273,14 +276,16 @@ async function checkDeliverable(
  * @param exec - the current tool execution (signal, agent).
  * @param spec - the validated registration.
  * @param style - the style the checks run against.
+ * @param docxReadLimits - budgets the DOCX archive read must stay within.
  * @returns one report per file, in declaration order.
  */
 export async function checkDeliverables(
   ctx: Context, exec: ToolRunContext, spec: DocumentDeliverSpec, style: DocumentStyle,
+  docxReadLimits: ZipReadLimits,
 ): Promise<DeliverableCheckReport[]> {
   const reports: DeliverableCheckReport[] = []
   for (const file of spec.files) {
-    reports.push(await checkDeliverable(ctx, exec, file, style, spec.charBudget))
+    reports.push(await checkDeliverable(ctx, exec, file, style, spec.charBudget, docxReadLimits))
   }
   return reports
 }
@@ -498,7 +503,7 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
       if (missing.length > 0) {
         throw new Error(`document_deliver: 以下交付文件在工作区中不存在，先修复或从登记中移除: ${missing.join('、')}`)
       }
-      const checks = await checkDeliverables(ctx, exec, spec, style)
+      const checks = await checkDeliverables(ctx, exec, spec, style, deps.docxReadLimits)
       const blocking = blockingLines(checks)
       if (blocking.length > 0) {
         throw new Error([

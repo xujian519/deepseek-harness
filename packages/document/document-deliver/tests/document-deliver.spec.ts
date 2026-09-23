@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { findStyleByName, loadStyles, stylesDirectory } from '@deepseek-ai/dsh-doc-style'
 import { renderDocx } from '@deepseek-ai/dsh-docx-kit'
+import type { ZipReadLimits } from '@deepseek-ai/dsh-docx-kit'
 import { writeZip } from '@deepseek-ai/dsh-docx-kit/src/zip.ts'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -26,12 +27,19 @@ import {
 const signal = new AbortController().signal
 const exec = { signal } as unknown as ToolRunContext
 
+/**
+ * DOCX read budgets for tools built straight from `deps()`; wide enough that no
+ * fixture reaches them. The budget tests below mount the plugin instead, so
+ * their budgets come from `Config` exactly as a deployment's would.
+ */
+const DOCX_LIMITS: ZipReadLimits = { maxArchiveEntries: 10_000, maxUncompressedBytes: 64 * 1024 * 1024 }
+
 /** The loaded shipped styles, with the named one as the default of the test deployment. */
 function deps(defaultStyle = 'assistant-neutral'): DocumentDeliverDeps {
   const styles = loadStyles([stylesDirectory()])
   const style = findStyleByName(styles, defaultStyle)
   if (style === undefined) throw new Error(`test setup: no style named ${defaultStyle}`)
-  return { styles, defaultStyle: style }
+  return { styles, defaultStyle: style, docxReadLimits: DOCX_LIMITS }
 }
 
 /** A tool over a bare context, for the checks that never reach the filesystem. */
@@ -456,6 +464,41 @@ describe('document_deliver deterministic checks', () => {
     expect(result.value.gate.checks[0]?.reason).toContain(`exceeds the ${String(MAX_CHECK_BYTES)}-byte limit`)
     expect(result.value.gate.checks[0]?.findings).toEqual([])
     expect(result.content).toContain('无法核验')
+  })
+
+  it('refuses a DOCX that expands past the configured budget', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(LocalFileSystem)
+    await ctx.plugin(plugin, { maxUncompressedBytes: 4096 })
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'repetitive.docx')
+    await writeFile(path, renderDocx(`# 报告\n\n${'正文。'.repeat(4096)}\n`))
+    const result = await run(ctx, { files: [{ path, format: 'docx' }], gate: { p0: ['命名规范'] } })
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain('无法核验')
+    expect(result.content).toContain('too-large')
+  })
+
+  it('checks a large DOCX under the shipped budgets', async () => {
+    const ctx = await mounted()
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'large.docx')
+    await writeFile(path, renderDocx(`# 报告\n\n${Array.from({ length: 2_000 }, () => '正文内容。').join('\n\n')}\n`))
+    const result = await run(ctx, { files: [{ path, format: 'docx' }], gate: { p0: ['命名规范'] } })
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain(`${path} 通过`)
+  })
+
+  it('rejects a DOCX read budget outside its accepted bounds at load', async () => {
+    for (const config of [{ maxArchiveEntries: 0 }, { maxArchiveEntries: 0x1_0000 }, { maxUncompressedBytes: 0 }]) {
+      const ctx = new Context()
+      await ctx.plugin(SystemPrompt)
+      await ctx.plugin(ToolRuntime)
+      await ctx.plugin(LocalFileSystem)
+      await expect(ctx.plugin(plugin, config)).rejects.toThrow()
+    }
   })
 
   it('reports the body findings of a DOCX whose other parts did not project', async () => {

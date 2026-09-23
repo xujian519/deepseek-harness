@@ -48,18 +48,41 @@ export const inject = ['tools', 'fs']
 /** Style the deterministic checks use when a deployment configures none. */
 export const DEFAULT_DOCUMENT_STYLE = 'assistant-neutral'
 
+/**
+ * Largest number of entries a checked DOCX package may declare, mirroring
+ * `office-to-pdf`'s `maxArchiveEntries` for the same OOXML threat model.
+ */
+export const DEFAULT_MAX_ARCHIVE_ENTRIES = 10_000
+
+/**
+ * Largest total uncompressed bytes a checked DOCX package may expand to,
+ * mirroring `office-to-pdf`'s `maxUncompressedBytes`. The read is capped at
+ * `MAX_CHECK_BYTES` compressed, so this bound only refuses packages that expand
+ * far past anything the checks can use; a deployment that delivers large
+ * repetitive documents raises it.
+ */
+export const DEFAULT_MAX_UNCOMPRESSED_BYTES = 250 * 1024 * 1024
+
 /** Document-delivery plugin configuration. */
 export interface Config {
   /** Style directories layered over the packaged one, in ascending precedence. */
   styleDirs?: string[]
   /** Style name the checks use when a registration names no style. */
   defaultStyle?: string
+  /** Largest number of entries a checked DOCX package may declare. */
+  maxArchiveEntries?: number
+  /** Largest total uncompressed bytes a checked DOCX package may expand to. */
+  maxUncompressedBytes?: number
 }
 
-/** Schemastery configuration: style roots and the default style. */
+/** Schemastery configuration: style roots, the default style, and the DOCX read budgets. */
 export const Config: z<Config> = z.object({
   styleDirs: z.array(z.string()).default([]),
   defaultStyle: z.string().default(DEFAULT_DOCUMENT_STYLE),
+  // The 16-bit end-of-central-directory count field is the format's own ceiling
+  // on entries a reader can reach without ZIP64, which this reader rejects.
+  maxArchiveEntries: z.natural().min(1).max(0xffff).default(DEFAULT_MAX_ARCHIVE_ENTRIES),
+  maxUncompressedBytes: z.natural().min(1).max(Number.MAX_SAFE_INTEGER - 1).default(DEFAULT_MAX_UNCOMPRESSED_BYTES),
 })
 
 /**
@@ -81,7 +104,7 @@ function requireDefaultStyle(styles: readonly DocumentStyle[], name: string): Do
 /**
  * Load the style assets and register the `document_deliver` tool.
  * @param ctx - plugin context carrying the tools registry and the fs service.
- * @param config - style root overrides and the default style name.
+ * @param config - style root overrides, the default style name, and the DOCX read budgets.
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const styles = loadStyles([
@@ -91,5 +114,9 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.tools.register(createDocumentDeliverTool(ctx, {
     styles,
     defaultStyle: requireDefaultStyle(styles, config.defaultStyle ?? DEFAULT_DOCUMENT_STYLE),
+    docxReadLimits: {
+      maxArchiveEntries: config.maxArchiveEntries ?? DEFAULT_MAX_ARCHIVE_ENTRIES,
+      maxUncompressedBytes: config.maxUncompressedBytes ?? DEFAULT_MAX_UNCOMPRESSED_BYTES,
+    },
   }))
 }

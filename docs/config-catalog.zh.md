@@ -1031,10 +1031,14 @@ export interface Config {
   styleDirs?: string[]
   /** Style name the checks use when a registration names no style. */
   defaultStyle?: string
+  /** Largest number of entries a checked DOCX package may declare. */
+  maxArchiveEntries?: number
+  /** Largest total uncompressed bytes a checked DOCX package may expand to. */
+  maxUncompressedBytes?: number
 }
 ```
 
-来源：[`packages/document/document-deliver/src/index.ts:52`](../packages/document/document-deliver/src/index.ts)
+来源：[`packages/document/document-deliver/src/index.ts:67`](../packages/document/document-deliver/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-agent-team"></a>
 

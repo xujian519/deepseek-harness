@@ -26,7 +26,7 @@ kind: "package-reference"
 <a id="deterministic-checks"></a>
 ## 确定性核验
 
-工具读取交付文件本身，而不是相信模型的自述。Markdown 与 HTML 按文本读取；`.docx` 包经 [`@deepseek-ai/dsh-docx-kit`](../docx-kit/README.zh.md) 投影为文本；没有文本读取器的格式（`pdf`、`pptx`、`other`）报为 `unchecked` 并附原因，而不是"通过"。
+工具读取交付文件本身，而不是相信模型的自述。Markdown 与 HTML 按文本读取；`.docx` 包经 [`@deepseek-ai/dsh-docx-kit`](../docx-kit/README.zh.md) 投影为文本，读取受 `maxArchiveEntries` 与 `maxUncompressedBytes` 两个配置预算约束；没有文本读取器的格式（`pdf`、`pptx`、`other`）报为 `unchecked` 并附原因，而不是"通过"。超出任一读取预算的包报为 `unreadable` 并在原因中带 `too-large`，绝不截断。
 
 | 检查 | 触发条件 | 级别 |
 | --- | --- | --- |
@@ -63,6 +63,7 @@ kind: "package-reference"
 - **只强制已配置风格的词表** —— 需要避开风格词表之外用词的部署，应把这些词加进风格资产（或用 `styleDirs` 指向自己的目录）。单次调用的豁免参数会让禁用词无理由地溜过去且不留记录，故本工具不提供。
 - **锚点检查是启发式** —— 它接受 `id`/`name` 属性声明的片段，或按 GitHub 规则命名的标题 slug，因此采用其他 slug 约定的渲染器可能产生"其实没断"的 `broken_anchor` 提示；正因为如此该检查只报提示。
 - **超限是跳过而非截断** —— 超过 4 MiB 的交付物不再读取，报为 `unreadable` 并附原因；核验跑在"什么都没查"上，而不是跑在一个可能恰好通过的开头上。
+- **DOCX 读取预算是部署级预算** —— 声明条目数超过 `maxArchiveEntries`、或解压后超过 `maxUncompressedBytes` 的包报为 `unreadable` 并带 `too-large`；交付超大可重复文档的部署应在 `cordis.yml` 上调高该上限，而不是接受一次不完整的核验。
 
 ### 开发备注
 

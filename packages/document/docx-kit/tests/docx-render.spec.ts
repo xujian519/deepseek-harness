@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderDocx } from '../src/docx-write.ts'
 import { readZip } from '../src/zip.ts'
+import type { ZipReadLimits } from '../src/types.ts'
 
 /** 上游 `TestDOCXRenderer_Render` 的 Markdown 正文。 */
 const UPSTREAM_MARKDOWN = '# 技术标题\n\n这是一段**加粗**文字。\n\n- 列表项一\n- 列表项二\n\n'
@@ -14,14 +15,17 @@ const UPSTREAM_MARKDOWN = '# 技术标题\n\n这是一段**加粗**文字。\n\n
 
 const TEXT_DECODER = new TextDecoder()
 
+/** Read budgets wide enough that no rendered fixture reaches them. */
+const LIMITS: ZipReadLimits = { maxArchiveEntries: 100, maxUncompressedBytes: 1 << 20 }
+
 /** Part names of a rendered package, in archive order. */
 function partNames(bytes: Uint8Array): string[] {
-  return readZip(bytes).entries.map(entry => entry.name)
+  return readZip(bytes, LIMITS).entries.map(entry => entry.name)
 }
 
 /** Text of one part of a rendered package. */
 function partText(bytes: Uint8Array, name: string): string {
-  const entry = readZip(bytes).entries.find(candidate => candidate.name === name)
+  const entry = readZip(bytes, LIMITS).entries.find(candidate => candidate.name === name)
   return entry === undefined ? '' : TEXT_DECODER.decode(entry.data)
 }
 
@@ -37,7 +41,7 @@ describe('renderDocx', () => {
       '_rels/.rels',
       'word/document.xml',
     ])
-    expect(readZip(renderDocx(UPSTREAM_MARKDOWN)).problems).toEqual([])
+    expect(readZip(renderDocx(UPSTREAM_MARKDOWN), LIMITS).problems).toEqual([])
   })
 
   it('renders the upstream sample with a title, headings, bold, bullets, and a table', () => {

@@ -4,6 +4,10 @@
 
 import { describe, expect, it } from 'vitest'
 import * as kit from '../src/index.ts'
+import type { ZipReadLimits } from '../src/index.ts'
+
+/** Read budgets wide enough that the fixture below never reaches them. */
+const LIMITS: ZipReadLimits = { maxArchiveEntries: 100, maxUncompressedBytes: 1 << 20 }
 
 describe('package entry', () => {
   it('exports both directions and the Markdown model', () => {
@@ -15,7 +19,7 @@ describe('package entry', () => {
 
   it('renders and projects through the entry point', () => {
     const bytes = kit.renderDocx('# 标题\n\n正文')
-    expect(kit.extractDocxText(bytes).text).toBe('# 标题\n\n正文')
+    expect(kit.extractDocxText(bytes, LIMITS).text).toBe('# 标题\n\n正文')
   })
 
   it('names the vocabulary the two directions share', () => {

@@ -29,4 +29,5 @@ export type {
   DocxTableRow,
   DocxTextResult,
   HeadingLevel,
+  ZipReadLimits,
 } from './types.ts'
