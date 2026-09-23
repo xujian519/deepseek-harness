@@ -126,7 +126,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     'patent-teams/task-created': PatentTeamsTaskCreatedData
     /**
      * Records one task transition.
-     * @param data - team identity, task id, and the new status/assignee/output.
+     * @param data - team identity, task id, the new status/assignee/output, and the attempt identity.
      */
     'patent-teams/task-updated': PatentTeamsTaskUpdatedData
     /**

@@ -70,6 +70,23 @@ describe('patent-teams invariant companion', () => {
     expect(failures[0]).toContain('team-created teamId must be a non-empty string')
   })
 
+  it.each([
+    ['patent-teams/task-validated', { teamId: 'a', taskId: 't1', worker: '', valid: true, missingHardFields: [], degraded: false }, /task-validated worker must be a non-empty string/],
+    ['patent-teams/task-gated', { teamId: 'a', taskId: 't1', score: Number.NaN, failures: [], feedback: '' }, /task-gated score must be a finite number/],
+  ])('rejects a malformed %s payload in loaded history', async (type, payload, expected) => {
+    const ctx = new Context()
+    const holder = captureInstaller(ctx)
+    await apply(ctx)
+    const failures: string[] = []
+    const fail: InvariantFailure = (message) => {
+      failures.push(message)
+      throw new Error(message)
+    }
+    ctx.provide('sessions', { list: () => [{ snapshotEvents: () => [event(type, payload)] }] })
+    expect(() => holder.installer!(ctx, fail)).toThrow(expected)
+    expect(failures).toHaveLength(1)
+  })
+
   describe('append guard', () => {
     interface Harness {
       ctx: Context
@@ -119,6 +136,10 @@ describe('patent-teams invariant companion', () => {
       ['patent-teams/task-created', { teamId: 'a', taskId: 't1', subject: 's', dependencies: [], assignee: 'm' }],
       ['patent-teams/task-updated', { teamId: 'a', taskId: 't1', status: 'in_progress' }],
       ['patent-teams/task-updated', { teamId: 'a', taskId: 't1', status: 'completed', assignee: 'm', output: 'o', attempt: 2, attemptId: 'x' }],
+      ['patent-teams/task-validated', { teamId: 'a', taskId: 't1', worker: 'technical-analyzer', valid: true, missingHardFields: [], degraded: false }],
+      ['patent-teams/task-validated', { teamId: 'a', taskId: 't1', worker: 'w', valid: false, missingHardFields: ['结论'], degraded: true }],
+      ['patent-teams/task-gated', { teamId: 'a', taskId: 't1', score: 0.5, failures: ['结论'], feedback: '补结论' }],
+      ['patent-teams/task-gated', { teamId: 'a', taskId: 't1', score: 1, failures: [], feedback: '' }],
       ['patent-teams/message-sent', { teamId: 'a', messageId: 'm1', from: 'm', to: 'captain', content: 'hi', ts: 1 }],
       ['patent-teams/team-deleted', { teamId: 'a' }],
     ]
@@ -172,6 +193,19 @@ describe('patent-teams invariant companion', () => {
       ['patent-teams/task-updated', 'output', 'output must be a string'],
       ['patent-teams/task-updated', 'attemptId', 'attemptId must be a string'],
       ['patent-teams/task-updated', 'attempt', 'attempt must be an integer'],
+      ['patent-teams/task-validated', 'data-must-be-object', 'data must be an object'],
+      ['patent-teams/task-validated', 'teamId', 'teamId must be a non-empty string'],
+      ['patent-teams/task-validated', 'taskId', 'taskId must be a non-empty string'],
+      ['patent-teams/task-validated', 'worker', 'worker must be a non-empty string'],
+      ['patent-teams/task-validated', 'valid', 'valid must be a boolean'],
+      ['patent-teams/task-validated', 'missingHardFields', 'missingHardFields must be an array of strings'],
+      ['patent-teams/task-validated', 'degraded', 'degraded must be a boolean'],
+      ['patent-teams/task-gated', 'data-must-be-object', 'data must be an object'],
+      ['patent-teams/task-gated', 'teamId', 'teamId must be a non-empty string'],
+      ['patent-teams/task-gated', 'taskId', 'taskId must be a non-empty string'],
+      ['patent-teams/task-gated', 'score', 'score must be a finite number'],
+      ['patent-teams/task-gated', 'failures', 'failures must be an array of strings'],
+      ['patent-teams/task-gated', 'feedback', 'feedback must be a string'],
       ['patent-teams/message-sent', 'data-must-be-object', 'data must be an object'],
       ['patent-teams/message-sent', 'teamId', 'teamId must be a non-empty string'],
       ['patent-teams/message-sent', 'messageId', 'messageId must be a non-empty string'],
@@ -227,6 +261,20 @@ function brokenPayload(base: unknown, rule: string): unknown {
       return { ...record, attemptId: 5 }
     case 'attempt':
       return { ...record, attempt: 1.5 }
+    case 'worker':
+      return { ...record, worker: '' }
+    case 'valid':
+      return { ...record, valid: 'yes' }
+    case 'missingHardFields':
+      return { ...record, missingHardFields: ['结论', 5] }
+    case 'degraded':
+      return { ...record, degraded: 1 }
+    case 'score':
+      return { ...record, score: Number.NaN }
+    case 'failures':
+      return { ...record, failures: '结论' }
+    case 'feedback':
+      return { ...record, feedback: 5 }
     case 'messageId':
       return { ...record, messageId: '' }
     case 'from':

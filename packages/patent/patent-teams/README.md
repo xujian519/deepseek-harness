@@ -50,7 +50,7 @@ Team-record mutations run inside an in-process per-team lock and persist atomica
 
 ## Session events
 
-Every state mutation appends one `patent-teams/*` event to the captain's session (types and payloads in `event-types.ts`): `team-created`, `member-added`, `member-removed`, `task-created`, `task-updated`, `message-sent`, `team-deleted`. The package's invariant companion validates each payload on load and on append.
+Every state mutation appends one `patent-teams/*` event to the captain's session (types and payloads in `event-types.ts`): `team-created`, `member-added`, `member-removed`, `task-created`, `task-updated`, `task-validated`, `task-gated`, `message-sent`, `team-deleted`. The package's invariant companion validates each payload on load and on append.
 
 ## Model Experience
 

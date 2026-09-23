@@ -29,6 +29,11 @@ function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
 }
 
+/** Whether a payload field is an array of strings. */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string')
+}
+
 /** Validate one patent-teams/team-created payload. */
 function validateTeamCreated(value: unknown, fail: InvariantFailure): void {
   if (typeof value !== 'object' || value === null) fail('patent-teams/team-created data must be an object')
@@ -66,10 +71,11 @@ function validateTaskCreated(value: unknown, fail: InvariantFailure): void {
   if (!isNonEmptyString(record.teamId)) fail('patent-teams/task-created teamId must be a non-empty string')
   if (!isNonEmptyString(record.taskId)) fail('patent-teams/task-created taskId must be a non-empty string')
   if (!isNonEmptyString(record.subject)) fail('patent-teams/task-created subject must be a non-empty string')
-  if (!Array.isArray(record.dependencies) || record.dependencies.some(id => typeof id !== 'string')) {
+  if (!isStringArray(record.dependencies)) {
     fail('patent-teams/task-created dependencies must be an array of strings')
   }
   if (!isOptionalString(record.assignee)) fail('patent-teams/task-created assignee must be a string')
+  if (!isOptionalString(record.worker)) fail('patent-teams/task-created worker must be a string')
 }
 
 /** Validate one patent-teams/task-updated payload. */
@@ -85,6 +91,31 @@ function validateTaskUpdated(value: unknown, fail: InvariantFailure): void {
   if (record.attempt !== undefined && !Number.isSafeInteger(record.attempt)) {
     fail('patent-teams/task-updated attempt must be an integer')
   }
+}
+
+/** Validate one patent-teams/task-validated payload. */
+function validateTaskValidated(value: unknown, fail: InvariantFailure): void {
+  if (typeof value !== 'object' || value === null) fail('patent-teams/task-validated data must be an object')
+  const record = value as Record<string, unknown>
+  if (!isNonEmptyString(record.teamId)) fail('patent-teams/task-validated teamId must be a non-empty string')
+  if (!isNonEmptyString(record.taskId)) fail('patent-teams/task-validated taskId must be a non-empty string')
+  if (!isNonEmptyString(record.worker)) fail('patent-teams/task-validated worker must be a non-empty string')
+  if (typeof record.valid !== 'boolean') fail('patent-teams/task-validated valid must be a boolean')
+  if (!isStringArray(record.missingHardFields)) {
+    fail('patent-teams/task-validated missingHardFields must be an array of strings')
+  }
+  if (typeof record.degraded !== 'boolean') fail('patent-teams/task-validated degraded must be a boolean')
+}
+
+/** Validate one patent-teams/task-gated payload. */
+function validateTaskGated(value: unknown, fail: InvariantFailure): void {
+  if (typeof value !== 'object' || value === null) fail('patent-teams/task-gated data must be an object')
+  const record = value as Record<string, unknown>
+  if (!isNonEmptyString(record.teamId)) fail('patent-teams/task-gated teamId must be a non-empty string')
+  if (!isNonEmptyString(record.taskId)) fail('patent-teams/task-gated taskId must be a non-empty string')
+  if (!Number.isFinite(record.score)) fail('patent-teams/task-gated score must be a finite number')
+  if (!isStringArray(record.failures)) fail('patent-teams/task-gated failures must be an array of strings')
+  if (typeof record.feedback !== 'string') fail('patent-teams/task-gated feedback must be a string')
 }
 
 /** Validate one patent-teams/message-sent payload. */
@@ -123,6 +154,12 @@ function validateEvent(event: SessionEvent, fail: InvariantFailure): void {
       break
     case 'patent-teams/task-updated':
       validateTaskUpdated(event.data, fail)
+      break
+    case 'patent-teams/task-validated':
+      validateTaskValidated(event.data, fail)
+      break
+    case 'patent-teams/task-gated':
+      validateTaskGated(event.data, fail)
       break
     case 'patent-teams/message-sent':
       validateMessageSent(event.data, fail)

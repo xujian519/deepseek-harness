@@ -54,7 +54,7 @@ kind: "package-reference"
 <a id="session-events"></a>
 ## 会话事件
 
-每次状态变更都会向队长会话追加一条 `patent-teams/*` 事件（类型与载荷见 `event-types.ts`）：`team-created`、`member-added`、`member-removed`、`task-created`、`task-updated`、`message-sent`、`team-deleted`。包的 invariant 伴随插件在加载与追加时校验每个载荷。
+每次状态变更都会向队长会话追加一条 `patent-teams/*` 事件（类型与载荷见 `event-types.ts`）：`team-created`、`member-added`、`member-removed`、`task-created`、`task-updated`、`task-validated`、`task-gated`、`message-sent`、`team-deleted`。包的 invariant 伴随插件在加载与追加时校验每个载荷。
 
 <a id="model-experience"></a>
 ## Model Experience

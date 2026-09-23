@@ -544,6 +544,85 @@ describe('updateTask', () => {
     expect(updated.output).toBe('done')
   })
 
+  it('records the attempt identity on every task-updated event', async () => {
+    // The member agent is registered busy, so the scheduler dispatches nothing
+    // and every recorded transition is the one this test drove. A mutation made
+    // by the member records to the member's session while the captain is
+    // offline, so both sessions are searched.
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    const alice = fakeAgent('member-1', h.workspace, { status: 'running' })
+    h.agents.set('member-1', alice)
+    const team = await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
+    const claimed = await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    const recorded = (taskId: string): unknown => [captain.session, alice.session]
+      .flatMap(session => session.snapshotEvents())
+      .filter(event => event.type === 'patent-teams/task-updated'
+        && (event.data as { taskId: string }).taskId === taskId)
+      .at(-1)?.data
+    const base = { teamId: team.team_id, taskId: 't1', assignee: 'alice', attempt: claimed.attempt, attemptId: claimed.attempt_id }
+
+    expect(recorded('t1')).toEqual({ ...base, status: 'claimed' })
+
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress', attempt_id: claimed.attempt_id! })
+    expect(recorded('t1')).toEqual({ ...base, status: 'in_progress' })
+
+    await h.ctx.patentTeams.updateTask(alice, {
+      task_id: 't1', status: 'completed', output: 'done', attempt_id: claimed.attempt_id!,
+    })
+    expect(recorded('t1')).toEqual({ ...base, status: 'completed', output: 'done' })
+
+    // Reassignment to the captain opens the next attempt, and its record says so.
+    await h.ctx.patentTeams.createTask(captain, { subject: 'own' })
+    await h.ctx.patentTeams.reassignTask(captain, { task_id: 't2', assignee: 'captain' }, new AbortController().signal)
+    const own = (await readTeam(join(h.workspace, h.stateDir), team.team_id))?.tasks.find(task => task.id === 't2')
+    expect(recorded('t2')).toEqual({
+      teamId: team.team_id, taskId: 't2', status: 'claimed', assignee: 'captain',
+      attempt: own?.attempt, attemptId: own?.attemptId,
+    })
+  })
+
+  it('records no field a loaded team record left out', async () => {
+    const h = await makeService()
+    const captain = fakeAgent('captain-1', h.workspace)
+    const alice = fakeAgent('member-1', h.workspace, { status: 'running' })
+    h.agents.set('member-1', alice)
+    const team = await createTeam(h, captain)
+    await addMember(h, captain, 'alice')
+    const stateRoot = join(h.workspace, h.stateDir)
+    /** Drop the attempt identity a record written before those fields existed would not carry. */
+    const stripAttempt = async (taskId: string): Promise<void> => {
+      const state = (await readTeam(stateRoot, team.team_id))!
+      const task = state.tasks.find(candidate => candidate.id === taskId)!
+      delete task.attempt
+      delete task.attemptId
+      await writeTeam(stateRoot, state)
+    }
+    const lastFor = (session: Session, taskId: string): unknown => session.snapshotEvents()
+      .filter(event => event.type === 'patent-teams/task-updated'
+        && (event.data as { taskId: string }).taskId === taskId)
+      .at(-1)?.data
+
+    // A record written before `attempt`/`attemptId` existed loads without them.
+    await h.ctx.patentTeams.createTask(captain, { subject: 'work', assignee: 'alice' })
+    await h.ctx.patentTeams.claimTask(captain, { task_id: 't1', assignee: 'alice' })
+    await stripAttempt('t1')
+    await h.ctx.patentTeams.updateTask(alice, { task_id: 't1', status: 'in_progress' })
+    expect(lastFor(alice.session, 't1')).toEqual({
+      teamId: team.team_id, taskId: 't1', status: 'in_progress', assignee: 'alice',
+    })
+
+    // The same for a task that holds no assignee at all: cancelling an unassigned
+    // task records the status and the creation-time attempt counter, no more.
+    await h.ctx.patentTeams.createTask(captain, { subject: 'orphan' })
+    await h.ctx.patentTeams.updateTask(captain, { task_id: 't2', status: 'cancelled' })
+    expect(lastFor(captain.session, 't2')).toEqual({
+      teamId: team.team_id, taskId: 't2', status: 'cancelled', attempt: 0,
+    })
+  })
+
   it('rejects stale attempts, foreign ownership, and invalid transitions', async () => {
     const h = await makeService({ maxMembers: 2 })
     const captain = fakeAgent('captain-1', h.workspace)

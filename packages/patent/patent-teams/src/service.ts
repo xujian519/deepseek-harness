@@ -21,7 +21,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { join } from 'node:path'
 import { appendTeamEvent, captainSessionOf } from './events.ts'
-import { PatentTeamsMessageId, PatentTeamsTaskId, PatentTeamsTeamId } from './ids.ts'
+import { PatentTeamsAttemptId, PatentTeamsMessageId, PatentTeamsTaskId, PatentTeamsTeamId } from './ids.ts'
 import {
   acknowledgeMailbox,
   appendMailbox,
@@ -87,6 +87,23 @@ function requireAgent(exec: ToolRunContext): Agent {
 /** The captain's workspace directory (team state root parent). */
 function workspaceOf(agent: Agent): string {
   return agent.session.header.cwd ?? process.cwd()
+}
+
+/**
+ * The attempt identity a `patent-teams/task-updated` record carries.
+ *
+ * Every task-updated emit site states it the same way, so the record shape does
+ * not depend on which transition produced it. Both fields are optional on
+ * `TeamTask` because a team record written before they existed loads without
+ * them, and a task that no attempt ever opened must not claim one.
+ * @param task - the task whose transition is being recorded.
+ * @returns the `attempt`/`attemptId` fields to spread into the payload.
+ */
+function attemptFields(task: TeamTask): { attempt?: number; attemptId?: PatentTeamsAttemptId } {
+  return {
+    ...task.attempt === undefined ? {} : { attempt: task.attempt },
+    ...task.attemptId === undefined ? {} : { attemptId: PatentTeamsAttemptId(task.attemptId) },
+  }
 }
 
 type ParticipantIdentity =
@@ -647,6 +664,7 @@ export class PatentTeamsService extends Service {
         status: task.status,
         assignee: task.assignee,
         ...args.reason === undefined ? {} : { output: `Reassigned: ${args.reason}` },
+        ...attemptFields(task),
       })
     })
     if (quiescenceError !== undefined) {
@@ -742,6 +760,7 @@ export class PatentTeamsService extends Service {
         taskId: PatentTeamsTaskId(task.id),
         status: task.status,
         assignee: task.assignee,
+        ...attemptFields(task),
       })
       // v8 ignore start -- the freshly claimed task always has assignee/attempt
       return {
@@ -855,15 +874,14 @@ export class PatentTeamsService extends Service {
       }
       task.updatedAt = Date.now()
       await writeTeam(stateRoot, fresh)
-      // v8 ignore start -- an updatable task always carries assignee/attempt/attemptId
       appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-updated', {
         teamId: PatentTeamsTeamId(fresh.id),
         taskId: PatentTeamsTaskId(task.id),
         status: task.status,
         ...task.assignee !== undefined ? { assignee: task.assignee } : {},
         ...task.output !== undefined ? { output: task.output } : {},
+        ...attemptFields(task),
       })
-      // v8 ignore stop
       if (validated !== undefined) {
         appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-validated', {
           teamId: PatentTeamsTeamId(fresh.id),
