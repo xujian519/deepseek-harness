@@ -7,6 +7,7 @@ import type {
   SourceResnapshotFrame,
   WorkerToSourceFrame,
 } from '../../shared/bridge/messages/observation.ts'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { rejectConsoleBridgeCommand } from '../cdp/console.ts'
 import { rejectRuntimeBridgeCommand } from '../cdp/runtime.ts'
 import { rejectSourcesBridgeCommand } from '../cdp/sources.ts'
@@ -52,10 +53,6 @@ export function dispatchBridgeFrame(frame: WorkerToSourceFrame, handlers: HostBr
     case 'client-sources/session-closed':
       return
     default:
-      return assertNever(frame)
+      return assertNever(frame, 'Worker source frame')
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unexpected Worker source frame: ${JSON.stringify(value)}`)
 }

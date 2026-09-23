@@ -1,5 +1,6 @@
 /** Client-realm executor for the typed Runtime command protocol. */
 
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type {
   ClientCallArgument,
   ClientRuntimeCapability,
@@ -293,7 +294,7 @@ class ClientRuntimeSession {
       case 'global-lexical-scope-names':
         return { op: command.op, names: [] }
       default:
-        return assertNever(command)
+        return assertNever(command, 'Client Runtime variant')
     }
   }
 
@@ -398,7 +399,7 @@ class ClientRuntimeSession {
       case 'object': return this.objects.get(argument.handle)
       case 'undefined': return undefined
       case 'unserializable': return parseUnserializable(argument.value)
-      default: return assertNever(argument)
+      default: return assertNever(argument, 'Client Runtime variant')
     }
   }
 
@@ -494,8 +495,4 @@ async function awaitWithCancellation(
     if (timer !== undefined) clearTimeout(timer)
     if (onAbort !== undefined) signal?.removeEventListener('abort', onAbort)
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unexpected Client Runtime variant: ${JSON.stringify(value)}`)
 }
