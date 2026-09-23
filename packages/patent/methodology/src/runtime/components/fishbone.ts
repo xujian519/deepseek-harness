@@ -6,7 +6,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['鱼骨图', '因果', '原因分析', '影响因素', '多因素', 'ishikawa', 'fishbone']
 
@@ -17,9 +17,7 @@ export const fishbone: MethodologyComponent = {
   category: 'analytical',
   applicableDomains: ['patent', 'legal', 'coding', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {

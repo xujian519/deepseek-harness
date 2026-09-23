@@ -6,7 +6,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['第一性原理', '本质', '基本事实', '假设', '重构', 'first principles', '颠覆']
 
@@ -17,9 +17,7 @@ export const firstPrinciples: MethodologyComponent = {
   category: 'classical',
   applicableDomains: ['patent', 'legal', 'coding', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {

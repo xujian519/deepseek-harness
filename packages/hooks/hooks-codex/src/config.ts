@@ -5,6 +5,7 @@
  * @module @deepseek-ai/dsh-hooks-codex/config
  */
 
+import { asRecord } from '@deepseek-ai/dsh-value'
 import { matcherDiagnostic, type MatcherGroup } from '@deepseek-ai/dsh-hook-protocol'
 
 /** The five Codex hook points this bridge supports. */
@@ -25,12 +26,6 @@ export interface ParsedCodexConfig {
   skipped: SkippedHook[]
 }
 
-function asObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
-}
-
 /**
  * Parse a wrapped or bare Codex event map. Unknown events and malformed entries are ignored rather
  * than failing boot; unsupported or asynchronous hooks are returned in `skipped`. Matcher fields on
@@ -43,8 +38,8 @@ function asObject(value: unknown): Record<string, unknown> | undefined {
 export function parseCodexConfig(raw: unknown): ParsedCodexConfig {
   const config: CodexHookConfig = {}
   const skipped: SkippedHook[] = []
-  const root = asObject(raw)
-  const hooksMap = root ? asObject(root.hooks) ?? root : undefined
+  const root = asRecord(raw)
+  const hooksMap = root ? asRecord(root.hooks) ?? root : undefined
   if (!hooksMap) return { config, skipped }
 
   for (const event of CODEX_EVENTS) {
@@ -55,11 +50,11 @@ export function parseCodexConfig(raw: unknown): ParsedCodexConfig {
     if (!Array.isArray(rawGroups)) continue
     const groups: MatcherGroup[] = []
     for (const rawGroup of rawGroups) {
-      const group = asObject(rawGroup)
+      const group = asRecord(rawGroup)
       if (!group || !Array.isArray(group.hooks)) continue
       const commands: MatcherGroup['hooks'] = []
       for (const rawHook of group.hooks) {
-        const hook = asObject(rawHook)
+        const hook = asRecord(rawHook)
         if (!hook) continue
         const type = typeof hook.type === 'string' ? hook.type : 'command'
         if (type !== 'command') { skipped.push({ event, reason: `unsupported "${type}" hook` }); continue }

@@ -8,6 +8,7 @@
  */
 
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+import { asRecord } from '@deepseek-ai/dsh-value'
 import type { GraphState, NodeResult, Reducer } from './types.ts'
 import { GraphEngineError } from './types.ts'
 
@@ -42,12 +43,8 @@ function unionValues(existing: unknown, value: unknown): unknown[] {
 }
 
 function mergeMap(existing: unknown, value: unknown): unknown {
-  const base =
-    typeof existing === 'object' && existing !== null && !Array.isArray(existing)
-      ? (existing as Record<string, unknown>)
-      : {}
-  const incoming =
-    typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+  const base = asRecord(existing) ?? {}
+  const incoming = asRecord(value) ?? {}
   return { ...base, ...incoming }
 }
 

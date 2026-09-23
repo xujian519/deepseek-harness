@@ -3,6 +3,7 @@ import {
   DEFAULT_STRUCTURE_VIEWS,
   STRUCTURE_MANIFEST_FILENAME,
   STRUCTURE_TEMPLATE_FILENAME,
+  STRUCTURE_TRANSIENT_DIRNAME,
   STRUCTURE_VIEW_DIRECTIONS,
   STRUCTURE_VIEWS,
   buildStructureScript,
@@ -70,8 +71,15 @@ describe('buildStructureScript', () => {
     expect(script).toContain('import traceback')
     expect(script).toContain('traceback.print_exc()')
     expect(script).toContain('sys.exit(1)')
-    // 内存文档需要 FileName，否则 TechDraw 把模板拷到根目录导致失败
-    expect(script).toContain('doc.FileName')
+  })
+
+  it('把文档 TransientDir 锚定到 outputDir 子目录（TechDraw 以它拷贝模板）', () => {
+    const script = buildStructureScript(params())
+    // FreeCAD 只在自身缓存目录可写时才派生内存文档的 TransientDir；它为空串时
+    // TechDraw 把模板拷到根目录（/）导致渲染失败，故脚本必须显式锚定。
+    expect(script).toContain(STRUCTURE_TRANSIENT_DIRNAME)
+    expect(script).toContain('os.makedirs(transient_dir, exist_ok=True)')
+    expect(script).toContain('doc.TransientDir = transient_dir')
   })
 
   it('片段翻正（scale(1,-1)）以对齐 y-down SVG 画布', () => {
@@ -99,6 +107,7 @@ describe('buildStructureScript', () => {
     expect(payload.callouts).toEqual([{ numeral: '100', point3d: [1, -2.5, 3], label: '立柱' }])
     expect(payload.manifestFilename).toBe(STRUCTURE_MANIFEST_FILENAME)
     expect(payload.templateFilename).toBe(STRUCTURE_TEMPLATE_FILENAME)
+    expect(payload.transientDirname).toBe(STRUCTURE_TRANSIENT_DIRNAME)
   })
 
   it('为每个请求视图注入 Direction/XDirection 与输出文件名', () => {

@@ -5,7 +5,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['为什么', '原因', '根因', 'why', 'root cause', '失败', '错误', 'bug', '问题']
 
@@ -16,9 +16,7 @@ export const fiveWhys: MethodologyComponent = {
   category: 'analytical',
   applicableDomains: ['patent', 'legal', 'coding', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {

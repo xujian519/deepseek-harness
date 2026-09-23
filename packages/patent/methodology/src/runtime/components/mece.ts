@@ -5,7 +5,7 @@
  */
 
 import type { MethodologyComponent } from '../../types.ts'
-import { keywordScore } from '../keywordMatch.ts'
+import { keywordIdentify } from '../keywordMatch.ts'
 
 const TRIGGERS = ['分类', '分解', '拆解', '结构', '分类分析', 'mece', '维度', '分层']
 
@@ -16,9 +16,7 @@ export const mece: MethodologyComponent = {
   category: 'analytical',
   applicableDomains: ['patent', 'legal', 'coding', 'general'],
 
-  identify(context) {
-    return keywordScore(context, TRIGGERS)
-  },
+  identify: keywordIdentify(TRIGGERS),
 
   execute(context) {
     return {

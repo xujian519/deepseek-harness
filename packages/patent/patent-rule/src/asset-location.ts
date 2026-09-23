@@ -1,14 +1,13 @@
 /**
  * 宪法规则引擎 — 规则资产目录定位（dsh 适配）。
  *
- * 与 Sati 的 asset-location.js 不同，本实现放弃 SATI_RULES_DIR 环境变量与
- * cwd/仓库根向上 walk 语义：规则资产随包分发（assets/rules/），以
- * `new URL('../assets/rules/', import.meta.url)` 相对本模块解析，源（src/）
- * 与构建产物（lib/index.js）运行均命中同一目录；可选的 `rulesDir` 覆盖项
- * 取代包内基础资产目录（布局镜像 assets/rules/：patent/、base/、domains/）。
+ * 规则资产随包分发（assets/rules/），以 `new URL('../assets/rules/', import.meta.url)`
+ * 相对本模块解析，源（src/）与构建产物（lib/index.js）运行均命中同一目录；可选的
+ * `rulesDir` 覆盖项取代包内基础资产目录（布局镜像 assets/rules/：patent/、base/、
+ * domains/），相对进程工作目录解析。资产根只来自这两处：不读环境变量，也不向上查找目录。
  *
- * 分层规则包语义（base + domains + overrides 经清单装配）保持不变；默认
- * （无清单）仅加载打包的 base 包。
+ * 分层规则包语义：base + domains + overrides 经清单装配；默认（无清单）仅加载打包的
+ * base 包。
  * @module @deepseek-ai/dsh-patent-rule/asset-location
  */
 

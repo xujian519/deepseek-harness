@@ -5,7 +5,7 @@
  */
 
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
-import { assertPositiveInteger } from '@deepseek-ai/dsh-value'
+import { assertPositiveInteger, isRecord } from '@deepseek-ai/dsh-value'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
   BasicCompactionConfig,
@@ -267,7 +267,7 @@ function assertModelPolicy(
   source: unknown,
   name: string,
 ): asserts source is ModelCompactPolicyConfig {
-  if (!isUnknownRecord(source)) throw new Error(`${name} must be an object`)
+  if (!isRecord(source)) throw new Error(`${name} must be an object`)
   validateKeys(source, MODEL_POLICY_KEYS, name)
   assertNonEmptyString(`${name}.provider`, source.provider)
   assertNonEmptyString(`${name}.model`, source.model)
@@ -332,10 +332,6 @@ function validateKeys(config: object, keys: ReadonlySet<string>, name: string): 
   for (const key of Object.keys(config)) {
     if (!keys.has(key)) throw new Error(`${name}: unknown key "${key}"`)
   }
-}
-
-function isUnknownRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function assertNonEmptyString(name: string, value: unknown): asserts value is string {
