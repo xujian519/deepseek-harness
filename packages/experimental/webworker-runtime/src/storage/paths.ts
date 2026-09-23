@@ -1,14 +1,17 @@
 /**
- * Virtual root of the worker host's in-memory filesystem. Kept
- * in one module so the process shim, the path/os shims, and the VFS image
- * collector cannot drift apart.
+ * Virtual root of the worker host's in-memory filesystem. The root and the
+ * home leaf come from {@link DEFAULT_ROOT} / {@link IMAGE_HOME_DIRECTORY}, the
+ * layout the packer writes and the host mounts; the remaining leaves are
+ * runtime-only paths under that root.
  */
 
+import { DEFAULT_ROOT, IMAGE_HOME_DIRECTORY } from '../image-layout.ts'
+
 /** Virtual filesystem root; `process.cwd()` and every absolute path start here. */
-export const DSH_ROOT = '/dsh'
+export const DSH_ROOT = DEFAULT_ROOT
 
 /** `$DSH_HOME`: durable-state directory inside the image. */
-export const DSH_HOME = `${DSH_ROOT}/home`
+export const DSH_HOME = `${DSH_ROOT}/${IMAGE_HOME_DIRECTORY}`
 
 /** Flat, symlink-free package tree resolved by the worker module loader. */
 export const DSH_NODE_MODULES = `${DSH_ROOT}/node_modules`

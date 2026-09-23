@@ -13,7 +13,7 @@
 import { isRecord } from '@deepseek-ai/dsh-value'
 import { createAlsRuntime, type AlsCausality, type AlsRuntime } from '../polyfill/async-context/als-runtime.ts'
 import { dirname, fileUrlToPath, isAbsolute, join, pathToFileUrl, resolve as resolvePath } from './posix-path.ts'
-import { WRAPPER_PARAMS } from '../image-layout.ts'
+import { DEFAULT_ROOT, WRAPPER_PARAMS } from '../image-layout.ts'
 import type { MemoryVfs } from '../storage/memory.ts'
 
 /** Condition keys honoured in `exports`, in order; `node` is deliberately absent. */
@@ -131,7 +131,7 @@ export class WorkerModuleLoader {
 
   constructor(options: WorkerModuleLoaderOptions) {
     this.vfs = options.vfs
-    this.root = options.root ?? '/dsh'
+    this.root = options.root ?? DEFAULT_ROOT
     // A Map, not the record itself: a specifier that names an Object prototype
     // member must miss the table the way any other unregistered name does.
     this.staticModules = new Map(Object.entries(options.staticModules))
