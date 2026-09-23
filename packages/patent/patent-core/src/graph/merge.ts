@@ -15,9 +15,13 @@ import { GraphEngineError } from './types.ts'
 /** 合并 schema：key → Reducer。 */
 export type MergeSchema = Record<string, Reducer>
 
-/** 把单值转为数组（append/union 用）；已是数组原样返回。 */
+/**
+ * 把单值转为数组（append/union 用）；已是数组原样返回。
+ * `undefined` 视为空数组，其余单值（含 `null`）保留为一个元素：丢弃既有值会让
+ * 一个已写入的状态在后续超步里无声消失。
+ */
 function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) ? value : value === undefined ? [] : [value]
 }
 
 /** union 去重键（规范化字符串，避免对象引用比较）。 */

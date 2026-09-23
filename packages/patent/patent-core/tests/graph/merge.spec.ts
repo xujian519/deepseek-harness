@@ -30,10 +30,29 @@ it('mergeWithSchema append: 追加到已有数组', () => {
   expect(state.list).toEqual(['a', 'b'])
 })
 
-it('mergeWithSchema append: 非数组既有值视为空数组', () => {
+it('mergeWithSchema append: 既有单值保留为一个元素', () => {
   const state: GraphState = { list: 'x' }
   mergeWithSchema(state, results([['n1', { list: 'b' }]]), { list: 'append' })
+  expect(state.list).toEqual(['x', 'b'])
+})
+
+it('mergeWithSchema append: 既有 undefined 视为空数组', () => {
+  const state: GraphState = {}
+  mergeWithSchema(state, results([['n1', { list: 'b' }]]), { list: 'append' })
   expect(state.list).toEqual(['b'])
+})
+
+it('mergeWithSchema union: 既有单值保留并参与去重', () => {
+  const state: GraphState = { list: 'seed' }
+  mergeWithSchema(
+    state,
+    results([
+      ['n1', { list: 'b' }],
+      ['n2', { list: ['seed', 'c'] }],
+    ]),
+    { list: 'union' },
+  )
+  expect(state.list).toEqual(['seed', 'b', 'c'])
 })
 
 it('mergeWithSchema union: 数组合并去重保持顺序', () => {
