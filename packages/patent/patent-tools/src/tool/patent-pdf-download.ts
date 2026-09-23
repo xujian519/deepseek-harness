@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { datedOutputDir, inspectPdfBody, isHtmlContentType, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
 import {
   networkFetch,
   NetworkFetchError,
@@ -37,10 +38,6 @@ const MAX_DEFAULT_TIMEOUT_MS = 180_000
  */
 const PATENT_DOWNLOAD_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-/** PDF 魔数（%PDF-，5 字节）。 */
-const PDF_MAGIC = '%PDF-'
-/** 错误页判定下限：小于该字节数的响应视为错误页不落盘。 */
-const MIN_PDF_BYTES = 500
 /** 断点续传 MANIFEST 文件名（`<outputDir>/.MANIFEST.jsonl`，append 追加式）。 */
 const MANIFEST_FILE = '.MANIFEST.jsonl'
 /** fetch 兜底重试策略：吸收瞬时失败与限流（429/503），按 Retry-After 退避，上限 30s。 */
@@ -171,15 +168,17 @@ export function normalizePatentNumber(value: string): string {
     .replace(/[\s\-:/]/g, '')
 }
 
-/** 当天日期子目录名（YYYY-MM-DD）。 */
-function datePartOf(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+/** 三检失败文案（专利工具的措辞：魔数失配时带上实际前缀）。 */
+function pdfBodyFaultMessage(fault: PdfBodyFault): string {
+  return fault.code === 'magic'
+    ? `invalid PDF magic: ${JSON.stringify(fault.prefix)}`
+    : `response too small (${fault.bytes} bytes), likely an error page`
 }
 
 /** 默认输出目录解析：显式 outputDir 相对 cwd，否则 <cwd>/专利原文/YYYY-MM-DD。 */
 function defaultResolveOutputDir(outputDir: string | undefined, cwd: string): string {
   if (outputDir) return resolve(cwd, outputDir)
-  return join(cwd, '专利原文', datePartOf(new Date()))
+  return datedOutputDir(cwd, '专利原文')
 }
 
 /** 校验 + 归一化 + 去重专利号（含目录穿越拒绝）。 */
@@ -341,16 +340,10 @@ async function fetchPdfFallback(
       return failed(`HTTP ${res.status} ${res.statusText}`)
     }
     const contentType = res.headers.get('content-type') ?? ''
-    if (contentType.toLowerCase().includes('text/html')) {
-      return failed(`unexpected Content-Type: ${contentType}`)
-    }
+    if (isHtmlContentType(contentType)) return failed(`unexpected Content-Type: ${contentType}`)
     const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length < MIN_PDF_BYTES) {
-      return failed(`response too small (${buf.length} bytes), likely an error page`)
-    }
-    if (buf.subarray(0, PDF_MAGIC.length).toString() !== PDF_MAGIC) {
-      return failed(`invalid PDF magic: ${JSON.stringify(buf.subarray(0, PDF_MAGIC.length).toString())}`)
-    }
+    const fault = inspectPdfBody(buf)
+    if (fault !== undefined) return failed(pdfBodyFaultMessage(fault))
     await writeFile(tmp, buf)
     await rename(tmp, target)
     return {

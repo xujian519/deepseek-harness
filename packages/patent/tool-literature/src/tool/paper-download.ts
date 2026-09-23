@@ -12,14 +12,11 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { datedOutputDir, inspectPdfBody, isHtmlContentType, type PdfBodyFault } from '@deepseek-ai/dsh-patent-core'
 import { EgoExtractor, type PageExtractor } from '@deepseek-ai/dsh-browser-backend'
 import type { ConnectorRegistry } from '../runtime/connector-registry.ts'
 import { LiteratureToolError } from '../error.ts'
 
-/** PDF magic bytes (%PDF-, 5 bytes). */
-const PDF_MAGIC = '%PDF-'
-/** Responses smaller than this are treated as error pages and not saved. */
-const MIN_PDF_BYTES = 500
 /** Browser UA for sources that reject non-browser clients. */
 const PAPER_DOWNLOAD_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -77,17 +74,17 @@ export type PaperDownloadDeps = {
   resolveOutputDir?: (outputDir: string | undefined, cwd: string) => string
 }
 
-/** 当天日期子目录名（YYYY-MM-DD）。 */
-/* jscpd:ignore-start */
-function datePartOf(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+/** 三检失败文案（与 patent_pdf_download 同措辞；魔数失配不回报实际前缀）。 */
+function pdfBodyFaultMessage(fault: PdfBodyFault): string {
+  return fault.code === 'magic'
+    ? 'invalid PDF magic'
+    : `response too small (${fault.bytes} bytes), likely an error page`
 }
-/* jscpd:ignore-end */
 
 /** Default output directory resolution: explicit outputDir relative to cwd, else <cwd>/论文原文/YYYY-MM-DD. */
 function defaultResolveOutputDir(outputDir: string | undefined, cwd: string): string {
   if (outputDir) return resolve(cwd, outputDir)
-  return join(cwd, '论文原文', datePartOf(new Date()))
+  return datedOutputDir(cwd, '论文原文')
 }
 
 /** A fetched PDF body with the download duration. */
@@ -102,25 +99,16 @@ async function fetchPdfBody(
   try {
     const fetchFn = options.fetchImpl ?? globalThis.fetch
     const signal = AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)])
-    // 与 patent_pdf_download 的 fetchPdfFallback 对称：PDF 魔数/最小字节/Content-Type 判定需跨工具一致。
-    /* jscpd:ignore-start */
     const res = await fetchFn(url, {
       headers: { 'User-Agent': PAPER_DOWNLOAD_USER_AGENT, Accept: 'application/pdf' },
       signal,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
     const contentType = res.headers.get('content-type') ?? ''
-    if (contentType.toLowerCase().includes('text/html')) {
-      throw new Error(`unexpected Content-Type: ${contentType}`)
-    }
+    if (isHtmlContentType(contentType)) throw new Error(`unexpected Content-Type: ${contentType}`)
     const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length < MIN_PDF_BYTES) {
-      throw new Error(`response too small (${buf.length} bytes), likely an error page`)
-    }
-    if (buf.subarray(0, PDF_MAGIC.length).toString() !== PDF_MAGIC) {
-      throw new Error('invalid PDF magic')
-    }
-    /* jscpd:ignore-end */
+    const fault = inspectPdfBody(buf)
+    if (fault !== undefined) throw new Error(pdfBodyFaultMessage(fault))
     return { ok: true, body: buf, durationMs: Date.now() - start }
   } catch (error) {
     return {

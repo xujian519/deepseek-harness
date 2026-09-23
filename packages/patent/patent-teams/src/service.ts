@@ -161,11 +161,12 @@ function requireAddableMember(team: TeamState, rawName: string, memberKey: strin
 }
 
 /**
- * Project one task's mutation result row. The optional fields carry values on
- * every call path whose fallbacks are unreachable (v8 ignore).
+ * Project one task's mutation result row for the model. `attempt` and `attempt_id`
+ * are absent while the task has no live attempt (reassignment revokes the id until
+ * the next claim), `output` is absent until one is recorded, so the rows the
+ * mutation tools return are deliberately not uniformly shaped.
  */
 function taskView(task: TeamTask): { task_id: string; status: string; attempt: number; attempt_id?: string; output?: string } {
-  // v8 ignore start -- every caller has already asserted the fields it relies on
   return {
     task_id: task.id,
     status: task.status,
@@ -173,7 +174,6 @@ function taskView(task: TeamTask): { task_id: string; status: string; attempt: n
     ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
     ...task.output !== undefined ? { output: task.output } : {},
   }
-  // v8 ignore stop
 }
 
 function memberOpenTask(team: TeamState, memberName: string, exceptTaskId?: string): TeamTask | undefined {
@@ -849,7 +849,8 @@ export class PatentTeamsService extends Service {
               failures: gate.failures,
               feedback: gate.feedback,
             })
-            // v8 ignore start -- the task is still in a non-terminal status, so attempt/attemptId are always set
+            // v8 ignore start -- the entry check bound this call to the task's current attempt, and a bounced
+            // submission keeps that attempt: only the status falls back from claimed to in_progress above
             return {
               task_id: task.id,
               status: task.status,

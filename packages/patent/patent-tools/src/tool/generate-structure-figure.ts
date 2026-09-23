@@ -39,6 +39,7 @@ import type { TargetOffice } from '../figure/office-profile.ts'
 import { buildSubmissionPage } from '../figure/submission-page.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
+import { assertRendered } from './internal/render-outcome.ts'
 
 /** 结构线稿在索引中的模型标识（FreeCAD TechDraw 投影，无 LLM 参与）。 */
 export const STRUCTURE_FIGURE_MODEL_USED = 'freecad-structure'
@@ -163,18 +164,6 @@ export type GenerateStructureFigureDeps = {
   defaultScale?: number
   /** 视图默认（Config.structureFigureViews）。 */
   defaultViews?: readonly StructureViewName[]
-}
-
-/** 渲染失败统一映射：not_installed→setup_required / aborted→tool_aborted / 其余→tool_execution_failed。 */
-function assertRendered(outcome: StructureRenderOutcome): asserts outcome is Extract<StructureRenderOutcome, { ok: true }> {
-  if (outcome.ok) return
-  if (outcome.code === 'not_installed') {
-    throw new PatentToolError('setup_required', outcome.error, { tool: 'generate_structure_figure' })
-  }
-  if (outcome.code === 'aborted') {
-    throw new PatentToolError('tool_aborted', 'generate_structure_figure aborted', { tool: 'generate_structure_figure' })
-  }
-  throw new PatentToolError('tool_execution_failed', outcome.error, { tool: 'generate_structure_figure' })
 }
 
 /** 校验并归一件号锚定：point3d 必须是恰好三个有限数（schema DSL 不支持定长数组约束，模型可能送超长/非数字）。 */
@@ -412,7 +401,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
           outputDir: renderDir,
           signal: exec.signal,
         })
-        assertRendered(outcome)
+        assertRendered(outcome, 'generate_structure_figure')
         const manifest = await readManifest(outcome.manifestPath)
         await assertViewSvgs(manifest)
         figures.push({

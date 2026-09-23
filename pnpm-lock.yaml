@@ -11249,6 +11249,9 @@ importers:
       '@deepseek-ai/dsh-browser-backend':
         specifier: workspace:*
         version: link:../../browser/browser-backend
+      '@deepseek-ai/dsh-patent-core':
+        specifier: workspace:*
+        version: link:../patent-core
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery

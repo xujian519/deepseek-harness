@@ -94,6 +94,16 @@ export {
   caseWorkflowRunsDir,
 } from './paths.ts'
 
+// Shared conventions of the two PDF download tools (body verification + dated output dir).
+export {
+  MIN_PDF_BYTES,
+  PDF_MAGIC,
+  datedOutputDir,
+  inspectPdfBody,
+  isHtmlContentType,
+} from './pdf-download.ts'
+export type { PdfBodyFault } from './pdf-download.ts'
+
 // IPC classification + examination-standard lookup.
 export {
   DEFAULT_IPC_CONFIDENCE,

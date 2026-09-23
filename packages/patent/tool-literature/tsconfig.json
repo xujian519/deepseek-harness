@@ -21,6 +21,9 @@
       "path": "../../core/tools"
     },
     {
+      "path": "../patent-core"
+    },
+    {
       "path": "../../browser/browser-backend"
     }
   ]
