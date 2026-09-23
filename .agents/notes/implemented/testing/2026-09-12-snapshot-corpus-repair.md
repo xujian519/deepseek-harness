@@ -16,13 +16,13 @@ English | [中文](2026-09-12-snapshot-corpus-repair.zh.md)
 Repairing the fixtures exposed two defects underneath the drift:
 
 - `macos-tools-validation` configured the system-prompt plugin with `persona`, but the field is `personaPrefix`. The schema is not strict, so the unknown key was stripped and the scenario had been asserting a persona its composition never assembled.
-- The ACP session-creation transcript is racy. A session announces its config options through a `config_option_update` queued off the `session/new` response and dropped once the session closes, so a scenario whose last step is that response captures the announcement or not depending on scheduling; a refresh run wrote a two-line expectation one time and a three-line one the next.
+- The recorded ACP session-creation transcript pinned a race. The bridge emits `config_option_update` only for a live `llm/adapters-updated` that arrives after the session is registered, and `session/new` carries the initial catalog in its own response instead, so the announcement appears only when a provider registration lands inside that response window; a refresh run wrote a two-line expectation one time and a three-line one the next.
 
 ## Decision
 
 - Regenerate the drifted expectations through the sanctioned keyless path, `pnpm run test:snapshot:refresh`, which replays and rewrites stdout expectations and comparable session fixtures. `macos-tools-validation` gains a `session.v3.jsonl` beside the retained v2 generation; every other change is a value or line-count update that the drift table above explains.
 - Fix the scenario's config key so its composition assembles the persona it declares.
-- Make the ACP session transcript deterministic by construction: the `newSession` input step accepts `waitForConfigOptionUpdate`, which arms a wait for the announcement *before* sending the request and awaits it after the response. Arming before the request is what makes it work — a wait registered after the response can miss an announcement that already arrived, because the client does not replay earlier updates. All seven session-creating ACP scenarios arm it; `reject-extra-dirs` rejects `session/new`, so it has no announcement to await.
+- Give a scenario an explicit way to await that announcement: the `newSession` input step accepts `waitForConfigOptionUpdate`, which arms a wait for the announcement *before* sending the request and awaits it after the response. Arming before the request is what makes it work — a wait registered after the response can miss an announcement that already arrived, because the client does not replay earlier updates. Seven session-creating ACP scenarios armed it at the time; replay registers its providers at apply time, before any session exists, so no scenario arms it now and the expectations no longer carry the announcement (Issue #243).
 - Keep the retained v2 generation: replay selects the numerically highest, and the corpus policy counts the scenario as current-writer.
 
 ## Alternatives considered
@@ -30,11 +30,11 @@ Repairing the fixtures exposed two defects underneath the drift:
 - **Commit the refresh's rewrites of `writer.expected.jsonl`.** Rejected: those diffs only re-stamp timing fields (`time`, `time0`, `dt`) that the comparison normalizes; the committed values are the reviewed fixed points and re-stamping them is unrelated churn.
 - **Let the bridge announce config options before answering `session/new`.** Rejected: the bridge deliberately resolves topology off the response path, and the race only affects a transcript that stops at the response; serializing it would change production timing for every client to stabilize a test.
 - **Accept both orderings as stdout variants.** Rejected: `stdoutExpectedVariants` supports only the canonical expectation plus an optional Windows-native one, and the observed difference was presence, not order.
-- **Arm the wait inside the harness for every `newSession`.** Rejected in favour of the explicit scenario field: an ACP scenario whose composition announces nothing would then fail on a hidden timeout instead of declaring what it waits for.
+- **Arm the wait inside the harness for every `newSession`.** Rejected in favour of the explicit scenario field: an ACP scenario whose composition announces nothing would then hang to the suite timeout instead of declaring what it waits for.
 
 ## Consequences
 
-The keyless tier is green and stable (three consecutive replays, 132 passed / 2 skipped), and refreshes are reproducible (two refresh runs produced byte-identical ACP expectations). The tier still sits outside fork CI, so the same class of drift can accumulate again: every one of the four drifts was a legitimate product change that shipped without its fixture. The two defects found underneath are now pinned by the tier but not by any gate of their own — a non-strict plugin config still swallows a misspelled key, and a new ACP scenario must remember the announcement wait.
+The keyless tier is green and stable (three consecutive replays, 132 passed / 2 skipped), and refreshes are reproducible (two refresh runs produced byte-identical ACP expectations). The tier still sits outside fork CI, so the same class of drift can accumulate again: every one of the four drifts was a legitimate product change that shipped without its fixture. The two defects found underneath are now pinned by the tier but not by any gate of their own — a non-strict plugin config still swallows a misspelled key, and the race is unfixed: a recording that captures the announcement still writes an expectation replay cannot reproduce, and it now surfaces as an expectation diff rather than a hung step (Issue #243).
 
 ## Testing
 

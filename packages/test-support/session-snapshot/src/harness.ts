@@ -75,18 +75,22 @@ const WAIT_POLL_INTERVAL_MS = 10
  * type follows the latest closed turn — for scenarios whose asserted state
  * (e.g. a goal pause) is appended only after cancellation reaches idle.
  * A standalone `cancel` may also wait for a cwd-relative readiness marker.
- * All wait timeouts default to 10s.
+ * Waits that accept a `timeoutMs` default to 10s.
  */
 export type InputStep =
   | { op: 'initialize' }
   | {
     op: 'newSession'
     /**
-     * Await the `config_option_update` announcement before the step settles.
-     * The bridge queues that announcement off the `session/new` response and
-     * drops it once the session closes, so a scenario whose last step is the
-     * response must arm the wait here: arming it after the response can miss an
-     * announcement that already arrived, and closing without it can suppress one.
+     * Await a `config_option_update` announcement that arrives while this step
+     * runs. The bridge emits that announcement only for a live
+     * `llm/adapters-updated` delivered after the session is registered
+     * (`packages/acp/acp/src/index.ts` forwards it to every open session), and
+     * `session/new` reports the initial catalog in its own response instead.
+     * No scenario arms it: replay registers its providers at apply time, before
+     * any session exists, so the announcement never arrives. This wait carries
+     * no deadline, so arming it in a step whose window has no topology change
+     * holds the run until the suite deadline.
      */
     waitForConfigOptionUpdate?: boolean
   }
