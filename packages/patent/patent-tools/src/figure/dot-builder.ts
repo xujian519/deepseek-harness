@@ -66,6 +66,8 @@ export type DotBuildErrorCode =
   | 'invalid_shape'
   | 'invalid_template'
   | 'invalid_page'
+  | 'file_reference'
+  | 'too_large'
 
 /** DOT 构建错误（引擎层受检查错误；工具层映射为 PatentToolError('invalid_input', ...)）。 */
 export class DotBuildError extends Error {
@@ -356,6 +358,65 @@ export function escapeDotLabel(text: string): string {
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ')
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
+}
+
+/** 会读取宿主文件的 DOT 属性名（`image`/`shapefile` 载入图像文件，`fontpath` 载入字体文件）。 */
+const DOT_FILE_ATTRIBUTE_PATTERN = /\b(image|shapefile|fontpath)"?\s*=/i
+
+/**
+ * 掩掉 DOT 中不参与属性名匹配的文本：注释与**属性值**字符串。
+ *
+ * 属性名可以写成带引号的 ID（`a [ "image" = "x.png" ]`，实测 Graphviz 照此读取文件），
+ * 因此只掩掉 `=` 之后的双引号字符串——属性名从不跟在 `=` 之后，掩码不会漏掉真实的属性赋值；
+ * 而把属性名当文本写进 `label="…"` 或注释的输入不会被误判。
+ * HTML 形态的 label（`label=<…>`）不在掩码范围内。
+ * @param dot - DOT 源码。
+ * @returns 注释与属性值字符串替换为等长空格后的文本。
+ */
+function maskDotValuesAndComments(dot: string): string {
+  let masked = ''
+  let significant = ''
+  let index = 0
+  while (index < dot.length) {
+    const char = dot[index] as string
+    const blockComment = dot.startsWith('/*', index)
+    if (blockComment || dot.startsWith('//', index)) {
+      const end = blockComment ? dot.indexOf('*/', index + 2) : dot.indexOf('\n', index)
+      const stop = end === -1 ? dot.length : blockComment ? end + 2 : end
+      masked += ' '.repeat(stop - index)
+      index = stop
+      continue
+    }
+    if (char === '"' && significant === '=') {
+      let stop = index + 1
+      while (stop < dot.length) {
+        if (dot[stop] === '\\') { stop += 2; continue }
+        if (dot[stop] === '"') { stop += 1; break }
+        stop += 1
+      }
+      masked += ' '.repeat(stop - index)
+      // 掩掉的值本身成为上一个有效字符：紧随其后的引号 ID 可能是属性名（`[a="b" "image"="c"]`）。
+      significant = '"'
+      index = stop
+      continue
+    }
+    masked += char
+    if (char.trim() !== '') significant = char
+    index += 1
+  }
+  return masked
+}
+
+/**
+ * 找出 DOT 引用的宿主文件属性（`image`/`shapefile`/`fontpath` 的赋值）。
+ *
+ * raw_dot 是唯一由调用方直接给出 DOT 的入口，这些属性会让 Graphviz 读取宿主文件并把
+ * 路径或内容并入附图产物（WASM 引擎的虚拟文件系统读不到宿主文件，CLI 引擎可以）。
+ * @param dot - DOT 源码。
+ * @returns 命中的属性名（小写），未命中时 undefined。
+ */
+export function findFileReferenceAttribute(dot: string): string | undefined {
+  return DOT_FILE_ATTRIBUTE_PATTERN.exec(maskDotValuesAndComments(dot))?.[1]?.toLowerCase()
 }
 
 /**

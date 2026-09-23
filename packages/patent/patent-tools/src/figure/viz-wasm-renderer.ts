@@ -9,6 +9,10 @@
  * 渲染失败 `render_failed`，调用方取消 `aborted`，与 CLI 渲染器共用
  * GraphvizRenderOutcome 契约。
  *
+ * `renderString` 在调用方线程上同步执行：调用期间事件循环停摆，取消信号只在调用前与
+ * 写盘前各查一次，渲染本身无法中断。输入规模因此就是该次占用的上界，由
+ * figure/render-selector 的引擎分档限制；需要可终止语义时把该 DOT 改由 CLI 子进程渲染。
+ *
  * @module @deepseek-ai/dsh-patent-tools/figure/viz-wasm-renderer
  */
 

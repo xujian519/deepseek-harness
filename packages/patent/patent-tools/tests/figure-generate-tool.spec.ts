@@ -166,6 +166,10 @@ describe('generate_patent_figure tool', () => {
       await expect(tool.execute({ figure_type: 'raw_dot', dot: 'x'.repeat(200_001) }, exec)).rejects.toMatchObject({
         code: 'invalid_tool_input',
       })
+      // raw_dot 必须自包含：文件引用属性会在 CLI 渲染路径上读取宿主文件（WASM 沙箱读不到）。
+      await expect(tool.execute({ figure_type: 'raw_dot', dot: 'digraph { a [ image="/etc/passwd" ] }' }, exec)).rejects.toMatchObject({
+        code: 'invalid_tool_input',
+      })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -357,6 +361,36 @@ describe('generate_patent_figure tool', () => {
     }
   })
 
+  it('结构化输入的元素上限：200 元素通过，超出转 invalid_tool_input 并指向 panels', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const tool = createGeneratePatentFigureTool({ render: okRenderer(outDir).render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    const steps = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `s${i}`, label: `步骤 ${i + 1}`, next: [] as string[] }))
+    // 上限以「节点 + 边」计：流程图每加一条 next 边就多一个元素。
+    const chained = (n: number) => steps(n).map((step, index) => ({ ...step, next: index + 1 < n ? [`s${index + 1}`] : [] }))
+    try {
+      const atLimit = await execute(ctx, 'generate_patent_figure', { figure_type: 'flowchart', steps: chained(100) }, 'cap1')
+      expect(atLimit.isError).toBe(false)
+      await expect(tool.execute({ figure_type: 'flowchart', steps: chained(101) }, exec)).rejects.toThrow(/图元素过多/)
+      // 层级树递归计入深层节点
+      const nested = [{
+        id: 'root',
+        label: '根',
+        children: Array.from({ length: 120 }, (_, i) => ({ id: `c${i}`, label: `子 ${i}`, children: [{ id: `g${i}`, label: `孙 ${i}` }] })),
+      }]
+      await expect(tool.execute({ figure_type: 'component_hierarchy', tree: nested }, exec)).rejects.toThrow(/图元素过多/)
+      // 状态图按状态 + 转移计数
+      await expect(tool.execute({
+        figure_type: 'state_diagram',
+        states: steps(120).map(step => ({ id: step.id, label: step.label })),
+        transitions: Array.from({ length: 120 }, (_, i) => ({ from: `s${i}`, to: `s${(i + 1) % 120}` })),
+      }, exec)).rejects.toThrow(/图元素过多/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('raw_dot 直通渲染并标注为 unknown 图型', async () => {
     const dir = tempDir()
     const outDir = join(dir, 'figs')
@@ -375,6 +409,25 @@ describe('generate_patent_figure tool', () => {
       expect(value.figureType).toBe('unknown')
       expect(value.numeralMap).toEqual([])
       expect(calls[0]?.dot).toContain('digraph X')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('raw_dot 自包含检查只拦属性赋值：标签文本里的属性名照常渲染', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const { render, calls } = okRenderer(outDir)
+    const tool = createGeneratePatentFigureTool({ render, outputDir: outDir, cwd: dir })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'raw_dot',
+        dot: 'digraph X { a [ label="image=输入图像" ]; a -> b; }',
+        filename: 'custom',
+      }, 'raw2')
+      expect(result.isError).toBe(false)
+      expect(calls[0]?.dot).toContain('label="image=输入图像"')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

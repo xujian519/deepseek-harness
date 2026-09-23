@@ -8,6 +8,7 @@ import {
   buildDotHeader,
   buildFlowchartDOT,
   escapeDotLabel,
+  findFileReferenceAttribute,
   getDiagramTemplate,
   numeralSeriesStart,
   resolvePageBundle,
@@ -99,6 +100,39 @@ describe('sanitizeId / escapeDotLabel / buildDotHeader', () => {
     expect(lines.join('\n')).toContain('fontname="Helvetica"')
     expect(lines.join('\n')).not.toContain('style=filled')
     expect(buildDotHeader('G', { rankdir: 'LR', fontName: 'Arial', filled: true }).join('\n')).toContain('style=filled')
+  })
+})
+
+describe('findFileReferenceAttribute', () => {
+  it('命中读取宿主文件的属性赋值（含引号属性名、大小写与空白变体）', () => {
+    const cases: [string, string][] = [
+      ['digraph { a [ image="/etc/passwd" ] }', 'image'],
+      ['digraph { a [image="x.png"] }', 'image'],
+      ['digraph { a [ image = "x.png" ] }', 'image'],
+      ['digraph { a [ IMAGE="x.png" ] }', 'image'],
+      ['digraph { a [ "image" = "x.png" ] }', 'image'],
+      // 值后面紧跟引号属性名（DOT 允许 a_list 条目间无分隔符）
+      ['digraph { a [ label="A" "image" = "x.png" ] }', 'image'],
+      ['digraph { a [ shapefile="/tmp/s.shape" ] }', 'shapefile'],
+      ['digraph { graph [ fontpath="/usr/share/fonts" ] }', 'fontpath'],
+    ]
+    for (const [dot, expected] of cases) {
+      expect(findFileReferenceAttribute(dot), dot).toBe(expected)
+    }
+  })
+
+  it('不命中：属性名只出现在标签文本、注释或更长的属性名里', () => {
+    const cases = [
+      'digraph { a [ label="image=/etc/passwd" ] }',
+      'digraph { a [ label="shapefile=形状库" ] }',
+      'digraph { // image="/etc/passwd"\n a -> b }',
+      'digraph { /* fontpath="/usr/share/fonts" */ a -> b }',
+      'digraph { a [ image_scale=true ]; b [ imagepath="/tmp" ] }',
+      'digraph { a [ label="a\\"b image=/x" ] }',
+    ]
+    for (const dot of cases) {
+      expect(findFileReferenceAttribute(dot), dot).toBeUndefined()
+    }
   })
 })
 

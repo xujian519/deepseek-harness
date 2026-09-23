@@ -4038,7 +4038,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
     },
     "dot": {
       "type": "string",
-      "description": "原始 Graphviz DOT（figure_type=raw_dot）"
+      "description": "原始 Graphviz DOT（figure_type=raw_dot）；须自包含：不接受 image/shapefile/fontpath 等文件引用属性"
     },
     "panels": {
       "type": "array",
@@ -4275,7 +4275,7 @@ document_deliver 把交付文件（path + format）、P0/P1 质量门状态与 b
           },
           "dot": {
             "type": "string",
-            "description": "面板原始 DOT"
+            "description": "面板原始 DOT（须自包含：不接受 image/shapefile/fontpath 等文件引用属性）"
           },
           "numerals": {
             "type": "object",

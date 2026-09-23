@@ -33,6 +33,7 @@ import {
   buildComponentHierarchyDOT,
   buildFlowchartDOT,
   buildStateDiagramDOT,
+  findFileReferenceAttribute,
   getDiagramTemplate,
   sanitizeId,
 } from '../figure/dot-builder.ts'
@@ -67,6 +68,15 @@ import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.
 
 /** 原始 DOT 输入大小上限（字节）。 */
 const RAW_DOT_MAX_BYTES = 200_000
+
+/**
+ * 结构化输入的图元素上限（节点 + 边，嵌套结构递归计入）。
+ *
+ * WASM 渲染是主线程上的同步调用（见 figure/render-selector 的引擎分档），故输入规模就是
+ * 最坏耗时的上界；本机实测（`@viz-js/viz` 3.x）200 元素的强制导向图（`neato`）约 0.2 s、
+ * `fdp` 约 0.7 s，400 元素分别为 0.9 s 与 6.4 s。200 也远超一张可读附图的元素数。
+ */
+const STRUCTURAL_MAX_ITEMS = 200
 
 /** 生成图在索引中的模型标识（确定性生成，无 LLM 参与）。 */
 export const FIGURE_GENERATOR_MODEL_USED = 'graphviz-generator'
@@ -788,7 +798,7 @@ const PANEL_SCHEMA = {
     connections: { type: 'array', items: CONNECTION_SCHEMA, description: '面板框图连接（blocks 面板）' },
     tree: { type: 'array', items: TREE_SCHEMA, description: '面板组件层级树' },
     template: { type: 'string', enum: DIAGRAM_TEMPLATE_NAMES, description: '面板内置模板' },
-    dot: { type: 'string', description: '面板原始 DOT' },
+    dot: { type: 'string', description: '面板原始 DOT（须自包含：不接受 image/shapefile/fontpath 等文件引用属性）' },
     numerals: { type: 'object', additionalProperties: true, description: '面板显式标号（组件 id → 标号；标号可为字符串或数字，其他类型会被拒绝；优先于顶层 numerals）' },
   },
 } as const
@@ -1045,9 +1055,47 @@ function buildDotOptions(params: FigureDotParams) {
   }
 }
 
+/** 层级树节点数（任意深度）。 */
+function countHierarchyNodes(nodes: readonly HierarchyNode[]): number {
+  return nodes.reduce((sum, node) => sum + 1 + countHierarchyNodes(node.children ?? []), 0)
+}
+
+/**
+ * 结构化输入的图元素总数（节点 + 边；流程步骤内联节点与层级树递归计入）。
+ * @param input - 已归一的单图结构化输入。
+ * @returns 图元素总数；`raw_dot`/`template` 由调用方自带内容，计 0。
+ */
+function countFigureItems(input: StructuralFigureInput & { figure_type: DotFigureType }): number {
+  switch (input.figure_type) {
+    case 'flowchart': {
+      const inline = input.steps.flatMap(step => step.next.filter(next => typeof next !== 'string'))
+      const edges = input.steps.reduce((sum, step) => sum + step.next.length, 0)
+      return input.steps.length + inline.length + edges
+    }
+    case 'state_diagram':
+      return input.states.length + input.transitions.length
+    case 'block_diagram':
+      return input.blocks.length + input.connections.length
+    case 'component_hierarchy': {
+      const nodes = countHierarchyNodes(input.tree)
+      return nodes + Math.max(0, nodes - 1)
+    }
+    case 'raw_dot':
+    case 'template':
+      return 0
+    /* v8 ignore next -- closed-union backstop; the compiler rejects a new figure type here. */
+    default:
+      return assertNever(input.figure_type, 'structural figure input')
+  }
+}
+
 /** 构建单图 DOT（单图与面板共用；DotBuildError 由调用方映射，面板路径追加面板后缀上下文）。 */
 function buildFigureDot(input: StructuralFigureInput & { figure_type: DotFigureType }, params: FigureDotParams): string {
   const { figureNumber, style, fontName, pageBundle, leaderLinesActive } = params
+  const items = countFigureItems(input)
+  if (items > STRUCTURAL_MAX_ITEMS) {
+    throw new DotBuildError('too_large', `图元素过多（${items} 个 > 上限 ${STRUCTURAL_MAX_ITEMS}）：请减少元素或拆分到 panels 多面板`)
+  }
   switch (input.figure_type) {
     case 'flowchart': {
       if (input.steps.length === 0) {
@@ -1090,7 +1138,14 @@ function buildFigureDot(input: StructuralFigureInput & { figure_type: DotFigureT
         throw new DotBuildError('empty_input', 'raw_dot 需要 dot 内容')
       }
       if (input.dot.length > RAW_DOT_MAX_BYTES) {
-        throw new DotBuildError('invalid_template', `raw_dot 输入过大（>${RAW_DOT_MAX_BYTES} 字节）`)
+        throw new DotBuildError('too_large', `raw_dot 输入过大（>${RAW_DOT_MAX_BYTES} 字节）`)
+      }
+      const fileReference = findFileReferenceAttribute(input.dot)
+      if (fileReference !== undefined) {
+        throw new DotBuildError(
+          'file_reference',
+          `raw_dot 含文件引用属性 ${fileReference}=：附图必须自包含，DOT 不得引用宿主文件（如需在图上表达图像内容，请改用图形/文字要素绘制）`,
+        )
       }
       return input.dot
     }
@@ -1346,7 +1401,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
         enum: DIAGRAM_TEMPLATE_NAMES,
         description: '内置模板（figure_type=template 时必填）：simple_flowchart/system_block/method_steps/component_hierarchy',
       },
-      dot: { type: 'string', description: '原始 Graphviz DOT（figure_type=raw_dot）' },
+      dot: { type: 'string', description: '原始 Graphviz DOT（figure_type=raw_dot）；须自包含：不接受 image/shapefile/fontpath 等文件引用属性' },
       panels: { type: 'array', items: PANEL_SCHEMA, description: '多面板模式：一次生成多张共享标号系列的面板（fig1A/fig1B…）；与顶层结构输入互斥，列表不可为空' },
       figure_number: { type: 'integer', description: '图号，默认 1（决定标号系列起点）' },
       invention_name: { type: 'string', description: '发明名称（附图说明模板句）' },

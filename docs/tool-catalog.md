@@ -4032,7 +4032,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
     },
     "dot": {
       "type": "string",
-      "description": "原始 Graphviz DOT（figure_type=raw_dot）"
+      "description": "原始 Graphviz DOT（figure_type=raw_dot）；须自包含：不接受 image/shapefile/fontpath 等文件引用属性"
     },
     "panels": {
       "type": "array",
@@ -4269,7 +4269,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
           },
           "dot": {
             "type": "string",
-            "description": "面板原始 DOT"
+            "description": "面板原始 DOT（须自包含：不接受 image/shapefile/fontpath 等文件引用属性）"
           },
           "numerals": {
             "type": "object",
