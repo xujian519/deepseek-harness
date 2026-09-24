@@ -619,6 +619,37 @@ describe('fork CI workflow', () => {
   // The real-render smoke suites skip themselves when `dot` is missing, so a
   // lane that runs the suite without provisioning reads green over skipped
   // render coverage; `figure-graphviz-ci-signal.spec.ts` fails there instead.
+  // Every suite that needs a `pnpm run build` product self-skips in a lane that
+  // does not build, so the published entry paths need a lane that builds first.
+  it('builds before the built-artifact lane runs those suites', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-built-suites')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-built-suites must define steps')
+    const steps = job.steps.filter(isRecord)
+    const addon = steps.findIndex(step => String(step.run).includes('build:native-system'))
+    const build = steps.findIndex(step => String(step.run).trim() === 'pnpm run build')
+    const unit = steps.findIndex(step => String(step.run).includes('test:built -- --family spec,expected'))
+    const advisory = steps.findIndex(step => String(step.run).includes('--family e2e'))
+
+    expect(addon).toBeGreaterThanOrEqual(0)
+    expect(build).toBeGreaterThan(addon)
+    expect(unit).toBeGreaterThan(build)
+    expect(advisory).toBeGreaterThan(unit)
+    // The first lane to run these suites must not block PRs until the defects it
+    // exposes are fixed.
+    expect(steps[advisory]?.['continue-on-error']).toBe(true)
+  })
+
+  // The unit and coverage lanes resolve workspace imports to `src` through the
+  // tsconfig paths map, so a build in either lane would put built lib/ under
+  // them; the built-artifact lane owns that precondition instead.
+  it.each(['node-checks', 'node-coverage'])('keeps the %s lane unbuilt', (name) => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), name)
+    if (!Array.isArray(job.steps)) throw new TypeError(`${name} must define steps`)
+    for (const step of job.steps.filter(isRecord)) {
+      expect(String(step.run)).not.toMatch(/(^|\s)pnpm run build(\s|$)/u)
+    }
+  })
+
   it.each(['node-checks', 'node-coverage'])('provisions Graphviz before the %s lane runs the suite', (name) => {
     const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), name)
     if (!Array.isArray(job.steps)) throw new TypeError(`${name} must define steps`)

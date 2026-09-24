@@ -53,6 +53,7 @@
     "lint:fix:contracts-ready": "tsx scripts/run-oxlint.ts --config .oxlintrc.staged.json packages/typert/generator/tests/fixtures/type-model --fix && tsx scripts/run-oxlint.ts . --fix",
     "duplication": "tsx scripts/duplication-gate.ts",
     "duplication:baseline": "tsx scripts/duplication-gate.ts --write",
+    "test:built": "tsx scripts/run-built-artifact-suites.ts",
     "eval:self-evolve": "tsx packages/test-support/self-evolve-eval/src/cli.ts",
     "test": "pnpm run build:native-system && vitest run",
     "test:coverage": "pnpm run build:native-system && vitest run --coverage",

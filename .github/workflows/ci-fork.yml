@@ -78,6 +78,58 @@ jobs:
       - name: Documentation checks
         run: pnpm run test:docs
 
+  node-built-suites:
+    # The unit lane deliberately runs an unbuilt tree, so every suite that needs a
+    # `pnpm run build` product self-skipped: the published entry paths (built bin,
+    # built lib, packed tarball, bundle split) shipped no signal on any PR. This
+    # lane builds first and runs exactly the suites `scripts/built-artifact-suites.ts`
+    # discovers, printing each one's executed pass count and a ::warning:: for a
+    # suite that still ran nothing. `scripts/ci-workflow.spec.ts` asserts this job
+    # builds before it runs them and that the unit and coverage lanes stay unbuilt.
+    if: github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / built artifacts
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the native system addon
+        # The built CLI suites launch the shipped profile, which flocks its log
+        # through the node-addon-system host addon.
+        run: pnpm run build:native-system
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Prepare bubblewrap
+        # The built CLI and packed-install suites reach the real sandbox
+        # confinement path, which the hosted image cannot provision by itself.
+        run: bash scripts/prepare-ci-bubblewrap.sh
+
+      - name: Run the built-artifact unit and expected-output suites
+        run: pnpm run test:built -- --family spec,expected
+
+      - name: Run the built-artifact e2e suites
+        # These belong to the real-API e2e config, which the fork does not run.
+        # Running them here gives the built entry paths a first signal while the
+        # defects only this lane can see (apps/cli/tests/built-bin.e2e.ts reports
+        # a pinned dependency on stderr and a headless profile that still carries
+        # host layers) stay non-blocking until they are fixed.
+        continue-on-error: true
+        run: pnpm run test:built -- --family e2e
+
   node-hygiene:
     if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
