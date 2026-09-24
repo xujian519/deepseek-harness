@@ -100,6 +100,8 @@ Scrollback and unread send output retain independently owned strings with increm
 
 Three bounded tiers settle a send: exact stdin-wait evidence from the subprocess provider (Linux only), the verified private prompt marker with an exact printable tail, and output silence (`inferred_idle`); an absolute timeout always bounds the wait. Pwsh startup uses one deadline across its complete setup loop, so an `inferred_idle` follow-up does not restart the bound. Evidence collected before the provider write is discarded at the write boundary, a stdin wait that predates the write is not post-write readiness, and unknown foreground state is never a positive exact-idle signal.
 
+Bash prints `PROMPT_COMMAND` before the kernel publishes its return to the foreground process group, so a prompt marker can arrive while an earlier send still owns the terminal. The session retains such a marker instead of attributing it to the waiting send, and the readiness poll remains the authority: it accepts a retained marker only once bash owns the foreground. Keying the marker to a generation, so that a signal-delayed prompt is never read as evidence for a later send, awaits a reproducer; until then the retained marker plus polling is the contract callers can rely on.
+
 ### Send cancellation and teardown
 
 Cancellation marks queued input as canceled, then signals the current foreground process group with a real `SIGINT` after any in-flight provider write settles; it never emulates interruption by writing `\x03`. Closing stops readiness polling, terminates the provider-owned process tree, awaits quiescence, and settles the active send as `session_exit`.
