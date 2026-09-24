@@ -497,11 +497,10 @@ export class LocalPtySession implements TerminalBackendSession {
     const sanitized = this.sanitizer.push(data)
     this.appendOutput(sanitized.text)
     if (sanitized.prompt) {
-      // TODO(pty-delayed-signal-prompt): With a reproducer, define a marker-generation boundary
-      // before attributing a signal-delayed prompt to a later send.
-      // Bash can print PROMPT_COMMAND before the kernel publishes its return
-      // to the foreground process group. Retain the marker; polling below is
-      // the authority that accepts it only after bash owns the foreground.
+      // TODO(pty-delayed-signal-prompt): defining a marker-generation boundary, so a
+      // signal-delayed prompt is never read as evidence for a later send, needs a
+      // reproducer. The retention-and-poll compensation in force until then is the
+      // readiness model's contract in this package's README.
       this.promptSeen = true
       this.promptTail = ''
       this.lastOutputAt = Date.now()
