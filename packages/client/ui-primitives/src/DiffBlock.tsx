@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { structuredPatch } from 'diff'
 import { FoldToggle } from './FoldToggle.tsx'
-import { writeClipboard } from './clipboard.ts'
+import { useCopyFeedback } from './use-copy-feedback.ts'
 import { CodeToolbar, type CodeToolbarLabels } from './CodeToolbar.tsx'
 import { languageForPath } from './code-highlighting.ts'
 import cardCss from './CodeCard.module.css'
@@ -168,19 +168,14 @@ function copyText(rows: DiffRow[]): string {
 export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, className }: DiffBlockProps) {
   const rows = useMemo(() => buildRows(diffs), [diffs])
   const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [wrapped, setWrapped] = useState(false)
   const firstLanguage = diffs[0] === undefined ? undefined : languageForPath(diffs[0].path)
   const language = diffs.every(diff => languageForPath(diff.path) === firstLanguage) ? firstLanguage : undefined
 
-  const onCopy = useCallback(() => {
-    if (copied) return
-    void writeClipboard(copyText(rows)).then((ok) => {
-      if (!ok) return
-      setCopied(true)
-      window.setTimeout(() => { setCopied(false) }, 1000)
-    })
-  }, [copied, rows])
+  // The hook holds the whole copied-state machine, so the reset timer is its
+  // own to cancel on unmount; the memo keeps the copied text off the render path.
+  const copiedText = useMemo(() => copyText(rows), [rows])
+  const { copied, onCopy } = useCopyFeedback(copiedText)
 
   const onToggle = useCallback(() => { setExpanded(value => !value) }, [])
 

@@ -63,6 +63,55 @@ describe('TerminalDepsBanner copy click (interactive)', () => {
     vi.restoreAllMocks()
   })
 
+  it('re-arms a single Copied reset when Copy is clicked twice inside the window', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.spyOn(primitives, 'writeClipboard').mockResolvedValue(true)
+      const container = document.createElement('div')
+      document.body.append(container)
+      const root = createRoot(container)
+      act(() => {
+        root.render(createElement(TerminalDepsBanner, { deps, onRetry: vi.fn() }))
+      })
+      const copyButton = container.querySelector('button[aria-label="Copy"]') as HTMLButtonElement
+      await act(async () => { copyButton.click() })
+      await act(async () => { copyButton.click() })
+      // The second click clears the first reset instead of arming a second one.
+      expect(vi.getTimerCount()).toBe(1)
+      act(() => { root.unmount() })
+      expect(vi.getTimerCount()).toBe(0)
+      container.remove()
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('cancels the pending Copied reset when the banner unmounts inside the window', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.spyOn(primitives, 'writeClipboard').mockResolvedValue(true)
+      const container = document.createElement('div')
+      document.body.append(container)
+      const root = createRoot(container)
+      act(() => {
+        root.render(createElement(TerminalDepsBanner, { deps, onRetry: vi.fn() }))
+      })
+      const copyButton = container.querySelector('button[aria-label="Copy"]') as HTMLButtonElement
+      await act(async () => { copyButton.click() })
+      expect(copyButton.textContent).toBe('Copied')
+      // The reset is the only timer in flight, and unmounting must cancel it
+      // rather than let it clear state on a gone banner.
+      expect(vi.getTimerCount()).toBe(1)
+      act(() => { root.unmount() })
+      expect(vi.getTimerCount()).toBe(0)
+      container.remove()
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
+  })
+
   it('clicking Retry fires the callback (the view reconnects)', async () => {
     const container = document.createElement('div')
     document.body.append(container)

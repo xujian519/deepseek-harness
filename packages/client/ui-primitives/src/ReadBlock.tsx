@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import clsx from 'clsx'
 import { FoldToggle } from './FoldToggle.tsx'
-import { writeClipboard } from './clipboard.ts'
+import { useCopyFeedback } from './use-copy-feedback.ts'
 import { CodeToolbar, type CodeToolbarLabels } from './CodeToolbar.tsx'
 import cardCss from './CodeCard.module.css'
 import {
@@ -89,17 +89,10 @@ export function ReadBlock({
     [highlighting, raw, lang, loaded],
   )
   const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [wrapped, setWrapped] = useState(false)
-
-  const onCopy = useCallback(() => {
-    if (copied) return
-    void writeClipboard(raw).then((ok) => {
-      if (!ok) return
-      setCopied(true)
-      window.setTimeout(() => { setCopied(false) }, 1000)
-    })
-  }, [copied, raw])
+  // The hook holds the whole copied-state machine, so the reset timer is its own
+  // to cancel on unmount.
+  const { copied, onCopy } = useCopyFeedback(raw)
 
   const onToggle = useCallback(() => { setExpanded(value => !value) }, [])
 
