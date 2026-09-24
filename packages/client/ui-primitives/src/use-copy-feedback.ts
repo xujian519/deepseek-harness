@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { writeClipboard } from './clipboard.ts'
 
 /** How long the `copied` flag stays true after a successful write, in ms. */
@@ -24,8 +24,16 @@ export function useCopyFeedback(text: string): CopyFeedback {
     void writeClipboard(text).then((ok) => {
       if (!ok) return
       setCopied(true)
-      window.setTimeout(() => { setCopied(false) }, COPIED_FEEDBACK_MS)
     })
   }, [copied, text])
+  // The reset rides an effect so unmounting inside the feedback window cancels
+  // it. A timer that outlives its control clears state on a dead component and,
+  // in the Web UI's jsdom suites, reaches for a `window` the finished suite has
+  // already torn down — an unhandled error that fails the coverage gate.
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => { setCopied(false) }, COPIED_FEEDBACK_MS)
+    return () => { window.clearTimeout(timer) }
+  }, [copied])
   return { copied, onCopy }
 }
