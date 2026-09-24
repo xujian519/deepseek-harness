@@ -109,6 +109,23 @@ describe('PatentKnowledge service', () => {
     }
   })
 
+  it('defaults the node-cache bound when the config omits it', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-cache-default-'))
+    makeDb(dir)
+    cleanups.push(() => {
+      rmSync(dir, { recursive: true, force: true })
+    })
+    const ctx = new Context()
+    // Constructing the service directly skips the Loader's schema defaulting,
+    // so the constructor resolves the omitted bound itself.
+    const service = new PatentKnowledge(ctx, { knowledgeDir: dir })
+    try {
+      expect(service.kgGetNode('kg:n1')?.name).toBe('创造性')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('removes ctx.patentKnowledge when its fiber disposes (HMR safety)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-patent-knowledge-hmr-'))
     makeDb(dir)
