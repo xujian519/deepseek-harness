@@ -8,7 +8,6 @@ import {
   JsonFileStore,
   RuleEngine,
   SyllogismBuilder,
-  aggregate,
   assertChain,
   atomicWriteJson,
   caseWorkflowRunsDir,
@@ -17,7 +16,6 @@ import {
   compileSignal,
   createLlmModelPort,
   extractTechnicalProblem,
-  formatRuleResults,
   loadClaimChart,
   renderChartMarkdown,
   runeSlice,
@@ -25,7 +23,6 @@ import {
   validateWorkflowManifest,
   type ClaimChart,
   type ReasoningChain,
-  type RuleCheckResult,
   type Syllogism,
   type WorkflowManifest,
 } from '@deepseek-ai/dsh-patent-core'
@@ -385,13 +382,6 @@ it('checker：未知 CheckType 抛错；customCheck 空 detail 用 rule.message'
   })
   const fails = local.evaluate('任何文本', { rules: local.all() })
   expect(fails.find(f => f.ruleId === 'C1')?.message).toBe('兜底消息')
-})
-
-it('checker：未知 level 聚合与报告标签兜底', () => {
-  const unknownLevel: RuleCheckResult = { ruleId: 'r', ruleName: 'n', passed: false, level: 5 as never, severity: 'minor', message: 'm', fixSuggestion: 's' }
-  expect(aggregate([unknownLevel])).toBe('pass')
-  const md = formatRuleResults([unknownLevel], 'pass')
-  expect(md).toMatch(/未知/)
 })
 
 // ---------------------------------------------------------------------------

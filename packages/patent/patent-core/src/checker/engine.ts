@@ -373,9 +373,8 @@ function levelLabel(level: RuleCheckResult['level']): string {
       return '应当'
     case LevelQuality:
       return '质量'
-    default:
-      return '未知'
   }
+  assertNever(level, 'rule level')
 }
 
 /** 聚合判级结论 → 报告展示标签。 */
