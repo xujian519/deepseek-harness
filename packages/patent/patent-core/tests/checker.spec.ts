@@ -95,7 +95,7 @@ it('inventiveness: 缺三步法步骤 → 阻断', () => {
 it('inventiveness: 三步法齐全 → 通过', () => {
   const text =
     '创造性分析（三步法）：首先确定最接近的现有技术为D1；' +
-    '其次，权利要求1相对于D1的区别技术特征为X；' +
+    '其次，权利要求1相对于D1的区别技术特征为X，本发明实际解决的技术问题是把装配偏差从0.5mm降到0.1mm；' +
     '最后，D2给出了将X应用于D1的技术启示，故不具备创造性。'
   const failures = engine.evaluate(text, { rules: inventivenessRules() })
   expect(failures).toEqual([])

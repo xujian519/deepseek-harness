@@ -14,9 +14,11 @@
  * `dimensions`；`patent_inventiveness` 读 `stepElements`；`pathElements` 是所有 checkType
  * 的后置校验。
  *
- * `INVENTIVENESS-TECHNICAL-PROBLEM` 不在表中，与 `REASON-CREATIVITY-01B` 同因：判据只写在
- * `requiredElements`，而 `patent_inventiveness` 分派读 `stepElements`，两者的 `stepElements`
- * / `pathElements` / `customCheck` 皆空，因此对任何文本都不报出——见 #262。
+ * `REASON-CREATIVITY-01B` 与 `INVENTIVENESS-TECHNICAL-PROBLEM` 曾把判据写在 `requiredElements`，
+ * 而 `patent_inventiveness` 分派不读该字段，因此对任何文本都不报出（#262）。两条判据已改到本
+ * checkType 会走的字段：前者是条件式的「援引公知常识时须有证据」，关键词可见性判定不了，
+ * 改由 `customCheck` 表达并在本文件单列用例；后者是「须写明实际解决的技术问题」，写进
+ * `pathElements`，作为下表一行（区别技术特征的可见性已由 `INVENTIVENESS-THREE-STEP` 把守）。
  */
 import { describe, expect, it } from 'vitest'
 import { RuleEngine, defaultPatentRules } from '@deepseek-ai/dsh-patent-core'
@@ -183,6 +185,14 @@ const cases: readonly CriterionCase[] = [
     missing: '以最接近的现有技术为起点，确定区别技术特征。',
   },
 
+  // 实际解决技术问题：三步法第二步须写明实际解决的技术问题（区别技术特征的可见性由
+  // INVENTIVENESS-THREE-STEP 把守，此处不重复）
+  {
+    field: 'pathElements',
+    id: 'INVENTIVENESS-TECHNICAL-PROBLEM',
+    satisfied: '以最接近的现有技术为起点确定区别技术特征，并写明本发明实际解决的技术问题。',
+    missing: '以最接近的现有技术为起点确定区别技术特征，并进一步论证技术启示。',
+  },
   // 公开方式判断：公开方式 + 时间基准两步
   {
     field: 'pathElements',
@@ -238,6 +248,16 @@ describe('checker 六族之外各规则：判据齐全通过，缺一项以该�
   it.each(cases)('$field $id', ({ id, satisfied, missing }) => {
     expect(evaluateOne(id, satisfied)).toEqual([])
     expect(evaluateOne(id, missing)).toEqual([id])
+  })
+
+  it('REASON-CREATIVITY-01B：条件式判据只在援引公知常识时要求证据', () => {
+    const id = 'REASON-CREATIVITY-01B'
+    // 未援引公知常识：不报出（该步缺失由 REASON-CREATIVITY-01A 的三步法路径把守）
+    expect(evaluateOne(id, '该区别是常规选择，无需创造性劳动。')).toEqual([])
+    // 援引且给出证据：不报出
+    expect(evaluateOne(id, '该区别属于公知常识，教科书中有明确记载。')).toEqual([])
+    // 援引而无证据：以该规则报出
+    expect(evaluateOne(id, '该区别属于公知常识，无需创造性劳动。')).toEqual([id])
   })
 
   it('覆盖表里没有重复的规则 id', () => {
