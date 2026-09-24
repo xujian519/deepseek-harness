@@ -9,8 +9,7 @@
  * `fetch` 用 `id_list` 形式精确取记录。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getText, type LiteratureFetchOptions, type LiteratureRateLimit } from '../http.ts'
-import type { NetworkRetryOptions } from '../../network-fetch.ts'
+import { getText, type LiteratureBudgetOptions, type LiteratureFetchOptions, type LiteratureRateLimit } from '../http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 import { xmlAttr, xmlBlocks, xmlSelfClosing, xmlText } from '../shared/xml.ts'
 
@@ -20,13 +19,11 @@ const RATE_LIMIT = { minIntervalMs: 3000 }
 /** arXiv 认识的查询字段前缀；命中即视为已 fielded，透传不包裹。 */
 const FIELDED = /^(ti|au|abs|co|jr|cat|rn|id|all):/i
 
-/** 创建 arXiv 连接器的选项（fetch/限速/重试注入）。 */
-export interface CreateArxivConnectorOptions {
+/** 创建 arXiv 连接器的选项（fetch/限速/预算注入）。 */
+export interface CreateArxivConnectorOptions extends LiteratureBudgetOptions {
   fetchImpl?: typeof fetch
   /** 覆盖默认 3s per-host 限速（测试注入小值/0）。 */
   rateLimit?: LiteratureRateLimit
-  /** 覆盖重试配置（测试注入 maxRetries: 0 跳过退避等待）。 */
-  retry?: NetworkRetryOptions
 }
 
 interface Entry {
@@ -121,6 +118,8 @@ export function createArxivConnector(options: CreateArxivConnectorOptions = {}):
   const http: LiteratureFetchOptions = {
     fetchImpl: options.fetchImpl,
     rateLimit: options.rateLimit ?? RATE_LIMIT,
+    timeoutMs: options.timeoutMs,
+    cacheTtlMs: options.cacheTtlMs,
     retry: options.retry,
   }
   return {

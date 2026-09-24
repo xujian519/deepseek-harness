@@ -5,14 +5,14 @@
  * 摘要（如有）为 JATS XML，剥离为纯文本。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getJSON } from '../http.ts'
+import { getJSON, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.crossref.org/works'
 const MAILTO = 'mailto=sati@users.noreply.github.com'
 
 /** 创建 Crossref 连接器的选项。 */
-export interface CreateCrossrefConnectorOptions {
+export interface CreateCrossrefConnectorOptions extends LiteratureBudgetOptions {
   fetchImpl?: typeof fetch
 }
 
@@ -73,6 +73,12 @@ function toHit(w: Work): ConnectorHit {
  * @returns Crossref 连接器。
  */
 export function createCrossrefConnector(options: CreateCrossrefConnectorOptions = {}): Connector {
+  const http: LiteratureFetchOptions = {
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
+    cacheTtlMs: options.cacheTtlMs,
+    retry: options.retry,
+  }
   return {
     id: 'crossref',
     name: 'Crossref',
@@ -83,16 +89,13 @@ export function createCrossrefConnector(options: CreateCrossrefConnectorOptions 
       const rows = clampLimit(opts?.limit)
       const data = await getJSON<SearchResponse>(
         `${BASE}?query=${encodeURIComponent(query)}&rows=${rows}&select=DOI,title,subtitle,abstract,author,container-title,publisher,type,URL,score,is-referenced-by-count,issued&${MAILTO}`,
-        { signal: opts?.signal, fetchImpl: options.fetchImpl },
+        { ...http, signal: opts?.signal },
       )
       return (data.message?.items ?? []).map(toHit)
     },
     async fetch(id, opts) {
       const doi = id.replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').trim()
-      const data = await getJSON<WorkResponse>(`${BASE}/${encodeURIComponent(doi)}?${MAILTO}`, {
-        signal: opts?.signal,
-        fetchImpl: options.fetchImpl,
-      })
+      const data = await getJSON<WorkResponse>(`${BASE}/${encodeURIComponent(doi)}?${MAILTO}`, { ...http, signal: opts?.signal })
       return data.message ?? null
     },
   }

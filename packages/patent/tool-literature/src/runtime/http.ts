@@ -67,9 +67,31 @@ export class LiteratureHttpError extends Error {
 }
 
 const USER_AGENT = 'dsh-tool-literature/0.1 (+https://github.com/deepseek-ai/deepseek-harness)'
-const DEFAULT_TIMEOUT_MS = 30_000
-const DEFAULT_CACHE_TTL_MS = 5 * 60_000
-const DEFAULT_RETRY: NetworkRetryOptions = { maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 15_000 }
+
+/** 单次文献请求的超时默认值（ms）。 */
+export const DEFAULT_TIMEOUT_MS = 30_000
+/** GET 进程内缓存的 TTL 默认值（ms）。 */
+export const DEFAULT_CACHE_TTL_MS = 5 * 60_000
+/** 重试预算默认值：3 次重试、1s 起指数退避、单次退避上限 15s。 */
+export const DEFAULT_RETRY: Required<Pick<NetworkRetryOptions, 'maxRetries' | 'baseDelayMs' | 'maxDelayMs'>> = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 15_000,
+}
+
+/**
+ * 部署网络预算（超时/缓存/重试）。连接器构造选项与本插件的 `Config` 都以此
+ * 承载同一组值：随部署改变的部分（代理、内网镜像、离线或限流环境）由
+ * `Config` 出口决定，未配置时落回上面的 `DEFAULT_*`。
+ */
+export interface LiteratureBudgetOptions {
+  /** 单次请求超时（ms）；省略用 {@link DEFAULT_TIMEOUT_MS}。 */
+  timeoutMs?: number
+  /** GET 缓存 TTL（ms）；0 禁用；省略用 {@link DEFAULT_CACHE_TTL_MS}。 */
+  cacheTtlMs?: number
+  /** 重试预算；省略用 {@link DEFAULT_RETRY}。 */
+  retry?: NetworkRetryOptions
+}
 
 // ── per-host 礼貌限速 ───────────────────────────────────────────────────────
 // pacing 串行化并间隔同一 host 的请求开始；并发上限约束在途请求数。

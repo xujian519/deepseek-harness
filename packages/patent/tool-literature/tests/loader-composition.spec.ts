@@ -13,6 +13,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as ToolLiterature from '@deepseek-ai/dsh-tool-literature'
+import { clearCache, resetRateLimits } from '../src/runtime/http.ts'
 
 let root: string | undefined
 let context: Context | undefined
@@ -59,6 +60,16 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
   await ctx.loader.await()
   return ctx
+}
+
+/** Run one arXiv search through the booted plugin. */
+function searchArxiv(ctx: Context, query: string) {
+  return ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: ToolCallId('search'),
+    name: 'paper_search',
+    arguments: { db: 'arxiv', query },
+  })
 }
 
 const ATOM_FEED = `<?xml version="1.0" encoding="UTF-8"?>
@@ -109,6 +120,87 @@ describe('tool-literature real Loader composition through cordis.yml', () => {
       if (result.isError) throw new Error('expected paper_search success')
       expect((result.value as { hits: unknown[] }).hits.length).toBe(1)
       expect(resultText(result)).toContain('Attention Is All You Need')
+    } finally {
+      globalThis.fetch = original
+    }
+  }, 30_000)
+
+  it('serves a repeated search from the GET cache under the default TTL', async () => {
+    clearCache()
+    resetRateLimits()
+    const original = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return new Response(ATOM_FEED, { status: 200 })
+    }
+    try {
+      const ctx = await boot([])
+      expect((await searchArxiv(ctx, 'attention')).isError).toBe(false)
+      expect((await searchArxiv(ctx, 'attention')).isError).toBe(false)
+      expect(calls).toBe(1)
+    } finally {
+      globalThis.fetch = original
+    }
+  }, 30_000)
+
+  it('fetches every time when cacheTtlMs is 0', async () => {
+    clearCache()
+    resetRateLimits()
+    const original = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return new Response(ATOM_FEED, { status: 200 })
+    }
+    try {
+      const ctx = await boot(['    cacheTtlMs: 0'])
+      expect((await searchArxiv(ctx, 'attention')).isError).toBe(false)
+      expect((await searchArxiv(ctx, 'attention')).isError).toBe(false)
+      expect(calls).toBe(2)
+    } finally {
+      globalThis.fetch = original
+    }
+  }, 30_000)
+
+  it('stops after the first attempt when the retry budget is zero', async () => {
+    clearCache()
+    resetRateLimits()
+    const original = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return new Response('upstream failure', { status: 500 })
+    }
+    try {
+      const ctx = await boot(['    retry:', '      maxRetries: 0'])
+      const result = await searchArxiv(ctx, 'attention')
+      expect(result.isError).toBe(true)
+      expect(calls).toBe(1)
+    } finally {
+      globalThis.fetch = original
+    }
+  }, 30_000)
+
+  it('times out a hanging request at the configured timeoutMs', async () => {
+    clearCache()
+    resetRateLimits()
+    const original = globalThis.fetch
+    globalThis.fetch = (_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal
+      if (!(signal instanceof AbortSignal)) {
+        reject(new Error('expected the request to carry an abort signal'))
+        return
+      }
+      signal.addEventListener('abort', () => {
+        reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'))
+      })
+    })
+    try {
+      const ctx = await boot(['    timeoutMs: 7'])
+      const result = await searchArxiv(ctx, 'attention')
+      expect(result.isError).toBe(true)
+      expect(resultText(result)).toContain('timed out after 7ms')
     } finally {
       globalThis.fetch = original
     }

@@ -17,4 +17,11 @@ describe('@deepseek-ai/dsh-tool-literature surface', () => {
     expect(typeof Pkg.createPaperListSourcesTool).toBe('function')
     expect(Pkg.Config).toBeDefined()
   })
+
+  it('defaults the network budgets to the documented timeout, cache TTL, and retry policy', () => {
+    const config = Pkg.Config({})
+    expect(config.timeoutMs).toBe(30_000)
+    expect(config.cacheTtlMs).toBe(300_000)
+    expect(config.retry).toEqual({ maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 15_000 })
+  })
 })

@@ -12,9 +12,10 @@ import { createArxivConnector } from './connectors/arxiv.ts'
 import { createOpenAlexConnector } from './connectors/openalex.ts'
 import { createSemanticScholarConnector } from './connectors/semantic-scholar.ts'
 import { createCrossrefConnector } from './connectors/crossref.ts'
+import type { LiteratureBudgetOptions } from './http.ts'
 
-/** 默认文献注册表装配选项（各源开关与可选凭据）。 */
-export type CreateLiteratureRegistryOptions = {
+/** 默认文献注册表装配选项（各源开关、可选凭据与部署网络预算）。 */
+export type CreateLiteratureRegistryOptions = LiteratureBudgetOptions & {
   /** arXiv 开关（默认 true）。 */
   arxiv?: boolean
   /** OpenAlex 开关（默认 true）。 */
@@ -38,22 +39,28 @@ export type CreateLiteratureRegistryOptions = {
  */
 export function createLiteratureRegistry(options: CreateLiteratureRegistryOptions = {}): ConnectorRegistry {
   const registry = new ConnectorRegistry()
+  const budget: LiteratureBudgetOptions = {
+    timeoutMs: options.timeoutMs,
+    cacheTtlMs: options.cacheTtlMs,
+    retry: options.retry,
+  }
   if (options.arxiv !== false) {
-    registry.register(createArxivConnector({ fetchImpl: options.fetchImpl }))
+    registry.register(createArxivConnector({ ...budget, fetchImpl: options.fetchImpl }))
   }
   if (options.openalex !== false) {
-    registry.register(createOpenAlexConnector({ mailto: options.openalexMailto, fetchImpl: options.fetchImpl }))
+    registry.register(createOpenAlexConnector({ ...budget, mailto: options.openalexMailto, fetchImpl: options.fetchImpl }))
   }
   if (options.semanticScholar !== false) {
     registry.register(
       createSemanticScholarConnector({
+        ...budget,
         apiKey: options.semanticScholarApiKey,
         fetchImpl: options.fetchImpl,
       }),
     )
   }
   if (options.crossref !== false) {
-    registry.register(createCrossrefConnector({ fetchImpl: options.fetchImpl }))
+    registry.register(createCrossrefConnector({ ...budget, fetchImpl: options.fetchImpl }))
   }
   return registry
 }

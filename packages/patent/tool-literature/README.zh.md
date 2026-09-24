@@ -48,6 +48,11 @@ Schemastery 配置，所有字段均可选。
 | `crossref` | boolean | `true` | 注册 Crossref 连接器。 |
 | `openalexMailto` | string | — | OpenAlex polite pool 邮箱；缺省回退到 `OPENALEX_MAILTO`，再回退到默认值。 |
 | `semanticScholarApiKey` | string | — | Semantic Scholar 更高限额档位的 API key。 |
+| `timeoutMs` | number | `30000` | 单次 HTTP 请求超时（ms）。 |
+| `cacheTtlMs` | number | `300000` | GET 缓存 TTL（ms）；`0` 关闭缓存。 |
+| `retry.maxRetries` | number | `3` | 首次尝试之外的重试次数。 |
+| `retry.baseDelayMs` | number | `1000` | 首次退避间隔（ms）。 |
+| `retry.maxDelayMs` | number | `15000` | 单次退避间隔上限（ms）。 |
 
 连接器工厂接受一个仅测试使用的 `fetchImpl` 覆盖；它不是 `Config` 字段。
 

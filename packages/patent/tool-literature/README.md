@@ -46,6 +46,11 @@ Schemastery configuration, every field optional.
 | `crossref` | boolean | `true` | Register the Crossref connector. |
 | `openalexMailto` | string | — | OpenAlex polite-pool email; falls back to `OPENALEX_MAILTO`, then a default. |
 | `semanticScholarApiKey` | string | — | Semantic Scholar API key for a higher rate tier. |
+| `timeoutMs` | number | `30000` | Timeout for one HTTP request, in ms. |
+| `cacheTtlMs` | number | `300000` | GET cache TTL in ms; `0` disables the cache. |
+| `retry.maxRetries` | number | `3` | Retries after the first attempt. |
+| `retry.baseDelayMs` | number | `1000` | First backoff delay, in ms. |
+| `retry.maxDelayMs` | number | `15000` | Cap for one backoff delay, in ms. |
 
 The connector factories accept a `fetchImpl` override used only by tests; it is not a `Config` field.
 
