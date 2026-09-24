@@ -28,6 +28,7 @@ None; this package neither assembles nor sends a provider request.
 ## Known Limitations and Deferred Work
 
 - **File drops deferred** — `desktop/file-dropped` stays a contract event with no Main-side emitter: window-level drops do not reach Electron Main, and the web surface already handles in-app drops (the workspace surface's `acceptDrop`). A renderer drop channel would widen the sandboxed preload surface and is deferred with that work.
+- **Reconnection backoff defaults live in the client options** — `BridgeClient` defaults to a 500 ms base delay, a 5 s cap, and 10 attempts; the desktop shell is the only construction site and takes them unchanged, so the policy is stated by the deployment that builds the client rather than by a plugin `Config` field.
 - **Single backend connection** — the bridge server accepts one concurrent backend socket and rejects additional connections; reconnection is client-driven with exponential backoff and live-registration replay.
 
 ### Dev Note

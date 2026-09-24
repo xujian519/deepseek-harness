@@ -138,6 +138,8 @@ The declarations sit in the request's stable tool prefix for as long as a switch
 
 These limits define what the sidebar does not do today. They are current package constraints, not a task backlog.
 
+- **Git discovery budgets are fixed** — the workspace-container fallback probes at most 200 child directories, abandons a probe after 5 s, and caches discovery for 60 s. All three bound the panel's own probing (the 200-directory cap is the freeze fix from #369), so a slow or remote checkout reports "no repository detected" instead of stalling; none is a `Config` field.
+
 - **No shipped composition mounts it** — both the desktop composition and a browser `dsh web` composition leave the panel off; adding the patch row is the opt-in, not a setting.
 - **Terminals need a healthy node-pty** — a missing or broken native install leaves the plugin degraded: terminal tabs show a repair command and the `terminal_*` tools stay unregistered, while `sidebar_open` keeps working.
 - **One right panel at a time** — when the `aionui-panel` settings namespace selects itself as the right-panel provider, the sidebar does not mount.

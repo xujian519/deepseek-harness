@@ -205,17 +205,31 @@ function runGit(cwd: string, args: string[], timeoutMs = 30_000): Promise<string
   })
 }
 
-/** Cap on child directories probed by the workspace-container fallback scan.
- *  A home-directory cwd can hold hundreds of visible folders (Library, iCloud
- *  mounts…); probing them all serially is what froze the panel in #369. */
+/**
+ * Cap on child directories probed by the workspace-container fallback scan.
+ * A home-directory cwd can hold hundreds of visible folders (Library, iCloud
+ * mounts…); probing them all serially is what froze the panel in #369.
+ *
+ * Fixed, not a deployment budget: it bounds the panel's own probing, and
+ * raising it reintroduces the freeze it exists to prevent.
+ */
 const DISCOVERY_LIMIT = 200
-/** Per-probe and direct-discovery budget. `rev-parse` is millisecond-scale on
- *  a healthy checkout; a probe that needs longer is a stalled mount and is
- *  better abandoned than waited on. */
+/**
+ * Per-probe and direct-discovery budget. `rev-parse` is millisecond-scale on
+ * a healthy checkout; a probe that needs longer is a stalled mount and is
+ * better abandoned than waited on.
+ *
+ * Fixed: it protects panel responsiveness, so a slow or remote checkout reports
+ * "no repository detected" instead of stalling for a configurable longer wait.
+ */
 const DISCOVERY_TIMEOUT_MS = 5_000
-/** Discovery results are cheap to recompute but expensive to storm: the panel
- *  polls every 2s and each poll fans out into several git.* calls that all
- *  resolve the same roots. A short TTL keeps fan-out at one scan per cwd. */
+/**
+ * Discovery results are cheap to recompute but expensive to storm: the panel
+ * polls every 2s and each poll fans out into several git.* calls that all
+ * resolve the same roots. A short TTL keeps fan-out at one scan per cwd.
+ *
+ * Fixed: internal rhythm paired with the panel's poll interval.
+ */
 const DISCOVERY_CACHE_TTL_MS = 60_000
 
 const repoRootsCache = new Map<string, { roots: string[]; expires: number }>()

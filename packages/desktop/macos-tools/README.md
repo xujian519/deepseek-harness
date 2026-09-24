@@ -76,6 +76,7 @@ None; this package neither assembles nor sends a provider request.
 - **darwin only** — the plugin registers tools on every platform it mounts on, but the bundle row gates it to darwin because every executable is macOS-specific; the CLI runner itself has cross-platform tests over `/bin/echo`, `/bin/cat`, and `/usr/bin/false`.
 - **Notifications need system consent** — `display notification` banners arrive only when macOS allows notifications from the host process (terminal, Electron app, or `dsh` binary); without consent the command succeeds silently.
 - **Fail-closed without an approval channel** — in compositions that mount no approval answerer (for example unattended headless runs), the four gated actions deny with an explicit error instead of running; this is the designed behavior, not a defect.
+- **The stdout cap is fixed** — the runner's `maxBuffer` is 8 MiB because the largest output this package requests is a clipboard read; it bounds the runner's memory rather than expressing a deployment preference (per-command timeouts are `commandTimeoutMs`).
 - **Clipboard reads are privacy-sensitive** — every read asks for one-time approval because the clipboard can hold passwords or tokens; the read is capped by `clipboardReadMaxChars`.
 - **Deferred** — screenshots (Screen Recording TCC is bound to the host process and the tool would need image content blocks), Apple Music control, and volume control are deliberately out of scope for this first version.
 

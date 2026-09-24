@@ -235,7 +235,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **#211 专利域渲染预算无 Config 出口(PR #270)**:三个渲染超时提升为 `Config` 字段(`graphvizRenderTimeoutMs` 60000、`freecadRenderTimeoutMs` 120000、`pdfTimeoutMs` 120000),默认值落在实现侧导出常量并由插件显式解析注入;`GRACE_MS`(3s,与 patent-data 共用故固定)与单流输出上限(内存边界)按定性登记为固定项并写入两侧 README。**偏离 09-23 定性一处**:两个**探测**超时改为导出 API 的必填参数(`GraphvizProbeOptions.probeTimeoutMs` / `FreeCADProbeOptions.probeTimeoutMs` + 导出默认值),不给 Config 字段——插件自身不调用探测,给字段就是无效果的旋钮。四条链路各以「注入非默认预算」的用例钉住,并逐条做过回退实现的红/绿对照(渲染器忽略注入值、选择器不转交 deps、插件不读 Config、pdfRenderer 忽略参数)。
 - **#224 agent 指令读取聚合预算(PR #269)**:新增 `Config.maxTotalSourceBytes`(默认 4 MiB,是出厂渲染预算的十倍),按「最具体优先」读取、读后恢复发现顺序,读数预算耗尽的宽泛文件与渲染预算丢弃的同一批;放不进剩余字节的候选按超预算候选处理(跳过、不截断)。该预算进入 `workspaceBaselineIdentity`,与 `maxSourceBytes` 并列。**按裁定不做**:`observed` 仍保留全部成功读取的文件(裁剪它改的是基线记账),对账遍仍按单个 scope 读取;两处均以收敛后的 TODO 与 README 限制条目登记。六个承载基线身份串的签入 fixture 作了纯字符串更新(消息内容与条数未变,replay 全绿)。
 - **同批裁定的落地进度**:#223(构建后测试车道与缺产物 `::warning::`)随 PR #272 落地;#222(fork CI 性能门禁接线 + 修 `ci-workflow.spec.ts` 对归档目录的幽灵断言)随 PR #273 落地(见下节);#225 分三批:#274(第一批,memory 与 session 侧)见下节,余下两批仍待办。
-
+- **同批裁定的落地进度**:#223(构建后测试车道与缺产物 `::warning::`)随 PR #272 落地;#222(fork CI 性能门禁接线 + 修 `ci-workflow.spec.ts` 对归档目录的幽灵断言)随 PR #273 落地;#225 分三批:#274(第一批,memory 与 session 侧)与 #275(第二批,客户端与桌面侧)见下节,第三批仍待办。
 ## 2026-09-24 更新(第二批:#222 fork 性能门禁接线)
 
 - **#222(PR #273)**:按裁定取「接线」路线。`ci-fork.yml` 新增 `benchmarks` job(名 `node 24 / benchmarks`,`if: pull_request` 且限 fork 仓库,`runs-on: ubuntu-latest`,`timeout-minutes: 15`,独占 runner,`playwright install --with-deps chromium` 后跑 `pnpm run check:ci:bench`)——门禁文档里的「required Linux PR gate」在 fork 上重新为真。**幽灵断言已消除**:`scripts/ci-workflow.spec.ts` 的 `loadWorkflow()` 不再回落到 `.github/workflows-disabled/`,归档读取改为逐处显式调用 `loadArchivedWorkflow()`(36 处,均为 vendored 上游发布/流水线结构断言),三条 benchmark 断言改为读 `ci-fork.yml` 的真实 job;删除该 job 会立刻让这三条变红(实测)。**#222 第三项(perf/stress 语料)实测更正**:`apps/web/tests/complex-history.perf.ts` 与 `apps/web/stress-tests/reasoning-chunks.stress.ts` 早已显式列入 `tsconfig.host.json`(153/158 行),`vitest.web.perf.config.ts`/`vitest.web-stress.config.ts` 两条手工通道仍是协议外通道、由本次裁定保持不接线。
@@ -246,6 +246,10 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 按 PR #140 的方法逐组定性,分三个 PR 落地。
 
 - **第一批(PR #274,memory 与 session 侧)**:`packages/memory/openviking/src/memory-recall.ts` 的四个检索侧常量提升为 `autoRecall` 的 `Config` 字段——`searchLimit`(20)、`branchLimit`(16)、`branchDeadlineMs`(3000)、`branchCacheTtlMs`(300000),默认值即原常量;四处读取改为经 `MemoryRecall` 持有的配置闭包,并以四个「注入非默认值」的用例钉住(逐个回退成硬编码后对应用例变红;分支期限用例同时断言步骤耗时 < 1s,原本 3s 的挂起分支用例因此提速)。`packages/session/session-persistence-jsonl/src/migration-verifier.ts` 的 `MAX_CONCURRENT_VERIFIERS = 2` 判为**固定**:每个校验器是加载整代的 worker,该上限是内存边界而非按核数伸缩的池;理由写入源码注释与本包 README 限制条目,不进 `Config`。
+
+## 2026-09-24 更新(#225 第二批:客户端与桌面侧逐项定性)
+
+- **四组常量判为固定,依据写入源码 JSDoc 与各包 README 限制条目**(与 M8 的结论形态一致:定性本身就是交付物):① `client/better-sidebar/src/git.ts` 的 `DISCOVERY_LIMIT`(200)、`DISCOVERY_TIMEOUT_MS`(5000)、`DISCOVERY_CACHE_TTL_MS`(60000)——三者约束的都是面板自身探测(200 上限即 #369 的冻结修复),慢速/远端检出得到「未检测到仓库」而非可配置的更长等待;② `desktop/macos-tools/src/runner.ts` 的 `MAX_BUFFER_BYTES`(8 MiB)——`execFile` 的 runner 内存边界,本包请求的最大输出就是一次剪贴板读取;③ `desktop/shell/src/bridge-client.ts` 的重连退避默认值(500 ms / 5 s / 10 次)——已是 `options.reconnect` 这一可选 request 面的默认值,桌面壳是唯一构造点且原样采用;④ `client/ui-sidebar-documentpreview/src/client/html/pack.ts` 的 `MAX_ASSET_BYTES`/`MAX_TOTAL_BYTES`/`MAX_ASSETS`——打包器在浏览器侧与预览同处运行,约束客户端自身内存。**四组均不在 `Config` 出口**(#225 验收允许该分支:固定项写明理由即可)。
 
 ## 总体评估
 

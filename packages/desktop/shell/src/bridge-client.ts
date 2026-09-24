@@ -257,7 +257,14 @@ export class BridgeClient {
     this.rejectAllPending(error)
   }
 
-  /** Backoff delay for the next reconnect attempt (exponential, capped). */
+  /**
+   * Backoff delay for the next reconnect attempt (exponential, capped).
+   *
+   * The defaults in `options.reconnect` below are the request/default spec of an
+   * existing optional surface: `desktop/shell` is the only construction site and
+   * takes them unchanged, so the reconnection policy belongs to the deployment
+   * that builds the client rather than to a plugin `Config` field.
+   */
   private reconnectDelay(): number {
     const base = this.options.reconnect?.baseDelayMs ?? 500
     const max = this.options.reconnect?.maxDelayMs ?? 5_000

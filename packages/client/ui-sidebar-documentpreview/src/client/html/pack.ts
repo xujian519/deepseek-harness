@@ -11,6 +11,13 @@ import { decodeText } from './bytes.ts'
  */
 export type ReadHtmlRelative = (reference: string, signal: AbortSignal) => Promise<DocumentFileBytes>
 
+/**
+ * Bounds for one packed preview document.
+ *
+ * Fixed: the packer runs next to the preview inside the browser, so these bound
+ * the client's own memory rather than a host deployment; a document that exceeds
+ * them is reported instead of packed.
+ */
 const MAX_ASSET_BYTES = 4 * 1024 * 1024
 const MAX_TOTAL_BYTES = 32 * 1024 * 1024
 const MAX_ASSETS = 64
