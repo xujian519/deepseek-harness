@@ -10,7 +10,7 @@ import { caseOutputsDir } from '@deepseek-ai/dsh-patent-core'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { buildBrandStyle, loadBrandFromPath, mergeBrand } from './brandInjector.ts'
 import { DocumentRenderError } from './errors.ts'
-import { renderPdf } from './pdfRenderer.ts'
+import { DEFAULT_PDF_TIMEOUT_MS, renderPdf } from './pdfRenderer.ts'
 import { readTemplateHtml } from './templateResolver.ts'
 import type { DocumentRenderInput, DocumentRenderResult, RenderFormat } from './types.ts'
 
@@ -38,6 +38,8 @@ export interface RenderPatentDocumentOptions {
   defaultOutputDir?: string
   /** 调用方取消信号；触发后终止 headless Chrome 进程树。 */
   signal?: AbortSignal
+  /** Chrome 无头打印超时（毫秒）；缺省取 pdfRenderer 的导出默认值。 */
+  pdfTimeoutMs?: number
 }
 
 /**
@@ -244,6 +246,7 @@ export async function renderPatentDocument(
       {
         ...(options.chromePath !== undefined ? { chromePath: options.chromePath } : {}),
         ...(options.signal !== undefined ? { signal: options.signal } : {}),
+        pdfTimeoutMs: options.pdfTimeoutMs ?? DEFAULT_PDF_TIMEOUT_MS,
       },
     )
     if (pdfResult.ok) {

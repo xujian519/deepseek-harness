@@ -2,8 +2,14 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { findChrome, renderPdf } from '@deepseek-ai/dsh-patent-document'
+import { DEFAULT_PDF_TIMEOUT_MS, findChrome, renderPdf } from '@deepseek-ai/dsh-patent-document'
 import { fakeSubprocess, successHandle } from './helpers.ts'
+
+/** 用例显式声明的打印超时（毫秒）；生产由宿主 Config.pdfTimeoutMs 解析后注入。 */
+const TEST_PDF_TIMEOUT_MS = DEFAULT_PDF_TIMEOUT_MS
+
+/** 超时用例注入的非默认打印超时（毫秒）：证明期限取自注入值而非模块默认值。 */
+const INJECTED_PDF_TIMEOUT_MS = 1_500
 
 // Deterministic discovery: the built-in Chrome candidate list is absolute
 // system paths that must not resolve differently on machines with Chrome
@@ -73,7 +79,7 @@ describe('pdfRenderer', () => {
         return successHandle()
       })
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result).toEqual({ ok: true, path: pdfPath })
       expect(existsSync(pdfPath)).toBe(true)
 
@@ -95,7 +101,7 @@ describe('pdfRenderer', () => {
       writeFileSync(htmlPath, '<html></html>')
 
       const { runtime, calls } = fakeSubprocess(() => successHandle())
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath: join(dir, 'missing-chrome') })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath: join(dir, 'missing-chrome'), pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
 
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('未找到 Chrome')
@@ -119,7 +125,7 @@ describe('pdfRenderer', () => {
         done: Promise.resolve({ exitCode: 1, signal: null }),
       }))
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('Chrome PDF 打印失败')
     } finally {
@@ -137,7 +143,7 @@ describe('pdfRenderer', () => {
       writeFileSync(htmlPath, '<html></html>')
 
       const { runtime } = fakeSubprocess(() => successHandle())
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('Chrome 未生成 PDF')
     } finally {
@@ -219,7 +225,7 @@ describe('renderPdf process handling', () => {
         return successHandle()
       })
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result).toEqual({ ok: true, path: pdfPath })
       expect(calls[0]?.argv).toContain('--no-sandbox')
       expect(calls[0]?.argv).toContain('--disable-setuid-sandbox')
@@ -245,7 +251,7 @@ describe('renderPdf process handling', () => {
         return successHandle()
       })
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, {})
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result).toEqual({ ok: true, path: pdfPath })
       expect(calls[0]?.cwd).toBe(process.cwd())
     } finally {
@@ -270,9 +276,11 @@ describe('renderPdf process handling', () => {
           return successHandle()
         })
 
-        const pending = renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+        const pending = renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: INJECTED_PDF_TIMEOUT_MS })
         expect(spawnedSignal).toBeDefined()
-        vi.advanceTimersByTime(120_000)
+        vi.advanceTimersByTime(INJECTED_PDF_TIMEOUT_MS - 1)
+        expect(spawnedSignal?.aborted).toBe(false)
+        vi.advanceTimersByTime(1)
         expect(spawnedSignal?.aborted).toBe(true)
         await pending
       } finally {
@@ -299,7 +307,7 @@ describe('renderPdf process handling', () => {
         caller.abort()
         return successHandle()
       })
-      await renderPdf(runtime, htmlPath, pdfPath, { chromePath, signal: caller.signal })
+      await renderPdf(runtime, htmlPath, pdfPath, { chromePath, signal: caller.signal, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(duringSpawn?.aborted).toBe(true)
 
       const preAborted = new AbortController()
@@ -309,7 +317,7 @@ describe('renderPdf process handling', () => {
         preSpawn = spec.signal
         return successHandle()
       })
-      await renderPdf(runtime2, htmlPath, pdfPath, { chromePath, signal: preAborted.signal })
+      await renderPdf(runtime2, htmlPath, pdfPath, { chromePath, signal: preAborted.signal, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(preSpawn?.aborted).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -330,7 +338,7 @@ describe('renderPdf process handling', () => {
         done: Promise.resolve({ exitCode: null, signal: 'SIGKILL' as const }),
       }))
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('被信号 SIGKILL 终止')
     } finally {
@@ -352,7 +360,7 @@ describe('renderPdf process handling', () => {
         done: Promise.resolve({ exitCode: null, signal: null }),
       }))
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('被信号 未知 终止')
     } finally {
@@ -373,7 +381,7 @@ describe('renderPdf process handling', () => {
         throw new Error('spawn exploded')
       })
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('spawn exploded')
     } finally {
@@ -394,7 +402,7 @@ describe('renderPdf process handling', () => {
         throw 'boom'
       })
 
-      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath })
+      const result = await renderPdf(runtime, htmlPath, pdfPath, { chromePath, pdfTimeoutMs: TEST_PDF_TIMEOUT_MS })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('boom')
     } finally {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Config } from '@deepseek-ai/dsh-patent-document'
+import { Config, DEFAULT_PDF_TIMEOUT_MS } from '@deepseek-ai/dsh-patent-document'
 
 describe('Config', () => {
   it('defaults outputRoot to .dsh/documents', () => {
@@ -16,5 +16,11 @@ describe('Config', () => {
 
   it('rejects a non-string chromePath', () => {
     expect(() => Config({ chromePath: 42 as unknown as string })).toThrow()
+  })
+
+  it('defaults pdfTimeoutMs to the renderer default and accepts a slower deployment', () => {
+    expect(Config({}).pdfTimeoutMs).toBe(DEFAULT_PDF_TIMEOUT_MS)
+    expect(Config({ pdfTimeoutMs: 300_000 }).pdfTimeoutMs).toBe(300_000)
+    expect(() => Config({ pdfTimeoutMs: 0 })).toThrow()
   })
 })

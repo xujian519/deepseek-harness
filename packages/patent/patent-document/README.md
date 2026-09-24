@@ -35,6 +35,7 @@ Schemastery configuration, every field optional.
 | --- | --- | --- | --- |
 | chromePath | string | none | Absolute Chrome executable used for PDF; overrides DSH_CHROME_PATH/CHROME_PATH discovery. |
 | outputRoot | string | .dsh/documents | Default output directory (relative to the process working directory) when neither outputDir nor caseId is given. |
+| pdfTimeoutMs | number | 120000 | Timeout for one headless-Chrome print; a slower deployment can raise it without changing the SIGTERM->SIGKILL grace (3 s) or the per-stream output cap (100000 bytes), which stay fixed as a teardown symmetry and a memory bound. |
 
 ## Model Experience
 

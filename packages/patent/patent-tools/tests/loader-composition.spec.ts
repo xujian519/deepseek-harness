@@ -20,6 +20,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import PatentData from '@deepseek-ai/dsh-patent-data'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
+import { findDot } from '@deepseek-ai/dsh-patent-tools'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 
 let root: string | undefined
@@ -32,7 +33,7 @@ afterEach(async () => {
   root = undefined
 })
 
-async function boot(noteDir: string): Promise<Context> {
+async function boot(noteDir: string, extraConfig: readonly string[] = []): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-patent-tools-loader-'))
   const configPath = join(root, 'cordis.yml')
   const yml = [
@@ -43,6 +44,7 @@ async function boot(noteDir: string): Promise<Context> {
     "- name: '@deepseek-ai/dsh-patent-tools'",
     '  config:',
     '    noteDir: ' + JSON.stringify(noteDir),
+    ...extraConfig,
     '',
   ].join('\n')
   await writeFile(configPath, yml)
@@ -98,6 +100,30 @@ describe('patent-tools real Loader composition', () => {
       expect(result.isError).toBe(false)
       const files = await readdir(notes)
       expect(files.filter(file => file.endsWith('.json')).length).toBe(1)
+    } finally {
+      await rm(notes, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  it.skipIf(findDot() === undefined)('applies the dot render timeout configured in cordis.yml', async () => {
+    const notes = join(await mkdtemp(join(tmpdir(), 'dsh-patent-tools-notes-')), '99-知识库')
+    const figures = join(notes, 'figures')
+    try {
+      const ctx = await boot(notes, [
+        '    figureRenderer: cli',
+        '    graphvizRenderTimeoutMs: 1',
+        '    figureOutputDir: ' + JSON.stringify(figures),
+        '    figureIndexFile: ' + JSON.stringify(join(notes, 'figures-index.json')),
+      ])
+      const result = await ctx.tools.execute({
+        signal: new AbortController().signal,
+        callId: ToolCallId('loader-figure-1'),
+        name: 'generate_patent_figure',
+        arguments: { figure_type: 'raw_dot', dot: 'digraph { a -> b }', filename: 'timeout-probe' },
+      })
+      // A 1 ms budget aborts the dot CLI, so the configured value is what the
+      // renderer used; the default 60 s could not fail this fast.
+      expect(JSON.stringify(result)).toContain('渲染超时')
     } finally {
       await rm(notes, { recursive: true, force: true }).catch(() => {})
     }

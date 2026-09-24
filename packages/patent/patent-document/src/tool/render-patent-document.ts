@@ -80,6 +80,8 @@ export interface RenderPatentDocumentToolOptions {
   chromePath?: string
   /** 缺省输出目录（相对 cwd）。 */
   defaultOutputDir?: string
+  /** Chrome 无头打印超时（毫秒；与 Config.pdfTimeoutMs 同源）。 */
+  pdfTimeoutMs?: number
 }
 
 /**
@@ -154,6 +156,7 @@ export function createRenderPatentDocumentTool(options: RenderPatentDocumentTool
           subprocess: options.subprocess,
           ...(options.chromePath !== undefined ? { chromePath: options.chromePath } : {}),
           ...(options.defaultOutputDir !== undefined ? { defaultOutputDir: options.defaultOutputDir } : {}),
+          ...(options.pdfTimeoutMs !== undefined ? { pdfTimeoutMs: options.pdfTimeoutMs } : {}),
           signal: exec.signal,
         },
       )

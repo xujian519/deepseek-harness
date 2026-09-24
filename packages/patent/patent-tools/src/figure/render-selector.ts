@@ -8,7 +8,7 @@
  *
  * WASM 的 `renderString` 是主线程上的同步调用、不可中断（取消信号只在调用前后各查一次），
  * 因此输入规模直接决定该次调用占用事件循环的最坏时长；超过引擎档位上限的 DOT 改走 CLI，
- * 由子进程的 60 秒渲染期限兜住。本机实测（@viz-js/viz 3.x，链式图）：`dot` 3000 个节点
+ * 由子进程的渲染期限（Config.graphvizRenderTimeoutMs）兜住。本机实测（@viz-js/viz 3.x，链式图）：`dot` 3000 个节点
  * 约 0.4 s，而强制导向引擎 800 个节点已需 3.4 s，叠加 `overlap=false`、`splines=true`
  * 后 800 个节点需 139 s。
  *
@@ -30,6 +30,8 @@ export type FigureRendererSelectorDeps = {
   subprocess?: SubprocessRuntime
   /** dot 可执行路径覆盖（与 Config.graphvizExecutable 同源）。 */
   graphvizExecutable?: string
+  /** dot CLI 单次渲染超时（毫秒；与 Config.graphvizRenderTimeoutMs 同源）。 */
+  graphvizRenderTimeoutMs: number
 }
 
 /** WASM 引擎无法产出的格式（png/pdf 无插件），一律走 CLI 兜底。 */
@@ -62,7 +64,7 @@ function needsCliRenderer(spec: GraphvizRenderSpec): boolean {
 /**
  * 按配置选择渲染函数。
  * @param mode - 配置的渲染器模式；undefined 视为 'wasm'（默认）。
- * @param deps - subprocess 服务与 dot 路径覆盖。
+ * @param deps - subprocess 服务、dot 路径覆盖与渲染/探测超时。
  * @returns 与 renderWithGraphviz 同契约的渲染函数；超出 WASM 上限的输入按 `needsCliRenderer` 改走 CLI。
  */
 export function pickRenderer(
@@ -72,7 +74,10 @@ export function pickRenderer(
   const renderCli = (spec: GraphvizRenderSpec): Promise<GraphvizRenderOutcome> =>
     deps.subprocess === undefined
       ? Promise.resolve({ ok: false, code: 'not_installed', error: 'subprocess 服务不可用（未挂载 @deepseek-ai/dsh-subprocess）' })
-      : renderWithGraphviz(deps.subprocess, spec, deps.graphvizExecutable)
+      : renderWithGraphviz(deps.subprocess, spec, {
+        ...(deps.graphvizExecutable === undefined ? {} : { executable: deps.graphvizExecutable }),
+        renderTimeoutMs: deps.graphvizRenderTimeoutMs,
+      })
   if (mode === 'cli') return renderCli
   return spec => (needsCliRenderer(spec) ? renderCli(spec) : renderWithVizWasm(spec))
 }

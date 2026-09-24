@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import {
+  DEFAULT_GRAPHVIZ_PROBE_TIMEOUT_MS,
+  DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS,
   DOT_CANDIDATES,
   findDot,
   graphvizInstallMessage,
@@ -11,6 +13,15 @@ import {
   renderWithGraphviz,
   sanitizeDotFilename,
 } from '../src/figure/graphviz-renderer.ts'
+
+/** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.graphvizRenderTimeoutMs 解析后注入。 */
+const TEST_RENDER_TIMEOUT_MS = DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS
+
+/** 用例显式声明的探测预算（毫秒）；宿主插件不探测 dot，无对应 Config 字段。 */
+const TEST_PROBE_TIMEOUT_MS = DEFAULT_GRAPHVIZ_PROBE_TIMEOUT_MS
+
+/** 渲染超时用例注入的非默认预算（毫秒）：证明期限取自注入值而非渲染器模块默认值。 */
+const INJECTED_RENDER_TIMEOUT_MS = 1_500
 
 // Deterministic discovery: the built-in candidate list is absolute system
 // paths; existsSync returns whether the test put the candidate into the set.
@@ -164,7 +175,7 @@ describe('probeGraphviz', () => {
   it('dot -V 成功时报告就绪与版本', async () => {
     const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }, 'dot - graphviz version 12.2.1'))
     const { dot: dotPath } = fakeDot()
-    const result = await probeGraphviz(runtime, dotPath)
+    const result = await probeGraphviz(runtime, { executable: dotPath, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(result.ready).toBe(true)
     expect(result.version).toBe('12.2.1')
     expect(calls[0]?.argv).toEqual([dotPath, '-V'])
@@ -182,20 +193,20 @@ describe('probeGraphviz', () => {
       terminate() {},
       waitForExit: () => Promise.resolve(true),
     }))
-    const result = await probeGraphviz(runtime, dotPath)
+    const result = await probeGraphviz(runtime, { executable: dotPath, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(result).toEqual({ ready: true, executable: dotPath })
   })
 
   it('dot -V 非零退出、信号终止与 spawn 异常时报告未就绪', async () => {
     const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'bad'))
     const { dot: dotPath2 } = fakeDot()
-    const failed = await probeGraphviz(runtime, dotPath2)
+    const failed = await probeGraphviz(runtime, { executable: dotPath2, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(failed.ready).toBe(false)
     expect(failed.message).toContain('退出码 1')
 
     const { runtime: nullExit } = fakeSubprocess(() => handleWith({ exitCode: null, signal: 'SIGTERM' }))
     const { dot: dotPath3 } = fakeDot()
-    const signalled = await probeGraphviz(nullExit, dotPath3)
+    const signalled = await probeGraphviz(nullExit, { executable: dotPath3, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(signalled.ready).toBe(false)
     expect(signalled.message).toContain('退出码 未知')
 
@@ -203,7 +214,7 @@ describe('probeGraphviz', () => {
       throw new Error('boom')
     })
     const { dot: dotPath4 } = fakeDot()
-    const caught = await probeGraphviz(throwing, dotPath4)
+    const caught = await probeGraphviz(throwing, { executable: dotPath4, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(caught.ready).toBe(false)
     expect(caught.message).toContain('boom')
 
@@ -211,7 +222,7 @@ describe('probeGraphviz', () => {
       throw 'plain-boom'
     })
     const { dot: dotPath5 } = fakeDot()
-    const caughtPlain = await probeGraphviz(throwingPlain, dotPath5)
+    const caughtPlain = await probeGraphviz(throwingPlain, { executable: dotPath5, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(caughtPlain.ready).toBe(false)
     expect(caughtPlain.message).toContain('plain-boom')
   })
@@ -223,7 +234,7 @@ describe('probeGraphviz', () => {
       const dotPath = join(dir, '__empty_dirname__', 'dot')
       writeFileSync(dotPath, '')
       const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
-      const result = await probeGraphviz(runtime, dotPath)
+      const result = await probeGraphviz(runtime, { executable: dotPath, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
       expect(result.ready).toBe(true)
       expect(calls[0]?.cwd).toBe(process.cwd())
     } finally {
@@ -235,7 +246,10 @@ describe('probeGraphviz', () => {
     const dir = tempDir()
     try {
       process.env.PATH = dir // 空 PATH（无 dot）
-      const result = await probeGraphviz(fakeSubprocess(() => handleWith({ exitCode: 0, signal: null })).runtime)
+      const result = await probeGraphviz(
+        fakeSubprocess(() => handleWith({ exitCode: 0, signal: null })).runtime,
+        { probeTimeoutMs: TEST_PROBE_TIMEOUT_MS },
+      )
       expect(result.ready).toBe(false)
       expect(result.message).toContain('brew install graphviz')
     } finally {
@@ -277,7 +291,7 @@ describe('renderWithGraphviz', () => {
         format: 'svg',
         engine: 'dot',
         outputDir,
-      }, dotPath)
+      }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toEqual({ ok: true, path })
       const argv = calls[0]?.argv as string[]
       expect(argv).toEqual([dotPath, '-Tsvg', '-Kdot', '-o', path])
@@ -293,7 +307,7 @@ describe('renderWithGraphviz', () => {
     try {
       process.env.PATH = dir
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
-      const result = await renderWithGraphviz(runtime, { dot: '', filename: 'x', format: 'svg', engine: 'dot', outputDir: dir })
+      const result = await renderWithGraphviz(runtime, { dot: '', filename: 'x', format: 'svg', engine: 'dot', outputDir: dir }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'not_installed' })
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -321,8 +335,13 @@ describe('renderWithGraphviz', () => {
           waitForExit: () => Promise.resolve(true),
         }
       })
-      const pending = renderWithGraphviz(runtime, { dot: 'digraph {}', filename: 'x', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
-      vi.advanceTimersByTime(60_000)
+      const pending = renderWithGraphviz(runtime, { dot: 'digraph {}', filename: 'x', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: INJECTED_RENDER_TIMEOUT_MS })
+      vi.advanceTimersByTime(INJECTED_RENDER_TIMEOUT_MS - 1)
+      let settled = false
+      void pending.then(() => { settled = true })
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      vi.advanceTimersByTime(1)
       const result = await pending
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('渲染超时')
@@ -338,7 +357,7 @@ describe('renderWithGraphviz', () => {
     try {
       writeFileSync(join(dir, 'f.svg'), MINIMAL_SVG)
       const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
-      const result = await renderWithGraphviz(runtime, { dot: '', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      const result = await renderWithGraphviz(runtime, { dot: '', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toEqual({ ok: true, path: join(dir, 'f.svg') })
       expect(calls[0]?.stdio).toEqual({ stdin: 'ignore', stdout: { maxBytes: 100_000 }, stderr: { maxBytes: 100_000 } })
     } finally {
@@ -351,7 +370,7 @@ describe('renderWithGraphviz', () => {
     try {
       const { dot: dotPath } = fakeDot()
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: null, signal: null }))
-      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('被信号 未知 终止')
     } finally {
@@ -368,7 +387,7 @@ describe('renderWithGraphviz', () => {
         caller.abort()
         throw new Error('boom')
       })
-      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, dotPath)
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'aborted' })
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -382,7 +401,7 @@ describe('renderWithGraphviz', () => {
       const { runtime } = fakeSubprocess(() => {
         throw 'plain-boom'
       })
-      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('plain-boom')
     } finally {
@@ -399,7 +418,7 @@ describe('renderWithGraphviz', () => {
       const { runtime, calls } = fakeSubprocess((_spec) => {
         return handleWith({ exitCode: 0, signal: null })
       })
-      await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, dotPath)
+      await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(calls[0]?.signal?.aborted).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -424,14 +443,14 @@ describe('renderWithGraphviz', () => {
           waitForExit: () => Promise.resolve(true),
         }
       })
-      const aborted = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, dotPath)
+      const aborted = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir, signal: caller.signal }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(aborted).toMatchObject({ ok: false, code: 'aborted' })
 
       const { dot: dotPath2 } = fakeDot()
       const { runtime: runtime2 } = fakeSubprocess(() => {
         throw new Error('spawn boom')
       })
-      const failed = await renderWithGraphviz(runtime2, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath2)
+      const failed = await renderWithGraphviz(runtime2, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath2, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(failed).toMatchObject({ ok: false, code: 'render_failed' })
       expect((failed as { error: string }).error).toContain('spawn boom')
     } finally {
@@ -444,7 +463,7 @@ describe('renderWithGraphviz', () => {
     try {
       const { dot: dotPath } = fakeDot()
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
-      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'never', format: 'png', engine: 'dot', outputDir: dir }, dotPath)
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'never', format: 'png', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('未生成输出文件')
     } finally {
@@ -457,7 +476,7 @@ describe('renderWithGraphviz', () => {
     try {
       const { dot: dotPath } = fakeDot()
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 2, signal: null }, 'syntax error'))
-      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, dotPath)
+      const result = await renderWithGraphviz(runtime, { dot: 'x', filename: 'f', format: 'svg', engine: 'dot', outputDir: dir }, { executable: dotPath, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('syntax error')
     } finally {

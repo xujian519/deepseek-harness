@@ -72,6 +72,7 @@ Schemastery 配置，所有字段可选。
 | `figureIndexFile` | string | `<cwd>/.sati/figures-index.json` | 附图索引文件：`analyze_patent_figure` 写入分析条目、`search_patent_figure` 检索（绝对或相对 cwd）。 |
 | `chemistryIndexFile` | string | `<cwd>/.sati/chemistry-index.json` | `recognize_chemical_structure` 写入的化学索引文件（绝对或相对 cwd）。 |
 | `graphvizExecutable` | string | 自动探测 | `dot` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_GRAPHVIZ_DOT` → 平台候选路径 → `PATH`。 |
+| `graphvizRenderTimeoutMs` | number | `60000` | CLI `dot` 单次渲染的超时；WASM 引擎为同步渲染，不受它约束。 |
 | `figureOutputDir` | string | `<cwd>/patent/figures` | `generate_patent_figure` 的输出目录（绝对或相对 cwd）。 |
 | `workbenchBaseUrl` | string | 进程内 webServer 端口 | `workbench_link_patent_case` 的工作台 API 基址；显式配置优先，web 组合内自动取 `http://127.0.0.1:<webServer 端口>`；不可用（非 web profile）时工具在执行期以 `setup_required` 失败。 |
 | `workbenchCaseRoot` | string | `<cwd>/patent-workspace` | `workbench_link_patent_case` 的案件根目录：每案位于 `<root>/<案号>/`，内含 `_matter-log.md`。 |
@@ -83,9 +84,12 @@ Schemastery 配置，所有字段可选。
 | `figureDpi` | number | — | 提交规格渲染 DPI（栅格输出生效；per-call `dpi` 覆盖）。 |
 | `figureMargin` | number（厘米） | — | 四边同值页边距；与 `figurePageSize` 同给时收缩绘图区 `size`（per-call `margin` 覆盖）。 |
 | `freecadExecutable` | string | 自动探测 | `generate_structure_figure` 的 `freecadcmd` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_FREECAD_CMD` → 平台候选路径 → `PATH`。 |
+| `freecadRenderTimeoutMs` | number | `120000` | `generate_structure_figure` 单次投影的超时；FreeCAD 冷启动比 `dot` 慢，故默认值翻倍。 |
 | `structureFigureEnabled` | boolean | `false` | `generate_structure_figure` 门禁：CAD 隔离、默认关闭；门禁未开启时工具在执行期以 `setup_required` 显式报错。 |
 | `structureFigureScale` | number | `1` | `generate_structure_figure` 的 TechDraw 投影比例默认值（per-call `scale` 覆盖）。 |
 | `structureFigureViews` | string[] | `['iso','front','top','right']` | `generate_structure_figure` 的缺省视图集（per-call `views` 覆盖）；每一项必须是受支持视图名（`iso`/`front`/`rear`/`top`/`bottom`/`left`/`right`），未知名称在配置加载时被拒绝。 |
+
+有两项子进程预算保持固定、不做配置：SIGTERM→SIGKILL 升级宽限（3 秒），因为 `dsh-patent-data` 的 subprocess runner 与它共用，改一处就破坏收尾对称；单流输出上限（100 000 字节），因为它约束渲染器内存。导出的 `probeGraphviz`/`probeFreeCad` 由调用方自带超时（`DEFAULT_GRAPHVIZ_PROBE_TIMEOUT_MS`/`DEFAULT_FREECAD_PROBE_TIMEOUT_MS`）；插件自身不探测，因此没有可配置的探测预算。
 
 未设置 `provider`/ `model` 时，LLM 消费工具照常注册，但调用时 fail loud（`setup_required`）。知识类工具需要经 `patent-knowledge:install` 准备的 knowledge.db；缺失时 fail loud 并给出安装引导。
 

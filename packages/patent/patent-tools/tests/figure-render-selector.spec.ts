@@ -4,8 +4,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS } from '../src/figure/graphviz-renderer.ts'
 import { pickRenderer } from '../src/figure/render-selector.ts'
 import type { GraphvizRenderSpec } from '../src/figure/graphviz-renderer.ts'
+
+/** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.graphvizRenderTimeoutMs 解析后注入。 */
+const TEST_RENDER_TIMEOUT_MS = DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS
+
+/** 超时用例注入的非默认预算（毫秒）：证明选择器把 deps 的预算转交渲染器，而非用模块默认值。 */
+const INJECTED_RENDER_TIMEOUT_MS = 1_500
 
 let temp: string | undefined
 
@@ -81,7 +88,7 @@ function fakeCli(): { runtime: SubprocessRuntime; calls: SubprocessSpawnSpec[] }
 describe('pickRenderer', () => {
   it('默认（未配置）走 WASM：svg 无 subprocess 也渲染成功', async () => {
     const dir = await tempDir()
-    const render = pickRenderer(undefined, {})
+    const render = pickRenderer(undefined, { graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     const outcome = await render(spec({ outputDir: dir }))
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
@@ -90,7 +97,7 @@ describe('pickRenderer', () => {
 
   it("mode='wasm' 显式选择同样走内置引擎", async () => {
     const dir = await tempDir()
-    const outcome = await pickRenderer('wasm', {})(spec({ outputDir: dir }))
+    const outcome = await pickRenderer('wasm', { graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ outputDir: dir }))
     expect(outcome.ok).toBe(true)
   })
 
@@ -99,7 +106,7 @@ describe('pickRenderer', () => {
     const dotPath = join(dir, 'dot')
     writeFileSync(dotPath, '')
     const { calls, runtime } = fakeCli()
-    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath })(spec({ outputDir: dir, format: 'png' }))
+    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath, graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ outputDir: dir, format: 'png' }))
     expect(outcome.ok).toBe(true)
     expect(calls[0]?.argv[0]).toBe(dotPath)
     expect(calls[0]?.argv).toContain('-Tpng')
@@ -110,18 +117,18 @@ describe('pickRenderer', () => {
     const dotPath = join(dir, 'dot')
     writeFileSync(dotPath, '')
     const { calls, runtime } = fakeCli()
-    const outcome = await pickRenderer('cli', { subprocess: runtime, graphvizExecutable: dotPath })(spec({ outputDir: dir }))
+    const outcome = await pickRenderer('cli', { subprocess: runtime, graphvizExecutable: dotPath, graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ outputDir: dir }))
     expect(outcome.ok).toBe(true)
     expect(calls[0]?.argv).toContain('-Tsvg')
   })
 
   it("mode='wasm' 时 pdf 无 subprocess → not_installed（兜底不可用）", async () => {
-    const outcome = await pickRenderer('wasm', {})(spec({ format: 'pdf' }))
+    const outcome = await pickRenderer('wasm', { graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ format: 'pdf' }))
     expect(outcome).toMatchObject({ ok: false, code: 'not_installed' })
   })
 
   it("mode='cli' 无 subprocess → not_installed 并指明服务缺失", async () => {
-    const outcome = await pickRenderer('cli', {})(spec({}))
+    const outcome = await pickRenderer('cli', { graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({}))
     expect(outcome).toMatchObject({ ok: false, code: 'not_installed' })
     expect(!outcome.ok && outcome.error).toContain('subprocess')
   })
@@ -133,7 +140,7 @@ describe('pickRenderer', () => {
     const { calls, runtime } = fakeCli()
     const big = `digraph {${'a -> b; '.repeat(2_500)}}`
     expect(big.length).toBeGreaterThan(20_000)
-    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath })(
+    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath, graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(
       spec({ outputDir: dir, engine: 'neato', dot: big }),
     )
     expect(outcome.ok).toBe(true)
@@ -143,7 +150,7 @@ describe('pickRenderer', () => {
   it('强制导向引擎的小 DOT 仍走 WASM（无 spawn）', async () => {
     const dir = await tempDir()
     const { calls, runtime } = fakeCli()
-    const outcome = await pickRenderer('wasm', { subprocess: runtime })(spec({ outputDir: dir, engine: 'neato' }))
+    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ outputDir: dir, engine: 'neato' }))
     expect(outcome.ok).toBe(true)
     expect(calls).toHaveLength(0)
   })
@@ -154,7 +161,7 @@ describe('pickRenderer', () => {
     const medium = `digraph {${'a -> b; '.repeat(3_000)}}`
     expect(medium.length).toBeGreaterThan(20_000)
     expect(medium.length).toBeLessThan(64_000)
-    const outcome = await pickRenderer('wasm', { subprocess: runtime })(spec({ outputDir: dir, engine: 'dot', dot: medium }))
+    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ outputDir: dir, engine: 'dot', dot: medium }))
     expect(outcome.ok).toBe(true)
     expect(calls).toHaveLength(0)
   })
@@ -166,7 +173,7 @@ describe('pickRenderer', () => {
     const { calls, runtime } = fakeCli()
     const huge = `digraph {${'a -> b; '.repeat(8_000)}}`
     expect(huge.length).toBeGreaterThan(64_000)
-    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath })(
+    const outcome = await pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath, graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(
       spec({ outputDir: dir, engine: 'dot', dot: huge }),
     )
     expect(outcome.ok).toBe(true)
@@ -175,11 +182,11 @@ describe('pickRenderer', () => {
 
   it('超限输入在无 subprocess 时返回 not_installed（改走 CLI 的代价）', async () => {
     const big = `digraph {${'a -> b; '.repeat(2_500)}}`
-    const outcome = await pickRenderer('wasm', {})(spec({ engine: 'sfdp', dot: big }))
+    const outcome = await pickRenderer('wasm', { graphvizRenderTimeoutMs: TEST_RENDER_TIMEOUT_MS })(spec({ engine: 'sfdp', dot: big }))
     expect(outcome).toMatchObject({ ok: false, code: 'not_installed' })
   })
 
-  it('病态/超大 DOT 改走 CLI 后在 60 秒期限内失败返回，而不是占住事件循环', async () => {
+  it('病态/超大 DOT 改走 CLI 后在注入的期限内失败返回，而不是占住事件循环', async () => {
     vi.useFakeTimers()
     const dir = await tempDir()
     const dotPath = join(dir, 'dot')
@@ -187,10 +194,10 @@ describe('pickRenderer', () => {
     const { runtime, calls } = hangingCli()
     try {
       const big = `digraph {${'a -> b; '.repeat(2_500)}}`
-      const pending = pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath })(
+      const pending = pickRenderer('wasm', { subprocess: runtime, graphvizExecutable: dotPath, graphvizRenderTimeoutMs: INJECTED_RENDER_TIMEOUT_MS })(
         spec({ outputDir: dir, engine: 'neato', dot: big }),
       )
-      vi.advanceTimersByTime(60_000)
+      vi.advanceTimersByTime(INJECTED_RENDER_TIMEOUT_MS)
       const outcome = await pending
       expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
       expect(!outcome.ok && outcome.error).toContain('渲染超时')

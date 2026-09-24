@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
-import { findFreeCadCmd, probeFreeCad, renderStructureViews } from '../src/figure/freecad-renderer.ts'
+import { DEFAULT_FREECAD_PROBE_TIMEOUT_MS, DEFAULT_FREECAD_RENDER_TIMEOUT_MS, findFreeCadCmd, probeFreeCad, renderStructureViews } from '../src/figure/freecad-renderer.ts'
 import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
 
 /**
@@ -21,6 +21,12 @@ import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
  * 「无信号」而不是「通过」。与 Graphviz 那条不同，这里没有可装的包来把信号补上，
  * 事实就登记在此处；要信号得走固化真实渲染产物的路线。
  */
+
+/** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.freecadRenderTimeoutMs 解析后注入。 */
+const TEST_RENDER_TIMEOUT_MS = DEFAULT_FREECAD_RENDER_TIMEOUT_MS
+
+/** 用例显式声明的探测预算（毫秒）；宿主插件不探测 freecadcmd，无对应 Config 字段。 */
+const TEST_PROBE_TIMEOUT_MS = DEFAULT_FREECAD_PROBE_TIMEOUT_MS
 
 /** 无 FreeCAD 时跳过端到端 suite。 */
 const hasFreeCad = findFreeCadCmd() !== undefined
@@ -78,7 +84,7 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
   const outDir = mkdtempSync(join(tmpdir(), 'dsh-freecadreal-'))
 
   it('probe 报告就绪与版本号', async () => {
-    const result = await probeFreeCad(runtime)
+    const result = await probeFreeCad(runtime, { probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(result.ready).toBe(true)
     expect(result.version).toMatch(/^\d+\.\d+\.\d+$/)
   }, 30_000)
@@ -95,7 +101,7 @@ describe.skipIf(!hasFreeCad)('real FreeCAD structure rendering (needs `freecadcm
       ],
       figureNumber: 1,
       outputDir: outDir,
-    })
+    }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     // 这条成功断言就是 TransientDir 锚定的端到端保护：缓存目录不可写的沙箱（DSH 默认
     // workspace-write）下，旧行为会让 TechDraw 把模板拷到根目录（/）而整次渲染失败。
     // 锚定本身由 figure-freecad-structure-script.spec.ts 断言——文档关闭时 FreeCAD 会
