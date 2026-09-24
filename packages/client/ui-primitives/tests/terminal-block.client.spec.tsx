@@ -389,6 +389,27 @@ describe('TerminalBlock copy', () => {
     expect(await screen.findByRole('button', { name: '复制成功' })).toBeTruthy()
   })
 
+  it('takes the pending copied reset with it when the block unmounts inside the window', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+    render(<TerminalBlock command="ls" output="a\n" />)
+    fireEvent.click(screen.getByRole('button', { name: '复制' }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('button', { name: '复制成功' })).toBeTruthy()
+    // The reset is the only timer in flight. A component that unmounts inside
+    // the feedback window must cancel it: an uncleaned timer later fires
+    // setCopied on a dead component, which reaches for the `window` a finished
+    // jsdom suite has already torn down.
+    expect(vi.getTimerCount()).toBe(1)
+    cleanup()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('does not claim success when the host refuses the write', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
