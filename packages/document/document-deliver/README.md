@@ -33,9 +33,9 @@ The tool reads the delivered bytes rather than trusting the declaration. Markdow
 | `anti_pattern` | The selected style lists the word as forbidden | the style's own `block` or `warn` severity |
 | `empty_section` | A heading's section holds no content before the next heading | `warn` |
 | `broken_anchor` | A `](#fragment)` or `href="#fragment"` names a fragment the document declares no id, named anchor, or heading slug for | `warn` |
-| `length_budget` | A declared `char_budget` is missed by more than 20% | `warn` |
+| `length_budget` | A declared `char_budget` is missed by more than the configured `lengthTolerance` (shipped default 20%) | `warn` |
 
-A `block` finding throws: the registration is refused and the error names the file, the check, and the line, so the model fixes the document instead of registering it. A `warn` finding is recorded and the registration proceeds, because each has a reading a reviewer may accept. The style comes from `defaultStyle`, overridable per call with `style`; a style name no loaded style carries fails the call and lists the loaded names. Every finding is capped at five per check, with the remainder summarized rather than dropped.
+A `block` finding throws: the registration is refused and the error names the file, the check, and the line, so the model fixes the document instead of registering it. A `warn` finding is recorded and the registration proceeds, because each has a reading a reviewer may accept. The style comes from `defaultStyle` and the budget tolerance from `lengthTolerance`, both named in the tool description; a style name no loaded style carries fails the call and lists the loaded names. Every finding is capped at five per check, with the remainder summarized rather than dropped.
 
 ## Model Experience
 
@@ -60,7 +60,7 @@ Prefix-stable while the registered tool set and the description are unchanged.
 - **The reported checks are not a review** — they cover the mechanically decidable part of the quality gate (placeholders, the style's forbidden words, section emptiness, same-document fragments, a declared length budget) and say nothing about sourcing, correctness, or accessibility. The P0/P1 items stay the model's own statement; the tool reports its findings beside them rather than validating them, and the studio shows both columns.
 - **Only the configured style's words are enforced** — a deployment whose documents must avoid words outside the loaded style's list adds them to that style asset (or points `styleDirs` at its own directory). A per-call waiver would let a forbidden word through with no record of why, so the tool has none.
 - **The anchor check is heuristic** — it accepts a fragment declared by an `id`/`name` attribute or by a heading slug under GitHub's rule, so a renderer with a different slug convention can produce a `broken_anchor` warning that is not broken. That check is a warning for exactly that reason.
-- **The size cap skips, it does not truncate** — a deliverable larger than 4 MiB is read no further and reported `unreadable` with its reason; the checks run over nothing rather than over a head that would pass.
+- **The size cap skips, it does not truncate** — a deliverable larger than `maxCheckBytes` (shipped default 4 MiB) is read no further and reported `unreadable` with its reason; the checks run over nothing rather than over a head that would pass.
 - **The DOCX read budget is a deployment budget** — a package that declares more entries than `maxArchiveEntries` or expands past `maxUncompressedBytes` is reported `unreadable` with `too-large`; a deployment that delivers very large repetitive documents raises the cap in `cordis.yml` rather than getting a partial check.
 
 ### Dev Note

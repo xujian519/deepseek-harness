@@ -10,12 +10,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { findStyleByName, loadStyles, styleDirectories, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 import z from '@deepseek-ai/schemastery'
-import { createDocumentDeliverTool } from './tool.ts'
+import { DEFAULT_LENGTH_TOLERANCE } from './checks.ts'
+import { createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES } from './tool.ts'
 
 // Public library API: the deterministic checks, the tool factory, its argument
 // pipeline, and the deliverable check vocabulary.
 export {
   checkDocumentText,
+  DEFAULT_LENGTH_TOLERANCE,
   DOCUMENT_CHECK_IDS,
   type DocumentCheckFinding,
   type DocumentCheckId,
@@ -25,8 +27,8 @@ export {
 export {
   checkDeliverables,
   createDocumentDeliverTool,
+  DEFAULT_MAX_CHECK_BYTES,
   DELIVERABLE_FORMATS,
-  MAX_CHECK_BYTES,
   missingDeliverableFiles,
   parseDocumentDeliverArgs,
   type DeliverableCheckReport,
@@ -57,7 +59,7 @@ export const DEFAULT_MAX_ARCHIVE_ENTRIES = 10_000
 /**
  * Largest total uncompressed bytes a checked DOCX package may expand to,
  * mirroring `office-to-pdf`'s `maxUncompressedBytes`. The read is capped at
- * `MAX_CHECK_BYTES` compressed, so this bound only refuses packages that expand
+ * `maxCheckBytes` compressed, so this bound only refuses packages that expand
  * far past anything the checks can use; a deployment that delivers large
  * repetitive documents raises it.
  */
@@ -69,6 +71,10 @@ export interface Config {
   styleDirs?: string[]
   /** Style name the checks use when a registration names no style. */
   defaultStyle?: string
+  /** Largest deliverable the checker reads, in bytes. */
+  maxCheckBytes?: number
+  /** Fraction of a declared character budget a document may fall short of or exceed. */
+  lengthTolerance?: number
   /** Largest number of entries a checked DOCX package may declare. */
   maxArchiveEntries?: number
   /** Largest total uncompressed bytes a checked DOCX package may expand to. */
@@ -79,6 +85,10 @@ export interface Config {
 export const Config: z<Config> = z.object({
   styleDirs: z.array(z.string()).default([]),
   defaultStyle: z.string().default(DEFAULT_DOCUMENT_STYLE),
+  maxCheckBytes: z.natural().min(1).max(Number.MAX_SAFE_INTEGER - 1).default(DEFAULT_MAX_CHECK_BYTES),
+  // A tolerance above the whole budget would admit a document the budget says
+  // nothing about, so 1 (accept 0..2x) is the ceiling.
+  lengthTolerance: z.number().min(0).max(1).default(DEFAULT_LENGTH_TOLERANCE),
   // The 16-bit end-of-central-directory count field is the format's own ceiling
   // on entries a reader can reach without ZIP64, which this reader rejects.
   maxArchiveEntries: z.natural().min(1).max(0xffff).default(DEFAULT_MAX_ARCHIVE_ENTRIES),
@@ -104,13 +114,15 @@ function requireDefaultStyle(styles: readonly DocumentStyle[], name: string): Do
 /**
  * Load the style assets and register the `document_deliver` tool.
  * @param ctx - plugin context carrying the tools registry and the fs service.
- * @param config - style root overrides, the default style name, and the DOCX read budgets.
+ * @param config - style roots, the default style name, the read cap and length tolerance, and the DOCX read budgets.
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const styles = loadStyles(styleDirectories(config.styleDirs))
   ctx.tools.register(createDocumentDeliverTool(ctx, {
     styles,
     defaultStyle: requireDefaultStyle(styles, config.defaultStyle ?? DEFAULT_DOCUMENT_STYLE),
+    maxCheckBytes: config.maxCheckBytes ?? DEFAULT_MAX_CHECK_BYTES,
+    lengthTolerance: config.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE,
     docxReadLimits: {
       maxArchiveEntries: config.maxArchiveEntries ?? DEFAULT_MAX_ARCHIVE_ENTRIES,
       maxUncompressedBytes: config.maxUncompressedBytes ?? DEFAULT_MAX_UNCOMPRESSED_BYTES,

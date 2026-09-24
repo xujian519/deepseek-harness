@@ -20,9 +20,10 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import * as plugin from '../src/index.ts'
 import {
-  createDocumentDeliverTool, missingDeliverableFiles, parseDocumentDeliverArgs, MAX_CHECK_BYTES,
+  createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES, missingDeliverableFiles, parseDocumentDeliverArgs,
   type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult,
 } from '../src/tool.ts'
+import { DEFAULT_LENGTH_TOLERANCE } from '../src/checks.ts'
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as ToolRunContext
@@ -39,7 +40,13 @@ function deps(defaultStyle = 'assistant-neutral'): DocumentDeliverDeps {
   const styles = loadStyles([stylesDirectory()])
   const style = findStyleByName(styles, defaultStyle)
   if (style === undefined) throw new Error(`test setup: no style named ${defaultStyle}`)
-  return { styles, defaultStyle: style, docxReadLimits: DOCX_LIMITS }
+  return {
+    styles,
+    defaultStyle: style,
+    maxCheckBytes: DEFAULT_MAX_CHECK_BYTES,
+    lengthTolerance: DEFAULT_LENGTH_TOLERANCE,
+    docxReadLimits: DOCX_LIMITS,
+  }
 }
 
 /** A tool over a bare context, for the checks that never reach the filesystem. */
@@ -56,12 +63,12 @@ afterEach(async () => {
   }
 })
 
-async function mounted(): Promise<Context> {
+async function mounted(config: plugin.Config = {}): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(LocalFileSystem)
-  await ctx.plugin(plugin)
+  await ctx.plugin(plugin, config)
   return ctx
 }
 
@@ -466,16 +473,34 @@ describe('document_deliver deterministic checks', () => {
     expect(unreadable.value.gate.checks[0]?.reason).toBeDefined()
   })
 
-  it('refuses a text deliverable beyond the documented read cap instead of scanning it', async () => {
-    const ctx = await mounted()
+  it('refuses a text deliverable beyond the configured read cap instead of scanning it', async () => {
+    const ctx = await mounted({ maxCheckBytes: 64 })
     temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
     const path = join(temp, 'huge.md')
-    await writeFile(path, `# 报告\n\n${'内'.repeat(MAX_CHECK_BYTES)}\n`)
-    const result = await register(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] } })
-    expect(result.value.gate.checks[0]?.status).toBe('unreadable')
-    expect(result.value.gate.checks[0]?.reason).toContain(`exceeds the ${String(MAX_CHECK_BYTES)}-byte limit`)
-    expect(result.value.gate.checks[0]?.findings).toEqual([])
-    expect(result.content).toContain('无法核验')
+    await writeFile(path, `# 报告\n\n${'内'.repeat(64)}\n`)
+    const result = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] } })
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain(`${path} 无法核验（`)
+    expect(result.content).toContain('exceeds the 64-byte limit')
+  })
+
+  it('states the configured length tolerance in the tool description', async () => {
+    const shipped = await mounted()
+    const configured = await mounted({ lengthTolerance: 0.5 })
+    expect(shipped.tools.get('document_deliver')?.description).toContain('char_budget，本部署按 ±20% 容差核验')
+    expect(configured.tools.get('document_deliver')?.description).toContain('char_budget，本部署按 ±50% 容差核验')
+  })
+
+  it('applies the configured tolerance to a declared character budget', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, '# 报告\n\n正文。\n')
+    const args = { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] }, char_budget: 10 }
+    // Six non-whitespace characters against a ten-character budget.
+    const strict = await run(await mounted(), args)
+    expect(strict.content).toContain(`- ${path} [length_budget] 全文 6 字，低于声明的 10 字预算（允许 8–12 字）`)
+    const lenient = await run(await mounted({ lengthTolerance: 0.6 }), args)
+    expect(lenient.content).not.toContain('[length_budget]')
   })
 
   it('refuses a DOCX that expands past the configured budget', async () => {

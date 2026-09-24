@@ -57,6 +57,12 @@ export interface DocumentTextCheckOptions {
   readonly style?: DocumentStyle
   /** Declared character budget, in non-whitespace characters; absent when none was declared. */
   readonly charBudget?: number
+  /**
+   * Fraction of the declared budget the document may fall short of or exceed.
+   * Defaults to {@link DEFAULT_LENGTH_TOLERANCE}; `document_deliver` always
+   * supplies its configured value.
+   */
+  readonly lengthTolerance?: number
 }
 
 /** One finding before {@link report} attributes it to a check. */
@@ -73,7 +79,7 @@ interface DraftFinding {
 const MAX_FINDINGS_PER_CHECK = 5
 
 /** Tolerance the shipped quality gate applies to a declared character budget. */
-const LENGTH_TOLERANCE = 0.2
+export const DEFAULT_LENGTH_TOLERANCE = 0.2
 
 /** Residual placeholder forms: the unfilled-variable braces plus the marker list the quality gate names. */
 const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
@@ -381,10 +387,10 @@ function antiPatternDrafts(text: string, starts: readonly number[], patterns: re
 }
 
 /** The declared character budget against the document's non-whitespace character count. */
-function budgetDrafts(text: string, charBudget: number): DraftFinding[] {
+function budgetDrafts(text: string, charBudget: number, tolerance: number): DraftFinding[] {
   const actual = text.replace(/\s/gu, '').length
-  const minimum = Math.floor(charBudget * (1 - LENGTH_TOLERANCE))
-  const maximum = Math.ceil(charBudget * (1 + LENGTH_TOLERANCE))
+  const minimum = Math.floor(charBudget * (1 - tolerance))
+  const maximum = Math.ceil(charBudget * (1 + tolerance))
   if (actual >= minimum && actual <= maximum) return []
   return [{
     detail: `全文 ${String(actual)} 字，${actual < minimum ? '低于' : '超出'}声明的 ${String(charBudget)} 字预算（允许 ${String(minimum)}–${String(maximum)} 字）`,
@@ -407,6 +413,8 @@ export function checkDocumentText(text: string, options: DocumentTextCheckOption
   report(findings, 'broken_anchor', 'warn', anchorDrafts(text, starts, fences, headings))
   report(findings, 'empty_section', 'warn', emptySectionDrafts(text, starts, headings))
   report(findings, 'anti_pattern', 'warn', antiPatternDrafts(text, starts, options.style?.sections.antiPatterns ?? []))
-  if (options.charBudget !== undefined) report(findings, 'length_budget', 'warn', budgetDrafts(text, options.charBudget))
+  if (options.charBudget !== undefined) {
+    report(findings, 'length_budget', 'warn', budgetDrafts(text, options.charBudget, options.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE))
+  }
   return findings
 }

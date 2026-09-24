@@ -1029,6 +1029,10 @@ export interface Config {
   styleDirs?: string[]
   /** Style name the checks use when a registration names no style. */
   defaultStyle?: string
+  /** Largest deliverable the checker reads, in bytes. */
+  maxCheckBytes?: number
+  /** Fraction of a declared character budget a document may fall short of or exceed. */
+  lengthTolerance?: number
   /** Largest number of entries a checked DOCX package may declare. */
   maxArchiveEntries?: number
   /** Largest total uncompressed bytes a checked DOCX package may expand to. */
@@ -1036,7 +1040,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/document/document-deliver/src/index.ts:67`](../packages/document/document-deliver/src/index.ts)
+Source: [`packages/document/document-deliver/src/index.ts:69`](../packages/document/document-deliver/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-agent-team"></a>
 
