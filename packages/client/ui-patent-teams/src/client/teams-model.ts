@@ -11,7 +11,6 @@
  * services.
  * @module dsh-client-ui-patent-teams/teams-model
  */
-import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import type { SessionEventLike } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
   ConversationLocation, ConversationNodeDefinition, ConversationViewNode,
@@ -139,7 +138,7 @@ export interface PatentTeamsCardData {
  * @param event - the start event payload source.
  * @returns the initial state.
  */
-export function startTeamsState(event: SessionEvent): TeamsTeamState {
+export function startTeamsState(event: SessionEventLike): TeamsTeamState {
   if (event.type !== 'patent-teams/team-created') {
     throw new Error('patent-teams start requires patent-teams/team-created')
   }
