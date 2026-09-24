@@ -4323,10 +4323,29 @@ export interface Config {
   openalexMailto?: string
   /** Semantic Scholar API key for a higher rate tier (optional). */
   semanticScholarApiKey?: string
+  /**
+   * Timeout for one HTTP request in ms. Defaults to 30000. Slow networks
+   * (proxy, internal mirror) raise it; offline deployments shorten it.
+   */
+  timeoutMs?: number
+  /** GET cache TTL in ms; 0 disables the cache. Defaults to 300000. */
+  cacheTtlMs?: number
+  /**
+   * Retry budget for one request. Timeout times retries bounds the worst-case
+   * latency, so the two are configured together.
+   */
+  retry?: {
+    /** Retries after the first attempt. Defaults to 3. */
+    maxRetries?: number
+    /** First backoff delay in ms. Defaults to 1000. */
+    baseDelayMs?: number
+    /** Cap for one backoff delay in ms. Defaults to 15000. */
+    maxDelayMs?: number
+  }
 }
 ```
 
-来源：[`packages/patent/tool-literature/src/index.ts:53`](../packages/patent/tool-literature/src/index.ts)
+来源：[`packages/patent/tool-literature/src/index.ts:54`](../packages/patent/tool-literature/src/index.ts)
 
 <a id="deepseek-aidsh-tool-lsp"></a>
 

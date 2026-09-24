@@ -6,23 +6,20 @@
  * id 可以是 paperId 或外部 id（"DOI:10.…"、"ARXIV:…"、"PMID:…"）。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getJSON, type LiteratureRateLimit } from '../http.ts'
-import type { NetworkRetryOptions } from '../../network-fetch.ts'
+import { getJSON, type LiteratureBudgetOptions, type LiteratureRateLimit } from '../http.ts'
 import { clampLimit, formatAuthors, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.semanticscholar.org/graph/v1/paper'
 const FIELDS = 'title,abstract,url,year,venue,citationCount,externalIds,authors.name,openAccessPdf'
 const RATE_LIMIT = { minIntervalMs: 1000 }
 
-/** 创建 Semantic Scholar 连接器的选项（提额 key、限速、重试）。 */
-export interface CreateSemanticScholarConnectorOptions {
+/** 创建 Semantic Scholar 连接器的选项（提额 key、限速、预算）。 */
+export interface CreateSemanticScholarConnectorOptions extends LiteratureBudgetOptions {
   /** 可选提额 key；默认回退 SEMANTIC_SCHOLAR_API_KEY 环境变量。 */
   apiKey?: string
   fetchImpl?: typeof fetch
   /** 覆盖默认 1s per-host 限速（测试注入小值/0）。 */
   rateLimit?: LiteratureRateLimit
-  /** 覆盖重试配置（测试注入 maxRetries: 0 跳过退避等待）。 */
-  retry?: NetworkRetryOptions
 }
 
 interface Author {
@@ -89,6 +86,8 @@ export function createSemanticScholarConnector(options: CreateSemanticScholarCon
           signal: opts?.signal,
           fetchImpl: options.fetchImpl,
           rateLimit: options.rateLimit ?? RATE_LIMIT,
+          timeoutMs: options.timeoutMs,
+          cacheTtlMs: options.cacheTtlMs,
           retry: options.retry,
           headers: apiHeaders(),
         },
@@ -101,6 +100,8 @@ export function createSemanticScholarConnector(options: CreateSemanticScholarCon
         signal: opts?.signal,
         fetchImpl: options.fetchImpl,
         rateLimit: options.rateLimit ?? RATE_LIMIT,
+        timeoutMs: options.timeoutMs,
+        cacheTtlMs: options.cacheTtlMs,
         retry: options.retry,
         headers: apiHeaders(),
       })

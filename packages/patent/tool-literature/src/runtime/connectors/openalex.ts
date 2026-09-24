@@ -6,14 +6,14 @@
  * 可选 `OPENALEX_MAILTO` 环境变量覆盖默认值。
  */
 import type { Connector, ConnectorHit } from '../../protocol/types.ts'
-import { getJSON } from '../http.ts'
+import { getJSON, type LiteratureBudgetOptions, type LiteratureFetchOptions } from '../http.ts'
 import { clampLimit, formatAuthors, fromInverted, nonEmpty, raw, snippet } from '../shared/text.ts'
 
 const BASE = 'https://api.openalex.org/works'
 const DEFAULT_MAILTO = 'sati@users.noreply.github.com'
 
 /** 创建 OpenAlex 连接器的选项（polite pool 邮箱等）。 */
-export interface CreateOpenAlexConnectorOptions {
+export interface CreateOpenAlexConnectorOptions extends LiteratureBudgetOptions {
   /** polite pool 标识邮箱；默认回退 OPENALEX_MAILTO 环境变量。 */
   mailto?: string
   fetchImpl?: typeof fetch
@@ -82,6 +82,12 @@ function toHit(w: Work): ConnectorHit {
  * @returns OpenAlex 连接器。
  */
 export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions = {}): Connector {
+  const http: LiteratureFetchOptions = {
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
+    cacheTtlMs: options.cacheTtlMs,
+    retry: options.retry,
+  }
   const polite = (): string => {
     const email = options.mailto?.trim() || process.env.OPENALEX_MAILTO?.trim() || DEFAULT_MAILTO
     return `mailto=${encodeURIComponent(email)}`
@@ -96,7 +102,7 @@ export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions 
       const per = clampLimit(opts?.limit)
       const data = await getJSON<SearchResponse>(
         `${BASE}?search=${encodeURIComponent(query)}&per-page=${per}&${polite()}`,
-        { signal: opts?.signal, fetchImpl: options.fetchImpl },
+        { ...http, signal: opts?.signal },
       )
       return (data.results ?? []).map(toHit)
     },
@@ -104,10 +110,7 @@ export function createOpenAlexConnector(options: CreateOpenAlexConnectorOptions 
       // OpenAlex 接受裸 work id（W…）或 DOI 原样路径段（"works/doi:10.x/y"）；
       // DOI 的斜杠/冒号不能编码。
       const path = /^10\.\d/.test(id) ? `doi:${id}` : encodeURIComponent(shortId(id) || id)
-      const data = await getJSON<Work | null>(`${BASE}/${path}?${polite()}`, {
-        signal: opts?.signal,
-        fetchImpl: options.fetchImpl,
-      })
+      const data = await getJSON<Work | null>(`${BASE}/${path}?${polite()}`, { ...http, signal: opts?.signal })
       return data ?? null
     },
   }

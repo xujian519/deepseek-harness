@@ -9,6 +9,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { EgoExtractor } from '@deepseek-ai/dsh-browser-backend'
+import { DEFAULT_CACHE_TTL_MS, DEFAULT_RETRY, DEFAULT_TIMEOUT_MS } from './runtime/http.ts'
 import { createLiteratureRegistry } from './runtime/create-literature-registry.ts'
 import { createPaperSearchTool } from './tool/paper-search.ts'
 import { createPaperListSourcesTool } from './tool/paper-list-sources.ts'
@@ -63,9 +64,28 @@ export interface Config {
   openalexMailto?: string
   /** Semantic Scholar API key for a higher rate tier (optional). */
   semanticScholarApiKey?: string
+  /**
+   * Timeout for one HTTP request in ms. Defaults to 30000. Slow networks
+   * (proxy, internal mirror) raise it; offline deployments shorten it.
+   */
+  timeoutMs?: number
+  /** GET cache TTL in ms; 0 disables the cache. Defaults to 300000. */
+  cacheTtlMs?: number
+  /**
+   * Retry budget for one request. Timeout times retries bounds the worst-case
+   * latency, so the two are configured together.
+   */
+  retry?: {
+    /** Retries after the first attempt. Defaults to 3. */
+    maxRetries?: number
+    /** First backoff delay in ms. Defaults to 1000. */
+    baseDelayMs?: number
+    /** Cap for one backoff delay in ms. Defaults to 15000. */
+    maxDelayMs?: number
+  }
 }
 
-/** Schemastery configuration: which connectors to register, plus optional polite-pool/key fields. */
+/** Schemastery configuration: connector registration, optional credentials, and network budgets. */
 export const Config: z<Config> = z.object({
   arxiv: z.boolean().default(true),
   openalex: z.boolean().default(true),
@@ -73,12 +93,19 @@ export const Config: z<Config> = z.object({
   crossref: z.boolean().default(true),
   openalexMailto: z.string(),
   semanticScholarApiKey: z.string(),
+  timeoutMs: z.number().step(1).min(1).default(DEFAULT_TIMEOUT_MS),
+  cacheTtlMs: z.number().step(1).min(0).default(DEFAULT_CACHE_TTL_MS),
+  retry: z.object({
+    maxRetries: z.number().step(1).min(0).default(DEFAULT_RETRY.maxRetries),
+    baseDelayMs: z.number().step(1).min(0).default(DEFAULT_RETRY.baseDelayMs),
+    maxDelayMs: z.number().step(1).min(0).default(DEFAULT_RETRY.maxDelayMs),
+  }),
 })
 
 /**
  * Build the connector registry from config and register the two literature tools.
  * @param ctx - registrant context carrying the tool registry.
- * @param config - deployment's connector toggles and optional polite-pool/key fields.
+ * @param config - deployment's connector toggles, optional credentials, and network budgets.
  */
 export function apply(ctx: Context, config: Config): void {
   const registry = createLiteratureRegistry({
@@ -88,6 +115,9 @@ export function apply(ctx: Context, config: Config): void {
     crossref: config.crossref,
     openalexMailto: config.openalexMailto,
     semanticScholarApiKey: config.semanticScholarApiKey,
+    timeoutMs: config.timeoutMs,
+    cacheTtlMs: config.cacheTtlMs,
+    retry: config.retry,
   })
   ctx.tools.register(createPaperSearchTool(registry))
   ctx.tools.register(createPaperListSourcesTool(registry))
