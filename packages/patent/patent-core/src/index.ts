@@ -102,7 +102,6 @@ export {
   IPC_DETAIL_DOMAINS,
   IPC_DETAIL_MIN_CONFIDENCE,
   IPC_DOMAINS,
-  MULTI_CLASSIFY_MIN_CONFIDENCE,
   classifyIpc,
   classifyIpcTop,
   getIpcDomain,

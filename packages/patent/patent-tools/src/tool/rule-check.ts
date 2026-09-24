@@ -5,7 +5,6 @@
  * @module @deepseek-ai/dsh-patent-tools/tool/rule-check
  */
 
-import { statSync } from 'node:fs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import {
@@ -16,7 +15,6 @@ import {
   loadRulePack,
   loadSynonymsAsset,
   patentCaseDomains,
-  resolveRulePackManifestPath,
   summarizeRulePackLayers,
 } from '@deepseek-ai/dsh-patent-rule'
 import type { RulePackLoadResult } from '@deepseek-ai/dsh-patent-rule'
@@ -112,25 +110,14 @@ const VIOLATION_SCHEMA = {
  * @returns a registry-ready tool definition.
  */
 export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
-  const cache = new Map<string, { ruleSet: RuleSet; pack: RulePackLoadResult | null; key: string | null }>()
-
-  const packCacheKey = (): string | null => {
-    const manifestPath = resolveRulePackManifestPath()
-    /* v8 ignore start -- resolveRulePackManifestPath returns null without an explicit path (dsh has no project .sati/rules.yaml). */
-    if (manifestPath === null) return null
-    try {
-      return `${manifestPath}@${statSync(manifestPath).mtimeMs}`
-    } catch {
-      return null
-    }
-    /* v8 ignore stop */
-  }
+  // One entry per scope: the rule set is fixed for the process (bundled assets or an
+  // injected loader), so the keyed cache this used to carry could never invalidate.
+  const cache = new Map<string, { ruleSet: RuleSet; pack: RulePackLoadResult | null }>()
 
   const resolve = (scope: string): { ruleSet: RuleSet; pack: RulePackLoadResult | null } => {
     const isPack = scope === 'pack' && deps.loader === undefined
-    const key = isPack ? packCacheKey() : null
     const cached = cache.get(scope)
-    if (cached !== undefined && cached.key === key) return { ruleSet: cached.ruleSet, pack: cached.pack }
+    if (cached !== undefined) return { ruleSet: cached.ruleSet, pack: cached.pack }
     let ruleSet: RuleSet
     let pack: RulePackLoadResult | null = null
     if (isPack) {
@@ -147,7 +134,7 @@ export function createRuleCheckTool(deps: RuleCheckDeps = {}): ToolDefinition {
     } else {
       ruleSet = { rules: [] }
     }
-    cache.set(scope, { ruleSet, pack, key })
+    cache.set(scope, { ruleSet, pack })
     return { ruleSet, pack }
   }
 

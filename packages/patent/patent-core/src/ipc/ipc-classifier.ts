@@ -18,8 +18,6 @@ export const HIGH_CONFIDENCE_THRESHOLD = 0.8
 const CONFIDENCE_SATURATION_K = 3
 /** 大类精注入置信度门槛：detailConfidence >= 该值（≈ 大类命中 ≥2 词）才精注入，否则回退部级。 */
 export const IPC_DETAIL_MIN_CONFIDENCE = 0.7
-/** 多重分类门槛：confidence >= 该值（与部级命中 ≥2 词等价：2 词=0.743，1 词=0.642）的部参与并行注入。 */
-export const MULTI_CLASSIFY_MIN_CONFIDENCE = 0.7
 /** 每个 IPC 分类附带的最大创造性审查要点条数（控制模型 token 成本）。 */
 export const IPC_NOVELTY_HINT_MAX = 3
 
