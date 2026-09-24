@@ -15,6 +15,7 @@ import {
   type ResolveResult,
   type VarDefinition,
   type VarIssue,
+  type VarSchema as VarSchemaContract,
 } from './types.ts'
 
 /** Placeholder pattern: a variable name of word characters between double braces. */
@@ -24,7 +25,7 @@ const PLACEHOLDER_PATTERN = /\{\{\w+\}\}/gu
  * The constraints of one template's variables, indexed for lookup.
  * A duplicate name keeps the last definition, as the upstream schema did.
  */
-export class VarSchema {
+export class VarSchema implements VarSchemaContract {
   /** The definitions, in declaration order. */
   readonly definitions: readonly VarDefinition[]
   private readonly positionByName: ReadonlyMap<string, number>

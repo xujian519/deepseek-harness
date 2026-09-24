@@ -11,7 +11,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { findStyleByName, loadStyles, stylesDirectory, systemPrompt, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
+import { findStyleByName, loadStyles, styleDirectories, systemPrompt, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 import z from '@deepseek-ai/schemastery'
 import { templatesDirectory } from './asset-location.ts'
 import { createTemplateStore, resolveTemplateDirectory } from './store.ts'
@@ -166,11 +166,7 @@ export function apply(ctx: Context, config: Config): void {
     templatesDirectory(),
     ...(config.templateDirs ?? []).map(resolveTemplateDirectory),
   ]
-  const styleDirs = [
-    stylesDirectory(),
-    ...(config.styleDirs ?? []).map(resolveTemplateDirectory),
-  ]
-  const styles = loadStyles(styleDirs)
+  const styles = loadStyles(styleDirectories(config.styleDirs))
   const store = createTemplateStore({
     templateDirs,
     styles,

@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { findStyleByName, loadStyles, stylesDirectory } from '@deepseek-ai/dsh-doc-style'
 import { renderDocx } from '@deepseek-ai/dsh-docx-kit'
@@ -320,6 +320,18 @@ describe('document_deliver plugin configuration', () => {
     const result = await run(ctx, { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] } })
     expect(result.isError).toBe(true)
     expect(result.content).toContain('出现样式禁用词 "严禁词"，建议改用 "替代词"')
+  })
+
+  it('resolves a configured style directory, so a load failure names one absolute path', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(LocalFileSystem)
+    // doc-template resolves configured style directories; this plugin must load
+    // the same directory, so a relative override and its failure name it the
+    // same way in both.
+    await expect(ctx.plugin(plugin, { styleDirs: ['no-such-relative-styles'] }))
+      .rejects.toThrow(resolve('no-such-relative-styles'))
   })
 
   it('fails the deployment when the configured default style is not loaded', async () => {

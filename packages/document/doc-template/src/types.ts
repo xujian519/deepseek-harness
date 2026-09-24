@@ -9,7 +9,25 @@
  * @module @deepseek-ai/dsh-doc-template/types
  */
 
-import type { VarSchema } from './vars.ts'
+/**
+ * The variable constraints of one template's body, as the template seam exposes
+ * them. `vars.ts` implements this surface as a class; the interface lives here so
+ * `DocTemplate` does not have to name a runtime module.
+ */
+export interface VarSchema {
+  /** The definitions, in declaration order. */
+  readonly definitions: readonly VarDefinition[]
+  /** Every declared variable name, in declaration order. */
+  names(): readonly string[]
+  /** The names of the variables that must be supplied, in declaration order. */
+  requiredNames(): readonly string[]
+  /** One variable definition, or `undefined` when the name is not declared. */
+  get(name: string): VarDefinition | undefined
+  /** Validate the supplied values against the definitions. */
+  validate(vars: Readonly<Record<string, string>>): readonly VarIssue[]
+  /** Fill in the declared defaults, leaving every other value untouched. */
+  applyDefaults(vars: Readonly<Record<string, string>>): Record<string, string>
+}
 
 /** Output formats a template may declare support for. */
 export const OUTPUT_FORMATS = ['markdown', 'html', 'docx'] as const

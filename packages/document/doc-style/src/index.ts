@@ -35,7 +35,7 @@ export type {
   VoiceSection,
 } from './types.ts'
 export { parseStyleAsset } from './parse.ts'
-export { loadStyleFile, loadStyles } from './load.ts'
+export { loadStyleFile, loadStyles, styleDirectories } from './load.ts'
 export { stylesDirectory } from './asset-location.ts'
 export {
   disclaimerFor,

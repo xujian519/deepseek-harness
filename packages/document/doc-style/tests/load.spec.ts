@@ -6,10 +6,10 @@
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { stylesDirectory } from '../src/asset-location.ts'
-import { loadStyleFile, loadStyles } from '../src/load.ts'
+import { loadStyleFile, loadStyles, styleDirectories } from '../src/load.ts'
 import { DocumentStyleError } from '../src/types.ts'
 
 let roots: string[] = []
@@ -129,5 +129,19 @@ describe('packaged style assets', () => {
     expect(chat?.sections.disclaimers.size).toBe(0)
     const neutral = styles.find(style => style.name === 'assistant-neutral')
     expect(neutral?.sections.disclaimers.get('generated_content')).toContain('仅供参考')
+  })
+})
+
+describe('styleDirectories', () => {
+  it('leads with the packaged root and resolves each configured override', () => {
+    expect(styleDirectories()).toEqual([stylesDirectory()])
+    // A relative override resolves here, so both consumers load the same
+    // directory and a load failure names one absolute path.
+    expect(styleDirectories(['skills/styles', 'skills/styles'])).toEqual([
+      stylesDirectory(),
+      resolve('skills/styles'),
+      resolve('skills/styles'),
+    ])
+    expect(styleDirectories(['/abs/styles'])[1]).toBe('/abs/styles')
   })
 })

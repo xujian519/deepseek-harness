@@ -8,7 +8,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { findStyleByName, loadStyles, stylesDirectory, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
+import { findStyleByName, loadStyles, styleDirectories, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 import z from '@deepseek-ai/schemastery'
 import { createDocumentDeliverTool } from './tool.ts'
 
@@ -107,10 +107,7 @@ function requireDefaultStyle(styles: readonly DocumentStyle[], name: string): Do
  * @param config - style root overrides, the default style name, and the DOCX read budgets.
  */
 export function apply(ctx: Context, config: Config = {}): void {
-  const styles = loadStyles([
-    stylesDirectory(),
-    ...(config.styleDirs ?? []),
-  ])
+  const styles = loadStyles(styleDirectories(config.styleDirs))
   ctx.tools.register(createDocumentDeliverTool(ctx, {
     styles,
     defaultStyle: requireDefaultStyle(styles, config.defaultStyle ?? DEFAULT_DOCUMENT_STYLE),

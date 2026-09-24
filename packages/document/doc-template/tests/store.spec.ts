@@ -98,12 +98,41 @@ describe('TemplateStore construction', () => {
     ])
   })
 
-  it('reports an override that sorts before the packaged version as a warning', async () => {
+  it('reports an override that compares older than the packaged version as a warning', async () => {
     const root = await tempDir()
     await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "0.9.0"\n')
     const store = storeOf({ templateDirs: [templatesDirectory(), root] })
     expect(store.listConflicts()).toEqual([
       { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '0.9.0', severity: 'warn' },
+    ])
+  })
+
+  it('orders versions by segment, so a two-digit segment is newer rather than earlier', async () => {
+    // A code-unit string comparison orders '10.0.0' before '1.0.0' and would
+    // call this upgrade a downgrade.
+    const root = await tempDir()
+    await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "10.0.0"\n')
+    const newer = storeOf({ templateDirs: [templatesDirectory(), root] })
+    expect(newer.listConflicts()).toEqual([
+      { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '10.0.0', severity: 'info' },
+    ])
+    // The same two segments in the downgrade direction: 1.0.0 overriding 10.0.0
+    // is older by the same rule, not newer as a string comparison claims.
+    const downgradedRoot = await tempDir()
+    await writeTemplate(downgradedRoot, 'search-report.md', 'name: search-report\nversion: "1.0.0"\n')
+    const newerRoot = await tempDir()
+    await writeTemplate(newerRoot, 'search-report.md', 'name: search-report\nversion: "10.0.0"\n')
+    const downgraded = storeOf({ templateDirs: [newerRoot, downgradedRoot] })
+    expect(downgraded.listConflicts()).toEqual([
+      { templateName: 'search-report', packagedVersion: '10.0.0', overrideVersion: '1.0.0', severity: 'warn' },
+    ])
+  })
+
+  it('treats a missing version segment as zero, so a shorter override is not a downgrade', async () => {
+    const root = await tempDir()
+    await writeTemplate(root, 'search-report.md', 'name: search-report\nversion: "1.0"\n')
+    expect(storeOf({ templateDirs: [templatesDirectory(), root] }).listConflicts()).toEqual([
+      { templateName: 'search-report', packagedVersion: '1.0.0', overrideVersion: '1.0', severity: 'info' },
     ])
   })
 
