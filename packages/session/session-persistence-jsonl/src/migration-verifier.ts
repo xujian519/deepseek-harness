@@ -17,7 +17,14 @@ type VerificationResponse =
   | { readonly ok: true; readonly result: JsonlVerifiedGeneration }
   | { readonly ok: false; readonly message: string; readonly stack?: string }
 
-/** Process-wide memory bound for full-generation verification isolates. */
+/**
+ * Process-wide memory bound for full-generation verification isolates.
+ *
+ * Fixed, not a deployment budget: each verifier is a worker that reads a whole
+ * generation, so the count is a memory ceiling rather than a pool sized by CPU
+ * cores (deployment-varying budgets in this package live in `Config`). Raising
+ * it multiplies peak memory by the concurrent generations.
+ */
 const MAX_CONCURRENT_VERIFIERS = 2
 
 class VerificationScheduler {

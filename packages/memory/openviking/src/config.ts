@@ -32,6 +32,14 @@ export interface AutoRecallConfig {
   refreshSteps: number
   /** Memory map: inject on session start, refresh every N user turns (2+); 1 = start only, 0 = never. */
   startupMapEveryTurns: number
+  /** Retrieval limit per search against the service. */
+  searchLimit: number
+  /** Maximum procedure-bearing branches searched per step. */
+  branchLimit: number
+  /** Per-branch search deadline in milliseconds. */
+  branchDeadlineMs: number
+  /** TTL of the procedure-branch discovery cache in milliseconds. */
+  branchCacheTtlMs: number
 }
 
 /** Configuration for session auto-commit. */
@@ -86,6 +94,10 @@ const autoRecallShape = z.object({
   agentSpaces: z.boolean().default(true),
   refreshSteps: z.natural().min(0).max(100).default(10),
   startupMapEveryTurns: z.natural().min(0).max(100).default(5),
+  searchLimit: z.natural().min(1).max(100).default(20),
+  branchLimit: z.natural().min(1).max(100).default(16),
+  branchDeadlineMs: z.natural().min(1).default(3000),
+  branchCacheTtlMs: z.number().min(1000).max(3600000).default(300000),
 })
 
 const autoCommitShape = z.object({

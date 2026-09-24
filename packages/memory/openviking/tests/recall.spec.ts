@@ -13,6 +13,7 @@ import type { AutoRecallConfig, RepoContextConfig } from '../src/config.ts'
 const RECALL: AutoRecallConfig = {
   enabled: true, limit: 6, scoreThreshold: 0.15, maxContentChars: 500,
   tokenBudget: 2000, agentSpaces: true, refreshSteps: 0, startupMapEveryTurns: 5,
+  searchLimit: 20, branchLimit: 16, branchDeadlineMs: 3000, branchCacheTtlMs: 300_000,
 }
 
 function recallConfig(overrides: Partial<AutoRecallConfig> = {}): () => AutoRecallConfig {
@@ -173,8 +174,15 @@ describe('MemoryRecall', () => {
       if (targetUri === 'viking://user/memories/playbooks/') return new Promise(() => {})
       return { memories: [memory('viking://user/memories/events/e.md', 'Event', 0.9)], resources: [], skills: [], total: 1 }
     })
-    const recall = new MemoryRecall(client, recallConfig(), logger)
+    // The configured per-branch deadline is what bounds the hanging branch, so
+    // this case proves the budget reaches the lane instead of relying on a 3 s
+    // default.
+    const recall = new MemoryRecall(client, recallConfig({ branchDeadlineMs: 20 }), logger)
+    const startedAt = Date.now()
     await recall.prepareStep(agent(), 1, [userMessage('how do I audit my steps to recover?')], signal())
+    // The 20 ms budget is what releases the hanging branch; the module default
+    // would hold the step for seconds.
+    expect(Date.now() - startedAt).toBeLessThan(1000)
     expect(recall.renderContext('a1')).toContain('events/e.md')
   })
 
@@ -416,6 +424,43 @@ describe('MemoryRecall resource/skill chain', () => {
 })
 
 describe('MemoryRecall branch filtering', () => {
+  it('searches with the configured per-search retrieval limit', async () => {
+    const { client, find } = mockClient()
+    const recall = new MemoryRecall(client, recallConfig({ searchLimit: 3 }), logger)
+    await recall.prepareStep(agent(), 1, [userMessage('what do I know about xyz')], signal())
+    expect(find).toHaveBeenCalledWith(expect.objectContaining({ limit: 3 }), expect.anything())
+  })
+
+  it('searches at most branchLimit procedure branches', async () => {
+    const { client, find, tree } = mockClient()
+    tree.mockImplementation(async () => [
+      { path: 'viking://user/memories/playbooks/', type: 'dir' },
+      { path: 'viking://user/memories/methods/', type: 'dir' },
+      { path: 'viking://user/memories/cases/', type: 'dir' },
+    ])
+    const recall = new MemoryRecall(client, recallConfig({ branchLimit: 1 }), logger)
+    await recall.prepareStep(agent(), 1, [userMessage('what are the steps to recover from a failed migration?')], signal())
+    const branchSearches = find.mock.calls.filter(([params]) =>
+      !['viking://user/memories/', 'viking://agent/'].includes(params.targetUri))
+    expect(branchSearches).toHaveLength(1)
+  })
+
+  it('re-fetches procedure branches only after the configured cache TTL', async () => {
+    const { client, find, tree } = mockClient()
+    tree.mockImplementation(async () => [{ path: 'viking://user/memories/playbooks/', type: 'dir' }])
+    find.mockResolvedValue(EMPTY_RESULT)
+    const cached = new MemoryRecall(client, recallConfig(), logger)
+    await cached.prepareStep(agent(), 1, [userMessage('how do I audit the recovery steps')], signal())
+    await cached.prepareStep(agent(), 2, [userMessage('how do I audit the rollback steps')], signal())
+    expect(tree).toHaveBeenCalledTimes(1)
+
+    const expiring = new MemoryRecall(client, recallConfig({ branchCacheTtlMs: 1000 }), logger)
+    await expiring.prepareStep(agent(), 1, [userMessage('how do I audit the recovery steps')], signal())
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    await expiring.prepareStep(agent(), 2, [userMessage('how do I audit the rollback steps')], signal())
+    expect(tree).toHaveBeenCalledTimes(3)
+  })
+
   it('skips marker files and non-procedure leaf directories', async () => {
     const { client, tree } = mockClient()
     tree.mockImplementation(async () => [

@@ -45,6 +45,10 @@ The plugin talks to a running OpenViking HTTP service only — it never shells o
 | `autoRecall.tokenBudget` | `2000` | Approximate token budget (`tokenBudget × 4` chars), 100–10000. |
 | `autoRecall.refreshSteps` | `10` | Mid-message re-search every N tool steps; 0 disables. |
 | `autoRecall.startupMapEveryTurns` | `5` | Memory-map refresh cadence; 1 = session start only, 0 = never. |
+| `autoRecall.searchLimit` | `20` | Retrieval limit per search against the service; 1–100. |
+| `autoRecall.branchLimit` | `16` | Maximum procedure-bearing branches searched per step; 1–100. |
+| `autoRecall.branchDeadlineMs` | `3000` | Per-branch search deadline; a slow deployment can raise it without changing the injected block. |
+| `autoRecall.branchCacheTtlMs` | `300000` | Procedure-branch discovery cache TTL; 1000–3600000. |
 | `autoCommit.turns` | `3` | Commit after N uncommitted user turns; 0 disables the turn trigger. |
 | `autoCommit.intervalMinutes` | `10` | Wall-clock fallback for previously committed sessions. |
 
