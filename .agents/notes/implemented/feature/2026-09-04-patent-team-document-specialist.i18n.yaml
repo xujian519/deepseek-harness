@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-04-patent-team-document-specialist.md
-2026-09-04-patent-team-document-specialist.md: 632aad62db3099c9c319b538b893d7c6e9ad2c93
-2026-09-04-patent-team-document-specialist.zh.md: ba5739b0295f498273db4461a1e2a3aaa4415d6a
+2026-09-04-patent-team-document-specialist.md: 95b3e4b561becab4e894f7c4b2097ece742d4d19
+2026-09-04-patent-team-document-specialist.zh.md: c36c73bff67e41bb4bb5da43387a239ff43c5afb

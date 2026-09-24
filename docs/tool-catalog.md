@@ -5010,7 +5010,7 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 ### `patent_worker_validate`
 
-Validate a patent worker output against its declared contract (required fields). Missing hard-contract fields mark the output degraded (never interrupts); soft-contract gaps are reported separately. Returns the pass/degraded verdict plus the missing hard/soft field lists. Use for contract-level quality review of patent products (technical analysis, search report, novelty/inventiveness analysis, OA response, quality report).
+Validate a patent worker output against its declared contract (required fields). Missing hard-contract fields mark the output degraded (never interrupts); soft-contract gaps are reported separately. Returns the pass/degraded verdict plus the missing hard/soft field lists. Use for contract-level quality review of patent products (technical analysis, search report, novelty/inventiveness analysis, OA response, quality report, figure deliverable).
 
 ```json
 {
@@ -5806,7 +5806,7 @@ Add a durable continuable member. By default it snapshots the captain's current 
     },
     "role": {
       "type": "string",
-      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator, document-specialist)."
+      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator, illustrator, document-specialist)."
     },
     "provider": {
       "type": "string",

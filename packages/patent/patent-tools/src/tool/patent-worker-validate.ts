@@ -42,7 +42,7 @@ export type PatentWorkerValidateOutput = {
 }
 
 const DESCRIPTION = [
-  'Validate a patent worker output against its declared contract (required fields). Missing hard-contract fields mark the output degraded (never interrupts); soft-contract gaps are reported separately. Returns the pass/degraded verdict plus the missing hard/soft field lists. Use for contract-level quality review of patent products (technical analysis, search report, novelty/inventiveness analysis, OA response, quality report).',
+  'Validate a patent worker output against its declared contract (required fields). Missing hard-contract fields mark the output degraded (never interrupts); soft-contract gaps are reported separately. Returns the pass/degraded verdict plus the missing hard/soft field lists. Use for contract-level quality review of patent products (technical analysis, search report, novelty/inventiveness analysis, OA response, quality report, figure deliverable).',
 ].join('\n')
 /**
  * Render the canonical validation value into model-facing prose.

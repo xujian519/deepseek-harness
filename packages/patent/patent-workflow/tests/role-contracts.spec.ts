@@ -6,6 +6,7 @@ import {
   roleWorkers,
   validateWorkerOutput,
   workerDeliverables,
+  workerTools,
   type RoleStance,
 } from '@deepseek-ai/dsh-patent-workflow'
 
@@ -20,9 +21,9 @@ const STANCES: readonly RoleStance[] = [
 ]
 
 describe('defaultRoleContracts', () => {
-  it('ships the thirteen team roles with unique ids and legal stances', () => {
+  it('ships the fourteen team roles with unique ids and legal stances', () => {
     const roles = defaultRoleContracts()
-    expect(roles).toHaveLength(13)
+    expect(roles).toHaveLength(14)
     const ids = roles.map(role => role.role)
     expect(new Set(ids).size).toBe(ids.length)
     for (const role of roles) {
@@ -68,6 +69,15 @@ describe('roleContract', () => {
     expect(roleContract('no-such-role')).toBeUndefined()
   })
 
+  it('resolves the illustrator role to its neutral stance and figure worker', () => {
+    const illustrator = roleContract('illustrator')
+    expect(illustrator?.name).toBe('制图员')
+    expect(illustrator?.stance).toBe('neutral')
+    expect(illustrator?.triggersHITL).toBe(true)
+    expect(roleWorkers('illustrator').map(w => w.name)).toEqual(['patent-illustrator'])
+    expect(workerDeliverables('illustrator')).toBe('附图文件、附图标记表、图文一致性、形式要件核验')
+  })
+
   it('resolves the document-specialist role to its neutral stance and worker', () => {
     const specialist = roleContract('document-specialist')
     expect(specialist?.name).toBe('文档专员')
@@ -87,6 +97,18 @@ describe('workerDeliverables', () => {
 
   it('returns an empty string for an unknown role', () => {
     expect(workerDeliverables('no-such-role')).toBe('')
+  })
+})
+
+describe('workerTools', () => {
+  it('joins the tools a role\'s workers declare, without duplicates', () => {
+    expect(workerTools('researcher')).toBe('patent_search、patent_metadata、patent_legal_status、web_search、web_fetch、patent_analysis_report、patent_eval')
+    expect(workerTools('drafter')).toBe('read_file、web_fetch、write_file、patent_eval')
+    expect(workerTools('illustrator')).toBe('read_file、write_file、generate_patent_figure、generate_structure_figure、add_patent_figure_references、analyze_patent_figure、search_patent_figure、validate_specification')
+  })
+
+  it('returns an empty string for an unknown role', () => {
+    expect(workerTools('no-such-role')).toBe('')
   })
 })
 

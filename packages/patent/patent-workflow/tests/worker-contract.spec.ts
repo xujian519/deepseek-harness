@@ -163,6 +163,7 @@ describe('defaultPatentWorkers', () => {
       'defendant-counsel',
       'adjudicator',
       'tech-investigator',
+      'patent-illustrator',
       'patent-document-renderer',
     ])
     for (const def of workers) {
@@ -182,5 +183,10 @@ describe('defaultPatentWorkers', () => {
     expect(docRenderer.triggersHITL).toBe(true)
     expect(docRenderer.allowedTools).toContain('render_patent_document')
     expect(docRenderer.forbiddenActions?.some(a => a.includes('实体结论'))).toBe(true)
+    const illustrator = workers.find(w => w.name === 'patent-illustrator')!
+    expect(illustrator.tier).toBe('work')
+    expect(illustrator.triggersHITL).toBe(true)
+    expect(illustrator.allowedTools).toContain('add_patent_figure_references')
+    expect(illustrator.outputs?.[0]?.requiredFields).toEqual(['附图文件', '附图标记表', '图文一致性', '形式要件核验'])
   })
 })

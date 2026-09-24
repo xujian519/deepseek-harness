@@ -20,7 +20,7 @@ Status: implemented
 - `packages/patent/patent-document/assets/templates/patent/` 新增 4 个模板：`rectification-response`（补正书 + 替换页清单）、`re-examination-request`（复审请求书）、`infringement-opinion`（侵权比对意见书）、`litigation-pleading`（起诉状/答辩状，可切换）。每个随包 SKILL.md、assets/template.html、example.html 与 references（conventions/checklist/citation-log），遵循既有 DOCS.md 品牌契约。`DocumentTemplateId`、`TEMPLATE_IDS`、manifest.json、工具描述与 README 双语同步为 9 个模板。
 - `patent-quality-gate` 增加正式交付检查项（场景模板 + 矫正/美化完成，docx 规则保留）与「放行去重」规则；`patent-workspace-layout` 写明渲染产物落盘（与 md 定稿同目录，`_matter-log.md` 记交付）。
 
-设计文档状态提示与 preset README（双语）反映 13 角色、13 技能与 9 模板。
+设计文档状态提示与 preset README（双语）反映角色目录、13 技能与 9 模板。
 
 ## 备选方案
 
@@ -32,7 +32,7 @@ Status: implemented
 
 ## 影响
 
-- `role-contracts.spec` / `worker-contract.spec` 数量与断言已更新（13 角色；16 worker），覆盖新角色与新 worker。
+- `role-contracts.spec` / `worker-contract.spec` 数量与断言已更新（14 角色；16 worker），覆盖新角色与新 worker。
 - `render-patent-document.spec` 与 `template-resolver.spec` 通过真实资产覆盖 4 个新模板。
-- `pnpm run gen-tool-catalog` 重写 `docs/tool-catalog.md`（模板枚举与 role 描述）；中文版属配对排除项。
+- `pnpm run gen-tool-catalog` 重写 `docs/tool-catalog.md`（模板枚举与 role 描述）；中文版承载同一段 schema 文本，随双语配对重新记录。
 - 技能经 preset 的 `customSkillDirs` 自动注册；SKILL.md 与其余 preset 技能一样不涉技能元数据门禁。

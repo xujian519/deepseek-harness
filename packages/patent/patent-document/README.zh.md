@@ -65,6 +65,7 @@ Schemastery 配置，所有字段均可选。
 - **PDF 需要可探测的 Chrome** — headless PDF 打印经 ctx.subprocess 派生 Chrome（取代 Sati 的 execFile）；当探测不到 Chrome（或未设置 chromePath/DSH_CHROME_PATH）时，渲染降级为仅 HTML，结果携带 pdfError。
 - **默认输出目录为 .dsh/documents** — 相对进程工作目录（取代 Sati 的 .sati/documents）；给定 caseId 时仍采用 data/cases/<caseId>/outputs 约定。
 - **brandPath 读取 Sati 形态的 theme.json** — 加载器读取该文件的 documents.patent 命名空间；不支持其他主题 schema。
+- **无附图页与图片嵌入** — 模板只承载附图说明文字段，渲染出的文档不含附图图像，附图因此以调用方自行命名并随渲染文件一同交付的独立附件到达客户。
 
 ### 开发备注
 

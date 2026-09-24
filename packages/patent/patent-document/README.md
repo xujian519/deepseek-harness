@@ -59,6 +59,7 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 - **PDF needs a discoverable Chrome** — headless PDF printing spawns Chrome through ctx.subprocess (replacing Sati's execFile); when no Chrome is discoverable (or chromePath/DSH_CHROME_PATH is unset), rendering degrades to HTML-only and the result carries pdfError.
 - **Default output directory is .dsh/documents** — relative to the process working directory (replacing Sati's .sati/documents); a caseId keeps the data/cases/<caseId>/outputs convention.
 - **brandPath reads a Sati-shaped theme.json** — the loader reads the documents.patent namespace from that file; no other theme schema is supported.
+- **No figure page or image embedding** — the templates carry the 附图说明 text section only; a rendered document contains no drawing images, so drawings reach the client as separate attachments that the caller names and ships alongside the rendered file.
 
 ### Dev Note
 

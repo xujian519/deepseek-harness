@@ -471,6 +471,32 @@ export function defaultPatentWorkers(): WorkerContract[] {
       triggersHITL: false,
     },
     {
+      name: 'patent-illustrator',
+      tier: 'work',
+      description:
+        '制图员（流程中立）：附图的唯一权威产出与核验——按案情出图（结构示意图/流程图/框图/层级图/状态图/电路图/曲线图/剖视图/时序图/外观设计视图排布，三维模型走结构线稿），维护附图标记表（细则第二十一条第二款图文双向一致的唯一标记源），标号回填，图文双向一致性核验，形式要件核验（图号位于附图正下方、除必需词语外无注释、色彩与落版尺寸）',
+      allowedTools: [
+        'read_file',
+        'write_file',
+        'generate_patent_figure',
+        'generate_structure_figure',
+        'add_patent_figure_references',
+        'analyze_patent_figure',
+        'search_patent_figure',
+        'validate_specification',
+      ],
+      outputs: [
+        {
+          path: `${caseOutputsDir('{caseId}')}/figure-deliverable.md`,
+          format: 'markdown',
+          contractLevel: 'hard',
+          requiredFields: ['附图文件', '附图标记表', '图文一致性', '形式要件核验'],
+        },
+      ],
+      forbiddenActions: ['不改实体结论（权利要求布局/保护范围/修改方案）', '不评新颖性/创造性', '不代任一立场起草策略内容'],
+      triggersHITL: true,
+    },
+    {
       name: 'patent-document-renderer',
       tier: 'work',
       description:

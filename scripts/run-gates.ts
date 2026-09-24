@@ -840,6 +840,7 @@ function docSyncLeafGates(options: {
     }),
     pnpmScript('package-readme-limitations', 'verify-package-readme-limitations', { label: 'package README limitations', quick: true }),
     pnpmScript('agent-preset-config', 'verify-agent-preset-config', { label: 'agent preset config', quick: true }),
+    pnpmScript('patent-team-roster', 'verify-patent-team-roster', { label: 'patent team roster', quick: true }),
   ]
 }
 
