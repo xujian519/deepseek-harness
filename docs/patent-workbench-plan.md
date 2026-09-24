@@ -6,6 +6,7 @@
 - 收敛记录（2026-08-25）：两套 patent 预设已收敛为一套。**正本 = 仓库 `packages/preset/agent-presets/presets/patent/`**（git 跟踪；桌面打包把它部署进 `apps/desktop/resources/**`，该目录 gitignore）。原 `~/.dsh/.agent-presets/patent/`（含 `patent-matter` / `patent-fact-check` / `patent-compliance-review`、docx 交付与 HITL 放行规则）已并入正本并归档到 `~/.dsh/.agent-presets-archive/patent-*`。团队机制统一为 `dsh-patent-teams` + `patent-team-composition`；废弃泛化 agent-teams + `patent-team-workflow` 路线。
 - 同步记录（2026-09-22，上游 v0.1.7-alpha.1）：preset 随上游改为声明式。**正本 = `packages/bundle/web-app/presets/patent.patch.yml`**（`dsh-web-app` bundle 内 id `patent` 的 `dsh-agent-preset` 声明，随应用安装交付），`packages/preset/agent-presets/presets/patent/` 与 `$DSH_HOME/.agent-presets` 用户根均不再存在。下文凡写这两处路径，均指该声明。
 - 前置文档：`docs/patent-mode-design.md`（预设设计）、`docs/sati-as-dsh-plugins-plan.md`（插件移植计划，已实施完毕，本计划的插件层即其产物）
+- 追加落地（2026-09-24）：专利团队新增**制图员**角色（`illustrator`，worker `patent-illustrator`，14 角色 / 16 worker）——附图与附图标记表的唯一权威源、标号回填、图文双向一致性核验、形式要件核验，不改实体结论；撰写包（7 成员）、答复包（7）、补正包（4）、复审包（7）纳入，无效与诉讼包按需在 `maxMembers` 内临时增补；`patent-quality-gate` 新增「附图与标号」条目；`patent_teams_add_member` 的 role 描述改为从角色目录派生。
 - 评审修订：workspace 包数 10→9 勘误、规则数口径、G5 缺口表述（规则门禁已实例化，缺口为事实核验闸门与审计链整合）、阶段 1 补技能发现接线、阶段 2 状态机定案、阶段 4 落地边界
 - 调研输入：开源社区专利/法律 AI 项目横向扫描（star 经 GitHub API 核验，2026-08-19）
 - 定位：**在已有插件层基础上，补齐"工作台"缺的五块拼图，分阶段落地为可用的专利律师日常作业环境**

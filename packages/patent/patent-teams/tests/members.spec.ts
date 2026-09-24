@@ -250,6 +250,7 @@ describe('memberPersona and memberWelcome', () => {
     expect(persona).toContain('检索员 (researcher)')
     expect(persona).toContain('Stance: [neutral]')
     expect(persona).toContain('Required deliverables: 检索式、对比文件、公开日')
+    expect(persona).toContain('Tools: patent_search、patent_metadata、patent_legal_status、web_search、web_fetch、patent_analysis_report、patent_eval')
     expect(persona).toContain('Forbidden:')
     expect(persona).toContain('HITL: deliverables can be completed directly')
   })
@@ -259,6 +260,7 @@ describe('memberPersona and memberWelcome', () => {
     const persona = memberPersona(makeTeam(), drafter, 'state', roleContract('drafter'))
     expect(persona).toContain('HITL: deliverables need human confirmation before the final output')
     expect(persona).toContain('Required deliverables: 技术问题、技术特征、技术效果、意见陈述、修改对照')
+    expect(persona).toContain('Tools: read_file、web_fetch、write_file、patent_eval')
   })
 
   it('renders the welcome message with the team name and task count', () => {

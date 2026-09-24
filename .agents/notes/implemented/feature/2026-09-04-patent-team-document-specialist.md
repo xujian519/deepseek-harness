@@ -20,7 +20,7 @@ The team gains a **document-specialist** role (`document-specialist`, stance `ne
 - Four new templates in `packages/patent/patent-document/assets/templates/patent/`: `rectification-response` (correction sheet with replacement-page list), `re-examination-request` (reexamination request), `infringement-opinion` (infringement comparison opinion), `litigation-pleading` (civil complaint / defense, switchable). Each ships SKILL.md, assets/template.html, example.html, and references (conventions/checklist/citation-log) following the existing DOCS.md brand contract. `DocumentTemplateId`, `TEMPLATE_IDS`, manifest.json, tool description, and the README pair move to nine templates.
 - `patent-quality-gate` gains the formal-deliverable check (scenario template + correction/beautification complete, docx rules kept) and a no-duplicate-confirmation rule; `patent-workspace-layout` documents where rendered deliverables land (same directory as the md draft, `_matter-log.md` delivery entry).
 
-The design doc status note and preset README (bilingual) reflect the 13-role roster, 13 skills, and nine templates.
+The design doc status note and preset README (bilingual) reflect the role roster, 13 skills, and nine templates.
 
 ## Alternatives considered
 
@@ -32,7 +32,7 @@ The design doc status note and preset README (bilingual) reflect the 13-role ros
 
 ## Consequences
 
-- `role-contracts.spec` / `worker-contract.spec` counts and assertions updated (13 roles; 16 workers) and cover the new role and worker.
+- `role-contracts.spec` / `worker-contract.spec` counts and assertions updated (14 roles; 16 workers) and cover the new role and worker.
 - `render-patent-document.spec` and `template-resolver.spec` cover the four new templates through the real assets.
-- `pnpm run gen-tool-catalog` rewrote `docs/tool-catalog.md` (template enum and role description); the Chinese catalog is pairing-excluded.
+- `pnpm run gen-tool-catalog` rewrote `docs/tool-catalog.md` (template enum and role description); the Chinese catalog carries the same schema text and is re-recorded through the bilingual pair.
 - Skills register through the preset's `customSkillDirs`; the SKILL.md stays outside skill-metadata gates (same as the other preset skills).

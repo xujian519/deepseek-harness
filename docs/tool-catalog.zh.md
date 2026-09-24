@@ -5016,7 +5016,7 @@ Usage notes:
 
 ### `patent_worker_validate`
 
-按声明契约（必填字段）校验专利 worker 产出。缺失硬契约字段将输出标记为降级（绝不中断）；软契约缺口单独报告。返回通过/降级判定及缺失的硬/软字段清单。用于专利产物的契约级质量审查（技术分析、检索报告、新颖性/创造性分析、OA 答复、质检报告）。
+按声明契约（必填字段）校验专利 worker 产出。缺失硬契约字段将输出标记为降级（绝不中断）；软契约缺口单独报告。返回通过/降级判定及缺失的硬/软字段清单。用于专利产物的契约级质量审查（技术分析、检索报告、新颖性/创造性分析、OA 答复、质检报告、附图交付物）。
 
 ```json
 {
@@ -5812,7 +5812,7 @@ Add a durable continuable member. By default it snapshots the captain's current 
     },
     "role": {
       "type": "string",
-      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator, document-specialist)."
+      "description": "Role of the member (e.g. case-manager, researcher, drafter, technical-expert, adversarial-reviewer, applicant-counsel, formal-examiner, invalidity-petitioner, patentee-defender, adjudicator, defendant-counsel, tech-investigator, illustrator, document-specialist)."
     },
     "provider": {
       "type": "string",

@@ -17,7 +17,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 // Declaration merge only: makes ctx.subagents visible.
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { workerDeliverables, type RoleContract } from '@deepseek-ai/dsh-patent-workflow'
+import { workerDeliverables, workerTools, type RoleContract } from '@deepseek-ai/dsh-patent-workflow'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { join } from 'node:path'
 import { readRetiredMemberIds } from './state.ts'
@@ -160,8 +160,8 @@ export async function resolveMemberLlmSelection(
  * The member's system prompt (persona), shadowing the deployment persona for
  * that child. Self-contained: it replaces the whole persona section. When a
  * team role contract is given it is folded in as a dedicated role section
- * (the role's stance, required deliverables, forbidden actions, and HITL
- * flag), so a member knows its scope beyond the generic working rules.
+ * (the role's stance, required deliverables, tool list, forbidden actions, and
+ * HITL flag), so a member knows its scope beyond the generic working rules.
  * @param team - the team the member joined.
  * @param member - the member record (name/role are read before spawning).
  * @param stateDir - configured state directory, so the member can locate the
@@ -198,6 +198,7 @@ Working rules:
 /** Render one team role's contract as a guide section for the persona. */
 function roleSection(contract: RoleContract): string {
   const deliverables = workerDeliverables(contract.role)
+  const tools = workerTools(contract.role)
   const forbidden = contract.forbiddenActions.join('、')
   const hitl = contract.triggersHITL
     ? 'deliverables need human confirmation before the final output'
@@ -206,6 +207,7 @@ function roleSection(contract: RoleContract): string {
 - Role: ${contract.name} (${contract.role})
 - Stance: [${contract.stance}] ${contract.description}
 - Required deliverables: ${deliverables}
+- Tools: ${tools}
 - Forbidden: ${forbidden}
 - HITL: ${hitl}`
 }

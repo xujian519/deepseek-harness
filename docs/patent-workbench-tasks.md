@@ -372,7 +372,7 @@ cp ~/.dsh/.agent-presets/liangshen/agent.cordis.yml ~/.dsh/.agent-presets/patent
 
 ### 阶段 5 追加落地记录（2026-09-04）
 
-- [x] 文档专员角色：`document-specialist` 注册于 `patent-workflow/role-contracts.ts`（13 角色），worker `patent-document-renderer`（交付场景/矫正清单/渲染产物，triggersHITL），`patent_teams_add_member` role 描述同步。
+- [x] 文档专员角色：`document-specialist` 注册于 `patent-workflow/role-contracts.ts`，worker `patent-document-renderer`（交付场景/矫正清单/渲染产物，triggersHITL），`patent_teams_add_member` role 描述同步。
 - [x] 技能 `patent-document-polish`（场景→模板映射、矫正清单、美化清单、交付流程与 HITL 去重）。
 - [x] 模板扩至 9 个：新增 `rectification-response` / `re-examination-request` / `infringement-opinion` / `litigation-pleading`（SKILL.md + template.html + example.html + references）。
 - [x] `patent-team-composition` 七场景包均纳入文档专员，质量门禁后、收口前插入「正式文档输出」任务；质量门禁、目录规范、preset README（双语）同步。

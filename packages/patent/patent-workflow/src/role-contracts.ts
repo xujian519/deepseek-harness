@@ -38,8 +38,8 @@ export interface RoleContract {
 }
 
 /**
- * 内置团队角色目录（13 角色，与 patent-team-composition SKILL 角色总表一一对应）。
- * @returns 全部 13 个角色契约。
+ * 内置团队角色目录（14 角色，与 patent-team-composition SKILL 角色总表一一对应）。
+ * @returns 全部 14 个角色契约。
  */
 export function defaultRoleContracts(): RoleContract[] {
   return [
@@ -152,6 +152,16 @@ export function defaultRoleContracts(): RoleContract[] {
       triggersHITL: false,
     },
     {
+      role: 'illustrator',
+      name: '制图员',
+      stance: 'neutral',
+      description:
+        '附图的唯一权威产出与核验：按案情出图（结构示意图/流程图/框图/层级图/状态图/电路图/曲线图/剖视图/时序图/外观设计视图排布，三维模型走结构线稿）、维护附图标记表（细则第二十一条第二款双向一致的唯一标记源）、标号回填、图文双向一致性核验、形式要件核验（图号正下方、除必需词语外无注释、色彩与落版尺寸）、答复/补正/复审场景的附图修改执行',
+      workers: ['patent-illustrator'],
+      forbiddenActions: ['不改权利要求布局与保护范围', '不改说明书与答复稿的实体内容（只负责图面与标号）', '不评新颖性/创造性'],
+      triggersHITL: true,
+    },
+    {
       role: 'document-specialist',
       name: '文档专员',
       stance: 'neutral',
@@ -205,6 +215,20 @@ export function workerDeliverables(role: string): string {
   return roleWorkers(role)
     .flatMap(worker => (worker.outputs ?? []).flatMap(output => output.requiredFields ?? []))
     .join('、')
+}
+
+/**
+ * Join the tools a role's workers declare, deduplicated in declaration order.
+ *
+ * The member persona renders this list, so a member learns which tools its role
+ * owns. Nothing enforces it: `allowedTools` has no runtime consumer, and the
+ * only restriction path is the `deny` filter that hides captain-only team tools.
+ * @param role - SKILL.md role id.
+ * @returns the '、'-joined tool list, or '' when the role is unregistered or its
+ *   workers declare no tools.
+ */
+export function workerTools(role: string): string {
+  return [...new Set(roleWorkers(role).flatMap(worker => worker.allowedTools ?? []))].join('、')
 }
 
 /**
