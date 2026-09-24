@@ -232,6 +232,10 @@ function MermaidDiagram({ code }: { code: string }): React.ReactNode {
   const [zoomSvg, setZoomSvg] = useState<SVGSVGElement | null>(null)
   const copyTimer = useRef<number | undefined>(undefined)
 
+  // The reset timer is this diagram's own: cancel it when the diagram unmounts
+  // inside the feedback window instead of writing state to a gone component.
+  useEffect(() => () => { window.clearTimeout(copyTimer.current) }, [])
+
   useEffect(() => subscribeColorScheme(() => { setDark(isDarkScheme()) }), [])
 
   useEffect(() => {

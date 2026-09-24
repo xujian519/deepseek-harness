@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { writeClipboard } from './clipboard.ts'
 
 /** How long the `copied` flag stays true after a successful write, in ms. */
-const COPIED_FEEDBACK_MS = 1000
+export const COPIED_FEEDBACK_MS = 1000
 
 /** The copy-feedback hook's return: the transient flag and the copy handler. */
 export interface CopyFeedback {
