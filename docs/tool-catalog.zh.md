@@ -5728,7 +5728,7 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 - 用给定变量渲染一个文档模板，返回文档本体、未填充的占位符与变量警告
 - 先用 `list_doc_templates` 取得模板名与其变量。每个必填变量都必须提供：缺一个即调用失败并点名该变量，而不是返回一份带缺口的文档
-- `format` 默认取模板的兜底格式；模板只渲染它声明的格式。`markdown` 与 `html` 返回文本，`docx` 把包体以 base64 放在 `content`；解析后的 Markdown 正文始终在 `markdown` 中返回
+- `format` 默认取模板的兜底格式；模板只渲染它声明的格式。`markdown` 与 `html` 返回文本，`docx` 把包体以 base64 放在 `content`；无论哪种格式，`markdown` 都是注入文档标题与风格免责声明之前的解析正文：落盘写 `content`，用 `markdown` 写出的文件会丢掉这两者
 - 模板未声明的变量被忽略；未提供值的占位符保留在文档中并在 `residual` 中报告，而不是被抹掉。每次成功渲染都会返回残余占位符与警告：把文档当作成品之前先读它们
 
 使用说明：

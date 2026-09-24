@@ -298,6 +298,21 @@ describe('TemplateStore.render', () => {
     expect(outcome.residual).toContain('method_name')
   })
 
+  it('returns the injection-free body in markdown while content carries title and disclaimer', async () => {
+    const packaged = storeOf().render({ template: 'search-report', variables: SEARCH_REPORT_VARIABLES })
+    // The delivered text is the injected body: the style disclaimer precedes it.
+    expect(packaged.markdown.startsWith('# 专利检索报告')).toBe(true)
+    expect(packaged.content.endsWith(packaged.markdown)).toBe(true)
+    expect(packaged.content.length).toBeGreaterThan(packaged.markdown.length)
+    // An injected title reaches `content` only, so a file written from the body loses it.
+    const root = await tempDir()
+    await writeTemplate(root, 'a.md', 'name: a\n', '正文 {{a}}\n')
+    const injected = createTemplateStore(storeOptions({ templateDirs: [root] }))
+      .render({ template: 'a', variables: { a: 'x' }, title: '自定义标题' })
+    expect(injected.content).toBe('# 自定义标题\n\n正文 x')
+    expect(injected.markdown).toBe('正文 x')
+  })
+
   it('omits the title heading when the template declares none', async () => {
     const root = await tempDir()
     await writeTemplate(root, 'a.md', 'name: a\n', '正文 {{a}}\n')

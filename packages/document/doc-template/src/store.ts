@@ -116,7 +116,10 @@ export interface RenderOutcome {
   readonly encoding: 'utf8' | 'base64'
   /** The rendered document: text for the text formats, a base64 package for DOCX. */
   readonly content: string
-  /** The resolved Markdown body the renderer consumed. */
+  /**
+   * The resolved Markdown body before the injected title and style disclaimer;
+   * `content` is the document a caller saves.
+   */
   readonly markdown: string
   /** Placeholders left unfilled, in first-occurrence order. */
   readonly residual: readonly string[]

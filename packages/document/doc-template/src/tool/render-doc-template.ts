@@ -53,7 +53,10 @@ export interface RenderDocTemplateOutput {
   readonly encoding: RenderEncoding
   /** The rendered document: text, or a base64 DOCX package. */
   readonly content: string
-  /** The resolved Markdown body the renderer consumed. */
+  /**
+   * The resolved Markdown body before the injected title and style disclaimer;
+   * `content` is the document a caller saves.
+   */
   readonly markdown: string
   /** Placeholders left unfilled, in first-occurrence order. */
   readonly residual: string[]
@@ -150,7 +153,7 @@ export function renderDocumentResult(value: RenderDocTemplateOutput): string {
 const DESCRIPTION = [
   '- Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.',
   '- Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.',
-  '- `format` defaults to the template\'s fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. The resolved Markdown body is always returned in `markdown`.',
+  '- `format` defaults to the template\'s fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: write `content` to the delivered file, because a file written from `markdown` loses both.',
   '- Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.',
   '',
   'Usage notes:',
