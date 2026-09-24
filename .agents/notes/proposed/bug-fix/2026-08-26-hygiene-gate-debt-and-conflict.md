@@ -33,17 +33,17 @@ Two lines share a narrow band of files and collide there: `scripts/gen-cordis-ca
 
 ## Repair backlog
 
-Items 1 and 2 shipped 2026-08-26 once the liberalization-plugin window closed; item 3 and the `bundle/im` items remain. The original list:
+Items 1 and 2 shipped 2026-08-26 once the liberalization-plugin window closed and item 3 shipped 2026-09-24; the `bundle/im` items remain. The original list:
 
 1. `scripts/check-workspace-constraints.ts` — **implemented 2026-08-26.** `checkHierarchyShape()` now reads the `pnpm-workspace.yaml` `!` exclusion globs (via `yaml.load`, as `scripts/gen-third-party-notices.ts` does) and skips the excluded `packages/self-evolve/evaluation` tree instead of misreading it as a package with no manifest.
 2. `packages/memory/openviking/package.json` — **implemented 2026-08-26.** Dropped the redundant `@deepseek-ai/dsh-fs` from `devDependencies` (the section knip flags), leaving it a `peerDependencies` declaration only.
-3. The `test:coverage` failures are confirmed pre-existing and deliberately out of scope for this repair: the register-and-defer path was taken in 2026-08, and the deferred review is now due for the patent family. **Pending.**
+3. The `test:coverage` failures are confirmed pre-existing and deliberately out of scope for the original repair: the register-and-defer path was taken in 2026-08, and the deferred review of the patent family landed on 2026-09-24, which registers the family package by package. **Implemented 2026-09-24.**
 
-   What the registration bought and what it did not. The 2026-08 registration (`vitest.config.ts:222-230`) added the family-level glob `'packages/patent/*/src/**/*.{ts,tsx}'` to `coverage.exclude` — not to `coverage.thresholds.exclude`. The two differ materially: the first removes the files from the coverage report, the second only exempts them from the per-file gate while keeping them visible. A 2026-09-21 instrumented run over the family (`pnpm vitest run --coverage --coverage.reporter=json-summary packages/patent`) produced a `coverage-summary.json` holding 1627 entries with **0** from `packages/patent/*/src`, so the family carries no coverage figure at all. A family-level glob also means a patent subpackage added today lands outside the gate without any configuration change.
+   What the registration bought and what it did not. The 2026-08 registration (`vitest.config.ts:222-230`) added the family-level glob `'packages/patent/*/src/**/*.{ts,tsx}'` to `coverage.exclude` — not to `coverage.thresholds.exclude`. The two differ materially: the first removes the files from the coverage report, the second only exempts them from the per-file gate while keeping them visible. A 2026-09-21 instrumented run over the family (`pnpm vitest run --coverage --coverage.reporter=json-summary packages/patent`) produced a `coverage-summary.json` holding 1627 entries with **0** from `packages/patent/*/src`, so the family carried no coverage figure at all. A family-level glob also meant a patent subpackage added then landed outside the gate without any configuration change.
 
-   The reason recorded there is stale. The 75-`src`/10-spec `patent-core` figure in the root-cause section above is now 286 `src` files and 214 specs across the family, so "GUI and patent-asset code without per-branch specs" no longer describes it.
+   The reason recorded there was stale: the 75-`src`/10-spec `patent-core` figure in the root-cause section above is 286 `src` files and 214 specs across the family, so "GUI and patent-asset code without per-branch specs" no longer described it.
 
-   The follow-up owed is to replace the family glob with per-package entries and decide each one: add coverage and remove the entry, or keep an explicit exemption that carries its own reason and an expiry condition. The measured state, the per-package priority order, and the decision criteria are in [the 2026-09-21 patent-domain review](../../../audits/2026-09-21-patent-domain-review.md) (§PDR-01; tracker #172).
+   The follow-up owed was to replace the family glob with per-package entries and decide each one: add coverage and remove the entry, or keep an explicit exemption that carries its own reason and an expiry condition. The 2026-09-24 change did that, and a package added later is measured unless it is exempted deliberately. Six packages pass the per-file 100% gate and are measured: `methodology` (15 `src` files), `patent-data` (6), `patent-document` (9), `patent-knowledge` (24), `patent-rule` (9), and `tool-literature` (16). Six stay exempted with their measured state: `patent-core` (99.8% of statements over 100 files), `patent-tools` (97.5% over 66), `patent-workflow` (99.9% over 20), `patent-teams` (99.5% over 10), `patent-deadline` (96.7% over 9), and `writing-patterns` (97.3% over 7). Each exemption is retired when its package reaches the gate; the per-package work order is in [the 2026-09-21 patent-domain review](../../../audits/2026-09-21-patent-domain-review.md) (§PDR-01; tracker #208).
 
 The `@xmanrui/dsh-im` / `bundle/im` knip items belong to the liberalization-plugin window: give `packages/bundle/im` a knip configuration (its own `knip.json` or a root `knip.json` entry) that exempts `@xmanrui/dsh-im` and corrects the entry/project patterns so it stops reporting hints. Do not fix these here to avoid colliding. **Pending — the window's item.**
 
@@ -57,7 +57,7 @@ The `@xmanrui/dsh-im` / `bundle/im` knip items belong to the liberalization-plug
 
 - The analysis above is recorded so the repair can be applied later without re-investigation.
 - The repair keeps `@xmanrui/dsh-im` / `bundle/im` ownership with the liberalization-plugin window; this change does not edit those files.
-- Items 1 and 2 landed 2026-08-26 (items 3 and the `bundle/im` items remain for their own debt/window changes); the repair keeps the two fixes scoped and the two open items logged.
+- Items 1 and 2 landed 2026-08-26 and item 3 on 2026-09-24 (the `bundle/im` items remain for their own window change); the repair keeps each fix scoped and the open items logged.
 
 ## Risks
 

@@ -33,17 +33,17 @@ Status: proposed
 
 ## 修复清单
 
-第 1、2 项已于 2026-08-26 随自由化插件窗口闭环落地;第 3 项与 `bundle/im` 项仍待办。原始按依赖顺序的清单:
+第 1、2 项已于 2026-08-26 随自由化插件窗口闭环落地,第 3 项已于 2026-09-24 落地;`bundle/im` 项仍待办。原始按依赖顺序的清单:
 
 1. `scripts/check-workspace-constraints.ts` — **已实施(2026-08-26)。** `checkHierarchyShape()` 现读取 `pnpm-workspace.yaml` 的 `!` 排除 glob(用 `yaml.load`,同 `scripts/gen-third-party-notices.ts`),跳过被排除的 `packages/self-evolve/evaluation` 树,不再把它误判为缺 manifest 的包。
 2. `packages/memory/openviking/package.json` — **已实施(2026-08-26)。** 从 `devDependencies`(knip 标记的那一节)删除冗余的 `@deepseek-ai/dsh-fs`,仅保留 `peerDependencies` 声明。
-3. `test:coverage` 失败确认为 pre-existing,本就超出本次修复范围:2026-08 走的是「先登记、后评估」路线,而那个被推后的评估现在对专利族已到期。**待办。**
+3. `test:coverage` 失败确认为 pre-existing,本就超出原修复范围:2026-08 走的是「先登记、后评估」路线,而那个被推后的专利族评估已于 2026-09-24 落地,把该族改为逐包登记。**2026-09-24 已实现。**
 
    登记买到了什么、没买到什么。2026-08 的登记(`vitest.config.ts:222-230`)把家族级 glob `'packages/patent/*/src/**/*.{ts,tsx}'` 加进了 `coverage.exclude`,而**不是** `coverage.thresholds.exclude`。两者差别是实质性的:前者把文件从覆盖率报告中移除,后者只让文件免于 per-file 门禁但仍可见。2026-09-21 对该族的一次插桩运行(`pnpm vitest run --coverage --coverage.reporter=json-summary packages/patent`)产出的 `coverage-summary.json` 共 1627 个条目,来自 `packages/patent/*/src` 者 **0 个**,即该族没有任何覆盖率数字。家族级 glob 还意味着今天新增的 patent 子包无需任何配置改动就落在门禁之外。
 
-   登记时写的理由已过期。上方根因节里的 `patent-core` 75 `src` / 10 spec 现在是全族 286 个 `src` 文件与 214 个 spec,故「GUI and patent-asset code without per-branch specs」已不再描述它。
+   登记时写的理由已过期:上方根因节里的 `patent-core` 75 `src` / 10 spec 现在是全族 286 个 `src` 文件与 214 个 spec,故「GUI and patent-asset code without per-branch specs」已不再描述它。
 
-   仍欠的后续是把家族级 glob 换成按包条目,并逐包判定:补覆盖后删除条目,或保留一条带自身理由与到期条件的显式豁免。实测状态、逐包补测优先级与判定标准见[2026-09-21 专利域审阅](../../../audits/2026-09-21-patent-domain-review.md)(§PDR-01;tracker #172)。
+   仍欠的后续是把家族级 glob 换成按包条目,并逐包判定:补覆盖后删除条目,或保留一条带自身理由与到期条件的显式豁免。2026-09-24 的改动已完成这件事,此后新增的包默认进入测量,除非被显式豁免。6 个包已满足 per-file 100% 门禁并处于测量中:`methodology`(15 个 `src` 文件)、`patent-data`(6)、`patent-document`(9)、`patent-knowledge`(24)、`patent-rule`(9)、`tool-literature`(16)。另 6 个连同实测状态保留豁免:`patent-core`(100 个文件,语句 99.8%)、`patent-tools`(66 个,97.5%)、`patent-workflow`(20 个,99.9%)、`patent-teams`(10 个,99.5%)、`patent-deadline`(9 个,96.7%)、`writing-patterns`(7 个,97.3%)。每条例外在该包达标后即行删除;逐包工作顺序见[2026-09-21 专利域审阅](../../../audits/2026-09-21-patent-domain-review.md)(§PDR-01;tracker #208)。
 
 `@xmanrui/dsh-im` / `bundle/im` 的 knip 项归属自由化插件窗口:为 `packages/bundle/im` 补 knip 配置(自己的 `knip.json` 或根 `knip.json` 条目),豁免 `@xmanrui/dsh-im` 并修正 entry/project pattern,使其不再报 hints。此处不修,以免撞车。**待办 — 归属窗口。**
 
@@ -57,7 +57,7 @@ Status: proposed
 
 - 上述分析已记录,后续无需重新调查即可实施修复。
 - 修复将 `@xmanrui/dsh-im` / `bundle/im` 的归属留给自由化插件窗口;本次不改这些文件。
-- 第 1、2 项已于 2026-08-26 落地(第 3 项与 `bundle/im` 项留待各自债务/窗口变更);修复保持两项聚焦,并把两项未完事项记录在案。
+- 第 1、2 项已于 2026-08-26 落地,第 3 项于 2026-09-24 落地(`bundle/im` 项留待其窗口变更);修复保持各项聚焦,并把未完事项记录在案。
 
 ## 风险
 

@@ -221,16 +221,32 @@ export default defineConfig({
         // The self-evolve campaign CLI is an entry that spawns real agent
         // subprocesses; its entry glue is covered by cli.spec.ts subprocess tests.
         'packages/test-support/self-evolve-eval/src/cli.ts',
-        // Fork-local families not yet held to the per-file gate: patent domain
-        // plugins, the synapse live surface, the self-evolve family, and the
-        // agent-preset client. Their source carries GUI and patent-asset code
-        // without per-branch specs; registering them keeps the gate runnable.
-        // TODO(cov): cover or tighten per the coverage backlog in
+        // Fork-local families not yet held to the per-file gate: the synapse
+        // live surface, the self-evolve family, and the agent-preset client.
+        // Their source carries GUI code without per-branch specs; registering
+        // them keeps the gate runnable. TODO(cov): cover or tighten per the
+        // coverage backlog in
         // .agents/notes/proposed/bug-fix/2026-08-26-hygiene-gate-debt-and-conflict.md.
-        'packages/patent/*/src/**/*.{ts,tsx}',
         'packages/web/synapse/src/**/*.{ts,tsx}',
         'packages/self-evolve/*/src/**/*.{ts,tsx}',
         'packages/client/ui-agent-preset/src/**/*.{ts,tsx}',
+        // Patent-domain packages are exempted one at a time, never by a family
+        // glob, so a package added later is measured unless it is exempted
+        // deliberately. Six already pass the per-file gate and stay measured:
+        // methodology, patent-data, patent-document, patent-knowledge,
+        // patent-rule, and tool-literature. Measured 2026-09-24 over
+        // `npx vitest run packages/patent --coverage`, statements and src files:
+        // patent-core 99.8/100, patent-tools 97.5/66, patent-workflow 99.9/20,
+        // patent-teams 99.5/10, patent-deadline 96.7/9, writing-patterns 97.3/7.
+        // TODO(cov): retire each entry as its package reaches the gate; the
+        // per-package work order is in the 2026-09-21 patent-domain review
+        // (PDR-01, tracker #208).
+        'packages/patent/patent-core/src/**/*.{ts,tsx}',
+        'packages/patent/patent-tools/src/**/*.{ts,tsx}',
+        'packages/patent/patent-workflow/src/**/*.{ts,tsx}',
+        'packages/patent/patent-teams/src/**/*.{ts,tsx}',
+        'packages/patent/patent-deadline/src/**/*.{ts,tsx}',
+        'packages/patent/writing-patterns/src/**/*.{ts,tsx}',
         // The webserver Host module ships its own suite, but request-failure
         // and WebSocket-upgrade error branches remain uncovered. TODO(cov):
         // close the branch gaps and remove the entry.
