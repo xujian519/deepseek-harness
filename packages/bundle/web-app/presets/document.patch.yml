@@ -138,6 +138,11 @@
           # realm.
           - id: tool-document-deliver
             name: '@deepseek-ai/dsh-document-deliver'
+            config:
+              # The style the quality gate checks; it names the same style as the
+              # `doc-template` row below, and `tests/document-preset.spec.ts` fails
+              # when the two names drift apart.
+              defaultStyle: assistant-neutral
 
           # `doc-template` registers the model-facing `list_doc_templates` and
           # `render_doc_template` tools over the packaged template assets and the
@@ -145,7 +150,9 @@
           # instead of a hand-written document. `styleGuide` also injects that style's
           # guide as a system-prompt section and is the style `document_deliver` checks
           # against, so the words the model is told to avoid and the words the gate
-          # refuses are the same list. It provides nothing, so it needs no realm.
+          # refuses are the same list; both rows name that style explicitly, and
+          # `tests/document-preset.spec.ts` fails when the two names drift apart. It
+          # provides nothing, so it needs no realm.
           - id: doc-template
             name: '@deepseek-ai/dsh-doc-template'
             config:

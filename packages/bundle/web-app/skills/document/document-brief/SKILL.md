@@ -24,7 +24,7 @@ whenToUse: 用户提出文档/HTML/PPTX 交付需求、或信息不足无法直�
 
 1. 逐项询问或用 ask_user 确认缺口字段；可以从用户的原话中提取已给出的项。
 2. 篇幅预算写成机器可读的数字（如"正文约 3000 字"→ `char_budget: 3000`），
-   登记交付物时原样传给 `document_deliver`，工具会按 ±20% 核验。
+   登记交付物时原样传给 `document_deliver`，工具会按本部署配置的容差核验（容差见工具说明）。
 3. 输出结构化 brief（一段 markdown，含上述六字段），写进工作区 `brief.md`。
 4. 与用户确认后进入大纲阶段（html/report/deck/word 技能各自继续）。
 

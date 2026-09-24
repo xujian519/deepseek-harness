@@ -155,7 +155,8 @@ Append-only; the listing follows the reusable request prefix and does not invali
 - **The injected guide is not per template** — one agent reads one guide, chosen at load; a deployment that composes templates across styles gets the guide of the configured style and the disclaimer of each template's own, which the render path resolves separately.
 - **An empty `styleGuide` leaves the gate unannounced** — [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.md) refuses a word its style marks `block` whether or not the model was shown the guide, so a deployment that enables the checks and injects no guide can refuse a registration the model had no way to predict. Set `styleGuide` to the style the gate uses.
 - **The shipped templates are Chinese only** — the assets self-describe with `language: zh-CN` and no bilingual twin ships, so a document in another language needs its own template asset.
-- **`mergeVarContext` has no consumer yet** — the merged variable space of several templates is available to a caller that composes them; no shipped tool composes templates.
+- **`mergeVarContext` has no consumer yet** — the merged variable space of several templates is available to a caller that composes them; no shipped tool composes templates. Its `sharedVars` and `allVars` follow first-appearance order, not a sorted one.
+- **`rendererRegistry` has no consumer yet** — the store hands out the registry a consumer would call to add a render format; every shipped format is registered at construction, so nothing reads it.
 - **DOCX bytes travel base64** — a `docx` result carries the package base64-encoded in its `content` field, which is roughly a third larger than the package; the tool text keeps the package out of the transcript.
 
 ### Dev Note

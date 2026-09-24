@@ -57,9 +57,13 @@ export interface VersionConflict {
 export interface MergedVarContext {
   /** The merged templates, in the order requested. */
   readonly templates: readonly DocTemplate[]
-  /** Variables declared by more than one of the templates. */
+  /**
+   * Variables declared by more than one of the templates, in first-appearance
+   * order: within one template, its declared names count before its
+   * `shared_vars` names.
+   */
   readonly sharedVars: readonly string[]
-  /** Every distinct variable, taking the last template's definition. */
+  /** Every distinct variable, taking the last template's definition, in first-appearance order. */
   readonly allVars: readonly VarDefinition[]
 }
 
@@ -112,7 +116,10 @@ export interface RenderOutcome {
   readonly encoding: 'utf8' | 'base64'
   /** The rendered document: text for the text formats, a base64 package for DOCX. */
   readonly content: string
-  /** The resolved Markdown body the renderer consumed. */
+  /**
+   * The resolved Markdown body before the injected title and style disclaimer;
+   * `content` is the document a caller saves.
+   */
   readonly markdown: string
   /** Placeholders left unfilled, in first-occurrence order. */
   readonly residual: readonly string[]
