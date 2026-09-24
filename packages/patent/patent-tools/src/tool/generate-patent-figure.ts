@@ -65,6 +65,7 @@ import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
 import { figureDescription as buildFigureDescription, figureSentence } from '../figure/figure-description.ts'
 import { sanitizeDotFilename } from '../figure/graphviz-renderer.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
+import { assertRendered } from './internal/render-outcome.ts'
 
 /** 原始 DOT 输入大小上限（字节）。 */
 const RAW_DOT_MAX_BYTES = 200_000
@@ -824,18 +825,6 @@ function readNumerals(raw: unknown, label: string): Record<string, string> {
   return numerals
 }
 
-/** 渲染失败统一映射：not_installed→setup_required / aborted→tool_aborted / 其余→tool_execution_failed。 */
-function assertRendered(outcome: GraphvizRenderOutcome): asserts outcome is Extract<GraphvizRenderOutcome, { ok: true }> {
-  if (outcome.ok) return
-  if (outcome.code === 'not_installed') {
-    throw new PatentToolError('setup_required', outcome.error, { tool: 'generate_patent_figure' })
-  }
-  if (outcome.code === 'aborted') {
-    throw new PatentToolError('tool_aborted', 'generate_patent_figure aborted', { tool: 'generate_patent_figure' })
-  }
-  throw new PatentToolError('tool_execution_failed', outcome.error, { tool: 'generate_patent_figure' })
-}
-
 /** 读回渲染 SVG 做引线标注并写回；安全校验失败降级为警告（图已生成，不吞工件）。 */
 async function annotateRenderedSvg(
   outcomePath: string,
@@ -1277,7 +1266,7 @@ async function generatePanels(
       outputDir,
       signal,
     })
-    assertRendered(outcome)
+    assertRendered(outcome, 'generate_patent_figure')
     const output = buildOutput(ps.structural, {
       cwd,
       outcomePath: outcome.path,
@@ -1602,7 +1591,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
           outputDir,
           signal: exec.signal,
         })
-        assertRendered(outcome)
+        assertRendered(outcome, 'generate_patent_figure')
         outcomePath = outcome.path
       }
 
