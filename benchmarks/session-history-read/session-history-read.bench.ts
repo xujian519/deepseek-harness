@@ -8,7 +8,7 @@ import {
   runBuiltBenchmarkWorker,
   type BuiltBenchmarkWorkerRun,
 } from '../support/built-worker.ts'
-import { CI_TIME_SCALE, ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
+import { PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
 import { HISTORY_READ_EVENTS, HISTORY_READ_TEXT_BYTES, HISTORY_READ_TURNS, historyReadText } from './session-history-read.constants.ts'
 import type {
   HistoryReadBenchmarkScenario,
@@ -22,17 +22,14 @@ const WORKER_TIMEOUT_MS = 120_000
 /** Transient-allocation check, kept independent from normal-heap timing samples. */
 const CONSTRAINED_HEAP_MB = 128
 
-/** Expected durations on the reference machine before CI scaling and variance headroom. */
-const EXPECTED_MS = {
-  readEvent: 175,
-  readSurface: 310,
-} as const
-
 /** Reference-machine medians measured while the corpus copied every stored event into each read. */
 const PRE_CHANGE_MS = {
   readEvent: 313.3,
   readSurface: 458.5,
 } as const
+
+/** Measured wall-time ratio from the arm64 reference machine to this hosted runner: 440.1/175 and 770.9/310. */
+const HOSTED_TIME_RATIO = 2.5
 
 /** Reference-machine transient heap growth of one read while every stored event was copied. */
 const PRE_CHANGE_TRANSIENT_HEAP_MB = {
@@ -46,8 +43,12 @@ const EXPECTED_TRANSIENT_HEAP_MB = {
   'read-surface': 128,
 } as const
 
-const READ_EVENT_BUDGET_MS = ciTimeBudget(EXPECTED_MS.readEvent)
-const READ_SURFACE_BUDGET_MS = ciTimeBudget(EXPECTED_MS.readSurface)
+/** Standard two-CPU hosted CI `read-event` samples span 426.3–455.8 ms; 450 ms is the rounded expectation. */
+const EXPECTED_READ_EVENT_CI_MS = 450
+const READ_EVENT_BUDGET_MS = Math.ceil(EXPECTED_READ_EVENT_CI_MS * PERFORMANCE_BUDGET_HEADROOM)
+/** Standard two-CPU hosted CI `read-surface` samples span 752.7–778.1 ms; 800 ms is the rounded expectation. */
+const EXPECTED_READ_SURFACE_CI_MS = 800
+const READ_SURFACE_BUDGET_MS = Math.ceil(EXPECTED_READ_SURFACE_CI_MS * PERFORMANCE_BUDGET_HEADROOM)
 /** Heap in use immediately after the constrained point read, before collection. */
 const CURRENT_PEAK_HEAP_MB = 75.5
 /** Heap still holding the parsed log after that read's collection, which one more copy would double. */
@@ -84,6 +85,10 @@ function rounded(value: number): number {
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((left, right) => left - right)
   return sorted[Math.floor(sorted.length / 2)] as number
+}
+
+function expectWithinBudget(value: number, budget: number): void {
+  expect(value).toBeLessThanOrEqual(budget)
 }
 
 function metric(
@@ -188,14 +193,24 @@ describe('Session history-read calibration', () => {
     }
   })
 
-  it('rejects the pre-change read cost in CI time on both endpoints', () => {
-    expect(READ_EVENT_BUDGET_MS).toBe(438)
-    expect(READ_SURFACE_BUDGET_MS).toBe(775)
-    for (const expectedMs of Object.values(EXPECTED_MS)) {
-      expect(expectedMs * CI_TIME_SCALE).toBeLessThanOrEqual(ciTimeBudget(expectedMs))
-    }
-    expect(PRE_CHANGE_MS.readEvent * CI_TIME_SCALE).toBeGreaterThan(READ_EVENT_BUDGET_MS)
-    expect(PRE_CHANGE_MS.readSurface * CI_TIME_SCALE).toBeGreaterThan(READ_SURFACE_BUDGET_MS)
+  it('accepts the recorded hosted samples and rejects the pre-change read cost', () => {
+    const readEvent = median([432.7, 455.8, 440.1, 426.3, 444.5])
+    const readSurface = median([764, 770.9, 752.7, 773.5, 778.1])
+
+    expect(readEvent).toBe(440.1)
+    expect(readSurface).toBe(770.9)
+    expect(() => expectWithinBudget(readEvent, 438)).toThrow()
+    expectWithinBudget(readEvent, READ_EVENT_BUDGET_MS)
+    expectWithinBudget(readSurface, READ_SURFACE_BUDGET_MS)
+    expect(READ_EVENT_BUDGET_MS).toBe(563)
+    expect(READ_SURFACE_BUDGET_MS).toBe(1_000)
+    expect(PRE_CHANGE_MS.readEvent * HOSTED_TIME_RATIO).toBeGreaterThan(READ_EVENT_BUDGET_MS)
+    expect(PRE_CHANGE_MS.readSurface * HOSTED_TIME_RATIO).toBeGreaterThan(READ_SURFACE_BUDGET_MS)
+  })
+
+  it('rejects a synthetic material history-read regression', () => {
+    expect(() => expectWithinBudget(700, READ_EVENT_BUDGET_MS)).toThrow()
+    expect(() => expectWithinBudget(1_400, READ_SURFACE_BUDGET_MS)).toThrow()
   })
 
   it('rejects the pre-change transient allocation on both endpoints', () => {

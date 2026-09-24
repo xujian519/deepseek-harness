@@ -18,7 +18,6 @@ import {
   HISTORY_READ_APPEND_BATCH,
   HISTORY_READ_CWD,
   HISTORY_READ_EVENTS,
-  HISTORY_READ_EVENTS_PER_TURN,
   HISTORY_READ_SESSION_ID,
   HISTORY_READ_TURNS,
   historyReadText,
@@ -65,13 +64,15 @@ async function writeFixture(root: string): Promise<void> {
   try {
     const handle = await ctx.sessionPersistence.create(historyHeader())
     const batch: SessionEvent[] = []
+    // One turn stays open across the log: a `turn/start` is valid only while no
+    // turn is open, and closing each turn instead would add a structural event
+    // per turn that the recorded timings do not describe.
+    batch.push({ type: 'turn/start', seq: SessionSeq(0), time: 0, data: { turn: 1 } })
     for (let turn = 1; turn <= HISTORY_READ_TURNS; turn++) {
-      const start = SessionSeq((turn - 1) * HISTORY_READ_EVENTS_PER_TURN)
-      batch.push({ type: 'turn/start', seq: start, time: turn * 10, data: { turn } })
       batch.push({
         type: 'user/message',
-        seq: SessionSeq(start + 1),
-        time: turn * 10 + 1,
+        seq: SessionSeq(turn),
+        time: turn * 10,
         data: createUserMessage({
           content: [{ type: 'text', text: historyReadText(turn) }],
           source: { kind: 'user' },
