@@ -106,6 +106,17 @@ describe('KgStore unified schema', () => {
     expect(store.getNode('nope')).toBeUndefined() // cached miss
   })
 
+  it('keeps getNode semantics under a one-entry bound', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kg-cache-bound-'))
+    cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })
+    const store = new KgStore(makeUnifiedDb(dir, true), { nodeCacheMaxEntries: 1 })
+    cleanups.push(() => { store.close() })
+    expect(store.getNode('n1')?.name).toBe('创造性')
+    expect(store.getNode('n1')?.name).toBe('创造性') // the bound only decides what stays cached
+    expect(store.getNode('nope')).toBeUndefined()
+    expect(store.getNode('n1')?.id).toBe('n1')
+  })
+
   it('searches via FTS, falls back to LIKE on FTS miss, and rejects blank queries', () => {
     const dir = mkdtempSync(join(tmpdir(), 'kg-search-'))
     cleanups.push(() => { rmSync(dir, { recursive: true, force: true }) })

@@ -55,6 +55,7 @@ knowledge.db 查询接缝的服务定义（`ctx.patentKnowledge`）：判例全�
 | --- | --- | --- |
 | `knowledgeDir` | `~/.dsh/knowledge` | 查询数据库与 wiki 卡片的数据目录。 |
 | `sourceDbPath` | `~/.sati/knowledge/knowledge.db` | `patent-knowledge:install` 的源数据库，及只读直用的回退路径。 |
+| `nodeCacheMaxEntries` | `1024` | 知识图谱节点缓存上限，按 LRU 淘汰；部署需要反复查询大范围子图时调高。 |
 
 查询数据库按 `knowledgeDir/knowledge.db`、`knowledgeDir/knowledge-lite.db`、`sourceDbPath` 的顺序解析。
 

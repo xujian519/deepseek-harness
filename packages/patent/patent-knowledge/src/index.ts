@@ -21,6 +21,7 @@ import { classifyIpc, queryByArticle, queryIpcStandards, searchStandards } from 
 import { KgStore } from './shared/kg-store.ts'
 import { PatentKgAdapter } from './patent/patent-kg-adapter.ts'
 import type { Config, KnowledgePaths } from './types.ts'
+import { DEFAULT_NODE_CACHE_MAX_ENTRIES } from './shared/kg-store.ts'
 import type { CaseLawHit, CaseLawSearchOptions } from './case-law/types.ts'
 import type { LawSearchResult } from './legal/types.ts'
 import type { KnowledgeLawSearchOptions } from './legal/knowledge-law-search.ts'
@@ -111,10 +112,14 @@ export class PatentKnowledge extends Service {
   static Config: z<Config> = z.object({
     knowledgeDir: z.string().default(resolveKnowledgePaths().dataDir),
     sourceDbPath: z.string().default(resolveKnowledgePaths().sourceDbPath),
+    nodeCacheMaxEntries: z.number().min(1).default(DEFAULT_NODE_CACHE_MAX_ENTRIES),
   })
 
   /** Resolved on-disk paths (query db, wiki dir, install source). */
   readonly paths: KnowledgePaths
+
+  /** Resolved node-cache bound (Config `nodeCacheMaxEntries`). */
+  private readonly nodeCacheMaxEntries: number
 
   private caseLawEngine?: CaseLawSearchEngine | undefined
   private lawEngine?: KnowledgeLawSearch | undefined
@@ -124,6 +129,7 @@ export class PatentKnowledge extends Service {
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'patentKnowledge')
     this.paths = resolveKnowledgePaths(config)
+    this.nodeCacheMaxEntries = config.nodeCacheMaxEntries ?? DEFAULT_NODE_CACHE_MAX_ENTRIES
     this.wiki = new WikiCardLoader(this.paths.wikiDir)
     this.ctx.effect(() => () => { this.close() }, 'patent-knowledge: engines')
   }
@@ -237,7 +243,7 @@ export class PatentKnowledge extends Service {
 
   /** Lazy knowledge-graph store. */
   private kgStore(): KgStore {
-    return (this.kg ??= new KgStore(this.paths.queryDbPath))
+    return (this.kg ??= new KgStore(this.paths.queryDbPath, { nodeCacheMaxEntries: this.nodeCacheMaxEntries }))
   }
 
   /** Lazy knowledge-graph adapter over the store. */

@@ -53,6 +53,7 @@ Examination-standard card queries over the shipped `ipc-standards.yaml` (by IPC 
 | --- | --- | --- |
 | `knowledgeDir` | `~/.dsh/knowledge` | Data directory for the query database and wiki cards. |
 | `sourceDbPath` | `~/.sati/knowledge/knowledge.db` | Source database for `patent-knowledge:install`, and the read-only direct-use fallback. |
+| `nodeCacheMaxEntries` | `1024` | Upper bound on cached knowledge-graph nodes, least-recently-used eviction; raise it when a deployment queries wide subgraphs repeatedly. |
 
 The query database resolves as `knowledgeDir/knowledge.db`, then `knowledgeDir/knowledge-lite.db`, then `sourceDbPath`.
 

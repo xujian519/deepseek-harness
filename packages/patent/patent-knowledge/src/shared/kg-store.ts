@@ -1,6 +1,7 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import type { KgNode } from '../patent/types.ts'
 import { escapeFtsPhrase, FTS_MIN_RUNES, joinFtsOrTerms } from './fts.ts'
+import { LruCache } from './lru-cache.ts'
 import { openKnowledgeDb } from './db-version.ts'
 import { KNOWLEDGE_DB } from './schema-versions.ts'
 import { toNode, type FtsHit, type NodeRow } from './kg/row-mapper.ts'
@@ -13,8 +14,8 @@ import { GraphTraversal, type KgNeighbor, type KgPathEdge } from './kg/graph-tra
  * 优先 knowledge.db 统一 schema（kg_nodes/kg_edges/kg_nodes_fts，trigram，
  * XiaoNuo 管道产物）；兼容旧 patent_kg.db（nodes/edges/nodes_fts*）。
  *
- * 设计：**按需 SQL 查询 + 轻量节点缓存**，避免将 217MB / 116K 节点
- * 全量加载进内存（Mady 的内存邻接表方案在 Node 侧过重）。edges 表
+ * 设计：**按需 SQL 查询 + 有界 LRU 节点缓存**（上限见构造参数），避免将 217MB / 116K 节点
+ * 全量加载进内存（Mady 的内存邻接表方案在 Node 侧过重），也避免长会话里缓冲过的节点 id 无界累积。edges 表
  * 已建 (source)/(target)/(relation) 索引，FTS5 表 nodes_fts 提供
  * 关键词检索，查询均在毫秒级。
  */
@@ -28,6 +29,12 @@ const OR_SEPARATOR_RE = /[\s，。？！、；：,.;!?]+/
 /** 候选词数上限（防超长 query 构造超大 FTS SQL / 多次 LIKE 扫描）。 */
 const MAX_OR_TERMS = 8
 
+/**
+ * 节点缓存默认上限。图谱有 11 万级节点，而一个长会话查询过的不同 id 没有自然上界，
+ * 因此缓存按 LRU 淘汰而不是只读不删；默认值按「一次图遍历可触达的节点量级」取。
+ */
+export const DEFAULT_NODE_CACHE_MAX_ENTRIES = 1024
+
 /** 关键词搜索选项。 */
 export type KgSearchOptions = {
   /** 匹配模式：phrase=整体短语（默认，保持既有行为）；or=分词 OR（多词召回）。 */
@@ -37,7 +44,7 @@ export type KgSearchOptions = {
 /** 知识图谱只读存储（双 schema 兼容，按需 SQL + 轻量节点缓存）。 */
 export class KgStore {
   private readonly db: DatabaseSync
-  private readonly nodeCache = new Map<string, KgNode | undefined>()
+  private readonly nodeCache: LruCache<string, KgNode | undefined>
   /** 生效的 schema：unified=knowledge.db（kg_nodes），legacy=patent_kg.db（nodes）。 */
   private readonly schema: KgSchema
   /** 表结构探测结果：trigram FTS 表优先（scripts/migrate-kg-fts-trigram.mjs 生成），否则 unicode61 旧表；无 FTS 时为 null。 */
@@ -49,7 +56,14 @@ export class KgStore {
   private readonly stmtLikeSearch: StatementSync
   private readonly stmtFtsSearch: StatementSync | null
 
-  constructor(dbPath: string) {
+  /**
+   * @param dbPath - 知识图谱数据库路径。
+   * @param options - 节点缓存上限（条目数）；缺省用 {@link DEFAULT_NODE_CACHE_MAX_ENTRIES}。
+   */
+  constructor(dbPath: string, options: { nodeCacheMaxEntries?: number } = {}) {
+    this.nodeCache = new LruCache<string, KgNode | undefined>(
+      options.nodeCacheMaxEntries ?? DEFAULT_NODE_CACHE_MAX_ENTRIES,
+    )
     const opened = openKnowledgeDb(dbPath, KNOWLEDGE_DB, { readOnly: true })
     this.db = opened.db
     // 探测 + prepared 组装（schema-introspector）：fail-closed（无表抛错）与
