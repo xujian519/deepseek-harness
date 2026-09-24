@@ -12,6 +12,10 @@ const DEFAULT_PROJECT_ROOT_MARKERS = ['.git'] as const
 const DEFAULT_INSTRUCTION_FILE_CANDIDATES = ['AGENTS.md', 'CLAUDE.md'] as const
 const DEFAULT_LOCAL_INSTRUCTION_FILE_CANDIDATES = ['AGENTS.local.md', 'CLAUDE.local.md'] as const
 const DEFAULT_MAX_SOURCE_BYTES = 1_048_576
+// One order of magnitude above the shipped 65,536-byte render budget and far
+// above a realistic instruction chain, so the cap binds only when a workspace
+// carries many large instruction files at once.
+const DEFAULT_MAX_TOTAL_SOURCE_BYTES = 4_194_304
 const RESERVED_PATH_SEGMENTS = new Set(['', '.', '..'])
 
 /** User-facing workspace instruction loader configuration. */
@@ -24,6 +28,12 @@ export interface Config {
   maxBytes: number
   /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
   maxSourceBytes?: number
+  /**
+   * Aggregate UTF-8 byte cap across the files read for one baseline batch; once
+   * it is exhausted the remaining broader candidates are skipped, so the
+   * most-specific files survive as they do under the render budget.
+   */
+  maxTotalSourceBytes?: number
   /**
    * Ordered same-directory project candidates; every existing file loads, with
    * per-directory trimmed-content duplicates collapsed to the earliest candidate.
@@ -41,6 +51,7 @@ export const Config: z<Config> = z.object({
   projectRootMarkers: z.array(z.string()).default([...DEFAULT_PROJECT_ROOT_MARKERS]),
   maxBytes: z.number().required(),
   maxSourceBytes: z.number().step(1).min(1).default(DEFAULT_MAX_SOURCE_BYTES),
+  maxTotalSourceBytes: z.number().step(1).min(1).default(DEFAULT_MAX_TOTAL_SOURCE_BYTES),
   instructionFileCandidates: z.array(z.string()).default([...DEFAULT_INSTRUCTION_FILE_CANDIDATES]),
   localInstructionFileCandidates: z.array(z.string()).default([...DEFAULT_LOCAL_INSTRUCTION_FILE_CANDIDATES]),
 })
@@ -57,6 +68,7 @@ export interface ResolvedDiscoveryConfig {
 export interface ResolvedConfig extends ResolvedDiscoveryConfig {
   maxBytes: number
   maxSourceBytes: number
+  maxTotalSourceBytes: number
 }
 
 /**
@@ -76,6 +88,7 @@ export function workspaceBaselineIdentity(
     projectRootMarkers: config.projectRootMarkers,
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes,
+    maxTotalSourceBytes: config.maxTotalSourceBytes,
     instructionFileCandidates: config.instructionFileCandidates,
     localInstructionFileCandidates: config.localInstructionFileCandidates,
   })
@@ -91,6 +104,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
     ...resolveDiscoveryConfig(config),
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes ?? DEFAULT_MAX_SOURCE_BYTES,
+    maxTotalSourceBytes: config.maxTotalSourceBytes ?? DEFAULT_MAX_TOTAL_SOURCE_BYTES,
   }
 }
 

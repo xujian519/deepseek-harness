@@ -71,6 +71,12 @@ export interface Config {
   /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
   maxSourceBytes?: number
   /**
+   * Aggregate UTF-8 byte cap across the files read for one baseline batch; once
+   * it is exhausted the remaining broader candidates are skipped, so the
+   * most-specific files survive as they do under the render budget.
+   */
+  maxTotalSourceBytes?: number
+  /**
    * Ordered same-directory project candidates; every existing file loads, with
    * per-directory trimmed-content duplicates collapsed to the earliest candidate.
    */
@@ -83,7 +89,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/context/agent-instructions/src/config.ts:18`](../packages/context/agent-instructions/src/config.ts)
+Source: [`packages/context/agent-instructions/src/config.ts:22`](../packages/context/agent-instructions/src/config.ts)
 
 <a id="deepseek-aidsh-agent-loop"></a>
 

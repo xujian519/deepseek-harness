@@ -59,6 +59,7 @@ interface DiscoverOptions {
 interface LoadOptions extends DiscoverOptions {
   maxBytes: number
   maxSourceBytes?: number
+  maxTotalSourceBytes?: number
   replacePreviousBaseline?: boolean
 }
 
@@ -337,9 +338,9 @@ async function readBounded(
   fileSystem?: FileSystem,
   signal?: AbortSignal,
 ): Promise<string | undefined> {
-  // TODO(total-instruction-read-bound): enforce an aggregate source budget
-  // across a complete baseline or reconciliation batch; the render budget is
-  // applied only after every accepted file has been read under this per-file cap.
+  // TODO(total-instruction-read-bound): the reconciliation batch still reads each
+  // probed scope on its own under the per-file cap; only the baseline read in
+  // loadBaselineInstructionSet enforces the aggregate cap.
   signal?.throwIfAborted()
   if (file.size !== undefined && file.size > maxSourceBytes) return undefined
   try {
@@ -361,6 +362,42 @@ async function readBounded(
     // A file may disappear or become unreadable after its metadata probe.
     return undefined
   }
+}
+
+/**
+ * Read discovered candidates under the per-file and aggregate source caps.
+ * Candidates are read most-specific-first so an exhausted aggregate budget drops
+ * the broader files that rendering drops too; the returned order is restored to
+ * discovery order for content deduplication and rendering.
+ * @param discovered - candidates in broad-to-specific discovery order.
+ * @param config - resolved per-file and aggregate source caps.
+ * @param fileSystem - optional provider used instead of host filesystem reads.
+ * @param signal - cancellation for host and provider reads.
+ * @returns successfully read files in discovery order.
+ */
+async function readDiscoveredInstructionFiles(
+  discovered: readonly DiscoveredInstructionFile[],
+  config: ResolvedConfig,
+  fileSystem?: FileSystem,
+  signal?: AbortSignal,
+): Promise<LoadedInstructionFile[]> {
+  const loaded: LoadedInstructionFile[] = []
+  let remaining = config.maxTotalSourceBytes
+  for (const file of [...discovered].reverse()) {
+    if (remaining <= 0) break
+    // A candidate that cannot fit the remaining aggregate budget is skipped, not
+    // truncated, exactly as a candidate over the per-file cap is.
+    const content = await readBounded(file, Math.min(config.maxSourceBytes, remaining), fileSystem, signal)
+    if (content === undefined) continue
+    remaining -= Buffer.byteLength(content, 'utf8')
+    loaded.push({
+      absolutePath: file.absolutePath,
+      displayPath: file.displayPath,
+      content,
+      ...file.version === undefined ? {} : { version: file.version },
+    })
+  }
+  return loaded.reverse()
 }
 
 /**
@@ -418,19 +455,9 @@ export async function loadBaselineInstructionSet(
   const config = resolveConfig(options)
   if (config.maxBytes <= 0 || !Number.isFinite(config.maxBytes)) return undefined
   if (config.maxSourceBytes <= 0 || !Number.isFinite(config.maxSourceBytes)) return undefined
+  if (config.maxTotalSourceBytes <= 0 || !Number.isFinite(config.maxTotalSourceBytes)) return undefined
   const discovered = await discoverInstructionFiles(options, fileSystem)
-  const loaded: LoadedInstructionFile[] = []
-  for (const file of discovered) {
-    const content = await readBounded(file, config.maxSourceBytes, fileSystem, options.signal)
-    if (content !== undefined) {
-      loaded.push({
-        absolutePath: file.absolutePath,
-        displayPath: file.displayPath,
-        content,
-        ...file.version === undefined ? {} : { version: file.version },
-      })
-    }
-  }
+  const loaded = await readDiscoveredInstructionFiles(discovered, config, fileSystem, options.signal)
   const deduped = dedupInstructionFilesByDirectory(loaded)
   if (deduped.length === 0) {
     if (options.replacePreviousBaseline !== true) return undefined
