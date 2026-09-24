@@ -20,6 +20,28 @@ import {
   TERM_USE_LIMIT,
   DOMAIN_INVENTIVENESS,
 } from './constants.ts'
+import { matchKeyword } from './engine.ts'
+
+/** 公知常识性证据的表述（教科书/工具书为审查指南列举的常见形式）。 */
+const COMMON_KNOWLEDGE_EVIDENCE = ['证据', '依据', '证明', '教科书', '工具书', '文献', '调研']
+
+/**
+ * 条件式判据：援引公知常识时须同时给出证据或充分论述。
+ *
+ * 关键词引擎只能做可见性判定，因此本判据只在文本肯定提及公知常识时才要求证据；
+ * 未援引公知常识的创造性分析直接通过（缺失「公知常识」这一步由 REASON-CREATIVITY-01A
+ * 的三步法路径把守，不在此重复惩罚）。
+ * @param text - 待评估的创造性分析文本。
+ * @returns 通过返回 `{ passed: true }`，援引而无证据返回带 detail 的失败。
+ */
+function commonKnowledgeEvidenceCheck(text: string): { passed: boolean; detail: string } {
+  if (!matchKeyword(text, TERM_COMMON_KNOWLEDGE) && !matchKeyword(text, '本领域常规')) {
+    return { passed: true, detail: '' }
+  }
+  return COMMON_KNOWLEDGE_EVIDENCE.some(term => matchKeyword(text, term))
+    ? { passed: true, detail: '' }
+    : { passed: false, detail: '以公知常识为论据，但未给出证据或充分论述' }
+}
 
 /**
  * 创造性推理模式规则（7 条）。
@@ -52,7 +74,9 @@ export function creativityReasoningRules(): CheckRule[] {
       severity: 'major',
       message: '公知常识的认定缺乏充分论证',
       checkType: 'patent_inventiveness',
-      requiredElements: [TERM_COMMON_KNOWLEDGE],
+      // 判据是「援引公知常识时须有证据支撑」，条件式语义，关键词可见性判定不了；
+      // patent_inventiveness 分派也不读 requiredElements，故改由 customCheck 表达。
+      customCheck: commonKnowledgeEvidenceCheck,
       domain: DOMAIN_INVENTIVENESS,
       fixSuggestion: '提供公知常识性证据（教科书/工具书）或充分论述该技术手段的普遍性',
     },

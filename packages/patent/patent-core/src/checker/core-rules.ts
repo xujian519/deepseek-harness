@@ -112,7 +112,10 @@ export function inventivenessRules(): CheckRule[] {
       severity: 'major',
       message: '创造性分析未明确实际解决的技术问题',
       checkType: 'patent_inventiveness',
-      requiredElements: [TERM_DISTINGUISHING_FEATURES],
+      // 判据是「分析须写明实际解决的技术问题」，不是区别技术特征的可见性：后者已由
+      // INVENTIVENESS-THREE-STEP 的第二步把守（LevelMust）。patent_inventiveness 分派
+      // 不读 requiredElements，故判据写在所有 checkType 都会走的 pathElements 上。
+      pathElements: [['实际解决的技术问题', '技术问题']],
       domain: DOMAIN_INVENTIVENESS,
       fixSuggestion: '基于区别技术特征，确定发明相对于最接近现有技术实际解决的技术问题',
     },
