@@ -16,6 +16,10 @@ describe('openviking Config schema', () => {
       agentSpaces: true,
       refreshSteps: 10,
       startupMapEveryTurns: 5,
+      searchLimit: 20,
+      branchLimit: 16,
+      branchDeadlineMs: 3000,
+      branchCacheTtlMs: 300_000,
     })
     expect(config.autoCommit.get()).toEqual({ enabled: true, turns: 3, intervalMinutes: 10 })
   })
@@ -31,6 +35,10 @@ describe('openviking Config schema', () => {
     expect(() => Config({ autoRecall: { scoreThreshold: 1.5 } })).toThrow()
     expect(() => Config({ autoRecall: { maxContentChars: 10 } })).toThrow()
     expect(() => Config({ autoRecall: { tokenBudget: 20000 } })).toThrow()
+    expect(() => Config({ autoRecall: { searchLimit: 0 } })).toThrow()
+    expect(() => Config({ autoRecall: { branchLimit: 101 } })).toThrow()
+    expect(() => Config({ autoRecall: { branchDeadlineMs: 0 } })).toThrow()
+    expect(() => Config({ autoRecall: { branchCacheTtlMs: 999 } })).toThrow()
   })
 
   it('rejects out-of-range commit and context bounds', () => {

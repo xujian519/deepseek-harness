@@ -2540,6 +2540,14 @@ export interface AutoRecallConfig {
   refreshSteps: number
   /** Memory map: inject on session start, refresh every N user turns (2+); 1 = start only, 0 = never. */
   startupMapEveryTurns: number
+  /** Retrieval limit per search against the service. */
+  searchLimit: number
+  /** Maximum procedure-bearing branches searched per step. */
+  branchLimit: number
+  /** Per-branch search deadline in milliseconds. */
+  branchDeadlineMs: number
+  /** TTL of the procedure-branch discovery cache in milliseconds. */
+  branchCacheTtlMs: number
 }
 
 /** Configuration for session auto-commit. */
@@ -2555,7 +2563,7 @@ export interface AutoCommitConfig {
 
 Depends on: `Volatile` (`@deepseek-ai/cordis`)
 
-Source: [`packages/memory/openviking/src/config.ts:52`](../packages/memory/openviking/src/config.ts)
+Source: [`packages/memory/openviking/src/config.ts:60`](../packages/memory/openviking/src/config.ts)
 
 <a id="deepseek-aidsh-patent-deadline"></a>
 

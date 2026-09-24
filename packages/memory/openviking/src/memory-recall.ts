@@ -34,15 +34,6 @@ const PROCEDURE_PATH_RE = new RegExp(
   'i',
 )
 
-/** Retrieval limit per search. */
-const SEARCH_LIMIT = 20
-/** Maximum procedure branches searched per step. */
-const PROCEDURE_BRANCH_LIMIT = 16
-/** Per-branch deadline in ms. */
-const PROCEDURE_BRANCH_DEADLINE_MS = 3000
-/** Tree cache TTL for procedure branch discovery. */
-const BRANCH_CACHE_TTL_MS = 5 * 60_000
-
 /** Short hash for query-identity tracking (no cryptographic purpose). */
 function queryHash(query: string): string {
   let hash = 0
@@ -188,7 +179,7 @@ export class MemoryRecall {
       ? ['viking://user/memories/', 'viking://agent/']
       : ['viking://user/memories/']
     const settled = await Promise.allSettled(targets.map(targetUri =>
-      this.client.find({ query, targetUri, limit: SEARCH_LIMIT, scoreThreshold: config.scoreThreshold }, { signal })))
+      this.client.find({ query, targetUri, limit: config.searchLimit, scoreThreshold: config.scoreThreshold }, { signal })))
     const items: SearchItem[] = []
     for (const result of settled) {
       if (result.status === 'rejected') {
@@ -202,14 +193,14 @@ export class MemoryRecall {
 
   /** One guaranteed slot for procedure-bearing branches; never fails the step. */
   private async procedureCandidates(query: string, config: AutoRecallConfig, signal: AbortSignal): Promise<SearchItem[]> {
-    const branches = await this.procedureBranches(signal)
+    const branches = await this.procedureBranches(config, signal)
     if (branches.length === 0) return []
     const settled = await Promise.allSettled(branches.map((branch) => {
       const find = this.client.find(
-        { query, targetUri: branch, limit: SEARCH_LIMIT, scoreThreshold: config.scoreThreshold },
+        { query, targetUri: branch, limit: config.searchLimit, scoreThreshold: config.scoreThreshold },
         { signal },
       )
-      return withDeadline(find, PROCEDURE_BRANCH_DEADLINE_MS)
+      return withDeadline(find, config.branchDeadlineMs)
     }))
     let best: SearchItem | undefined
     for (const result of settled) {
@@ -222,10 +213,10 @@ export class MemoryRecall {
     return [best]
   }
 
-  /** Cached procedure-bearing leaf branches (max 16, longest path first). */
-  private async procedureBranches(signal: AbortSignal): Promise<string[]> {
+  /** Cached procedure-bearing leaf branches (up to `branchLimit`, longest path first). */
+  private async procedureBranches(config: AutoRecallConfig, signal: AbortSignal): Promise<string[]> {
     const now = Date.now()
-    if (this.branches !== undefined && now - this.branches.at < BRANCH_CACHE_TTL_MS) return this.branches.branches
+    if (this.branches !== undefined && now - this.branches.at < config.branchCacheTtlMs) return this.branches.branches
     try {
       const nodes = await this.client.tree('viking://user/memories/', { nodeLimit: 200, levelLimit: 3, signal })
       const collected = new Set<string>()
@@ -240,7 +231,7 @@ export class MemoryRecall {
         if (node.type !== 'file' && PROCEDURE_PATH_RE.test(node.path)) collected.add(node.path)
       }
       for (const node of nodes) walk(node)
-      const branches = [...collected].sort((left, right) => right.length - left.length).slice(0, PROCEDURE_BRANCH_LIMIT)
+      const branches = [...collected].sort((left, right) => right.length - left.length).slice(0, config.branchLimit)
       this.branches = { at: now, branches }
       return branches
     } catch (error) {

@@ -47,6 +47,10 @@ DeepSeek Harness 的 OpenViking 上下文数据库集成：模型步骤前的自
 | `autoRecall.tokenBudget` | `2000` | 近似 token 预算（`tokenBudget × 4` 字符），100–10000。 |
 | `autoRecall.refreshSteps` | `10` | 消息中每 N 个工具步重新检索；0 关闭。 |
 | `autoRecall.startupMapEveryTurns` | `5` | 记忆库概览刷新节奏；1 = 仅会话启动，0 = 从不。 |
+| `autoRecall.searchLimit` | `20` | 每次向服务检索的召回条数上限；1–100。 |
+| `autoRecall.branchLimit` | `16` | 每步最多检索的流程类分支数；1–100。 |
+| `autoRecall.branchDeadlineMs` | `3000` | 单个分支的检索期限；慢机可上调，不影响注入块的形态。 |
+| `autoRecall.branchCacheTtlMs` | `300000` | 流程分支发现缓存 TTL；1000–3600000。 |
 | `autoCommit.turns` | `3` | 未提交用户回合达到 N 即提交；0 关闭回合触发。 |
 | `autoCommit.intervalMinutes` | `10` | 已提交会话的时间兜底。 |
 
