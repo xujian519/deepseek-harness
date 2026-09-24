@@ -63,7 +63,7 @@ export type PatentPdfDownloadInput = {
   pageTimeoutSec?: number
   /** 每篇下载拦截超时（毫秒），默认 60_000。 */
   downloadTimeoutMs?: number
-  /** 整体执行超时（毫秒），默认 180_000，上限 300_000。 */
+  /** 整体执行超时（毫秒）；默认按每篇 25s 推算并夹在 60_000–180_000 之间，上限 300_000。 */
   timeoutMs?: number
   /** 是否截图留证（页面证据截图），默认 false。 */
   record?: boolean
@@ -433,7 +433,7 @@ export function createPatentPdfDownloadTool(deps: PatentPdfDownloadDeps): ToolDe
       outputDir: { type: 'string', description: '输出目录（绝对或相对当前工作目录）；默认 <cwd>/专利原文/YYYY-MM-DD' },
       pageTimeoutSec: { type: 'number', description: '每页打开超时（秒），默认 20' },
       downloadTimeoutMs: { type: 'number', description: '每篇下载拦截超时（毫秒），默认 60000' },
-      timeoutMs: { type: 'number', description: '整体执行超时（毫秒），默认 180000，上限 300000' },
+      timeoutMs: { type: 'number', description: '整体执行超时（毫秒）；默认按每篇 25s 推算并夹在 60000–180000 之间，上限 300000' },
       record: { type: 'boolean', description: '是否截图留证（默认 false）' },
       force: { type: 'boolean', description: '忽略 MANIFEST 断点续传，强制重下全部（默认 false）' },
     },

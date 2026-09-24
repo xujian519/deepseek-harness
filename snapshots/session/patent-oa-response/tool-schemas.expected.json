@@ -2356,7 +2356,7 @@
           },
           "timeoutMs": {
             "type": "number",
-            "description": "整体执行超时（毫秒），默认 180000，上限 300000"
+            "description": "整体执行超时（毫秒）；默认按每篇 25s 推算并夹在 60000–180000 之间，上限 300000"
           },
           "record": {
             "type": "boolean",
