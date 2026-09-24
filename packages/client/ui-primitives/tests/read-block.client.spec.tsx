@@ -222,6 +222,25 @@ describe('ReadBlock copy', () => {
     expect(screen.queryByRole('button', { name: '复制成功' })).toBeNull()
   })
 
+  it('takes the pending copied reset with it when the block unmounts inside the window', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+    render(<ReadBlock label="a" lines={lines(1)} totalLines={1} />)
+    fireEvent.click(screen.getByRole('button', { name: '复制' }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('button', { name: '复制成功' })).toBeTruthy()
+    // The reset is the only timer in flight, and unmounting must cancel it
+    // rather than let it clear state on a gone block.
+    expect(vi.getTimerCount()).toBe(1)
+    cleanup()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('merges className onto the wrapper', () => {
     const view = render(<ReadBlock className="x" label="a" lines={lines(1)} totalLines={1} />)
     expect(view.container.firstElementChild?.classList.contains('x')).toBe(true)

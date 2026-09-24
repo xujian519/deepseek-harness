@@ -288,6 +288,31 @@ describe('MermaidMarkdown copy + zoom', () => {
     unmount()
   })
 
+  it('cancels the pending label reset when the diagram unmounts inside the window', async () => {
+    const primitives = await import('@deepseek-ai/dsh-client-ui-primitives')
+    vi.spyOn(primitives, 'writeClipboard').mockResolvedValue(true)
+    const { container, unmount } = await renderText(FENCE)
+    const button = container.querySelector<HTMLButtonElement>('[class*="mermaidCopy"]')!
+    // Fake timers go active BEFORE the click so the label-reset timeout is the
+    // fake one this test inspects.
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        button.click()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(button.textContent).toContain('Copied')
+      // The reset is the only timer in flight, and unmounting must cancel it
+      // rather than let it write state to a gone diagram.
+      expect(vi.getTimerCount()).toBe(1)
+      unmount()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a settle and guard sweep: cancelled render, copied re-click, drag without mousedown, stray keys, wheel-out, and a shiki-style block', async () => {
     // Cancelled render settling after unmount (the then/catch guards).
     let release!: (value: { svg: string }) => void

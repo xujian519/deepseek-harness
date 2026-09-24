@@ -441,11 +441,21 @@ export function TerminalView(props: { scope: SessionScope; tabId: string; store:
 export function TerminalDepsBanner(props: { deps: TerminalDepsInfo; onRetry: () => void }) {
   const { deps, onRetry } = props
   const [copied, setCopied] = useState(false)
+  // The reset timer is this banner's own: cancel it when the banner unmounts
+  // inside the feedback window instead of writing state to a gone component.
+  const copyTimer = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+  }, [])
   const copy = async (): Promise<void> => {
     const written = await writeClipboard(deps.command)
     if (written) {
       setCopied(true)
-      window.setTimeout(() =>{  setCopied(false) }, 2000)
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+      copyTimer.current = window.setTimeout(() => {
+        copyTimer.current = null
+        setCopied(false)
+      }, 2000)
     }
   }
   return (

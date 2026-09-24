@@ -156,6 +156,49 @@ describe('CodeBlock', () => {
     expect(screen.getByRole('button', { name: '复制' })).toBeTruthy()
   })
 
+  it('keeps one reset in flight when two copies overlap', async () => {
+    vi.useFakeTimers()
+    // Both writes stay pending, so the second click still passes the copied
+    // guard; the second resolution must clear the first reset, not stack on it.
+    const releases: Array<() => void> = []
+    const writeText = vi.fn(() => new Promise<void>((resolve) => { releases.push(resolve) }))
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    render(<CodeBlock code={'const a = 1\n'} lang="ts" />)
+    const button = screen.getByRole('button', { name: '复制' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+    await act(async () => {
+      for (const release of releases) release()
+    })
+    expect(writeText).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(screen.getByRole('button', { name: '复制' })).toBeTruthy()
+  })
+
+  it('takes the pending copied reset with it when the block unmounts inside the window', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+    render(<CodeBlock code={'const a = 1\n'} lang="ts" />)
+    fireEvent.click(screen.getByRole('button', { name: '复制' }))
+    // Flush the clipboard promise under fake timers before asserting the label.
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('button', { name: '复制成功' })).toBeTruthy()
+    // The reset is the only timer in flight, and unmounting must cancel it
+    // rather than let it clear state on a gone block.
+    expect(vi.getTimerCount()).toBe(1)
+    cleanup()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('does not claim success when clipboard.writeText rejects', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     Object.defineProperty(navigator, 'clipboard', {

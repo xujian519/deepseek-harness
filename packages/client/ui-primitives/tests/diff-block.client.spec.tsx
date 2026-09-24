@@ -228,4 +228,21 @@ describe('DiffBlock copy', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '复制成功' })) })
     expect(writeText).toHaveBeenCalledTimes(1)
   })
+
+  it('takes the pending copied reset with it when the block unmounts inside the window', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+    render(<DiffBlock diffs={[{ path: 'a.ts', oldText: null, newText: 'x' }]} />)
+    fireEvent.click(screen.getByRole('button', { name: '复制' }))
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('button', { name: '复制成功' })).toBeTruthy()
+    // The reset is the only timer in flight, and unmounting must cancel it
+    // rather than let it clear state on a gone block.
+    expect(vi.getTimerCount()).toBe(1)
+    cleanup()
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })
