@@ -47,6 +47,29 @@ describe('patent_analysis_report', () => {
     expect(value.searchStrategy?.ipc?.length).toBeGreaterThan(0)
   })
 
+  it('renders every model-facing section with its sources', async () => {
+    const tool = createPatentAnalysisReportTool({
+      model: jsonModel({ novelty: { score: 80, rationale: '初判具有新颖性' }, technical_strength: { score: 75, rationale: '技术效果明确' } }),
+    })
+    const value = (await tool.execute(ARGS, exec)) as PatentAnalysisReportOutput
+    const blocks = tool.output.render({}, value as never)
+    const text = blocks.map(block => ('text' in block && typeof block.text === 'string' ? block.text : '')).join('')
+    const top = value.ipc[0]!
+    expect(text).toContain(`# 专利分析报告：${ARGS.title}`)
+    expect(text).toContain(`专利号：${ARGS.patent_id}`)
+    expect(text).toContain(`IPC：${top.section} ${top.domainName}（置信度 ${top.confidence.toFixed(2)}）`)
+    expect(text).toContain('## 技术特征')
+    expect(text).toContain(`- 权${value.technicalFeatures[0]!.claimNo} [${value.technicalFeatures[0]!.type}/${value.technicalFeatures[0]!.importance}] ${value.technicalFeatures[0]!.text}`)
+    expect(text).toContain('## 质量评分')
+    // Each score row states the domain, the score, and whether the model or the
+    // deterministic rules produced it.
+    expect(text).toContain('- novelty：80/100（LLM）— 初判具有新颖性')
+    expect(text).toContain('（规则）')
+    expect(text).toContain('## 创新性洞察')
+    expect(text.split('\n')).toContain('## 检索策略')
+    expect(text).toContain(`- 检索式：${value.searchStrategy!.query}`)
+  })
+
   it('fills novelty / technical_strength from the model when configured', async () => {
     const tool = createPatentAnalysisReportTool({
       model: jsonModel({ novelty: { score: 80, rationale: '初判具有新颖性' }, technical_strength: { score: 75, rationale: '技术效果明确' } }),

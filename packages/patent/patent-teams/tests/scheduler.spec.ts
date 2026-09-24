@@ -2,6 +2,7 @@
 // task dispatch with rollback) and the member status observer. Real team state
 // files under temp directories; ctx.agents / ctx.subagents are stubs.
 import { Context } from '@deepseek-ai/cordis'
+import { existsSync } from 'node:fs'
 import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -264,7 +265,8 @@ describe('installTeamScheduler kickMember', () => {
   })
 
   it('gives up the ticket when the team vanishes while the dispatch lock waits', async () => {
-    const { workspace, stateDir, scheduler } = await makeHarness()
+    const sendMessage = vi.fn(async () => 'msg')
+    const { workspace, stateDir, scheduler } = await makeHarness({ sendMessage })
     await createTeamDir(join(workspace, stateDir), makeState({ tasks: [makeTask()] }))
     const stateRoot = join(workspace, stateDir)
     // Hold the team lock while the kick queues its dispatch; the holder then
@@ -276,7 +278,11 @@ describe('installTeamScheduler kickMember', () => {
     })
     const kick = scheduler.kickMember(workspace, 'team1', 'alice', fakeAgent('captain-1', workspace))
     resolve(undefined)
-    await Promise.all([holder, kick])
+    // Giving up means the queued ticket is dropped: nothing is delivered and no
+    // state is recreated for the vanished team.
+    await expect(Promise.all([holder, kick])).resolves.toBeDefined()
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(existsSync(join(stateRoot, 'team1'))).toBe(false)
   })
 
   it('gives up the ticket when the member is removed while the dispatch lock waits', async () => {
@@ -293,6 +299,12 @@ describe('installTeamScheduler kickMember', () => {
     const kick = scheduler.kickMember(workspace, 'team1', 'alice', fakeAgent('captain-1', workspace))
     resolve(undefined)
     await Promise.all([holder, kick])
+    // The queued ticket re-read the member, found her removed, and gave up
+    // without rewriting her record or claiming the task.
+    const team = await readTeam(stateRoot, 'team1')
+    expect(team!.members[0]!.status).toBe('removed')
+    expect(team!.tasks[0]!.status).toBe('pending')
+    expect(team!.tasks[0]!.assignee).toBeUndefined()
   })
 
   it('skips the rollback when the whole team vanished during delivery', async () => {
@@ -436,10 +448,16 @@ describe('member status observer', () => {
   })
 
   it('resolves the workspace from the process cwd when the member has none', async () => {
-    const { ctx, workspace, stateDir } = await makeHarness()
-    await createTeamDir(join(workspace, stateDir), makeState())
+    const { ctx, stateDir } = await makeHarness()
+    const cwd = await tmpWorkspace()
+    // The agent's session carries no cwd, so the status edge can only find its
+    // team through the process-cwd fallback; a mirrored status proves it did.
+    vi.spyOn(process, 'cwd').mockReturnValue(cwd)
+    await createTeamDir(join(cwd, stateDir), makeState({
+      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'working' }],
+    }))
     const cwdless = {
-      ...fakeAgent('member-1', workspace),
+      ...fakeAgent('member-1', cwd),
       session: Session.create(SessionId('member-1'), [], {
         version: SESSION_FORMAT_VERSION,
         id: SessionId('member-1'),
@@ -447,14 +465,15 @@ describe('member status observer', () => {
         isSeeded: false,
       }),
     }
-    // No team lives under process.cwd()/.patent-teams-scheduler, so nothing
-    // happens — the cwd fallback itself is the exercised branch.
     ctx.emit('agent/status', { agent: cwdless, status: 'idle' })
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await vi.waitFor(async () => {
+      expect((await readTeam(join(cwd, stateDir), 'team1'))?.members[0]?.status).toBe('idle')
+    })
   })
 
   it('gives up the status write when the team vanishes while the lock waits', async () => {
-    const { ctx, workspace, stateDir } = await makeHarness()
+    const sendMessage = vi.fn(async () => 'msg')
+    const { ctx, workspace, stateDir, scheduler } = await makeHarness({ sendMessage })
     await createTeamDir(join(workspace, stateDir), makeState({
       members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'working' }],
     }))
@@ -468,6 +487,14 @@ describe('member status observer', () => {
     ctx.emit('agent/status', { agent: alice, status: 'idle' })
     resolve(undefined)
     await holder
+    // The queued status write found no team: it neither recreates the state
+    // directory nor dispatches for the vanished team. The status edge itself is
+    // fire-and-forget, so the contract is pinned through the awaited kick that
+    // follows the same giving-up path.
+    expect(existsSync(join(stateRoot, 'team1'))).toBe(false)
+    await expect(scheduler.kickMember(workspace, 'team1', 'alice', alice)).resolves.toBeUndefined()
+    expect(existsSync(join(stateRoot, 'team1'))).toBe(false)
+    expect(sendMessage).not.toHaveBeenCalled()
     await new Promise(resolve2 => setTimeout(resolve2, 20))
   })
 

@@ -4,6 +4,7 @@ import { PatentToolError } from '../src/error.ts'
 import {
   createWorkbenchLinkPatentCaseTool,
   parseMatterLogStages,
+  renderLinkResult,
   type WorkbenchLinkPatentCaseDeps,
   type WorkbenchLinkPatentCaseOutput,
 } from '../src/tool/workbench-link-patent-case.ts'
@@ -140,6 +141,41 @@ describe('workbench_link_patent_case', () => {
     expect(createdTasks.find(t => t.typeCode === 'patent_stage_l1')).toMatchObject({ statusCode: 'done', source: 'patent' })
     // Stage statuses landed at creation; no PATCH is needed on first link.
     expect(sim.calls.filter(c => c.method === 'PATCH')).toHaveLength(0)
+  })
+
+  it('renders the model-facing summary, matter-log state, and one row per stage', async () => {
+    const sim = new WorkbenchSim()
+    const value = await makeTool(sim, LOG_L1_DONE_L2_DOING).execute({ caseNumber: '202311060998.X' }, exec) as WorkbenchLinkPatentCaseOutput
+    const text = renderLinkResult(value)
+    expect(text.split('\n')[0]).toBe('workbench_link_patent_case: 案件 202311060998.X → 根任务 t1')
+    expect(text).toContain('matter-log: 已解析')
+    // One row per stage, each naming the stage, its code, and its status.
+    const rows = text.split('\n').filter(line => line.startsWith('- '))
+    expect(rows).toHaveLength(value.stages.length)
+    for (const [index, stage] of value.stages.entries()) {
+      expect(rows[index]).toContain(stage.stage)
+      expect(rows[index]).toContain(stage.statusCode ?? '（无状态）')
+    }
+  })
+
+  it('renders the failure line and the dry-run markers', () => {
+    expect(renderLinkResult({ ok: false, error: '网络错误' } as WorkbenchLinkPatentCaseOutput))
+      .toBe('workbench_link_patent_case: 网络错误')
+    const dry = renderLinkResult({
+      ok: true,
+      caseNumber: 'CN1',
+      caseDir: '/cases/CN1',
+      rootTaskId: '',
+      matterLogFound: false,
+      dictionariesEnsured: ['PATENT', 'LIT'],
+      stages: [{ stage: 'l1', typeCode: 'patent_stage_l1', taskId: null, statusCode: null, created: false, changed: false }],
+      dryRun: true,
+    })
+    expect(dry).toContain('workbench_link_patent_case: 案件 CN1 → 根任务 （dryRun 未创建） [dryRun]')
+    expect(dry).toContain('新增字典: PATENT, LIT')
+    expect(dry).toContain('matter-log: 未找到')
+    expect(dry).toContain('- l1 ')
+    expect(dry).toContain('（无状态）')
   })
 
   it('second link is idempotent: no dictionary POST, no task POST, no PATCH', async () => {
