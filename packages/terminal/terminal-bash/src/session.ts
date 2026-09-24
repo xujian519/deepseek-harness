@@ -23,6 +23,7 @@ import type {
   TerminalWaitReason,
 } from '@deepseek-ai/dsh-terminal'
 import type { ResolvedConfig } from './config.ts'
+import { ReadinessPoller } from './readiness-poller.ts'
 import { CONTROLLED_PROMPT, TerminalSanitizer } from './sanitize.ts'
 
 const requireHeadless = createLazyRequire<typeof import('@xterm/headless')>('@xterm/headless', import.meta.url)
@@ -251,13 +252,11 @@ export class LocalPtySession implements TerminalBackendSession {
   // activeWrite/pollingReady/polling and terminal-protocol work) into one send-lifecycle
   // owner; the cancellation/readiness interplay has enough pinned tests to carry that refactor safely.
   private active: LocalSendOperation | undefined
-  private activeTimer: NodeJS.Timeout | undefined
   private activeDeadlineTimer: NodeJS.Timeout | undefined
   private activeAbort: (() => void) | undefined
   private interrupting: LocalSendOperation | undefined
   private activeWrite: Promise<boolean> | undefined
-  private pollingReady: LocalSendOperation | undefined
-  private polling = false
+  private readonly readiness: ReadinessPoller<LocalSendOperation>
   private promptSeen = false
   private promptTextSeen = false
   private promptTail = ''
@@ -280,6 +279,12 @@ export class LocalPtySession implements TerminalBackendSession {
     private readonly config: ResolvedConfig,
   ) {
     this.pid = terminal.pid
+    this.readiness = new ReadinessPoller(
+      config.pollIntervalMs,
+      operation => this.pollReadiness(operation),
+      operation => this.active === operation && this.interrupting !== operation,
+      operation => this.active === operation,
+    )
     const { Terminal: HeadlessTerminal } = requireHeadless()
     this.emulator = new HeadlessTerminal({ cols: config.cols, rows: config.rows, scrollback: 0 })
     this.emulatorData = this.emulator.onData((data) => {
@@ -407,10 +412,7 @@ export class LocalPtySession implements TerminalBackendSession {
       }
       // Closing can race the awaited provider write even though static analysis sees only local assignments.
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited provider writes can close the session.
-      if (this.active === operation && !this.closing) {
-        this.pollingReady = operation
-        this.schedulePoll(operation)
-      }
+      if (this.active === operation && !this.closing) this.readiness.begin(operation)
     } catch (error: unknown) {
       if (this.active === operation && !this.closing) {
         if (operation.settled) this.releaseSettledActive()
@@ -538,18 +540,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.active?.append(text)
   }
 
-  private schedulePoll(operation: LocalSendOperation, delayMs = this.config.pollIntervalMs): void {
-    if (this.active !== operation || this.interrupting === operation || this.polling) return
-    if (this.activeTimer !== undefined) clearTimeout(this.activeTimer)
-    this.activeTimer = setTimeout(() => {
-      this.activeTimer = undefined
-      void this.pollReadiness(operation)
-    }, delayMs)
-  }
-
   private async pollReadiness(operation: LocalSendOperation): Promise<void> {
-    if (this.active !== operation || this.polling) return
-    this.polling = true
     try {
       if (this.statusValue.kind === 'exited') {
         this.settleActive('session_exit')
@@ -591,12 +582,6 @@ export class LocalPtySession implements TerminalBackendSession {
     } catch (error: unknown) {
       if (this.protocolWorkPending()) await this.drainTerminalProtocol()
       if (this.active === operation && !this.closing && this.interrupting !== operation) this.failActive(error)
-    } finally {
-      this.polling = false
-      const active = this.active
-      // Awaited provider inspection can clear or replace the active send despite static analysis.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited inspection can replace the active send.
-      if (active !== undefined && this.pollingReady === active) this.schedulePoll(active)
     }
   }
 
@@ -710,15 +695,9 @@ export class LocalPtySession implements TerminalBackendSession {
   }
 
   private stopPolling(): void {
-    this.stopReadinessPolling()
+    this.readiness.cancel()
     if (this.activeDeadlineTimer !== undefined) clearTimeout(this.activeDeadlineTimer)
     this.activeDeadlineTimer = undefined
-  }
-
-  private stopReadinessPolling(): void {
-    if (this.activeTimer !== undefined) clearTimeout(this.activeTimer)
-    this.activeTimer = undefined
-    this.pollingReady = undefined
   }
 
   private clearActive(): void {
@@ -727,7 +706,6 @@ export class LocalPtySession implements TerminalBackendSession {
     this.activeAbort?.()
     this.activeAbort = undefined
     if (this.interrupting === operation) this.interrupting = undefined
-    this.pollingReady = undefined
     this.active = undefined
   }
 
@@ -741,7 +719,7 @@ export class LocalPtySession implements TerminalBackendSession {
   private interrupt(operation: LocalSendOperation): void {
     if (this.active !== operation) return
     this.interrupting = operation
-    this.stopReadinessPolling()
+    this.readiness.cancel()
     void this.interruptOnce(operation)
   }
 
@@ -759,8 +737,7 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.active === operation && operation.settled) {
       this.releaseSettledActive()
     } else if (this.active === operation && !this.closing) {
-      this.pollingReady = operation
-      this.schedulePoll(operation, 0)
+      this.readiness.begin(operation, 0)
     }
   }
 
