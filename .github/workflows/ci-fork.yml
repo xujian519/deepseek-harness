@@ -58,6 +58,16 @@ jobs:
         # owns that step instead of inheriting it from another runner.
         run: bash scripts/prepare-ci-bubblewrap.sh
 
+      - name: Prepare Graphviz and a CJK font
+        # The real-render smoke suites skip themselves when their binary is
+        # missing, so the AST → SVG chain shipped no CI signal at all: the hosted
+        # image carries neither `dot` nor a CJK face, and the suite read green
+        # through 5 skips. Installing both makes it run. Every CI Linux lane that
+        # runs the suite needs its own copy — this one and node-coverage — and
+        # `figure-graphviz-ci-signal.spec.ts` fails wherever `dot` is absent, so
+        # a lane that drops the install turns red instead of silent.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz fonts-noto-cjk fontconfig
+
       - name: Unit tests
         # The free 2-core runner executes the native systemd containment path
         # (probe + scope launch + settle chains) far slower than upstream's
@@ -147,6 +157,12 @@ jobs:
 
       - name: Prepare bubblewrap
         run: bash scripts/prepare-ci-bubblewrap.sh
+
+      - name: Prepare Graphviz and a CJK font
+        # This lane runs the same suite as node-checks, and the render signal's
+        # presence gate fails wherever the binary is missing; the rationale for
+        # the package list is on that lane's step.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz fonts-noto-cjk fontconfig
 
       - name: Coverage
         # No build: workspace imports resolve to src through the tsconfig

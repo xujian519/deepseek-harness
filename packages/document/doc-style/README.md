@@ -75,6 +75,7 @@ None: the package sends nothing to a provider and mutates no request prefix.
 ## Known Limitations and Deferred Work
 
 - **`systemPromptForTemplate` has no consumer yet** — [`@deepseek-ai/dsh-doc-template`](../doc-template/README.md) consumes `toRenderStyle`, `disclaimerFor`, and (when a deployment names a `styleGuide`) `systemPrompt`; the template-context projection waits for a consumer, which is also why no template-context wiring ships with it.
+- **`stylesForDomain` has no consumer yet** — a rendered document selects its style by name, so nothing queries the loaded set by domain; a domain query waits for a consumer that composes styles across a domain.
 - **The disclaimer map is the upstream map** — the category keys and the `<domain>_analysis` fallback are transcribed, so a category added later needs its own entry in `DISCLAIMER_CATEGORY_KEYS` rather than a derived key.
 - **Only `style` selects a style** — a template names its style in front-matter; nothing selects a style by domain at render time, so a template without a style renders without a disclaimer.
 - **Directions are not enforced** — the loaded `tone.perspective` and `citation.style` are validated as values, but nothing checks a document against them. [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.md) checks the one direction that translates into a mechanical test — the `anti_patterns` words, at the severity the asset declares — and nothing else here is enforceable without reading the document's meaning.

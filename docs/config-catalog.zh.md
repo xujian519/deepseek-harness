@@ -73,6 +73,12 @@ export interface Config {
   /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
   maxSourceBytes?: number
   /**
+   * Aggregate UTF-8 byte cap across the files read for one baseline batch; once
+   * it is exhausted the remaining broader candidates are skipped, so the
+   * most-specific files survive as they do under the render budget.
+   */
+  maxTotalSourceBytes?: number
+  /**
    * Ordered same-directory project candidates; every existing file loads, with
    * per-directory trimmed-content duplicates collapsed to the earliest candidate.
    */
@@ -85,7 +91,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/context/agent-instructions/src/config.ts:18`](../packages/context/agent-instructions/src/config.ts)
+来源：[`packages/context/agent-instructions/src/config.ts:22`](../packages/context/agent-instructions/src/config.ts)
 
 <a id="deepseek-aidsh-agent-loop"></a>
 
@@ -1031,6 +1037,10 @@ export interface Config {
   styleDirs?: string[]
   /** Style name the checks use when a registration names no style. */
   defaultStyle?: string
+  /** Largest deliverable the checker reads, in bytes. */
+  maxCheckBytes?: number
+  /** Fraction of a declared character budget a document may fall short of or exceed. */
+  lengthTolerance?: number
   /** Largest number of entries a checked DOCX package may declare. */
   maxArchiveEntries?: number
   /** Largest total uncompressed bytes a checked DOCX package may expand to. */
@@ -1038,7 +1048,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/document/document-deliver/src/index.ts:67`](../packages/document/document-deliver/src/index.ts)
+来源：[`packages/document/document-deliver/src/index.ts:69`](../packages/document/document-deliver/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-agent-team"></a>
 

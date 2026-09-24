@@ -51,6 +51,7 @@ export interface Config {
   projectRootMarkers?: string[]
   maxBytes: number
   maxSourceBytes?: number
+  maxTotalSourceBytes?: number
   instructionFileCandidates?: string[]
   localInstructionFileCandidates?: string[]
 }
@@ -60,6 +61,7 @@ export interface Config {
 |---|---|---|
 | `maxBytes` | 必填 | 完整渲染基线消息的上限，单位为字节 |
 | `maxSourceBytes` | `1048576` | 渲染前单个源指令文件的上限 |
+| `maxTotalSourceBytes` | `4194304` | 一个基线批次读取的全部文件合计上限 |
 | `projectRootMarkers` | `['.git']` | 标记项目根目录的目录名 |
 | `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | 每个项目目录中加载的基础文件名 |
 | `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | 在基础文件之后加载的本地 overlay 文件名 |
@@ -68,6 +70,8 @@ export interface Config {
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-instructions)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
 ### 观察预算
+
+读取在渲染之前即受上限约束：一个基线批次总计最多读取 `maxTotalSourceBytes` 字节，并优先为最具体的文件保留额度，因此读取预算耗尽时丢弃的正是渲染也会丢弃的那些较宽泛文件；无法放进剩余字节的候选与超出单文件上限的候选一样被跳过，不截断。
 
 渲染会优先保留最具体的文件：先丢弃完整的较宽泛文件，再截断最具体的文件，并发出可见的 `Workspace instruction budget ...` 通知，指名被省略与被截断的路径。渲染后的字节数绝不超过 `maxBytes`。超出预算的宽泛文件会被忽略；刷新期间它被视为暂时不可用，而非被移除。
 
@@ -216,6 +220,7 @@ The previously loaded instructions from this file no longer apply.
 - **候选语义有意保持简单**：不解释小写名称、`.claude/rules/` 与 `@path` import；项目 scope 默认加载 `AGENTS.local.md`／`CLAUDE.local.md` overlay，但用户全局 `$DSH_HOME` scope 没有本地 overlay，其他自定义名称需要显式候选配置。
 - **每目录去重基于内容**：同级候选只有在去除首尾空白后字节完全一致时才折叠。`CLAUDE.md` 若 symlink 到同级 `AGENTS.md`，会解析为相同内容并像任何重复项一样折叠；从 `AGENTS.md` 漂移的独立副本则会与它一起完整加载。
 - **Symlink 指令文件会跨越信任边界跟随**：最终组件是 symlink 的候选文件会被解析并加载其目标，因此克隆仓库可以将树外文件内容呈现为较低优先级的工作区指引（它绝不覆盖 system、developer 或用户直接下达的指令）。加载不受信任仓库时，请用文件系统策略门禁或 OS 沙箱限制 `ctx.fs`。
+- **聚合读取预算只覆盖基线批次**：对账过程每次只读取一个已探测的 scope，仅受单文件上限约束；它在渲染之前持有的内容由渲染预算而非 `maxTotalSourceBytes` 限定。
 - **指令内容受限但不会被摘要**：超出预算的宽泛文件会被省略，最具体文件可能被截断；该插件绝不请求模型压缩指令文本。
 
 <a id="dev-note"></a>

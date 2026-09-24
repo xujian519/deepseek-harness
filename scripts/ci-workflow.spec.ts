@@ -615,6 +615,23 @@ describe('CI workflow', () => {
   })
 })
 
+describe('fork CI workflow', () => {
+  // The real-render smoke suites skip themselves when `dot` is missing, so a
+  // lane that runs the suite without provisioning reads green over skipped
+  // render coverage; `figure-graphviz-ci-signal.spec.ts` fails there instead.
+  it.each(['node-checks', 'node-coverage'])('provisions Graphviz before the %s lane runs the suite', (name) => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), name)
+    if (!Array.isArray(job.steps)) throw new TypeError(`${name} must define steps`)
+    const steps = job.steps.filter(isRecord)
+    const graphviz = steps.findIndex(step => String(step.run).includes('graphviz'))
+    const suite = steps.findIndex(step => /vitest run|check:ci:coverage/u.test(String(step.run)))
+
+    expect(suite).toBeGreaterThanOrEqual(0)
+    expect(graphviz).toBeGreaterThanOrEqual(0)
+    expect(graphviz).toBeLessThan(suite)
+  })
+})
+
 describe('Runtime and LLM e2e Blacksmith routing', () => {
   it('routes DeepSeek e2e only through the Linux Blacksmith switch', () => {
     const job = workflowJob(loadWorkflow('.github/workflows/e2e.yml'), 'e2e')

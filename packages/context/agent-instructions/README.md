@@ -51,6 +51,7 @@ export interface Config {
   projectRootMarkers?: string[]
   maxBytes: number
   maxSourceBytes?: number
+  maxTotalSourceBytes?: number
   instructionFileCandidates?: string[]
   localInstructionFileCandidates?: string[]
 }
@@ -60,6 +61,7 @@ export interface Config {
 |---|---|---|
 | `maxBytes` | required | Cap on the complete rendered baseline message, in bytes |
 | `maxSourceBytes` | `1048576` | Cap on one source instruction file before rendering |
+| `maxTotalSourceBytes` | `4194304` | Aggregate cap across every file read for one baseline batch |
 | `projectRootMarkers` | `['.git']` | Directory names that mark the project root |
 | `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | Base file names loaded in each project directory |
 | `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | Local overlay file names loaded after the base files |
@@ -68,6 +70,8 @@ export interface Config {
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-instructions) is the exhaustive source for every accepted field and its JSDoc.
 
 ### Observing the budget
+
+Reading is capped before rendering: one baseline batch reads at most `maxTotalSourceBytes` in total, reserving the most specific files first, so an exhausted read budget drops the same broader files rendering drops; a candidate that cannot fit the remaining bytes is skipped like any candidate over the per-file cap and is never truncated.
 
 Rendering keeps the most specific files first: it drops whole broader files before truncating the most-specific file, and emits a visible `Workspace instruction budget ...` notice naming the omitted and truncated paths. The rendered bytes never exceed `maxBytes`. An over-budget broad file is ignored; during refresh it is treated as temporarily unavailable rather than removed.
 
@@ -216,6 +220,7 @@ These limits define when instruction loading is a poor fit or needs operational 
 - **Candidate semantics stay intentionally small** — lowercase names, `.claude/rules/`, and `@path` imports are not interpreted; project scopes load `AGENTS.local.md`/`CLAUDE.local.md` overlays by default, but the user-global `$DSH_HOME` scope has no local overlay and other custom names require explicit candidate configuration.
 - **Per-directory dedup is content-based** — sibling candidates collapse only when byte-identical after trimming leading and trailing whitespace; a `CLAUDE.md` that symlinks its sibling `AGENTS.md` resolves to the same content and collapses like any duplicate, while a distinct real copy that has drifted from `AGENTS.md` loads in full alongside it.
 - **Symlinked instruction files are followed across the trust boundary** — a candidate whose final component is a symlink is resolved and its target loaded, so a cloned repository can surface off-tree file content as lower-authority workspace guidance (it never overrides system, developer, or direct user instructions). Confine `ctx.fs` with the filesystem policy gate or an OS sandbox when loading untrusted repositories.
+- **The aggregate read budget covers the baseline batch only** — a reconciliation pass reads one probed scope at a time under the per-file cap, and what it holds until rendering is bounded by the render budget rather than `maxTotalSourceBytes`.
 - **Instruction content is bounded, not summarized** — over-budget broad files are omitted and the most-specific file may be truncated; the plugin never asks a model to compress instruction prose.
 
 <a id="dev-note"></a>

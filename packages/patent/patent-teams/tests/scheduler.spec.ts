@@ -472,30 +472,31 @@ describe('member status observer', () => {
   })
 
   it('gives up the status write when the team vanishes while the lock waits', async () => {
-    const sendMessage = vi.fn(async () => 'msg')
-    const { ctx, workspace, stateDir, scheduler } = await makeHarness({ sendMessage })
+    const { ctx, workspace, stateDir, scheduler } = await makeHarness()
     await createTeamDir(join(workspace, stateDir), makeState({
-      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'working' }],
+      members: [{ id: 'member-1', name: 'alice', joinedAt: 1, status: 'idle' }],
     }))
     const stateRoot = join(workspace, stateDir)
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    // A tracked member reaches its status write without the state-directory
+    // scan, so the team lock below is its only wait point.
+    scheduler.trackMember('member-1', 'team1', 'alice')
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const holder = withTeamLock(teamLockKey(stateRoot, 'team1'), async () => {
       await promise
       await rm(join(stateRoot, 'team1'), { recursive: true, force: true })
     })
-    const alice = fakeAgent('member-1', workspace)
-    ctx.emit('agent/status', { agent: alice, status: 'idle' })
+    // A `running` edge leaves no kick behind the write, so the queued write is
+    // the whole observed chain.
+    ctx.emit('agent/status', { agent: fakeAgent('member-1', workspace), status: 'running' })
     resolve(undefined)
     await holder
-    // The queued status write found no team: it neither recreates the state
-    // directory nor dispatches for the vanished team. The status edge itself is
-    // fire-and-forget, so the contract is pinned through the awaited kick that
-    // follows the same giving-up path.
+    // The queued write runs before this acquire, so the assertions below observe
+    // a settled state: the vanished team neither came back nor turned into a
+    // reported failure.
+    await withTeamLock(teamLockKey(stateRoot, 'team1'), () => Promise.resolve())
     expect(existsSync(join(stateRoot, 'team1'))).toBe(false)
-    await expect(scheduler.kickMember(workspace, 'team1', 'alice', alice)).resolves.toBeUndefined()
-    expect(existsSync(join(stateRoot, 'team1'))).toBe(false)
-    expect(sendMessage).not.toHaveBeenCalled()
-    await new Promise(resolve2 => setTimeout(resolve2, 20))
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('rolls back the dispatch when the caller signal aborts the delivery', async () => {

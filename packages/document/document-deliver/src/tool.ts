@@ -33,7 +33,7 @@ export type DeliverableFormat = (typeof DELIVERABLE_FORMATS)[number]
 const TEXT_FORMATS: readonly DeliverableFormat[] = ['markdown', 'html']
 
 /** Largest deliverable the checker reads, matching the studio's preview cap. */
-export const MAX_CHECK_BYTES = 4 * 1024 * 1024
+export const DEFAULT_MAX_CHECK_BYTES = 4 * 1024 * 1024
 
 /** One registered deliverable file. */
 export interface DeliverFileInput {
@@ -106,9 +106,16 @@ export interface DocumentDeliverDeps {
   readonly styles: readonly DocumentStyle[]
   /** The style a call that names none is checked against. */
   readonly defaultStyle: DocumentStyle
+  /** Largest deliverable the checker reads, in bytes (Config `maxCheckBytes`). */
+  readonly maxCheckBytes: number
+  /** Fraction of a declared character budget a document may deviate by (Config `lengthTolerance`). */
+  readonly lengthTolerance: number
   /** Budgets the DOCX archive read must stay within (Config `maxArchiveEntries` / `maxUncompressedBytes`). */
   readonly docxReadLimits: ZipReadLimits
 }
+
+/** Read and tolerance budgets one check run applies, resolved from the deployment's `Config`. */
+export type DeliverableCheckLimits = Pick<DocumentDeliverDeps, 'maxCheckBytes' | 'lengthTolerance' | 'docxReadLimits'>
 
 /** The style a registration resolves to, or a fail-loud error naming the loaded set. */
 function resolveStyle(deps: DocumentDeliverDeps, spec: DocumentDeliverSpec): DocumentStyle {
@@ -226,23 +233,23 @@ export async function missingDeliverableFiles(
  * @param file - the declared path and format.
  * @param style - the style whose forbidden words are enforced.
  * @param charBudget - the declared character budget, when the call declared one.
- * @param docxReadLimits - budgets the DOCX archive read must stay within.
+ * @param limits - the read and tolerance budgets this deployment configured.
  * @returns the check report for this file.
  */
 async function checkDeliverable(
   ctx: Context, exec: ToolRunContext, file: { path: string; format: DeliverableFormat },
-  style: DocumentStyle, charBudget: number | undefined, docxReadLimits: ZipReadLimits,
+  style: DocumentStyle, charBudget: number | undefined, limits: DeliverableCheckLimits,
 ): Promise<DeliverableCheckReport> {
   const base = { path: file.path, format: file.format }
-  const options = { style, ...charBudget === undefined ? {} : { charBudget } }
+  const options = { style, lengthTolerance: limits.lengthTolerance, ...charBudget === undefined ? {} : { charBudget } }
   if (!TEXT_FORMATS.includes(file.format) && file.format !== 'docx') {
     return { ...base, status: 'unchecked', reason: `${file.format} 格式没有文本读取器`, findings: [] }
   }
   const target = await resolveTarget(ctx, exec, file.path)
   try {
     if (file.format === 'docx') {
-      const bytes = await ctx.fs.readBytes(target, exec.signal, MAX_CHECK_BYTES)
-      const projected = extractDocxText(bytes, docxReadLimits)
+      const bytes = await ctx.fs.readBytes(target, exec.signal, limits.maxCheckBytes)
+      const projected = extractDocxText(bytes, limits.docxReadLimits)
       const problems = projected.problems.map(problem => problem.code).join('、')
       // An empty projection always carries at least the `no-text` problem, so
       // the joined codes are the reason.
@@ -261,7 +268,7 @@ async function checkDeliverable(
     }
     // The text branch reads under the same cap as the DOCX branch, so an oversized
     // file is reported below instead of being read whole.
-    const bytes = await ctx.fs.readBytes(target, exec.signal, MAX_CHECK_BYTES)
+    const bytes = await ctx.fs.readBytes(target, exec.signal, limits.maxCheckBytes)
     const text = new TextDecoder().decode(bytes)
     return { ...base, status: 'checked', findings: checkDocumentText(text, options) }
   } catch (error) {
@@ -276,7 +283,7 @@ async function checkDeliverable(
  * @param exec - the current tool execution (signal, agent).
  * @param spec - the validated registration.
  * @param style - the style the checks run against.
- * @param docxReadLimits - budgets the DOCX archive read must stay within.
+ * @param limits - the read and tolerance budgets this deployment configured.
  * @returns one report per file, in declaration order.
  *
  * The files are checked one after another: every check reads the same
@@ -287,11 +294,11 @@ async function checkDeliverable(
  */
 export async function checkDeliverables(
   ctx: Context, exec: ToolRunContext, spec: DocumentDeliverSpec, style: DocumentStyle,
-  docxReadLimits: ZipReadLimits,
+  limits: DeliverableCheckLimits,
 ): Promise<DeliverableCheckReport[]> {
   const reports: DeliverableCheckReport[] = []
   for (const file of spec.files) {
-    reports.push(await checkDeliverable(ctx, exec, file, style, spec.charBudget, docxReadLimits))
+    reports.push(await checkDeliverable(ctx, exec, file, style, spec.charBudget, limits))
   }
   return reports
 }
@@ -360,17 +367,34 @@ function checksMeta(checks: readonly DeliverableCheckReport[]) {
 }
 
 /**
+ * The tool description, parameterized with the deployment's length tolerance:
+ * the model must be able to predict whether its document passes the budget
+ * check, and the tolerance is a `Config` value.
+ * @param lengthTolerance - the configured fraction of a declared budget a document may deviate by.
+ * @returns the `document_deliver` description.
+ */
+function deliverDescription(lengthTolerance: number): string {
+  const percent = Math.round(lengthTolerance * 100 * 100) / 100
+  return `登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
+
+工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±${String(percent)}% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。`
+}
+
+/**
  * Register one `document_deliver` tool definition over the plugin's context.
  * @param ctx - the Cordis context with the tools and fs services.
- * @param deps - the loaded styles and the default style of this deployment.
+ * @param deps - the loaded styles, the default style, and the budgets of this deployment.
  * @returns a registry-ready tool definition.
  */
 export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDeps): ToolDefinition {
+  const limits: DeliverableCheckLimits = {
+    maxCheckBytes: deps.maxCheckBytes,
+    lengthTolerance: deps.lengthTolerance,
+    docxReadLimits: deps.docxReadLimits,
+  }
   return defineTool({
     name: 'document_deliver',
-    description: `登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
-
-工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。`,
+    description: deliverDescription(deps.lengthTolerance),
     parameters: {
       files: {
         type: 'array',
@@ -509,7 +533,7 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
       if (missing.length > 0) {
         throw new Error(`document_deliver: 以下交付文件在工作区中不存在，先修复或从登记中移除: ${missing.join('、')}`)
       }
-      const checks = await checkDeliverables(ctx, exec, spec, style, deps.docxReadLimits)
+      const checks = await checkDeliverables(ctx, exec, spec, style, limits)
       const blocking = blockingLines(checks)
       if (blocking.length > 0) {
         throw new Error([

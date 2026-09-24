@@ -2645,7 +2645,7 @@ paper_list_sources and paper_search are stateless queries over four keyless publ
 
 登记一份文档交付物：声明成品文件、导出格式与质量门结果（P0/P1 自检项）。质量门通过后、向用户交付前调用一次；文件必须在工作区中存在。
 
-工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
+工具会自己读成品并做确定性核验：残余占位符（{{变量}}、[TBD] 等）、本文档未声明的锚点、空章节、所选风格（style）的禁用词、以及声明的字数预算（char_budget，本部署按 ±20% 容差核验）。这些结论与 P0/P1 自检项一并写入会话日志，交付物面板同时展示二者。命中禁用级问题（未填变量、风格禁用词）时调用会被拒绝并列出问题，修复后重新登记。
 
 ```json
 {
@@ -5732,7 +5732,7 @@ Source: [`packages/document/doc-template/src/index.ts`](../packages/document/doc
 
 - Renders one document template with supplied variables and returns the document, the placeholders that stayed unfilled, and the variable warnings.
 - Get the template name and its variables from `list_doc_templates` first. Every required variable must be supplied: a missing one fails the call and names it, rather than returning a document with a hole in it.
-- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. The resolved Markdown body is always returned in `markdown`.
+- `format` defaults to the template's fallback format; a template only renders to the formats it lists. `markdown` and `html` return text; `docx` returns the package base64-encoded in `content`. `markdown` is the resolved body before the injected document title and style disclaimer, whatever the format: write `content` to the delivered file, because a file written from `markdown` loses both.
 - Variables the template does not declare are ignored, and a placeholder with no supplied value is left in the document and reported under `residual` instead of being erased. Both residual placeholders and warnings are returned for every successful render: read them before treating a document as final.
 
 Usage notes:

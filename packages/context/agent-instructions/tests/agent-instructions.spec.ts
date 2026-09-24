@@ -42,6 +42,7 @@ import {
   type InstructionVersionCache,
 } from '../src/state.ts'
 import { resolveConfig } from '../src/config.ts'
+import { loadBaselineInstructionSet } from '../src/files.ts'
 import { candidateScopeKey, renderInstructionChanges, renderAgentInstructionSet, USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE } from '../src/render.ts'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import {
@@ -561,9 +562,81 @@ describe('workspace context instruction discovery', () => {
       await expect(loadBaselineInstructions({
         cwd: root, dshHome: home, maxBytes: 65536, maxSourceBytes: Infinity,
       })).resolves.toBeUndefined()
+      await expect(loadBaselineInstructions({
+        cwd: root, dshHome: home, maxBytes: 65536, maxTotalSourceBytes: 0,
+      })).resolves.toBeUndefined()
+      await expect(loadBaselineInstructions({
+        cwd: root, dshHome: home, maxBytes: 65536, maxTotalSourceBytes: Infinity,
+      })).resolves.toBeUndefined()
     } finally {
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('reserves the aggregate source budget for the most specific instruction files', async () => {
+    const root = join(await tempRepo(), 'virtual-repo')
+    const home = join(await tempRepo(), 'virtual-home')
+    const ctx = new Context()
+    try {
+      await ctx.plugin(RecordingFileSystem)
+      const fs = ctx.fs as RecordingFileSystem
+      fs.entries.set(join(home, 'AGENTS.md'), { type: 'file', content: 'user global rule' })
+      fs.entries.set(join(root, '.git'), { type: 'directory' })
+      fs.entries.set(join(root, 'AGENTS.md'), { type: 'file', content: 'repo rule' })
+      fs.entries.set(join(root, 'pkg', 'AGENTS.md'), { type: 'file', content: 'package rule' })
+
+      const loaded = await loadBaselineInstructionSet({
+        cwd: join(root, 'pkg'),
+        dshHome: home,
+        maxBytes: 65536,
+        // Exactly the most-specific file, so no broader candidate fits.
+        maxTotalSourceBytes: Buffer.byteLength('package rule'),
+      }, fs)
+
+      expect(loaded?.rendered.text).toContain('package rule')
+      expect(loaded?.rendered.text).not.toContain('repo rule')
+      expect(fs.readTargets).toEqual([join(root, 'pkg', 'AGENTS.md')])
+      expect(loaded?.observed.map(file => file.absolutePath)).toEqual([join(root, 'pkg', 'AGENTS.md')])
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(dirname(root), { recursive: true, force: true })
+      await rm(dirname(home), { recursive: true, force: true })
+    }
+  })
+
+  it('skips a candidate that cannot fit the aggregate budget and keeps reading broader files', async () => {
+    const root = join(await tempRepo(), 'virtual-repo')
+    const home = join(await tempRepo(), 'virtual-home')
+    const ctx = new Context()
+    try {
+      await ctx.plugin(RecordingFileSystem)
+      const fs = ctx.fs as RecordingFileSystem
+      fs.entries.set(join(root, '.git'), { type: 'directory' })
+      fs.entries.set(join(root, 'AGENTS.md'), { type: 'file', content: 'repo rule' })
+      fs.entries.set(join(root, 'pkg', 'AGENTS.md'), {
+        type: 'file',
+        content: 'package rule too large for the aggregate budget',
+      })
+
+      const loaded = await loadBaselineInstructionSet({
+        cwd: join(root, 'pkg'),
+        dshHome: home,
+        maxBytes: 65536,
+        // Below the most-specific file but above the broader one: the oversize
+        // candidate is skipped rather than truncated or charged against the rest.
+        maxTotalSourceBytes: Buffer.byteLength('repo rule'),
+      }, fs)
+
+      expect(loaded?.rendered.text).toContain('repo rule')
+      expect(loaded?.rendered.text).not.toContain('package rule')
+      // The oversize candidate is rejected from probed metadata, so the broader
+      // file is the only content ever streamed.
+      expect(fs.readTargets).toEqual([join(root, 'AGENTS.md')])
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(dirname(root), { recursive: true, force: true })
+      await rm(dirname(home), { recursive: true, force: true })
     }
   })
 
