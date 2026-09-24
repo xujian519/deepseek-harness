@@ -20,6 +20,17 @@ export interface ReadFileText {
   readonly truncated: boolean
 }
 
+/**
+ * A complete read's outcome: the file's text, or the Host cap that refused it.
+ *
+ * The cap travels with the refusal so the view renders the size the Host
+ * reports instead of naming one in copy; a cap raised in `Config` reaches the
+ * message with no client change.
+ */
+export type CompleteReadText =
+  | { readonly truncated: false; readonly content: string }
+  | { readonly truncated: true; readonly limitBytes: number }
+
 /** The slice of the Client Remote these reads call. */
 export interface WorkspaceFilesRemote {
   /**
@@ -52,9 +63,9 @@ export interface FileReads {
   /**
    * Read one produced file completely.
    * @param path - produced-file path as the deliverables reported it.
-   * @returns the complete text; `truncated` carries the Host's full-file cap refusal.
+   * @returns the complete text, or the Host cap that refused it.
    */
-  readonly readFileTextComplete: (path: string) => Promise<ReadFileText>
+  readonly readFileTextComplete: (path: string) => Promise<CompleteReadText>
 }
 
 /**
@@ -126,12 +137,16 @@ export function createFileReads(
       if (!result.ok) throw new Error(result.error.message)
       return decode(path, result.value)
     },
-    readFileTextComplete: async (path: string): Promise<ReadFileText> => {
+    readFileTextComplete: async (path: string): Promise<CompleteReadText> => {
       const result = await remote.readBytes(sessionId, resolve(path), {})
-      if (result.ok) return decode(path, result.value)
+      // A range-less read reports `eof: true` on every success, so the window is
+      // the complete file whenever the Host admits it.
+      if (result.ok) return { truncated: false, content: decode(path, result.value).content }
       // Above the Host's full-file cap the complete read is refused, which is
       // the studio's too-large state rather than an error line.
-      if (result.error.code === 'workspace-file/too-large') return { content: '', truncated: true }
+      if (result.error.code === 'workspace-file/too-large') {
+        return { truncated: true, limitBytes: result.error.details.limit }
+      }
       throw new Error(result.error.message)
     },
   }

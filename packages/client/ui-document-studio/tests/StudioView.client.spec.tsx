@@ -12,6 +12,7 @@ import {
   StudioView, isHtmlPath, isTextPreviewable,
   type StudioViewInjected, type StudioViewProps,
 } from '../src/client/StudioView.tsx'
+import type { CompleteReadText } from '../src/client/file-reads.ts'
 import { en, zh } from '../src/client/locales.ts'
 // Type-only: pulls the LocaleNamespaceMap augmentation into this program.
 import type {} from '../src/client/index.ts'
@@ -50,7 +51,8 @@ function injected(overrides: Partial<StudioViewInjected> = {}): StudioViewInject
     openFile: vi.fn(() => Promise.resolve()),
     showInFolder: vi.fn(() => Promise.resolve()),
     readFileText: vi.fn((path: string) => Promise.resolve({ content: `<h1>${path}</h1>`, truncated: false })),
-    readFileTextComplete: vi.fn((path: string) => Promise.resolve({ content: `<h1>${path}</h1>`, truncated: false })),
+    readFileTextComplete: vi.fn((path: string): Promise<CompleteReadText> =>
+      Promise.resolve({ truncated: false, content: `<h1>${path}</h1>` })),
     ...overrides,
   }
 }
@@ -234,7 +236,8 @@ describe('StudioView', () => {
       printHtmlToPdf,
     }
     const readFileText = vi.fn(() => Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true }))
-    const readFileTextComplete = vi.fn(() => Promise.resolve({ content: '<h1>FULL</h1>', truncated: false }))
+    const readFileTextComplete = vi.fn((): Promise<CompleteReadText> =>
+      Promise.resolve({ truncated: false, content: '<h1>FULL</h1>' }))
     try {
       render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText, readFileTextComplete })} />)
       await screen.findByTitle('index.html')
@@ -249,18 +252,21 @@ describe('StudioView', () => {
     }
   })
 
-  it('blocks print with an explanation when the full read is still truncated', async () => {
+  it('blocks print naming the host cap that refused the full read', async () => {
     const printHtmlToPdf = vi.fn(() => Promise.resolve({ path: '/tmp/x.pdf' }))
     ;(window as unknown as Window & { desktop?: { printHtmlToPdf: typeof printHtmlToPdf } }).desktop = {
       printHtmlToPdf,
     }
     const readFileText = vi.fn(() => Promise.resolve({ content: '<h1>HEAD</h1>', truncated: true }))
-    const readFileTextComplete = vi.fn(() => Promise.resolve({ content: '', truncated: true }))
+    // A cap that is not the Host's default: the message must carry the size it
+    // was handed, so a copy that names its own size fails here.
+    const readFileTextComplete = vi.fn((): Promise<CompleteReadText> =>
+      Promise.resolve({ truncated: true, limitBytes: 8 * 1024 * 1024 }))
     try {
       render(<StudioView {...studioProps([{ seq: 1, path: 'out/index.html' }], { readFileText, readFileTextComplete })} />)
       await screen.findByTitle('index.html')
       fireEvent.click(screen.getByText(t('studio.action.print')))
-      expect(await screen.findByText(t('studio.print.failed', { message: t('studio.print.tooLarge') }))).toBeTruthy()
+      expect(await screen.findByText(t('studio.print.failed', { message: t('studio.print.tooLarge', { limit: '8 MB' }) }))).toBeTruthy()
       expect(printHtmlToPdf).not.toHaveBeenCalled()
     } finally {
       delete (window as Window & { desktop?: unknown }).desktop

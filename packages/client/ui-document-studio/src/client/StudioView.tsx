@@ -12,7 +12,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { DocumentDeliverable } from './document-deliverables.ts'
 import { DOCUMENT_DELIVERABLES_TARGET } from './document-deliverables.ts'
-import type { ReadFileText } from './file-reads.ts'
+import type { CompleteReadText, ReadFileText } from './file-reads.ts'
 import css from './StudioView.module.css'
 
 /** Studio view props: runtime session share + injected callbacks + locale. */
@@ -31,8 +31,15 @@ export interface StudioViewInjected {
   showInFolder: (path: string) => Promise<void>
   /** Read one produced file's bounded text head through the host's window cap. */
   readFileText: (path: string) => Promise<ReadFileText>
-  /** Read one produced file completely; `truncated` reports the host's full-file cap refusal. */
-  readFileTextComplete: (path: string) => Promise<ReadFileText>
+  /** Read one produced file completely, or the host cap that refused it. */
+  readFileTextComplete: (path: string) => Promise<CompleteReadText>
+}
+
+/** Render a byte count the way a person reads one. */
+function humanBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${bytes} B`
 }
 
 /** Stable empty list so the selector never allocates per snapshot. */
@@ -87,6 +94,57 @@ function printHtmlDocument(content: string): void {
   win.document.close()
   win.focus()
   win.print()
+}
+
+/** The machine-check badge: the recorded outcome, or the visible degrade note when this console cannot read it. */
+function CheckBadge({ checks, t }: { checks: DocumentDeliverable['checks']; t: StudioViewProps['t'] }): ReactNode {
+  if (checks === undefined) return null
+  const details = [
+    ...checks.reason === undefined ? [] : [checks.reason],
+    ...checks.findings.map(finding => finding.detail),
+  ]
+  const title = details.length === 0 ? undefined : details.join('\n')
+  if (checks.status === 'checked') {
+    return checks.findings.length === 0
+      ? <span className={`${css.badge} ${css.gatePassed}`} title={title}>{t('studio.file.checkedPassed')}</span>
+      : (
+        <span className={`${css.badge} ${css.checkFindings}`} title={title}>
+          {t('studio.file.checkedFindings', { count: checks.findings.length })}
+        </span>
+      )
+  }
+  // A status a newer harness records falls through to this visible degrade
+  // note: the badge never claims a check that this console cannot read.
+  return (
+    <span className={`${css.badge} ${css.gateMissing}`} title={title}>
+      {checks.status === 'unreadable' ? t('studio.file.checkedFailed') : t('studio.file.checkedSkipped')}
+    </span>
+  )
+}
+
+/**
+ * One produced file's badges: the announced export format, the quality-gate
+ * state (or the visible degrade note when the file was never registered), and
+ * the machine-derived check outcome when the registration's result carried one.
+ */
+function DeliverableBadges({ file, t }: { file: DocumentDeliverable; t: StudioViewProps['t'] }): ReactNode {
+  return (
+    <>
+      {file.format !== undefined && (
+        <span className={css.badge}>{file.format}</span>
+      )}
+      {file.gate !== undefined
+        ? (
+          <span className={`${css.badge} ${css.gatePassed}`}>
+            {t('studio.file.gatePassed', { p0: file.gate.p0.length, p1: file.gate.p1.length })}
+          </span>
+        )
+        : (
+          <span className={`${css.badge} ${css.gateMissing}`}>{t('studio.file.gateMissing')}</span>
+        )}
+      <CheckBadge checks={file.checks} t={t} />
+    </>
+  )
 }
 
 /**
@@ -151,54 +209,11 @@ export function StudioView({
     () => selectedPath !== null && !isHtmlPath(selectedPath) ? content?.text ?? null : null,
     [selectedPath, content],
   )
-  const selected = produced.find(file => file.path === selectedPath) ?? null
-  const selectedName = selected === null ? '' : basename(selected.path)
-
-  // One badge per produced file: the announced export format, the quality-gate
-  // state (or the visible degrade note when the file was never registered), and
-  // the machine-derived check outcome when the registration's result carried one.
-  const checkBadge = (checks: DocumentDeliverable['checks']): ReactNode => {
-    if (checks === undefined) return null
-    const details = [
-      ...checks.reason === undefined ? [] : [checks.reason],
-      ...checks.findings.map(finding => finding.detail),
-    ]
-    const title = details.length === 0 ? undefined : details.join('\n')
-    if (checks.status === 'checked') {
-      return checks.findings.length === 0
-        ? <span className={`${css.badge} ${css.gatePassed}`} title={title}>{t('studio.file.checkedPassed')}</span>
-        : (
-          <span className={`${css.badge} ${css.checkFindings}`} title={title}>
-            {t('studio.file.checkedFindings', { count: checks.findings.length })}
-          </span>
-        )
-    }
-    // A status a newer harness records falls through to this visible degrade
-    // note: the badge never claims a check that this console cannot read.
-    return (
-      <span className={`${css.badge} ${css.gateMissing}`} title={title}>
-        {checks.status === 'unreadable' ? t('studio.file.checkedFailed') : t('studio.file.checkedSkipped')}
-      </span>
-    )
-  }
-
-  const badge = (file: DocumentDeliverable): ReactNode => (
-    <>
-      {file.format !== undefined && (
-        <span className={css.badge}>{file.format}</span>
-      )}
-      {file.gate !== undefined
-        ? (
-          <span className={`${css.badge} ${css.gatePassed}`}>
-            {t('studio.file.gatePassed', { p0: file.gate.p0.length, p1: file.gate.p1.length })}
-          </span>
-        )
-        : (
-          <span className={`${css.badge} ${css.gateMissing}`}>{t('studio.file.gateMissing')}</span>
-        )}
-      {checkBadge(file.checks)}
-    </>
+  const selected = useMemo(
+    () => produced.find(file => file.path === selectedPath) ?? null,
+    [produced, selectedPath],
   )
+  const selectedName = selected === null ? '' : basename(selected.path)
 
   // One preview pane per state; the hint covers no selection and
   // non-previewable files (the effect clears content and error for both).
@@ -234,7 +249,7 @@ export function StudioView({
       try {
         const full = await readFileTextComplete(selectedPath)
         if (full.truncated) {
-          setPrintOutcome({ failed: t('studio.print.tooLarge') })
+          setPrintOutcome({ failed: t('studio.print.tooLarge', { limit: humanBytes(full.limitBytes) }) })
           return
         }
         html = full.content
@@ -275,7 +290,7 @@ export function StudioView({
                     onClick={() => { setSelectedPath(file.path) }}
                   >
                     <span className={css.fileName}>{basename(file.path)}</span>
-                    {badge(file)}
+                    <DeliverableBadges file={file} t={t} />
                   </button>
                 ))}
               </div>

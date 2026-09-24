@@ -26,8 +26,8 @@ function byteWindow(bytes: readonly number[], eof: boolean): WorkspaceFileBytes 
 }
 
 /** One host failure, as the Remote face delivers it. */
-function hostFailure(code: string, message: string): RemoteResult<never> {
-  return { ok: false, error: { code, message } } as unknown as RemoteResult<never>
+function hostFailure(code: string, message: string, details: Readonly<Record<string, string | number>> = {}): RemoteResult<never> {
+  return { ok: false, error: { code, message, details } } as unknown as RemoteResult<never>
 }
 
 /** A scripted Remote face whose one read answers by call shape: a ranged request gets the window, an absent range the complete result. */
@@ -94,10 +94,10 @@ describe('createFileReads', () => {
     expect(readBytes).toHaveBeenCalledTimes(1)
   })
 
-  it('reports the full-file cap refusal as the studio too-large state', async () => {
-    const { remote } = remoteFace(hostFailure('workspace-file/too-large', 'exceeds the cap'))
+  it('carries the host cap out of a full-file refusal, so the studio names no size of its own', async () => {
+    const { remote } = remoteFace(hostFailure('workspace-file/too-large', 'exceeds the cap', { path: 'out/huge.html', limit: 32 * 1024 * 1024 }))
     await expect(createFileReads(remote, SESSION, resolve).readFileTextComplete('out/huge.html'))
-      .resolves.toEqual({ content: '', truncated: true })
+      .resolves.toEqual({ truncated: true, limitBytes: 32 * 1024 * 1024 })
   })
 
   it('reports any other complete-read failure as an error', async () => {
