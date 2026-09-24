@@ -15,7 +15,7 @@ const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ githu
 
 describe('CI workflow', () => {
   it('prepares confinement before Node compatibility smokes', () => {
-    const job = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-compat')
+    const job = workflowJob(loadArchivedWorkflow('.github/workflows/ci.yml'), 'node-compat')
     if (!Array.isArray(job.steps)) throw new TypeError('Node compatibility job must define steps')
     const steps = job.steps.filter(isRecord)
     const preparation = steps.findIndex(step => step.run === 'bash scripts/prepare-ci-bubblewrap.sh')
@@ -27,7 +27,7 @@ describe('CI workflow', () => {
 
   it.each(['ci.yml', 'ci-master.yml', 'e2e.yml', 'release.yml', 'release-vendor.yml'])(
     '%s cancels superseded validation runs without crossing workflow or ref boundaries', (name) => {
-      const workflow = loadWorkflow('.github/workflows/' + name)
+      const workflow = loadArchivedWorkflow('.github/workflows/' + name)
       expect(workflow.concurrency).toEqual({
         group: '${{ github.workflow }}-${{ github.ref }}',
         'cancel-in-progress': true,
@@ -36,7 +36,7 @@ describe('CI workflow', () => {
   )
 
   it('cancels reusable CI builds without cancelling release-owned builds', () => {
-    const workflow = loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
     expect(workflow.concurrency).toEqual({
       group: 'build-single-exe-${{ github.workflow }}-${{ github.ref }}',
       'cancel-in-progress': '${{ !inputs.release }}',
@@ -45,17 +45,17 @@ describe('CI workflow', () => {
 
   it('does not cancel protected publication or deployment transactions', () => {
     for (const name of ['release-publish.yml', 'release-vendor-publish.yml']) {
-      const publish = workflowJob(loadWorkflow('.github/workflows/' + name), 'publish')
+      const publish = workflowJob(loadArchivedWorkflow('.github/workflows/' + name), 'publish')
       expect(publish.concurrency).toMatchObject({ 'cancel-in-progress': false })
     }
     for (const name of ['python-release.yml', 'node-addon-system-release.yml', 'docs-pages.yml']) {
-      expect(loadWorkflow('.github/workflows/' + name).concurrency).toMatchObject({ 'cancel-in-progress': false })
+      expect(loadArchivedWorkflow('.github/workflows/' + name).concurrency).toMatchObject({ 'cancel-in-progress': false })
     }
   })
 
   it('skips coverage-history uploads on cancellation but retains Wine cleanup', () => {
-    const coverage = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'windows-coverage')
-    const wine = workflowJob(loadWorkflow('.github/workflows/ci-master.yml'), 'windows')
+    const coverage = workflowJob(loadArchivedWorkflow('.github/workflows/ci.yml'), 'windows-coverage')
+    const wine = workflowJob(loadArchivedWorkflow('.github/workflows/ci-master.yml'), 'windows')
     expect(coverage.steps).toContainEqual(expect.objectContaining({
       name: 'Save coverage duration history', if: '${{ !cancelled() }}',
     }))
@@ -63,10 +63,10 @@ describe('CI workflow', () => {
   })
 
   it('isolates every pnpm action setup destination per runner', () => {
-    const files = ['.github/workflows/ci.yml', '.github/workflows/ci-master.yml']
+    const files = ['ci.yml', 'ci-master.yml']
     const setups: Array<{ jobName: string; step: unknown }> = []
     for (const file of files) {
-      const workflow: unknown = loadWorkflow(file)
+      const workflow: unknown = loadArchivedWorkflow(`.github/workflows/${file}`)
       if (!isRecord(workflow) || !isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)
       for (const [jobName, job] of Object.entries(workflow.jobs)) {
         if (!isRecord(job) || !Array.isArray(job.steps)) continue
@@ -93,7 +93,7 @@ describe('CI workflow', () => {
   it.each(['node-24', 'node-24-coverage', 'node-24-consumers'])(
     '%s keeps tool and fixture temporary files under runner cleanup',
     (jobName) => {
-      const job = workflowJob(loadWorkflow('.github/workflows/ci.yml'), jobName)
+      const job = workflowJob(loadArchivedWorkflow('.github/workflows/ci.yml'), jobName)
       if (!Array.isArray(job.steps)) throw new TypeError(`${jobName} must define steps`)
       expect(job.steps[0]).toEqual({
         name: 'Use runner-owned temporary storage',
@@ -130,7 +130,7 @@ describe('CI workflow', () => {
   )
 
   it('isolates the python SDK exe pnpm setup destination per job', () => {
-    const workflow = loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
     if (!isRecord(workflow.jobs)) throw new TypeError('build-exe-for-python-sdk.yml must define jobs')
     const setups: Array<{ step: unknown }> = []
     for (const job of Object.values(workflow.jobs)) {
@@ -149,8 +149,8 @@ describe('CI workflow', () => {
   })
 
   it('keeps split native Windows PR jobs with failover, plus a master-only standby', () => {
-    const workflow = loadWorkflow('.github/workflows/ci.yml')
-    const masterWorkflow = loadWorkflow('.github/workflows/ci-master.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/ci.yml')
+    const masterWorkflow = loadArchivedWorkflow('.github/workflows/ci-master.yml')
     if (!isRecord(workflow.jobs)
       || !isRecord(workflow.jobs['windows-build'])
       || !isRecord(workflow.jobs['windows-coverage'])
@@ -409,7 +409,7 @@ describe('CI workflow', () => {
 
   it('gates standalone keyless blacksmith jobs and benchmark tiers on the failover variables', () => {
     const expectedFilenames = workflowJob(loadWorkflow('.github/workflows/expected-filenames.yml'), 'expected-filenames')
-    const sandbox = workflowJob(loadWorkflow('.github/workflows/sandbox.yml'), 'sandbox-e2e')
+    const sandbox = workflowJob(loadArchivedWorkflow('.github/workflows/sandbox.yml'), 'sandbox-e2e')
     expect(expectedFilenames['runs-on']).toContain('DSH_CI_FAILOVER_LINUX')
     expect(expectedFilenames['runs-on']).toContain("== 'blacksmith'")
     expect(expectedFilenames['runs-on']).toContain('blacksmith-4vcpu-ubuntu-2404')
@@ -418,7 +418,7 @@ describe('CI workflow', () => {
     expect(sandbox['runs-on']).toContain('DSH_CI_FAILOVER_LINUX')
     expect(sandbox['runs-on']).toContain('blacksmith-4vcpu-ubuntu-2404')
     for (const name of ['larger-runner-benchmark', 'consolidated-runner-benchmark'] as const) {
-      const benchmark = workflowJob(loadWorkflow('.github/workflows/ci-master.yml'), name)
+      const benchmark = workflowJob(loadArchivedWorkflow('.github/workflows/ci-master.yml'), name)
       if (!isRecord(benchmark.strategy) || !isRecord(benchmark.strategy.matrix) || !Array.isArray(benchmark.strategy.matrix.include)) {
         throw new TypeError(`${name} must define a matrix include list`)
       }
@@ -436,36 +436,33 @@ describe('CI workflow', () => {
     }
   })
 
-  it('runs required benchmarks on standard hosted Linux independently of failover', () => {
-    const workflow = loadWorkflow('.github/workflows/ci.yml')
-    const benchmark = workflowJob(workflow, 'node-24-bench')
-    const aggregate = workflowJob(workflow, 'all-checks-passed')
+  // The fork's own lane: the upstream job that defined this gate is archived
+  // under workflows-disabled/, so asserting against it proved nothing about a
+  // fork run. These read the live workflow the fork actually executes.
+  it('runs the benchmark lane alone on a pull request', () => {
+    const benchmark = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'benchmarks')
 
-    expect(benchmark['runs-on']).toBe('ubuntu-24.04')
-    expect(benchmark.if).toBe("github.event_name == 'pull_request'")
+    expect(benchmark.name).toBe('node 24 / benchmarks')
+    expect(benchmark.if).toBe("github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'")
+    expect(benchmark['runs-on']).toBe('ubuntu-latest')
     expect(benchmark.needs).toBeUndefined()
     expect(benchmark['continue-on-error']).toBeUndefined()
     expect(benchmark.env).toBeUndefined()
-    expect(aggregate.needs).toContain('node-24-bench')
   })
 
-  it('always restores the hosted benchmark pnpm cache', () => {
-    const benchmark = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-24-bench')
+  it('installs the benchmark browser before running the lane', () => {
+    const benchmark = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'benchmarks')
     if (!Array.isArray(benchmark.steps)) throw new TypeError('benchmark job must define steps')
-    const caches = benchmark.steps.filter(step => isRecord(step) && step.uses === 'actions/cache/restore@v4')
+    const steps = benchmark.steps.filter(isRecord)
+    const browser = steps.findIndex(step => String(step.run).includes('playwright install --with-deps chromium'))
+    const lane = steps.findIndex(step => String(step.run).includes('check:ci:bench'))
 
-    expect(caches).toHaveLength(1)
-    expect(caches[0]).not.toHaveProperty('if')
-    expect(caches[0]).toMatchObject({
-      with: {
-        path: '${{ steps.pnpm-store.outputs.path }}',
-        key: "${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}",
-      },
-    })
+    expect(browser).toBeGreaterThanOrEqual(0)
+    expect(lane).toBeGreaterThan(browser)
   })
 
   it('bounds the complete benchmark job to fifteen minutes', () => {
-    const benchmark = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-24-bench')
+    const benchmark = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'benchmarks')
 
     expect(benchmark['timeout-minutes']).toBe(15)
     expect(benchmark.steps).toContainEqual({
@@ -484,8 +481,8 @@ describe('CI workflow', () => {
   })
 
   it('cancels superseded master runs without changing the post-merge job inventory', () => {
-    const workflow = loadWorkflow('.github/workflows/ci-master.yml')
-    const prWorkflow = loadWorkflow('.github/workflows/ci.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/ci-master.yml')
+    const prWorkflow = loadArchivedWorkflow('.github/workflows/ci.yml')
     if (!isRecord(workflow.jobs) || !isRecord(workflow.concurrency)) {
       throw new TypeError('ci-master workflow must define jobs and a workflow-level concurrency block')
     }
@@ -547,8 +544,8 @@ describe('CI workflow', () => {
   })
 
   it('redirects the Node compile cache to the data-volume runner temp before the first pnpm call', () => {
-    const prWorkflow = loadWorkflow('.github/workflows/ci.yml')
-    const masterWorkflow = loadWorkflow('.github/workflows/ci-master.yml')
+    const prWorkflow = loadArchivedWorkflow('.github/workflows/ci.yml')
+    const masterWorkflow = loadArchivedWorkflow('.github/workflows/ci-master.yml')
     const redirectLanes = [
       [prWorkflow, 'node-24'],
       [prWorkflow, 'node-24-coverage'],
@@ -585,7 +582,7 @@ describe('CI workflow', () => {
   })
 
   it('requires release-shaped Python runtime validation on Linux and Windows x64', () => {
-    const workflow = loadWorkflow('.github/workflows/ci.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/ci.yml')
     const pythonRuntime = workflowJob(workflow, 'python-runtime')
     const aggregate = workflowJob(workflow, 'all-checks-passed')
     if (!Array.isArray(aggregate.needs)) {
@@ -665,7 +662,7 @@ describe('fork CI workflow', () => {
 
 describe('Runtime and LLM e2e Blacksmith routing', () => {
   it('routes DeepSeek e2e only through the Linux Blacksmith switch', () => {
-    const job = workflowJob(loadWorkflow('.github/workflows/e2e.yml'), 'e2e')
+    const job = workflowJob(loadArchivedWorkflow('.github/workflows/e2e.yml'), 'e2e')
     for (const mode of ['', 'selfhosted', 'unexpected', 'blacksmith']) {
       expect(evaluateRunsOn(job['runs-on'], { vars: { DSH_CI_FAILOVER_LINUX: mode, DSH_CI_FAILOVER_WINDOWS: 'blacksmith' } }))
         .toBe(mode === 'blacksmith' ? 'blacksmith-4vcpu-ubuntu-2404' : 'ubuntu-latest')
@@ -673,7 +670,7 @@ describe('Runtime and LLM e2e Blacksmith routing', () => {
   })
 
   it('keeps native release and dispatch builders hosted while routing x64 CI by platform', () => {
-    const workflow = loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
     const build = workflowJob(workflow, 'build')
     for (const [target, runner, variable, blacksmith] of [
       ['node24-linux-x64', 'ubuntu-latest', 'DSH_CI_FAILOVER_LINUX', 'blacksmith-2vcpu-ubuntu-2404'],
@@ -695,7 +692,7 @@ describe('Runtime and LLM e2e Blacksmith routing', () => {
   })
 
   it.each(['plan', 'sdk-wheel'])('routes runtime %s only for non-release CI', (name) => {
-    const job = workflowJob(loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml'), name)
+    const job = workflowJob(loadArchivedWorkflow('.github/workflows/build-exe-for-python-sdk.yml'), name)
     for (const ci of [false, true]) {
       for (const release of [false, true]) {
         for (const mode of ['', 'selfhosted', 'unexpected', 'blacksmith']) {
@@ -722,7 +719,7 @@ describe('bubblewrap preparation script', () => {
 
 describe('DeepSeek e2e workflow', () => {
   it('prepares bubblewrap from the pinned payload without a package transaction', () => {
-    const workflow = loadWorkflow('.github/workflows/e2e.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/e2e.yml')
     const e2e = workflowJob(workflow, 'e2e')
     if (!Array.isArray(e2e.steps)) throw new TypeError('DeepSeek e2e workflow must define steps')
 
@@ -734,7 +731,7 @@ describe('DeepSeek e2e workflow', () => {
   })
 
   it('bounds profile subprocess fan-out to the tested e2e default', () => {
-    const workflow = loadWorkflow('.github/workflows/e2e.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/e2e.yml')
     const e2e = workflowJob(workflow, 'e2e')
     if (!Array.isArray(e2e.steps)) throw new TypeError('DeepSeek e2e workflow must define steps')
 
@@ -745,7 +742,7 @@ describe('DeepSeek e2e workflow', () => {
 
 describe('Python release workflows', () => {
   it('keeps complete wheel validation separate from protected public publication', () => {
-    const workflow = loadWorkflow('.github/workflows/python-release.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/python-release.yml')
     const dispatch = workflowEvent(workflow, 'workflow_dispatch')
     const build = workflowJob(workflow, 'build')
     const pythonCompat = workflowJob(workflow, 'python-compat')
@@ -825,7 +822,7 @@ describe('Python release workflows', () => {
   })
 
   it('exposes the native wheel builder to the release caller with normalized versions', () => {
-    const workflow = loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
     expect(Object.keys(workflow.on as Record<string, unknown>).sort()).toEqual(['workflow_call', 'workflow_dispatch'])
     const call = workflowEvent(workflow, 'workflow_call')
     const plan = workflowJob(workflow, 'plan')
@@ -926,7 +923,7 @@ describe('Python release workflows', () => {
   })
 
   it('uses the shared macOS deployment-target check in GitLab', () => {
-    const workflow = loadWorkflow('.gitlab-ci.yml')
+    const workflow = loadArchivedWorkflow('.gitlab-ci.yml')
     const runtimeWheel = workflow['.runtime-wheel']
     if (!isRecord(runtimeWheel) || !Array.isArray(runtimeWheel.script)) {
       throw new TypeError('GitLab CI must define the runtime wheel script')
@@ -945,7 +942,7 @@ describe('Python release workflows', () => {
   })
 
   it('builds the macOS x64 wheel on the matching GitLab runner', () => {
-    const workflow = loadWorkflow('.gitlab-ci.yml')
+    const workflow = loadArchivedWorkflow('.gitlab-ci.yml')
     const macosX64 = workflow['runtime-macos-x64']
     const publish = workflow['publish-python']
     if (!isRecord(macosX64) || !isRecord(publish) || !Array.isArray(publish.needs)) {
@@ -959,7 +956,7 @@ describe('Python release workflows', () => {
   })
 
   it('builds and black-box tests the Windows x64 wheel in GitLab', () => {
-    const workflow = loadWorkflow('.gitlab-ci.yml')
+    const workflow = loadArchivedWorkflow('.gitlab-ci.yml')
     const windows = workflow['runtime-windows-x64']
     const publish = workflow['publish-python']
     if (!isRecord(windows) || !Array.isArray(windows.before_script) || !Array.isArray(windows.script)
@@ -1042,7 +1039,7 @@ describe('Weighted approval workflow', () => {
       if: "failure() && steps.revoke.outputs.active == 'true'",
       run: 'node .github/review-ownership/check-approval.mjs error',
     })
-    const pythonJob = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'python-sdk')
+    const pythonJob = workflowJob(loadArchivedWorkflow('.github/workflows/ci.yml'), 'python-sdk')
     expect(pythonJob.steps).toContainEqual({
       name: 'Test production blame scoring',
       run: "uv run --python 3.10 --with-requirements .github/review-ownership/requirements.txt python -m unittest discover -s .github/review-ownership -p 'test_*.py'",
@@ -1077,8 +1074,8 @@ describe('Weighted approval workflow', () => {
 
 describe('Issue lifecycle workflow', () => {
   it('allocates lifecycle runners only for events that can change the board', () => {
-    const lifecycle = loadWorkflow('.github/workflows/issue-lifecycle.yml')
-    const policy = loadWorkflow('.github/workflows/issue-policy.yml')
+    const lifecycle = loadArchivedWorkflow('.github/workflows/issue-lifecycle.yml')
+    const policy = loadArchivedWorkflow('.github/workflows/issue-policy.yml')
     const lifecycleJob = workflowJob(lifecycle, 'lifecycle')
     if (!Array.isArray(lifecycleJob.steps)) throw new TypeError('Issue lifecycle job must define steps')
 
@@ -1115,7 +1112,7 @@ describe('Issue lifecycle workflow', () => {
   })
 
   it('mints Project credentials only after preflight and always revalidates current metadata', () => {
-    const policy = loadWorkflow('.github/workflows/issue-policy.yml')
+    const policy = loadArchivedWorkflow('.github/workflows/issue-policy.yml')
     const policyJob = workflowJob(policy, 'policy')
     if (!Array.isArray(policyJob.steps)) throw new TypeError('Issue policy job must define steps')
     const steps = policyJob.steps.filter(isRecord)
@@ -1155,7 +1152,7 @@ describe('npm release workflows', () => {
   it('keeps publication dispatch-only and pack in the PR workflow', () => {
     // pack stays in the PR/master release workflows so a PR proves the set packs.
     for (const file of ['release.yml', 'release-vendor.yml']) {
-      const workflow = loadWorkflow(`.github/workflows/${file}`)
+      const workflow = loadArchivedWorkflow(`.github/workflows/${file}`)
       if (!isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)
       expect(Object.keys(workflow.jobs).sort()).toEqual(file === 'release.yml' ? ['dependencies', 'pack'] : ['pack'])
     }
@@ -1163,7 +1160,7 @@ describe('npm release workflows', () => {
     // publication is workflow_dispatch-only (never a PR check) and keeps the
     // npm-publish environment plus the shared dist-tag group.
     for (const file of ['release-publish.yml', 'release-vendor-publish.yml']) {
-      const workflow = loadWorkflow(`.github/workflows/${file}`)
+      const workflow = loadArchivedWorkflow(`.github/workflows/${file}`)
       if (!isRecord(workflow.on) || !isRecord(workflow.jobs)) throw new TypeError(`${file} must define on and jobs`)
       expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
       const publish = workflow.jobs.publish
@@ -1174,7 +1171,7 @@ describe('npm release workflows', () => {
   })
 
   it('runs dependency policy and npm layout checks in the DSH release workflow', () => {
-    const workflow = loadWorkflow('.github/workflows/release.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/release.yml')
     const dependencies = workflowJob(workflow, 'dependencies')
     if (!isRecord(workflow.on) || !Array.isArray(dependencies.steps)) {
       throw new TypeError('DSH release workflow must define triggers and dependency steps')
@@ -1190,7 +1187,7 @@ describe('npm release workflows', () => {
 
 describe('Documentation site publication', () => {
   it('keeps Pages deployment dispatch-only from a dsh-v* tag', () => {
-    const workflow = loadWorkflow('.github/workflows/docs-pages.yml')
+    const workflow = loadArchivedWorkflow('.github/workflows/docs-pages.yml')
     const build = workflowJob(workflow, 'build')
     const deploy = workflowJob(workflow, 'deploy')
     if (!isRecord(workflow.on) || !isRecord(workflow.env) || !Array.isArray(build.steps)) {
@@ -1246,26 +1243,32 @@ describe('Git hooks', () => {
   })
 })
 
-function loadWorkflow(path: string): Record<string, unknown> {
-  // The fork runs only ci-fork.yml; the upstream workflows live archived under
-  // workflows-disabled/ and the structure tests still read them there.
-  const candidates = [resolve(root, path)]
-  if (path.startsWith('.github/workflows/')) {
-    candidates.push(resolve(root, path.replace('.github/workflows/', '.github/workflows-disabled/')))
+function parseWorkflow(path: string): Record<string, unknown> {
+  let content: string
+  try {
+    content = readFileSync(resolve(root, path), 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err
+    throw new TypeError(`${path} must define a workflow; an archived upstream workflow is read through loadArchivedWorkflow`)
   }
-  let content: string | undefined
-  for (const file of candidates) {
-    try {
-      content = readFileSync(file, 'utf8')
-      break
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err
-    }
-  }
-  if (content === undefined) throw new TypeError(`${path} must define a workflow`)
   const workflow: unknown = yaml.load(content)
   if (!isRecord(workflow)) throw new TypeError(`${path} must define a workflow`)
   return workflow
+}
+
+/** Load a workflow the fork runs. */
+function loadWorkflow(path: string): Record<string, unknown> {
+  return parseWorkflow(path)
+}
+
+/**
+ * Load an upstream workflow the fork keeps archived under `workflows-disabled/`.
+ * These assertions document the vendored upstream pipeline and cannot fail on a
+ * fork run, so each archived read is named at its call site instead of resolving
+ * through a silent fallback.
+ */
+function loadArchivedWorkflow(path: string): Record<string, unknown> {
+  return parseWorkflow(path.replace('.github/workflows/', '.github/workflows-disabled/'))
 }
 
 function workflowEvent(workflow: Record<string, unknown>, event: string): Record<string, unknown> {

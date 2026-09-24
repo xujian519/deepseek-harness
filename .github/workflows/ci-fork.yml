@@ -225,6 +225,40 @@ jobs:
         # workspace package whose exports point at an unbuilt lib/.
         run: pnpm run check:ci:coverage
 
+  benchmarks:
+    # Wall-clock budgets need an otherwise idle runner, so the lane runs alone
+    # instead of joining a concurrent gate aggregate. The fork had no performance
+    # signal at all: the upstream workflow that defined this job is archived under
+    # workflows-disabled/, while docs/testing.md still described the lane as a
+    # required PR gate. `scripts/ci-workflow.spec.ts` asserts this job's shape
+    # against this file, not against the archived copy.
+    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / benchmarks
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the benchmark browser
+        run: pnpm --filter @deepseek-ai/dsh-benchmarks exec playwright install --with-deps chromium
+
+      - name: Run performance benchmarks
+        env:
+          DSH_GATE_VERBOSE: '1'
+        run: pnpm run check:ci:bench
+
   python-checks:
     if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest
