@@ -17,6 +17,13 @@ export interface Config {
    * direct-use fallback). Defaults to ~/.sati/knowledge/knowledge.db.
    */
   sourceDbPath?: string
+  /**
+   * Upper bound on cached knowledge-graph nodes, least-recently-used eviction.
+   * A session that walks the graph can touch unbounded distinct node ids, so
+   * the cache is bounded; raise it when a deployment queries wide subgraphs
+   * repeatedly. Defaults to 1024.
+   */
+  nodeCacheMaxEntries?: number
 }
 
 /** Options for the patent-knowledge:install data bootstrap. */
