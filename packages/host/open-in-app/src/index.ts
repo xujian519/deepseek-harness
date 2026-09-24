@@ -85,7 +85,13 @@ function connectionOf(ctx: Context): OpenInAppConnection {
   return Reflect.get(ctx, 'connection') as OpenInAppConnection
 }
 
-/** Open-route request bodies are tiny JSON objects; anything larger is hostile. */
+/**
+ * Open-route request bodies are tiny JSON objects; anything larger is hostile.
+ *
+ * Fixed: the ceiling is the security invariant of the open route, not a
+ * deployment budget — a larger body is drained and refused, never accepted up
+ * to a configured limit.
+ */
 const MAX_BODY_BYTES = 64 * 1024
 
 /** JSON response (no-store: availability and launch outcomes are live facts). */

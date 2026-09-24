@@ -403,7 +403,14 @@ export async function* sessionLogZipEntries(
   }
 }
 
-/** How many code units of Session-log text one zip push carries (bounded encode memory). */
+/**
+ * How many code units of Session-log text one zip push carries (bounded encode
+ * memory). Fixed with the two byte budgets below: all three are the internal
+ * rhythm and memory ceiling of one archive stream, not deployment budgets.
+ * Chunk size trades throughput against peak encode memory, and the high-water
+ * mark trades buffered bytes against how often ZIP production waits for pull;
+ * none of them is a value a deployment should choose to change its semantics.
+ */
 const PUSH_CHUNK_CODE_UNITS = 1 << 16
 
 /** How many bytes of media one zip push carries (bounded memory; images are already size-capped). */

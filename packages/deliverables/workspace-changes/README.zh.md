@@ -85,6 +85,7 @@ git 通过 `subprocess` 能力运行，使用净化后的环境、`GIT_CONFIG_CO
 
 <a id="known-limitations-and-deferred-work"></a>
 
+- **保留的 stderr 尾巴固定** — `STDERR_TAIL_BYTES`（16 KiB）限定一次 git 失败能给卡片与模型错误文本增加多少内容，因此是产品可见的上限而非部署偏好。
 - 摘要、快照树与捕获的副本只在本 Host 进程内随其 Session 存活；Host 重启后重新打开的对话，先前轮次既没有卡片也没有对比。这是既定行为：Host 已经打不开内容的卡片不显示。
 - 有两个 git 功能在快照期间仍会写入仓库自己的 git 目录：`core.splitIndex` 会写 `sharedindex.*` 文件，git-lfs 会对改动文件运行 clean 过滤器并把对象存到 `.git/lfs` 下。
 - 需要 git 2.13 或更高版本以支持 `rev-parse --absolute-git-dir`；不支持的仓库格式或其他 git 失败会带着警告放弃本轮，而不是被当成普通目录。

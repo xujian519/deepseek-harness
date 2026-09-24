@@ -58,6 +58,7 @@ Web 组合以行 `synapse` 挂载本包，以行 `synapse-client` 挂载 `@deeps
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与后续
 
+- **画布请求体上限固定** — `MAX_BODY_BYTES`（32 KiB）是线协议的大小不变量：画布请求是一个小 JSON 对象，超出即按非法输入拒绝，而不是按可配置上限收下。
 - 地图 UI 是 iframe 内的静态浏览器脚本（`assets/app.js`）：使用自带的迷你 markdown 渲染器，而非仓库的 React 栈，不受客户端快照门禁覆盖。
 - history 端点分页返回会话日志（`?limit`/`?beforeSeq`）：详情视图先展示最近的消息，按需加载更早的段落，超长对话不再一次性全量加载。
 - 两个 `dsh web` 实例共享同一 profile 在同一瞬间仍会竞争；mtime 冲突检查与锁窗口串行化，失败一方的本地增量被丢弃并告警，而不是合并。
