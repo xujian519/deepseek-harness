@@ -73,7 +73,14 @@ jobs:
         # (probe + scope launch + settle chains) far slower than upstream's
         # pools; upstream's slow lanes raise the same budget via
         # DSH_COVERAGE_TEST_TIMEOUT_MS. A genuine hang still fails at 30s.
-        run: pnpm exec vitest run --testTimeout=30000 --hookTimeout=30000
+        # The JSON report beside the human one feeds the skip gate below.
+        run: pnpm exec vitest run --testTimeout=30000 --hookTimeout=30000 --reporter=default --reporter=json --outputFile=vitest-report.json
+
+      - name: Reject new test skips
+        # A skip reads green in the log, so a path this lane can never run — the
+        # FreeCAD STEP → TechDraw chain has no non-interactive install — looked
+        # covered. The recorded per-platform budget turns a new or widened skip red.
+        run: pnpm run verify-test-skips
 
       - name: Documentation checks
         run: pnpm run test:docs

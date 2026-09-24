@@ -21,6 +21,7 @@ coverage/
 .oxlint-contract-*/
 .oxlintrc.contract-*.json
 oxlint-contract-*.ts
+vitest-report.json
 packages/typert/generator/tests/.generated-model-*/
 .humanize/
 tmp/
