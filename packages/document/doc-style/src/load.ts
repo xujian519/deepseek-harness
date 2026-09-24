@@ -13,9 +13,25 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { stylesDirectory } from './asset-location.ts'
 import { parseStyleAsset } from './parse.ts'
 import { DocumentStyleError, STYLE_FILE_SUFFIX, type DocumentStyle } from './types.ts'
+
+/**
+ * Style directories a deployment loads: the packaged root, then every configured
+ * override in ascending precedence.
+ *
+ * Configured entries resolve against the process working directory here rather
+ * than at each read, so a relative override and the directory named by a load
+ * failure are the same absolute path — a plugin that passed them through
+ * unresolved reported the same misconfiguration two different ways.
+ * @param configured - deployment-configured style directories.
+ * @returns the directory list for {@link loadStyles}.
+ */
+export function styleDirectories(configured: readonly string[] = []): readonly string[] {
+  return [stylesDirectory(), ...configured.map(directory => resolve(directory))]
+}
 
 /**
  * Read one style asset from a file.

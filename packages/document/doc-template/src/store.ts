@@ -49,7 +49,7 @@ export interface VersionConflict {
   readonly packagedVersion: string
   /** Version of the template that overrode it. */
   readonly overrideVersion: string
-  /** `warn` when the override sorts before the packaged version, `info` otherwise. */
+  /** `warn` when the override compares older than the packaged version, `info` otherwise. */
   readonly severity: 'info' | 'warn'
 }
 
@@ -245,7 +245,7 @@ export class TemplateStore {
         templateName: template.name,
         packagedVersion,
         overrideVersion: template.version,
-        severity: template.version < packagedVersion ? 'warn' : 'info',
+        severity: compareVersions(template.version, packagedVersion) < 0 ? 'warn' : 'info',
       })
     }
     return conflicts
@@ -391,6 +391,24 @@ export function createTemplateStore(options: TemplateStoreOptions): TemplateStor
  */
 export function resolveTemplateDirectory(directory: string): string {
   return resolve(directory)
+}
+
+/**
+ * Order two dotted template versions by segment, so `10.0.0` follows `1.0.0`
+ * where a code-unit string comparison would order it first. A missing or
+ * non-numeric segment counts as 0, so `1.0` equals `1.0.0`.
+ * @param left - left version.
+ * @param right - right version.
+ * @returns negative when `left` is older, positive when newer, 0 when equal by this rule.
+ */
+function compareVersions(left: string, right: string): number {
+  const leftSegments = left.split('.')
+  const rightSegments = right.split('.')
+  for (let index = 0; index < Math.max(leftSegments.length, rightSegments.length); index += 1) {
+    const difference = (Number(leftSegments[index]) || 0) - (Number(rightSegments[index]) || 0)
+    if (difference !== 0) return difference
+  }
+  return 0
 }
 
 /**

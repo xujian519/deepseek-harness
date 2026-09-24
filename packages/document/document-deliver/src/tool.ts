@@ -278,6 +278,12 @@ async function checkDeliverable(
  * @param style - the style the checks run against.
  * @param docxReadLimits - budgets the DOCX archive read must stay within.
  * @returns one report per file, in declaration order.
+ *
+ * The files are checked one after another: every check reads the same
+ * registration through `ctx.fs` and admits a DOCX package up to that package's
+ * own budget, so a concurrent sweep would raise peak memory to the sum of the
+ * in-flight reads. Wall-clock is the file count times the per-file check, which
+ * is the trade this tool makes deliberately.
  */
 export async function checkDeliverables(
   ctx: Context, exec: ToolRunContext, spec: DocumentDeliverSpec, style: DocumentStyle,
