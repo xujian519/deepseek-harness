@@ -84,6 +84,7 @@ kind: "package-reference"
 - **仅限 darwin** — 插件在挂载它的任何平台都会注册工具，但 bundle 行将其限定在 darwin，因为所有可执行文件都是 macOS 专属；CLI 运行器本身有基于 `/bin/echo`、`/bin/cat`、`/usr/bin/false` 的跨平台测试。
 - **通知需要系统授权** — 只有 macOS 允许宿主进程（终端、Electron 应用或 `dsh` 二进制）发通知时，`display notification` 横幅才会出现；未授权时命令静默成功。
 - **无审批通道时一律拒绝** — 在没有挂载审批应答者的组合中（例如无人值守的 headless 运行），四个受控动作以明确报错拒绝而不是执行；这是设计行为，不是缺陷。
+- **stdout 上限固定** — runner 的 `maxBuffer` 为 8 MiB，因为本包请求的最大输出就是一次剪贴板读取；它约束 runner 内存而非部署偏好（单命令超时由 `commandTimeoutMs` 配置）。
 - **剪贴板读取涉及隐私** — 剪贴板可能存有密码或令牌，因此每次读取都要一次性审批；读取量受 `clipboardReadMaxChars` 限制。
 - **暂缓项** — 截图（屏幕录制 TCC 权限绑定宿主进程，且该工具需要图片内容块支持）、Apple Music 控制与音量控制在第一版中有意不做。
 

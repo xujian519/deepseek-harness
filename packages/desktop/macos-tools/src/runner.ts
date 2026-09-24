@@ -28,7 +28,12 @@ export interface CliRunOptions {
  */
 export type CliRunner = (command: string, args: readonly string[], options: CliRunOptions) => Promise<{ stdout: string }>
 
-/** Stdout cap for one command; the largest output here is a clipboard read. */
+/**
+ * Stdout cap for one command; the largest output here is a clipboard read.
+ *
+ * Fixed: it is the runner's memory bound for this package's own tools, not a
+ * deployment preference (the per-command budget is `Config.commandTimeoutMs`).
+ */
 const MAX_BUFFER_BYTES = 8 * 1024 * 1024
 
 /**
