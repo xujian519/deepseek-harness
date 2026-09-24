@@ -15,6 +15,11 @@ import { structureSvgFilename } from '../src/figure/freecad-structure-script.ts'
  *
  * fixture 由 generate-structure-fixture.py 生成并签入（外部审查教训：fixture
  * 头部签名必须与生成器一致）；下方头部断言测试不依赖 FreeCAD，恒运行。
+ *
+ * CI 上没有这条链路的信号：`.github/workflows/ci-fork.yml` 不装 FreeCAD（没有
+ * 免交互的 Linux 安装方式，镜像里也没有），所以 CI 上这一组必然跳过，跳过即
+ * 「无信号」而不是「通过」。与 Graphviz 那条不同，这里没有可装的包来把信号补上，
+ * 事实就登记在此处；要信号得走固化真实渲染产物的路线。
  */
 
 /** 无 FreeCAD 时跳过端到端 suite。 */

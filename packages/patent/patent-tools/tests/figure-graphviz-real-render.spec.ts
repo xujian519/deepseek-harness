@@ -15,6 +15,10 @@ import { annotateSvgWithLeaderLines } from '../src/figure/leader-line.ts'
  * 真实 Graphviz 端到端 smoke：仅在本机装有 dot 时运行（无 dot 环境全组跳过）。
  * 走真实子进程（node:child_process 适配 SubprocessRuntime 接口），验证
  * DOT 构建 → dot CLI 渲染 → 真实 SVG 后处理标注的完整链路与中文渲染。
+ *
+ * CI（`.github/workflows/ci-fork.yml`）为这一类用例装了 `dot` 与 `Noto Sans CJK`，
+ * 所以 CI 上不得再出现本文件的跳过；`figure-graphviz-ci-signal.spec.ts` 在 CI 上
+ * 断言 `dot` 存在，删掉工作流里的安装步骤会变红而不是静默跳过。
  */
 
 /** 无 Graphviz 时跳过整个 suite。 */
@@ -57,7 +61,14 @@ function realSubprocess(): SubprocessRuntime {
 
 const runtime = realSubprocess()
 const outDir = mkdtempSync(join(tmpdir(), 'dsh-figreal-'))
-const CJK_FONT = 'PingFang SC'
+
+/**
+ * 中文字体：本文件只断言 SVG 结构与标签文本，字体族是输入而非断言目标，所以这里
+ * 按平台取本机确实存在的字族——macOS 的系统中文族，Linux（含 CI 装的
+ * `fonts-noto-cjk`）的 Noto CJK。写死 macOS 字族会让 Linux 上的 Graphviz 退回
+ * 兜底字体并告警，等于把平台差异埋进这条唯一的真实渲染链路。
+ */
+const CJK_FONT = process.platform === 'darwin' ? 'PingFang SC' : 'Noto Sans CJK SC'
 
 describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () => {
   it('renders a CJK block diagram to SVG in grayscale mode', async () => {
