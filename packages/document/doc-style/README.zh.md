@@ -76,6 +76,7 @@ kind: "package-reference"
 ## 已知局限与延期工作
 
 - **`systemPromptForTemplate` 目前没有消费者** — [`@deepseek-ai/dsh-doc-template`](../doc-template/README.zh.md) 用到 `toRenderStyle`、`disclaimerFor`，以及（部署指定 `styleGuide` 时）`systemPrompt`；模板上下文投影在等一个消费者，这也是它没有配套接线的原因。
+- **`stylesForDomain` 目前没有消费者** — 渲染文档按名称选定样式，因此没有人按领域查询已加载的样式集合；按领域的查询在等一个跨领域组合样式的消费者。
 - **免责声明映射就是上游映射** — 类别键与 `<domain>_analysis` 回退都是照抄的，因此以后新增的类别需要自己的 `DISCLAIMER_CATEGORY_KEYS` 条目，而不是推导出来的键。
 - **只有 `style` 能选中样式** — 模板在 front-matter 里点名样式；渲染期没有按领域选择样式的机制，因此未声明样式的模板渲染时不带免责声明。
 - **方向性并未强制** — 加载的 `tone.perspective` 与 `citation.style` 只作为取值被校验，没有任何东西拿文档去比对它们。[`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.zh.md) 只核验其中唯一能机械化的一项——`anti_patterns` 词表，按资产声明的严重级别判定；其余方向要强制执行就得读懂文档含义，本包不提供。
