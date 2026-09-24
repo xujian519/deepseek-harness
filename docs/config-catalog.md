@@ -2588,10 +2588,12 @@ export interface Config {
   chromePath?: string
   /** Default output directory (relative to the process working directory) when neither outputDir nor caseId is given. */
   outputRoot?: string
+  /** Headless-Chrome print timeout in milliseconds; defaults to the renderer's exported default (120000). */
+  pdfTimeoutMs?: number
 }
 ```
 
-Source: [`packages/patent/patent-document/src/index.ts:24`](../packages/patent/patent-document/src/index.ts)
+Source: [`packages/patent/patent-document/src/index.ts:25`](../packages/patent/patent-document/src/index.ts)
 
 <a id="deepseek-aidsh-patent-knowledge"></a>
 
@@ -2708,6 +2710,8 @@ export interface Config {
   chemistryIndexFile?: string
   /** Graphviz dot 可执行路径覆盖；默认自动探测（候选路径 + PATH）。 */
   graphvizExecutable?: string
+  /** dot CLI 单次渲染超时（毫秒）；默认 60000（慢机/大图可上调）。 */
+  graphvizRenderTimeoutMs?: number
   /** 附图渲染引擎：wasm=内置 @viz-js/viz（默认，SVG 零系统依赖）；cli=系统 dot 子进程。png/pdf 在 wasm 模式下自动回退 CLI。 */
   figureRenderer?: FigureRendererMode
   /** 附图分析模式：single=单步（默认，一次模型调用）；two-step=结构抽取+说明生成两次模型调用（成本翻倍，准确率可能更高）。 */
@@ -2730,6 +2734,8 @@ export interface Config {
   dotFont?: string
   /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 generate_structure_figure 使用。 */
   freecadExecutable?: string
+  /** freecadcmd 单次渲染超时（毫秒）；默认 120000（FreeCAD 冷启动比 dot 慢）。仅 generate_structure_figure 使用。 */
+  freecadRenderTimeoutMs?: number
   /** 结构线稿门禁（generate_structure_figure）；默认 false（CAD 隔离、默认关闭，未开启即 fail-loud）。 */
   structureFigureEnabled?: boolean
   /** 结构线稿 TechDraw 投影比例默认；缺省 1。 */
@@ -2753,7 +2759,7 @@ export type FigureRendererMode = 'wasm' | 'cli'
 export type StructureViewName = (typeof STRUCTURE_VIEWS)[number]
 ```
 
-Source: [`packages/patent/patent-tools/src/index.ts:200`](../packages/patent/patent-tools/src/index.ts)
+Source: [`packages/patent/patent-tools/src/index.ts:217`](../packages/patent/patent-tools/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 

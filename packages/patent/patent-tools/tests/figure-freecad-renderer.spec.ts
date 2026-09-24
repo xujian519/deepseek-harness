@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import {
+  DEFAULT_FREECAD_PROBE_TIMEOUT_MS,
+  DEFAULT_FREECAD_RENDER_TIMEOUT_MS,
   FREECAD_CMD_CANDIDATES,
   findFreeCadCmd,
   freecadInstallMessage,
@@ -11,6 +13,15 @@ import {
   renderStructureViews,
   type StructureRenderSpec,
 } from '../src/figure/freecad-renderer.ts'
+
+/** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.freecadRenderTimeoutMs 解析后注入。 */
+const TEST_RENDER_TIMEOUT_MS = DEFAULT_FREECAD_RENDER_TIMEOUT_MS
+
+/** 用例显式声明的探测预算（毫秒）；宿主插件不探测 freecadcmd，无对应 Config 字段。 */
+const TEST_PROBE_TIMEOUT_MS = DEFAULT_FREECAD_PROBE_TIMEOUT_MS
+
+/** 渲染超时用例注入的非默认预算（毫秒）：证明期限取自注入值而非渲染器模块默认值。 */
+const INJECTED_RENDER_TIMEOUT_MS = 1_500
 import { STRUCTURE_MANIFEST_FILENAME } from '../src/figure/freecad-structure-script.ts'
 
 // Deterministic discovery: the built-in candidate list is absolute system paths;
@@ -169,7 +180,7 @@ describe('probeFreeCad', () => {
   it('--version 成功时报告就绪与版本', async () => {
     const { exe } = fakeFreecad()
     const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }, '', 'FreeCAD 1.1.3 Revision: 20260725 (Git shallow)'))
-    const result = await probeFreeCad(runtime, exe)
+    const result = await probeFreeCad(runtime, { executable: exe, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(result.ready).toBe(true)
     expect(result.version).toBe('1.1.3')
     expect(calls[0]?.argv).toEqual([exe, '--version'])
@@ -178,25 +189,25 @@ describe('probeFreeCad', () => {
   it('--version 成功但无版本号时仍就绪', async () => {
     const { exe } = fakeFreecad()
     const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }, '', 'FreeCAD'))
-    const result = await probeFreeCad(runtime, exe)
+    const result = await probeFreeCad(runtime, { executable: exe, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(result).toEqual({ ready: true, executable: exe })
   })
 
   it('非零退出、信号终止与 spawn 异常时报告未就绪', async () => {
     const { exe } = fakeFreecad()
-    const failed = await probeFreeCad(fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'bad')).runtime, exe)
+    const failed = await probeFreeCad(fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'bad')).runtime, { executable: exe, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(failed.ready).toBe(false)
     expect(failed.message).toContain('退出码 1')
 
-    const signalled = await probeFreeCad(fakeSubprocess(() => handleWith({ exitCode: null, signal: 'SIGTERM' })).runtime, exe)
+    const signalled = await probeFreeCad(fakeSubprocess(() => handleWith({ exitCode: null, signal: 'SIGTERM' })).runtime, { executable: exe, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(signalled.ready).toBe(false)
     expect(signalled.message).toContain('退出码 未知')
 
-    const caught = await probeFreeCad(fakeSubprocess(() => { throw new Error('boom') }).runtime, exe)
+    const caught = await probeFreeCad(fakeSubprocess(() => { throw new Error('boom') }).runtime, { executable: exe, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(caught.ready).toBe(false)
     expect(caught.message).toContain('boom')
 
-    const caughtPlain = await probeFreeCad(fakeSubprocess(() => { throw 'plain-boom' }).runtime, exe)
+    const caughtPlain = await probeFreeCad(fakeSubprocess(() => { throw 'plain-boom' }).runtime, { executable: exe, probeTimeoutMs: TEST_PROBE_TIMEOUT_MS })
     expect(caughtPlain.ready).toBe(false)
     expect(caughtPlain.message).toContain('plain-boom')
   })
@@ -205,7 +216,10 @@ describe('probeFreeCad', () => {
     const dir = tempDir()
     try {
       process.env.PATH = dir
-      const result = await probeFreeCad(fakeSubprocess(() => handleWith({ exitCode: 0, signal: null })).runtime)
+      const result = await probeFreeCad(
+        fakeSubprocess(() => handleWith({ exitCode: 0, signal: null })).runtime,
+        { probeTimeoutMs: TEST_PROBE_TIMEOUT_MS },
+      )
       expect(result.ready).toBe(false)
       expect(result.message).toContain('FreeCAD')
     } finally {
@@ -224,7 +238,7 @@ describe('renderStructureViews', () => {
         writeFileSync(join(spawnSpec.cwd, STRUCTURE_MANIFEST_FILENAME), '{"views":[{"name":"iso"}]}')
         return handleWith({ exitCode: 0, signal: null })
       })
-      const result = await renderStructureViews(runtime, spec({ outputDir }), exe)
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toEqual({ ok: true, manifestPath: join(outputDir, STRUCTURE_MANIFEST_FILENAME) })
 
       const call = calls[0]!
@@ -252,7 +266,7 @@ describe('renderStructureViews', () => {
         writeFileSync(join(spawnSpec.cwd, STRUCTURE_MANIFEST_FILENAME), '{"views":[]}')
         return handleWith({ exitCode: 0, signal: null })
       })
-      const result = await renderStructureViews(runtime, spec({ outputDir }), exe)
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result.ok).toBe(true)
       expect(existsSync(outputDir)).toBe(true)
     } finally {
@@ -265,7 +279,7 @@ describe('renderStructureViews', () => {
     try {
       process.env.PATH = dir
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
-      const result = await renderStructureViews(runtime, spec({ outputDir: dir }))
+      const result = await renderStructureViews(runtime, spec({ outputDir: dir }), { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'not_installed' })
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -277,7 +291,7 @@ describe('renderStructureViews', () => {
     const outputDir = tempDir()
     try {
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 1, signal: null }, 'Traceback: RuntimeError 投影未产生任何几何'))
-      const result = await renderStructureViews(runtime, spec({ outputDir }), exe)
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('退出码 1')
       expect((result as { error: string }).error).toContain('投影未产生任何几何')
@@ -291,7 +305,7 @@ describe('renderStructureViews', () => {
     const outputDir = tempDir()
     try {
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
-      const result = await renderStructureViews(runtime, spec({ outputDir }), exe)
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('未生成 manifest')
     } finally {
@@ -304,7 +318,7 @@ describe('renderStructureViews', () => {
     const outputDir = tempDir()
     try {
       const { runtime } = fakeSubprocess(() => handleWith({ exitCode: null, signal: null }))
-      const result = await renderStructureViews(runtime, spec({ outputDir }), exe)
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('被信号 未知 终止')
     } finally {
@@ -321,7 +335,11 @@ describe('renderStructureViews', () => {
         caller.abort()
         throw new Error('boom')
       })
-      const result = await renderStructureViews(runtime, spec({ outputDir, signal: caller.signal }), exe)
+      const result = await renderStructureViews(
+        runtime,
+        spec({ outputDir, signal: caller.signal }),
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
       expect(result).toMatchObject({ ok: false, code: 'aborted' })
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
@@ -333,7 +351,7 @@ describe('renderStructureViews', () => {
     const outputDir = tempDir()
     try {
       const { runtime } = fakeSubprocess(() => { throw 'plain-boom' })
-      const result = await renderStructureViews(runtime, spec({ outputDir }), exe)
+      const result = await renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('plain-boom')
     } finally {
@@ -351,7 +369,11 @@ describe('renderStructureViews', () => {
         writeFileSync(join(spawnSpec.cwd, STRUCTURE_MANIFEST_FILENAME), '{"views":[]}')
         return handleWith({ exitCode: 0, signal: null })
       })
-      await renderStructureViews(runtime, spec({ outputDir, signal: caller.signal }), exe)
+      await renderStructureViews(
+        runtime,
+        spec({ outputDir, signal: caller.signal }),
+        { executable: exe, renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
+      )
       expect(calls[0]?.signal?.aborted).toBe(true)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
@@ -380,8 +402,8 @@ describe('renderStructureViews', () => {
           waitForExit: () => Promise.resolve(true),
         }
       })
-      const pending = renderStructureViews(runtime, spec({ outputDir }), exe)
-      vi.advanceTimersByTime(120_000)
+      const pending = renderStructureViews(runtime, spec({ outputDir }), { executable: exe, renderTimeoutMs: INJECTED_RENDER_TIMEOUT_MS })
+      vi.advanceTimersByTime(INJECTED_RENDER_TIMEOUT_MS)
       const result = await pending
       expect(result).toMatchObject({ ok: false, code: 'render_failed' })
       expect((result as { error: string }).error).toContain('渲染超时')

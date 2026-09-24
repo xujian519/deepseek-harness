@@ -37,11 +37,30 @@ export const DOT_CANDIDATES: readonly string[] = [
   'C:\\ProgramData\\chocolatey\\bin\\dot.exe',
 ]
 
-/** 单次渲染超时（毫秒）。 */
-const RENDER_TIMEOUT_MS = 60_000
+/** 默认单次渲染超时（毫秒）；Config.graphvizRenderTimeoutMs 的默认值。 */
+export const DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS = 60_000
 
-/** 版本探测超时（毫秒）。 */
-const PROBE_TIMEOUT_MS = 5_000
+/**
+ * 默认版本探测超时（毫秒）；{@link probeGraphviz} 的调用方默认值。
+ * 宿主插件不探测 dot（探测 API 面向消费方与诊断），因此该值不是 Config 字段。
+ */
+export const DEFAULT_GRAPHVIZ_PROBE_TIMEOUT_MS = 5_000
+
+/** dot CLI 渲染的部署级选项（宿主 Config → 渲染器）。 */
+export type GraphvizRenderOptions = {
+  /** dot 可执行路径覆盖（与 Config.graphvizExecutable 同源）；缺省走 {@link findDot} 自动探测。 */
+  executable?: string
+  /** 单次渲染超时（毫秒）；由宿主 Config.graphvizRenderTimeoutMs 解析后注入。 */
+  renderTimeoutMs: number
+}
+
+/** dot 版本探测的部署级选项。 */
+export type GraphvizProbeOptions = {
+  /** dot 可执行路径覆盖；缺省走 {@link findDot} 自动探测。 */
+  executable?: string
+  /** 探测超时（毫秒）；宿主插件不探测 dot，故无对应 Config 字段。 */
+  probeTimeoutMs: number
+}
 
 /**
  * 生成 Graphviz 缺失/路径失效时的安装引导文案。
@@ -98,20 +117,20 @@ export type GraphvizProbeResult = {
 /**
  * 探测 Graphviz 可用性（执行 `dot -V`，约数十毫秒）。
  * @param subprocess - 注入的 subprocess 服务。
- * @param executableOverride - 可选路径覆盖。
+ * @param options - dot 路径覆盖与探测超时。
  * @returns 就绪状态与版本/引导信息。
  */
 export async function probeGraphviz(
   subprocess: SubprocessRuntime,
-  executableOverride?: string,
+  options: GraphvizProbeOptions,
 ): Promise<GraphvizProbeResult> {
-  const executable = findDot(executableOverride)
+  const executable = findDot(options.executable)
   if (executable === undefined) {
     return { ready: false, message: graphvizInstallMessage(executable) }
   }
   const controller = new AbortController()
   /* v8 ignore start -- probe is fast and the 5s timer is always cleared before its callback can run */
-  const timer = setTimeout(() => { controller.abort() }, PROBE_TIMEOUT_MS)
+  const timer = setTimeout(() => { controller.abort() }, options.probeTimeoutMs)
   timer.unref()
   /* v8 ignore stop */
   try {
@@ -201,21 +220,21 @@ async function validateRenderedFile(outputPath: string, format: DotFormat): Prom
  * 用 Graphviz 渲染 DOT 为图片文件。
  * @param subprocess - 注入的 subprocess 服务。
  * @param spec - 渲染请求。
- * @param executableOverride - 可选路径覆盖。
+ * @param options - dot 路径覆盖与渲染超时。
  * @returns 成功路径或分类错误（not_installed / render_failed / aborted）。
  */
 export async function renderWithGraphviz(
   subprocess: SubprocessRuntime,
   spec: GraphvizRenderSpec,
-  executableOverride?: string,
+  options: GraphvizRenderOptions,
 ): Promise<GraphvizRenderOutcome> {
-  const executable = findDot(executableOverride)
+  const executable = findDot(options.executable)
   if (executable === undefined) {
     return { ok: false, code: 'not_installed', error: graphvizInstallMessage(undefined) }
   }
   const filename = sanitizeDotFilename(spec.filename)
   const outputPath = join(spec.outputDir, `${filename}.${spec.format}`)
-  const deadline = startRenderDeadline(RENDER_TIMEOUT_MS, spec.signal)
+  const deadline = startRenderDeadline(options.renderTimeoutMs, spec.signal)
   try {
     const handle = subprocess.spawn({
       // graphviz >= 15 rejects a trailing '-' as an unknown option; stdin input needs no file argument.

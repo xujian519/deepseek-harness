@@ -26,6 +26,7 @@ import { chemistryIndexStore, DEFAULT_CHEMISTRY_INDEX_RELATIVE_PATH } from './ch
 import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 import { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
+import { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS } from './figure/graphviz-renderer.ts'
 import { pickRenderer } from './figure/render-selector.ts'
 import type { FigureRendererMode } from './figure/render-selector.ts'
 import { PatentToolError } from './error.ts'
@@ -50,7 +51,7 @@ import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts
 import { createGenerateStructureFigureTool } from './tool/generate-structure-figure.ts'
 import type { GenerateStructureFigureDeps } from './tool/generate-structure-figure.ts'
 import { STRUCTURE_VIEWS, type StructureViewName } from './figure/freecad-structure-script.ts'
-import { renderStructureViews } from './figure/freecad-renderer.ts'
+import { DEFAULT_FREECAD_RENDER_TIMEOUT_MS, renderStructureViews } from './figure/freecad-renderer.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createDownloadChannelRunner } from './tool/patent-pdf-download-channel.ts'
@@ -117,7 +118,15 @@ export type {
   StructureManifestAnchor,
 } from './tool/generate-structure-figure.ts'
 export { findFreeCadCmd, probeFreeCad, renderStructureViews, freecadInstallMessage, FREECAD_CMD_CANDIDATES } from './figure/freecad-renderer.ts'
-export type { FreeCadProbeResult, StructureRenderOutcome, StructureRenderSpec, StructureRenderErrorCode } from './figure/freecad-renderer.ts'
+export type {
+  FreeCadProbeResult,
+  FreeCadProbeOptions,
+  FreeCadRenderOptions,
+  StructureRenderOutcome,
+  StructureRenderSpec,
+  StructureRenderErrorCode,
+} from './figure/freecad-renderer.ts'
+export { DEFAULT_FREECAD_RENDER_TIMEOUT_MS, DEFAULT_FREECAD_PROBE_TIMEOUT_MS } from './figure/freecad-renderer.ts'
 export {
   buildStructureScript,
   STRUCTURE_VIEWS,
@@ -143,7 +152,15 @@ export type { FigureIndexEntry, LoadFigureIndexResult } from './figure/index-sto
 export { findDot, probeGraphviz, renderWithGraphviz, sanitizeDotFilename, graphvizInstallMessage, DOT_CANDIDATES } from './figure/graphviz-renderer.ts'
 export { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 export type { FigureAnalysisEngine, FigureAnalysisRequest } from './figure/analysis-engine.ts'
-export type { GraphvizProbeResult, GraphvizRenderOutcome, GraphvizRenderSpec, GraphvizRenderErrorCode } from './figure/graphviz-renderer.ts'
+export type {
+  GraphvizProbeResult,
+  GraphvizProbeOptions,
+  GraphvizRenderOptions,
+  GraphvizRenderOutcome,
+  GraphvizRenderSpec,
+  GraphvizRenderErrorCode,
+} from './figure/graphviz-renderer.ts'
+export { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS, DEFAULT_GRAPHVIZ_PROBE_TIMEOUT_MS } from './figure/graphviz-renderer.ts'
 export { renderWithVizWasm, vizLoadFailureMessage } from './figure/viz-wasm-renderer.ts'
 export { pickRenderer } from './figure/render-selector.ts'
 export type { FigureRendererMode } from './figure/render-selector.ts'
@@ -214,6 +231,8 @@ export interface Config {
   chemistryIndexFile?: string
   /** Graphviz dot 可执行路径覆盖；默认自动探测（候选路径 + PATH）。 */
   graphvizExecutable?: string
+  /** dot CLI 单次渲染超时（毫秒）；默认 60000（慢机/大图可上调）。 */
+  graphvizRenderTimeoutMs?: number
   /** 附图渲染引擎：wasm=内置 @viz-js/viz（默认，SVG 零系统依赖）；cli=系统 dot 子进程。png/pdf 在 wasm 模式下自动回退 CLI。 */
   figureRenderer?: FigureRendererMode
   /** 附图分析模式：single=单步（默认，一次模型调用）；two-step=结构抽取+说明生成两次模型调用（成本翻倍，准确率可能更高）。 */
@@ -236,6 +255,8 @@ export interface Config {
   dotFont?: string
   /** FreeCAD freecadcmd 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 generate_structure_figure 使用。 */
   freecadExecutable?: string
+  /** freecadcmd 单次渲染超时（毫秒）；默认 120000（FreeCAD 冷启动比 dot 慢）。仅 generate_structure_figure 使用。 */
+  freecadRenderTimeoutMs?: number
   /** 结构线稿门禁（generate_structure_figure）；默认 false（CAD 隔离、默认关闭，未开启即 fail-loud）。 */
   structureFigureEnabled?: boolean
   /** 结构线稿 TechDraw 投影比例默认；缺省 1。 */
@@ -262,6 +283,7 @@ export const Config: z<Config> = z.object({
   figureIndexFile: z.string(),
   chemistryIndexFile: z.string(),
   graphvizExecutable: z.string(),
+  graphvizRenderTimeoutMs: z.number().step(1).min(1).default(DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS),
   figureRenderer: z.union(['wasm', 'cli']),
   figureAnalysisMode: z.union(['single', 'two-step']),
   figurePageSize: z.union(['a4', 'letter']),
@@ -273,10 +295,23 @@ export const Config: z<Config> = z.object({
   workbenchCaseRoot: z.string(),
   dotFont: z.string(),
   freecadExecutable: z.string(),
+  freecadRenderTimeoutMs: z.number().step(1).min(1).default(DEFAULT_FREECAD_RENDER_TIMEOUT_MS),
   structureFigureEnabled: z.boolean(),
   structureFigureScale: z.number(),
   structureFigureViews: z.array(z.union(STRUCTURE_VIEWS)),
 })
+
+/**
+ * 解析附图渲染预算：Config 覆盖优先，缺省取渲染器模块导出的默认值（默认值的唯一真源）。
+ * @param config - 插件配置。
+ * @returns dot 与 freecadcmd 的单次渲染超时（毫秒）。
+ */
+function resolveRenderBudgets(config: Config): { graphvizRenderTimeoutMs: number; freecadRenderTimeoutMs: number } {
+  return {
+    graphvizRenderTimeoutMs: config.graphvizRenderTimeoutMs ?? DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS,
+    freecadRenderTimeoutMs: config.freecadRenderTimeoutMs ?? DEFAULT_FREECAD_RENDER_TIMEOUT_MS,
+  }
+}
 
 /** 从 Config 或部署默认路由解析 provider/model（agent-default-model 宿主服务）。 */
 function resolveModelRoute(ctx: Context, config: Config): { provider: string; model: string } | undefined {
@@ -541,9 +576,11 @@ export function apply(ctx: Context, config: Config): void {
   // system dependency); PNG/PDF and figureRenderer="cli" go through the dot CLI
   // via ctx.subprocess, failing loud with install guidance when absent.
   const subprocess = ctx.get('subprocess')
+  const renderBudgets = resolveRenderBudgets(config)
   const renderDot = pickRenderer(config.figureRenderer, {
     ...(subprocess === undefined ? {} : { subprocess }),
     ...(config.graphvizExecutable === undefined ? {} : { graphvizExecutable: config.graphvizExecutable }),
+    graphvizRenderTimeoutMs: renderBudgets.graphvizRenderTimeoutMs,
   })
   ctx.tools.register(createGeneratePatentFigureTool({
     render: renderDot,
@@ -572,7 +609,10 @@ export function apply(ctx: Context, config: Config): void {
   })
   const structureRender: GenerateStructureFigureDeps['render'] = structureSubprocess === undefined
     ? structureNoSubprocess
-    : spec => renderStructureViews(structureSubprocess, spec, config.freecadExecutable)
+    : spec => renderStructureViews(structureSubprocess, spec, {
+      ...(config.freecadExecutable === undefined ? {} : { executable: config.freecadExecutable }),
+      renderTimeoutMs: renderBudgets.freecadRenderTimeoutMs,
+    })
   const structureViews = config.structureFigureViews
   ctx.tools.register(createGenerateStructureFigureTool({
     render: structureRender,

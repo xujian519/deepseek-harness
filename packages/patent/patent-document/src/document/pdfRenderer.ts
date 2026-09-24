@@ -27,8 +27,8 @@ const CHROME_CANDIDATES: string[] = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
 ]
 
-/** Chrome 无头打印超时（毫秒）。 */
-const PDF_TIMEOUT_MS = 120_000
+/** 默认 Chrome 无头打印超时（毫秒）；Config.pdfTimeoutMs 的默认值。 */
+export const DEFAULT_PDF_TIMEOUT_MS = 120_000
 
 /** SIGTERM → SIGKILL 升级宽限（与 patent-data subprocess-runner 的 3s 一致）。 */
 const GRACE_MS = 3_000
@@ -69,14 +69,14 @@ function sandboxFlags(): string[] {
  * @param subprocess - 注入的 subprocess 服务（ctx.subprocess）。
  * @param htmlPath - 输入 HTML 绝对路径。
  * @param pdfPath - 输出 PDF 绝对路径。
- * @param options - 可选 Chrome 路径覆盖与调用方取消信号。
+ * @param options - Chrome 路径覆盖、调用方取消信号与打印超时。
  * @returns 成功时 { ok: true, path }，失败时 { ok: false, error }。
  */
 export async function renderPdf(
   subprocess: SubprocessRuntime,
   htmlPath: string,
   pdfPath: string,
-  options: { chromePath?: string; signal?: AbortSignal } = {},
+  options: { chromePath?: string; signal?: AbortSignal; pdfTimeoutMs: number },
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const chrome = findChrome(options.chromePath)
   if (chrome === undefined) {
@@ -97,7 +97,7 @@ export async function renderPdf(
   // Chrome 在 Windows 上返回的是 chrome.exe 而非目录，dirname 可能为空。
   const cwd = dirname(chrome) || process.cwd()
   const controller = new AbortController()
-  const timer = setTimeout(() => { controller.abort() }, PDF_TIMEOUT_MS)
+  const timer = setTimeout(() => { controller.abort() }, options.pdfTimeoutMs)
   timer.unref()
   const onCallerAbort = (): void => { controller.abort() }
   options.signal?.addEventListener('abort', onCallerAbort, { once: true })

@@ -38,6 +38,7 @@ Schemastery 配置，所有字段均可选。
 | --- | --- | --- | --- |
 | chromePath | string | 无 | 用于 PDF 的 Chrome 可执行文件绝对路径；覆盖 DSH_CHROME_PATH/CHROME_PATH 探测。 |
 | outputRoot | string | .dsh/documents | 既未给出 outputDir 也未给出 caseId 时的默认输出目录（相对进程工作目录）。 |
+| pdfTimeoutMs | number | 120000 | 单次 headless Chrome 打印的超时；部署较慢时可上调，而 SIGTERM->SIGKILL 宽限（3 秒）与单流输出上限（100000 字节）保持固定，分别是收尾对称与内存边界。 |
 
 <a id="model-experience"></a>
 ## 模型体验

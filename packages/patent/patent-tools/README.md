@@ -70,6 +70,7 @@ Schemastery configuration, every field optional.
 | `figureIndexFile` | string | `<cwd>/.sati/figures-index.json` | Figure index file: `analyze_patent_figure` writes analysis entries, `search_patent_figure` reads them (absolute or relative to cwd). |
 | `chemistryIndexFile` | string | `<cwd>/.sati/chemistry-index.json` | Chemistry index file for `recognize_chemical_structure` upserts (absolute or relative to cwd). |
 | `graphvizExecutable` | string | auto-probe | `dot` executable path override; discovery order: override → `DSH_GRAPHVIZ_DOT` → platform candidate paths → `PATH`. |
+| `graphvizRenderTimeoutMs` | number | `60000` | Timeout for one CLI `dot` render; the WASM engine renders synchronously and is not covered by it. |
 | `figureOutputDir` | string | `<cwd>/patent/figures` | Output directory for `generate_patent_figure` (absolute or relative to cwd). |
 | `workbenchBaseUrl` | string | in-process webServer port | Personal-workbench API base for `workbench_link_patent_case`; explicit override wins, otherwise `http://127.0.0.1:<webServer port>` inside a web composition. Absent (non-web profiles) → the tool fails at execute with `setup_required`. |
 | `workbenchCaseRoot` | string | `<cwd>/patent-workspace` | Case root directory for `workbench_link_patent_case`: each case lives at `<root>/<案号>/` with its `_matter-log.md`. |
@@ -81,9 +82,12 @@ Schemastery configuration, every field optional.
 | `figureDpi` | number | — | Submission render DPI (raster output; per-call `dpi` overrides). |
 | `figureMargin` | number (cm) | — | Page margin on all four sides; with `figurePageSize` it shrinks the drawing `size` (per-call `margin` overrides). |
 | `freecadExecutable` | string | auto-probe | `freecadcmd` executable path override for `generate_structure_figure`; discovery order: override → `DSH_FREECAD_CMD` → platform candidate paths → `PATH`. |
+| `freecadRenderTimeoutMs` | number | `120000` | Timeout for one `generate_structure_figure` projection; FreeCAD starts colder than `dot`, so the default is twice as long. |
 | `structureFigureEnabled` | boolean | `false` | Gate for `generate_structure_figure`: CAD stays isolated and off by default; while the gate is closed the tool fails loud with `setup_required` at execute. |
 | `structureFigureScale` | number | `1` | Default TechDraw projection scale for `generate_structure_figure` (per-call `scale` overrides). |
 | `structureFigureViews` | string[] | `['iso','front','top','right']` | Default view set for `generate_structure_figure` (per-call `views` overrides); each entry must be a supported view name (`iso`/`front`/`rear`/`top`/`bottom`/`left`/`right`), and an unknown name is rejected at config load. |
+
+Two subprocess budgets stay fixed rather than configurable: the SIGTERM→SIGKILL escalation grace (3 s) because `dsh-patent-data`'s subprocess runner shares it and changing one ends teardown symmetry, and the per-stream output cap (100 000 bytes) because it bounds renderer memory. The exported `probeGraphviz`/`probeFreeCad` helpers take their own timeout from the caller (`DEFAULT_GRAPHVIZ_PROBE_TIMEOUT_MS`/`DEFAULT_FREECAD_PROBE_TIMEOUT_MS`); the plugin itself never probes, so no probe budget is configurable.
 
 When `provider`/ `model` are unset the LLM-consuming tools register but fail loud (`setup_required`) when called. The knowledge tools require a knowledge.db prepared via `patent-knowledge:install`; they fail loud with install guidance when it is absent.
 

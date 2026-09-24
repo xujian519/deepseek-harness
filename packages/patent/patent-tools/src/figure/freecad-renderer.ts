@@ -47,11 +47,31 @@ export const FREECAD_CMD_CANDIDATES: readonly string[] = [
   'C:\\Program Files\\FreeCAD\\bin\\FreeCADCmd.exe',
 ]
 
-/** 单次渲染超时（毫秒；FreeCAD 冷启动比 dot 慢，放宽头寸）。 */
-const RENDER_TIMEOUT_MS = 120_000
+/** 默认单次渲染超时（毫秒；FreeCAD 冷启动比 dot 慢，放宽头寸）；Config.freecadRenderTimeoutMs 的默认值。 */
+export const DEFAULT_FREECAD_RENDER_TIMEOUT_MS = 120_000
 
-/** 版本探测超时（毫秒；freecadcmd --version 需加载运行时，较 dot -V 慢）。 */
-const PROBE_TIMEOUT_MS = 20_000
+/**
+ * 默认版本探测超时（毫秒；freecadcmd --version 需加载运行时，较 dot -V 慢）；
+ * {@link probeFreeCad} 的调用方默认值。宿主插件不探测 freecadcmd，因此该值不是
+ * Config 字段。
+ */
+export const DEFAULT_FREECAD_PROBE_TIMEOUT_MS = 20_000
+
+/** FreeCAD CLI 渲染的部署级选项（宿主 Config → 渲染器）。 */
+export type FreeCadRenderOptions = {
+  /** freecadcmd 可执行路径覆盖（与 Config.freecadExecutable 同源）；缺省走 {@link findFreeCadCmd} 自动探测。 */
+  executable?: string
+  /** 单次渲染超时（毫秒）；由宿主 Config.freecadRenderTimeoutMs 解析后注入。 */
+  renderTimeoutMs: number
+}
+
+/** freecadcmd 版本探测的部署级选项。 */
+export type FreeCadProbeOptions = {
+  /** freecadcmd 可执行路径覆盖；缺省走 {@link findFreeCadCmd} 自动探测。 */
+  executable?: string
+  /** 探测超时（毫秒）；宿主插件不探测 freecadcmd，故无对应 Config 字段。 */
+  probeTimeoutMs: number
+}
 
 /** 渲染脚本临时文件名（写入 outputDir，与 SVG/manifest 同目录）。 */
 const STRUCTURE_RENDER_SCRIPT_FILENAME = '.freecad-structure-render.py'
@@ -114,20 +134,20 @@ export type FreeCadProbeResult = {
 /**
  * 探测 FreeCAD 可用性（执行 `freecadcmd --version`）。
  * @param subprocess - 注入的 subprocess 服务。
- * @param executableOverride - 可选路径覆盖。
+ * @param options - freecadcmd 路径覆盖与探测超时。
  * @returns 就绪状态与版本/引导信息。
  */
 export async function probeFreeCad(
   subprocess: SubprocessRuntime,
-  executableOverride?: string,
+  options: FreeCadProbeOptions,
 ): Promise<FreeCadProbeResult> {
-  const executable = findFreeCadCmd(executableOverride)
+  const executable = findFreeCadCmd(options.executable)
   if (executable === undefined) {
     return { ready: false, message: freecadInstallMessage(executable) }
   }
   const controller = new AbortController()
   /* v8 ignore start -- probe timer is cleared before its callback can run on a healthy host */
-  const timer = setTimeout(() => { controller.abort() }, PROBE_TIMEOUT_MS)
+  const timer = setTimeout(() => { controller.abort() }, options.probeTimeoutMs)
   timer.unref()
   /* v8 ignore stop */
   try {
@@ -181,15 +201,15 @@ export type StructureRenderSpec = {
  * 告警非致命（实测），不参与判定。
  * @param subprocess - 注入的 subprocess 服务。
  * @param spec - 渲染请求。
- * @param executableOverride - 可选路径覆盖。
+ * @param options - freecadcmd 路径覆盖与渲染超时。
  * @returns 成功 manifest 路径或分类错误（not_installed / render_failed / aborted）。
  */
 export async function renderStructureViews(
   subprocess: SubprocessRuntime,
   spec: StructureRenderSpec,
-  executableOverride?: string,
+  options: FreeCadRenderOptions,
 ): Promise<StructureRenderOutcome> {
-  const executable = findFreeCadCmd(executableOverride)
+  const executable = findFreeCadCmd(options.executable)
   if (executable === undefined) {
     return { ok: false, code: 'not_installed', error: freecadInstallMessage(undefined) }
   }
@@ -215,7 +235,7 @@ export async function renderStructureViews(
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, code: 'render_failed', error: `准备 FreeCAD 脚本失败：${message}` }
   }
-  const deadline = startRenderDeadline(RENDER_TIMEOUT_MS, spec.signal)
+  const deadline = startRenderDeadline(options.renderTimeoutMs, spec.signal)
   try {
     const handle = subprocess.spawn({
       argv: [executable, scriptPath],

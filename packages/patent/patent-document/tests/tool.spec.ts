@@ -64,6 +64,35 @@ describe('render_patent_document tool', () => {
     }
   })
 
+  it('threads an injected print timeout through the tool options', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-tool-'))
+    const chrome = join(dir, 'chrome')
+    writeFileSync(chrome, '')
+    try {
+      const subprocess = fakeSubprocess((spec) => {
+        const pdfArgument = spec.argv.find(argument => argument.startsWith('--print-to-pdf='))
+        if (pdfArgument !== undefined) writeFileSync(pdfArgument.slice('--print-to-pdf='.length), '%PDF-1.4')
+        return successHandle()
+      }).runtime
+      const tool = createRenderPatentDocumentTool({ subprocess, chromePath: chrome, pdfTimeoutMs: 1_500 })
+      const value = (await tool.execute(
+        {
+          template: 'patentability-opinion',
+          outputName: 'timed',
+          outputDir: dir,
+          format: 'pdf',
+          sections: { 'meta-title': '标题' },
+        },
+        { signal: new AbortController().signal } as never,
+      )) as { pdfPath?: string }
+
+      expect(value.pdfPath).toBe(join(dir, 'timed.pdf'))
+      expect(existsSync(value.pdfPath ?? '')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('renders the canonical result through the output renderer', () => {
     const subprocess = fakeSubprocess(() => successHandle()).runtime
     const tool = createRenderPatentDocumentTool({ subprocess })

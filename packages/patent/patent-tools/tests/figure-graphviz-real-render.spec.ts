@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { SubprocessHandle, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { buildBlockDiagramDOT, buildFlowchartDOT, getDiagramTemplate } from '../src/figure/dot-builder.ts'
-import { findDot, renderWithGraphviz } from '../src/figure/graphviz-renderer.ts'
+import { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS, findDot, renderWithGraphviz } from '../src/figure/graphviz-renderer.ts'
 import { renderWithVizWasm } from '../src/figure/viz-wasm-renderer.ts'
 import { annotateSvg } from '../src/figure/svg-annotate.ts'
 import { annotateSvgWithLeaderLines } from '../src/figure/leader-line.ts'
@@ -23,6 +23,9 @@ import { annotateSvgWithLeaderLines } from '../src/figure/leader-line.ts'
 
 /** 无 Graphviz 时跳过整个 suite。 */
 const hasDot = findDot() !== undefined
+
+/** 用例显式声明的渲染预算（毫秒）；生产由宿主 Config.graphvizRenderTimeoutMs 解析后注入。 */
+const TEST_RENDER_TIMEOUT_MS = DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS
 
 /** 将 node:child_process.spawn 适配为 SubprocessRuntime（仅收集 stdout/stderr 与退出码）。 */
 function realSubprocess(): SubprocessRuntime {
@@ -89,7 +92,7 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
       format: 'svg',
       engine: 'dot',
       outputDir: outDir,
-    })
+    }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(result.ok).toBe(true)
     const svg = readFileSync((result as { ok: true; path: string }).path, 'utf8')
     expect(svg).toContain('<svg')
@@ -115,7 +118,7 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
       format: 'svg',
       engine: 'dot',
       outputDir: outDir,
-    })
+    }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(colored.ok).toBe(true)
     expect(readFileSync((colored as { ok: true; path: string }).path, 'utf8')).toContain('fill="lightyellow"')
 
@@ -134,7 +137,7 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
       format: 'png',
       engine: 'dot',
       outputDir: outDir,
-    })
+    }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(flow.ok).toBe(true)
     expect(statSync((flow as { ok: true; path: string }).path).size).toBeGreaterThan(1000)
   })
@@ -146,7 +149,7 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
       format: 'pdf',
       engine: 'dot',
       outputDir: outDir,
-    })
+    }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(result.ok).toBe(true)
     expect(statSync((result as { ok: true; path: string }).path).size).toBeGreaterThan(500)
   })
@@ -165,7 +168,7 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
       format: 'svg',
       engine: 'dot',
       outputDir: outDir,
-    })
+    }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(result.ok).toBe(true)
     const sourcePath = (result as { ok: true; path: string }).path
     const annotated = annotateSvg(readFileSync(sourcePath, 'utf8'), [
@@ -184,7 +187,7 @@ describe.skipIf(!hasDot)('real Graphviz rendering (needs `dot` installed)', () =
       format: 'svg',
       engine: 'dot',
       outputDir: outDir,
-    }, join(tmpdir(), 'no-such-dot-binary'))
+    }, { executable: join(tmpdir(), 'no-such-dot-binary'), renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(result).toMatchObject({ ok: false, code: 'not_installed' })
   }, 20_000)
 
