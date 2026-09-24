@@ -35,6 +35,14 @@ async function readPersistedEvents(persistence: SessionPersistence, id: SessionI
   }
 }
 
+/**
+ * Request-body ceiling for the canvas endpoints.
+ *
+ * Fixed: a canvas request is a small JSON object, so the ceiling is a size
+ * invariant of the wire contract rather than a deployment preference; a larger
+ * body is refused as invalid input instead of being accepted up to a configured
+ * limit. (Deployment-varying values in this package live in `SynapseConfig`.)
+ */
 const MAX_BODY_BYTES = 32 * 1024
 
 /** Plugin configuration, overrideable from the profile patch by row id `synapse`. */

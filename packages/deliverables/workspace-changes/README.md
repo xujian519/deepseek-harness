@@ -85,6 +85,7 @@ Nothing here enters a model request, so provider cache reuse is unaffected.
 
 <a id="known-limitations-and-deferred-work"></a>
 
+- **The retained stderr tail is fixed** — `STDERR_TAIL_BYTES` (16 KiB) bounds what one git failure can add to a card and to the model's error text, so it is a product-visible ceiling rather than a deployment preference.
 - Summaries, snapshot trees, and captured copies live only as long as their Session in this Host process; earlier turns of a conversation reopened after a Host restart have no card and no comparison. This is the decided behavior: a card whose content the Host can no longer open is not shown.
 - Two git features still write into the repository's own git directory during a snapshot: `core.splitIndex` writes `sharedindex.*` files, and git-lfs runs its clean filter on changed files and stores their objects under `.git/lfs`.
 - git 2.13 or later is required for `rev-parse --absolute-git-dir`; an unsupported repository format or another git failure abandons the turn with a warning rather than being treated as a plain directory.

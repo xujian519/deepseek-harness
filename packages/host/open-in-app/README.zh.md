@@ -109,6 +109,7 @@ Linux 桌面文件字段和图标使用共享的 [native-command](../../util/nat
 
 <a id="known-limitations-and-deferred-work"></a>
 
+- **打开路由的请求体上限固定。** `MAX_BODY_BYTES`（64 KiB）是打开路由的安全不变量：超出即排空并拒绝，绝不按可配置上限收下。
 - **目录在构建期固定。** 部署无法从 cordis.yml 增加自己的编辑器或 Git GUI；扩展列表意味着同时扩展 `OPEN_IN_APP_CATALOG` 与浏览器包的词典。操作系统可以定位已知应用，但无法证明每个已安装应用都能接收 workspace 目录，也无法给出各应用需要的启动协议，因此本包不会无边界地枚举 OS 应用。可配置的 custom handler 仍然延后；其中由用户提供的 label 属于用户数据，不是 locale 拥有的产品文案。
 - **macOS 检测只查已知路径。** bundle 改名超出目录收录的拼写、或挪到 `/Applications` 与 `~/Applications` 之外就不会被检测；不做 Launch Services 查询（原生 LaunchServices/NSWorkspace 查询需要仓库尚无的 addon），也刻意不扫描磁盘。
 - **图标保真度受平台约束。** Windows 图标来自 32px 的 `ExtractAssociatedIcon`——不带原生 addon 时 .NET 标准面能给出的最大尺寸——在高分屏上可能略微发软；Linux 图标只查 hicolor 主题与 pixmaps，不追用户的自定义图标主题；若干条目（没有 desktop 条目的纯 CLI 启动器）没有图标来源，保持通用占位图形。

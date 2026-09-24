@@ -125,6 +125,7 @@ None. The log-only command lifecycle and browser download do not change the deri
 
 These limits define when this package is a poor fit or needs special operational care. They are current package constraints, not a task backlog.
 
+- **Archive stream budgets are fixed** — the text chunk (65,536 code units), the media chunk (65,536 bytes), and the response high-water mark (65,536 bytes) trade throughput against peak memory inside one stream, so they stay internal rather than becoming deployment settings.
 - **Browser download, not a Host-path writer** — the browser chooses the local destination; no Host path or native folder action is returned.
 - **Preflight reports only pre-stream failures** — a descendant or attachment failure after the browser accepts the GET is reported by the browser download manager, not by the dialog.
 

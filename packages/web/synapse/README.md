@@ -53,6 +53,7 @@ None: it never changes request headers, system prompts, or tool registries, so a
 
 ## Known Limitations and Deferred Work
 
+- **The canvas request-body ceiling is fixed** — `MAX_BODY_BYTES` (32 KiB) is a size invariant of the wire contract: a canvas request is a small JSON object, and a larger body is refused as invalid input rather than accepted up to a configured limit.
 - The map UI is a static browser script (`assets/app.js`) inside an iframe: it renders with its own mini markdown renderer, not the repo's React stack, and is not covered by the client snapshot gates.
 - The history endpoint pages the session log (`?limit`/`?beforeSeq`): the detail view opens with the most recent messages and loads earlier ones on request, so a very long conversation no longer loads in full.
 - Two `dsh web` instances sharing one profile still race at the same instant; the mtime conflict check serializes on the lock window, and a losing local delta is dropped with a warning rather than merged.

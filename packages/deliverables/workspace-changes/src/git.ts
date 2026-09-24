@@ -7,7 +7,13 @@ import { canonicalPath, isInside, toPosix } from './paths.ts'
 
 /** Milliseconds a git child gets to exit after termination starts; a fixed lifecycle constant. */
 const TERMINATE_GRACE_MS = 2_000
-/** Retained stderr tail for diagnostics. */
+/**
+ * Retained stderr tail for diagnostics.
+ *
+ * Fixed: it bounds what one git failure can add to a card and to the model's
+ * error text, so it is a product-visible ceiling rather than a deployment
+ * preference (like `TERMINATE_GRACE_MS` above, which is a lifecycle constant).
+ */
 const STDERR_TAIL_BYTES = 16 * 1024
 
 /** Settled git command facts; a nonzero exit is a result, not an exception. */
