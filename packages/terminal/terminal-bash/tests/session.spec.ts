@@ -1442,7 +1442,9 @@ describe('LocalPtySession readiness and output', () => {
     const deadlineTerminal = new FakeTerminal()
     const deadlineSession = new LocalPtySession(deadlineTerminal, config())
     const deadlineOperation = deadlineSession.startSend({ text: '', submit: false })
+    // The deadline is cancelled with the slot it bounds, so this expiry never fires.
     clearSlot(deadlineSession)
+    expect(vi.getTimerCount()).toBe(0)
     await vi.advanceTimersByTimeAsync(100)
     settle(deadlineOperation)
 
