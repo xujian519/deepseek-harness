@@ -109,9 +109,6 @@ async function spawnArgv(ctx: Context, config: ResolvedConfig, policy: SandboxEx
   return (await sandbox.confine(argv, { ...policy, mode: policy.mode }, signal)).argv
 }
 
-// TODO(pty-initialize-race-home): Fold this outer abort race into
-// LocalPtySession.initialize when the send-state consolidation lands; the
-// session already owns the send lifecycle the race protects.
 async function startupSession(
   session: LocalPtySession,
   dialect: ShellDialect,
@@ -137,7 +134,7 @@ async function startupSession(
         submit: first,
         ...signal !== undefined ? { signal } : {},
       })
-      const result = await startupOperation.done
+      const result = await abortable(startupOperation.done, signal)
       if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
       viewport = result.viewport
@@ -158,7 +155,7 @@ async function startupSession(
       })
       startup = Promise.race([startup, deadline])
     }
-    await abortable(startup, signal)
+    await startup
   } finally {
     if (deadlineTimer !== undefined) clearTimeout(deadlineTimer)
   }

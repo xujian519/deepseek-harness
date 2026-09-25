@@ -7,6 +7,7 @@ import type {
   SubprocessTerminalHandle,
 } from '@deepseek-ai/dsh-subprocess'
 import { TerminalError } from '@deepseek-ai/dsh-terminal'
+import { abortable } from '@deepseek-ai/dsh-timeout'
 import type {
   TerminalBackendSession,
   TerminalReadRequest,
@@ -291,14 +292,19 @@ export class LocalPtySession implements TerminalBackendSession {
 
   /**
    * Capture startup output through the same readiness contract as later sends.
+   *
+   * Cancellation rejects as soon as `signal` aborts rather than waiting for the
+   * interrupted send to settle: a shell that reaches readiness after its caller
+   * gave up must not be published, and the interrupted send can outlive the
+   * decision by a whole foreground-signal round trip.
    * @param signal - optional cancellation while the shell reaches its first prompt.
-   * @returns Resolves after startup readiness; rejects on exit or readiness timeout.
+   * @returns Resolves after startup readiness; rejects on exit, readiness timeout, or caller cancellation.
    */
   async initialize(signal?: AbortSignal): Promise<void> {
     this.initializing = true
     try {
       const operation = this.startSend({ text: '', submit: false, ...signal !== undefined ? { signal } : {} })
-      const result = await operation.done
+      const result = await abortable(operation.done, signal)
       if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
       this.motd = result.viewport
