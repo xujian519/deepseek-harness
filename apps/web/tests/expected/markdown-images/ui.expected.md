@@ -28,6 +28,9 @@
 - paragraph:
   - 'button "View full image: Encoded path"':
     - img "Encoded path"
+- paragraph:
+  - 'button "View full image: Encoded filename"':
+    - img "Encoded filename"
 - paragraph: Image preview unavailable · Oversized image
 - paragraph:
   - 'button "View full image: Outside workspace image"':

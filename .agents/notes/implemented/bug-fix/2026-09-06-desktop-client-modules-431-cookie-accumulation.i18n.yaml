@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-desktop-client-modules-431-cookie-accumulation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-06-desktop-client-modules-431-cookie-accumulation.md
-2026-09-06-desktop-client-modules-431-cookie-accumulation.md: e75becc0ee6e735a1150330b94fa8a1497e42ad1
-2026-09-06-desktop-client-modules-431-cookie-accumulation.zh.md: e559d84d76db041fe8cf5b74212949e844ca1d76
+/agent-note-desktop-client-modules-bundle-fails-with-431-from-per-port-cookie-accumulation:
+  en: a37f167eb0b3d357
+  zh: c2d807626b4b90ae
+/agent-note-desktop-client-modules-bundle-fails-with-431-from-per-port-cookie-accumulation/problem:
+  en: dbfe58aef5a0b660
+  zh: f7c0cd8f51377ddf
+/agent-note-desktop-client-modules-bundle-fails-with-431-from-per-port-cookie-accumulation/decision:
+  en: 4839cbae61b8e789
+  zh: 8f5615093eb59b82
+/agent-note-desktop-client-modules-bundle-fails-with-431-from-per-port-cookie-accumulation/alternatives-considered:
+  en: a1b25268aac26b8a
+  zh: f1e1a55acd3b015f
+/agent-note-desktop-client-modules-bundle-fails-with-431-from-per-port-cookie-accumulation/consequences:
+  en: 4428b4b403a1dfa8
+  zh: 287258597998c7e3

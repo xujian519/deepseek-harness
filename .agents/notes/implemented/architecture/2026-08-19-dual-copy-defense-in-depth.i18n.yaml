@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-19-dual-copy-defense-in-depth.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-19-dual-copy-defense-in-depth.md
-2026-08-19-dual-copy-defense-in-depth.md: 65dc498e8487d716aa4a240c169a680ed90c822b
-2026-08-19-dual-copy-defense-in-depth.zh.md: cf35639049cdb3788d753590c1059939cb631a91
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake:
+  en: 2e8fdb9b2b5bfe74
+  zh: 41d808fec3d3cafe
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake/problem:
+  en: d84d092f09dd1b31
+  zh: 6e1cf2c377f72c95
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake/decision:
+  en: ecd8f4caf53516cf
+  zh: 052b7408533b21c5
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake/alternatives-considered:
+  en: f3c5e124b7325610
+  zh: fba523d7dc7b4231
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake/consequences:
+  en: 812b6c4042de44f0
+  zh: 3f466896efe0f04a
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake/verification:
+  en: 4514b4c20fff1232
+  zh: be2ec758a09c0f3c
+/agent-note-defense-in-depth-for-the-dual-copy-scheduler-handshake/remaining-risks:
+  en: 9d27bd6408a53efa
+  zh: 7f087ff466b85d33

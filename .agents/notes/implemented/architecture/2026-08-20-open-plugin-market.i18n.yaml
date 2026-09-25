@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-20-open-plugin-market.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-20-open-plugin-market.md
-2026-08-20-open-plugin-market.md: acfb765c8cad6ba05c0105c59f16a43b98b8f8f5
-2026-08-20-open-plugin-market.zh.md: a6fc090925951fc8f7a658b1bc95c8a081904911
+/agent-note-open-plugin-market-ctx-pluginmarket:
+  en: 59b5860ef2b4c8cb
+  zh: c870f1f1a4229714
+/agent-note-open-plugin-market-ctx-pluginmarket/problem:
+  en: 983bbe14a02e0fc8
+  zh: 25a719212804ea41
+/agent-note-open-plugin-market-ctx-pluginmarket/decision:
+  en: f279f91fc7b9c891
+  zh: a9464294a4316dac
+/agent-note-open-plugin-market-ctx-pluginmarket/consequences:
+  en: 5ebd425365eb3502
+  zh: 7bc245ff0e61c797
+/agent-note-open-plugin-market-ctx-pluginmarket/alternatives-considered:
+  en: 0cf5729f9e8c5070
+  zh: aaf778337a4c5cc0

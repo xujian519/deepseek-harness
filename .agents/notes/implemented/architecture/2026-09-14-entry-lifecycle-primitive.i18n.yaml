@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-entry-lifecycle-primitive.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-14-entry-lifecycle-primitive.md
-2026-09-14-entry-lifecycle-primitive.md: f127dc8815e9e040df613a6c5dd6d56abf32e8e7
-2026-09-14-entry-lifecycle-primitive.zh.md: c44e3381d73fb58d1aaf805ef89b22f7e3bca694
+/agent-note-registry-entries-share-one-publication-state-machine:
+  en: 9664f87a6ba0b28f
+  zh: fb2f8f2869e576e5
+/agent-note-registry-entries-share-one-publication-state-machine/problem:
+  en: 8ae4111f75aee3ec
+  zh: 511ef9b30f1cc6ef
+/agent-note-registry-entries-share-one-publication-state-machine/decision:
+  en: f9951ec25f73bcad
+  zh: e4e6fc99d2a6e9fe
+/agent-note-registry-entries-share-one-publication-state-machine/alternatives-considered:
+  en: 17b1332965dbfce1
+  zh: 71b2abd7386064e3
+/agent-note-registry-entries-share-one-publication-state-machine/consequences:
+  en: fce2d1fd6aab0eae
+  zh: a9a3015ae2ea3a2b
+/agent-note-registry-entries-share-one-publication-state-machine/testing:
+  en: b76b04f967f22d08
+  zh: 21e122cfca569509
+/agent-note-registry-entries-share-one-publication-state-machine/related:
+  en: 32754378007aaadf
+  zh: f214cb19b6a0bbab

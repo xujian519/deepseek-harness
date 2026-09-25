@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-figure-chemistry-index-write-read-wiring.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-figure-chemistry-index-write-read-wiring.md
-2026-08-27-figure-chemistry-index-write-read-wiring.md: 8699c8bde865149a8c0f21df570bd8ca8dfe8dc9
-2026-08-27-figure-chemistry-index-write-read-wiring.zh.md: d72effa222bbb6f0589609c197b1c9ad55949693
+/agent-note-figure-and-chemistry-index-write-read-wiring:
+  en: 9db54c2ae983f4c1
+  zh: aa17ca42d09831b6
+/agent-note-figure-and-chemistry-index-write-read-wiring/problem:
+  en: 9eccb82474b697e9
+  zh: ea593a6bffaccb6f
+/agent-note-figure-and-chemistry-index-write-read-wiring/decision:
+  en: fd81e080de3e9f01
+  zh: 8e0c570fb5e95c77
+/agent-note-figure-and-chemistry-index-write-read-wiring/alternatives-considered:
+  en: 537c7e1eb20691a8
+  zh: 782a30fb8a6bdc52
+/agent-note-figure-and-chemistry-index-write-read-wiring/consequences:
+  en: 65b9fa1754bfdfcb
+  zh: 0bb5f12cd7903927
+/agent-note-figure-and-chemistry-index-write-read-wiring/testing:
+  en: a4d5d0ad0cc45bdb
+  zh: b7c727a4ead1ea07

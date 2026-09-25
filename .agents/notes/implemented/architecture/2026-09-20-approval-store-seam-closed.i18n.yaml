@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-20-approval-store-seam-closed.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-20-approval-store-seam-closed.md
-2026-09-20-approval-store-seam-closed.md: 3aedf0b0e180bfba759aa59a393ef80466355cad
-2026-09-20-approval-store-seam-closed.zh.md: 74917d6b0cfb7b0637510118253c670c4687168e
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation:
+  en: 53e379b5bf7d0f6d
+  zh: 43c97a0f3fe4c1ff
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation/problem:
+  en: 12aa5240b22e7731
+  zh: 53a812c44987f8b7
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation/decision:
+  en: 0fb5dfdd54419717
+  zh: cc673917b4dc9a4a
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation/alternatives-considered:
+  en: bb055fc47e7b59d0
+  zh: 50a79b75c4f569ad
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation/consequences:
+  en: 01a9c12333132bf7
+  zh: 0863f33bcc2a9682
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation/testing:
+  en: b75892bfa3019b82
+  zh: d33d02bb03dc2682
+/agent-note-close-the-approvalstore-type-seam-with-an-in-memory-implementation/related:
+  en: 95da417afa03305c
+  zh: 08e344498dd353cf

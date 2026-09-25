@@ -1,6 +1,49 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/self-evolve/self-evolve-basic/README.md
-README.md: 98f05c288adb00b71ddb21d609f2c82eb2110120
-README.zh.md: 672246c6bbf29899a4192f806e4edc9fe881eed9
+/:
+  en: 59b897462d3646e3
+  zh: 5ea1fafb7a13b84d
+/deepseek-ai-dsh-self-evolve-basic:
+  en: 255e3ef9e36e910b
+  zh: 162289f1b6d2c877
+/deepseek-ai-dsh-self-evolve-basic/summary:
+  en: 1b845eab0fc14920
+  zh: 60a3bef94dc5cb25
+/deepseek-ai-dsh-self-evolve-basic/table-of-contents:
+  en: ccedbf4aee6c86e5
+  zh: 7f1280df8a888e23
+/deepseek-ai-dsh-self-evolve-basic/role:
+  en: 6f63fde745743beb
+  zh: b4efb9bb0c8e01f1
+/deepseek-ai-dsh-self-evolve-basic/configuration:
+  en: a4db05eab3ac2b6d
+  zh: 728d4bd3ce0a2eb0
+/deepseek-ai-dsh-self-evolve-basic/validation-pipeline-phase-1:
+  en: 8864c8a2e30fc76b
+  zh: 4a01e50f46806f4e
+/deepseek-ai-dsh-self-evolve-basic/negative-results-p1-7b:
+  en: d3bc6b680a123240
+  zh: 803a1d80c5edd28d
+/deepseek-ai-dsh-self-evolve-basic/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-self-evolve-basic/model-experience/stable-self-evolve-guidance:
+  en: 7a6104c29ab49106
+  zh: 4e09d723048fb1a4
+/deepseek-ai-dsh-self-evolve-basic/model-experience/stable-self-evolve-guidance/what-the-model-sees:
+  en: 58bbc6cb836d1bed
+  zh: 566313d6d6135c89
+/deepseek-ai-dsh-self-evolve-basic/model-experience/stable-self-evolve-guidance/token-effect:
+  en: 23ce392fd0181f0f
+  zh: d117bd5b59c605be
+/deepseek-ai-dsh-self-evolve-basic/model-experience/stable-self-evolve-guidance/kv-cache-effect:
+  en: 1401559f4d4f0bdc
+  zh: 8f4267ffd1a3bde5
+/deepseek-ai-dsh-self-evolve-basic/known-limitations-and-deferred-work:
+  en: 806365a955187885
+  zh: faced587c5a68b62
+/deepseek-ai-dsh-self-evolve-basic/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

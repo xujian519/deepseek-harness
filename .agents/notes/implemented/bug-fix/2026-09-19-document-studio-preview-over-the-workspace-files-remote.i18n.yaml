@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-19-document-studio-preview-over-the-workspace-files-remote.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-19-document-studio-preview-over-the-workspace-files-remote.md
-2026-09-19-document-studio-preview-over-the-workspace-files-remote.md: 3539dca763125a120c565335dcfb07df3577cc60
-2026-09-19-document-studio-preview-over-the-workspace-files-remote.zh.md: bd3590152cfb7e444126d9897b813b88f48955ba
+/agent-note-document-studio-preview-over-the-workspace-files-remote:
+  en: c3d7caa5a6364e7c
+  zh: 0f71af7ca3f8085e
+/agent-note-document-studio-preview-over-the-workspace-files-remote/problem:
+  en: bd21d51f11e1242e
+  zh: 08752c4377ad1451
+/agent-note-document-studio-preview-over-the-workspace-files-remote/decision:
+  en: 27cbb9d39748102a
+  zh: 588e05113440be44
+/agent-note-document-studio-preview-over-the-workspace-files-remote/consequences:
+  en: b8af0c78546cb209
+  zh: 242dc315cc4eb53c
+/agent-note-document-studio-preview-over-the-workspace-files-remote/alternatives-considered:
+  en: 79726b73316f6fea
+  zh: b27403528b1e7f33
+/agent-note-document-studio-preview-over-the-workspace-files-remote/testing:
+  en: e85777d5220916e2
+  zh: f7b9892d4353c311

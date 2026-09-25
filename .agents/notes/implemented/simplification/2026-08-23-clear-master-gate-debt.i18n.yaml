@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-clear-master-gate-debt.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-23-clear-master-gate-debt.md
-2026-08-23-clear-master-gate-debt.md: 62ac74008b112850772f97592a72b5addba000f5
-2026-08-23-clear-master-gate-debt.zh.md: ceb164c7eef7901211c6faef040b1aa543a415a4
+/agent-note-clear-the-five-pre-existing-master-gate-debts:
+  en: 71bd3fe3fe040f49
+  zh: f5de3ac8e07e669c
+/agent-note-clear-the-five-pre-existing-master-gate-debts/problem:
+  en: a720d4992bcd0b39
+  zh: ae895b19ff0e1b69
+/agent-note-clear-the-five-pre-existing-master-gate-debts/decision:
+  en: b33a2c8394450940
+  zh: d0599204fa33bc26
+/agent-note-clear-the-five-pre-existing-master-gate-debts/alternatives-considered:
+  en: e8a69be6a52f246d
+  zh: 4ebc1f65d0ec30d9
+/agent-note-clear-the-five-pre-existing-master-gate-debts/consequences:
+  en: c5fb125f21c7a2d2
+  zh: 819aeabdf53b196b

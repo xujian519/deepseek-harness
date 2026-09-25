@@ -1,6 +1,40 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-document-mode-workbench.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-08-23-document-mode-workbench.md
-2026-08-23-document-mode-workbench.md: 1d209843fa1371309134fb49f6e9e02e6c0768cb
-2026-08-23-document-mode-workbench.zh.md: f2fa307de38fb10e36c708f8efe38c8e0993e479
+/agent-note-document-mode-workbench:
+  en: d7e24a79c0fb5ba1
+  zh: 1b644989e10fc6a1
+/agent-note-document-mode-workbench/problem:
+  en: 4dbf4285c1f7d87b
+  zh: 39ce8163903ef6d9
+/agent-note-document-mode-workbench/proposal:
+  en: 1d89a6bd6e9a1bde
+  zh: 77679e432759ed1f
+/agent-note-document-mode-workbench/proposal/data-paths:
+  en: c6f895b577fc574e
+  zh: 43013c69a75479c5
+/agent-note-document-mode-workbench/proposal/application-level-view-slot:
+  en: 685d15f119fd9e76
+  zh: b6bc70a34950fa18
+/agent-note-document-mode-workbench/proposal/agent-mediated-revision:
+  en: 0d601cdb9a262080
+  zh: 318e56eb4c040819
+/agent-note-document-mode-workbench/proposal/executable-preview-with-a-trust-boundary:
+  en: 70cb9692320bdbbb
+  zh: 970e0cd7d7afb51c
+/agent-note-document-mode-workbench/proposal/layered-preview:
+  en: 0418915663f79d23
+  zh: 13afe81d3f11dd4c
+/agent-note-document-mode-workbench/proposal/scope:
+  en: 3902f5d6c6ffaa92
+  zh: d2a747d6bd7eaf1d
+/agent-note-document-mode-workbench/alternatives-considered:
+  en: 69e826fc97652e6c
+  zh: 997e27d8d79ce2bb
+/agent-note-document-mode-workbench/acceptance-criteria:
+  en: bed9c5781313ba12
+  zh: 95737c971bca6a3a
+/agent-note-document-mode-workbench/risks:
+  en: ba80c544222f31a4
+  zh: 41852e64d6d13135

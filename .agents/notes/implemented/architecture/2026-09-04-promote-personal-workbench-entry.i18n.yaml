@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-04-promote-personal-workbench-entry.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-04-promote-personal-workbench-entry.md
-2026-09-04-promote-personal-workbench-entry.md: 40efc7e8a9737b3e5eef2ed928601c89c90dd2ac
-2026-09-04-promote-personal-workbench-entry.zh.md: b3b6a1fb6b8cad5c65127d2bf69456f85023cc6d
+/agent-note-promote-the-personal-workbench-entry-into-the-sidebar-top-strip:
+  en: 1a80081192c8f68a
+  zh: ebd7ac81ab9e8ff0
+/agent-note-promote-the-personal-workbench-entry-into-the-sidebar-top-strip/problem:
+  en: 427635dccf7fe39d
+  zh: 4057f7508bd1fe16
+/agent-note-promote-the-personal-workbench-entry-into-the-sidebar-top-strip/decision:
+  en: 070c323fc07192b4
+  zh: 6f58da945d03012d
+/agent-note-promote-the-personal-workbench-entry-into-the-sidebar-top-strip/alternatives-considered:
+  en: 40eb62bd6b177f56
+  zh: 2ad87b1f2816e039
+/agent-note-promote-the-personal-workbench-entry-into-the-sidebar-top-strip/consequences:
+  en: cd5a494d34c0b827
+  zh: 933f13f0eed99e37

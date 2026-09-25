@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-retire-desktop-app-bundle.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-retire-desktop-app-bundle.md
-2026-09-09-retire-desktop-app-bundle.md: 2af152af92cd4bad3ac2be50c9a251d1be01fadd
-2026-09-09-retire-desktop-app-bundle.zh.md: a5c764f1123a77c7af9b0f5494b7464986602b95
+/agent-note-retire-the-desktop-app-bundle:
+  en: 8af3d4be447620b9
+  zh: 30ff757b10ee1a65
+/agent-note-retire-the-desktop-app-bundle/problem:
+  en: f6b0b6e8c2c5ebf9
+  zh: d0363e4fa0df83f9
+/agent-note-retire-the-desktop-app-bundle/decision:
+  en: d3491d32b7070b37
+  zh: 9736cb47d3e9612a
+/agent-note-retire-the-desktop-app-bundle/alternatives-considered:
+  en: 36ac8d58045e366b
+  zh: 3fa92299fa21d14e
+/agent-note-retire-the-desktop-app-bundle/consequences:
+  en: 7338113a1d309bd1
+  zh: 7a7329f5c5ffb51a

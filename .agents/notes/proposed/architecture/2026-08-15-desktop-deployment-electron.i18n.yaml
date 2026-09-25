@@ -1,6 +1,55 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-15-desktop-deployment-electron.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-15-desktop-deployment-electron.md
-2026-08-15-desktop-deployment-electron.md: 6efadd5e28e3ec94778cd551a322247aadf6c193
-2026-08-15-desktop-deployment-electron.zh.md: 1a18d6ab33ffc685f29cdb20d90fa4691376916d
+/agent-note-desktop-deployment-with-electron:
+  en: ffe42b05cfe76fdb
+  zh: 496860f947c46c36
+/agent-note-desktop-deployment-with-electron/problem:
+  en: a6d8170b8ba53013
+  zh: 7d0738de555a28ea
+/agent-note-desktop-deployment-with-electron/proposal:
+  en: 986dd8097aac4d3d
+  zh: 986dd8097aac4d3d
+/agent-note-desktop-deployment-with-electron/proposal/runtime-architecture:
+  en: b98d327affc7cd73
+  zh: fa541632a63a94a2
+/agent-note-desktop-deployment-with-electron/proposal/new-package-layout:
+  en: 5a79b65b9da43173
+  zh: 34eb2476f14986c9
+/agent-note-desktop-deployment-with-electron/proposal/backend-packaging:
+  en: cfe33027878fb583
+  zh: 8371d9c1c6c71bcb
+/agent-note-desktop-deployment-with-electron/proposal/renderer-security-model:
+  en: b0dcc180d95f01af
+  zh: 8abcd46b85137460
+/agent-note-desktop-deployment-with-electron/proposal/native-capability-mapping:
+  en: f7d71b963a6ff474
+  zh: 69e9fe44d4400e9d
+/agent-note-desktop-deployment-with-electron/proposal/offline-and-online-model-support:
+  en: 7aed33c477741a8e
+  zh: 1c04620204837cb2
+/agent-note-desktop-deployment-with-electron/proposal/build-and-release-pipeline:
+  en: 2509478ad1597966
+  zh: eb8063ca85f51332
+/agent-note-desktop-deployment-with-electron/proposal/verification-status:
+  en: c6fa905e89d1fcf5
+  zh: 78e0b474e221e0f1
+/agent-note-desktop-deployment-with-electron/proposal/signing-and-notarization:
+  en: abf4a999ff7915af
+  zh: cbd48145cf976040
+/agent-note-desktop-deployment-with-electron/proposal/testing-strategy:
+  en: 9c642c546ed24a85
+  zh: cc4e41fbdb6e1364
+/agent-note-desktop-deployment-with-electron/proposal/phased-rollout:
+  en: 92d8c787d8e8e41e
+  zh: d5fd64e6d1a4c5ac
+/agent-note-desktop-deployment-with-electron/alternatives-considered:
+  en: 8d36b8ab986a0208
+  zh: 69de4bf9fe143dd9
+/agent-note-desktop-deployment-with-electron/acceptance-criteria:
+  en: 5199d4ade77cdb15
+  zh: ae391dd656f4f7c8
+/agent-note-desktop-deployment-with-electron/risks:
+  en: 337a90ad0ed20cfc
+  zh: ce7658fae04efe82

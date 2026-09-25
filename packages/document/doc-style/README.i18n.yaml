@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/document/doc-style/README.md
-README.md: bdc4c8c6e2de93b47ed2d2052e2f829f26dc9cf4
-README.zh.md: 2fea90d9f84b93a0537b4f20cb206a7ff8d41c85
+/:
+  en: 0c6d1ebb96afdb8c
+  zh: 1997e1aba4d8ea70
+/deepseek-ai-dsh-doc-style:
+  en: e00095176a04bfa3
+  zh: 029bbe8434b8ee76
+/deepseek-ai-dsh-doc-style/summary:
+  en: 7cda0b455b72c44e
+  zh: 93fa7fa21c70a212
+/deepseek-ai-dsh-doc-style/table-of-contents:
+  en: 9f27aa554498cdcc
+  zh: b0d6c75625a84048
+/deepseek-ai-dsh-doc-style/style-assets:
+  en: 2640a57d25e1f870
+  zh: 5cc1d106c8e3d4f1
+/deepseek-ai-dsh-doc-style/projections:
+  en: ec5f2265c15f5bba
+  zh: ed43d3c0f9601d58
+/deepseek-ai-dsh-doc-style/loading:
+  en: 1296418af962d449
+  zh: 0f615f49cf860e78
+/deepseek-ai-dsh-doc-style/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-doc-style/model-experience/consumer-rendered-style-text:
+  en: 1bf846e4b4aff707
+  zh: 3ff510d8ebf706d9
+/deepseek-ai-dsh-doc-style/model-experience/consumer-rendered-style-text/what-the-model-sees:
+  en: beb062f772df3743
+  zh: 42f3ff70594e9b67
+/deepseek-ai-dsh-doc-style/model-experience/consumer-rendered-style-text/token-effect:
+  en: a8d7f60021ec63d1
+  zh: 3f0a9776666e8e99
+/deepseek-ai-dsh-doc-style/model-experience/consumer-rendered-style-text/kv-cache-effect:
+  en: d32bdbeeae685063
+  zh: 62f69bc1c53a3195
+/deepseek-ai-dsh-doc-style/known-limitations-and-deferred-work:
+  en: d4d3c7567556fe0a
+  zh: e24e5060909f5d79
+/deepseek-ai-dsh-doc-style/known-limitations-and-deferred-work/dev-note:
+  en: eaa09045a6b070b2
+  zh: 7f19aafd2decfb03

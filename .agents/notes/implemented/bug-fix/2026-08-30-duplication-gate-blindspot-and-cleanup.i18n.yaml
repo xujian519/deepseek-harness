@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-duplication-gate-blindspot-and-cleanup.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-30-duplication-gate-blindspot-and-cleanup.md
-2026-08-30-duplication-gate-blindspot-and-cleanup.md: d0a165db1993a69d813336647473dedb44d94708
-2026-08-30-duplication-gate-blindspot-and-cleanup.zh.md: 67cb190f74b4575baf080b51e894bb26fd20937d
+/agent-note-duplication-gate-blind-spot-and-the-full-scan-cleanup-batch:
+  en: 0bc8ddc5f543abad
+  zh: 929a76e5743620e7
+/agent-note-duplication-gate-blind-spot-and-the-full-scan-cleanup-batch/problem:
+  en: b2e9d917283ec9d2
+  zh: bb0837693418d4f4
+/agent-note-duplication-gate-blind-spot-and-the-full-scan-cleanup-batch/decision:
+  en: fa489de6aa8264ae
+  zh: c08b9dbb3a86f248
+/agent-note-duplication-gate-blind-spot-and-the-full-scan-cleanup-batch/consequences:
+  en: c40f9bc0e0767533
+  zh: 882d7ca4733cd5a7
+/agent-note-duplication-gate-blind-spot-and-the-full-scan-cleanup-batch/alternatives-considered:
+  en: 9e750e56ccf9549a
+  zh: 30fd3eda22c4e697

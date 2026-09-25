@@ -1,6 +1,76 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/tool-literature/README.md
-README.md: 68ff7e6e6b78bc5038a11390e392fe1e88ff3d17
-README.zh.md: d6dcf86c609618b4bf4f037ed421d506a8a2f912
+/:
+  en: ef1269ed3d727482
+  zh: ae0e980c111bcc21
+/deepseek-ai-dsh-tool-literature:
+  en: 2490c95e5e5420ec
+  zh: d227976cf669ae81
+/deepseek-ai-dsh-tool-literature/summary:
+  en: b655961a2ba1cc2f
+  zh: 06af23eaf864475c
+/deepseek-ai-dsh-tool-literature/table-of-contents:
+  en: d5e558a2a1eb4650
+  zh: e6d7a8d8296d1741
+/deepseek-ai-dsh-tool-literature/tools:
+  en: 202bfff5b0fee71a
+  zh: 32674be7048db350
+/deepseek-ai-dsh-tool-literature/tools/paper-list-sources:
+  en: 8f415f94f7f578db
+  zh: 1f01e5348976f38f
+/deepseek-ai-dsh-tool-literature/tools/paper-search:
+  en: 2cfc94fc7e3dc842
+  zh: cc9749e9199f0474
+/deepseek-ai-dsh-tool-literature/tools/paper-download:
+  en: 90da2fa50e6b37bc
+  zh: b53ec96b3951d541
+/deepseek-ai-dsh-tool-literature/configuration:
+  en: af3291f37eca26e7
+  zh: 8d620500e9e9d3f6
+/deepseek-ai-dsh-tool-literature/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-literature/model-experience/tools:
+  en: 72ee1234c12b966a
+  zh: e5bbfa1985c64fca
+/deepseek-ai-dsh-tool-literature/model-experience/tools/what-the-model-sees:
+  en: 2ceaa46770db4cde
+  zh: c3aa2347f092789d
+/deepseek-ai-dsh-tool-literature/model-experience/tools/token-effect:
+  en: afd1cdadc254a55f
+  zh: 660feb83b41f9e24
+/deepseek-ai-dsh-tool-literature/model-experience/tools/kv-cache-effect:
+  en: c6a0bbba61e5f3ba
+  zh: 6096ec20c5a5bac6
+/deepseek-ai-dsh-tool-literature/model-experience/search-result:
+  en: 359575da2aa5601e
+  zh: ca79357c6191e253
+/deepseek-ai-dsh-tool-literature/model-experience/search-result/what-the-model-sees:
+  en: 36c6a8d75271d06e
+  zh: 9dee062556e82ad4
+/deepseek-ai-dsh-tool-literature/model-experience/search-result/token-effect:
+  en: e85e4ab6606b2593
+  zh: 77afeb7e5dccf663
+/deepseek-ai-dsh-tool-literature/model-experience/search-result/kv-cache-effect:
+  en: 648289df65cba624
+  zh: 9f8721f3b80287df
+/deepseek-ai-dsh-tool-literature/model-experience/source-list-result:
+  en: 53cb6977edfc6e29
+  zh: a39c6615ae2e0bfc
+/deepseek-ai-dsh-tool-literature/model-experience/source-list-result/what-the-model-sees:
+  en: 9bfe1f1a604821aa
+  zh: 2220e94720dd9bd0
+/deepseek-ai-dsh-tool-literature/model-experience/source-list-result/token-effect:
+  en: 3b497dd6d3bb3614
+  zh: a7a2e9f05f973ce2
+/deepseek-ai-dsh-tool-literature/model-experience/source-list-result/kv-cache-effect:
+  en: fda15e30aa67acad
+  zh: fabaeb1c6fb749d7
+/deepseek-ai-dsh-tool-literature/known-limitations-and-deferred-work:
+  en: 051e78634f2ae480
+  zh: abe9fe055e3d7604
+/deepseek-ai-dsh-tool-literature/known-limitations-and-deferred-work/dev-note:
+  en: 35f3d9054f8e0dc0
+  zh: 5de3e0be7d56ca1d

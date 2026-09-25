@@ -1,6 +1,70 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-core/README.md
-README.md: c79ec3c48560a8448a262492840cc49becf62228
-README.zh.md: e49dcff2cd0dd8b3ca0b19a67e694deb6d1613cf
+/:
+  en: ee84d245d8ea71a4
+  zh: 07b29668708ada45
+/deepseek-ai-dsh-patent-core:
+  en: 40a881446449f10b
+  zh: d9595659c5bbaf76
+/deepseek-ai-dsh-patent-core/summary:
+  en: 1ba3978824ac5991
+  zh: efe0ca6bc31ba3f1
+/deepseek-ai-dsh-patent-core/table-of-contents:
+  en: 92832f2e55db113a
+  zh: 9310068e47259493
+/deepseek-ai-dsh-patent-core/atoms-engines:
+  en: 178c28d9ef640238
+  zh: 7d91be327549f195
+/deepseek-ai-dsh-patent-core/modelport:
+  en: 04e3db5218f7c555
+  zh: 48c97f5cc1150b90
+/deepseek-ai-dsh-patent-core/checker-dual-track-deterministic-rule-engine:
+  en: c821b62f459795e3
+  zh: 3e347cd3a8c68bea
+/deepseek-ai-dsh-patent-core/problem-atomic-technical-problem-checks:
+  en: d0130530359c81f3
+  zh: 4987b8a41e66cec1
+/deepseek-ai-dsh-patent-core/evidence-closed-loop-ledger-judgment-engine:
+  en: e68b8cac002293c9
+  zh: 656b254f7d0ad846
+/deepseek-ai-dsh-patent-core/reasoning-fact-blackboard-syllogism:
+  en: f815870735c65ef5
+  zh: a1dd1e65bd8bf5e9
+/deepseek-ai-dsh-patent-core/claim-chart-runtime:
+  en: ad4708b4d0478d70
+  zh: 26c33e58e0b22897
+/deepseek-ai-dsh-patent-core/claim-coverage-checks:
+  en: 9b87b0cb3eec012d
+  zh: c15a3d71edbd36d2
+/deepseek-ai-dsh-patent-core/numeric-range-novelty-check:
+  en: 8bc3e1c9e064a081
+  zh: f4ba5ef61f6548cc
+/deepseek-ai-dsh-patent-core/notice-parsing:
+  en: 9dc8df9b5248707d
+  zh: 55991e0d34a86fb7
+/deepseek-ai-dsh-patent-core/response-preparation:
+  en: 6f19496915046f6b
+  zh: f200947b0641427c
+/deepseek-ai-dsh-patent-core/infringement-kernel:
+  en: aa14713dbbf10440
+  zh: 6ae051d9e759159f
+/deepseek-ai-dsh-patent-core/graph-engine:
+  en: 760e1d0146b81542
+  zh: 8c807e7f81130bb5
+/deepseek-ai-dsh-patent-core/rule-protocol-ipc:
+  en: a1132c53ccb863a8
+  zh: 0d3d923c0f3b76b7
+/deepseek-ai-dsh-patent-core/model-experience:
+  en: 9de61955934e5f5e
+  zh: 9de61955934e5f5e
+/deepseek-ai-dsh-patent-core/model-experience/kv-cache-effect:
+  en: c38a9a13cdecab79
+  zh: c45dff8e2bf20b08
+/deepseek-ai-dsh-patent-core/known-limitations-and-deferred-work:
+  en: ff123f97d228f096
+  zh: 2fe3f25e260dc7a2
+/deepseek-ai-dsh-patent-core/known-limitations-and-deferred-work/dev-note:
+  en: 14cd54edcf34ec8e
+  zh: 8b287223fbe17bcd

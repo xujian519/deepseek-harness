@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-03-patent-teams-dashboard-and-history-drain.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-patent-teams-dashboard-and-history-drain.md
-2026-09-03-patent-teams-dashboard-and-history-drain.md: cf75cc801c86171bbdbef3201aea404b27084b4a
-2026-09-03-patent-teams-dashboard-and-history-drain.zh.md: c37e835e113ceb7a7b764504ec9bcec91b59ab27
+/agent-note-patentteams-teams-tab-dashboard-and-the-history-drain:
+  en: 909c24c2cd2a8d76
+  zh: e4590f3822f65796
+/agent-note-patentteams-teams-tab-dashboard-and-the-history-drain/problem:
+  en: 69b5db394fc3e8c8
+  zh: b947b08e856faf6b
+/agent-note-patentteams-teams-tab-dashboard-and-the-history-drain/decision:
+  en: d80872f38a62d7ae
+  zh: bdbf6d3dac5e9edc
+/agent-note-patentteams-teams-tab-dashboard-and-the-history-drain/alternatives-considered:
+  en: b1125e1c14e6ddc1
+  zh: b806185b19039166
+/agent-note-patentteams-teams-tab-dashboard-and-the-history-drain/consequences:
+  en: 653b86b91ea9f3cf
+  zh: a7c7a3eadfc36048
+/agent-note-patentteams-teams-tab-dashboard-and-the-history-drain/testing:
+  en: c2c8f4159ff857d3
+  zh: 55253789536d16ce

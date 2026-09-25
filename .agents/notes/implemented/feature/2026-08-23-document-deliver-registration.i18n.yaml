@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-document-deliver-registration.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-document-deliver-registration.md
-2026-08-23-document-deliver-registration.md: 877587be260a2e5eeee47abf904ab54f745350dd
-2026-08-23-document-deliver-registration.zh.md: ee86c6c90a3a1109a1c9f0496dffdc175ce86324
+/agent-note-document-deliverable-registration:
+  en: d918ffa827c680e9
+  zh: 2789271f3d01952c
+/agent-note-document-deliverable-registration/problem:
+  en: 2e2080ec0e52b50c
+  zh: a8c597fc12b9bca3
+/agent-note-document-deliverable-registration/decision:
+  en: 8eae139c19ad97cc
+  zh: ba63b4626e551ca1
+/agent-note-document-deliverable-registration/alternatives-considered:
+  en: da661959198c95b9
+  zh: a716403e2d9cf6e1
+/agent-note-document-deliverable-registration/consequences:
+  en: ae28a82ccf15e15c
+  zh: 178aaf7b36e40d66

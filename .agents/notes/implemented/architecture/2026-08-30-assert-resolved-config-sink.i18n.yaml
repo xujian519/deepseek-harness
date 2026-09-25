@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-assert-resolved-config-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-30-assert-resolved-config-sink.md
-2026-08-30-assert-resolved-config-sink.md: df4071edfe6369452126c01d336d10a2bed4adcf
-2026-08-30-assert-resolved-config-sink.zh.md: cf1314ff98de1c5073c173cd146f3fd77962a08a
+/agent-note-m2-sink-one-assertresolvedconfig-for-the-plugin-config-boundary:
+  en: 7fb26514176cd632
+  zh: 3d5af370ad236d00
+/agent-note-m2-sink-one-assertresolvedconfig-for-the-plugin-config-boundary/problem:
+  en: 0916aaad98ebf3c4
+  zh: 2a2f18f25109e754
+/agent-note-m2-sink-one-assertresolvedconfig-for-the-plugin-config-boundary/decision:
+  en: 2de5f6ffed27f7d1
+  zh: 06dad7471a41f95a
+/agent-note-m2-sink-one-assertresolvedconfig-for-the-plugin-config-boundary/consequences:
+  en: ca7ba0786f286fe0
+  zh: 2dd0019501b61b7e
+/agent-note-m2-sink-one-assertresolvedconfig-for-the-plugin-config-boundary/alternatives-considered:
+  en: 128c076728fdc188
+  zh: d7817fa0a8ebf7f0

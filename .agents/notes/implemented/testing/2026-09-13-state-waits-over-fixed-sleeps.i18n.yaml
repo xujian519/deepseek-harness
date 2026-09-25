@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-state-waits-over-fixed-sleeps.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-13-state-waits-over-fixed-sleeps.md
-2026-09-13-state-waits-over-fixed-sleeps.md: aed4f1883d0abdebcb75aa84916ce8968d1f84a9
-2026-09-13-state-waits-over-fixed-sleeps.zh.md: 70b1903ba9240c5c8336e60ffc7b4af8d216aef4
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides:
+  en: bc7f6b1aef16a5ea
+  zh: 8b499ed40f05d67c
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides/problem:
+  en: 812c63d457e0c86e
+  zh: 1cbe3181374ec2e3
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides/decision:
+  en: d0f12133fd654603
+  zh: 5f22f87fe51454a3
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides/alternatives-considered:
+  en: 52e5380baa902520
+  zh: 6108352062150a79
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides/consequences:
+  en: 18633d9dfe5d5983
+  zh: c77221fa5be3b7dd
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides/testing:
+  en: a7e3dedcd62dd8d6
+  zh: df8c5f8413a56c52
+/agent-note-state-waits-in-place-of-fixed-sleeps-and-what-each-clock-bound-decides/related:
+  en: 902df8aa2c67a53c
+  zh: 15de40bcfc6f9b47

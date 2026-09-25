@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-20-field-level-activation-patches.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-20-field-level-activation-patches.md
-2026-09-20-field-level-activation-patches.md: 41bd543082c17960db24f6e90775389f0664f617
-2026-09-20-field-level-activation-patches.zh.md: cf00ea8734a6308d6e7098eaa11061e6ddc6d9fa
+/agent-note-apply-field-level-activation-patches-not-just-action:
+  en: 8ffa9aa49eadbd1d
+  zh: 4dd236dc0a218a2e
+/agent-note-apply-field-level-activation-patches-not-just-action/problem:
+  en: 243da8a17df4679c
+  zh: 36dfe7ae643387df
+/agent-note-apply-field-level-activation-patches-not-just-action/decision:
+  en: 234dfd940468a91a
+  zh: 72a73e937dd9556c
+/agent-note-apply-field-level-activation-patches-not-just-action/alternatives-considered:
+  en: b43bae25f8dbcbe6
+  zh: ca9c90b3792337f9
+/agent-note-apply-field-level-activation-patches-not-just-action/consequences:
+  en: 63e5fe8743c9f276
+  zh: 4b55fbd6372e7e33
+/agent-note-apply-field-level-activation-patches-not-just-action/testing:
+  en: 495b1708ac9cdf3c
+  zh: 9a0e8dc4120334e7
+/agent-note-apply-field-level-activation-patches-not-just-action/related:
+  en: 95da417afa03305c
+  zh: 08e344498dd353cf

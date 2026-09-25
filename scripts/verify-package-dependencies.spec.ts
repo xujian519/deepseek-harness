@@ -207,6 +207,7 @@ describe('package dependency scope', () => {
       '@deepseek-ai/dsh-entry-lifecycle',
       '@deepseek-ai/dsh-lazy-require',
       '@deepseek-ai/dsh-typert-protocol',
+      '@deepseek-ai/dsh-util-code-language',
       '@deepseek-ai/dsh-util-crypto',
       '@deepseek-ai/dsh-util-values',
     ])

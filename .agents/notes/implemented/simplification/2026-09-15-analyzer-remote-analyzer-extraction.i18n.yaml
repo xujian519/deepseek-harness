@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-analyzer-remote-analyzer-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-analyzer-remote-analyzer-extraction.md
-2026-09-15-analyzer-remote-analyzer-extraction.md: ec6ee9b8b2bb45174f68c6a873871bdd437d7182
-2026-09-15-analyzer-remote-analyzer-extraction.zh.md: 6d8f7b6e88ac6eacdef9ba1ce8766124b6f97c07
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86:
+  en: d53c3f6f15ef6759
+  zh: 5c23b0708e11bcdb
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/problem:
+  en: b112219671075093
+  zh: 03597fe772a3693e
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/decision:
+  en: d034d9e841a34e98
+  zh: 1d8d318b6a40f965
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/decision/the-dependency-list-is-the-seam:
+  en: 02a9aea631695b33
+  zh: 6842144dba75ebf8
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/decision/what-the-cut-made-testable:
+  en: 261ae305c783bc2f
+  zh: 1e1c99be7acf885f
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/decision/verification:
+  en: 96d5c8b53c6ed4c0
+  zh: cdd5bcfea7096571
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/alternatives-considered:
+  en: d89e4413af7b68d7
+  zh: 792f7bd3146e82bd
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/consequences:
+  en: 14991ccaaba6ee8d
+  zh: 031f8e2272ce9655
+/agent-note-extracting-the-analyzer-s-remote-rpc-analyzer-issue-86/related:
+  en: bf79a8c6e84622e3
+  zh: 37c12735c3e3d96a

@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-markdown-stream-frame-admission.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-markdown-stream-frame-admission.md
-2026-09-16-markdown-stream-frame-admission.md: 7b0196c4e26b010b72bbcd80641237d0b3d8358f
-2026-09-16-markdown-stream-frame-admission.zh.md: 03245f40f8a2edefd3154f2cf7b492da969c8c2e
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget:
+  en: 5a0109ba70b8a02e
+  zh: 9b254a41c3dade4f
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/problem:
+  en: b8259ee8182ed2b5
+  zh: 2e2c4ec7e266f6c7
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/decision:
+  en: 6fbc5ed16c55e139
+  zh: c78cf14690996976
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/alternatives-considered:
+  en: df28db47a778e6de
+  zh: bcafbb7904cbe4e5
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/consequences:
+  en: 7d87aea2637a14b5
+  zh: d920c3ff06319e3e
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/testing:
+  en: c91c3030ae1ce113
+  zh: 042d421b82bf2172
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/browser-measurement:
+  en: 213f0d2f4bc8b397
+  zh: 09b5c485b9343cfc
+/agent-note-admit-streaming-markdown-frames-through-a-measured-budget/related:
+  en: c9b36e3078e14a66
+  zh: 9fe89e2a1c92cc94

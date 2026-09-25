@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-sdk-stream-settle-timer.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-16-sdk-stream-settle-timer.md
-2026-09-16-sdk-stream-settle-timer.md: 30b5988e10ef1ab8ad3196b931b111315a9e0ac0
-2026-09-16-sdk-stream-settle-timer.zh.md: 143e228546d10cd72113e5f282d462351bb2b0a6
+/agent-note-the-sdk-client-s-stream-settle-window-clears-its-timer:
+  en: 23a1921186a9104d
+  zh: db11ca3508cabb4a
+/agent-note-the-sdk-client-s-stream-settle-window-clears-its-timer/problem:
+  en: 4e033be91fafdf16
+  zh: f1fc09da09582628
+/agent-note-the-sdk-client-s-stream-settle-window-clears-its-timer/decision:
+  en: cc283ef082909c4f
+  zh: ace1ced9ef9d8e45
+/agent-note-the-sdk-client-s-stream-settle-window-clears-its-timer/alternatives-considered:
+  en: 6e38f8cf7f6a4db7
+  zh: c72172d114cf42ac
+/agent-note-the-sdk-client-s-stream-settle-window-clears-its-timer/consequences:
+  en: efa922780ebebfb3
+  zh: 1a245ccc0ad7242a
+/agent-note-the-sdk-client-s-stream-settle-window-clears-its-timer/testing:
+  en: 905b11f0f95989dd
+  zh: 2404fe8abab49df5

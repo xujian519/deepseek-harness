@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-session-log-watermark-from-log-length.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-16-session-log-watermark-from-log-length.md
-2026-09-16-session-log-watermark-from-log-length.md: 2e45f79a794c2de9ed0255805dc6f4ff00b7f45b
-2026-09-16-session-log-watermark-from-log-length.zh.md: 28a23220aed8d4c83dcfa554062fcac72d2aa928
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length:
+  en: 07794744e3a6802a
+  zh: 07384a7ce99fd2a0
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length/problem:
+  en: eaeb78aeb986698b
+  zh: 4aa5e75bf3a04ff1
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length/decision:
+  en: 4d4c2b1b033eeca5
+  zh: 1c3f95843c2495d9
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length/alternatives-considered:
+  en: cc31a4ef25a99d64
+  zh: ae9499d82c245a23
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length/consequences:
+  en: 64f5bd43d893c54c
+  zh: 1a06f34d168b9cf3
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length/testing:
+  en: c68e460ef6047fba
+  zh: baf1cb2fc2938fed
+/agent-note-derive-the-session-log-upload-watermark-from-the-log-length/related:
+  en: e08e1a8f840f251a
+  zh: c622975362b270a2

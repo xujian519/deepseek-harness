@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-desktop-macos-tools.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-desktop-macos-tools.md
-2026-09-09-desktop-macos-tools.md: a9665718f880fbf388a0935ac0e76943ae2ebee2
-2026-09-09-desktop-macos-tools.zh.md: 07336f37ad343dd6ca31a5f99b90680deb4a1b55
+/agent-note-macos-native-tools-in-the-official-desktop-composition:
+  en: 2f976f584ca0d7ab
+  zh: adf1fa136ce0fed8
+/agent-note-macos-native-tools-in-the-official-desktop-composition/problem:
+  en: 219b12040587a8d1
+  zh: cb984afd32a2551e
+/agent-note-macos-native-tools-in-the-official-desktop-composition/decision:
+  en: c29977c3ad343bc1
+  zh: 9f4d4839af8db9dc
+/agent-note-macos-native-tools-in-the-official-desktop-composition/alternatives-considered:
+  en: 4d4e7e69a03b749e
+  zh: 91138d98e18df2a7
+/agent-note-macos-native-tools-in-the-official-desktop-composition/consequences:
+  en: db4a37a3070cd698
+  zh: 6cb7cba6c00e8caf

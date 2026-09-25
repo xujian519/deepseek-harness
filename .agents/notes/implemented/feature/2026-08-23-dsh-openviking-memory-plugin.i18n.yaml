@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-dsh-openviking-memory-plugin.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-dsh-openviking-memory-plugin.md
-2026-08-23-dsh-openviking-memory-plugin.md: 6c4882703a51bc0b9aac0a5578ad59261a461f8f
-2026-08-23-dsh-openviking-memory-plugin.zh.md: 52da3df996f33c229e60fca65efa6c8a9dab08c0
+/agent-note-openviking-memory-plugin:
+  en: e623266715aa026d
+  zh: acf32e6afbb50ac4
+/agent-note-openviking-memory-plugin/problem:
+  en: 6e2d7edf8d7837bc
+  zh: d927d27244d4ae78
+/agent-note-openviking-memory-plugin/decision:
+  en: 665682767b7c8475
+  zh: 9be4e279a0ed58f6
+/agent-note-openviking-memory-plugin/alternatives-considered:
+  en: 226875b772ffadf9
+  zh: 55cfb2109eb4064a
+/agent-note-openviking-memory-plugin/consequences:
+  en: a9ca7099e21cc563
+  zh: 73b67e517082d553

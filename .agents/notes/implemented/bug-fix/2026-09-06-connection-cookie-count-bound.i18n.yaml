@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-connection-cookie-count-bound.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-06-connection-cookie-count-bound.md
-2026-09-06-connection-cookie-count-bound.md: 44147c71c7f35ffb3807472795abfe29bbec403f
-2026-09-06-connection-cookie-count-bound.zh.md: 496f715d08bcee5e0c77f2f95c1d1152df049b13
+/agent-note-bound-browser-session-cookie-count-to-keep-the-request-head-under-the-http-limit:
+  en: 4abbe4e09b2efe1b
+  zh: c2c7122574e3f981
+/agent-note-bound-browser-session-cookie-count-to-keep-the-request-head-under-the-http-limit/problem:
+  en: 320ebdb33b79c352
+  zh: cd6265ac0cec9ab2
+/agent-note-bound-browser-session-cookie-count-to-keep-the-request-head-under-the-http-limit/decision:
+  en: 45c054ead718b7d4
+  zh: 481727a8c677ac74
+/agent-note-bound-browser-session-cookie-count-to-keep-the-request-head-under-the-http-limit/alternatives-considered:
+  en: 509faae9d3a16cb9
+  zh: c04cd1db4aa7eeef
+/agent-note-bound-browser-session-cookie-count-to-keep-the-request-head-under-the-http-limit/consequences:
+  en: 591c668dd9731174
+  zh: d26dd044bc32a966

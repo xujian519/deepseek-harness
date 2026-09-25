@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-teams/README.md
-README.md: 378dd8ab13f4c7e31c3a7e71028e55e8f686c33b
-README.zh.md: 709de83ce82aa98262ae1a9196145c19e374b6c9
+/:
+  en: 0f04ec516564941f
+  zh: 35c9093c90398eea
+/dsh-patent-teams:
+  en: 39fb18faca20601f
+  zh: 1efde63dec76f9d5
+/dsh-patent-teams/summary:
+  en: e50fb35d6fd64e60
+  zh: e1a5c11aebf5a102
+/dsh-patent-teams/table-of-contents:
+  en: d07db8eb5eb19a89
+  zh: ebf4dfdc4a069a19
+/dsh-patent-teams/what-it-mounts:
+  en: ce08d8be7a93da33
+  zh: 7271bece193b71b4
+/dsh-patent-teams/configuration:
+  en: 37f210b46aa90130
+  zh: f276a547c1cc48e1
+/dsh-patent-teams/state-model:
+  en: 13989f61706f142f
+  zh: 46139e54fd2a4d45
+/dsh-patent-teams/session-events:
+  en: 319435d57dfe1760
+  zh: eb8559f4b1023136
+/dsh-patent-teams/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/dsh-patent-teams/model-experience/request-context-and-condition:
+  en: cd8530c72534ee6b
+  zh: 16dbf6046e7e51fd
+/dsh-patent-teams/model-experience/request-context-and-condition/what-the-model-sees:
+  en: 3c1297a6a606801b
+  zh: 5b5aea70ddc7d9aa
+/dsh-patent-teams/model-experience/request-context-and-condition/what-the-model-sees/verbatim-text-for-this-field-when-needed:
+  en: efa45d5438560dbd
+  zh: 89cd6dc6880f3353
+/dsh-patent-teams/model-experience/request-context-and-condition/token-effect:
+  en: 07384b76c0b99664
+  zh: e3693a8948dca662
+/dsh-patent-teams/model-experience/request-context-and-condition/kv-cache-effect:
+  en: 26840a33fc868f6e
+  zh: d1f6d383eed9308d
+/dsh-patent-teams/known-limitations-and-deferred-work:
+  en: 821aea4d7248e218
+  zh: 75b75c08c6a311f6
+/dsh-patent-teams/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

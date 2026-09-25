@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-upstream-v0.1.5-rc.1-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-10-upstream-v0.1.5-rc.1-sync.md
-2026-09-10-upstream-v0.1.5-rc.1-sync.md: 40c3a418aeee3f3afc28c4b974edbcbaf42427e8
-2026-09-10-upstream-v0.1.5-rc.1-sync.zh.md: bfd02ca2ea76688e902b40ede3c4d47617b10101
+/agent-note-upstream-v0-1-5-rc-1-sync-and-the-per-face-build-upkeep:
+  en: b8ed40223968f4dd
+  zh: 91b288905ed0ba61
+/agent-note-upstream-v0-1-5-rc-1-sync-and-the-per-face-build-upkeep/problem:
+  en: e252980ed66434ae
+  zh: 23aed820604867f8
+/agent-note-upstream-v0-1-5-rc-1-sync-and-the-per-face-build-upkeep/decision:
+  en: b7e625f2320943f4
+  zh: 7e67005250b76db1
+/agent-note-upstream-v0-1-5-rc-1-sync-and-the-per-face-build-upkeep/consequences:
+  en: aa3ce4e4a2e0d0f9
+  zh: 0a58df845aad5966
+/agent-note-upstream-v0-1-5-rc-1-sync-and-the-per-face-build-upkeep/alternatives-considered:
+  en: 744bfa092991b044
+  zh: 134152445d403f4b
+/agent-note-upstream-v0-1-5-rc-1-sync-and-the-per-face-build-upkeep/testing:
+  en: 64322991dfca7a6a
+  zh: 536e0746de6f873b

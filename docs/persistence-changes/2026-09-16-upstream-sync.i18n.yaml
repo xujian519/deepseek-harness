@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-upstream-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-16-upstream-sync.md
-2026-09-16-upstream-sync.md: 8d043fd472ff8bbc206172967e2f9234af34dce8
-2026-09-16-upstream-sync.zh.md: 608b4e20c20820fc2941526b3b507fae8f51a253
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-09-16-upstream-sync:
+  en: fb7bbe16f4fd087a
+  zh: 30153999f03cd4a2
+/2026-09-16-upstream-sync/summary:
+  en: de248c5cf3461a5e
+  zh: 8ffa42f525812be2
+/2026-09-16-upstream-sync/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-09-16-upstream-sync/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-09-16-upstream-sync/compatibility:
+  en: dc2333735615cf79
+  zh: 1a20dc4e76332ff9
+/2026-09-16-upstream-sync/verification:
+  en: dc8a15806ab9af75
+  zh: bff6adcc184a789c
+/2026-09-16-upstream-sync/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

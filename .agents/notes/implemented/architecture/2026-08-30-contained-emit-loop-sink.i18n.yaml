@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-contained-emit-loop-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-30-contained-emit-loop-sink.md
-2026-08-30-contained-emit-loop-sink.md: 89e9b790804fea3dc4625a425b91d2791a2f6b02
-2026-08-30-contained-emit-loop-sink.zh.md: e993c2b64602a43a4de6c7151cf312afbe9e3a72
+/agent-note-h7-sink-the-contained-dispatch-loop-dsh-contained-emit:
+  en: 8370b2a313e63071
+  zh: 39eb7aa27b809fb7
+/agent-note-h7-sink-the-contained-dispatch-loop-dsh-contained-emit/problem:
+  en: e5d550d5415d0177
+  zh: 805de57db03eaf8d
+/agent-note-h7-sink-the-contained-dispatch-loop-dsh-contained-emit/decision:
+  en: efb7100c0aea74a8
+  zh: aaf9cfea2cc24528
+/agent-note-h7-sink-the-contained-dispatch-loop-dsh-contained-emit/consequences:
+  en: 83fa17f8486b69a6
+  zh: d5820d38a37924be
+/agent-note-h7-sink-the-contained-dispatch-loop-dsh-contained-emit/alternatives-considered:
+  en: 622aabbf198a1f99
+  zh: c031c6073590dd9c

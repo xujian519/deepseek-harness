@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-20-untrusted-prompt-text-in-data-blocks.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-20-untrusted-prompt-text-in-data-blocks.md
-2026-09-20-untrusted-prompt-text-in-data-blocks.md: 5455e46cbd56acd2359b00e0f0036bf16e9b335a
-2026-09-20-untrusted-prompt-text-in-data-blocks.zh.md: 895a1ae80aec5c3ec92fd65be2806142dd7198ea
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block:
+  en: 68108a5cfc945b75
+  zh: fd386e073f3f91b3
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block/problem:
+  en: 868fed1316238478
+  zh: 0d99cafb4ac307f7
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block/decision:
+  en: 160ba6223fc029f7
+  zh: 8ce2d9ac80db658a
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block/alternatives-considered:
+  en: 33b175f32b8b25c6
+  zh: 5e17a850dc991af2
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block/consequences:
+  en: ac8fd013148d551f
+  zh: e65e4711b20e4dca
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block/testing:
+  en: 6f1c5d70afa9591d
+  zh: 4bf472797c298b4f
+/agent-note-isolate-untrusted-prompt-text-in-a-data-block/related:
+  en: 95da417afa03305c
+  zh: 08e344498dd353cf

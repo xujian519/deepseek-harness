@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-26-self-evolve-benchmark-output-scoring-patent-preset.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-self-evolve-benchmark-output-scoring-patent-preset.md
-2026-08-26-self-evolve-benchmark-output-scoring-patent-preset.md: 936e24f6789a1dca8b300b5b6b36693750cee106
-2026-08-26-self-evolve-benchmark-output-scoring-patent-preset.zh.md: a5554400097f6f7005f76f19807e5ac8fa6017ab
+/agent-note-benchmark-driven-self-evolution-output-level-scoring-and-the-patent-preset-wiring:
+  en: e3ba44d9280e3e8d
+  zh: 3fb06cc88cc3efbc
+/agent-note-benchmark-driven-self-evolution-output-level-scoring-and-the-patent-preset-wiring/problem:
+  en: 0a7f26d67f86de6f
+  zh: eafb59bf9e5b1af7
+/agent-note-benchmark-driven-self-evolution-output-level-scoring-and-the-patent-preset-wiring/decision:
+  en: 023606df3b4d4f71
+  zh: 06fe9d83e588bd90
+/agent-note-benchmark-driven-self-evolution-output-level-scoring-and-the-patent-preset-wiring/alternatives-considered:
+  en: 603b375119809190
+  zh: 5298844ceb60803c
+/agent-note-benchmark-driven-self-evolution-output-level-scoring-and-the-patent-preset-wiring/consequences:
+  en: 700e9b6347aca1bf
+  zh: 6036378e8087fe33

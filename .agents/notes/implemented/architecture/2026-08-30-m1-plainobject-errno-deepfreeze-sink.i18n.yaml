@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-m1-plainobject-errno-deepfreeze-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-30-m1-plainobject-errno-deepfreeze-sink.md
-2026-08-30-m1-plainobject-errno-deepfreeze-sink.md: 6c1d0d0dcef69ccda453450fb6fbf8f0a139c235
-2026-08-30-m1-plainobject-errno-deepfreeze-sink.zh.md: 1587eb3b5e2411dfd1d176b3c0430d20f876598d
+/agent-note-m1-second-sink-isplainobject-the-errno-tests-and-deepfreeze:
+  en: 9c778b5b5528c2f5
+  zh: 4cd636b8c30f242a
+/agent-note-m1-second-sink-isplainobject-the-errno-tests-and-deepfreeze/problem:
+  en: 0ccc62d07a0b1fb0
+  zh: 6f43f479b8a5aae3
+/agent-note-m1-second-sink-isplainobject-the-errno-tests-and-deepfreeze/decision:
+  en: 2398c370d0d45547
+  zh: d5640fda8f8ad5eb
+/agent-note-m1-second-sink-isplainobject-the-errno-tests-and-deepfreeze/consequences:
+  en: 564dfd0ae61d3252
+  zh: 7cb1ec0d3972740a
+/agent-note-m1-second-sink-isplainobject-the-errno-tests-and-deepfreeze/alternatives-considered:
+  en: c95f9d5d71d0712d
+  zh: 981df961c2c31924

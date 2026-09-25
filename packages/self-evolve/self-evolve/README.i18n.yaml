@@ -1,6 +1,37 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/self-evolve/self-evolve/README.md
-README.md: 6cc6d18bf8108a80a85298e6d1a2bd3a60bd2b18
-README.zh.md: 281c31b3327d78c51f66265afd3ce2ba736cd4c7
+/:
+  en: 9cd54290720024c3
+  zh: 0f5e9b28aef8239b
+/deepseek-ai-dsh-self-evolve:
+  en: 2415cc63d00f17ee
+  zh: cd35044a3858ba79
+/deepseek-ai-dsh-self-evolve/summary:
+  en: cf95e25268ed9d72
+  zh: 02a9dec4b5539c95
+/deepseek-ai-dsh-self-evolve/table-of-contents:
+  en: d0791c7b45e331a7
+  zh: 24aac4f1437db76c
+/deepseek-ai-dsh-self-evolve/service-api-ctx-selfevolve:
+  en: 02060fe100812cc9
+  zh: ec01a2101fcb9807
+/deepseek-ai-dsh-self-evolve/events:
+  en: fa8e1fd060ad76f6
+  zh: 4d73d46f6c1aad7a
+/deepseek-ai-dsh-self-evolve/failure-pattern-projection:
+  en: f4f7ffb1fab16e27
+  zh: 1a2b3d7096670ec7
+/deepseek-ai-dsh-self-evolve/model-experience:
+  en: 43d0a6ef14a11691
+  zh: e954539f01de9216
+/deepseek-ai-dsh-self-evolve/model-experience/kv-cache-effect:
+  en: bf1e2796b84ead30
+  zh: c6edd9bcd30c5fbf
+/deepseek-ai-dsh-self-evolve/known-limitations-and-deferred-work:
+  en: 704c4f8cc9bc3642
+  zh: 9fd67b0717166d7c
+/deepseek-ai-dsh-self-evolve/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 2f3869362d93b8a0

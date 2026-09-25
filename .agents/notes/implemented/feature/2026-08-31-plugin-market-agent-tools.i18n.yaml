@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-31-plugin-market-agent-tools.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-plugin-market-agent-tools.md
-2026-08-31-plugin-market-agent-tools.md: 7d671ccc8997dda05a7f552e089a7db4263eef65
-2026-08-31-plugin-market-agent-tools.zh.md: c8aa0b9e0c31c1c5d0623a1b3d34a3464df12450
+/agent-note-plugin-catalog-discovery-tools-for-the-model:
+  en: 5d1a94b3f35216de
+  zh: 622377d9140f1a6f
+/agent-note-plugin-catalog-discovery-tools-for-the-model/problem:
+  en: e95bf7644ef898c2
+  zh: 1a7f7ed5a893835e
+/agent-note-plugin-catalog-discovery-tools-for-the-model/decision:
+  en: 5b2979fc2d17b59f
+  zh: 98f6f72efe5954fb
+/agent-note-plugin-catalog-discovery-tools-for-the-model/decision/source-resolution:
+  en: 82f6324d6b4a8d31
+  zh: 4fd354dd2d122e4e
+/agent-note-plugin-catalog-discovery-tools-for-the-model/decision/bundled-source-short-circuit:
+  en: dc0734697bda64a6
+  zh: 19a7872015c5384a
+/agent-note-plugin-catalog-discovery-tools-for-the-model/decision/composition:
+  en: 76ac1a5c03c441ce
+  zh: 812763f43c7f5fc5
+/agent-note-plugin-catalog-discovery-tools-for-the-model/alternatives-considered:
+  en: 2b4c3a6a07eb6c7e
+  zh: 9009fd222af64f89
+/agent-note-plugin-catalog-discovery-tools-for-the-model/generated-catalog:
+  en: df43a19db7ba2c1b
+  zh: fa0d6e2c1c31b042
+/agent-note-plugin-catalog-discovery-tools-for-the-model/consequences:
+  en: 3c0125b1fc730e36
+  zh: 4e87ad80bdd9112c

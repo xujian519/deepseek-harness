@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-26-hygiene-gate-debt-and-conflict.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/bug-fix/2026-08-26-hygiene-gate-debt-and-conflict.md
-2026-08-26-hygiene-gate-debt-and-conflict.md: c27182276885c63e4c88c0c0a8437161e3fa6235
-2026-08-26-hygiene-gate-debt-and-conflict.zh.md: 6449ed7bd3d82916e4c8b63ebdd0ea3e55f06f59
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict:
+  en: cee2882227e6aa35
+  zh: 4f172e7d464a4d67
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/problem:
+  en: 822c367ac8d3bdd6
+  zh: cadc17ca096d643f
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/proposal:
+  en: 97ffcf6658d9e3ca
+  zh: 2518d05790d66013
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/proposal/root-cause-of-the-hygiene-failures:
+  en: ca9f0fa44b724606
+  zh: b43bccd92387d4fb
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/proposal/root-cause-of-the-test-coverage-failures:
+  en: 0570a9336823a76a
+  zh: 2d3e1f1d98dfa68b
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/proposal/conflict-with-the-liberalization-plugin-window:
+  en: c580410c943eb227
+  zh: a854f3d7f08916f9
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/repair-backlog:
+  en: 9c20252a02384b03
+  zh: 63fba6c7a685f236
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/alternatives-considered:
+  en: 6418774eec36def9
+  zh: a561b0f35be367b3
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/acceptance-criteria:
+  en: c020e47aace6797d
+  zh: 6dc43f84a6e2b484
+/agent-note-hygiene-gate-debt-and-the-liberalization-plugin-conflict/risks:
+  en: b9a6763acf2e1f31
+  zh: 310deda2260335fb

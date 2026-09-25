@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-desktop-workspace-sidebar-remount.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-10-desktop-workspace-sidebar-remount.md
-2026-09-10-desktop-workspace-sidebar-remount.md: a42d5f1f01351b2ce9d063e5ba0f9664f31b9cba
-2026-09-10-desktop-workspace-sidebar-remount.zh.md: e17619d94bb29b6722d0247a4d0ce4082620c483
+/agent-note-remount-the-workspace-sidebar-on-desktop:
+  en: e62aa65bfac2d45f
+  zh: e5a09587ebf64978
+/agent-note-remount-the-workspace-sidebar-on-desktop/problem:
+  en: b6601bc0cb4aa75e
+  zh: a589af3b25707bed
+/agent-note-remount-the-workspace-sidebar-on-desktop/decision:
+  en: 6e8e24d6d3e3d05d
+  zh: 5e19158ff480d6b1
+/agent-note-remount-the-workspace-sidebar-on-desktop/alternatives-considered:
+  en: aff3655b129a320f
+  zh: bb746aad5dcf785f
+/agent-note-remount-the-workspace-sidebar-on-desktop/consequences:
+  en: 8b60dc8332193535
+  zh: 2b7bc73673d136c7
+/agent-note-remount-the-workspace-sidebar-on-desktop/testing:
+  en: d583d3a4f2021eca
+  zh: f0f8d10740d38bf3
+/agent-note-remount-the-workspace-sidebar-on-desktop/related:
+  en: 58813110e8c80324
+  zh: f6f62653b28c4e3d

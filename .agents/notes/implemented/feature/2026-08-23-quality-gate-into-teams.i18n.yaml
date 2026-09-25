@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-quality-gate-into-teams.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-quality-gate-into-teams.md
-2026-08-23-quality-gate-into-teams.md: 8a0f5d3c61d9827b2578a5600301ce4ab3f19e9e
-2026-08-23-quality-gate-into-teams.zh.md: 48b8330914716210a05c732c3544d991f0e9bb31
+/agent-note-gate-patent-team-task-completion:
+  en: 0329001eade4271b
+  zh: a10a688da4e68c57
+/agent-note-gate-patent-team-task-completion/problem:
+  en: 4c6e92677f319b11
+  zh: 87c51a4f090ec70e
+/agent-note-gate-patent-team-task-completion/decision:
+  en: 3a8cab638b5f49d1
+  zh: 6d059292bdd6d183
+/agent-note-gate-patent-team-task-completion/alternatives-considered:
+  en: b815403bc6db3f8b
+  zh: e45ba483d41a4fed
+/agent-note-gate-patent-team-task-completion/consequences:
+  en: 8071b13538883e7e
+  zh: 328fab690902f8fc
+/agent-note-gate-patent-team-task-completion/non-attributable-failures-waiting-on-the-concurrent-window:
+  en: f43d033c5edb2df7
+  zh: 7fc46b699a117ed1

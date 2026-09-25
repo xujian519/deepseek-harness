@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-07-macos-native-tools-plugin.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-07-macos-native-tools-plugin.md
-2026-09-07-macos-native-tools-plugin.md: ef5143b80d61d1f8b10356eb51d3b1923990a4f9
-2026-09-07-macos-native-tools-plugin.zh.md: b2945c0005b1821b046a96886bfbc98e3f9db110
+/agent-note-macos-native-tools-plugin-cli-driven-model-tools-with-risk-tiered-approval:
+  en: 7b9aaf7795a4716d
+  zh: 20fe151c0a031bf4
+/agent-note-macos-native-tools-plugin-cli-driven-model-tools-with-risk-tiered-approval/problem:
+  en: 6a0a04997dd661cc
+  zh: ecb85a8ef897d6d8
+/agent-note-macos-native-tools-plugin-cli-driven-model-tools-with-risk-tiered-approval/decision:
+  en: dbf7e0654c68dc83
+  zh: 645c8091866d293d
+/agent-note-macos-native-tools-plugin-cli-driven-model-tools-with-risk-tiered-approval/alternatives-considered:
+  en: 1d79d36932030a7b
+  zh: 913096e2347bde2f
+/agent-note-macos-native-tools-plugin-cli-driven-model-tools-with-risk-tiered-approval/consequences:
+  en: a96ebaf82bb5777e
+  zh: b32ae6bd544bdd2e
+/agent-note-macos-native-tools-plugin-cli-driven-model-tools-with-risk-tiered-approval/testing:
+  en: b66c04af43656405
+  zh: dd8289f32d07a8d4

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-18-self-evolve-commit-and-lint-hardening.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-18-self-evolve-commit-and-lint-hardening.md
-2026-08-18-self-evolve-commit-and-lint-hardening.md: c5421edbd68186ccb5dd27161c372549f82e4095
-2026-08-18-self-evolve-commit-and-lint-hardening.zh.md: ae74896143ae4ddb0cc8a535f43797e6caa97f4b
+/agent-note-self-evolve-commit-duplication-lint-hardening-and-honest-claims:
+  en: 8ba465f7831adfce
+  zh: a3c647905e3faa80
+/agent-note-self-evolve-commit-duplication-lint-hardening-and-honest-claims/problem:
+  en: a348044a75c68603
+  zh: c72d106d6773f76b
+/agent-note-self-evolve-commit-duplication-lint-hardening-and-honest-claims/decision:
+  en: de7854fe36c0c944
+  zh: 648d24e2ea75353f
+/agent-note-self-evolve-commit-duplication-lint-hardening-and-honest-claims/alternatives-considered:
+  en: 92be8e1bbe649697
+  zh: b6785f4780dfd612
+/agent-note-self-evolve-commit-duplication-lint-hardening-and-honest-claims/consequences:
+  en: 67f90c2eb2e50caf
+  zh: 35c1cfdca1cdfdf4

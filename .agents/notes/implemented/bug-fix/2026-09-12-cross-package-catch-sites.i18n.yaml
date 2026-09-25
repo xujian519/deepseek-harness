@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-12-cross-package-catch-sites.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-12-cross-package-catch-sites.md
-2026-09-12-cross-package-catch-sites.md: 19be0506ca7ff54c4447e01cfca5812128d6cd2f
-2026-09-12-cross-package-catch-sites.zh.md: dddcbd00ab29d857d85ac1058ef492b3006182a7
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites:
+  en: e55c6fc51a7bc832
+  zh: 5640a6bcd9c6a6be
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites/problem:
+  en: a080563ae656194d
+  zh: 8ea041cdaef57a61
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites/decision:
+  en: c153ca484beef06f
+  zh: 35a5d38c6499a456
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites/alternatives-considered:
+  en: 89b39f3fc6c56689
+  zh: dd312fd64213a109
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites/consequences:
+  en: 96e2464f98bbf1f8
+  zh: 24cfdf9baa366b95
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites/testing:
+  en: b410f9d8b884acbf
+  zh: 3dff62cc17706a60
+/agent-note-naming-the-swallowed-failure-in-the-remaining-catch-sites/related:
+  en: 2904ef7f2edaceff
+  zh: b215fda0c8eac8c6

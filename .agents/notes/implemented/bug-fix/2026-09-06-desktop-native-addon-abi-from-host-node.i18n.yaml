@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-desktop-native-addon-abi-from-host-node.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-06-desktop-native-addon-abi-from-host-node.md
-2026-09-06-desktop-native-addon-abi-from-host-node.md: ba5cfa1458d15db714bef13b8cb3cc90d1d7fbaf
-2026-09-06-desktop-native-addon-abi-from-host-node.zh.md: 4e664d0aee5b08133c7b11db724ce97102d831aa
+/agent-note-packaged-desktop-app-ships-abi-mismatched-native-addons:
+  en: 7c9b1cd8e9cf09dc
+  zh: c5bc98f672f4de92
+/agent-note-packaged-desktop-app-ships-abi-mismatched-native-addons/problem:
+  en: 9cb3ec9bca7d7fa0
+  zh: d66497531be3a1f8
+/agent-note-packaged-desktop-app-ships-abi-mismatched-native-addons/decision:
+  en: 82f5dcff28a67ded
+  zh: d0553249c6f7c83b
+/agent-note-packaged-desktop-app-ships-abi-mismatched-native-addons/alternatives-considered:
+  en: 272dd50e19097551
+  zh: d0770af0088587d7
+/agent-note-packaged-desktop-app-ships-abi-mismatched-native-addons/consequences:
+  en: e6aa0be2e451a06f
+  zh: de8c4e98e496734d

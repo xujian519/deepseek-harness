@@ -1,6 +1,55 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-knowledge/README.md
-README.md: f51a8f74af0dfde1662dde684560a77b9fa8eafc
-README.zh.md: 9cd38a7125ce988674932c068b34c34f201ef5bc
+/:
+  en: 578567b589711984
+  zh: c4c616bf1ea85c6a
+/deepseek-ai-dsh-patent-knowledge:
+  en: 24629faa0326a2e7
+  zh: a81b1de23922ddff
+/deepseek-ai-dsh-patent-knowledge/summary:
+  en: 68201b899496ab3d
+  zh: 31c363369afce09e
+/deepseek-ai-dsh-patent-knowledge/table-of-contents:
+  en: 88aaf902c6ad65d9
+  zh: fd33b85a2ae65c35
+/deepseek-ai-dsh-patent-knowledge/service:
+  en: c29ac6cfdc704bfe
+  zh: 50cd2d1ef7652ef4
+/deepseek-ai-dsh-patent-knowledge/service/caselawsearch-query-options:
+  en: 7bdd86952130c12c
+  zh: 6680adeeb36961fd
+/deepseek-ai-dsh-patent-knowledge/service/legalsearch-query-options:
+  en: 4d5dd4227f11ae97
+  zh: 410ab25a84e59522
+/deepseek-ai-dsh-patent-knowledge/service/wikicards-query-limit:
+  en: 160d840333a60075
+  zh: cbfef29237f4b190
+/deepseek-ai-dsh-patent-knowledge/service/ipcclassify-text:
+  en: 2dc9f7841a90ac27
+  zh: 0d034f4ccc80dc6d
+/deepseek-ai-dsh-patent-knowledge/service/kgsearch-kggetnode-kglistbytype:
+  en: 4a1b2db25b3197c0
+  zh: 678b814380a87db9
+/deepseek-ai-dsh-patent-knowledge/service/ipcstandards-ipcstandardsbyarticle-ipcstandardssearch:
+  en: f6d093dae74b558c
+  zh: 7086ea0647d2eb10
+/deepseek-ai-dsh-patent-knowledge/configuration:
+  en: 327c81fd47c20b5e
+  zh: 57173c4fdce36cee
+/deepseek-ai-dsh-patent-knowledge/patent-knowledge-install:
+  en: 7e4aea589ed1f018
+  zh: b9f0235383010125
+/deepseek-ai-dsh-patent-knowledge/model-experience:
+  en: ad2798b1e52c4d75
+  zh: ad2798b1e52c4d75
+/deepseek-ai-dsh-patent-knowledge/model-experience/kv-cache-effect:
+  en: 3cab5d6554a15ac4
+  zh: 27461486d950abe4
+/deepseek-ai-dsh-patent-knowledge/known-limitations-and-deferred-work:
+  en: d7f1cd959be68914
+  zh: 129a33ef96ff2d5b
+/deepseek-ai-dsh-patent-knowledge/known-limitations-and-deferred-work/dev-note:
+  en: c8ebffa1f22a820c
+  zh: 801a737e28147d64

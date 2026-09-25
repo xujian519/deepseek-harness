@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-25-patent-preset-convergence.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-25-patent-preset-convergence.md
-2026-08-25-patent-preset-convergence.md: 3ecf512ddd113adc6429f3b46b395208812ccb3f
-2026-08-25-patent-preset-convergence.zh.md: 8a9477386f648a03c2a0caa2a35fab457d6ccfbf
+/agent-note-converge-the-two-divergent-patent-presets-into-the-shipped-canonical:
+  en: d3c94a06da6036ad
+  zh: 8ddd9c439de2b0d6
+/agent-note-converge-the-two-divergent-patent-presets-into-the-shipped-canonical/problem:
+  en: d6fdc1377b7aded7
+  zh: 1e268104accf842d
+/agent-note-converge-the-two-divergent-patent-presets-into-the-shipped-canonical/decision:
+  en: b671dc54061533f2
+  zh: ebc2735a0f434210
+/agent-note-converge-the-two-divergent-patent-presets-into-the-shipped-canonical/alternatives-considered:
+  en: 3a0bfd5865946e28
+  zh: d6b2e4ea809a8609
+/agent-note-converge-the-two-divergent-patent-presets-into-the-shipped-canonical/consequences:
+  en: 6232622f97c8d003
+  zh: ac96c080b040a4d2

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-desktop-shell-tray-and-print.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-desktop-shell-tray-and-print.md
-2026-09-09-desktop-shell-tray-and-print.md: 4683ca63d4f44481ae9fb40fad5f1dc90df804a6
-2026-09-09-desktop-shell-tray-and-print.zh.md: dfe56fb45963b197d85c9427bd6ceca99e084a3b
+/agent-note-desktop-shell-tray-print-to-pdf-and-preload-chunk-limit:
+  en: fe18cf70ca60fbd3
+  zh: 4804f5b40898522e
+/agent-note-desktop-shell-tray-print-to-pdf-and-preload-chunk-limit/problem:
+  en: a30f0eaad950bc13
+  zh: a4a78c9c7a698f3e
+/agent-note-desktop-shell-tray-print-to-pdf-and-preload-chunk-limit/decision:
+  en: 1dce638c35b024c8
+  zh: bd657bc7d59f62b4
+/agent-note-desktop-shell-tray-print-to-pdf-and-preload-chunk-limit/alternatives-considered:
+  en: 244244c6f200e144
+  zh: 30bbee3baab61513
+/agent-note-desktop-shell-tray-print-to-pdf-and-preload-chunk-limit/consequences:
+  en: 37653733a02bdb62
+  zh: 3333c1e0c67fc6af

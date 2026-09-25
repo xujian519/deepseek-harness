@@ -1,6 +1,43 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-tools/README.md
-README.md: 4815fa7105823fd2c29e62b27b542089c35bf47f
-README.zh.md: 191a7e356a2b4ac52c7c608b44291c5a51113852
+/:
+  en: ed5df618aa1da226
+  zh: 627adf474eda4506
+/deepseek-ai-dsh-patent-tools:
+  en: 43a4793a611b4e2d
+  zh: 64313908162d86ab
+/deepseek-ai-dsh-patent-tools/summary:
+  en: c9ccdc0e94eab125
+  zh: 24de2a5d427780eb
+/deepseek-ai-dsh-patent-tools/table-of-contents:
+  en: d5e558a2a1eb4650
+  zh: 3cd31d97eb0a44a5
+/deepseek-ai-dsh-patent-tools/tools:
+  en: 9b5aa4e8694dc13f
+  zh: 3c22756fd8ecac03
+/deepseek-ai-dsh-patent-tools/configuration:
+  en: 19ea7223738298d3
+  zh: 91a36ee4cee06c9e
+/deepseek-ai-dsh-patent-tools/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-patent-tools/model-experience/tool-schemas:
+  en: 3039bc5e7a796b21
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-patent-tools/model-experience/tool-schemas/what-the-model-sees:
+  en: ee2a3b1102bd56ca
+  zh: 13a2df747291b13b
+/deepseek-ai-dsh-patent-tools/model-experience/tool-schemas/token-effect:
+  en: 498e4b52fc562c0b
+  zh: 96419d05aef9b5a7
+/deepseek-ai-dsh-patent-tools/model-experience/tool-schemas/kv-cache-effect:
+  en: f0199d6e3cacfdeb
+  zh: 67712ee4125fa6e5
+/deepseek-ai-dsh-patent-tools/known-limitations-and-deferred-work:
+  en: 77cad9a31d13f9cf
+  zh: a7af9b4e51b8df70
+/deepseek-ai-dsh-patent-tools/known-limitations-and-deferred-work/dev-note:
+  en: be6841fc7e9f393c
+  zh: 5f1e563c667fbdb1

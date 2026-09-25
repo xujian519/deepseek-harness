@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-god-file-split-plan.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-god-file-split-plan.md
-2026-09-14-god-file-split-plan.md: 1fa73b0abec8782bfe514b4d5ae55950d9c526c3
-2026-09-14-god-file-split-plan.zh.md: 465793cc10fb39bf56527504e94d3ff6966e1e6b
+/agent-note-splitting-the-seven-god-files-issue-86:
+  en: 13de8f1871a2831e
+  zh: c178fdc99dafa09d
+/agent-note-splitting-the-seven-god-files-issue-86/problem:
+  en: 55e82802be387257
+  zh: 600da6b9d5680793
+/agent-note-splitting-the-seven-god-files-issue-86/decision:
+  en: 13e909836f372be3
+  zh: bf7648ca3889d2cd
+/agent-note-splitting-the-seven-god-files-issue-86/decision/four-rules-that-hold-across-every-batch:
+  en: 7c900f1559d974b8
+  zh: 19b13e796a5a419a
+/agent-note-splitting-the-seven-god-files-issue-86/decision/batch-1-the-extraction-that-preserved-behavior-by-construction:
+  en: 9ca687af41afa739
+  zh: 6b66adc8c4ffd237
+/agent-note-splitting-the-seven-god-files-issue-86/decision/batch-2-cuts-that-needed-an-interface-settled-first:
+  en: 5697d6d1bd81625b
+  zh: 0be97c8430c39af9
+/agent-note-splitting-the-seven-god-files-issue-86/decision/batch-3-cuts-that-sit-on-semantics-each-with-its-own-evidence:
+  en: ba826f30d2f1ba96
+  zh: 763f4e8d3bac208a
+/agent-note-splitting-the-seven-god-files-issue-86/alternatives-considered:
+  en: 41f6c418e7de7129
+  zh: 39df971437411292
+/agent-note-splitting-the-seven-god-files-issue-86/consequences:
+  en: 7f3408e7519aa006
+  zh: 9e26338123b74bbf
+/agent-note-splitting-the-seven-god-files-issue-86/related:
+  en: 8069d5e73f2fee54
+  zh: be03df08f47eaa14

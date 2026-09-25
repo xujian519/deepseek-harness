@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-slop-gate-closed-loop.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-slop-gate-closed-loop.md
-2026-08-27-slop-gate-closed-loop.md: fe38ee9baa668132a6b204acfde7efbe871e248d
-2026-08-27-slop-gate-closed-loop.zh.md: a80e8f6793ce1eb14fe03c4af7091784094d75d2
+/agent-note-slop-gate-closed-loop:
+  en: b75da3fb6f48c5fe
+  zh: 1a02869bad840a78
+/agent-note-slop-gate-closed-loop/problem:
+  en: 253d9ea5bb8f3661
+  zh: 1a4928e0eddc6e99
+/agent-note-slop-gate-closed-loop/decision:
+  en: 260d1fc82098bf14
+  zh: cb382cae3b9d50cd
+/agent-note-slop-gate-closed-loop/alternatives-considered:
+  en: 634670e9c59d695a
+  zh: b2147a896c2c816f
+/agent-note-slop-gate-closed-loop/consequences:
+  en: 7ba0754e0d37961a
+  zh: ec6bdbaf4df2a35c
+/agent-note-slop-gate-closed-loop/testing:
+  en: 7d4e1b117befd4c5
+  zh: b270a1c7a43d0623

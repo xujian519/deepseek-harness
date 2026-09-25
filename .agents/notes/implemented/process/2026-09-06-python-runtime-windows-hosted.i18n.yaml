@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-python-runtime-windows-hosted.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-06-python-runtime-windows-hosted.md
-2026-09-06-python-runtime-windows-hosted.md: 7daf30fa1b885a4fdf0f5f861f8439c1cc2fdc38
-2026-09-06-python-runtime-windows-hosted.zh.md: 0c5f36defaedc3d5ae409aaa27a8b54e270951bb
+/agent-note-windows-python-runtime-ci-stays-on-github-hosted-windows:
+  en: d36b4627e3216a22
+  zh: aabdaed56959936a
+/agent-note-windows-python-runtime-ci-stays-on-github-hosted-windows/problem:
+  en: cc005904b691e81c
+  zh: 1e11a4a08c04efff
+/agent-note-windows-python-runtime-ci-stays-on-github-hosted-windows/decision:
+  en: 2a1c4c3d52f56080
+  zh: 030827eade87d993
+/agent-note-windows-python-runtime-ci-stays-on-github-hosted-windows/alternatives-considered:
+  en: 817e77f011ea35c8
+  zh: 2087bc653620a60f
+/agent-note-windows-python-runtime-ci-stays-on-github-hosted-windows/consequences:
+  en: c31f88bace48ff9e
+  zh: 4698cd5ee3152e87

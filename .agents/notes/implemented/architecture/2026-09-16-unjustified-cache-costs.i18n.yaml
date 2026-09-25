@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-unjustified-cache-costs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-unjustified-cache-costs.md
-2026-09-16-unjustified-cache-costs.md: 6ee951811948edd0ba2c4372cbbb05822034725f
-2026-09-16-unjustified-cache-costs.zh.md: 658cf6e0e584bc853c6372a3d7f2487b60b32924
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache:
+  en: 8d265e4617dac30d
+  zh: d371ef3335e3edd6
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache/problem:
+  en: 5f381b62a30ee287
+  zh: 8f2c74682b657009
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache/decision:
+  en: 1d07467c3c8556a1
+  zh: cabdfc04f0660a29
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache/alternatives-considered:
+  en: 99b0d0a22fbeab20
+  zh: 7b24b9bb17cfc819
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache/consequences:
+  en: 81bc014e175d3418
+  zh: 2e5eed3fbffebf93
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache/testing:
+  en: ec3db0d8666564e5
+  zh: 2f3bdb21bbc8dd67
+/agent-note-request-path-and-forwarding-costs-measured-too-small-to-cache/related:
+  en: a77fd8e1e0dbfe89
+  zh: 7136985b46801447

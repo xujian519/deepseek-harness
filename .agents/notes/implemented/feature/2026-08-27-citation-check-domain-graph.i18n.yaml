@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-citation-check-domain-graph.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-citation-check-domain-graph.md
-2026-08-27-citation-check-domain-graph.md: 2aca58320e06e1117d316de9d770b9f9eef9b8ec
-2026-08-27-citation-check-domain-graph.zh.md: c5e260c8dc6aac86f209300cb20c323c0924012a
+/agent-note-citation-check-domain-graph:
+  en: d31d2ee11315936c
+  zh: 3a84b0e9382f6a23
+/agent-note-citation-check-domain-graph/problem:
+  en: 2c2b2f1118d3af68
+  zh: a550b4ed67196361
+/agent-note-citation-check-domain-graph/decision:
+  en: da8799305489dff2
+  zh: e8c5e663ec2ca2ea
+/agent-note-citation-check-domain-graph/alternatives-considered:
+  en: 07a367e76c94c101
+  zh: 0002fdccf10d8304
+/agent-note-citation-check-domain-graph/consequences:
+  en: 5a14a1534ef443f6
+  zh: 38ba2b658d956161
+/agent-note-citation-check-domain-graph/testing:
+  en: 751eb5bca196aeb5
+  zh: d9361b92de67f730

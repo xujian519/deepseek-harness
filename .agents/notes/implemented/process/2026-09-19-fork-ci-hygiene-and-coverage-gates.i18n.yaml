@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-19-fork-ci-hygiene-and-coverage-gates.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-19-fork-ci-hygiene-and-coverage-gates.md
-2026-09-19-fork-ci-hygiene-and-coverage-gates.md: c88a2b0084218157de2d6a0ceb7310e662518d15
-2026-09-19-fork-ci-hygiene-and-coverage-gates.zh.md: f016ae01e9a1d29e6fefb0653286af52c5767abe
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates:
+  en: 457745236f93c50e
+  zh: f03a2d96b1b65af7
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/problem:
+  en: afa6371f29380505
+  zh: 89d15ad4bd9a2c35
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/decision:
+  en: ebb9043f704ac0fc
+  zh: fb484c204e7e3426
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/decision/node-hygiene-owns-its-build:
+  en: 7ddb6ea26edb0d64
+  zh: 58d2d0a51bfc5b4e
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/decision/node-coverage-is-pr-only-and-build-free:
+  en: 001e848ba784af1e
+  zh: 6a9e08679d363c06
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/decision/the-constraints-declaration:
+  en: 0b4d92807e99d7a1
+  zh: bee332da19b8152a
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/alternatives-considered:
+  en: 0ebccca475b32961
+  zh: 61707def97540eb3
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/consequences:
+  en: 74b4b79425d08cef
+  zh: e33b2ef2870ea22b
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/testing:
+  en: 320d75d02db6f305
+  zh: 1062c2d944595cc8
+/agent-note-fork-ci-runs-the-hygiene-and-coverage-aggregates/related:
+  en: e69b0a126b3429ac
+  zh: b2a426c5af0d0889

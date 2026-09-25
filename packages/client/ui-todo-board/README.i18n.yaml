@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-todo-board/README.md
-README.md: 774f16ed041477fc135fedebf3f89faceafbd505
-README.zh.md: c4845a258d5f47761bd83ac65735a6c248751886
+/:
+  en: 3db2194f00eeed5c
+  zh: d86fec034ef87a36
+/deepseek-ai-dsh-client-ui-todo-board:
+  en: 050e6aa4435ee1b6
+  zh: 19704630cb20f765
+/deepseek-ai-dsh-client-ui-todo-board/summary:
+  en: 7eed84a5f13fd39d
+  zh: 5f7cb3064d3af679
+/deepseek-ai-dsh-client-ui-todo-board/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-client-ui-todo-board/use-this-package:
+  en: 7d5793996e537df7
+  zh: 9d9eb99b446f457a
+/deepseek-ai-dsh-client-ui-todo-board/use-this-package/columns-and-cards:
+  en: c4f2818d64e2770e
+  zh: 057b5cfb0e0bb921
+/deepseek-ai-dsh-client-ui-todo-board/use-this-package/tag-filter:
+  en: d14480a67b973bf9
+  zh: 8d8187f6f6363472
+/deepseek-ai-dsh-client-ui-todo-board/use-this-package/the-empty-state:
+  en: c263a2f49bccaca9
+  zh: 69bca66ab83bb849
+/deepseek-ai-dsh-client-ui-todo-board/understand-the-implementation:
+  en: c0a2f6a98a0ded21
+  zh: 0c16e659fc553398
+/deepseek-ai-dsh-client-ui-todo-board/further-exploration:
+  en: 3cc52b0d3cfcd531
+  zh: 76111fef6be6cafb
+/deepseek-ai-dsh-client-ui-todo-board/model-experience:
+  en: 056ece189bd9ad2b
+  zh: 9573f3328fd3a9bb
+/deepseek-ai-dsh-client-ui-todo-board/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: 7b7c9189490fd739
+/deepseek-ai-dsh-client-ui-todo-board/known-limitations-and-deferred-work:
+  en: c511a9fdbfade095
+  zh: 372ec1a3397845ea
+/deepseek-ai-dsh-client-ui-todo-board/known-limitations-and-deferred-work/dev-note:
+  en: a7ddf195b608cb93
+  zh: 3d57a9544817a88b

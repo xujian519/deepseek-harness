@@ -39,6 +39,7 @@ function mountRootedShell({ appRoot = true }: { appRoot?: boolean } = {}) {
     <SidebarRoot
       collapsed={collapsed} width={300}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
+      useShortcuts={selector => selector([])}
       usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook}
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}

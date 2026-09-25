@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-20-mcp-client-surfaces-server-instructions.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-20-mcp-client-surfaces-server-instructions.md
-2026-08-20-mcp-client-surfaces-server-instructions.md: 814d0a68fd8d166dc06d1d5ba3336722caeac43b
-2026-08-20-mcp-client-surfaces-server-instructions.zh.md: 60a46e55d7732a222ffb8c104fb222a7a67724cc
+/agent-note-mcp-client-surfaces-server-instructions-as-a-prompt-section:
+  en: 13ee4df22ee2026d
+  zh: a0c08d2a889cae39
+/agent-note-mcp-client-surfaces-server-instructions-as-a-prompt-section/problem:
+  en: b8253b63f42f0ed2
+  zh: 070eabf3ad0658eb
+/agent-note-mcp-client-surfaces-server-instructions-as-a-prompt-section/decision:
+  en: 2e82237701582474
+  zh: 0895b70ad59580bb
+/agent-note-mcp-client-surfaces-server-instructions-as-a-prompt-section/alternatives-considered:
+  en: 5a7935bcd610698f
+  zh: ef978907b7287bf9
+/agent-note-mcp-client-surfaces-server-instructions-as-a-prompt-section/consequences:
+  en: 2547cf5871942299
+  zh: 91d3166c76003f53

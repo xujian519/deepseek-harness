@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-upstream-v0.1.6-alpha.1-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-16-upstream-v0.1.6-alpha.1-sync.md
-2026-09-16-upstream-v0.1.6-alpha.1-sync.md: ac4bbde191e8dde709cc7bdac684862c5f6d07a6
-2026-09-16-upstream-v0.1.6-alpha.1-sync.zh.md: acd2ca74f886d01dfede4889255d398e1128d78c
+/agent-note-upstream-v0-1-6-alpha-1-sync-and-the-host-face-alias-map-upkeep:
+  en: 7e73b7d2819fa0ac
+  zh: 8de107794b8854eb
+/agent-note-upstream-v0-1-6-alpha-1-sync-and-the-host-face-alias-map-upkeep/problem:
+  en: 338d6e3fcdf8b2e2
+  zh: 4ffd3c490636b562
+/agent-note-upstream-v0-1-6-alpha-1-sync-and-the-host-face-alias-map-upkeep/decision:
+  en: c2bd32634233fd97
+  zh: b6553a3bd33cb8af
+/agent-note-upstream-v0-1-6-alpha-1-sync-and-the-host-face-alias-map-upkeep/consequences:
+  en: e8994580fd15bb0e
+  zh: b5b005bf8d789284
+/agent-note-upstream-v0-1-6-alpha-1-sync-and-the-host-face-alias-map-upkeep/alternatives-considered:
+  en: 45f3da7bf44d65c2
+  zh: 4fb22679685b3e24
+/agent-note-upstream-v0-1-6-alpha-1-sync-and-the-host-face-alias-map-upkeep/testing:
+  en: eac81452170e0737
+  zh: 45618f1ed12004f7

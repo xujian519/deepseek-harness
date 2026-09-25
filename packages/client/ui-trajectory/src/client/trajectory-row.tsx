@@ -100,6 +100,9 @@ export const TrajectoryRow = memo(function TrajectoryRow({
       {({ displayText, listDisplayText, resultText, toolCallOnly, toolCallText }) => {
         const isCollapsedSummary = record.collapsedSummary !== undefined
         const isRequestOnly = record.cell.requestOnly === true
+        const singleToolNotice = record.cell.kind === 'context'
+          && record.cell.sourceBlocks?.length === 1
+          && record.cell.sourceBlocks.every(block => block.type === 'tool-addition' || block.type === 'tool-removal')
         const isInitialSystem = record.cell.kind === 'system'
           && record.cell.index === allRecords[0]?.cell.index
         const key = requestKey(record.turn, record.group)
@@ -126,7 +129,7 @@ export const TrajectoryRow = memo(function TrajectoryRow({
           && selectedRequestIdentity === requestIdentity(requestInfo)
         return (
           <tr
-            tabIndex={isRequestOnly ? -1 : 0}
+            tabIndex={isRequestOnly || singleToolNotice ? -1 : 0}
             aria-rowindex={position + 1 + historyRowOffset}
             aria-label={isCollapsedSummary
               ? t('request.collapsedSummary', {
@@ -159,7 +162,7 @@ export const TrajectoryRow = memo(function TrajectoryRow({
             data-collapsed-summary={record.collapsedSummaryKind}
             data-selected={!isCollapsedSummary && selected || undefined}
             data-timeline-focus={timelineFocus}
-            onClick={isRequestOnly
+            onClick={isRequestOnly || singleToolNotice
               ? undefined
               : isCollapsedSummary
                 ? () => {

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-20-prompt-prefix-cache-reuse.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-20-prompt-prefix-cache-reuse.md
-2026-08-20-prompt-prefix-cache-reuse.md: d3d6f2795265207f4495633127cf95215f5e71d5
-2026-08-20-prompt-prefix-cache-reuse.zh.md: 3ef5f1b442d898e49b2329faf8917cf41bd22786
+/agent-note-prompt-prefix-cache-reuse-for-provider-kv-caching:
+  en: 268d71f3cdec4d49
+  zh: 2aad984f395175ed
+/agent-note-prompt-prefix-cache-reuse-for-provider-kv-caching/problem:
+  en: 775ec19d70299604
+  zh: ba05af558a80f99e
+/agent-note-prompt-prefix-cache-reuse-for-provider-kv-caching/decision:
+  en: 7019ba42a3b8c263
+  zh: 91ad6a840989daaf
+/agent-note-prompt-prefix-cache-reuse-for-provider-kv-caching/alternatives-considered:
+  en: 7e92cad0b2f891a0
+  zh: d6098d55f2ae2870
+/agent-note-prompt-prefix-cache-reuse-for-provider-kv-caching/consequences:
+  en: ceb45b26900676af
+  zh: 25b681b3cea6124e

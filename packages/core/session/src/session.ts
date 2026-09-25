@@ -11,12 +11,13 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { EntryLifecycle } from '@deepseek-ai/dsh-entry-lifecycle'
 import { deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
-import type { Message } from '@deepseek-ai/dsh-llm'
+import type { Message, ToolHistory } from '@deepseek-ai/dsh-llm'
 import { SessionLogOffset, SessionSeq } from './types.ts'
 import type { AppendOptions, EpochHeader, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SessionSeedEventState, SurfaceIntent, SurfaceEventType } from './types.ts'
 import { SurfaceManager, validateSessionEventData } from './surface.ts'
 import type { SessionMessageProjection, SessionSurface } from './surface.ts'
 import { SessionFolds } from './folds.ts'
+import { ToolHistoryProjection } from './tool-history.ts'
 import { assertSessionEventEnvelope, snapshotSessionHeader, validateRestoredSessionHeader } from './validation.ts'
 import { collectSessionCallbacks, invokeContainedSessionObservers } from './observers.ts'
 import type { SessionCallback } from './observers.ts'
@@ -51,6 +52,10 @@ export const attachments = new WeakMap<Session, SessionEntry>()
  */
 export class Session {
   private log: SessionEvent[] = []
+  /** Cached historical tool definitions and updates for request projection. */
+  private readonly toolHistoryProjection = new ToolHistoryProjection()
+  /** Index of the next committed event not yet consumed by the tool-history fold. */
+  private toolHistorySeq = 0
   /** Single incremental owner of surface acceptance and projection state. */
   private readonly surfaceManager: SurfaceManager
 
@@ -276,6 +281,17 @@ export class Session {
   ownEvents(): readonly SessionEvent[] {
     // oxlint-disable-next-line typescript/no-deprecated -- Deprecated reader delegates to the deprecated range read.
     return this.snapshotEvents(this.inheritedEventCount)
+  }
+
+  /**
+   * Fold unseen committed events into capability-independent tool history.
+   * Initial access reconstructs inherited history; later reads consume only new events.
+   * @returns an immutable snapshot for LLM request projection, including historical addition definitions.
+   */
+  toolHistory(): ToolHistory {
+    for (const event of this.log.slice(this.toolHistorySeq)) this.toolHistoryProjection.apply(event)
+    this.toolHistorySeq = this.log.length
+    return this.toolHistoryProjection.snapshot()
   }
 
   /**
