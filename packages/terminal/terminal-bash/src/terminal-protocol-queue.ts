@@ -62,6 +62,7 @@ export class TerminalProtocolQueue {
   }
 
   /**
+   * Compare the current write generations against an earlier sample.
    * @param generation - generations sampled before the awaited inspection.
    * @returns Whether any protocol write began, or remains outstanding, since then.
    */
@@ -71,6 +72,7 @@ export class TerminalProtocolQueue {
   }
 
   /**
+   * Queue decoded provider output for the emulator to interpret.
    * @param data - decoded provider output to interpret; the emulator's replies are written back in order.
    */
   accept(data: string): void {

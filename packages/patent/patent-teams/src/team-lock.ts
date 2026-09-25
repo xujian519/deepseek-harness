@@ -56,7 +56,11 @@ export function teamLockKey(stateRoot: string, teamId: string): string {
   return `team:${stateRoot}:${teamId}`
 }
 
-/** Remove the optional UTF-8 BOM some editors prepend to JSON text. */
+/**
+ * Remove the optional UTF-8 BOM some editors prepend to JSON text.
+ * @param value - JSON text that may open with a BOM.
+ * @returns the text without a leading BOM.
+ */
 export function stripLeadingBom(value: string): string {
   return value.charCodeAt(0) === 0xFEFF ? value.slice(1) : value
 }
