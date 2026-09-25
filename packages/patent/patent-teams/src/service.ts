@@ -25,10 +25,14 @@ import { PatentTeamsAttemptId, PatentTeamsMessageId, PatentTeamsTaskId, PatentTe
 import {
   acknowledgeMailbox,
   appendMailbox,
+  createMessage,
+  readUnreadMailbox,
+  releaseMailboxDelivery,
+} from './mailbox.ts'
+import {
   archiveTeamDir,
   beginTaskAttempt,
   CAPTAIN_KEY,
-  createMessage,
   createTeamDir,
   findTeamByCaptain,
   findTeamByParticipant,
@@ -36,17 +40,17 @@ import {
   listArchivedTeamIds,
   readArchivedTeam,
   readTeam,
-  readUnreadMailbox,
   recordRetiredMemberIds,
-  releaseMailboxDelivery,
+  transitionError,
+  unsatisfiedDependencies,
+  writeTeam,
+} from './state.ts'
+import {
   sanitizeKey,
   stateRootOf,
   teamLockKey,
-  transitionError,
-  unsatisfiedDependencies,
   withTeamLock,
-  writeTeam,
-} from './state.ts'
+} from './team-lock.ts'
 import {
   deliverToMember,
   interruptMember,

@@ -8,35 +8,39 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   acknowledgeMailbox,
-  activateTaskAttempt,
   appendMailbox,
+  claimMailboxDelivery,
+  createMessage,
+  readMailbox,
+  readUnreadMailbox,
+  releaseMailboxDelivery,
+} from '../src/mailbox.ts'
+import {
+  activateTaskAttempt,
   archiveTeamDir,
   beginTaskAttempt,
   CAPTAIN_KEY,
-  claimMailboxDelivery,
-  createMessage,
   createTeamDir,
   findTeamByCaptain,
   findTeamByParticipant,
   invalidateTaskAttempt,
   listArchivedTeamIds,
   readArchivedTeam,
-  readMailbox,
   readRetiredMemberIds,
   readTeam,
-  readUnreadMailbox,
   recordRetiredMemberIds,
-  releaseMailboxDelivery,
-  replaceFileAtomicOrDirect,
-  sanitizeKey,
   TASK_TRANSITIONS,
-  stateRootOf,
-  teamLockKey,
   transitionError,
   unsatisfiedDependencies,
-  withTeamLock,
   writeTeam,
 } from '../src/state.ts'
+import {
+  replaceFileAtomicOrDirect,
+  sanitizeKey,
+  stateRootOf,
+  teamLockKey,
+  withTeamLock,
+} from '../src/team-lock.ts'
 import type { TeamMember, TeamMessage, TeamState, TeamTask } from '../src/types.ts'
 
 const tmpRoots: string[] = []

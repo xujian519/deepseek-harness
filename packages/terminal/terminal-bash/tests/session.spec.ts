@@ -412,8 +412,8 @@ describe('LocalPtySession readiness and output', () => {
     const emulatorSession = new LocalPtySession(emulatorTerminal, config())
     const emulatorOperation = emulatorSession.startSend({ text: '', submit: false })
     const emulator = (emulatorSession as unknown as {
-      emulator: { write(data: string, callback?: () => void): void }
-    }).emulator
+      protocol: { emulator: { write(data: string, callback?: () => void): void } }
+    }).protocol.emulator
     emulator.write = () => { throw new Error('emulator failed') }
     emulatorTerminal.emitData('output')
     await expect(emulatorOperation.done).rejects.toThrow('emulator failed')
@@ -425,32 +425,34 @@ describe('LocalPtySession readiness and output', () => {
     const session = new LocalPtySession(terminal, config())
     const internal = session as unknown as {
       closing: boolean
-      emulator: { write(data: string, callback?: () => void): void }
-      emulatorWrites: Promise<void>
-      responseWrites: Promise<void>
-      drainTerminalProtocol(): Promise<void>
-      closeEmulator(): void
+      protocol: {
+        emulator: { write(data: string, callback?: () => void): void }
+        emulatorWrites: Promise<void>
+        responseWrites: Promise<void>
+        drain(): Promise<void>
+        close(): void
+      }
     }
     internal.closing = true
     terminal.throwWrite = true
     terminal.emitData('\x1b[6n')
-    await internal.emulatorWrites
-    await internal.responseWrites
+    await internal.protocol.emulatorWrites
+    await internal.protocol.responseWrites
     expect(session.status()).toEqual({ kind: 'running' })
 
-    internal.emulator.write = () => { throw new Error('late emulator failure') }
+    internal.protocol.emulator.write = () => { throw new Error('late emulator failure') }
     terminal.emitData('late output')
-    await internal.emulatorWrites
+    await internal.protocol.emulatorWrites
     expect(session.status()).toEqual({ kind: 'running' })
 
     const first = Promise.withResolvers<undefined>()
-    internal.emulatorWrites = first.promise
-    const draining = internal.drainTerminalProtocol()
-    internal.emulatorWrites = Promise.resolve()
+    internal.protocol.emulatorWrites = first.promise
+    const draining = internal.protocol.drain()
+    internal.protocol.emulatorWrites = Promise.resolve()
     first.resolve(undefined)
     await draining
-    internal.closeEmulator()
-    internal.closeEmulator()
+    internal.protocol.close()
+    internal.protocol.close()
     terminal.emitData('after emulator close')
     expect(session.status()).toEqual({ kind: 'running' })
   })
@@ -460,11 +462,13 @@ describe('LocalPtySession readiness and output', () => {
     const session = new LocalPtySession(terminal, config())
     const writes: Array<{ data: string; done: () => void }> = []
     const internal = session as unknown as {
-      emulator: { write(data: string, callback?: () => void): void }
-      emulatorWrites: Promise<void>
-      closeEmulator(): void
+      protocol: {
+        emulator: { write(data: string, callback?: () => void): void }
+        emulatorWrites: Promise<void>
+        close(): void
+      }
     }
-    internal.emulator.write = (data, callback) => {
+    internal.protocol.emulator.write = (data, callback) => {
       writes.push({ data, done: callback ?? (() => {}) })
     }
 
@@ -478,8 +482,8 @@ describe('LocalPtySession readiness and output', () => {
     await Promise.resolve()
     expect(writes.map(write => write.data)).toEqual(['first', 'secondthird'])
     writes[1]!.done()
-    await internal.emulatorWrites
-    internal.closeEmulator()
+    await internal.protocol.emulatorWrites
+    internal.protocol.close()
   })
 
   it('lets queued terminal output run before the first post-write readiness poll', async () => {
@@ -1574,7 +1578,7 @@ describe('LocalPtySession bounds, signals, and teardown', () => {
       message: 'PTY cleanup failed (survivor)',
       cause: terminal.terminateError,
     })
-    expect((session as unknown as { emulatorClosed: boolean }).emulatorClosed).toBe(true)
+    expect((session as unknown as { protocol: { closed: boolean } }).protocol.closed).toBe(true)
     expect(terminal.kills).toEqual([])
 
     terminal.terminateError = undefined

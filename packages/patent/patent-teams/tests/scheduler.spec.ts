@@ -13,13 +13,17 @@ import { installTeamScheduler } from '../src/scheduler.ts'
 import {
   appendMailbox,
   createMessage,
-  createTeamDir,
   readMailbox,
+} from '../src/mailbox.ts'
+import {
+  createTeamDir,
   readTeam,
-  teamLockKey,
-  withTeamLock,
   writeTeam,
 } from '../src/state.ts'
+import {
+  teamLockKey,
+  withTeamLock,
+} from '../src/team-lock.ts'
 import type { TeamState, TeamTask } from '../src/types.ts'
 
 const tmpRoots: string[] = []
