@@ -227,6 +227,19 @@ export function validateWorkerOutput(
  */
 export function defaultPatentWorkers(): WorkerContract[] {
   return [
+    ...analysisWorkers(),
+    ...prosecutionWorkers(),
+    ...disputeWorkers(),
+    ...deliverableWorkers(),
+  ]
+}
+
+/**
+ * 前端分析 worker：技术交底书分析、检索策略与执行、新颖性与创造性判断。
+ * @returns 分析阶段的内置 worker 契约。
+ */
+function analysisWorkers(): WorkerContract[] {
+  return [
     {
       name: 'patent-technical-analyzer',
       tier: 'work',
@@ -306,6 +319,15 @@ export function defaultPatentWorkers(): WorkerContract[] {
       ],
       triggersHITL: true,
     },
+  ]
+}
+
+/**
+ * 申请与审查阶段 worker：意见陈述撰写、产出质量复核、案件流程管理、申请人代理、形式审查。
+ * @returns 申请审查阶段的内置 worker 契约。
+ */
+function prosecutionWorkers(): WorkerContract[] {
+  return [
     {
       name: 'patent-oa-writer',
       tier: 'work',
@@ -387,6 +409,15 @@ export function defaultPatentWorkers(): WorkerContract[] {
       forbiddenActions: ['draft_claims', 'draft_specification', 'novelty_analysis', 'inventiveness_analysis'],
       triggersHITL: false,
     },
+  ]
+}
+
+/**
+ * 无效与诉讼程序 worker：无效请求人、专利权人、被告代理人、合议组。
+ * @returns 争议阶段的内置 worker 契约。
+ */
+function disputeWorkers(): WorkerContract[] {
+  return [
     {
       name: 'invalidity-petitioner',
       tier: 'reasoning',
@@ -453,6 +484,15 @@ export function defaultPatentWorkers(): WorkerContract[] {
       forbiddenActions: ['draft_claims', 'draft_specification', 'novelty_analysis', 'inventiveness_analysis'],
       triggersHITL: true,
     },
+  ]
+}
+
+/**
+ * 中立技术与交付 worker：技术调查、附图产出、正式文档渲染。
+ * @returns 交付阶段的内置 worker 契约。
+ */
+function deliverableWorkers(): WorkerContract[] {
+  return [
     {
       name: 'tech-investigator',
       tier: 'reasoning',
