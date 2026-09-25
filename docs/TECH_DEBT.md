@@ -264,7 +264,7 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 
 ## 2026-09-26 更新(#292 收口:13 个超长函数拆分落地,2 项按单登记暂缓 + terminal-bash 就绪证据契约)
 
-- **范围与基线**:分支 `refactor/issue-292-long-functions`(基线为 2026-09-25 的 `master`,即 PR #293 合并后),12 个提交;改动面只有 `packages/patent/*`、`packages/terminal/terminal-bash`、`docs/TECH_DEBT.md` 与两份门禁基线,未触碰其他包。口径与 #292 一致:TypeScript AST 扫描 `packages/patent/*/src/**/*.ts`,函数体(block body)行数 > 150;下表「原」取自 #292 清单,「拆后」为同一口径今日复测,全部 13 项落地在同一 PR。
+- **范围与基线**:分支 `refactor/issue-292-long-functions`(基线为 2026-09-25 的 `master`,即 PR #293 合并后),12 个提交;改动面只有 `packages/patent/*`、`packages/terminal/terminal-bash`、`docs/TECH_DEBT.md` 与两份门禁基线,未触碰其他包。口径与 #292 一致:TypeScript AST 扫描 `packages/patent/*/src/**/*.ts`,函数体(block body)行数 > 150;下表「原」取自 #292 清单,「拆后」为同一口径今日复测。13 项拆分与下面的就绪证据契约同批发布于 PR #294。
 
 | 函数 | 原 | 拆后 | 拆分方式 |
 |---|---|---|---|
