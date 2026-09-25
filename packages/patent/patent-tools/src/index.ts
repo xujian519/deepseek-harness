@@ -105,7 +105,8 @@ export { createAnalyzePatentFigureTool, FIGURE_SPEC_GUIDE, resolveGateRoute } fr
 export type { AnalyzePatentFigureInput, AnalyzePatentFigureDeps, FigureAnalysisResult, FigureComponent, FigureType } from './tool/analyze-patent-figure.ts'
 export { createSearchPatentFigureTool, tokenizeFigureText } from './tool/search-patent-figure.ts'
 export type { SearchPatentFigureInput, SearchPatentFigureOutput, SearchPatentFigureDeps } from './tool/search-patent-figure.ts'
-export { createGeneratePatentFigureTool, FIGURE_GENERATOR_MODEL_USED } from './tool/generate-patent-figure.ts'
+export { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
+export { FIGURE_GENERATOR_MODEL_USED } from './tool/figure-input.ts'
 export { createGenerateStructureFigureTool, STRUCTURE_FIGURE_MODEL_USED } from './tool/generate-structure-figure.ts'
 export type {
   GenerateStructureFigureInput,
@@ -144,7 +145,7 @@ export type {
   GenerateFigureType,
   GeneratePatentFigurePanelInput,
   GeneratePatentFigurePanelOutput,
-} from './tool/generate-patent-figure.ts'
+} from './tool/figure-input.ts'
 export { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
 export type { AddPatentFigureReferencesInput, AddPatentFigureReferencesOutput, AddPatentFigureReferencesDeps } from './tool/add-patent-figure-references.ts'
 export { figureIndexStore, FIGURE_INDEX_VERSION, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
