@@ -200,11 +200,55 @@ type EntryBase = {
  */
 export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions): DeadlineReport {
   assertPriorityInputs(query)
-  const items: DeadlineItem[] = []
   const notices = indexNotices(query.notices ?? [])
+  const items: DeadlineItem[] = [
+    ...priorityItems(query, options),
+    ...applicationFeeItems(query, options),
+    ...substantiveExamRequestItems(query, options),
+    ...voluntaryAmendmentItems(notices, query, options),
+    ...registrationItems(notices, query, options),
+    ...patentTermItems(query, options),
+    ...annualFeeItems(query, options),
+    ...pctNationalEntryItems(query, options),
+    ...noticeDrivenItems(notices, query, options),
+    ...termCompensationItems(query, options),
+  ]
+  return assemble(items, query)
+}
 
+/**
+ * Reject a query whose priority inputs contradict each other. An explicit
+ * priority claim with no date, or a date with no claim, would otherwise pick a
+ * start date silently.
+ * @param query - the case inputs.
+ */
+function assertPriorityInputs(query: DeadlineQuery): void {
+  if (query.claimsPriority && query.priorityDate === undefined) {
+    throw new DeadlineQueryError(
+      '已声明本案主张优先权（claimsPriority: true），但未提供优先权日（priorityDate）：'
+      + '实审请求等期限自优先权日起算，缺该日期无法计算。',
+    )
+  }
+  if (!query.claimsPriority && query.priorityDate !== undefined) {
+    throw new DeadlineQueryError(
+      '本案声明不主张优先权（claimsPriority: false），却提供了优先权日（priorityDate）：'
+      + '两者矛盾，请按案卷事实改其一。',
+    )
+  }
+}
+
+/**
+ * Build the priority family: the window for a later application on the same
+ * subject, the restoration request that follows it, and — when the case claims
+ * priority — the request to add or correct the claim.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the priority entries.
+ */
+function priorityItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
   const filing = query.filingDate
   const priority = query.priorityDate
+  const items: DeadlineItem[] = []
 
   // ── 专利法第29条 — the window for a later application on the same subject.
   const priorityMonths = query.kind === 'design' ? 6 : 12
@@ -249,6 +293,19 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     }))
   }
 
+  return items
+}
+
+/**
+ * Build the application-fee entry, which runs from the filing date.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the fee entry.
+ */
+function applicationFeeItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  const filing = query.filingDate
+  const items: DeadlineItem[] = []
+
   // ── 细则第112条 — application fee.
   items.push(fromPeriod({
     base: {
@@ -261,6 +318,21 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     start: filing,
     period: { unit: 'month', count: 2 },
   }))
+
+  return items
+}
+
+/**
+ * Build the substantive-examination request, which only an invention runs and
+ * which counts from the priority date when the case claims one.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the request entry, or none for a utility model or a design.
+ */
+function substantiveExamRequestItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  const filing = query.filingDate
+  const priority = query.priorityDate
+  const items: DeadlineItem[] = []
 
   // ── 专利法第35条 — substantive examination request, counted from the priority date
   // when the case claims priority (the start date the office uses in practice).
@@ -279,6 +351,26 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
       period: { unit: 'year', count: 3 },
     }))
   }
+
+  return items
+}
+
+/**
+ * Build the voluntary-amendment window. Both arms of the kind branch stay here:
+ * an invention amends at the examination-request notice, a utility model or a
+ * design within two months of the filing date.
+ * @param notices - the notices recorded on the case, by kind.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the amendment entry, or a pending entry when the invention's notice is missing.
+ */
+function voluntaryAmendmentItems(
+  notices: ReadonlyMap<NoticeKind, readonly NoticeInput[]>,
+  query: DeadlineQuery,
+  options: EvaluateOptions,
+): DeadlineItem[] {
+  const filing = query.filingDate
+  const items: DeadlineItem[] = []
 
   // ── 细则第57条 — voluntary amendment windows.
   if (query.kind === 'invention') {
@@ -306,6 +398,24 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
       period: { unit: 'month', count: 2 },
     }))
   }
+
+  return items
+}
+
+/**
+ * Build the registration and divisional-filing periods, both of which start at
+ * the grant notice's delivery and therefore stay pending until the case records it.
+ * @param notices - the notices recorded on the case, by kind.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the two entries, computed or pending.
+ */
+function registrationItems(
+  notices: ReadonlyMap<NoticeKind, readonly NoticeInput[]>,
+  query: DeadlineQuery,
+  options: EvaluateOptions,
+): DeadlineItem[] {
+  const items: DeadlineItem[] = []
 
   // ── 细则第60条第1款 + 第48条 — registration, which also bounds divisional filing.
   // A case is granted once, so duplicates of this kind are rejected in indexNotices;
@@ -354,6 +464,19 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     }))
   }
 
+  return items
+}
+
+/**
+ * Build the patent-term expiry, always counted from the filing date.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the term entry.
+ */
+function patentTermItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  const filing = query.filingDate
+  const items: DeadlineItem[] = []
+
   // ── 专利法第42条第1款 — patent term, always counted from the filing date.
   const termYears = query.kind === 'invention' ? 20 : query.kind === 'utility-model' ? 10 : 15
   items.push(fromPeriod({
@@ -368,158 +491,11 @@ export function evaluateDeadlines(query: DeadlineQuery, options: EvaluateOptions
     period: { unit: 'year', count: termYears },
   }))
 
-  // ── 细则第115条 — annual fees after the granted year.
-  items.push(...annualFeeItems(query, options))
-
-  // ── 细则第120条 — PCT national-phase entry.
-  if (query.isPctNationalPhase === true) {
-    const base = priority ?? filing
-    const baseLabel = priority !== undefined ? '优先权日' : '国际申请日（未主张优先权）'
-    items.push(fromPeriod({
-      base: {
-        id: 'pct-national-entry',
-        label: `办理进入中国国家阶段手续（自${baseLabel}起30个月内；缴纳宽限费后可延至32个月）`,
-        legalBasis: '专利法实施细则第120条',
-        query,
-        options,
-      },
-      start: base,
-      period: { unit: 'month', count: 30 },
-    }))
-    items.push(fromPeriod({
-      base: {
-        id: 'pct-national-entry-grace',
-        label: `宽限期内办理进入中国国家阶段手续（自${baseLabel}起32个月内，须缴宽限费）`,
-        legalBasis: '专利法实施细则第120条',
-        query,
-        options,
-      },
-      start: base,
-      period: { unit: 'month', count: 32 },
-    }))
-  }
-
-  // ── 专利法第41条 — reexamination request.
-  items.push(...fromNotices({
-    id: 'reexamination-request',
-    label: '请求复审（自收到驳回决定之日起3个月）',
-    legalBasis: '专利法第41条第1款',
-    noticeKind: 'rejection-decision',
-    absentReason: '需要驳回决定的送达记录，本查询未提供该通知。',
-    months: 3,
-    notices,
-    query,
-    options,
-  }))
-
-  // ── Designated periods, which only the notice can start.
-  items.push(...fromNotices({
-    id: 'oa-response-first',
-    label: '答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）',
-    legalBasis: '专利审查指南第五部分第七章第2.1节',
-    noticeKind: 'office-action-first',
-    absentReason: '需要第一次审查意见通知书的送达记录，本查询未提供该通知。',
-    months: 4,
-    notices,
-    query,
-    options,
-  }))
-  items.push(...fromNotices({
-    id: 'oa-response-subsequent',
-    label: '答复后续审查意见通知书（指定期限一般为2个月，以通知书指定为准）',
-    legalBasis: '专利审查指南第五部分第七章第2.1节',
-    noticeKind: 'office-action-subsequent',
-    absentReason: '需要后续审查意见通知书的送达记录，本查询未提供该通知。',
-    months: 2,
-    notices,
-    query,
-    options,
-  }))
-  items.push(...fromNotices({
-    id: 'reexamination-deficiency-response',
-    label: '答复复审通知书（指定期限，以通知书指定为准）',
-    legalBasis: '专利法实施细则第67条',
-    noticeKind: 'reexamination-notice',
-    absentReason: '需要复审通知书的送达记录，本查询未提供该通知。',
-    months: 2,
-    notices,
-    query,
-    options,
-  }))
-  items.push(...fromNotices({
-    id: 'invalidation-response',
-    label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
-    legalBasis: '专利审查指南第四部分第三章第4.4节',
-    noticeKind: 'invalidation-transfer',
-    absentReason: '需要无效宣告请求书转送文件的送达记录，本查询未提供该通知。',
-    months: 1,
-    notices,
-    query,
-    options,
-  }))
-
-  // ── 细则第77条、第81条 — term-compensation requests.
-  if (query.authorizationPublicationDate !== undefined) {
-    items.push(fromPeriod({
-      base: {
-        id: 'term-compensation-request',
-        label: '请求专利权期限补偿（发明专利授权过程中的不合理延迟）',
-        legalBasis: '专利法第42条第2款、专利法实施细则第77条',
-        query,
-        options,
-      },
-      start: query.authorizationPublicationDate,
-      period: { unit: 'month', count: 3 },
-    }))
-  } else {
-    items.push(pending({
-      id: 'term-compensation-request',
-      label: '请求专利权期限补偿（发明专利授权过程中的不合理延迟）',
-      legalBasis: '专利法第42条第2款、专利法实施细则第77条',
-      requiredInput: 'authorizationPublicationDate（授权公告日）',
-      reason: '该请求应自公告授予专利权之日起3个月内提出，未提供授权公告日即无法计算。',
-    }))
-  }
-  if (query.marketingApprovalDate !== undefined) {
-    items.push(fromPeriod({
-      base: {
-        id: 'new-drug-compensation-request',
-        label: '请求新药相关发明专利权期限补偿',
-        legalBasis: '专利法第42条第3款、专利法实施细则第81条',
-        query,
-        options,
-      },
-      start: query.marketingApprovalDate,
-      period: { unit: 'month', count: 3 },
-    }))
-  }
-
-  return assemble(items, query)
+  return items
 }
 
 /**
- * Reject a query whose priority inputs contradict each other. An explicit
- * priority claim with no date, or a date with no claim, would otherwise pick a
- * start date silently.
- * @param query - the case inputs.
- */
-function assertPriorityInputs(query: DeadlineQuery): void {
-  if (query.claimsPriority && query.priorityDate === undefined) {
-    throw new DeadlineQueryError(
-      '已声明本案主张优先权（claimsPriority: true），但未提供优先权日（priorityDate）：'
-      + '实审请求等期限自优先权日起算，缺该日期无法计算。',
-    )
-  }
-  if (!query.claimsPriority && query.priorityDate !== undefined) {
-    throw new DeadlineQueryError(
-      '本案声明不主张优先权（claimsPriority: false），却提供了优先权日（priorityDate）：'
-      + '两者矛盾，请按案卷事实改其一。',
-    )
-  }
-}
-
-/**
- * Build the annual-fee entries after the granted year, each carrying its
+ * Build the annual-fee entries after the granted year (细则第115条), each carrying its
  * six-month surcharge window.
  * @param query - the case inputs.
  * @param options - calendar and reminder policy.
@@ -567,6 +543,175 @@ function annualFeeItems(query: DeadlineQuery, options: EvaluateOptions): Deadlin
       due,
     }))
   }
+  return items
+}
+
+/**
+ * Build the PCT national-phase entry and its surcharge grace period, both
+ * counted from the priority date when the case claims one and from the
+ * international filing date otherwise.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the two entries, or none when the case is not in the national phase.
+ */
+function pctNationalEntryItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  const priority = query.priorityDate
+  const filing = query.filingDate
+  const items: DeadlineItem[] = []
+
+  // ── 细则第120条 — PCT national-phase entry.
+  if (query.isPctNationalPhase === true) {
+    const base = priority ?? filing
+    const baseLabel = priority !== undefined ? '优先权日' : '国际申请日（未主张优先权）'
+    items.push(fromPeriod({
+      base: {
+        id: 'pct-national-entry',
+        label: `办理进入中国国家阶段手续（自${baseLabel}起30个月内；缴纳宽限费后可延至32个月）`,
+        legalBasis: '专利法实施细则第120条',
+        query,
+        options,
+      },
+      start: base,
+      period: { unit: 'month', count: 30 },
+    }))
+    items.push(fromPeriod({
+      base: {
+        id: 'pct-national-entry-grace',
+        label: `宽限期内办理进入中国国家阶段手续（自${baseLabel}起32个月内，须缴宽限费）`,
+        legalBasis: '专利法实施细则第120条',
+        query,
+        options,
+      },
+      start: base,
+      period: { unit: 'month', count: 32 },
+    }))
+  }
+
+  return items
+}
+
+/** One notice-driven period: the report carries an entry per recorded notice of the kind. */
+type NoticePeriodSpec = {
+  id: string
+  label: string
+  legalBasis: string
+  noticeKind: NoticeKind
+  /** Why the entry is pending when the case has not recorded that notice. */
+  absentReason: string
+  /** Months from delivery when the notice itself designates none. */
+  months: number
+}
+
+/**
+ * The periods that start at a notice's delivery, each beside its article and
+ * the kind that starts it. Nothing else starts them, so a case that has not
+ * recorded the notice reports a pending entry naming it.
+ */
+const NOTICE_PERIOD_SPECS: readonly NoticePeriodSpec[] = [
+  {
+    id: 'reexamination-request',
+    label: '请求复审（自收到驳回决定之日起3个月）',
+    legalBasis: '专利法第41条第1款',
+    noticeKind: 'rejection-decision',
+    absentReason: '需要驳回决定的送达记录，本查询未提供该通知。',
+    months: 3,
+  },
+  {
+    id: 'oa-response-first',
+    label: '答复第一次审查意见通知书（指定期限，实质审查程序中为4个月）',
+    legalBasis: '专利审查指南第五部分第七章第2.1节',
+    noticeKind: 'office-action-first',
+    absentReason: '需要第一次审查意见通知书的送达记录，本查询未提供该通知。',
+    months: 4,
+  },
+  {
+    id: 'oa-response-subsequent',
+    label: '答复后续审查意见通知书（指定期限一般为2个月，以通知书指定为准）',
+    legalBasis: '专利审查指南第五部分第七章第2.1节',
+    noticeKind: 'office-action-subsequent',
+    absentReason: '需要后续审查意见通知书的送达记录，本查询未提供该通知。',
+    months: 2,
+  },
+  {
+    id: 'reexamination-deficiency-response',
+    label: '答复复审通知书（指定期限，以通知书指定为准）',
+    legalBasis: '专利法实施细则第67条',
+    noticeKind: 'reexamination-notice',
+    absentReason: '需要复审通知书的送达记录，本查询未提供该通知。',
+    months: 2,
+  },
+  {
+    id: 'invalidation-response',
+    label: '答复无效宣告请求（合议组指定期限，通常为1个月）',
+    legalBasis: '专利审查指南第四部分第三章第4.4节',
+    noticeKind: 'invalidation-transfer',
+    absentReason: '需要无效宣告请求书转送文件的送达记录，本查询未提供该通知。',
+    months: 1,
+  },
+]
+
+/**
+ * Build the notice-driven periods, one entry per recorded notice of the kind.
+ * @param notices - the notices recorded on the case, by kind.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the computed entries, or one pending entry per period whose notice is missing.
+ */
+function noticeDrivenItems(
+  notices: ReadonlyMap<NoticeKind, readonly NoticeInput[]>,
+  query: DeadlineQuery,
+  options: EvaluateOptions,
+): DeadlineItem[] {
+  return NOTICE_PERIOD_SPECS.flatMap(spec => fromNotices({ ...spec, notices, query, options }))
+}
+
+/**
+ * Build the term-compensation requests: the delay request stays pending until
+ * the grant publication date is recorded, the new-drug request exists only for
+ * a case with a marketing approval date.
+ * @param query - the case inputs.
+ * @param options - calendar and reminder policy.
+ * @returns the request entries.
+ */
+function termCompensationItems(query: DeadlineQuery, options: EvaluateOptions): DeadlineItem[] {
+  const items: DeadlineItem[] = []
+
+  // ── 细则第77条、第81条 — term-compensation requests.
+  if (query.authorizationPublicationDate !== undefined) {
+    items.push(fromPeriod({
+      base: {
+        id: 'term-compensation-request',
+        label: '请求专利权期限补偿（发明专利授权过程中的不合理延迟）',
+        legalBasis: '专利法第42条第2款、专利法实施细则第77条',
+        query,
+        options,
+      },
+      start: query.authorizationPublicationDate,
+      period: { unit: 'month', count: 3 },
+    }))
+  } else {
+    items.push(pending({
+      id: 'term-compensation-request',
+      label: '请求专利权期限补偿（发明专利授权过程中的不合理延迟）',
+      legalBasis: '专利法第42条第2款、专利法实施细则第77条',
+      requiredInput: 'authorizationPublicationDate（授权公告日）',
+      reason: '该请求应自公告授予专利权之日起3个月内提出，未提供授权公告日即无法计算。',
+    }))
+  }
+  if (query.marketingApprovalDate !== undefined) {
+    items.push(fromPeriod({
+      base: {
+        id: 'new-drug-compensation-request',
+        label: '请求新药相关发明专利权期限补偿',
+        legalBasis: '专利法第42条第3款、专利法实施细则第81条',
+        query,
+        options,
+      },
+      start: query.marketingApprovalDate,
+      period: { unit: 'month', count: 3 },
+    }))
+  }
+
   return items
 }
 

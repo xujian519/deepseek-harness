@@ -1,6 +1,7 @@
 /**
- * `generate_patent_figure` 的结果组装：把构建结果还原成标号表、组件与连接清单、
- * 「图N是…；图中：…」附图说明，渲染成模型可见文本，并投影为附图索引条目。
+ * 附图生成工具的结果组装：把构建结果还原成标号表、组件与连接清单、「图N是…；
+ * 图中：…」附图说明，渲染成模型可见文本，投影为附图索引条目，并把索引写入
+ * （含失败降级）收成两个生成工具共用的一步。
  * @module @deepseek-ai/dsh-patent-tools/tool/figure-output
  */
 
@@ -8,6 +9,7 @@ import { relative } from 'node:path'
 import { sanitizeId } from '../figure/dot-builder.ts'
 import type { DotEngine, DotFormat, HierarchyNode } from '../figure/dot-builder.ts'
 import { figureDescription as buildFigureDescription } from '../figure/figure-description.ts'
+import type { FigureIndexEntry } from '../figure/index-store.ts'
 import { FIGURE_TYPE_NAMES } from './analyze-patent-figure.ts'
 import type { FigureAnalysisResult, FigureComponent, FigureConnection, FigureType } from './analyze-patent-figure.ts'
 import { FIGURE_GENERATOR_MODEL_USED, singleLine } from './figure-input.ts'
@@ -38,6 +40,32 @@ export function indexAnalysis(
     usable: output.components.length > 0,
     modelUsed: FIGURE_GENERATOR_MODEL_USED,
     ...(figureFamily === undefined ? {} : { figureFamily }),
+  }
+}
+
+/**
+ * 写一条附图索引：写入失败降级为警告、不阻断结果返回，并把原因留在模型可见的
+ * warnings 里——索引缺失会使 search_patent_figure 漏检、figure_family 续号漏号。
+ * @param args - upsert 依赖、已渲染图片路径、该图分析结果、警告收集器、失败标注前缀。
+ * @returns 是否写入成功。
+ */
+export async function upsertFigureIndex(args: {
+  upsertIndex: (entry: FigureIndexEntry) => Promise<void>
+  imagePath: string
+  analysis: FigureAnalysisResult
+  warnings: string[]
+  label: string
+}): Promise<boolean> {
+  try {
+    await args.upsertIndex({
+      imagePath: args.imagePath,
+      analyzedAt: new Date().toISOString(),
+      analysis: args.analysis,
+    })
+    return true
+  } catch (error) {
+    args.warnings.push(`${args.label}附图索引写入失败（不阻断）：${error instanceof Error ? error.message : String(error)}`)
+    return false
   }
 }
 

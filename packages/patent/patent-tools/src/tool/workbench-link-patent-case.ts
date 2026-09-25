@@ -12,7 +12,7 @@
 import { readFile } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 
 /** 工作台 API 是同机 loopback 服务；单次请求的固定上限（协议预算，不随部署变化）。 */
@@ -167,6 +167,221 @@ function expectTask(json: unknown, what: string): WireTask {
   return { id: row.id, parentId: typeof row.parentId === 'string' ? row.parentId : null, title: row.title, typeCode: row.typeCode, statusCode: row.statusCode, source: typeof row.source === 'string' ? row.source : '' }
 }
 
+/** Seams the factory resolves once: the workbench call path and the matter-log reader. */
+type LinkSeams = {
+  /** Workbench API base; absent → setup failure. */
+  baseUrl?: string
+  /** Directory holding `<案号>/` case directories. */
+  caseRoot: string
+  /** One workbench API call with the request deadline applied (see the factory's `call`). */
+  call: <T>(signal: AbortSignal, path: string, init?: { method?: string; body?: unknown }, what?: string) => Promise<T>
+  /** Matter-log reader seam. */
+  readMatterLog: (caseDir: string) => Promise<string | null>
+}
+
+/** One link run: the validated input, the seams, and the caller's cancellation signal. */
+type LinkRun = {
+  input: WorkbenchLinkPatentCaseInput
+  signal: AbortSignal
+  /** Absolute case directory; also the root task's workspace path. */
+  caseDir: string
+  dryRun: boolean
+  /** Explicit per-stage statuses; they take precedence over the matter-log parse. */
+  explicit: Map<WorkbenchStage, WorkbenchTaskStatusCode>
+  call: LinkSeams['call']
+  readMatterLog: LinkSeams['readMatterLog']
+}
+
+/**
+ * Validate the tool input and resolve the run. Every rejection happens before
+ * the first workbench call.
+ * @param args - raw tool arguments.
+ * @param exec - tool execution context (cancellation signal).
+ * @param seams - the factory's resolved seams.
+ * @returns the run to execute.
+ * @throws PatentToolError when the case number, base URL, or case root is unusable.
+ */
+function resolveLinkRun(args: unknown, exec: Pick<ToolRunContext, 'signal'>, seams: LinkSeams): LinkRun {
+  // schema 校验后的模型 JSON 边界。
+  const input = args as WorkbenchLinkPatentCaseInput
+  if (input.caseNumber.trim() === '') {
+    throw new PatentToolError('invalid_tool_input', 'caseNumber 不能为空')
+  }
+  // caseNumber 同时是案件目录名（也作为工作台 workspacePath）：必须是单段目录名。
+  // 名称检查挡分隔符与 `.`/`..`；包含性检查是最终不变量，同时覆盖 Windows 盘符相对名（`C:案号`）。
+  if (basename(input.caseNumber) !== input.caseNumber || input.caseNumber === '.' || input.caseNumber === '..'
+    || input.caseNumber.includes('\\') || input.caseNumber.includes('\0')) {
+    throw new PatentToolError('invalid_tool_input', `caseNumber 必须是单个案件目录名（不含路径分隔符）：${input.caseNumber}`)
+  }
+  if (seams.baseUrl === undefined) {
+    throw new PatentToolError('setup_required', '工作台 API 基址不可用：web 服务未运行或未配置 workbenchBaseUrl（dsh web profile 内自动取本进程端口）')
+  }
+  const caseRoot = (input.caseRoot ?? seams.caseRoot).trim()
+  if (caseRoot === '') {
+    throw new PatentToolError('invalid_tool_input', 'caseRoot 不能为空（入参或插件配置 workbenchCaseRoot）')
+  }
+  const caseDir = join(caseRoot, input.caseNumber)
+  const escaped = relative(caseRoot, caseDir)
+  if (escaped.startsWith('..') || isAbsolute(escaped)) {
+    throw new PatentToolError('invalid_tool_input', `caseNumber 越出案件根目录：${input.caseNumber}`)
+  }
+  return {
+    input,
+    signal: exec.signal,
+    caseDir,
+    dryRun: input.dryRun === true,
+    explicit: new Map((input.stages ?? []).map(s => [s.stage, s.statusCode])),
+    call: seams.call,
+    readMatterLog: seams.readMatterLog,
+  }
+}
+
+/**
+ * Ensure the `patent_*` type dictionary entries, creating only the missing ones.
+ * @param run - the link run.
+ * @returns the dictionary codes this call created (empty in dryRun).
+ */
+async function ensureTypeDictionaries(run: LinkRun): Promise<string[]> {
+  // 1) 幂等确保 patent_* 类型字典项。
+  const dictList = await run.call<{ ok?: boolean; dictionaries?: Array<{ code?: unknown }> }>(run.signal, '/api/workbench/dictionaries?kind=type', undefined, '字典列表')
+  const existing = new Set((dictList.dictionaries ?? []).map(d => (typeof d.code === 'string' ? d.code : '')).filter(code => code !== ''))
+  const dictionariesEnsured: string[] = []
+  if (!run.dryRun) {
+    for (const entry of PATENT_TYPE_DICTIONARIES) {
+      if (existing.has(entry.code)) continue
+      await run.call(run.signal, '/api/workbench/dictionaries', { method: 'POST', body: entry }, `字典创建 ${entry.code}`)
+      dictionariesEnsured.push(entry.code)
+    }
+  }
+  return dictionariesEnsured
+}
+
+/**
+ * Fetch the full task list once and locate the case root task.
+ * @param run - the link run.
+ * @returns every task row and the root task when it already exists.
+ */
+async function loadWorkbenchTasks(run: LinkRun): Promise<{ tasks: WireTask[]; root: WireTask | null }> {
+  // 2) 一次拉全量任务，找根任务与既有阶段子任务。
+  const taskList = await run.call<{ ok?: boolean; tasks?: unknown[] }>(run.signal, '/api/workbench/tasks', undefined, '任务列表')
+  const tasks = (taskList.tasks ?? []).map(row => expectTask(row, '任务行'))
+  const root = tasks.find(t => t.parentId === null && t.title === run.input.caseNumber && t.source === 'patent') ?? null
+  return { tasks, root }
+}
+
+/**
+ * Create the case root task when it is missing. A dryRun keeps the empty marker
+ * instead of creating it.
+ * @param run - the link run.
+ * @param root - the existing root task, if any.
+ * @returns the root task id (empty only in dryRun without an existing root).
+ */
+async function ensureRootTask(run: LinkRun, root: WireTask | null): Promise<string> {
+  // 3) 建根任务（dryRun 且不存在时保持空串标记）。
+  let rootTaskId = root?.id ?? ''
+  if (rootTaskId === '' && !run.dryRun) {
+    const created = await run.call<{ task?: unknown }>(run.signal, '/api/workbench/tasks', {
+      method: 'POST',
+      body: {
+        title: run.input.caseNumber,
+        typeCode: 'patent_case',
+        priorityCode: 'p2',
+        aiPolicyCode: 'execute',
+        source: 'patent',
+        workspacePath: run.caseDir,
+        extra: { patentCase: true },
+      },
+    }, '根任务创建')
+    rootTaskId = expectTask(created.task, '新建根任务').id
+  }
+  return rootTaskId
+}
+
+/**
+ * Project the resolved stage statuses onto the stage subtasks, creating the
+ * missing ones. A stage is PATCHed only when its status actually changes.
+ * @param run - the link run.
+ * @param args - the root task id, the fetched task rows, and the matter-log parse.
+ * @returns one row per stage, in pipeline order.
+ */
+async function projectStageStatuses(
+  run: LinkRun,
+  args: { rootTaskId: string; tasks: readonly WireTask[]; heuristic: Partial<Record<WorkbenchStage, WorkbenchTaskStatusCode>> },
+): Promise<WorkbenchLinkPatentCaseOutput['stages']> {
+  // 4) matter-log 投影（显式入参 > 启发式解析 > 保持现状）。
+  const { rootTaskId, tasks, heuristic } = args
+  const stages: WorkbenchLinkPatentCaseOutput['stages'] = []
+  for (const stage of WORKBENCH_STAGES) {
+    const typeCode = STAGE_TYPE_CODE[stage]
+    const existingStage = rootTaskId === '' ? undefined : tasks.find(t => t.parentId === rootTaskId && t.typeCode === typeCode)
+    let taskId = existingStage?.id ?? null
+    let current: string | null = existingStage?.statusCode ?? null
+    let created = false
+    if (existingStage === undefined && !run.dryRun && rootTaskId !== '') {
+      const target = run.explicit.get(stage) ?? heuristic[stage]
+      const createdRow = await run.call<{ task?: unknown }>(run.signal, '/api/workbench/tasks', {
+        method: 'POST',
+        body: {
+          title: STAGE_NAME[stage],
+          typeCode,
+          priorityCode: 'p2',
+          aiPolicyCode: 'execute',
+          source: 'patent',
+          parentId: rootTaskId,
+          extra: { patentStage: stage },
+          ...(target === undefined ? {} : { statusCode: target }),
+        },
+      }, `阶段任务创建 ${stage}`)
+      const newTask = expectTask(createdRow.task, `新建阶段任务 ${stage}`)
+      taskId = newTask.id
+      current = newTask.statusCode
+      created = true
+    }
+    const target = run.explicit.get(stage) ?? heuristic[stage] ?? (current === null ? undefined : (current as WorkbenchTaskStatusCode))
+    let changed = false
+    if (!run.dryRun && taskId !== null && target !== undefined && target !== current) {
+      await run.call(run.signal, `/api/workbench/tasks/${taskId}`, { method: 'PATCH', body: { statusCode: target } }, `阶段状态更新 ${stage}`)
+      changed = true
+    }
+    stages.push({ stage, typeCode, taskId, statusCode: target ?? current, created, changed })
+  }
+  return stages
+}
+
+/**
+ * Bridge one case into the workbench task tree: ensure the dictionaries, find or
+ * create the root task and the five stage subtasks, then project the matter-log
+ * progress. Writes go to the workbench API only.
+ * @param args - raw tool arguments.
+ * @param exec - tool execution context (cancellation signal).
+ * @param seams - the factory's resolved seams.
+ * @returns the link result.
+ */
+async function linkPatentCase(
+  args: unknown,
+  exec: Pick<ToolRunContext, 'signal'>,
+  seams: LinkSeams,
+): Promise<WorkbenchLinkPatentCaseOutput> {
+  const run = resolveLinkRun(args, exec, seams)
+  const dictionariesEnsured = await ensureTypeDictionaries(run)
+  const { tasks, root } = await loadWorkbenchTasks(run)
+  const rootTaskId = await ensureRootTask(run, root)
+  const logContent = await run.readMatterLog(run.caseDir)
+  const heuristic = logContent === null ? {} : parseMatterLogStages(logContent)
+  const stages = await projectStageStatuses(run, { rootTaskId, tasks, heuristic })
+
+  return {
+    ok: true,
+    caseNumber: run.input.caseNumber,
+    caseDir: run.caseDir,
+    rootTaskId,
+    matterLogFound: logContent !== null,
+    dictionariesEnsured,
+    stages,
+    ...(run.dryRun ? { dryRun: true } : {}),
+  }
+}
+
 /**
  * Build the `workbench_link_patent_case` tool.
  * @param deps - base URL, case root, and the injectable HTTP / matter-log seams.
@@ -249,117 +464,12 @@ export function createWorkbenchLinkPatentCaseTool(deps: WorkbenchLinkPatentCaseD
       },
       render: (_args, value) => [{ type: 'text', text: renderLinkResult(value as unknown as WorkbenchLinkPatentCaseOutput) }],
     },
-    async execute(args, exec) {
-      const input = args as unknown as WorkbenchLinkPatentCaseInput
-      if (input.caseNumber.trim() === '') {
-        throw new PatentToolError('invalid_tool_input', 'caseNumber 不能为空')
-      }
-      // caseNumber 同时是案件目录名（也作为工作台 workspacePath）：必须是单段目录名。
-      // 名称检查挡分隔符与 `.`/`..`；包含性检查是最终不变量，同时覆盖 Windows 盘符相对名（`C:案号`）。
-      if (basename(input.caseNumber) !== input.caseNumber || input.caseNumber === '.' || input.caseNumber === '..'
-        || input.caseNumber.includes('\\') || input.caseNumber.includes('\0')) {
-        throw new PatentToolError('invalid_tool_input', `caseNumber 必须是单个案件目录名（不含路径分隔符）：${input.caseNumber}`)
-      }
-      if (deps.baseUrl === undefined) {
-        throw new PatentToolError('setup_required', '工作台 API 基址不可用：web 服务未运行或未配置 workbenchBaseUrl（dsh web profile 内自动取本进程端口）')
-      }
-      const caseRoot = (input.caseRoot ?? deps.caseRoot).trim()
-      if (caseRoot === '') {
-        throw new PatentToolError('invalid_tool_input', 'caseRoot 不能为空（入参或插件配置 workbenchCaseRoot）')
-      }
-      const caseDir = join(caseRoot, input.caseNumber)
-      const escaped = relative(caseRoot, caseDir)
-      if (escaped.startsWith('..') || isAbsolute(escaped)) {
-        throw new PatentToolError('invalid_tool_input', `caseNumber 越出案件根目录：${input.caseNumber}`)
-      }
-      const dryRun = input.dryRun === true
-      const explicit = new Map((input.stages ?? []).map(s => [s.stage, s.statusCode]))
-
-      // 1) 幂等确保 patent_* 类型字典项。
-      const dictList = await call<{ ok?: boolean; dictionaries?: Array<{ code?: unknown }> }>(exec.signal, '/api/workbench/dictionaries?kind=type', undefined, '字典列表')
-      const existing = new Set((dictList.dictionaries ?? []).map(d => (typeof d.code === 'string' ? d.code : '')).filter(code => code !== ''))
-      const dictionariesEnsured: string[] = []
-      if (!dryRun) {
-        for (const entry of PATENT_TYPE_DICTIONARIES) {
-          if (existing.has(entry.code)) continue
-          await call(exec.signal, '/api/workbench/dictionaries', { method: 'POST', body: entry }, `字典创建 ${entry.code}`)
-          dictionariesEnsured.push(entry.code)
-        }
-      }
-
-      // 2) 一次拉全量任务，找根任务与既有阶段子任务。
-      const taskList = await call<{ ok?: boolean; tasks?: unknown[] }>(exec.signal, '/api/workbench/tasks', undefined, '任务列表')
-      const tasks = (taskList.tasks ?? []).map(row => expectTask(row, '任务行'))
-      const root = tasks.find(t => t.parentId === null && t.title === input.caseNumber && t.source === 'patent') ?? null
-
-      // 3) 建根任务（dryRun 且不存在时保持空串标记）。
-      let rootTaskId = root?.id ?? ''
-      if (rootTaskId === '' && !dryRun) {
-        const created = await call<{ task?: unknown }>(exec.signal, '/api/workbench/tasks', {
-          method: 'POST',
-          body: {
-            title: input.caseNumber,
-            typeCode: 'patent_case',
-            priorityCode: 'p2',
-            aiPolicyCode: 'execute',
-            source: 'patent',
-            workspacePath: caseDir,
-            extra: { patentCase: true },
-          },
-        }, '根任务创建')
-        rootTaskId = expectTask(created.task, '新建根任务').id
-      }
-
-      // 4) matter-log 投影（显式入参 > 启发式解析 > 保持现状）。
-      const logContent = await readMatterLog(caseDir)
-      const heuristic = logContent === null ? {} : parseMatterLogStages(logContent)
-      const stages: WorkbenchLinkPatentCaseOutput['stages'] = []
-      for (const stage of WORKBENCH_STAGES) {
-        const typeCode = STAGE_TYPE_CODE[stage]
-        const existingStage = rootTaskId === '' ? undefined : tasks.find(t => t.parentId === rootTaskId && t.typeCode === typeCode)
-        let taskId = existingStage?.id ?? null
-        let current: string | null = existingStage?.statusCode ?? null
-        let created = false
-        if (existingStage === undefined && !dryRun && rootTaskId !== '') {
-          const target = explicit.get(stage) ?? heuristic[stage]
-          const createdRow = await call<{ task?: unknown }>(exec.signal, '/api/workbench/tasks', {
-            method: 'POST',
-            body: {
-              title: STAGE_NAME[stage],
-              typeCode,
-              priorityCode: 'p2',
-              aiPolicyCode: 'execute',
-              source: 'patent',
-              parentId: rootTaskId,
-              extra: { patentStage: stage },
-              ...(target === undefined ? {} : { statusCode: target }),
-            },
-          }, `阶段任务创建 ${stage}`)
-          const newTask = expectTask(createdRow.task, `新建阶段任务 ${stage}`)
-          taskId = newTask.id
-          current = newTask.statusCode
-          created = true
-        }
-        const target = explicit.get(stage) ?? heuristic[stage] ?? (current === null ? undefined : (current as WorkbenchTaskStatusCode))
-        let changed = false
-        if (!dryRun && taskId !== null && target !== undefined && target !== current) {
-          await call(exec.signal, `/api/workbench/tasks/${taskId}`, { method: 'PATCH', body: { statusCode: target } }, `阶段状态更新 ${stage}`)
-          changed = true
-        }
-        stages.push({ stage, typeCode, taskId, statusCode: target ?? current, created, changed })
-      }
-
-      return {
-        ok: true,
-        caseNumber: input.caseNumber,
-        caseDir,
-        rootTaskId,
-        matterLogFound: logContent !== null,
-        dictionariesEnsured,
-        stages,
-        ...(dryRun ? { dryRun: true } : {}),
-      }
-    },
+    execute: (args, exec) => linkPatentCase(args, exec, {
+      ...(deps.baseUrl === undefined ? {} : { baseUrl: deps.baseUrl }),
+      caseRoot: deps.caseRoot,
+      call,
+      readMatterLog,
+    }),
   })
 }
 

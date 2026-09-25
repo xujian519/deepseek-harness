@@ -91,11 +91,25 @@ function renderArchive(archive: PatentTeamsArchive): string {
 
 /**
  * Register every `patent_teams_*` tool into the shared tools registry.
+ *
+ * The four sections run in one fixed order: the registry emits its schemas in
+ * insertion order, and that order is the catalog the model sees.
  * @param ctx - the plugin context (injects `tools`); `ctx.patentTeams` must be mounted.
  */
 export function registerPatentTeamsTools(ctx: Context): void {
   const teams: PatentTeamsService = ctx.patentTeams
+  registerTeamAndMemberTools(ctx, teams)
+  registerTaskOwnershipTools(ctx, teams)
+  registerTaskAttemptTools(ctx, teams)
+  registerReportAndArchiveTools(ctx, teams)
+}
 
+/**
+ * 团队与成员装配：建队（调用方成为队长）、加成员、移成员。
+ * @param ctx - the plugin context (injects `tools`).
+ * @param teams - the mounted patent teams service the tools delegate to.
+ */
+function registerTeamAndMemberTools(ctx: Context, teams: PatentTeamsService): void {
   ctx.tools.register(defineTool({
     name: 'patent_teams_create',
     description: 'Create a new PatentTeams team: you (the calling agent) become the captain. A captain leads one team at a time; create tasks and members afterwards with patent_teams_add_member and patent_teams_create_task.',
@@ -181,7 +195,14 @@ export function registerPatentTeamsTools(ctx: Context): void {
       return teams.removeMember(callingAgent(exec), args.name, exec.signal)
     },
   }))
+}
 
+/**
+ * 任务归属装配：建任务（可指定预期成员与 worker 契约）、改派/重试/队长接管。
+ * @param ctx - the plugin context (injects `tools`).
+ * @param teams - the mounted patent teams service the tools delegate to.
+ */
+function registerTaskOwnershipTools(ctx: Context, teams: PatentTeamsService): void {
   ctx.tools.register(defineTool({
     name: 'patent_teams_create_task',
     description: 'Create a task in your team\'s task list. Tasks can depend on other tasks (dependencies): a task is only claimable once every dependency is completed. Optionally assign it to a member, who still claims it before working.',
@@ -247,7 +268,14 @@ export function registerPatentTeamsTools(ctx: Context): void {
       return teams.reassignTask(callingAgent(exec), args, exec.signal)
     },
   }))
+}
 
+/**
+ * 任务执行装配：认领（发放 attempt_id 能力）与应用该能力的更新。
+ * @param ctx - the plugin context (injects `tools`).
+ * @param teams - the mounted patent teams service the tools delegate to.
+ */
+function registerTaskAttemptTools(ctx: Context, teams: PatentTeamsService): void {
   ctx.tools.register(defineTool({
     name: 'patent_teams_claim_task',
     description: 'Claim one ready task for a member (or yourself). A member cannot own a second unfinished task. The returned attempt_id is required for that member\'s updates and becomes stale after retry/reassignment.',
@@ -315,7 +343,14 @@ export function registerPatentTeamsTools(ctx: Context): void {
       return teams.updateTask(callingAgent(exec), args, exec.signal)
     },
   }))
+}
 
+/**
+ * 汇报与收尾装配：消息投递、团队状态快照、归档查询、结束团队。
+ * @param ctx - the plugin context (injects `tools`).
+ * @param teams - the mounted patent teams service the tools delegate to.
+ */
+function registerReportAndArchiveTools(ctx: Context, teams: PatentTeamsService): void {
   ctx.tools.register(defineTool({
     name: 'patent_teams_send_message',
     description: 'Send a message to the captain or to a teammate. Messages go straight into the recipient\'s mailbox; when the captain agent is online the plugin also schedules live delivery (member recipients get the message as their next turn; a running captain sees it at the nearest model step). No relay is involved: teammates talk to each other directly.',

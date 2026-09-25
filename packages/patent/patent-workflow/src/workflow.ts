@@ -29,7 +29,7 @@ import {
   type WorkflowStageResult,
 } from '@deepseek-ai/dsh-patent-core'
 import { signalFor, signalMatches } from './workflow/signal.ts'
-import { runStageOnce } from './workflow/executor.ts'
+import { runStageOnce, type RunStageOnceOptions } from './workflow/executor.ts'
 
 // ---- 门面再导出（保持消费面不变） ----
 export { WorkflowError, validateWorkflowManifest } from '@deepseek-ai/dsh-patent-core'
@@ -78,170 +78,253 @@ export async function runWorkflow(
   options: WorkflowRunOptions = {},
 ): Promise<WorkflowRunResult> {
   validateWorkflowManifest(manifest)
-  const requireAll = manifest.validation?.requireAllSteps ?? true
-  const maxRetries = manifest.validation?.maxRetries ?? 2
-  const handlers = options.handlers ?? globalStageHandlerRegistry
   const atoms = options.atoms ?? globalAtomRegistry
-
-  // 调用方取消：阶段边界检查，中止时中止执行（stage 内部的长调用由调用方另行取消）。
-  const assertNotAborted = (): void => {
-    if (options.signal?.aborted === true) throw new WorkflowError('工作流执行已取消')
+  assertKnownAtoms(manifest, atoms)
+  const run: StageRun = {
+    manifest,
+    options,
+    state: { ...ctx },
+    stageOptions: {
+      handlers: options.handlers ?? globalStageHandlerRegistry,
+      atoms,
+      provider: options.provider,
+      executor,
+      maxRetries: manifest.validation?.maxRetries ?? 2,
+      approvalGrants: options.approvalGrants,
+      ctx,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    },
+    atoms,
+    requireAll: manifest.validation?.requireAllSteps ?? true,
+    maxParallelStages: options.maxParallelStages ?? 4,
+    stageIds: new Map(manifest.stages.map((s, i) => [s.id, i])),
+    rewindCounts: new Map(),
+    signalCache: new Map(),
+    results: [],
   }
+  const interrupted = await runStages(run)
+  return await assembleRunResult(run, interrupted)
+}
 
-  // 原子契约存在性 fail-fast：声明了未知 atom（连契约都没有）直接抛错；
-  // 已知 atom 但 handler 未注册时回退 executor（atom 是契约，handler 是实现，可延迟注册）。
+/** atom 契约注册表（执行配置的 atoms 字段，缺省取全局注册表）。 */
+type StageAtoms = NonNullable<WorkflowRunOptions['atoms']>
+
+/** 单次 runWorkflow 的累积态：阶段执行选项、重试记账与已产出的阶段结果。 */
+type StageRun = {
+  manifest: WorkflowManifest
+  options: WorkflowRunOptions
+  /** 累积的执行态；阶段输出合并进该对象，回退时按阶段清除。 */
+  state: PipelineState
+  stageOptions: RunStageOnceOptions
+  atoms: StageAtoms
+  /** requireAllSteps：存在降级阶段时是否判定未完成。 */
+  requireAll: boolean
+  maxParallelStages: number
+  /** 阶段 id → 序号，供 rewindTo 定位。 */
+  stageIds: ReadonlyMap<string, number>
+  /** 阶段 id → 已回退次数。 */
+  rewindCounts: Map<string, number>
+  signalCache: Map<string, RegExp>
+  results: WorkflowStageResult[]
+}
+
+/** 单阶段之后的走向：下一阶段序号（null 表示停止循环），或中断。 */
+type StageStep = {
+  nextIndex: number | null
+  interrupted?: WorkflowInterrupt | undefined
+}
+
+/**
+ * 原子契约存在性 fail-fast：声明了未知 atom（连契约都没有）直接抛错；
+ * 已知 atom 但 handler 未注册时回退 executor（atom 是契约，handler 是实现，可延迟注册）。
+ * @param manifest - 工作流清单。
+ * @param atoms - atom 契约注册表。
+ * @throws WorkflowError 阶段声明了未注册的 atom。
+ */
+function assertKnownAtoms(manifest: WorkflowManifest, atoms: StageAtoms): void {
   for (const stage of manifest.stages) {
     if (stage.atom !== undefined && !atoms.lookup(stage.atom)) {
       throw new WorkflowError(`阶段 ${stage.id} 声明了未知 atom "${stage.atom}"（请先 RegisterAtom）`)
     }
   }
+}
 
-  const state: PipelineState = { ...ctx }
-  const results: WorkflowStageResult[] = []
-  let interrupted: WorkflowInterrupt | undefined
+/**
+ * 调用方取消：阶段边界检查，中止时中止执行（stage 内部的长调用由调用方另行取消）。
+ * @param signal - 调用方取消信号。
+ * @throws WorkflowError 信号已中止。
+ */
+function assertNotAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new WorkflowError('工作流执行已取消')
+}
 
-  const stageIds = new Map(manifest.stages.map((s, i) => [s.id, i]))
-  const rewindCounts = new Map<string, number>()
-  const signalCache = new Map<string, RegExp>()
+/**
+ * 把一次阶段产出记入结果列表：空输出与降级标记都算 degraded。
+ * @param run - 执行态。
+ * @param stage - 产出所属阶段。
+ * @param outcome - 阶段的输出与重试次数。
+ */
+function pushStageResult(run: StageRun, stage: WorkflowStage, outcome: { output: string; retries: number }): void {
+  run.results.push({
+    stageId: stage.id,
+    strategy: stage.strategy,
+    output: outcome.output,
+    degraded: outcome.output.trim().length === 0 || outcome.output.startsWith('[WORKFLOW_DEGRADED]'),
+    retries: outcome.retries,
+    ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
+  })
+}
 
-  const stageOptions = {
-    handlers,
-    atoms,
-    provider: options.provider,
-    executor,
-    maxRetries,
-    approvalGrants: options.approvalGrants,
-    ctx,
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+/**
+ * 计算可并行窗口（从当前 stage 起，连续且无 retry、无 consumes、同 atom 的阶段）。
+ * @param manifest - 工作流清单。
+ * @param index - 窗口起始阶段序号。
+ * @param maxParallelStages - 窗口长度上限。
+ * @returns 窗口长度；起始阶段不存在时为 0。
+ */
+function stageWindow(manifest: WorkflowManifest, index: number, maxParallelStages: number): number {
+  let window = 1
+  const current = manifest.stages[index]
+  if (current === undefined) return 0
+  const groupAtom = current.atom
+  while (index + window < manifest.stages.length && window < maxParallelStages) {
+    const candidate = manifest.stages[index + window]
+    if (candidate === undefined) break
+    // 声明 consumes 的阶段排除在并行窗口外：同组阶段并发读写同一 state，
+    // 它可能读到同组上游尚未合并的产出。
+    if (
+      candidate.retry !== undefined ||
+      candidate.consumes !== undefined ||
+      candidate.atom !== groupAtom ||
+      groupAtom === undefined
+    ) break
+    window += 1
   }
+  return window
+}
 
-  const pushResult = (stage: WorkflowStage, outcome: { output: string; retries: number }): void => {
-    results.push({
-      stageId: stage.id,
-      strategy: stage.strategy,
-      output: outcome.output,
-      degraded: outcome.output.trim().length === 0 || outcome.output.startsWith('[WORKFLOW_DEGRADED]'),
-      retries: outcome.retries,
-      ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
-    })
+/**
+ * 并行组：各阶段独立执行，组内出现中断即停止本组。
+ * @param run - 执行态。
+ * @param group - 本组阶段（并行窗口切片）。
+ * @returns 组内中断；无中断时为 undefined。
+ */
+async function runParallelGroup(run: StageRun, group: readonly WorkflowStage[]): Promise<WorkflowInterrupt | undefined> {
+  const outcomes = await Promise.all(group.map(stage => runStageOnce(stage, run.state, run.stageOptions)))
+  for (let gi = 0; gi < outcomes.length; gi += 1) {
+    const outcome = outcomes[gi]
+    const groupStage = group[gi]
+    if (outcome === undefined || groupStage === undefined) break
+    if (outcome.interrupted) return outcome.interrupted
+    pushStageResult(run, groupStage, outcome)
   }
+  return undefined
+}
 
-  const MAX_PARALLEL_STAGES = options.maxParallelStages ?? 4
+/**
+ * 单阶段执行，含一致性重试回退：输出触发信号时回退到 rewindTo 阶段重新执行，
+ * 超过最大回退次数则保留不一致输出并标记 degraded。
+ * @param run - 执行态。
+ * @param index - 当前阶段序号。
+ * @returns 下一阶段序号（null 表示停止循环），或中断。
+ */
+async function runSingleStage(run: StageRun, index: number): Promise<StageStep> {
+  const stage = run.manifest.stages[index]
+  if (stage === undefined) return { nextIndex: null }
+  const outcome = await runStageOnce(stage, run.state, run.stageOptions)
+  if (outcome.interrupted) return { nextIndex: null, interrupted: outcome.interrupted }
+  const { output, retries } = outcome
 
-  for (let index = 0; index < manifest.stages.length; ) {
-    assertNotAborted()
-    // 计算可并行窗口（从当前 stage 起，连续且无 retry、同 atom 的阶段）。
-    let window = 1
-    const current = manifest.stages[index]
-    if (current === undefined) break
-    const groupAtom = current.atom
-    while (index + window < manifest.stages.length && window < MAX_PARALLEL_STAGES) {
-      const candidate = manifest.stages[index + window]
-      if (candidate === undefined) break
-      // 声明 consumes 的阶段排除在并行窗口外：同组阶段并发读写同一 state，
-      // 它可能读到同组上游尚未合并的产出。
-      if (
-        candidate.retry !== undefined ||
-        candidate.consumes !== undefined ||
-        candidate.atom !== groupAtom ||
-        groupAtom === undefined
-      ) break
-      window += 1
+  // 一致性重试循环：输出触发信号时回退到 rewindTo 阶段重新执行。
+  if (output.trim().length > 0 && stage.retry !== undefined) {
+    const signal = signalFor(stage, run.signalCache)
+    if (signal !== undefined && signalMatches(output, signal)) {
+      const rewindTo = stage.retry.rewindTo ?? stage.id
+      const rewindIndex = run.stageIds.get(rewindTo)
+      if (rewindIndex === undefined) return { nextIndex: null }
+      const rewindCount = (run.rewindCounts.get(stage.id) ?? 0) + 1
+      const maxRewind = stage.retry.maxRetries ?? 1
+      if (rewindCount > maxRewind) {
+        // 超过最大回退次数：保留当前（不一致）输出并继续，标记 degraded。
+        run.results.push({
+          stageId: stage.id,
+          strategy: stage.strategy,
+          output: `[WORKFLOW_RETRY_EXHAUSTED] ${stage.id}: ${output}`,
+          degraded: true,
+          retries,
+          ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
+        })
+        return { nextIndex: index + 1 }
+      }
+      // 覆盖从 rewindTo 起的结果与 state 键（防陈旧输出被兜底复用），回退重执行。
+      run.rewindCounts.set(stage.id, rewindCount)
+      run.results.splice(rewindIndex)
+      clearStageOutputs({ state: run.state, stages: run.manifest.stages.slice(rewindIndex), atoms: run.atoms })
+      return { nextIndex: rewindIndex }
     }
+  }
 
+  pushStageResult(run, stage, { output, retries })
+  return { nextIndex: index + 1 }
+}
+
+/**
+ * 主循环：按并行窗口推进阶段。
+ * @param run - 执行态。
+ * @returns 中断（审批门暂停）；无中断时为 undefined。
+ */
+async function runStages(run: StageRun): Promise<WorkflowInterrupt | undefined> {
+  for (let index = 0; index < run.manifest.stages.length; ) {
+    assertNotAborted(run.options.signal)
+    const window = stageWindow(run.manifest, index, run.maxParallelStages)
     if (window > 1) {
-      // 并行组：各 stage 独立执行。
-      const group = manifest.stages.slice(index, index + window)
-      const outcomes = await Promise.all(group.map(stage => runStageOnce(stage, state, stageOptions)))
-      let groupInterrupted: WorkflowInterrupt | undefined
-      for (let gi = 0; gi < outcomes.length; gi += 1) {
-        const outcome = outcomes[gi]
-        const groupStage = group[gi]
-        if (outcome === undefined || groupStage === undefined) break
-        if (outcome.interrupted) {
-          groupInterrupted = outcome.interrupted
-          break
-        }
-        pushResult(groupStage, outcome)
-      }
-      if (groupInterrupted) {
-        interrupted = groupInterrupted
-        break
-      }
+      const group = run.manifest.stages.slice(index, index + window)
+      const interrupted = await runParallelGroup(run, group)
+      if (interrupted !== undefined) return interrupted
       index += window
       continue
     }
-
-    const stage = manifest.stages[index]
-    if (stage === undefined) break
-    const outcome = await runStageOnce(stage, state, stageOptions)
-    if (outcome.interrupted) {
-      interrupted = outcome.interrupted
-      break
-    }
-    const { output, retries } = outcome
-
-    // 一致性重试循环：输出触发信号时回退到 rewindTo 阶段重新执行。
-    if (output.trim().length > 0 && stage.retry !== undefined) {
-      const signal = signalFor(stage, signalCache)
-      if (signal !== undefined && signalMatches(output, signal)) {
-        const rewindTo = stage.retry.rewindTo ?? stage.id
-        const rewindIndex = stageIds.get(rewindTo)
-        if (rewindIndex === undefined) break
-        const rewindCount = (rewindCounts.get(stage.id) ?? 0) + 1
-        const maxRewind = stage.retry.maxRetries ?? 1
-        if (rewindCount > maxRewind) {
-          // 超过最大回退次数：保留当前（不一致）输出并继续，标记 degraded。
-          results.push({
-            stageId: stage.id,
-            strategy: stage.strategy,
-            output: `[WORKFLOW_RETRY_EXHAUSTED] ${stage.id}: ${output}`,
-            degraded: true,
-            retries,
-            ...(stage.atom !== undefined ? { atom: stage.atom } : {}),
-          })
-          index += 1
-          continue
-        }
-        // 覆盖从 rewindTo 起的结果与 state 键（防陈旧输出被兜底复用），回退重执行。
-        rewindCounts.set(stage.id, rewindCount)
-        results.splice(rewindIndex)
-        clearStageOutputs({ state, stages: manifest.stages.slice(rewindIndex), atoms })
-        index = rewindIndex
-        continue
-      }
-    }
-
-    pushResult(stage, { output, retries })
-    index += 1
+    const step = await runSingleStage(run, index)
+    if (step.interrupted !== undefined) return step.interrupted
+    if (step.nextIndex === null) break
+    index = step.nextIndex
   }
+  return undefined
+}
 
-  const degradedSteps = results.filter(r => r.degraded).map(r => r.stageId)
+/**
+ * 汇总执行结果，并把持久化失败降级为结果里的告警。
+ * @param run - 执行态。
+ * @param interrupted - 中断（审批门暂停），无中断时为 undefined。
+ * @returns 工作流执行结果。
+ */
+async function assembleRunResult(run: StageRun, interrupted: WorkflowInterrupt | undefined): Promise<WorkflowRunResult> {
+  const degradedSteps = run.results.filter(r => r.degraded).map(r => r.stageId)
   // 中断（审批门暂停）≠ 完成：即使 requireAllSteps=false（容忍降级），暂停中的
   // 运行也必须报告 incomplete，否则"未确认"会被误读为"已完成"。
   const completed = interrupted === undefined
-    && (requireAll ? degradedSteps.length === 0 : true)
-  const okCount = results.filter(r => !r.degraded).length
+    && (run.requireAll ? degradedSteps.length === 0 : true)
+  const okCount = run.results.filter(r => !r.degraded).length
 
   let summary: string
   if (interrupted) {
-    summary = `工作流 ${manifest.id}（${manifest.name}）: 已执行 ${results.length}/${manifest.stages.length} 阶段，在 "${interrupted.stageId}" 暂停等待人工确认`
+    summary = `工作流 ${run.manifest.id}（${run.manifest.name}）: 已执行 ${run.results.length}/${run.manifest.stages.length} 阶段，在 "${interrupted.stageId}" 暂停等待人工确认`
   } else {
-    summary = `工作流 ${manifest.id}（${manifest.name}）: ${okCount}/${results.length} 阶段完成${degradedSteps.length > 0 ? `，降级阶段: ${degradedSteps.join('、')}` : ''}`
+    summary = `工作流 ${run.manifest.id}（${run.manifest.name}）: ${okCount}/${run.results.length} 阶段完成${degradedSteps.length > 0 ? `，降级阶段: ${degradedSteps.join('、')}` : ''}`
   }
 
   const result: WorkflowRunResult = {
-    manifestId: manifest.id,
-    caseType: manifest.caseType,
+    manifestId: run.manifest.id,
+    caseType: run.manifest.caseType,
     completed,
-    stages: results,
+    stages: run.results,
     degradedSteps,
     summary,
     ...(interrupted ? { interrupted } : {}),
   }
   // 持久化失败不阻断执行结果，仅把告警带回结果供调用方展示。
   try {
-    await options.persist?.saveRun(result, options.runId)
+    await run.options.persist?.saveRun(result, run.options.runId)
   } catch (error) {
     result.persistWarning = `持久化失败（不影响执行结果）: ${error instanceof Error ? error.message : String(error)}`
   }

@@ -115,6 +115,126 @@ function fallbackMailboxPrompt(messages: Awaited<ReturnType<typeof readUnreadMai
 }
 
 /**
+ * Deliver a member's unread mailbox as its fallback work item. A mailbox-only
+ * fallback is real pending work, so it is delivered before a fresh task, and
+ * the claim is acknowledged only after the Harness accepts the follow-up.
+ * @param ctx - registrant context carrying the agent registry.
+ * @param args - state root, team id, member, live captain, and cancellation signal.
+ * @returns whether the mailbox path handled this kick.
+ */
+async function deliverMailboxFallback(ctx: Context, args: {
+  stateRoot: string
+  teamId: string
+  member: TeamMember
+  captain: Agent
+  signal: AbortSignal
+}): Promise<boolean> {
+  const { stateRoot, teamId, member, captain, signal } = args
+  const unread = await readUnreadMailbox(stateRoot, teamId, member.name)
+  if (unread.length === 0) return false
+  await withTeamLock(teamLockKey(stateRoot, teamId), () => (
+    claimMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
+  ))
+  const accepted = await deliverToMember(
+    ctx,
+    captain,
+    member.id,
+    fallbackMailboxPrompt(unread),
+    signal,
+  )
+  if (accepted) {
+    await withTeamLock(teamLockKey(stateRoot, teamId), () => (
+      acknowledgeMailbox(stateRoot, teamId, member.name, unread.map(message => message.id))
+    ))
+  } else {
+    await withTeamLock(teamLockKey(stateRoot, teamId), () => (
+      releaseMailboxDelivery(stateRoot, teamId, member.name, unread.map(message => message.id))
+    ))
+  }
+  return true
+}
+
+/**
+ * Claim one dispatch under the team lock, re-reading the team first: an
+ * idle/ready member that still owns an open task lost the turn executing it
+ * (model stopped early, interrupt settlement, or process restart), so that
+ * task is retried with a fresh capability instead of being read as "busy".
+ * @param ctx - registrant context carrying the agent registry.
+ * @param args - state root, team id, and member name.
+ * @returns the ticket, or undefined when no task is ready or the member is gone.
+ */
+async function claimDispatchTicket(ctx: Context, args: {
+  stateRoot: string
+  teamId: string
+  memberName: string
+}): Promise<DispatchTicket | undefined> {
+  const { stateRoot, teamId, memberName } = args
+  return withTeamLock(teamLockKey(stateRoot, teamId), async (): Promise<DispatchTicket | undefined> => {
+    const fresh = await readTeam(stateRoot, teamId)
+    if (fresh === undefined) return undefined
+    const currentMember = fresh.members.find(candidate => candidate.name === memberName && candidate.status !== 'removed')
+    if (currentMember === undefined || currentMember.id === '' || !isMemberAvailable(ctx, currentMember)) return undefined
+    const task = ownedOpenTask(fresh.tasks, currentMember.name)
+      ?? nextReadyTask(fresh.tasks, currentMember.name)
+    if (task === undefined) {
+      if (currentMember.status !== 'idle') {
+        currentMember.status = 'idle'
+        await writeTeam(stateRoot, fresh)
+      }
+      return undefined
+    }
+    const previousAssignee = task.assignee
+    const attemptId = beginTaskAttempt(task, currentMember.name)
+    currentMember.status = 'working'
+    await writeTeam(stateRoot, fresh)
+    return {
+      taskId: task.id,
+      memberName: currentMember.name,
+      memberId: currentMember.id,
+      // v8 ignore next -- beginTaskAttempt always sets attempt before the ticket is built
+      attempt: task.attempt ?? 1,
+      attemptId,
+      ...previousAssignee === undefined ? {} : { previousAssignee },
+      subject: task.subject,
+      ...task.description === undefined ? {} : { description: task.description },
+    }
+  })
+}
+
+/**
+ * Roll back a failed dispatch, and only that one: a concurrent captain handoff
+ * has already changed the capability and wins, so the restore compares the
+ * ticket's attempt id before touching the task.
+ * @param args - state root, team id, and the failed ticket.
+ */
+async function rollbackFailedDispatch(args: {
+  stateRoot: string
+  teamId: string
+  ticket: DispatchTicket
+}): Promise<void> {
+  const { stateRoot, teamId, ticket } = args
+  await withTeamLock(teamLockKey(stateRoot, teamId), async () => {
+    const fresh = await readTeam(stateRoot, teamId)
+    if (fresh === undefined) return
+    const task = fresh.tasks.find(candidate => candidate.id === ticket.taskId)
+    if (task?.attemptId !== ticket.attemptId) return
+    task.status = 'pending'
+    if (ticket.previousAssignee === undefined) {
+      delete task.assignee
+    } else {
+      task.assignee = ticket.previousAssignee
+    }
+    delete task.attemptId
+    delete task.handoffId
+    task.reassigning = false
+    task.updatedAt = Date.now()
+    const currentMember = fresh.members.find(candidate => candidate.name === ticket.memberName)
+    if (currentMember !== undefined && currentMember.status !== 'removed') currentMember.status = 'idle'
+    await writeTeam(stateRoot, fresh)
+  })
+}
+
+/**
  * Install one scheduler and its member activity observer.
  * @param ctx - registrant context carrying the agent registry.
  * @param config - the scheduler's state-directory configuration.
@@ -174,66 +294,15 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
         const member = team.members.find(candidate => candidate.name === memberName && candidate.status !== 'removed')
         if (member === undefined || member.id === '' || !isMemberAvailable(ctx, member)) return
 
-        // A mailbox-only fallback is real pending work. Deliver it before a
-        // fresh task and acknowledge only after Harness accepts the follow-up.
-        const unread = await readUnreadMailbox(stateRoot, team.id, member.name)
-        if (unread.length > 0) {
-          await withTeamLock(teamLockKey(stateRoot, team.id), () => (
-            claimMailboxDelivery(stateRoot, team.id, member.name, unread.map(message => message.id))
-          ))
-          const accepted = await deliverToMember(
-            ctx,
-            captain,
-            member.id,
-            fallbackMailboxPrompt(unread),
-            signal ?? new AbortController().signal,
-          )
-          if (accepted) {
-            await withTeamLock(teamLockKey(stateRoot, team.id), () => (
-              acknowledgeMailbox(stateRoot, team.id, member.name, unread.map(message => message.id))
-            ))
-          } else {
-            await withTeamLock(teamLockKey(stateRoot, team.id), () => (
-              releaseMailboxDelivery(stateRoot, team.id, member.name, unread.map(message => message.id))
-            ))
-          }
-          return
-        }
+        if (await deliverMailboxFallback(ctx, {
+          stateRoot,
+          teamId: team.id,
+          member,
+          captain,
+          signal: signal ?? new AbortController().signal,
+        })) return
 
-        const ticket = await withTeamLock(teamLockKey(stateRoot, team.id), async (): Promise<DispatchTicket | undefined> => {
-          const fresh = await readTeam(stateRoot, team.id)
-          if (fresh === undefined) return undefined
-          const currentMember = fresh.members.find(candidate => candidate.name === memberName && candidate.status !== 'removed')
-          if (currentMember === undefined || currentMember.id === '' || !isMemberAvailable(ctx, currentMember)) return undefined
-          // An idle/ready member that still owns an open task lost the turn
-          // that was executing it (model stopped early, interrupt settlement,
-          // or process restart). Retry that task with a fresh capability
-          // instead of permanently treating the durable claim as "busy".
-          const task = ownedOpenTask(fresh.tasks, currentMember.name)
-            ?? nextReadyTask(fresh.tasks, currentMember.name)
-          if (task === undefined) {
-            if (currentMember.status !== 'idle') {
-              currentMember.status = 'idle'
-              await writeTeam(stateRoot, fresh)
-            }
-            return undefined
-          }
-          const previousAssignee = task.assignee
-          const attemptId = beginTaskAttempt(task, currentMember.name)
-          currentMember.status = 'working'
-          await writeTeam(stateRoot, fresh)
-          return {
-            taskId: task.id,
-            memberName: currentMember.name,
-            memberId: currentMember.id,
-            // v8 ignore next -- beginTaskAttempt always sets attempt before the ticket is built
-            attempt: task.attempt ?? 1,
-            attemptId,
-            ...previousAssignee === undefined ? {} : { previousAssignee },
-            subject: task.subject,
-            ...task.description === undefined ? {} : { description: task.description },
-          }
-        })
+        const ticket = await claimDispatchTicket(ctx, { stateRoot, teamId: team.id, memberName })
         if (ticket === undefined) return
 
         const accepted = await deliverToMember(
@@ -245,27 +314,7 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
         )
         if (accepted) return
 
-        // Roll back only our exact failed dispatch. A concurrent captain
-        // handoff has already changed the capability and wins.
-        await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-          const fresh = await readTeam(stateRoot, team.id)
-          if (fresh === undefined) return
-          const task = fresh.tasks.find(candidate => candidate.id === ticket.taskId)
-          if (task?.attemptId !== ticket.attemptId) return
-          task.status = 'pending'
-          if (ticket.previousAssignee === undefined) {
-            delete task.assignee
-          } else {
-            task.assignee = ticket.previousAssignee
-          }
-          delete task.attemptId
-          delete task.handoffId
-          task.reassigning = false
-          task.updatedAt = Date.now()
-          const currentMember = fresh.members.find(candidate => candidate.name === ticket.memberName)
-          if (currentMember !== undefined && currentMember.status !== 'removed') currentMember.status = 'idle'
-          await writeTeam(stateRoot, fresh)
-        })
+        await rollbackFailedDispatch({ stateRoot, teamId: team.id, ticket })
       })
     },
 

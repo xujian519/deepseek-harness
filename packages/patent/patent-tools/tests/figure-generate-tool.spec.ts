@@ -1073,6 +1073,13 @@ describe('generate_patent_figure panels', () => {
       await expect(tool.execute({
         panels: [{ suffix: 'A', steps: flowSteps, blocks: [{ id: 'a', label: 'A' }] }],
       }, exec)).rejects.toThrow('面板 A')
+      // 两个面板给不同组件同一个显式标号：与单图路径同一条分配与报错路径。
+      await expect(tool.execute({
+        panels: [
+          { suffix: 'A', blocks: [{ id: 'a', label: 'A' }], numerals: { a: '100' } },
+          { suffix: 'B', blocks: [{ id: 'b', label: 'B' }], numerals: { b: '100' } },
+        ],
+      }, exec)).rejects.toThrow('标号分配失败')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

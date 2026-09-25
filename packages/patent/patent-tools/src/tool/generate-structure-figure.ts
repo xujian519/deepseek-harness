@@ -39,6 +39,7 @@ import type { TargetOffice } from '../figure/office-profile.ts'
 import { buildSubmissionPage } from '../figure/submission-page.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import { COMPONENT_SCHEMA, NUMERAL_MAP_SCHEMA } from './internal/figure-schemas.ts'
+import { upsertFigureIndex } from './figure-output.ts'
 import { assertRendered } from './internal/render-outcome.ts'
 
 /** 结构线稿在索引中的模型标识（FreeCAD TechDraw 投影，无 LLM 参与）。 */
@@ -283,6 +284,185 @@ const DESCRIPTION = [
   '产物为纯几何片段，不含模板边框、标题栏与图号，符合《专利审查指南》第一部分第一章 4.3 对线条与版面的要求；给定 target_office 时按该法域的 A4 幅面与页边距落版，并可在图形正下方落图号。',
 ].join('\n')
 
+/** 一次结构线稿调用的归一化参数：依赖、工作目录、视图、比例、显示与件号锚定。 */
+type StructureRun = {
+  deps: GenerateStructureFigureDeps
+  input: GenerateStructureFigureInput
+  cwd: string
+  outputDir: string
+  views: StructureViewName[]
+  scale: number
+  showHidden: boolean
+  baseFigure: number
+  callouts: StructureCalloutInput[]
+  modelPaths: string[]
+}
+
+/**
+ * 归一化并校验调用参数。schema 只约束 JSON 形状，模型实参与部署默认值在这里复核：
+ * 比例必须正有限、图号必须正整数、目录批量不得带件号锚点。
+ * @param args - the model-supplied arguments.
+ * @param deps - the injected renderer, gate, defaults, and index writer.
+ * @returns the resolved run parameters.
+ * @throws PatentToolError when a value is out of range or batch mode meets callouts.
+ */
+async function resolveStructureRun(args: unknown, deps: GenerateStructureFigureDeps): Promise<StructureRun> {
+  // schema 校验后的模型 JSON 边界：调用方传来的实参在这里窄化为领域类型。
+  const input = args as GenerateStructureFigureInput
+  const cwd = deps.cwd ?? process.cwd()
+  /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
+  const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
+  const views = normalizeViews(input.views, deps.defaultViews ?? DEFAULT_STRUCTURE_VIEWS)
+  const scale = input.scale ?? deps.defaultScale ?? DEFAULT_STRUCTURE_SCALE
+  // scale 来自模型 JSON 或 Config：schema 只约束为 number，正有限性须运行时复核
+  // （与 normalizeCallouts 同一理由：模型实参/部署值必须在此 fail-loud）。
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new PatentToolError('invalid_tool_input', `scale 必须是正有限数，收到 ${String(scale)}`, { tool: 'generate_structure_figure' })
+  }
+  const showHidden = input.show_hidden ?? false
+  const baseFigure = input.figure_number ?? 1
+  if (!Number.isInteger(baseFigure) || baseFigure < 1) {
+    throw new PatentToolError('invalid_tool_input', `figure_number 必须是正整数，收到 ${String(input.figure_number)}`, { tool: 'generate_structure_figure' })
+  }
+  const callouts = normalizeCallouts(input.callouts).map(callout => ({
+    numeral: callout.numeral,
+    point3d: callout.point3d,
+    ...(callout.label === undefined ? {} : { label: callout.label }),
+  }))
+  const modelPaths = await resolveModelPaths(input.model_path, cwd)
+  // 目录批量逐模型出图，但 callouts 的 point3d 是某个模型的专属坐标：把同一组
+  // 3D 锚点套到目录内其余模型会落到错误位置，故 fail-loud 拒绝而非静默误标。
+  if (modelPaths.length > 1 && callouts.length > 0) {
+    throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿', { tool: 'generate_structure_figure' })
+  }
+  return { deps, input, cwd, outputDir, views, scale, showHidden, baseFigure, callouts, modelPaths }
+}
+
+/**
+ * 逐模型投影渲染并读回 manifest。
+ * @param run - the resolved run parameters.
+ * @param signal - the tool call's cancellation signal.
+ * @returns one view record per model, in model-path order.
+ */
+async function renderStructureFigures(run: StructureRun, signal: AbortSignal): Promise<StructureFigureView[]> {
+  const figures: StructureFigureView[] = []
+  for (const [index, modelPath] of run.modelPaths.entries()) {
+    const figureNumber = run.baseFigure + index
+    // 每图独立子目录：manifest.json/临时脚本/模板/隔离子目录名固定，避免批量互相覆盖。
+    const renderDir = join(run.outputDir, `fig${figureNumber}`)
+    const outcome = await run.deps.render({
+      modelPath,
+      views: run.views,
+      scale: run.scale,
+      showHidden: run.showHidden,
+      callouts: run.callouts,
+      figureNumber,
+      outputDir: renderDir,
+      signal,
+    })
+    assertRendered(outcome, 'generate_structure_figure')
+    const manifest = await readManifest(outcome.manifestPath)
+    await assertViewSvgs(manifest)
+    figures.push({
+      figureNumber,
+      modelPath,
+      paths: manifest.views.map(view => relative(run.cwd, view.path)),
+      manifest,
+    })
+  }
+  return figures
+}
+
+/** 由 callouts 还原组件列表（件号 → 名称）；无 callouts 则为纯几何线稿。 */
+function structureComponents(callouts: readonly StructureCalloutInput[]): FigureComponent[] {
+  return callouts.map((callout): FigureComponent => ({
+    refNumber: callout.numeral,
+    name: callout.label ?? '',
+    kind: 'mechanical',
+    description: callout.label ?? '',
+  }))
+}
+
+/** 标号表逐图展开：同一标号在每张图各占一行。 */
+function structureNumeralMap(
+  figures: readonly StructureFigureView[],
+  callouts: readonly StructureCalloutInput[],
+): GenerateStructureFigureOutput['numeralMap'] {
+  return figures.flatMap(figure =>
+    callouts.map(callout => ({
+      componentId: callout.numeral,
+      label: callout.label ?? '',
+      numeral: callout.numeral,
+      figure: figure.figureNumber,
+    })),
+  )
+}
+
+/**
+ * 组装附图说明（「图N是…；图中：…」）与去重后的标号文本。
+ * @param args - the rendered figures, their numeral map, and the invention name.
+ * @returns the description sentence and the numeral text the index analysis reuses.
+ */
+function describeStructureFigures(args: {
+  figures: readonly StructureFigureView[]
+  numeralMap: GenerateStructureFigureOutput['numeralMap']
+  inventionName: string | undefined
+}): { figureDescription: string; numeralText: string } {
+  const sentences = args.figures.map(figure => figureSentence(figure.figureNumber, FIGURE_TYPE_NAMES.structure, args.inventionName))
+  const numeralText = [...new Map(args.numeralMap.filter(m => m.label !== '').map(m => [m.numeral, `${m.numeral}-${m.label}`])).values()].join('，')
+  const figureDescription = numeralText === ''
+    ? `${sentences.join('；')}。`
+    : `${sentences.join('；')}；图中：${numeralText}。`
+  return { figureDescription, numeralText }
+}
+
+/**
+ * 落版：给定目标法域时把每个视图 SVG 落到该法域幅面，并按 fit_to_page 决定是否改写画布。
+ * @param args - the resolved run parameters, the rendered figures, and the warning sink.
+ * @returns the layout of the last placed view; undefined without target_office.
+ * @throws PatentToolError when the sheet numbering is outside what the office writes.
+ */
+async function applyStructureLayout(args: {
+  run: StructureRun
+  figures: readonly StructureFigureView[]
+  warnings: string[]
+}): Promise<SubmissionLayout | undefined> {
+  const { input, cwd } = args.run
+  if (input.target_office === undefined) return undefined
+  const profile = officeProfile(input.target_office)
+  let sheetNumber: string
+  try {
+    sheetNumber = sheetNumberText(profile, input.sheet_index ?? 1, input.sheet_total ?? 1)
+  } catch (error) {
+    throw new PatentToolError('invalid_tool_input', `落版参数非法：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
+  }
+  let layout: SubmissionLayout | undefined
+  for (const figure of args.figures) {
+    for (const viewPath of figure.paths) {
+      const page = buildSubmissionPage({
+        drawingSvg: await readFile(resolve(cwd, viewPath), 'utf8'),
+        profile,
+        caption: input.caption,
+        sheetNumber,
+      })
+      args.warnings.push(...page.warnings.map(w => `落版：${w}`))
+      if (input.fit_to_page ?? true) await writeFile(resolve(cwd, viewPath), page.svg, 'utf8')
+      layout = {
+        office: profile.office,
+        pageScale: page.metrics.pageScale,
+        placedWidthMm: page.metrics.placedWidthMm,
+        placedHeightMm: page.metrics.placedHeightMm,
+        ...(page.metrics.charHeightMm === undefined ? {} : { charHeightMm: page.metrics.charHeightMm }),
+        ...(page.metrics.reducedCharHeightMm === undefined ? {} : { reducedCharHeightMm: page.metrics.reducedCharHeightMm }),
+        ...(input.caption === undefined ? {} : { caption: input.caption }),
+        sheetNumber,
+      }
+    }
+  }
+  return layout
+}
+
+
 /**
  * Build the `generate_structure_figure` tool over the injected FreeCAD renderer.
  * @param deps - renderer + gate/outputDir/index/cwd/scale/views defaults.
@@ -357,142 +537,37 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
       if (deps.enabled !== true) {
         throw new PatentToolError('setup_required', '结构线稿默认关闭，设 Config.structureFigureEnabled=true 后重试（需本机安装 FreeCAD 1.1+）。', { tool: 'generate_structure_figure' })
       }
-      const input = args as unknown as GenerateStructureFigureInput
-      const cwd = deps.cwd ?? process.cwd()
-      /* v8 ignore next -- apply() always injects outputDir; the cwd-relative default stays for standalone library callers */
-      const outputDir = deps.outputDir ?? resolve(cwd, 'patent/figures')
-      const views = normalizeViews(input.views, deps.defaultViews ?? DEFAULT_STRUCTURE_VIEWS)
-      const scale = input.scale ?? deps.defaultScale ?? DEFAULT_STRUCTURE_SCALE
-      // scale 来自模型 JSON 或 Config：schema 只约束为 number，正有限性须运行时复核
-      // （与 normalizeCallouts 同一理由：模型实参/部署值必须在此 fail-loud）。
-      if (!Number.isFinite(scale) || scale <= 0) {
-        throw new PatentToolError('invalid_tool_input', `scale 必须是正有限数，收到 ${String(scale)}`, { tool: 'generate_structure_figure' })
-      }
-      const showHidden = input.show_hidden ?? false
-      const baseFigure = input.figure_number ?? 1
-      if (!Number.isInteger(baseFigure) || baseFigure < 1) {
-        throw new PatentToolError('invalid_tool_input', `figure_number 必须是正整数，收到 ${String(input.figure_number)}`, { tool: 'generate_structure_figure' })
-      }
-      const callouts = normalizeCallouts(input.callouts).map(callout => ({
-        numeral: callout.numeral,
-        point3d: callout.point3d,
-        ...(callout.label === undefined ? {} : { label: callout.label }),
-      }))
-      const modelPaths = await resolveModelPaths(input.model_path, cwd)
-      // 目录批量逐模型出图，但 callouts 的 point3d 是某个模型的专属坐标：把同一组
-      // 3D 锚点套到目录内其余模型会落到错误位置，故 fail-loud 拒绝而非静默误标。
-      if (modelPaths.length > 1 && callouts.length > 0) {
-        throw new PatentToolError('invalid_tool_input', '批量（model_path 为目录）不支持 callouts：件号 3D 锚点仅对单个模型有效，请对单个模型生成结构线稿', { tool: 'generate_structure_figure' })
-      }
-
-      const figures: StructureFigureView[] = []
+      const run = await resolveStructureRun(args, deps)
       const warnings: string[] = ['由 3D 模型（FreeCAD TechDraw）投影生成的结构线稿']
-      for (const [index, modelPath] of modelPaths.entries()) {
-        const figureNumber = baseFigure + index
-        // 每图独立子目录：manifest.json/临时脚本/模板/隔离子目录名固定，避免批量互相覆盖。
-        const renderDir = join(outputDir, `fig${figureNumber}`)
-        const outcome = await deps.render({
-          modelPath,
-          views,
-          scale,
-          showHidden,
-          callouts,
-          figureNumber,
-          outputDir: renderDir,
-          signal: exec.signal,
-        })
-        assertRendered(outcome, 'generate_structure_figure')
-        const manifest = await readManifest(outcome.manifestPath)
-        await assertViewSvgs(manifest)
-        figures.push({
-          figureNumber,
-          modelPath,
-          paths: manifest.views.map(view => relative(cwd, view.path)),
-          manifest,
-        })
-      }
-
-      // 标号表/组件由 callouts 还原（件号 → 名称）；无 callouts 则为纯几何线稿。
-      // numeralMap 逐图展开（同一标号在每张图各占一行）；组件列表只派生一次，不随
-      // 图数累加，否则每个索引条目会被其他图的组件重复污染。
-      const components: FigureComponent[] = callouts.map((callout): FigureComponent => ({
-        refNumber: callout.numeral,
-        name: callout.label ?? '',
-        kind: 'mechanical',
-        description: callout.label ?? '',
-      }))
-      const numeralMap: GenerateStructureFigureOutput['numeralMap'] = figures.flatMap(figure =>
-        callouts.map(callout => ({
-          componentId: callout.numeral,
-          label: callout.label ?? '',
-          numeral: callout.numeral,
-          figure: figure.figureNumber,
-        })),
-      )
-
-      const sentences = figures.map(figure => figureSentence(figure.figureNumber, FIGURE_TYPE_NAMES.structure, input.invention_name))
-      const numeralText = [...new Map(numeralMap.filter(m => m.label !== '').map(m => [m.numeral, `${m.numeral}-${m.label}`])).values()].join('，')
-      const figureDescription = numeralText === ''
-        ? `${sentences.join('；')}。`
-        : `${sentences.join('；')}；图中：${numeralText}。`
-
+      const figures = await renderStructureFigures(run, exec.signal)
+      // 组件列表只派生一次，不随图数累加，否则每个索引条目会被其他图的组件重复污染。
+      const components = structureComponents(run.callouts)
+      const numeralMap = structureNumeralMap(figures, run.callouts)
+      const { figureDescription, numeralText } = describeStructureFigures({
+        figures,
+        numeralMap,
+        inventionName: run.input.invention_name,
+      })
       warnings.push(...figureWordingWarnings(
-        callouts.flatMap(callout => (callout.label === undefined ? [] : [callout.label])),
-        callouts.map(callout => callout.numeral),
+        run.callouts.flatMap(callout => (callout.label === undefined ? [] : [callout.label])),
+        run.callouts.map(callout => callout.numeral),
       ))
-
-      let layout: SubmissionLayout | undefined
-      if (input.target_office !== undefined) {
-        const profile = officeProfile(input.target_office)
-        let sheetNumber: string
-        try {
-          sheetNumber = sheetNumberText(profile, input.sheet_index ?? 1, input.sheet_total ?? 1)
-        } catch (error) {
-          throw new PatentToolError('invalid_tool_input', `落版参数非法：${error instanceof Error ? error.message : String(error)}`, { tool: 'generate_structure_figure' })
-        }
-        for (const figure of figures) {
-          for (const viewPath of figure.paths) {
-            const page = buildSubmissionPage({
-              drawingSvg: await readFile(resolve(cwd, viewPath), 'utf8'),
-              profile,
-              caption: input.caption,
-              sheetNumber,
-            })
-            warnings.push(...page.warnings.map(w => `落版：${w}`))
-            if (input.fit_to_page ?? true) await writeFile(resolve(cwd, viewPath), page.svg, 'utf8')
-            layout = {
-              office: profile.office,
-              pageScale: page.metrics.pageScale,
-              placedWidthMm: page.metrics.placedWidthMm,
-              placedHeightMm: page.metrics.placedHeightMm,
-              ...(page.metrics.charHeightMm === undefined ? {} : { charHeightMm: page.metrics.charHeightMm }),
-              ...(page.metrics.reducedCharHeightMm === undefined ? {} : { reducedCharHeightMm: page.metrics.reducedCharHeightMm }),
-              ...(input.caption === undefined ? {} : { caption: input.caption }),
-              sheetNumber,
-            }
-          }
-        }
-      }
-
+      const layout = await applyStructureLayout({ run, figures, warnings })
       let indexed = false
-      if ((input.persist_index ?? true) && deps.upsertIndex !== undefined) {
+      if ((run.input.persist_index ?? true) && deps.upsertIndex !== undefined) {
         indexed = true
         for (const figure of figures) {
-          try {
-            await deps.upsertIndex({
-              imagePath: figure.paths[0] ?? '',
-              analyzedAt: new Date().toISOString(),
-              analysis: structureAnalysis(figure, components, numeralText, warnings),
-            })
-          } catch (error) {
-            // 索引写入是可选增强：写入失败降级为警告，不阻断生成结果返回；
-            // 留痕失败原因——索引缺失会使 search_patent_figure 漏检该结构图。
+          if (!await upsertFigureIndex({
+            upsertIndex: deps.upsertIndex,
+            imagePath: figure.paths[0] ?? '',
+            analysis: structureAnalysis(figure, components, numeralText, warnings),
+            warnings,
+            label: `图${figure.figureNumber} `,
+          })) {
             indexed = false
-            warnings.push(`图${figure.figureNumber} 附图索引写入失败（不阻断）：${error instanceof Error ? error.message : String(error)}`)
           }
         }
       }
-
       return {
         paths: figures.flatMap(figure => figure.paths),
         figures,

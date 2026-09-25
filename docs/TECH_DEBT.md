@@ -262,6 +262,35 @@ L5 的余下条目(魔法哨兵、`whenIdle()` 自旋、`isAborted` 平凡包装
 - **#226 terminal-bash 发送生命周期三项收口**:8 个各自独立的 per-send 字段已无残留,分属两个 owner——`SendLifecycle`(`send-lifecycle.ts`,槽位、期限定时器、取消监听、前台中断交接、provider 写入)与 `ReadinessPoller`(`readiness-poller.ts`,轮询计时状态);`startupSession` 的外层 race 只剩 pwsh 启动的绝对期限,调用方取消由 `LocalPtySession.initialize` 自持(PR #283、#291);`TODO(pty-send-state-consolidation)` 与 `TODO(pty-initialize-race-home)` 两个标记消失,第三条 `TODO(pty-delayed-signal-prompt)` 按裁定保留,其「保留 marker + 轮询为权威」语义已成文于 `packages/terminal/terminal-bash/README.md`(PR #268)。**残余(跟踪于 #292)**:就绪证据字段 `promptSeen/promptTextSeen/promptTail/lastOutputAt/shellPgid` 与 `initializing` 仍是 session 的独立字段,由 `resetReadinessEvidence()` 在 send 边界手工清零;pwsh 启动期限定时器留在 `index.ts`(属启动期限而非 send 槽位)。
 - **keyless 快照车道在 master 上红,归属是 rc.2 上游同步而非本轮改动**:`pnpm run test:snapshot -t pty` 红 2 例(系统提示词措辞、请求头 1),`-t patent` 红 11 例(6 例为 `LlmError: an adapter for provider "deepseek-official" is already registered` 导致的 30s 超时;5 例为模型可见文本不一致,含工具名反引号有无两个方向、工作流摘要措辞,以及 `dsh: warning: 1 entry did not activate…` 取代模型文本)。**已证明的一类**:系统提示词与工具描述的整段措辞(如 `read`/`write`/`glob`/`web_search` 的展开描述)只存在于 `snapshots/` 侧车,在 `packages/` 源码中 0 命中,而侧车的最近改动即上游 rc.2 的合并(PR #285)。**未逐条定位的一类**:最终文本不一致;可确定的是它不在本轮改动的面上——自 2026-09-24 起触及 `apps/cli` 与 `packages/session` 的提交只有 rc.2 同步及其后续的 CI 修复(PR #285 之后数条),而本轮拆分只动 `packages/patent/*` 与 `packages/terminal/*`。`env -u DEEPSEEK_API_KEY` 下同样失败,故与开发者本机 key 无关。**该车道在本仓无 CI 接线**:`ci-fork.yml` 的四个 job 都不跑它,`vitest.config.ts` 的 `testIncludes` 也不含 `snapshots/**`,这正是措辞漂移未被拦住的原因。**处置**:登记为独立条目、不在 #219/#226 内修;修法二选一——按当前源码重录侧车(`pnpm run test:snapshot:refresh` 可无 key 运行,但会一并掩盖真实回归,须逐条复核),或把源码措辞改回侧车记录的上游版本(等于放弃 fork 自己的精简措辞)。在这一条修好之前,**「模型可见回归检测」在本仓不可用**,销案评论必须写明这一点,不得把两个 issue 的关闭读成模型可见面已验证。
 
+## 2026-09-26 更新(#292 收口:13 个超长函数拆分落地,2 项按单登记暂缓 + terminal-bash 就绪证据契约)
+
+- **范围与基线**:分支 `refactor/issue-292-long-functions`(基线为 2026-09-25 的 `master`,即 PR #293 合并后),12 个提交;改动面只有 `packages/patent/*`、`packages/terminal/terminal-bash`、`docs/TECH_DEBT.md` 与两份门禁基线,未触碰其他包。口径与 #292 一致:TypeScript AST 扫描 `packages/patent/*/src/**/*.ts`,函数体(block body)行数 > 150;下表「原」取自 #292 清单,「拆后」为同一口径今日复测。13 项拆分与下面的就绪证据契约同批发布于 PR #294。
+
+| 函数 | 原 | 拆后 | 拆分方式 |
+|---|---|---|---|
+| `registerPatentTeamsTools` | 317 | 5 | 按工具族拆为 4 个 `register*Tools` |
+| `evaluateDeadlines` | 298 | 15 | 按法定期限族拆为 10 个 `*Items` + `NOTICE_PERIOD_SPECS` 表 |
+| `defaultPatentWorkers` | 290 | 6 | 按案件阶段拆为 4 个 `*Workers` |
+| `createGeneratePatentFigureTool` | 284 | 127 | schema 命名化 + 步骤函数 |
+| `createGenerateStructureFigureTool` | 218 | 111 | `resolveStructureRun` + 5 个步骤 |
+| `installTeamScheduler` | 210 | 137 | 三段派发上移为模块级步骤 |
+| `validateSpecification` | 198 | 19 | 8 个规则族步骤,按报告顺序编排 |
+| `generatePanels` | 195 | 44 | 单图/多面板共用 `assignFigureNumerals`/`renderPanel` |
+| `buildInventivenessGraph` | 193 | 9 | 解析检索 / 三步法 / 结论三段 + 尾链 |
+| `createWorkbenchLinkPatentCaseTool` | 190 | 83 | 校验、字典、任务加载、根任务、投影五步 |
+| `apply` | 171 | 169 | **暂缓**,按 #292 第 3 条登记 |
+| `execute`(generate-patent-figure) | 171 | 14 | 单图路径拆为命名步骤 |
+| `runWorkflow` | 171 | 27 | 窗口 / 并行组 / 单阶段回退 / 汇总四步 |
+| `execute`(generate-structure-figure) | 152 | 45 | `StructureRun` + 5 个步骤 |
+| `createPatentPdfDownloadTool` | 151 | 149 | **暂缓**,按 #292 第 3 条登记;与清单 151 的 2 行差为同口径复测的边界精度差,非改动 |
+
+- **口径结论**:`packages/patent/*/src` 内函数体 > 150 行由 15 个降到 1 个(`apply`)。拆出的步骤函数以「阶段/规则族/工具族」为单位命名,同一文件的公开面与调用顺序不变(`ctx.tools.register` 按插入序产出模型可见目录,`addNode`/`addEdge` 的插入序即 `compile()` 的图结构,均已由既有测试钉住)。
+- **唯一的刻意行为改动**:多面板附图路径的标号冲突原先直接抛 `DotBuildError` 文案,现与单图路径同走 `assignFigureNumerals` 的 `PatentToolError('invalid_tool_input', 标号分配失败:…)` 翻译,并新增一条会失败的对照用例(`packages/patent/patent-tools/tests/figure-generate-tool.spec.ts`)。其余拆分按等价性证明:`worker-contract.ts`、`teams/src/tools.ts`、`inventiveness.ts`、`validate-specification.ts` 四处的缩进归一行多重集差异为 0(只多出编排/签名/`return` 行,既有行零删除);`statutes.ts` 另把 `items.push(...)` 改为各步 `return [...]`,并把 3 条段落注释并入对应 JSDoc;`generate-patent-figure.ts`、`generate-structure-figure.ts`、`scheduler.ts`、`workbench-link-patent-case.ts`、`workflow.ts` 由闭包改为模块级步骤,必然改写标识符(`exec.signal`→`run.signal`、`this.*`→入参等),故不以行多重集声明等价,由行为金样本证明(patent-deadline 105 变体 × 3 参数组的渲染报告、inventiveness 7 组 `describe()` + 4 次真实运行、workbench 14 场景的 stub 调用序列与结果、runWorkflow 14 场景覆盖并行窗口/回退/回退耗尽/中断/持久化失败/取消;两个附图工具走 `execute` 入口的 14 场景),拆分前后逐字节一致。
+- **门禁基线变动**:`scripts/no-unknown-casts.baseline.json` 退役 2 条(`args as unknown as X` 在两处改成单次窄化,断言总数 1896→1895);`scripts/duplication-baseline.json` 由 82 对降到 81 对(`generate-patent-figure.ts` 的一处自重复随拆解消失),仓库级 0 克隆。
+- **terminal-bash 就绪证据字段:裁定为 README 契约,不迁入 `ReadinessPoller`**。理由:`readiness-poller.ts` 的模块文档本就声明分工——「判定留在会话、会话收集证据,owner 只保留排定决策」;六个字段里 `shellPgid` 与 `initializing` 是会话生命周期状态(前者首个标记到达时学到一次、跨 send 复用,后者由 `initialize()` 置位/清除),只有四个(`promptSeen`/`promptTextSeen`/`promptTail`/`lastOutputAt`)按 send 边界清零。迁入 poller 需要把输出摄取与启动态喂给一个只管计时的 owner,反而把「谁拥有证据」摊到两处。故在 README「就绪模型」节(中英双写、`.i18n.yaml` 重录)成文:逐字段列出含义、`resetReadinessEvidence` 的两个清零点(准入时、携带输入的写入之前)、以及不随该重置清空的 `shellPgid`/`initializing`;字段块与 `resetReadinessEvidence` 各加一行指向该契约的注释。
+- **验证实测**:`npx vitest run packages/patent packages/terminal` 239 文件 3237 用例通过 / 6 跳过;`pnpm run typecheck` 0 error;`pnpm run lint` 全仓 6202 文件 0 warning / 0 error;`pnpm run duplication` 仓库级 0 克隆且收紧域 81 对与基线一致;`pnpm run verify-no-unknown-casts` 1895 条无新增;`pnpm run test:docs` 23 门通过(含双语配对 1419 对一致、doc budgets 8 篇在限内)。
+- **残余(登记)**:① `apply`(169)与 `createPatentPdfDownloadTool`(149)按 #292 第 3 条暂缓,未拆;② #219/#226 遗留的「新模块无专属测试,只有消费者 spec 间接覆盖」在本轮同样适用(本轮新增的步骤函数全部由所属包的既有 spec 与上述金样本覆盖,但无对位测试文件);③ keyless 快照车道在 master 上仍红(归属 rc.2 上游同步,见 2026-09-25 节),本轮同样没有把两个 issue 的关闭读成模型可见面已验证。
+
 ## 总体评估
 
 项目纪律基线很强,债务主体不是「脏代码」而是「跨包重复与文档化的已知缺口」:

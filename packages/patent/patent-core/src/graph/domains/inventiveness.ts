@@ -104,9 +104,22 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
   const handlers = options.handlers ?? globalStageHandlerRegistry
   const builder = new GraphBuilder()
 
-  const search = handlers.lookup('search')
-  const approval = handlers.lookup('approval-gate')
+  addParseAndSearchNodes(builder, handlers)
+  addThreeStepNodes(builder)
+  addConclusionNodes(builder)
+  addGraphTail(builder, handlers, options)
 
+  return builder
+}
+
+/**
+ * 解析与检索节点：parse（画像/时间基准）→ build_query（检索策略），以及注册表提供
+ * search handler 时插入的 search 节点与 prepare_query 桥接。
+ * @param builder - 图构建器。
+ * @param handlers - 阶段执行器注册表。
+ */
+function addParseAndSearchNodes(builder: GraphBuilder, handlers: StageHandlerRegistry): void {
+  const search = handlers.lookup('search')
   builder.addNode(
     'parse',
     llmNode({
@@ -156,6 +169,14 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
   } else {
     builder.addEdge('build_query', 'closest')
   }
+}
+
+/**
+ * 三步法节点：closest（Step1 最接近现有技术）→ diff（Step2 区别特征与实际解决的技术
+ * 问题）→ hint（Step3 技术启示）。
+ * @param builder - 图构建器。
+ */
+function addThreeStepNodes(builder: GraphBuilder): void {
   builder.addNode(
     'closest',
     llmNode({
@@ -221,6 +242,13 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
       schema: HINT_SCHEMA,
     }),
   )
+}
+
+/**
+ * 结论节点：secondary（辅助因素复核）与 conclude（结论 + 反事后诸葛亮自检）。
+ * @param builder - 图构建器。
+ */
+function addConclusionNodes(builder: GraphBuilder): void {
   builder.addNode(
     'secondary',
     llmNode({
@@ -272,6 +300,16 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
       schema: CONCLUDE_SCHEMA,
     }),
   )
+}
+
+/**
+ * 固定节点链的边与尾链：conclude →（注入 approval 时）approval → rule_gate → 结束。
+ * @param builder - 图构建器。
+ * @param handlers - 阶段执行器注册表。
+ * @param options - 子图构建选项。
+ */
+function addGraphTail(builder: GraphBuilder, handlers: StageHandlerRegistry, options: BuildInventivenessGraphOptions): void {
+  const approval = handlers.lookup('approval-gate')
 
   // 边：parse → build_query → prepare_query → (search) → closest → diff → hint → secondary → conclude → 尾链
   builder.addEdge('parse', 'build_query')
@@ -290,8 +328,6 @@ export function buildInventivenessGraph(options: BuildInventivenessGraphOptions 
     builder.addEdge('conclude', withRuleGate ? 'rule_gate' : '__end__')
   }
   if (withRuleGate) builder.addEdge('rule_gate', '__end__')
-
-  return builder
 }
 
 /** 从图运行结果提取创造性结论（供调用方/评测读取）。

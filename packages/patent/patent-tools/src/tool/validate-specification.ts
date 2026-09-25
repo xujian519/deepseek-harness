@@ -64,18 +64,56 @@ export function computeSpecScore(violations: SpecViolation[]): { passed: boolean
 
 /**
  * Pure entry point: validate the specification against the rule set.
+ *
+ * The rule families run in the order the report lists their violations.
  * @param input - the specification fields to validate.
  * @returns the validation result (passed, score, violations).
  */
 export function validateSpecification(input: ValidateSpecificationInput): ValidateSpecificationOutput {
-  const violations: SpecViolation[] = []
   const text = input.text ?? ''
   const title = input.title?.trim() ?? ''
+  const present = presentSections(text)
+  const violations: SpecViolation[] = [
+    ...formViolations(text, title, present),
+    ...abstractViolations(input, present),
+    ...clarityViolations(text),
+    ...drawingViolations(input, text, present),
+    ...embodimentViolations(text),
+    ...effectViolations(text),
+    ...chemicalViolations(input, text),
+    ...claimViolations(input, text),
+  ]
+  const scored = computeSpecScore(violations)
+  return {
+    passed: scored.passed,
+    score: scored.score,
+    violations,
+  }
+}
 
+/**
+ * Required sections whose heading appears in the text.
+ * @param text - the specification text.
+ * @returns the names of the required sections found.
+ */
+function presentSections(text: string): Set<string> {
   const present = new Set<string>()
   for (const sec of REQUIRED_SECTIONS) {
     if (sec.pattern.test(text)) present.add(sec.name)
   }
+  return present
+}
+
+/**
+ * Five-part section completeness and invention-title length. An empty text
+ * reports the empty case instead of listing every section as missing.
+ * @param text - the specification text.
+ * @param title - the trimmed invention title.
+ * @param present - the required sections found in the text.
+ * @returns section and title violations.
+ */
+function formViolations(text: string, title: string, present: Set<string>): SpecViolation[] {
+  const violations: SpecViolation[] = []
   const missing = REQUIRED_SECTIONS.map(s => s.name).filter(n => !present.has(n))
   if (text.trim().length > 0 && missing.length > 0) {
     violations.push({
@@ -102,7 +140,19 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
       suggestion: '请缩短至 25 字以内，使用通用技术术语',
     })
   }
+  return violations
+}
 
+/**
+ * Abstract length, keywords, and drawing designation. The designation is only
+ * checked when the specification has a drawing section with real drawings.
+ * @param input - the specification input under validation.
+ * @param present - the required sections found in the text.
+ * @returns abstract violations.
+ */
+function abstractViolations(input: ValidateSpecificationInput, present: Set<string>): SpecViolation[] {
+  const violations: SpecViolation[] = []
+  const text = input.text ?? ''
   if (input.abstract && Array.from(input.abstract.trim()).length > 300) {
     violations.push({
       rule: 'abstract_length',
@@ -148,7 +198,16 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
       }
     }
   }
+  return violations
+}
 
+/**
+ * Vague wording in the specification text.
+ * @param text - the specification text.
+ * @returns clarity violations.
+ */
+function clarityViolations(text: string): SpecViolation[] {
+  const violations: SpecViolation[] = []
   const vagueHits = VAGUE_TERMS.filter(t => text.includes(t))
   if (vagueHits.length > 0) {
     violations.push({
@@ -158,7 +217,19 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
       suggestion: "删除'约/大致/可能/优选/例如'等模糊表述，使用确定的技术术语",
     })
   }
+  return violations
+}
 
+/**
+ * Body figure references against the drawing section, and, when figure
+ * analysis is supplied, the figure-mark consistency check.
+ * @param input - the specification input under validation.
+ * @param text - the specification text.
+ * @param present - the required sections found in the text.
+ * @returns drawing violations.
+ */
+function drawingViolations(input: ValidateSpecificationInput, text: string, present: Set<string>): SpecViolation[] {
+  const violations: SpecViolation[] = []
   const hasDrawingSection = present.has('附图说明')
   const figRefs = text.match(/图\s*[一二三四五六七八九十\d]+/g) ?? []
   const bodyRefs = figRefs.length - countInDrawingSection(text)
@@ -183,7 +254,17 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
   if (input.figure_analysis?.length) {
     violations.push(...checkFigureMarkConsistency(text, input.figure_analysis, input.claims))
   }
+  return violations
+}
 
+/**
+ * Embodiment presence and the numeric-range endpoint / midpoint coverage of
+ * 具体实施方式.
+ * @param text - the specification text.
+ * @returns embodiment and numeric-range violations.
+ */
+function embodimentViolations(text: string): SpecViolation[] {
+  const violations: SpecViolation[] = []
   const embodimentCount = (text.match(/(?:本|该)?实施例(?:\s*[一二三四五六七八九十\d]+)?/g) ?? []).length
   if (text.trim().length > 0 && embodimentCount === 0) {
     violations.push({
@@ -216,7 +297,16 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
       })
     }
   }
+  return violations
+}
 
+/**
+ * Effect statements lacking quantitative data. Only the first three are named.
+ * @param text - the specification text.
+ * @returns effect-quantification violations.
+ */
+function effectViolations(text: string): SpecViolation[] {
+  const violations: SpecViolation[] = []
   const vagueEffects = checkEffectQuantification(text)
   if (vagueEffects.length > 0) {
     violations.push({
@@ -227,7 +317,18 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
       suggestion: '补充定量效果数据（对比实验/百分比/提升幅度），建立效果与区别技术特征的对应',
     })
   }
+  return violations
+}
 
+/**
+ * Chemical-domain product characterization data. Reported only when none of
+ * the characterization terms appear at all.
+ * @param input - the specification input under validation.
+ * @param text - the specification text.
+ * @returns chemical-characterization violations.
+ */
+function chemicalViolations(input: ValidateSpecificationInput, text: string): SpecViolation[] {
+  const violations: SpecViolation[] = []
   if (input.tech_domain === 'chemical' && text.trim().length > 0) {
     const missingTerms = checkChemicalCharacterization(text)
     if (missingTerms.length === CHEM_CHARACTERIZATION_TERMS.length) {
@@ -240,7 +341,18 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
       })
     }
   }
+  return violations
+}
 
+/**
+ * Claim-feature coverage of the specification (A26.4), then independent-claim
+ * unity and the claim-to-embodiment coverage matrix from the structured inputs.
+ * @param input - the specification input under validation.
+ * @param text - the specification text.
+ * @returns claim violations, in claim order.
+ */
+function claimViolations(input: ValidateSpecificationInput, text: string): SpecViolation[] {
+  const violations: SpecViolation[] = []
   if (input.claims && input.claims.trim().length > 0 && text.trim().length > 0) {
     const { missing: missingFeatures, total } = checkClaimCoverage(input.claims, text)
     if (total >= 3 && missingFeatures.length > 0) {
@@ -256,14 +368,7 @@ export function validateSpecification(input: ValidateSpecificationInput): Valida
   }
 
   violations.push(...checkClaimSet(input))
-
-  const scored = computeSpecScore(violations)
-
-  return {
-    passed: scored.passed,
-    score: scored.score,
-    violations,
-  }
+  return violations
 }
 
 /**
