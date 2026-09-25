@@ -28,7 +28,14 @@ import {
   readUnreadMailbox,
   releaseMailboxDelivery,
 } from './mailbox.ts'
-import * as memberOps from './member-runtime.ts'
+import {
+  addMember as addMemberImpl,
+  type AddMemberArgs,
+  type AddMemberResult,
+  type MemberOpsHost,
+  removeMember as removeMemberImpl,
+  type RemoveMemberResult,
+} from './member-runtime.ts'
 import { deliverToMember, interruptMember, memberActivity, waitForMemberIdle } from './members.ts'
 import { installTeamScheduler, type TeamScheduler } from './scheduler.ts'
 import {
@@ -43,7 +50,21 @@ import {
   recordRetiredMemberIds,
   writeTeam,
 } from './state.ts'
-import * as taskOps from './task-ops.ts'
+import {
+  claimTask as claimTaskImpl,
+  type ClaimTaskArgs,
+  type ClaimTaskResult,
+  createTask as createTaskImpl,
+  type CreateTaskArgs,
+  type CreateTaskResult,
+  reassignTask as reassignTaskImpl,
+  type ReassignTaskArgs,
+  type ReassignTaskResult,
+  type TaskOpsHost,
+  updateTask as updateTaskImpl,
+  type UpdateTaskArgs,
+  type UpdateTaskResult,
+} from './task-ops.ts'
 import {
   captainTeam,
   freshCaptainTeam,
@@ -115,16 +136,12 @@ function steerCaptainReport(
  * per-team in-process lock and is persisted atomically before any notification
  * fires. Members are continuable subagents whose durable session ids are
  * recorded in the team file, so a team survives harness restarts.
- *
- * The task state machine lives in `task-ops.ts` and the member lifecycle in
- * `member-runtime.ts`; both receive the projections built here, because the
- * resolved config is this service's to read once.
  */
 export class PatentTeamsService extends Service {
   private readonly config: PatentTeamsConfig
   private readonly scheduler: TeamScheduler
-  private readonly tasks: taskOps.TaskOpsHost
-  private readonly members: memberOps.MemberOpsHost
+  private readonly tasks: TaskOpsHost
+  private readonly members: MemberOpsHost
 
   /**
    * @param ctx - the plugin context the service registers on.
@@ -218,10 +235,10 @@ export class PatentTeamsService extends Service {
    */
   async addMember(
     agent: Agent,
-    args: memberOps.AddMemberArgs,
+    args: AddMemberArgs,
     signal: AbortSignal,
-  ): Promise<memberOps.AddMemberResult> {
-    return memberOps.addMember(this.members, agent, args, signal)
+  ): Promise<AddMemberResult> {
+    return addMemberImpl(this.members, agent, args, signal)
   }
 
   /**
@@ -233,8 +250,8 @@ export class PatentTeamsService extends Service {
    * @param signal - caller cancellation, forwarded to quiescence waits.
    * @returns the removed member and requeued task ids.
    */
-  async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<memberOps.RemoveMemberResult> {
-    return memberOps.removeMember(this.members, agent, name, signal)
+  async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<RemoveMemberResult> {
+    return removeMemberImpl(this.members, agent, name, signal)
   }
 
   /**
@@ -247,10 +264,10 @@ export class PatentTeamsService extends Service {
    */
   async createTask(
     agent: Agent,
-    args: taskOps.CreateTaskArgs,
+    args: CreateTaskArgs,
     signal?: AbortSignal,
-  ): Promise<taskOps.CreateTaskResult> {
-    return taskOps.createTask(this.tasks, agent, args, signal)
+  ): Promise<CreateTaskResult> {
+    return createTaskImpl(this.tasks, agent, args, signal)
   }
 
   /**
@@ -264,10 +281,10 @@ export class PatentTeamsService extends Service {
    */
   async reassignTask(
     agent: Agent,
-    args: taskOps.ReassignTaskArgs,
+    args: ReassignTaskArgs,
     signal: AbortSignal,
-  ): Promise<taskOps.ReassignTaskResult> {
-    return taskOps.reassignTask(this.tasks, agent, args, signal)
+  ): Promise<ReassignTaskResult> {
+    return reassignTaskImpl(this.tasks, agent, args, signal)
   }
 
   /**
@@ -280,9 +297,9 @@ export class PatentTeamsService extends Service {
    */
   async claimTask(
     agent: Agent,
-    args: taskOps.ClaimTaskArgs,
-  ): Promise<taskOps.ClaimTaskResult> {
-    return taskOps.claimTask(this.tasks, agent, args)
+    args: ClaimTaskArgs,
+  ): Promise<ClaimTaskResult> {
+    return claimTaskImpl(this.tasks, agent, args)
   }
 
   /**
@@ -296,10 +313,10 @@ export class PatentTeamsService extends Service {
    */
   async updateTask(
     agent: Agent,
-    args: taskOps.UpdateTaskArgs,
+    args: UpdateTaskArgs,
     signal?: AbortSignal,
-  ): Promise<taskOps.UpdateTaskResult> {
-    return taskOps.updateTask(this.tasks, agent, args, signal)
+  ): Promise<UpdateTaskResult> {
+    return updateTaskImpl(this.tasks, agent, args, signal)
   }
 
   /**
