@@ -1,6 +1,37 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/synapse/README.md
-README.md: 5f7ba39b241da46302e3ae7db41fea01b0654e3d
-README.zh.md: 4121b6264c4f33de45d6c955f588a4bff85914dc
+/:
+  en: 9d81e249c1d70a6a
+  zh: 035223a8355e2067
+/deepseek-ai-dsh-host-synapse:
+  en: 34c029e3e2ffa0fe
+  zh: 6491701491eb218c
+/deepseek-ai-dsh-host-synapse/summary:
+  en: 0672fbc89540a72d
+  zh: 690452e343a8019f
+/deepseek-ai-dsh-host-synapse/table-of-contents:
+  en: 75ef429a130a1075
+  zh: 700b3d616e8cf660
+/deepseek-ai-dsh-host-synapse/registration:
+  en: 13a4297ba83f8633
+  zh: d27de0e0a447f5d9
+/deepseek-ai-dsh-host-synapse/configuration:
+  en: d8dc0e287de008de
+  zh: 058e1d666d59f296
+/deepseek-ai-dsh-host-synapse/canvas-data:
+  en: d89ed5e7d3c2aec2
+  zh: 9c8e43c047e68be3
+/deepseek-ai-dsh-host-synapse/model-experience:
+  en: 6e69c4e104a9a2e0
+  zh: e045a3a11d52e90f
+/deepseek-ai-dsh-host-synapse/model-experience/kv-cache-effect:
+  en: 5878ea047649e2fc
+  zh: 3ec332e1a6b1de19
+/deepseek-ai-dsh-host-synapse/known-limitations-and-deferred-work:
+  en: abbcab02f2fb2ad1
+  zh: 88fb2f672775bc15
+/deepseek-ai-dsh-host-synapse/known-limitations-and-deferred-work/dev-note:
+  en: 104ca5dd75ccefcf
+  zh: 3b36a360a5cbaf08

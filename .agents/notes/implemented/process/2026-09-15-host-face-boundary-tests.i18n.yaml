@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-host-face-boundary-tests.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-15-host-face-boundary-tests.md
-2026-09-15-host-face-boundary-tests.md: 7518fef0370dd240738f4b18bef59cfd9cd353a2
-2026-09-15-host-face-boundary-tests.zh.md: 24eb80aacdcaeae84db5dc86b28d7e6afc6e178b
+/agent-note-listing-the-boundary-tests-in-the-host-face:
+  en: 27dfc208117ade46
+  zh: f804c86b5675405a
+/agent-note-listing-the-boundary-tests-in-the-host-face/problem:
+  en: 84ca80588bff4bc8
+  zh: efba48194e9ed8a2
+/agent-note-listing-the-boundary-tests-in-the-host-face/decision:
+  en: 9c64a8cd517cdd40
+  zh: cb4a1989e5ee2816
+/agent-note-listing-the-boundary-tests-in-the-host-face/verification:
+  en: 1cbba6fb0adc5865
+  zh: b6964e01574c5e04
+/agent-note-listing-the-boundary-tests-in-the-host-face/alternatives-considered:
+  en: b0d1cc36e02852a8
+  zh: b553317c5a31f3e1
+/agent-note-listing-the-boundary-tests-in-the-host-face/consequences:
+  en: 4a966679e53dda5c
+  zh: 48ad39a18b1e7722
+/agent-note-listing-the-boundary-tests-in-the-host-face/related:
+  en: 16a17b9ee556dffb
+  zh: 9b2555a96a2c7a41

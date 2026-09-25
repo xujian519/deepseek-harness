@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-rule/README.md
-README.md: c9e009712234a7c4cff2d7bde5aafa83e01e5591
-README.zh.md: efd815ce990ffa8a26f1f562f9325ecaef4edd98
+/:
+  en: 89730e682e44bffc
+  zh: b67c77a8b38f8a8b
+/deepseek-ai-dsh-patent-rule:
+  en: f12145b2246fa994
+  zh: bc5d8bfbe1ee7e3d
+/deepseek-ai-dsh-patent-rule/summary:
+  en: 97669d6d9a4dd942
+  zh: 4d665e80c9167d62
+/deepseek-ai-dsh-patent-rule/table-of-contents:
+  en: 25fd2e2ad7042d7e
+  zh: fcb361fd4af3f6c5
+/deepseek-ai-dsh-patent-rule/output-gate:
+  en: 9478fd901c8076d2
+  zh: 1b605f851c4b8920
+/deepseek-ai-dsh-patent-rule/evi-011-evidence-guards:
+  en: c13fe53817f38151
+  zh: fc1aa0e5f29029d4
+/deepseek-ai-dsh-patent-rule/rule-engine-library-api:
+  en: 99c45ea2be556dc4
+  zh: f3a11dd45bf4b16f
+/deepseek-ai-dsh-patent-rule/rule-assets:
+  en: a492f5e5b79382eb
+  zh: b5aff681f5bfde61
+/deepseek-ai-dsh-patent-rule/rule-assets/job-scopes:
+  en: b3202a6be7459351
+  zh: a1e5b7153d891641
+/deepseek-ai-dsh-patent-rule/configuration:
+  en: c9c667686d2ddff2
+  zh: d011c6f57047fc2a
+/deepseek-ai-dsh-patent-rule/model-experience:
+  en: 3880b3cb480881c1
+  zh: 4d5586a2e4bdbe54
+/deepseek-ai-dsh-patent-rule/model-experience/kv-cache-effect:
+  en: e6acf0941fd6c75b
+  zh: 63651dab1df109cb
+/deepseek-ai-dsh-patent-rule/known-limitations-and-deferred-work:
+  en: 274d64a3881e2230
+  zh: 932b368c3a58f57d
+/deepseek-ai-dsh-patent-rule/known-limitations-and-deferred-work/dev-note:
+  en: df42c6d88317e7ca
+  zh: 6df4aa8c29bf4278

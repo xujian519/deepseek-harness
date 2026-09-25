@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-31-sink-load-failure-row.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-31-sink-load-failure-row.md
-2026-08-31-sink-load-failure-row.md: 9ba4b19d9c40b8798b74ad06e667234a93917c4d
-2026-08-31-sink-load-failure-row.zh.md: 9370ea8b5dde0060c16b851d19ce37c5ad8240d1
+/agent-note-sink-the-settings-load-failure-row-into-dsh-client-ui-primitives:
+  en: 5a72e54358cd27ce
+  zh: 18456c3faba62f38
+/agent-note-sink-the-settings-load-failure-row-into-dsh-client-ui-primitives/problem:
+  en: 9eae7b828b373dca
+  zh: bb9cde58f4e5f372
+/agent-note-sink-the-settings-load-failure-row-into-dsh-client-ui-primitives/decision:
+  en: 960e3456fd16fbb2
+  zh: 335ffc07e43255b1
+/agent-note-sink-the-settings-load-failure-row-into-dsh-client-ui-primitives/alternatives-considered:
+  en: 41c9b4589bafd88a
+  zh: eeb66d12885449c5
+/agent-note-sink-the-settings-load-failure-row-into-dsh-client-ui-primitives/consequences:
+  en: 6316bdd09c5cade6
+  zh: 9bab7dd2a2d23382

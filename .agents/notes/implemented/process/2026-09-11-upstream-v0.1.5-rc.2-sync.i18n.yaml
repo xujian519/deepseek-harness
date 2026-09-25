@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-11-upstream-v0.1.5-rc.2-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-11-upstream-v0.1.5-rc.2-sync.md
-2026-09-11-upstream-v0.1.5-rc.2-sync.md: ef1e9f03a3d0e76e15df881b25ea96e9800eb592
-2026-09-11-upstream-v0.1.5-rc.2-sync.zh.md: 24ed9f06e90ff49ae356685bef0c833cc4d75acd
+/agent-note-upstream-v0-1-5-rc-2-sync-and-the-client-face-type-subpath-upkeep:
+  en: 901cb3df85581ec5
+  zh: f819db7e13014eb7
+/agent-note-upstream-v0-1-5-rc-2-sync-and-the-client-face-type-subpath-upkeep/problem:
+  en: 88ba8a507bc63f67
+  zh: 9f44a927770f82dc
+/agent-note-upstream-v0-1-5-rc-2-sync-and-the-client-face-type-subpath-upkeep/decision:
+  en: 5f2e0b0e52224d10
+  zh: 428f70d5d0d1b7c2
+/agent-note-upstream-v0-1-5-rc-2-sync-and-the-client-face-type-subpath-upkeep/consequences:
+  en: f8f0262bb551d857
+  zh: 9a9662ce82fec828
+/agent-note-upstream-v0-1-5-rc-2-sync-and-the-client-face-type-subpath-upkeep/alternatives-considered:
+  en: ac51cdef5c24f57b
+  zh: 73eaa7855874d727
+/agent-note-upstream-v0-1-5-rc-2-sync-and-the-client-face-type-subpath-upkeep/testing:
+  en: 4a51d87b983001c9
+  zh: dae0e0ffecc57311

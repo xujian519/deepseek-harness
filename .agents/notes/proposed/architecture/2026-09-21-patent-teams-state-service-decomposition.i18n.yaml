@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-patent-teams-state-service-decomposition.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-09-21-patent-teams-state-service-decomposition.md
-2026-09-21-patent-teams-state-service-decomposition.md: b98c7eae6efdbf6af09107e52f9afbaad83f7878
-2026-09-21-patent-teams-state-service-decomposition.zh.md: 3bcf9ea49379da1361241865007b2065abd4b1fe
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner:
+  en: f6176ebbfe77db7a
+  zh: 33fbe89cec38087d
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/problem:
+  en: 493f8bda63078267
+  zh: 0a969a57269b1e94
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/proposal:
+  en: 05744b5fb13df9df
+  zh: bfd32606d629cbb4
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/alternatives-considered:
+  en: c0fdf9342316420c
+  zh: 2f45e8fcb686e18f
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/acceptance-criteria:
+  en: 4200480491b7dccd
+  zh: 36492f6ff197a5b4
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/risks:
+  en: 0dc951b53a8dd285
+  zh: e345765b797721fb

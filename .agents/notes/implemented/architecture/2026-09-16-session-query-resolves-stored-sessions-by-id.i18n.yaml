@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-session-query-resolves-stored-sessions-by-id.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-session-query-resolves-stored-sessions-by-id.md
-2026-09-16-session-query-resolves-stored-sessions-by-id.md: 1a10c127b2e054f5fa3ded598d429782c6e09e44
-2026-09-16-session-query-resolves-stored-sessions-by-id.zh.md: 99b91855b8800a2a3cb6ccb93abde20c72e3f486
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus:
+  en: 0f1ae477a2414309
+  zh: 37e9758700e3298b
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus/problem:
+  en: da1bee7a994c17e8
+  zh: 9e75366c59885ce0
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus/decision:
+  en: 1f10100c39bcb50c
+  zh: 6534abac82f32218
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus/alternatives-considered:
+  en: 53767c45e66f9a65
+  zh: 39edbfd4c21cee4a
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus/consequences:
+  en: 8935bb1730d3f1c1
+  zh: 738270060ebaddd2
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus/testing:
+  en: 139a6324638f5f71
+  zh: f3d2dca4d87d0734
+/agent-note-resolve-a-stored-session-by-id-instead-of-listing-the-corpus/related:
+  en: d9643cda5fe5723e
+  zh: b7158c02a86480b6

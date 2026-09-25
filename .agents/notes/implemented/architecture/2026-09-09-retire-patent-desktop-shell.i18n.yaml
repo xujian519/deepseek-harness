@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-retire-patent-desktop-shell.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-retire-patent-desktop-shell.md
-2026-09-09-retire-patent-desktop-shell.md: 450e9f2ff23647ce664c9266c9b34668c8c1ff58
-2026-09-09-retire-patent-desktop-shell.zh.md: 1fe946effba2db608220a58ef03a8b19b77e7672
+/agent-note-retire-the-patent-electron-shell:
+  en: aa3389a1b51f48bc
+  zh: c6f1c475fc6458b4
+/agent-note-retire-the-patent-electron-shell/problem:
+  en: 90ad0be503bbecd7
+  zh: 3488a354c65dbfc1
+/agent-note-retire-the-patent-electron-shell/decision:
+  en: d756b743060665a0
+  zh: f731a5ee2e3c2bd9
+/agent-note-retire-the-patent-electron-shell/alternatives-considered:
+  en: a891477f9d60716a
+  zh: 72908a1989afb38c
+/agent-note-retire-the-patent-electron-shell/consequences:
+  en: 09d2cf94e8e89c8f
+  zh: d4a569f543606a58

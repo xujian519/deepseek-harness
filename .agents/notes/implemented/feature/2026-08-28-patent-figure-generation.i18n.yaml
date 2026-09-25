@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-28-patent-figure-generation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-28-patent-figure-generation.md
-2026-08-28-patent-figure-generation.md: 6e8d8c2fada177f42feb2b4cc513618653316600
-2026-08-28-patent-figure-generation.zh.md: 5aea94e7f4b1e5255287baa50758ab71817d9f48
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed:
+  en: 1c0d1a72005b6700
+  zh: df84e06fc5b30619
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed/problem:
+  en: 80ad514c0c4a6a9a
+  zh: 40701f9b585b8f5f
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed/decision:
+  en: 7d967ae13b78c60d
+  zh: 92ea504215e5078d
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed/alternatives-considered:
+  en: eb731bc3abf23f0c
+  zh: d97c200f79a3803e
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed/verification:
+  en: 5f391e854c48ba82
+  zh: 8b125f00775700e1
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed/consequences:
+  en: 36d4931340ee00a0
+  zh: 5ea25cf260859c60
+/agent-note-figures-generation-in-the-patent-domain-graphviz-backed/notes:
+  en: 3324be84560b16de
+  zh: 6cbda7c237e1dc76

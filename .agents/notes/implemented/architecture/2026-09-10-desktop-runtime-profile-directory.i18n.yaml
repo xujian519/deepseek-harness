@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-desktop-runtime-profile-directory.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-10-desktop-runtime-profile-directory.md
-2026-09-10-desktop-runtime-profile-directory.md: aa7af0b6d74304ed686142642151bc61d0880649
-2026-09-10-desktop-runtime-profile-directory.zh.md: 91e50238813c4bde82578551f05952a78671d42a
+/agent-note-give-the-desktop-runtime-its-own-profile-directory:
+  en: 4cad1ef02646c0e0
+  zh: 93e80d8e0ef5958a
+/agent-note-give-the-desktop-runtime-its-own-profile-directory/problem:
+  en: d70a4d7d7b705d2f
+  zh: 500a72d65995694a
+/agent-note-give-the-desktop-runtime-its-own-profile-directory/decision:
+  en: 211b50d6c102b0b8
+  zh: c1ede4b710fc9a13
+/agent-note-give-the-desktop-runtime-its-own-profile-directory/alternatives-considered:
+  en: 1eed3b5b92e8c8d3
+  zh: 25c7170c9f5e6ac8
+/agent-note-give-the-desktop-runtime-its-own-profile-directory/consequences:
+  en: f85882cdd739126e
+  zh: f278af5f3e871338

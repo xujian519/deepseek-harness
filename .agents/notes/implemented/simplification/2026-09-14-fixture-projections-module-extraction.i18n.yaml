@@ -1,6 +1,40 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-fixture-projections-module-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-projections-module-extraction.md
-2026-09-14-fixture-projections-module-extraction.md: 5b5681fc4aa833c1ad91db576fc19a5ffd95f9e1
-2026-09-14-fixture-projections-module-extraction.zh.md: 5a0779c97dfcfdc0fa37cd0f1146bcd5bf3608a1
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86:
+  en: ac59c521f0706592
+  zh: a39241befa7b5eea
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/problem:
+  en: 59e87bfd25222947
+  zh: f4e6bf785f96fd5b
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/decision:
+  en: 88b89817016c17bf
+  zh: 0bec9e12dee5767f
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/decision/every-exported-name-has-a-reader-in-the-world:
+  en: 2659d75bb59fa409
+  zh: a8671936739ed86d
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/decision/the-private-names-moved-because-their-only-readers-moved:
+  en: f914450cfb3ab553
+  zh: 26634c44d0538471
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/decision/the-move-is-a-slice-and-checked-by-byte-accounting:
+  en: 7435e695193fa3c7
+  zh: af1f446f81125a04
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/decision/why-pageof-and-the-search-family-stayed:
+  en: f2006b0f72f23559
+  zh: ca46cd437f007b30
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/verification:
+  en: d456966fdf5eb737
+  zh: d3ae44042be80da0
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/verification/the-coverage-exemption-is-inherited-debt-not-a-new-one:
+  en: 4bc34b32e4dd2957
+  zh: 4d843a2b1c304f64
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/alternatives-considered:
+  en: 7a57ae17fb49d0c9
+  zh: 5c86fb1b911e6bd0
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/consequences:
+  en: ad90295727f965c8
+  zh: e0cbdda287cd660d
+/agent-note-extracting-the-fixture-provider-s-projection-folds-issue-86/related:
+  en: 58d4e390d603fa93
+  zh: b344d86582169268

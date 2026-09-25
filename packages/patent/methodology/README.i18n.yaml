@@ -1,6 +1,61 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/methodology/README.md
-README.md: 78f5f888aa1d4afb2783ddf818614881efa1ec05
-README.zh.md: e5ba53528ae240f6a5f414b518607cd0fcc6a4f8
+/:
+  en: 2fb8ebd379856760
+  zh: 0fcfc84dd31950a7
+/deepseek-ai-dsh-methodology:
+  en: 666152e1734b8c93
+  zh: bbb72a3cde3c2c26
+/deepseek-ai-dsh-methodology/summary:
+  en: 4bc1ade2d581324d
+  zh: 7bfcee5901ba1e02
+/deepseek-ai-dsh-methodology/table-of-contents:
+  en: cd394355f29f8cb4
+  zh: ca03834afd49c6b0
+/deepseek-ai-dsh-methodology/triz-tool:
+  en: 476a518fc6cb2fa8
+  zh: 878100e80bec7aec
+/deepseek-ai-dsh-methodology/methodology-registry-library-api:
+  en: 3e63330b33fe1771
+  zh: 3951d13d63e84242
+/deepseek-ai-dsh-methodology/configuration:
+  en: 8bec1d61fd09dc8a
+  zh: bcb47522664c7a06
+/deepseek-ai-dsh-methodology/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section:
+  en: 18c0fb09027b41ee
+  zh: bf7d81d783b2a29a
+/deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section/what-the-model-sees:
+  en: 742d58ad224ecc48
+  zh: ad2bf4713a6eaf2e
+/deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section/what-the-model-sees/verbatim-section-text:
+  en: aae04b15468b4390
+  zh: 8942f3b4571f58de
+/deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section/token-effect:
+  en: 6c879e1622fcdaec
+  zh: aa17c2661a108b53
+/deepseek-ai-dsh-methodology/model-experience/triz-system-prompt-section/kv-cache-effect:
+  en: 5ccaab199e7d0454
+  zh: c7ef4df9fcfceb0b
+/deepseek-ai-dsh-methodology/model-experience/triz-tool-schema:
+  en: 6dd429023f196b97
+  zh: f653db9b5248c43b
+/deepseek-ai-dsh-methodology/model-experience/triz-tool-schema/what-the-model-sees:
+  en: a16ec86c80935e61
+  zh: 06663fec8375066c
+/deepseek-ai-dsh-methodology/model-experience/triz-tool-schema/token-effect:
+  en: a480c7ec6659cfbb
+  zh: ae004c38def290e0
+/deepseek-ai-dsh-methodology/model-experience/triz-tool-schema/kv-cache-effect:
+  en: 648289df65cba624
+  zh: 8a130c3e64e7f5d6
+/deepseek-ai-dsh-methodology/known-limitations-and-deferred-work:
+  en: f37b991119319db2
+  zh: 92445afb0450d05e
+/deepseek-ai-dsh-methodology/known-limitations-and-deferred-work/dev-note:
+  en: b8447f91a32bc17d
+  zh: ea0290032d535ca3

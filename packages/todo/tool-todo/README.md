@@ -126,7 +126,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-The model sees the generated [`todo_write` schema](../../../docs/tool-catalog.md#deepseek-aidsh-tool-todo): an object with one required `todos` array of `{ content, status, tags? }` items, where `status` is `pending`, `in_progress`, or `completed`, and `tags` carries optional short category labels. The description is the composed whole-list instruction whose active-status clause follows `allowParallelInProgress`.
+The model sees the generated [`todo_write` schema](../../../docs/tool-catalog.md#deepseek-aidsh-tool-todo): an object with one required `todos` array of `{ content, status, tags? }` items, where `status` is `pending`, `in_progress`, or `completed`, and `tags` carries optional short category labels. The `todos` description states that each call replaces the whole list; the tool description is the composed whole-list instruction whose active-status clause follows `allowParallelInProgress`.
 
 #### Token effect
 

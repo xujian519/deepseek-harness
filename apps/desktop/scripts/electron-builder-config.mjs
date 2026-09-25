@@ -173,6 +173,8 @@ export function createElectronBuilderConfig(
       // so the engine resolves there as ordinary files with their modes.
       { from: join(buildPaths.dsh, 'node_modules', '@deepseek-ai'), to: 'node_modules/@deepseek-ai', filter: ['libreoffice-kit-*/**'] },
       { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
+      // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
+      ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
     ],
     mac: {
       icon: iconFile('icon.icns'),

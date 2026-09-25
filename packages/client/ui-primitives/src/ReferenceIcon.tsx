@@ -3,7 +3,7 @@ import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { ICON_MEDIUM_STROKE, ICON_REGULAR_STROKE } from './icons/index.tsx'
 import type { IconProps } from './icons/props.ts'
 import {
-  BrowseOutlineArtwork, FolderCloseArtwork, NewChatOutlineArtwork,
+  BrowseOutlineArtwork, ChatLinesOutlineArtwork, FolderCloseArtwork,
 } from './icons/shared-artwork.tsx'
 
 /** Reference domains with distinct composer and transcript glyphs. */
@@ -25,7 +25,7 @@ interface WeightedReferenceIconProps extends ReferenceIconProps {
  */
 function ReferenceIconArtwork({ kind, size = 16, className, strokeWidth }: WeightedReferenceIconProps): ReactNode {
   switch (kind) {
-    case 'session': return <NewChatOutlineArtwork size={size} className={className} strokeWidth={strokeWidth} />
+    case 'session': return <ChatLinesOutlineArtwork size={size} className={className} strokeWidth={strokeWidth} />
     case 'file': return <BrowseOutlineArtwork size={size} className={className} strokeWidth={strokeWidth} />
     case 'folder': return <FolderCloseArtwork size={size} className={className} strokeWidth={strokeWidth} />
     /* v8 ignore next -- closed-union backstop; the compiler rejects a new reference kind here. */

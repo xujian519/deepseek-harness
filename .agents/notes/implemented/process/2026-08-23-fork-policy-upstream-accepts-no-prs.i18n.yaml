@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-fork-policy-upstream-accepts-no-prs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-23-fork-policy-upstream-accepts-no-prs.md
-2026-08-23-fork-policy-upstream-accepts-no-prs.md: 9e6dc0bdfc422fee859e8acfee55ad37f22bf2fe
-2026-08-23-fork-policy-upstream-accepts-no-prs.zh.md: 293f540c8641f183d3eabb903a0217d0cbd61f8e
+/agent-note-fork-policy-upstream-accepts-no-prs:
+  en: 84dc5f2d05e5f534
+  zh: 3e2ded6b2e460580
+/agent-note-fork-policy-upstream-accepts-no-prs/problem:
+  en: 69838ceb52ebdc71
+  zh: 83dfccd395d5a118
+/agent-note-fork-policy-upstream-accepts-no-prs/decision:
+  en: dd6ba68a5639cbe2
+  zh: bfcbd138523211a7
+/agent-note-fork-policy-upstream-accepts-no-prs/alternatives-considered:
+  en: 800553f508eea92e
+  zh: 8dc94fcdf8d81317
+/agent-note-fork-policy-upstream-accepts-no-prs/consequences:
+  en: fe77b26b5793a39b
+  zh: a5ecf23a2c4808d0

@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-switch-exhaustiveness-guards.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-switch-exhaustiveness-guards.md
-2026-09-13-switch-exhaustiveness-guards.md: 1f98bf0cac4b92f361f27887b7f269b5d7be07cb
-2026-09-13-switch-exhaustiveness-guards.zh.md: 1690fe443c5d6be75480cac498690554d05ac709
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides:
+  en: 03597a9c327d88ca
+  zh: ef5d2328cc2b8ba9
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides/problem:
+  en: 76bd0b2511f6367f
+  zh: 94cc754505d743f5
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides/decision:
+  en: fa845eeb680e0303
+  zh: 326a814bb8719fa0
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides/alternatives-considered:
+  en: 5508ed51735604d3
+  zh: a40dd4b94b101e72
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides/consequences:
+  en: c18372786c432891
+  zh: 183f77d3b855fb94
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides/testing:
+  en: 11a9ac9b5ef0683e
+  zh: 3ea006997ea44a95
+/agent-note-closed-union-switches-end-in-assertnever-and-what-the-exhaustiveness-lint-option-decides/related:
+  en: 852984c734512d6f
+  zh: 96b7f596280bcb27

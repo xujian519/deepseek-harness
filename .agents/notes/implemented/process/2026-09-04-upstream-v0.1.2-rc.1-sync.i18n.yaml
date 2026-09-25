@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-04-upstream-v0.1.2-rc.1-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-04-upstream-v0.1.2-rc.1-sync.md
-2026-09-04-upstream-v0.1.2-rc.1-sync.md: 67a115fc45e67a472d75a12895b08e41418f1885
-2026-09-04-upstream-v0.1.2-rc.1-sync.zh.md: 6af3f8a8f0bdef683c2351356387084aa350ea71
+/agent-note-upstream-v0-1-2-rc-1-sync-and-the-per-face-host-client-separation:
+  en: c785cdbd3a8337ed
+  zh: 85c889f123a8c7e0
+/agent-note-upstream-v0-1-2-rc-1-sync-and-the-per-face-host-client-separation/problem:
+  en: f23be020020c3e7c
+  zh: 667a64b99d1dc92a
+/agent-note-upstream-v0-1-2-rc-1-sync-and-the-per-face-host-client-separation/decision:
+  en: e9035757ddcaf2a3
+  zh: 34a7ae4cffb1d56b
+/agent-note-upstream-v0-1-2-rc-1-sync-and-the-per-face-host-client-separation/consequences:
+  en: b2a6de0e0d2f4751
+  zh: 9eb77b8949be89eb
+/agent-note-upstream-v0-1-2-rc-1-sync-and-the-per-face-host-client-separation/alternatives-considered:
+  en: 66e843d1de201734
+  zh: c9cd268c6db3fdba
+/agent-note-upstream-v0-1-2-rc-1-sync-and-the-per-face-host-client-separation/testing:
+  en: b53581bb5cc86484
+  zh: 3518415490c8b0cb

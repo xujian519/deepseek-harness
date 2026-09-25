@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-workspace-create-derived-title.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-16-workspace-create-derived-title.md
-2026-09-16-workspace-create-derived-title.md: 8c71645350aff3a189101dfef19c8d25cb8c794c
-2026-09-16-workspace-create-derived-title.zh.md: f88dc39641a3faadb2068799b8a621600fb02fca
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory:
+  en: 3edb071414b4e755
+  zh: 10525a38889f5b36
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory/problem:
+  en: ac4dc6821a8d8a8a
+  zh: 082d04136ab832e0
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory/decision:
+  en: 30530b22ded70558
+  zh: 93118427e648bef4
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory/alternatives-considered:
+  en: 42d21fed5e834d90
+  zh: 108764be1b88ef0a
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory/consequences:
+  en: 9f1576f3e5b9a583
+  zh: 23eb032ec87e73e8
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory/testing:
+  en: 36ac3d0929180a67
+  zh: 9fa9365699502cbe
+/agent-note-creating-a-workspace-title-derives-it-from-the-directory/related:
+  en: 304cfb1179b63a33
+  zh: 4a3a37618d7a8c00

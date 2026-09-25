@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md
-2026-08-16-dual-copy-dsh-tools-scheduler-handshake.md: f2f1a470da266b85bb8feb943717c5e03715afc7
-2026-08-16-dual-copy-dsh-tools-scheduler-handshake.zh.md: f5f080fbfc5ffcf6995de7d688bdce7fb2ff5d9c
+/agent-note-dual-copy-dsh-tools-breaks-the-tool-scheduler-handshake:
+  en: 3005f6931c54c016
+  zh: aa954c6f227beec5
+/agent-note-dual-copy-dsh-tools-breaks-the-tool-scheduler-handshake/problem:
+  en: dd8db7eb92293ebe
+  zh: 6e3f1d2258dddb60
+/agent-note-dual-copy-dsh-tools-breaks-the-tool-scheduler-handshake/decision:
+  en: f772dc291be23c50
+  zh: 9cacdeb6566ca599
+/agent-note-dual-copy-dsh-tools-breaks-the-tool-scheduler-handshake/alternatives-considered:
+  en: b6d93a8657e12a46
+  zh: 20fa41818717e986
+/agent-note-dual-copy-dsh-tools-breaks-the-tool-scheduler-handshake/consequences:
+  en: 8228cf265f713f19
+  zh: 9c19a4afe8e3855a
+/agent-note-dual-copy-dsh-tools-breaks-the-tool-scheduler-handshake/remaining-risks:
+  en: 939a157b3ab3e1ff
+  zh: b5d9165ebbcffd28

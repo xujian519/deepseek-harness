@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/document/docx-kit/README.md
-README.md: 3a359d8913dd5b713fb0ca7a60ddb229d11e6270
-README.zh.md: 1f2d8a11600c6a51298bd4414be8b4755b4b068e
+/:
+  en: 9fdc7f4f7d806d9d
+  zh: f5156257e49d24db
+/deepseek-ai-dsh-docx-kit:
+  en: 93029fb1f3e09c48
+  zh: b884cec5b8db0dd7
+/deepseek-ai-dsh-docx-kit/summary:
+  en: 46bd82630acbfe5a
+  zh: 61b4be0e41a530e2
+/deepseek-ai-dsh-docx-kit/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 5103e1812d95589b
+/deepseek-ai-dsh-docx-kit/use-this-package:
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
+/deepseek-ai-dsh-docx-kit/use-this-package/when-to-use-it:
+  en: 5fe4dfdba8eeaf56
+  zh: 31ca737cb7b7375e
+/deepseek-ai-dsh-docx-kit/use-this-package/entry-point:
+  en: 1fc37f23e0933e09
+  zh: e1bdd44676d02570
+/deepseek-ai-dsh-docx-kit/understand-the-implementation:
+  en: ea44441cbc20e2bb
+  zh: 18d8a16f56242eb9
+/deepseek-ai-dsh-docx-kit/further-exploration:
+  en: e709697cd8c49ddb
+  zh: 0b42d6ecb748e426
+/deepseek-ai-dsh-docx-kit/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-docx-kit/model-experience/consumer-rendered-document-text:
+  en: af6b38a47df7fd64
+  zh: 492021ea16a38046
+/deepseek-ai-dsh-docx-kit/model-experience/consumer-rendered-document-text/what-the-model-sees:
+  en: 68aca78e9bfa24f4
+  zh: 985b16d98c653007
+/deepseek-ai-dsh-docx-kit/model-experience/consumer-rendered-document-text/token-effect:
+  en: f459ea2a2c8f55cf
+  zh: a670da6da2ff533b
+/deepseek-ai-dsh-docx-kit/model-experience/consumer-rendered-document-text/kv-cache-effect:
+  en: d32bdbeeae685063
+  zh: fa2a24c632221cec
+/deepseek-ai-dsh-docx-kit/known-limitations-and-deferred-work:
+  en: 513e6014532b596c
+  zh: cc019ac8f571c4a9
+/deepseek-ai-dsh-docx-kit/known-limitations-and-deferred-work/dev-note:
+  en: 21bb6beb4908347a
+  zh: 29dcfe6a9ea12262

@@ -1,6 +1,37 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-fixture-file-system-module-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-file-system-module-extraction.md
-2026-09-14-fixture-file-system-module-extraction.md: 6372d0a8600b70fa4fda9591f1b3cc9435ee41cc
-2026-09-14-fixture-file-system-module-extraction.zh.md: 39c4c2a6f48f5b2ec99cd8f230643019aa70297f
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86:
+  en: cda53b38d3790b2c
+  zh: f279080f96558008
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/problem:
+  en: 33271340fda0e431
+  zh: 15fc3d08b2d9ac6c
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/decision:
+  en: 1e51ac0a42ea9b21
+  zh: da49c76cf9145244
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/decision/the-world-passes-its-home-directory-the-cluster-owns-its-mutable-state:
+  en: 74f9d4cc39dcbb4d
+  zh: e00f09ff7306397c
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/decision/three-exports-all-with-a-reader-in-the-entry:
+  en: efecd27a482ae25c
+  zh: acd882c2ba8db2a3
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/the-move-is-a-slice-and-checked-by-byte-accounting:
+  en: 229b2233c57c6ddc
+  zh: 03dc2776fe76d61b
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/tests-become-possible-so-they-were-written:
+  en: 53f1f8a9adc2f719
+  zh: 4d865b9b739e6737
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/verification:
+  en: 5e4631004b50d9e9
+  zh: a5112e05f199edc7
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/alternatives-considered:
+  en: 08b8b95a3e78f860
+  zh: 91775929795ebc0d
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/consequences:
+  en: 47a276ee7e3b3e2f
+  zh: 8da6b7a2de1a7651
+/agent-note-extracting-the-fixture-s-in-memory-file-system-issue-86/related:
+  en: 610586372ded8962
+  zh: 7a70b7e10f973f8c

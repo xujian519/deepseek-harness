@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-desktop-plugin-source-preservation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-10-desktop-plugin-source-preservation.md
-2026-09-10-desktop-plugin-source-preservation.md: b933e737860496c2b21b55b45d23770fb404ff82
-2026-09-10-desktop-plugin-source-preservation.zh.md: 5aa32966bea1f4c1f54d035928275cbf19e3c037
+/agent-note-preserve-desktop-plugin-sources-across-profile-rebuilds:
+  en: 29afca70f55a1a08
+  zh: 1e7b094574925af5
+/agent-note-preserve-desktop-plugin-sources-across-profile-rebuilds/problem:
+  en: 750c780130418ae2
+  zh: 19db8b7db20aadf4
+/agent-note-preserve-desktop-plugin-sources-across-profile-rebuilds/decision:
+  en: 2fa871827acede74
+  zh: fbcddb0b8caedfd5
+/agent-note-preserve-desktop-plugin-sources-across-profile-rebuilds/alternatives-considered:
+  en: 1b4f5d4f4e9aadd1
+  zh: 21cfd9ac89fcefd5
+/agent-note-preserve-desktop-plugin-sources-across-profile-rebuilds/consequences:
+  en: 2f97d21ca70617ed
+  zh: 7b00561ddd886cb2

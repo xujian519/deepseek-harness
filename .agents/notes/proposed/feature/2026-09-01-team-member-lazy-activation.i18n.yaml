@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-team-member-lazy-activation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-team-member-lazy-activation.md
-2026-09-01-team-member-lazy-activation.md: e49363c314c886e9bed414a43d85d0181236d8a6
-2026-09-01-team-member-lazy-activation.zh.md: 7d7de8fa4f64f0b89e4b0e85f08bafd5fdba999a
+/agent-note-activate-team-members-lazily-along-the-dependency-graph:
+  en: 7c9c0ee9464cc1d9
+  zh: 4b23b9d8db15ac15
+/agent-note-activate-team-members-lazily-along-the-dependency-graph/problem:
+  en: f3ed70f4cae3b166
+  zh: d4e1d96512f30f86
+/agent-note-activate-team-members-lazily-along-the-dependency-graph/proposal:
+  en: cc687fd5ffd1b1f8
+  zh: 8555354407375172
+/agent-note-activate-team-members-lazily-along-the-dependency-graph/alternatives-considered:
+  en: 9ac0c76650e6a0cf
+  zh: ba01f4fc3ee87622
+/agent-note-activate-team-members-lazily-along-the-dependency-graph/acceptance-criteria:
+  en: 16445d68982ee8a6
+  zh: da659630072dd873
+/agent-note-activate-team-members-lazily-along-the-dependency-graph/risks:
+  en: 546c361ed9a16333
+  zh: e261334b80729f6d

@@ -1,6 +1,82 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/util/value/README.md
-README.md: 7189a255c6328dd612fccfb9bfa8f118de4873b8
-README.zh.md: 27914e66ce1fe378e552637a95bea24886114efd
+/:
+  en: bd930a0e72345e38
+  zh: 819c86b1318bfa4c
+/deepseek-ai-dsh-value:
+  en: fc9284146295bc8f
+  zh: ad9374186dcd7630
+/deepseek-ai-dsh-value/summary:
+  en: 8c0daec9dc2b32d7
+  zh: 793c37494576c688
+/deepseek-ai-dsh-value/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-value/use-this-package:
+  en: 54cf1152eca513a1
+  zh: cc6102764d6dfe1c
+/deepseek-ai-dsh-value/use-this-package/guarding-an-untrusted-object:
+  en: 9f6cb0076e83c786
+  zh: d58ed5174c984b1b
+/deepseek-ai-dsh-value/use-this-package/reading-an-untrusted-value-as-a-record:
+  en: 295b46d113cad24e
+  zh: 53cfaf72b9e26516
+/deepseek-ai-dsh-value/use-this-package/asserting-a-positive-integer:
+  en: 321c70cfab19cc42
+  zh: 47d2a44e90605851
+/deepseek-ai-dsh-value/use-this-package/asserting-a-positive-finite-number:
+  en: dc2a87c3e224c66c
+  zh: 41ea7f09088318e1
+/deepseek-ai-dsh-value/use-this-package/asserting-the-resolved-config-boundary:
+  en: 4db7258c556b5ca5
+  zh: cc74cd0bc00bc0dd
+/deepseek-ai-dsh-value/use-this-package/classifying-a-plain-data-object:
+  en: e625698ce5ba82f7
+  zh: 5f42d82b3880bde3
+/deepseek-ai-dsh-value/use-this-package/checking-an-exact-key-set:
+  en: eddf6cda6569215a
+  zh: ebafa3ee24cc9d55
+/deepseek-ai-dsh-value/use-this-package/testing-a-filesystem-errno-error:
+  en: 3ae0ede677561b97
+  zh: 4f7932cd9f867dda
+/deepseek-ai-dsh-value/use-this-package/testing-an-abort-error:
+  en: 05dacafc431d9748
+  zh: bb482dca88003daa
+/deepseek-ai-dsh-value/use-this-package/freezing-a-value-in-place:
+  en: df9b634c6bbc89b7
+  zh: ea42d5bdcd942989
+/deepseek-ai-dsh-value/use-this-package/rendering-a-thrown-value:
+  en: 04eb4066ac6bc3df
+  zh: 7c2a5c8cd5f7d4a2
+/deepseek-ai-dsh-value/use-this-package/normalizing-a-thrown-value:
+  en: 373c3916dcb37342
+  zh: d5968475dfe5f99a
+/deepseek-ai-dsh-value/understand-the-implementation:
+  en: eaf3e61369f7f70e
+  zh: c7f3bbabffa0e39d
+/deepseek-ai-dsh-value/understand-the-implementation/source-map:
+  en: 594b61a22b8fa9fc
+  zh: 792a094d60e728af
+/deepseek-ai-dsh-value/understand-the-implementation/why-the-guard-is-shape-only:
+  en: 04a06fe7e49e2828
+  zh: 5c321bbf4de8f622
+/deepseek-ai-dsh-value/understand-the-implementation/why-the-assertion-takes-a-label:
+  en: df64ce69b484d564
+  zh: 4eaf9911210fdc0b
+/deepseek-ai-dsh-value/further-exploration:
+  en: 2965edd2f9fcfab8
+  zh: 1f41d4ab2c5d9f16
+/deepseek-ai-dsh-value/model-experience:
+  en: 3ad9c9102c67baf5
+  zh: d7ea01b6b48ba9c5
+/deepseek-ai-dsh-value/model-experience/kv-cache-effect:
+  en: f4b0c599bf5162b3
+  zh: 41149c191353107d
+/deepseek-ai-dsh-value/known-limitations-and-deferred-work:
+  en: ec436cbfe3294d7f
+  zh: a9e6e1ee1663e7ab
+/deepseek-ai-dsh-value/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3c8bbe93d71a3377

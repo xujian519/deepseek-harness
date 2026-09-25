@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-generalize-agent-teams-capability.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-27-generalize-agent-teams-capability.md
-2026-08-27-generalize-agent-teams-capability.md: 2052c9e9bffb63e5ea481aecce04e52d1240d4c0
-2026-08-27-generalize-agent-teams-capability.zh.md: d7846d59aba8d5db3571cf43b7fc7aa3d1133401
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam:
+  en: 43c88d1d94168a01
+  zh: cf66e84907fc1ad4
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/problem:
+  en: 278bacf77dc49a52
+  zh: 50a4d38c25470f38
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/proposal:
+  en: 4256c00323222b27
+  zh: b0d894c87dc62ee1
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/proposal/what-the-upstream-research-establishes:
+  en: 372e8187d2b0675c
+  zh: 38b7caa82747157d
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/proposal/package-topology:
+  en: e57c27a770252679
+  zh: 8fc799219b404bc6
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/proposal/domain-policy-seams:
+  en: 8464a3535550b9ae
+  zh: 53ea7b732c8963d2
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/proposal/migration-and-scope:
+  en: 8fdbc7fe2ac75823
+  zh: b0caeac4785f327c
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/alternatives-considered:
+  en: 08d2b63ea889dd8d
+  zh: 9c3d888558b72dca
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/acceptance-criteria:
+  en: 791793c7f8aa4ca4
+  zh: 0e05a30971c54648
+/agent-note-generalize-agent-teams-into-a-domain-neutral-capability-seam/risks:
+  en: 29f3441cc9e5ec94
+  zh: 52ca98b1dc296bbb

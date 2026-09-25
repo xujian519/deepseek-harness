@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-merged-in-catch-sites.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-16-merged-in-catch-sites.md
-2026-09-16-merged-in-catch-sites.md: 83f989840c186af2e0fde99e8c4e775b3882f31d
-2026-09-16-merged-in-catch-sites.zh.md: bd292bc49560f5ffec4a01278fb492f61a7297ec
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites:
+  en: ff4b47633f213c57
+  zh: 9d1756f7a77ddb47
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites/problem:
+  en: 2fecde68d02e1cf4
+  zh: 80e696c85b67955b
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites/decision:
+  en: 16034fe5f012f6e6
+  zh: ebc86f32bfea9870
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites/alternatives-considered:
+  en: 4aa042d5be941ad0
+  zh: 77e8aa4c1d17bf56
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites/consequences:
+  en: 08c0b30fddb406da
+  zh: 1343f84aac54ea13
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites/testing:
+  en: 7e818cdf881a995a
+  zh: 65abcbe1b2ce3319
+/agent-note-naming-the-swallowed-failure-in-the-merged-in-catch-sites/related:
+  en: c240192ffecc181c
+  zh: eade274ca8442123

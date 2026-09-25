@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-coverage-exemption-reasons.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-13-coverage-exemption-reasons.md
-2026-09-13-coverage-exemption-reasons.md: 83b0ae65e46dd4a08b38554cea9fceeb75d1ecb5
-2026-09-13-coverage-exemption-reasons.zh.md: dc916786f37304ecea2589ec824bcf53853cb670
+/agent-note-coverage-exemptions-name-the-file-s-own-reason:
+  en: 4921ee0d61f5482a
+  zh: 4a8a2721bb4b0120
+/agent-note-coverage-exemptions-name-the-file-s-own-reason/problem:
+  en: 910f9336a83029a1
+  zh: 0614a25255a20374
+/agent-note-coverage-exemptions-name-the-file-s-own-reason/decision:
+  en: 843cd229c45e7462
+  zh: dd1f3a82cc46ac0b
+/agent-note-coverage-exemptions-name-the-file-s-own-reason/alternatives-considered:
+  en: cddc599e9f2c4608
+  zh: 5a439f6b152286a0
+/agent-note-coverage-exemptions-name-the-file-s-own-reason/consequences:
+  en: 5492278f1676b146
+  zh: 08baebdccb22410d
+/agent-note-coverage-exemptions-name-the-file-s-own-reason/testing:
+  en: f45043d4a2cb3f07
+  zh: 056c520633948aca
+/agent-note-coverage-exemptions-name-the-file-s-own-reason/related:
+  en: 85d075069b5f7f10
+  zh: a1f12745658445f7

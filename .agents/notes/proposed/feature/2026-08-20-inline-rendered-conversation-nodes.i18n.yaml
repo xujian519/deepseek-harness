@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-20-inline-rendered-conversation-nodes.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-08-20-inline-rendered-conversation-nodes.md
-2026-08-20-inline-rendered-conversation-nodes.md: 6e70a10fe599a6ec7409700c69aec2aa1f607fb9
-2026-08-20-inline-rendered-conversation-nodes.zh.md: 0dd89b0d37c0daefa921159a8d70e1247cb1b0b8
+/agent-note-inline-rendered-conversation-nodes-for-task-specific-interfaces:
+  en: 6ffe912a2ec5135c
+  zh: b0d8c65fd66d3b60
+/agent-note-inline-rendered-conversation-nodes-for-task-specific-interfaces/problem:
+  en: b5cd6693d8230d76
+  zh: a32500a4b7abbd93
+/agent-note-inline-rendered-conversation-nodes-for-task-specific-interfaces/proposal:
+  en: b0b91a7a74e2b37b
+  zh: bc3b0854a8949f6a
+/agent-note-inline-rendered-conversation-nodes-for-task-specific-interfaces/alternatives-considered:
+  en: e2674cb38d2c97bc
+  zh: ba55f1350c240781
+/agent-note-inline-rendered-conversation-nodes-for-task-specific-interfaces/acceptance-criteria:
+  en: 53f11ac8e040f0e3
+  zh: 3ec2dea168299a16
+/agent-note-inline-rendered-conversation-nodes-for-task-specific-interfaces/risks:
+  en: 78e439bef09bbf77
+  zh: ad9f58df25319f24

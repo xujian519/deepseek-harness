@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-patent-teams-io-hotspots.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-02-patent-teams-io-hotspots.md
-2026-09-02-patent-teams-io-hotspots.md: a426e7834c8ef1b88bf8f2f6f1e3fc18aa372cc2
-2026-09-02-patent-teams-io-hotspots.zh.md: 544a65e408b80d1ca0c9ea000a4ac56d26004e54
+/agent-note-patentteams-io-hotspots-observer-index-mailbox-append-spawn-outside-the-team-lock:
+  en: c0986996084c1b5a
+  zh: c97274a6e3c82e10
+/agent-note-patentteams-io-hotspots-observer-index-mailbox-append-spawn-outside-the-team-lock/problem:
+  en: 62a76af243aff636
+  zh: 81f80ae32f5aa667
+/agent-note-patentteams-io-hotspots-observer-index-mailbox-append-spawn-outside-the-team-lock/decision:
+  en: b35d6a1b11e04632
+  zh: 59ca8908f811f79f
+/agent-note-patentteams-io-hotspots-observer-index-mailbox-append-spawn-outside-the-team-lock/alternatives-considered:
+  en: b59dffdc303ac1eb
+  zh: dd666744664ee9a1
+/agent-note-patentteams-io-hotspots-observer-index-mailbox-append-spawn-outside-the-team-lock/consequences:
+  en: bb67c254f86a07ba
+  zh: f7f085d326ea236c
+/agent-note-patentteams-io-hotspots-observer-index-mailbox-append-spawn-outside-the-team-lock/testing:
+  en: 29685f10822939c4
+  zh: 66f9427e6310b2e8

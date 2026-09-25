@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-grep-preview-scope.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-16-grep-preview-scope.md
-2026-09-16-grep-preview-scope.md: 0a04ff2cad1fa8c99f5050dd5dd4fc1992a496ac
-2026-09-16-grep-preview-scope.zh.md: a4d7086ad30e34fcf182842b7ff2508bbd5922b7
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps:
+  en: c6f3ef99d5082853
+  zh: 733e18660528c910
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps/problem:
+  en: 48fdc19e152be15a
+  zh: 68f4122fc4f6110a
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps/decision:
+  en: 1a5fc5c2c7c43dde
+  zh: 7f30bcb5de6aa8c1
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps/alternatives-considered:
+  en: a18f60503e8d9815
+  zh: ecce97989de94f21
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps/consequences:
+  en: e86c83c224bd99ec
+  zh: 3c50c94f1dd309f0
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps/testing:
+  en: 4ddb2f82b68ddfec
+  zh: 3fbce9b9cd772cd5
+/agent-note-preview-only-the-grep-matches-the-inline-cap-keeps/related:
+  en: bf50634117967a74
+  zh: 6d8408deb4a00681

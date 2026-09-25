@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-16-desktop-packaging-files-and-ci-gates.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-16-desktop-packaging-files-and-ci-gates.md
-2026-08-16-desktop-packaging-files-and-ci-gates.md: 461da5d2773da19d8fd1de065c5a645cfdd28eb0
-2026-08-16-desktop-packaging-files-and-ci-gates.zh.md: aab4a305747ba6e91b4759100b3f620c73347110
+/agent-note-desktop-packaging-files-and-the-fork-ci-gates:
+  en: a270d69198cac203
+  zh: 0088ffeeae5dac89
+/agent-note-desktop-packaging-files-and-the-fork-ci-gates/problem:
+  en: 2cafa9c1ea85cbf6
+  zh: 97a9d6a92849759b
+/agent-note-desktop-packaging-files-and-the-fork-ci-gates/decision:
+  en: 6df766b8f00a4d47
+  zh: 45537e5a76335b4c
+/agent-note-desktop-packaging-files-and-the-fork-ci-gates/alternatives-considered:
+  en: 0cd433c8b8ea94be
+  zh: 15cc9a25a251ffbb
+/agent-note-desktop-packaging-files-and-the-fork-ci-gates/consequences:
+  en: 2084d755947e016b
+  zh: 258029dee5808d92
+/agent-note-desktop-packaging-files-and-the-fork-ci-gates/remaining-risks:
+  en: a2fcdeca175240e3
+  zh: deeb9369475f2773

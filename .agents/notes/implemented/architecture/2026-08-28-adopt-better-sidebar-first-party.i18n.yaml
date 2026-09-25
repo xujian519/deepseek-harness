@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-28-adopt-better-sidebar-first-party.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-28-adopt-better-sidebar-first-party.md
-2026-08-28-adopt-better-sidebar-first-party.md: 9da2fa3e34fdc62d8e251949979d17c1d39783c1
-2026-08-28-adopt-better-sidebar-first-party.zh.md: 73a097b67de47175b5eac061701307511b865dae
+/agent-note-adopt-better-sidebar-first-party:
+  en: 065ada735c67ad20
+  zh: 0854e4a18940b2e6
+/agent-note-adopt-better-sidebar-first-party/problem:
+  en: a4f4a3766e1681af
+  zh: 171fc29540833fa5
+/agent-note-adopt-better-sidebar-first-party/decision:
+  en: 57b68820c42c90e5
+  zh: 3bc3da33d12a12f1
+/agent-note-adopt-better-sidebar-first-party/alternatives-considered:
+  en: 1c5c2e4b533296c7
+  zh: f68f81a809225b82
+/agent-note-adopt-better-sidebar-first-party/consequences:
+  en: 80bb85436b203ad4
+  zh: 604e47acccd9ad79

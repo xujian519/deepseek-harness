@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-bounding-synapse-workspace-fetch.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-27-bounding-synapse-workspace-fetch.md
-2026-08-27-bounding-synapse-workspace-fetch.md: 64d8d2562ba0f765aeea2ee8046f2704ae118469
-2026-08-27-bounding-synapse-workspace-fetch.zh.md: 2c308705ce3a0a9a4fda3b4cf880e166762dac9a
+/agent-note-bound-concurrent-synapse-workspace-detail-fetches:
+  en: 0d5f8662145d1f6d
+  zh: 64b7413931634bee
+/agent-note-bound-concurrent-synapse-workspace-detail-fetches/problem:
+  en: c3d238c2504c415a
+  zh: 1c4f82529f3ca139
+/agent-note-bound-concurrent-synapse-workspace-detail-fetches/decision:
+  en: e445642350482b0e
+  zh: 92b1adfd302ec9b4
+/agent-note-bound-concurrent-synapse-workspace-detail-fetches/alternatives-considered:
+  en: 9ff8d044e95d7f78
+  zh: cde9c51a59660110
+/agent-note-bound-concurrent-synapse-workspace-detail-fetches/consequences:
+  en: 65ed037f3a9e2ede
+  zh: b7713c611d5a03ec

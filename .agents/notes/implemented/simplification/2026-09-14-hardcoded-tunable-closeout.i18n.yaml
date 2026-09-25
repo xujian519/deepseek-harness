@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-hardcoded-tunable-closeout.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-hardcoded-tunable-closeout.md
-2026-09-14-hardcoded-tunable-closeout.md: fc726becd53cdcde6ed1e5f87a58837a74ed1238
-2026-09-14-hardcoded-tunable-closeout.zh.md: 4a955e0e29902bf888b52ef964f773d9e14775fa
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88:
+  en: c909dbf2f26ee484
+  zh: 944955281099cc84
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88/problem:
+  en: 51fca77ffd56fb22
+  zh: 35a7a32c6a779525
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88/decision:
+  en: a0a2cad6bd1ac525
+  zh: e1eb4de517e9e175
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88/foreground-timeout-defaults-are-not-one-knob:
+  en: 3933f6fb1d4a6c85
+  zh: deda508ee71f8013
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88/alternatives-considered:
+  en: 518d654230ce7209
+  zh: 0c2949267e8e12e7
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88/consequences:
+  en: 3567fb1707c7b393
+  zh: 32b03affe5606ee9
+/agent-note-close-out-the-hardcoded-tunable-audit-issue-88/related:
+  en: 232a16dbe996ccff
+  zh: 23e319fc30b69c77

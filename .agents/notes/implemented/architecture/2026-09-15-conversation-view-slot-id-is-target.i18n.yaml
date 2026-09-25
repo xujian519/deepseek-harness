@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-conversation-view-slot-id-is-target.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-15-conversation-view-slot-id-is-target.md
-2026-09-15-conversation-view-slot-id-is-target.md: 647fdd9a5a3b11d80272d441d0884939ed3cfbb5
-2026-09-15-conversation-view-slot-id-is-target.zh.md: 52ada6928889afdf804982b44af50a2cc091be6b
+/agent-note-a-conversation-view-slot-id-is-the-view-target-the-shell-activates:
+  en: 214a361cdbd76e49
+  zh: e700f4bfc852c20f
+/agent-note-a-conversation-view-slot-id-is-the-view-target-the-shell-activates/problem:
+  en: 044a4fa1fd4a6ac0
+  zh: 2dab0c5ce26b8cfb
+/agent-note-a-conversation-view-slot-id-is-the-view-target-the-shell-activates/decision:
+  en: de65ff8e74c8c6bb
+  zh: cbfddb7986a57cdb
+/agent-note-a-conversation-view-slot-id-is-the-view-target-the-shell-activates/alternatives-considered:
+  en: f720e8d9d2f11cdf
+  zh: 3d55f200b33b53bc
+/agent-note-a-conversation-view-slot-id-is-the-view-target-the-shell-activates/consequences:
+  en: 37f772ebdec4ec20
+  zh: c87f426269d2956a
+/agent-note-a-conversation-view-slot-id-is-the-view-target-the-shell-activates/testing:
+  en: 075ad70c4f340488
+  zh: d29f6550a12b3773

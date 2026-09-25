@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-unified-ego-browser-stack.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-27-unified-ego-browser-stack.md
-2026-08-27-unified-ego-browser-stack.md: fad395283fbeda97198d31ed69e3e496ca443d9a
-2026-08-27-unified-ego-browser-stack.zh.md: 4fd27b2ca19122dda7da5bcc601575599fbad473
+/agent-note-unified-browser-download-onto-the-ego-stack-ego-lite:
+  en: 4cf33464484abef3
+  zh: cc14747926a7eb59
+/agent-note-unified-browser-download-onto-the-ego-stack-ego-lite/problem:
+  en: 5718cf5b67c360e0
+  zh: 488079a374347076
+/agent-note-unified-browser-download-onto-the-ego-stack-ego-lite/decision:
+  en: 4013e9aeb3e33708
+  zh: df6e78c8cf3b3ffd
+/agent-note-unified-browser-download-onto-the-ego-stack-ego-lite/alternatives-considered:
+  en: 5c874ceea6391e11
+  zh: f3e15ab08af77245
+/agent-note-unified-browser-download-onto-the-ego-stack-ego-lite/consequences:
+  en: 7e897b87d90730ba
+  zh: a14ec7fd74352d61

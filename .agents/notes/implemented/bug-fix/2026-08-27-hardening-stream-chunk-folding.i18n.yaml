@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-hardening-stream-chunk-folding.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-27-hardening-stream-chunk-folding.md
-2026-08-27-hardening-stream-chunk-folding.md: f70b9f3e769166a7cce3c45b558e703b049e6de8
-2026-08-27-hardening-stream-chunk-folding.zh.md: 10987cf6bb0c649d3a52f47e208e52d283f1c09a
+/agent-note-harden-stream-chunk-folding-against-malformed-deltas:
+  en: 8bc22d93a84de49c
+  zh: 1590759f67258315
+/agent-note-harden-stream-chunk-folding-against-malformed-deltas/problem:
+  en: 4d33a19b93882840
+  zh: 41b8ce2b625e88f5
+/agent-note-harden-stream-chunk-folding-against-malformed-deltas/decision:
+  en: d13507fdf6548acf
+  zh: c4a8fd16985cea19
+/agent-note-harden-stream-chunk-folding-against-malformed-deltas/alternatives-considered:
+  en: ea20d30f8e9bd2ef
+  zh: 65fbf344d36f6aaa
+/agent-note-harden-stream-chunk-folding-against-malformed-deltas/consequences:
+  en: d3942faf1ce0074d
+  zh: fcaffb3090f0550f

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-patent-teams-archive-tool.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-02-patent-teams-archive-tool.md
-2026-09-02-patent-teams-archive-tool.md: d457270fca19991d0fad176056a83ba2da9ab6f2
-2026-09-02-patent-teams-archive-tool.zh.md: d7d12e186c2fd20f6550aeb0e8e526031da86495
+/agent-note-queryable-team-archives-and-state-helper-cleanup:
+  en: ade30ae92a34e6d3
+  zh: 8bdb37130dcd77f6
+/agent-note-queryable-team-archives-and-state-helper-cleanup/problem:
+  en: 417279c55842d85d
+  zh: d1e73d4e56884542
+/agent-note-queryable-team-archives-and-state-helper-cleanup/decision:
+  en: 925007ec80f245ba
+  zh: 70400dadf839b1ab
+/agent-note-queryable-team-archives-and-state-helper-cleanup/alternatives-considered:
+  en: 048a547a38ac1172
+  zh: f70b4f1ca5105e83
+/agent-note-queryable-team-archives-and-state-helper-cleanup/consequences:
+  en: 32784085036338bb
+  zh: 97f78ddb9b1bb476
+/agent-note-queryable-team-archives-and-state-helper-cleanup/testing:
+  en: 62fa7693cb977a43
+  zh: c7194173fdee9f25

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-env-aware-rendering-graceful-fallback.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-env-aware-rendering-graceful-fallback.md
-2026-09-01-env-aware-rendering-graceful-fallback.md: 212bf83fe85f3cee8bdbbc1ef9c5f976f6b787f5
-2026-09-01-env-aware-rendering-graceful-fallback.zh.md: 6b0cbd5509feac6733095db7b5b091246dafb97f
+/agent-note-environment-aware-html-pdf-rendering-with-graceful-fallback:
+  en: 5f625fa27328e1bd
+  zh: 9408734b26bc6634
+/agent-note-environment-aware-html-pdf-rendering-with-graceful-fallback/problem:
+  en: 7322518570bf9d3b
+  zh: bb64b2bb234e308c
+/agent-note-environment-aware-html-pdf-rendering-with-graceful-fallback/proposal:
+  en: d2aac6e8685f59d4
+  zh: 4ee8f95532a2509c
+/agent-note-environment-aware-html-pdf-rendering-with-graceful-fallback/alternatives-considered:
+  en: ed47deaa463a3651
+  zh: ea6a543415777416
+/agent-note-environment-aware-html-pdf-rendering-with-graceful-fallback/acceptance-criteria:
+  en: 0c043e752564f7ac
+  zh: 661c8369ea02330d
+/agent-note-environment-aware-html-pdf-rendering-with-graceful-fallback/risks:
+  en: 96830a23e8ce69e8
+  zh: e6f1d109aab36059

@@ -63,3 +63,6 @@ export const ChatSettingsFields = {
   // Missing and unrecognized modes both use Standard.
   [TRANSCRIPT_VIEW_FIELD]: z.union([...TRANSCRIPT_VIEW_SETTING_VALUES]).default(DEFAULT_TRANSCRIPT_VIEW_MODE).loose(),
 }
+
+/** Schema for shared configuration values. */
+export const ChatSettingsSchema = z.object(ChatSettingsFields)

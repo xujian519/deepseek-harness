@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-upstream-v0.1.2-alpha.4-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-02-upstream-v0.1.2-alpha.4-sync.md
-2026-09-02-upstream-v0.1.2-alpha.4-sync.md: d1dc049ac8c0695411a14c71930b8a6f217d96e3
-2026-09-02-upstream-v0.1.2-alpha.4-sync.zh.md: da152346b8b4de92a6b37a15ff4f783ac110d422
+/agent-note-upstream-v0-1-2-alpha-4-sync-and-the-continuable-subagent-rebase:
+  en: cf28b2cf2fc75979
+  zh: 383bcdc6cd9c143d
+/agent-note-upstream-v0-1-2-alpha-4-sync-and-the-continuable-subagent-rebase/problem:
+  en: b92013e2c7de91b0
+  zh: 5cabf7e1e87ad6cb
+/agent-note-upstream-v0-1-2-alpha-4-sync-and-the-continuable-subagent-rebase/decision:
+  en: 4b168ad5ce38daf0
+  zh: 8eee9899a941476e
+/agent-note-upstream-v0-1-2-alpha-4-sync-and-the-continuable-subagent-rebase/consequences:
+  en: 21bba8ce4186bee7
+  zh: c45a079a38e69026
+/agent-note-upstream-v0-1-2-alpha-4-sync-and-the-continuable-subagent-rebase/alternatives-considered:
+  en: 10140042d4549666
+  zh: 52e990e7494a7846
+/agent-note-upstream-v0-1-2-alpha-4-sync-and-the-continuable-subagent-rebase/testing:
+  en: edc2abd52992de31
+  zh: 51977d78774850f0

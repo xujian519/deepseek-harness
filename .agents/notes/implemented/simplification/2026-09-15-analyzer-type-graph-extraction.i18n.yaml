@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-analyzer-type-graph-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-analyzer-type-graph-extraction.md
-2026-09-15-analyzer-type-graph-extraction.md: c236d8a27eba74e0b942a8e5386a4bc3df1ffced
-2026-09-15-analyzer-type-graph-extraction.zh.md: 98b739cf0b8d4ba8d0d99b1e1850663e611d0c8e
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86:
+  en: 43fb19df0e8ce802
+  zh: c26b633a6b43a2bd
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/problem:
+  en: ef33fa376688ed05
+  zh: b96039a5f35180ad
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/decision:
+  en: 95eba1b7e6bf05dc
+  zh: 35292468d4e19ca3
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/decision/the-dependency-list-is-the-seam:
+  en: bd8822b8c18c8c1c
+  zh: b2d2ab93f82c8339
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/decision/what-the-id-stability-test-bought:
+  en: e1ef8ba58b6f17c5
+  zh: ede32ef51ff212c8
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/decision/verification:
+  en: 00ca29c04ad0aae8
+  zh: 5b56cd7c61b92bea
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/alternatives-considered:
+  en: 70a13a218b47ad97
+  zh: d245dff516be69c9
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/consequences:
+  en: 6c47af9a9fda75bc
+  zh: ebd36a5e3014571f
+/agent-note-extracting-the-analyzer-s-type-graph-issue-86/related:
+  en: a2bb0e9f01c5ae38
+  zh: 5f96a1a3a2e98972

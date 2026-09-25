@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-desktop-portless-push-transport.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-desktop-portless-push-transport.md
-2026-09-09-desktop-portless-push-transport.md: 370bd06258d6972e16c6fa77099d2a0ae7824fc7
-2026-09-09-desktop-portless-push-transport.zh.md: e2acf81707aa7f2a1b1c352d5684ce82db3a9477
+/agent-note-desktop-portless-push-transport:
+  en: 7064658756aaf2a7
+  zh: 89986371a299955c
+/agent-note-desktop-portless-push-transport/problem:
+  en: fc0d87502e0b6f98
+  zh: 0ea7297795210763
+/agent-note-desktop-portless-push-transport/decision:
+  en: 2809d26d0a36af9f
+  zh: ae3273711dea854c
+/agent-note-desktop-portless-push-transport/alternatives-considered:
+  en: 63ee2e19d9c33b2e
+  zh: f087a94bb17070d0
+/agent-note-desktop-portless-push-transport/consequences:
+  en: da51dc20a25e21fb
+  zh: ba1e676138f8a3b0

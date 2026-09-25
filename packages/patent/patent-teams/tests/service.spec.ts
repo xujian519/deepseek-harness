@@ -13,9 +13,11 @@ import { PatentTeamsService, callingAgent } from '../src/service.ts'
 import {
   appendMailbox,
   createMessage,
+  readUnreadMailbox,
+} from '../src/mailbox.ts'
+import {
   readArchivedTeam,
   readTeam,
-  readUnreadMailbox,
   writeTeam,
 } from '../src/state.ts'
 
@@ -1113,7 +1115,7 @@ describe('authorization and edge branches', () => {
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
     await addMember(h, captain, 'alice')
-    const { teamLockKey, withTeamLock } = await import('../src/state.ts')
+    const { teamLockKey, withTeamLock } = await import('../src/team-lock.ts')
     const stateRoot = join(h.workspace, h.stateDir)
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const holder = withTeamLock(teamLockKey(stateRoot, 'alpha'), async () => {
@@ -1133,7 +1135,8 @@ describe('authorization and edge branches', () => {
     const captain = fakeAgent('captain-1', h.workspace)
     await createTeam(h, captain)
     await addMember(h, captain, 'alice')
-    const { teamLockKey, withTeamLock, writeTeam: persist } = await import('../src/state.ts')
+    const { teamLockKey, withTeamLock } = await import('../src/team-lock.ts')
+    const { writeTeam: persist } = await import('../src/state.ts')
     const stateRoot = join(h.workspace, h.stateDir)
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const holder = withTeamLock(teamLockKey(stateRoot, 'alpha'), async () => {

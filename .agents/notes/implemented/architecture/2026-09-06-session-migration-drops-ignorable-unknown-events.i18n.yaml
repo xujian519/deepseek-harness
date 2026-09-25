@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-session-migration-drops-ignorable-unknown-events.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-06-session-migration-drops-ignorable-unknown-events.md
-2026-09-06-session-migration-drops-ignorable-unknown-events.md: a54b400bdf99fe633cea2fd8d6d45d90f4d4578b
-2026-09-06-session-migration-drops-ignorable-unknown-events.zh.md: 7247a9c406b1581770e3435a50c9ad80ad02ecd4
+/agent-note-session-migration-drops-ignorable-unknown-events:
+  en: 920dd24f9c6ee6cd
+  zh: 78236cc965e362b9
+/agent-note-session-migration-drops-ignorable-unknown-events/problem:
+  en: 86c9bd50383d82bd
+  zh: 7038e8a14ac3a571
+/agent-note-session-migration-drops-ignorable-unknown-events/decision:
+  en: a69af7a15e13d26f
+  zh: ab0463d81280a76d
+/agent-note-session-migration-drops-ignorable-unknown-events/consequences:
+  en: 9248f191cd8619c1
+  zh: 1607488d42bb92ad
+/agent-note-session-migration-drops-ignorable-unknown-events/alternatives-considered:
+  en: 76054cffe8c934dc
+  zh: 9c3ac6844f67d8ba

@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-20-approval-grants-are-gate-scoped.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-approval-grants-are-gate-scoped.md
-2026-09-20-approval-grants-are-gate-scoped.md: 15c4fad968969618b907127f529688911fd80323
-2026-09-20-approval-grants-are-gate-scoped.zh.md: 999431c287a90680f1568061195bd3753ab721c0
+/agent-note-approve-one-gate-node-not-the-whole-run:
+  en: 0978538fe817e6bd
+  zh: c541975bce1165f4
+/agent-note-approve-one-gate-node-not-the-whole-run/problem:
+  en: dfad613df78579fc
+  zh: 30762d3c3d7aa7d0
+/agent-note-approve-one-gate-node-not-the-whole-run/decision:
+  en: dc9504b84a358e7d
+  zh: 9dc0cdc4575e7607
+/agent-note-approve-one-gate-node-not-the-whole-run/alternatives-considered:
+  en: 7c286567a6cf2637
+  zh: 19c871145e967f90
+/agent-note-approve-one-gate-node-not-the-whole-run/consequences:
+  en: af6fad1033c01221
+  zh: e498d6f6187e2e70
+/agent-note-approve-one-gate-node-not-the-whole-run/testing:
+  en: 35813c8e581db9e4
+  zh: 8f10441bec82b815
+/agent-note-approve-one-gate-node-not-the-whole-run/related:
+  en: 95da417afa03305c
+  zh: 08e344498dd353cf

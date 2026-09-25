@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-patent-teams-ignorable-session-events.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-27-patent-teams-ignorable-session-events.md
-2026-08-27-patent-teams-ignorable-session-events.md: bb198ac2d12e57c2784cb1870e36f3f4a7fb7dd7
-2026-08-27-patent-teams-ignorable-session-events.zh.md: b75f56acd98cb5163eb43a8e18782f0979ee1af7
+/agent-note-write-patent-teams-session-events-as-ignorable-records-unconditionally:
+  en: e781f7f3409c155c
+  zh: 136a072d926f773d
+/agent-note-write-patent-teams-session-events-as-ignorable-records-unconditionally/problem:
+  en: b3e7e29eb2e30fd2
+  zh: aa94f8d0221c3853
+/agent-note-write-patent-teams-session-events-as-ignorable-records-unconditionally/decision:
+  en: 3ae52dd1e0614f7d
+  zh: 94872768d1672578
+/agent-note-write-patent-teams-session-events-as-ignorable-records-unconditionally/alternatives-considered:
+  en: b8e223f33de1c410
+  zh: 6bff8584d0356163
+/agent-note-write-patent-teams-session-events-as-ignorable-records-unconditionally/consequences:
+  en: 697f126863acb68a
+  zh: 29bbfd24980718ae

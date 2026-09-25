@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-17-figure-tools-shared-bootplate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-17-figure-tools-shared-bootplate.md
-2026-09-17-figure-tools-shared-bootplate.md: 883766c16194d9f4b19dbbf35f3bf37a7517cfa6
-2026-09-17-figure-tools-shared-bootplate.zh.md: dc90d0ff73d79310fd2c362e0ebc33e9a21a18be
+/agent-note-shared-subprocess-bootplate-and-output-schemas-for-the-figure-tools:
+  en: f26d65df7650ccc5
+  zh: b2dc3b47d43a1345
+/agent-note-shared-subprocess-bootplate-and-output-schemas-for-the-figure-tools/problem:
+  en: c9324351a3cb8a15
+  zh: 3c23f617554eb89a
+/agent-note-shared-subprocess-bootplate-and-output-schemas-for-the-figure-tools/decision:
+  en: 17d082ccfb9d1e94
+  zh: 9df2a367480ae250
+/agent-note-shared-subprocess-bootplate-and-output-schemas-for-the-figure-tools/alternatives-considered:
+  en: b15192a20ae79c96
+  zh: 27ee3897274355d4
+/agent-note-shared-subprocess-bootplate-and-output-schemas-for-the-figure-tools/consequences:
+  en: 6a70e50b4a935ecf
+  zh: 8f3bf312d2df80d3
+/agent-note-shared-subprocess-bootplate-and-output-schemas-for-the-figure-tools/verification:
+  en: 5434a705a32a44ef
+  zh: 64da72c9a700eff2

@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-patent-drawing-office-profiles-and-vector-figures.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-21-patent-drawing-office-profiles-and-vector-figures.md
-2026-09-21-patent-drawing-office-profiles-and-vector-figures.md: 680357873bcf618f02e18070b185d79f4cb5eb56
-2026-09-21-patent-drawing-office-profiles-and-vector-figures.zh.md: 6a7cc946167a751cc88a71fc16ef27cfed9df016
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types:
+  en: 62e42e7108e65ef1
+  zh: 87c74f5318cd9eb0
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types/problem:
+  en: bace5b7ef5acad64
+  zh: a68d29358862764e
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types/decision:
+  en: 06c72e509eddbbe2
+  zh: e280ed631823833d
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types/alternatives-considered:
+  en: d7c4280e873d8df6
+  zh: 72299079757151bc
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types/consequences:
+  en: 9066ed2ef879bf05
+  zh: fea192c754b727e3
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types/testing:
+  en: 641ab0c11883f06d
+  zh: 8a5e4354fe8a3c97
+/agent-note-office-drawing-profiles-sheet-layout-and-vector-figure-types/deferred:
+  en: 50e2949d46b48c47
+  zh: b967182cc3e21f99

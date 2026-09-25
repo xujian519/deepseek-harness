@@ -1,6 +1,79 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/document/doc-template/README.md
-README.md: 62a94fdc624d0a01a796553385bcb7f4daf7bdee
-README.zh.md: ae1b54e23a30a8443805de2c3fc625361710b425
+/:
+  en: 253e435cf49009ac
+  zh: 248fcd5ce018ffab
+/deepseek-ai-dsh-doc-template:
+  en: a3ca24c02556a407
+  zh: f0b3430046bd60bc
+/deepseek-ai-dsh-doc-template/summary:
+  en: 129c5d732b8ca6a4
+  zh: b91a079b96779e67
+/deepseek-ai-dsh-doc-template/table-of-contents:
+  en: 0fbd585977d12360
+  zh: c9ee2fcc73bf62f9
+/deepseek-ai-dsh-doc-template/template-assets:
+  en: d8a633759a307f6e
+  zh: 31225e773a2e015a
+/deepseek-ai-dsh-doc-template/list-doc-templates-tool:
+  en: 738263922d2dd395
+  zh: 479d7b771ab1993a
+/deepseek-ai-dsh-doc-template/render-doc-template-tool:
+  en: 84b5cbdefd08541e
+  zh: 1b07c765555559b4
+/deepseek-ai-dsh-doc-template/variable-resolution:
+  en: 118139678a661db0
+  zh: c62a6e80431f3ef5
+/deepseek-ai-dsh-doc-template/renderers:
+  en: e65ba30fe115092b
+  zh: 6da819e00a6b2ece
+/deepseek-ai-dsh-doc-template/configuration:
+  en: bdd9789e2355961d
+  zh: e33b1b5436675e61
+/deepseek-ai-dsh-doc-template/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-doc-template/model-experience/injected-style-guide:
+  en: a936c89c128d9d19
+  zh: c8168acaf83e716b
+/deepseek-ai-dsh-doc-template/model-experience/injected-style-guide/what-the-model-sees:
+  en: f5469ccc58364af4
+  zh: 3565676d11fdd191
+/deepseek-ai-dsh-doc-template/model-experience/injected-style-guide/token-effect:
+  en: 83c27b3818de07a4
+  zh: 1706e09e1eae8298
+/deepseek-ai-dsh-doc-template/model-experience/injected-style-guide/kv-cache-effect:
+  en: fdb7d10af5219d51
+  zh: 40c8ee1fe3840905
+/deepseek-ai-dsh-doc-template/model-experience/render-doc-template-result:
+  en: 5143125adf492b8f
+  zh: 5199786960bd8022
+/deepseek-ai-dsh-doc-template/model-experience/render-doc-template-result/what-the-model-sees:
+  en: eb806baa760c79e3
+  zh: 2c467d4e2135a65a
+/deepseek-ai-dsh-doc-template/model-experience/render-doc-template-result/token-effect:
+  en: e3ab7dbb6ff1351b
+  zh: 2906d9e27140ed59
+/deepseek-ai-dsh-doc-template/model-experience/render-doc-template-result/kv-cache-effect:
+  en: 66e8bc7a74ddf506
+  zh: 5f487598e99e444c
+/deepseek-ai-dsh-doc-template/model-experience/list-doc-templates-result:
+  en: 84b4fab15b0a7f5f
+  zh: 47bc20376f6c5971
+/deepseek-ai-dsh-doc-template/model-experience/list-doc-templates-result/what-the-model-sees:
+  en: b301f5ea123fd7ac
+  zh: f16a2730a59c7b9f
+/deepseek-ai-dsh-doc-template/model-experience/list-doc-templates-result/token-effect:
+  en: 2d948dfa48689943
+  zh: a37c2c5bf7982cd3
+/deepseek-ai-dsh-doc-template/model-experience/list-doc-templates-result/kv-cache-effect:
+  en: 8c8dcda08aafd12b
+  zh: 9538a14378e98d12
+/deepseek-ai-dsh-doc-template/known-limitations-and-deferred-work:
+  en: 7330c88c789f9888
+  zh: a8e8ae71b7bf2f86
+/deepseek-ai-dsh-doc-template/known-limitations-and-deferred-work/dev-note:
+  en: eae4acb7d9fc48fc
+  zh: 034393018b242ab9

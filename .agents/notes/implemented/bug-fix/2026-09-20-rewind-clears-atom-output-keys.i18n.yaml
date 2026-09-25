@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-20-rewind-clears-atom-output-keys.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-rewind-clears-atom-output-keys.md
-2026-09-20-rewind-clears-atom-output-keys.md: de18c9fadc0e0485fee8021cabc903bd09607640
-2026-09-20-rewind-clears-atom-output-keys.zh.md: 4743b73436d83667f7f27e7e16b8fbc425de3e25
+/agent-note-clear-every-output-key-a-rewound-stage-wrote:
+  en: a3ea804d0af60e5f
+  zh: 1c1b5bd3e00402ca
+/agent-note-clear-every-output-key-a-rewound-stage-wrote/problem:
+  en: e0ce778bbe6ea6a9
+  zh: 94396ceaaf611c29
+/agent-note-clear-every-output-key-a-rewound-stage-wrote/decision:
+  en: f7bdf29bd654c16c
+  zh: a1d07995ecf4bd31
+/agent-note-clear-every-output-key-a-rewound-stage-wrote/alternatives-considered:
+  en: 250aaced799ae621
+  zh: 070eae5d1f8275d0
+/agent-note-clear-every-output-key-a-rewound-stage-wrote/consequences:
+  en: 5c0e81b154a1d3ca
+  zh: 49f52abddccb86eb
+/agent-note-clear-every-output-key-a-rewound-stage-wrote/testing:
+  en: 0000fa8058cb66aa
+  zh: e8e90a812f303a57
+/agent-note-clear-every-output-key-a-rewound-stage-wrote/related:
+  en: 95da417afa03305c
+  zh: 08e344498dd353cf

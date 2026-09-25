@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-session-validation-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-session-validation-extraction.md
-2026-09-14-session-validation-extraction.md: 21ba3514e5b819bcea1c86fcf28a53ed2c067052
-2026-09-14-session-validation-extraction.zh.md: f16ca3d68bb0e49dc3737ba47cb9c50116e5e03d
+/agent-note-extracting-session-header-and-event-validation-issue-86:
+  en: 38f28f9ed9130ae7
+  zh: e3b724e34b3d05c1
+/agent-note-extracting-session-header-and-event-validation-issue-86/problem:
+  en: d2c1ff0a78060afc
+  zh: 1e7ce5d5728a0ce1
+/agent-note-extracting-session-header-and-event-validation-issue-86/decision:
+  en: 646a594490908ac6
+  zh: 839036dcdeb88d3e
+/agent-note-extracting-session-header-and-event-validation-issue-86/decision/what-stayed-in-the-entry:
+  en: fac7c19e3f74ebdc
+  zh: bf007c2ce5871424
+/agent-note-extracting-session-header-and-event-validation-issue-86/decision/why-three-header-validators-became-exports:
+  en: 53b636786d11e6f0
+  zh: e904694d0a513191
+/agent-note-extracting-session-header-and-event-validation-issue-86/decision/two-imports-moved-with-the-code:
+  en: 039447c09fcd5dda
+  zh: 95e6957ba4f45110
+/agent-note-extracting-session-header-and-event-validation-issue-86/decision/verification:
+  en: 24904df376aeb490
+  zh: b7b7ceb46e8ae7b6
+/agent-note-extracting-session-header-and-event-validation-issue-86/alternatives-considered:
+  en: d39c2095c00c5644
+  zh: fa0cf57a7bf363a5
+/agent-note-extracting-session-header-and-event-validation-issue-86/consequences:
+  en: bcf1781f84c9ba59
+  zh: ccae5317194b1780
+/agent-note-extracting-session-header-and-event-validation-issue-86/related:
+  en: fb9be2f7da34a709
+  zh: e3807782564d8b92

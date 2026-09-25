@@ -1,6 +1,7 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for self-evolve.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/self-evolve.md
-self-evolve.md: 6bcff157170b9ac178b94b8f60d443941071da07
-self-evolve.zh.md: 03c88c773789af87683ce7966a213e182373d4b4
+/self-evolve:
+  en: fdcdf63f5cb785ca
+  zh: a5e3ad3dae72fe23

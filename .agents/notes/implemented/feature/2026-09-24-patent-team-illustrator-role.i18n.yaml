@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-24-patent-team-illustrator-role.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-24-patent-team-illustrator-role.md
-2026-09-24-patent-team-illustrator-role.md: e5674bc630ed03f8a3b80848be20a2536670afda
-2026-09-24-patent-team-illustrator-role.zh.md: 4580abb8c5f9c17be992692ec6a01b0167820dde
+/agent-note-patent-team-adds-an-illustrator-role-owning-drawings-and-the-numeral-table:
+  en: a3f3ac2f97f6dee2
+  zh: b17d09c2216fb6fe
+/agent-note-patent-team-adds-an-illustrator-role-owning-drawings-and-the-numeral-table/problem:
+  en: af6554425eceb475
+  zh: ffe3ff5ba7dcd3ba
+/agent-note-patent-team-adds-an-illustrator-role-owning-drawings-and-the-numeral-table/decision:
+  en: d7af699249958331
+  zh: de39a5afac8f5bb2
+/agent-note-patent-team-adds-an-illustrator-role-owning-drawings-and-the-numeral-table/alternatives-considered:
+  en: df826bc2de77f6e9
+  zh: 8e3a94e8c14e16d4
+/agent-note-patent-team-adds-an-illustrator-role-owning-drawings-and-the-numeral-table/consequences:
+  en: 9bc3aacc1d99d02d
+  zh: e738c9d20c018111

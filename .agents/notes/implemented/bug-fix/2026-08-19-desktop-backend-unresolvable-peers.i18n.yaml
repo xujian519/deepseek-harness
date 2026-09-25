@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-19-desktop-backend-unresolvable-peers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-19-desktop-backend-unresolvable-peers.md
-2026-08-19-desktop-backend-unresolvable-peers.md: 322093c7ababf09a7d93d960493d80c4e98de880
-2026-08-19-desktop-backend-unresolvable-peers.zh.md: bd85514de8aba560bcd5662749714ef374084df3
+/agent-note-packaged-backend-drops-peer-provided-runtime-imports:
+  en: 38ffcd185be6059a
+  zh: 4947b3377691900e
+/agent-note-packaged-backend-drops-peer-provided-runtime-imports/problem:
+  en: ed9be49ade21abab
+  zh: c4957baf0e284030
+/agent-note-packaged-backend-drops-peer-provided-runtime-imports/decision:
+  en: ccf63621be004187
+  zh: ed909399510973fd
+/agent-note-packaged-backend-drops-peer-provided-runtime-imports/alternatives-considered:
+  en: d2b9c7feeea1e859
+  zh: 29d27c5112b21119
+/agent-note-packaged-backend-drops-peer-provided-runtime-imports/consequences:
+  en: 8853606d272b49f3
+  zh: 46449972778efb17

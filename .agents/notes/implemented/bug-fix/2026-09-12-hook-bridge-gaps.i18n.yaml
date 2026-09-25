@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-12-hook-bridge-gaps.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-12-hook-bridge-gaps.md
-2026-09-12-hook-bridge-gaps.md: 9604ceb18cefd4f3638a0989ba1052b58d55c4ba
-2026-09-12-hook-bridge-gaps.zh.md: 6adf7a19dd6f0d53887231fe9c756ed12670d2e4
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex:
+  en: b5d997dd2cb1250b
+  zh: c7274abab9b6dc22
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/problem:
+  en: d800120c51064fd1
+  zh: 5cdfe38583e09d1a
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/decision:
+  en: b47ba395b391df4b
+  zh: b8d1bba915c850b1
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/decision/session-start-delivery-gate:
+  en: e2e921d4fe608ad1
+  zh: 75c41c37294cc83d
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/decision/stop-loop-guard:
+  en: 0dade39230c37751
+  zh: 1a2cfea9d26e02fb
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/decision/run-level-stop:
+  en: d54a9c7044532ccc
+  zh: 9229600cd63e0599
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/alternatives-considered:
+  en: 39af658dc95e5926
+  zh: fb1e9e43645ae6ab
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/consequences:
+  en: 508d07a0183b18c6
+  zh: f5b939ba22165293
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/testing:
+  en: 6e4cfec40fea836a
+  zh: 71d1f54e80ab45ac
+/agent-note-close-hook-bridge-behavior-gaps-for-claude-code-and-codex/related:
+  en: e5136a718572ce74
+  zh: 25b7b26d132981e8

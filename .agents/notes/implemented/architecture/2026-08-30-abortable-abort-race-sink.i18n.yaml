@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-abortable-abort-race-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-30-abortable-abort-race-sink.md
-2026-08-30-abortable-abort-race-sink.md: 9bdeb6b6cea81862242219bf0f9dec4fa522b0bb
-2026-08-30-abortable-abort-race-sink.zh.md: 13ccd4030888d049f687ca11a53fd445a16a309c
+/agent-note-m1-last-sink-the-abort-race-primitive-abortable:
+  en: 8164aad752df70ab
+  zh: c38a7f0ef6657ea2
+/agent-note-m1-last-sink-the-abort-race-primitive-abortable/problem:
+  en: 52aaf9d23436a528
+  zh: b437930c6000e77a
+/agent-note-m1-last-sink-the-abort-race-primitive-abortable/decision:
+  en: 7772fc3d75ccb9b1
+  zh: 86b19d9bc1bcbe8b
+/agent-note-m1-last-sink-the-abort-race-primitive-abortable/consequences:
+  en: 3328aa1c5731fc87
+  zh: 6f03c97ea9992e89
+/agent-note-m1-last-sink-the-abort-race-primitive-abortable/alternatives-considered:
+  en: 5f7aed43203dca25
+  zh: 239402e5dab12130

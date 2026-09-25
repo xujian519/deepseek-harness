@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-document-delivery-studio.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-document-delivery-studio.md
-2026-08-23-document-delivery-studio.md: 8f48982e8df9a7ff3a164472c442e79bd2fd704e
-2026-08-23-document-delivery-studio.zh.md: 4241c4b9181a6e89c467a77c4edea52bc6a64592
+/agent-note-document-delivery-studio:
+  en: 19b1ed09f111819e
+  zh: af6cdd6049a75be6
+/agent-note-document-delivery-studio/problem:
+  en: a9a506f2f4a2734a
+  zh: d0465b825ad51d15
+/agent-note-document-delivery-studio/decision:
+  en: a58045a97aadebfa
+  zh: 7ffa5d1c7bfd35eb
+/agent-note-document-delivery-studio/alternatives-considered:
+  en: 45a70b8875fcb389
+  zh: b37a45ab988db574
+/agent-note-document-delivery-studio/consequences:
+  en: d2e65393a06bdf1c
+  zh: 292b1c8cbc42ea8f

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-17-desktop-package-config-import-platform.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-17-desktop-package-config-import-platform.md
-2026-09-17-desktop-package-config-import-platform.md: 1b7134ef9e74be2b2fcb434e8a93ae0c0dc7bc11
-2026-09-17-desktop-package-config-import-platform.zh.md: 435e0bcc6ffa5dad6834830cda090fd59cf4f76e
+/agent-note-desktop-packaging-config-specs-fix-the-target-platform-they-assume:
+  en: a44454ba0a099fd7
+  zh: de8961e4fb2b2e17
+/agent-note-desktop-packaging-config-specs-fix-the-target-platform-they-assume/problem:
+  en: e1194a2ad3a07a66
+  zh: 1fa71afed565b8f3
+/agent-note-desktop-packaging-config-specs-fix-the-target-platform-they-assume/decision:
+  en: 4864926872d6daba
+  zh: c3c6d916ced3920c
+/agent-note-desktop-packaging-config-specs-fix-the-target-platform-they-assume/alternatives-considered:
+  en: b6d8ba91d40a951f
+  zh: 378a7ea89279452e
+/agent-note-desktop-packaging-config-specs-fix-the-target-platform-they-assume/consequences:
+  en: 3dbf5c0fd8fb0ec4
+  zh: 81d38bc8edce0a86
+/agent-note-desktop-packaging-config-specs-fix-the-target-platform-they-assume/verification:
+  en: fb7ecfd97109a4fc
+  zh: 4e071fdb05c2cc9e

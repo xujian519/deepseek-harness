@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-22-synapse-port-to-workspace-packages.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-22-synapse-port-to-workspace-packages.md
-2026-08-22-synapse-port-to-workspace-packages.md: a1cf96f19cc463265a59f7a3dc895092fa3f577f
-2026-08-22-synapse-port-to-workspace-packages.zh.md: 66147ae2e583d888907ab8e7df17710c1ea51174
+/agent-note-synapse-web-profile:
+  en: c4bdac7f5b18549e
+  zh: 4c3bfde99d150b9d
+/agent-note-synapse-web-profile/problem:
+  en: ac89200dca997acd
+  zh: ac89200dca997acd
+/agent-note-synapse-web-profile/decision:
+  en: 88e0684c1c3cfebb
+  zh: 88e0684c1c3cfebb
+/agent-note-synapse-web-profile/adaptations-live-test-findings-2026-08-22:
+  en: 8221979416fdc563
+  zh: 8221979416fdc563
+/agent-note-synapse-web-profile/alternatives-considered:
+  en: ef4238021cb97912
+  zh: ef4238021cb97912
+/agent-note-synapse-web-profile/consequences:
+  en: dee3959ee9c26e54
+  zh: dee3959ee9c26e54
+/agent-note-synapse-web-profile/testing:
+  en: 4633803a6eb17908
+  zh: 4633803a6eb17908

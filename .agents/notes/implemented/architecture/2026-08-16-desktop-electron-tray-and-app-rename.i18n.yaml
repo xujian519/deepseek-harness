@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-16-desktop-electron-tray-and-app-rename.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-16-desktop-electron-tray-and-app-rename.md
-2026-08-16-desktop-electron-tray-and-app-rename.md: c3ad39e6a0574a797209ee0956fd10b16b41166a
-2026-08-16-desktop-electron-tray-and-app-rename.zh.md: ab9b66229c435e883b03c519b87127fc87b92ba4
+/agent-note-desktop-electron-tray-and-app-package-rename:
+  en: 1a748e2107b0aa77
+  zh: bb2f0b57a5fb1f8c
+/agent-note-desktop-electron-tray-and-app-package-rename/problem:
+  en: 51efc08846d8a0db
+  zh: d097496f3c14f49c
+/agent-note-desktop-electron-tray-and-app-package-rename/decision:
+  en: a15c7c13f167e5ac
+  zh: a15c7c13f167e5ac
+/agent-note-desktop-electron-tray-and-app-package-rename/decision/assets:
+  en: 9bb73c33772dd9c8
+  zh: d9afc530b7a2ddd3
+/agent-note-desktop-electron-tray-and-app-package-rename/decision/system-tray:
+  en: 69809c6c125fcc8d
+  zh: d653404c71d46953
+/agent-note-desktop-electron-tray-and-app-package-rename/decision/app-package-rename:
+  en: 5a12ee952b9a895e
+  zh: ecb670bbb20ea310
+/agent-note-desktop-electron-tray-and-app-package-rename/alternatives-considered:
+  en: 55ea088626cc27fd
+  zh: 53d1b074c45a5255
+/agent-note-desktop-electron-tray-and-app-package-rename/consequences:
+  en: 2be11006aed4b2cf
+  zh: 7b11b6236050fdb5
+/agent-note-desktop-electron-tray-and-app-package-rename/remaining-risks:
+  en: 654bf2ffa2c5fda7
+  zh: 9abe7c07b8c73542

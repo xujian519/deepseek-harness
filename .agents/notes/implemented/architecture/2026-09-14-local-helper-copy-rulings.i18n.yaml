@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-local-helper-copy-rulings.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-14-local-helper-copy-rulings.md
-2026-09-14-local-helper-copy-rulings.md: 6a910de91ad5111b0509ce4fb9bed9898a78e881
-2026-09-14-local-helper-copy-rulings.zh.md: 8aec2eec5d5fe22ef302267fe417b80558960e01
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own:
+  en: 331bb3c9c9be1f04
+  zh: 127221925ba8a60f
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own/problem:
+  en: fbf5b74d82618cc9
+  zh: e3ca6e637870a416
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own/decision:
+  en: b16e0cd385184073
+  zh: 955e325861bb6114
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own/alternatives-considered:
+  en: 6f8a2ba81cd8ac5e
+  zh: 48c641d49d5a70d9
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own/consequences:
+  en: 0c0d32c15844b061
+  zh: dab8d802288f6b7a
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own/testing:
+  en: 99ea97d5410fdead
+  zh: c2a530d458df57c5
+/agent-note-a-local-helper-copy-survives-only-on-a-contract-of-its-own/related:
+  en: 57f094dc70dfac4a
+  zh: 5a291b9a1784d157

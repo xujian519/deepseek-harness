@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-code-runtime-python-frame-reader.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-code-runtime-python-frame-reader.md
-2026-09-14-code-runtime-python-frame-reader.md: 55fc3b01ada889351e006550e0c7db1958f90f62
-2026-09-14-code-runtime-python-frame-reader.zh.md: c67aaea7ee737f8a170d6df446be3c104b059710
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86:
+  en: 8494108f3ed2c273
+  zh: c237040bd08a48c2
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/problem:
+  en: 756a05e2b9bc60d3
+  zh: 48a8c25ce1aead64
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/decision:
+  en: c5186c0c326dfe62
+  zh: 6eac8f01da65026e
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/decision/both-callbacks-are-arrow-wrappers-and-the-compiler-enforces-it:
+  en: c2e73361e70bfbf6
+  zh: 57f34ab4ade47f5d
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/decision/no-raw-line-length-crosses-the-callback:
+  en: 9b189b8241c6a2cc
+  zh: 1d0e6e32cab6c98e
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/decision/three-mechanical-constraints-the-moved-code-carries:
+  en: 65fd48bd6ca4dad0
+  zh: f187edb74cf70367
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/decision/testing:
+  en: 146eceb08395d58c
+  zh: 1cf28668dbeb5811
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/alternatives-considered:
+  en: 007ce7d5dc298308
+  zh: 4b6774a87560b740
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/consequences:
+  en: ccdff528712407de
+  zh: 5b6fce84bf7c07f2
+/agent-note-extracting-the-python-runtime-s-fd-3-frame-reader-issue-86/related:
+  en: 2086279d5225f375
+  zh: 98243c348f5755ca

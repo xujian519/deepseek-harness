@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-mady-rule-asset-merge-boundary.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.md
-2026-09-21-mady-rule-asset-merge-boundary.md: 7fc4519c102d9aca85d4c3f7abd307ea83889aa0
-2026-09-21-mady-rule-asset-merge-boundary.zh.md: 7b6e4e76ff6bd35521698e8e2c5b8b18f95324a0
+/agent-note-merge-the-mady-rule-assets-into-the-patent-rule-engine:
+  en: 8199a10290193805
+  zh: 8f657e442d4c3eb1
+/agent-note-merge-the-mady-rule-assets-into-the-patent-rule-engine/problem:
+  en: b686725ff6726624
+  zh: 170e45a90534655a
+/agent-note-merge-the-mady-rule-assets-into-the-patent-rule-engine/decision:
+  en: bca89c166f4e9579
+  zh: 83234d679db8fd7f
+/agent-note-merge-the-mady-rule-assets-into-the-patent-rule-engine/alternatives-considered:
+  en: 9dc2e01c2a85c253
+  zh: 6c048663862bcc70
+/agent-note-merge-the-mady-rule-assets-into-the-patent-rule-engine/consequences:
+  en: c72ce85302689e6a
+  zh: 4ea5fdeda39aae29
+/agent-note-merge-the-mady-rule-assets-into-the-patent-rule-engine/testing:
+  en: dacdf5f6837ac433
+  zh: 7153fc36537586c8

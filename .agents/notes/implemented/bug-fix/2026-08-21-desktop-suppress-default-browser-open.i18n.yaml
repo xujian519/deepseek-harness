@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-21-desktop-suppress-default-browser-open.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-21-desktop-suppress-default-browser-open.md
-2026-08-21-desktop-suppress-default-browser-open.md: 642884319fc0f78403be19def5e5e5261bb3cf3f
-2026-08-21-desktop-suppress-default-browser-open.zh.md: 3d3ba263d21cc4d24938a10aa61c6a39a7d2b2a8
+/agent-note-desktop-launch-suppresses-the-web-runtime-s-default-browser-open:
+  en: 4a879be48e07b05d
+  zh: 447afcd17e5a9967
+/agent-note-desktop-launch-suppresses-the-web-runtime-s-default-browser-open/problem:
+  en: c08a0cd31e92c6ba
+  zh: 42781416ca746b25
+/agent-note-desktop-launch-suppresses-the-web-runtime-s-default-browser-open/decision:
+  en: 10e5c70b52412cd4
+  zh: aa92f9ef444bf93f
+/agent-note-desktop-launch-suppresses-the-web-runtime-s-default-browser-open/alternatives-considered:
+  en: 93d9bd1c9eba220f
+  zh: dd126df89d7aed40
+/agent-note-desktop-launch-suppresses-the-web-runtime-s-default-browser-open/consequences:
+  en: 7c022c59c9358a95
+  zh: b9c22a63faec13dd
+/agent-note-desktop-launch-suppresses-the-web-runtime-s-default-browser-open/testing:
+  en: fadfb1922d619c03
+  zh: 42290291f83b8e28

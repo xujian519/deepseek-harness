@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-patent-preset-cnlaw-mcp-first.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-15-patent-preset-cnlaw-mcp-first.md
-2026-09-15-patent-preset-cnlaw-mcp-first.md: 25dc4d2053250514a113d56608365999e9f4e09d
-2026-09-15-patent-preset-cnlaw-mcp-first.zh.md: abbb23722c0d53df420d2783008d3dc3ab09e1bb
+/agent-note-patent-preset-prefers-the-cnlaw-mcp-tools-over-rest:
+  en: f2972ba5f77013b1
+  zh: 05ed51d80ee06131
+/agent-note-patent-preset-prefers-the-cnlaw-mcp-tools-over-rest/problem:
+  en: d3d5c9ad226b91c6
+  zh: 28ead9d0e060d23e
+/agent-note-patent-preset-prefers-the-cnlaw-mcp-tools-over-rest/decision:
+  en: 972478a70924ed38
+  zh: 18b25553a8b72da2
+/agent-note-patent-preset-prefers-the-cnlaw-mcp-tools-over-rest/alternatives-considered:
+  en: 6835b640369f4f1b
+  zh: f646b6e1ce4a6954
+/agent-note-patent-preset-prefers-the-cnlaw-mcp-tools-over-rest/consequences:
+  en: c7cf5bcde10857c4
+  zh: 8ccebe42dc09afe1

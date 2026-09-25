@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-peer-declaration-classes.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-peer-declaration-classes.md
-2026-09-13-peer-declaration-classes.md: 33ceb7e4416c0e69bb675ad33e0d7de3aaaf3dd5
-2026-09-13-peer-declaration-classes.zh.md: 214914c714ff49aa3e2d1b4670704340e3753ccf
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not:
+  en: c61284d03ea5b963
+  zh: 1e15be70a9fd361d
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not/problem:
+  en: db177a8f27ba64a2
+  zh: 973586e737f241b2
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not/decision:
+  en: 718fe151f0d77cd2
+  zh: e9f3250b7e04cfdd
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not/alternatives-considered:
+  en: 8546939461daae74
+  zh: 22d27c21364772fc
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not/consequences:
+  en: 80565ea76b1ee255
+  zh: f1fb87ec9eb24d43
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not/testing:
+  en: 873bc941cf8b37e6
+  zh: 7d0aba648a9f94c5
+/agent-note-mount-specifiers-stay-peers-type-only-service-edges-do-not/related:
+  en: 945d1fdfe323d325
+  zh: 8778be18d98785d0

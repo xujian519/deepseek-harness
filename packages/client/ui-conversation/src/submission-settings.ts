@@ -27,3 +27,6 @@ export interface ConversationSettings {
 export const ConversationSettingsFields = {
   [BUSY_ENTER_FIELD]: z.union([...BUSY_ENTER_BEHAVIORS]).default(DEFAULT_BUSY_ENTER_BEHAVIOR),
 }
+
+/** Schema for shared configuration values. */
+export const ConversationSettingsSchema = z.object(ConversationSettingsFields)

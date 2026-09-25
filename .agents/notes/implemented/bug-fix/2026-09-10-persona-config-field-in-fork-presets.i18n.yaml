@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-persona-config-field-in-fork-presets.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-10-persona-config-field-in-fork-presets.md
-2026-09-10-persona-config-field-in-fork-presets.md: 4d14a1dead800c497e85abb40bcb93ec692397b0
-2026-09-10-persona-config-field-in-fork-presets.zh.md: ee8413446145879e355e1e9ec796f81055d0797e
+/agent-note-restore-the-fork-presets-persona-row-to-the-current-field-names:
+  en: 2b33080c4d5cf6fe
+  zh: 98873f7c31883bf6
+/agent-note-restore-the-fork-presets-persona-row-to-the-current-field-names/problem:
+  en: 23a871eebb931636
+  zh: bd91f88047a19075
+/agent-note-restore-the-fork-presets-persona-row-to-the-current-field-names/decision:
+  en: 146520196b5d670b
+  zh: c286293f1b525370
+/agent-note-restore-the-fork-presets-persona-row-to-the-current-field-names/alternatives-considered:
+  en: dfc19cd866eaedd2
+  zh: a1a6f961fc6695a8
+/agent-note-restore-the-fork-presets-persona-row-to-the-current-field-names/consequences:
+  en: 39121b4c9e5e6746
+  zh: 79e97eff6a44f195

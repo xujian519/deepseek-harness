@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-29-type-aware-lint-cleanup.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-29-type-aware-lint-cleanup.md
-2026-08-29-type-aware-lint-cleanup.md: 1d64448d76c97640af8966477023e7c1a03c8c22
-2026-08-29-type-aware-lint-cleanup.zh.md: 854d91ad4c3cf06a879574439434a8ef38ba314b
+/agent-note-type-aware-lint-cleanup-distinguishes-dead-code-from-type-blind-defense:
+  en: 4ebd279d5fe843da
+  zh: ffbff14249fcbab1
+/agent-note-type-aware-lint-cleanup-distinguishes-dead-code-from-type-blind-defense/problem:
+  en: cdcf0375d26e0e9e
+  zh: 0e677c0ae903dbec
+/agent-note-type-aware-lint-cleanup-distinguishes-dead-code-from-type-blind-defense/decision:
+  en: f459273f3f71e638
+  zh: 55d7660088265853
+/agent-note-type-aware-lint-cleanup-distinguishes-dead-code-from-type-blind-defense/alternatives-considered:
+  en: 13aae5d28116986f
+  zh: fead68b0e83f197b
+/agent-note-type-aware-lint-cleanup-distinguishes-dead-code-from-type-blind-defense/consequences:
+  en: 0b8e823c7369b224
+  zh: 8f8b2eb0298ace0c

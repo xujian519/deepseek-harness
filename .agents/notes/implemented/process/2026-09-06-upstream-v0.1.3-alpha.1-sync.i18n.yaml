@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-upstream-v0.1.3-alpha.1-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-06-upstream-v0.1.3-alpha.1-sync.md
-2026-09-06-upstream-v0.1.3-alpha.1-sync.md: 8ca770379189f66ebcdb039eb6a9aacab6376868
-2026-09-06-upstream-v0.1.3-alpha.1-sync.zh.md: 64e6584de656798fd6e407aa7d29b28205adc45e
+/agent-note-upstream-v0-1-3-alpha-1-sync-and-the-session-format-v2-stream-model:
+  en: c654831d29efa331
+  zh: 373331dbd7e4d046
+/agent-note-upstream-v0-1-3-alpha-1-sync-and-the-session-format-v2-stream-model/problem:
+  en: 255a8757a9940ecb
+  zh: ac55d1686b1c666e
+/agent-note-upstream-v0-1-3-alpha-1-sync-and-the-session-format-v2-stream-model/decision:
+  en: 84b83533b3b4e92c
+  zh: 831a5b6627096fcb
+/agent-note-upstream-v0-1-3-alpha-1-sync-and-the-session-format-v2-stream-model/consequences:
+  en: 00cc811ebcb49e2f
+  zh: 2824a503e15bf86a
+/agent-note-upstream-v0-1-3-alpha-1-sync-and-the-session-format-v2-stream-model/alternatives-considered:
+  en: 0027f49cd6337362
+  zh: 1369e9a865e49630
+/agent-note-upstream-v0-1-3-alpha-1-sync-and-the-session-format-v2-stream-model/testing:
+  en: 1b81d3b780e7958c
+  zh: e84e0b05fc5990fa

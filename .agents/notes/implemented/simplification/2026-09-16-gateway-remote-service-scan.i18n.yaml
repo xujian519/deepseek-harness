@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-gateway-remote-service-scan.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-16-gateway-remote-service-scan.md
-2026-09-16-gateway-remote-service-scan.md: 87e35341ad86507662122468dc65df7f081d201d
-2026-09-16-gateway-remote-service-scan.zh.md: 0036c212d8191b3c2fd1d531de5cac60c25d6062
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup:
+  en: b92b9421d0cbfc6b
+  zh: e4f2b9f7662041ff
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup/problem:
+  en: 3864cfcf9f7439a1
+  zh: a0b2e76c6aad72a2
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup/decision:
+  en: 6d6ea720e106a89c
+  zh: 314ad5b4cb0a08bf
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup/alternatives-considered:
+  en: 0c66a2b54ad42700
+  zh: 0e7fdf30643f201f
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup/consequences:
+  en: 0d37dfe4adb28365
+  zh: 00ab51ddbaa29539
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup/testing:
+  en: c695eddb4a7fd355
+  zh: a04fa8411785f68a
+/agent-note-one-scan-feeds-both-the-gateway-s-src-claims-and-its-descriptor-lookup/related:
+  en: d85b2a77d6987e61
+  zh: bc2f6d45e03b0136

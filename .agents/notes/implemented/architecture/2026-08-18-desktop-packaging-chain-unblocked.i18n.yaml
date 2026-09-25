@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-18-desktop-packaging-chain-unblocked.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-18-desktop-packaging-chain-unblocked.md
-2026-08-18-desktop-packaging-chain-unblocked.md: b7166f518a49d086e9a48a3a9aa09261c7e59a8e
-2026-08-18-desktop-packaging-chain-unblocked.zh.md: d9f26e2bcf9f481a09076d6630c561852148672c
+/agent-note-desktop-packaging-chain-unblocked-client-face-isolation-stale-bridge-socket-base-bundle-deps:
+  en: 795eb99bcfa9aca6
+  zh: 5940fdbb3e1f6855
+/agent-note-desktop-packaging-chain-unblocked-client-face-isolation-stale-bridge-socket-base-bundle-deps/problem:
+  en: 28daaf4cb90863a6
+  zh: c940b6044ab62d9e
+/agent-note-desktop-packaging-chain-unblocked-client-face-isolation-stale-bridge-socket-base-bundle-deps/decision:
+  en: cc830759e55c1020
+  zh: c9fe38a1d6424856
+/agent-note-desktop-packaging-chain-unblocked-client-face-isolation-stale-bridge-socket-base-bundle-deps/alternatives-considered:
+  en: 31de245943c3c93c
+  zh: fa8a1c4cb9c6d422
+/agent-note-desktop-packaging-chain-unblocked-client-face-isolation-stale-bridge-socket-base-bundle-deps/consequences:
+  en: 46f7d0be3f34ebf5
+  zh: dc9d0da0eea70039

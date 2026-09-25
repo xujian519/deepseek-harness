@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-cross-session-todo-board.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-02-cross-session-todo-board.md
-2026-09-02-cross-session-todo-board.md: ae8071dc0295f0cca5cd800af20647b4c1baf0dd
-2026-09-02-cross-session-todo-board.zh.md: 76b62b28f7f9d381c26009ca432a628547967880
+/agent-note-cross-session-todo-board-view:
+  en: b5fa7dc35fc3e2f6
+  zh: 4985a901ddd70c0b
+/agent-note-cross-session-todo-board-view/problem:
+  en: 68d6db5bf04bd1f4
+  zh: a15e858c86189833
+/agent-note-cross-session-todo-board-view/decision:
+  en: 88b29f665c951ea0
+  zh: 8f59f1135086135b
+/agent-note-cross-session-todo-board-view/decision/the-todoslatest-projection-unit:
+  en: 02321f26a94f9fe0
+  zh: cfd48d38a438c9ae
+/agent-note-cross-session-todo-board-view/decision/scope-and-navigation:
+  en: 782f14459d542908
+  zh: 6a5352ee2e059cea
+/agent-note-cross-session-todo-board-view/decision/model-authored-tags:
+  en: 3d5623589a55fd27
+  zh: 45c9f8023a3181ac
+/agent-note-cross-session-todo-board-view/alternatives-considered:
+  en: 1fececc5104f2652
+  zh: c0f4cabe83cf2fab
+/agent-note-cross-session-todo-board-view/consequences:
+  en: 0c914389a0739508
+  zh: c193188587d4ae59

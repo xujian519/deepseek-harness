@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-m1-value-primitives-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-30-m1-value-primitives-sink.md
-2026-08-30-m1-value-primitives-sink.md: bc56a15a05a4ee0aae36c721a8283079231f8b88
-2026-08-30-m1-value-primitives-sink.zh.md: 31a7e82791ca87dd811ab39f0a54f5063c4518da
+/agent-note-m1-first-sink-the-shared-dsh-value-primitives:
+  en: 5b2256bfe066959d
+  zh: 2f55034e15047475
+/agent-note-m1-first-sink-the-shared-dsh-value-primitives/problem:
+  en: d224cbf09a2e663c
+  zh: f70b0c6d0635eeeb
+/agent-note-m1-first-sink-the-shared-dsh-value-primitives/decision:
+  en: f42e9649c7f888db
+  zh: a5f7fa5b65667126
+/agent-note-m1-first-sink-the-shared-dsh-value-primitives/consequences:
+  en: c0305e4019541590
+  zh: 3b2e4c3cec983f82
+/agent-note-m1-first-sink-the-shared-dsh-value-primitives/alternatives-considered:
+  en: b61718a549fa42dc
+  zh: 00203913643bfa7e

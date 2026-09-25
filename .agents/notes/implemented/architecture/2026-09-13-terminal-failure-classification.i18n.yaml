@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-terminal-failure-classification.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-terminal-failure-classification.md
-2026-09-13-terminal-failure-classification.md: 872ab93eded725c6c05e48fd4b75ce164fd91073
-2026-09-13-terminal-failure-classification.zh.md: b401e27d78ca9c8e76d4a2ee01d153698b1b7627
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason:
+  en: 9182e63518561ad3
+  zh: 102924000f69bbd0
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason/problem:
+  en: abaf9e643d54cd26
+  zh: 23acc958ef1f717b
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason/decision:
+  en: e2fd1cd0fe3cf24a
+  zh: b3942ea82c731771
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason/alternatives-considered:
+  en: 272c4ebd494d60f6
+  zh: b0aa84f38523709f
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason/consequences:
+  en: dca8aa7215525627
+  zh: 8e4ffbdbe3f4b525
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason/testing:
+  en: 4305a5fd3733f9fe
+  zh: 1f0ddb71e2d583f6
+/agent-note-pty-seam-failure-classification-and-the-required-close-reason/related:
+  en: 4af45aa5f62c6445
+  zh: b51bef52168db20e

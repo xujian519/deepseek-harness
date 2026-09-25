@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-session-query-borrowed-source-reads.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-session-query-borrowed-source-reads.md
-2026-09-16-session-query-borrowed-source-reads.md: 822267419dae692d1c4b853eb3ce0ab036b81360
-2026-09-16-session-query-borrowed-source-reads.zh.md: ea1bbb84da135dab49ed45d8f3af7afe7e0d0890
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log:
+  en: 78218766503e8ffe
+  zh: 2f732e96dd8a134f
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/problem:
+  en: da7b7cbb1cf85ed4
+  zh: 30176b90a00cff40
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/decision:
+  en: c10e55afaaa4e7bf
+  zh: 4dfcff29b92179d6
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/benchmark:
+  en: ee618c16b1b56d91
+  zh: 2af539d3df37b6ad
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/alternatives-considered:
+  en: 1e12e35cb7e5cdda
+  zh: 52171f63912379c4
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/consequences:
+  en: 26f6bf2a0bc9f06b
+  zh: ea422ad27ce8b3c7
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/testing:
+  en: 4acc6ca747c15616
+  zh: 41ce96456986bbf8
+/agent-note-borrow-session-query-sources-instead-of-cloning-the-log/related:
+  en: fbced5f1388a341c
+  zh: 5202f88627b52136

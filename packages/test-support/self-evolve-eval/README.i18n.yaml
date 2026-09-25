@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/test-support/self-evolve-eval/README.md
-README.md: 60f4537a32ad891aed41156a48df389d2a3843da
-README.zh.md: 6cc049f92b3306452449c7c7e3fd0e44e4d5abde
+/:
+  en: cb178742be13ddd6
+  zh: 299b53cb8939b984
+/deepseek-ai-dsh-self-evolve-eval:
+  en: 35913c4cdf307d32
+  zh: fa908809c0dc8817
+/deepseek-ai-dsh-self-evolve-eval/summary:
+  en: fc98695d023cec37
+  zh: ccec485d21d112fc
+/deepseek-ai-dsh-self-evolve-eval/table-of-contents:
+  en: 96a5eff0ad7d42d9
+  zh: 3bbe8b7a564f79ad
+/deepseek-ai-dsh-self-evolve-eval/usage:
+  en: a08242aa9e198322
+  zh: f8fb2bdb994985c2
+/deepseek-ai-dsh-self-evolve-eval/result-schema:
+  en: ae43fe1195da6a55
+  zh: b05551a436a77bf3
+/deepseek-ai-dsh-self-evolve-eval/environment-requirements:
+  en: a6dcbfcdfae919d0
+  zh: 715d36fedb167573
+/deepseek-ai-dsh-self-evolve-eval/honest-status:
+  en: 4bbedf8b03dd0d24
+  zh: 4ffe6fc396af0926
+/deepseek-ai-dsh-self-evolve-eval/known-limitations-and-deferred-work:
+  en: 5381d630bc0e5039
+  zh: 16e3a8af60f44fdd
+/deepseek-ai-dsh-self-evolve-eval/known-limitations-and-deferred-work/dev-note:
+  en: a923fd4190da2b93
+  zh: 57cfd9fc01003115

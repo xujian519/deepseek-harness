@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-acp-ptc-cluster-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-acp-ptc-cluster-extraction.md
-2026-09-14-acp-ptc-cluster-extraction.md: e18ef957283245ffd960a959e181ed7d9294cbbd
-2026-09-14-acp-ptc-cluster-extraction.zh.md: 5bd1c2a383609e3402e3198b3ac23a5bdba3a267
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86:
+  en: a47b4a15a7f43d46
+  zh: 2cea04884ce34857
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/problem:
+  en: 4d115b773b218491
+  zh: e987979886455078
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/decision:
+  en: 0a6d36656631ebb5
+  zh: 1080e5a1fcf6c663
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/decision/what-the-acp-cut-moved:
+  en: 1804aef659384b5f
+  zh: b340fd700162bd9b
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/decision/what-the-ptc-cut-moved:
+  en: 0440c075d1f68677
+  zh: 497702fad1b7701d
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/decision/verification:
+  en: a18547e75f203d8f
+  zh: 8b893c2ed828770a
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/alternatives-considered:
+  en: 363aaa9b096363e4
+  zh: 6f522cfd35948807
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/consequences:
+  en: 2c691921c24b79f2
+  zh: f73c6865c3caa20f
+/agent-note-extracting-the-acp-cursor-codec-and-two-ptc-clusters-issue-86/related:
+  en: 82385d6a0be702b6
+  zh: 59acaa424299e914

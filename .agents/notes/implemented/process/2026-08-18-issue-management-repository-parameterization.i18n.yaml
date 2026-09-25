@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-18-issue-management-repository-parameterization.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-18-issue-management-repository-parameterization.md
-2026-08-18-issue-management-repository-parameterization.md: e29a05901d33a82819fa6e3aaa269e48abdcd42f
-2026-08-18-issue-management-repository-parameterization.zh.md: 6468de0ae8f934cce02514c200d7f890264b9ed5
+/agent-note-issue-management-repository-parameterization:
+  en: 3f49b1982f78b65c
+  zh: 86168f90a30bfb86
+/agent-note-issue-management-repository-parameterization/problem:
+  en: 99eb28af034c1fac
+  zh: fa6e42e3aca092bf
+/agent-note-issue-management-repository-parameterization/decision:
+  en: f59b09ce2e9c3520
+  zh: 74fb1e2676ecb49e
+/agent-note-issue-management-repository-parameterization/alternatives-considered:
+  en: 6d601a91b6b7e43c
+  zh: 32b391401c63dc98
+/agent-note-issue-management-repository-parameterization/consequences:
+  en: c4a49231246238cf
+  zh: 44e3eac70aaa3411

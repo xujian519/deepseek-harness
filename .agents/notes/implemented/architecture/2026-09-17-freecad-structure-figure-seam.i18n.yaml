@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-17-freecad-structure-figure-seam.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-17-freecad-structure-figure-seam.md
-2026-09-17-freecad-structure-figure-seam.md: a4568bf7490c2e658405996e59e0f6856fbeedb5
-2026-09-17-freecad-structure-figure-seam.zh.md: 59492858c7e2f83b36772eaf8e3a1c57bf641b6a
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions:
+  en: ff5daf81e7ff373c
+  zh: 399d0fbec719e2a6
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions/problem:
+  en: 11ba9e407b986e97
+  zh: 4da8ca16dbd927aa
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions/decision:
+  en: 542b9b926f6d5645
+  zh: afa8a33f53b1c6d5
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions/alternatives-considered:
+  en: e10f40dc5270a079
+  zh: 30b36fa92bd824fb
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions/consequences:
+  en: 6a56969d9b958e06
+  zh: 355e726240981ba2
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions/testing:
+  en: 412db3861001e53b
+  zh: fdf1c2972ee7eddd
+/agent-note-freecad-structure-figure-seam-and-techdraw-projection-decisions/related:
+  en: e7db5f897e02838c
+  zh: 0aa2c5d4316c8fdf

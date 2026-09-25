@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-29-aggregate-configs-seed-face-configs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-29-aggregate-configs-seed-face-configs.md
-2026-08-29-aggregate-configs-seed-face-configs.md: d7330080c1a3ec402720be936a7678d50bc149af
-2026-08-29-aggregate-configs-seed-face-configs.zh.md: 66259027acfe2e18668200f745e8311938d065cd
+/agent-note-aggregate-configs-seed-face-configs-never-package-root-solutions:
+  en: 094536cab9eaffef
+  zh: a2f9b61ed9333d74
+/agent-note-aggregate-configs-seed-face-configs-never-package-root-solutions/problem:
+  en: 84c9c4bc5731f8b5
+  zh: 93f3ec99a1be9d87
+/agent-note-aggregate-configs-seed-face-configs-never-package-root-solutions/decision:
+  en: e241d2d5a93d3578
+  zh: e5d27d25166fa052
+/agent-note-aggregate-configs-seed-face-configs-never-package-root-solutions/consequences:
+  en: 16395f870d0bdde8
+  zh: a8e603f944ccd246
+/agent-note-aggregate-configs-seed-face-configs-never-package-root-solutions/alternatives-considered:
+  en: 148fd9eee289e8e1
+  zh: f55e1bd5c77d3881
+/agent-note-aggregate-configs-seed-face-configs-never-package-root-solutions/verification:
+  en: af8e5bb2abd7e0d3
+  zh: a831705e5491f185

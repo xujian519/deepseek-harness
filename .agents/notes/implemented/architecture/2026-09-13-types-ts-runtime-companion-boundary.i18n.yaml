@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-types-ts-runtime-companion-boundary.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-types-ts-runtime-companion-boundary.md
-2026-09-13-types-ts-runtime-companion-boundary.md: 3e6ecd55aeda2f2502ff982f3605a860e536167e
-2026-09-13-types-ts-runtime-companion-boundary.zh.md: 176087c3ca9d133c536ed499e14d645d46dd2df2
+/agent-note-the-src-types-ts-runtime-companion-boundary:
+  en: 8ab28db1c81422f0
+  zh: 8c4c2c503308043f
+/agent-note-the-src-types-ts-runtime-companion-boundary/problem:
+  en: c1f5dcbd3df2a2cd
+  zh: 8284f95ecb6b5460
+/agent-note-the-src-types-ts-runtime-companion-boundary/decision:
+  en: 4be74f33cd797764
+  zh: 4349becc9354c207
+/agent-note-the-src-types-ts-runtime-companion-boundary/alternatives-considered:
+  en: ad4f57c5a0512e3c
+  zh: 84192d8472f8b2be
+/agent-note-the-src-types-ts-runtime-companion-boundary/consequences:
+  en: 3741697c94e95bd1
+  zh: 762d5ca3965ac0c2
+/agent-note-the-src-types-ts-runtime-companion-boundary/testing:
+  en: 976a2b37d3728ea7
+  zh: eaede470139a437d
+/agent-note-the-src-types-ts-runtime-companion-boundary/related:
+  en: eab2a1fb25ce1dbf
+  zh: b6b899d5f9487e26

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-21-self-evolve-workspace-verifier.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-21-self-evolve-workspace-verifier.md
-2026-08-21-self-evolve-workspace-verifier.md: 41f21731cf04a2605e7977b65da982078ed92c7f
-2026-08-21-self-evolve-workspace-verifier.zh.md: d8614422abcda5221e707dde17243497ac9bf526
+/agent-note-self-evolve-workspace-verifier-p1-9b:
+  en: 8f0358be92bc2143
+  zh: 5f5db73a792c028e
+/agent-note-self-evolve-workspace-verifier-p1-9b/problem:
+  en: d975a5f0c7fe7db2
+  zh: bed5b1a1d99edab0
+/agent-note-self-evolve-workspace-verifier-p1-9b/decision:
+  en: 0f963982cdfe8f42
+  zh: cb282bdda18874ec
+/agent-note-self-evolve-workspace-verifier-p1-9b/alternatives-considered:
+  en: cd348151ad01647f
+  zh: 616664096c47a63b
+/agent-note-self-evolve-workspace-verifier-p1-9b/consequences:
+  en: 019381409f80b95c
+  zh: 7f7bf368a4cb5b12

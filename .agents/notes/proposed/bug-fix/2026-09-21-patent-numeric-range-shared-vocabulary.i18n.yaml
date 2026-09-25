@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-patent-numeric-range-shared-vocabulary.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/bug-fix/2026-09-21-patent-numeric-range-shared-vocabulary.md
-2026-09-21-patent-numeric-range-shared-vocabulary.md: 0d98de6118e6aa5a657d54856f1bafcb243d5b97
-2026-09-21-patent-numeric-range-shared-vocabulary.zh.md: 83e221f5faa434a637b83a5f3edab938d63aa181
+/agent-note-one-numeric-range-vocabulary-for-specification-validation-and-novelty-analysis:
+  en: b9091f78772ca2df
+  zh: be1c4caeeddd879d
+/agent-note-one-numeric-range-vocabulary-for-specification-validation-and-novelty-analysis/problem:
+  en: ca252e5468df665d
+  zh: 3a90f0def1549dcc
+/agent-note-one-numeric-range-vocabulary-for-specification-validation-and-novelty-analysis/proposal:
+  en: 0c62e057532d7866
+  zh: dcf1521f7704e180
+/agent-note-one-numeric-range-vocabulary-for-specification-validation-and-novelty-analysis/alternatives-considered:
+  en: 5b71c68d5f511b1a
+  zh: fcad742d51ab8a75
+/agent-note-one-numeric-range-vocabulary-for-specification-validation-and-novelty-analysis/acceptance-criteria:
+  en: a40be1a0c3d47087
+  zh: 89b2de59949e9413
+/agent-note-one-numeric-range-vocabulary-for-specification-validation-and-novelty-analysis/risks:
+  en: 83c7486153f602dd
+  zh: c74c3f1ae70f2482

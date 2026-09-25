@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/desktop/directory-picker/README.md
-README.md: de22626eb3a045f449f67ba1a29450b04727e0e5
-README.zh.md: 5151566f6b5cd84928ff8cdb7b3af5253ecc2cfd
+/:
+  en: 1fec50c299498fca
+  zh: 290b3b7e0d9a99ad
+/deepseek-ai-dsh-desktop-directory-picker:
+  en: 8b2988062c91c1e2
+  zh: 2aa4b763a550da0c
+/deepseek-ai-dsh-desktop-directory-picker/summary:
+  en: 3ad541e0de10e507
+  zh: 5ce334c667632681
+/deepseek-ai-dsh-desktop-directory-picker/table-of-contents:
+  en: 39ea06d23555080a
+  zh: 98d73ebdf62308de
+/deepseek-ai-dsh-desktop-directory-picker/model-experience:
+  en: f00aef2d6044a538
+  zh: e4d66d29b0a724f6
+/deepseek-ai-dsh-desktop-directory-picker/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: ae5eece628147ab8
+/deepseek-ai-dsh-desktop-directory-picker/known-limitations-and-deferred-work:
+  en: f89cd125231d1a73
+  zh: e57567aeb1dcd789
+/deepseek-ai-dsh-desktop-directory-picker/known-limitations-and-deferred-work/dev-note:
+  en: 5048699ff649c2c2
+  zh: 712375f0b856bd24

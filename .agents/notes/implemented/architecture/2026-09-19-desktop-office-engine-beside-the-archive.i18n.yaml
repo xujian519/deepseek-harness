@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-19-desktop-office-engine-beside-the-archive.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-19-desktop-office-engine-beside-the-archive.md
-2026-09-19-desktop-office-engine-beside-the-archive.md: 73239fc2e09193488cfc4de663ee6f1b8c5950cc
-2026-09-19-desktop-office-engine-beside-the-archive.zh.md: 65ca9963f14f811a4d49cb5954078c17fc0d15b9
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive:
+  en: c9a0319c79157df5
+  zh: b9ed164ceac12fae
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive/problem:
+  en: 030960dc4b8e8abf
+  zh: 91093b2e489f4ebe
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive/decision:
+  en: 4f7efdca1445320d
+  zh: 419e8661dadfd5d1
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive/alternatives-considered:
+  en: 6a09e53a09e3f76b
+  zh: 92c65d9bacfbf6e6
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive/consequences:
+  en: 5a252d8debd26388
+  zh: 0d843b4d53ae64f0
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive/testing:
+  en: 71281352060b20e4
+  zh: 611eb88adf41e73f
+/agent-note-deliver-the-office-engine-beside-the-desktop-archive/related:
+  en: 77f5c12e0cec5885
+  zh: 123289a1aa4870ce
