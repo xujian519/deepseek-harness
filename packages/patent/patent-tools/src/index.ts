@@ -96,7 +96,7 @@ export type { DraftClaimsInput, DraftClaimsOutput, DraftedClaim, ClaimViolation,
 export { createDraftSpecificationTool, draftSpecification } from './tool/draft-specification.ts'
 export type { DraftSpecificationInput, DraftSpecificationOutput, SpecificationSection } from './tool/draft-specification.ts'
 export { createValidateSpecificationTool } from './tool/validate-specification.ts'
-export type { ValidateSpecificationInput, ValidateSpecificationOutput, ValidateSpecificationDeps } from './tool/validate-specification.ts'
+export type { ValidateSpecificationInput, ValidateSpecificationOutput, ValidateSpecificationDeps } from './tool/spec-types.ts'
 export { createEvaluateEvidenceTool } from './tool/evaluate-evidence.ts'
 export type { EvaluateEvidenceInput, EvaluateEvidenceOutput, EvaluateEvidenceDeps } from './tool/evaluate-evidence.ts'
 export { createRuleCheckTool } from './tool/rule-check.ts'

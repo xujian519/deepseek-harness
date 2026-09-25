@@ -156,7 +156,7 @@ async create(agent: Agent, name: string, description?: string): Promise<{ team_i
  * @param signal - caller cancellation, forwarded to the spawn.
  * @returns the created member's identity.
  */
-async addMember( agent: Agent, args: { name: string role?: string provider?: string model?: string reasoning_effort?: string }, signal: AbortSignal, ): Promise<{ member_name: string member_id: string provider: string model: string reasoning_effort?: string status: string }>
+async addMember( agent: Agent, args: AddMemberArgs, signal: AbortSignal, ): Promise<AddMemberResult>
 
 /**
  * Remove a member safely: revoke its current attempts, return all unfinished
@@ -167,7 +167,7 @@ async addMember( agent: Agent, args: { name: string role?: string provider?: str
  * @param signal - caller cancellation, forwarded to quiescence waits.
  * @returns the removed member and requeued task ids.
  */
-async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<{ member_name: string status: string requeued_tasks: string[] }>
+async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<RemoveMemberResult>
 
 /**
  * Create a task in the team's task list. Tasks can depend on other tasks;
@@ -177,7 +177,7 @@ async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<{ m
  * @param signal - caller cancellation, forwarded to scheduling.
  * @returns the created task's identity.
  */
-async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string worker?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }>
+async createTask( agent: Agent, args: CreateTaskArgs, signal?: AbortSignal, ): Promise<CreateTaskResult>
 
 /**
  * Atomically retry, reassign, or let the captain take over any unfinished or
@@ -188,7 +188,7 @@ async createTask( agent: Agent, args: { subject: string description?: string dep
  * @param signal - caller cancellation, forwarded to quiescence waits.
  * @returns the task's post-handoff state.
  */
-async reassignTask( agent: Agent, args: { task_id: string; assignee: string; reason?: string }, signal: AbortSignal, ): Promise<{ task_id: string previous_assignee: string assignee: string status: string attempt: number attempt_id?: string }>
+async reassignTask( agent: Agent, args: ReassignTaskArgs, signal: AbortSignal, ): Promise<ReassignTaskResult>
 
 /**
  * Claim one ready task for a member (or yourself). A member cannot own a
@@ -198,7 +198,7 @@ async reassignTask( agent: Agent, args: { task_id: string; assignee: string; rea
  * @param args - task id, optional assignee (captain only).
  * @returns the claimed task's capability.
  */
-async claimTask( agent: Agent, args: { task_id: string; assignee?: string }, ): Promise<{ task_id: string; status: string; assignee: string; attempt: number; attempt_id?: string }>
+async claimTask( agent: Agent, args: ClaimTaskArgs, ): Promise<ClaimTaskResult>
 
 /**
  * Update a task status/output. Members must supply the current attempt_id
@@ -209,7 +209,7 @@ async claimTask( agent: Agent, args: { task_id: string; assignee?: string }, ): 
  * @param signal - caller cancellation, forwarded to scheduling.
  * @returns the task's updated state.
  */
-async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string status: string output?: string attempt: number attempt_id?: string gated?: boolean gate_feedback?: string }>
+async updateTask( agent: Agent, args: UpdateTaskArgs, signal?: AbortSignal, ): Promise<UpdateTaskResult>
 
 /**
  * Send a message to the captain or to a teammate. Messages go straight into

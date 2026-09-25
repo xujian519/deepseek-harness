@@ -94,6 +94,7 @@ Scrollback 和尚未读取的发送输出保留独立拥有的字符串，并增
 | [`src/index.ts`](src/index.ts) | 后端注册、沙箱模式限制、argv 与环境组装、启动序列 |
 | [`src/config.ts`](src/config.ts) | 方言解析、默认值与每个计时字段的校验 |
 | [`src/session.ts`](src/session.ts) | `LocalPtySession`：发送生命周期、就绪轮询、scrollback、信号、关闭 |
+| [`src/readiness-poller.ts`](src/readiness-poller.ts) | 发送仍持有槽位期间就绪轮询的排定与续约 |
 | [`src/terminal-protocol-queue.ts`](src/terminal-protocol-queue.ts) | 模拟器写入与其回复：串行化，并在判定就绪前排空 |
 | [`src/sanitize.ts`](src/sanitize.ts) | 流式控制序列清理器与行规范化 |
 

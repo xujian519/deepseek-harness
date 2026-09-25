@@ -94,6 +94,7 @@ Scrollback and unread send output retain independently owned strings with increm
 | [`src/index.ts`](src/index.ts) | Backend registration, sandbox-mode fence, argv and environment assembly, startup sequence |
 | [`src/config.ts`](src/config.ts) | Dialect resolution, defaults, and validation of every timing field |
 | [`src/session.ts`](src/session.ts) | `LocalPtySession`: send lifecycle, readiness polling, scrollback, signals, close |
+| [`src/readiness-poller.ts`](src/readiness-poller.ts) | Arming and re-arming of readiness polls while a send owns the slot |
 | [`src/terminal-protocol-queue.ts`](src/terminal-protocol-queue.ts) | Emulator writes and their replies, serialized and drained before readiness is judged |
 | [`src/sanitize.ts`](src/sanitize.ts) | Streaming control-sequence sanitizer and line normalization |
 
