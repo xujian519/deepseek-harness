@@ -33,8 +33,8 @@ import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
 import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
-import type { DotFigureType, GeneratePatentFigureDeps, GeneratePatentFigureIndexEntry, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
-import { buildOutput, indexAnalysis, renderGenerateFigureResult } from './figure-output.ts'
+import type { DotFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
+import { buildOutput, indexAnalysis, renderGenerateFigureResult, upsertFigureIndex } from './figure-output.ts'
 import { annotateRenderedSvg, buildFigureDot } from './figure-render-plan.ts'
 import { applySubmissionPage, buildLayout, resolveSubmission } from './figure-submission.ts'
 import type { SubmissionPlanInput } from './figure-submission.ts'
@@ -600,32 +600,6 @@ async function layoutSubmissionPage(args: {
   const applied = await applySubmissionPage(args.outcomePath, plan, args.format, args.output.warnings)
   if (applied !== undefined) {
     args.output.layout = buildLayout(plan, applied, args.style, args.input.figure_count ?? 1, args.output.warnings)
-  }
-}
-
-/**
- * 写入附图索引（可选增强）：失败降级为警告、不阻断生成结果返回；留痕失败原因——
- * 索引缺失会使 search_patent_figure 漏检、figure_family 续号漏号。
- * @param args - the upsert dependency, the rendered image, its analysis, the warning sink, and the entry label.
- * @returns whether the entry was written.
- */
-async function upsertFigureIndex(args: {
-  upsertIndex: (entry: GeneratePatentFigureIndexEntry) => Promise<void>
-  imagePath: string
-  analysis: GeneratePatentFigureIndexEntry['analysis']
-  warnings: string[]
-  label: string
-}): Promise<boolean> {
-  try {
-    await args.upsertIndex({
-      imagePath: args.imagePath,
-      analyzedAt: new Date().toISOString(),
-      analysis: args.analysis,
-    })
-    return true
-  } catch (error) {
-    args.warnings.push(`${args.label}附图索引写入失败（不阻断）：${error instanceof Error ? error.message : String(error)}`)
-    return false
   }
 }
 
