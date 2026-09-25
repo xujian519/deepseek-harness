@@ -12,21 +12,25 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { deliverToMember } from './members.ts'
 import {
   acknowledgeMailbox,
-  beginTaskAttempt,
   claimMailboxDelivery,
-  findTeamByParticipant,
-  readTeam,
   readUnreadMailbox,
   releaseMailboxDelivery,
-  stateRootOf,
-  teamLockKey,
+} from './mailbox.ts'
+import { deliverToMember } from './members.ts'
+import {
+  beginTaskAttempt,
+  findTeamByParticipant,
+  readTeam,
   unsatisfiedDependencies,
-  withTeamLock,
   writeTeam,
 } from './state.ts'
+import {
+  stateRootOf,
+  teamLockKey,
+  withTeamLock,
+} from './team-lock.ts'
 import type { TeamMember, TeamTask } from './types.ts'
 
 /** Scheduler configuration: where team state lives on disk. */
