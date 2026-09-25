@@ -1072,6 +1072,9 @@ importers:
       '@deepseek-ai/dsh-terminal':
         specifier: workspace:*
         version: link:../packages/terminal/terminal
+      '@deepseek-ai/dsh-timeout':
+        specifier: workspace:*
+        version: link:../packages/util/timeout
       '@deepseek-ai/dsh-token-meter':
         specifier: workspace:*
         version: link:../packages/llm/token-meter
