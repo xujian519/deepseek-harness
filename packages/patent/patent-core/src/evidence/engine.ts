@@ -9,8 +9,6 @@
  * （rules/patent/evidence-rules.yaml）配置；外部服务不可用时降级而非失败。
  */
 
-import { parseDocument } from 'yaml'
-import { asRecord } from '@deepseek-ai/dsh-value'
 import type { EvidenceSpan } from './span.ts'
 import {
   determinePublicationDate,
@@ -22,9 +20,8 @@ import {
   parseDateFlexible,
 } from './date.ts'
 import { credibilityToScore, evaluatePublicIntent, platformCategory, platformCredibility } from './credibility.ts'
+import { DEFAULT_WEIGHTS, parseRuleSet } from './rule-set.ts'
 import type {
-  AssessmentDimension,
-  AssessmentType,
   BurdenDetermination,
   ContentIntegrityStatus,
   DateDetermination,
@@ -34,7 +31,6 @@ import type {
   EvidenceJudgment,
   EvidenceJudgmentEngine,
   EvidenceRule,
-  EvidenceRuleSet,
   EvidenceType,
   FourElementsResult,
   JudgmentIssue,
@@ -42,7 +38,6 @@ import type {
   RuleApplication,
   TypeSpecificJudgment,
 } from './types.ts'
-import { EVIDENCE_TYPES } from './types.ts'
 
 /** 规则条件评估上下文。 */
 type ConditionContext = {
@@ -116,8 +111,6 @@ function evaluateCondition(name: string, ctx: ConditionContext): boolean | undef
 export const STANDARD_PREPONDERANCE = 'preponderance'
 /** 高度盖然性（清晰且令人信服）证明标准标识。 */
 export const STANDARD_CLEAR_CONVINCING = 'clear_and_convincing'
-
-const DEFAULT_WEIGHTS = { relevance: 0.35, legality: 0.3, authenticity: 0.35 }
 
 const LEVEL_HIGH = 'high'
 const LEVEL_MEDIUM_HIGH = 'medium_high'
@@ -447,114 +440,6 @@ function assessChainIntegrity(span: EvidenceSpan, fourElements: FourElementsResu
     return '需补充证据（部分要件缺失，建议提供销售合同/展览记录等直接证据）'
   }
   return '证据链不完整，建议收集多份相互印证的证据'
-}
-
-// ---------------------------------------------------------------------------
-// 规则索引（YAML 资产加载）
-// ---------------------------------------------------------------------------
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((v): v is string => typeof v === 'string')
-}
-
-/** 解析规则集维度的分级列表；非数组或非法条目被过滤，返回同构分级数组。 */
-function parseLevels(raw: unknown): AssessmentDimension['levels'] {
-  if (!Array.isArray(raw)) return []
-  return raw
-    .map(lv => asRecord(lv))
-    .filter((lv): lv is Record<string, unknown> => lv !== null)
-    .map(lv => ({
-      value: typeof lv.value === 'string' ? lv.value : '',
-      score: typeof lv.score === 'number' ? lv.score : 0,
-      ...(typeof lv.description === 'string' ? { description: lv.description } : {}),
-    }))
-    .filter(lv => lv.value !== '')
-}
-
-/** 解析规则集的评估维度与权重；单个坏规则跳过不阻塞整体加载。 */
-function parseRuleSet(yamlText: string, source: string): { ruleSet: EvidenceRuleSet | null; warnings: string[] } {
-  const warnings: string[] = []
-  const doc = parseDocument(yamlText)
-  if (doc.errors.length > 0) {
-    /* v8 ignore next -- YAMLParseError always carries a message */
-    warnings.push(`证据规则 YAML 解析失败 ${source}: ${doc.errors[0]?.message ?? 'unknown'}`)
-    return { ruleSet: null, warnings }
-  }
-  const root = asRecord(doc.toJS())
-  if (root === null) {
-    warnings.push(`证据规则文件顶层必须是对象 ${source}`)
-    return { ruleSet: null, warnings }
-  }
-  const weightsRaw = asRecord(root.weights)
-  const weights = {
-    relevance: typeof weightsRaw?.relevance === 'number' ? weightsRaw.relevance : DEFAULT_WEIGHTS.relevance,
-    legality: typeof weightsRaw?.legality === 'number' ? weightsRaw.legality : DEFAULT_WEIGHTS.legality,
-    authenticity: typeof weightsRaw?.authenticity === 'number' ? weightsRaw.authenticity : DEFAULT_WEIGHTS.authenticity,
-  }
-  const rules: EvidenceRule[] = []
-  const rawRules = root.rules
-  if (Array.isArray(rawRules)) {
-    for (const item of rawRules) {
-      const record = asRecord(item)
-      if (record === null || typeof record.ruleId !== 'string' || typeof record.name !== 'string') {
-        warnings.push(`证据规则条目缺少 ruleId/name ${source}`)
-        continue
-      }
-      const evidenceType = record.evidenceType as EvidenceType
-      if (!EVIDENCE_TYPES.includes(evidenceType)) {
-        warnings.push(`证据规则 ${record.ruleId} 未知证据类型 "${String(record.evidenceType)}"，跳过`)
-        continue
-      }
-      const assessment = asRecord(record.evidenceAssessment)
-      let dimensions: AssessmentDimension[] | undefined
-      if (assessment !== null && Array.isArray(assessment.dimensions)) {
-        dimensions = []
-        for (const dimRaw of assessment.dimensions) {
-          const dim = asRecord(dimRaw)
-          if (dim === null || typeof dim.name !== 'string' || typeof dim.weight !== 'number') continue
-          const levels = parseLevels(dim.levels)
-          dimensions.push({ name: dim.name, weight: dim.weight, levels })
-        }
-      }
-      const check = asRecord(record.check)
-      rules.push({
-        ruleId: record.ruleId,
-        name: record.name,
-        description: typeof record.description === 'string' ? record.description : '',
-        ...(typeof record.legalBasis === 'string' ? { legalBasis: record.legalBasis } : {}),
-        ...(typeof record.domain === 'string' ? { domain: record.domain } : {}),
-        severity: typeof record.severity === 'string' ? record.severity : 'minor',
-        action: typeof record.action === 'string' ? record.action : 'apply',
-        evidenceType,
-        ...(check !== null
-          ? {
-            check: {
-              type: typeof check.type === 'string' ? check.type : '',
-              method: typeof check.method === 'string' ? check.method : '',
-              principles: asStringArray(check.principles),
-              rules: asStringArray(check.rules),
-              conditions: asStringArray(check.conditions),
-            },
-          }
-          : {}),
-        ...(assessment !== null
-          ? {
-            evidenceAssessment: {
-              assessmentType: (typeof assessment.assessmentType === 'string'
-                ? assessment.assessmentType
-                : 'triple-attribute') as AssessmentType,
-              ...(dimensions !== undefined ? { dimensions } : {}),
-              exemptions: asStringArray(assessment.exemptions),
-            },
-          }
-          : {}),
-      })
-    }
-  } else {
-    warnings.push(`证据规则文件缺少 rules 数组 ${source}`)
-  }
-  return { ruleSet: { weights, rules }, warnings }
 }
 
 // ---------------------------------------------------------------------------
