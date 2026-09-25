@@ -281,13 +281,6 @@ export async function findTeamByParticipant(
   )
 }
 
-/**
- * Build a fresh message record.
- * @param from - the sender key (`captain` or a member name).
- * @param to - the recipient key (`captain` or a member name).
- * @param content - the message body.
- * @returns the new message record.
- */
 /** Whether a value is an optional string. */
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
