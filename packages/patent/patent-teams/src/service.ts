@@ -15,13 +15,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { roleContract, validateWorkerOutput, workerContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
-import { evaluatePatentContent } from '@deepseek-ai/dsh-patent-tools'
+import { roleContract, workerDeliverables } from '@deepseek-ai/dsh-patent-workflow'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { join } from 'node:path'
 import { appendTeamEvent, captainSessionOf } from './events.ts'
-import { PatentTeamsAttemptId, PatentTeamsMessageId, PatentTeamsTaskId, PatentTeamsTeamId } from './ids.ts'
+import { PatentTeamsMessageId, PatentTeamsTeamId } from './ids.ts'
 import {
   acknowledgeMailbox,
   appendMailbox,
@@ -29,38 +28,33 @@ import {
   readUnreadMailbox,
   releaseMailboxDelivery,
 } from './mailbox.ts'
+import * as memberOps from './member-runtime.ts'
+import { deliverToMember, interruptMember, memberActivity, waitForMemberIdle } from './members.ts'
+import { installTeamScheduler, type TeamScheduler } from './scheduler.ts'
 import {
   archiveTeamDir,
-  beginTaskAttempt,
   CAPTAIN_KEY,
   createTeamDir,
   findTeamByCaptain,
-  findTeamByParticipant,
   invalidateTaskAttempt,
   listArchivedTeamIds,
   readArchivedTeam,
   readTeam,
   recordRetiredMemberIds,
-  transitionError,
-  unsatisfiedDependencies,
   writeTeam,
 } from './state.ts'
+import * as taskOps from './task-ops.ts'
 import {
-  sanitizeKey,
-  stateRootOf,
-  teamLockKey,
-  withTeamLock,
-} from './team-lock.ts'
-import {
-  deliverToMember,
-  interruptMember,
-  memberActivity,
-  resolveMemberLlmSelection,
-  spawnMember,
-  type MemberRuntimeConfig,
-} from './members.ts'
-import { TERMINAL_TASK_STATUSES, type TaskContractValidation, type TaskGateFeedback, type TeamMember, type TeamState, type TeamTask } from './types.ts'
-import { installTeamScheduler, type TeamScheduler } from './scheduler.ts'
+  captainTeam,
+  freshCaptainTeam,
+  freshParticipant,
+  participantTeam,
+  requireMember,
+  stateRootFor,
+  withParticipant,
+} from './team-access.ts'
+import { sanitizeKey, teamLockKey, withTeamLock } from './team-lock.ts'
+import type { TeamState } from './types.ts'
 
 /** Resolved plugin config consumed by the service. */
 export interface PatentTeamsConfig {
@@ -86,126 +80,6 @@ function requireAgent(exec: ToolRunContext): Agent {
     throw new Error('patent_teams tools require a calling agent (exec.agent was undefined)')
   }
   return exec.agent
-}
-
-/** The captain's workspace directory (team state root parent). */
-function workspaceOf(agent: Agent): string {
-  return agent.session.header.cwd ?? process.cwd()
-}
-
-/**
- * The attempt identity a `patent-teams/task-updated` record carries.
- *
- * Every task-updated emit site states it the same way, so the record shape does
- * not depend on which transition produced it. Both fields are optional on
- * `TeamTask` because a team record written before they existed loads without
- * them, and a task that no attempt ever opened must not claim one.
- * @param task - the task whose transition is being recorded.
- * @returns the `attempt`/`attemptId` fields to spread into the payload.
- */
-function attemptFields(task: TeamTask): { attempt?: number; attemptId?: PatentTeamsAttemptId } {
-  return {
-    ...task.attempt === undefined ? {} : { attempt: task.attempt },
-    ...task.attemptId === undefined ? {} : { attemptId: PatentTeamsAttemptId(task.attemptId) },
-  }
-}
-
-type ParticipantIdentity =
-  | { kind: 'captain'; name: typeof CAPTAIN_KEY }
-  | { kind: 'member'; name: string; sessionId: string }
-
-/** Re-derive a caller's role from fresh state while holding the team lock. */
-function participantIdentityOf(team: TeamState, agentId: string): ParticipantIdentity | undefined {
-  if (team.captainSessionId === agentId) return { kind: 'captain', name: CAPTAIN_KEY }
-  const member = team.members.find(candidate => candidate.id === agentId && candidate.status !== 'removed')
-  return member === undefined ? undefined : { kind: 'member', name: member.name, sessionId: member.id }
-}
-
-/** Fresh state for a team that still exists; never falls back to stale lookup data. */
-async function requireFreshTeam(stateRoot: string, teamId: string): Promise<TeamState> {
-  const fresh = await readTeam(stateRoot, teamId)
-  if (fresh === undefined) throw new Error(`team "${teamId}" is no longer active`)
-  return fresh
-}
-
-/** Look up one live (non-removed) member by display name. */
-function requireMember(team: TeamState, name: string): TeamMember {
-  const member = team.members.find(candidate => candidate.name === name && candidate.status !== 'removed')
-  if (member === undefined) {
-    throw new Error(`no active member named "${name}" in team "${team.name}"`)
-  }
-  return member
-}
-
-/** Look up one task by id. */
-function requireTask(team: TeamState, taskId: string): TeamTask {
-  const task = team.tasks.find(candidate => candidate.id === taskId)
-  if (task === undefined) {
-    throw new Error(`no task "${taskId}" in team "${team.name}" — use patent_teams_status to list tasks`)
-  }
-  return task
-}
-
-/**
- * Admit one new member name into fresh state (inside the team lock). Runs
- * before the spawn and again before the persist, so a concurrent winner is
- * still rejected after its loser has already spawned.
- * @param team - the fresh team record.
- * @param rawName - the caller-supplied member name, for error text.
- * @param memberKey - the sanitized member key.
- * @param maxMembers - the configured team size cap.
- */
-function requireAddableMember(team: TeamState, rawName: string, memberKey: string, maxMembers: number): void {
-  if (team.members.some(candidate => sanitizeKey(candidate.name) === memberKey)) {
-    throw new Error(`member name "${rawName}" has already been used in team "${team.name}"`)
-  }
-  if (team.members.filter(candidate => candidate.status !== 'removed').length >= maxMembers) {
-    throw new Error(`team "${team.name}" is at its member cap (${maxMembers})`)
-  }
-}
-
-/**
- * Project one task's mutation result row for the model. `attempt` and `attempt_id`
- * are absent while the task has no live attempt (reassignment revokes the id until
- * the next claim), `output` is absent until one is recorded, so the rows the
- * mutation tools return are deliberately not uniformly shaped.
- */
-function taskView(task: TeamTask): { task_id: string; status: string; attempt: number; attempt_id?: string; output?: string } {
-  return {
-    task_id: task.id,
-    status: task.status,
-    attempt: task.attempt ?? 0,
-    ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
-    ...task.output !== undefined ? { output: task.output } : {},
-  }
-}
-
-function memberOpenTask(team: TeamState, memberName: string, exceptTaskId?: string): TeamTask | undefined {
-  return team.tasks.find(task => task.id !== exceptTaskId
-    && task.assignee === memberName
-    && (task.status === 'claimed' || task.status === 'in_progress'))
-}
-
-async function waitForMemberIdle(ctx: Context, member: TeamMember, signal: AbortSignal): Promise<void> {
-  // v8 ignore next -- durable state validation rejects members with empty ids before they can be waited on
-  if (member.id === '') return
-  const live = ctx.get('agents')?.get(member.id as SessionId)
-  if (live === undefined) return
-  if (signal.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new Error('task reassignment was cancelled')
-  }
-  let onAbort!: () => void
-  const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => {
-      reject(signal.reason instanceof Error ? signal.reason : new Error('task reassignment was cancelled'))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-  try {
-    await Promise.race([live.whenIdle(), aborted])
-  } finally {
-    signal.removeEventListener('abort', onAbort)
-  }
 }
 
 /**
@@ -241,65 +115,41 @@ function steerCaptainReport(
  * per-team in-process lock and is persisted atomically before any notification
  * fires. Members are continuable subagents whose durable session ids are
  * recorded in the team file, so a team survives harness restarts.
+ *
+ * The task state machine lives in `task-ops.ts` and the member lifecycle in
+ * `member-runtime.ts`; both receive the projections built here, because the
+ * resolved config is this service's to read once.
  */
 export class PatentTeamsService extends Service {
   private readonly config: PatentTeamsConfig
   private readonly scheduler: TeamScheduler
+  private readonly tasks: taskOps.TaskOpsHost
+  private readonly members: memberOps.MemberOpsHost
 
+  /**
+   * @param ctx - the plugin context the service registers on.
+   * @param config - the resolved plugin configuration.
+   */
   constructor(ctx: Context, config: PatentTeamsConfig) {
     super(ctx, 'patentTeams')
     this.config = config
     this.scheduler = installTeamScheduler(ctx, { stateDir: config.stateDir })
-  }
-
-  /** Resolve the calling captain and the team it leads (loud when absent). */
-  private async captainTeam(agent: Agent): Promise<{ workspace: string; stateRoot: string; team: TeamState }> {
-    const workspace = workspaceOf(agent)
-    const stateRoot = stateRootOf(workspace, this.config.stateDir)
-    const team = await findTeamByCaptain(stateRoot, agent.id)
-    if (team === undefined) {
-      throw new Error('you are not leading any team yet — call patent_teams_create first')
+    this.tasks = {
+      ctx,
+      stateDir: config.stateDir,
+      scheduler: this.scheduler,
+      qualityGate: config.qualityGate,
+      passThreshold: config.passThreshold,
     }
-    return { workspace, stateRoot, team }
-  }
-
-  /** Resolve the calling participant and the team it belongs to (loud when absent). */
-  private async participantTeam(
-    agent: Agent,
-  ): Promise<{ workspace: string; stateRoot: string; team: TeamState }> {
-    const workspace = workspaceOf(agent)
-    const stateRoot = stateRootOf(workspace, this.config.stateDir)
-    const team = await findTeamByParticipant(stateRoot, agent.id)
-    if (team === undefined) {
-      throw new Error('you do not lead or belong to any active team yet')
+    this.members = {
+      ctx,
+      stateDir: config.stateDir,
+      memberProvider: config.memberProvider,
+      ...config.memberModel === undefined ? {} : { memberModel: config.memberModel },
+      ...config.memberMaxDepth === undefined ? {} : { memberMaxDepth: config.memberMaxDepth },
+      maxMembers: config.maxMembers,
+      scheduler: this.scheduler,
     }
-    return { workspace, stateRoot, team }
-  }
-
-  /** Fresh state with captain authorization rechecked inside the lock. */
-  private async freshCaptainTeam(
-    stateRoot: string,
-    teamId: string,
-    captainId: string,
-  ): Promise<TeamState> {
-    const fresh = await requireFreshTeam(stateRoot, teamId)
-    /* v8 ignore next 2 -- the caller was located by captainSessionId already; this recheck is defensive */
-    if (fresh.captainSessionId !== captainId) {
-      throw new Error(`only the captain of team "${fresh.name}" may perform this operation`)
-    }
-    return fresh
-  }
-
-  /** Fresh state and caller identity rechecked inside the lock. */
-  private async freshParticipant(
-    stateRoot: string,
-    teamId: string,
-    callerId: string,
-  ): Promise<{ team: TeamState; identity: ParticipantIdentity }> {
-    const fresh = await requireFreshTeam(stateRoot, teamId)
-    const identity = participantIdentityOf(fresh, callerId)
-    if (identity === undefined) throw new Error(`you are no longer an active participant in team "${fresh.name}"`)
-    return { team: fresh, identity }
   }
 
   /**
@@ -315,8 +165,7 @@ export class PatentTeamsService extends Service {
     team_name: string
     state_dir: string
   }> {
-    const workspace = workspaceOf(agent)
-    const stateRoot = stateRootOf(workspace, this.config.stateDir)
+    const stateRoot = stateRootFor(agent, this.config.stateDir)
     const teamName = name.trim()
     if (teamName === '') throw new Error('team name must not be empty')
     const teamId = sanitizeKey(teamName)
@@ -369,112 +218,10 @@ export class PatentTeamsService extends Service {
    */
   async addMember(
     agent: Agent,
-    args: {
-      name: string
-      role?: string
-      provider?: string
-      model?: string
-      reasoning_effort?: string
-    },
+    args: memberOps.AddMemberArgs,
     signal: AbortSignal,
-  ): Promise<{
-    member_name: string
-    member_id: string
-    provider: string
-    model: string
-    reasoning_effort?: string
-    status: string
-  }> {
-    const { workspace, stateRoot, team } = await this.captainTeam(agent)
-    const memberName = args.name.trim()
-    if (memberName === '') throw new Error('member name must not be empty')
-    const memberKey = sanitizeKey(memberName)
-    if (memberKey === CAPTAIN_KEY) {
-      throw new Error(`member name "${args.name}" is reserved for the captain`)
-    }
-    const snapshot = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      requireAddableMember(fresh, args.name, memberKey, this.config.maxMembers)
-      // Read-only spawn view: the persona reads immutable team identity; a
-      // concurrent task change can only stale the welcome's task count.
-      return fresh
-    })
-    const selection = await resolveMemberLlmSelection(this.ctx, agent, {
-      ...args.provider === undefined ? {} : { provider: args.provider },
-      ...args.model === undefined ? {} : { model: args.model },
-      ...this.config.memberModel === undefined ? {} : { defaultModel: this.config.memberModel },
-      ...args.reasoning_effort === undefined ? {} : { reasoningEffort: args.reasoning_effort },
-    }, signal)
-    const member: TeamMember = {
-      id: '',
-      name: memberName,
-      ...args.role === undefined ? {} : { role: args.role },
-      provider: selection.provider,
-      model: selection.model,
-      ...selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort },
-      joinedAt: Date.now(),
-      status: 'idle',
-    }
-    const memberContract = args.role === undefined ? undefined : roleContract(args.role)
-    await spawnMember(
-      this.ctx,
-      memberRuntime(this.config),
-      selection,
-      agent,
-      snapshot,
-      member,
-      this.config.stateDir,
-      signal,
-      memberContract,
-    )
-    let created: {
-      member_name: string
-      member_id: string
-      provider: string
-      model: string
-      reasoning_effort?: string
-      status: string
-    }
-    try {
-      created = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-        const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-        requireAddableMember(fresh, args.name, memberKey, this.config.maxMembers)
-        fresh.members.push(member)
-        await writeTeam(stateRoot, fresh)
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/member-added', {
-          teamId: PatentTeamsTeamId(fresh.id),
-          memberId: SessionId(member.id),
-          name: member.name,
-          ...member.role !== undefined ? { role: member.role } : {},
-        })
-        return {
-          member_name: member.name,
-          member_id: member.id,
-          provider: selection.provider,
-          model: selection.model,
-          ...selection.reasoningEffort === undefined
-            ? {}
-            : { reasoning_effort: selection.reasoningEffort },
-          status: member.status,
-        }
-      })
-    } catch (error: unknown) {
-      // v8 ignore next -- spawnMember fills the id before this lock is entered
-      if (member.id !== '') {
-        // The continuable child is already live, but the durable team record
-        // never saw it: every throwing statement inside the lock callback
-        // precedes writeTeam (appendTeamEvent contains its own failure
-        // handling), so reaching this catch means the persist never landed.
-        // Retire the orphan so it disappears from subagent listings and
-        // cannot be resumed, then surface the failure.
-        await recordRetiredMemberIds(stateRoot, [member.id]).catch(() => undefined)
-        interruptMember(this.ctx, agent, member.id)
-      }
-      throw error
-    }
-    this.scheduler.trackMember(member.id, team.id, member.name)
-    await this.scheduler.kickMember(workspace, team.id, created.member_name, agent, signal)
-    return created
+  ): Promise<memberOps.AddMemberResult> {
+    return memberOps.addMember(this.members, agent, args, signal)
   }
 
   /**
@@ -486,43 +233,8 @@ export class PatentTeamsService extends Service {
    * @param signal - caller cancellation, forwarded to quiescence waits.
    * @returns the removed member and requeued task ids.
    */
-  async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<{
-    member_name: string
-    status: string
-    requeued_tasks: string[]
-  }> {
-    const { workspace, stateRoot, team } = await this.captainTeam(agent)
-    const revoked = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      const member = requireMember(fresh, name)
-      const requeued: string[] = []
-      for (const task of fresh.tasks) {
-        if (task.assignee !== member.name || task.status === 'completed') continue
-        invalidateTaskAttempt(task)
-        task.reassigning = false
-        requeued.push(task.id)
-      }
-      member.status = 'removed'
-      await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/member-removed', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        memberId: SessionId(member.id),
-      })
-      return { member: { ...member }, requeued }
-    })
-    // v8 ignore next -- every persisted member was spawned, so the id is never empty
-    if (revoked.member.id !== '') {
-      this.scheduler.untrackMember(revoked.member.id)
-      await recordRetiredMemberIds(stateRoot, [revoked.member.id])
-      interruptMember(this.ctx, agent, revoked.member.id)
-      await waitForMemberIdle(this.ctx, revoked.member, signal)
-    }
-    await this.scheduler.kickTeam(workspace, team.id, agent, signal)
-    return {
-      member_name: revoked.member.name,
-      status: revoked.member.status,
-      requeued_tasks: revoked.requeued,
-    }
+  async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<memberOps.RemoveMemberResult> {
+    return memberOps.removeMember(this.members, agent, name, signal)
   }
 
   /**
@@ -535,61 +247,10 @@ export class PatentTeamsService extends Service {
    */
   async createTask(
     agent: Agent,
-    args: {
-      subject: string
-      description?: string
-      dependencies?: string[]
-      assignee?: string
-      worker?: string
-    },
+    args: taskOps.CreateTaskArgs,
     signal?: AbortSignal,
-  ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }> {
-    const { workspace, stateRoot, team } = await this.captainTeam(agent)
-    const created = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      const dependencies = args.dependencies ?? []
-      for (const dependency of dependencies) {
-        if (!fresh.tasks.some(task => task.id === dependency)) {
-          throw new Error(`dependency "${dependency}" does not exist in team "${fresh.name}"`)
-        }
-      }
-      if (args.assignee !== undefined) requireMember(fresh, args.assignee)
-      if (args.worker !== undefined && workerContract(args.worker) === undefined) {
-        throw new Error(`patent_teams_create_task: worker "${args.worker}" is not in the patent worker catalog`)
-      }
-      const task: TeamTask = {
-        id: `t${fresh.taskSeq + 1}`,
-        subject: args.subject,
-        ...args.description === undefined ? {} : { description: args.description },
-        status: 'pending',
-        ...args.assignee === undefined ? {} : { assignee: args.assignee },
-        ...args.worker === undefined ? {} : { worker: args.worker },
-        dependencies,
-        attempt: 0,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      }
-      fresh.taskSeq += 1
-      fresh.tasks.push(task)
-      await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-created', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        taskId: PatentTeamsTaskId(task.id),
-        subject: task.subject,
-        dependencies: task.dependencies.map(dependency => PatentTeamsTaskId(dependency)),
-        ...task.assignee !== undefined ? { assignee: task.assignee } : {},
-        ...task.worker !== undefined ? { worker: task.worker } : {},
-      })
-      return {
-        task_id: task.id,
-        subject: task.subject,
-        status: task.status,
-        ...task.assignee !== undefined ? { assignee: task.assignee } : {},
-        ...task.worker !== undefined ? { worker: task.worker } : {},
-      }
-    })
-    await this.scheduler.kickTeam(workspace, team.id, agent, signal)
-    return created
+  ): Promise<taskOps.CreateTaskResult> {
+    return taskOps.createTask(this.tasks, agent, args, signal)
   }
 
   /**
@@ -603,94 +264,10 @@ export class PatentTeamsService extends Service {
    */
   async reassignTask(
     agent: Agent,
-    args: { task_id: string; assignee: string; reason?: string },
+    args: taskOps.ReassignTaskArgs,
     signal: AbortSignal,
-  ): Promise<{
-    task_id: string
-    previous_assignee: string
-    assignee: string
-    status: string
-    attempt: number
-    attempt_id?: string
-  }> {
-    const { workspace, stateRoot, team } = await this.captainTeam(agent)
-    const target = args.assignee.trim()
-    if (target === '') throw new Error('reassignment assignee must not be empty')
-
-    const revoked = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      const task = requireTask(fresh, args.task_id)
-      if (task.status === 'completed') throw new Error(`completed task ${task.id} is immutable and cannot be reassigned`)
-      if (task.reassigning === true) throw new Error(`task ${task.id} is already being reassigned`)
-      const targetMember = target === CAPTAIN_KEY ? undefined : requireMember(fresh, target)
-      if (targetMember !== undefined) {
-        const busy = memberOpenTask(fresh, targetMember.name, task.id)
-        if (busy !== undefined) {
-          throw new Error(`member "${targetMember.name}" is busy with ${busy.id}; finish or reassign it first`)
-        }
-      }
-      const previousAssignee = task.assignee ?? ''
-      const previousMember = (task.status !== 'claimed' && task.status !== 'in_progress')
-        || task.assignee === undefined || task.assignee === CAPTAIN_KEY
-        ? undefined
-        : fresh.members.find(member => member.name === task.assignee && member.status !== 'removed')
-      invalidateTaskAttempt(task, target, true)
-      await writeTeam(stateRoot, fresh)
-      return {
-        previousAssignee,
-        previousMember: previousMember === undefined ? undefined : { ...previousMember },
-        handoffId: task.handoffId,
-      }
-    })
-
-    let quiescenceError: unknown
-    if (revoked.previousMember !== undefined) {
-      interruptMember(this.ctx, agent, revoked.previousMember.id)
-      try {
-        await waitForMemberIdle(this.ctx, revoked.previousMember, signal)
-      } catch (error: unknown) {
-        quiescenceError = error
-      }
-    }
-
-    await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
-      const task = requireTask(fresh, args.task_id)
-      if (task.handoffId !== revoked.handoffId || task.assignee !== target || task.reassigning !== true) {
-        throw new Error(`task ${task.id} changed during reassignment; refusing to overwrite the newer state`)
-      }
-      task.reassigning = false
-      if (quiescenceError === undefined && target === CAPTAIN_KEY) beginTaskAttempt(task, CAPTAIN_KEY)
-      await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, agent.session, 'patent-teams/task-updated', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        taskId: PatentTeamsTaskId(task.id),
-        status: task.status,
-        assignee: task.assignee,
-        ...args.reason === undefined ? {} : { output: `Reassigned: ${args.reason}` },
-        ...attemptFields(task),
-      })
-    })
-    if (quiescenceError !== undefined) {
-      // v8 ignore next -- waitForMemberIdle only rejects with Errors, so the non-Error wrap is defensive
-      throw quiescenceError instanceof Error
-        ? quiescenceError
-        : new Error(`task quiescence failed: ${JSON.stringify(quiescenceError)}`)
-    }
-    if (target !== CAPTAIN_KEY) await this.scheduler.kickMember(workspace, team.id, target, agent, signal)
-    const current = await readTeam(stateRoot, team.id)
-    const task = current === undefined ? undefined : requireTask(current, args.task_id)
-    if (task === undefined) throw new Error(`team "${team.name}" ended during reassignment`)
-    // v8 ignore start -- reassignment fixes assignee/attempt; the fallbacks are never reachable
-    return {
-      task_id: task.id,
-      previous_assignee: revoked.previousAssignee,
-      assignee: task.assignee ?? '',
-      status: task.status,
-      attempt: task.attempt ?? 0,
-      ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
-    }
-    // v8 ignore stop
+  ): Promise<taskOps.ReassignTaskResult> {
+    return taskOps.reassignTask(this.tasks, agent, args, signal)
   }
 
   /**
@@ -703,79 +280,9 @@ export class PatentTeamsService extends Service {
    */
   async claimTask(
     agent: Agent,
-    args: { task_id: string; assignee?: string },
-  ): Promise<{ task_id: string; status: string; assignee: string; attempt: number; attempt_id?: string }> {
-    const { stateRoot, team } = await this.participantTeam(agent)
-    return withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const { team: fresh, identity } = await this.freshParticipant(stateRoot, team.id, agent.id)
-      const task = requireTask(fresh, args.task_id)
-      if (task.reassigning === true) {
-        throw new Error(`task ${task.id} is being reassigned; wait for the handoff to finish`)
-      }
-      let assignee = task.assignee
-      if (identity.kind === 'captain') {
-        if (args.assignee !== undefined) {
-          requireMember(fresh, args.assignee)
-          assignee = args.assignee
-        }
-      } else {
-        if (args.assignee !== undefined) {
-          throw new Error('members cannot set assignee when claiming a task')
-        }
-        if (assignee !== undefined && assignee !== identity.name) {
-          throw new Error(`task ${task.id} is assigned to "${assignee}", not you`)
-        }
-        assignee = identity.name
-      }
-      // Authorization must happen before the idempotent return: another
-      // member must not receive a false success for somebody else's task.
-      if (task.status === 'claimed' || task.status === 'in_progress') {
-        if (assignee === undefined || task.assignee !== assignee) {
-          // v8 ignore next -- a claimed task always has an assignee
-          throw new Error(`task ${task.id} is already claimed by "${task.assignee ?? 'nobody'}"`)
-        }
-        // v8 ignore start -- a claimed task always carries attempt/attemptId; fallbacks are unreachable
-        return {
-          task_id: task.id,
-          status: task.status,
-          assignee,
-          attempt: task.attempt ?? 0,
-          ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
-        }
-        // v8 ignore stop
-      }
-      const pending = unsatisfiedDependencies(fresh.tasks, task.dependencies)
-      if (pending.length > 0) {
-        throw new Error(`task ${task.id} is blocked by unfinished dependencies: ${pending.join(', ')} — complete them first`)
-      }
-      const transition = transitionError(task.status, 'claimed')
-      if (transition !== undefined) throw new Error(transition)
-      if (assignee === undefined) {
-        throw new Error('claiming an unassigned task needs an assignee (claim on behalf of a member)')
-      }
-      const busy = memberOpenTask(fresh, assignee, task.id)
-      if (busy !== undefined) {
-        throw new Error(`member "${assignee}" is busy with ${busy.id}; finish or reassign it first`)
-      }
-      const attemptId = beginTaskAttempt(task, assignee)
-      await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-updated', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        taskId: PatentTeamsTaskId(task.id),
-        status: task.status,
-        assignee: task.assignee,
-        ...attemptFields(task),
-      })
-      // v8 ignore start -- the freshly claimed task always has assignee/attempt
-      return {
-        task_id: task.id,
-        status: task.status,
-        assignee: task.assignee ?? '',
-        attempt: task.attempt ?? 0,
-        attempt_id: attemptId,
-      }
-      // v8 ignore stop
-    })
+    args: taskOps.ClaimTaskArgs,
+  ): Promise<taskOps.ClaimTaskResult> {
+    return taskOps.claimTask(this.tasks, agent, args)
   }
 
   /**
@@ -789,118 +296,10 @@ export class PatentTeamsService extends Service {
    */
   async updateTask(
     agent: Agent,
-    args: { task_id: string; status?: string; output?: string; attempt_id?: string },
+    args: taskOps.UpdateTaskArgs,
     signal?: AbortSignal,
-  ): Promise<{
-    task_id: string
-    status: string
-    output?: string
-    attempt: number
-    attempt_id?: string
-    gated?: boolean
-    gate_feedback?: string
-  }> {
-    const { workspace, stateRoot, team } = await this.participantTeam(agent)
-    const updated = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const { team: fresh, identity } = await this.freshParticipant(stateRoot, team.id, agent.id)
-      const task = requireTask(fresh, args.task_id)
-      if (identity.kind === 'captain'
-        && task.assignee !== undefined
-        && task.assignee !== CAPTAIN_KEY) {
-        throw new Error(`task ${task.id} is owned by member "${task.assignee}"; call patent_teams_reassign_task with assignee="captain" before takeover`)
-      }
-      if (identity.kind === 'member') {
-        if (task.assignee !== identity.name) {
-          throw new Error(`task ${task.id} is assigned to "${task.assignee ?? 'nobody'}", not you`)
-        }
-        if (task.attemptId !== undefined && args.attempt_id !== task.attemptId) {
-          throw new Error(`stale attempt for task ${task.id}: expected the current attempt_id; stop work and request fresh assignment`)
-        }
-      }
-      if (TERMINAL_TASK_STATUSES.includes(task.status)) {
-        const sameStatus = args.status === undefined || args.status === task.status
-        const sameOutput = args.output === undefined || args.output === task.output
-        if (!sameStatus || !sameOutput) {
-          throw new Error(`terminal task ${task.id} is immutable; use patent_teams_reassign_task to retry failed/cancelled work`)
-        }
-        return taskView(task)
-      }
-      if (args.status !== undefined) {
-        // For a contract-backed task, do not admit `completed` until the
-        // composite quality gate passes: a low score / missing contract field /
-        // rule violation bounces the task back to the member for rework.
-        const targetCompleted = args.status === 'completed'
-        const shouldGate = targetCompleted && this.config.qualityGate
-          && task.worker !== undefined && args.output !== undefined
-        if (shouldGate) {
-          // shouldGate required task.worker and args.output to reach runQualityGate.
-          // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured task.worker and args.output are defined
-          const gate = runQualityGate(this.ctx, task.worker!, args.output!, this.config.passThreshold)
-          if (!gate.satisfied) {
-            // A bounced submission must fall back to in_progress: leaving a
-            // claimed task claimed would make the revised completed submission
-            // hit the claimed->completed transition error and wedge the member.
-            if (task.status === 'claimed') task.status = 'in_progress'
-            // oxlint-disable-next-line typescript/no-non-null-assertion -- shouldGate ensured args.output is defined
-            task.output = args.output!
-            task.gateFeedback = gate
-            task.updatedAt = Date.now()
-            await writeTeam(stateRoot, fresh)
-            appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-gated', {
-              teamId: PatentTeamsTeamId(fresh.id),
-              taskId: PatentTeamsTaskId(task.id),
-              score: gate.score,
-              failures: gate.failures,
-              feedback: gate.feedback,
-            })
-            // v8 ignore start -- the entry check bound this call to the task's current attempt, and a bounced
-            // submission keeps that attempt: only the status falls back from claimed to in_progress above
-            return {
-              task_id: task.id,
-              status: task.status,
-              output: task.output,
-              attempt: task.attempt ?? 0,
-              ...task.attemptId === undefined ? {} : { attempt_id: task.attemptId },
-              gated: true,
-              gate_feedback: gate.feedback,
-            }
-            // v8 ignore stop
-          }
-        }
-        const transition = transitionError(task.status, args.status as never)
-        if (transition !== undefined) throw new Error(transition)
-        task.status = args.status as never
-      }
-      if (args.output !== undefined) task.output = args.output
-      let validated: TaskContractValidation | undefined
-      if (task.status === 'completed' && task.worker !== undefined && task.output !== undefined) {
-        validated = validateTaskContract(task.worker, task.output)
-        task.contractValidation = validated
-      }
-      task.updatedAt = Date.now()
-      await writeTeam(stateRoot, fresh)
-      appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-updated', {
-        teamId: PatentTeamsTeamId(fresh.id),
-        taskId: PatentTeamsTaskId(task.id),
-        status: task.status,
-        ...task.assignee !== undefined ? { assignee: task.assignee } : {},
-        ...task.output !== undefined ? { output: task.output } : {},
-        ...attemptFields(task),
-      })
-      if (validated !== undefined) {
-        appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/task-validated', {
-          teamId: PatentTeamsTeamId(fresh.id),
-          taskId: PatentTeamsTaskId(task.id),
-          worker: validated.worker,
-          valid: validated.valid,
-          missingHardFields: validated.missingHardFields,
-          degraded: validated.degraded,
-        })
-      }
-      return taskView(task)
-    })
-    await this.scheduler.kickTeam(workspace, team.id, team.captainSessionId === agent.id ? agent : undefined, signal)
-    return updated
+  ): Promise<taskOps.UpdateTaskResult> {
+    return taskOps.updateTask(this.tasks, agent, args, signal)
   }
 
   /**
@@ -922,10 +321,9 @@ export class PatentTeamsService extends Service {
     to: string
     delivered: 'live' | 'wake' | 'mailbox'
   }> {
-    const { stateRoot, team } = await this.participantTeam(agent)
+    const { stateRoot, team } = await participantTeam(agent, this.config.stateDir)
     const to = args.to.trim()
-    const prepared = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const { team: fresh, identity } = await this.freshParticipant(stateRoot, team.id, agent.id)
+    const prepared = await withParticipant(stateRoot, team.id, agent.id, async (fresh, identity) => {
       const from = identity.name
       // `from` may only be the caller's own identity: impersonating another
       // member (or the captain) would poison the mailbox and event records.
@@ -1016,13 +414,13 @@ export class PatentTeamsService extends Service {
    * @returns the full team status payload.
    */
   async status(agent: Agent, signal?: AbortSignal): Promise<PatentTeamsStatus> {
-    const { workspace, stateRoot, team } = await this.participantTeam(agent)
+    const { workspace, stateRoot, team } = await participantTeam(agent, this.config.stateDir)
     if (team.captainSessionId === agent.id) {
       await this.scheduler.kickTeam(workspace, team.id, agent, signal)
     }
     const { team: fresh, identity } = await withTeamLock(
       teamLockKey(stateRoot, team.id),
-      () => this.freshParticipant(stateRoot, team.id, agent.id),
+      () => freshParticipant(stateRoot, team.id, agent.id),
     )
     const activity = await memberActivity(this.ctx, fresh.captainSessionId)
     // v8 ignore start -- spawned members always carry route fields and a child id; task attempts are always set
@@ -1136,9 +534,9 @@ export class PatentTeamsService extends Service {
    * @returns whether the team was archived.
    */
   async delete(agent: Agent, signal: AbortSignal): Promise<{ deleted: boolean; team_name: string }> {
-    const { stateRoot, team } = await this.captainTeam(agent)
+    const { stateRoot, team } = await captainTeam(agent, this.config.stateDir)
     const members = await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
+      const fresh = await freshCaptainTeam(stateRoot, team.id, agent.id)
       // Include previously removed members so deleting a pre-fix team also
       // retires durable catalog entries left behind by removeMember.
       const roster = fresh.members.map(member => ({ ...member }))
@@ -1169,7 +567,7 @@ export class PatentTeamsService extends Service {
       }
     }
     await withTeamLock(teamLockKey(stateRoot, team.id), async () => {
-      const fresh = await this.freshCaptainTeam(stateRoot, team.id, agent.id)
+      const fresh = await freshCaptainTeam(stateRoot, team.id, agent.id)
       appendTeamEvent(this.ctx, captainSessionOf(this.ctx, SessionId(fresh.captainSessionId), agent.session), 'patent-teams/team-deleted', {
         teamId: PatentTeamsTeamId(fresh.id),
       })
@@ -1189,7 +587,7 @@ export class PatentTeamsService extends Service {
    * @returns the archive listing, or the one team's detail record.
    */
   async archive(agent: Agent, teamId?: string): Promise<PatentTeamsArchive> {
-    const stateRoot = stateRootOf(workspaceOf(agent), this.config.stateDir)
+    const stateRoot = stateRootFor(agent, this.config.stateDir)
     if (teamId !== undefined) {
       const team = await readArchivedTeam(stateRoot, teamId)
       if (team === undefined) {
@@ -1241,28 +639,6 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Build the member runtime knobs handed to member helpers. */
-function memberRuntime(config: PatentTeamsConfig): MemberRuntimeConfig {
-  return {
-    provider: config.memberProvider,
-    ...config.memberMaxDepth === undefined ? {} : { maxDepth: config.memberMaxDepth },
-  }
-}
-
-/** Validate one task's completed output against its worker contract (soft, never blocks). */
-function validateTaskContract(workerName: string, output: string): TaskContractValidation {
-  // v8 ignore next -- createTask rejects unknown workers, so a completing task always resolves its worker
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- createTask rejects unknown workers
-  const worker = workerContract(workerName)!
-  const validation = validateWorkerOutput(worker, output)
-  return {
-    worker: workerName,
-    valid: validation.valid,
-    missingHardFields: validation.missingHardFields,
-    degraded: validation.degraded,
-  }
-}
-
 /**
  * Summarize a member's role contract for the status payload: its stance and
  * the flat list of required deliverable fields across its workers.
@@ -1273,53 +649,6 @@ function contractSummary(role: string): { stance: string; deliverables: string }
   const contract = roleContract(role)
   if (contract === undefined) return undefined
   return { stance: contract.stance, deliverables: workerDeliverables(role) }
-}
-
-/**
- * Run the composite completion gate over one contract-backed task's output.
- *
- * Bounce criteria are the signals that apply to a single work-product segment:
- * worker-contract hard fields, content sufficiency (a segment must not be an
- * empty shell), and the optional patent-rule gate. The
- * `comprehensive` score is retained as an advisory value (it is reported in the
- * feedback and the `TaskGateFeedback.score`) but is never the sole reason to
- * bounce: its structure/workflow dimensions penalize short work products that
- * the worker contract already obliges. `passThreshold` therefore lowers the
- * threshold at which the advisory composite score is called out in the feedback,
- * not the bounce decision.
- *
- * Never throws; `satisfied` is false on any failure.
- */
-function runQualityGate(ctx: Context, workerName: string, output: string, passThreshold: number): TaskGateFeedback {
-  const failures: string[] = []
-  // v8 ignore next -- createTask rejects unknown workers, so a gated task always resolves its worker
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- createTask rejects unknown workers
-  const validation = validateWorkerOutput(workerContract(workerName)!, output)
-  if (validation.missingHardFields.length > 0) {
-    failures.push(`契约缺字段:${validation.missingHardFields.join('、')}（${workerName}）`)
-  }
-  const evaluation = evaluatePatentContent('comprehensive', output, [])
-  const sufficiency = evaluation.details['内容充分性']
-  if (sufficiency !== undefined && !sufficiency.passed) {
-    failures.push(`内容充分性:${sufficiency.score.toFixed(2)}/1.0 未达及格线`)
-  }
-  // The rule gate is an optional contribution from patent-rule; without it the rule dimension is skipped.
-  const ruleGate = ctx.get('patentRuleGate')
-  if (ruleGate !== undefined) {
-    const gateResult = ruleGate.process(output)
-    if (gateResult.needsApproval) {
-      const rules = [...gateResult.reviewHits, ...gateResult.blockHits].join('、')
-      failures.push(`规则需要人工确认:${rules}`)
-    }
-  }
-  const lines = failures.map(f => `- ${f}`)
-  if (evaluation.score < passThreshold) {
-    lines.push(`- 综合评分偏低(${evaluation.score.toFixed(2)}/1.0)，建议完善论证与引用（不以此单独打回）`)
-  }
-  const feedback = lines.length === 0
-    ? ''
-    : `未过质量门禁，请修订后重新提交 completed:\n${lines.join('\n')}`
-  return { score: evaluation.score, satisfied: failures.length === 0, failures, feedback }
 }
 
 /** One member row of the status payload. */

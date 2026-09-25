@@ -337,6 +337,38 @@ export function interruptMember(ctx: Context, captain: Agent, childId: string): 
   }
 }
 
+/**
+ * Wait until one member's live turn finishes, or the caller abandons the wait.
+ *
+ * Reassignment and removal interrupt the member first and then wait for
+ * quiescence, so an update from the old attempt cannot land after the handoff
+ * and be attributed to the new one.
+ * @param ctx - the plugin context (injects `agents`).
+ * @param member - the member whose turn must finish; a member that is not live is already idle.
+ * @param signal - caller cancellation that abandons the wait.
+ */
+export async function waitForMemberIdle(ctx: Context, member: TeamMember, signal: AbortSignal): Promise<void> {
+  // v8 ignore next -- durable state validation rejects members with empty ids before they can be waited on
+  if (member.id === '') return
+  const live = ctx.get('agents')?.get(brandedSessionId(member.id))
+  if (live === undefined) return
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error('task reassignment was cancelled')
+  }
+  let onAbort!: () => void
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error('task reassignment was cancelled'))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    await Promise.race([live.whenIdle(), aborted])
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
 /** Resolve one live parent's workspace-scoped retirement index. */
 async function retiredForParent(ctx: Context, parentId: SessionId, stateDir: string): Promise<Set<string>> {
   const parent = ctx.get('agents')?.get(parentId)
