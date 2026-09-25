@@ -103,8 +103,8 @@ describe('workerDeliverables', () => {
 describe('workerTools', () => {
   it('joins the tools a role\'s workers declare, without duplicates', () => {
     expect(workerTools('researcher')).toBe('patent_search、patent_metadata、patent_legal_status、web_search、web_fetch、patent_analysis_report、patent_eval')
-    expect(workerTools('drafter')).toBe('read_file、web_fetch、write_file、patent_eval')
-    expect(workerTools('illustrator')).toBe('read_file、write_file、generate_patent_figure、generate_structure_figure、add_patent_figure_references、analyze_patent_figure、search_patent_figure、validate_specification')
+    expect(workerTools('drafter')).toBe('read、web_fetch、write、patent_eval')
+    expect(workerTools('illustrator')).toBe('read、write、generate_patent_figure、generate_structure_figure、add_patent_figure_references、analyze_patent_figure、search_patent_figure、validate_specification')
   })
 
   it('returns an empty string for an unknown role', () => {

@@ -243,6 +243,29 @@ describe('memberPersona and memberWelcome', () => {
     expect(persona).not.toContain('with the role:')
   })
 
+  it('carries the domain discipline the shadowed deployment persona would have supplied', () => {
+    const persona = memberPersona(makeTeam({ id: 'team1', members: [validMember] }), validMember, '.patent-teams')
+    expect(persona).toContain('检索先于结论')
+    expect(persona).toContain('source_path')
+    expect(persona).toContain('mcp__cnlaw__*')
+    expect(persona).toContain('patent_deadlines')
+    expect(persona).toContain('本分析由 AI 辅助生成，不构成正式法律意见')
+  })
+
+  it('names the reporting channel and forbids the others', () => {
+    const persona = memberPersona(makeTeam({ id: 'team1', members: [validMember] }), validMember, '.patent-teams')
+    expect(persona).toContain('Report to the captain only with patent_teams_send_message')
+    expect(persona).toContain('Do not send team messages with any other tool')
+  })
+
+  it('turns a blocker into a report and a submission into a self-check', () => {
+    const persona = memberPersona(makeTeam({ id: 'team1', members: [validMember] }), validMember, '.patent-teams')
+    expect(persona).toContain('Blocked means report, not retry')
+    expect(persona).toContain('Do not repeat a failing call')
+    expect(persona).toContain('Self-check before you submit')
+    expect(persona).toContain('patent_worker_validate')
+  })
+
   it('folds a non-HITL role contract into the persona', () => {
     const team = makeTeam({ id: 'team1', members: [validMember] })
     const persona = memberPersona(team, validMember, '.patent-teams', roleContract('researcher'))
@@ -260,7 +283,7 @@ describe('memberPersona and memberWelcome', () => {
     const persona = memberPersona(makeTeam(), drafter, 'state', roleContract('drafter'))
     expect(persona).toContain('HITL: deliverables need human confirmation before the final output')
     expect(persona).toContain('Required deliverables: 技术问题、技术特征、技术效果、意见陈述、修改对照')
-    expect(persona).toContain('Tools: read_file、web_fetch、write_file、patent_eval')
+    expect(persona).toContain('Tools: read、web_fetch、write、patent_eval')
   })
 
   it('renders the welcome message with the team name and task count', () => {
@@ -320,6 +343,7 @@ describe('spawnMember', () => {
     expect(spec.request.persona).toContain('You are alice')
     expect(spec.request.toolFilter.deny).toContain('patent_teams_create')
     expect(spec.request.toolFilter.deny).toContain('patent_teams_delete')
+    expect(spec.request.toolFilter.deny).toContain('send_message')
     expect(spec.request.agentOptions).toEqual({ provider: 'p', model: 'm' })
     expect(spec.request.prompt).toHaveLength(1)
     expect(spec.request.maxDepth).toBeUndefined()

@@ -23,7 +23,19 @@ import { join } from 'node:path'
 import { readRetiredMemberIds } from './state.ts'
 import type { TeamMember, TeamState } from './types.ts'
 
-/** Captain-only PatentTeams tools hidden from newly spawned members. */
+/**
+ * Tools a member never receives: the captain-only PatentTeams mutators, plus
+ * the generic `send_message`.
+ *
+ * Denying `send_message` also suppresses the subagent runtime's
+ * "send your result with `send_message(...)`" guidance, which it appends to a
+ * continuable child's initial prompt only while that child's registry carries
+ * the tool. Unsuppressed, that instruction competes with the member's
+ * reporting channel: `patent_teams_send_message` is the only path that writes
+ * the team mailbox, the `patent-teams/message-sent` event, and the dashboard.
+ * Reintroduce it only when members gain continuable children of their own to
+ * steer; the deny currently costs no used capability.
+ */
 const MEMBER_DENIED_TOOLS = [
   'patent_teams_create',
   'patent_teams_add_member',
@@ -31,6 +43,7 @@ const MEMBER_DENIED_TOOLS = [
   'patent_teams_reassign_task',
   'patent_teams_create_task',
   'patent_teams_delete',
+  'send_message',
 ] as const
 
 /**
@@ -162,6 +175,9 @@ export async function resolveMemberLlmSelection(
  * team role contract is given it is folded in as a dedicated role section
  * (the role's stance, required deliverables, tool list, forbidden actions, and
  * HITL flag), so a member knows its scope beyond the generic working rules.
+ * The domain-discipline block is carried here because the shadowing discards
+ * the deployment persona that holds it, so a member would otherwise see none
+ * of the search-before-conclusion, source_path, or disclaimer rules.
  * @param team - the team the member joined.
  * @param member - the member record (name/role are read before spawning).
  * @param stateDir - configured state directory, so the member can locate the
@@ -185,14 +201,24 @@ Team context:
 - The team state lives under ${stateDir}/${team.id}/ (team.json and inbox/*.jsonl). You may inspect these files read-only for diagnostics, but never edit them directly; use the patent_teams_* tools so JSON escaping and concurrent updates stay safe.
 - The captain and your teammates reach you through messages. Each message you receive is a new turn: act on it and end your turn with a concise reply.
 ${contractBlock}
+Domain discipline (non-negotiable; a short task brief does not suspend it):
+- 检索先于结论：新颖性/创造性判断必须先有检索证据与对比文件，禁止凭记忆断言某方案是或不是现有技术。
+- 无来源即撤回：法条、判例、对比文件、日期、数字一律给出 source_path（文件路径 / URL / 对比文件号+段落）；拿不出来源就删除该断言。
+- 法条先核验再引用：走 cnlaw 的 MCP 工具（mcp__cnlaw__*）或 REST（curl -sG http://127.0.0.1:8100/search --data-urlencode "q=…"），按权威度排序（法条 > 审查指南 > 判例 > 书籍）；条号不确定时先查证。
+- 逐特征比对：权利要求分析按「特征 → 对比文件对应内容 → 结论」逐项给出，不用"整体上相似"这类不可追溯表述。
+- 数字与期限用工具：期限、年费走 patent_deadlines；页数、字数、项数以工具或脚本计数为准，不心算。
+- 对外交付件带免责声明："本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。"
+
 Working rules:
 1. When you receive a task assignment, call patent_teams_claim_task with the task id. Keep the returned attempt_id: include it in every patent_teams_update_task call for that execution attempt. Then mark the task in_progress.
 2. Work thoroughly with your available tools; do not cut corners.
 3. When finished, call patent_teams_update_task with the same attempt_id, status=completed, and a concise \`output\` summarizing what you did and the key results. A stale-attempt rejection means the captain reassigned or took over the task; stop touching that task and wait for new work.
-4. Send a short report to the captain with patent_teams_send_message (to=captain) when you complete a task or hit a blocker.
+4. Report to the captain only with patent_teams_send_message (to=captain): it is the channel that persists into the team mailbox and shows up in the team log and dashboard. Report when you complete a task or hit a blocker. Do not send team messages with any other tool.
 5. To ask a teammate something, use patent_teams_send_message with to=<teammate name>; the message lands in their mailbox and wakes them directly — teammates talk to each other without the captain in the loop. The same applies to the captain (to=captain).
 6. After your turn becomes idle, the shared task scheduler may assign your next ready task automatically. Never claim a second task while you still own unfinished work.
-7. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.`
+7. You are a worker: do not create or delete teams, reassign tasks, or add/remove members — that is the captain's job.
+8. Blocked means report, not retry: when a tool errors, material is missing, access is denied, or the same call fails twice, stop and report the blocker to the captain (what you tried, what you need). Do not repeat a failing call, and do not route around a patent-domain tool with shell or ad-hoc python scripts: bypass artifacts are not indexed, not re-runnable by others, and count as work not done.
+9. Self-check before you submit: run the validators your role contract names (patent_worker_validate / validate_specification / rule_check and any task-specific check), fix what they report, and put the self-check conclusion into \`output\`. An unself-checked deliverable is not finished.`
 }
 
 /** Render one team role's contract as a guide section for the persona. */
