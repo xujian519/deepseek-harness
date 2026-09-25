@@ -566,6 +566,12 @@ declare class Session {
    */
   ownEvents(): readonly SessionEvent[];
   /**
+   * Fold unseen committed events into capability-independent tool history.
+   * Initial access reconstructs inherited history; later reads consume only new events.
+   * @returns an immutable snapshot for LLM request projection, including historical addition definitions.
+   */
+  toolHistory(): ToolHistory;
+  /**
    * Whether one existing event position is outside the fork-inherited prefix.
    * @param seq - event position in this Session.
    * @returns true when the event belongs to this Session rather than its parent.
@@ -631,12 +637,6 @@ declare class Session {
    * @returns the latest immutable route metadata.
    */
   requestContext(): RequestContext | undefined;
-  /**
-   * Fold unseen committed events into capability-independent tool history.
-   * Initial access reconstructs inherited history; later reads consume only new events.
-   * @returns an immutable snapshot for LLM request projection, including historical addition definitions.
-   */
-  toolHistory(): ToolHistory;
   /**
    * Derive the LLM message history by walking the ordered sequences of
    * message-producing events maintained by `surfaceOp` markers. The

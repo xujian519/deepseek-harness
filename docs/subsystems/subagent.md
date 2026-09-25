@@ -273,9 +273,9 @@ The model-facing `list_agents` adapter reports current activity as `running` or 
 `SubagentRuntime.listDescendants(rootSessionId)` recursively calls the same catalog reader in stable pre-order, preserving each parent's event order. One-shot and unknown-mode entries remain traversal nodes; unknown modes produce `unsupported` diagnostics. An unreadable child catalog produces `corrupt` or `unavailable` and stops only that branch. Root read failures, missing services or projections, and cancellation reject the listing. Each reachable catalog is observed once and released before the next read; repeated ids and cycles are skipped. Sessions absent from reachable catalogs are not discovered, including ordinary Session forks and any subagents below those forks. Each row carries its catalog parent and root-relative depth:
 
 ```ts type-equiv
-/** One catalog descendant with its direct parent and edge distance from the requested root. */
+/** * One entry of a descendant listing: the interpreted subagent facts plus its * position in the complete session tree. `parentId` is the durable direct * parent from the enumerated header, and `depth` counts edges from the root. */
 type SubagentDescendantListEntry = SubagentListEntry & {
-  /** Parent whose catalog contains this child. */
+  /** Durable direct parent of this candidate in the enumerated tree. */
   readonly parentId: SessionId
   /** Edge distance from the requested root; direct children are `1`. */
   readonly depth: number
