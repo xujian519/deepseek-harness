@@ -603,6 +603,58 @@ describe('BashTerminalBackend startup rollback', () => {
     expect(sends).toHaveLength(1)
     expect(sends[0]?.signal).toBe(signal)
   })
+
+  it('rejects a pwsh bootstrap the caller cancels between retries', async () => {
+    const ctx = new Context()
+    await ctx.plugin(EmptySandbox)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
+    const pending = Promise.withResolvers<{
+      viewport: string
+      waitReason: 'stdin_read'
+      sessionStatus: { kind: 'running' }
+      truncated: boolean
+    }>()
+    let sends = 0
+    let closes = 0
+    const session = {
+      motd: '',
+      startSend: (request: TerminalSendRequest) => {
+        sends += 1
+        const operation = {
+          done: sends === 1
+            ? Promise.resolve({
+              viewport: 'setup echo', waitReason: 'inferred_idle' as const,
+              sessionStatus: { kind: 'running' as const }, truncated: false,
+            })
+            : pending.promise,
+          readOutput: () => ({ delta: '', truncated: false }),
+          cancel: () => true,
+        }
+        // The session binds the request's signal to cancellation. The bootstrap
+        // must fail on that cancellation even while this send never settles.
+        request.signal?.addEventListener('abort', () => { operation.cancel() }, { once: true })
+        return operation
+      },
+      read: () => ({ text: '', totalLines: 0, lineBegin: 0, lineEnd: 0, truncated: false }),
+      close: () => { closes += 1; return Promise.resolve() },
+    } as unknown as LocalPtySession
+    const backend = new BashTerminalBackend(
+      ctx,
+      { ...config(), shellDialect: 'pwsh', shellPath: 'pwsh' },
+      async () => terminalHandle(),
+      () => session,
+    )
+    const controller = new AbortController()
+    const reason = new Error('cancel pwsh bootstrap')
+
+    const spawning = backend.spawn({ ...spec(agent(ctx)), signal: controller.signal })
+    await vi.waitFor(() => { expect(sends).toBe(2) })
+    controller.abort(reason)
+
+    await expect(spawning).rejects.toBe(reason)
+    expect(closes).toBe(1)
+  })
 })
 
 describe('terminal-bash plugin shape', () => {
