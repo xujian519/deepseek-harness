@@ -2055,7 +2055,6 @@
     "5caa67998f2ce5307c656888310019f46c6daef0a9cd29aca11c531f6eec8bc2": 1
   },
   "packages/patent/patent-tools/src/tool/workbench-link-patent-case.ts": {
-    "5caa67998f2ce5307c656888310019f46c6daef0a9cd29aca11c531f6eec8bc2": 1,
     "6fe9024d30e0d4757a348b83d246925b3f5aeaf2e79a0eff4bf12f3c9fb5826b": 1
   },
   "packages/patent/patent-tools/tests/analyze-patent-figure.spec.ts": {
