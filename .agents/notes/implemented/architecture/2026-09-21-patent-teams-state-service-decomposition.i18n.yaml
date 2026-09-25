@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-21-patent-teams-state-service-decomposition.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-21-patent-teams-state-service-decomposition.md
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner:
+  en: e857b780fe1e7675
+  zh: 415ef892a9c871fc
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/problem:
+  en: 7d967676050d64ac
+  zh: 3f0814b2ea5ce2f8
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/decision:
+  en: 40ecb41ba7c6d273
+  zh: a9efc0b42cc89c88
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/consequences:
+  en: 9865a8ab1d90feb3
+  zh: ecad62365c01e025
+/agent-note-decompose-the-patent-teams-service-and-state-modules-by-lifecycle-owner/alternatives-considered:
+  en: c0fdf9342316420c
+  zh: 2f45e8fcb686e18f
