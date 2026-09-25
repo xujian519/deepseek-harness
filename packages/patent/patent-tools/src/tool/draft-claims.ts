@@ -180,9 +180,8 @@ export function draftClaims(input: DraftClaimsInput): DraftClaimsOutput {
   })
   const claims: DraftedClaim[] = [{ number: 1, type: 'independent', text: independentText }, ...dependents]
   const violations = validateClaims(claims)
-  // 权利要求超过 10 项规定于《专利审查指南》的申请附加费定义（说明书页数超过 30 页或者权利要求
-  // 超过 10 项时需要缴纳的费用），不是项数上限：细则第一百一十条第一款第（一）项列明该费种，
-  // 第一百一十二条要求随申请费按期缴足，期满未缴足的申请视为撤回。
+  // 10 项是《专利审查指南》的申请附加费起征线（说明书超过 30 页或权利要求超过 10 项），
+  // 不是项数上限：细则第一百一十条第一款第（一）项列明该费种，第一百一十二条要求随申请费按期缴足。
   if (claims.length > 10) {
     violations.push({
       rule: 'additional_fee',
