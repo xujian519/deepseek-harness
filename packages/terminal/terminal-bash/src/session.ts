@@ -247,6 +247,9 @@ export class LocalPtySession implements TerminalBackendSession {
   private readonly completion: Promise<void>
   private statusValue: TerminalSessionStatus = { kind: 'running' }
   private readonly readiness: ReadinessPoller<LocalSendOperation>
+  // Readiness evidence: collected from terminal output, judged only by pollReadiness,
+  // and cleared at the write boundary by resetReadinessEvidence. The README's readiness
+  // model names which fields outlive that reset.
   private promptSeen = false
   private promptTextSeen = false
   private promptTail = ''
@@ -397,6 +400,7 @@ export class LocalPtySession implements TerminalBackendSession {
     }
   }
 
+  /** Discard the marker and output evidence of any earlier send; called at admission and before a write carrying input. */
   private resetReadinessEvidence(): void {
     this.lastOutputAt = Date.now()
     this.promptSeen = false
