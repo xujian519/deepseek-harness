@@ -1725,7 +1725,7 @@ export interface SynapseConfig {
 }
 ```
 
-来源：[`packages/web/synapse/src/index.ts:41`](../packages/web/synapse/src/index.ts)
+来源：[`packages/web/synapse/src/index.ts:49`](../packages/web/synapse/src/index.ts)
 
 <a id="deepseek-aidsh-host-webserver"></a>
 

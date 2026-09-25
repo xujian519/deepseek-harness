@@ -1723,7 +1723,7 @@ export interface SynapseConfig {
 }
 ```
 
-Source: [`packages/web/synapse/src/index.ts:41`](../packages/web/synapse/src/index.ts)
+Source: [`packages/web/synapse/src/index.ts:49`](../packages/web/synapse/src/index.ts)
 
 <a id="deepseek-aidsh-host-webserver"></a>
 
