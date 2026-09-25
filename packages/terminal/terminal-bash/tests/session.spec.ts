@@ -283,11 +283,11 @@ describe('LocalPtySession readiness and output', () => {
     await Promise.resolve()
     await Promise.resolve()
     const internal = session as unknown as {
-      stopReadinessPolling(): void
+      readiness: { cancel(): void }
       pollReadiness(operation: TerminalSendOperation): Promise<void>
       settleActive(reason: 'timeout'): void
     }
-    internal.stopReadinessPolling()
+    internal.readiness.cancel()
     await vi.advanceTimersByTimeAsync(20)
 
     const firstInspection = Promise.withResolvers<{ processGroupId: number; inputWaiting: boolean }>()
@@ -321,10 +321,10 @@ describe('LocalPtySession readiness and output', () => {
     await Promise.resolve()
     await Promise.resolve()
     const internal = session as unknown as {
-      stopReadinessPolling(): void
+      readiness: { cancel(): void }
       pollReadiness(operation: TerminalSendOperation): Promise<void>
     }
-    internal.stopReadinessPolling()
+    internal.readiness.cancel()
 
     const inspection = Promise.withResolvers<{ processGroupId: number; inputWaiting: boolean }>()
     terminal.inspectForeground = async () => await inspection.promise
@@ -1100,17 +1100,16 @@ describe('LocalPtySession readiness and output', () => {
     const sessionInternal = session as unknown as {
       pollReadiness(operation: TerminalSendOperation): void
       interrupt(operation: TerminalSendOperation): void
-      schedulePoll(operation: TerminalSendOperation): void
-      polling: boolean
+      readiness: { begin(operation: TerminalSendOperation, delayMs?: number): void; polling: boolean }
       statusValue: TerminalSessionStatus
       appendOutput(text: string): void
     }
     sessionInternal.appendOutput('')
     sessionInternal.pollReadiness({} as TerminalSendOperation)
-    sessionInternal.schedulePoll({} as TerminalSendOperation)
-    sessionInternal.polling = true
-    sessionInternal.schedulePoll(operation)
-    sessionInternal.polling = false
+    sessionInternal.readiness.begin({} as TerminalSendOperation)
+    sessionInternal.readiness.polling = true
+    sessionInternal.readiness.begin(operation)
+    sessionInternal.readiness.polling = false
     sessionInternal.interrupt({} as TerminalSendOperation)
     sessionInternal.statusValue = { kind: 'exited', exitCode: 2, signal: null }
     sessionInternal.pollReadiness(operation)
@@ -1473,10 +1472,10 @@ describe('LocalPtySession readiness and output', () => {
     await Promise.resolve()
     await Promise.resolve()
     const scheduledInternal = scheduledSession as unknown as {
-      schedulePoll(operation: TerminalSendOperation, delayMs?: number): void
+      readiness: { begin(operation: TerminalSendOperation, delayMs?: number): void }
       settleActive(reason: 'timeout'): void
     }
-    scheduledInternal.schedulePoll(scheduledOperation, 5)
+    scheduledInternal.readiness.begin(scheduledOperation, 5)
     scheduledInternal.settleActive('timeout')
     await scheduledOperation.done
 
