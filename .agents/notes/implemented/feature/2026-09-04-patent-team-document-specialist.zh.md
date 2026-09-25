@@ -14,7 +14,7 @@ Status: implemented
 
 > 扩展 [2026-08-19-patent-team-composition-roles.zh.md](2026-08-19-patent-team-composition-roles.zh.md)：七个场景包结构不变，新增文档专员成员与一个收口位任务。
 
-- 注册于 `packages/patent/patent-workflow/src/role-contracts.ts`，worker 为 `patent-document-renderer`（tier `work`，允许 `read_file` / `write_file` / `render_patent_document`，硬性输出契约 `交付场景 / 矫正清单 / 渲染产物`，`triggersHITL`，越界禁止：不改实体结论、不代任一立场起草）。worker 注册表与 `patent_teams_status` 的 role_contract 自动生效；`patent_teams_add_member` 的 role 描述已列出。
+- 注册于 `packages/patent/patent-workflow/src/role-contracts.ts`，worker 为 `patent-document-renderer`（tier `work`，允许 `read` / `write` / `render_patent_document`，硬性输出契约 `交付场景 / 矫正清单 / 渲染产物`，`triggersHITL`，越界禁止：不改实体结论、不代任一立场起草）。worker 注册表与 `patent_teams_status` 的 role_contract 自动生效；`patent_teams_add_member` 的 role 描述已列出。
 - `patent-team-composition` SKILL 增加角色总表行，七个场景包均加文档专员，并在各包最后一个质量核验任务之后、captain 收口之前插入「正式文档输出」任务。包规模仍在 `maxMembers` 8 内（诉讼 7 + 可选技术调查官 8）。
 - 新预设技能 `patent-document-polish` 承载交付纪律：场景→模板映射、矫正清单（术语、法条引用格式与出处、数字/日期/期限用工具计算、编号层级、称谓）、美化清单（模板选择、品牌注入、A4、md 起草 → html/pdf 或 docx）、与质量门禁收口合并为一次 ask_user 的交付放行。
 - `packages/patent/patent-document/assets/templates/patent/` 新增 4 个模板：`rectification-response`（补正书 + 替换页清单）、`re-examination-request`（复审请求书）、`infringement-opinion`（侵权比对意见书）、`litigation-pleading`（起诉状/答辩状，可切换）。每个随包 SKILL.md、assets/template.html、example.html 与 references（conventions/checklist/citation-log），遵循既有 DOCS.md 品牌契约。`DocumentTemplateId`、`TEMPLATE_IDS`、manifest.json、工具描述与 README 双语同步为 9 个模板。

@@ -13,7 +13,7 @@ Status: implemented
 角色目录新增**制图员**（`illustrator`，立场 `neutral`），其 worker 为 `patent-illustrator`（tier `work`），注册于 `packages/patent/patent-workflow/src/role-contracts.ts` 与 `worker-contract.ts`：
 
 - 硬性输出契约 `${caseOutputsDir('{caseId}')}/figure-deliverable.md`，必含字段 `附图文件` / `附图标记表` / `图文一致性` / `形式要件核验`，使组合质量门禁按与其他 worker 相同的方式验收附图产出。
-- `allowedTools` 列出 `generate_patent_figure`、`generate_structure_figure`、`add_patent_figure_references`、`analyze_patent_figure`、`search_patent_figure`、`validate_specification` 以及 `read_file` / `write_file`；越界禁止为不改实体结论（权利要求布局、保护范围、修改方案）、不评新颖性/创造性、不代任一立场起草策略内容；`triggersHITL` 为 true。
+- `allowedTools` 列出 `generate_patent_figure`、`generate_structure_figure`、`add_patent_figure_references`、`analyze_patent_figure`、`search_patent_figure`、`validate_specification` 以及 `read` / `write`；越界禁止为不改实体结论（权利要求布局、保护范围、修改方案）、不评新颖性/创造性、不代任一立场起草策略内容；`triggersHITL` 为 true。
 - 该角色是附图标记表的唯一权威源，负责《专利法实施细则》第二十一条第二款在图面、标记表与说明书之间的双向一致。
 - `patent-team-composition` 增加角色总表行，并在撰写包（t4a，位于说明书草稿之后、对立评审之前）、答复审查意见包（t3a，位于修改方案确认之后）、补正包（t2a）、复审包（t2a）插入附图任务；各包规模变为 7 / 7 / 4 / 7，仍在 `maxMembers` 8 之内。无效宣告包与侵权诉讼包不纳入制图员，因为这两类场景的附图是比对与解释权利要求的材料而非产出物；确需重绘图面时由 captain 在成员上限内按需增补 `illustrator`。
 - `patent-quality-gate` 增加第 6 项「附图与标号」：附图标记表在场且与图面、说明书、权利要求逐号一致；图号位于附图正下方；图面除必需词语外无注释；色彩与落版尺寸符合目标法域；禁止用临时脚本代替附图工具。
