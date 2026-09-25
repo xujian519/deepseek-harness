@@ -10,13 +10,18 @@ import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TerminalSessionService, { TerminalBackendCleanupError, TerminalSessionId } from '@deepseek-ai/dsh-terminal'
-import type { TerminalSendRequest, TerminalWaitReason } from '@deepseek-ai/dsh-terminal'
+import type {
+  TerminalSendOperation,
+  TerminalSendRequest,
+  TerminalSendResult,
+  TerminalWaitReason,
+} from '@deepseek-ai/dsh-terminal'
 import { BashTerminalBackend, PWSH_PROMPT_SETUP } from '@deepseek-ai/dsh-terminal-bash'
 import { abortable } from '@deepseek-ai/dsh-timeout'
 import { ENCODING_PREAMBLE } from '@deepseek-ai/dsh-pwsh-local'
 import * as ptyLocal from '@deepseek-ai/dsh-terminal-bash'
 import type { ResolvedConfig } from '@deepseek-ai/dsh-terminal-bash/src/config.ts'
-import type { LocalPtySession } from '@deepseek-ai/dsh-terminal-bash/src/session.ts'
+import { LocalPtySession } from '@deepseek-ai/dsh-terminal-bash/src/session.ts'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type {
   SubprocessHandle,
@@ -202,14 +207,13 @@ describe('BashTerminalBackend startup rollback', () => {
     const initialization = Promise.withResolvers<undefined>()
     const initializationStarted = Promise.withResolvers<undefined>()
     const close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    const session = {
-      // `initialize` owns its own cancellation: the backend awaits it directly.
-      initialize: (signal?: AbortSignal) => {
-        initializationStarted.resolve(undefined)
-        return abortable(initialization.promise, signal)
-      },
-      close,
-    } as unknown as LocalPtySession
+    const session = new LocalPtySession(terminalHandle(), config())
+    // `initialize` owns its own cancellation: the backend awaits it directly.
+    vi.spyOn(session, 'initialize').mockImplementation((signal?: AbortSignal) => {
+      initializationStarted.resolve(undefined)
+      return abortable(initialization.promise, signal)
+    })
+    vi.spyOn(session, 'close').mockImplementation(close)
     const backend = new BashTerminalBackend(ctx, config(), async () => terminalHandle(), () => session)
     const controller = new AbortController()
     const reason = new Error('cancel stalled startup')
@@ -609,39 +613,32 @@ describe('BashTerminalBackend startup rollback', () => {
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
-    const pending = Promise.withResolvers<{
-      viewport: string
-      waitReason: 'stdin_read'
-      sessionStatus: { kind: 'running' }
-      truncated: boolean
-    }>()
+    const pwshConfig = { ...config(), shellDialect: 'pwsh' as const, shellPath: 'pwsh' }
+    const pending = Promise.withResolvers<TerminalSendResult>()
     let sends = 0
     let closes = 0
-    const session = {
-      motd: '',
-      startSend: (request: TerminalSendRequest) => {
-        sends += 1
-        const operation = {
-          done: sends === 1
-            ? Promise.resolve({
-              viewport: 'setup echo', waitReason: 'inferred_idle' as const,
-              sessionStatus: { kind: 'running' as const }, truncated: false,
-            })
-            : pending.promise,
-          readOutput: () => ({ delta: '', truncated: false }),
-          cancel: () => true,
-        }
-        // The session binds the request's signal to cancellation. The bootstrap
-        // must fail on that cancellation even while this send never settles.
-        request.signal?.addEventListener('abort', () => { operation.cancel() }, { once: true })
-        return operation
-      },
-      read: () => ({ text: '', totalLines: 0, lineBegin: 0, lineEnd: 0, truncated: false }),
-      close: () => { closes += 1; return Promise.resolve() },
-    } as unknown as LocalPtySession
+    const session = new LocalPtySession(terminalHandle(), pwshConfig)
+    vi.spyOn(session, 'startSend').mockImplementation((request: TerminalSendRequest) => {
+      sends += 1
+      const operation: TerminalSendOperation = {
+        done: sends === 1
+          ? Promise.resolve({
+            viewport: 'setup echo', waitReason: 'inferred_idle' as const,
+            sessionStatus: { kind: 'running' as const }, truncated: false,
+          })
+          : pending.promise,
+        readOutput: () => ({ delta: '', truncated: false }),
+        cancel: () => true,
+      }
+      // The session binds the request's signal to cancellation. The bootstrap
+      // must fail on that cancellation even while this send never settles.
+      request.signal?.addEventListener('abort', () => { operation.cancel() }, { once: true })
+      return operation
+    })
+    vi.spyOn(session, 'close').mockImplementation(() => { closes += 1; return Promise.resolve() })
     const backend = new BashTerminalBackend(
       ctx,
-      { ...config(), shellDialect: 'pwsh', shellPath: 'pwsh' },
+      pwshConfig,
       async () => terminalHandle(),
       () => session,
     )
