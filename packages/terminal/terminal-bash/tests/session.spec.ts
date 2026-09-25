@@ -156,6 +156,11 @@ async function initialize(session: LocalPtySession, terminal: FakeTerminal): Pro
   await pending
 }
 
+/** Release the terminal slot without settling its send, reaching the stale-continuation paths. */
+function clearSlot(session: LocalPtySession): void {
+  session['lifecycle'].clear()
+}
+
 describe('LocalPtySession readiness and output', () => {
   it('polls startup and settles sends without assembling scrollback for status checks', async () => {
     vi.useFakeTimers()
@@ -1336,11 +1341,10 @@ describe('LocalPtySession readiness and output', () => {
     const gate = Promise.withResolvers<ReturnType<FakeTerminal['inspectForeground']> extends Promise<infer T> ? T : never>()
     staleTerminal.inspectForeground = async () => await gate.promise
     const staleInternal = staleSession as unknown as {
-      active: TerminalSendOperation | undefined
       pollReadiness(operation: TerminalSendOperation): Promise<void>
     }
     const polling = staleInternal.pollReadiness(staleOperation)
-    staleInternal.active = undefined
+    clearSlot(staleSession)
     gate.resolve({ processGroupId: 456, inputWaiting: false })
     await polling
     ;(staleOperation as unknown as {
@@ -1438,7 +1442,9 @@ describe('LocalPtySession readiness and output', () => {
     const deadlineTerminal = new FakeTerminal()
     const deadlineSession = new LocalPtySession(deadlineTerminal, config())
     const deadlineOperation = deadlineSession.startSend({ text: '', submit: false })
-    ;(deadlineSession as unknown as { active: TerminalSendOperation | undefined }).active = undefined
+    // The deadline is cancelled with the slot it bounds, so this expiry never fires.
+    clearSlot(deadlineSession)
+    expect(vi.getTimerCount()).toBe(0)
     await vi.advanceTimersByTimeAsync(100)
     settle(deadlineOperation)
 
@@ -1460,7 +1466,7 @@ describe('LocalPtySession readiness and output', () => {
     beginTerminal.inspectForeground = async () => await beginGate.promise
     const beginSession = new LocalPtySession(beginTerminal, config())
     const beginOperation = beginSession.startSend({ text: '', submit: false })
-    ;(beginSession as unknown as { active: TerminalSendOperation | undefined }).active = undefined
+    clearSlot(beginSession)
     beginGate.reject(new Error('stale begin failure'))
     await Promise.resolve()
     await Promise.resolve()
@@ -1487,11 +1493,10 @@ describe('LocalPtySession readiness and output', () => {
     const pollGate = Promise.withResolvers<never>()
     pollTerminal.inspectForeground = async () => await pollGate.promise
     const pollInternal = pollSession as unknown as {
-      active: TerminalSendOperation | undefined
       pollReadiness(operation: TerminalSendOperation): Promise<void>
     }
     const stalePoll = pollInternal.pollReadiness(pollOperation)
-    pollInternal.active = undefined
+    clearSlot(pollSession)
     pollGate.reject(new Error('stale poll failure'))
     await stalePoll
     settle(pollOperation)
@@ -1502,7 +1507,7 @@ describe('LocalPtySession readiness and output', () => {
     const interruptSession = new LocalPtySession(interruptTerminal, config())
     const interruptOperation = interruptSession.startSend({ text: '', submit: false })
     expect(interruptOperation.cancel()).toBe(true)
-    ;(interruptSession as unknown as { active: TerminalSendOperation | undefined }).active = undefined
+    clearSlot(interruptSession)
     interruptGate.reject(new Error('stale interrupt failure'))
     await Promise.resolve()
     await Promise.resolve()

@@ -7,6 +7,7 @@ import type {
   SubprocessTerminalHandle,
 } from '@deepseek-ai/dsh-subprocess'
 import { TerminalError } from '@deepseek-ai/dsh-terminal'
+import { abortable } from '@deepseek-ai/dsh-timeout'
 import type {
   TerminalBackendSession,
   TerminalReadRequest,
@@ -23,6 +24,7 @@ import type {
 import type { ResolvedConfig } from './config.ts'
 import { ReadinessPoller } from './readiness-poller.ts'
 import { CONTROLLED_PROMPT, TerminalSanitizer } from './sanitize.ts'
+import { SendLifecycle } from './send-lifecycle.ts'
 import { TerminalProtocolQueue } from './terminal-protocol-queue.ts'
 
 function utf8Tail(text: string, maxBytes: number): { text: string; truncated: boolean } {
@@ -240,19 +242,10 @@ export class LocalPtySession implements TerminalBackendSession {
   private readonly protocol: TerminalProtocolQueue
   private readonly sanitizer: TerminalSanitizer
   private readonly scrollback: BoundedTextBuffer
+  private readonly lifecycle: SendLifecycle<LocalSendOperation>
   private readonly outputEnded = Promise.withResolvers<void>()
   private readonly completion: Promise<void>
   private statusValue: TerminalSessionStatus = { kind: 'running' }
-  // TODO(pty-send-state-consolidation): Fold the per-send fields below
-  // (active/activeDeadlineTimer/activeAbort/interrupting/activeWrite) into one
-  // send-lifecycle owner; the cancellation/readiness interplay has enough pinned tests to
-  // carry that refactor safely. Readiness-poll timing already has its owner
-  // (readiness-poller.ts), as do the terminal-protocol replies (terminal-protocol-queue.ts).
-  private active: LocalSendOperation | undefined
-  private activeDeadlineTimer: NodeJS.Timeout | undefined
-  private activeAbort: (() => void) | undefined
-  private interrupting: LocalSendOperation | undefined
-  private activeWrite: Promise<boolean> | undefined
   private readonly readiness: ReadinessPoller<LocalSendOperation>
   private promptSeen = false
   private promptTextSeen = false
@@ -269,18 +262,22 @@ export class LocalPtySession implements TerminalBackendSession {
     private readonly config: ResolvedConfig,
   ) {
     this.pid = terminal.pid
+    this.lifecycle = new SendLifecycle(
+      () => { this.readiness.cancel() },
+      () => this.protocol.pending,
+    )
     this.protocol = new TerminalProtocolQueue(
       data => terminal.write(data),
       config.cols,
       config.rows,
-      () => { this.releaseSettledActive() },
+      () => { this.lifecycle.releaseSettled() },
       (error: unknown) => { if (!this.closing) this.onTransportFailure(error) },
     )
     this.readiness = new ReadinessPoller(
       config.pollIntervalMs,
       operation => this.pollReadiness(operation),
-      operation => this.active === operation && this.interrupting !== operation,
-      operation => this.active === operation,
+      operation => this.lifecycle.ownsSlot(operation),
+      operation => this.lifecycle.isCurrent(operation),
     )
     this.sanitizer = new TerminalSanitizer(config.maxReadBytes)
     this.scrollback = new BoundedTextBuffer(config.scrollbackMaxBytes, config.scrollbackLines)
@@ -295,14 +292,19 @@ export class LocalPtySession implements TerminalBackendSession {
 
   /**
    * Capture startup output through the same readiness contract as later sends.
+   *
+   * Cancellation rejects as soon as `signal` aborts rather than waiting for the
+   * interrupted send to settle: a shell that reaches readiness after its caller
+   * gave up must not be published, and the interrupted send can outlive the
+   * decision by a whole foreground-signal round trip.
    * @param signal - optional cancellation while the shell reaches its first prompt.
-   * @returns Resolves after startup readiness; rejects on exit or readiness timeout.
+   * @returns Resolves after startup readiness; rejects on exit, readiness timeout, or caller cancellation.
    */
   async initialize(signal?: AbortSignal): Promise<void> {
     this.initializing = true
     try {
       const operation = this.startSend({ text: '', submit: false, ...signal !== undefined ? { signal } : {} })
-      const result = await operation.done
+      const result = await abortable(operation.done, signal)
       if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
       this.motd = result.viewport
@@ -317,10 +319,10 @@ export class LocalPtySession implements TerminalBackendSession {
   startSend(request: TerminalSendRequest): TerminalSendOperation {
     if (this.closing) throw new TerminalError('PTY session is closing', 'SESSION_CLOSING')
     if (this.statusValue.kind === 'exited') throw new TerminalError('PTY session has exited', 'SESSION_EXITED')
-    if (this.active !== undefined) {
-      const draining = this.activeWrite !== undefined
+    if (this.lifecycle.current !== undefined) {
+      const draining = this.lifecycle.writing
         ? ' or draining provider write'
-        : this.interrupting !== undefined
+        : this.lifecycle.interrupting
           ? ' or draining foreground interrupt'
           : ''
       throw new TerminalError(`PTY session already has an active send${draining}`, 'SEND_ACTIVE')
@@ -332,21 +334,12 @@ export class LocalPtySession implements TerminalBackendSession {
       Date.now(),
       () => { this.interrupt(operation) },
     )
-    this.active = operation
+    this.lifecycle.admit(operation, {
+      ...request.signal !== undefined ? { signal: request.signal } : {},
+      timeoutMs: this.config.timeoutMs,
+      onExpire: () => { this.settleActive('timeout', this.lifecycle.busy) },
+    })
     this.resetReadinessEvidence()
-
-    if (request.signal !== undefined) {
-      const onAbort = (): void => { operation.cancel() }
-      request.signal.addEventListener('abort', onAbort, { once: true })
-      this.activeAbort = () => request.signal?.removeEventListener('abort', onAbort)
-    }
-    this.activeDeadlineTimer = setTimeout(() => {
-      if (this.active === operation) {
-        this.settleActive('timeout', this.activeWrite !== undefined
-          || this.interrupting === operation
-          || this.protocol.pending)
-      }
-    }, this.config.timeoutMs)
     void this.beginSend(operation, request)
     return operation
   }
@@ -368,37 +361,37 @@ export class LocalPtySession implements TerminalBackendSession {
       // resumes polling, whose guarded catch propagates a persistent failure.
       // A retained settled operation implies that same in-flight interrupt, so
       // this guard admits only an unsettled active send.
-      if (this.active === operation && !this.closing && this.interrupting !== operation) {
+      if (this.lifecycle.ownsSlot(operation) && !this.closing) {
         this.failActive(error)
       }
       return
     }
     try {
-      if (this.active !== operation || this.closing || this.interrupting === operation) return
+      if (!this.lifecycle.ownsSlot(operation) || this.closing) return
       operation.setInitialForeground(foreground)
       const input = `${request.text}${request.submit ? '\r' : ''}`
       if (input.length > 0 && !operation.cancelRequested) {
         this.resetReadinessEvidence()
         const write = this.terminal.write(input)
-        this.activeWrite = write.then(() => true, () => false)
+        this.lifecycle.beginWrite(write)
         try {
           await write
         } finally {
-          this.activeWrite = undefined
+          this.lifecycle.endWrite()
         }
       }
       // Cancellation owns post-write signalling and reservation release.
       if (operation.cancelRequested) return
-      if (this.active === operation && operation.settled) {
-        this.releaseSettledActive()
+      if (this.lifecycle.isCurrent(operation) && operation.settled) {
+        this.lifecycle.releaseSettled()
         return
       }
       // Closing can race the awaited provider write even though static analysis sees only local assignments.
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited provider writes can close the session.
-      if (this.active === operation && !this.closing) this.readiness.begin(operation)
+      if (this.lifecycle.isCurrent(operation) && !this.closing) this.readiness.begin(operation)
     } catch (error: unknown) {
-      if (this.active === operation && !this.closing) {
-        if (operation.settled) this.releaseSettledActive()
+      if (this.lifecycle.isCurrent(operation) && !this.closing) {
+        if (operation.settled) this.lifecycle.releaseSettled()
         else this.failActive(error)
       }
     }
@@ -520,7 +513,7 @@ export class LocalPtySession implements TerminalBackendSession {
     if (text.length === 0) return
     this.lastOutputAt = Date.now()
     this.scrollback.append(text)
-    this.active?.append(text)
+    this.lifecycle.current?.append(text)
   }
 
   private async pollReadiness(operation: LocalSendOperation): Promise<void> {
@@ -535,7 +528,7 @@ export class LocalPtySession implements TerminalBackendSession {
       if (this.protocol.changedSince(generation)) {
         foreground = await this.inspectForegroundAfterProtocol()
       }
-      if (this.active !== operation || this.closing || this.interrupting === operation) return
+      if (!this.lifecycle.ownsSlot(operation) || this.closing) return
       const idleFor = Date.now() - this.lastOutputAt
       if (this.promptSeen && foreground !== undefined && this.shellPgid === undefined) {
         this.shellPgid = foreground.processGroupId
@@ -563,7 +556,7 @@ export class LocalPtySession implements TerminalBackendSession {
       }
     } catch (error: unknown) {
       if (this.protocol.pending) await this.protocol.drain()
-      if (this.active === operation && !this.closing && this.interrupting !== operation) this.failActive(error)
+      if (this.lifecycle.ownsSlot(operation) && !this.closing) this.failActive(error)
     }
   }
 
@@ -577,70 +570,42 @@ export class LocalPtySession implements TerminalBackendSession {
     }
   }
 
-  private releaseSettledActive(): void {
-    const operation = this.active
-    if (operation === undefined || !operation.settled || this.activeWrite !== undefined
-      || this.interrupting === operation || this.protocol.pending) return
-    this.clearActive()
-  }
-
   private settleActive(waitReason: TerminalWaitReason, retainOwnership = false): void {
-    const operation = this.active
+    const operation = this.lifecycle.current
     if (operation === undefined) return
     const scrollbackTruncated = this.scrollback.truncated
-    if (retainOwnership) {
-      this.stopPolling()
-      this.activeAbort?.()
-      this.activeAbort = undefined
-    } else {
-      this.clearActive()
-    }
+    if (retainOwnership) this.lifecycle.retain()
+    else this.lifecycle.clear()
     operation.settle(waitReason, this.statusValue, scrollbackTruncated)
   }
 
-  private stopPolling(): void {
-    this.readiness.cancel()
-    if (this.activeDeadlineTimer !== undefined) clearTimeout(this.activeDeadlineTimer)
-    this.activeDeadlineTimer = undefined
-  }
-
-  private clearActive(): void {
-    const operation = this.active
-    this.stopPolling()
-    this.activeAbort?.()
-    this.activeAbort = undefined
-    if (this.interrupting === operation) this.interrupting = undefined
-    this.active = undefined
-  }
-
   private failActive(error: unknown): void {
-    const operation = this.active
+    const operation = this.lifecycle.current
     if (operation === undefined) return
-    this.clearActive()
+    this.lifecycle.clear()
     operation.fail(error)
   }
 
   private interrupt(operation: LocalSendOperation): void {
-    if (this.active !== operation) return
-    this.interrupting = operation
-    this.readiness.cancel()
+    if (!this.lifecycle.isCurrent(operation)) return
+    this.lifecycle.beginInterrupt(operation)
     void this.interruptOnce(operation)
   }
 
   private async interruptOnce(operation: LocalSendOperation): Promise<void> {
     try {
-      const activeWrite = this.activeWrite
-      if (activeWrite !== undefined && !await activeWrite) return
+      const write = this.lifecycle.writeOutcome
+      if (write !== undefined && !await write) return
       await this.terminal.signalForeground('SIGINT')
     } catch (error: unknown) {
-      if (this.active === operation && !this.closing) this.onTransportFailure(error)
+      if (this.lifecycle.isCurrent(operation) && !this.closing) this.onTransportFailure(error)
       return
     } finally {
-      if (this.interrupting === operation) this.interrupting = undefined
+      this.lifecycle.endInterrupt(operation)
     }
-    if (this.active === operation && operation.settled) {
-      this.releaseSettledActive()
-    } else if (this.active === operation && !this.closing) {
+    if (this.lifecycle.isCurrent(operation) && operation.settled) {
+      this.lifecycle.releaseSettled()
+    } else if (this.lifecycle.isCurrent(operation) && !this.closing) {
       this.readiness.begin(operation, 0)
     }
   }
@@ -649,7 +614,7 @@ export class LocalPtySession implements TerminalBackendSession {
     // Stop readiness polling but retain the active operation: teardown settles
     // it as session_exit below, so an in-flight send is never mis-settled as
     // stdin_read/inferred_idle/timeout during the grace period.
-    this.stopPolling()
+    this.lifecycle.stopPolling()
     this.protocol.close()
     try {
       await this.terminal.terminate()
