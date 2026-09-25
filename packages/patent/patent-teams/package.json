@@ -58,8 +58,10 @@
     "@deepseek-ai/dsh-patent-tools": "workspace:*",
     "@deepseek-ai/dsh-patent-workflow": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-scope": "workspace:*",
     "@deepseek-ai/dsh-subagent": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",
+    "@deepseek-ai/dsh-tool-subagent-control": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*"
   },
   "dependencies": {

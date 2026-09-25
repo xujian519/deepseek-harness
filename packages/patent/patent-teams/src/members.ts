@@ -33,10 +33,17 @@ import type { TeamMember, TeamState } from './types.ts'
  * the tool. Unsuppressed, that instruction competes with the member's
  * reporting channel: `patent_teams_send_message` is the only path that writes
  * the team mailbox, the `patent-teams/message-sent` event, and the dashboard.
- * Reintroduce it only when members gain continuable children of their own to
- * steer; the deny currently costs no used capability.
+ * Members keep `subagent_fork`, so this deny removes only the ability to steer
+ * a member's own children, never the ability to have them; across nine recorded
+ * member sessions members delegated zero times. Reintroduce `send_message` when
+ * that steering is needed — the runtime's background-delegation guidance names
+ * `subagent_fork` in every member prompt, so the pressure is live even unused.
+ *
+ * Every name here must exist in the member's inherited tool surface: the
+ * subagent runtime applies the list through `tools.restrict()`, which throws on
+ * an unknown name and would fail member creation at `patent_teams_add_member`.
  */
-const MEMBER_DENIED_TOOLS = [
+export const MEMBER_DENIED_TOOLS = [
   'patent_teams_create',
   'patent_teams_add_member',
   'patent_teams_remove_member',
