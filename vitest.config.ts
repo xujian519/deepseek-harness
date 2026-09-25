@@ -234,10 +234,13 @@ export default defineConfig({
         // glob, so a package added later is measured unless it is exempted
         // deliberately. Six already pass the per-file gate and stay measured:
         // methodology, patent-data, patent-document, patent-knowledge,
-        // patent-rule, and tool-literature. Measured 2026-09-24 over
-        // `npx vitest run packages/patent --coverage`, statements and src files:
-        // patent-core 99.8/100, patent-tools 97.5/66, patent-workflow 99.9/20,
-        // patent-teams 99.5/10, patent-deadline 96.7/9, writing-patterns 97.3/7.
+        // patent-rule, and tool-literature. Measured 2026-09-25 over
+        // `npx vitest run packages/patent --coverage
+        // --coverage.include='packages/patent/*/src/**/*.ts'` — the entries below
+        // are excluded from the gate, so the include override is what instruments
+        // them. Statements and instrumented src files: patent-core 99.8/102,
+        // patent-tools 98.4/77, patent-workflow 99.9/19, patent-teams 99.5/15,
+        // patent-deadline 96.7/9, writing-patterns 97.3/7.
         // TODO(cov): retire each entry as its package reaches the gate; the
         // per-package work order is in the 2026-09-21 patent-domain review
         // (PDR-01, tracker #208).
