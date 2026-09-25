@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { extractNumericFindings } from '@deepseek-ai/dsh-patent-core'
+import { extractClaimFeatures } from '../src/tool/spec-claim-coverage.ts'
+import {
+  checkFigureMarkConsistency,
+  extractAbstractDrawingNumber,
+  extractClaimMarks,
+  knownFigureNumbers,
+} from '../src/tool/spec-figure-marks.ts'
+import { checkNumericRangeCoverage, extractNumericRanges } from '../src/tool/spec-numeric.ts'
 import {
   checkChemicalCharacterization,
   checkEffectQuantification,
-  checkFigureMarkConsistency,
-  checkNumericRangeCoverage,
   checkSmilesValidity,
+} from '../src/tool/spec-quantification.ts'
+import {
   computeSpecScore,
   createValidateSpecificationTool,
-  extractClaimFeatures,
-  extractAbstractDrawingNumber,
-  extractClaimMarks,
-  extractNumericRanges,
-  knownFigureNumbers,
   renderSpecification,
   validateSpecification,
 } from '../src/tool/validate-specification.ts'
