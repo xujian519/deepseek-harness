@@ -202,14 +202,6 @@
               "general"
             ]
           },
-          "patent_type": {
-            "type": "string",
-            "description": "专利类型：发明或实用新型（默认 invention）。实用新型按细则 A23 校验 10 条上限。",
-            "enum": [
-              "invention",
-              "utility_model"
-            ]
-          },
           "technical_features": {
             "type": "array",
             "description": "必要技术特征列表（用于独立权利要求）",

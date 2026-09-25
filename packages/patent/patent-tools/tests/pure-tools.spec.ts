@@ -107,27 +107,27 @@ describe('draft_specification', () => {
   })
 })
 
-describe('draft_claims patent_type', () => {
-  it('flags a utility-model draft over the 10-claim cap (细则 A23)', () => {
+describe('draft_claims additional-fee threshold', () => {
+  it('warns when the draft exceeds 10 claims', () => {
     const out = draftClaims({
       invention_name: '一种装置',
-      patent_type: 'utility_model',
       technical_features: ['特征A'],
       optional_features: Array.from({ length: 11 }, (_, i) => `附加特征${i + 1}`),
     })
     expect(out.claims).toHaveLength(12)
-    const limit = out.violations.find(v => v.rule === 'claim_limit')
-    expect(limit).toBeDefined()
-    expect(limit!.severity).toBe('error')
+    const fee = out.violations.find(v => v.rule === 'additional_fee')
+    expect(fee).toBeDefined()
+    expect(fee!.severity).toBe('warning')
+    expect(fee!.message).toContain('申请附加费')
   })
 
-  it('does not flag an invention draft for the same claim count', () => {
+  it('leaves a draft of exactly 10 claims unwarned', () => {
     const out = draftClaims({
       invention_name: '一种装置',
-      patent_type: 'invention',
       technical_features: ['特征A'],
-      optional_features: Array.from({ length: 11 }, (_, i) => `附加特征${i + 1}`),
+      optional_features: Array.from({ length: 9 }, (_, i) => `附加特征${i + 1}`),
     })
-    expect(out.violations.find(v => v.rule === 'claim_limit')).toBeUndefined()
+    expect(out.claims).toHaveLength(10)
+    expect(out.violations.find(v => v.rule === 'additional_fee')).toBeUndefined()
   })
 })
