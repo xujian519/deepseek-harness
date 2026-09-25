@@ -1794,37 +1794,37 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the created team\'s id, name, and state directory.',
       },
       {
-        signature: 'async addMember( agent: Agent, args: { name: string role?: string provider?: string model?: string reasoning_effort?: string }, signal: AbortSignal, ): Promise<{ member_name: string member_id: string provider: string model: string reasoning_effort?: string status: string }>',
+        signature: 'async addMember( agent: Agent, args: AddMemberArgs, signal: AbortSignal, ): Promise<AddMemberResult>',
         description: 'Add a durable continuable member. By default it snapshots the captain\'s current LLM route and effort; supply provider/model only for an explicitly requested role-specific route. The route resolution and the child spawn run outside the team lock so one add never stalls the team\'s other tools; admission and persistence revalidate inside the lock, and a spawn that loses a concurrent race is retired before its failure surfaces.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'member name, role, optional route/effort.' }, { name: 'signal', description: 'caller cancellation, forwarded to the spawn.' }],
         returns: 'the created member\'s identity.',
       },
       {
-        signature: 'async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<{ member_name: string status: string requeued_tasks: string[] }>',
+        signature: 'async removeMember(agent: Agent, name: string, signal: AbortSignal): Promise<RemoveMemberResult>',
         description: 'Remove a member safely: revoke its current attempts, return all unfinished owned tasks to the shared pending pool, interrupt its live turn, and mark it removed.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'name', description: 'member name to remove.' }, { name: 'signal', description: 'caller cancellation, forwarded to quiescence waits.' }],
         returns: 'the removed member and requeued task ids.',
       },
       {
-        signature: 'async createTask( agent: Agent, args: { subject: string description?: string dependencies?: string[] assignee?: string worker?: string }, signal?: AbortSignal, ): Promise<{ task_id: string; subject: string; status: string; assignee?: string; worker?: string }>',
+        signature: 'async createTask( agent: Agent, args: CreateTaskArgs, signal?: AbortSignal, ): Promise<CreateTaskResult>',
         description: 'Create a task in the team\'s task list. Tasks can depend on other tasks; a task is only claimable once every dependency is completed.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'subject, description, dependencies, optional assignee.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling.' }],
         returns: 'the created task\'s identity.',
       },
       {
-        signature: 'async reassignTask( agent: Agent, args: { task_id: string; assignee: string; reason?: string }, signal: AbortSignal, ): Promise<{ task_id: string previous_assignee: string assignee: string status: string attempt: number attempt_id?: string }>',
+        signature: 'async reassignTask( agent: Agent, args: ReassignTaskArgs, signal: AbortSignal, ): Promise<ReassignTaskResult>',
         description: 'Atomically retry, reassign, or let the captain take over any unfinished or failed task. The old attempt is revoked before its member is interrupted, so late updates cannot overwrite the new owner.',
         parameters: [{ name: 'agent', description: 'the calling captain.' }, { name: 'args', description: 'task id, target assignee ("captain" for takeover), reason.' }, { name: 'signal', description: 'caller cancellation, forwarded to quiescence waits.' }],
         returns: 'the task\'s post-handoff state.',
       },
       {
-        signature: 'async claimTask( agent: Agent, args: { task_id: string; assignee?: string }, ): Promise<{ task_id: string; status: string; assignee: string; attempt: number; attempt_id?: string }>',
+        signature: 'async claimTask( agent: Agent, args: ClaimTaskArgs, ): Promise<ClaimTaskResult>',
         description: 'Claim one ready task for a member (or yourself). A member cannot own a second unfinished task. The returned attempt_id is required for that member\'s updates and becomes stale after retry/reassignment.',
         parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'args', description: 'task id, optional assignee (captain only).' }],
         returns: 'the claimed task\'s capability.',
       },
       {
-        signature: 'async updateTask( agent: Agent, args: { task_id: string; status?: string; output?: string; attempt_id?: string }, signal?: AbortSignal, ): Promise<{ task_id: string status: string output?: string attempt: number attempt_id?: string gated?: boolean gate_feedback?: string }>',
+        signature: 'async updateTask( agent: Agent, args: UpdateTaskArgs, signal?: AbortSignal, ): Promise<UpdateTaskResult>',
         description: 'Update a task status/output. Members must supply the current attempt_id returned by claim_task; stale attempts are rejected after takeover or reassignment. Terminal results are immutable.',
         parameters: [{ name: 'agent', description: 'the calling captain or member.' }, { name: 'args', description: 'task id, status, output, attempt_id.' }, { name: 'signal', description: 'caller cancellation, forwarded to scheduling.' }],
         returns: 'the task\'s updated state.',
@@ -4913,6 +4913,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AdapterRegistrationHandle {\n    (): void;\n    replace(providers: string[]): void;\n}',
   },
   {
+    name: 'AddMemberArgs',
+    declaration: 'export interface AddMemberArgs {\n    name: string;\n    role?: string;\n    provider?: string;\n    model?: string;\n    reasoning_effort?: string;\n}',
+  },
+  {
+    name: 'AddMemberResult',
+    declaration: 'export interface AddMemberResult {\n    member_name: string;\n    member_id: string;\n    provider: string;\n    model: string;\n    reasoning_effort?: string;\n    status: string;\n}',
+  },
+  {
     name: 'AdmittedPromptContentPart',
     declaration: 'export type AdmittedPromptContentPart = {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'image\';\n    readonly attachment: ImageAttachmentRef;\n} | {\n    readonly type: \'file\';\n    readonly attachment: FileAttachmentRef;\n};',
   },
@@ -5253,6 +5261,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ChangeResult {\n    changed: boolean;\n    application: \'applied\' | \'restart-required\' | \'overridden\' | \'failed\' | \'cancelled\';\n    stage: \'install\' | \'enable\' | \'remove\';\n    target: string;\n    enabled?: boolean;\n    error?: ManagementError;\n    warnings?: string[];\n    packageResult?: PackageResult;\n    bundle?: string;\n    pendingBuilds?: string[];\n    approvedBuilds?: string[];\n    registries?: Registry[];\n    failedAt?: \'registry\' | \'spec-host\';\n}',
   },
   {
+    name: 'ClaimTaskArgs',
+    declaration: 'export interface ClaimTaskArgs {\n    task_id: string;\n    assignee?: string;\n}',
+  },
+  {
+    name: 'ClaimTaskResult',
+    declaration: 'export interface ClaimTaskResult {\n    task_id: string;\n    status: string;\n    assignee: string;\n    attempt: number;\n    attempt_id?: string;\n}',
+  },
+  {
     name: 'ClientArtifactBaseline',
     declaration: 'export interface ClientArtifactBaseline {\n    readonly path: string;\n    readonly mtimeMs: number;\n    readonly ctimeMs: number;\n    readonly size: number;\n}',
   },
@@ -5507,6 +5523,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
+  },
+  {
+    name: 'CreateTaskArgs',
+    declaration: 'export interface CreateTaskArgs {\n    subject: string;\n    description?: string;\n    dependencies?: string[];\n    assignee?: string;\n    worker?: string;\n}',
+  },
+  {
+    name: 'CreateTaskResult',
+    declaration: 'export interface CreateTaskResult {\n    task_id: string;\n    subject: string;\n    status: string;\n    assignee?: string;\n    worker?: string;\n}',
   },
   {
     name: 'CreateTeamTaskRequest',
@@ -6949,6 +6973,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ReasoningEffortId = Branded<\'ReasoningEffortId\'>;',
   },
   {
+    name: 'ReassignTaskArgs',
+    declaration: 'export interface ReassignTaskArgs {\n    task_id: string;\n    assignee: string;\n    reason?: string;\n}',
+  },
+  {
+    name: 'ReassignTaskResult',
+    declaration: 'export interface ReassignTaskResult {\n    task_id: string;\n    previous_assignee: string;\n    assignee: string;\n    status: string;\n    attempt: number;\n    attempt_id?: string;\n}',
+  },
+  {
     name: 'RecurringScheduleRecord',
     declaration: 'export type RecurringScheduleRecord = EveryScheduleRecord | DailyScheduleRecord | WeeklyScheduleRecord | CronScheduleRecord;',
   },
@@ -6983,6 +7015,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RemoteEventHostInfo',
     declaration: 'export interface RemoteEventHostInfo {\n    readonly home: string;\n}',
+  },
+  {
+    name: 'RemoveMemberResult',
+    declaration: 'export interface RemoveMemberResult {\n    member_name: string;\n    status: string;\n    requeued_tasks: string[];\n}',
   },
   {
     name: 'RenderedDocumentBytes',
@@ -8923,6 +8959,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TypertTypeModel',
     declaration: 'export interface TypertTypeModel {\n    readonly name: string;\n    readonly declaration: string;\n}',
+  },
+  {
+    name: 'UpdateTaskArgs',
+    declaration: 'export interface UpdateTaskArgs {\n    task_id: string;\n    status?: string;\n    output?: string;\n    attempt_id?: string;\n}',
+  },
+  {
+    name: 'UpdateTaskResult',
+    declaration: 'export interface UpdateTaskResult {\n    task_id: string;\n    status: string;\n    output?: string;\n    attempt: number;\n    attempt_id?: string;\n    gated?: boolean;\n    gate_feedback?: string;\n}',
   },
   {
     name: 'UpdateTeamTaskRequest',
