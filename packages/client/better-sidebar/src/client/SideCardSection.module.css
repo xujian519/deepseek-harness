@@ -154,7 +154,7 @@
 .cardMain:focus-visible,
 .cardSettings:focus-visible,
 .rowGear:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-l4);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -285,7 +285,7 @@
 }
 
 .addCard:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-l4);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -442,7 +442,7 @@
 }
 
 .switchInput:focus-visible + .switchTrack {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -545,7 +545,7 @@
 }
 
 .cssTextArea:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -627,7 +627,7 @@
 }
 
 .done:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -677,7 +677,7 @@
 }
 
 .pluginTopicBtn:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-l4);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -739,7 +739,7 @@
 }
 
 .pluginJumpBtn:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-l4);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -811,7 +811,7 @@
 }
 
 .pluginCopyBtn:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -884,7 +884,7 @@
 }
 
 .pluginSearch:focus-visible {
-  outline: 2px solid var(--dsw-alias-border-l4);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -942,7 +942,7 @@
 
 .openWithEditorInput:focus-visible,
 .openWithEditorTemplate:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 

@@ -200,7 +200,10 @@ export function SidebarRoot({
       if (entry !== anchor.nextElementSibling) anchor.insertAdjacentElement('afterend', entry)
       entry.className = anchor.className
       const label = entry.querySelector('span')
-      if (label !== null) label.className = clsx(css.newSessionLabel, wide && css.wide)
+      // Copy the anchor's own label class rather than naming it: New Session wraps
+      // its label in a mask span, and the entry's single span takes that span's seat.
+      const anchorLabel = anchor.querySelector('span')
+      if (label !== null && anchorLabel !== null) label.className = anchorLabel.className
       const icon = entry.querySelector('svg')
       if (icon !== null) {
         // Inline: the plugin's own [data-…] svg rule outranks presentational sizes.

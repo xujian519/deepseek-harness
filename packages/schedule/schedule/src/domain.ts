@@ -4,8 +4,8 @@
  */
 
 import { Temporal } from '@js-temporal/polyfill'
-import { SessionLogOffset } from '@deepseek-ai/dsh-session'
-import type { SessionEvent, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset } from '@deepseek-ai/dsh-session/types'
+import type { SessionEvent, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session/types'
 import type {
   AfterScheduleRecord,
   AtInput,

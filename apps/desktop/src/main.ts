@@ -654,7 +654,7 @@ async function main(): Promise<void> {
   installDesktopDirectoryPicker(() => mainWindow)
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
-    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
+    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshLocalizedMenus() }, window => updateOverlays.input(window))
   app.on('will-quit', () => { shortcuts.dispose() })
 
   ipcMain.handle(DESKTOP_IPC.printToPdf, async (event, payload: unknown) => {
@@ -750,7 +750,7 @@ async function main(): Promise<void> {
     locale = current
     platformView.notifyLocaleChanged()
     windowsLanguage = locale.id
-    refreshApplicationMenu()
+    refreshLocalizedMenus()
   })
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
     assertProductSender(event)
@@ -959,10 +959,23 @@ async function main(): Promise<void> {
   }, ...platformMenus()]
   // The bridge keeps this base so plugin-contributed menus follow the shell's own entries.
   bridge.setAppMenuBase(applicationMenuTemplate())
-  const refreshApplicationMenu = (): void => {
+  const trayMenuTemplate = (): MenuItemConstructorOptions[] => [
+    {
+      label: formatDesktopMessage(currentDesktopLocale().messages.trayShow, { name: app.getName() }),
+      click: () => { focusPrimaryWindow() },
+    },
+    { type: 'separator' },
+    {
+      label: formatDesktopMessage(currentDesktopLocale().messages.trayQuit, { name: app.getName() }),
+      click: () => { quitting = true; app.quit() },
+    },
+  ]
+  const refreshLocalizedMenus = (): void => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32' ? devToolsItems : applicationMenuTemplate()))
+    // The tray's labels are localized as well, and the tray is built further down.
+    tray?.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate()))
   }
-  refreshApplicationMenu()
+  refreshLocalizedMenus()
   const quitDialogIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
   const backgroundNotice = process.platform === 'win32'
     ? new DesktopBackgroundNotice({ markerPath: join(app.getPath('userData'), 'background-close-confirmed'),
@@ -988,17 +1001,7 @@ async function main(): Promise<void> {
     if (isTemplateTrayIcon(process.platform)) trayIcon.setTemplateImage(true)
     tray = new Tray(trayIcon)
     tray.setToolTip(app.getName())
-    tray.setContextMenu(Menu.buildFromTemplate([
-      {
-        label: formatDesktopMessage(currentDesktopLocale().messages.trayShow, { name: app.getName() }),
-        click: () => { focusPrimaryWindow() },
-      },
-      { type: 'separator' },
-      {
-        label: formatDesktopMessage(currentDesktopLocale().messages.trayQuit, { name: app.getName() }),
-        click: () => { quitting = true; app.quit() },
-      },
-    ]))
+    tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate()))
     tray.on('click', () => { focusPrimaryWindow() })
   } catch (error) {
     console.error('dsh desktop: tray setup failed:', error)
@@ -1204,7 +1207,7 @@ async function main(): Promise<void> {
     if (isQuitting() || backend.state.phase !== 'ready') return
     locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
     windowsLanguage = locale.id
-    refreshApplicationMenu()
+    refreshLocalizedMenus()
     if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
       // A later login must retain its own activation policy instead of replaying startup focus.
       raiseAfterUpdate = false

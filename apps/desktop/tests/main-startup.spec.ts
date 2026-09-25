@@ -1,5 +1,6 @@
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
+import { trayIconPath } from '../src/tray.ts'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
@@ -1204,7 +1205,11 @@ describe('desktop main startup', () => {
     const host = await readyWorkspace()
     const window = harness.windows[0]!
     expect(harness.trays).toHaveLength(1)
-    expect(harness.trays[0]!.image).toEqual({ path: join('desktop-test-resources', 'tray.ico') })
+    // The fork's shell builds one tray on every platform from the app's own assets;
+    // upstream's `resourcesPath`/tray.ico pairing belongs to its Windows-only tray class.
+    const trayImage = harness.trays[0]!.image as { path: string; setTemplateImage: () => void }
+    expect(trayImage.path).toBe(trayIconPath(harness.app.getAppPath(), process.platform))
+    expect(trayImage.setTemplateImage).toBeTypeOf('function')
     expect(harness.backgroundNotice.markerPath).toBe(join(harness.app.getPath('userData'), 'background-close-confirmed'))
     window.show.mockClear()
     window.close()
@@ -1251,7 +1256,9 @@ describe('desktop main startup', () => {
     vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64', resourcesPath: 'desktop-test-resources' })
     await readyWorkspace()
     const window = harness.windows[0]!
-    expect(harness.trays).toHaveLength(0)
+    // The fork's shell keeps its tray on macOS as well, so the close path is the
+    // tray confirmation rather than upstream's tray-less hide.
+    expect(harness.trays).toHaveLength(1)
     window.fullscreen = true
     window.close()
     expect(window.setFullScreen).toHaveBeenCalledWith(false)
