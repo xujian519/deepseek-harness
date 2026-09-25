@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-document/README.md
-README.md: 23280cb3b4c75948347153dce3a6584b448fd690
-README.zh.md: 788e2bd92524920e9fd999eded7b96d3ed8108d6
+/:
+  en: 4cf2c8457667edb5
+  zh: 6341a8b1f7799797
+/deepseek-ai-dsh-patent-document:
+  en: 8b59a1894ae77479
+  zh: b9c3a38c5cfb14b9
+/deepseek-ai-dsh-patent-document/summary:
+  en: 66bbcbeae4880e8a
+  zh: e88182747448e835
+/deepseek-ai-dsh-patent-document/table-of-contents:
+  en: c1d779e7bfba8829
+  zh: ab4520e6cc208a93
+/deepseek-ai-dsh-patent-document/render-patent-document-tool:
+  en: 6523ccf67644d8ef
+  zh: 6723b42046af313d
+/deepseek-ai-dsh-patent-document/document-engine-library-api:
+  en: 4e7b5b3bfa4697bd
+  zh: bdda03de5f52d19f
+/deepseek-ai-dsh-patent-document/configuration:
+  en: 42a281e6492a481a
+  zh: 9f3c9acfd299285b
+/deepseek-ai-dsh-patent-document/model-experience:
+  en: 215e7ba838619b7b
+  zh: dd386dda81b0a8c1
+/deepseek-ai-dsh-patent-document/model-experience/render-patent-document-tool:
+  en: 7624493f2677e5f6
+  zh: 27a0f9070cdb5505
+/deepseek-ai-dsh-patent-document/model-experience/render-patent-document-tool/what-the-model-sees:
+  en: c99030d84463fc71
+  zh: 37715048bfbf57bd
+/deepseek-ai-dsh-patent-document/model-experience/render-patent-document-tool/token-effect:
+  en: c154329f071fc1aa
+  zh: 23bd79950815924b
+/deepseek-ai-dsh-patent-document/model-experience/render-patent-document-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
+  zh: 8a130c3e64e7f5d6
+/deepseek-ai-dsh-patent-document/known-limitations-and-deferred-work:
+  en: 8b6095363f493d7a
+  zh: 9aa7c5e5aa76da1f
+/deepseek-ai-dsh-patent-document/known-limitations-and-deferred-work/dev-note:
+  en: ee4b080cebc6dac9
+  zh: 97f5bf6fed009fd8

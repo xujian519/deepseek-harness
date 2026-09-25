@@ -1,6 +1,40 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-trajectory-ledger-module-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-trajectory-ledger-module-extraction.md
-2026-09-14-trajectory-ledger-module-extraction.md: b6a05438a0d9cbae8d57c83d0e840cb7eb5b1412
-2026-09-14-trajectory-ledger-module-extraction.zh.md: 3a28c58998a0510a5d5462cf421089b345c28f6f
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86:
+  en: 968c85b50c78daf8
+  zh: 2d6f3b06d03e3ce1
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/problem:
+  en: 0c52666725bcd009
+  zh: 75b0b4eb68bb5802
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/decision:
+  en: c3286f75260308cc
+  zh: b3fcf394d7252c09
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/decision/the-cut-is-behavior-preserving-by-construction:
+  en: 2f804170cabb923a
+  zh: f861500066ffe2e0
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/decision/the-three-tab-tables-stayed-in-the-entry:
+  en: c79f30d38b35c320
+  zh: 3433c5456ffbed53
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/decision/why-the-shared-vocabulary-went-to-src-types-ts:
+  en: de67f25209747775
+  zh: 22d104532a25acd5
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/decision/the-export-list-is-compared-by-name-not-by-line:
+  en: 8b390e89176b09ef
+  zh: 724363ae5d0bfd26
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/decision/the-jsdoc-the-move-had-to-add:
+  en: 42a7fb508e8aaa9f
+  zh: 099a4418d5fb418c
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/verification:
+  en: 8b8c462b880c11fd
+  zh: 8852a13aadafb126
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/alternatives-considered:
+  en: 4bde0a56bb5fa6fe
+  zh: 9650b61028cd4c04
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/consequences:
+  en: c1f596c003e259b2
+  zh: 60b45627e02753c5
+/agent-note-extracting-the-trajectory-ledger-s-record-model-and-presentation-helpers-issue-86/related:
+  en: 4b5fef267b9b7d30
+  zh: 604bb35d291f6f66

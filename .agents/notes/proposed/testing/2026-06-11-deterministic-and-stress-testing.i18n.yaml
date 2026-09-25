@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-06-11-deterministic-and-stress-testing.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/testing/2026-06-11-deterministic-and-stress-testing.md
-2026-06-11-deterministic-and-stress-testing.md: 5d369e728a807e9ee04961626c461a87cc6452ee
-2026-06-11-deterministic-and-stress-testing.zh.md: 2c73d09818979057755c924b7f9b073da8c5b07d
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress:
+  en: 542fbe788af50a46
+  zh: ac3cd25980079e57
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/problem:
+  en: f53f96fa64894350
+  zh: cb24d89ce7ed6d23
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/update-2026-08-30:
+  en: 3d30529a7fac6f81
+  zh: 91170d24ca1d1ffd
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/update-2026-09-13:
+  en: 685e7a8b2254bf58
+  zh: fff3f65cfb47dc8f
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/update-2026-09-14:
+  en: 8c815fe34a16fdd4
+  zh: 1a58d20eb45d7b4a
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/proposal:
+  en: 634037df9edd48bd
+  zh: 5b0533bfbe315e89
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/plan:
+  en: 35540eefb6f19904
+  zh: 7212368b41786ffc
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/acceptance-criteria:
+  en: e88b12f0cdc2748a
+  zh: 3a918218fe6e89a7
+/agent-note-deterministic-tests-the-replay-invariant-fixture-and-race-stress/risks:
+  en: 072c15d39395fbde
+  zh: a21a7a21a7879f56

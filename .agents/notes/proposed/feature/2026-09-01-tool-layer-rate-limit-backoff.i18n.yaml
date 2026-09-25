@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-tool-layer-rate-limit-backoff.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-tool-layer-rate-limit-backoff.md
-2026-09-01-tool-layer-rate-limit-backoff.md: ad61676c5c7ae76c75271b7213de71ee8b324f76
-2026-09-01-tool-layer-rate-limit-backoff.zh.md: 7bbccb0d6c45322a18a21a4692e34835282ea0f1
+/agent-note-handle-provider-rate-limits-in-the-tool-layer-not-by-model-sleep:
+  en: 0062eb6802edb970
+  zh: 530901177aafc093
+/agent-note-handle-provider-rate-limits-in-the-tool-layer-not-by-model-sleep/problem:
+  en: 652bcc70781e6f9b
+  zh: 047a21984c2a2525
+/agent-note-handle-provider-rate-limits-in-the-tool-layer-not-by-model-sleep/proposal:
+  en: 8edff54f877d6914
+  zh: d9674f1ff815ea67
+/agent-note-handle-provider-rate-limits-in-the-tool-layer-not-by-model-sleep/alternatives-considered:
+  en: 7e3dd875f273bcb7
+  zh: 8ecddda560b72727
+/agent-note-handle-provider-rate-limits-in-the-tool-layer-not-by-model-sleep/acceptance-criteria:
+  en: b08e04e06b83ae06
+  zh: f8b0144b9a9341ac
+/agent-note-handle-provider-rate-limits-in-the-tool-layer-not-by-model-sleep/risks:
+  en: 5d9d3b9280c69d52
+  zh: 1881e49f784921d5

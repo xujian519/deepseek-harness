@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-11-tech-debt-issue-tracking.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-11-tech-debt-issue-tracking.md
-2026-09-11-tech-debt-issue-tracking.md: 41185df79a4ff46244a4e51cfd7935cd8f33425a
-2026-09-11-tech-debt-issue-tracking.zh.md: e1fcc1cb997944556029ea556e1654c3a120f619
+/agent-note-tech-debt-tracking-in-same-repository-issues:
+  en: a29bb9b5ae30f7f9
+  zh: e2e872b621d539d0
+/agent-note-tech-debt-tracking-in-same-repository-issues/problem:
+  en: 2a3eac96517b47bf
+  zh: 3c83b5d4ed1a5e4a
+/agent-note-tech-debt-tracking-in-same-repository-issues/decision:
+  en: 352fe670ac1d4d4a
+  zh: 6608bbedaf21c4db
+/agent-note-tech-debt-tracking-in-same-repository-issues/alternatives-considered:
+  en: 8a07bd14f4891fa7
+  zh: 33a64eeb03d0c908
+/agent-note-tech-debt-tracking-in-same-repository-issues/consequences:
+  en: 34344b980bf7ca13
+  zh: 8121c9b4640c1b95
+/agent-note-tech-debt-tracking-in-same-repository-issues/testing:
+  en: c850f70dc9344531
+  zh: 9f8aa22f7d569285

@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-node-id-stability.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-15-node-id-stability.md
-2026-09-15-node-id-stability.md: 2ec883e6615bd3c1e8bc633f1b78932f81f0b7b4
-2026-09-15-node-id-stability.zh.md: 150d08527374407b077ccc5881de6a4982f8ece5
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86:
+  en: 11f0d4ce46c7f492
+  zh: dd32fb13872c4b36
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/problem:
+  en: 41b1b299e1ed9352
+  zh: b8693ca0def55ff7
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/decision:
+  en: 3a20d54e6b47c557
+  zh: 02e33f6a7c6c6c86
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/decision/what-the-existing-batching-test-does-not-cover:
+  en: 3025448a01801f59
+  zh: 76dd40c6d99ad10c
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/decision/what-the-guard-holds-and-what-it-does-not:
+  en: cbce0123cd1c84f7
+  zh: eb83a0a92adda3ce
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/verification:
+  en: 0fb05339b80dc250
+  zh: bb5c59b8ee85e4ba
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/alternatives-considered:
+  en: 2c3befa0111bb530
+  zh: 9682ab3b33270d82
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/consequences:
+  en: 6ff80828f3223dc4
+  zh: ec9ffb94dbb0536f
+/agent-note-pinning-the-analyzer-s-node-ids-issue-86/related:
+  en: 3488953966660093
+  zh: 7e178a44fe0b789f

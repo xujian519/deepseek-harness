@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-28-upstream-v0.1.2-alpha.1-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-28-upstream-v0.1.2-alpha.1-sync.md
-2026-08-28-upstream-v0.1.2-alpha.1-sync.md: 365bb4ecd183d269455ca488d0bf62122aaace29
-2026-08-28-upstream-v0.1.2-alpha.1-sync.zh.md: 2e8f7e78d3630c590157eb1fbb9f7b970027fe5d
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals:
+  en: e622c6fcd3bffded
+  zh: 285ea82fa8021c41
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals/problem:
+  en: c40f335c9cd1d6ca
+  zh: a43a210e791722f6
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals/decision:
+  en: e96fc7e7563256e6
+  zh: c6e079e943795d3d
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals/decision/smaller-dispositions:
+  en: 9da88ff7cff390de
+  zh: 38e87e06ba2d3e8d
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals/alternatives-considered:
+  en: 629f5f471ab3057a
+  zh: 19878858b8ea76ce
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals/consequences:
+  en: 88724be28f65a14d
+  zh: 6788b7256bb2a2b2
+/agent-note-upstream-v0-1-2-alpha-1-sync-and-the-apiproxy-runtime-removals/follow-ups:
+  en: 20ad172cd313f8ef
+  zh: fd6fcb562a084805

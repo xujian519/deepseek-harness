@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/api/plugin-market-controller/README.md
-README.md: 4570a7aa85681c3fbe43d4298c9b6d9815f28489
-README.zh.md: 960ae612dd4fb4fa541b595d468ab127c468555e
+/:
+  en: 86fe0853961938d0
+  zh: 15455542f9533347
+/plugin-market-controller:
+  en: 33a31f29fdd3c244
+  zh: 424214bbc3c44477
+/plugin-market-controller/summary:
+  en: d8ea177a8b9dfc52
+  zh: adb8c910fc066531
+/plugin-market-controller/table-of-contents:
+  en: 4e53164159b5ce41
+  zh: 89582dc0294d0776
+/plugin-market-controller/use-this-package:
+  en: 91fb34562334dade
+  zh: 9a72608d5947af32
+/plugin-market-controller/model-experience:
+  en: dae86df8b963b84c
+  zh: bb6795a6daeb1ac8
+/plugin-market-controller/model-experience/kv-cache-effect:
+  en: 98f7d77f20b63da4
+  zh: b859154c4687eac7
+/plugin-market-controller/known-limitations-and-deferred-work:
+  en: 10394e30ddc69c34
+  zh: b163411351f52612
+/plugin-market-controller/known-limitations-and-deferred-work/dev-note:
+  en: 08b1eb0c187d3f14
+  zh: 02617fa2162f0f5d

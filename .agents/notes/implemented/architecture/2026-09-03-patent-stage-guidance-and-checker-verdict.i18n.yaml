@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-03-patent-stage-guidance-and-checker-verdict.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-patent-stage-guidance-and-checker-verdict.md
-2026-09-03-patent-stage-guidance-and-checker-verdict.md: ef9d2c5d6596152faecbbc8254ccf5fcfe2906c1
-2026-09-03-patent-stage-guidance-and-checker-verdict.zh.md: 4ddb82c9874aed18b1d53215765d1d6046f88157
+/agent-note-patent-workflow-stage-guidance-and-structured-checker-verdicts:
+  en: 36334898e4c38d62
+  zh: 44fb3e0ec2e34f9b
+/agent-note-patent-workflow-stage-guidance-and-structured-checker-verdicts/problem:
+  en: 8ca873846f342ecf
+  zh: 423bae702b178473
+/agent-note-patent-workflow-stage-guidance-and-structured-checker-verdicts/decision:
+  en: 54072dca3864693d
+  zh: 1533237443c76ea6
+/agent-note-patent-workflow-stage-guidance-and-structured-checker-verdicts/alternatives-considered:
+  en: 7bab604615c90f3b
+  zh: 110327e866e7df9b
+/agent-note-patent-workflow-stage-guidance-and-structured-checker-verdicts/consequences:
+  en: cc4eb04848a7da7a
+  zh: f0afbe6a5c895ea4
+/agent-note-patent-workflow-stage-guidance-and-structured-checker-verdicts/testing:
+  en: 6ef1f0d7297bca1f
+  zh: df37594231c1d27b

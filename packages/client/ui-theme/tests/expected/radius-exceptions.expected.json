@@ -1,0 +1,166 @@
+{
+  "better-sidebar/src/client/SideCardSection.module.css": [
+    ".group: border-radius: 16px",
+    ".card: border-radius: 12px",
+    ".cardIconChip: border-radius: 8px",
+    ".cardSwitchTrack: border-radius: 8px",
+    ".rowGear: border-radius: 6px",
+    ".switchTrack: border-radius: 10px",
+    ".selectAnchor: border-radius: 8px",
+    ".cssTextArea: border-radius: 8px",
+    ".popupRow: border-radius: 12px",
+    ".done: border-radius: 8px",
+    ".pluginTopicBtn: border-radius: 8px",
+    ".pluginEntry: border-radius: 12px",
+    ".pluginJumpBtn: border-radius: 8px",
+    ".pluginInstall: border-radius: 8px",
+    ".pluginCopyBtn: border-radius: 8px",
+    ".pluginSearch: border-radius: 8px",
+    ".openWithEditorInput, .openWithEditorTemplate: border-radius: 8px",
+    ".openWithRemove: border-radius: 8px"
+  ],
+  "better-sidebar/src/client/SideChatView.module.css": [
+    ".sidechatIconBtn: border-radius: 6px",
+    ".sidechatUser: border-radius: 18px",
+    ".sidechatComposer: border-radius: 16px"
+  ],
+  "better-sidebar/src/client/SubagentView.module.css": [
+    ".subagentRefresh: border-radius: 6px",
+    ".subagentRow: border-radius: 8px",
+    ".subagentErrorRetry: border-radius: 6px",
+    ".jobsRow: border-radius: 8px",
+    ".jobsRowMain: border-radius: 8px",
+    ".jobsKill: border-radius: 6px",
+    ".jobsPane: border-radius: 8px",
+    ".jobsPaneClose: border-radius: 5px"
+  ],
+  "better-sidebar/src/client/sidebar.module.css": [
+    ".floatWindow: border-radius: 8px",
+    ".floatDropHint: border-radius: 8px",
+    ".paneCard: border-radius: 8px",
+    ".tabBadge: border-radius: 8px",
+    ".tabBarPlus: border-radius: 5px",
+    ".explorerRow: border-radius: 8px",
+    ".uploadDropZone: border-radius: 10px",
+    ".uploadOverlayCard: border-radius: 24px",
+    ".uploadOverlayCancel: border-radius: 8px",
+    ".editorPathInput: border-radius: 6px",
+    ".editorSearchInput: border-radius: 6px",
+    ".editorSearchResult: border-radius: 6px",
+    ".editorDownloadLink: border-radius: 6px",
+    ".sandboxAction: border-radius: 6px",
+    ".browserInput: border-radius: 6px",
+    ".browserBlockedButton: border-radius: 6px",
+    ".editorModeToggle: border-radius: 6px",
+    ".mermaidWrap: border-radius: 6px",
+    ".mermaidModalButton: border-radius: 8px",
+    ".mermaidModalStage :global(svg): border-radius: 12px",
+    ".selectionPopup: border-radius: 6px",
+    ".gitBranchSelect: border-radius: 6px",
+    ".gitRow: border-radius: 8px",
+    ".gitCommitButton: border-radius: 6px",
+    ".gitLogRow: border-radius: 8px",
+    ".gitLogMore: border-radius: 6px",
+    ".openWithPin: border-radius: 6px",
+    ".tocButton: border-radius: 6px",
+    ".tocPanel: border-radius: 8px",
+    ".tocItem: border-radius: 6px"
+  ],
+  "ui-directory-picker-browse/src/client/DirectoryBrowser.module.css": [
+    ".nativePickerButton: border-radius: 6px"
+  ],
+  "ui-document-studio/src/client/StudioView.module.css": [
+    ".file: border-radius: 6px",
+    ".preview: border-radius: 8px"
+  ],
+  "ui-patent-teams/src/client/TeamsCard.module.css": [
+    ".header: border-radius: 8px"
+  ],
+  "ui-patent-teams/src/client/TeamsDashboard.module.css": [
+    ".team: border-radius: 16px",
+    ".glyph: border-radius: 13px",
+    ".metric: border-radius: 10px",
+    ".memberCard: border-radius: 12px",
+    ".memberButton: border-radius: 12px",
+    ".avatar: border-radius: 11px",
+    ".memberTask: border-radius: 8px",
+    ".taskIdChip: border-radius: 5px",
+    ".dagNode: border-radius: 10px",
+    ".feedIcon: border-radius: 7px"
+  ],
+  "ui-plugin-market/src/client/PluginMarketTab.module.css": [
+    ".field input, .field select: border-radius: 8px",
+    ".button: border-radius: 8px",
+    ".card: border-radius: 10px",
+    ".configTag: border-radius: 5px",
+    ".preview: border-radius: 10px"
+  ],
+  "ui-primitives/src/LoadFailure.module.css": [
+    ".failure button: border-radius: 6px"
+  ],
+  "ui-schedule/src/client/ClockPicker.module.css": [
+    ".option: border-radius: 10px"
+  ],
+  "ui-schedule/src/client/DatePicker.module.css": [
+    ".nav: border-radius: 8px",
+    ".cell: border-radius: 8px"
+  ],
+  "ui-schedule/src/client/PickerPopover.module.css": [
+    ".panel: border-radius: 16px"
+  ],
+  "ui-schedule/src/client/ScheduleCatalogAction.module.css": [
+    ".trigger: border-radius: 28px",
+    ".menu: border-radius: 16px",
+    ".row: border-radius: 10px",
+    ".openButton::after: border-radius: 10px",
+    ".deleteButton: border-radius: 6px"
+  ],
+  "ui-schedule/src/client/ScheduleCreateCard.module.css": [
+    ".card: border-radius: 18px",
+    ".leading: border-radius: 10px"
+  ],
+  "ui-schedule/src/client/TaskManagerPage.module.css": [
+    ".newButton: border-radius: 16px",
+    ".filterTab: border-radius: 14px",
+    ".searchField: border-radius: 12px",
+    ".row: border-radius: 12px",
+    ".notice: border-radius: 10px",
+    ".retentionRule: border-radius: 8px",
+    ".ruleRows: border-radius: 16px",
+    ".ruleValueFace: border-radius: 18px",
+    ".zoneSearch: border-radius: 7px",
+    ".ruleInput: border-radius: 18px",
+    ".ruleIntervalStepper: border-radius: 18px",
+    ".instruction: border-radius: 16px",
+    ".delivery: border-radius: 8px",
+    ".linkedSession: border-radius: 14px"
+  ],
+  "ui-schedule/src/client/TaskMenu.module.css": [
+    ".list: border-radius: 16px",
+    ".item: border-radius: 8px"
+  ],
+  "ui-settings-account/src/client/AccountNotice.module.css": [
+    ".card: border-radius: 16px"
+  ],
+  "ui-settings-account/src/client/DesktopOnboarding.module.css": [
+    ".card: border-radius: 32px",
+    ".confirmationClose: border-radius: 28px",
+    ".dialogButton: border-radius: 12px",
+    ".page .action: border-radius: 12px",
+    ".indicator: border-radius: 6px"
+  ],
+  "ui-shortcuts/src/client/Reference.module.css": [
+    ".dialog: border-radius: 24px",
+    ".close: border-radius: 28px",
+    ".searchField: border-radius: 12px",
+    ".keyBadge: border-radius: 10px",
+    ".unbound: border-radius: 10px",
+    ".recorder: border-radius: 10px"
+  ],
+  "ui-todo-board/src/client/BoardView.module.css": [
+    ".column: border-radius: 12px",
+    ".card: border-radius: 8px",
+    ".cardBadge: border-radius: 6px",
+    ".previewCard: border-radius: 8px"
+  ]
+}

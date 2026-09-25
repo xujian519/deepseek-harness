@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-directory-picker-verb-gating-regression.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-01-directory-picker-verb-gating-regression.md
-2026-09-01-directory-picker-verb-gating-regression.md: f642eb6f79a5e12e47efd03b5bbb93f925cdab0f
-2026-09-01-directory-picker-verb-gating-regression.zh.md: 3c6c2135651d489ca9d1657bf7c9cfbb4c748a11
+/agent-note-gate-directory-picker-wire-verbs-on-the-verb-not-the-capability-kind:
+  en: 87a847f54c5bb5d5
+  zh: 8d52fbb8dc15c1a2
+/agent-note-gate-directory-picker-wire-verbs-on-the-verb-not-the-capability-kind/problem:
+  en: 77aecba9ea76f501
+  zh: 668cdb35e86a0ed2
+/agent-note-gate-directory-picker-wire-verbs-on-the-verb-not-the-capability-kind/decision:
+  en: 142eef4b1ba4f9ba
+  zh: 5e0f0dc7754fef6f
+/agent-note-gate-directory-picker-wire-verbs-on-the-verb-not-the-capability-kind/alternatives-considered:
+  en: 2666821363a55bf8
+  zh: e2d6a732efd2ae39
+/agent-note-gate-directory-picker-wire-verbs-on-the-verb-not-the-capability-kind/consequences:
+  en: 5827a30b382f66dd
+  zh: cf842c4203a43247

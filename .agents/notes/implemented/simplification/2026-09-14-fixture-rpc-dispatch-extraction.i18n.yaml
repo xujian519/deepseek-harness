@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-fixture-rpc-dispatch-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-rpc-dispatch-extraction.md
-2026-09-14-fixture-rpc-dispatch-extraction.md: e7a87d1f179438424fe88c7350467a949208c18a
-2026-09-14-fixture-rpc-dispatch-extraction.zh.md: 47983c1347338159fa772be9e70251333b7c15ee
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86:
+  en: 04246604e1fc30e0
+  zh: a6fc6d7a71debca5
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/problem:
+  en: f058b75c88c2eec5
+  zh: 30880e0818b7fda8
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/decision:
+  en: 53d688237fcfea53
+  zh: 3ca4d930d088de79
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/decision/what-the-arms-keep:
+  en: 5645c4bbf5b3fad5
+  zh: 9fac6f89a4c42b22
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/decision/tests-become-possible-so-they-were-written:
+  en: f44ce9cb3711578b
+  zh: 1cb1193a0cf213b9
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/decision/verification:
+  en: e8b811274367178d
+  zh: 9c63f434a017d816
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/alternatives-considered:
+  en: 522a9abc3ddc3dff
+  zh: 8abfc266529ea5b8
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/consequences:
+  en: 573655b5b5897ba7
+  zh: 51c72510f7c5988d
+/agent-note-extracting-the-fixture-s-rpc-dispatch-table-issue-86/related:
+  en: 0f7d48a762fba123
+  zh: 8540c7f979f41f42

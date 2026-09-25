@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-parallel-tool-calls-per-step.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-parallel-tool-calls-per-step.md
-2026-09-01-parallel-tool-calls-per-step.md: eef66037c6e14b79aefe1aad9c58383df51471c6
-2026-09-01-parallel-tool-calls-per-step.zh.md: 8b2b46208a0930efe1b33fc6c9f7085f7d0d473d
+/agent-note-parallel-independent-tool-calls-within-a-step:
+  en: 9a12322f90f0ed69
+  zh: 3fe87cab88d5189b
+/agent-note-parallel-independent-tool-calls-within-a-step/problem:
+  en: 655c0058585e0a83
+  zh: 8af0939ee16f2802
+/agent-note-parallel-independent-tool-calls-within-a-step/proposal:
+  en: 757ae59f8271fcc2
+  zh: f90b754338613555
+/agent-note-parallel-independent-tool-calls-within-a-step/alternatives-considered:
+  en: 9b599ec8a5048ace
+  zh: c05231f7968bb932
+/agent-note-parallel-independent-tool-calls-within-a-step/acceptance-criteria:
+  en: 854bb350f49b013e
+  zh: 3ff4f48a66a5c69e
+/agent-note-parallel-independent-tool-calls-within-a-step/risks:
+  en: 7209d864511df37d
+  zh: d4dc3ed87960caea

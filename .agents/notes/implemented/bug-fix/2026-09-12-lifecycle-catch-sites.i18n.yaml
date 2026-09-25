@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-12-lifecycle-catch-sites.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-12-lifecycle-catch-sites.md
-2026-09-12-lifecycle-catch-sites.md: 31eb09da4988d37367e134d705067bdba2f86bba
-2026-09-12-lifecycle-catch-sites.zh.md: 46f9e64247a0ef9eac683f8be0a8b8051e08e9e5
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites:
+  en: d4088b6b64f5cd0c
+  zh: 4106c931ffc3adb0
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites/problem:
+  en: 61377b10c1d6ff49
+  zh: 81433c7c37628037
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites/decision:
+  en: 365995e880ba39a3
+  zh: b34fea466ed5b350
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites/alternatives-considered:
+  en: 375248c0d69b73b5
+  zh: 326b05a772c9e29d
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites/consequences:
+  en: 11eb359cbb6ac8ac
+  zh: bb5a87cd8dc93c27
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites/testing:
+  en: 7f694ea654f7e4c5
+  zh: 89d5fb2daed4eefd
+/agent-note-naming-the-swallowed-failure-in-lifecycle-catch-sites/related:
+  en: 62e21e57984c302c
+  zh: e8bdc15132084ba1

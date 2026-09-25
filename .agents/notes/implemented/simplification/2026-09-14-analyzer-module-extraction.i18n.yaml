@@ -1,6 +1,40 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-analyzer-module-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-analyzer-module-extraction.md
-2026-09-14-analyzer-module-extraction.md: c8ed2d401e9a0b2bd26c59c101938141e8e403ab
-2026-09-14-analyzer-module-extraction.zh.md: d8ca4c5cd75b0152bb7f79f1ed17cad000de9f66
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86:
+  en: 706c477921a41f3a
+  zh: 15cc7e0b5b2ca915
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/problem:
+  en: 5570c39e72bec957
+  zh: 89d5c7288343f49f
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/decision:
+  en: 7d824d002f59c3cb
+  zh: 2cd15b25fa55ae86
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/decision/the-cut-is-behavior-preserving-by-construction:
+  en: 663d30c2229729dc
+  zh: 3615e7816960e0bc
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/decision/why-typertanalysiserror-left-the-entry:
+  en: fed064bccf215f40
+  zh: 216d337670b35650
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/decision/the-jsdoc-the-move-had-to-add:
+  en: 5b14c759bfbe7ca2
+  zh: a6a027b49bb499ff
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/decision/one-declaration-emit-constraint:
+  en: 50ec6754c9270cec
+  zh: b2b5fcdf634b79d7
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/decision/the-plan-s-jscpd-claim-for-this-file-was-wrong:
+  en: d52a692738d30120
+  zh: 2c3fe4b78358cd3b
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/verification:
+  en: a5000f45b36b5a5b
+  zh: 0e20922176769965
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/alternatives-considered:
+  en: b6031c29422db722
+  zh: 83487eca33bef5a2
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/consequences:
+  en: 5c3889d873e4e168
+  zh: f20ae87ddeceb0ba
+/agent-note-extracting-the-analyzer-s-node-text-export-map-and-path-modules-issue-86/related:
+  en: 95654fbc3cee4065
+  zh: fe89e84e6bad65ce

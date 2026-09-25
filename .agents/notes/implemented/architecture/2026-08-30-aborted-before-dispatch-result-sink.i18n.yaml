@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-aborted-before-dispatch-result-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-30-aborted-before-dispatch-result-sink.md
-2026-08-30-aborted-before-dispatch-result-sink.md: 9a7db468409ca988d23ec1384040daa7755f038e
-2026-08-30-aborted-before-dispatch-result-sink.zh.md: 81dfed2a33c69ca1d218dee032b9ab740cb7a425
+/agent-note-h6-sink-export-the-canonical-aborted-before-dispatch-result-factory:
+  en: 516cbf9d901a72cb
+  zh: caa9110b0572942b
+/agent-note-h6-sink-export-the-canonical-aborted-before-dispatch-result-factory/problem:
+  en: 3738233f8c7a581d
+  zh: d452725bd793ba1b
+/agent-note-h6-sink-export-the-canonical-aborted-before-dispatch-result-factory/decision:
+  en: 8426e530e6a3d604
+  zh: 53cee9ae95925373
+/agent-note-h6-sink-export-the-canonical-aborted-before-dispatch-result-factory/consequences:
+  en: 5ab660f284740ce4
+  zh: 3b2c7bc7f869a413
+/agent-note-h6-sink-export-the-canonical-aborted-before-dispatch-result-factory/alternatives-considered:
+  en: fb4187a5b6d84243
+  zh: d4e0c260e6c7b1d7

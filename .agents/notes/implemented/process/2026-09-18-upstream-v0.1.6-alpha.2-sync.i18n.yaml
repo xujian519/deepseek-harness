@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-18-upstream-v0.1.6-alpha.2-sync.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-18-upstream-v0.1.6-alpha.2-sync.md
-2026-09-18-upstream-v0.1.6-alpha.2-sync.md: e23865ff6d47bd2ec9c96e6e5b8da45e84a3542c
-2026-09-18-upstream-v0.1.6-alpha.2-sync.zh.md: 22eabeca3db79008a315f44e4667f3241fad32c3
+/agent-note-upstream-v0-1-6-alpha-2-sync-and-the-built-output-shadow-over-sources:
+  en: eaabe1f554539dca
+  zh: 3835c8d6b58c7391
+/agent-note-upstream-v0-1-6-alpha-2-sync-and-the-built-output-shadow-over-sources/problem:
+  en: 3c96b33fb6258731
+  zh: 6dbf4cfc8fc113ef
+/agent-note-upstream-v0-1-6-alpha-2-sync-and-the-built-output-shadow-over-sources/decision:
+  en: cbe024de9a5574f9
+  zh: 50f9d490b4f8e372
+/agent-note-upstream-v0-1-6-alpha-2-sync-and-the-built-output-shadow-over-sources/consequences:
+  en: 465536b05f93df8d
+  zh: cb4b47da3151f324
+/agent-note-upstream-v0-1-6-alpha-2-sync-and-the-built-output-shadow-over-sources/alternatives-considered:
+  en: e4be5370b227ecb8
+  zh: eb3375686b691985
+/agent-note-upstream-v0-1-6-alpha-2-sync-and-the-built-output-shadow-over-sources/testing:
+  en: 95dbd6617358dabf
+  zh: 1473406d2f0f98c2

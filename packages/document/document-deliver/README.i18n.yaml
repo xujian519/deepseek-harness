@@ -1,6 +1,43 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/document/document-deliver/README.md
-README.md: afe7b53db45719ec5d625e164bba7ad798151d98
-README.zh.md: 45037482b595db499537058e50167a82dafe4ee5
+/:
+  en: 743ff95c794244bf
+  zh: aa5a3ed173202533
+/deepseek-ai-dsh-document-deliver:
+  en: 1f9a2a0c4d35a6f7
+  zh: 84bfd059d2158e5f
+/deepseek-ai-dsh-document-deliver/summary:
+  en: d60d5b57847175ea
+  zh: 814bad7674db72db
+/deepseek-ai-dsh-document-deliver/table-of-contents:
+  en: 3b0962655a5f0cc2
+  zh: 06a01fc054551de3
+/deepseek-ai-dsh-document-deliver/what-it-mounts:
+  en: f85c0c97d9b0216f
+  zh: 5e17395a4559bede
+/deepseek-ai-dsh-document-deliver/deterministic-checks:
+  en: 08a006ae2c23d0ab
+  zh: d3a652f8f5988298
+/deepseek-ai-dsh-document-deliver/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-document-deliver/model-experience/tool-schemas:
+  en: 3039bc5e7a796b21
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-document-deliver/model-experience/tool-schemas/what-the-model-sees:
+  en: 634aba7d5c3b9159
+  zh: c57abaed5b7cbd0f
+/deepseek-ai-dsh-document-deliver/model-experience/tool-schemas/token-effect:
+  en: 23e7b977bed9cc32
+  zh: 9a64638117a7348c
+/deepseek-ai-dsh-document-deliver/model-experience/tool-schemas/kv-cache-effect:
+  en: d9fa4c7c3434ab95
+  zh: 2259fe717539d443
+/deepseek-ai-dsh-document-deliver/known-limitations-and-deferred-work:
+  en: 5019b4cc33519c69
+  zh: 421111d0f894d973
+/deepseek-ai-dsh-document-deliver/known-limitations-and-deferred-work/dev-note:
+  en: 647f0923a30f1cdb
+  zh: 67c37394e47aed46

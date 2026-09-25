@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-desktop-api-plugin-routes.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-10-desktop-api-plugin-routes.md
-2026-09-10-desktop-api-plugin-routes.md: 538bac8c5e1e5c0977fafca348fbb9ac93f0b148
-2026-09-10-desktop-api-plugin-routes.zh.md: 81499bf9f186d49bbb12afee7a3f2981faf3a32d
+/agent-note-desktop-host-serves-plugin-routes-under-the-gateway-prefix:
+  en: 3a4f5fefcfad6e7c
+  zh: 1fc5f135b7e16a9e
+/agent-note-desktop-host-serves-plugin-routes-under-the-gateway-prefix/problem:
+  en: 65bb863e747dad9c
+  zh: 68448b34aed57e49
+/agent-note-desktop-host-serves-plugin-routes-under-the-gateway-prefix/decision:
+  en: 2a56e2e09bc25121
+  zh: a955f0a2e54914b7
+/agent-note-desktop-host-serves-plugin-routes-under-the-gateway-prefix/alternatives-considered:
+  en: 2f1e198c162f6855
+  zh: ec348d5e0d121eb8
+/agent-note-desktop-host-serves-plugin-routes-under-the-gateway-prefix/consequences:
+  en: 1f88dc31502becdb
+  zh: 4bebd7099a7379de

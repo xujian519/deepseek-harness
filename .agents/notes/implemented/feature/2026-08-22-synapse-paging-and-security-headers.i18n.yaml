@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-22-synapse-paging-and-security-headers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-22-synapse-paging-and-security-headers.md
-2026-08-22-synapse-paging-and-security-headers.md: 990f182b3d2b5f1fc959f37515f1389fa5021b03
-2026-08-22-synapse-paging-and-security-headers.zh.md: 7dd96c38931885bca7e4ab234952ade74edfbe50
+/agent-note-synapse-canvas-paging-csp-headers-and-asset-test-policy:
+  en: f60d3799e3768545
+  zh: e93a99b9a2acd1e5
+/agent-note-synapse-canvas-paging-csp-headers-and-asset-test-policy/problem:
+  en: 4e44428ecb65e698
+  zh: d3f58cfe261e393c
+/agent-note-synapse-canvas-paging-csp-headers-and-asset-test-policy/decision:
+  en: 8f33927b097297b4
+  zh: 62615ae088af9cc4
+/agent-note-synapse-canvas-paging-csp-headers-and-asset-test-policy/alternatives-considered:
+  en: 796898c7de12893d
+  zh: c3188c8024364a97
+/agent-note-synapse-canvas-paging-csp-headers-and-asset-test-policy/consequences:
+  en: b48c35dcfef498f5
+  zh: 9f9ebf264debadef

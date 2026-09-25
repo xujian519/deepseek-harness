@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-21-browser-backend-cascade-and-paper-download.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-21-browser-backend-cascade-and-paper-download.md
-2026-08-21-browser-backend-cascade-and-paper-download.md: 7ee48b39c7f108a172ad134513489ddc2aad968d
-2026-08-21-browser-backend-cascade-and-paper-download.zh.md: 665460b63d82bc19cc4cc8dd42def61b54a15b14
+/agent-note-pdf:
+  en: 1155accdcd450cbb
+  zh: ae960fc278501179
+/agent-note-pdf/problem:
+  en: 5663a20a9ad66b45
+  zh: 5663a20a9ad66b45
+/agent-note-pdf/decision:
+  en: 2e3483e503e9dcab
+  zh: 2e3483e503e9dcab
+/agent-note-pdf/alternatives-considered:
+  en: e89240168e601d9b
+  zh: e89240168e601d9b
+/agent-note-pdf/consequences:
+  en: d22d20bf38282614
+  zh: d22d20bf38282614

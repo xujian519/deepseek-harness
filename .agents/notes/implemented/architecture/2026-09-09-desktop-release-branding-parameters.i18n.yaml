@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-desktop-release-branding-parameters.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-desktop-release-branding-parameters.md
-2026-09-09-desktop-release-branding-parameters.md: 2e35c734719611c87b9461c6a5a9b196dedcbd9f
-2026-09-09-desktop-release-branding-parameters.zh.md: 296d4f74c63f81ced61e9938c21408ae4ab64dc4
+/agent-note-desktop-release-branding-parameters:
+  en: 5d8c59dc88a05dbf
+  zh: 50f7dfed65c12d6c
+/agent-note-desktop-release-branding-parameters/problem:
+  en: 5541911d96371fb2
+  zh: fae9560bb9cae838
+/agent-note-desktop-release-branding-parameters/decision:
+  en: 86517fa455adf372
+  zh: 33ec0829f71b0f9e
+/agent-note-desktop-release-branding-parameters/alternatives-considered:
+  en: 3a78fe1ba11e2638
+  zh: 63524bdb4ec6b612
+/agent-note-desktop-release-branding-parameters/consequences:
+  en: b0d15c8d77b387b3
+  zh: 9bf5d3799e11a945

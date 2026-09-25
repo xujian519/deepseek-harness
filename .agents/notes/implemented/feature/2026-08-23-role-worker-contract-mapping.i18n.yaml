@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-role-worker-contract-mapping.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-role-worker-contract-mapping.md
-2026-08-23-role-worker-contract-mapping.md: 946bbfb030d0118d6567624982019e2e18402314
-2026-08-23-role-worker-contract-mapping.zh.md: 0301bb098b0a491b70915052f34c1b35c74f8342
+/agent-note-map-patent-team-roles-to-worker-contracts-soft-mapping:
+  en: 39f052967a085904
+  zh: d29b2b7330d8d3dd
+/agent-note-map-patent-team-roles-to-worker-contracts-soft-mapping/problem:
+  en: daca41471d4a2484
+  zh: 9b2476d42f7fe2de
+/agent-note-map-patent-team-roles-to-worker-contracts-soft-mapping/decision:
+  en: 61bdae36ff0f7924
+  zh: a942e70bb144ae6c
+/agent-note-map-patent-team-roles-to-worker-contracts-soft-mapping/alternatives-considered:
+  en: b2f159c708ba27ed
+  zh: cd2554321dc3c2bf
+/agent-note-map-patent-team-roles-to-worker-contracts-soft-mapping/consequences:
+  en: 66dc6da3f5dabd27
+  zh: bc0af87205b7f7ba
+/agent-note-map-patent-team-roles-to-worker-contracts-soft-mapping/non-attributable-failures-waiting-on-the-concurrent-window:
+  en: c36e805931004ac4
+  zh: e7e1e94e3abc50ce

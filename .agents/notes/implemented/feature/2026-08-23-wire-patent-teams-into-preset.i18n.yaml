@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-23-wire-patent-teams-into-preset.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-wire-patent-teams-into-preset.md
-2026-08-23-wire-patent-teams-into-preset.md: cfd1babeb7619d2c06ca0247cd41ec2ef945384d
-2026-08-23-wire-patent-teams-into-preset.zh.md: 8d730919d1fc1b59259b95137643fd166a8ff764
+/agent-note-wire-dsh-patent-teams-into-the-patent-preset-and-unify-the-tool-names:
+  en: 0d9b737b410615b8
+  zh: 09809cbc80574697
+/agent-note-wire-dsh-patent-teams-into-the-patent-preset-and-unify-the-tool-names/problem:
+  en: a13e9fae76740a70
+  zh: c6402a2cb888ed25
+/agent-note-wire-dsh-patent-teams-into-the-patent-preset-and-unify-the-tool-names/decision:
+  en: 0582366c29850204
+  zh: c78d400c579e4872
+/agent-note-wire-dsh-patent-teams-into-the-patent-preset-and-unify-the-tool-names/alternatives-considered:
+  en: 93cb490e1fec4889
+  zh: e723a445fb65a3a2
+/agent-note-wire-dsh-patent-teams-into-the-patent-preset-and-unify-the-tool-names/consequences:
+  en: ae0e85c058680f10
+  zh: c73a5bde608051da
+/agent-note-wire-dsh-patent-teams-into-the-patent-preset-and-unify-the-tool-names/non-attributable-failures-waiting-on-the-concurrent-window:
+  en: ee794f316cbdf23c
+  zh: f89fea09f568b3bb

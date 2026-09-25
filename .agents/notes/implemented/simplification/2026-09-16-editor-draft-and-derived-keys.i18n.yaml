@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-editor-draft-and-derived-keys.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-16-editor-draft-and-derived-keys.md
-2026-09-16-editor-draft-and-derived-keys.md: 9e71d1cb1afeb54741f895fafda4af1754874ae0
-2026-09-16-editor-draft-and-derived-keys.zh.md: f898bd60ed02723189402b898b5ea5710b686744
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once:
+  en: 3448b93b34ad6b6f
+  zh: 94260d609865fe07
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once/problem:
+  en: 1d78d3b4f1d7ddbe
+  zh: 84f107adb57dc650
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once/decision:
+  en: 88a32d63270e41cc
+  zh: c5f113ba31070c85
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once/alternatives-considered:
+  en: 61c0de871c40fb8c
+  zh: e9788a7ccdc1a235
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once/consequences:
+  en: 707a673061dd22fd
+  zh: 611b798efdf45876
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once/testing:
+  en: 039732ed6b3d473f
+  zh: 2f0fa4682b05f732
+/agent-note-keep-the-sidebar-editor-s-live-text-out-of-react-and-derive-per-row-keys-once/related:
+  en: a09bb5ff2c8c2513
+  zh: e4fbacc837d6548b

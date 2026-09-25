@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-session-history-request-spec.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-session-history-request-spec.md
-2026-09-13-session-history-request-spec.md: 81943f79e9993c590f02763bf21d55d6fef63343
-2026-09-13-session-history-request-spec.zh.md: 58168b19996894aec18a55c9fb97043800b22666
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins:
+  en: d9a8d5ef7dd45a41
+  zh: a1b06f1a4e96b51b
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins/problem:
+  en: d5fc10bac0caa36f
+  zh: 56ee3f0b32418e19
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins/decision:
+  en: 0b27c1981b4fe11d
+  zh: 037adbd21ce2425e
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins/alternatives-considered:
+  en: 3e9bea6882521dd0
+  zh: 295d76e5562fe025
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins/consequences:
+  en: 3def8f0a56d69080
+  zh: 1011de286b356c15
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins/testing:
+  en: b58baa15b2ee745d
+  zh: 66c11a9f3d53c4c8
+/agent-note-the-session-history-page-size-is-resolved-before-the-read-begins/related:
+  en: 199a9b2161d6e621
+  zh: edbf10d7fead46bb

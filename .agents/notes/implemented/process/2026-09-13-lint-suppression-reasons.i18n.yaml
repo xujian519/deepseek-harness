@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-lint-suppression-reasons.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-13-lint-suppression-reasons.md
-2026-09-13-lint-suppression-reasons.md: 43f10b125126495f203a4b0fb8a2b2d040aa6550
-2026-09-13-lint-suppression-reasons.zh.md: d096801b7dc46ec3dab95c902bfeafa6181be697
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it:
+  en: 6963d8c274a2ebe0
+  zh: 5cbc559fdaec8219
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it/problem:
+  en: 98a28e790b253ac5
+  zh: 560c6fad534c896b
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it/decision:
+  en: 15807f9aaee1bedb
+  zh: cafbd85514b01795
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it/alternatives-considered:
+  en: 9515f38dacece380
+  zh: 9df91174e2134924
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it/consequences:
+  en: 4d2bdb7080d10677
+  zh: b6c7eedd8d7e38b4
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it/testing:
+  en: 0d6d200effdab899
+  zh: 753648a8a0e57946
+/agent-note-lint-suppressions-state-their-reason-and-a-block-heading-may-carry-it/related:
+  en: 33e5d0c70a4bffd0
+  zh: aca59edfb8ba4592

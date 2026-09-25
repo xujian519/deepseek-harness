@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-centralize-max-parallel-sub-calls.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-14-centralize-max-parallel-sub-calls.md
-2026-09-14-centralize-max-parallel-sub-calls.md: 8e25de05f090ae94ce6cb2b4f2db35c4b6fd73d2
-2026-09-14-centralize-max-parallel-sub-calls.zh.md: 99296f905ea64a8edee0443df391ec40120dc56d
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools:
+  en: 712d3fdc87b8e5eb
+  zh: f654386e0e771c24
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools/problem:
+  en: 948358a836fac930
+  zh: 2cab8d57984e3b8a
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools/decision:
+  en: c811c6e7480e122c
+  zh: 148cbac308d05643
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools/alternatives-considered:
+  en: 5317b33e9036429c
+  zh: af674ece1cfa331d
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools/consequences:
+  en: ec7be6ba49de4b14
+  zh: e2d21b826c6e8bfd
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools/testing:
+  en: e26e332a911e3a5c
+  zh: bbcf4a0c60e49648
+/agent-note-centralize-the-maxparallelsubcalls-default-in-dsh-tools/related:
+  en: 3b4b2b811aba2216
+  zh: 73a8192d687dd41a

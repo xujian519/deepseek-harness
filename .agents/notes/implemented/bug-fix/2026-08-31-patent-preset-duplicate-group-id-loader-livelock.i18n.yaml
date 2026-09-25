@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-31-patent-preset-duplicate-group-id-loader-livelock.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-31-patent-preset-duplicate-group-id-loader-livelock.md
-2026-08-31-patent-preset-duplicate-group-id-loader-livelock.md: be2ac055e6bacf4677c86a74c4428d46b9459234
-2026-08-31-patent-preset-duplicate-group-id-loader-livelock.zh.md: c1265fdf21574934290cd7c36c01d673cd049c06
+/agent-note-patent-preset-group-and-plugin-rows-must-not-share-an-entry-id:
+  en: 5b2ef730f649f9d9
+  zh: b823dfd9edaf490c
+/agent-note-patent-preset-group-and-plugin-rows-must-not-share-an-entry-id/problem:
+  en: b218c3d6941c6a6f
+  zh: b38c4be3c0a9f8d8
+/agent-note-patent-preset-group-and-plugin-rows-must-not-share-an-entry-id/decision:
+  en: df5bb98cea4d1195
+  zh: 5e0153b3eab710db
+/agent-note-patent-preset-group-and-plugin-rows-must-not-share-an-entry-id/alternatives-considered:
+  en: 27065d080be5d45a
+  zh: 8569aca312a53af6
+/agent-note-patent-preset-group-and-plugin-rows-must-not-share-an-entry-id/consequences:
+  en: e3060db4b381d539
+  zh: f2f2144c2df2216e

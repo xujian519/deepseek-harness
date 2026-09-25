@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-27-patent-teams-ui-panel.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-27-patent-teams-ui-panel.md
-2026-08-27-patent-teams-ui-panel.md: 9d67a939e2a20a42c57e0f86296d554fd4f5a7b4
-2026-08-27-patent-teams-ui-panel.zh.md: b0a3f1a7b37c49481e88e68dc703c0c30cc39ba2
+/agent-note-restore-the-patentteams-monitor-as-a-chat-card-and-the-fixed-teams-view:
+  en: 739c00f400e362fa
+  zh: 9a0c3cc41c6f200d
+/agent-note-restore-the-patentteams-monitor-as-a-chat-card-and-the-fixed-teams-view/problem:
+  en: f93a4a2b8fd30f2e
+  zh: 088186963a6e0258
+/agent-note-restore-the-patentteams-monitor-as-a-chat-card-and-the-fixed-teams-view/decision:
+  en: d74303c109048fde
+  zh: 5251fae74e2ba7e4
+/agent-note-restore-the-patentteams-monitor-as-a-chat-card-and-the-fixed-teams-view/alternatives-considered:
+  en: 2c1ce8a990a49112
+  zh: f892782e2e6f461c
+/agent-note-restore-the-patentteams-monitor-as-a-chat-card-and-the-fixed-teams-view/consequences:
+  en: 4bed8b1b60a78bcb
+  zh: 0d3218f00a33881a

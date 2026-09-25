@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-ptc-dispatch-pool-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-ptc-dispatch-pool-extraction.md
-2026-09-15-ptc-dispatch-pool-extraction.md: 850d2162d537a4c81a85de8705bc6c57d01b0208
-2026-09-15-ptc-dispatch-pool-extraction.zh.md: e5b4422aaf2d5d51efaee7c7580790a0b644fbb2
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86:
+  en: e46811a95ef103dc
+  zh: 2ba2ce6db8f169e2
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/problem:
+  en: 22578fe07e91796f
+  zh: 23f0dca5e0ab799a
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/decision:
+  en: deeba15d264016ba
+  zh: 2eb972b1c06f0ff6
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/decision/three-placements-that-are-not-line-for-line-moves:
+  en: 26b490b241f5c80e
+  zh: 148bea350b7cd4bf
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/decision/the-entry-keeps-its-export-list:
+  en: 85b232239ce9bd0b
+  zh: 1dbc93df58a62849
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/decision/tests-that-become-possible-so-they-were-written:
+  en: aeb2c29d4ce0a12d
+  zh: 58a88f89fcdcc36c
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/decision/verification:
+  en: 54bf3a90a83085b8
+  zh: 4b69b5d02c6751c5
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/alternatives-considered:
+  en: 53fecedde9bf5393
+  zh: c836a9d987f6ba83
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/consequences:
+  en: f06717cb22bd78d1
+  zh: ae9c956228180f14
+/agent-note-extracting-the-run-code-sub-dispatch-lane-issue-86/related:
+  en: 9dac8d526c3f2e88
+  zh: dc404536a3d69248

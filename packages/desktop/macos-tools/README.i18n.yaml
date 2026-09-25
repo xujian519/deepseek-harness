@@ -1,6 +1,43 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/desktop/macos-tools/README.md
-README.md: c6039c229d89868259ed815b9400733bff800872
-README.zh.md: 93eda3b524ba387df4ddb3c94429e09e1ce276da
+/:
+  en: 73c5e4983c6889ca
+  zh: 9da90a555f22be60
+/deepseek-ai-dsh-macos-tools:
+  en: 2f43be27bc24b889
+  zh: a64ac3d7268104ce
+/deepseek-ai-dsh-macos-tools/summary:
+  en: 9d22209d2621547d
+  zh: ee478852d1fc3d27
+/deepseek-ai-dsh-macos-tools/table-of-contents:
+  en: fe1ecb09a73d1c7a
+  zh: 57488629c9a54c40
+/deepseek-ai-dsh-macos-tools/use-this-package:
+  en: d018426c120769d7
+  zh: 0836f5cd172b882c
+/deepseek-ai-dsh-macos-tools/understand-the-implementation:
+  en: 7843e1a75a01d582
+  zh: 4656d59eeb632a2d
+/deepseek-ai-dsh-macos-tools/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-macos-tools/model-experience/tool-schemas:
+  en: 3039bc5e7a796b21
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-macos-tools/model-experience/tool-schemas/what-the-model-sees:
+  en: e0d7e54258cac8dd
+  zh: 4081ad535f6f174c
+/deepseek-ai-dsh-macos-tools/model-experience/tool-schemas/token-effect:
+  en: fb17ffc0a1e73655
+  zh: c9a4389138dd2a8b
+/deepseek-ai-dsh-macos-tools/model-experience/tool-schemas/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: a61f053154723ab3
+/deepseek-ai-dsh-macos-tools/known-limitations-and-deferred-work:
+  en: 9cc4d9ae6f5f9ff5
+  zh: dd081495197b8f4a
+/deepseek-ai-dsh-macos-tools/known-limitations-and-deferred-work/dev-note:
+  en: ffdcf1ad04dc447c
+  zh: 1790074289583aef

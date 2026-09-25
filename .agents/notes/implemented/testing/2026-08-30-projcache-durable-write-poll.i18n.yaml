@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-projcache-durable-write-poll.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-30-projcache-durable-write-poll.md
-2026-08-30-projcache-durable-write-poll.md: 88974ed4eff882c70a6bd5898589661632b3193d
-2026-08-30-projcache-durable-write-poll.zh.md: 14f8ee3ab4fd93eddd257932d22cbc85fd378278
+/agent-note-projection-cache-durable-write-assertions-poll-instead-of-sleeping:
+  en: babcb69993c693be
+  zh: 80b55f51d7cb833a
+/agent-note-projection-cache-durable-write-assertions-poll-instead-of-sleeping/problem:
+  en: b3c6aa96004ff6e9
+  zh: 51d1ea6c86d56cf3
+/agent-note-projection-cache-durable-write-assertions-poll-instead-of-sleeping/decision:
+  en: 233d82c6b157c704
+  zh: aad3d26ed9fb3506
+/agent-note-projection-cache-durable-write-assertions-poll-instead-of-sleeping/consequences:
+  en: cfe4f1ccca0d7213
+  zh: 3f70bde2d38e68e1
+/agent-note-projection-cache-durable-write-assertions-poll-instead-of-sleeping/alternatives-considered:
+  en: 1101ac35aef633dc
+  zh: 3eeae1a5857020c1

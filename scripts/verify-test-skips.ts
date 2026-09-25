@@ -121,13 +121,15 @@ export function verifyTestSkips(repoRoot: string, reportPath: string, update = f
   const budget = baseline[platform]
   if (budget === undefined) {
     throw new Error(`verify-test-skips: ${platform} has no recorded budget. Record this run with`
-      + ' pnpm run verify-test-skips -- --report <path> --update, and say why each skip below is acceptable.\n'
+      + ' `pnpm run verify-test-skips --report <path> --update`, and say why each skip below is acceptable.\n'
       + `  this run: ${String(report.skipped)} skipped of ${String(report.cases)}\n${formatInventory(report.files)}`)
   }
   if (report.skipped > budget.skipped) {
     throw new Error(`verify-test-skips: ${platform} skipped ${String(report.skipped - budget.skipped)} case(s) more`
       + ` than the recorded ${String(budget.skipped)}. A skip is not a pass: give the path a signal (a fixture,`
-      + ' a cheaper assertion, or CI-time dependencies) or record the budget deliberately with --update.\n'
+      + ' a cheaper assertion, or CI-time dependencies) or record the budget deliberately with'
+      + ' `pnpm run verify-test-skips --report <path> --update` — no `--` separator, which pnpm appends itself'
+      + ' and this script then rejects as an argument.\n'
       + formatInventory(report.files))
   }
   if (report.skipped < budget.skipped) {

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-20-upstream-patch-absorption.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-20-upstream-patch-absorption.md
-2026-08-20-upstream-patch-absorption.md: 1c49dd040e378e4f339adcd80e9c89c47907397d
-2026-08-20-upstream-patch-absorption.zh.md: 5383a4adac106a137c71c6fba907da2d80ab90cc
+/agent-note-absorb-four-upstream-community-patches:
+  en: 5cd26dfe03c48668
+  zh: e7f0b3e4850cc1d4
+/agent-note-absorb-four-upstream-community-patches/problem:
+  en: 4257096267d8510f
+  zh: a166ef4836b145ca
+/agent-note-absorb-four-upstream-community-patches/decision:
+  en: 3f1c8bf1b80ac837
+  zh: 23e4d5544b36881e
+/agent-note-absorb-four-upstream-community-patches/consequences:
+  en: df67ae58b08fdd75
+  zh: db8d814d884c0dc0
+/agent-note-absorb-four-upstream-community-patches/alternatives-considered:
+  en: c81bfe4e1ada9800
+  zh: 23da93372d8958c7

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-duplication-detection-below-threshold.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/process/2026-09-21-duplication-detection-below-threshold.md
-2026-09-21-duplication-detection-below-threshold.md: 89db9d90641af046a8775326002a4e14ef43fb73
-2026-09-21-duplication-detection-below-threshold.zh.md: 918a56685e19dcbe5c586229999cf8fa39615e96
+/agent-note-make-duplication-detection-see-the-clones-it-currently-masks:
+  en: bf69e31471064e2e
+  zh: 947de2e685c901ab
+/agent-note-make-duplication-detection-see-the-clones-it-currently-masks/problem:
+  en: 55841d0bce419792
+  zh: aca22e38e251d039
+/agent-note-make-duplication-detection-see-the-clones-it-currently-masks/proposal:
+  en: d33b226be30e421a
+  zh: 2d9e20ae8a48c623
+/agent-note-make-duplication-detection-see-the-clones-it-currently-masks/alternatives-considered:
+  en: d3fe82e0f571be40
+  zh: 29895ce390e09b6f
+/agent-note-make-duplication-detection-see-the-clones-it-currently-masks/acceptance-criteria:
+  en: 9443c4e951b29116
+  zh: b5e6b9c80bf199e5
+/agent-note-make-duplication-detection-see-the-clones-it-currently-masks/risks:
+  en: fa094979a479e01d
+  zh: 105be1cd7df6ba84

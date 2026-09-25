@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-19-patent-teams-workspace-package.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-19-patent-teams-workspace-package.md
-2026-08-19-patent-teams-workspace-package.md: eadc24fd4a470b1a692d07b3334448c4fda6e072
-2026-08-19-patent-teams-workspace-package.zh.md: 88f1bd424fd6c0d97faf266ba1a1decfd4ec4cd3
+/agent-note-dsh-agent-teams-ported-as-the-dsh-patent-teams-workspace-package:
+  en: 5c68cf235c3cf6c6
+  zh: eb7bdf7f549a292f
+/agent-note-dsh-agent-teams-ported-as-the-dsh-patent-teams-workspace-package/problem:
+  en: 9f2f65cd41c3c76d
+  zh: e1b003df37414540
+/agent-note-dsh-agent-teams-ported-as-the-dsh-patent-teams-workspace-package/decision:
+  en: 17e12c2022ec8cf6
+  zh: 1cedaa730bda6162
+/agent-note-dsh-agent-teams-ported-as-the-dsh-patent-teams-workspace-package/alternatives-considered:
+  en: 9015c55a475ccf65
+  zh: 41c8887508d6ad79
+/agent-note-dsh-agent-teams-ported-as-the-dsh-patent-teams-workspace-package/consequences:
+  en: 05080b287497877c
+  zh: 9d69d6896f5b9dfa

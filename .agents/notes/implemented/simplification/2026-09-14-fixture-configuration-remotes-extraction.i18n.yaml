@@ -1,6 +1,43 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-fixture-configuration-remotes-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-configuration-remotes-extraction.md
-2026-09-14-fixture-configuration-remotes-extraction.md: 9838ea29700ca11951e301f741b3c3efaf70b03a
-2026-09-14-fixture-configuration-remotes-extraction.zh.md: e3e41b04b3ab337a103e3528bb2689e9f5bb11b1
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86:
+  en: 0066e6a7a67bb793
+  zh: d9253c7883c63e76
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/problem:
+  en: 3914003342f7d5c8
+  zh: 098d73d15670d5b4
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/decision:
+  en: 077e1af4ee0b5fd2
+  zh: 2495f7ce1f544352
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/decision/one-factory-and-it-takes-no-parameters:
+  en: 720bfa7d0c43878d
+  zh: 797395ae69fa4e1e
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/decision/three-clusters-one-factory:
+  en: fa5f7d4ab15f5448
+  zh: e9ac6b3adfae5801
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/decision/the-dispatch-table-does-not-change:
+  en: 985bccaaeee7b2ab
+  zh: e1d4be1f7fa70b7e
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/decision/order-is-preserved-so-the-deferred-reads-still-resolve:
+  en: 76f5c840ec406793
+  zh: 5331f2360a246e79
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/the-move-is-a-slice-and-checked-by-byte-accounting:
+  en: 0ef52f435f78b38d
+  zh: 37cfcd1b72fb5b3c
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/tests-become-possible-so-they-were-written:
+  en: 5eb43f97fa66b4b2
+  zh: c0fdb61dc3c9c2df
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/verification:
+  en: 45cc9f6a55fadaff
+  zh: 75fe7b77bb025701
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/alternatives-considered:
+  en: 6d40b5da2ab9e240
+  zh: 8165d9bcf4e45581
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/consequences:
+  en: bd668430f9a51794
+  zh: 7c01e18e68bba4e6
+/agent-note-extracting-the-fixture-s-configuration-remotes-issue-86/related:
+  en: 60d2b94dabe651e9
+  zh: fb57cbc5b6d0e9c2

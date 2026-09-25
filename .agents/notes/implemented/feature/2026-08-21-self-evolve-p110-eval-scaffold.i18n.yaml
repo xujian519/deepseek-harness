@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-21-self-evolve-p110-eval-scaffold.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-21-self-evolve-p110-eval-scaffold.md
-2026-08-21-self-evolve-p110-eval-scaffold.md: 73f97127b918050163a13caad6e227d5eaacd924
-2026-08-21-self-evolve-p110-eval-scaffold.zh.md: 28a20e4fd6a4a8ddbb4895e64884bbf349f06bbb
+/agent-note-self-evolve-p1-10-evaluation-scaffold:
+  en: e4a8838054f62a0a
+  zh: e27381bfab3937b7
+/agent-note-self-evolve-p1-10-evaluation-scaffold/problem:
+  en: 7bdac1cbd24c9646
+  zh: f81eafc2abb3922e
+/agent-note-self-evolve-p1-10-evaluation-scaffold/decision:
+  en: 1a80f8a12265c0f7
+  zh: 9265ea354205c65c
+/agent-note-self-evolve-p1-10-evaluation-scaffold/alternatives-considered:
+  en: f689cd2a16f720d7
+  zh: 90a02d15c8fc016e
+/agent-note-self-evolve-p1-10-evaluation-scaffold/consequences:
+  en: bb21384b57be9d4d
+  zh: ea0ef8c5a72e1796

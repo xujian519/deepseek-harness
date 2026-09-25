@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-19-patent-team-composition-roles.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-19-patent-team-composition-roles.md
-2026-08-19-patent-team-composition-roles.md: 35edcf989ca09d5f8939b8a004d848888346d596
-2026-08-19-patent-team-composition-roles.zh.md: 73c086c885bf1962f883a8918510a22885c1c8bc
+/agent-note-patent-preset-durable-team-roles-extended-with-technical-expert-and-applicant-counsel:
+  en: 38b5e21b5b4ff368
+  zh: 44275483f11ece73
+/agent-note-patent-preset-durable-team-roles-extended-with-technical-expert-and-applicant-counsel/problem:
+  en: 0f593d53067a98d6
+  zh: 570e2b803c5a62a3
+/agent-note-patent-preset-durable-team-roles-extended-with-technical-expert-and-applicant-counsel/decision:
+  en: 803fcca7fe023fed
+  zh: aca8941d458282d2
+/agent-note-patent-preset-durable-team-roles-extended-with-technical-expert-and-applicant-counsel/alternatives-considered:
+  en: 642576bd0b662631
+  zh: af25040fd956e245
+/agent-note-patent-preset-durable-team-roles-extended-with-technical-expert-and-applicant-counsel/consequences:
+  en: c68e15bf4d642d29
+  zh: 4f0b2a196b17a20f

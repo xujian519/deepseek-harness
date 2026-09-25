@@ -1,6 +1,43 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/self-evolve/tool-self-evolve/README.md
-README.md: 67373740db8899ff373b160dcfddf7a557f4da9a
-README.zh.md: 04d92b0f64d5b6240040d79ddfc8e97ffa6af2f0
+/:
+  en: 04c8def34b74a0a7
+  zh: e5cc418d043dcca3
+/deepseek-ai-dsh-tool-self-evolve:
+  en: 42cb5a43c82da003
+  zh: acfde922f548af61
+/deepseek-ai-dsh-tool-self-evolve/summary:
+  en: 79fcf4e4a07d7080
+  zh: 7d6d2db5afdd97c7
+/deepseek-ai-dsh-tool-self-evolve/table-of-contents:
+  en: 90d8e2350bad0e4f
+  zh: 428e3f7bc919bc3f
+/deepseek-ai-dsh-tool-self-evolve/role:
+  en: a70b70e069550c5b
+  zh: 47aeb0e492f68d15
+/deepseek-ai-dsh-tool-self-evolve/tools:
+  en: 35b4eaa1903e0560
+  zh: def66b2ff6b66153
+/deepseek-ai-dsh-tool-self-evolve/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-tool-self-evolve/model-experience/stable-self-evolve-guidance-and-tools:
+  en: c3675140516eac3d
+  zh: 14f592b69021e2b4
+/deepseek-ai-dsh-tool-self-evolve/model-experience/stable-self-evolve-guidance-and-tools/what-the-model-sees:
+  en: a2185d94a9e922f2
+  zh: 83c2d888d95c4d71
+/deepseek-ai-dsh-tool-self-evolve/model-experience/stable-self-evolve-guidance-and-tools/token-effect:
+  en: 7d898a8a8325b227
+  zh: 7abddb819f7a1b99
+/deepseek-ai-dsh-tool-self-evolve/model-experience/stable-self-evolve-guidance-and-tools/kv-cache-effect:
+  en: 2a97e5b1be594177
+  zh: ba0b2a425a2e5dbd
+/deepseek-ai-dsh-tool-self-evolve/known-limitations-and-deferred-work:
+  en: d52f3d91220e8999
+  zh: 9348bd0a23cd8522
+/deepseek-ai-dsh-tool-self-evolve/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

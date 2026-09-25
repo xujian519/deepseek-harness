@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-python-config-gates-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-15-python-config-gates-extraction.md
-2026-09-15-python-config-gates-extraction.md: 7a6cb20ff29e8256d681c35f0a601743d0785c59
-2026-09-15-python-config-gates-extraction.zh.md: 475f91eaa5cc3ad6164ebffd50840133884c45fc
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86:
+  en: 127782367949ced2
+  zh: 7f1ebb4bcc48a7cf
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/problem:
+  en: 3f449811a317d885
+  zh: 9dff8e4a1b48f962
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/decision:
+  en: 8250a705cf46c433
+  zh: 13fc794444b51c67
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/decision/the-jscpd-symmetry-measured-rather-than-assumed:
+  en: f054028b568d2539
+  zh: 1f4938670980fb63
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/decision/the-test-this-cut-makes-possible:
+  en: 8bfe5e62c282d94a
+  zh: 8a94daa422db835f
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/verification:
+  en: 5c01aaf083404cd7
+  zh: 9ceedebc1d14aed8
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/alternatives-considered:
+  en: 5d529f19e9caaaee
+  zh: 6f2fd9a6e1ff676e
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/consequences:
+  en: 61c627b1e11076c6
+  zh: a8454464f2acaa24
+/agent-note-extracting-the-python-backend-s-load-time-gates-issue-86/related:
+  en: 0e3367d861489b87
+  zh: 1bf60767fe74010a

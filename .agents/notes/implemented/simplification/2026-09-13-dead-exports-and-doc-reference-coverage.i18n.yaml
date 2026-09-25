@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-13-dead-exports-and-doc-reference-coverage.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-13-dead-exports-and-doc-reference-coverage.md
-2026-09-13-dead-exports-and-doc-reference-coverage.md: 66792b19453a9ed0bf7bba4db2c97501e3d6b936
-2026-09-13-dead-exports-and-doc-reference-coverage.zh.md: 37d4c1d8fa426b1ead32c1c10710de82844af0fb
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx:
+  en: 6cb0ed775ab26cc8
+  zh: 99008c3b7ea4ef04
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx/problem:
+  en: 6d58eaa8ec166dec
+  zh: 5473977d16b7dc33
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx/decision:
+  en: 8466fef6b012ac3d
+  zh: 3d496d91d98a1aec
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx/alternatives-considered:
+  en: ea9b330e5615c3f5
+  zh: 7fd9505d6140fa25
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx/consequences:
+  en: 19f1e480a9500e96
+  zh: 267b520ec429af69
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx/testing:
+  en: 8defee15e4b47857
+  zh: 766a62060b70fcf7
+/agent-note-two-dead-exports-removed-and-documentation-references-scanned-in-tsx/related:
+  en: 4ee5675586eaa0e8
+  zh: 9bc0d57158b04c68

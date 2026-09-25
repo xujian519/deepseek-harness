@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-tool-run-fail-fast-and-background-hint.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-tool-run-fail-fast-and-background-hint.md
-2026-09-01-tool-run-fail-fast-and-background-hint.md: 0ae2bdffc6f8a2a1570c61fdcec1cc4d373a06de
-2026-09-01-tool-run-fail-fast-and-background-hint.zh.md: 6deb8bb9ebbd9c207e348edc74683721e3492f38
+/agent-note-fail-fast-on-long-running-tool-results-and-hint-backgrounding:
+  en: e37b61e47cd83118
+  zh: 06931386fd410fab
+/agent-note-fail-fast-on-long-running-tool-results-and-hint-backgrounding/problem:
+  en: d5a19c33f7bbb8e8
+  zh: 98fc648a86514042
+/agent-note-fail-fast-on-long-running-tool-results-and-hint-backgrounding/proposal:
+  en: 059046b1ec602ddb
+  zh: b52f7b68970864a0
+/agent-note-fail-fast-on-long-running-tool-results-and-hint-backgrounding/alternatives-considered:
+  en: effbd13600627e5d
+  zh: 7bd77a7d71afb8d5
+/agent-note-fail-fast-on-long-running-tool-results-and-hint-backgrounding/acceptance-criteria:
+  en: 6feac365865dc49d
+  zh: d55b49cf6d62989f
+/agent-note-fail-fast-on-long-running-tool-results-and-hint-backgrounding/risks:
+  en: 028f402e79d37c1d
+  zh: 44e9be01e24f966d

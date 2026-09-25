@@ -1,6 +1,37 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/core/prompt-cache/README.md
-README.md: 1e6d75b0b03b25ffd72898c2b4f107725a9fd849
-README.zh.md: 384e0dd0f47c5e36e594a925857333cfac2f028d
+/:
+  en: 201547a301476e73
+  zh: 34709f8ef7ca6d8f
+/dsh-prompt-cache:
+  en: 9930fac7eb9cc3e7
+  zh: 56aee20e1b1b5a4d
+/dsh-prompt-cache/summary:
+  en: fab4c306c4ee0142
+  zh: 1efd5374fd85acec
+/dsh-prompt-cache/table-of-contents:
+  en: 7e0e8984c09015d7
+  zh: a66af54a84ec6ef9
+/dsh-prompt-cache/config:
+  en: ccc1d5ef536e8952
+  zh: 98fa83b53683a456
+/dsh-prompt-cache/public-api:
+  en: 6a72eb3d3d7a8e25
+  zh: 50c2a68093706a93
+/dsh-prompt-cache/relationship-to-provider-caches:
+  en: eea64008221149fc
+  zh: 1936182298782c7b
+/dsh-prompt-cache/model-experience:
+  en: ce6bbe0c5c83887e
+  zh: f06eb4e6413d18b5
+/dsh-prompt-cache/model-experience/kv-cache-effect:
+  en: 41cf1b69db83608b
+  zh: cbccb32be7293bbd
+/dsh-prompt-cache/known-limitations-and-deferred-work:
+  en: 9e5cd8da65c6ce71
+  zh: a49180a9ae539f80
+/dsh-prompt-cache/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

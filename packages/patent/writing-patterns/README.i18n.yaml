@@ -1,6 +1,61 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/writing-patterns/README.md
-README.md: b4fc24d85ebdf18230d1e4ce406ed43935ebf785
-README.zh.md: 361da678848c7bb2d4bc3fd5e26026655c10a8d5
+/:
+  en: 826a1d87ccf98b45
+  zh: 8a5d27060869fc81
+/deepseek-ai-dsh-writing-patterns:
+  en: 2e89bfa9dd21c508
+  zh: dc69d4f409c3420a
+/deepseek-ai-dsh-writing-patterns/summary:
+  en: 03f66247793b9719
+  zh: 04475f14147a7148
+/deepseek-ai-dsh-writing-patterns/table-of-contents:
+  en: 5a00d01e21b4fbd8
+  zh: a8abc823b76c69dd
+/deepseek-ai-dsh-writing-patterns/query-writing-patterns-tool:
+  en: 31c9da857a824227
+  zh: 62d8f2e12780f2fa
+/deepseek-ai-dsh-writing-patterns/pattern-corpus-and-library-api:
+  en: df27210188705cbc
+  zh: 81156cc87fbd432a
+/deepseek-ai-dsh-writing-patterns/configuration:
+  en: ed649b439b382188
+  zh: 88338da1d371385a
+/deepseek-ai-dsh-writing-patterns/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-writing-patterns/model-experience/query-writing-patterns-tool:
+  en: 2240c4aa08c14767
+  zh: 508a3279f077ef1e
+/deepseek-ai-dsh-writing-patterns/model-experience/query-writing-patterns-tool/what-the-model-sees:
+  en: 3f2140255fce3d68
+  zh: 98d976de3a477a6c
+/deepseek-ai-dsh-writing-patterns/model-experience/query-writing-patterns-tool/token-effect:
+  en: 8d2b968b152c13eb
+  zh: 22b29d7b29811df7
+/deepseek-ai-dsh-writing-patterns/model-experience/query-writing-patterns-tool/kv-cache-effect:
+  en: 648289df65cba624
+  zh: 76b8a96ed071e390
+/deepseek-ai-dsh-writing-patterns/model-experience/writing-patterns-skills-system-prompt-section:
+  en: c38b8ad6c2f54077
+  zh: 32f1977b752afece
+/deepseek-ai-dsh-writing-patterns/model-experience/writing-patterns-skills-system-prompt-section/what-the-model-sees:
+  en: 7c643ba834e154c5
+  zh: f092c46b55ba6b93
+/deepseek-ai-dsh-writing-patterns/model-experience/writing-patterns-skills-system-prompt-section/what-the-model-sees/verbatim-instruction-prose:
+  en: db62a6b9133c32da
+  zh: 60e5a2e440d5d90a
+/deepseek-ai-dsh-writing-patterns/model-experience/writing-patterns-skills-system-prompt-section/token-effect:
+  en: 77e455cbb7eb0c18
+  zh: 27b23d50bdd3658c
+/deepseek-ai-dsh-writing-patterns/model-experience/writing-patterns-skills-system-prompt-section/kv-cache-effect:
+  en: e9cd276a58f76953
+  zh: ca216007a65e0bec
+/deepseek-ai-dsh-writing-patterns/known-limitations-and-deferred-work:
+  en: 6d13183e137f4ca6
+  zh: 2edfd0e63c88f5db
+/deepseek-ai-dsh-writing-patterns/known-limitations-and-deferred-work/dev-note:
+  en: cbc71186bfcfdc4d
+  zh: 48bdabcf5427b3a2

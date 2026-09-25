@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-desktop-shell-edit-menu-role.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-15-desktop-shell-edit-menu-role.md
-2026-09-15-desktop-shell-edit-menu-role.md: 9cf2a8e6b8f795bb8f3d4ad69063a733c7f4a1fe
-2026-09-15-desktop-shell-edit-menu-role.zh.md: dd25b5f99bedc0facae48e3e7e215c513c6aca71
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles:
+  en: 6bb071e90183b4bf
+  zh: 810b206017b1705b
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles/problem:
+  en: 7d849a5a4ee8bb7a
+  zh: 6a4247790f981385
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles/decision:
+  en: f0f5c7f9e389fc58
+  zh: 0d54acd2387aab64
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles/alternatives-considered:
+  en: 4c815ab9ee7cb495
+  zh: 34f549caa55b9e6a
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles/consequences:
+  en: 3796d4f74cff8f81
+  zh: 1c5c3a30c0314b66
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles/testing:
+  en: 69d638e56fa5e292
+  zh: bbb291395ddcc7b4
+/agent-note-the-desktop-shell-owns-the-platform-editing-surface-through-menu-roles/related:
+  en: 0afb64942666b510
+  zh: f4f8b554336c8eb7

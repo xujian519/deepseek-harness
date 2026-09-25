@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-08-native-scope-termination-before-launch-settlement.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-08-native-scope-termination-before-launch-settlement.md
-2026-09-08-native-scope-termination-before-launch-settlement.md: 057f2b828bc8dd0dac263771e4102dcbf6d3b0d1
-2026-09-08-native-scope-termination-before-launch-settlement.zh.md: a180e70ac4123f930fdcbd7735f8023cf53fe631
+/agent-note-native-containment-settles-a-termination-requested-before-the-launch-request-is-consumed:
+  en: 10b414ef3c565bbd
+  zh: 9484038b6132245f
+/agent-note-native-containment-settles-a-termination-requested-before-the-launch-request-is-consumed/problem:
+  en: c27c8d53e63ca8f5
+  zh: 052b2e9820c7eb04
+/agent-note-native-containment-settles-a-termination-requested-before-the-launch-request-is-consumed/decision:
+  en: 94677a169fbea9bc
+  zh: aa537ec829b6c9fa
+/agent-note-native-containment-settles-a-termination-requested-before-the-launch-request-is-consumed/alternatives-considered:
+  en: 0c81ff63f28545dc
+  zh: 35468f4cf1757be4
+/agent-note-native-containment-settles-a-termination-requested-before-the-launch-request-is-consumed/consequences:
+  en: 89c7c896744806e7
+  zh: 3aa2783d27a9b059

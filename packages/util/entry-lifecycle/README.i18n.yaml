@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/util/entry-lifecycle/README.md
-README.md: 4d9be7b01d7cd6ac649aa617973f02cd70ec8e74
-README.zh.md: cefc6c60fdb9350d8e983c4dcd5b481bc037670d
+/:
+  en: 1a07134e64ad64d0
+  zh: 7b6d3bff09b4128e
+/deepseek-ai-dsh-entry-lifecycle:
+  en: 3f0885e075e05ce4
+  zh: 1bf768f7a39e7b67
+/deepseek-ai-dsh-entry-lifecycle/summary:
+  en: 10f27f7290875139
+  zh: d32af5fdfd7a0226
+/deepseek-ai-dsh-entry-lifecycle/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-entry-lifecycle/use-this-package:
+  en: abf56a597e612656
+  zh: 942b96e9a46dae1e
+/deepseek-ai-dsh-entry-lifecycle/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-entry-lifecycle/understand-the-implementation/source-map:
+  en: 4b8b84b309a2e998
+  zh: 6c10247efe481a9b
+/deepseek-ai-dsh-entry-lifecycle/understand-the-implementation/two-edges-one-order:
+  en: f73e1edab18d48b6
+  zh: bbb14430eb78e9ef
+/deepseek-ai-dsh-entry-lifecycle/understand-the-implementation/one-request-one-removal:
+  en: 663cf716ff2ee9dc
+  zh: 776e5c6cb9460f12
+/deepseek-ai-dsh-entry-lifecycle/further-exploration:
+  en: f1dfcb53db10ce69
+  zh: 6bc5777cd54c9578
+/deepseek-ai-dsh-entry-lifecycle/model-experience:
+  en: b47bcf8b74701c12
+  zh: 10ea2fccd6275da2
+/deepseek-ai-dsh-entry-lifecycle/model-experience/kv-cache-effect:
+  en: e7ba08477bf22c4e
+  zh: f365439c69beb722
+/deepseek-ai-dsh-entry-lifecycle/known-limitations-and-deferred-work:
+  en: d6e82802a85ab861
+  zh: 42a5166aafdd9037
+/deepseek-ai-dsh-entry-lifecycle/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

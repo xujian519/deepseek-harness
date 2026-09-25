@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-25-doc-sync-gate-false-positive-repairs.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-25-doc-sync-gate-false-positive-repairs.md
-2026-08-25-doc-sync-gate-false-positive-repairs.md: 0165499aa057fabc705d27793e5a32fd63d098bd
-2026-08-25-doc-sync-gate-false-positive-repairs.zh.md: 6a6fa7e19ab0413d920ba728ba787979735c340d
+/agent-note-doc-sync-gate-false-positive-repairs:
+  en: 3549e8f27d1882f5
+  zh: 9a373f9acf025ab6
+/agent-note-doc-sync-gate-false-positive-repairs/problem:
+  en: 5bad768ad210484c
+  zh: d5211a28b11e9bf9
+/agent-note-doc-sync-gate-false-positive-repairs/decision:
+  en: 32cbc7fe50cf7081
+  zh: a2b44ed13a994fee
+/agent-note-doc-sync-gate-false-positive-repairs/alternatives-considered:
+  en: 107323bd114dbea8
+  zh: 015f65f94941a996
+/agent-note-doc-sync-gate-false-positive-repairs/consequences:
+  en: 3bad71f089d601fa
+  zh: d7f1d6dfef3c31a8

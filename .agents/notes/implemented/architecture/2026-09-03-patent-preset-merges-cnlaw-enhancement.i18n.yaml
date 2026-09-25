@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-03-patent-preset-merges-cnlaw-enhancement.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-patent-preset-merges-cnlaw-enhancement.md
-2026-09-03-patent-preset-merges-cnlaw-enhancement.md: 55c103c741328149ecec7dd227153002f0190ff3
-2026-09-03-patent-preset-merges-cnlaw-enhancement.zh.md: 99ef77a0f3de3d851a648c639396b00ccf66423d
+/agent-note-patent-preset-merges-the-local-cnlaw-enhancement:
+  en: 1b4b3efd0465cbfd
+  zh: 34c207e2b5bcfc8b
+/agent-note-patent-preset-merges-the-local-cnlaw-enhancement/problem:
+  en: 0bf9524e7ff86129
+  zh: 9abc6e2ca452b405
+/agent-note-patent-preset-merges-the-local-cnlaw-enhancement/decision:
+  en: 51460b038fb22ccc
+  zh: 18507c1678bcab6a
+/agent-note-patent-preset-merges-the-local-cnlaw-enhancement/alternatives-considered:
+  en: d7dc5150c02587b4
+  zh: bf1f666d15b07b03
+/agent-note-patent-preset-merges-the-local-cnlaw-enhancement/consequences:
+  en: e2551bbdcab827df
+  zh: fa7fe5a476803ee1

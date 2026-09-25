@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-18-self-evolve-basic-desktop-boot-failures.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-18-self-evolve-basic-desktop-boot-failures.md
-2026-08-18-self-evolve-basic-desktop-boot-failures.md: 2938bcc0cd0d8731980e64f9f602d901492edd6a
-2026-08-18-self-evolve-basic-desktop-boot-failures.zh.md: 57655829b1972e304339cb7c8e3880dec298b442
+/agent-note-self-evolve-basic-missing-plugin-entry-and-empty-target-drift-guard:
+  en: 5301269e3d2705de
+  zh: 91d185da87c77706
+/agent-note-self-evolve-basic-missing-plugin-entry-and-empty-target-drift-guard/problem:
+  en: e760a80cb5edf8ec
+  zh: 87db7091dc0b100b
+/agent-note-self-evolve-basic-missing-plugin-entry-and-empty-target-drift-guard/decision:
+  en: dc49fffa0561e71c
+  zh: e3b494701e5f318b
+/agent-note-self-evolve-basic-missing-plugin-entry-and-empty-target-drift-guard/alternatives-considered:
+  en: 64929a3e010245c0
+  zh: 8b70c7ec0ba8ec18
+/agent-note-self-evolve-basic-missing-plugin-entry-and-empty-target-drift-guard/consequences:
+  en: d0dd021c0e9c1b47
+  zh: ba87cf78db404a72

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-fork-first-party-events-join-released-v0-inventory.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-06-fork-first-party-events-join-released-v0-inventory.md
-2026-09-06-fork-first-party-events-join-released-v0-inventory.md: ac952730fe12d01c9a4e5494f370453575eb646e
-2026-09-06-fork-first-party-events-join-released-v0-inventory.zh.md: d5026bc047e21c1b728a08dcee5b05febc8518a4
+/agent-note-fork-first-party-events-join-the-released-v0-frozen-inventory:
+  en: 85217ca492ea5f1a
+  zh: 7e07c71a5c320e68
+/agent-note-fork-first-party-events-join-the-released-v0-frozen-inventory/problem:
+  en: ddbdb91429510dfe
+  zh: 56e14e8d40a1346a
+/agent-note-fork-first-party-events-join-the-released-v0-frozen-inventory/decision:
+  en: b2f895fa8ea59b20
+  zh: 7a4c58950f761f84
+/agent-note-fork-first-party-events-join-the-released-v0-frozen-inventory/alternatives-considered:
+  en: 9fc5b81ff9aed0f6
+  zh: 36c54a92a70dae73
+/agent-note-fork-first-party-events-join-the-released-v0-frozen-inventory/consequences:
+  en: dae25f43e1f7ce7a
+  zh: 0030065418689046

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-03-react-virtual-debounce-timer-jsdom-unhandled-error.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-03-react-virtual-debounce-timer-jsdom-unhandled-error.md
-2026-09-03-react-virtual-debounce-timer-jsdom-unhandled-error.md: e6558a08362637479f177939b3114229f668c458
-2026-09-03-react-virtual-debounce-timer-jsdom-unhandled-error.zh.md: 274b486b1ec304b3535eb1e1ee61adc228dc4372
+/agent-note-upgrade-react-virtual-for-the-debounce-timer-that-outlived-the-jsdom-environment:
+  en: 7ef85b93e7dad244
+  zh: 6764e683af99d24b
+/agent-note-upgrade-react-virtual-for-the-debounce-timer-that-outlived-the-jsdom-environment/problem:
+  en: c317ccd9d4db91df
+  zh: dd65e961b96fe5c7
+/agent-note-upgrade-react-virtual-for-the-debounce-timer-that-outlived-the-jsdom-environment/decision:
+  en: 39de32140cd274db
+  zh: c7a22050ed3dd2f2
+/agent-note-upgrade-react-virtual-for-the-debounce-timer-that-outlived-the-jsdom-environment/alternatives-considered:
+  en: 3983f054c4510775
+  zh: 92ba8296c4a8f329
+/agent-note-upgrade-react-virtual-for-the-debounce-timer-that-outlived-the-jsdom-environment/consequences:
+  en: fea339964e7c86a6
+  zh: 7d9eb0b01b737ef6

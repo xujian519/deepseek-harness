@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-oxlint-contract-probe-race.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-14-oxlint-contract-probe-race.md
-2026-09-14-oxlint-contract-probe-race.md: a30677ebd2843ffa04893bc015652f449c5b81eb
-2026-09-14-oxlint-contract-probe-race.zh.md: 060d0180fa39b7a4ce6b1c8a4a43bee7dfbfcdd5
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes:
+  en: 4e00a723c4eb5d03
+  zh: e800ba8aa154e116
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes/problem:
+  en: ac89bd3173d747ed
+  zh: 64bcb1240aee6587
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes/decision:
+  en: 087a7f7554aab9e7
+  zh: ee863bbab6f0949c
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes/alternatives-considered:
+  en: 09c5696b7866dc04
+  zh: c3e07b01f6e13849
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes/consequences:
+  en: 715058ee245e92e2
+  zh: 2eb085f92ccdc2d9
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes/testing:
+  en: 7bbccd3cc0c297b1
+  zh: b24bdf4e0de096b4
+/agent-note-repository-scanners-exclude-oxlint-contract-test-probes/related:
+  en: 59a695733ef6ac97
+  zh: bfe00e27fe128fcd

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-large-tool-result-compaction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-01-large-tool-result-compaction.md
-2026-09-01-large-tool-result-compaction.md: ec785f56db5afeaf13fff95eda5324712c189eb3
-2026-09-01-large-tool-result-compaction.zh.md: befbf4986a15c7bb2980823941e0cd212a3474a4
+/agent-note-compact-large-tool-results-to-bound-prompt-size:
+  en: f14d1cafe7ac9f31
+  zh: 4d870c60e812934a
+/agent-note-compact-large-tool-results-to-bound-prompt-size/problem:
+  en: 18b2eddb264b0533
+  zh: 68dddaa074deecba
+/agent-note-compact-large-tool-results-to-bound-prompt-size/proposal:
+  en: f2468d1099449ef5
+  zh: d387efa500d96755
+/agent-note-compact-large-tool-results-to-bound-prompt-size/alternatives-considered:
+  en: fcbdfbede73ae4cd
+  zh: 4358b99f5b5c64b6
+/agent-note-compact-large-tool-results-to-bound-prompt-size/acceptance-criteria:
+  en: b8135846d68938cc
+  zh: aa40e79209912ba2
+/agent-note-compact-large-tool-results-to-bound-prompt-size/risks:
+  en: 2b3e8a38d1ea0c1e
+  zh: 338f357834c4b21e

@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-legacy-agent-busy-shim-removed.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-legacy-agent-busy-shim-removed.md
-2026-09-14-legacy-agent-busy-shim-removed.md: e89a2e9f0b564fff02ec5c55a0bbd7192e8cbe86
-2026-09-14-legacy-agent-busy-shim-removed.zh.md: 40dbee77f9df309f916dc6754d6913b57b6f72ae
+/agent-note-remove-legacy-agent-busy-shim-m9:
+  en: 83880a919d2ed564
+  zh: 8b80deeb95ddb802
+/agent-note-remove-legacy-agent-busy-shim-m9/problem:
+  en: b7b91738a06803a9
+  zh: 4de7e0cfc40690d0
+/agent-note-remove-legacy-agent-busy-shim-m9/decision:
+  en: e9332ccdc0408e30
+  zh: 4e600421146e20eb
+/agent-note-remove-legacy-agent-busy-shim-m9/verification:
+  en: 487fb888631bf03c
+  zh: 8f4797e6a9884bf4
+/agent-note-remove-legacy-agent-busy-shim-m9/alternatives-considered:
+  en: 2c586379421c4963
+  zh: d680174e3bc3a755
+/agent-note-remove-legacy-agent-busy-shim-m9/consequences:
+  en: fbdecf9b50653d2b
+  zh: 68cad174e675c5ca
+/agent-note-remove-legacy-agent-busy-shim-m9/related:
+  en: 5831b11478cea3fb
+  zh: 5831b11478cea3fb

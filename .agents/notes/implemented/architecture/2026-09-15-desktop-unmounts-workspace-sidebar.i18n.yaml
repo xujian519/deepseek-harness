@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-desktop-unmounts-workspace-sidebar.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-15-desktop-unmounts-workspace-sidebar.md
-2026-09-15-desktop-unmounts-workspace-sidebar.md: 71ef94c979d50a114f0294616c8e268c5e1f75f8
-2026-09-15-desktop-unmounts-workspace-sidebar.zh.md: 0cda79da7d4e2bc60a14c4298d68b8f86eddf4d0
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted:
+  en: 0dde8abb53757f61
+  zh: aa10255a85993af5
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted/problem:
+  en: c9968fe8ff9af3f5
+  zh: a92da409e0d38be1
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted/decision:
+  en: 2b08eb8dc22c4b43
+  zh: 3120c471da337878
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted/alternatives-considered:
+  en: 076543f19bd8df5e
+  zh: 7d1128596711fa7d
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted/consequences:
+  en: e24341c01bfeb0d5
+  zh: 8623b0cdcf5a217a
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted/testing:
+  en: 0f4a6511c052dd72
+  zh: e3558ee267d4cf0a
+/agent-note-the-desktop-app-leaves-the-workspace-sidebar-unmounted/related:
+  en: a77e9204eca7a026
+  zh: 40a25f45187f9ed7

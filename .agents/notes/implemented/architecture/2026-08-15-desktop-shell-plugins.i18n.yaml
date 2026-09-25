@@ -1,6 +1,46 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-15-desktop-shell-plugins.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-15-desktop-shell-plugins.md
-2026-08-15-desktop-shell-plugins.md: 90e318c4efe0fab4d4fdc45ec074c207121cd805
-2026-08-15-desktop-shell-plugins.zh.md: d35f71baabb0cf055f153d79547a8877c9af7f2e
+/agent-note-desktop-shell-plugins-and-host-bridge:
+  en: e1d8ed9cf4f42059
+  zh: 4c3bfd137d6183bb
+/agent-note-desktop-shell-plugins-and-host-bridge/problem:
+  en: c44a7c60a0f30fd4
+  zh: ba4e7b90c6a9b465
+/agent-note-desktop-shell-plugins-and-host-bridge/decision:
+  en: a15c7c13f167e5ac
+  zh: a15c7c13f167e5ac
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/high-level-shape:
+  en: 3bd2419718c24569
+  zh: ed5fd8f46342093b
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/new-packages:
+  en: 49532b167798ae9b
+  zh: 084ec16ee6215efc
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/bridge-transport:
+  en: 6c70ca2eedc445ca
+  zh: 4bc879f71b448cc2
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/ctx-desktop-service-definition:
+  en: 26430cb2562e68a0
+  zh: 83a08ad402cc79fb
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/ctx-directorypicker-electron-provider:
+  en: 98fc4eefa24063f7
+  zh: 6596627f3c6e157e
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/electron-main-responsibilities:
+  en: 8ea154e72762b5ce
+  zh: d285f3fed2d0903f
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/renderer-involvement:
+  en: f0d3b4f3a93ce5ca
+  zh: 046a95a64b408b79
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/bundle-composition:
+  en: 71e9b83422ba7fa2
+  zh: c54f22873dbd6dc2
+/agent-note-desktop-shell-plugins-and-host-bridge/decision/lifecycle-and-error-handling:
+  en: a127aff2949876f3
+  zh: 56fff64b87cf2811
+/agent-note-desktop-shell-plugins-and-host-bridge/alternatives-considered:
+  en: 68e769b4302d7e5f
+  zh: 34c2ca77e3ec3485
+/agent-note-desktop-shell-plugins-and-host-bridge/consequences:
+  en: d996d7753bd64532
+  zh: 97c08ba12e024114

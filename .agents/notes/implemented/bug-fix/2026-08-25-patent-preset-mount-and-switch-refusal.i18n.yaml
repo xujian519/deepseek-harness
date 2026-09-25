@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-25-patent-preset-mount-and-switch-refusal.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-25-patent-preset-mount-and-switch-refusal.md
-2026-08-25-patent-preset-mount-and-switch-refusal.md: 4807846393b4f4672ddaefaa8700cdc67cdcbde0
-2026-08-25-patent-preset-mount-and-switch-refusal.zh.md: 945ab3e09de3b054e4c8dc6d13a1e4547095ed09
+/agent-note-mount-the-patent-preset-behind-an-isolate-realm-and-surface-preset-switch-refusal:
+  en: e7dac8614930bffa
+  zh: 4d852dd1c27672fb
+/agent-note-mount-the-patent-preset-behind-an-isolate-realm-and-surface-preset-switch-refusal/problem:
+  en: a25a47e30a7b0f65
+  zh: 99ecf98339c689cf
+/agent-note-mount-the-patent-preset-behind-an-isolate-realm-and-surface-preset-switch-refusal/decision:
+  en: 06ac3dbff9865c7c
+  zh: cb86c62c74a1c4c2
+/agent-note-mount-the-patent-preset-behind-an-isolate-realm-and-surface-preset-switch-refusal/alternatives-considered:
+  en: 395086301ad5e29f
+  zh: 645c3a2d5fc44a18
+/agent-note-mount-the-patent-preset-behind-an-isolate-realm-and-surface-preset-switch-refusal/consequences:
+  en: ddd35b4a89f97cb1
+  zh: 928d7e5ebdf1fe1f

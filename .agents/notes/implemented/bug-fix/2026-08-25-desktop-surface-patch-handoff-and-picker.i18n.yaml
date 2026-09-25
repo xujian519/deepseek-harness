@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-25-desktop-surface-patch-handoff-and-picker.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-25-desktop-surface-patch-handoff-and-picker.md
-2026-08-25-desktop-surface-patch-handoff-and-picker.md: 195026f64bab57b8d091f05eeba938755957b0c4
-2026-08-25-desktop-surface-patch-handoff-and-picker.zh.md: d3c5aa1850440bc0c21850d6ca0cbf323b5dd9c4
+/agent-note-desktop-surface-patch-fixes-for-browser-handoff-and-workspace-picking:
+  en: 08a7cd2eaf02373c
+  zh: 7744f23344f09667
+/agent-note-desktop-surface-patch-fixes-for-browser-handoff-and-workspace-picking/problem:
+  en: 137720f0cd4823a4
+  zh: ab6142ceb0b55304
+/agent-note-desktop-surface-patch-fixes-for-browser-handoff-and-workspace-picking/decision:
+  en: 692ca81535accd0c
+  zh: f79e678fce8f5408
+/agent-note-desktop-surface-patch-fixes-for-browser-handoff-and-workspace-picking/alternatives-considered:
+  en: 5468d02f62c14fa3
+  zh: a468c161cf21d316
+/agent-note-desktop-surface-patch-fixes-for-browser-handoff-and-workspace-picking/consequences:
+  en: 2a7f2fd438e19f41
+  zh: d01637f7b4468d01

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-patent-domain-breakpoint-cleanup.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-08-30-patent-domain-breakpoint-cleanup.md
-2026-08-30-patent-domain-breakpoint-cleanup.md: 4afd575403559c9b9b7ba403caff2ef089bbbe5a
-2026-08-30-patent-domain-breakpoint-cleanup.zh.md: 129582ce3494e0bd349141c8760edd862f176b5d
+/agent-note-drop-the-un-wired-browser-use-pdf-download-channel:
+  en: 2e4077794c56874c
+  zh: 394333b27d7eb098
+/agent-note-drop-the-un-wired-browser-use-pdf-download-channel/problem:
+  en: 6ccbb508a2c1fa1c
+  zh: 8c218e49f1e82086
+/agent-note-drop-the-un-wired-browser-use-pdf-download-channel/decision:
+  en: 423ab9d7613de658
+  zh: 27e00c76d285d4c2
+/agent-note-drop-the-un-wired-browser-use-pdf-download-channel/alternatives-considered:
+  en: 2198c98c20a949b8
+  zh: 2e4f1b8eaa090db1
+/agent-note-drop-the-un-wired-browser-use-pdf-download-channel/consequences:
+  en: 1cd67e0505621300
+  zh: a803a666a8941698

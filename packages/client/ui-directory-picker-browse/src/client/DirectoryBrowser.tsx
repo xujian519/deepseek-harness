@@ -1076,7 +1076,7 @@ export function DirectoryBrowser({
             value={folderDraft ?? ''}
             aria-label={t('browser.folderName')}
             placeholder={t('browser.untitledFolder')}
-            autoFocus
+            data-modal-autofocus
             disabled={creatingFolder}
             onChange={(event) => { setFolderDraft(event.target.value) }}
             {...compositionGuard}

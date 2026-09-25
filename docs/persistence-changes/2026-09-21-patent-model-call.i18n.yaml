@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-patent-model-call.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-21-patent-model-call.md
-2026-09-21-patent-model-call.md: 2facfb4aebee90625cbe643c53933b594dba3d93
-2026-09-21-patent-model-call.zh.md: 3fe07ac5cd55629bed3d02af1fc7369206f5e873
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-09-21-patent-model-call:
+  en: 6f5a96af55e73ffb
+  zh: a993bb54d1f2c4c5
+/2026-09-21-patent-model-call/summary:
+  en: b10b5336bfdd130d
+  zh: 1cf056507c131d52
+/2026-09-21-patent-model-call/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-09-21-patent-model-call/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-09-21-patent-model-call/compatibility:
+  en: 7eac35462d4fb13a
+  zh: e9a762aeb6a87063
+/2026-09-21-patent-model-call/verification:
+  en: d5b786ee7e47d977
+  zh: 01f42689240f07b3
+/2026-09-21-patent-model-call/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

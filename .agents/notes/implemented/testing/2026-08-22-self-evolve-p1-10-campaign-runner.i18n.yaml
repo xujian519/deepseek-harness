@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-22-self-evolve-p1-10-campaign-runner.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-22-self-evolve-p1-10-campaign-runner.md
-2026-08-22-self-evolve-p1-10-campaign-runner.md: 7fd07a8601857297b3c586bebb5ef5f9e7761575
-2026-08-22-self-evolve-p1-10-campaign-runner.zh.md: d671f7a8b7df0aa17b141a14539263d05e5d6d01
+/agent-note-self-evolve-p1-10-campaign-runner-uses-a-local-venv-path-no-docker:
+  en: 92defe8a8fd0fd37
+  zh: de52d90a8955c2c8
+/agent-note-self-evolve-p1-10-campaign-runner-uses-a-local-venv-path-no-docker/problem:
+  en: 97f2605e435c19a4
+  zh: 888d114bff324f29
+/agent-note-self-evolve-p1-10-campaign-runner-uses-a-local-venv-path-no-docker/decision:
+  en: 0c135dc8617fd860
+  zh: 4623a53214bdc024
+/agent-note-self-evolve-p1-10-campaign-runner-uses-a-local-venv-path-no-docker/alternatives-considered:
+  en: 27c07a478b660ee3
+  zh: 2096a83114900291
+/agent-note-self-evolve-p1-10-campaign-runner-uses-a-local-venv-path-no-docker/consequences:
+  en: b3846e536da9a5f5
+  zh: b9a140c67333fcd3

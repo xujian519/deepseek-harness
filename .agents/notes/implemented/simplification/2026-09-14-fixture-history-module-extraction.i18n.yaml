@@ -1,6 +1,40 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-fixture-history-module-extraction.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-fixture-history-module-extraction.md
-2026-09-14-fixture-history-module-extraction.md: 289c8c9b1ba51fdb0efd13b056dd8bb57ca5c07c
-2026-09-14-fixture-history-module-extraction.zh.md: b385ac78f1c38611b4c9258f06d2adbe04cea7d2
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86:
+  en: 2ca48e053992569c
+  zh: 908b3b88ff86f91f
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/problem:
+  en: c89fcd3c7bfe2bc8
+  zh: 61eeaf98e2bdcd17
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/decision:
+  en: 0098798c3e9ee21f
+  zh: 2feeec29bfc1bc37
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/decision/the-shared-vocabulary-left-the-entry-because-the-entry-imports-both-modules:
+  en: 42986c177ba577a4
+  zh: 3c1300f1810f8b57
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/decision/why-the-shared-vocabulary-did-not-go-to-src-types-ts:
+  en: 727d00f778dfdb7e
+  zh: d772fd5ecfe6f50c
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/decision/two-of-the-shared-module-s-exports-have-no-entry-side-reader:
+  en: 24602f48a6241ce9
+  zh: b613f32d964d2f68
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/decision/the-move-is-behavior-preserving-and-checked-mechanically:
+  en: 8a494fef9c82b3da
+  zh: e1e7c704f9daaa8f
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/decision/the-jsdoc-the-move-had-to-add:
+  en: 1dc23e9c35af8773
+  zh: be77cf5a3d1e2e8a
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/verification:
+  en: cb5c9c19264be916
+  zh: 864f18ac0bba64a1
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/alternatives-considered:
+  en: f1e63feb005993c7
+  zh: d591d2ca548eeb59
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/consequences:
+  en: 283b959d552d4b37
+  zh: 5ed0258962c34921
+/agent-note-extracting-the-fixture-provider-s-fx-alpha-history-script-and-message-vocabulary-issue-86/related:
+  en: 09e949a9fdf83b2c
+  zh: b089ff75b62496a0

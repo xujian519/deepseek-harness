@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-12-group-readme-package-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-12-group-readme-package-gate.md
-2026-09-12-group-readme-package-gate.md: 77969bad2b05e264e85aa853a5b8cbceeab15134
-2026-09-12-group-readme-package-gate.zh.md: 201e3d3eee3e2383af784b3fedbc459b45e0b877
+/agent-note-gating-group-readme-package-tables-against-their-directories:
+  en: b33f299bae5a0a25
+  zh: 0f30af30aff8582d
+/agent-note-gating-group-readme-package-tables-against-their-directories/problem:
+  en: e6e810213dc7d3ec
+  zh: 61ca666f2c6a9fe0
+/agent-note-gating-group-readme-package-tables-against-their-directories/decision:
+  en: e1e72477486e68d4
+  zh: 78cf523da7dd951a
+/agent-note-gating-group-readme-package-tables-against-their-directories/alternatives-considered:
+  en: a3b7e336e098a59b
+  zh: 6e925d282f5a2382
+/agent-note-gating-group-readme-package-tables-against-their-directories/consequences:
+  en: d68daf1f4eff62e1
+  zh: 489bc9ec8b0d8f07
+/agent-note-gating-group-readme-package-tables-against-their-directories/testing:
+  en: 5af2b36e65b02db9
+  zh: 83e1b3e49f874360
+/agent-note-gating-group-readme-package-tables-against-their-directories/related:
+  en: c6e1c8f292883b43
+  zh: eb34e8de88e33448

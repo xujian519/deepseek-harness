@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-code-runtime-python-cost-and-ledger.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-14-code-runtime-python-cost-and-ledger.md
-2026-09-14-code-runtime-python-cost-and-ledger.md: e8600affe53fa2799ceb590f6ff579d442a9800e
-2026-09-14-code-runtime-python-cost-and-ledger.zh.md: f7db438fd78ab01d2e5908ec36d1b9872226fa0c
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86:
+  en: 01d107511b574884
+  zh: 5fd3dbfd44774198
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/problem:
+  en: 72a6f48c92cf2fe1
+  zh: c0c1c17c4bca4fcd
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/decision:
+  en: 91a0cc0f28fc34eb
+  zh: f3fd4d1dc16306ff
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/decision/the-ledger-s-surface:
+  en: 9643b284f1a7aeb1
+  zh: 1eaba38dc490d482
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/decision/the-shared-fragment-primitives:
+  en: f63f688e971545b8
+  zh: f2a43846e46622da
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/decision/verification:
+  en: 3cdcae1cc0d9ba41
+  zh: f1e88d276cf4920a
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/alternatives-considered:
+  en: 36650ba7f5e50939
+  zh: 3d3bf970475f0659
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/consequences:
+  en: 5e44c30d3c8ab24d
+  zh: 4ea27e50ee566c1a
+/agent-note-extracting-the-python-runtime-s-cost-and-log-ledger-modules-issue-86/related:
+  en: 38c850dcb13186c8
+  zh: de44538628a0f244

@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-14-race-stress-job.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-14-race-stress-job.md
-2026-09-14-race-stress-job.md: c9982b0963e784214e48bb564c843f15390a2193
-2026-09-14-race-stress-job.zh.md: 7f4e37b6d397824dfd077693ad15c2c8b28b2b26
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle:
+  en: 15e5f9ffe1877e46
+  zh: 5da53c139ea58930
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/problem:
+  en: 535ce7c7bb5903c1
+  zh: 22b7df362d21de43
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/decision:
+  en: be4dfc473361103c
+  zh: cdd3571f2186a110
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/scope:
+  en: 26f81e9ecaf6245a
+  zh: 5e579a6ec4024b6a
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/mechanism:
+  en: 79ed8da66e207031
+  zh: bb9a25fd1fdd49b2
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/trigger-and-consumption:
+  en: e2c29f8e73771312
+  zh: b2a045be65f105d4
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/verification:
+  en: c1b7cafb41b931e3
+  zh: aad92c2aef5fd14f
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/alternatives-considered:
+  en: aaaf1a67e3d8a043
+  zh: 0bede7becafb02c9
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/consequences:
+  en: 30962719b863bc11
+  zh: 7e43becbff8831fa
+/agent-note-nightly-race-stress-job-with-repeats-and-shuffle/related:
+  en: dae1f178444bf8a5
+  zh: c224e6d4342cbf9d

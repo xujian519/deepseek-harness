@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-30-patent-figure-vision-path.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-patent-figure-vision-path.md
-2026-08-30-patent-figure-vision-path.md: dda8ee72939dc2bc16a127fc5e17da8270871e93
-2026-08-30-patent-figure-vision-path.zh.md: 2441be663e830288ed38d9029de4c0cc134d1d17
+/agent-note-analyze-patent-figure-sends-the-drawing-to-the-model:
+  en: 3d7bb9d4c8d8a6ad
+  zh: 46e84cbd465a8007
+/agent-note-analyze-patent-figure-sends-the-drawing-to-the-model/problem:
+  en: 34af2a4c4345e32f
+  zh: e4876c9415898ae3
+/agent-note-analyze-patent-figure-sends-the-drawing-to-the-model/decision:
+  en: 5783fffc6a45b66f
+  zh: 335bb3f52e8e505e
+/agent-note-analyze-patent-figure-sends-the-drawing-to-the-model/alternatives-considered:
+  en: 35a128bc8506beea
+  zh: 18c5aa1a4efba03b
+/agent-note-analyze-patent-figure-sends-the-drawing-to-the-model/verification:
+  en: f01fe4c35d248021
+  zh: f3814d6fa640af49
+/agent-note-analyze-patent-figure-sends-the-drawing-to-the-model/consequences:
+  en: 04d49740831c5ce2
+  zh: 044b70d35c2d427b

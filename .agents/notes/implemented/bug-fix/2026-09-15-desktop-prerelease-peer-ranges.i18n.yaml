@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-15-desktop-prerelease-peer-ranges.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-15-desktop-prerelease-peer-ranges.md
-2026-09-15-desktop-prerelease-peer-ranges.md: 1d9ea9d05a9b4b33224a32ba0c78dd0f84785cfd
-2026-09-15-desktop-prerelease-peer-ranges.zh.md: a3245f471d70271273cbf1c026b84e62466038a1
+/agent-note-desktop-plugin-validation-admits-prerelease-peer-ranges:
+  en: 72cedcf3824c2a52
+  zh: 2ae49e0c272872ba
+/agent-note-desktop-plugin-validation-admits-prerelease-peer-ranges/problem:
+  en: efeb2fff6e8b1d3f
+  zh: 5eb3a43a7de794de
+/agent-note-desktop-plugin-validation-admits-prerelease-peer-ranges/decision:
+  en: e4a7a97a9f9fb01c
+  zh: 057fbf13c0667d40
+/agent-note-desktop-plugin-validation-admits-prerelease-peer-ranges/alternatives-considered:
+  en: f8db652c8031f5a2
+  zh: 79788cb2a90382c6
+/agent-note-desktop-plugin-validation-admits-prerelease-peer-ranges/consequences:
+  en: 2c1a9c439b27f63e
+  zh: 929b09b2cef83eb9
+/agent-note-desktop-plugin-validation-admits-prerelease-peer-ranges/testing:
+  en: 34057b23d8cbb3af
+  zh: 4693f592d93ecd32

@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-leader-line-numerals-inside-canvas.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-16-leader-line-numerals-inside-canvas.md
-2026-09-16-leader-line-numerals-inside-canvas.md: de1f63b75cace570fca470d68152cde786293fdd
-2026-09-16-leader-line-numerals-inside-canvas.zh.md: 3edaf0a9c6d02a6cb32837db2603c60b7eb4559c
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas:
+  en: fd3e17548f9c8301
+  zh: 7c70426138447b92
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas/problem:
+  en: 82aee2685b12e481
+  zh: 72448ec49d86fd07
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas/decision:
+  en: 0bacf3cc4bc3e358
+  zh: 5b9ed06d5df5ccd3
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas/alternatives-considered:
+  en: ec1c6c3241850456
+  zh: 87029201bee5b9fe
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas/consequences:
+  en: cd99115f34395bfe
+  zh: 294addd40e11663a
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas/testing:
+  en: 2c218b0e21131614
+  zh: 047ddd088c7d3f31
+/agent-note-leader-line-numerals-land-inside-the-figure-canvas/related:
+  en: 6281793ca0acc960
+  zh: 48812e889cc5a9a2

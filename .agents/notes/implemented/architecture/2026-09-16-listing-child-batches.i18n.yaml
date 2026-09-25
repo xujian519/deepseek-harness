@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-listing-child-batches.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-listing-child-batches.md
-2026-09-16-listing-child-batches.md: f8399a4e606b471b3513eebbae4e77f6be89c789
-2026-09-16-listing-child-batches.zh.md: f62e9f084ae7b84d18193c5fa85b368daca6a10b
+/agent-note-resolve-directory-listing-children-in-bounded-batches:
+  en: bb051bbe4565221b
+  zh: 1abfca5afe396e8b
+/agent-note-resolve-directory-listing-children-in-bounded-batches/problem:
+  en: a2fc4ee25895edca
+  zh: 2415ad80cf0ba223
+/agent-note-resolve-directory-listing-children-in-bounded-batches/decision:
+  en: 473530c238cb0d17
+  zh: 0c3573cf9522c479
+/agent-note-resolve-directory-listing-children-in-bounded-batches/alternatives-considered:
+  en: 547b8a552d82fcd0
+  zh: 5bebd63efbd1fd45
+/agent-note-resolve-directory-listing-children-in-bounded-batches/consequences:
+  en: 243e275aa7323466
+  zh: c8f7ff693593743e
+/agent-note-resolve-directory-listing-children-in-bounded-batches/testing:
+  en: 366b9a358595d41d
+  zh: c656f0a6d514827d
+/agent-note-resolve-directory-listing-children-in-bounded-batches/related:
+  en: 9c7ec65b389fcee7
+  zh: 5256864d38738dcf

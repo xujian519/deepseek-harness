@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/util/contained-emit/README.md
-README.md: 656e6f89d43a3dc93bc0688b7907a5620e81d224
-README.zh.md: a1a017c9a14c5929a15c64da3e95b78ccbefc505
+/:
+  en: 3ee3d4f54778d913
+  zh: 258a888889623cff
+/deepseek-ai-dsh-contained-emit:
+  en: bc2668c4b6a3da28
+  zh: 5a6e6adf3381de39
+/deepseek-ai-dsh-contained-emit/summary:
+  en: 94d4d3b794c5f8ac
+  zh: e4e884d7f5879f05
+/deepseek-ai-dsh-contained-emit/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-contained-emit/use-this-package:
+  en: 34ea185c619d44ac
+  zh: bea6053e8c982821
+/deepseek-ai-dsh-contained-emit/use-this-package/dispatching-a-contained-notification:
+  en: 6c6d5e9f9c699dda
+  zh: f96475d2facfb48b
+/deepseek-ai-dsh-contained-emit/use-this-package/containing-a-snapshot-from-a-private-registry:
+  en: 3d61f8a413459daf
+  zh: d23586e89c10e86f
+/deepseek-ai-dsh-contained-emit/understand-the-implementation:
+  en: 75bb130fa5bb6290
+  zh: 5fe974c8b12d38ba
+/deepseek-ai-dsh-contained-emit/understand-the-implementation/source-map:
+  en: c8da74448b743574
+  zh: 5e35590b74a300e0
+/deepseek-ai-dsh-contained-emit/understand-the-implementation/the-dispatch-argument-contract:
+  en: 390c6aef33444abf
+  zh: d06074d9dea9fedd
+/deepseek-ai-dsh-contained-emit/understand-the-implementation/containment-shape:
+  en: da0db5a894e95c2b
+  zh: a594d6a1dae4924b
+/deepseek-ai-dsh-contained-emit/further-exploration:
+  en: 500f9deedeb3fc1e
+  zh: c87421de06018f77
+/deepseek-ai-dsh-contained-emit/model-experience:
+  en: f8f28467c7d4e550
+  zh: fb43eeec45533e80
+/deepseek-ai-dsh-contained-emit/model-experience/kv-cache-effect:
+  en: 968fdaacd68d10f2
+  zh: 336c2aa79a70242f
+/deepseek-ai-dsh-contained-emit/known-limitations-and-deferred-work:
+  en: b905b158788f73b1
+  zh: 9ee3b68871bc0eb1
+/deepseek-ai-dsh-contained-emit/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

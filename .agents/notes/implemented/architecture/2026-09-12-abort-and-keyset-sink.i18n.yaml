@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-12-abort-and-keyset-sink.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-12-abort-and-keyset-sink.md
-2026-09-12-abort-and-keyset-sink.md: a0985c2ed370dbe775210a6f1605eb5450e1875b
-2026-09-12-abort-and-keyset-sink.zh.md: b6f30891e40194f51d08294afb9566a1de750daa
+/agent-note-m1-third-sink-the-abort-and-key-set-predicates:
+  en: 2f3084e1fbda0bf8
+  zh: 3576835c05200c74
+/agent-note-m1-third-sink-the-abort-and-key-set-predicates/problem:
+  en: d47cbf7157783d58
+  zh: d8be0a7bb8c01d52
+/agent-note-m1-third-sink-the-abort-and-key-set-predicates/decision:
+  en: f4867ac405b9c2a2
+  zh: 3285dba7315c283e
+/agent-note-m1-third-sink-the-abort-and-key-set-predicates/consequences:
+  en: 8070b3d8e37b5bad
+  zh: f11764cc60fb93a8
+/agent-note-m1-third-sink-the-abort-and-key-set-predicates/alternatives-considered:
+  en: 0aee075907e5c45f
+  zh: 0b8d4478f7c2fecb

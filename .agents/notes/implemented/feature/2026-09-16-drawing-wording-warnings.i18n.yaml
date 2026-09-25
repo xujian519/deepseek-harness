@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-16-drawing-wording-warnings.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-16-drawing-wording-warnings.md
-2026-09-16-drawing-wording-warnings.md: d6ab65a1acc3a7549d1d2b9326074cadeff7205d
-2026-09-16-drawing-wording-warnings.zh.md: e2f4be87b5fedf6e34191bca3181bfb816480417
+/agent-note-report-drawing-wording-defects-from-the-figure-tools:
+  en: 6ac752f1d75616a4
+  zh: 6f4f857db2f68949
+/agent-note-report-drawing-wording-defects-from-the-figure-tools/problem:
+  en: cb46a73a8aaad1ed
+  zh: 57aae229efbb06bc
+/agent-note-report-drawing-wording-defects-from-the-figure-tools/decision:
+  en: f8b2e2e9a1830879
+  zh: 313479a4f540e064
+/agent-note-report-drawing-wording-defects-from-the-figure-tools/alternatives-considered:
+  en: ea237899b4cba59d
+  zh: b84ee22115eef818
+/agent-note-report-drawing-wording-defects-from-the-figure-tools/consequences:
+  en: afe94f28b716a750
+  zh: dd86ba2ace0bd835
+/agent-note-report-drawing-wording-defects-from-the-figure-tools/testing:
+  en: 184d70dceb55807f
+  zh: c69643b8a59d9bca
+/agent-note-report-drawing-wording-defects-from-the-figure-tools/related:
+  en: 00b5754a1fcb1543
+  zh: 9b344fe519d3fde5

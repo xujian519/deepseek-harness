@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-11-agent-preset-config-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-11-agent-preset-config-gate.md
-2026-09-11-agent-preset-config-gate.md: 32b9136763e6f63fada1013cfc21db745d190b24
-2026-09-11-agent-preset-config-gate.zh.md: d1af7fdd9c9942229befae580bfa5715f5e30b7e
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects:
+  en: 23a9d936453fe0f6
+  zh: 6b22a0cc2e3b01bc
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects/problem:
+  en: ac3bde8f155c4856
+  zh: 7daf57337579a46a
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects/decision:
+  en: fbfc6ab26ccfc98c
+  zh: ee0f3732b742b4d6
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects/alternatives-considered:
+  en: d72b6a073c48e58f
+  zh: de788584b08cff73
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects/consequences:
+  en: e2374d8fc45fae61
+  zh: 4d23145a11b1fd70
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects/testing:
+  en: 1c8e3336fc6ecf7f
+  zh: b1264498a799efcd
+/agent-note-gate-preset-rows-whose-config-their-plugin-rejects/related:
+  en: 2bacb45603840e19
+  zh: 8eeaaaf0e2264b1a

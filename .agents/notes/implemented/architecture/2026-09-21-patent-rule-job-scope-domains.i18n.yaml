@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-patent-rule-job-scope-domains.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-21-patent-rule-job-scope-domains.md
-2026-09-21-patent-rule-job-scope-domains.md: b6b54158f3717b250a2f1e14376814a53f66fc24
-2026-09-21-patent-rule-job-scope-domains.zh.md: 9bb88a7c64a61d1f6c8efaa403dd42b2aad28b6d
+/agent-note-job-scopes-for-the-patent-rule-gate:
+  en: ed0cf8aa35111eba
+  zh: b16e0c28df16d39f
+/agent-note-job-scopes-for-the-patent-rule-gate/problem:
+  en: 141e4a06085cb250
+  zh: 67f95a64954f61a2
+/agent-note-job-scopes-for-the-patent-rule-gate/decision:
+  en: b0808259d1cb6665
+  zh: 84f2b73f9b1dd946
+/agent-note-job-scopes-for-the-patent-rule-gate/alternatives-considered:
+  en: cc2038eb4cbc2ce3
+  zh: 510eff45aa3aec8a
+/agent-note-job-scopes-for-the-patent-rule-gate/consequences:
+  en: 705b44f32fa78b27
+  zh: 346610b84b73822c
+/agent-note-job-scopes-for-the-patent-rule-gate/testing:
+  en: 24784c14bc1a0652
+  zh: be169f6084f9e48c

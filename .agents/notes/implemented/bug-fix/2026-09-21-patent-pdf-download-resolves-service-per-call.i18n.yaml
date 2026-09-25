@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-21-patent-pdf-download-resolves-service-per-call.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-21-patent-pdf-download-resolves-service-per-call.md
-2026-09-21-patent-pdf-download-resolves-service-per-call.md: 0a2063f1693a0e6995eaf189c7a58c63e03f035b
-2026-09-21-patent-pdf-download-resolves-service-per-call.zh.md: 087d5af7579b655e7f6982ee03dd9ebc93015c3e
+/agent-note-patent-pdf-download-resolves-its-data-service-per-call:
+  en: 528c6e0d01140db3
+  zh: 7225af42388312eb
+/agent-note-patent-pdf-download-resolves-its-data-service-per-call/problem:
+  en: 81130582f42c8a37
+  zh: 4cf1899693413c90
+/agent-note-patent-pdf-download-resolves-its-data-service-per-call/decision:
+  en: 08c80e77707daf7c
+  zh: 7f81cc3328531d6e
+/agent-note-patent-pdf-download-resolves-its-data-service-per-call/alternatives-considered:
+  en: 750a0fee9584fb06
+  zh: 82d636b7fad57bd4
+/agent-note-patent-pdf-download-resolves-its-data-service-per-call/consequences:
+  en: d75dcc844d5602c0
+  zh: 70708e15a446fac4

@@ -1,6 +1,70 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/memory/openviking/README.md
-README.md: b234ff147848d404a0ce9dc854f26fdeef2eb0b1
-README.zh.md: 1c247ac223278b3f522b26a3d3d209717957cd54
+/:
+  en: c6c4c2d88146f927
+  zh: 2e4c4782a431a5e2
+/deepseek-ai-dsh-openviking:
+  en: b23d0e2b785d9c78
+  zh: 46f5651d36561b78
+/deepseek-ai-dsh-openviking/summary:
+  en: f364ee6eaedca7d4
+  zh: e05670bc9a741a16
+/deepseek-ai-dsh-openviking/table-of-contents:
+  en: 7f1d5603cf09916b
+  zh: 97ad94963fbfd5d5
+/deepseek-ai-dsh-openviking/public-api:
+  en: d2e9a2dce413cfc7
+  zh: 2a85bf69fe062336
+/deepseek-ai-dsh-openviking/configuration:
+  en: 2a864d41b6517af9
+  zh: 2681e416f9550bb2
+/deepseek-ai-dsh-openviking/testing:
+  en: dc41547e93bd6668
+  zh: 8cf06b7d324d9ecd
+/deepseek-ai-dsh-openviking/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-openviking/model-experience/memory-library-map:
+  en: d6efc5c50c8c964a
+  zh: 3435b30217336125
+/deepseek-ai-dsh-openviking/model-experience/memory-library-map/what-the-model-sees:
+  en: 5e28fa863baa0070
+  zh: 69ad5756c8f6205a
+/deepseek-ai-dsh-openviking/model-experience/memory-library-map/token-effect:
+  en: 7271af71005bf123
+  zh: 395892398f2fe6b7
+/deepseek-ai-dsh-openviking/model-experience/memory-library-map/kv-cache-effect:
+  en: 29c37d89424d07b6
+  zh: 18a9aab00267eb31
+/deepseek-ai-dsh-openviking/model-experience/recall-block:
+  en: 73da50c3aee593e0
+  zh: fa780b6bfe873c60
+/deepseek-ai-dsh-openviking/model-experience/recall-block/what-the-model-sees:
+  en: 2f9b09090a20d464
+  zh: 15ead9aaa8575be7
+/deepseek-ai-dsh-openviking/model-experience/recall-block/token-effect:
+  en: 586d542d38246938
+  zh: 71ae678a52bf62a7
+/deepseek-ai-dsh-openviking/model-experience/recall-block/kv-cache-effect:
+  en: a9657ce583f15211
+  zh: 1f7dc9407001e5b6
+/deepseek-ai-dsh-openviking/model-experience/repository-list:
+  en: 3d3fe859c2c0685c
+  zh: 27ab962b12a59939
+/deepseek-ai-dsh-openviking/model-experience/repository-list/what-the-model-sees:
+  en: cc560dd3030b002d
+  zh: a5940f24390d474d
+/deepseek-ai-dsh-openviking/model-experience/repository-list/token-effect:
+  en: 0b360e8819be5b59
+  zh: 90e869fd0e3f36b5
+/deepseek-ai-dsh-openviking/model-experience/repository-list/kv-cache-effect:
+  en: fe2d49015fe0e260
+  zh: fe1157fe87eb2ef4
+/deepseek-ai-dsh-openviking/known-limitations-and-deferred-work:
+  en: 75ebaf37365378d7
+  zh: cf4f3666058d8b61
+/deepseek-ai-dsh-openviking/known-limitations-and-deferred-work/dev-note:
+  en: 29ac15bcf0174f7b
+  zh: 824090f2596bb6e9

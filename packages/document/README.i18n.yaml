@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/document/README.md
-README.md: b8bfa4082d0033930fbf38640d2e0b4247aff822
-README.zh.md: b18aad7980ca134c4553914d797a2747e842780e
+/:
+  en: 43568a9124ff80ab
+  zh: 94bebbefb1147029
+/document-document-delivery-and-office-conversion:
+  en: b15d72e12fd51ed2
+  zh: 9e5690530e1e69fb
+/document-document-delivery-and-office-conversion/summary:
+  en: 3829706b3aa2832c
+  zh: 77859e71c84d0567
+/document-document-delivery-and-office-conversion/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: a8a3dceee2c9e943
+/document-document-delivery-and-office-conversion/packages:
+  en: 96179e9e42e353c2
+  zh: b684e136b605e04e
+/document-document-delivery-and-office-conversion/related-documentation:
+  en: bd98b091b248bbdb
+  zh: 778af8a4f49d322a
+/document-document-delivery-and-office-conversion/dev-note:
+  en: 5de1d6304e00c58f
+  zh: e58fc8dda0bea8d5

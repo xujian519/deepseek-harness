@@ -652,7 +652,9 @@ describe('fork CI workflow', () => {
     if (!Array.isArray(job.steps)) throw new TypeError(`${name} must define steps`)
     const steps = job.steps.filter(isRecord)
     const graphviz = steps.findIndex(step => String(step.run).includes('graphviz'))
-    const suite = steps.findIndex(step => /vitest run|check:ci:coverage/u.test(String(step.run)))
+    // `pnpm test` is how the node-checks lane reaches Vitest — its flock-loader
+    // rationale is on that step — and the coverage lane runs the aggregate script.
+    const suite = steps.findIndex(step => /vitest run|check:ci:coverage|(^|\s)pnpm test(\s|$)/u.test(String(step.run)))
 
     expect(suite).toBeGreaterThanOrEqual(0)
     expect(graphviz).toBeGreaterThanOrEqual(0)

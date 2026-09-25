@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-procfs-stat-read-esrch-means-gone.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-02-procfs-stat-read-esrch-means-gone.md
-2026-09-02-procfs-stat-read-esrch-means-gone.md: 66f41d5e9d8c78575afacf126e4dad1cf5073b74
-2026-09-02-procfs-stat-read-esrch-means-gone.zh.md: ebb19c51b54fd2314688fc826dd35cde5761decc
+/agent-note-proc-stat-read-failure-esrch-means-the-pid-is-gone:
+  en: 7b95f2c93449a265
+  zh: bbd5f1f398a29ea7
+/agent-note-proc-stat-read-failure-esrch-means-the-pid-is-gone/problem:
+  en: 274d6bf0be5a3f7e
+  zh: ca563ed37d5b5326
+/agent-note-proc-stat-read-failure-esrch-means-the-pid-is-gone/decision:
+  en: 7ec6b4a1fcf49d17
+  zh: 191bfe4d2526d720
+/agent-note-proc-stat-read-failure-esrch-means-the-pid-is-gone/consequences:
+  en: 477d4f73440d9cbe
+  zh: 77962bb4565f5629
+/agent-note-proc-stat-read-failure-esrch-means-the-pid-is-gone/alternatives-considered:
+  en: 80c7b42116ebeee2
+  zh: 1428d50f2b0853d8

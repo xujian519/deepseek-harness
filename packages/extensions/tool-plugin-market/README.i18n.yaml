@@ -1,6 +1,94 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/extensions/tool-plugin-market/README.md
-README.md: fb446c5e9a9f95b0076d90a68b3ba96ed0ac7e47
-README.zh.md: 46501abf95cc718b5510983b331faf0f77a5f4c4
+/:
+  en: ecfc517d06d995b2
+  zh: f3d3520083b6736d
+/deepseek-ai-dsh-tool-plugin-market:
+  en: 304cf97de99741cc
+  zh: 0a484d5c04e64ab7
+/deepseek-ai-dsh-tool-plugin-market/summary:
+  en: 99b8d991e59ba219
+  zh: c0c12cfdc3038682
+/deepseek-ai-dsh-tool-plugin-market/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-tool-plugin-market/use-this-package:
+  en: ddc69bf54c7900f9
+  zh: b832e2c5ebe791ad
+/deepseek-ai-dsh-tool-plugin-market/use-this-package/minimal-composition:
+  en: 5c42b5c86d5f8d35
+  zh: c634f0ab9a725fe4
+/deepseek-ai-dsh-tool-plugin-market/use-this-package/what-the-tools-do:
+  en: 5331e3782c5c15bd
+  zh: 3478083b7c76c5b4
+/deepseek-ai-dsh-tool-plugin-market/use-this-package/a-typical-workflow:
+  en: a94bbc05d4ca9cf0
+  zh: 01a58d9ed2b3ce03
+/deepseek-ai-dsh-tool-plugin-market/use-this-package/boundaries-to-plan-around:
+  en: ecaf384cc2bb3880
+  zh: 2da46de7e45f5eb0
+/deepseek-ai-dsh-tool-plugin-market/understand-the-implementation:
+  en: fa28554fbff3b1f0
+  zh: 4787cec807b0b42a
+/deepseek-ai-dsh-tool-plugin-market/understand-the-implementation/design-philosophy:
+  en: 33dc3ccd93926566
+  zh: 7dccebfdb613cf31
+/deepseek-ai-dsh-tool-plugin-market/understand-the-implementation/source-map:
+  en: 19a553d94280201c
+  zh: 6d5dc755653a902c
+/deepseek-ai-dsh-tool-plugin-market/understand-the-implementation/how-a-call-flows:
+  en: a621f276c783f6b5
+  zh: b223aa1efae45b4d
+/deepseek-ai-dsh-tool-plugin-market/further-exploration:
+  en: ddd458d3540c7ec8
+  zh: 2aa0cdc26f2f1e3f
+/deepseek-ai-dsh-tool-plugin-market/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-schemas:
+  en: 3039bc5e7a796b21
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-schemas/what-the-model-sees:
+  en: 3f1d373c09e6ae0e
+  zh: a4540c1c617dc396
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-schemas/token-effect:
+  en: 68517f7d65ef7e9d
+  zh: d497623ad9544512
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-schemas/kv-cache-effect:
+  en: d57cb790f09dd668
+  zh: 880819a39403f31a
+/deepseek-ai-dsh-tool-plugin-market/model-experience/system-prompt-section:
+  en: c17d2aa0c515f8f3
+  zh: 4b945f04dfd229ce
+/deepseek-ai-dsh-tool-plugin-market/model-experience/system-prompt-section/what-the-model-sees:
+  en: 706459320fcd08c7
+  zh: c5a1070f3d3f293c
+/deepseek-ai-dsh-tool-plugin-market/model-experience/system-prompt-section/what-the-model-sees/section-opening:
+  en: 9880054561988779
+  zh: 18021d76d2d28c4b
+/deepseek-ai-dsh-tool-plugin-market/model-experience/system-prompt-section/token-effect:
+  en: c60d3f8d1f7ac89c
+  zh: b7e659922e8018ee
+/deepseek-ai-dsh-tool-plugin-market/model-experience/system-prompt-section/kv-cache-effect:
+  en: 2a05ae9645f5c8ca
+  zh: 8bdf5db03e99eab0
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-call-history-and-results:
+  en: a8503137ad03720c
+  zh: 611a2dadf7c0c706
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-call-history-and-results/what-the-model-sees:
+  en: 26c0fae065a141a4
+  zh: 5fb737532938baf0
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-call-history-and-results/token-effect:
+  en: 5db5c883515fe5e7
+  zh: dd26f2465b1a16f3
+/deepseek-ai-dsh-tool-plugin-market/model-experience/tool-call-history-and-results/kv-cache-effect:
+  en: f5d5f97a153f7c70
+  zh: f681f89596f500f5
+/deepseek-ai-dsh-tool-plugin-market/known-limitations-and-deferred-work:
+  en: cb8a69ee42f1d833
+  zh: 4d633c9b7eb55434
+/deepseek-ai-dsh-tool-plugin-market/known-limitations-and-deferred-work/dev-note:
+  en: d6a17eb4d9138b5b
+  zh: 327b8adcfdcf6e19
