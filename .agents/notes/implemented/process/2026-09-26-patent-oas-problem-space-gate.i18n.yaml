@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-26-patent-oas-problem-space-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-26-patent-oas-problem-space-gate.md
+/agent-note-a-problem-space-dag-and-a-thresholded-regression-gate-for-the-patent-oas-gold-benchmark:
+  en: 4968b307aa1aec32
+  zh: b56f9b8fd0cade7b
+/agent-note-a-problem-space-dag-and-a-thresholded-regression-gate-for-the-patent-oas-gold-benchmark/problem:
+  en: f2b0faa05cf73211
+  zh: 463c95bfa60b90c0
+/agent-note-a-problem-space-dag-and-a-thresholded-regression-gate-for-the-patent-oas-gold-benchmark/decision:
+  en: 8229f24d97afaf95
+  zh: 340391ca5db00376
+/agent-note-a-problem-space-dag-and-a-thresholded-regression-gate-for-the-patent-oas-gold-benchmark/alternatives-considered:
+  en: 87777abdd64ac149
+  zh: 3d49e347e801788b
+/agent-note-a-problem-space-dag-and-a-thresholded-regression-gate-for-the-patent-oas-gold-benchmark/consequences:
+  en: def39ec7e16ed9fb
+  zh: 428da42506a87932

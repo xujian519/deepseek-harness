@@ -1,0 +1,35 @@
+# patent-oas 回归门禁策略。
+#
+# 门槛是策略而不是测量:测量来自 run 记录(baselinePath),门槛决定「多大的变化算退步」。
+# 两者分开,是因为「这次考了多少分」是事实,「多少分算不合格」是决定。
+#
+# goldDigest 把金标内容(每个 case 的 statement 与 rubric)钉住:改金标必须显式重录摘要
+# (`pnpm run verify-patent-oas-gold -- --write`),否则门禁失败。金标的改动会改变分数的含义,
+# 不能悄悄生效。
+#
+# 门槛的来源:
+#   - node 是单个问题空间切面的保守下限,可随实测调高;
+#   - case 与 aggregate 的 maxDrop 比 node 更紧(3 vs 5):case 分是 5 个维度观测的加权
+#     均值、聚合分是 4 个 case 的均值,它们的抽样噪声更小,容忍回退的理由也更少。
+#     不设这一层时,单个 case 的掉分会被跨 case 的节点均值摊薄掉;
+#   - 两条逐节点覆盖只加在 DAG 的前置脊柱上(区别特征认定、实际解决的技术问题):
+#     它们失败会把下游全部拖偏,所以下限高于 node 门槛。其余节点用 node 门槛。
+# 基线记录后(`--accept`),门槛必须仍能被基线满足,否则门禁自己永远红——那是配置错误,
+# 由门禁直接报出。
+
+benchmarkId: patent-oas
+
+goldDigest: "sha256:2a2b1d95d5093904b19d571e667cd439bc41c873c7e20ea574a39f5a2f31fbe8"
+
+# 基线由一次实测产生,再由门禁提升:
+#   pnpm run gate:patent-oas                        # 采集(需要 key),写出 run 记录
+#   pnpm run verify-patent-oas-gold -- --accept <run.json>
+baselinePath: packages/self-evolve/evaluation/patent-oas-baseline.json
+
+thresholds:
+  node: { minScore: 70, maxDrop: 5 }
+  case: { minScore: 70, maxDrop: 3 }
+  aggregate: { minScore: 75, maxDrop: 3 }
+  nodes:
+    distinguishing-features: { minScore: 75 }
+    technical-problem: { minScore: 75 }

@@ -128,6 +128,8 @@
     "verify-type-equiv": "tsx scripts/verify-type-equiv.ts",
     "verify-skill-invocation-metadata": "tsx scripts/verify-skill-invocation-metadata.ts",
     "verify-patent-team-roster": "tsx scripts/verify-patent-team-roster.ts",
+    "verify-patent-oas-gold": "tsx scripts/verify-patent-oas-gold.ts",
+    "gate:patent-oas": "tsx scripts/run-patent-oas.ts",
     "verify-translation-prompt": "tsx scripts/verify-translation-prompt.ts",
     "verify-translation-pairing": "tsx scripts/verify-translation-pairing.ts",
     "test:docs": "tsx scripts/run-gates.ts doc-quick",
