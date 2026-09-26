@@ -14,7 +14,7 @@ const POLICIES: CitationPolicySet = {
   unverified: 'warn',
 }
 
-/** The packaged index, whose entries are all still awaiting transcription. */
+/** The packaged index: transcribed statutes, guideline sections still awaiting transcription. */
 const shipped = loadLawBaselines()
 
 /** A baseline whose single article is fully verified, for the accepted path. */
@@ -60,12 +60,13 @@ async function run(ctx: Context, args: unknown): Promise<LawVerifyOutput> {
 }
 
 describe('law_verify tool', () => {
-  it('extracts the citations of a text and reports each as unverified', async () => {
+  it('decides the transcribed statute citation and reports the untranscribed guideline one', async () => {
     const value = await run(await host(), { text: '依据专利法第22条第3款与审查指南第二部分第四章3.2.1.1。' })
     expect(value.findings.map(finding => finding.raw)).toEqual(['专利法第22条第3款', '审查指南第二部分第四章3.2.1.1'])
-    expect(value.findings.every(finding => finding.decision === 'unverified')).toBe(true)
+    expect(value.findings.map(finding => finding.decision)).toEqual(['valid', 'unverified'])
     expect(value.blocked).toBe(false)
-    expect(value.counts.unverified).toBe(2)
+    expect(value.counts.valid).toBe(1)
+    expect(value.counts.unverified).toBe(1)
     expect(value.findings[0]).toMatchObject({ law: '专利法', article: 22, paragraph: 3 })
     expect(value.findings[1]).toMatchObject({ law: '专利审查指南', sectionPath: '第二部分第四章3.2.1.1' })
   })
@@ -108,7 +109,7 @@ describe('law_verify tool', () => {
 
   it('renders a decision table with the unverified warning', async () => {
     const ctx = await host()
-    const result = await execute(ctx, { text: '依据专利法第22条第3款。' })
+    const result = await execute(ctx, { text: '依据审查指南第二部分第四章3.2.1.1。' })
     expect(JSON.stringify(result.content)).toContain('| 引用 | 判定 | 处置 | 说明 |')
     expect(JSON.stringify(result.content)).toContain('存在未核验引用')
   })

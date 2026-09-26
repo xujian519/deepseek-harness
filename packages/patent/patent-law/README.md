@@ -46,6 +46,8 @@ The four policies are per-decision Config fields (`onMismatch`, `onOutOfRange`, 
 
 `assets/law/` holds one file per document (`cn-patent-law.yaml`, `cn-implementing-regulations.yaml`, `cn-examination-guidelines.yaml`). An entry records the article or section path, the topic keywords used to test a proposition, and where the text came from: `text`, `sourceDoc`, `verifiedOn`. An article ceiling carries its own `maxVerifiedOn`, because a ceiling nobody has verified must not produce an `out-of-range` verdict.
 
+The two statutes are transcribed: each entry carries the text of the article it indexes, the document and revision that text was copied from, and the date of the copy. The guideline sections are indexed without text, so a guideline citation reports 未核验.
+
 ```yaml
 - law: 专利法
   article: 22
@@ -56,7 +58,7 @@ The four policies are per-decision Config fields (`onMismatch`, `onOutOfRange`, 
   verifiedOn: 2026-01-01
 ```
 
-The shipped index is an index only: article numbers and topic keywords collected from this repository's existing citations, with every `text` and `verifiedOn` still null, and with the 62/69/70 group flagged in the file header as apparently carrying pre-2020 numbering. Until a person transcribes the articles from an official source, every citation against it reports 未核验 — never 已核验.
+The shipped statutes index 36 of 《专利法》's 82 articles and 26 of 《专利法实施细则》's 149 articles. A citation to an article that exists but is not indexed reports 索引中不存在 — a gap in this index, not a claim that the number does not exist. The text is a verbatim copy of the official revised text, taken from the deployment's legal corpus and recorded per entry; it has not been read back by a qualified person, and the file header states that.
 
 <a id="library-api"></a>
 ## Library API
@@ -101,12 +103,15 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 
 ## Known Limitations and Deferred Work
 
-- **The shipped index is not a law text.** It holds article numbers and topic keywords only; every entry is 未核验 until a person transcribes it from an official source. Citations therefore stay 未核验 in a default deployment, which is the intended behavior, not a clean result.
-- **The 62/69/70 group in the 专利法 index appears to carry pre-2020 numbering**, inconsistent with the 2020 numbering used elsewhere in this repository (第71条 damages, 第74条 limitation period). The file header records this; do not treat the index as authority on article numbers before verification.
+- **The transcribed text is a mechanical copy, not a review.** Each statute entry's `text` is a verbatim copy of the official revised text, so a `valid` verdict means the article exists and the citation's proposition matches the entry's topics — it does not mean a qualified person read the copy back. Re-check the entries a deployment relies on before treating them as reviewed.
+- **Statute coverage is partial.** 《专利法》 indexes 36 of 82 articles and 《专利法实施细则》 26 of 149, so an existing article the index does not hold reports `not-indexed` even though the number is valid. The ceilings are verified for both statutes, so a number beyond 82 or 149 is out of range.
+- **《专利法》's topics were renumbered to the 2020 revision.** The curated topics for 现有技术抗辩, 不视为侵权, and 合法来源 arrived as 2008-revision article numbers 62/69/70 and now sit at 67/75/77, where the 2020 text carries them; 62 carries the compulsory-licence royalty topics its 2020 text supports. The workflow quality gate's static table held the same pre-2020 numbers and now holds 67/75/77 as well.
+- **《专利法实施细则》's topics were checked against the transcribed text.** Transcribing the text showed nine of the 26 indexed entries carrying another article's topics — 第 42 条 held 分案申请, which is 第 48 条, and 第 114 条 held 印花税, which neither the current 细则 article 110 nor the official payment guide charges — so each list was rewritten from the article it indexes.
+- **The guideline index carries no text.** 《专利审查指南》 is indexed by section path with topics only, so every guideline citation reports 未核验 until a deployment transcribes the sections it relies on.
 - **Proposition matching is lexical.** A topic keyword must appear in the proposition or vice versa; a proposition phrased around a synonym the entry does not list reports `mismatch`. Topics must be maintained with the transcription.
 - **The compact `A22.3` form is accepted only at a token boundary**, and it is always read as 《专利法》: a deployment that needs the form for another statute would need its own reference reader.
 - **The guideline index is section-path keyed.** A citation written in a form the normalizer does not reproduce (for example a section nested deeper than the captured tail) lands in `not-indexed` rather than being guessed at.
-- **The automatic gates keep their own tables.** The patent preset mounts this plugin, so the model runs law_verify first; feeding the workflow quality gate's static topic table and the rule assets' citation ceiling from this index is follow-up work, because a gate that delegated to an entry with no transcribed text could only downgrade today's topic check to a warning.
+- **The automatic gates keep their own tables.** The patent preset mounts this plugin, so the model runs law_verify first; the workflow quality gate's static topic table and `patent-rule`'s citation ceiling still decide on their own. The gate's article numbers now match this index for the two transcribed statutes, but it holds fewer articles and its `unknown` verdict passes a citation it has no row for — 第 69 条 and 第 70 条 among them, which this index reports as `not-indexed`. Delegating remains follow-up work, because the gate decides with a five-verdict vocabulary of its own.
 - **No package invariant is published.** Baseline correctness is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (references parsing, article and section existence, the article ceiling) are checks the gate runs, so they do not meet the invariant bar.
 
 ### Dev Note

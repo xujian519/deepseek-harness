@@ -9,7 +9,7 @@ import { loadFeeTable } from '../src/fees.ts'
 import { createPatentFeesTool, type PatentFeesOutput } from '../src/tool/patent-fees.ts'
 import type { FeeTable } from '../src/types.ts'
 
-/** The packaged index, whose amounts are all still untranscribed. */
+/** The packaged index: amounts transcribed from the official fee standard. */
 const shipped = loadFeeTable()
 
 /** One transcribed fee item, as a table. */
@@ -53,7 +53,7 @@ const partlyTranscribed: FeeTable = (() => {
     ...base,
     items: [
       ...base.items,
-      { ...base.items[0]!, id: 'stamp-tax', name: '印花税', trigger: 'grant-registration', amount: null, verifiedOn: null },
+      { ...base.items[0]!, id: 'record-copy-fee', name: '专利文件副本证明费', trigger: 'grant-registration', amount: null, verifiedOn: null },
     ],
   }
 })()
@@ -85,11 +85,18 @@ async function run(ctx: Context, args: unknown): Promise<PatentFeesOutput> {
 const rendered = (result: { content: unknown }): string => JSON.stringify(result.content)
 
 describe('patent_fees tool', () => {
-  it('renders the shipped checklist and refuses to state a total', async () => {
-    const result = await execute(await host(), { patentType: 'invention', triggers: ['filing'] })
+  it('prices the shipped index and refuses a total while one item has no amount', async () => {
+    const result = await execute(await host(), {
+      patentType: 'invention',
+      triggers: ['filing'],
+      specificationPages: 40,
+    })
     const text = rendered(result)
     expect(text).toContain('| 费用项 | 计数依据 | 数量 | 单价(CNY) | 小计 | 应付 | 金额状态 | 依据 |')
-    expect(text).toContain('| 申请费 | 每件 | 1 | — | — | — | 金额未转录 | 专利法实施细则第110条、第112条 |')
+    expect(text).toContain('| 申请费 | 每件 | 1 | 900 | 900.00 | 900.00 | 已核验 | 专利法实施细则第110条第1款第（一）项、第112条 |')
+    expect(text).toContain('| 公布印刷费 | 每件 | 1 | 50 | 50.00 | 50.00 | 已核验 |')
+    expect(text).toContain('| 说明书附加费 |')
+    expect(text).toContain('金额未转录')
     expect(text).toContain('本次未给出合计')
     expect(text).toContain('索引未转录的金额是未知，不是零')
     expect(text).toContain('**待补输入**')
@@ -97,15 +104,22 @@ describe('patent_fees tool', () => {
   })
 
   it('omits every unrecorded field from the output value', async () => {
-    const value = await run(await host(), {
+    const bare = tableOf('application-fee', '申请费', 'filing', {
+      amount: null,
+      legalBasis: null,
+      sourceDoc: null,
+      effectiveFrom: null,
+      verifiedOn: null,
+    })
+    const value = await run(await host(bare), {
       patentType: 'invention',
       triggers: ['filing'],
       claims: 12,
-      specificationPages: 40,
       priorityClaims: 1,
     })
-    // The priority-claim fee has neither an amount nor a legal basis recorded.
-    const line = value.lines.find(entry => entry.id === 'priority-claim-fee')
+    // Nothing about this item is recorded, so only the shape of the count and
+    // the status are left.
+    const line = value.lines[0]
     expect(Object.keys(line ?? {}).sort()).toEqual([
       'basis',
       'id',
@@ -115,7 +129,6 @@ describe('patent_fees tool', () => {
       'quantityBasis',
       'status',
     ])
-    expect(value.lines[0]?.legalBasis).toBe('专利法实施细则第110条、第112条')
     expect(value.total.amount).toBeUndefined()
     expect(value.reduction).toBeUndefined()
   })
@@ -133,7 +146,7 @@ describe('patent_fees tool', () => {
       patentType: 'invention',
       triggers: ['filing', 'grant-registration'],
     })
-    expect(rendered(result)).toContain('**部分合计**：900.00 CNY（仅含已核验项；stamp-tax 未计入）')
+    expect(rendered(result)).toContain('**部分合计**：900.00 CNY（仅含已核验项；record-copy-fee 未计入）')
 
     const strict = await execute(await host(partlyTranscribed), {
       patentType: 'invention',
@@ -151,12 +164,41 @@ describe('patent_fees tool', () => {
       reduction: { kind: 'individual', filed: false },
     })
     const text = rendered(result)
-    expect(text).toContain('**费用减缴**：减缴比例未转录：本次不给减缴后金额。')
+    expect(text).toContain('**费用减缴**：未办理费减备案：仅对不以此为前提的费种适用。')
     expect(text).toContain('- 优先权要求费（priority-claim-fee）：需要 priorityClaims')
     expect(text).toContain('**说明**')
     expect(text).toContain('- 本次减缴请求未办理费减备案。')
-    expect(text).toContain('减缴适用范围未登记：本项按全额计。')
+    expect(text).toContain('未办理费减备案：不得按减缴计算，本项按全额计。')
+    expect(text).toContain('本项不属于费用减缴范围：按全额计。')
+  })
+
+  it('reports a reduction whose ratio the index does not record', async () => {
+    const unrecordedRatio = tableOf(
+      'application-fee',
+      '申请费',
+      'filing',
+      { reducible: true },
+      [{
+        kind: 'individual',
+        label: '个人',
+        reductionPercent: null,
+        requiresFiling: true,
+        sourceDoc: null,
+        effectiveFrom: null,
+        verifiedOn: null,
+      }],
+    )
+    const result = await execute(await host(unrecordedRatio), {
+      patentType: 'invention',
+      triggers: ['filing'],
+      reduction: { kind: 'individual', filed: true },
+    })
+    const text = rendered(result)
+    expect(text).toContain('**费用减缴**：减缴比例未转录：本次不给减缴后金额。')
     expect(text).toContain('减缴比例未转录：无法给出减缴后金额。')
+    // The ratio is left out of the value rather than reported as absent.
+    expect((result.value as { reduction?: { reductionPercent?: string } }).reduction?.reductionPercent)
+      .toBeUndefined()
   })
 
   it('renders the notice for a case whose triggers match no indexed item', async () => {

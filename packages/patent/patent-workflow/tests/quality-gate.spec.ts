@@ -76,7 +76,7 @@ describe('verifyCitations — arabic numerals', () => {
   })
 
   it('an arabic implementation-detail citation resolves its statute', () => {
-    const report = verifyCitations('根据专利法实施细则第42条提出分案申请。')
+    const report = verifyCitations('根据专利法实施细则第48条提出分案申请。')
     expect(counts(report)).toMatchObject({ total: 1, valid: 1 })
   })
 
@@ -160,18 +160,64 @@ describe('verifyCitations — citation scanning mechanics', () => {
   })
 
   it('an implementation-detail citation with a matching purpose is valid', () => {
-    const report = verifyCitations('根据专利法实施细则第四十二条提出分案申请。')
+    const report = verifyCitations('根据专利法实施细则第四十八条提出分案申请。')
     expect(counts(report)).toMatchObject({ total: 1, valid: 1 })
   })
 
   it('a citation introduced by an enumeration connector inherits the loose purpose', () => {
-    const report = verifyCitations('根据专利法第二十二条和实施细则第四十二条处理。')
+    const report = verifyCitations('根据专利法第二十二条和实施细则第四十八条处理。')
     expect(report.total).toBe(2)
     expect(report.valid).toBe(0)
   })
 
   it('a bare citation resolves its statute from the preceding sentence window', () => {
-    const report = verifyCitations('先有实施细则，再看按第四十二条办理分案申请。')
+    const report = verifyCitations('先有实施细则，再看按第四十八条办理分案申请。')
+    expect(counts(report)).toMatchObject({ total: 1, valid: 1 })
+  })
+})
+
+describe('verifyCitations — the table carries the 2020 revision\u2019s article numbers', () => {
+  // 2020 年修正把三项抗辩从 2008 年的 62/69/70 移到了 67/75/77，第 62 条改为强制许可
+  // 使用费裁决。表里的条号必须跟着走：留在旧号上会把旧号判成正确引用。
+  //
+  // 旧号本身是否被报出，取决于表里有没有该号当代主题：62 有（强制许可使用费裁决），
+  // 因此旧号的抗辩命题被判「更接近第 67 条」；69 与 70 没有行，只判 unknown 放行。
+  const moved = [
+    { stale: 62, current: 67, purpose: '被告主张现有技术抗辩' },
+    { stale: 69, current: 75, purpose: '权利用尽，该销售行为不视为侵权' },
+    { stale: 70, current: 77, purpose: '销售者主张合法来源抗辩' },
+  ] as const
+
+  it('validates each defence at the article the current revision holds it in', () => {
+    for (const { current, purpose } of moved) {
+      const report = verifyCitations(`根据专利法第${current}条，${purpose}。`)
+      expect(report, `第${current}条`).toMatchObject({ total: 1, valid: 1 })
+    }
+  })
+
+  it('never validates a defence quoted at its pre-2020 article number', () => {
+    for (const { stale, purpose } of moved) {
+      const report = verifyCitations(`根据专利法第${stale}条，${purpose}。`)
+      expect(report.valid, `第${stale}条`).toBe(0)
+    }
+  })
+
+  it('cross matches the pre-2020 numbers the table still holds a row for', () => {
+    const staleDefence = verifyCitations('根据专利法第62条，被告主张现有技术抗辩。')
+    expect(staleDefence.flagged[0]).toMatchObject({ article: 62, verdict: 'suspect' })
+
+    // 分案申请在 2023 年修订的《专利法实施细则》里是第 48 条；第 42 条是审查人员回避。
+    const staleDivisional = verifyCitations('根据专利法实施细则第四十二条提出分案申请。')
+    expect(staleDivisional.flagged[0]).toMatchObject({
+      article: 42,
+      statute: '专利法实施细则',
+      verdict: 'suspect',
+    })
+    expect(staleDivisional.flagged[0]!.reason).toContain('第48条')
+  })
+
+  it('reads 第 62 条 as the compulsory-licence royalty provision its text holds', () => {
+    const report = verifyCitations('根据专利法第六十二条，国务院专利行政部门作出强制许可使用费裁决。')
     expect(counts(report)).toMatchObject({ total: 1, valid: 1 })
   })
 })

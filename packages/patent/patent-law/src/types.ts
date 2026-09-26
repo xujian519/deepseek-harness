@@ -46,9 +46,10 @@ export type LawReference = LawArticleReference | GuidelineReference
 
 /**
  * One indexed article. `text`, `sourceDoc`, and `verifiedOn` record where the
- * article text came from and when a person checked it: until someone transcribes
- * the article from an official source and records that, the entry is indexed but
- * unverified.
+ * article text came from and when that copy was checked against that source:
+ * until the article is transcribed from an official source and the copy is
+ * recorded, the entry is indexed but unverified. Who performed the check is a
+ * property of the shipped asset, and the asset states it.
  */
 export type ArticleEntry = {
   /** Article number. */
@@ -64,7 +65,7 @@ export type ArticleEntry = {
   text: string | null
   /** Official source the text was taken from, or null while unverified. */
   sourceDoc: string | null
-  /** Date a person verified the entry against `sourceDoc`, or null. */
+  /** Date the entry's text was checked against `sourceDoc`, or null while it has not been transcribed. */
   verifiedOn: string | null
 }
 
@@ -78,7 +79,7 @@ export type SectionEntry = {
   text: string | null
   /** Official source the text was taken from, or null while unverified. */
   sourceDoc: string | null
-  /** Date a person verified the entry against `sourceDoc`, or null. */
+  /** Date the entry's text was checked against `sourceDoc`, or null while it has not been transcribed. */
   verifiedOn: string | null
 }
 
@@ -95,7 +96,7 @@ export type LawBaseline = {
    * ceiling it is only unverified.
    */
   maxArticle: number | null
-  /** Date a person verified `maxArticle`, or null. */
+  /** Date `maxArticle` was checked against `maxSource`, or null. */
   maxVerifiedOn: string | null
   /** Where the ceiling came from. */
   maxSource: string | null

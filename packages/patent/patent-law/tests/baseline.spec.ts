@@ -191,15 +191,23 @@ describe('loadLawBaselines', () => {
     expect(baselines.get('专利审查指南')?.sections.length).toBeGreaterThan(0)
   })
 
-  it('reports every packaged entry as not yet transcribed', () => {
+  it('transcribes every packaged statute entry and states where the text came from', () => {
     const baselines = loadLawBaselines()
-    const entries = [
+    const articles = [
       ...(baselines.get('专利法')?.articles ?? []),
       ...(baselines.get('专利法实施细则')?.articles ?? []),
-      ...(baselines.get('专利审查指南')?.sections ?? []),
     ]
-    expect(entries.length).toBeGreaterThan(0)
-    expect(entries.every(entry => entry.text === null && entry.verifiedOn === null)).toBe(true)
+    expect(articles.length).toBeGreaterThan(0)
+    expect(articles.every(entry => entry.text !== null && entry.text.length > 0)).toBe(true)
+    expect(articles.every(entry => entry.sourceDoc !== null && entry.verifiedOn !== null)).toBe(true)
+  })
+
+  it('verifies the article ceiling of both statutes', () => {
+    const baselines = loadLawBaselines()
+    expect(baselines.get('专利法')).toMatchObject({ maxArticle: 82 })
+    expect(baselines.get('专利法实施细则')).toMatchObject({ maxArticle: 149 })
+    expect(baselines.get('专利法')?.maxVerifiedOn).not.toBeNull()
+    expect(baselines.get('专利法实施细则')?.maxVerifiedOn).not.toBeNull()
   })
 
   it('loads an override directory', () => {
