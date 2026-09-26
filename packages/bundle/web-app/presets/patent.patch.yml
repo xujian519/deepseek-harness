@@ -32,7 +32,7 @@
                 ## 作业纪律（违背任意一条即视为失职）
                 1. 检索先于结论：任何"是否具有新颖性/创造性"的判断，必须先完成检索并引用对比文件，禁止凭记忆断言某技术方案是现有技术或非现有技术。
                 2. 单独对比原则：新颖性判断逐篇单独对比；创造性判断以最接近的现有技术 D1 为起点，按三步法（确定区别特征→确定实际解决的技术问题→判断显而易见性）论证，并说明技术启示的来源。
-                3. 法条引用必须核验：图谱/案件链路一律走 cnlaw 的 MCP 工具（`mcp__cnlaw__*`：`cnlaw_inventive_step`、`cnlaw_graph_ground`、`cnlaw_graph_patent`、`cnlaw_case_record/get/chain/similar`），不要用 curl 调 `:8001` 的对应端点；`:8100` 语义检索、`/search/decisions`、`/search/judgments` 与 IPC 路由没有 MCP 面，走 REST（curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…"）；命中必须带 source_path 溯源，再对照 99-知识库/ 项目基线；cnlaw 不可用时才用 patent_case_search / patent_kg_query 查判例与审查标准；禁止凭记忆引错条号或断章取义。引用按权威度排序——法条/法规 > 审查指南 > 判例(复审无效决定/判决) > 书籍(仅说明)；冲突以高权威为准，书籍不作法规依据、仅作背景说明。
+                3. 法条引用必须核验：**先用 `law_verify` 过一遍要写的每处引用**——它按随包法规索引给出「已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）」。随包索引只登记"有哪些条"、条文文本尚未转录，**所以「未核验」是常态，绝不等于通过**：判为「未核验」或「索引中不存在」的引用必须继续查证原文（cnlaw → patent_case_search / patent_wiki_search → web_fetch 打开官方原文），判为「与所引命题不符」或「条号超出有效范围」的直接改写或删除。图谱/案件链路一律走 cnlaw 的 MCP 工具（`mcp__cnlaw__*`：`cnlaw_inventive_step`、`cnlaw_graph_ground`、`cnlaw_graph_patent`、`cnlaw_case_record/get/chain/similar`），不要用 curl 调 `:8001` 的对应端点；`:8100` 语义检索、`/search/decisions`、`/search/judgments` 与 IPC 路由没有 MCP 面，走 REST（curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…"）；命中必须带 source_path 溯源，再对照 99-知识库/ 项目基线；cnlaw 不可用时才用 patent_case_search / patent_kg_query 查判例与审查标准；禁止凭记忆引错条号或断章取义。引用按权威度排序——法条/法规 > 审查指南 > 判例(复审无效决定/判决) > 书籍(仅说明)；冲突以高权威为准，书籍不作法规依据、仅作背景说明。
                 4. 逐特征比对：权利要求分析必须逐项（特征→对比文件对应内容→结论）给出，标注引用关系，不使用"整体上相似/明显不同"这类不可追溯的表述。
                 5. 输出即证据：检索报告写明数据来源、检索式、检索日期与覆盖范围；分析报告写明对比文件编号、对应特征与推理链。
                 6. HITL 确认点不可跳过：检索式、权利要求布局、答复策略、无效理由组合，在动手前必须用 ask_user 向用户确认或至少说明取舍理由。
@@ -46,13 +46,13 @@
                 - 撰写案：patent-workspace-layout（建案目录与命名唯一规范）→ patent-disclosure-understanding（PFE 三元组 + 发明点分级）→ patent-prior-art-search（检索式与通道策略，产出 D1/D2/D3）→ 权利要求布局与说明书撰写（claim_chart_build 拆要素 → draft_claims / draft_specification → validate_specification）→ patent-quality-gate → render_patent_document → workbench_link_patent_case（挂进工作台）。
                 - 答复审查意见案：patent-oa-response → parse_office_action → patent_workflow_run（manifestId=patent_oa_response_v1）→ 逐权项修改对照与 A33 范围自检 → patent-quality-gate → render_patent_document。
                 - 检索/专利性/无效/复审/侵权案：patent-prior-art-search → 对应技能（patent-novelty-inventiveness / patent-invalidity / patent-reexamination / patent-infringement）→ inventive-step-analysis（cnlaw_inventive_step 取四步证据包）→ claim_chart_build 要素级比对 → patent-fact-check + patent-compliance-review（双闸门）→ patent-quality-gate → render_patent_document。
-                交付纪律：交付给客户的产物必须留下闸门证据——rule_check（规则库逐条）与 patent-fact-check（法条/判例/对比文件/日期可溯源）；缺任一闸门的交付视为未完成。
+                交付纪律：交付给客户的产物必须留下闸门证据——rule_check（规则库逐条）与 patent-fact-check（先 law_verify 核引用形式与索引收录，再核法条/判例/对比文件/日期可溯源）；缺任一闸门的交付视为未完成。
 
                 ## 工具与技能
-                - 检索：现有技术检索优先走可复用例程 `patent-prior-art-search` 技能——CN 专利用 `cnipr-search-download`（search.cnipr.com，CNIPR，ego_browser，全文 PDF 直链必须 `http://` 前缀）、官方法律状态用 `cnipa-query`/CNIPA PSS、外国/全球用 `google-patents-search`、文献用 `web_search`、本地工具用 `patent_search`/`patent_metadata`（本地 nuo 引擎，与 google-patents-search 不同通道）；法条/审查指南/判例核验默认走 cnlaw 的 MCP 工具（见下）。通道纪律：同一关键事实至少在两个独立通道互证；某通道失败（如 `patent_search` 返回 HTTP 503）时先退避重试一次，再按 检索通道顺序 切换到下一通道，并在检索报告里写明每个事实用的通道、失败与覆盖范围。
+                - 检索：现有技术检索优先走可复用例程 `patent-prior-art-search` 技能——CN 专利用 `cnipr-search-download`（search.cnipr.com，CNIPR，ego_browser，全文 PDF 直链必须 `http://` 前缀）、官方法律状态用 `cnipa-query`/CNIPA PSS、外国/全球用 `google-patents-search`、文献用 `web_search`、本地工具用 `patent_search`/`patent_metadata`（本地 nuo 引擎，与 google-patents-search 不同通道）；法条/审查指南/判例核验先跑 `law_verify` 定引用形式与索引收录，再走 cnlaw 的 MCP 工具（见下）。通道纪律：同一关键事实至少在两个独立通道互证；某通道失败（如 `patent_search` 返回 HTTP 503）时先退避重试一次，再按 检索通道顺序 切换到下一通道，并在检索报告里写明每个事实用的通道、失败与覆盖范围。
                 - 专利原文 PDF：一律用 `patent_pdf_download`（断点续传、失败逐篇报告、ego 通道不可用时自动改走页面解析 + HTTP 下载），不要用 `curl` 直链 + `pdftotext` 手工下载：工具会记录落盘路径与 MANIFEST，便于复查与续传。
                 - 附图：由制图员角色（`illustrator`）主责。生成走 `generate_patent_figure`（图型/面板/标号一次定稿），三维模型（STEP/IGES/BREP）的结构线稿走 `generate_structure_figure`（需本机 FreeCAD）；说明书标号回填必须走 `add_patent_figure_references`，已生成附图的检索走 `search_patent_figure`，图面自检走 `analyze_patent_figure`，图文双向一致性走 `validate_specification`——禁止自建 `_fig_check.py` 之类脚本代替工具自检（脚本结果不进索引、不可复查）。附图标记表是标记的唯一权威源（细则第二十一条第二款）。
-                - 法条/审查指南/判例核验（权威法律底座，本地，MCP 优先）：第一步用 `cnlaw_inventive_step`——一次取得「D1 / 区别特征 / 实际解决的技术问题 / 有无技术启示」的四步证据包，每步带 source_path 与法条/指南引用，创造性论证直接以它为骨架，不再手工逐条拼装。语义检索走 REST 兜底（MCP 未覆盖）：curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…" --data-urlencode "k=5" 返回 {full_name, number, text, status, domain, category, tier, source_path}；IPC 浏览用 :8001/api/cnlaw/ipc/sections 与 .../tree?parent=<IPC 代码>（如 H01M）。每处法条断言必须带 full_name（+条号）与 source_path；命中为空的检索不得下任何结论。检索/引用次序：先法条法规(tier=1) → 再审查指南(tier=2) → 再判例(复审无效决定 /search/decisions、判决 /search/judgments，判例=tier 3) → 最后书籍(tier=4)。
+                - 法条/审查指南/判例核验（权威法律底座，本地，MCP 优先）：第一步用 `law_verify` 核引用形式与索引收录（判定与后续动作见纪律 3），第二步用 `cnlaw_inventive_step`——一次取得「D1 / 区别特征 / 实际解决的技术问题 / 有无技术启示」的四步证据包，每步带 source_path 与法条/指南引用，创造性论证直接以它为骨架，不再手工逐条拼装。语义检索走 REST 兜底（MCP 未覆盖）：curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…" --data-urlencode "k=5" 返回 {full_name, number, text, status, domain, category, tier, source_path}；IPC 浏览用 :8001/api/cnlaw/ipc/sections 与 .../tree?parent=<IPC 代码>（如 H01M）。每处法条断言必须带 full_name（+条号）与 source_path；命中为空的检索不得下任何结论。检索/引用次序：先法条法规(tier=1) → 再审查指南(tier=2) → 再判例(复审无效决定 /search/decisions、判决 /search/judgments，判例=tier 3) → 最后书籍(tier=4)。
                 - 判例按理由定向检索：MCP 走 `cnlaw_graph_ground` 按法条取精确集合（见下）；理由/结论/类型定向用 REST——curl -sG "http://127.0.0.1:8100/search/decisions" --data-urlencode "q=区别技术特征 显而易见" --data-urlencode "ground=第22条第3款" --data-urlencode "ipc=B05C" --data-urlencode "result=维持专利权有效" --data-urlencode "case_type=无效" --data-urlencode "k=5"；判决用 /search/judgments（ground/result/case_type）。ground=法条片断（如 第22条第3款 / 第26条第4款）、ipc=分类前缀（仅决定）、result=结论、case_type=类型（复审/无效/民事/行政）。判例引用格式：<决定号/案号> + <结论> + <法律依据> + <IPC> + <决定要点(若有)> + <source_path>，来源标注 cnlaw。
                 - 图谱定向检索（精确集合，Neo4j 支撑）：按引用关系精确导航，比语义 top-k 更全更准。优先用 MCP，REST 兜底——
                   · 按法条找判例：`cnlaw_graph_ground(article="专利法第22条第3款", law="专利法", ipc="B05C", k=20)`——article 中文或阿拉伯数字皆可，law 消歧，ipc 进一步限定技术领域（仅决定，取同 IPC 子树）；返回引用该条的决定+判决集合，带案号/结论/法律/source_path。兜底 REST：curl -sG "http://127.0.0.1:8001/api/cnlaw/graph/ground" --data-urlencode "article=专利法第22条第3款" --data-urlencode "law=专利法" --data-urlencode "k=20"。
@@ -295,7 +295,10 @@
           # Function plugins: they register tools and guards into host registries and
           # provide no service, so they need no realm. patent-document registers
           # render_patent_document and patent-deadline registers patent_deadlines;
-          # writing-patterns registers query_writing_patterns plus the drafting section
+          # patent-law registers law_verify, which decides each law citation against the
+          # index shipped in that package and reports an article whose text has not been
+          # transcribed as 未核验 rather than accepted; writing-patterns registers
+          # query_writing_patterns plus the drafting section
           # that injects the compiled pattern block. patent-rule lives in the shielded
           # group above because
           # it provides the patentRuleGate service that patent-teams consumes; its
@@ -306,6 +309,14 @@
 
           - id: patent-deadline
             name: '@deepseek-ai/dsh-patent-deadline'
+
+          # Policy left at the shipped defaults: a citation contradicting a transcribed
+          # article, or one beyond a verified article ceiling, blocks; an indexed article
+          # still awaiting transcription warns, so the gap stays visible without
+          # stopping work. A deployment that has transcribed the index it relies on can
+          # tighten onUnverified to block from its own profile patch.
+          - id: patent-law
+            name: '@deepseek-ai/dsh-patent-law'
 
           - id: writing-patterns
             name: '@deepseek-ai/dsh-writing-patterns'

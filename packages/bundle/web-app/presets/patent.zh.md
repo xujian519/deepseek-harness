@@ -2,11 +2,11 @@
 
 [English](patent.md) | 中文
 
-`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。本 bundle 在 `presets/patent.patch.yml` 中声明它，其 15 个技能随附在 `skills/patent/` 下。它以 `standard` preset 为基础，加入专利域插件以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。法条/审查指南/判例核验优先走本机 cnlaw REST 法律底座（semantica-cnlaw，见「前置条件」），保留 source_path 溯源，不可用时回退 patent_case_search / patent_kg_query。
+`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。本 bundle 在 `presets/patent.patch.yml` 中声明它，其 15 个技能随附在 `skills/patent/` 下。它以 `standard` preset 为基础，加入专利域插件以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。法条/审查指南/判例核验优先走本机 cnlaw REST 法律底座（semantica-cnlaw，见「前置条件」），保留 source_path 溯源，不可用时回退 patent_case_search / patent_kg_query。引用形式先经 `@deepseek-ai/dsh-patent-law` 随包的法规索引核验：条文尚未转录的条目报「未核验」，不会被当成已核验。
 
 ## 挂载内容
 
-除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 另挂载 11 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行：
+除专利作业所需的标准编码行（shell、文件、jobs、skills、goals、计划模式、压缩、委托、web）外，本 preset 另挂载 12 个插件——专利域的服务与工具，以及专利技能会调用的文献与方法学两行：
 
 - `@deepseek-ai/dsh-patent-data` — 数据接缝（ctx.patentData：nuo 检索 provider 工厂 + ego-browser 会话运行器）。patent_pdf_download 经该服务运行其 ego-browser 下载适配器。
 - `@deepseek-ai/dsh-patent-knowledge` — knowledge.db 查询服务（ctx.patentKnowledge：caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify）。
@@ -16,6 +16,7 @@
 - `@deepseek-ai/dsh-patent-rule` — 规则引擎、tools/post-execute 输出门禁、EVI-011 证据守卫。
 - `@deepseek-ai/dsh-patent-document` — render_patent_document。
 - `@deepseek-ai/dsh-patent-deadline` — patent_deadlines：案件的法定与指定期限，含专利法实施细则的期限与送达规则，以及随包节假日日历用于届满日顺延。
+- `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但条文未转录的条目报「未核验」而不是放行。随包索引只含条号、主题词与转录来源，每个条目都尚未转录，因此默认部署下每条引用都判「未核验」——这正是要点：引用必须经官方来源核验的纪律没有变，只是未核验的条文不再可能被读成已核验。
 - `@deepseek-ai/dsh-writing-patterns` — 基于随包撰写/答复模式语料的 query_writing_patterns，以及承载编译后 `<writing_skills>` 块的系统提示段。
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
@@ -52,7 +53,7 @@
 
 ## 知识库策略
 
-按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文优先经本机 cnlaw REST（:8100 /search，source_path 溯源）核验权威来源，cnlaw 不可用时经 patent_case_search 加 web_fetch 核验。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
+按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文优先经本机 cnlaw REST（:8100 /search，source_path 溯源）核验权威来源，cnlaw 不可用时经 patent_case_search 加 web_fetch 核验。两条通道之前先跑 `law_verify`：它固定引用形式并说明随包索引收录与不收录什么，因此索引支撑不了的引用会被查证而不是凭记忆引用。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
 
 这修订了 docs/patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
 
@@ -66,13 +67,14 @@ OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openv
 
 ## Model Experience
 
-模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、15 个预设内技能，以及专利工具加标准编码工具。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
+模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验）加标准编码工具。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
 
 ## Known Limitations and Deferred Work
 
-- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具；法条原文优先经本机 cnlaw 底座核验（可选底座，见前置条件）——挂载时走 MCP 工具，否则走 REST（curl）；cnlaw 不可用时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
+- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具。`law_verify` 覆盖的是引用形式与索引收录，不是法条原文：它判定某条是否在索引内，并在某部署把条目转录之后判定所引命题是否与其相符。法条原文优先经本机 cnlaw 底座核验（可选底座，见前置条件）——挂载时走 MCP 工具，否则走 REST（curl）；cnlaw 不可用时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
+- 随包法条索引不含转录后的条文文本，因此其条目目前都是「未核验」，`law_verify` 会把每条引用报成「未核验」。把某部署依赖的条文按官方来源转录（并补记每条的 `sourceDoc` / `verifiedOn`）属后续工作；在此之前该工具的作用是收窄需要查证的范围，而不是取代查证。另，`专利法` 索引中第 62/69/70 条一组疑为 2020 年修正前的编号，已记录在资产文件头。
 - patent_pdf_download 在宿主机有可用 ego-browser（ego lite，仅 macOS，且在 PATH 上）时走浏览器内下载拦截；没有时退回抓页面 CDN 链接 + HTTP 下载，整批仍能下载。两个通道都失败时按篇报告错误，不中断整批。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - patent-oa-response 与 patent-reexamination 属本仓新增技能，非移植：步骤顺序跟随 patent_oa_response_v1 / patent_reexamination_v1 manifest，期限一律由 patent_deadlines 给出，但两者均未经实务对照现行《专利审查指南》复核。复审技能对实用新型命中的创造性理由按现行口径保留、并把专利权类型单独输出（不静默删除理由）；该口径在工作台计划中仍标注为待确认项。
-- 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；法条原文在使用时核验。
+- 设计文档的 `~/.agents/skills/patent-legal/_shared/patent-law-baseline-2024.md` 是 Sati 用户级资产，未随附；事实核验与质量门禁技能已不再依赖它——引用形式改由随包索引核验，法条原文在使用时核验。
 - 自进化 benchmark 仅编程接口：`ctx.selfEvolveBenchmark` 不挂模型工具；建立基线 / 优化循环由 operator 或脚本解析某 agent 的该服务后驱动。其默认 seams 在宿主 subagents 注册表上 fork 子代理，子代理继承本 preset 的 approval 设置（`'never'`）与计划模式纪律——需审批的操作在子代理中被拒，executor prompt 已显式退出计划语义，可直接产出交付物。

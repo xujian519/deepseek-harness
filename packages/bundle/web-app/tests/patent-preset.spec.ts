@@ -133,4 +133,13 @@ describe('patent preset composition', () => {
     const toolWeb = rows.find(row => row.id === 'tool-web')
     expect(toolWeb?.config?.fetch).toBe(true)
   })
+
+  it('mounts the law index checker the fact-check gate calls', async () => {
+    // The persona and the fact-check / quality-gate skills instruct the model to run
+    // law_verify first; without this row the tool is absent from the session.
+    const rows = await patentRows()
+    const row = rows.find(entry => entry.id === 'patent-law')
+    expect(row?.name).toBe('@deepseek-ai/dsh-patent-law')
+    expect(row?.disabled).toBeUndefined()
+  })
 })
