@@ -20,7 +20,7 @@ export type SatiEvidenceReceipt = {
   startedAt: string
   /** 涉及的文件路径（可定位证据来源；无则省略） */
   path?: string
-  /** 是否写操作（write_file/edit_file/bash 等）；false = 读/检索 */
+  /** 是否写操作（write/edit 及其带前缀的变体、带写入意图的 shell）；false = 读/检索 */
   write: boolean
   /** 工具结果文本摘录（供证据 snippet 复用） */
   resultText?: string
@@ -31,6 +31,9 @@ export type SatiEvidenceCollector = {
   recordReceipt(receipt: SatiEvidenceReceipt): void
 }
 
+/** 写入型工具的精确名（本 harness 的 `@deepseek-ai/dsh-tool-fs` 工具）。 */
+const WRITE_TOOL_NAMES = new Set(['write', 'edit'])
+/** 写入型工具的前缀族：覆盖 `write_file` 这类带后缀的命名（含 MCP 服务器发布的名字）。 */
 const WRITE_TOOL_PREFIXES = [
   'write_',
   'edit_',
@@ -53,10 +56,21 @@ function extractPath(args: Record<string, unknown>): string | undefined {
   return undefined
 }
 
+/**
+ * 取用于写入判定的名字段：MCP 工具名形如 `mcp__<server>__<name>`，动作名在最后一段，
+ * 因此按最后一段匹配，`write` 与 `mcp__fs__write_file` 都能识别。
+ * @param toolName - 注册的工具名。
+ * @returns 用于写入判定的名字段。
+ */
+function writeName(toolName: string): string {
+  return toolName.includes('__') ? toolName.slice(toolName.lastIndexOf('__') + 2) : toolName
+}
+
 function isWriteTool(toolName: string, args: Record<string, unknown>): boolean {
-  if (WRITE_TOOL_PREFIXES.some(prefix => toolName.startsWith(prefix))) return true
+  const name = writeName(toolName)
+  if (WRITE_TOOL_NAMES.has(name) || WRITE_TOOL_PREFIXES.some(prefix => name.startsWith(prefix))) return true
   // bash 等执行类工具：仅当带写入意图时标记（保守判定，避免误标检索）
-  if (toolName === 'bash' || toolName === 'execute_code') {
+  if (name === 'bash' || name === 'execute_code') {
     const cmd = args['command'] ?? args['code'] ?? ''
     if (typeof cmd === 'string' && /(>|>>|tee|sed\s+-i|mv|cp|rm|mkdir|touch)/.test(cmd)) return true
   }

@@ -244,7 +244,7 @@ function analysisWorkers(): WorkerContract[] {
       name: 'patent-technical-analyzer',
       tier: 'work',
       description: '分析技术交底书，提取技术三要素（问题/特征/效果）PFE 三元组',
-      allowedTools: ['read_file', 'web_fetch'],
+      allowedTools: ['read', 'web_fetch'],
       inputs: [{ path: `${CASE_ROOT_REL}/{caseId}/disclosure/*.md`, description: '技术交底书' }],
       outputs: [
         {
@@ -284,7 +284,7 @@ function analysisWorkers(): WorkerContract[] {
       name: 'patent-novelty-analyzer',
       tier: 'reasoning',
       description: '新颖性（A22.2）逐特征比对，输出结论与置信度',
-      allowedTools: ['patent_eval', 'read_file'],
+      allowedTools: ['patent_eval', 'read'],
       canInvoke: ['patent-search-commander', 'patent-technical-analyzer'],
       outputs: [
         {
@@ -300,7 +300,7 @@ function analysisWorkers(): WorkerContract[] {
       name: 'patent-inventiveness-analyzer',
       tier: 'reasoning',
       description: '创造性（A22.3）三步法分析：最接近现有技术→区别技术特征→技术启示，输出结论与置信度',
-      allowedTools: ['patent_eval', 'read_file'],
+      allowedTools: ['patent_eval', 'read'],
       canInvoke: ['patent-search-commander', 'patent-technical-analyzer'],
       outputs: [
         {
@@ -332,7 +332,7 @@ function prosecutionWorkers(): WorkerContract[] {
       name: 'patent-oa-writer',
       tier: 'work',
       description: '审查意见答复：解析 OA、制定策略、撰写意见陈述书',
-      allowedTools: ['read_file', 'write_file', 'patent_eval'],
+      allowedTools: ['read', 'write', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/oa-response.md`,
@@ -363,7 +363,7 @@ function prosecutionWorkers(): WorkerContract[] {
       tier: 'work',
       description:
         '案件管理员（流程中立）：立案登记与案卷目录、交底书接收、反馈申请人补充资料循环、期限/节点监控、补充合格判定',
-      allowedTools: ['read_file', 'write_file', 'patent_case_search'],
+      allowedTools: ['read', 'write', 'patent_case_search'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/case-manager-report.md`,
@@ -380,7 +380,7 @@ function prosecutionWorkers(): WorkerContract[] {
       tier: 'provision',
       description:
         '申请人代理（申请人方）：权利要求范围最大化、扩张机会识别、从权布局、合并修改备选、争辩策略',
-      allowedTools: ['read_file', 'write_file', 'patent_case_search', 'patent_eval'],
+      allowedTools: ['read', 'write', 'patent_case_search', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/applicant-counsel-report.md`,
@@ -397,7 +397,7 @@ function prosecutionWorkers(): WorkerContract[] {
       tier: 'checker',
       description:
         '形式审查员（初步审查方）：形式缺陷清单核验、文件齐全性、格式规范、附图清晰度、著录项目、签字盖章、补正彻底性判定',
-      allowedTools: ['read_file', 'write_file', 'patent_case_search', 'patent_eval'],
+      allowedTools: ['read', 'write', 'patent_case_search', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/formal-examiner-report.md`,
@@ -423,7 +423,7 @@ function disputeWorkers(): WorkerContract[] {
       tier: 'reasoning',
       description:
         '无效请求人（攻击方）：无效理由地图（A22.2/22.3/26.3/26.4/33/A9）、证据组合与成功率最大化、预判专利权人应对',
-      allowedTools: ['patent_search', 'patent_case_search', 'patent_legal_status', 'read_file', 'patent_eval'],
+      allowedTools: ['patent_search', 'patent_case_search', 'patent_legal_status', 'read', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/invalidity-petitioner-report.md`,
@@ -440,7 +440,7 @@ function disputeWorkers(): WorkerContract[] {
       tier: 'reasoning',
       description:
         '专利权人（防御/主张方）：无效时质证请求人证据三性、提交反证、修改权利要求缩小范围换维持；诉讼时全面覆盖+等同主张、判赔计算',
-      allowedTools: ['read_file', 'write_file', 'patent_case_search', 'patent_eval'],
+      allowedTools: ['read', 'write', 'patent_case_search', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/patentee-defender-report.md`,
@@ -456,7 +456,7 @@ function disputeWorkers(): WorkerContract[] {
       tier: 'provision',
       description:
         '被告代理人（抗辩方）：不侵权/现有技术抗辩、禁反言与捐献排除等同、提无效反制、豁免抗辩',
-      allowedTools: ['read_file', 'patent_case_search', 'patent_search', 'patent_eval'],
+      allowedTools: ['read', 'patent_case_search', 'patent_search', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/defendant-counsel-report.md`,
@@ -472,7 +472,7 @@ function disputeWorkers(): WorkerContract[] {
       tier: 'reasoning',
       description:
         '合议组/裁判（中立裁判）：程序规则核验（前置审查/口审/庭审/举证期限/证据规则）、双方论点对抗评估、证据采信、结果预判与理由',
-      allowedTools: ['read_file', 'patent_case_search', 'patent_legal_status', 'patent_eval'],
+      allowedTools: ['read', 'patent_case_search', 'patent_legal_status', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/adjudicator-report.md`,
@@ -498,7 +498,7 @@ function deliverableWorkers(): WorkerContract[] {
       tier: 'reasoning',
       description:
         '技术调查官（中立技术查明）：实施例/特征比对/等同的技术维度独立判断，与"技术专家"的我方立场区分',
-      allowedTools: ['read_file', 'patent_eval'],
+      allowedTools: ['read', 'patent_eval'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/tech-investigator-report.md`,
@@ -516,8 +516,8 @@ function deliverableWorkers(): WorkerContract[] {
       description:
         '制图员（流程中立）：附图的唯一权威产出与核验——按案情出图（结构示意图/流程图/框图/层级图/状态图/电路图/曲线图/剖视图/时序图/外观设计视图排布，三维模型走结构线稿），维护附图标记表（细则第二十一条第二款图文双向一致的唯一标记源），标号回填，图文双向一致性核验，形式要件核验（图号位于附图正下方、除必需词语外无注释、色彩与落版尺寸）',
       allowedTools: [
-        'read_file',
-        'write_file',
+        'read',
+        'write',
         'generate_patent_figure',
         'generate_structure_figure',
         'add_patent_figure_references',
@@ -541,7 +541,7 @@ function deliverableWorkers(): WorkerContract[] {
       tier: 'work',
       description:
         '文档专员（流程中立）：按场景把已定稿内容组织成正式交付文档——选择场景模板（专利性意见/检索报告/OA答复/权利要求书+说明书/补正书/复审请求书/无效意见/侵权比对意见/诉讼文书），矫正（术语一致性、法条引用格式与出处、数字/日期/期限、编号层级、文书称谓），美化（模板渲染、品牌注入、A4 版式、md 起草→html/pdf 或 docx 交付）',
-      allowedTools: ['read_file', 'write_file', 'render_patent_document'],
+      allowedTools: ['read', 'write', 'render_patent_document'],
       outputs: [
         {
           path: `${caseOutputsDir('{caseId}')}/document-deliverable.md`,

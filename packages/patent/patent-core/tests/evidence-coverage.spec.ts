@@ -260,6 +260,43 @@ it('receiptFromToolExecution：bash 写意图判定与 args 兜底', () => {
 })
 
 // ---------------------------------------------------------------------------
+// receiptFromToolExecution：真实写工具名与 MCP 前缀名
+// ---------------------------------------------------------------------------
+
+it('receiptFromToolExecution：识别 write/edit 与 MCP 前缀的写入工具', () => {
+  const write = receiptFromToolExecution({
+    toolCallId: 'w1', turnId: 't', toolName: 'write',
+    args: { file_path: '/tmp/a.md', content: 'x' }, success: true, startedAt: 'x',
+  })
+  expect(write.write).toBe(true)
+  expect(write.path).toBe('/tmp/a.md')
+
+  const edit = receiptFromToolExecution({
+    toolCallId: 'w2', turnId: 't', toolName: 'edit',
+    args: { file_path: '/tmp/a.md' }, success: true, startedAt: 'x',
+  })
+  expect(edit.write).toBe(true)
+
+  const mcpWrite = receiptFromToolExecution({
+    toolCallId: 'w3', turnId: 't', toolName: 'mcp__filesystem__write_file',
+    args: { path: '/tmp/a.md' }, success: true, startedAt: 'x',
+  })
+  expect(mcpWrite.write).toBe(true)
+
+  const read = receiptFromToolExecution({
+    toolCallId: 'w4', turnId: 't', toolName: 'read',
+    args: { file_path: '/tmp/a.md' }, success: true, startedAt: 'x',
+  })
+  expect(read.write).toBe(false)
+
+  const mcpRead = receiptFromToolExecution({
+    toolCallId: 'w5', turnId: 't', toolName: 'mcp__filesystem__read_file',
+    args: { path: '/tmp/a.md' }, success: true, startedAt: 'x',
+  })
+  expect(mcpRead.write).toBe(false)
+})
+
+// ---------------------------------------------------------------------------
 // 证据引擎：类型特定判定其余分支
 // ---------------------------------------------------------------------------
 

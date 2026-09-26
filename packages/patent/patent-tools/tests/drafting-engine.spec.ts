@@ -83,11 +83,10 @@ describe('draft_claims deeper paths', () => {
     expect(draftClaims({ invention_name: 'x', tech_domain: 'general', technical_features: ['a'] }).tech_domain).toBe('general')
   })
 
-  it('flags vague terms and claim limits in dependent claims through the tool render', async () => {
+  it('flags vague terms and the additional-fee threshold through the tool render', async () => {
     const ctx = await ctxWith(createDraftClaimsTool())
     const result = await execute(ctx, 'draft_claims', {
       invention_name: '装置',
-      patent_type: 'utility_model',
       technical_features: ['特征A'],
       optional_features: ['优选地 约 10% 的附加特征', ...Array.from({ length: 10 }, (_, i) => `附加特征${i + 1}`)],
     }, 'dc-2')
@@ -95,7 +94,7 @@ describe('draft_claims deeper paths', () => {
     if (result.isError) throw new Error('expected success')
     expect(text(result)).toContain('形式校验违规')
     expect(text(result)).toContain('（引用 1）')
-    expect(text(result)).toContain('claim_limit')
+    expect(text(result)).toContain('additional_fee')
   })
 
   it('renders the missing-features warning through the tool', async () => {
