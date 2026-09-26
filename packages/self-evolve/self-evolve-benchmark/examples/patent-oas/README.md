@@ -23,6 +23,20 @@ cases/<case-id>/
 
 `patent-state/guidance.md` is the initial agent-state seed: a model-visible patent work specification (checklist) that executors follow and the optimize loop edits. It holds only general working method, never any case answer, and does not break rubric isolation.
 
+## Problem-space DAG and regression gate
+
+`problem-space.yaml` models the patent-practice problem space this gold standard covers as a directed acyclic graph: nodes are the facets a deliverable is judged on, `dependsOn` edges carry the prerequisite structure (search precedes distinguishing features, distinguishing features precede the actual technical problem, per-feature comparison precedes equivalents), and each rubric dimension is split by its own points onto the nodes it observes. `gate.yaml` pins the gold-standard digest and the score thresholds.
+
+`pnpm run verify-patent-oas-gold` (CI, no key) checks that the gold standard and the DAG stay mutually pinned — every rubric dimension mapped, mapping weights equal to the rubric's own points, every node observable, no cycle in the prerequisite edges — that the recorded gold digest matches, and that a recorded baseline can satisfy its own thresholds. `--run <record.json>` judges one recorded run against the thresholds and attributes failures to problem-space nodes; `--accept <record.json>` promotes a validated run record to the baseline; `--write` re-records the gold digest after a deliberate gold edit.
+
+A run record is the contract between measurement and the threshold: it stores only the raw per-dimension observations, and the gate derives case and node scores from the DAG so no second copy of either can drift. Its fields are `{ benchmarkId, recordedAt, provider?, modelId?, runsPerCase, cases: [{ caseId, dimensions: [{ index, label, points, score }] }] }`. The baseline lives at `packages/self-evolve/evaluation/patent-oas-baseline.json`; while that file is absent the gate reports the regression layer dormant and exits 0 rather than passing silently.
+
+`pnpm run gate:patent-oas` captures a measurement. `--dry-run` prints the plan (cases, runs, total agent calls) without any model call; a real run needs `DEEPSEEK_API_KEY` (or a `.env` declaring it) and skips with exit 0 without one. It starts one `dsh --profile` process per call — one executor per case, working in a private copy of the agent state and writing its deliverable to `deliverable.md`, and one evaluator per rubric dimension, writing a `{"score": n}` JSON object to `score.json` — then writes the run record, keeps every artifact and agent log under `.artifacts/patent-oas/<stamp>/`, and judges the run against the thresholds. `--case <id>` and `--runs <n>` narrow and repeat a run; `--timeout-ms` caps one call and `--budget-ms` the whole capture; the baseline is promoted by the gate, not by the runner.
+
+A captured score measures the model plus the work specification under the profile the caller passed (default `headless`), not the patent preset's tools and persona, so records are comparable with each other only under the same profile — which is what the `provider` and `modelId` fields are for.
+
+No keyed run has been executed in this repository, so what is proven is everything but the model: the capture seam is injectable, and the specs drive the whole pipeline with a stub that writes the two artifacts. The prompts, the artifact contract, the dimension-wise aggregation, the launcher arguments, and the record's acceptance by the gate are covered; a real model writing the artifacts is not.
+
 ## Seeding
 
 ```sh
