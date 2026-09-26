@@ -2667,6 +2667,28 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-document -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-fees -->
+<a id="deepseek-aidsh-patent-fees"></a>
+
+## `@deepseek-ai/dsh-patent-fees`
+
+- `inject`: `tools`
+- `source`: [`packages/patent/patent-fees/src/index.ts:60`](../packages/patent/patent-fees/src/index.ts)
+
+```ts config-catalog
+/** Model-facing patent-fees plugin configuration. */
+export interface Config {
+  /** Path of the fee-index YAML file; defaults to the packaged index. */
+  feeTablePath?: string
+  /**
+   * Withhold a total while any applicable line lacks a verified amount. Turning
+   * it off reports a partial sum over the verified lines only, labelled as such.
+   */
+  failOnUnverified: boolean
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-fees -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-knowledge -->
 <a id="deepseek-aidsh-patent-knowledge"></a>
 
@@ -2697,6 +2719,34 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-knowledge -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-law -->
+<a id="deepseek-aidsh-patent-law"></a>
+
+## `@deepseek-ai/dsh-patent-law`
+
+- `inject`: `tools`
+- `source`: [`packages/patent/patent-law/src/index.ts:76`](../packages/patent/patent-law/src/index.ts)
+
+```ts config-catalog
+/** Model-facing patent-law plugin configuration. */
+export interface Config {
+  /** Directory holding the law-index YAML files; defaults to the packaged index. */
+  baselineDir?: string
+  /** Treatment of a citation whose proposition a verified article does not support. */
+  onMismatch: CitationPolicy
+  /** Treatment of a citation beyond a verified article ceiling. */
+  onOutOfRange: CitationPolicy
+  /** Treatment of a citation the index does not hold. */
+  onNotIndexed: CitationPolicy
+  /** Treatment of an indexed entry whose text has not been transcribed. */
+  onUnverified: CitationPolicy
+}
+
+/** How a decision is turned into a tool result. */
+export type CitationPolicy = 'block' | 'warn' | 'allow'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-law -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-rule -->
 <a id="deepseek-aidsh-patent-rule"></a>
@@ -2767,7 +2817,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:217`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:218`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */
@@ -5434,6 +5484,7 @@ export type PatternCategory = (typeof PATTERN_CATEGORIES)[number]
 | `@deepseek-ai/dsh-output-retention` | — | [`packages/util/output-retention/src/index.ts`](../packages/util/output-retention/src/index.ts) |
 | `@deepseek-ai/dsh-package-manifest` | — | [`packages/util/package-manifest/src/index.ts`](../packages/util/package-manifest/src/index.ts) |
 | `@deepseek-ai/dsh-patent-core` | — | [`packages/patent/patent-core/src/index.ts`](../packages/patent/patent-core/src/index.ts) |
+| `@deepseek-ai/dsh-patent-index-asset` | — | [`packages/patent/patent-index-asset/src/index.ts`](../packages/patent/patent-index-asset/src/index.ts) |
 | `@deepseek-ai/dsh-remote-mock` | — | [`packages/test-support/remote-mock/src/index.ts`](../packages/test-support/remote-mock/src/index.ts) |
 | `@deepseek-ai/dsh-sandbox-windows-acl` | — | [`packages/sandbox/sandbox-windows-acl/src/index.ts`](../packages/sandbox/sandbox-windows-acl/src/index.ts) |
 | `@deepseek-ai/dsh-scope` | — | [`packages/core/scope/src/index.ts`](../packages/core/scope/src/index.ts) |

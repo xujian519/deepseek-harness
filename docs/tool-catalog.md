@@ -50,6 +50,8 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `validate_specification`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
+| `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
+| `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`, `tool/result` | - | law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted. |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-doc-template` | `list_doc_templates`, `render_doc_template` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | list_doc_templates reports the packaged document templates with their variables and supported formats, and render_doc_template renders one with supplied variables to Markdown, HTML, or DOCX, returning the document plus the residual placeholders and variable warnings. A deployment may also name a loaded writing style in `styleGuide`, which injects that style guide as a system-prompt section. |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
@@ -5823,6 +5825,161 @@ Usage notes:
 Source: [`packages/patent/patent-deadline/src/index.ts`](../packages/patent/patent-deadline/src/index.ts)
 
 patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record.
+
+<a id="deepseek-aidsh-patent-fees"></a>
+
+## `@deepseek-ai/dsh-patent-fees`
+
+### `patent_fees`
+
+- Prices the official fees of one Chinese patent case against the fee index shipped with this deployment: the items the case owes, how many units of each, whether a fee reduction applies, the annual-fee tier of each year, and the surcharge on a late annual fee.
+- Report the case facts the index counts with (claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths). A fact the priced items need but the call omits comes back under pending, naming the input, rather than being guessed.
+- Announce every step of the case in triggers. A step you do not name is not priced at all, so a grant or a procedure left out reads as "no fee" — this list is the report's coverage, not a hint.
+- Money is reported only from transcribed amounts. Each line carries amountStatus: verified (amount and its verification date are recorded), unverified (amount recorded, verification date is not), or unrecorded (no amount yet). With the shipped index every item is unrecorded, so lines carry applicability and counts and no figures.
+- The total is withheld while any applicable line is not verified, and the ids that withhold it are listed. Never fill in a missing amount yourself and never quote a total this tool refused: an amount that is not transcribed is unknown, not free.
+- annuityYears is the list of patent years to price; it comes from patent_deadlines, which owns the dates. lateMonths is the number of started months of delay, likewise from that tool.
+- This is arithmetic over an index, not a fee quote: the index carries a fee item's structure, and its amounts stay unverified until a person transcribes them from the official fee standard. Confirm any amount against the official announcement before invoicing a client.
+
+Usage notes:
+  - Read-only, offline, and makes no network request.
+  - An empty lines array means no indexed item matched the named triggers and patent type.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patentType": {
+      "type": "string",
+      "description": "Patent type of the case",
+      "enum": [
+        "invention",
+        "utility-model",
+        "design"
+      ]
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Steps of this case, e.g. [\"filing\",\"substantive-examination\"]",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filing",
+          "substantive-examination",
+          "grant-registration",
+          "annual-fee",
+          "reexamination",
+          "invalidation",
+          "evaluation-report",
+          "restoration",
+          "extension",
+          "record-change",
+          "pct-grace"
+        ]
+      }
+    },
+    "claims": {
+      "type": "number",
+      "description": "Total claim count, for the claim-count surcharge"
+    },
+    "specificationPages": {
+      "type": "number",
+      "description": "Specification page count, for the page-count surcharge"
+    },
+    "priorityClaims": {
+      "type": "number",
+      "description": "Number of priority claims made"
+    },
+    "annuityYears": {
+      "type": "array",
+      "description": "Patent years to price, 1-based, taken from patent_deadlines",
+      "items": {
+        "type": "number"
+      }
+    },
+    "extensionMonths": {
+      "type": "number",
+      "description": "Months of extension requested"
+    },
+    "lateMonths": {
+      "type": "number",
+      "description": "Started months of delay on the annual fee"
+    },
+    "reduction": {
+      "type": "object",
+      "description": "The fee reduction the case qualifies for",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "individual",
+            "enterprise"
+          ]
+        },
+        "filed": {
+          "type": "boolean",
+          "description": "Whether the reduction record was filed"
+        }
+      },
+      "required": [
+        "kind",
+        "filed"
+      ]
+    }
+  },
+  "required": [
+    "patentType",
+    "triggers"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-fees/src/index.ts`](../packages/patent/patent-fees/src/index.ts)
+
+patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure.
+
+<a id="deepseek-aidsh-patent-law"></a>
+
+## `@deepseek-ai/dsh-patent-law`
+
+### `law_verify`
+
+- Checks law citations against the law index shipped with this deployment: 《专利法》《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path.
+- Each citation is decided as 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）. A decision is never reported as checked when it was not: an indexed article whose text has not been transcribed comes back as 未核验, and an article beyond an article ceiling that has itself not been verified also comes back as 未核验.
+- Pass the text whose citations you want checked (citations are extracted from it), or pass exact references. A reference that is not exactly one reference is a tool error, so a typo surfaces instead of being skipped.
+- Pass proposition when a citation is offered in support of a specific claim, so a cited article whose topics do not support that claim is reported as 与所引命题不符.
+- This checks citation form and index membership, not legal correctness of the actual text: the index carries transcribed text only after a person records the transcription source. An article that is 未核验 still has to be verified against an official source (patent_case_search / cnlaw / web_fetch on the official page) before it is relied on.
+
+Usage notes:
+  - Read-only, offline, and makes no network request.
+  - A result with no findings means no citation was recognized, not that the text is correct.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text whose citations are extracted and checked"
+    },
+    "references": {
+      "type": "array",
+      "description": "References to check as written, e.g. 专利法第22条第3款 / 审查指南第二部分第四章3.2.1.1",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposition": {
+      "type": "string",
+      "description": "What the citations are offered in support of"
+    }
+  }
+}
+```
+
+Source: [`packages/patent/patent-law/src/index.ts`](../packages/patent/patent-law/src/index.ts)
+
+law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted.
 
 <a id="deepseek-aidsh-writing-patterns"></a>
 

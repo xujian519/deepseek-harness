@@ -26,6 +26,9 @@ patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植�
 | [`patent-rule/`](patent-rule/README.zh.md) | 规则引擎、合规资产、`tools/post-execute` 输出门禁。 | （策略插件） |
 | [`patent-document/`](patent-document/README.zh.md) | 专利文书渲染：模板、品牌注入、PDF。 | （注册于 `ctx.tools`） |
 | [`patent-deadline/`](patent-deadline/README.zh.md) | 专利期限：期限计算、送达日、届满日顺延。 | （注册于 `ctx.tools`） |
+| [`patent-index-asset/`](patent-index-asset/README.zh.md) | 法条索引与费用索引共用的随包索引资产格式：YAML 映射读取、严格字段读取器、来源记录字段。 | （纯库） |
+| [`patent-law/`](patent-law/README.zh.md) | 法条索引与引用核验：引用解析、逐条记录来源与核验日期、law_verify 工具。 | （注册于 `ctx.tools`） |
+| [`patent-fees/`](patent-fees/README.zh.md) | 费用索引与计价：案件应缴费种、费用减缴、年费分档与滞纳金规则、patent_fees 工具。 | （注册于 `ctx.tools`） |
 | [`writing-patterns/`](writing-patterns/README.zh.md) | 撰写模式语料、词法选择、`<writing_skills>` 编译、质量评分。 | （注册于 `ctx.tools` + section） |
 | [`tool-literature/`](tool-literature/README.zh.md) | 文献连接器：arXiv/OpenAlex/Semantic Scholar/Crossref。 | （注册于 `ctx.tools`） |
 | [`methodology/`](methodology/README.zh.md) | TRIZ 40 原理 + 39×39 矛盾矩阵。 | （section + 工具） |

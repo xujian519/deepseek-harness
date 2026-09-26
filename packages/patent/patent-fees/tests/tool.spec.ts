@@ -1,0 +1,245 @@
+import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { DEFAULT_FEE_POLICY } from '../src/compute.ts'
+import type { FeePolicy } from '../src/compute.ts'
+import { loadFeeTable } from '../src/fees.ts'
+import { createPatentFeesTool, type PatentFeesOutput } from '../src/tool/patent-fees.ts'
+import type { FeeTable } from '../src/types.ts'
+
+/** The packaged index, whose amounts are all still untranscribed. */
+const shipped = loadFeeTable()
+
+/** One transcribed fee item, as a table. */
+function tableOf(
+  id: string,
+  name: string,
+  trigger: FeeTable['items'][number]['trigger'],
+  extra: Partial<FeeTable['items'][number]> = {},
+  reductions: FeeTable['reductions'] = [],
+): FeeTable {
+  return {
+    document: 'fixture',
+    revision: null,
+    currency: 'CNY',
+    sourceDoc: null,
+    effectiveFrom: null,
+    verifiedOn: null,
+    reductions,
+    items: [{
+      id,
+      name,
+      trigger,
+      patentTypes: null,
+      basis: 'per-case',
+      amount: '900',
+      reducible: null,
+      tiers: [],
+      legalBasis: '专利法实施细则第110条',
+      sourceDoc: '公告第 1 号',
+      effectiveFrom: '2026-01-01',
+      verifiedOn: '2026-01-01',
+      ...extra,
+    }],
+  }
+}
+
+/** The transcribed table plus one item whose amount is still untranscribed. */
+const partlyTranscribed: FeeTable = (() => {
+  const base = tableOf('application-fee', '申请费', 'filing')
+  return {
+    ...base,
+    items: [
+      ...base.items,
+      { ...base.items[0]!, id: 'stamp-tax', name: '印花税', trigger: 'grant-registration', amount: null, verifiedOn: null },
+    ],
+  }
+})()
+
+async function host(table: FeeTable = shipped, policy: FeePolicy = DEFAULT_FEE_POLICY): Promise<Context> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  ctx.tools.register(createPatentFeesTool({ table, policy }))
+  return ctx
+}
+
+function execute(ctx: Context, args: unknown) {
+  return ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: ToolCallId('patent-fees'),
+    name: 'patent_fees',
+    arguments: args,
+  })
+}
+
+/** Execute and return the canonical output value. */
+async function run(ctx: Context, args: unknown): Promise<PatentFeesOutput> {
+  const result = await execute(ctx, args)
+  expect(result.isError).toBe(false)
+  return result.value as PatentFeesOutput
+}
+
+const rendered = (result: { content: unknown }): string => JSON.stringify(result.content)
+
+describe('patent_fees tool', () => {
+  it('renders the shipped checklist and refuses to state a total', async () => {
+    const result = await execute(await host(), { patentType: 'invention', triggers: ['filing'] })
+    const text = rendered(result)
+    expect(text).toContain('| 费用项 | 计数依据 | 数量 | 单价(CNY) | 小计 | 应付 | 金额状态 | 依据 |')
+    expect(text).toContain('| 申请费 | 每件 | 1 | — | — | — | 金额未转录 | 专利法实施细则第110条、第112条 |')
+    expect(text).toContain('本次未给出合计')
+    expect(text).toContain('索引未转录的金额是未知，不是零')
+    expect(text).toContain('**待补输入**')
+    expect(text).toContain('- 权利要求附加费（claims-surcharge）：需要 claims——')
+  })
+
+  it('omits every unrecorded field from the output value', async () => {
+    const value = await run(await host(), {
+      patentType: 'invention',
+      triggers: ['filing'],
+      claims: 12,
+      specificationPages: 40,
+      priorityClaims: 1,
+    })
+    // The priority-claim fee has neither an amount nor a legal basis recorded.
+    const line = value.lines.find(entry => entry.id === 'priority-claim-fee')
+    expect(Object.keys(line ?? {}).sort()).toEqual([
+      'basis',
+      'id',
+      'name',
+      'notes',
+      'quantity',
+      'quantityBasis',
+      'status',
+    ])
+    expect(value.lines[0]?.legalBasis).toBe('专利法实施细则第110条、第112条')
+    expect(value.total.amount).toBeUndefined()
+    expect(value.reduction).toBeUndefined()
+  })
+
+  it('renders the total of a fully transcribed case', async () => {
+    const result = await execute(await host(tableOf('application-fee', '申请费', 'filing')), {
+      patentType: 'invention',
+      triggers: ['filing'],
+    })
+    expect(rendered(result)).toContain('**合计（全部已核验）**：900.00 CNY')
+  })
+
+  it('renders a partial total of the verified lines when the policy allows it', async () => {
+    const result = await execute(await host(partlyTranscribed, { failOnUnverified: false }), {
+      patentType: 'invention',
+      triggers: ['filing', 'grant-registration'],
+    })
+    expect(rendered(result)).toContain('**部分合计**：900.00 CNY（仅含已核验项；stamp-tax 未计入）')
+
+    const strict = await execute(await host(partlyTranscribed), {
+      patentType: 'invention',
+      triggers: ['filing', 'grant-registration'],
+    })
+    expect(rendered(strict)).toContain('本次未给出合计')
+  })
+
+  it('renders the pending inputs, the reduction outcome and the notes', async () => {
+    const result = await execute(await host(), {
+      patentType: 'invention',
+      triggers: ['filing'],
+      claims: 12,
+      specificationPages: 40,
+      reduction: { kind: 'individual', filed: false },
+    })
+    const text = rendered(result)
+    expect(text).toContain('**费用减缴**：减缴比例未转录：本次不给减缴后金额。')
+    expect(text).toContain('- 优先权要求费（priority-claim-fee）：需要 priorityClaims')
+    expect(text).toContain('**说明**')
+    expect(text).toContain('- 本次减缴请求未办理费减备案。')
+    expect(text).toContain('减缴适用范围未登记：本项按全额计。')
+    expect(text).toContain('减缴比例未转录：无法给出减缴后金额。')
+  })
+
+  it('renders the notice for a case whose triggers match no indexed item', async () => {
+    const result = await execute(await host(tableOf('application-fee', '申请费', 'filing')), {
+      patentType: 'design',
+      triggers: ['invalidation'],
+    })
+    expect(rendered(result)).toContain('本次没有可计价的费用条目')
+  })
+
+  it('renders the annual fee of each named year and the surcharge on it', async () => {
+    const annual = tableOf('annual-fee', '年费', 'annual-fee', {
+      basis: 'per-annuity-year',
+      latePayment: {
+        monthlyPercent: 5,
+        maxMonths: 6,
+        legalBasis: '专利法实施细则第115条',
+        sourceDoc: null,
+        effectiveFrom: null,
+        verifiedOn: '2026-01-01',
+      },
+    })
+    const result = await execute(await host(annual), {
+      patentType: 'invention',
+      triggers: ['annual-fee'],
+      annuityYears: [4],
+      lateMonths: 2,
+    })
+    const text = rendered(result)
+    expect(text).toContain('| 年费（第 4 年度） | 第 4 年度 | 1 | 900 | 900.00 | 900.00 | 已核验 |')
+    expect(text).toContain('| 年费滞纳金（第 4 年度） | 超期 2 个月，每月加收当年全额年费的 5% | 2 | 45.00 | 90.00 | 90.00 | 已核验 |')
+    expect(text).toContain('**合计（全部已核验）**：990.00 CNY')
+  })
+
+  it('prices an extension and a reduction whose ratio is transcribed', async () => {
+    const extension = tableOf('extension-fee', '延长期限请求费', 'extension', { basis: 'per-month', amount: '200' })
+    const extended = await execute(await host(extension), {
+      patentType: 'invention',
+      triggers: ['extension'],
+      extensionMonths: 2,
+    })
+    expect(rendered(extended)).toContain('| 延长期限请求费 | 2 个月 | 2 | 200 | 400.00 | 400.00 | 已核验 |')
+
+    const reducible = tableOf(
+      'application-fee',
+      '申请费',
+      'filing',
+      { reducible: true },
+      [{
+        kind: 'individual',
+        label: '个人',
+        reductionPercent: 85,
+        requiresFiling: true,
+        sourceDoc: '公告第 2 号',
+        effectiveFrom: null,
+        verifiedOn: '2026-02-01',
+      }],
+    )
+    const reduced = await execute(await host(reducible), {
+      patentType: 'invention',
+      triggers: ['filing'],
+      reduction: { kind: 'individual', filed: true },
+    })
+    expect(rendered(reduced)).toContain('**费用减缴**：已按减缴 85% 计算适用费种。')
+    expect(rendered(reduced)).toContain('**合计（全部已核验）**：135.00 CNY')
+  })
+
+  it('reports a call that names no step as an input error', async () => {
+    const result = await execute(await host(), { patentType: 'invention', triggers: [] })
+    expect(result.isError).toBe(true)
+    expect(rendered(result)).toContain('triggers 不能为空')
+  })
+
+  it('reports a count that cannot be a quantity as an input error', async () => {
+    expect(rendered(await execute(await host(), { patentType: 'invention', triggers: ['filing'], claims: -1 })))
+      .toContain('claims 必须是非负整数，得到：-1')
+    expect(rendered(await execute(await host(), { patentType: 'invention', triggers: ['filing'], claims: 1.5 })))
+      .toContain('claims 必须是非负整数，得到：1.5')
+  })
+
+  it('reports a patent year that cannot exist as an input error', async () => {
+    const result = await execute(await host(), { patentType: 'invention', triggers: ['annual-fee'], annuityYears: [0] })
+    expect(result.isError).toBe(true)
+    expect(rendered(result)).toContain('annuityYears 只能是正整数专利年度，得到：0')
+  })
+})

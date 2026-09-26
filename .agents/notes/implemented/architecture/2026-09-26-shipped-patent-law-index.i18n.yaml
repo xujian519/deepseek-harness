@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for 2026-09-26-shipped-patent-law-index.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-26-shipped-patent-law-index.md
+/agent-note-shipped-patent-law-index-and-citation-verdicts:
+  en: 26e8ad1f29d3b30d
+  zh: 721a3a28251a8662
+/agent-note-shipped-patent-law-index-and-citation-verdicts/problem:
+  en: 1934e3e804ce2370
+  zh: 783122a7dfede30d
+/agent-note-shipped-patent-law-index-and-citation-verdicts/decision:
+  en: 5d6a2ea9699208f9
+  zh: 4f882cb79c7596df
+/agent-note-shipped-patent-law-index-and-citation-verdicts/verdict-semantics:
+  en: 2b6033b4ca2e9705
+  zh: 9e5007d06acb002c
+/agent-note-shipped-patent-law-index-and-citation-verdicts/why-the-automatic-gates-keep-their-own-tables:
+  en: 6ed92fa9b4df4bb7
+  zh: 89e6ec916a7e282c
+/agent-note-shipped-patent-law-index-and-citation-verdicts/alternatives-considered:
+  en: c68c753bcc8d25c2
+  zh: d0ebb3ed214c929e
+/agent-note-shipped-patent-law-index-and-citation-verdicts/consequences:
+  en: 41d42573a8270dc0
+  zh: 0170d747512c8a50

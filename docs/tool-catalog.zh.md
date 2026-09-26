@@ -56,6 +56,8 @@
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`、`ctx.subprocess` | `tool/call`、`tool/result` | - | render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求书/说明书/检索报告/OA 答复/无效意见），可选通过 ctx.subprocess 调用无头 Chrome 生成 PDF。 |
 | `@deepseek-ai/dsh-writing-patterns` | `query_writing_patterns` | `ctx.tools`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | query_writing_patterns selects drafting and office-action patterns from the packaged corpus by category, keyword, or case features, and returns the matched patterns with the compiled <writing_skills> block; the same block is injected as a system-prompt section so the drafting discipline is present without a call. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。 |
+| `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`、`tool/result` | - | patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计。 |
+| `@deepseek-ai/dsh-patent-law` | `law_verify` | `ctx.tools` | `tool/call`、`tool/result` | - | law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行。 |
 | `@deepseek-ai/dsh-patent-teams` | `patent_teams_add_member`, `patent_teams_archive`, `patent_teams_claim_task`, `patent_teams_create`, `patent_teams_create_task`, `patent_teams_delete`, `patent_teams_reassign_task`, `patent_teams_remove_member`, `patent_teams_send_message`, `patent_teams_status`, `patent_teams_update_task` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent as captain (member spawn/follow-up)` | `tool/call`, `tool/result`, `patent-teams/* session events` | - | The durable multi-agent team service for the patent domain: create a team (you become captain), add continuable subagent members by role, break the goal into dependency-aware tasks, and let the shared-task scheduler wake idle members. Member spawn and messaging use the captain as the direct parent, so a team survives harness restarts. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`、`tool/result` | - | - |
@@ -5833,6 +5835,161 @@ render_patent_document 从内置 HTML 模板渲染专利交付物（权利要求
 Source: [`packages/patent/patent-deadline/src/index.ts`](../packages/patent/patent-deadline/src/index.ts)
 
 patent_deadlines 报告一件中国专利案件的法定与指定期限，适用专利法实施细则的期限与送达规则，并把落在节假日的届满日顺延至其后第一个工作日；由通知起算的期限以待补项返回，并点名所缺的送达记录。
+
+<a id="deepseek-aidsh-patent-fees"></a>
+
+## `@deepseek-ai/dsh-patent-fees`
+
+### `patent_fees`
+
+- 按本次部署随包的费用索引为一件中国专利案件计价：案件应缴的费种、每项的数量、是否适用费用减缴、每个年度的年费档位，以及年费超期时的滞纳金。
+- 传入索引据此计数的案件事实（claims / specificationPages / priorityClaims / extensionMonths / annuityYears / lateMonths）。被计价的费种需要而本次调用未给的事实会以待补项返回并点名该输入，而不是被猜。
+- 在 triggers 里列全本案的环节。未点名的环节完全不计价，因此漏掉授权或某个程序环节会被读成"无费用"——这份清单是报告的覆盖范围，不是提示。
+- 金额只来自已转录的数据。每行带 amountStatus：verified（金额与其核验日期都已记录）、unverified（金额已记录，核验日期没有）、unrecorded（尚无金额）。随包索引下每一项都是 unrecorded，因此各行只有适用性与计数，没有数字。
+- 任一适用行未核验时不给合计，并列出挡住合计的 id。不要自己补一个缺失的金额，也不要引用本工具拒绝给出的合计：未转录的金额是未知，不是免费。
+- annuityYears 是要计价的专利年度，来自 patent_deadlines（日期归它）；lateMonths 是已开始的超期月数，同样来自该工具。
+- 这是基于索引的算术，不是报价：索引只含费种的结构，其金额在人工按官方收费标准公告转录前始终未核验。给客户开票前请对照公告确认每一项金额。
+
+使用说明：
+  - 只读且离线；不发起网络请求。
+  - lines 为空表示所给 triggers 与专利类型在索引中没有匹配项。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patentType": {
+      "type": "string",
+      "description": "Patent type of the case",
+      "enum": [
+        "invention",
+        "utility-model",
+        "design"
+      ]
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Steps of this case, e.g. [\"filing\",\"substantive-examination\"]",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filing",
+          "substantive-examination",
+          "grant-registration",
+          "annual-fee",
+          "reexamination",
+          "invalidation",
+          "evaluation-report",
+          "restoration",
+          "extension",
+          "record-change",
+          "pct-grace"
+        ]
+      }
+    },
+    "claims": {
+      "type": "number",
+      "description": "Total claim count, for the claim-count surcharge"
+    },
+    "specificationPages": {
+      "type": "number",
+      "description": "Specification page count, for the page-count surcharge"
+    },
+    "priorityClaims": {
+      "type": "number",
+      "description": "Number of priority claims made"
+    },
+    "annuityYears": {
+      "type": "array",
+      "description": "Patent years to price, 1-based, taken from patent_deadlines",
+      "items": {
+        "type": "number"
+      }
+    },
+    "extensionMonths": {
+      "type": "number",
+      "description": "Months of extension requested"
+    },
+    "lateMonths": {
+      "type": "number",
+      "description": "Started months of delay on the annual fee"
+    },
+    "reduction": {
+      "type": "object",
+      "description": "The fee reduction the case qualifies for",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "individual",
+            "enterprise"
+          ]
+        },
+        "filed": {
+          "type": "boolean",
+          "description": "Whether the reduction record was filed"
+        }
+      },
+      "required": [
+        "kind",
+        "filed"
+      ]
+    }
+  },
+  "required": [
+    "patentType",
+    "triggers"
+  ]
+}
+```
+
+来源：[`packages/patent/patent-fees/src/index.ts`](../packages/patent/patent-fees/src/index.ts)
+
+patent_fees 按本包随包的费用索引为一件中国专利案件计价：案件在调用方点名环节下应缴的费种、每项的数量（每件、超过免费基数的每项权利要求或每页、每项优先权要求、每个专利年度、每请求月数）、每个年度的年费档位、年费超期时的滞纳金，以及案件适用的费用减缴。每行都标明金额是否已核验，任一适用行未核验时不给合计：尚未按官方收费标准公告转录金额的部署拿到的是费种清单与明确的拒绝，而不是一个数字。
+
+<a id="deepseek-aidsh-patent-law"></a>
+
+## `@deepseek-ai/dsh-patent-law`
+
+### `law_verify`
+
+- 按本次部署随包的法规索引核验法条引用：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。
+- 每条引用的判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）。判定绝不把没核验的报成已核验：已索引但条文未转录的条目报「未核验」，超出上限、而该上限本身尚未核验的条号同样报「未核验」。
+- 传入要核验引用的文本（引用从中抽取），或直接传入确切的引用。不是恰好一条引用的输入是工具错误，因此笔误会被暴露而不是被跳过。
+- 当某条引用用于支撑某个具体命题时传入 proposition：主题词不支撑该命题的条目会报「与所引命题不符」。
+- 本工具核验的是引用形式与索引收录，不是法条原文的内容正确性：索引只有在人工记录转录来源之后才带有条文文本。判为「未核验」的条文在依赖之前仍须对照官方来源（patent_case_search / cnlaw / 用 web_fetch 打开官方页面）核验。
+
+使用说明：
+  - 只读且离线；不发起网络请求。
+  - 结果中没有 finding 表示没有识别到引用，不表示文本正确。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text whose citations are extracted and checked"
+    },
+    "references": {
+      "type": "array",
+      "description": "References to check as written, e.g. 专利法第22条第3款 / 审查指南第二部分第四章3.2.1.1",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposition": {
+      "type": "string",
+      "description": "What the citations are offered in support of"
+    }
+  }
+}
+```
+
+来源：[`packages/patent/patent-law/src/index.ts`](../packages/patent/patent-law/src/index.ts)
+
+law_verify 读取一段文本中的法条引用（或直接传入的引用），逐条对照本包随包的法规索引判定：《专利法》《专利法实施细则》按条（及款），《专利审查指南》按归一化节路径。每条判定为 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）；已索引但条文未转录的条目报「未核验」而不是放行。
 
 <a id="deepseek-aidsh-writing-patterns"></a>
 

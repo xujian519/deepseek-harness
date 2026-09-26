@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/patent/patent-index-asset/README.md
+/:
+  en: 708336f4e188dcdd
+  zh: 6068c806666d8f2f
+/deepseek-ai-dsh-patent-index-asset:
+  en: 9e28a5dc9cac2452
+  zh: 3b5dc6d9cec70487
+/deepseek-ai-dsh-patent-index-asset/summary:
+  en: 27a722e5126e5a46
+  zh: be274d743906a42b
+/deepseek-ai-dsh-patent-index-asset/table-of-contents:
+  en: 2dae2931bd80b1cd
+  zh: 8ca8856e463dc952
+/deepseek-ai-dsh-patent-index-asset/why-it-exists:
+  en: 4914f7f5bbe8e50a
+  zh: 31f9cf385f3fbda6
+/deepseek-ai-dsh-patent-index-asset/field-readers:
+  en: 02408a43d3fdfe8b
+  zh: 4644a7ce26833a00
+/deepseek-ai-dsh-patent-index-asset/recorded-source:
+  en: a95d148d5daa3f0f
+  zh: 553def3c3e17ed69
+/deepseek-ai-dsh-patent-index-asset/error-contract:
+  en: 4cfde36cb1c053a6
+  zh: 63af7d18ed9c5112
+/deepseek-ai-dsh-patent-index-asset/model-experience:
+  en: dbe99cccaf1b4a4b
+  zh: 7fbae243bfd194cd
+/deepseek-ai-dsh-patent-index-asset/model-experience/kv-cache-effect:
+  en: c38a9a13cdecab79
+  zh: c143f0a13e0da3ff
+/deepseek-ai-dsh-patent-index-asset/known-limitations-and-deferred-work:
+  en: 4c2cb1c691443bf0
+  zh: 632cc1934058726a
+/deepseek-ai-dsh-patent-index-asset/known-limitations-and-deferred-work/dev-note:
+  en: 4872657f4c5a71f4
+  zh: da27d93491c0122c
