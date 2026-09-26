@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-26-shipped-patent-fee-amounts.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-26-shipped-patent-fee-amounts.md
+/agent-note-transcribed-patent-fee-amounts-and-what-the-item-model-cannot-price:
+  en: fe466eea3f46e7aa
+  zh: ea35a714479783cc
+/agent-note-transcribed-patent-fee-amounts-and-what-the-item-model-cannot-price/problem:
+  en: d92872d13c199638
+  zh: ac9c5adb40fdb353
+/agent-note-transcribed-patent-fee-amounts-and-what-the-item-model-cannot-price/decision:
+  en: 2edd10f1800f4bed
+  zh: 3570441d15da14c9
+/agent-note-transcribed-patent-fee-amounts-and-what-the-item-model-cannot-price/alternatives-considered:
+  en: bbcdf30cb0168670
+  zh: 94f0f3a665d02f8e
+/agent-note-transcribed-patent-fee-amounts-and-what-the-item-model-cannot-price/consequences:
+  en: 2adff2df5f7e1578
+  zh: 4382879f67428241
