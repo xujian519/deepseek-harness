@@ -1,6 +1,10 @@
+import { randomUUID } from 'node:crypto'
+import { rmSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { scanRepository, scanSuppressions } from './verify-suppression-reasons.ts'
 
+const root = resolve(import.meta.dirname, '..')
 const FILE = 'packages/core/tools/tests/probe.spec.ts'
 
 function unexplained(source: string, file = FILE): string[] {
@@ -84,5 +88,17 @@ describe('suppression reason check', () => {
 
   it('passes on the current tree', () => {
     expect(scanRepository().findings).toEqual([])
+  })
+
+  it('skips the lint probe another suite writes into the tree', () => {
+    // `oxlint-contract.spec.ts` creates and deletes this file while both specs run in
+    // the same pool, so the scan must neither read it nor fail on its absence.
+    const probe = join(root, 'scripts', `staged-lint-probe-${randomUUID()}.ts`)
+    writeFileSync(probe, '// oxlint-disable-next-line typescript/no-non-null-assertion\n')
+    try {
+      expect(scanRepository()).toMatchObject({ findings: [] })
+    } finally {
+      rmSync(probe)
+    }
   })
 })
