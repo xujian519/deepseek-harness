@@ -280,6 +280,24 @@ describe('the packaged index', () => {
     expect(verifyCitation(articleRef(50), shipped).decision).toBe('not-indexed')
   })
 
+  it('decides a proposition against the article the index attaches those topics to', () => {
+    const shipped = loadLawBaselines()
+    const cases = [
+      // 实施细则第 42 条 holds the recusal rule; 分案申请 is 第 48 条.
+      [42, '初步审查、实质审查、复审和无效宣告程序中审查人员应当回避', 'valid'],
+      [42, '分案申请应当在原申请的基础上提出', 'mismatch'],
+      // 第 62 条 holds the patentability-evaluation report; 复审请求 is 第 65 条.
+      [62, '专利权评价报告请求书应当写明专利申请号或者专利号', 'valid'],
+      [62, '复审请求书应当说明理由', 'mismatch'],
+      // 第 114 条 holds the registration fee; 印花税 is not a fee the schedule charges.
+      [114, '办理登记手续时应当缴纳授予专利权当年的年费', 'valid'],
+    ] as const
+    for (const [article, proposition, decision] of cases) {
+      expect(verifyCitation(articleRef(article, undefined, '专利法实施细则'), shipped, { proposition }).decision)
+        .toBe(decision)
+    }
+  })
+
   it('leaves the guideline index awaiting transcription', () => {
     const shipped = loadLawBaselines()
     const sections = shipped.get('专利审查指南')?.sections ?? []
