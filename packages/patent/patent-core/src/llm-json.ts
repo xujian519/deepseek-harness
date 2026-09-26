@@ -36,3 +36,52 @@ export function tryParseJson(raw: string): Record<string, unknown> | undefined {
   }
   return undefined
 }
+
+/**
+ * 读取一个 JSON 对象；其它形状返回 undefined。
+ * @param value - 待窄化的值（LLM 输出或工具输出的 JSON 值）。
+ * @returns 对象形状的值，或 undefined。
+ */
+export function asJsonRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
+/**
+ * 读取一个 JSON 数组；其它形状返回空数组。
+ * @param value - 待窄化的值。
+ * @returns 数组形状的值，或空数组。
+ */
+export function asJsonArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+/**
+ * 读取非空字符串（去首尾空白后非空）；其它形状返回 undefined。
+ * @param value - 待窄化的值。
+ * @returns 去空白后的字符串，或 undefined。
+ */
+export function readJsonString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+/**
+ * 读取 JSON 数字；其它形状返回 undefined。
+ * @param value - 待窄化的值。
+ * @returns 数字，或 undefined。
+ */
+export function readJsonNumber(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined
+}
+
+/**
+ * 读取字符串数组，逐项去空丢弃。
+ * @param value - 待窄化的值。
+ * @returns 非空字符串数组（非数组或非字符串项被丢弃）。
+ */
+export function readJsonStringArray(value: unknown): string[] {
+  return asJsonArray(value).map(readJsonString).filter((entry): entry is string => entry !== undefined)
+}

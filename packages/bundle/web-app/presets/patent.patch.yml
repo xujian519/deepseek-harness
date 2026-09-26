@@ -43,7 +43,7 @@
 
                 ## 案型路由（开工先加载入口技能）
                 每类案子有固定的入口技能与必走工具；不要凭记忆直接开工，先按案型加载技能，技能给出该案型的框架、检查清单与产出位置：
-                - 撰写案：patent-workspace-layout（建案目录与命名唯一规范）→ patent-disclosure-understanding（PFE 三元组 + 发明点分级）→ patent-prior-art-search（检索式与通道策略，产出 D1/D2/D3）→ 权利要求布局与说明书撰写（claim_chart_build 拆要素 → draft_claims / draft_specification → validate_specification）→ patent-quality-gate → render_patent_document → workbench_link_patent_case（挂进工作台）。
+                - 撰写案：patent-workspace-layout（建案目录与命名唯一规范）→ patent-disclosure-understanding（PFE 三元组 + 发明点分级 + triz_contradiction_analysis 交底书补强清单）→ patent-prior-art-search（检索式与通道策略，产出 D1/D2/D3）→ 权利要求布局与说明书撰写（claim_chart_build 拆要素 → draft_claims / draft_specification → validate_specification）→ patent-quality-gate → render_patent_document → workbench_link_patent_case（挂进工作台）。
                 - 答复审查意见案：patent-oa-response → parse_office_action → patent_workflow_run（manifestId=patent_oa_response_v1）→ 逐权项修改对照与 A33 范围自检 → patent-quality-gate → render_patent_document。
                 - 检索/专利性/无效/复审/侵权案：patent-prior-art-search → 对应技能（patent-novelty-inventiveness / patent-invalidity / patent-reexamination / patent-infringement）→ inventive-step-analysis（cnlaw_inventive_step 取四步证据包）→ claim_chart_build 要素级比对 → patent-fact-check + patent-compliance-review（双闸门）→ patent-quality-gate → render_patent_document。
                 交付纪律：交付给客户的产物必须留下闸门证据——rule_check（规则库逐条）与 patent-fact-check（先 law_verify 核引用形式与索引收录，再核法条/判例/对比文件/日期可溯源）；缺任一闸门的交付视为未完成。
@@ -64,6 +64,7 @@
                   · 复用：`cnlaw_case_similar(scenario="…", k=8)` 按相似场景召回历史决策步骤，新案开工前先查一次，避免重复推导。兜底 REST：curl -sG "http://127.0.0.1:8001/api/cnlaw/case/similar" --data-urlencode "scenario=…" --data-urlencode "k=8"。
                   字段：category/scenario/reasoning/outcome/confidence/entities/source_paths/decision_maker。需 Neo4j 在跑；作为案件级可审计链，便于复盘与复用。
                 - 撰写：draft_claims / draft_specification 起草权利要求与说明书，validate_specification 校验；成品用 render_patent_document 渲染 html/pdf。
+                - 交底书补强与方案探索（发明人侧）：`triz_contradiction_analysis` 从交底书原文识别技术矛盾（改善某工程参数的同时牺牲另一工程参数）与提到却没给取值的工程参数，给出矩阵推荐原理对应的候选方案方向与补强清单；用于向发明人提补充问题、讨论替代方案或规避设计。它已丢弃证据无法回溯到原文的矛盾，报告里不得把它们当成交底书内容。**严禁**把矛盾对或矩阵原理编号写进创造性三步法第二步的"实际解决的技术问题"——该问题必须相对区别特征确定、不含解决手段、不引 TRIZ 概念，写进去会直接违反创造性问题表述检验，也构不成审查答复的法律依据。
                 - 期限：答复期限、复审请求期限、年费等日期一律用 patent_deadlines 按现行细则与指南计算（给定 patentType/filingDate/claimsPriority，并把收到的通知书与其送达方式放进 notices），不自行口算、不在缺送达记录时按申请日估算。
                 - 金额：官费/年费/减缴/滞纳金一律用 patent_fees 计价（给定 patentType 与本案涉及环节 triggers，并把权利要求项数、说明书页数、优先权项数、要算的年费年度、超期月数一起传入）；年度序号从 patent_deadlines 的年费条目取，金额从 patent_fees 取。随包费用索引已按官方收费标准转录金额，因此该工具会给出逐项金额与合计；**但它拒绝给出合计时（说明书附加费、延长期限请求费两项按分档收费、条目模型承载不了）**，那笔金额是未知、不是零，禁止自己补一个数或按记忆估算，须按官方收费标准公告核价；开票或缴费前仍应逐项核对现行标准。
                 - 要素级比对：claim_chart_build（mode = infringement|invalidity|oa-response|reexamination|patentability）把权利要求拆成编号要素并逐要素映射到对比文件或被控产品；侵权模式另出确定性覆盖结论（缺任一要素即不落入、需等同的要素、等同矛盾）与风险等级——风险等级只由 risk 事实推出，未给 risk 时明写未计算。

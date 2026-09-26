@@ -1,5 +1,5 @@
 ---
-description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with its fourteen builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the atomic technical-problem checks, the evidence closed-loop ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks (claim unity, coverage matrix), the deterministic numeric-range novelty check, the procedure-document parsers (office action, invalidation/reexamination/design grounds), the office-action response plan and the reexamination preparation sections, the infringement kernel (all-elements coverage, equivalence consistency, weighted risk grading), the Pregel-style graph engine with its four patentability subgraphs (novelty, inventiveness, enablement, citation-check), the rule protocol types plus text utilities, the IPC classifier and examination-standards lookup, and the persistence/path helpers."
+description: "Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with its fourteen builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the atomic technical-problem checks, the TRIZ contradiction analysis (inventor-side disclosure gaps and solution directions), the evidence closed-loop ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks (claim unity, coverage matrix), the deterministic numeric-range novelty check, the procedure-document parsers (office action, invalidation/reexamination/design grounds), the office-action response plan and the reexamination preparation sections, the infringement kernel (all-elements coverage, equivalence consistency, weighted risk grading), the Pregel-style graph engine with its four patentability subgraphs (novelty, inventiveness, enablement, citation-check), the rule protocol types plus text utilities, the IPC classifier and examination-standards lookup, and the persistence/path helpers."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with fourteen builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the technical-problem checks, the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers (office action, invalidation/reexamination/design grounds), the response plan and reexamination preparation sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol types and text utilities, the IPC classifier and standards lookup, and persistence/path helpers.
+Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines ported from Sati: the atoms `StageProvider`/`StageHandler` vocabulary with fourteen builtin handlers, the `PatentModelPort` LLM adapter, the dual-track checker rule engine, the technical-problem checks, the TRIZ contradiction analysis (inventor-side disclosure gaps and solution directions), the evidence ledger and judgment engine, the reasoning primitives, the claim-chart engine, the claim-drafting self-checks, the numeric-range novelty check, the procedure-document parsers (office action, invalidation/reexamination/design grounds), the response plan and reexamination preparation sections, the infringement kernel (all-elements coverage, equivalence consistency, risk grading), the Pregel-style graph engine with four patentability subgraphs, the rule protocol types and text utilities, the IPC classifier and standards lookup, and persistence/path helpers.
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@ Pure TypeScript library (no `ctx` dependency) holding the patent-domain engines 
 - [ModelPort](#modelport)
 - [Checker (dual-track deterministic rule engine)](#checker-dual-track-deterministic-rule-engine)
 - [Problem (atomic technical-problem checks)](#problem-atomic-technical-problem-checks)
+- [TRIZ contradiction analysis (inventor side)](#triz-contradiction-analysis-inventor-side)
 - [Evidence (closed-loop ledger + judgment engine)](#evidence-closed-loop-ledger--judgment-engine)
 - [Reasoning (fact blackboard + syllogism)](#reasoning-fact-blackboard--syllogism)
 - [Claim-chart runtime](#claim-chart-runtime)
@@ -45,6 +46,12 @@ The atoms layer defines the workflow stage vocabulary: `Atom`/`AtomRegistry` (de
 ## Problem (atomic technical-problem checks)
 
 `checkAtomic` runs the four deterministic checks on the actual technical problem (no solution binding, single causality, measurable effect, means reversibility), and `technicalProblemCheck` wires them into checker `customCheck` rules.
+
+## TRIZ contradiction analysis (inventor side)
+
+`extractTrizContradictions(port, text, { focus })` runs one model call that recognizes technical contradictions (improving one engineering parameter while sacrificing another) and the engineering parameters a disclosure names without quantifying (a missing current value, target value, unit, or test method). `buildTrizAnalysis(extraction, sourceText)` assembles the result deterministically: it accepts only integer parameter numbers 1-39, resolves each pair against the 39x39 contradiction matrix shipped in `@deepseek-ai/dsh-methodology` (a diagonal cell is a physical contradiction, an empty cell a transcription gap), takes every parameter and principle name from the shipped assets instead of the model output, and **drops any contradiction whose evidence cannot be located verbatim in the disclosure text**, counting the drops.
+
+The product is inventor-side: candidate solution directions and a disclosure gap checklist. A contradiction pair is not a three-step-step-2 problem statement — that problem is determined from the distinguishing features and must not contain the solution means (`checkAtomic`); feeding a contradiction into that field breaks the rule.
 
 ## Evidence (closed-loop ledger + judgment engine)
 
