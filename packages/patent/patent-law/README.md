@@ -106,7 +106,7 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 - **Proposition matching is lexical.** A topic keyword must appear in the proposition or vice versa; a proposition phrased around a synonym the entry does not list reports `mismatch`. Topics must be maintained with the transcription.
 - **The compact `A22.3` form is accepted only at a token boundary**, and it is always read as 《专利法》: a deployment that needs the form for another statute would need its own reference reader.
 - **The guideline index is section-path keyed.** A citation written in a form the normalizer does not reproduce (for example a section nested deeper than the captured tail) lands in `not-indexed` rather than being guessed at.
-- **No consumer is wired yet.** The package ships the tool and the library; feeding the workflow quality gate and the rule assets from this index, and mounting the plugin in the patent preset, are follow-up work.
+- **The automatic gates keep their own tables.** The patent preset mounts this plugin, so the model runs law_verify first; feeding the workflow quality gate's static topic table and the rule assets' citation ceiling from this index is follow-up work, because a gate that delegated to an entry with no transcribed text could only downgrade today's topic check to a warning.
 - **No package invariant is published.** Baseline correctness is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (references parsing, article and section existence, the article ceiling) are checks the gate runs, so they do not meet the invariant bar.
 
 ### Dev Note
