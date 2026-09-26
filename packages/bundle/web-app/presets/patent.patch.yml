@@ -32,7 +32,7 @@
                 ## 作业纪律（违背任意一条即视为失职）
                 1. 检索先于结论：任何"是否具有新颖性/创造性"的判断，必须先完成检索并引用对比文件，禁止凭记忆断言某技术方案是现有技术或非现有技术。
                 2. 单独对比原则：新颖性判断逐篇单独对比；创造性判断以最接近的现有技术 D1 为起点，按三步法（确定区别特征→确定实际解决的技术问题→判断显而易见性）论证，并说明技术启示的来源。
-                3. 法条引用必须核验：**先用 `law_verify` 过一遍要写的每处引用**——它按随包法规索引给出「已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）」。随包索引只登记"有哪些条"、条文文本尚未转录，**所以「未核验」是常态，绝不等于通过**：判为「未核验」或「索引中不存在」的引用必须继续查证原文（cnlaw → patent_case_search / patent_wiki_search → web_fetch 打开官方原文），判为「与所引命题不符」或「条号超出有效范围」的直接改写或删除。图谱/案件链路一律走 cnlaw 的 MCP 工具（`mcp__cnlaw__*`：`cnlaw_inventive_step`、`cnlaw_graph_ground`、`cnlaw_graph_patent`、`cnlaw_case_record/get/chain/similar`），不要用 curl 调 `:8001` 的对应端点；`:8100` 语义检索、`/search/decisions`、`/search/judgments` 与 IPC 路由没有 MCP 面，走 REST（curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…"）；命中必须带 source_path 溯源，再对照 99-知识库/ 项目基线；cnlaw 不可用时才用 patent_case_search / patent_kg_query 查判例与审查标准；禁止凭记忆引错条号或断章取义。引用按权威度排序——法条/法规 > 审查指南 > 判例(复审无效决定/判决) > 书籍(仅说明)；冲突以高权威为准，书籍不作法规依据、仅作背景说明。
+                3. 法条引用必须核验：**先用 `law_verify` 过一遍要写的每处引用**——它按随包法规索引给出「已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）」。《专利法》与《专利法实施细则》的条文已随包转录、条数上限也已核验，因此编造条号会判「条号超出有效范围」（拦截），引用一条存在但未被索引的条文会判「索引中不存在」；《专利审查指南》只索引节路径、章节文本尚未转录，**所以指南引用的「未核验」是常态，绝不等于通过**：「未核验」或「索引中不存在」的引用必须继续查证原文（cnlaw → patent_case_search / patent_wiki_search → web_fetch 打开官方原文），「与所引命题不符」或「条号超出有效范围」的直接改写或删除。图谱/案件链路一律走 cnlaw 的 MCP 工具（`mcp__cnlaw__*`：`cnlaw_inventive_step`、`cnlaw_graph_ground`、`cnlaw_graph_patent`、`cnlaw_case_record/get/chain/similar`），不要用 curl 调 `:8001` 的对应端点；`:8100` 语义检索、`/search/decisions`、`/search/judgments` 与 IPC 路由没有 MCP 面，走 REST（curl -sG "http://127.0.0.1:8100/search" --data-urlencode "q=…"）；命中必须带 source_path 溯源，再对照 99-知识库/ 项目基线；cnlaw 不可用时才用 patent_case_search / patent_kg_query 查判例与审查标准；禁止凭记忆引错条号或断章取义。引用按权威度排序——法条/法规 > 审查指南 > 判例(复审无效决定/判决) > 书籍(仅说明)；冲突以高权威为准，书籍不作法规依据、仅作背景说明。
                 4. 逐特征比对：权利要求分析必须逐项（特征→对比文件对应内容→结论）给出，标注引用关系，不使用"整体上相似/明显不同"这类不可追溯的表述。
                 5. 输出即证据：检索报告写明数据来源、检索式、检索日期与覆盖范围；分析报告写明对比文件编号、对应特征与推理链。
                 6. HITL 确认点不可跳过：检索式、权利要求布局、答复策略、无效理由组合，在动手前必须用 ask_user 向用户确认或至少说明取舍理由。
@@ -297,7 +297,7 @@
           # provide no service, so they need no realm. patent-document registers
           # render_patent_document and patent-deadline registers patent_deadlines;
           # patent-law registers law_verify, which decides each law citation against the
-          # index shipped in that package and reports an article whose text has not been
+          # index shipped in that package and reports an entry whose text has not been
           # transcribed as 未核验 rather than accepted; patent-fees registers patent_fees,
           # which prices the fee items a case owes and withholds a total while any
           # applicable amount is not transcribed; writing-patterns registers
@@ -322,9 +322,9 @@
             name: '@deepseek-ai/dsh-patent-fees'
 
           # Policy left at the shipped defaults: a citation contradicting a transcribed
-          # article, or one beyond a verified article ceiling, blocks; an indexed article
+          # article, or one beyond a verified article ceiling, blocks; an indexed entry
           # still awaiting transcription warns, so the gap stays visible without
-          # stopping work. A deployment that has transcribed the index it relies on can
+          # stopping work. A deployment that has transcribed the entries it relies on can
           # tighten onUnverified to block from its own profile patch.
           - id: patent-law
             name: '@deepseek-ai/dsh-patent-law'

@@ -76,7 +76,9 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('law-verify-policy'),
       name: 'law_verify',
-      arguments: { references: ['专利法第22条第3款'] },
+      // A guideline section is still awaiting transcription in the shipped
+      // index, so it is what an `onUnverified` policy has to act on.
+      arguments: { references: ['审查指南第二部分第四章3.2.1.1'] },
     })
     expect(result.isError).toBe(false)
     expect((result.value as { blocked: boolean }).blocked).toBe(true)

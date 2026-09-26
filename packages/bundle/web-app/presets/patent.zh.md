@@ -2,7 +2,7 @@
 
 [English](patent.md) | 中文
 
-`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。本 bundle 在 `presets/patent.patch.yml` 中声明它，其 15 个技能随附在 `skills/patent/` 下。它以 `standard` preset 为基础，加入专利域插件以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。法条/审查指南/判例核验优先走本机 cnlaw REST 法律底座（semantica-cnlaw，见「前置条件」），保留 source_path 溯源，不可用时回退 patent_case_search / patent_kg_query。引用形式先经 `@deepseek-ai/dsh-patent-law` 随包的法规索引核验：条文尚未转录的条目报「未核验」，不会被当成已核验；官费与年费金额由 `@deepseek-ai/dsh-patent-fees` 计价，任一适用项金额未转录时不给出合计。
+`patent` agent preset 在 DeepSeek Harness 上组合一个面向中国专利作业的 Agent。本 bundle 在 `presets/patent.patch.yml` 中声明它，其 15 个技能随附在 `skills/patent/` 下。它以 `standard` preset 为基础，加入专利域插件以及专利专用的人设与计划模式纪律，按 docs/patent-mode-design.md §4–§9 与 docs/sati-as-dsh-plugins-plan.md 的 P4.4 组装。法条/审查指南/判例核验优先走本机 cnlaw REST 法律底座（semantica-cnlaw，见「前置条件」），保留 source_path 溯源，不可用时回退 patent_case_search / patent_kg_query。引用形式先经 `@deepseek-ai/dsh-patent-law` 随包的法规索引核验：法律引用对照随包转录的条文判定，条文未转录的条目报「未核验」，不会被当成已核验；官费与年费金额由 `@deepseek-ai/dsh-patent-fees` 计价，任一适用项金额未转录时不给出合计。
 
 ## 挂载内容
 
@@ -17,7 +17,7 @@
 - `@deepseek-ai/dsh-patent-document` — render_patent_document。
 - `@deepseek-ai/dsh-patent-deadline` — patent_deadlines：案件的法定与指定期限，含专利法实施细则的期限与送达规则，以及随包节假日日历用于届满日顺延。
 - `@deepseek-ai/dsh-patent-fees` — patent_fees：逐项按本包随包的费用索引为案件计价（申请、实审、授权、年费与各项程序费用），按各费种的计数基准计数量——每件、超过免费基数的每项权利要求、每页、每项优先权要求、每个专利年度、每请求月数——并在索引登记了减缴时按案件适用的减缴计算。每行都标明金额是否已核验，任一适用项未核验时不给合计：尚未按官方收费标准公告转录金额的部署拿到的是费种清单与明确的拒绝，而不是一个数字。
-- `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但条文未转录的条目报「未核验」而不是放行。随包索引只含条号、主题词与转录来源，每个条目都尚未转录，因此默认部署下每条引用都判「未核验」——这正是要点：引用必须经官方来源核验的纪律没有变，只是未核验的条文不再可能被读成已核验。
+- `@deepseek-ai/dsh-patent-law` — law_verify：逐条把法条引用对照本包随包的法规索引判定（《专利法》《专利法实施细则》按条，《专利审查指南》按归一化节路径），并把已索引但未转录的条目报「未核验」而不是放行。两部法律（法规）的条文已随包转录——每个条目带着所引条文的文本、抄录的文书与版本、以及抄录日期——条数上限也已核验，因此编造的条号判「条号超出有效范围」、索引未覆盖的有效条号判「索引中不存在」，两者都不是通过。指南章节只索引、未转录，因此指南引用始终是「未核验」：引用必须经官方来源核验的纪律没有变，只是未核验的条目不再可能被读成已核验。
 - `@deepseek-ai/dsh-writing-patterns` — 基于随包撰写/答复模式语料的 query_writing_patterns，以及承载编译后 `<writing_skills>` 块的系统提示段。
 - `@deepseek-ai/dsh-tool-literature` — paper_search / paper_list_sources。
 - `@deepseek-ai/dsh-methodology` — triz 工具。
@@ -74,7 +74,7 @@ OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openv
 
 - 法条检索（ctx.patentKnowledge.legalSearch）无模型工具。`law_verify` 覆盖的是引用形式与索引收录，不是法条原文：它判定某条是否在索引内，并在某部署把条目转录之后判定所引命题是否与其相符。法条原文优先经本机 cnlaw 底座核验（可选底座，见前置条件）——挂载时走 MCP 工具，否则走 REST（curl）；cnlaw 不可用时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
 - 随包费用索引不含任何金额：文件里的 `amount` / `sourceDoc` / `verifiedOn` 全为 null，因此 `patent_fees` 只报适用性、计数与法条依据，从不给数字。把官方收费标准转录进 `assets/fees/cn-fees.yaml`（逐费种补记公告文号与核验日期）是各部署针对自己要报的费种所做的后续工作；文件里已有的阈值与滞纳金规则取自本仓自身的陈述，同样属于未核验。减缴比例未转录，因此符合减缴条件的案件按全额计价并注明未减缴。
-- 随包法条索引不含转录后的条文文本，因此其条目目前都是「未核验」，`law_verify` 会把每条引用报成「未核验」。把某部署依赖的条文按官方来源转录（并补记每条的 `sourceDoc` / `verifiedOn`）属后续工作；在此之前该工具的作用是收窄需要查证的范围，而不是取代查证。另，`专利法` 索引中第 62/69/70 条一组疑为 2020 年修正前的编号，已记录在资产文件头。
+- 随包法条文本是官方修订文本的机械抄录，不是复核：「已核验」的含义是该条存在、所引命题与该条主题词相符，不含"由具备资质者回读过副本"。覆盖面也是部分的——《专利法》索引 82 条中的 36 条、《专利法实施细则》149 条中的 26 条——因此一条存在但未被索引的条文会报「索引中不存在」，仍须查证原文。《专利审查指南》索引只有主题词，每条指南引用始终是「未核验」。原按 2008 年修正编号 62/69/70 收录的《专利法》主题词，已改到 2020 年文本承载它们的 67/75/77 条；62 条改按 2020 年文本的主题（强制许可使用费）。
 - patent_pdf_download 在宿主机有可用 ego-browser（ego lite，仅 macOS，且在 PATH 上）时走浏览器内下载拦截；没有时退回抓页面 CDN 链接 + HTTP 下载，整批仍能下载。两个通道都失败时按篇报告错误，不中断整批。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。
 - 4 个改写分析技能继承 Sati 方法论，但尚未对照现行中国专利实务复核；依赖前请将其检查清单与用户 patent-legal 基线交叉核验。
 - patent-oa-response 与 patent-reexamination 属本仓新增技能，非移植：步骤顺序跟随 patent_oa_response_v1 / patent_reexamination_v1 manifest，期限一律由 patent_deadlines 给出，但两者均未经实务对照现行《专利审查指南》复核。复审技能对实用新型命中的创造性理由按现行口径保留、并把专利权类型单独输出（不静默删除理由）；该口径在工作台计划中仍标注为待确认项。

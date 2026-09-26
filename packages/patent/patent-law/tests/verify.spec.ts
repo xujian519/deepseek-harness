@@ -268,10 +268,23 @@ describe('proposition reporting', () => {
 })
 
 describe('the packaged index', () => {
-  it('reports every shipped citation as unverified rather than accepted', () => {
+  it('decides a shipped statute citation against its transcribed text', () => {
     const shipped = loadLawBaselines()
-    expect(verifyCitation(articleRef(22), shipped).decision).toBe('unverified')
+    expect(verifyCitation(articleRef(22), shipped).decision).toBe('valid')
+    expect(verifyCitation(articleRef(22, undefined, '专利法实施细则'), shipped).decision).toBe('valid')
+    // A verified article ceiling turns a fabricated number into a blocked
+    // decision instead of a report that nothing here can say.
+    expect(verifyCitation(articleRef(99), shipped).decision).toBe('out-of-range')
+    // An article that exists but is not indexed is a gap in the index, not a
+    // claim that the number does not exist.
+    expect(verifyCitation(articleRef(50), shipped).decision).toBe('not-indexed')
+  })
+
+  it('leaves the guideline index awaiting transcription', () => {
+    const shipped = loadLawBaselines()
+    const sections = shipped.get('专利审查指南')?.sections ?? []
+    expect(sections.length).toBeGreaterThan(0)
+    expect(sections.every(section => section.text === null && section.verifiedOn === null)).toBe(true)
     expect(verifyCitation(sectionRef('第二部分第四章3.2.1.1'), shipped).decision).toBe('unverified')
-    expect(verifyCitation(articleRef(22, undefined, '专利法实施细则'), shipped).decision).toBe('unverified')
   })
 })
