@@ -64,7 +64,8 @@
                   · 复用：`cnlaw_case_similar(scenario="…", k=8)` 按相似场景召回历史决策步骤，新案开工前先查一次，避免重复推导。兜底 REST：curl -sG "http://127.0.0.1:8001/api/cnlaw/case/similar" --data-urlencode "scenario=…" --data-urlencode "k=8"。
                   字段：category/scenario/reasoning/outcome/confidence/entities/source_paths/decision_maker。需 Neo4j 在跑；作为案件级可审计链，便于复盘与复用。
                 - 撰写：draft_claims / draft_specification 起草权利要求与说明书，validate_specification 校验；成品用 render_patent_document 渲染 html/pdf。
-                - 期限：答复期限、复审请求期限、年费等一律用 patent_deadlines 按现行细则与指南计算（给定 patentType/filingDate/claimsPriority，并把收到的通知书与其送达方式放进 notices），不自行口算、不在缺送达记录时按申请日估算。
+                - 期限：答复期限、复审请求期限、年费等日期一律用 patent_deadlines 按现行细则与指南计算（给定 patentType/filingDate/claimsPriority，并把收到的通知书与其送达方式放进 notices），不自行口算、不在缺送达记录时按申请日估算。
+                - 金额：官费/年费/减缴/滞纳金一律用 patent_fees 计价（给定 patentType 与本案涉及环节 triggers，并把权利要求项数、说明书页数、优先权项数、要算的年费年度、超期月数一起传入）；年度序号从 patent_deadlines 的年费条目取，金额从 patent_fees 取。随包费用索引的金额尚未转录，因此该工具给的是费种清单，并**拒绝给出合计**——未转录的金额是未知、不是零，禁止自己补一个数或按记忆估算；报价与缴费前必须按官方收费标准公告核对每一项金额。
                 - 要素级比对：claim_chart_build（mode = infringement|invalidity|oa-response|reexamination|patentability）把权利要求拆成编号要素并逐要素映射到对比文件或被控产品；侵权模式另出确定性覆盖结论（缺任一要素即不落入、需等同的要素、等同矛盾）与风险等级——风险等级只由 risk 事实推出，未给 risk 时明写未计算。
                 - 程序文书与理由识别：parse_office_action 解析审查意见通知书（驳回类型、引用文献与相关性类别、涉及权项、审查员论点，确定性）；无效与复审的法定理由识别走 patent_workflow_run 的 grounds 阶段，理由表由 manifest 决定（无效理由表与复审理由表不同，复审另出专利权类型），未识别到理由时不替文书造理由；外观设计无效的 A23 理由表没有内置 manifest 入口，需显式用 flexible_plan 声明 grounds 阶段并给 params.ground_program: 'design'。
                 - 分析：新颖性/创造性/侵权/无效/复审/OA 答复遵循 preset 内对应技能（patent-novelty-inventiveness / patent-infringement / patent-invalidity / patent-oa-response / patent-reexamination）的分析框架与检查清单；**结论必须用 patent_workflow / patent_workflow_run 按 manifest 收口**（8 个内置 manifest：novelty、disclosure、inventiveness、patentability、oa_response、invalidation、reexamination、infringement），材料与权利要求分开传（input=程序文书或技术材料，claims=权利要求书；要素级原子读 claims），人工确认门暂停后带上 approveStageIds 重新调用。收口不是可选步骤：captain 的收口任务以 patent_workflow_run 的 stage 记录作为交付依据，未收口的分析不得进入文档交付。
@@ -297,7 +298,9 @@
           # render_patent_document and patent-deadline registers patent_deadlines;
           # patent-law registers law_verify, which decides each law citation against the
           # index shipped in that package and reports an article whose text has not been
-          # transcribed as 未核验 rather than accepted; writing-patterns registers
+          # transcribed as 未核验 rather than accepted; patent-fees registers patent_fees,
+          # which prices the fee items a case owes and withholds a total while any
+          # applicable amount is not transcribed; writing-patterns registers
           # query_writing_patterns plus the drafting section
           # that injects the compiled pattern block. patent-rule lives in the shielded
           # group above because
@@ -309,6 +312,14 @@
 
           - id: patent-deadline
             name: '@deepseek-ai/dsh-patent-deadline'
+
+          # Policy left at the shipped default: a total is withheld while any
+          # applicable fee item lacks a verified amount, so the tool reports the
+          # checklist and names what withholds the sum instead of returning a partial
+          # figure that reads as the price. A deployment that has transcribed the fee
+          # items it relies on can turn failOnUnverified off from its own profile patch.
+          - id: patent-fees
+            name: '@deepseek-ai/dsh-patent-fees'
 
           # Policy left at the shipped defaults: a citation contradicting a transcribed
           # article, or one beyond a verified article ceiling, blocks; an indexed article

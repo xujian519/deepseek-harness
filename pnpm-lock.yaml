@@ -362,6 +362,9 @@ importers:
       '@deepseek-ai/dsh-patent-document':
         specifier: workspace:*
         version: link:../../packages/patent/patent-document
+      '@deepseek-ai/dsh-patent-fees':
+        specifier: workspace:*
+        version: link:../../packages/patent/patent-fees
       '@deepseek-ai/dsh-patent-knowledge':
         specifier: workspace:*
         version: link:../../packages/patent/patent-knowledge
@@ -11368,6 +11371,38 @@ importers:
         specifier: workspace:*
         version: link:../../core/tools
 
+  packages/patent/patent-fees:
+    dependencies:
+      '@deepseek-ai/dsh-patent-index-asset':
+        specifier: workspace:*
+        version: link:../patent-index-asset
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-patent-deadline':
+        specifier: workspace:*
+        version: link:../patent-deadline
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+
+  packages/patent/patent-index-asset:
+    dependencies:
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+
   packages/patent/patent-knowledge:
     dependencies:
       '@deepseek-ai/dsh-value':
@@ -11395,6 +11430,9 @@ importers:
 
   packages/patent/patent-law:
     dependencies:
+      '@deepseek-ai/dsh-patent-index-asset':
+        specifier: workspace:*
+        version: link:../patent-index-asset
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -16183,6 +16221,9 @@ importers:
       '@deepseek-ai/dsh-patent-document':
         specifier: workspace:*
         version: link:../../packages/patent/patent-document
+      '@deepseek-ai/dsh-patent-fees':
+        specifier: workspace:*
+        version: link:../../packages/patent/patent-fees
       '@deepseek-ai/dsh-patent-knowledge':
         specifier: workspace:*
         version: link:../../packages/patent/patent-knowledge

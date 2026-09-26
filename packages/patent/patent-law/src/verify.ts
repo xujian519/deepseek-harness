@@ -158,53 +158,80 @@ const POLICY_LABELS: Record<CitationPolicy, string> = {
   allow: '放行',
 }
 
+/** Build one finding, omitting the entry when the decision used none. */
+function finding(
+  reference: LawReference,
+  decision: CitationDecision,
+  reason: string,
+  entry?: ArticleEntry | SectionEntry,
+): CitationFinding {
+  return {
+    raw: reference.raw,
+    reference,
+    decision,
+    reason,
+    ...(entry === undefined ? {} : { entry }),
+  }
+}
+
+/** Decide a citation whose entry is transcribed: a mismatch, or the supported citation. */
+function decideTranscribed(
+  reference: LawReference,
+  entry: ArticleEntry | SectionEntry,
+  proposition: string | undefined,
+  validReason: string,
+): CitationFinding {
+  const mismatch = matchProposition(entry, proposition)
+  if (mismatch !== null) return finding(reference, 'mismatch', mismatch, entry)
+  return finding(reference, 'valid', validReason, entry)
+}
+
 /** Verify one statute-article reference. */
 function verifyArticle(
   reference: Extract<LawReference, { kind: 'law-article' }>,
   baseline: LawBaseline,
   options: VerifyOptions,
 ): CitationFinding {
-  const base = { raw: reference.raw, reference }
   const entry = findArticle(baseline, reference.article)
-  if (entry === undefined) {
-    if (baseline.maxArticle !== null && baseline.maxVerifiedOn !== null && reference.article > baseline.maxArticle) {
-      return {
-        ...base,
-        decision: 'out-of-range',
-        reason: `《${baseline.law}》共 ${baseline.maxArticle} 条，第 ${reference.article} 条不存在`,
-      }
-    }
-    if (baseline.maxArticle !== null && reference.article > baseline.maxArticle) {
-      return {
-        ...base,
-        decision: 'unverified',
-        reason: `第 ${reference.article} 条超出索引声明的上限 ${baseline.maxArticle} 条，但该上限本身尚未核验`,
-      }
-    }
-    return {
-      ...base,
-      decision: 'not-indexed',
-      reason: `《${baseline.law}》第 ${reference.article} 条不在索引中`,
-    }
-  }
+  if (entry === undefined) return articleGap(reference, baseline)
   const narrowing = checkNarrowing(reference, entry)
-  if (narrowing !== null) return { ...base, decision: 'mismatch', reason: narrowing, entry }
+  if (narrowing !== null) return finding(reference, 'mismatch', narrowing, entry)
   if (entry.verifiedOn === null || entry.text === null) {
-    return {
-      ...base,
-      decision: 'unverified',
-      reason: `《${baseline.law}》第 ${reference.article} 条已索引，但条文尚未转录核验（条目主题：${entry.topics.join('、')}）`,
+    return finding(
+      reference,
+      'unverified',
+      `《${baseline.law}》第 ${reference.article} 条已索引，但条文尚未转录核验（条目主题：${entry.topics.join('、')}）`,
       entry,
-    }
+    )
   }
-  const mismatch = matchProposition(entry, options.proposition)
-  if (mismatch !== null) return { ...base, decision: 'mismatch', reason: mismatch, entry }
-  return {
-    ...base,
-    decision: 'valid',
-    reason: `与《${baseline.law}》第 ${reference.article} 条一致（来源：${entry.sourceDoc ?? '未标注'}）`,
+  return decideTranscribed(
+    reference,
     entry,
+    options.proposition,
+    `与《${baseline.law}》第 ${reference.article} 条一致（来源：${entry.sourceDoc ?? '未标注'}）`,
+  )
+}
+
+/**
+ * Decide an article the index does not hold. Only a *verified* article ceiling
+ * proves a number does not exist; beyond an unverified ceiling the answer is that
+ * nothing here can say.
+ */
+function articleGap(
+  reference: Extract<LawReference, { kind: 'law-article' }>,
+  baseline: LawBaseline,
+): CitationFinding {
+  if (baseline.maxArticle !== null && baseline.maxVerifiedOn !== null && reference.article > baseline.maxArticle) {
+    return finding(reference, 'out-of-range', `《${baseline.law}》共 ${baseline.maxArticle} 条，第 ${reference.article} 条不存在`)
   }
+  if (baseline.maxArticle !== null && reference.article > baseline.maxArticle) {
+    return finding(
+      reference,
+      'unverified',
+      `第 ${reference.article} 条超出索引声明的上限 ${baseline.maxArticle} 条，但该上限本身尚未核验`,
+    )
+  }
+  return finding(reference, 'not-indexed', `《${baseline.law}》第 ${reference.article} 条不在索引中`)
 }
 
 /** Verify one guideline-section reference. */
@@ -213,27 +240,24 @@ function verifySection(
   baseline: LawBaseline,
   options: VerifyOptions,
 ): CitationFinding {
-  const base = { raw: reference.raw, reference }
   const entry = findSection(baseline, reference.path)
   if (entry === undefined) {
-    return { ...base, decision: 'not-indexed', reason: `《专利审查指南》${reference.path} 不在索引中` }
+    return finding(reference, 'not-indexed', `《专利审查指南》${reference.path} 不在索引中`)
   }
   if (entry.verifiedOn === null || entry.text === null) {
-    return {
-      ...base,
-      decision: 'unverified',
-      reason: `《专利审查指南》${reference.path} 已索引，但章节内容尚未转录核验`,
+    return finding(
+      reference,
+      'unverified',
+      `《专利审查指南》${reference.path} 已索引，但章节内容尚未转录核验`,
       entry,
-    }
+    )
   }
-  const mismatch = matchProposition(entry, options.proposition)
-  if (mismatch !== null) return { ...base, decision: 'mismatch', reason: mismatch, entry }
-  return {
-    ...base,
-    decision: 'valid',
-    reason: `与《专利审查指南》${reference.path} 一致（来源：${entry.sourceDoc ?? '未标注'}）`,
+  return decideTranscribed(
+    reference,
     entry,
-  }
+    options.proposition,
+    `与《专利审查指南》${reference.path} 一致（来源：${entry.sourceDoc ?? '未标注'}）`,
+  )
 }
 
 /** Report a cited paragraph the entry knows to be absent, or null when it is consistent. */

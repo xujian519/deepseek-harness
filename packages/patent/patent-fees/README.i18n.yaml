@@ -1,0 +1,58 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/patent/patent-fees/README.md
+/:
+  en: aa04c9e925e23ca6
+  zh: bbf8c30c60738d28
+/deepseek-ai-dsh-patent-fees:
+  en: 48a340c36dd726f5
+  zh: bc43c3dfa5cd8729
+/deepseek-ai-dsh-patent-fees/summary:
+  en: 4dfbab9b37071897
+  zh: d67be292a23ef385
+/deepseek-ai-dsh-patent-fees/table-of-contents:
+  en: 1157a10001af45d6
+  zh: c6155f051d43cd90
+/deepseek-ai-dsh-patent-fees/patent-fees-tool:
+  en: 8ee8296dc5cdd131
+  zh: 9a21a511f8e0c052
+/deepseek-ai-dsh-patent-fees/fee-items-and-counting-bases:
+  en: c789324db747398f
+  zh: 948ed6da7dde1fd5
+/deepseek-ai-dsh-patent-fees/what-is-recorded-and-what-is-not:
+  en: a75cb82f475798ce
+  zh: 1652dfb58f5471d5
+/deepseek-ai-dsh-patent-fees/fee-reduction:
+  en: 33e8d4b93129e2dc
+  zh: d7a2ff4124bf3b1b
+/deepseek-ai-dsh-patent-fees/annual-fees-and-the-surcharge:
+  en: a67f9847e7b43d2d
+  zh: a1b0505b6dafb1c0
+/deepseek-ai-dsh-patent-fees/library-api:
+  en: 641ee7f6a448805e
+  zh: 8b037197a6206528
+/deepseek-ai-dsh-patent-fees/configuration:
+  en: 16059ede770ccf38
+  zh: 2fdb1b124d50d18b
+/deepseek-ai-dsh-patent-fees/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-patent-fees/model-experience/patent-fees-tool:
+  en: b1f1b138a8c9d1d4
+  zh: 119f77124573a432
+/deepseek-ai-dsh-patent-fees/model-experience/patent-fees-tool/what-the-model-sees:
+  en: c7b9d8d755f1320b
+  zh: 4f4d5ad7af89bb4c
+/deepseek-ai-dsh-patent-fees/model-experience/patent-fees-tool/token-effect:
+  en: 8f9059076677d0a4
+  zh: ba7164d1761a544f
+/deepseek-ai-dsh-patent-fees/model-experience/patent-fees-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
+  zh: c6c7e1b63cbf9c97
+/deepseek-ai-dsh-patent-fees/known-limitations-and-deferred-work:
+  en: 977ebef54c61d9c8
+  zh: 2d32fa5d36c72794
+/deepseek-ai-dsh-patent-fees/known-limitations-and-deferred-work/dev-note:
+  en: 2e2410d1112af008
+  zh: 968682116cdad691

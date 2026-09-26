@@ -4,7 +4,7 @@
 
 专利子系统是 Sati 专利域的原生移植（[计划](../../docs/sati-as-dsh-plugins-plan.md)）：专利数据访问、knowledge.db 查询、执行管线、纯域引擎、模型可见工具集、合规规则门禁与文书渲染。该能力族位于 [packages/patent](../../packages/patent/README.zh.md)，以 `@deepseek-ai/dsh-patent-*` 包运行，无 Sati 进程、无 MCP 桥。
 
-本页记录三个服务接缝（`ctx.patentData`、`ctx.patentKnowledge`、`ctx.patentWorkflow`）与纯库 ModelPort 契约（`@deepseek-ai/dsh-patent-core`）。模型可见工具、规则门禁与文书渲染位于消费包（`dsh-patent-tools`、`dsh-patent-rule`、`dsh-patent-document`、`dsh-patent-law`、`dsh-tool-literature`、`dsh-methodology`）。
+本页记录三个服务接缝（`ctx.patentData`、`ctx.patentKnowledge`、`ctx.patentWorkflow`）与纯库 ModelPort 契约（`@deepseek-ai/dsh-patent-core`）。模型可见工具、规则门禁与文书渲染位于消费包（`dsh-patent-tools`、`dsh-patent-rule`、`dsh-patent-document`、`dsh-patent-fees`、`dsh-patent-law`、`dsh-tool-literature`、`dsh-methodology`）。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

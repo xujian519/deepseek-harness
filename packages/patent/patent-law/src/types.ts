@@ -45,9 +45,10 @@ export type GuidelineReference = {
 export type LawReference = LawArticleReference | GuidelineReference
 
 /**
- * One indexed article. `text`, `sourceDoc`, and `verifiedOn` are the
- * verification provenance: until a person transcribes the article from an
- * official source and records it, the entry is indexed but unverified.
+ * One indexed article. `text`, `sourceDoc`, and `verifiedOn` record where the
+ * article text came from and when a person checked it: until someone transcribes
+ * the article from an official source and records that, the entry is indexed but
+ * unverified.
  */
 export type ArticleEntry = {
   /** Article number. */
@@ -67,7 +68,7 @@ export type ArticleEntry = {
   verifiedOn: string | null
 }
 
-/** One indexed guideline section, with the same provenance fields as an article. */
+/** One indexed guideline section, with the same source and verification fields as an article. */
 export type SectionEntry = {
   /** Normalized section path. */
   path: string
@@ -114,7 +115,7 @@ export type CitationDecision =
   | 'out-of-range'
   /** Not present in the index at all. */
   | 'not-indexed'
-  /** Indexed, but its text or verification provenance is missing. */
+  /** Indexed, but its text, its recorded source, or its verification date is missing. */
   | 'unverified'
 
 /** One citation's verdict, with the reason and the entry it was decided against. */

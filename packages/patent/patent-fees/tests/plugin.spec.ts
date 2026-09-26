@@ -1,0 +1,84 @@
+import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as Pkg from '../src/index.ts'
+
+async function install(overrides: Partial<Pkg.Config> = {}) {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  const fiber = await ctx.plugin(Pkg, {
+    failOnUnverified: overrides.failOnUnverified ?? Pkg.DEFAULT_FEE_POLICY.failOnUnverified,
+    ...(overrides.feeTablePath === undefined ? {} : { feeTablePath: overrides.feeTablePath }),
+  })
+  return { ctx, fiber }
+}
+
+describe('@deepseek-ai/dsh-patent-fees plugin surface', () => {
+  it('exports the function-plugin surface', () => {
+    expect(Pkg.name).toBe('patent-fees')
+    expect(Pkg.inject).toEqual(['tools'])
+    expect(typeof Pkg.apply).toBe('function')
+    expect(typeof Pkg.Config).toBe('function')
+    expect(Pkg.FEE_FILE_NAME).toBe('cn-fees.yaml')
+  })
+
+  it('exports the library API', () => {
+    expect(typeof Pkg.loadFeeTable).toBe('function')
+    expect(typeof Pkg.parseFeeTable).toBe('function')
+    expect(typeof Pkg.computeFees).toBe('function')
+    expect(typeof Pkg.createPatentFeesTool).toBe('function')
+    expect(typeof Pkg.parseYuan).toBe('function')
+    expect(typeof Pkg.formatFen).toBe('function')
+    expect(typeof Pkg.applyPercent).toBe('function')
+    expect(typeof Pkg.sumFen).toBe('function')
+    expect(typeof Pkg.feeTablePath).toBe('function')
+    expect(Pkg.FEE_TRIGGERS).toHaveLength(11)
+    expect(Pkg.FEE_BASES).toHaveLength(6)
+    expect(Pkg.PATENT_TYPES).toEqual(['invention', 'utility-model', 'design'])
+    expect(Pkg.REDUCTION_KINDS).toEqual(['individual', 'enterprise'])
+    expect(Pkg.DEFAULT_FEE_POLICY).toEqual({ failOnUnverified: true })
+  })
+
+  it('registers patent_fees and unregisters it on dispose (HMR-safety)', async () => {
+    const { ctx, fiber } = await install()
+    expect(ctx.tools.schemas().some(schema => schema.name === 'patent_fees')).toBe(true)
+    await fiber.dispose()
+    expect(ctx.tools.schemas().some(schema => schema.name === 'patent_fees')).toBe(false)
+  })
+
+  it('defaults the total policy to the shipped one', () => {
+    expect(Pkg.Config({} as Pkg.Config)).toEqual({ failOnUnverified: true })
+  })
+
+  it('withholds the total under the shipped policy and reports it when turned off', async () => {
+    const strict = await install()
+    const withheld = await strict.ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId('patent-fees-strict'),
+      name: 'patent_fees',
+      arguments: { patentType: 'invention', triggers: ['filing'] },
+    })
+    expect((withheld.value as { total: { amount?: string } }).total.amount).toBeUndefined()
+
+    const relaxed = await install({ failOnUnverified: false })
+    const reported = await relaxed.ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId('patent-fees-relaxed'),
+      name: 'patent_fees',
+      arguments: { patentType: 'invention', triggers: ['filing'] },
+    })
+    // Every line of the shipped index is unrecorded, so even a partial sum is refused.
+    expect((reported.value as { total: { amount?: string } }).total.amount).toBeUndefined()
+  })
+
+  it('fails loud at load when the configured fee index is missing', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await expect(ctx.plugin(Pkg, { failOnUnverified: true, feeTablePath: '/nonexistent/fees.yaml' }))
+      .rejects.toThrow(/费用索引不可读/)
+  })
+})

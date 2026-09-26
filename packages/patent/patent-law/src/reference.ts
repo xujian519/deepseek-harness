@@ -149,6 +149,21 @@ export function parseLawReference(text: string): LawReference | null {
 }
 
 /**
+ * Record one pattern match and the reference it resolved to, so every arm of the
+ * extractor reports its span the same way.
+ * @param candidates - the candidate list being built.
+ * @param match - the pattern match.
+ * @param reference - the reference the match resolved to.
+ */
+function addCandidate(candidates: Candidate[], match: RegExpExecArray, reference: LawReference): void {
+  candidates.push({
+    start: match.index,
+    end: match.index + match[0].length,
+    reference,
+  })
+}
+
+/**
  * Extract every law reference in `text`, in order of appearance and deduplicated
  * by the reference as written. The three patterns match disjoint spans, so the
  * candidates only need ordering.
@@ -163,17 +178,12 @@ export function extractLawReferences(text: string): LawReference[] {
     const article = parseCnNumber(groups.article)
     // A number the pattern allows but the numeral parser rejects, e.g. 第十十条.
     if (article === null) continue
-    const start = match.index
-    candidates.push({
-      start,
-      end: start + match[0].length,
-      reference: {
-        kind: 'law-article',
-        law: STATUTE_NAMES[groups.law] as StatuteName,
-        article,
-        ...narrowed(groups.paragraph, groups.item),
-        raw: stripBookMarks(match[0]),
-      },
+    addCandidate(candidates, match, {
+      kind: 'law-article',
+      law: STATUTE_NAMES[groups.law] as StatuteName,
+      article,
+      ...narrowed(groups.paragraph, groups.item),
+      raw: stripBookMarks(match[0]),
     })
   }
 
@@ -181,28 +191,23 @@ export function extractLawReferences(text: string): LawReference[] {
     const groups = match.groups as GuidelineGroups
     const path = guidelinePath(groups.part, groups.chapter, groups.tail)
     if (path === null) continue
-    const start = match.index
-    candidates.push({
-      start,
-      end: start + match[0].length,
-      reference: { kind: 'guideline-section', law: '专利审查指南', path, raw: stripBookMarks(match[0]) },
+    addCandidate(candidates, match, {
+      kind: 'guideline-section',
+      law: '专利审查指南',
+      path,
+      raw: stripBookMarks(match[0]),
     })
   }
 
   for (const match of text.matchAll(COMPACT_PATTERN)) {
     const groups = match.groups as CompactGroups
-    const start = match.index
-    candidates.push({
-      start,
-      end: start + match[0].length,
-      reference: {
-        kind: 'law-article',
-        law: '专利法',
-        // The pattern captures one to three digits, so the parse is always safe.
-        article: Number.parseInt(groups.article, 10),
-        ...narrowed(groups.paragraph, undefined),
-        raw: match[0],
-      },
+    addCandidate(candidates, match, {
+      kind: 'law-article',
+      law: '专利法',
+      // The pattern captures one to three digits, so the parse is always safe.
+      article: Number.parseInt(groups.article, 10),
+      ...narrowed(groups.paragraph, undefined),
+      raw: match[0],
     })
   }
 

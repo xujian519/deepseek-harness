@@ -2667,6 +2667,28 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-document -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-fees -->
+<a id="deepseek-aidsh-patent-fees"></a>
+
+## `@deepseek-ai/dsh-patent-fees`
+
+- `inject`: `tools`
+- `source`: [`packages/patent/patent-fees/src/index.ts:60`](../packages/patent/patent-fees/src/index.ts)
+
+```ts config-catalog
+/** Model-facing patent-fees plugin configuration. */
+export interface Config {
+  /** Path of the fee-index YAML file; defaults to the packaged index. */
+  feeTablePath?: string
+  /**
+   * Withhold a total while any applicable line lacks a verified amount. Turning
+   * it off reports a partial sum over the verified lines only, labelled as such.
+   */
+  failOnUnverified: boolean
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-fees -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-knowledge -->
 <a id="deepseek-aidsh-patent-knowledge"></a>
 
@@ -5462,6 +5484,7 @@ export type PatternCategory = (typeof PATTERN_CATEGORIES)[number]
 | `@deepseek-ai/dsh-output-retention` | — | [`packages/util/output-retention/src/index.ts`](../packages/util/output-retention/src/index.ts) |
 | `@deepseek-ai/dsh-package-manifest` | — | [`packages/util/package-manifest/src/index.ts`](../packages/util/package-manifest/src/index.ts) |
 | `@deepseek-ai/dsh-patent-core` | — | [`packages/patent/patent-core/src/index.ts`](../packages/patent/patent-core/src/index.ts) |
+| `@deepseek-ai/dsh-patent-index-asset` | — | [`packages/patent/patent-index-asset/src/index.ts`](../packages/patent/patent-index-asset/src/index.ts) |
 | `@deepseek-ai/dsh-remote-mock` | — | [`packages/test-support/remote-mock/src/index.ts`](../packages/test-support/remote-mock/src/index.ts) |
 | `@deepseek-ai/dsh-sandbox-windows-acl` | — | [`packages/sandbox/sandbox-windows-acl/src/index.ts`](../packages/sandbox/sandbox-windows-acl/src/index.ts) |
 | `@deepseek-ai/dsh-scope` | — | [`packages/core/scope/src/index.ts`](../packages/core/scope/src/index.ts) |

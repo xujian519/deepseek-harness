@@ -142,4 +142,13 @@ describe('patent preset composition', () => {
     expect(row?.name).toBe('@deepseek-ai/dsh-patent-law')
     expect(row?.disabled).toBeUndefined()
   })
+
+  it('mounts the fee index tool the number gate calls', async () => {
+    // patent-quality-gate item 4 and the persona require the fee amounts to come from
+    // patent_fees; without this row the model has no tool to price them with.
+    const rows = await patentRows()
+    const row = rows.find(entry => entry.id === 'patent-fees')
+    expect(row?.name).toBe('@deepseek-ai/dsh-patent-fees')
+    expect(row?.disabled).toBeUndefined()
+  })
 })
