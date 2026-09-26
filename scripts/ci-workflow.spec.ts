@@ -660,6 +660,28 @@ describe('fork CI workflow', () => {
     expect(graphviz).toBeGreaterThanOrEqual(0)
     expect(graphviz).toBeLessThan(suite)
   })
+
+  // The snapshot lane boots the shipped profiles from built `lib/` and reaches the
+  // real confinement path, so its job owns both steps; and a `snapshots` filter
+  // alone would drop the corpus policy file under `scripts/`, which is where the
+  // ownership, pin, and redaction checks read the same tree.
+  it('prepares confinement and a build before the snapshot lane runs the corpus', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-snapshots')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-snapshots must define steps')
+    const steps = job.steps.filter(isRecord)
+    const install = steps.findIndex(step => String(step.run) === 'pnpm install --frozen-lockfile')
+    const confinement = steps.findIndex(step => String(step.run) === 'bash scripts/prepare-ci-bubblewrap.sh')
+    const build = steps.findIndex(step => String(step.run).trim() === 'pnpm run build')
+    const lane = steps.findIndex(step => String(step.run).startsWith('pnpm run test:snapshot'))
+
+    expect(install).toBeGreaterThanOrEqual(0)
+    expect(confinement).toBeGreaterThan(install)
+    expect(build).toBeGreaterThan(confinement)
+    expect(steps[lane]).toMatchObject({
+      env: { DSH_EXAMPLE_MODE: 'lib' },
+      run: 'pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts',
+    })
+  })
 })
 
 describe('Runtime and LLM e2e Blacksmith routing', () => {
