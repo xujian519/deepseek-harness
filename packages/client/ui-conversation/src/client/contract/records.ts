@@ -138,6 +138,12 @@ export interface TurnErrorNode {
   message: string
   /** Stable provider failure code, when recorded. */
   code?: string
+  /**
+   * Single-line coded platform cause behind `code`, when the failure recorded
+   * one — for example the socket error behind a `TRANSPORT` failure. Sanitized
+   * like `message`; spelled out rather than localized.
+   */
+  diagnostic?: string
 }
 
 /** Durable notice for a turn ended by the per-request output-token cap. */

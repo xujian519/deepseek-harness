@@ -118,6 +118,12 @@ function ModelRetryItem({ node, active, t }: {
         <div>
           <span className={css.retryDetailLabel}>{t('message.retry.failure')}</span>
           {failureMessage(node.failure.message, node.failure.code, t)}
+          {node.failure.diagnostic !== undefined && (
+            <>
+              {' '}
+              <code className={css.failureCause}>{node.failure.diagnostic}</code>
+            </>
+          )}
         </div>
       </div>
     </details>
@@ -135,6 +141,12 @@ function TurnErrorItem({ node, t }: {
       <div className={css.turnErrorCopy}>
         <span className={css.turnErrorTitle}>{node.code === 'ACCOUNT_SIGNED_OUT' ? t('message.accountStopped') : t('message.turnError')}</span>
         <span className={css.turnErrorMessage}>{failureMessage(node.message, node.code, t)}</span>
+        {node.diagnostic !== undefined && (
+          <>
+            {' '}
+            <code className={css.failureCause}>{node.diagnostic}</code>
+          </>
+        )}
       </div>
       {node.code !== undefined && <code className={css.turnErrorCode}>{node.code}</code>}
     </div>

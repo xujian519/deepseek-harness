@@ -278,7 +278,7 @@ describe('DeepSeekFilesClient', () => {
   })
 
   it('wraps transport failures but preserves an aborted request reason', async () => {
-    const transport = new Error('socket closed')
+    const transport = Object.assign(new Error('socket closed'), { code: 'ECONNRESET' })
     const client = new DeepSeekFilesClient({
       baseURL: 'https://api.deepseek.com',
       headers: { 'x-api-key': 'key' },
@@ -287,6 +287,7 @@ describe('DeepSeekFilesClient', () => {
     await expect(client.retrieve(DeepSeekFileId('one'))).rejects.toMatchObject({
       code: 'TRANSPORT',
       cause: transport,
+      failure: { code: 'TRANSPORT', diagnostic: 'ECONNRESET: socket closed' },
     })
 
     const controller = new AbortController()

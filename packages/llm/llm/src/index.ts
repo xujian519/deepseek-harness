@@ -51,6 +51,7 @@ export * from './assistant-stream.ts'
 export * from './message.ts'
 export * from './retry-policy.ts'
 export { BlockAssembler } from './assembler.ts'
+export { causeDiagnostic } from './cause-diagnostic.ts'
 export { callConfigEquals, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
 export type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 
@@ -85,6 +86,11 @@ export interface LlmErrorOptions extends ErrorOptions {
   providerRetryAfterMs?: number
   /** Non-empty opaque provider request id. */
   requestId?: ProviderRequestId
+  /**
+   * Non-empty single-line diagnostic naming the coded platform error behind
+   * this failure; see {@link LlmFailure.diagnostic}.
+   */
+  diagnostic?: string
   /** Positive count of additional oldest retained image occurrences to offload; only with `IMAGE_OFFLOAD_REQUIRED`. */
   offloadImages?: number
 }
@@ -117,6 +123,10 @@ export class LlmError extends HarnessError {
       && (typeof options.requestId !== 'string' || options.requestId.length === 0)) {
       throw new Error('LlmError requestId must be a non-empty string')
     }
+    if (options?.diagnostic !== undefined
+      && (typeof options.diagnostic !== 'string' || options.diagnostic.length === 0)) {
+      throw new Error('LlmError diagnostic must be a non-empty string')
+    }
     super(message, code, options)
     this.name = 'LlmError'
     this.failure = Object.freeze({
@@ -125,6 +135,7 @@ export class LlmError extends HarnessError {
       ...options?.status === undefined ? {} : { status: options.status },
       ...options?.providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: options.providerRetryAfterMs },
       ...options?.requestId === undefined ? {} : { requestId: options.requestId },
+      ...options?.diagnostic === undefined ? {} : { diagnostic: options.diagnostic },
       ...options?.offloadImages === undefined ? {} : { offloadImages: options.offloadImages },
     })
   }

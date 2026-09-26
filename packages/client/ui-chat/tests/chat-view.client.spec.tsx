@@ -193,10 +193,11 @@ const retry = (seq: number): ModelRetryNode => ({
   retry: 1, maxRetries: 2, delayMs: 450,
   failure: { code: 'TRANSPORT', message: '连接被重置' },
 })
-const turnError = (seq: number, code?: string): TurnErrorNode => ({
+const turnError = (seq: number, code?: string, diagnostic?: string): TurnErrorNode => ({
   kind: 'turn-error', seq, time: seq * 1_000, turn: 1, step: 0,
   message: seq === 2 ? 'API key is invalid' : 'plugin exploded',
   ...(code === undefined ? {} : { code }),
+  ...(diagnostic === undefined ? {} : { diagnostic }),
 })
 const turnMaxTokens = (seq: number): TurnMaxTokensNode => ({
   kind: 'turn-max-tokens', seq, time: seq * 1_000, turn: 1, step: 0,
@@ -2111,6 +2112,47 @@ describe('ChatView', () => {
     const cancelledDisclosure = view.container.querySelector('details') as HTMLDetailsElement
     expect(cancelledDisclosure.dataset.active).toBeUndefined()
     expect(within(cancelledDisclosure).getByRole('status').textContent).toContain('重试已取消')
+  })
+
+  it('keeps the coded transport cause readable beside the retry failure', () => {
+    const h = makeHarness({
+      nodes: [user(1, 'try'), {
+        ...retry(2),
+        failure: {
+          code: 'TRANSPORT',
+          message: 'DeepSeek Messages transport failed',
+          diagnostic: 'UND_ERR_SOCKET: other side closed',
+        },
+      }],
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    const disclosure = view.container.querySelector('details') as HTMLDetailsElement
+    expect(disclosure.textContent).toContain('失败原因：DeepSeek Messages transport failed UND_ERR_SOCKET: other side closed')
+    expect(within(disclosure).getByText('UND_ERR_SOCKET: other side closed').tagName).toBe('CODE')
+
+    // An uncoded failure keeps the row to its message alone.
+    const plain = makeHarness({ nodes: [user(1, 'try'), retry(2)] })
+    const plainView = render(<plain.ChatView {...plain.props} />)
+    const plainDisclosure = plainView.container.querySelector('details') as HTMLDetailsElement
+    expect(plainDisclosure.textContent).toContain('失败原因：连接被重置')
+    expect(plainDisclosure.querySelector('code')).toBeNull()
+  })
+
+  it('names the coded transport cause on the terminal failure row', () => {
+    const h = makeHarness({
+      nodes: [user(1, 'try'), turnError(2, 'TRANSPORT', 'ECONNRESET: read ECONNRESET')],
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    const row = within(view.container).getByText('本轮运行失败').closest('[role="status"]') as HTMLElement
+    expect(row.textContent).toBe('本轮运行失败API key is invalid ECONNRESET: read ECONNRESETTRANSPORT')
+    expect(within(row).getByText('ECONNRESET: read ECONNRESET').tagName).toBe('CODE')
+    expect(within(row).getByText('TRANSPORT').tagName).toBe('CODE')
+
+    // A failure that names no coded cause keeps the row to its code chip alone.
+    const plain = makeHarness({ nodes: [user(1, 'try'), turnError(2, 'TRANSPORT')] })
+    const plainView = render(<plain.ChatView {...plain.props} />)
+    const plainRow = within(plainView.container).getByText('本轮运行失败').closest('[role="status"]') as HTMLElement
+    expect([...plainRow.querySelectorAll('code')].map(node => node.textContent)).toEqual(['TRANSPORT'])
   })
 
   it('renders every terminal failure inline with neutral quota copy and no transient notice', () => {

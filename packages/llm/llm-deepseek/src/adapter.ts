@@ -1,6 +1,6 @@
 /** Direct Messages transport with one cancellable lifecycle per model request. */
 
-import { attributionHeaders, LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
+import { attributionHeaders, causeDiagnostic, LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageAttachmentAccessResolver, PreparedAdapterCall, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { DeepSeekLlmApiJson } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -63,7 +63,13 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
       if (timeoutOf(watchdog.signal, 'MESSAGES_IDLE') !== undefined) throw new LlmError('DeepSeek Messages stream idle timeout', 'TIMEOUT', { cause: error })
       if (options.signal?.aborted) throw new LlmError('DeepSeek Messages request aborted', 'ABORTED', { cause: error })
       if (error instanceof LlmError) throw error
-      throw new LlmError('DeepSeek Messages transport failed', 'TRANSPORT', { cause: error })
+      // A transport failure reaches the session as a code too coarse to act on,
+      // so the coded wire error behind it travels with the failure.
+      const diagnostic = causeDiagnostic(error)
+      throw new LlmError('DeepSeek Messages transport failed', 'TRANSPORT', {
+        cause: error,
+        ...diagnostic === undefined ? {} : { diagnostic },
+      })
     } finally {
       consumer.abort()
       try { await iterator.return(undefined) } catch (_abortedRequestCleanup) {
