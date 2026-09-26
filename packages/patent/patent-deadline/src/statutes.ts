@@ -420,13 +420,15 @@ function registrationItems(
   // ── 细则第60条第1款 + 第48条 — registration, which also bounds divisional filing.
   // A case is granted once, so duplicates of this kind are rejected in indexNotices;
   // the first record is the only one.
+  // 细则第114条 puts the granted year's annuity in the registration step; 印花税 is not
+  // a fee the current schedule charges.
   const grantNotice = notices.get('grant-notice')?.[0]
   if (grantNotice !== undefined) {
     const grant = resolveDeliveryDate(grantNotice.delivery)
     items.push(fromPeriod({
       base: {
         id: 'registration',
-        label: '办理登记手续并缴纳授权当年年费、印花税（自收到授权通知之日起2个月）',
+        label: '办理登记手续并缴纳授权当年年费（自收到授权通知之日起2个月）',
         legalBasis: '专利法实施细则第60条第1款、第114条',
         query,
         options,
@@ -450,7 +452,7 @@ function registrationItems(
   } else {
     items.push(pending({
       id: 'registration',
-      label: '办理登记手续并缴纳授权当年年费、印花税',
+      label: '办理登记手续并缴纳授权当年年费',
       legalBasis: '专利法实施细则第60条第1款、第114条',
       requiredInput: 'grant-notice（授权通知的送达记录）',
       reason: '该期限自收到授予专利权通知之日起算；未记录该通知送达日即无法计算，不以申请日起算的固定年数替代。',
