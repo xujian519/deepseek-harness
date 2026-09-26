@@ -98,22 +98,22 @@ describe('pricing a case', () => {
   it('reports a partial sum of the verified lines only when the policy allows it', () => {
     const items = [
       transcribed,
-      item({ id: 'stamp-tax', name: '印花税', trigger: 'filing', basis: 'per-case', amount: '100', verifiedOn: null }),
+      item({ id: 'record-copy-fee', name: '专利文件副本证明费', trigger: 'filing', basis: 'per-case', amount: '100', verifiedOn: null }),
     ]
     expect(computeFees(table(items), query(), POLICY).total).toEqual({
       amount: null,
       complete: false,
-      unverifiedIds: ['stamp-tax'],
+      unverifiedIds: ['record-copy-fee'],
     })
     expect(computeFees(table(items), query(), PERMISSIVE).total).toEqual({
       amount: '900.00',
       complete: false,
-      unverifiedIds: ['stamp-tax'],
+      unverifiedIds: ['record-copy-fee'],
     })
   })
 
   it('withholds a partial sum when no line is verified at all', () => {
-    const unrecorded = item({ id: 'stamp-tax', name: '印花税', trigger: 'filing', basis: 'per-case' })
+    const unrecorded = item({ id: 'record-copy-fee', name: '专利文件副本证明费', trigger: 'filing', basis: 'per-case' })
     expect(computeFees(table([unrecorded]), query(), PERMISSIVE).total.amount).toBeNull()
   })
 
@@ -484,7 +484,7 @@ describe('pricing a case', () => {
     expect(report.lines.map(line => line.id)).toEqual(['reexamination-fee'])
   })
 
-  it('prices the shipped index as an item checklist with no amount', () => {
+  it('prices the shipped index and withholds the total while one item has no amount', () => {
     const report = computeFees(
       loadFeeTable(),
       query({ triggers: ['filing'], claims: 15, specificationPages: 40, priorityClaims: 1 }),
@@ -497,9 +497,19 @@ describe('pricing a case', () => {
       'specification-surcharge',
       'priority-claim-fee',
     ])
-    expect(report.lines.every(line => line.status === 'unrecorded')).toBe(true)
+    expect(report.lines.find(line => line.id === 'application-fee')).toMatchObject({
+      unitAmount: '900',
+      payable: '900.00',
+      status: 'verified',
+    })
     expect(report.lines.find(line => line.id === 'claims-surcharge')?.quantity).toBe(5)
+    // The specification surcharge is the item the index records without an
+    // amount: its official price has two page bands the item model cannot hold.
+    expect(report.lines.find(line => line.id === 'specification-surcharge')).toMatchObject({
+      unitAmount: null,
+      status: 'unrecorded',
+    })
     expect(report.total.amount).toBeNull()
-    expect(report.total.unverifiedIds).toHaveLength(5)
+    expect(report.total.unverifiedIds).toEqual(['specification-surcharge'])
   })
 })

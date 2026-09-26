@@ -281,6 +281,10 @@ function applyReduction(args: {
   const { item, subtotalFen, notes, reduction, year } = args
   if (reduction === null) return { payableFen: subtotalFen, label: null }
   const { request, rule } = reduction
+  if (item.reducible === false) {
+    notes.push('本项不属于费用减缴范围：按全额计。')
+    return { payableFen: subtotalFen, label: '未减缴（不适用）' }
+  }
   if (item.reducible !== true) {
     notes.push('减缴适用范围未登记：本项按全额计。')
     return { payableFen: subtotalFen, label: '未减缴（适用范围未登记）' }

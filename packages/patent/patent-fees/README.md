@@ -39,10 +39,10 @@ Each item declares the step it is owed at (`trigger`) and how its quantity is co
 - id: claims-surcharge
   name: 权利要求附加费
   trigger: filing
-  patentTypes: [invention, utility-model]
+  patentTypes: null
   basis: per-claim-beyond
   freeUnits: 10
-  amount: null
+  amount: '150'
   legalBasis: 专利法实施细则第110条第1款第（一）项
 ```
 
@@ -57,12 +57,14 @@ An item's amount and the dates that support it are transcription content: `amoun
 | `unverified` | The amount is recorded, its verification date is not. The line shows the figure and says it is unverified. |
 | `unrecorded` | No amount is recorded. The line carries applicability and counts and no figure. |
 
-The shipped index is in the third state for every item: `amount`, `sourceDoc`, `effectiveFrom`, and `verifiedOn` are null throughout, so a default deployment gets the item checklist, its counts, and an explicit refusal to total. The thresholds (10 claims, 30 pages) and the surcharge rule the shipped file does carry come from this repository's own statements — the `draft-claims` comment and the `patent-deadline` annual-fee entries — and are unverified in the same way the amounts are.
+Most shipped items are `verified`: their amounts come from the fee standard in the National Intellectual Property Administration's payment guide (附件2), each recorded with the document it was copied from and the date of that copy. Fees whose price or rule differs by patent type are separate items — `application-fee` and its `-utility-design` sibling, one annual-fee item per type — because an item states one amount, so a difference by type is a difference between items rather than an amount that drifts with the query.
+
+Two items ship without an amount because the item model cannot state their price: the specification surcharge is charged by page band (50 per page from page 31, 100 per page from page 301) and the extension fee by occurrence (300 per month for a first extension, 2000 for a repeat). They stay `unrecorded` and withhold the total rather than apply one band's price to every unit.
 
 <a id="fee-reduction"></a>
 ## Fee reduction
 
-`reductions` carries one entry per programme (`individual`, `enterprise`) with `reductionPercent` — the **waived** share, so 85 means 15% is still payable — and `requiresFiling`, which marks a reduction that needs a filed reduction record beforehand. An item joins a reduction only through its own `reducible` flag, and a year-indexed item through `reductionMaxYears`, because a reduction that covers the first six annual fees must not discount the twentieth. An item whose `reducible` is null reports that its scope is not recorded and stays at the full amount; a ratio that is not recorded yields no reduced figure at all.
+`reductions` carries one entry per programme (`individual`, `enterprise`) with `reductionPercent` — the **waived** share, so 85 means 15% is still payable — and `requiresFiling`, which marks a reduction that needs a filed reduction record beforehand. An item joins a reduction only through its own `reducible` flag: `true` joins it, `false` reports that the item is outside the reduction's scope and stays at the full amount, and `null` reports that the scope is not recorded. A year-indexed item also passes `reductionMaxYears`, because a reduction that covers the annual fees from the granted year must not discount the twentieth; a ratio that is not recorded yields no reduced figure at all.
 
 <a id="annual-fees-and-the-surcharge"></a>
 ## Annual fees and the surcharge
@@ -108,8 +110,10 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 
 ## Known Limitations and Deferred Work
 
-- **The shipped index carries no amounts.** Every `amount`, `sourceDoc`, `effectiveFrom`, and `verifiedOn` is null, so `patent_fees` reports applicability, counts, and statutory bases and never a figure, and the persona and the quality gate require the model to look an amount up before quoting it. Transcribing the official fee standard into `assets/fees/cn-fees.yaml` — per fee item, with the announcement's document number and the date it was checked — is work a deployment does for the fees it bills.
-- **The structural fields are unverified too.** `trigger`, `patentTypes`, `basis`, `freeUnits`, `reducible`, `reductionMaxYears`, `tiers`, and `legalBasis` were transcribed from this repository's own statements and from the patent domain's step names, not from an official source; only the two `legalBasis` values pinned in `draft-claims` and the annual-fee article and surcharge rule pinned in `patent-deadline` are held to a recorded article number, and this repository has already recorded that its 细则 numbering mixes 2020 and 2010 revisions. Verify each field against the current fee announcement before invoicing.
+- **The amounts are a mechanical copy of the official fee standard, not a review.** Each priced item records the document it was copied from and the date of the copy, and the file header states that no qualified person has read the copy back. Re-check an amount against the current standard before invoicing.
+- **Two items the index cannot price.** The specification surcharge and the extension fee are charged in bands the item model has no field for, so they ship without an amount and withhold the total whenever they apply. Pricing them exactly needs either a banded price field or the case fact that selects the band.
+- **The annual-fee reduction is approximated by patent year.** The official scope is "the annual fees from the year the patent was granted, for ten years", and the query carries no grant year, so `reductionMaxYears: 10` is a patent-year ceiling. A case granted late reduces more years than this reports.
+- **The structural fields were transcribed with the amounts.** `trigger`, `patentTypes`, `basis`, `freeUnits`, `reducible`, `tiers`, and `legalBasis` were re-recorded against the 2023 revision's 实施细则 article 110 and the same fee standard, so the article numbers no longer come from the repository's older statements; verify them against the current announcement before invoicing.
 - **Dates belong to `patent_deadlines`.** The tool takes `annuityYears` and `lateMonths` as inputs and computes no date and no started-month count itself, so a caller that has not run `patent_deadlines` cannot learn the years; a delay whose months were counted differently from the deadline package's late-payment window will disagree with it.
 - **Percentages round half up to the 分** as an arithmetic convention of this package, stated once in `money.ts`; the official standard does not say how a fractional 分 is handled, and a deployment that must match a published rounding should check the difference on the amounts it bills.
 - **A service fee, a foreign office fee, and a fee the index does not carry are out of scope.** The index covers the Chinese fee items it lists; the report says nothing about anything else, and its silence is not a zero.

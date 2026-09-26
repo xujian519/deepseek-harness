@@ -53,13 +53,13 @@ describe('@deepseek-ai/dsh-patent-fees plugin surface', () => {
     expect(Pkg.Config({} as Pkg.Config)).toEqual({ failOnUnverified: true })
   })
 
-  it('withholds the total under the shipped policy and reports it when turned off', async () => {
+  it('withholds the total under the shipped policy and sums the verified part when turned off', async () => {
     const strict = await install()
     const withheld = await strict.ctx.tools.execute({
       signal: new AbortController().signal,
       callId: ToolCallId('patent-fees-strict'),
       name: 'patent_fees',
-      arguments: { patentType: 'invention', triggers: ['filing'] },
+      arguments: { patentType: 'invention', triggers: ['filing'], specificationPages: 40 },
     })
     expect((withheld.value as { total: { amount?: string } }).total.amount).toBeUndefined()
 
@@ -68,10 +68,11 @@ describe('@deepseek-ai/dsh-patent-fees plugin surface', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('patent-fees-relaxed'),
       name: 'patent_fees',
-      arguments: { patentType: 'invention', triggers: ['filing'] },
+      arguments: { patentType: 'invention', triggers: ['filing'], specificationPages: 40 },
     })
-    // Every line of the shipped index is unrecorded, so even a partial sum is refused.
-    expect((reported.value as { total: { amount?: string } }).total.amount).toBeUndefined()
+    // The application fee and the printing fee are priced; the specification
+    // surcharge is not, so only the verified part may be summed.
+    expect((reported.value as { total: { amount?: string } }).total.amount).toBe('950.00')
   })
 
   it('fails loud at load when the configured fee index is missing', async () => {

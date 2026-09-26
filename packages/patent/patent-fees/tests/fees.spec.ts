@@ -195,20 +195,30 @@ items:
     expect(() => loadFeeTable('/nonexistent/fees.yaml')).toThrow(/费用索引不可读：\/nonexistent\/fees\.yaml/)
   })
 
-  it('loads the packaged index, whose amounts are all untranscribed', () => {
+  it('loads the packaged index and records where each amount came from', () => {
     const shipped = loadFeeTable()
-    expect(shipped.document).toBe('国家知识产权局专利收费标准')
+    expect(shipped.document).toBe('专利和集成电路布图设计缴费服务指南（附件2 收费标准）')
     expect(shipped.currency).toBe('CNY')
-    expect(shipped.items).toHaveLength(15)
-    expect(shipped.items.every(entry => entry.amount === null)).toBe(true)
-    expect(shipped.items.every(entry => entry.verifiedOn === null)).toBe(true)
-    expect(shipped.sourceDoc).toBeNull()
+    expect(shipped.items).toHaveLength(19)
+    expect(shipped.revision).not.toBeNull()
+    expect(shipped.sourceDoc).not.toBeNull()
+    expect(shipped.verifiedOn).not.toBeNull()
+    // The guide prints no effective date for the domestic table, so the field
+    // stays null rather than repeating the guide's own publication date.
     expect(shipped.effectiveFrom).toBeNull()
-    expect(shipped.verifiedOn).toBeNull()
-    expect(shipped.revision).toBeNull()
+
+    // An annual fee states its price as tier rows, so "price absent" means
+    // neither an amount nor a tier.
+    const unpriced = shipped.items
+      .filter(entry => entry.amount === null && entry.tiers.length === 0)
+      .map(entry => entry.id)
+    expect(unpriced).toEqual(['specification-surcharge', 'extension-fee'])
+    expect(shipped.items
+      .filter(entry => entry.amount !== null || entry.tiers.length > 0)
+      .every(entry => entry.sourceDoc !== null && entry.verifiedOn !== null)).toBe(true)
   })
 
-  it('carries the thresholds and surcharge rule the repository already records', () => {
+  it('carries the thresholds, the surcharge rule, and the annual-fee tiers', () => {
     const shipped = loadFeeTable()
     const claims = shipped.items.find(entry => entry.id === 'claims-surcharge')
     const pages = shipped.items.find(entry => entry.id === 'specification-surcharge')
@@ -216,18 +226,25 @@ items:
     expect(claims).toMatchObject({
       basis: 'per-claim-beyond',
       freeUnits: 10,
-      legalBasis: '专利法实施细则第110条第1款第（一）项',
+      amount: '150',
     })
-    expect(pages).toMatchObject({ basis: 'per-page-beyond', freeUnits: 30 })
+    expect(pages).toMatchObject({ basis: 'per-page-beyond', freeUnits: 30, amount: null })
     expect(annual?.latePayment).toMatchObject({ monthlyPercent: 5, maxMonths: 6 })
-    expect(annual?.tiers).toEqual([])
-    expect(annual?.reductionMaxYears).toBe(6)
+    expect(annual?.tiers).toEqual([
+      { fromYear: 1, toYear: 3, amount: '900' },
+      { fromYear: 4, toYear: 6, amount: '1200' },
+      { fromYear: 7, toYear: 9, amount: '2000' },
+      { fromYear: 10, toYear: 12, amount: '4000' },
+      { fromYear: 13, toYear: 15, amount: '6000' },
+      { fromYear: 16, toYear: 20, amount: '8000' },
+    ])
+    expect(annual?.reductionMaxYears).toBe(10)
   })
 
-  it('leaves the reduction ratios untranscribed and gated on a filed record', () => {
+  it('carries the reduction ratios and keeps them gated on a filed record', () => {
     const shipped = loadFeeTable()
     expect(shipped.reductions.map(rule => rule.kind)).toEqual(['individual', 'enterprise'])
-    expect(shipped.reductions.every(rule => rule.reductionPercent === null)).toBe(true)
+    expect(shipped.reductions.map(rule => rule.reductionPercent)).toEqual([85, 70])
     expect(shipped.reductions.every(rule => rule.requiresFiling)).toBe(true)
   })
 })

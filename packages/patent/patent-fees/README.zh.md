@@ -39,10 +39,10 @@ patent_fees 为一件案件计价：输入专利类型与本案所处的环节�
 - id: claims-surcharge
   name: 权利要求附加费
   trigger: filing
-  patentTypes: [invention, utility-model]
+  patentTypes: null
   basis: per-claim-beyond
   freeUnits: 10
-  amount: null
+  amount: '150'
   legalBasis: 专利法实施细则第110条第1款第（一）项
 ```
 
@@ -57,12 +57,14 @@ patent_fees 为一件案件计价：输入专利类型与本案所处的环节�
 | `unverified` | 金额已记录，核验日期没有。该行给出数字并标明未核验。 |
 | `unrecorded` | 金额未记录。该行只有适用性与计数，没有数字。 |
 
-随包索引的每个费种都处于第三种状态：`amount`、`sourceDoc`、`effectiveFrom`、`verifiedOn` 全为 null，因此默认部署拿到的是费种清单、各项计数，以及明确的拒绝合计。随包文件确有的阈值（10 项、30 页）与滞纳金规则取自本仓自身的陈述——`draft-claims` 的注释与 `patent-deadline` 的年费条目——它们与金额一样属于未核验。
+随包索引的多数费种处于 `verified`：金额取自国家知识产权局缴费服务指南的附件 2 收费标准，每项都记下抄录的文书与抄录日期。价格或规则因专利类型而不同的费种拆成两条——`application-fee` 与其 `-utility-design` 兄弟条目、每种专利类型一条年费——因为一条费种只承载一个金额，按类型分价就是分成不同的费种，而不是让金额随查询漂移。
+
+两个费种随包不带金额，因为条目模型表达不了它们的价格：说明书附加费按页分档（第 31 页起每页 50 元、第 301 页起每页 100 元），延长期限请求费按次数分档（第一次每月 300 元、再次每月 2000 元）。它们保持 `unrecorded`，因此扣住合计，而不是把其中一档的单价套到所有单位上。
 
 <a id="fee-reduction"></a>
 ## 费用减缴
 
-`reductions` 每个减缴项目（`individual` 个人、`enterprise` 企业）一条，含 `reductionPercent`——**减缴**比例，85 表示仍需缴 15%——以及 `requiresFiling`，标明该减缴以事前办理费减备案为前提。费种只有经自身的 `reducible` 标记才进入减缴，年费类费种还要经 `reductionMaxYears`，因为只覆盖前 6 年年费的减缴不能打在第 20 年的折扣上。`reducible` 为 null 的费种会报"是否属于减缴范围未登记"并按全额计；比例未转录时不给任何减缴后金额。
+`reductions` 每个减缴项目（`individual` 个人、`enterprise` 企业）一条，含 `reductionPercent`——**减缴**比例，85 表示仍需缴 15%——以及 `requiresFiling`，标明该减缴以事前办理费减备案为前提。费种只有经自身的 `reducible` 标记才进入减缴：`true` 进入，`false` 报"本项不属于费用减缴范围"并按全额计，`null` 报"是否属于减缴范围未登记"并按全额计。年费类费种还要经 `reductionMaxYears`，因为覆盖自授权当年起年费的减缴不能打在第 20 年的折扣上；比例未转录时不给任何减缴后金额。
 
 <a id="annual-fees-and-the-surcharge"></a>
 ## 年费与滞纳金
@@ -109,8 +111,10 @@ Schemastery 配置；两个字段都有默认值。
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与暂缓事项
 
-- **随包索引不含任何金额。** `amount`、`sourceDoc`、`effectiveFrom`、`verifiedOn` 全为 null，因此 `patent_fees` 只报适用性、计数与法条依据，从不给数字；人设与质量门禁据此要求模型在报价前先查证金额。把官方收费标准转录进 `assets/fees/cn-fees.yaml`（逐费种补记公告文号与核验日期）是各部署针对自己要报的费种所做的后续工作。
-- **结构性字段同样未核验。** `trigger`、`patentTypes`、`basis`、`freeUnits`、`reducible`、`reductionMaxYears`、`tiers`、`legalBasis` 取自本仓自身的陈述与专利域的环节名，并非官方来源；只有 `draft-claims` 钉住的两个 `legalBasis`、以及 `patent-deadline` 钉住的年费条号与滞纳金规则有可追溯的条号，而本仓已记录其细则编号存在 2020 版与 2010 版混用。开票前须逐字段对照现行收费标准公告。
+- **金额是官方收费标准的机械抄录，不是复核。** 每个已定价费种都记下抄录的文书与抄录日期，文件头写明没有人回读复核。开票前应就自己要报的金额再核对现行标准。
+- **两个费种索引定价不了。** 说明书附加费与延长期限请求费按条目模型没有字段承载的分档收费，因此随包不带金额，只要适用就扣住合计。要精确计价，需要能承载分档的价格字段，或选出档位所需的案件事实。
+- **年费减缴按专利年度近似。** 官方口径是"自授权当年起十年的年费"，而查询不带授权年度，因此 `reductionMaxYears: 10` 是专利年度上限的近似。授权较晚的案件实际可减缴的年度会多于本报告给出的范围。
+- **结构性字段随金额一并转录。** `trigger`、`patentTypes`、`basis`、`freeUnits`、`reducible`、`tiers`、`legalBasis` 已按 2023 年修订的《专利法实施细则》第一百一十条与同一份收费标准重录，因此条号不再来自本仓的旧陈述；开票前仍须对照现行收费标准公告逐个核对。
 - **日期归 `patent_deadlines`。** 本工具把 `annuityYears` 与 `lateMonths` 当输入，自身不计算任何日期与超期月数，因此没跑过 `patent_deadlines` 的调用方无法得知年度；若超期月数的算法与期限包的补缴窗口不同，两边结论会不一致。
 - **百分比按分四舍五入（半值向上）**，这是本包的算术约定，只在 `money.ts` 声明一次；官方标准未规定不足一分的处理，若某部署需要与公开的取整结果一致，应就自己要报的金额逐项核对差异。
 - **服务费、外国官费与索引未收录的费种不在范围内。** 索引只覆盖它列出的中国费种；报告对其他费用不作陈述，其沉默不是零。
