@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: effc73062ee05af7
-  zh: 051df2a85f36f7ab
+  en: 170ed1779ba638d4
+  zh: 8c73eca688976de7
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -419,6 +419,9 @@
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/search-patent-figure:
   en: e952950dd3a02826
   zh: ecc3c6b0f7b1df69
+/tool-schema-catalog/deepseek-ai-dsh-patent-tools/triz-contradiction-analysis:
+  en: 4fed9ecd1a051926
+  zh: ed70b6b5bb50b362
 /tool-schema-catalog/deepseek-ai-dsh-patent-tools/validate-specification:
   en: e0c2ac67987ea7d0
   zh: 9dce5de0b19d7cc9

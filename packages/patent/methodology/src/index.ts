@@ -30,6 +30,7 @@ export {
   ENGINEERING_PARAMS,
   detectParamNumbers,
   paramLabel,
+  principleById,
   principleNames,
 } from './data.ts'
 export { createTrizTool } from './tool/triz.ts'

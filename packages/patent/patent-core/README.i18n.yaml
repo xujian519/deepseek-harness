@@ -3,17 +3,17 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-core/README.md
 /:
-  en: ee84d245d8ea71a4
-  zh: 07b29668708ada45
+  en: 9821abc3747eb69a
+  zh: e3d054283c68d8ad
 /deepseek-ai-dsh-patent-core:
   en: 40a881446449f10b
   zh: d9595659c5bbaf76
 /deepseek-ai-dsh-patent-core/summary:
-  en: 1ba3978824ac5991
-  zh: efe0ca6bc31ba3f1
+  en: 2b077d2542d18c0d
+  zh: bd5bff6828fa65b1
 /deepseek-ai-dsh-patent-core/table-of-contents:
-  en: 92832f2e55db113a
-  zh: 9310068e47259493
+  en: 42e61b5ce6ab32a6
+  zh: e9db37713e911900
 /deepseek-ai-dsh-patent-core/atoms-engines:
   en: 178c28d9ef640238
   zh: 7d91be327549f195
@@ -25,7 +25,10 @@
   zh: 3e347cd3a8c68bea
 /deepseek-ai-dsh-patent-core/problem-atomic-technical-problem-checks:
   en: d0130530359c81f3
-  zh: 4987b8a41e66cec1
+  zh: eda4ab7c3c0bb27e
+/deepseek-ai-dsh-patent-core/triz-contradiction-analysis-inventor-side:
+  en: cb45d6cb896af2a5
+  zh: c08bb0a56d720685
 /deepseek-ai-dsh-patent-core/evidence-closed-loop-ledger-judgment-engine:
   en: e68b8cac002293c9
   zh: 656b254f7d0ad846
