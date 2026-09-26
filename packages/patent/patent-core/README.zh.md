@@ -1,5 +1,5 @@
 ---
-description: "纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：atoms `StageProvider`/`StageHandler` 词汇及其 14 个内置 handler、`PatentModelPort` LLM 适配器、双轨 checker 规则引擎、原子化技术问题四检验、TRIZ 矛盾分析（发明人侧的补强缺口与方案方向）、证据闭环账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检（单一性、覆盖矩阵）、数值范围新颖性确定性核验、程序文书解析（审查意见通知书、无效/复审/外观设计理由）、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、加权风险分级）、Pregel 风格图引擎及其四个专利域子图（新颖性/创造性/充分公开/citation-check）、规则引擎协议类型与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。"
+description: "纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：atoms `StageProvider`/`StageHandler` 词汇及其 14 个内置 handler、`PatentModelPort` LLM 适配器、双轨 checker 规则引擎、技术问题四检验、TRIZ 矛盾分析（发明人侧的补强缺口与方案方向）、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析（审查意见通知书、无效/复审/外观设计理由）、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议类型与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
+纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
 
 ## 目录
 
