@@ -9,7 +9,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 专利法第25条第1款第(二)项；审查指南第二部分第一章3.1
+    legalBasis: 专利法第25条第1款第(二)项；审查指南第二部分第一章4.2
     check:
       type: structural_analysis
       requiresAll:
@@ -28,7 +28,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 专利法第25条第1款第(三)项；审查指南第二部分第一章4.1-4.4
+    legalBasis: 专利法第25条第1款第(三)项；审查指南第二部分第一章4.3
     check:
       type: structural_analysis
       requiresAll:
@@ -47,7 +47,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 专利法第25条第1款第(二)项；审查指南第二部分第九章2.0
+    legalBasis: 专利法第25条第1款第(二)项；审查指南第二部分第九章2
     check:
       type: structural_analysis
       requiresAll:
@@ -356,7 +356,7 @@ rules:
     phase: post_execution
     severity: critical
     action: block
-    legalBasis: 审查指南第二部分第九章2.0
+    legalBasis: 审查指南第二部分第九章2
     check:
       type: structural_analysis
       requiresAll:
@@ -378,7 +378,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第九章3.0
+    legalBasis: 审查指南第二部分第九章5.1
     check:
       type: structural_analysis
       requiresAll:
@@ -398,7 +398,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第九章3.2.1
+    legalBasis: 审查指南第二部分第九章5.2
     check:
       type: structural_analysis
       requiresAll:

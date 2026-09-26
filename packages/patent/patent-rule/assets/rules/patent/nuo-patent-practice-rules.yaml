@@ -87,7 +87,7 @@ rules:
     phase: post_execution
     severity: major
     action: warn
-    legalBasis: 审查指南第二部分第二章2.2.1
+    legalBasis: 审查指南第二部分第二章2.1.1
     check:
       type: structural_analysis
       requiresAll:
