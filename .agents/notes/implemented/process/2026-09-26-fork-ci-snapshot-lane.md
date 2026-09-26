@@ -10,6 +10,8 @@ English | [中文](2026-09-26-fork-ci-snapshot-lane.zh.md)
 
 While no lane ran it, those expectations drifted away from the source they pin. The pinned `tool-schemas.expected.json` and `system-prompt.expected.md` sidecars still carried prompt and tool-description wording from before the fork trimmed its model-facing prose, and the committed session generations were V3 while the checkout writer is V4. On the merge base of the change that adds this job, 83 of the lane's 190 cases failed on a request header or a system prompt.
 
+Part of that drift hid behind a platform gate. Two scenarios declare `platform: pwsh` and are skipped, in every mode, when the host has no `pwsh` on `PATH`; this fork's development host has none, so no local run ever replayed them and their sidecars were updated by hand instead of by refresh. The last hand edit followed one wording refactor and left the pinned `todo_write` description at its pre-2026-09-02 text, so both cases failed on request header 1 the first time a host with a usable `pwsh` ran them.
+
 ## Decision
 
 `ci-fork.yml` gains `node-snapshots`, restricted to `pull_request`, bounded at 45 minutes, running four steps in order: `pnpm install --frozen-lockfile`, `bash scripts/prepare-ci-bubblewrap.sh`, `pnpm run build`, and the lane as `DSH_EXAMPLE_MODE=lib pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts`.
@@ -39,13 +41,15 @@ A pull-request run gates the merge that lands a change, and this fork's merge pa
 ## Consequences
 
 - A pinned expectation that drifts from the current composition, a Session-format successor that is missing, and a cross-scenario reference that stops naming its owner's selected generation now fail the pull request that introduces them. The refresh in this pull request is the first proof: the lane reports 188 passed and 2 skipped where the merge base reported 83 failed.
+- The job is also the only host in this fork that runs the `platform: pwsh` scenarios, so its first run doubled as their first run anywhere. They failed on the hand-maintained `todo_write` sidecar, and their sidecars were regenerated on Linux; the corpus is now verified where it is enforced.
 - `apps/web/tests/**/*.snapshot.ts` keeps no CI signal in this fork. `minimal-preset.snapshot.ts` fails on this host against its committed ARIA golden, so that lane needs its own refresh and Playwright provisioning before it can be wired.
 - The job pays for an install and a full build that `node-built-suites` and `node-hygiene` also pay, because GitHub Actions jobs share no workspace. It is the third build in the workflow.
 
 ## Testing
 
-- `pnpm run test:snapshot`: 188 passed, 2 skipped, 0 failed (was 83 failed of 190 on the merge base).
+- `pnpm run test:snapshot`: 188 passed, 2 skipped, 0 failed (was 83 failed of 190 on the merge base). The two skips are the `platform: pwsh` cases, which this host cannot replay.
 - The job's own command on this host, `DSH_EXAMPLE_MODE=lib pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts`, over a fresh `pnpm run build`: 4 files, 188 passed, 2 skipped.
+- The same command on the runner, which ships `pwsh`, reported `Tests 2 failed | 188 passed (190)`; both failures were the pwsh cases at `verifyHeaders`, on the `todo_write` tool description. A Linux `DSH_SNAPSHOT=refresh` run against the same command regenerated those two sidecars.
 - `pnpm run test:snapshot:refresh` needs two passes to settle: the first leaves 14 failures — 11 order-dependent readers, 2 SDK scenarios that pin a `text-turn` sidecar, and one cross-scenario reference — and the second reports 4 files passed and 187 passed. Refresh is serial, so a scenario that reads another scenario's pin or header source compares against the file that run rewrites later.
 - `pnpm exec vitest run scripts/ci-workflow.spec.ts`: 50 passed, including the case that pins this job's step order, lib mode, and both filters.
 - The first GitHub Actions run is the only verification of the job itself; no local command executes a workflow.

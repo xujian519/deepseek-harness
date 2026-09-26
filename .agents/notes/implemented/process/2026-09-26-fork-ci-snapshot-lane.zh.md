@@ -10,6 +10,8 @@ Status: implemented
 
 在没有车道运行它期间，这些预期与其所钉住的源码脱节。被钉住的 `tool-schemas.expected.json` 与 `system-prompt.expected.md` 侧车仍带着 fork 精简模型可见措辞之前的提示词与工具描述文案，而已提交的会话代还是 V3，checkout writer 已是 V4。在本 job 所属改动的合并基线上，该车道 190 例中有 83 例因请求头或系统提示词失败。
 
+其中一部分脱节藏在平台门禁之后。两个场景声明 `platform: pwsh`，在任何模式下只要主机 `PATH` 上没有 `pwsh` 就会被跳过；本 fork 的开发主机正是如此，因此没有任何本地运行回放过它们，其侧车是靠手工改动而非刷新维护的。最后一次手工改动跟随了一次措辞重构，却把钉住的 `todo_write` 描述留在 2026-09-02 之前的文案，于是在有可用 `pwsh` 的主机第一次运行它们时，两例都因请求头 1 失败。
+
 ## 决策
 
 `ci-fork.yml` 新增 `node-snapshots`，限定 `pull_request`，上限 45 分钟，按序执行四步：`pnpm install --frozen-lockfile`、`bash scripts/prepare-ci-bubblewrap.sh`、`pnpm run build`，以及车道本体 `DSH_EXAMPLE_MODE=lib pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts`。
@@ -39,13 +41,15 @@ pull request 的运行把关的是落地该改动的合并，而本 fork 的合�
 ## 后果
 
 - 与当前组合脱节的钉住预期、缺失的 Session 格式后继代，以及不再指向所属者选中代的跨场景引用，现在都会让引入它们的 pull request 变红。本 pull request 里的刷新就是第一次证明：合并基线报 83 例失败，车道现在报 188 通过、2 跳过。
+- 本 job 也是本 fork 中唯一运行 `platform: pwsh` 场景的主机，因此它的首次运行同时是这些场景在任何地方的首次运行。它们因手工维护的 `todo_write` 侧车而失败，其侧车随后在 Linux 上重新生成；语料现在在强制执行它的地方得到验证。
 - `apps/web/tests/**/*.snapshot.ts` 在本 fork 仍无 CI 信号。`minimal-preset.snapshot.ts` 在本主机上与其已提交 ARIA 金标不一致，故该车道需要先做自身刷新与 Playwright 准备才能接线。
 - 本 job 要额外付一次 install 与一次完整 build，`node-built-suites` 与 `node-hygiene` 也要付——GitHub Actions 的 job 之间不共享工作区。这是工作流中的第三次 build。
 
 ## 测试
 
-- `pnpm run test:snapshot`:188 通过、2 跳过、0 失败（合并基线上为 190 例中 83 失败）。
+- `pnpm run test:snapshot`：188 通过、2 跳过、0 失败（合并基线上为 190 例中 83 失败）。两个跳过项就是本主机无法回放的 `platform: pwsh` 用例。
 - 本 job 的实际命令在本主机上、于一次全新的 `pnpm run build` 之后：`DSH_EXAMPLE_MODE=lib pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts`，4 个文件、188 通过、2 跳过。
+- 同一条命令在自带 `pwsh` 的 runner 上报 `Tests 2 failed | 188 passed (190)`；两例失败都是 `verifyHeaders` 处的 pwsh 用例，卡在 `todo_write` 工具描述上。针对同一条命令的一次 Linux `DSH_SNAPSHOT=refresh` 运行重新生成了这两个侧车。
 - `pnpm run test:snapshot:refresh` 需要两遍才能收敛：第一遍余下 14 例失败——11 例顺序相关的读取方、2 例钉住 `text-turn` 侧车的 SDK 场景，以及 1 处跨场景引用——第二遍报 4 个文件通过、187 通过。refresh 是串行的，因此读取另一场景 pin 或请求头来源的场景，会比较到同一次运行稍后才改写的文件。
 - `pnpm exec vitest run scripts/ci-workflow.spec.ts`:50 通过，其中包含钉住本 job 步骤顺序、lib mode 与两个过滤条件的用例。
 - 本 job 自身的验证只能由第一次 GitHub Actions 运行给出；没有任何本地命令会执行工作流。
