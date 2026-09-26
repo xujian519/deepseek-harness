@@ -81,6 +81,8 @@ import * as DocumentDeliver from '@deepseek-ai/dsh-document-deliver'
 import * as PatentTools from '@deepseek-ai/dsh-patent-tools'
 import * as PatentDocument from '@deepseek-ai/dsh-patent-document'
 import * as PatentDeadline from '@deepseek-ai/dsh-patent-deadline'
+import * as PatentFees from '@deepseek-ai/dsh-patent-fees'
+import * as PatentLaw from '@deepseek-ai/dsh-patent-law'
 import * as DocTemplate from '@deepseek-ai/dsh-doc-template'
 import * as WritingPatterns from '@deepseek-ai/dsh-writing-patterns'
 import * as PatentTeams from '@deepseek-ai/dsh-patent-teams'
@@ -760,6 +762,42 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-fees',
+    dir: 'patent-fees',
+    source: 'packages/patent/patent-fees/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged fee index at load and registers patent_fees
+      // from it plus the totals policy; no other service is needed. The Config type
+      // states the policy field, so this page shows the shipped default explicitly.
+      await ctx.plugin(PatentFees, { failOnUnverified: PatentFees.DEFAULT_FEE_POLICY.failOnUnverified })
+    },
+    note:
+      'patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-patent-law',
+    dir: 'patent-law',
+    source: 'packages/patent/patent-law/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The plugin loads the packaged law index at load and registers law_verify
+      // from it plus the per-decision policy; no other service is needed. The Config
+      // type states the policy fields, so this page shows the shipped defaults
+      // explicitly.
+      await ctx.plugin(PatentLaw, {
+        onMismatch: PatentLaw.DEFAULT_CITATION_POLICY.mismatch,
+        onOutOfRange: PatentLaw.DEFAULT_CITATION_POLICY.outOfRange,
+        onNotIndexed: PatentLaw.DEFAULT_CITATION_POLICY.notIndexed,
+        onUnverified: PatentLaw.DEFAULT_CITATION_POLICY.unverified,
+      })
+    },
+    note:
+      'law_verify reads the law citations of a text, or the references passed directly, and decides each against the law index shipped in the package: 《专利法》 and 《专利法实施细则》 by article (and paragraph), 《专利审查指南》 by normalized section path. Each finding is 已核验 / 与所引命题不符 / 条号超出有效范围 / 索引中不存在 / 条文未转录（未核验）; an indexed article whose text has not been transcribed is reported as 未核验 rather than accepted.',
   },
   {
     pkg: '@deepseek-ai/dsh-writing-patterns',
