@@ -1,6 +1,6 @@
 /** DeepSeek Files API transport. @module dsh-llm-deepseek/files-api */
 
-import { attributionHeaders, LlmError } from '@deepseek-ai/dsh-llm'
+import { attributionHeaders, causeDiagnostic, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import { DeepSeekFileId } from './file-id.ts'
 import type { DeepSeekFileId as DeepSeekFileIdType } from './file-id.ts'
@@ -157,7 +157,13 @@ export class DeepSeekFilesClient {
       })
     } catch (error: unknown) {
       if (signal?.aborted) throw error
-      throw new LlmError(`DeepSeek Files API request to ${this.baseURL} failed`, 'TRANSPORT', { cause: error })
+      // Same coarse `TRANSPORT` code as the Messages stream, so the coded wire
+      // error behind it travels with the failure here too.
+      const diagnostic = causeDiagnostic(error)
+      throw new LlmError(`DeepSeek Files API request to ${this.baseURL} failed`, 'TRANSPORT', {
+        cause: error,
+        ...diagnostic === undefined ? {} : { diagnostic },
+      })
     }
     if (response.ok) return response
     let parsed: unknown

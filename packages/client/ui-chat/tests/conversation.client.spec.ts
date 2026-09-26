@@ -49,6 +49,18 @@ describe('toAssistantBlock', () => {
     expect(displayFailure(null)).toEqual({ message: 'null' })
   })
 
+  it('keeps a coded cause only where it is present and displayable', () => {
+    expect(displayFailure({ code: 'TRANSPORT', message: 'offline', diagnostic: 'ECONNRESET: read ECONNRESET' }))
+      .toEqual({ code: 'TRANSPORT', message: 'offline', diagnostic: 'ECONNRESET: read ECONNRESET' })
+    expect(displayFailure({ code: 'TRANSPORT', message: 'offline', diagnostic: '' }))
+      .toEqual({ code: 'TRANSPORT', message: 'offline' })
+    expect(displayFailure({ code: 'TRANSPORT', message: 'offline', diagnostic: 7 }))
+      .toEqual({ code: 'TRANSPORT', message: 'offline' })
+    // The auth projection retains nothing provider-derived, so the cause goes with it.
+    expect(displayFailure({ code: 'AUTH', message: 'secret', diagnostic: 'ECONNRESET: read ECONNRESET' }))
+      .toEqual({ code: 'AUTH', message: '' })
+  })
+
   it('recognizes only non-empty token deltas', () => {
     expect(isTokenDelta({ type: 'text-delta', index: 0, text: 'x' } as never)).toBe(true)
     expect(isTokenDelta({ type: 'reasoning-delta', index: 0, text: '' } as never)).toBe(false)

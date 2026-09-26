@@ -273,6 +273,12 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* The coded cause behind a failure, named by the retry detail and the terminal row. */
+.failureCause {
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-markdown-code-block-small);
+}
+
 .turnErrorRow {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) auto;
