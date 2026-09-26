@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/patent/patent-law/README.md
+/:
+  en: 3d3e7cea0872ce93
+  zh: 9e44e45038f5b0aa
+/deepseek-ai-dsh-patent-law:
+  en: ad5fe8483d002993
+  zh: b03a575b00cedd49
+/deepseek-ai-dsh-patent-law/summary:
+  en: f85a58408cb7fd9a
+  zh: 4870ccf4d7fff52b
+/deepseek-ai-dsh-patent-law/table-of-contents:
+  en: 60028fd42e5bc54e
+  zh: 5d572e75d01c8af0
+/deepseek-ai-dsh-patent-law/law-verify-tool:
+  en: 369d2f6779938059
+  zh: f1ea9a56b77588c9
+/deepseek-ai-dsh-patent-law/citation-decisions-and-policy:
+  en: ef300447b9acc42f
+  zh: 410760ea0f9425c1
+/deepseek-ai-dsh-patent-law/law-index-assets:
+  en: 61ab1251425628c2
+  zh: f86b35c616a336c5
+/deepseek-ai-dsh-patent-law/library-api:
+  en: 2d760ded6c491e29
+  zh: 73b4ce1e980f43e4
+/deepseek-ai-dsh-patent-law/configuration:
+  en: 8789c6e7ff205f1e
+  zh: 557743565b4576fa
+/deepseek-ai-dsh-patent-law/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-patent-law/model-experience/law-verify-tool:
+  en: 15781aaf20757546
+  zh: 50c4bd2f42f261d8
+/deepseek-ai-dsh-patent-law/model-experience/law-verify-tool/what-the-model-sees:
+  en: c58e8e70d72e2d7e
+  zh: c9bbb6159a3115f8
+/deepseek-ai-dsh-patent-law/model-experience/law-verify-tool/token-effect:
+  en: be0189da50e1c907
+  zh: 0c5b476801775c0f
+/deepseek-ai-dsh-patent-law/model-experience/law-verify-tool/kv-cache-effect:
+  en: 037822c61c0c57f5
+  zh: c6c7e1b63cbf9c97
+/deepseek-ai-dsh-patent-law/known-limitations-and-deferred-work:
+  en: 216235891112cec1
+  zh: e80fc3f32f545cff
+/deepseek-ai-dsh-patent-law/known-limitations-and-deferred-work/dev-note:
+  en: 2e2410d1112af008
+  zh: 968682116cdad691

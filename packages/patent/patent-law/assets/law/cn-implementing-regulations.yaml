@@ -1,0 +1,70 @@
+# 《专利法实施细则》条号索引 — 随包资产，内容尚未核定。
+#
+# 同 cn-patent-law.yaml：只登记条号与主题，不是法条文本；每条 text / sourceDoc /
+# verifiedOn 均为 null，因此每条引用目前的判定都是"未转录（未核验）"。
+#
+# 来源：本仓库既有引用（packages/patent/patent-deadline 的期限条目与交付规则、
+# packages/patent/patent-rule/assets/rules 的 legalBasis、patent-core 与技能文本中
+# 已出现的细则条号），未对条文原文核定。
+#
+# 注意：maxArticle 为 null —— 本仓库没有对细则条数作出可用核验的声明，
+# 因此超出索引范围的细则引用会判"不在索引中"，不会被判"超出有效范围"。
+law: 专利法实施细则
+document: 中华人民共和国专利法实施细则
+revision: 2023 年修订（2024-01-20 施行）
+maxArticle: null
+maxVerifiedOn: null
+maxSource: 未声明（本仓库无可用核验来源）
+articles:
+  - article: 4
+    topics: [送达, 推定收到日]
+  - article: 5
+    topics: [期限, 起算, 顺延]
+  - article: 6
+    topics: [恢复权利, 不可抗力, 正当理由]
+  - article: 17
+    topics: [说明书, 撰写]
+  - article: 20
+    topics: [权利要求书, 必要技术特征]
+  - article: 21
+    topics: [附图, 附图标记]
+  - article: 22
+    topics: [权利要求, 引用]
+  - article: 23
+    topics: [摘要]
+  - article: 36
+    topics: [优先权, 恢复]
+  - article: 37
+    topics: [优先权, 增加, 改正]
+  - article: 42
+    topics: [分案申请, 原申请]
+  - article: 43
+    topics: [分案申请]
+  - article: 48
+    topics: [分案申请, 期限]
+  - article: 51
+    topics: [修改, 超出原范围, 扩大保护范围]
+  - article: 57
+    topics: [主动修改, 期限]
+  - article: 60
+    topics: [登记手续, 授权]
+  - article: 62
+    topics: [复审]
+  - article: 65
+    topics: [无效宣告, 理由]
+  - article: 67
+    topics: [复审通知书, 答复]
+  - article: 77
+    topics: [期限补偿, 请求]
+  - article: 78
+    topics: [期限补偿]
+  - article: 81
+    topics: [期限补偿, 新药]
+  - article: 112
+    topics: [申请费, 公布印刷费, 附加费]
+  - article: 114
+    topics: [登记费, 印花税]
+  - article: 115
+    topics: [年费]
+  - article: 120
+    topics: [PCT, 国际申请, 国家阶段]

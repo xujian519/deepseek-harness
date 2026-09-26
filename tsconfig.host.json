@@ -494,6 +494,7 @@
     { "path": "./packages/patent/patent-core" },
     { "path": "./packages/patent/patent-data" },
     { "path": "./packages/patent/patent-knowledge" },
+    { "path": "./packages/patent/patent-law" },
     { "path": "./packages/patent/patent-workflow" },
     { "path": "./packages/patent/patent-tools" },
     { "path": "./packages/patent/patent-teams" },

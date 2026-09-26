@@ -1,0 +1,96 @@
+# 《专利法》条号索引 — 随包资产，内容尚未核定。
+#
+# 本文件只登记"有哪些条、每条大致管什么"，用于判定一条引用是否落在索引内、
+# 以及引用所支撑的命题是否与条目主题相符。它不是法条文本。
+#
+# 来源与核定状态：
+#   - 条号与主题取自本仓库既有的引用核验表（packages/patent/patent-workflow/src/quality-gate.ts
+#     的 PATENT_LAW_TOPICS、packages/patent/patent-rule/assets/rules/patent/compliance.yaml、
+#     base/citation.yaml）以及仓库内规则资产 / 技能中已出现的引用，未对条文原文核定。
+#   - maxArticle（82 条）同样取自上述既有条目，maxVerifiedOn 为 null，即该上限本身未核验：
+#     编号超过 82 的引用只报"未核验"，不判"超出范围"。
+#   - 已发现仓库既有表中第 62、69、70 条的主题（现有技术抗辩 / 不视为侵权 / 合法来源）
+#     与同一仓库他处使用的 2020 修正条号（第 71 条损害赔偿、第 74 条三年时效）不是同一版本
+#     的编号体系，疑为 2010 年版条号。核定前不得据本索引断定条号正确。
+#
+# 核定方式：由具备资质者按官方文本逐条补 text / sourceDoc / verifiedOn（以及 paragraphs）；
+# 补录前每条引用的判定都是"未转录（未核验）"，永远不会被当作已核验通过。
+law: 专利法
+document: 中华人民共和国专利法
+revision: 2020 年第四次修正
+maxArticle: 82
+maxVerifiedOn: null
+maxSource: 仓库既有引用核验表（quality-gate.ts PATENT_LAW_TOPICS / patent-rule compliance.yaml / base/citation.yaml）
+articles:
+  - article: 2
+    topics: [发明创造, 实用新型, 外观设计, 定义]
+  - article: 5
+    topics: [违反法律, 社会公德, 公共利益, 遗传资源, 不授予专利权]
+  - article: 6
+    topics: [职务发明, 单位, 物质技术条件]
+  - article: 9
+    topics: [同样的发明创造, 一项专利权, 先申请, 重复授权]
+  - article: 10
+    topics: [转让, 专利申请权]
+  - article: 11
+    topics: [实施, 制造, 使用, 许诺销售, 销售, 进口, 许可]
+  - article: 13
+    topics: [临时保护, 适当的费用, 公布后]
+  - article: 22
+    topics: [新颖性, 创造性, 实用性, 现有技术]
+  - article: 23
+    topics: [外观设计, 现有设计, 明显区别, 权利冲突]
+  - article: 24
+    topics: [宽限期, 不丧失新颖性, 首次发表, 展览会]
+  - article: 25
+    topics: [科学发现, 智力活动, 疾病的诊断和治疗方法, 动物和植物品种, 原子核, 不授予专利权]
+  - article: 26
+    topics: [清楚, 完整, 支持, 摘要, 充分公开]
+  - article: 27
+    topics: [外观设计, 图片, 照片, 简要说明]
+  - article: 29
+    topics: [优先权, 外国优先权, 本国优先权, 十二个月, 六个月]
+  - article: 30
+    topics: [优先权, 书面声明, 副本]
+  - article: 31
+    topics: [单一性, 总的发明构思, 合案申请, 限于一项]
+  - article: 32
+    topics: [撤回]
+  - article: 33
+    topics: [修改, 超出, 原说明书和权利要求书记载的范围, 原图片或者照片]
+  - article: 34
+    topics: [初步审查, 公布, 十八个月]
+  - article: 35
+    topics: [实质审查, 请求, 三年, 视为撤回]
+  - article: 36
+    topics: [参考资料, 检索]
+  - article: 37
+    topics: [陈述意见, 视为撤回]
+  - article: 38
+    topics: [驳回]
+  - article: 39
+    topics: [实质审查, 授予, 发明专利权, 公告]
+  - article: 40
+    topics: [初步审查, 实用新型, 外观设计, 授予, 公告]
+  - article: 41
+    topics: [驳回, 复审, 起诉]
+  - article: 42
+    topics: [期限, 二十年, 十年, 十五年, 补偿]
+  - article: 43
+    topics: [年费]
+  - article: 44
+    topics: [终止, 年费, 放弃]
+  - article: 45
+    topics: [无效宣告, 请求]
+  - article: 46
+    topics: [无效宣告, 审查, 决定, 起诉]
+  - article: 47
+    topics: [无效宣告, 视为自始不存在, 效力, 追溯]
+  - article: 62
+    topics: [现有技术抗辩, 公知技术抗辩, 不构成侵权]
+  - article: 69
+    topics: [不视为侵权, 权利用尽, 先用权, 临时过境, 科研实验]
+  - article: 70
+    topics: [合法来源, 善意使用销售, 不承担赔偿责任]
+  - article: 71
+    topics: [损害赔偿, 惩罚性赔偿, 侵权获利, 法定赔偿]

@@ -1,0 +1,54 @@
+# 《专利审查指南》节级索引 — 随包资产，内容尚未核定。
+#
+# 指南的划分是"部分—章—节"，不是条号，所以按归一化路径登记（例如
+# 第五部分第七章第 2.1 节 记为 第五部分第七章2.1）。路径由 reference.ts 归一化，
+# 索引键必须与归一化结果完全一致。
+#
+# 来源：本仓库既有引用（patent-deadline 的送达与期限规则、patent-core 的正文规则注释、
+# patent-rule 的 legalBasis、generate_patent_figure 的制图用词警告），未对指南原文核定。
+#
+# 每条 text / sourceDoc / verifiedOn 均为 null，因此每条指南引用的判定都是
+# "未转录（未核验）"。
+law: 专利审查指南
+document: 专利审查指南
+revision: 2023 年修订版（2024-01-20 施行）
+maxArticle: null
+maxVerifiedOn: null
+maxSource: 未声明（本仓库无可用核验来源）
+sections:
+  - path: 第一部分第一章2.3
+    topics: [初步审查, 形式审查]
+  - path: 第一部分第一章4.3
+    topics: [附图, 制图用词, 绘制]
+  - path: 第二部分第二章2.2.1
+    topics: [说明书, 技术领域]
+  - path: 第二部分第二章2.2.3
+    topics: [背景技术]
+  - path: 第二部分第二章2.2.4
+    topics: [发明内容]
+  - path: 第二部分第二章2.2.5
+    topics: [附图说明]
+  - path: 第二部分第二章2.2.6
+    topics: [具体实施方式]
+  - path: 第二部分第二章2.2.7
+    topics: [说明书, 撰写要求]
+  - path: 第二部分第二章2.3
+    topics: [说明书, 撰写要求]
+  - path: 第二部分第二章2.4
+    topics: [摘要]
+  - path: 第二部分第三章2.1
+    topics: [新颖性]
+  - path: 第二部分第四章3.2
+    topics: [创造性, 三步法]
+  - path: 第二部分第四章3.2.1.1
+    topics: [最接近的现有技术, 区别特征, 技术启示, 三步法]
+  - path: 第二部分第八章4.1
+    topics: [审查意见, 答复]
+  - path: 第二部分第九章2.0
+    topics: [计算机程序, 算法]
+  - path: 第四部分第三章4.4
+    topics: [无效宣告, 转送, 答复期限]
+  - path: 第五部分第七章2.1
+    topics: [期限, 指定期限]
+  - path: 第五部分第七章2.3
+    topics: [期限, 计算, 顺延]

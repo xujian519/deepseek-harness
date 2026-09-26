@@ -365,6 +365,9 @@ importers:
       '@deepseek-ai/dsh-patent-knowledge':
         specifier: workspace:*
         version: link:../../packages/patent/patent-knowledge
+      '@deepseek-ai/dsh-patent-law':
+        specifier: workspace:*
+        version: link:../../packages/patent/patent-law
       '@deepseek-ai/dsh-patent-rule':
         specifier: workspace:*
         version: link:../../packages/patent/patent-rule
@@ -11390,6 +11393,28 @@ importers:
         specifier: workspace:*
         version: link:../patent-core
 
+  packages/patent/patent-law:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+
   packages/patent/patent-rule:
     dependencies:
       '@deepseek-ai/dsh-util-values':
@@ -16161,6 +16186,9 @@ importers:
       '@deepseek-ai/dsh-patent-knowledge':
         specifier: workspace:*
         version: link:../../packages/patent/patent-knowledge
+      '@deepseek-ai/dsh-patent-law':
+        specifier: workspace:*
+        version: link:../../packages/patent/patent-law
       '@deepseek-ai/dsh-patent-rule':
         specifier: workspace:*
         version: link:../../packages/patent/patent-rule

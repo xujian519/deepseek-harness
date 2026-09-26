@@ -26,6 +26,7 @@ Native port of the Sati patent domain into harness plugins per [docs/sati-as-dsh
 | [`patent-rule/`](patent-rule/README.md) | Rule engine, compliance assets, output gates on `tools/post-execute`. | (policy plugin) |
 | [`patent-document/`](patent-document/README.md) | Patent document rendering: templates, brand injection, PDF. | (registers on `ctx.tools`) |
 | [`patent-deadline/`](patent-deadline/README.md) | Patent deadlines: period arithmetic, delivery dates, holiday roll-forward. | (registers on `ctx.tools`) |
+| [`patent-law/`](patent-law/README.md) | Law index and citation checking: reference parsing, the source recorded per entry, the law_verify tool. | (registers on `ctx.tools`) |
 | [`writing-patterns/`](writing-patterns/README.md) | Writing-pattern corpus, lexical selection, `<writing_skills>` compilation, quality scoring. | (registers on `ctx.tools` + section) |
 | [`tool-literature/`](tool-literature/README.md) | Literature connectors: arXiv/OpenAlex/Semantic Scholar/Crossref. | (registers on `ctx.tools`) |
 | [`methodology/`](methodology/README.md) | TRIZ 40 principles + 39x39 contradiction matrix. | (section + tool) |

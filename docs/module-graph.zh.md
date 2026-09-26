@@ -355,6 +355,7 @@ flowchart TD
     pkg_patent_deadline["patent-deadline"]
     pkg_patent_document["patent-document"]
     pkg_patent_knowledge["patent-knowledge"]
+    pkg_patent_law["patent-law"]
     pkg_patent_rule["patent-rule"]
     pkg_patent_teams["patent-teams"]
     pkg_patent_tools["patent-tools"]
@@ -1016,6 +1017,7 @@ flowchart TD
   pkg_patent_document --> pkg_patent_core
   pkg_patent_document --> pkg_subprocess
   pkg_patent_document --> pkg_tools
+  pkg_patent_law --> pkg_tools
   pkg_patent_rule --> pkg_patent_core
   pkg_patent_rule --> pkg_tools
   pkg_patent_rule --> pkg_user_approval
@@ -1806,6 +1808,7 @@ flowchart TD
 | [`methodology`](../packages/patent/methodology) | `patent` | [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |
 | [`patent-deadline`](../packages/patent/patent-deadline) | `patent` | [`tools`](../packages/core/tools) |
 | [`patent-document`](../packages/patent/patent-document) | `patent` | [`patent-core`](../packages/patent/patent-core), [`subprocess`](../packages/subprocess/subprocess), [`tools`](../packages/core/tools) |
+| [`patent-law`](../packages/patent/patent-law) | `patent` | [`tools`](../packages/core/tools) |
 | [`patent-rule`](../packages/patent/patent-rule) | `patent` | [`patent-core`](../packages/patent/patent-core), [`tools`](../packages/core/tools), [`user-approval`](../packages/interaction/user-approval) |
 | [`tool-literature`](../packages/patent/tool-literature) | `patent` | [`tools`](../packages/core/tools) |
 | [`writing-patterns`](../packages/patent/writing-patterns) | `patent` | [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |
