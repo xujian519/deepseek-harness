@@ -305,4 +305,28 @@ describe('the packaged index', () => {
     expect(sections.every(section => section.text === null && section.verifiedOn === null)).toBe(true)
     expect(verifyCitation(sectionRef('第二部分第四章3.2.1.1'), shipped).decision).toBe('unverified')
   })
+
+  it('holds the sections the 2023 revision numbers rather than the repository\u2019s earlier labels', () => {
+    const shipped = loadLawBaselines()
+    // 2023 指南把「技术领域」放在 2.2.2（2.2.1 是名称），第九章第 2 节写作「2」而不是
+    // 「2.0」，第一部分第一章第 2 节没有子节。
+    expect(verifyCitation(sectionRef('第二部分第二章2.2.2'), shipped).decision).toBe('unverified')
+    expect(verifyCitation(sectionRef('第二部分第九章2'), shipped).decision).toBe('unverified')
+    expect(verifyCitation(sectionRef('第二部分第二章2.2.1'), shipped).decision).toBe('not-indexed')
+    expect(verifyCitation(sectionRef('第二部分第九章2.0'), shipped).decision).toBe('not-indexed')
+    expect(verifyCitation(sectionRef('第一部分第一章2.3'), shipped).decision).toBe('not-indexed')
+  })
+
+  it('attaches each guideline topic list to the section it indexes', () => {
+    const shipped = loadLawBaselines()
+    const topics = (path: string): string[] | undefined =>
+      shipped.get('专利审查指南')?.sections.find(section => section.path === path)?.topics
+    // 这些行原先挂的是别节的标签：2.3 是说明书附图而不是说明书撰写要求，
+    // 2.1 是现有技术而不是章名，4.1 是审查的文本而不是答复。
+    expect(topics('第二部分第二章2.3')).toEqual(['附图', '附图标记'])
+    expect(topics('第二部分第三章2.1')).toEqual(['现有技术'])
+    expect(topics('第二部分第八章4.1')).toEqual(['审查文本', '主动修改'])
+    expect(topics('第四部分第三章4.4')).toEqual(['无效宣告', '审查方式'])
+    expect(topics('第五部分第七章2.1')).toEqual(['期限', '起算日'])
+  })
 })
