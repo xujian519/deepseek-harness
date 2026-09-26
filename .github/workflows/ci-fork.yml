@@ -147,6 +147,53 @@ jobs:
         continue-on-error: true
         run: pnpm run test:built -- --family e2e
 
+  node-snapshots:
+    # The recorded-session lane replays committed transcripts through shipped
+    # profiles and compares the assembled request headers, system prompts, and
+    # persisted logs. No lane invoked it, so its pinned expectations drifted to
+    # 83 failing cases of 190 before they were refreshed. PR-only, as upstream's
+    # artifacts lane is: a pull request gates its own merge.
+    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / snapshots
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare bubblewrap
+        # Scenario profiles reach the real sandbox confinement path, and the
+        # Linux chain prefers `bwrap` over Landlock; the hosted image restricts
+        # unprivileged user namespaces.
+        run: bash scripts/prepare-ci-bubblewrap.sh
+
+      - name: Build
+        # The lane boots the shipped profiles from `lib/`, and `pnpm run build`
+        # also builds the native system addon the Session log flocks through.
+        run: pnpm run build
+
+      - name: Recorded-session snapshots
+        # Both filters are load-bearing. `snapshots` keeps the lane off
+        # `apps/web/tests/**/*.snapshot.ts`, which `DSH_EXAMPLE_MODE=lib` would
+        # otherwise collect and whose browser goldens and Playwright provisioning
+        # belong to the Web lane; the corpus policy file sits under `scripts/`, so
+        # a `snapshots` filter alone would drop the ownership, pin, and
+        # redaction checks that read the same tree.
+        env:
+          DSH_EXAMPLE_MODE: lib
+        run: pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts
+
   node-hygiene:
     if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest

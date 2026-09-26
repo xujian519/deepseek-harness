@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for 2026-09-26-fork-ci-snapshot-lane.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-26-fork-ci-snapshot-lane.md
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane:
+  en: 4f6b8dfc9570d041
+  zh: de60fa307b67f777
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/problem:
+  en: 498bd72786c463bb
+  zh: 569de99db7c0c4f1
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/decision:
+  en: 4e16dac4cafc5971
+  zh: a87d0b19a789bbfa
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/decision/the-lane-owns-its-build-and-its-confinement:
+  en: d39a0f6b8b7d00c0
+  zh: 47aafcb2837d727b
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/decision/both-filters-are-load-bearing:
+  en: a8f460276a383d6b
+  zh: 214bb61ae1fc446a
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/decision/the-job-waits-on-pull-requests-only:
+  en: a0b0866676180e8a
+  zh: 1aaccf5fe6ee600d
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/alternatives-considered:
+  en: c09ff3345e0a72d2
+  zh: a088b3a407821c31
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/consequences:
+  en: 74452ccc7db2e5b0
+  zh: 0afb94b76cb7f360
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/testing:
+  en: 69f8653c2e371476
+  zh: b811754a04963ce4
+/agent-note-fork-ci-runs-the-recorded-session-snapshot-lane/related:
+  en: 20158f469b1d8c3a
+  zh: e6ac04511fa41c76
