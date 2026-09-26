@@ -76,6 +76,7 @@ Independent; the plugin appends nothing to the request prefix, so enabling or di
 - **Rule-set loading is fail-soft** — a missing or damaged asset degrades to an empty rule set (the gate passes through) rather than failing the deployment.
 - **Merged assets cover machine-checkable rules only** — upstream rules whose payload is prose (analysis principles, statutory conditions, decision citations) are not converted into checks and stay outside this package; the conversion set, the check-type mapping, and the boundary are recorded in [the merge-boundary note](../../../.agents/notes/implemented/architecture/2026-09-21-mady-rule-asset-merge-boundary.md).
 - **Job scopes filter by domain, not by document type** — the completeness checks in those domains (`structural_analysis`) report missing expected elements on any text, so a scope run over a document of another type still returns those hits; the scope narrows the rule set, it does not classify the text.
+- **Guideline citations are free text** — `legalBasis` reaches output verbatim and no stage parses it, so a rule's 《专利审查指南》 section number is only as correct as the text it was transcribed from; `tests/guideline-citations.spec.ts` holds the numbering form the assets keep and the sections already checked against the 2023 revision, and the remaining citations are unverified.
 
 ### Dev Note
 

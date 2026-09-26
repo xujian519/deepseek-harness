@@ -15,7 +15,7 @@ rules:
     phase: 撰写
     severity: minor
     action: warn
-    legalBasis: 审查指南第一部分第一章 2.3；GB/T 4728 / IEC 60617 电气简图用图形符号
+    legalBasis: 审查指南第一部分第一章 4.3；GB/T 4728 / IEC 60617 电气简图用图形符号
     check:
       type: structural_analysis
       requiresAll:
