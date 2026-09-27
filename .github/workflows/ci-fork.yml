@@ -194,6 +194,64 @@ jobs:
           DSH_EXAMPLE_MODE: lib
         run: pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts
 
+  node-web-snapshots:
+    # The assembled Web drivers boot the real host and the shipped client
+    # bundles, then compare ARIA goldens. `node-snapshots` filters its lane off
+    # these files by name because they need a browser and a built
+    # `apps/web/dist`, so nothing ran them at all, and `minimal-preset`'s
+    # golden had drifted three tabs behind the bundle that renders them — the
+    # fork's own `ui-patent-teams` and `ui-document-studio` tabs, mounted by
+    # `packages/bundle/web-app/cordis.patch.yml`.
+    #
+    # The `snapshot` filter selects the four assembled drivers and nothing
+    # else. The lane's remaining 158 files stay out: 67 of them fail on master
+    # (103 cases) against goldens that predate the same added client plugins,
+    # so gating a merge on them would only move that red into CI. Lifting them
+    # is its own repair, registered in docs/TECH_DEBT.md.
+    if: github.event_name == 'pull_request' && github.repository == 'xujian519/deepseek-harness'
+    runs-on: ubuntu-latest
+    name: node 24 / web snapshots
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the driver browser
+        # `--with-deps` owns the shared libraries a hosted image does not ship.
+        # Only the drivers that open a browser do so: Chromium, never WebKit.
+        run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium
+
+      - name: Prepare bubblewrap
+        # `minimal-preset` executes the `bash` tool through the same
+        # confinement chain the snapshot lane reaches; the Linux chain prefers
+        # `bwrap` over Landlock, and the hosted image restricts unprivileged
+        # user namespaces.
+        run: bash scripts/prepare-ci-bubblewrap.sh
+
+      - name: Build
+        # The drivers serve the shipped client bundles from `apps/web/dist`,
+        # which `build:web` writes inside this aggregate.
+        run: pnpm run build
+
+      - name: Assembled Web snapshots
+        # Replay compares the committed goldens; CI never runs in `record` or
+        # `refresh` mode, so a stale golden fails here instead of silently
+        # rewriting itself on the runner and then passing.
+        env:
+          DSH_SNAPSHOT: 'replay'
+        run: pnpm run test:web:built snapshot
+
   node-hygiene:
     if: github.repository == 'xujian519/deepseek-harness'
     runs-on: ubuntu-latest

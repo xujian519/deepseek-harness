@@ -682,6 +682,35 @@ describe('fork CI workflow', () => {
       run: 'pnpm run test:snapshot snapshots scripts/session-snapshot-corpus.corpus.ts',
     })
   })
+
+  // The assembled Web drivers launch a browser and serve the shipped client
+  // bundles from `apps/web/dist`, so the job that runs them owns the browser
+  // install and the aggregate build; `minimal-preset` also reaches the real
+  // confinement path. Replay is what keeps CI read-only: in `record` or
+  // `refresh` mode a stale golden would rewrite itself and then pass.
+  it('provisions a browser and a build before the Web snapshot lane replays', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci-fork.yml'), 'node-web-snapshots')
+    if (!Array.isArray(job.steps)) throw new TypeError('node-web-snapshots must define steps')
+    const steps = job.steps.filter(isRecord)
+    const install = steps.findIndex(step => String(step.run) === 'pnpm install --frozen-lockfile')
+    const browser = steps.findIndex(step => String(step.run).includes('playwright install'))
+    const confinement = steps.findIndex(step => String(step.run) === 'bash scripts/prepare-ci-bubblewrap.sh')
+    const build = steps.findIndex(step => String(step.run).trim() === 'pnpm run build')
+    const lane = steps.findIndex(step => String(step.run).startsWith('pnpm run test:web:built'))
+
+    expect(install).toBeGreaterThanOrEqual(0)
+    expect(browser).toBeGreaterThan(install)
+    // WebKit is a lane the assembled drivers never open, and installing it
+    // would add its system libraries to a job that does not use them.
+    expect(String(steps[browser]?.run)).toContain('chromium')
+    expect(String(steps[browser]?.run)).not.toContain('webkit')
+    expect(confinement).toBeGreaterThan(browser)
+    expect(build).toBeGreaterThan(confinement)
+    expect(steps[lane]).toMatchObject({
+      env: { DSH_SNAPSHOT: 'replay' },
+      run: 'pnpm run test:web:built snapshot',
+    })
+  })
 })
 
 describe('Runtime and LLM e2e Blacksmith routing', () => {
