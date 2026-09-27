@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-09-26-transport-cause-diagnostic.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-26-transport-cause-diagnostic.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-09-26-transport-cause-diagnostic:
+  en: da33a5e50317ad50
+  zh: a458190c39b9e0cd
+/2026-09-26-transport-cause-diagnostic/summary:
+  en: 2ab702b2b51efe60
+  zh: 7e049baa2f2d3295
+/2026-09-26-transport-cause-diagnostic/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-09-26-transport-cause-diagnostic/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-09-26-transport-cause-diagnostic/compatibility:
+  en: 53e8dd2ad5a40362
+  zh: b6204a18e8409a41
+/2026-09-26-transport-cause-diagnostic/verification:
+  en: fbbcf840924545ee
+  zh: 09572a8e3ef7cfa3
+/2026-09-26-transport-cause-diagnostic/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

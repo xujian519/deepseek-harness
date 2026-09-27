@@ -121,6 +121,7 @@ describe('llm-retry invariants', () => {
           status: 429,
           providerRetryAfterMs: 25,
           requestId: ProviderRequestId('request-1'),
+          diagnostic: 'ECONNRESET: read ECONNRESET',
         },
       })
     }).not.toThrow()
@@ -146,6 +147,8 @@ describe('llm-retry invariants', () => {
       ],
       ['request-id-type', { message: 'failed', code: 'RATE_LIMIT', requestId: 1 }, /failure\.requestId/],
       ['request-id-empty', { message: 'failed', code: 'RATE_LIMIT', requestId: '' }, /failure\.requestId/],
+      ['diagnostic-type', { message: 'failed', code: 'TRANSPORT', diagnostic: 1 }, /failure\.diagnostic/],
+      ['diagnostic-empty', { message: 'failed', code: 'TRANSPORT', diagnostic: '' }, /failure\.diagnostic/],
     ]
     for (const [name, invalidFailure, message] of invalidFailures) {
       const session = openStep(ctx, `retry-invariant-failure-${name}`)

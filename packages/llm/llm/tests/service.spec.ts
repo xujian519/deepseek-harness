@@ -495,6 +495,7 @@ describe('LlmRuntime', () => {
       status: 429,
       providerRetryAfterMs: 1_500,
       requestId: ProviderRequestId('req-7'),
+      diagnostic: 'UND_ERR_SOCKET: other side closed',
     })
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -516,6 +517,7 @@ describe('LlmRuntime', () => {
           status: 429,
           providerRetryAfterMs: 1_500,
           requestId: ProviderRequestId('req-7'),
+          diagnostic: 'UND_ERR_SOCKET: other side closed',
         },
       },
     })
@@ -1425,6 +1427,8 @@ describe('LlmRuntime', () => {
     expect(() => new LlmError('busy', 'RATE_LIMIT', { providerRetryAfterMs: Number.NaN }))
       .toThrow(/providerRetryAfterMs/)
     expect(() => new LlmError('busy', 'RATE_LIMIT', { requestId: ProviderRequestId('') })).toThrow(/requestId/)
+    expect(() => new LlmError('busy', 'RATE_LIMIT', { diagnostic: '' })).toThrow(/diagnostic/)
+    expect(() => new LlmError('busy', 'RATE_LIMIT', { diagnostic: 1 as never })).toThrow(/diagnostic/)
     expect(() => new LlmError(1 as never, 'RATE_LIMIT')).toThrow(/message/)
     expect(() => new LlmError('busy', 1 as never)).toThrow(/code/)
     expect(() => new LlmError('busy', 'RATE_LIMIT', { requestId: 1 as never })).toThrow(/requestId/)

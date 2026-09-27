@@ -50,6 +50,13 @@ export interface LlmFailure {
   /** Opaque provider-issued request identifier for diagnostics. */
   readonly requestId?: ProviderRequestId
   /**
+   * Single-line diagnostic naming the coded platform error behind a `code` too
+   * coarse to act on — for example the socket error a `TRANSPORT` failure
+   * otherwise hides. Present only when a coded cause was found, never empty;
+   * display-only, and retry and routing policy never read it.
+   */
+  readonly diagnostic?: string
+  /**
    * With code `IMAGE_OFFLOAD_REQUIRED`: how many more of the oldest retained
    * image occurrences the route needs offloaded before the same request fits
    * its exact byte accounting. `dsh-compaction-image-offload` records the

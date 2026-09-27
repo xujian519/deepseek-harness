@@ -121,6 +121,9 @@ describe('bounded retry through the real DeepSeek HTTP/SSE adapter', () => {
       .toEqual([[1, 1]])
     expect(agent.session.snapshotEvents().filter(event => event.type === 'llm/retry').map(event => event.data.failure.code))
       .toEqual(['TRANSPORT'])
+    // The retry detail shows this; the retried request itself stays identical.
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'llm/retry').map(event => event.data.failure.diagnostic))
+      .toEqual([expect.stringMatching(/^ECONNREFUSED: /u)])
     expect(finalAssistantText(agent)).toBe('connected after retry')
   })
 

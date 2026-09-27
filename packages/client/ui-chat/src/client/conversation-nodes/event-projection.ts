@@ -134,23 +134,27 @@ export function emptyAssistantBlock(blockType: string): AssistantBlock {
 export interface DisplayFailure {
   readonly code?: string
   readonly message: string
+  readonly diagnostic?: string
 }
 
 /**
  * Convert a durable failure to locale-independent fields safe for Chat.
  * @param failure - Failure preserved by a Session event.
- * @returns Sanitized message and optional stable provider code.
+ * @returns Sanitized message, optional stable provider code, and optional coded
+ *   platform cause.
  */
 export function displayFailure(failure: unknown): DisplayFailure {
   if (failure === null || typeof failure !== 'object') return { message: String(failure) }
-  const record = failure as { code?: unknown; message?: unknown }
+  const record = failure as { code?: unknown; diagnostic?: unknown; message?: unknown }
   const code = typeof record.code === 'string' ? record.code : undefined
   // Provider AUTH messages may echo a masked or partially preserved credential.
-  // Keep the raw diagnostic in the Session log, but never retain it in UI state.
+  // Keep the raw failure text in the Session log, but never retain it in UI state.
   if (code === 'AUTH') return { code, message: '' }
+  const diagnostic = record.diagnostic
   return {
     ...(code === undefined ? {} : { code }),
     message: typeof record.message === 'string' ? record.message : JSON.stringify(failure),
+    ...(typeof diagnostic !== 'string' || diagnostic.length === 0 ? {} : { diagnostic }),
   }
 }
 

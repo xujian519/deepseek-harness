@@ -1533,6 +1533,7 @@ describe('DeepSeekAdapter against a mock server', () => {
     if (result.finish.kind !== 'error') throw new Error('expected an error finish')
     expect(result.finish.failure.code).toBe('TRANSPORT')
     expect(result.finish.failure.message).toBe('DeepSeek Messages transport failed')
+    expect(result.finish.failure.diagnostic).toBe('UND_ERR_SOCKET: other side closed')
   })
 
   it('aborts mid-stream via the request signal', async () => {

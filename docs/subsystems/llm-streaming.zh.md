@@ -229,7 +229,7 @@ type StreamChunk =
 
 ## `LlmFailure`
 
-每个抛出的失败或最终适配器的带内失败都会规范化为一种可序列化、提供方无关的 payload。`providerRetryAfterMs` 是经校验、由提供方请求的正数延迟，而不是重试决策；`ProviderRequestId` 是用于诊断的不透明品牌字符串。
+每个抛出的失败或最终适配器的带内失败都会规范化为一种可序列化、提供方无关的 payload。`providerRetryAfterMs` 是经校验、由提供方请求的正数延迟，而不是重试决策；`ProviderRequestId` 是用于诊断的不透明品牌字符串；`diagnostic` 记录过粗的 code 背后那个带错误码的平台错误，使 `TRANSPORT` 失败仍可处置。
 
 ```ts type-equiv
 /** Serializable provider or transport failure facts; policy decides whether they are retryable. */
@@ -244,6 +244,13 @@ interface LlmFailure {
   readonly providerRetryAfterMs?: number
   /** Opaque provider-issued request identifier for diagnostics. */
   readonly requestId?: ProviderRequestId
+  /**
+   * Single-line diagnostic naming the coded platform error behind a `code` too
+   * coarse to act on — for example the socket error a `TRANSPORT` failure
+   * otherwise hides. Present only when a coded cause was found, never empty;
+   * display-only, and retry and routing policy never read it.
+   */
+  readonly diagnostic?: string
   /**
    * With code `IMAGE_OFFLOAD_REQUIRED`: how many more of the oldest retained
    * image occurrences the route needs offloaded before the same request fits

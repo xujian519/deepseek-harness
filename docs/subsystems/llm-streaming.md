@@ -227,7 +227,7 @@ Process-local `agent/assistant-stream` frames carry live presentation. Durable r
 
 ## `LlmFailure`
 
-Every thrown or in-band final-adapter failure normalizes to one serializable provider-neutral payload. `providerRetryAfterMs` is a validated positive delay requested by the provider, not a retry decision; `ProviderRequestId` is an opaque branded string for diagnostics.
+Every thrown or in-band final-adapter failure normalizes to one serializable provider-neutral payload. `providerRetryAfterMs` is a validated positive delay requested by the provider, not a retry decision; `ProviderRequestId` is an opaque branded string for diagnostics; `diagnostic` names the coded platform error behind a code too coarse to act on, so a `TRANSPORT` failure stays actionable.
 
 ```ts type-equiv
 /** Serializable provider or transport failure facts; policy decides whether they are retryable. */
@@ -242,6 +242,13 @@ interface LlmFailure {
   readonly providerRetryAfterMs?: number
   /** Opaque provider-issued request identifier for diagnostics. */
   readonly requestId?: ProviderRequestId
+  /**
+   * Single-line diagnostic naming the coded platform error behind a `code` too
+   * coarse to act on — for example the socket error a `TRANSPORT` failure
+   * otherwise hides. Present only when a coded cause was found, never empty;
+   * display-only, and retry and routing policy never read it.
+   */
+  readonly diagnostic?: string
   /**
    * With code `IMAGE_OFFLOAD_REQUIRED`: how many more of the oldest retained
    * image occurrences the route needs offloaded before the same request fits

@@ -65,4 +65,31 @@ describe('adapter failure normalization', () => {
     Object.defineProperty(error, 'message', { get() { throw new Error('message getter failed') } })
     expect(normalizeLlmFailure(error)).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
   })
+
+  it('preserves a coded diagnostic in a foreign failure snapshot', () => {
+    const carrying = new Error('provider failed') as Error & { failure: unknown; code: string }
+    carrying.failure = {
+      message: 'provider failed',
+      code: 'TRANSPORT',
+      diagnostic: 'UND_ERR_SOCKET: other side closed',
+    }
+    carrying.code = 'TRANSPORT'
+    expect(normalizeLlmFailure(carrying)).toEqual({
+      message: 'provider failed',
+      code: 'TRANSPORT',
+      diagnostic: 'UND_ERR_SOCKET: other side closed',
+    })
+  })
+
+  it('rejects an unusable diagnostic instead of retaining the snapshot', () => {
+    const blank = new Error('provider failed') as Error & { failure: unknown; code: string }
+    blank.failure = { message: 'provider failed', code: 'TRANSPORT', diagnostic: '' }
+    blank.code = 'TRANSPORT'
+    expect(normalizeLlmFailure(blank)).toEqual({ message: 'provider failed', code: 'UNKNOWN' })
+
+    const numeric = new Error('provider failed') as Error & { failure: unknown; code: string }
+    numeric.failure = { message: 'provider failed', code: 'TRANSPORT', diagnostic: 7 }
+    numeric.code = 'TRANSPORT'
+    expect(normalizeLlmFailure(numeric)).toEqual({ message: 'provider failed', code: 'UNKNOWN' })
+  })
 })
