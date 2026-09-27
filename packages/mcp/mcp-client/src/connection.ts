@@ -76,7 +76,7 @@ export function resolveReconnectPolicy(config: ReconnectConfig | undefined, path
   const initialDelayMs = config?.initialDelayMs ?? RECONNECT_DEFAULTS.initialDelayMs
   const maxDelayMs = config?.maxDelayMs ?? RECONNECT_DEFAULTS.maxDelayMs
   const maxAttempts = config?.maxAttempts ?? RECONNECT_DEFAULTS.maxAttempts
-  /* jscpd:ignore-start — domain-specific delay validation parallels llm retry-policy; not extractable */
+  /* jscpd:ignore-start -- domain-specific delay validation parallels llm retry-policy; not extractable */
   if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > MAX_TIMER_DELAY_MS) {
     throw new Error(`${path}.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
   }

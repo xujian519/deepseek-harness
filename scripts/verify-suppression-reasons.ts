@@ -14,6 +14,9 @@
  * A directive that switches off several rules needs a reason for each of them; that is a
  * review rule, not a mechanically checkable one, because the reasons are prose.
  *
+ * `v8 ignore` and `jscpd:ignore-start/end` are coverage and duplication suppressions;
+ * they also need a reason because they hide code from measurement.
+ *
  * Discovery is syntax-aware, as `scripts/AGENTS.md` requires: a line-wise regex also
  * matches directive text written inside string and template literals, which
  * `scripts/oxlint-contract.spec.ts` does on purpose to exercise oxlint's own contracts.
@@ -26,7 +29,13 @@ import ts from 'typescript'
 const root = resolve(import.meta.dirname, '..')
 
 /** Directives that switch a lint rule off. `@ts-ignore`/`@ts-nocheck`, which need no reason, stay out. */
-const DIRECTIVE = /^(?:oxlint-disable(?:-next-line|-line)?|eslint-disable(?:-next-line|-line)?|@ts-expect-error)\b/
+const DIRECTIVE = new RegExp(
+  '^(?:oxlint-disable(?:-next-line|-line)?|eslint-disable(?:-next-line|-line)?'
+  + '|@ts-expect-error|v8 ignore (?:next|start|stop)|jscpd:ignore-(?:start|end))\\b',
+)
+
+/** End markers that pair a start marker; they carry no reason themselves. */
+const END_MARKER = /^(?:v8 ignore stop|jscpd:ignore-end)$/
 
 /** The files the lint configuration reaches, mirrored so an unlinted directive is not this gate's finding. */
 const LINTED_GLOBS = [
@@ -82,7 +91,7 @@ function carriesInlineReason(raw: string, body: string): boolean {
 export function scanSuppressions(file: string, source: string): SuppressionScan {
   // A directive in one of these words is the only thing this gate reports, and parsing
   // every file in the repository to find none of them is the whole cost of the gate.
-  if (!source.includes('oxlint-disable') && !source.includes('eslint-disable') && !source.includes('@ts-expect-error')) {
+  if (!source.includes('oxlint-disable') && !source.includes('eslint-disable') && !source.includes('@ts-expect-error') && !source.includes('v8 ignore') && !source.includes('jscpd:ignore-')) {
     return { directives: 0, unexplained: [] }
   }
   const parsed = ts.createSourceFile(
@@ -116,6 +125,7 @@ export function scanSuppressions(file: string, source: string): SuppressionScan 
     const body = commentBody(raw)
     if (!DIRECTIVE.test(body)) continue
     directives += 1
+    if (END_MARKER.test(body)) continue
     if (carriesInlineReason(raw, body)) continue
     const line = lineAt(comment.pos)
     let top = line - 1

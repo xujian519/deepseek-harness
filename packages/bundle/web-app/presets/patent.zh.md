@@ -54,7 +54,7 @@
 
 ## 知识库策略
 
-按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文优先经本机 cnlaw REST（:8100 /search，source_path 溯源）核验权威来源，cnlaw 不可用时经 patent_case_search 加 web_fetch 核验。两条通道之前先跑 `law_verify`：它固定引用形式并说明随包索引收录与不收录什么，因此索引支撑不了的引用会被查证而不是凭记忆引用。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
+按计划 P4.4，系统知识读 dsh-patent-knowledge：判例、wiki 卡片与知识图谱经 patent_case_search / patent_wiki_search / patent_kg_query 查询，法条原文优先经本部署声明的 cnlaw 底座（见「前置条件」；端点即 `patent-law` 的 Config 字段）核验并保留 source_path 溯源，部署声明无底座时经 patent_case_search 加 web_fetch 核验权威来源。两条通道之前先跑 `law_verify`：它固定引用形式并说明随包索引收录与不收录什么，因此索引支撑不了的引用会被查证而不是凭记忆引用。工作目录 `99-知识库/` 仍作为项目级沉淀，用 fs-search / grep 先查本地再上网。
 
 这修订了 docs/patent-mode-design.md §9（原为无引擎文件库）。`99-知识库/` 仍作项目沉淀；变化在于系统知识现在有了引擎。
 
@@ -62,17 +62,19 @@
 
 知识工具需要 knowledge.db。用 patent-knowledge-install bin 安装，或将 Config.sourceDbPath 指向已有 knowledge.db；见 packages/patent/patent-knowledge/README.md。缺库时知识工具在执行期 fail-loud。
 
-cnlaw 法律底座为可选增强：本机运行 semantica-cnlaw 的服务（:8100 检索、:8001 图谱/案件 API）与 Neo4j（7687）时，法条/审查指南/判例核验走 cnlaw 并保留 source_path 溯源；未运行时纪律回退 patent_case_search / patent_kg_query（见 Known Limitations）。若部署另外挂载了 cnlaw 的 MCP 桥（`@deepseek-ai/dsh-mcp-client` 起 `cnlaw_mcp_launcher.py`），:8001 的图谱/案件/创造性三步法端点即以 `mcp__cnlaw__*` 工具形态可用，persona 优先指名它们；:8100 的语义检索与 :8001 的 IPC 端点没有对应工具，仍走 REST（curl）。
+cnlaw 法律底座是可选的部署声明，不由随包 preset 决定：部署跑起 semantica-cnlaw 服务并设置 `patent-law` 的 Config——`cnlawEnabled`（默认 `true`）、`cnlawSearchUrl`（默认 `http://127.0.0.1:8100`）、`cnlawGraphUrl`（默认 `http://127.0.0.1:8001`）。插件把这三个值渲染成一段系统提示，人设与技能因此引用「声明段给出的端点」而不是端口字面量；Neo4j（默认 7687）是该底座自己的存储，模型不会直接访问。声明有底座时，法条/审查指南/判例核验走 cnlaw 并保留 source_path 溯源；`cnlawEnabled=false` 时声明段写明本部署没有底座，纪律退回 patent_case_search / patent_kg_query 加 web_fetch。部署另外挂载 cnlaw 的 MCP 桥（`@deepseek-ai/dsh-mcp-client` 起 `cnlaw_mcp_launcher.py`）时，图谱/案件/创造性三步法端点以 `mcp__cnlaw__*` 工具形态可用，persona 优先指名它们；语义检索端点与 IPC 路由没有对应工具，仍按声明段给出的端点走 REST（curl）。
+
+三个检索技能属用户级资产，由部署放在 `~/.agents/skills/` 下，不随本包发货：`cnipr-search-download`（CNIPR 全文与法律状态）、`cnipa-query`（官方法律状态事务）、`google-patents-search`（外国/全球检索）。preset 的检索例程把它们列为 CN、官方状态与外国通道的首选；其中任一项缺席时退回随包通道——本地 nuo 引擎的 `patent_search` / `patent_metadata` / `patent_legal_status`、`web_search` / `web_fetch`、原文 PDF 用 `patent_pdf_download`——并在检索报告里写明实际用到的通道。
 
 OpenViking 长期记忆为另一个可选挂载：本 preset 随附一行 `openviking`，默认 `disabled: true`。运行 OpenViking 服务的部署（参见 [`@deepseek-ai/dsh-openviking`](../../../memory/openviking/README.zh.md)）复制本 preset、去掉 `disabled`，再通过 `dsh plugin --profile <name> config openviking.endpoint=…` 以及 `.account` / `.user` / `.agentId` / `.apiKey` 写入端点与身份 header；发货 preset 不携带凭据。召回文本以不可信背景数据的形式进入提示，persona 的先验证后引用纪律仍要求每个法条断言带 cnlaw 或 patent_case_search 的 source_path——OpenViking 不替代法律底座。
 
 ## Model Experience
 
-模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验；含 `patent_fees`，按随包金额计价案件应缴的费种，仅在某适用项没有金额时才拒绝给出合计）加标准编码工具。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
+模型看到：中文专利代理人设（专业身份、七条作业纪律、标准作业流程、案型路由表、带强制免责声明的输出纪律）、专利计划模式段落、`patent-law` 按本部署 Config 渲染的 cnlaw 声明段（端点，或本部署没有底座的声明）、15 个预设内技能，以及专利工具（含 `law_verify`，其描述写明未核验的条文永不报成已核验；含 `patent_fees`，按随包金额计价案件应缴的费种，仅在某适用项没有金额时才拒绝给出合计）加标准编码工具。人设要求先验证后引用（每个事实用 web_fetch 打开原文）、单独对比、逐特征比对附引用，且每份分析输出必含免责声明。
 
 ## Known Limitations and Deferred Work
 
-- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具。`law_verify` 覆盖的是引用形式与索引收录，不是法条原文：它判定某条是否在索引内，并在某部署把条目转录之后判定所引命题是否与其相符。法条原文优先经本机 cnlaw 底座核验（可选底座，见前置条件）——挂载时走 MCP 工具，否则走 REST（curl）；cnlaw 不可用时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
+- 法条检索（ctx.patentKnowledge.legalSearch）无模型工具。`law_verify` 覆盖的是引用形式与索引收录，不是法条原文：它判定某条是否在索引内，并在某部署把条目转录之后判定所引命题是否与其相符。法条原文优先经部署声明的 cnlaw 底座核验（可选增强，缺席由声明段写明，见前置条件）——挂载时走 MCP 工具，否则按声明段给出的端点走 REST（curl）；没有底座时经 patent_case_search 加 web_fetch 与 `99-知识库/` 基线核验。发货组合挂载 http fetch provider（只接受公网 HTTP(S) 目的地，逐个解析、校验并固定连接），web_fetch 无需部署改动即可用。
 - 随包费用索引只给条目模型表达得了的部分定价：金额取自国家知识产权局缴费服务指南附件 2，逐项记下抄录的文书与抄录日期，减缴比例（个人 85%、企业 70%）也一并记录，价格因专利类型而不同的费种拆成不同条目。仍有两个费种不带金额——说明书附加费与延长期限请求费按分档收费（按页区间、按次数），模型没有承载它的字段——因此碰到其中任一项就不会给出合计。金额是标准的机械抄录，不是复核：没有人回读过副本，开票前应再核对一次。
 - 随包法条文本是官方修订文本的机械抄录，不是复核：「已核验」的含义是该条存在、所引命题与该条主题词相符，不含"由具备资质者回读过副本"。覆盖面也是部分的——《专利法》索引 82 条中的 36 条、《专利法实施细则》149 条中的 26 条——因此一条存在但未被索引的条文会报「索引中不存在」，仍须查证原文。《专利审查指南》索引只有主题词，每条指南引用始终是「未核验」。原按 2008 年修正编号 62/69/70 收录的《专利法》主题词，已改到 2020 年文本承载它们的 67/75/77 条；62 条改按 2020 年文本的主题（强制许可使用费）。
 - patent_pdf_download 在宿主机有可用 ego-browser（ego lite，仅 macOS，且在 PATH 上）时走浏览器内下载拦截；没有时退回抓页面 CDN 链接 + HTTP 下载，整批仍能下载。两个通道都失败时按篇报告错误，不中断整批。knowledge_note_save 将笔记写入工作目录 `99-知识库/` 下的文件（knowledge.db 原生写 API 延后）。

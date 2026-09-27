@@ -29,22 +29,30 @@ kind: "package-reference"
 
 ### createEgoSession(options?)
 
-基于注入的 `ctx.subprocess` 构造 `EgoBrowserSession`。该 runner 检查 ego-browser 可用性、探测连接、命名会话级 task space，并通过 stdin 原样执行脚本（subprocess 接缝的批量 stdin 取代了单引号 heredoc，因此脚本内容不会被 shell 展开）。`options.runner` 可覆盖默认的 subprocess 后端。
+基于注入的 `ctx.subprocess` 构造 `EgoBrowserSession`。该 runner 检查 ego-browser 可用性、探测连接、命名会话级 task space，并通过 stdin 原样执行脚本（subprocess 接缝的批量 stdin 取代了单引号 heredoc，因此脚本内容不会被 shell 展开）。`options.runner` 可覆盖默认的 subprocess 后端；命令名、探测与运行超时、输出上限由部署的 `Config` 给出，逐调用选项可逐项覆盖。
 
 <a id="configuration"></a>
 ## 配置
 
-服务没有 cordis.yml `Config` schema；两个方法都接受逐调用选项。
+cordis.yml 的 `Config` 声明随部署变化的 ego-browser 取值；逐调用选项覆盖同名字段。
+
+| 键 | 默认值 | 含义 |
+| --- | --- | --- |
+| `commandName` | `ego-browser` | CLI 命令名。 |
+| `probeTimeoutMs` | `8000` | 连接探测超时（毫秒）。 |
+| `defaultTimeoutMs` | `90000` | 默认运行超时（毫秒）。 |
+| `maxTimeoutMs` | `300000` | 单次运行超时硬上限。 |
+| `maxOutputBytes` | `500000` | 合并输出的软上限（字节）。 |
+
+其余选项只走逐调用：它们是测试接缝，或本服务无从知晓的取值。
 
 | 方法 | 键 | 默认值 | 含义 |
 | --- | --- | --- | --- |
 | `createSearchProvider` | `search` | LRU 缓存的 nuo `searchPatents` | 底层检索函数注入。 |
-| `createEgoSession` | `commandName` | `ego-browser` | CLI 命令名。 |
-| `createEgoSession` | `defaultTimeoutMs` | `90000` | 默认运行超时（毫秒）。 |
-| `createEgoSession` | `maxTimeoutMs` | `300000` | 单次运行超时硬上限。 |
 | `createEgoSession` | `homeDir` | `os.homedir()` | 定位 `~/.local/bin` 的主目录。 |
 | `createEgoSession` | `pathEntries` | `[<home>/.local/bin]` | 注入 spawn 环境的额外 PATH 目录。 |
-| `createEgoSession` | `maxOutputBytes` | `500000` | 合并输出的软上限（字节）。 |
+| `createEgoSession` | `platform` | `process.platform` | 平台覆盖。 |
+| `createEgoSession` | `env` | `process.env` | 环境变量覆盖。 |
 | `createEgoSession` | `runner` | subprocess 后端 runner | 测试用 spawn runner 注入。 |
 
 <a id="model-experience"></a>

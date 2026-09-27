@@ -12,7 +12,7 @@
  * @module @deepseek-ai/dsh-cordis-client-runner/client/api-catalog
  */
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- generated API catalog; structure follows the source definitions. */
 /** One named parameter in a Service method or Event listener. */
 export interface ApiParameter {
   /** Parameter name from the exact signature. */

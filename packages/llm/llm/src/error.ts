@@ -42,6 +42,17 @@ export const ACCOUNT_QUOTA_EXCEEDED_CODE = 'ACCOUNT_QUOTA'
 export const EMPTY_RESPONSE_CODE = 'EMPTY_RESPONSE'
 
 /**
+ * Canonical provider-neutral code for a response whose stream violated the wire
+ * format an adapter decodes: unparsable SSE JSON, an out-of-order or repeated
+ * block, or a tool call whose arguments JSON was cut off mid-value. A provider
+ * that truncates one response usually serves the next one intact, and the
+ * attempt never reached a durable assistant message, so retry policy treats a
+ * malformed response as safe to repeat: leaving it non-retryable turns one
+ * provider hiccup into a failed turn that discards every earlier step.
+ */
+export const MALFORMED_RESPONSE_CODE = 'MALFORMED_RESPONSE'
+
+/**
  * Canonical provider-neutral code for a credential that was supplied but
  * cannot be used — malformed rather than absent. Distinct from
  * `MISSING_CREDENTIAL` because the fix differs: correct the stored value

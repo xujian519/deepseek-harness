@@ -35,7 +35,7 @@ The tool reads the delivered bytes rather than trusting the declaration. Markdow
 | `broken_anchor` | A `](#fragment)` or `href="#fragment"` names a fragment the document declares no id, named anchor, or heading slug for | `warn` |
 | `length_budget` | A declared `char_budget` is missed by more than the configured `lengthTolerance` (shipped default 20%) | `warn` |
 
-A `block` finding throws: the registration is refused and the error names the file, the check, and the line, so the model fixes the document instead of registering it. A `warn` finding is recorded and the registration proceeds, because each has a reading a reviewer may accept. The style comes from `defaultStyle` and the budget tolerance from `lengthTolerance`, both named in the tool description; a style name no loaded style carries fails the call and lists the loaded names. Every finding is capped at five per check, with the remainder summarized rather than dropped.
+A `block` finding throws: the registration is refused and the error names the file, the check, and the line, so the model fixes the document instead of registering it. A `warn` finding is recorded and the registration proceeds, because each has a reading a reviewer may accept. The style comes from `defaultStyle` and the budget tolerance from `lengthTolerance`, both named in the tool description; a style name no loaded style carries fails the call and lists the loaded names. Every finding is capped at `maxFindingsPerCheck` per check (five by default), with the remainder summarized rather than dropped.
 
 ## Model Experience
 

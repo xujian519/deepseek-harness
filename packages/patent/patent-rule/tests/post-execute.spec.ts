@@ -101,6 +101,17 @@ describe('tools/post-execute output gate', () => {
     expect(result.error?.message).toMatch(/无审批通道/)
   })
 
+  it('fails closed on a shipped PAT-APPROVAL-001 hit with no approval service', async () => {
+    // The packaged asset is the shipped deployment: a conclusion-bearing draft
+    // is blocked rather than delivered when no approval channel is mounted.
+    const ctx = await mount({})
+    ctx.tools.register(deliveryTool('draft_claims', '本次分析的最终建议如下。'))
+    const result = await ctx.tools.execute(exec('draft_claims'))
+    expect(result.isError).toBe(true)
+    expect(result.error?.message).toMatch(/PAT-APPROVAL-001/)
+    expect(result.error?.message).toMatch(/无审批通道/)
+  })
+
   it('delegates non-matching tools via next()', async () => {
     const ctx = await mount({ rulesDir: makeRulesFixture() })
     let downstreamCalled = false

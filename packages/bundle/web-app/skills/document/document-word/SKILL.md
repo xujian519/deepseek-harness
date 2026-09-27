@@ -22,7 +22,7 @@ whenToUse: 用户明确要求 .docx/Word 文件（合同、规范、报告、论
    - 需要时用 `title` / `author` / `date` / `filename` 覆盖元数据。
 4. 落盘：`content` 是 base64 的 DOCX 包，用 shell 解码写入成品路径
    （`printf '%s' '<base64>' | base64 -d > out/report.docx`；macOS 旧版 `base64` 用 `-D`）。
-   随后用 `read` 或 `ls` 复核文件存在与字节数。
+   随后用 shell 的 `ls -l` 复核文件存在与字节数。
 5. 需要页眉页脚、目录字段、页码或命名样式套用时，交 officecli 技能继续加工同一文件。
 6. 自检（document-quality-gate）后交付：`<name>.docx` 路径与摘要；登记时格式填 `docx`。
 

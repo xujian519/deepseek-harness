@@ -22,7 +22,7 @@ kind: "package-reference"
 <a id="service"></a>
 ## 服务
 
-`PatentWorkflow` 服务暴露管线入口，并从本包根导出再导出纯管线 API（workflow、workflow-dag、workflow-store、flexible-plan、flexible-plan-store、plantask、worker-contract、checker-verdict、approval、output-gate、quality-gate）。`CheckerVerdict` 是 checker 层 worker 的结构化复核结论 schema（`pass`/`needs_revision`/`blocked` + 逐问题严重度）；`parseCheckerVerdict` 在该模型 JSON 边界做校验。
+`PatentWorkflow` 服务暴露管线入口，并从本包根导出再导出纯管线 API（workflow、workflow-dag、workflow-store、flexible-plan、flexible-plan-store、plantask、worker-contract、checker-verdict）。`CheckerVerdict` 是 checker 层 worker 的结构化复核结论 schema（`pass`/`needs_revision`/`blocked` + 逐问题严重度）；`parseCheckerVerdict` 在该模型 JSON 边界做校验。
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
@@ -69,7 +69,6 @@ Independent; the pipeline registers no prompt, tool schema, or result of its own
 <a id="known-limitations-and-deferred-work"></a>
 ## 已知局限与延期工作
 
-- **规则引擎运行时注入（P4.1）** — 输出门的 `ruleGate` 接缝结构化接受 dsh-patent-rule 的 `RuleOutputGate`，但引擎在运行时注入；本包对 dsh-patent-rule 无编译期依赖，需要引擎的规则检查在未注入时 fail-loud。
 - **存储经 `ctx.get('storage')` 可选** — 文件产物（workflow-run 与 flexible-plan 存储）使用调用方提供的 `JsonFileStore` 后端；服务不接线 storage-domain 接缝，ctx.storage 集成延期。
 - **无答案者时审批 fail-closed** — 无审批服务挂载（或未组合答案者）时，`runPlantask` 拒绝计划转至 replanning 而非自动放行。
 

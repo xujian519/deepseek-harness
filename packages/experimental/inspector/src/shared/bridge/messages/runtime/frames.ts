@@ -131,7 +131,7 @@ export function parseClientRuntimeCancelFrame(value: Record<string, unknown>): C
  * @param value - Untrusted acknowledgement frame.
  * @returns The validated acknowledgement frame.
  */
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- each wire parser spells out its own envelope literally instead of sharing a tag-parameterized helper. */
 // Deliberately mirrors parseClientRuntimeCancelFrame: each wire parser spells
 // out its own envelope literally instead of sharing a tag-parameterized helper.
 export function parseClientRuntimeResponseAcknowledgedFrame(

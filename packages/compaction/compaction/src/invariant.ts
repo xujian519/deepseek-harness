@@ -284,7 +284,7 @@ function applyCompactionTransition(
 
 /** Install compaction start/summary/end checks. */
 // Event owners keep precommit staging local so their vocabularies never move into a central helper.
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- invariant companion template shares the same structure across packages. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
   const traces = new WeakMap<Session, SessionTrace>()
   const staged = new WeakMap<SessionEvent, { session: Session; transition: CompactionTransition }>()

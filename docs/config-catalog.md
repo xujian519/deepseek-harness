@@ -1079,7 +1079,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-doc-template`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/document/doc-template/src/index.ts:113`](../packages/document/doc-template/src/index.ts)
+- `source`: [`packages/document/doc-template/src/index.ts:111`](../packages/document/doc-template/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing document-template plugin configuration. */
@@ -1106,7 +1106,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-document-deliver`
 
 - `inject`: `tools` · `fs`
-- `source`: [`packages/document/document-deliver/src/index.ts:69`](../packages/document/document-deliver/src/index.ts)
+- `source`: [`packages/document/document-deliver/src/index.ts:70`](../packages/document/document-deliver/src/index.ts)
 
 ```ts config-catalog
 /** Document-delivery plugin configuration. */
@@ -1119,6 +1119,8 @@ export interface Config {
   maxCheckBytes?: number
   /** Fraction of a declared character budget a document may fall short of or exceed. */
   lengthTolerance?: number
+  /** Findings kept per check before the rest are summarized into one line. */
+  maxFindingsPerCheck?: number
   /** Largest number of entries a checked DOCX package may declare. */
   maxArchiveEntries?: number
   /** Largest total uncompressed bytes a checked DOCX package may expand to. */
@@ -2625,6 +2627,37 @@ export interface AutoCommitConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-openviking -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-data -->
+<a id="deepseek-aidsh-patent-data"></a>
+
+## `@deepseek-ai/dsh-patent-data`
+
+- `inject`: `subprocess`
+- `source`: [`packages/patent/patent-data/src/index.ts:75`](../packages/patent/patent-data/src/index.ts)
+
+```ts config-catalog
+/**
+ * Deployment-varying patent-data configuration. The ego-browser command, its
+ * probe and run deadlines, and the output cap differ between hosts (a wrapper
+ * on the PATH, a slower machine, a larger scrape), so each is a validated
+ * field here; every default is the value the seam shipped before it was
+ * configurable, and a per-call option still overrides it.
+ */
+export interface Config {
+  /** ego-browser CLI command name (default `ego-browser`). */
+  commandName?: string
+  /** Connection-probe timeout in milliseconds (default 8000). */
+  probeTimeoutMs?: number
+  /** Default ego-browser run timeout in milliseconds (default 90000). */
+  defaultTimeoutMs?: number
+  /** Hard cap applied to a per-run timeout in milliseconds (default 300000). */
+  maxTimeoutMs?: number
+  /** Soft cap in bytes for the merged run output (default 500000). */
+  maxOutputBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-patent-data -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-patent-deadline -->
 <a id="deepseek-aidsh-patent-deadline"></a>
 
@@ -2724,13 +2757,19 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-law`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-law/src/index.ts:76`](../packages/patent/patent-law/src/index.ts)
+- `source`: [`packages/patent/patent-law/src/index.ts:91`](../packages/patent/patent-law/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-law plugin configuration. */
 export interface Config {
   /** Directory holding the law-index YAML files; defaults to the packaged index. */
   baselineDir?: string
+  /** Whether this deployment runs the local cnlaw legal base. Defaults to `true`. */
+  cnlawEnabled: boolean
+  /** Semantic-search endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8100`. */
+  cnlawSearchUrl: string
+  /** Graph/case endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8001`. */
+  cnlawGraphUrl: string
   /** Treatment of a citation whose proposition a verified article does not support. */
   onMismatch: CitationPolicy
   /** Treatment of a citation beyond a verified article ceiling. */
@@ -5384,7 +5423,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-llm` | — | [`packages/llm/llm/src/index.ts`](../packages/llm/llm/src/index.ts) |
 | `@deepseek-ai/dsh-lsp` | — | [`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts) |
 | `@deepseek-ai/dsh-mcp-resources` | `tools` | [`packages/mcp/mcp-resources/src/index.ts`](../packages/mcp/mcp-resources/src/index.ts) |
-| `@deepseek-ai/dsh-patent-data` | `subprocess` | [`packages/patent/patent-data/src/index.ts`](../packages/patent/patent-data/src/index.ts) |
 | `@deepseek-ai/dsh-patent-workflow` | — | [`packages/patent/patent-workflow/src/index.ts`](../packages/patent/patent-workflow/src/index.ts) |
 | `@deepseek-ai/dsh-sandbox-ssh` | `ssh` | [`packages/ssh/sandbox-ssh/src/index.ts`](../packages/ssh/sandbox-ssh/src/index.ts) |
 | `@deepseek-ai/dsh-self-evolve-app` | — | [`packages/bundle/self-evolve-app/src/index.ts`](../packages/bundle/self-evolve-app/src/index.ts) |

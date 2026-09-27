@@ -60,8 +60,7 @@ export function hasNegationContext(text: string, matchStart: number): boolean {
  * 且命中位置前无否定语境。返回命中的词（原词或同义词）。
  *
  * 遍历全部出现位置：首个命中处于否定语境时不阻断——同词后续的肯定出现
- * （"不具有新颖性，但…方案具有新颖性"）仍算命中（对齐 quality-gate 的
- * filterNegatedHits 循环语义）。同义词表 key 统一小写存储/查找。
+ * （"不具有新颖性，但…方案具有新颖性"）仍算命中。同义词表 key 统一小写存储/查找。
  * @param text - 待匹配文本。
  * @param keyword - 关键词。
  * @param synonyms - 同义词表。

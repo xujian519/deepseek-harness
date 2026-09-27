@@ -197,7 +197,7 @@ description: 专利案持久团队组建模板。本会话已挂载 dsh-patent-t
 - 立场配对：复审/无效 = 请求方（申请人代理/无效请求人）× 防御方（专利权人）+ 合议组（裁判）；诉讼 = 专利权人（原告）× 被告代理人（抗辩）+ 裁判（裁决）+ 调查官（技术查明）。每个立场一个成员，不合并；对抗意见冲突由 captain 收口并说明取舍理由。
 - 角色边界：技术专家不评法律论证，代理人/请求人/被告不代写对方文书，裁判不参与任一方策略起草，案件管理员不评技术内容；文档专员**不改实体结论**（权利要求布局、无效理由组合、诉请金额等仍归对应角色与 HITL），只做文本组织、矫正与美化；制图员是图面与标号的唯一权威源，**不改实体结论**（权利要求布局、保护范围、修改方案仍归对应角色与 HITL），也不评新颖性/创造性。
 - 期限与流程：答复期限、复审 3 个月与恢复窗口、补正期限、送达推定日（+15 日）由案件管理员或 captain 核验，禁止心算。
-- HITL 确认点不可跳过：权利要求布局、修改方案、无效理由组合、诉请金额、答复策略在动手前用 ask_user 确认或至少说明取舍理由；文档专员交付放行与收口放行合并为一次 ask_user，不重复打扰。
+- HITL 确认点不可跳过：权利要求布局、修改方案、无效理由组合、诉请金额、答复策略在动手前用 ask_user_question 确认或至少说明取舍理由；文档专员交付放行与收口放行合并为一次 ask_user_question，不重复打扰。
 - 质量门禁：契约化任务（创建时指定 worker）完成后须过组合质量门禁（worker 契约字段 + 内容充分性 + patent-rule 规则；`patent_eval` 综合评分仅作反馈提示），未过按 `gate_feedback` 修订后重新提交；反复未过由 captain 用 `patent_teams_reassign_task` 处理。文档专员任务（`patent-document-renderer`）同样按契约验收：交付场景/矫正清单/渲染产物缺一即打回。制图员任务（`patent-illustrator`）按契约验收：附图文件/附图标记表/图文一致性/形式要件核验缺一即打回。
 - 文档交付：正式文档按专利文书输出规范（`patent-document-polish` 技能）走场景→模板映射，渲染 html/pdf（或 docx，officecli 可用时），产物登记 `_matter-log.md`；附图以制图员产出的附图附件页随附（`figure-deliverable.md` 列明各图路径与图号），交付说明里写明附图是渲染文档之外的独立附件——`render_patent_document` 的模板只承载附图说明文字，不嵌入图片。
 - 收口必经：每个场景的最终收口任务必须包含 `patent_workflow_run`（按场景 manifest：立案=patent_patentability_v1、撰写=patent_disclosure_v1 与 patent_novelty_v1/patent_inventiveness_v1、答复=patent_oa_response_v1、复审=patent_reexamination_v1、无效=patent_invalidation_v1、诉讼=patent_infringement_v1）；交付依据是 stage 记录，不是口头结论；补正类无内置 manifest 入口，以替换页逐项核验记录替代。

@@ -4,8 +4,29 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
-import PatentData, { cachedSearchPatents, EgoBrowserSession } from '@deepseek-ai/dsh-patent-data'
+import PatentData, {
+  cachedSearchPatents,
+  DEFAULT_EGO_COMMAND_NAME,
+  DEFAULT_EGO_MAX_OUTPUT_BYTES,
+  DEFAULT_EGO_MAX_TIMEOUT_MS,
+  DEFAULT_EGO_PROBE_TIMEOUT_MS,
+  DEFAULT_EGO_TIMEOUT_MS,
+  EgoBrowserSession,
+} from '@deepseek-ai/dsh-patent-data'
+import type { EgoSpawnRunner, EgoSpawnSpec } from '@deepseek-ai/dsh-patent-data'
 import type { PatentSearchResult } from '@deepseek-ai/nuo-patent'
+
+/** A capture-only spawn runner: records each spec and answers with a fixed result. */
+function recordingRunner(specs: EgoSpawnSpec[]): EgoSpawnRunner {
+  return {
+    spawn: async (spec) => {
+      specs.push(spec)
+      // The probe marker plus padding, so one runner serves both the probe and a
+      // run whose merged output exceeds a small configured cap.
+      return { exitCode: 0, stdout: `EGO_DOCTOR_OK\n${'y'.repeat(64)}`, stderr: '', timedOut: false, durationMs: 1 }
+    },
+  }
+}
 
 function makeSearchResult(): PatentSearchResult {
   return {
@@ -73,5 +94,70 @@ describe('PatentData service', () => {
     await fiber.dispose()
     expect(ctx.get('patentData')).toBeUndefined()
     await ctx.fiber.dispose()
+  })
+
+  it('defaults every Config field to the shipped seam default', () => {
+    expect(PatentData.Config({})).toEqual({
+      commandName: DEFAULT_EGO_COMMAND_NAME,
+      probeTimeoutMs: DEFAULT_EGO_PROBE_TIMEOUT_MS,
+      defaultTimeoutMs: DEFAULT_EGO_TIMEOUT_MS,
+      maxTimeoutMs: DEFAULT_EGO_MAX_TIMEOUT_MS,
+      maxOutputBytes: DEFAULT_EGO_MAX_OUTPUT_BYTES,
+    })
+  })
+
+  it('builds sessions over the configured command, deadlines, and output cap', async () => {
+    const specs: EgoSpawnSpec[] = []
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(PatentData, {
+      commandName: 'ego-lite',
+      probeTimeoutMs: 1_234,
+      defaultTimeoutMs: 4_321,
+      maxTimeoutMs: 5_000,
+      maxOutputBytes: 8,
+    })
+    try {
+      const session = ctx.patentData.createEgoSession({ runner: recordingRunner(specs), homeDir: '/tmp' })
+      expect(await session.runConnectionProbe()).toBe(true)
+      const run = await session.runScript('cliLog("x")', { cwd: '/tmp' })
+      // A per-run timeout above the configured cap is clamped to it.
+      await session.runScript('cliLog("x")', { cwd: '/tmp', timeoutMs: 999_999 })
+
+      expect(specs.map(spec => spec.argv[0])).toEqual(['ego-lite', 'ego-lite', 'ego-lite'])
+      expect(specs.map(spec => spec.timeoutMs)).toEqual([1_234, 4_321, 5_000])
+      expect(run.output).toContain('[output truncated]')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('lets a per-call option override the configured default', async () => {
+    const specs: EgoSpawnSpec[] = []
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(PatentData, { commandName: 'ego-lite' })
+    try {
+      const session = ctx.patentData.createEgoSession({ runner: recordingRunner(specs), commandName: 'ego-per-call', homeDir: '/tmp' })
+      expect(await session.runConnectionProbe()).toBe(true)
+      expect(specs[0]?.argv[0]).toBe('ego-per-call')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('falls back to the seam defaults when the service is constructed without a Config', async () => {
+    const specs: EgoSpawnSpec[] = []
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    try {
+      const session = new PatentData(ctx).createEgoSession({ runner: recordingRunner(specs), homeDir: '/tmp' })
+      expect(await session.runConnectionProbe()).toBe(true)
+      await session.runScript('cliLog("x")', { cwd: '/tmp' })
+      expect(specs.map(spec => spec.argv[0])).toEqual([DEFAULT_EGO_COMMAND_NAME, DEFAULT_EGO_COMMAND_NAME])
+      expect(specs.map(spec => spec.timeoutMs)).toEqual([DEFAULT_EGO_PROBE_TIMEOUT_MS, DEFAULT_EGO_TIMEOUT_MS])
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 })

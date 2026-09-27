@@ -111,7 +111,6 @@ describe('disclaimerFor', () => {
   })
 
   it('falls back to the domain disclaimer when the category has none', () => {
-    expect(disclaimerFor(style, 'patent-report')).toBe('分析免责声明')
     expect(disclaimerFor(style, 'unknown')).toBe('分析免责声明')
   })
 

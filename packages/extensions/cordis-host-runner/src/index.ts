@@ -542,7 +542,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
    * Frame-wide inventory, grouped as one row per stable Plugin.
    * @returns Source-free metadata for every process-local Plugin.
    */
-  /* jscpd:ignore-start */
+  /* jscpd:ignore-start -- inventory row mapping is structurally similar across plugin methods. */
   @Remote('inventory')
   inventory(): DynamicCordisInventoryRow[] {
     return this.registry.all().map(plugin => ({
@@ -683,7 +683,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
         ...definition.hostCode === undefined ? {} : { host: definition.hostCode },
         ...definition.clientCode === undefined ? {} : { client: definition.clientCode },
       },
-      /* jscpd:ignore-start */
+      /* jscpd:ignore-start -- optional-field expansion parallels other plugin row mappings. */
       ...plugin.currentPackageId === undefined ? {} : { currentPackageId: plugin.currentPackageId },
       ...plugin.nextPackageId === undefined ? {} : { nextPackageId: plugin.nextPackageId },
       ...plugin.run === undefined ? {} : {
@@ -1112,7 +1112,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
     }))
   }
 
-  /* jscpd:ignore-start */
+  /* jscpd:ignore-start -- guard failure reporting parallels other steer-path error handling. */
   private steerGuardFailure(
     plugin: DynamicCordisPlugin,
     run: DynamicCordisRun,

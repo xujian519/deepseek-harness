@@ -86,6 +86,49 @@ describe('suppression reason check', () => {
     expect(unexplained('/* oxlint-enable typescript/no-console */\nconst value = 1\n')).toEqual([])
   })
 
+  it('accepts a `v8 ignore next` with an inline reason', () => {
+    expect(unexplained('/* v8 ignore next -- the fallback path is exercised by the stress suite. */\n')).toEqual([])
+  })
+
+  it('rejects a bare `v8 ignore next`', () => {
+    expect(unexplained('/* v8 ignore next */\nconst value = 1\n'))
+      .toEqual(['v8 ignore next'])
+  })
+
+  it('accepts a `v8 ignore start` with an inline reason', () => {
+    expect(unexplained('/* v8 ignore start -- the generated table is covered by snapshot. */\n')).toEqual([])
+  })
+
+  it('rejects a bare `v8 ignore start`', () => {
+    expect(unexplained('/* v8 ignore start */\nconst value = 1\n'))
+      .toEqual(['v8 ignore start'])
+  })
+
+  it('accepts a `v8 ignore stop` without a reason (end marker)', () => {
+    expect(unexplained('/* v8 ignore stop */\nconst value = 1\n')).toEqual([])
+  })
+
+  it('accepts a `jscpd:ignore-start` with an inline reason', () => {
+    expect(unexplained('// jscpd:ignore-start -- the two fixtures intentionally share a shape.\n')).toEqual([])
+  })
+
+  it('rejects a bare `jscpd:ignore-start`', () => {
+    expect(unexplained('// jscpd:ignore-start\nconst value = 1\n'))
+      .toEqual(['jscpd:ignore-start'])
+  })
+
+  it('accepts a `jscpd:ignore-end` without a reason (end marker)', () => {
+    expect(unexplained('// jscpd:ignore-end\nconst value = 1\n')).toEqual([])
+  })
+
+  it('accepts a `v8 ignore` reason on the line directly above', () => {
+    expect(unexplained('// The fallback path is exercised by the stress suite.\n/* v8 ignore next */\nconst value = 1\n')).toEqual([])
+  })
+
+  it('accepts a `jscpd:ignore-start` reason on the line directly above', () => {
+    expect(unexplained('// The two fixtures intentionally share a shape.\n// jscpd:ignore-start\nconst value = 1\n')).toEqual([])
+  })
+
   it('passes on the current tree', () => {
     expect(scanRepository().findings).toEqual([])
   })

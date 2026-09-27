@@ -234,13 +234,13 @@ export default defineConfig({
         // glob, so a package added later is measured unless it is exempted
         // deliberately. Six already pass the per-file gate and stay measured:
         // methodology, patent-data, patent-document, patent-knowledge,
-        // patent-rule, and tool-literature. Measured 2026-09-25 over
-        // `npx vitest run packages/patent --coverage
-        // --coverage.include='packages/patent/*/src/**/*.ts'` — the entries below
-        // are excluded from the gate, so the include override is what instruments
-        // them. Statements and instrumented src files: patent-core 99.8/102,
-        // patent-tools 98.4/77, patent-workflow 99.9/19, patent-teams 99.5/15,
-        // patent-deadline 96.7/9, writing-patterns 97.3/7.
+        // patent-rule, and tool-literature. Measured 2026-09-28 over
+        // `npx vitest run packages/patent/{patent-core,patent-tools,patent-workflow,patent-teams,patent-deadline,writing-patterns}
+        // --coverage --coverage.reporter=json-summary --coverage.exclude='packages/*/*/src/worker.ts'`
+        // — the entries below are excluded from the gate, so the exclude override
+        // is what instruments them. Statements and instrumented src files:
+        // patent-core 99.7/107, patent-tools 98.4/78, patent-workflow 99.9/20,
+        // patent-teams 99.5/16, patent-deadline 96.9/9, writing-patterns 97.4/8.
         // TODO(cov): retire each entry as its package reaches the gate; the
         // per-package work order is in the 2026-09-21 patent-domain review
         // (PDR-01, tracker #208).
@@ -260,9 +260,15 @@ export default defineConfig({
         // harness the jsdom lane doesn't cover yet. TODO(gui): cover and
         // remove as the client test lane matures.
         'packages/client/ui-trajectory/src/*',
-        // The document studio: bundle-spec coverage cannot map the eval'd
-        // artifact back to src in the jsdom lane (same as ui-trajectory).
-        'packages/client/ui-document-studio/src/*',
+        // The document studio: interaction and branch coverage is incomplete in
+        // the jsdom lane. Measured 2026-09-28: StudioView 92.15%, document-deliverables
+        // 86.66%, file-reads 86.11%, client/index.ts 0%. locales.ts and paths.ts
+        // are at 100% and stay gated. TODO(cov): cover and remove each entry
+        // as its file reaches the gate.
+        'packages/client/ui-document-studio/src/client/StudioView.tsx',
+        'packages/client/ui-document-studio/src/client/document-deliverables.ts',
+        'packages/client/ui-document-studio/src/client/file-reads.ts',
+        'packages/client/ui-document-studio/src/client/index.ts',
         // Electron guest integration retains its unit specs; per-file coverage
         // is deferred until a native Electron harness covers guest behavior.
         'packages/client/ui-sidebar-browser/src/client/electron/**',

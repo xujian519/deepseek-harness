@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 
 ### When to use it
 
-No package in this repository consumes it yet. It is the TypeScript rewrite of the author's Go DOCX renderer and reader, and a consumer reaches for it when it must produce DOCX bytes or read DOCX text without an Office library and without an external process.
+[`@deepseek-ai/dsh-doc-template`](../doc-template/README.md) consumes it to render DOCX, and [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.md) consumes it to extract DOCX text. It is the TypeScript rewrite of the author's Go DOCX renderer and reader, and a consumer reaches for it when it must produce DOCX bytes or read DOCX text without an Office library and without an external process.
 
 ### Entry point
 
@@ -107,7 +107,7 @@ None: the package sends nothing to a provider and mutates no request prefix.
 - **A table nested in a cell contributes only text** — its paragraphs join the cell text, so its row and cell separators are not projected.
 - **Headers and footers are selected by name prefix** — any `word/header*.xml` or `word/footer*.xml` part is projected in archive order, including a part such as `word/headerStyles.xml`.
 - **Only text and heading levels are read** — styles, numbering, footnotes, comments, images, and deleted text (`w:delText`) are not projected.
-- **Nothing consumes the package yet** — the file paths, the source authorization, and the model-facing rendering of a rendered file stay with the consuming plugin.
+- **The consuming plugins own file paths and authorization** — [`@deepseek-ai/dsh-doc-template`](../doc-template/README.md) passes a byte limit and owns the output path; [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.md) passes read budgets and owns the extracted text.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -10,7 +10,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { findStyleByName, loadStyles, styleDirectories, type DocumentStyle } from '@deepseek-ai/dsh-doc-style'
 import z from '@deepseek-ai/schemastery'
-import { DEFAULT_LENGTH_TOLERANCE } from './checks.ts'
+import { DEFAULT_LENGTH_TOLERANCE, DEFAULT_MAX_FINDINGS_PER_CHECK } from './checks.ts'
 import { createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES } from './tool.ts'
 
 // Public library API: the deterministic checks, the tool factory, its argument
@@ -18,6 +18,7 @@ import { createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES } from './tool.ts'
 export {
   checkDocumentText,
   DEFAULT_LENGTH_TOLERANCE,
+  DEFAULT_MAX_FINDINGS_PER_CHECK,
   DOCUMENT_CHECK_IDS,
   type DocumentCheckFinding,
   type DocumentCheckId,
@@ -75,6 +76,8 @@ export interface Config {
   maxCheckBytes?: number
   /** Fraction of a declared character budget a document may fall short of or exceed. */
   lengthTolerance?: number
+  /** Findings kept per check before the rest are summarized into one line. */
+  maxFindingsPerCheck?: number
   /** Largest number of entries a checked DOCX package may declare. */
   maxArchiveEntries?: number
   /** Largest total uncompressed bytes a checked DOCX package may expand to. */
@@ -89,6 +92,7 @@ export const Config: z<Config> = z.object({
   // A tolerance above the whole budget would admit a document the budget says
   // nothing about, so 1 (accept 0..2x) is the ceiling.
   lengthTolerance: z.number().min(0).max(1).default(DEFAULT_LENGTH_TOLERANCE),
+  maxFindingsPerCheck: z.natural().min(1).max(Number.MAX_SAFE_INTEGER - 1).default(DEFAULT_MAX_FINDINGS_PER_CHECK),
   // The 16-bit end-of-central-directory count field is the format's own ceiling
   // on entries a reader can reach without ZIP64, which this reader rejects.
   maxArchiveEntries: z.natural().min(1).max(0xffff).default(DEFAULT_MAX_ARCHIVE_ENTRIES),
@@ -123,6 +127,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     defaultStyle: requireDefaultStyle(styles, config.defaultStyle ?? DEFAULT_DOCUMENT_STYLE),
     maxCheckBytes: config.maxCheckBytes ?? DEFAULT_MAX_CHECK_BYTES,
     lengthTolerance: config.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE,
+    maxFindingsPerCheck: config.maxFindingsPerCheck ?? DEFAULT_MAX_FINDINGS_PER_CHECK,
     docxReadLimits: {
       maxArchiveEntries: config.maxArchiveEntries ?? DEFAULT_MAX_ARCHIVE_ENTRIES,
       maxUncompressedBytes: config.maxUncompressedBytes ?? DEFAULT_MAX_UNCOMPRESSED_BYTES,

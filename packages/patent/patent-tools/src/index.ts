@@ -472,7 +472,7 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
- * Register the 29 patent tools.
+ * Register the 30 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */

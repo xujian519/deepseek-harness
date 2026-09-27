@@ -787,9 +787,12 @@ const TOOL_PACKAGES: ToolPackage[] = [
     async mount(ctx) {
       // The plugin loads the packaged law index at load and registers law_verify
       // from it plus the per-decision policy; no other service is needed. The Config
-      // type states the policy fields, so this page shows the shipped defaults
-      // explicitly.
+      // type states the policy and cnlaw fields, so this page shows the shipped
+      // defaults explicitly.
       await ctx.plugin(PatentLaw, {
+        cnlawEnabled: true,
+        cnlawSearchUrl: PatentLaw.DEFAULT_CNLAW_SEARCH_URL,
+        cnlawGraphUrl: PatentLaw.DEFAULT_CNLAW_GRAPH_URL,
         onMismatch: PatentLaw.DEFAULT_CITATION_POLICY.mismatch,
         onOutOfRange: PatentLaw.DEFAULT_CITATION_POLICY.outOfRange,
         onNotIndexed: PatentLaw.DEFAULT_CITATION_POLICY.notIndexed,

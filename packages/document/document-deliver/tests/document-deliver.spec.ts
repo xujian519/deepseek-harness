@@ -23,7 +23,7 @@ import {
   createDocumentDeliverTool, DEFAULT_MAX_CHECK_BYTES, missingDeliverableFiles, parseDocumentDeliverArgs,
   type DocumentDeliverDeps, type DocumentDeliverInput, type DocumentDeliverResult,
 } from '../src/tool.ts'
-import { DEFAULT_LENGTH_TOLERANCE } from '../src/checks.ts'
+import { DEFAULT_LENGTH_TOLERANCE, DEFAULT_MAX_FINDINGS_PER_CHECK } from '../src/checks.ts'
 
 const signal = new AbortController().signal
 const exec = { signal } as unknown as ToolRunContext
@@ -45,6 +45,7 @@ function deps(defaultStyle = 'assistant-neutral'): DocumentDeliverDeps {
     defaultStyle: style,
     maxCheckBytes: DEFAULT_MAX_CHECK_BYTES,
     lengthTolerance: DEFAULT_LENGTH_TOLERANCE,
+    maxFindingsPerCheck: DEFAULT_MAX_FINDINGS_PER_CHECK,
     docxReadLimits: DOCX_LIMITS,
   }
 }
@@ -501,6 +502,17 @@ describe('document_deliver deterministic checks', () => {
     expect(strict.content).toContain(`- ${path} [length_budget] 全文 6 字，低于声明的 10 字预算（允许 8–12 字）`)
     const lenient = await run(await mounted({ lengthTolerance: 0.6 }), args)
     expect(lenient.content).not.toContain('[length_budget]')
+  })
+
+  it('applies the configured per-check finding cap', async () => {
+    temp = await mkdtemp(join(tmpdir(), 'dsh-deliver-'))
+    const path = join(temp, 'report.md')
+    await writeFile(path, Array.from({ length: 7 }, (_, index) => `{{slot_${String(index)}}}`).join('\n\n'))
+    const args = { files: [{ path, format: 'markdown' }], gate: { p0: ['命名规范'] } }
+    const shipped = await run(await mounted(), args)
+    expect(shipped.content).toContain('另有 2 处同类问题未逐条列出')
+    const capped = await run(await mounted({ maxFindingsPerCheck: 2 }), args)
+    expect(capped.content).toContain('另有 5 处同类问题未逐条列出')
   })
 
   it('refuses a DOCX that expands past the configured budget', async () => {

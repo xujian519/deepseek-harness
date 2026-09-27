@@ -128,6 +128,33 @@ describe('profile package metadata service', () => {
     }) }).toThrow(/runtime resolution is not installed/u)
   })
 
+  it('reports which packages the active profile installed, and follows a replaced generation', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-profile-installed-service-'))
+    roots.push(root)
+    const profilesDir = join(root, 'profiles')
+    const profileDir = join(profilesDir, 'test')
+    const anchor = pkg(join(root, 'first'), '1.0.0')
+    const initial: RuntimeResolution = resolution(profilesDir, profileDir, join(root, 'first'), anchor, '1.0.0')
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(PluginPackages, { resolution: initial })
+
+    expect(ctx.pluginPackages.installedByProfile('installed-plugin')).toBe(false)
+    expect(ctx.pluginPackages.installedByProfile('metadata-lib')).toBe(false)
+
+    ctx.pluginPackages.replace({ ...initial, localPackageNames: ['installed-plugin'] })
+    expect(ctx.pluginPackages.installedByProfile('installed-plugin')).toBe(true)
+    expect(ctx.pluginPackages.installedByProfile('metadata-lib')).toBe(false)
+  })
+
+  it('reports no profile-installed package without a resolution', async () => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(PluginPackages)
+
+    expect(ctx.pluginPackages.installedByProfile('installed-plugin')).toBe(false)
+  })
+
   it('rejects malformed package metadata selected by the resolver', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-invalid-package-service-'))
     roots.push(root)

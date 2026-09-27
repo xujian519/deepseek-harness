@@ -37,6 +37,7 @@ export type CitationStyle = (typeof CITATION_STYLES)[number]
 export const DISCLAIMER_CATEGORY_KEYS: Readonly<Record<string, string>> = {
   specification: 'patent_drafting',
   claims: 'patent_drafting',
+  'patent-report': 'patent_drafting',
   'oa-response': 'patent_analysis',
   disclosure: 'patent_analysis',
 }

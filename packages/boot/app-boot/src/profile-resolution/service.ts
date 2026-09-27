@@ -61,9 +61,12 @@ export class PluginPackages extends Service {
   private packages = new Map<string, PluginPackage | undefined>()
   private readonly interception: RuntimeInterception | undefined
   private disposeWorkerResolution: (() => void) | undefined
+  /** Profile-installed package names of the current resolution generation. */
+  private profilePackages: ReadonlySet<string>
 
   constructor(ctx: Context, config: PluginPackagesConfig = {}) {
     super(ctx, 'pluginPackages')
+    this.profilePackages = new Set(config.resolution?.localPackageNames ?? [])
     if (config.resolution === undefined) return
     const interception = installRuntimeInterception(config.resolution)
     this.disposeWorkerResolution = registerWorkerResolution(config.resolution)
@@ -83,8 +86,20 @@ export class PluginPackages extends Service {
     if (this.interception === undefined) throw new Error('plugin-packages: runtime resolution is not installed')
     this.interception.replace(successor)
     this.packages = new Map()
+    this.profilePackages = new Set(successor.localPackageNames)
     this.disposeWorkerResolution?.()
     this.disposeWorkerResolution = registerWorkerResolution(successor)
+  }
+
+  /**
+   * Whether the active profile installed the named package into its own
+   * node_modules, rather than receiving it from the installation. Consumers use
+   * this to tell a plugin the deployment shipped from one the user added.
+   * @param name - bare package name.
+   * @returns true when the profile declares the package and its installed copy is present.
+   */
+  installedByProfile(name: string): boolean {
+    return this.profilePackages.has(name)
   }
 
   /**

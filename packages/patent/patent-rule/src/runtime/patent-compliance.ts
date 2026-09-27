@@ -220,23 +220,23 @@ export function loadActivationOverrides(rulesDir?: string): ActivationOverrides 
 }
 
 /**
- * 输出门禁规则子集：只保留「出现即违规」的 keyword_blocklist 规则，且排除 compliance
- * 规则（id 以 PAT- 开头）。
+ * 输出门禁规则子集：只保留「出现即违规」的 keyword_blocklist 规则。
  *
  * - structural_analysis（缺失即违规 = 完整性期望）对任意 assistant 输出会海量误报
  *   （普通文本天然「缺失」几十个期望要素），只适用 rule_check 显式自检（A 链）；
- * - compliance 的 keyword/citation 规则已由关键词门禁（quality-gate 镜像词表）处理，
- *   规则门禁若重复接入会产生双重提示，故排除 PAT-* 前缀。
+ * - citation_analysis 需要引用索引与上下文，同样只适用 rule_check 显式自检。
  *
- * 结果 = nuo 的 keyword_blocklist 规则（占位符/商业宣传/公序良俗/清楚性/事后诸葛亮/
- * 编造对比文件等），即 B 链规则门禁的「新增」能力。
+ * 结果 = compliance 的风险词/审批词/绝对化规则（PAT-RISK-001 / PAT-APPROVAL-001 /
+ * PAT-ABS-001）与 nuo 的 keyword_blocklist 规则（占位符/商业宣传/公序良俗/清楚性/
+ * 事后诸葛亮/编造对比文件等）。PAT-* 曾因「关键词门禁镜像了同一词表」被排除，该
+ * 关键词门禁已删除，规则门禁是这些规则的唯一执行者。
  * @param ruleSet - 待筛选的规则集。
  * @returns 门禁规则子集。
  */
 export function selectGateRules(ruleSet: RuleSet): RuleSet {
   return {
     ...(ruleSet.version !== undefined ? { version: ruleSet.version } : {}),
-    rules: ruleSet.rules.filter(rule => rule.check.type === 'keyword_blocklist' && !rule.id.startsWith('PAT-')),
+    rules: ruleSet.rules.filter(rule => rule.check.type === 'keyword_blocklist'),
   }
 }
 

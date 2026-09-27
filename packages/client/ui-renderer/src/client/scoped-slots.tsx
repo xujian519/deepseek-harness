@@ -420,7 +420,7 @@ class SlotErrorBoundary extends Component<
 }
 
 /** Contain one Factory occurrence without retiring the shared definition. */
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- error boundary pattern parallels other slot assembly components. */
 class FactoryErrorBoundary extends Component<
   { name: string; onEntryError: (error: unknown) => void; children: ReactNode }, { failed: boolean }
 > {

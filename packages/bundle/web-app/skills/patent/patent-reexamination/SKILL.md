@@ -37,4 +37,4 @@ description: 复审答复：驳回决定理由识别（复审理由表，含实�
 
 ## 质量门禁与人工确认
 
-复审请求结论、修改范围与是否请求口审先 ask_user 确认再起草；结论附免责声明；交付前经 patent-quality-gate。
+复审请求结论、修改范围与是否请求口审先 ask_user_question 确认再起草；结论附免责声明；交付前经 patent-quality-gate。

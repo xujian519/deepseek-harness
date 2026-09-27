@@ -46,7 +46,6 @@ export type {
   RenderMeta,
   RenderStyle,
   ResolveResult,
-  TemplateChange,
   TemplateErrorCode,
   VarDefinition,
   VarIssue,
@@ -59,7 +58,6 @@ export type { FrontmatterSplit } from './frontmatter.ts'
 export { loadTemplateDirectory, loadTemplateFile, TEMPLATE_FILE_SUFFIX } from './loader.ts'
 export { createTemplateStore, resolveTemplateDirectory, TemplateStore } from './store.ts'
 export type {
-  MergedVarContext,
   RenderOutcome,
   RenderRequest,
   TemplateFilter,

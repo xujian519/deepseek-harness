@@ -34,4 +34,4 @@ description: 无效宣告分析：无效理由识别（A22.2/22.3/26.3/26.4/33�
 
 ## 质量门禁与人工确认
 
-证据公开日逐一核验；无效理由组合先 ask_user 确认再起草；报告附免责声明；交付前经 patent-quality-gate。
+证据公开日逐一核验；无效理由组合先 ask_user_question 确认再起草；报告附免责声明；交付前经 patent-quality-gate。

@@ -24,7 +24,6 @@ import {
   type RenderMeta,
   type RenderStyle,
   type ResolveResult,
-  type VarDefinition,
   type VarIssue,
 } from './types.ts'
 import { validatedResolve } from './vars.ts'
@@ -51,20 +50,6 @@ export interface VersionConflict {
   readonly overrideVersion: string
   /** `warn` when the override compares older than the packaged version, `info` otherwise. */
   readonly severity: 'info' | 'warn'
-}
-
-/** The merged variable space of several templates. */
-export interface MergedVarContext {
-  /** The merged templates, in the order requested. */
-  readonly templates: readonly DocTemplate[]
-  /**
-   * Variables declared by more than one of the templates, in first-appearance
-   * order: within one template, its declared names count before its
-   * `shared_vars` names.
-   */
-  readonly sharedVars: readonly string[]
-  /** Every distinct variable, taking the last template's definition, in first-appearance order. */
-  readonly allVars: readonly VarDefinition[]
 }
 
 /** Construction options of a template store. */
@@ -256,49 +241,6 @@ export class TemplateStore {
       })
     }
     return conflicts
-  }
-
-  /**
-   * Merge the variable spaces of the named templates. A variable declared by
-   * more than one template, or listed under `shared_vars` by one and declared by
-   * another, is shared; the last template's definition wins.
-   * @param names - the template names to merge.
-   * @returns the templates, their shared variable names, and every distinct definition.
-   * @throws DocTemplateError when a name is not loaded.
-   */
-  mergeVarContext(names: readonly string[]): MergedVarContext {
-    const templates: DocTemplate[] = []
-    const occurrences = new Map<string, number>()
-    const countUp = (name: string): void => {
-      occurrences.set(name, (occurrences.get(name) ?? 0) + 1)
-    }
-    for (const name of names) {
-      const template = this.findByName(name)
-      if (template === undefined) {
-        throw new DocTemplateError('template-not-found', `未找到模板 ${JSON.stringify(name)}，无法合并变量空间。`)
-      }
-      templates.push(template)
-      const declared = template.varSchema.names()
-      for (const variable of declared) countUp(variable)
-      for (const shared of template.sharedVars) {
-        if (!declared.includes(shared)) countUp(shared)
-      }
-    }
-    const sharedVars = [...occurrences].filter(([, count]) => count > 1).map(([name]) => name)
-    const allVars: VarDefinition[] = []
-    const seen = new Set<string>()
-    for (const template of templates) {
-      for (const definition of template.varSchema.definitions) seen.add(definition.name)
-    }
-    for (const name of seen) {
-      for (let position = templates.length - 1; position >= 0; position -= 1) {
-        const definition = templates[position]?.varSchema.get(name)
-        if (definition === undefined) continue
-        allVars.push(definition)
-        break
-      }
-    }
-    return { templates, sharedVars, allVars }
   }
 
   /**

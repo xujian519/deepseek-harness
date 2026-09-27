@@ -2,7 +2,7 @@
 
 English | [中文](patent.zh.md)
 
-The patent subsystem is the native port of the Sati patent domain ([plan](../../docs/sati-as-dsh-plugins-plan.md)): patent data access, knowledge.db queries, the execution pipeline, the pure domain engines, the model-facing tool set, the compliance rule gates, and document rendering. The family lives in [packages/patent](../../packages/patent/README.md) as `@deepseek-ai/dsh-patent-*` packages and runs with no Sati process and no MCP bridge.
+The patent subsystem is the native port of the Sati patent domain ([plan](../../docs/sati-as-dsh-plugins-plan.md)): patent data access, knowledge.db queries, the execution pipeline, the pure domain engines, the model-facing tool set, the compliance rule gates, and document rendering. The family lives in [packages/patent](../../packages/patent/README.md) as `@deepseek-ai/dsh-patent-*` packages and runs with no Sati process and no MCP bridge of its own; a deployment may mount the optional cnlaw MCP client beside it ([patent preset declaration](../../packages/bundle/web-app/presets/patent.patch.yml)).
 
 This page documents the three service seams (`ctx.patentData`, `ctx.patentKnowledge`, `ctx.patentWorkflow`) and the pure-library ModelPort contract (`@deepseek-ai/dsh-patent-core`). The model-facing tools, rule gates, and document renderer live in the consumer packages (`dsh-patent-tools`, `dsh-patent-rule`, `dsh-patent-document`, `dsh-patent-fees`, `dsh-patent-law`, `dsh-tool-literature`, `dsh-methodology`).
 
@@ -30,7 +30,7 @@ createSearchProvider(options?: CreateNuoSearchProviderOptions): StageProvider
 
 /**
  * Build an ego-browser session runner backed by the injected subprocess service.
- * @param options - session options; runner overrides the subprocess-backed default.
+ * @param options - session options; each one overrides the same-named Config field, and a runner overrides the subprocess-backed default.
  * @returns the ego-browser session.
  */
 createEgoSession(options?: EgoSessionOptions): EgoBrowserSession

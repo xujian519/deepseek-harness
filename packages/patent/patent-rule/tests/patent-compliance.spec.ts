@@ -158,6 +158,27 @@ describe('patent compliance loading', () => {
     expect(gateRules.rules).toEqual([])
   })
 
+  it('wires every PAT-* keyword rule into the output gate', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const gateIds = new Set(selectGateRules(ruleSet).rules.map(rule => rule.id))
+    const patKeywordRules = ruleSet.rules
+      .filter(rule => rule.id.startsWith('PAT-') && rule.check.type === 'keyword_blocklist')
+      .map(rule => rule.id)
+      .sort()
+    expect(patKeywordRules).toEqual(['PAT-ABS-001', 'PAT-APPROVAL-001', 'PAT-RISK-001'])
+    for (const id of patKeywordRules) expect(gateIds.has(id), id).toBe(true)
+  })
+
+  it('leaves no PAT-* rule without a wired executor', () => {
+    const { ruleSet } = loadPatentFullRuleSet()
+    const gateIds = new Set(selectGateRules(ruleSet).rules.map(rule => rule.id))
+    for (const rule of ruleSet.rules.filter(candidate => candidate.id.startsWith('PAT-'))) {
+      // Keyword rules run automatically on the gated delivery tools; the
+      // citation rule runs through rule_check's full-set evaluation.
+      expect(gateIds.has(rule.id) || rule.check.type === 'citation_analysis', rule.id).toBe(true)
+    }
+  })
+
   it('loadPatentFullRuleSet returns the base result when compliance is missing', () => {
     const loaded = loadPatentFullRuleSet('/nonexistent/rules-root')
     expect(loaded.source).toBeNull()

@@ -27,9 +27,9 @@ kind: "package-reference"
 <a id="template-assets"></a>
 ## 模板资产
 
-十七个模板随包分发在 `assets/templates/<category>/` 下，分属五个类别：`patent-report`（5）、`specification`（4）、`claims`（3）、`oa-response`（3）、`disclosure`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内。
+十七个模板随包分发在 `assets/templates/patent/` 下，分属五个类别：`patent-report`（5）、`specification`（4）、`claims`（3）、`oa-response`（3）、`disclosure`（2）。它们全部为中文并用 `language: zh-CN` 自描述；上游项目的 legal 类别不在本批之内。
 
-front-matter 字段如下，全部照搬上游模板约定：
+front-matter 字段如下，读取自上游模板约定：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -44,11 +44,8 @@ front-matter 字段如下，全部照搬上游模板约定：
 | `use_when` | 适用场景描述。 |
 | `formats` | 支持的渲染格式；缺省表示仅 Markdown。 |
 | `vars` | 变量定义，每项含 `name`、`type`、`required`、`default`、`description`。 |
-| `changelog` | 变更历史，每项含 `version`、`date`、`description`。 |
-| `shared_vars` | 与其他模板共享的变量名。 |
-| `extends` | 本模板继承的模板名。 |
 
-变量的 `type` 取值是 `string`、`multiline`、`number`、`bool` 之一；未声明类型即单行字符串。`language` 是本批相对上游唯一新增的字段，`formats` 则在上游依赖隐式「仅 Markdown」默认值的地方被显式写出。
+变量的 `type` 取值是 `string`、`multiline`、`number`、`bool` 之一；未声明类型即单行字符串。`language` 是本批相对上游唯一新增的字段，`formats` 则在上游依赖隐式「仅 Markdown」默认值的地方被显式写出。上游的组合与历史字段（`extends`、`shared_vars`、`changelog`）未保留：没有消费方组合或投影模板（见开发备注）。
 
 <a id="list_doc_templates-tool"></a>
 ## list_doc_templates 工具
@@ -156,12 +153,11 @@ Schemastery 配置，所有字段可选。
 - **注入的指南不是按模板区分的** — 一个智能体只读一份指南，在加载期选定；跨风格组合模板的部署会拿到配置风格的指南，以及各模板自身的免责声明（渲染路径分别解析）。
 - **`styleGuide` 留空会让门禁无预告** — [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.zh.md) 只看风格的 `block` 判定，与模型是否见过指南无关；因此"开了核验但不注入指南"的部署可能拒绝掉模型无从预判的登记。请把 `styleGuide` 设成门禁所用的那套风格。
 - **随包模板只有中文** — 资产用 `language: zh-CN` 自描述，不提供双语孪生版本，其他语言的文档需要自己的模板资产。
-- **`mergeVarContext` 目前没有消费者** — 多个模板的合并变量空间对组合它们的调用方可用；目前没有随包工具组合模板。其 `sharedVars` 与 `allVars` 按首次出现顺序排列，而非排序后的顺序。
 - **`rendererRegistry` 目前没有消费者** — store 会把「注册新渲染格式」所需的注册表交出去；随包格式在构造时全部注册完毕，因此没有人读它。
 - **DOCX 以 base64 传输** — `docx` 结果把包以 base64 放在 `content` 字段里，体积比原包大约三成；工具文本本身不把包带进对话记录。
 
 ### 开发备注
 
-本包是 MIT 许可的 Go 项目 Mady 六个文件的重写：`domains/doctmpl/loader.go`、`vars.go`、`store.go`、`format.go`、`renderer_registry.go`、`renderer_html.go`、`renderer_markdown.go`、`renderer_docx.go`，以及 `domains/doctmpl/templates/` 的二十二个模板与 `doc-templates/` 的二十个模板。有意差异记录在涉及模块的 JSDoc 里：未知格式名会让加载失败，而上游是丢弃；同一个资产根目录内的重名会让加载失败，而上游保留第一个；`DocIndex` 未移植，因为结构化列表取代了它的展示字符串；DOCX 渲染委托给 `@deepseek-ai/dsh-docx-kit`，不再自带第二份 OOXML 写入器。
+本包是 MIT 许可的 Go 项目 Mady 六个文件的重写：`domains/doctmpl/loader.go`、`vars.go`、`store.go`、`format.go`、`renderer_registry.go`、`renderer_html.go`、`renderer_markdown.go`、`renderer_docx.go`，以及 `domains/doctmpl/templates/` 的二十二个模板与 `doc-templates/` 的二十个模板。有意差异记录在涉及模块的 JSDoc 里：未知格式名会让加载失败，而上游是丢弃；同一个资产根目录内的重名会让加载失败，而上游保留第一个；`DocIndex` 未移植，因为结构化列表取代了它的展示字符串；上游的 `extends`、`shared_vars` 与 `changelog` front-matter 字段未保留，因为没有消费方组合或投影模板；DOCX 渲染委托给 `@deepseek-ai/dsh-docx-kit`，不再自带第二份 OOXML 写入器。
 
 不发布 companion：本包不拥有任何持久状态或事件，两个工具都是对加载期资产的纯函数，资产缺失或非法会让那次加载失败。

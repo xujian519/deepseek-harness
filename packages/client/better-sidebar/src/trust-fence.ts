@@ -31,7 +31,7 @@ function parseAuthority(authority: string): URL | undefined {
   }
 }
 
-/* jscpd:ignore-start — a documented fork of the /api fence (see file header),
+/* jscpd:ignore-start -- a documented fork of the /api fence (see file header),
    kept behaviorally separate from it rather than re-merged across packages. */
 /**
  * Whether a normalized URL hostname names the local loopback authority.

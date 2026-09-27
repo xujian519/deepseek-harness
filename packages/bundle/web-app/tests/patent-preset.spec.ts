@@ -28,6 +28,21 @@ import { describe, expect, it } from 'vitest'
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 /** The bundle's shipped `patent` preset declaration. */
 const PATENT_PRESET = join(REPO_ROOT, 'packages/bundle/web-app/presets/patent.patch.yml')
+/** The directory holding the skills the `patent` preset ships. */
+const PATENT_SKILLS = join(REPO_ROOT, 'packages/bundle/web-app/skills/patent')
+
+/**
+ * Literal endpoints of the deployment's cnlaw legal base. The persona and the
+ * skills address that base through the declaration section `dsh-patent-law`
+ * renders from Config, so a port spelled out here would tell the model to use
+ * an endpoint its deployment never declared.
+ */
+const CNLAW_ENDPOINT_LITERAL = /(?:127\.0\.0\.1|localhost)(?::\d+)?|:(?:8100|8001|7687)\b|\b(?:8100|8001|7687)\b/gu
+
+/** Every cnlaw endpoint literal in one text, for the assertion to report. */
+function cnlawEndpointLiterals(text: string): string[] {
+  return text.match(CNLAW_ENDPOINT_LITERAL) ?? []
+}
 
 /** One preset row, flattened out of its group nesting. */
 interface PresetRow {
@@ -37,12 +52,22 @@ interface PresetRow {
   parent?: string
   /** Group rows carry their isolate realm keys here. */
   isolate?: Record<string, unknown>
+  /** A row's own config: an array for a group, an object for a configured row. */
+  config?: unknown
 }
 
 /** The `insert`ed declaration row this spec reads the child composition from. */
 interface DeclarationRow {
   name?: unknown
   config?: { id?: unknown; plugins?: unknown }
+}
+
+/** The persona text a row declares, or `''` when the row carries none. */
+function personaPrefix(row: PresetRow | undefined): string {
+  const config = row?.config
+  if (typeof config !== 'object' || config === null) return ''
+  const prefix = 'prefix' in config ? config.prefix : undefined
+  return typeof prefix === 'string' ? prefix : ''
 }
 
 /** Flatten a preset's entry list, keeping each row's enclosing group id. */
@@ -150,5 +175,30 @@ describe('patent preset composition', () => {
     const row = rows.find(entry => entry.id === 'patent-fees')
     expect(row?.name).toBe('@deepseek-ai/dsh-patent-fees')
     expect(row?.disabled).toBeUndefined()
+  })
+
+  it('sends the model to the cnlaw declaration instead of a literal endpoint', async () => {
+    // The base's endpoints are deployment Config, rendered into the prompt by
+    // dsh-patent-law; a port spelled out here would survive a deployment that
+    // moved or did not mount the base.
+    const text = personaPrefix((await patentRows()).find(row => row.id === 'persona'))
+    expect(text).toContain('cnlaw 声明段')
+    expect(cnlawEndpointLiterals(text)).toEqual([])
+  })
+
+  it('states no cnlaw endpoint literal in the shipped patent skills', () => {
+    const offenders = globSync('**/*.md', { cwd: PATENT_SKILLS })
+      .map(relative => ({ relative, hits: cnlawEndpointLiterals(readFileSync(join(PATENT_SKILLS, relative), 'utf8')) }))
+      .filter(entry => entry.hits.length > 0)
+      .map(entry => `${entry.relative}: ${entry.hits.join(', ')}`)
+    expect(offenders).toEqual([])
+  })
+
+  it('reports a literal endpoint when one is present', () => {
+    // The two assertions above pass on a corpus that has no endpoint only if this
+    // detector actually finds one.
+    expect(cnlawEndpointLiterals('curl -sG "http://127.0.0.1:8100/search" -d q=…'))
+      .toEqual(['127.0.0.1:8100'])
+    expect(cnlawEndpointLiterals('cnlaw 服务（:8001 图谱 + Neo4j 7687）')).toEqual([':8001', '7687'])
   })
 })

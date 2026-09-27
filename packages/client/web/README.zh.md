@@ -61,17 +61,17 @@ kind: "package-library"
 
 ### 设计理念
 
-内核恰好拥有三样东西：模块系统、Cordis Loader 与启动页。Graph、批次 preload 与 loader facade 归 Host 所有，因此 `AppWebEntry` 永不感知 bootstrap 包 id，也不解析协议格式（wire format）。动态 UI 渲染器只在每个客户端 entry 激活后收到挂载点。
+内核恰好拥有三样东西：模块系统、Cordis Loader 与启动页。Graph、批次 preload 与 loader facade 归 Host 所有，因此 `AppWebEntry` 永不感知 bootstrap 包 id，也不解析协议格式（wire format）。动态 UI 渲染器只在每个必需（required）客户端 entry 激活后收到挂载点。
 
 ### 两阶段启动
 
-`run()` 调用 Host 安装的 `window.__ModuleLoader__.create({ boot, staticModules, ...seams })`；facade 接纳 parser 已加载的 bootstrap 批次后返回构造好的模块系统与已解析 manifest（元数据清单）。模块阶段通过一个共享的 application 批次 URL 预取 `immediately` 层级。插件阶段挂载 Loader、把 `loader.internal` 赋为 `modules`、统一创建全部图 entry、等待完全停稳，然后审计激活：任何导入失败、因缺失服务而 pending，或落入其他非 active 状态的 entry，都会抛出一个聚合错误，点名每个失败 entry。
+`run()` 调用 Host 安装的 `window.__ModuleLoader__.create({ boot, staticModules, ...seams })`；facade 接纳 parser 已加载的 bootstrap 批次后返回构造好的模块系统与已解析 manifest（元数据清单）。模块阶段通过一个共享的 application 批次 URL 预取 `immediately` 层级。插件阶段挂载 Loader、把 `loader.internal` 赋为 `modules`、统一创建全部图 entry、等待完全停稳，然后审计激活：必需 entry 处于非 active 状态（导入失败、因缺失服务而 pending，或落入其他非 active 状态）时，抛出一个聚合错误，点名每个非 active entry 及其原因与激活错误。Host 标记为 `required: false` 的行——其包由当前 profile 安装——只记警告：部署方不拥有的插件半边不得阻止应用启动。
 
 ### 启动页机制
 
 启动页是原生 DOM 加本地 CSS，其回退字体与颜色匹配加载期间到达的主题 token。`internal/status` 事件驱动一个 spinner 节点与逐 entry 标签；hydrate 会保留该节点与动画相位直到应用提交，`fail()` 渲染抛出的原因。React 挂载、slot 渲染与应用组装位于 `ui-renderer`；`ui-layout` 拥有组装后的浏览器标题投影。
 
-启动内核把清单条目创建交给 Client Modules，使启动后的动态图同步继续持有相同的条目身份。初始激活审计仍然严格；后续页面本地失败显示在「设置 → 插件 → 插件列表」。
+启动内核把清单条目创建交给 Client Modules，使启动后的动态图同步继续持有相同的条目身份。初始激活审计只拦停必需 entry；非 active 的 profile 安装 entry 与后续所有页面本地失败都显示在「设置 → 插件 → 插件列表」。
 
 ### 源码地图
 
@@ -100,6 +100,7 @@ kind: "package-library"
 - [UI 渲染器](../ui-renderer/README.zh.md)——接收挂载点并把 slot 数据绑定到 React。
 - [客户端模块子系统](../../../docs/subsystems/client-modules.zh.md)——web 插件表、启动图协议与 bundle 路由。
 - [客户端编写规则](../AGENTS.md#shared-modules-and-the-module-graph)——共享模块基座与 `dsh.client.external` 语义。
+- [必需行与 profile 安装行](../../../.agents/notes/implemented/bug-fix/2026-09-27-profile-installed-client-entry-tolerance.zh.md)——当前 profile 安装的行失败时为何只告警而不拦停启动。
 - [客户端组地图](../README.zh.md)——本包所属的浏览器半侧。
 
 -----
@@ -120,7 +121,7 @@ kind: "package-library"
 
 这些限制说明启动内核不支持什么。它们是当前包约束，不是任务积压。
 
-- **应用会等待全部 entry 就绪**——只要一个 entry 失败，无框架启动页就会保留并逐项报告；不支持部分 UI 可用。
+- **应用会等待全部必需 entry 就绪**——必需 entry 未激活时，无框架启动页保留并逐项报告；由当前 profile 安装的行未激活不拦停启动，运行中的应用在「设置 → 插件」里报告它。
 
 <a id="dev-note"></a>
 ### 开发备注

@@ -13,10 +13,16 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { EgoAvailability, EgoRunOptions, EgoScriptResult, EgoSessionOptions, EgoSpawnRunner } from './types.ts'
 
-const DEFAULT_COMMAND_NAME = 'ego-browser'
-const DEFAULT_TIMEOUT_MS = 90_000
-const DEFAULT_MAX_TIMEOUT_MS = 300_000
-const DEFAULT_MAX_OUTPUT_BYTES = 500_000
+/** Default ego-browser CLI command name. */
+export const DEFAULT_EGO_COMMAND_NAME = 'ego-browser'
+/** Default per-run timeout in milliseconds. */
+export const DEFAULT_EGO_TIMEOUT_MS = 90_000
+/** Default hard cap for a per-run timeout in milliseconds. */
+export const DEFAULT_EGO_MAX_TIMEOUT_MS = 300_000
+/** Default soft cap in bytes for the merged run output. */
+export const DEFAULT_EGO_MAX_OUTPUT_BYTES = 500_000
+/** Default connection-probe timeout in milliseconds. */
+export const DEFAULT_EGO_PROBE_TIMEOUT_MS = 8_000
 /** The ego-browser script delimiter name shared with the future ego_browser tool's input validation. */
 export const EGO_HEREDOC_MARKER = 'EGO_SCRIPT_EOF'
 
@@ -25,6 +31,7 @@ export class EgoBrowserSession {
   private readonly commandName: string
   private readonly defaultTimeoutMs: number
   private readonly maxTimeoutMs: number
+  private readonly probeTimeoutMs: number
   private readonly homeDir: string
   private readonly pathEntries: string[]
   private readonly maxOutputBytes: number
@@ -33,12 +40,13 @@ export class EgoBrowserSession {
   private readonly runner: EgoSpawnRunner | undefined
 
   constructor(options: EgoSessionOptions = {}) {
-    this.commandName = options.commandName ?? DEFAULT_COMMAND_NAME
-    this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
-    this.maxTimeoutMs = options.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS
+    this.commandName = options.commandName ?? DEFAULT_EGO_COMMAND_NAME
+    this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_EGO_TIMEOUT_MS
+    this.maxTimeoutMs = options.maxTimeoutMs ?? DEFAULT_EGO_MAX_TIMEOUT_MS
+    this.probeTimeoutMs = options.probeTimeoutMs ?? DEFAULT_EGO_PROBE_TIMEOUT_MS
     this.homeDir = options.homeDir ?? homedir()
     this.pathEntries = options.pathEntries ?? [join(this.homeDir, '.local', 'bin')]
-    this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
+    this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_EGO_MAX_OUTPUT_BYTES
     this.platform = options.platform ?? process.platform
     this.env = options.env ?? process.env
     this.runner = options.runner
@@ -70,11 +78,11 @@ export class EgoBrowserSession {
 
   /**
    * Connection probe: run ego-browser with an inline cliLog and check for the probe marker.
-   * @param timeoutMs - probe timeout (default 8_000).
+   * @param timeoutMs - probe timeout (defaults to the session's probeTimeoutMs).
    * @returns true when the probe exits 0 without timing out and emits the marker.
    */
   async runConnectionProbe(timeoutMs?: number): Promise<boolean> {
-    const probeTimeout = timeoutMs ?? 8_000
+    const probeTimeout = timeoutMs ?? this.probeTimeoutMs
     try {
       const result = await this.requireRunner().spawn({
         argv: [this.commandName, 'nodejs', '-e', "cliLog('EGO_DOCTOR_OK')"],
@@ -206,7 +214,7 @@ function pathDelimiter(platform: NodeJS.Platform): string {
   return platform === 'win32' ? ';' : ':'
 }
 
-/* jscpd:ignore-start — platform command resolution stays per-domain: browser-backend
+/* jscpd:ignore-start -- platform command resolution stays per-domain: browser-backend
    carries its own copy of these two helpers. */
 /** File names a command may resolve to on the platform. */
 function commandNames(command: string, platform: NodeJS.Platform): string[] {

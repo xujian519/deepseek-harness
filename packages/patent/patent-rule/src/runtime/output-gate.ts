@@ -13,7 +13,6 @@
  *     `{ kind: 'block' }` 硬拦截，review 命中经 ctx.approval 审批，warn/log
  *     原样放行（warn 命中记日志，不改变结果文本）。
  *
- * 与专利域 output-gate.ts 的挂起审批（DeferredPersistQueue）解耦：
  * 本门禁只产出判定结果，挂起/审批由调用方（tools/post-execute 接线）处理。
  * @module @deepseek-ai/dsh-patent-rule/runtime/output-gate
  */

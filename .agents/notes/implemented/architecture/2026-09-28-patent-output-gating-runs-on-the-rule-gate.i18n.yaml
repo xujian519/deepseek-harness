@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-28-patent-output-gating-runs-on-the-rule-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-28-patent-output-gating-runs-on-the-rule-gate.md
+/agent-note-patent-output-gating-runs-on-the-rule-gate-alone:
+  en: cd8e0c63dce3ea7e
+  zh: 759a80826135d947
+/agent-note-patent-output-gating-runs-on-the-rule-gate-alone/problem:
+  en: dbb5f0b4d99a6553
+  zh: 7616f825fbbb7b00
+/agent-note-patent-output-gating-runs-on-the-rule-gate-alone/decision:
+  en: 31c67bbc30ddbfb9
+  zh: 1cbd60d8581687fe
+/agent-note-patent-output-gating-runs-on-the-rule-gate-alone/alternatives-considered:
+  en: 5bff0076feb06e34
+  zh: b8167ac9da2abeba
+/agent-note-patent-output-gating-runs-on-the-rule-gate-alone/testing:
+  en: 1f6e7479e5281896
+  zh: fc6f8228c02e5442
+/agent-note-patent-output-gating-runs-on-the-rule-gate-alone/consequences:
+  en: c13a5cc52f87b0d2
+  zh: 6c6a324f4d8236e7

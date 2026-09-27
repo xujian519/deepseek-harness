@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/patent/patent-law/README.md
 /:
-  en: 3d3e7cea0872ce93
-  zh: 9e44e45038f5b0aa
+  en: d7b57105966b1235
+  zh: 8b0de5b7ce583c3e
 /deepseek-ai-dsh-patent-law:
   en: ad5fe8483d002993
   zh: b03a575b00cedd49
 /deepseek-ai-dsh-patent-law/summary:
-  en: f85a58408cb7fd9a
-  zh: 4870ccf4d7fff52b
+  en: a3ae4f00725f3f3c
+  zh: 34a91df6a8ec26ad
 /deepseek-ai-dsh-patent-law/table-of-contents:
   en: 60028fd42e5bc54e
   zh: 5d572e75d01c8af0
@@ -27,8 +27,8 @@
   en: 2d760ded6c491e29
   zh: 73b4ce1e980f43e4
 /deepseek-ai-dsh-patent-law/configuration:
-  en: 8789c6e7ff205f1e
-  zh: 557743565b4576fa
+  en: 9a0d7d427973207a
+  zh: 7b9ea3cab919f83a
 /deepseek-ai-dsh-patent-law/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -43,10 +43,22 @@
   zh: 0c5b476801775c0f
 /deepseek-ai-dsh-patent-law/model-experience/law-verify-tool/kv-cache-effect:
   en: 037822c61c0c57f5
-  zh: c6c7e1b63cbf9c97
+  zh: b749c212fb98e37f
+/deepseek-ai-dsh-patent-law/model-experience/cnlaw-declaration-section:
+  en: 9d3de86c18183c40
+  zh: f3f23b3a18e885ac
+/deepseek-ai-dsh-patent-law/model-experience/cnlaw-declaration-section/what-the-model-sees:
+  en: a8556305dfd9ffa7
+  zh: d9c70598a0ffb237
+/deepseek-ai-dsh-patent-law/model-experience/cnlaw-declaration-section/token-effect:
+  en: 78ca3061f8a4f89b
+  zh: 20f885ed16b7e9ab
+/deepseek-ai-dsh-patent-law/model-experience/cnlaw-declaration-section/kv-cache-effect:
+  en: e18df3a97f5fe5e2
+  zh: d57882db82d45455
 /deepseek-ai-dsh-patent-law/known-limitations-and-deferred-work:
-  en: f4b5f5d2b72cb362
-  zh: 925d15c7baa1e927
+  en: c8c9937825d90691
+  zh: 5da9c8765e05a937
 /deepseek-ai-dsh-patent-law/known-limitations-and-deferred-work/dev-note:
   en: 2e2410d1112af008
   zh: 968682116cdad691

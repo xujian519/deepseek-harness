@@ -201,8 +201,6 @@ describe('gate graph validation', () => {
     'ci-lint-contracts-ready',
     'ci-coverage',
     'ci-bench',
-    'ci-snapshot',
-    'ci-artifacts',
     'ci-consumers',
     'ci-windows-blocking',
     'ci-windows-complete',

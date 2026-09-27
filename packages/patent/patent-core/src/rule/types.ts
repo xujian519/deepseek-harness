@@ -202,7 +202,8 @@ export interface RuleOutputGateResult {
 
 /**
  * 规则驱动的输出门禁接缝。持有 RuleSet 的门禁实现（dsh-patent-rule 的
- * RuleOutputGate 类）满足该结构；消费方（如输出门禁调用点）经运行时注入。
+ * RuleOutputGate 类）满足该结构；消费方（tools/post-execute 接线与
+ * patent-teams 的任务收口检查）经运行时注入。
  */
 export interface RuleOutputGate {
   /** 评估并处理一段输出文本。 */

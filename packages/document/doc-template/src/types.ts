@@ -111,16 +111,6 @@ export interface VarDefinition {
   readonly description: string
 }
 
-/** One entry of a template's change history. */
-export interface TemplateChange {
-  /** Version the entry describes. */
-  readonly version: string
-  /** Date of the change, as the asset records it. */
-  readonly date: string
-  /** What changed. */
-  readonly description: string
-}
-
 /**
  * One parsed document template: the front-matter metadata plus the Markdown body
  * whose `{{snake_case}}` placeholders the variables fill.
@@ -148,12 +138,6 @@ export interface DocTemplate {
   readonly supportedFormats: readonly OutputFormat[]
   /** Variable constraints of the body's placeholders. */
   readonly varSchema: VarSchema
-  /** Change history, in asset order. */
-  readonly changelog: readonly TemplateChange[]
-  /** Variables the template shares with the templates it is composed with. */
-  readonly sharedVars: readonly string[]
-  /** Template names this template extends. */
-  readonly extends: readonly string[]
   /** Absolute path of the asset the template was read from. */
   readonly filePath: string
   /** Markdown body after the front-matter, trimmed. */

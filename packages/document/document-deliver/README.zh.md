@@ -36,7 +36,7 @@ kind: "package-reference"
 | `broken_anchor` | `](#片段)` 或 `href="#片段"` 指向本文档未声明的 id、命名锚点或标题 slug | `warn` |
 | `length_budget` | 声明的 `char_budget` 偏差超过配置的 `lengthTolerance`（随包默认 20%） | `warn` |
 
-`block` 级问题直接抛错：拒绝登记，错误信息指出文件、检查项与行号，模型修复文档而不是把它登记出去。`warn` 级问题记录在结果里、登记照常进行——它们都存在评审可以接受的读法。风格取自 `defaultStyle`、篇幅容差取自 `lengthTolerance`，两者都由工具描述给出；未加载的风格名会让调用失败并列出可用名称。每项检查最多列 5 条，其余汇总一行，不静默丢弃。
+`block` 级问题直接抛错：拒绝登记，错误信息指出文件、检查项与行号，模型修复文档而不是把它登记出去。`warn` 级问题记录在结果里、登记照常进行——它们都存在评审可以接受的读法。风格取自 `defaultStyle`、篇幅容差取自 `lengthTolerance`，两者都由工具描述给出；未加载的风格名会让调用失败并列出可用名称。每项检查最多列出 `maxFindingsPerCheck` 条（默认 5 条），其余汇总一行，不静默丢弃。
 
 ## Model Experience
 

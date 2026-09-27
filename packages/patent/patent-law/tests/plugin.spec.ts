@@ -8,9 +8,12 @@ import * as Pkg from '../src/index.ts'
 /** The shipped citation policy, which the schema also defaults every field to. */
 const SHIPPED = Pkg.DEFAULT_CITATION_POLICY
 
-/** A complete plugin config: the shipped policy, with the overrides applied. */
+/** A complete plugin config: the shipped policy and cnlaw base, with the overrides applied. */
 function resolveConfig(overrides: Partial<Pkg.Config> = {}): Pkg.Config {
   return {
+    cnlawEnabled: overrides.cnlawEnabled ?? true,
+    cnlawSearchUrl: overrides.cnlawSearchUrl ?? Pkg.DEFAULT_CNLAW_SEARCH_URL,
+    cnlawGraphUrl: overrides.cnlawGraphUrl ?? Pkg.DEFAULT_CNLAW_GRAPH_URL,
     onMismatch: overrides.onMismatch ?? SHIPPED.mismatch,
     onOutOfRange: overrides.onOutOfRange ?? SHIPPED.outOfRange,
     onNotIndexed: overrides.onNotIndexed ?? SHIPPED.notIndexed,
@@ -51,6 +54,8 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     expect(typeof Pkg.renderCitationFindings).toBe('function')
     expect(typeof Pkg.renderCitationRows).toBe('function')
     expect(typeof Pkg.createLawVerifyTool).toBe('function')
+    expect(typeof Pkg.renderCnlawDeclaration).toBe('function')
+    expect(Pkg.CNLAW_DECLARATION_SECTION).toBe('patent-law:cnlaw')
     expect(Pkg.LAW_FILE_NAMES).toEqual([
       'cn-patent-law.yaml',
       'cn-implementing-regulations.yaml',
@@ -90,4 +95,38 @@ describe('@deepseek-ai/dsh-patent-law plugin surface', () => {
     await ctx.plugin(ToolRuntime)
     await expect(ctx.plugin(Pkg, resolveConfig({ baselineDir: '/nonexistent/law-dir' }))).rejects.toThrow(/法条索引目录不可读/)
   })
+
+  it('declares the cnlaw base in the assembled prompt, and withdraws it on dispose', async () => {
+    const { ctx, fiber } = await install()
+    expect(sectionNames(await ctx.systemPrompt.assemble())).toContain(Pkg.CNLAW_DECLARATION_SECTION)
+    await fiber.dispose()
+    expect(sectionNames(await ctx.systemPrompt.assemble())).not.toContain(Pkg.CNLAW_DECLARATION_SECTION)
+  })
+
+  it('declares the endpoints the deployment configured', async () => {
+    const { ctx } = await install({ cnlawSearchUrl: 'http://10.0.0.8:9100', cnlawGraphUrl: 'http://10.0.0.8:9101' })
+    const text = declarationText(await ctx.systemPrompt.assemble())
+    expect(text).toContain('http://10.0.0.8:9100')
+    expect(text).toContain('http://10.0.0.8:9101')
+  })
+
+  it('declares the absence of the base when the deployment disables it', async () => {
+    // A disabled base must name no endpoint at all, and must say what to verify
+    // through instead, so the model does not probe a service that is not there.
+    const { ctx } = await install({ cnlawEnabled: false })
+    const text = declarationText(await ctx.systemPrompt.assemble())
+    expect(text).toContain('cnlawEnabled=false')
+    expect(text).toContain('patent_case_search')
+    expect(text).not.toContain('127.0.0.1')
+  })
 })
+
+/** The names of the sections one assembly carries. */
+function sectionNames(assembly: { sections: Array<{ name: string }> }): string[] {
+  return assembly.sections.map(section => section.name)
+}
+
+/** The declaration section's text in one assembly, or `''` while it is absent. */
+function declarationText(assembly: { sections: Array<{ name: string; text: string }> }): string {
+  return assembly.sections.find(section => section.name === Pkg.CNLAW_DECLARATION_SECTION)?.text ?? ''
+}

@@ -108,7 +108,7 @@ describe('doc-template real Loader composition through cordis.yml', () => {
     const result = await execute(ctx, 'render_doc_template', { template: 'search-report', variables: SEARCH_REPORT_VARIABLES })
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
-    expect(textOf(result)).toContain('> ⚠️ 本分析由 AI 辅助生成')
+    expect(textOf(result)).toContain('> ⚠️ 本文书由 AI 辅助生成')
     expect(textOf(result)).toContain('**机构：** 某所')
   }, 30_000)
 

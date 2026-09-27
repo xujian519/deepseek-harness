@@ -6,7 +6,7 @@
  * @module @deepseek-ai/dsh-pwsh-sandbox/helpers
  */
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- pwsh-sandbox mirrors bash-sandbox classification helpers by design. */
 import { accessSync, constants, statSync } from 'node:fs'
 import type { ShellRunResult } from '@deepseek-ai/dsh-shell'
 import type { RunnerFailureRule } from '@deepseek-ai/dsh-sandbox'

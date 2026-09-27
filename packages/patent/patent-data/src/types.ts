@@ -74,6 +74,8 @@ export interface EgoRunOptions {
 export interface EgoSessionOptions {
   /** CLI command name (default "ego-browser"). */
   commandName?: string
+  /** Connection-probe timeout in milliseconds (default 8_000). */
+  probeTimeoutMs?: number
   /** Default run timeout in milliseconds (default 90_000). */
   defaultTimeoutMs?: number
   /** Hard cap for per-run timeoutMs (default 300_000). */

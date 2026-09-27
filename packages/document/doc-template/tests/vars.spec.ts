@@ -25,9 +25,6 @@ function templateOf(body: string, definitions: readonly VarDefinition[] = []): D
     useWhen: '',
     supportedFormats: ['markdown'],
     varSchema: createVarSchema(definitions),
-    changelog: [],
-    sharedVars: [],
-    extends: [],
     filePath: 't.md',
     body,
   }
@@ -106,11 +103,19 @@ describe('extractPlaceholders', () => {
   it('returns each distinct placeholder once, in first-occurrence order', () => {
     expect(extractPlaceholders('{{a}} {{b}} {{a}}')).toEqual(['a', 'b'])
     expect(extractPlaceholders('no placeholders')).toEqual([])
-    expect(extractPlaceholders('{{a}} {{ not_a_placeholder }} {{ }} {{a-b}}')).toEqual(['a'])
   })
 
   it('reads a placeholder with no name characters as no placeholder', () => {
     expect(extractPlaceholders('{{}}')).toEqual([])
+  })
+
+  it('reports non-ASCII and hyphenated placeholders that the substitution regex misses', () => {
+    expect(extractPlaceholders('{{机构名称}}')).toEqual(['机构名称'])
+    expect(extractPlaceholders('{{doc-no}}')).toEqual(['doc-no'])
+  })
+
+  it('reports placeholders with spaces, which the substitution regex misses', () => {
+    expect(extractPlaceholders('{{ not_a_placeholder }}')).toEqual([' not_a_placeholder '])
   })
 })
 

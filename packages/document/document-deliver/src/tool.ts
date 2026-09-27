@@ -110,12 +110,14 @@ export interface DocumentDeliverDeps {
   readonly maxCheckBytes: number
   /** Fraction of a declared character budget a document may deviate by (Config `lengthTolerance`). */
   readonly lengthTolerance: number
+  /** Findings kept per check before the rest are summarized into one line (Config `maxFindingsPerCheck`). */
+  readonly maxFindingsPerCheck: number
   /** Budgets the DOCX archive read must stay within (Config `maxArchiveEntries` / `maxUncompressedBytes`). */
   readonly docxReadLimits: ZipReadLimits
 }
 
-/** Read and tolerance budgets one check run applies, resolved from the deployment's `Config`. */
-export type DeliverableCheckLimits = Pick<DocumentDeliverDeps, 'maxCheckBytes' | 'lengthTolerance' | 'docxReadLimits'>
+/** Read, tolerance, and report budgets one check run applies, resolved from the deployment's `Config`. */
+export type DeliverableCheckLimits = Pick<DocumentDeliverDeps, 'maxCheckBytes' | 'lengthTolerance' | 'maxFindingsPerCheck' | 'docxReadLimits'>
 
 /** The style a registration resolves to, or a fail-loud error naming the loaded set. */
 function resolveStyle(deps: DocumentDeliverDeps, spec: DocumentDeliverSpec): DocumentStyle {
@@ -241,7 +243,12 @@ async function checkDeliverable(
   style: DocumentStyle, charBudget: number | undefined, limits: DeliverableCheckLimits,
 ): Promise<DeliverableCheckReport> {
   const base = { path: file.path, format: file.format }
-  const options = { style, lengthTolerance: limits.lengthTolerance, ...charBudget === undefined ? {} : { charBudget } }
+  const options = {
+    style,
+    lengthTolerance: limits.lengthTolerance,
+    maxFindingsPerCheck: limits.maxFindingsPerCheck,
+    ...charBudget === undefined ? {} : { charBudget },
+  }
   if (!TEXT_FORMATS.includes(file.format) && file.format !== 'docx') {
     return { ...base, status: 'unchecked', reason: `${file.format} 格式没有文本读取器`, findings: [] }
   }
@@ -390,6 +397,7 @@ export function createDocumentDeliverTool(ctx: Context, deps: DocumentDeliverDep
   const limits: DeliverableCheckLimits = {
     maxCheckBytes: deps.maxCheckBytes,
     lengthTolerance: deps.lengthTolerance,
+    maxFindingsPerCheck: deps.maxFindingsPerCheck,
     docxReadLimits: deps.docxReadLimits,
   }
   return defineTool({

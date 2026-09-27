@@ -12,7 +12,6 @@ import { loadStyles, stylesDirectory, type DocumentStyle } from '@deepseek-ai/ds
 import { templatesDirectory } from '../src/asset-location.ts'
 import { RendererRegistry } from '../src/renderer-registry.ts'
 import { createTemplateStore, type TemplateStoreOptions } from '../src/store.ts'
-import { DocTemplateError } from '../src/types.ts'
 
 let roots: string[] = []
 
@@ -201,59 +200,6 @@ describe('TemplateStore listing and lookup', () => {
   })
 })
 
-describe('TemplateStore.mergeVarContext', () => {
-  const store = storeOf()
-
-  it('merges the variable spaces, keeping the last definition of a shared variable', async () => {
-    const root = await tempDir()
-    await writeTemplate(root, 'a.md', [
-      'name: a',
-      'vars:',
-      '  - name: shared',
-      '    type: number',
-      '    description: 来自 a',
-      '  - name: only_a',
-      '    description: 仅 a',
-      'shared_vars:',
-      '  - external',
-      '',
-    ].join('\n'))
-    await writeTemplate(root, 'b.md', [
-      'name: b',
-      'vars:',
-      '  - name: shared',
-      '    type: string',
-      '    description: 来自 b',
-      '',
-    ].join('\n'))
-    const scoped = createTemplateStore(storeOptions({ templateDirs: [root] }))
-    const context = scoped.mergeVarContext(['a', 'b'])
-    expect(context.templates.map(template => template.name)).toEqual(['a', 'b'])
-    expect(context.sharedVars).toEqual(['shared'])
-    expect(context.allVars.map(definition => definition.description)).toEqual(['来自 b', '仅 a'])
-    expect(context.allVars.map(definition => definition.name)).toEqual(['shared', 'only_a'])
-  })
-
-  it('counts a shared variable the template does not declare as its own', async () => {
-    const root = await tempDir()
-    await writeTemplate(root, 'a.md', 'name: a\nvars:\n  - name: x\n\nshared_vars:\n  - y\n')
-    await writeTemplate(root, 'b.md', 'name: b\nvars:\n  - name: y\n')
-    await writeTemplate(root, 'c.md', 'name: c\nvars:\n  - name: x\n\nshared_vars:\n  - x\n')
-    const scoped = createTemplateStore(storeOptions({ templateDirs: [root] }))
-    expect(scoped.mergeVarContext(['a', 'b']).sharedVars).toEqual(['y'])
-    expect(scoped.mergeVarContext(['a']).sharedVars).toEqual([])
-    expect(scoped.mergeVarContext(['a']).allVars.map(definition => definition.name)).toEqual(['x'])
-    // A shared_vars entry the same template already declares is not counted twice.
-    expect(scoped.mergeVarContext(['c']).sharedVars).toEqual([])
-    expect(scoped.mergeVarContext(['a', 'c']).sharedVars).toEqual(['x'])
-  })
-
-  it('fails loud on an unknown template name', () => {
-    expect(() => store.mergeVarContext(['nope'])).toThrow(DocTemplateError)
-    expect(() => store.mergeVarContext(['nope'])).toThrow(/未找到模板 "nope"/)
-  })
-})
-
 describe('TemplateStore.render', () => {
   it('renders a Markdown document with the template title and the style disclaimer', () => {
     const outcome = storeOf().render({ template: 'search-report', variables: SEARCH_REPORT_VARIABLES })
@@ -262,12 +208,21 @@ describe('TemplateStore.render', () => {
     expect(outcome.mimeType).toBe('text/markdown')
     expect(outcome.encoding).toBe('utf8')
     // The upstream renderer writes the disclaimer first and keeps the body's own heading.
-    expect(outcome.content.startsWith('> ⚠️ 本分析由 AI 辅助生成，不构成正式法律意见。')).toBe(true)
+    expect(outcome.content.startsWith('> ⚠️ 本文书由 AI 辅助生成，需经专利代理人审阅修改后方可提交。')).toBe(true)
     expect(outcome.content).toContain('\n\n---\n\n# 专利检索报告')
     expect(outcome.markdown).toContain('**机构：** 某所')
     // doc_no and case_no have no default, so they stay as residual placeholders.
     expect(outcome.residual).toEqual(['doc_no', 'case_no'])
     expect(outcome.warnings).toEqual([])
+  })
+
+  it('reports placeholders the substitution pattern cannot fill under residual', async () => {
+    // Substitution matches `{{word}}` only; a non-ASCII, hyphenated, or spaced
+    // placeholder survives it and must still be reported to the model.
+    const root = await tempDir()
+    await writeTemplate(root, 'a.md', 'name: a\nvars:\n  - name: filled\n    description: 变量\n', '正文 {{filled}} 与 {{机构名称}}、{{doc-no}}。\n')
+    const outcome = storeOf({ templateDirs: [root] }).render({ template: 'a', variables: { filled: '值' } })
+    expect(outcome.residual).toEqual(['机构名称', 'doc-no'])
   })
 
   it('renders HTML with the escaped variables, the author metadata, and the patent stylesheet', () => {

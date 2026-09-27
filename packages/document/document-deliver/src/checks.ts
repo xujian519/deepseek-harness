@@ -63,6 +63,12 @@ export interface DocumentTextCheckOptions {
    * supplies its configured value.
    */
   readonly lengthTolerance?: number
+  /**
+   * Findings kept per check before the rest are summarized into one line.
+   * Defaults to {@link DEFAULT_MAX_FINDINGS_PER_CHECK}; `document_deliver`
+   * always supplies its configured value.
+   */
+  readonly maxFindingsPerCheck?: number
 }
 
 /** One finding before {@link report} attributes it to a check. */
@@ -75,8 +81,8 @@ interface DraftFinding {
   readonly line: number
 }
 
-/** Findings kept per check before the rest are summarized into one line. */
-const MAX_FINDINGS_PER_CHECK = 5
+/** Findings kept per check before the rest are summarized into one line; the shipped quality gate's default cap. */
+export const DEFAULT_MAX_FINDINGS_PER_CHECK = 5
 
 /** Tolerance the shipped quality gate applies to a declared character budget. */
 export const DEFAULT_LENGTH_TOLERANCE = 0.2
@@ -293,8 +299,9 @@ function declaredAnchors(text: string, fences: readonly TextRange[], headings: r
  */
 function report(
   into: DocumentCheckFinding[], check: DocumentCheckId, level: DocumentCheckLevel, drafts: readonly DraftFinding[],
+  maxFindings: number,
 ): void {
-  for (const draft of drafts.slice(0, MAX_FINDINGS_PER_CHECK)) {
+  for (const draft of drafts.slice(0, maxFindings)) {
     into.push({
       check,
       level: draft.level ?? level,
@@ -302,8 +309,8 @@ function report(
       ...draft.line === 0 ? {} : { line: draft.line },
     })
   }
-  if (drafts.length > MAX_FINDINGS_PER_CHECK) {
-    const dropped = drafts.slice(MAX_FINDINGS_PER_CHECK)
+  if (drafts.length > maxFindings) {
+    const dropped = drafts.slice(maxFindings)
     into.push({
       check,
       level: dropped.some(draft => (draft.level ?? level) === 'block') ? 'block' : 'warn',
@@ -409,12 +416,13 @@ export function checkDocumentText(text: string, options: DocumentTextCheckOption
   const fences = fenceRanges(text)
   const headings = headingSpans(text, fences)
   const findings: DocumentCheckFinding[] = []
-  report(findings, 'placeholder', 'block', placeholderDrafts(text, starts, quotedRanges(text)))
-  report(findings, 'broken_anchor', 'warn', anchorDrafts(text, starts, fences, headings))
-  report(findings, 'empty_section', 'warn', emptySectionDrafts(text, starts, headings))
-  report(findings, 'anti_pattern', 'warn', antiPatternDrafts(text, starts, options.style?.sections.antiPatterns ?? []))
+  const maxFindings = options.maxFindingsPerCheck ?? DEFAULT_MAX_FINDINGS_PER_CHECK
+  report(findings, 'placeholder', 'block', placeholderDrafts(text, starts, quotedRanges(text)), maxFindings)
+  report(findings, 'broken_anchor', 'warn', anchorDrafts(text, starts, fences, headings), maxFindings)
+  report(findings, 'empty_section', 'warn', emptySectionDrafts(text, starts, headings), maxFindings)
+  report(findings, 'anti_pattern', 'warn', antiPatternDrafts(text, starts, options.style?.sections.antiPatterns ?? []), maxFindings)
   if (options.charBudget !== undefined) {
-    report(findings, 'length_budget', 'warn', budgetDrafts(text, options.charBudget, options.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE))
+    report(findings, 'length_budget', 'warn', budgetDrafts(text, options.charBudget, options.lengthTolerance ?? DEFAULT_LENGTH_TOLERANCE), maxFindings)
   }
   return findings
 }

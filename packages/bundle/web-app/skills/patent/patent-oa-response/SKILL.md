@@ -32,4 +32,4 @@ description: 审查意见答复：通知书确定性解析（驳回类型/引用
 
 ## 质量门禁与人工确认
 
-答复策略、修改范围与是否放弃答复先 ask_user 确认再起草；结论附免责声明；交付前经 patent-quality-gate。
+答复策略、修改范围与是否放弃答复先 ask_user_question 确认再起草；结论附免责声明；交付前经 patent-quality-gate。

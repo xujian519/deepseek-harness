@@ -15,6 +15,7 @@ describe('@deepseek-ai/dsh-doc-style package surface', () => {
     expect(Pkg.DISCLAIMER_CATEGORY_KEYS).toEqual({
       specification: 'patent_drafting',
       claims: 'patent_drafting',
+      'patent-report': 'patent_drafting',
       'oa-response': 'patent_analysis',
       disclosure: 'patent_analysis',
     })

@@ -11,6 +11,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { loadLawBaselines } from './baseline.ts'
+import {
+  CNLAW_DECLARATION_SECTION,
+  CNLAW_DECLARATION_SECTION_ORDER,
+  DEFAULT_CNLAW_GRAPH_URL,
+  DEFAULT_CNLAW_SEARCH_URL,
+  renderCnlawDeclaration,
+} from './cnlaw-declaration.ts'
 import { createLawVerifyTool } from './tool/law-verify.ts'
 import { DEFAULT_CITATION_POLICY } from './verify.ts'
 import type { CitationPolicy, CitationPolicySet } from './types.ts'
@@ -26,6 +33,14 @@ export {
   parseLawBaseline,
 } from './baseline.ts'
 export { lawBaselineDir, LAW_FILE_NAMES, listLawFiles } from './asset-location.ts'
+export {
+  CNLAW_DECLARATION_SECTION,
+  CNLAW_DECLARATION_SECTION_ORDER,
+  DEFAULT_CNLAW_GRAPH_URL,
+  DEFAULT_CNLAW_SEARCH_URL,
+  renderCnlawDeclaration,
+  type CnlawDeclaration,
+} from './cnlaw-declaration.ts'
 export {
   extractLawReferences,
   formatCnNumber,
@@ -76,6 +91,12 @@ export const inject = ['tools']
 export interface Config {
   /** Directory holding the law-index YAML files; defaults to the packaged index. */
   baselineDir?: string
+  /** Whether this deployment runs the local cnlaw legal base. Defaults to `true`. */
+  cnlawEnabled: boolean
+  /** Semantic-search endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8100`. */
+  cnlawSearchUrl: string
+  /** Graph/case endpoint of the local cnlaw base; defaults to `http://127.0.0.1:8001`. */
+  cnlawGraphUrl: string
   /** Treatment of a citation whose proposition a verified article does not support. */
   onMismatch: CitationPolicy
   /** Treatment of a citation beyond a verified article ceiling. */
@@ -86,9 +107,12 @@ export interface Config {
   onUnverified: CitationPolicy
 }
 
-/** Schemastery configuration: index override and the per-decision citation policy. */
+/** Schemastery configuration: index override, the declared cnlaw base, and the per-decision citation policy. */
 export const Config: z<Config> = z.object({
   baselineDir: z.string(),
+  cnlawEnabled: z.boolean().default(true),
+  cnlawSearchUrl: z.string().default(DEFAULT_CNLAW_SEARCH_URL),
+  cnlawGraphUrl: z.string().default(DEFAULT_CNLAW_GRAPH_URL),
   onMismatch: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.mismatch),
   onOutOfRange: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.outOfRange),
   onNotIndexed: z.union(['block', 'warn', 'allow'] as const).default(DEFAULT_CITATION_POLICY.notIndexed),
@@ -96,9 +120,10 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Register the law_verify tool over the configured law index.
+ * Register the law_verify tool over the configured law index, and declare the
+ * deployment's cnlaw legal base where a prompt registry is mounted.
  * @param ctx - registrant context carrying the tool registry.
- * @param config - index override and the per-decision citation policy.
+ * @param config - index override, the cnlaw base endpoints, and the per-decision citation policy.
  */
 export function apply(ctx: Context, config: Config): void {
   const baselines = loadLawBaselines(config.baselineDir)
@@ -110,4 +135,17 @@ export function apply(ctx: Context, config: Config): void {
     unverified: config.onUnverified,
   }
   ctx.tools.register(createLawVerifyTool({ baselines, policies }))
+  // Optional injection: without a prompt registry there is no model to declare
+  // the base to, and the tool stands on its own.
+  ctx.inject(['systemPrompt'], (scope) => {
+    scope.systemPrompt.section({
+      name: CNLAW_DECLARATION_SECTION,
+      order: CNLAW_DECLARATION_SECTION_ORDER,
+      text: renderCnlawDeclaration({
+        enabled: config.cnlawEnabled,
+        searchUrl: config.cnlawSearchUrl,
+        graphUrl: config.cnlawGraphUrl,
+      }),
+    })
+  })
 }

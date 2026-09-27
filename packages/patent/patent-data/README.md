@@ -28,21 +28,29 @@ Builds a nuo-backed `StageProvider` whose `search(query, { maxResults })` maps s
 
 ### createEgoSession(options?)
 
-Builds an `EgoBrowserSession` over the injected `ctx.subprocess`. The runner checks ego-browser availability, probes the connection, names session-scoped task spaces, and runs scripts verbatim through stdin (the subprocess seam's batch stdin replaces the single-quoted heredoc, so script content is never shell-expanded). `options.runner` overrides the subprocess-backed default.
+Builds an `EgoBrowserSession` over the injected `ctx.subprocess`. The runner checks ego-browser availability, probes the connection, names session-scoped task spaces, and runs scripts verbatim through stdin (the subprocess seam's batch stdin replaces the single-quoted heredoc, so script content is never shell-expanded). `options.runner` overrides the subprocess-backed default, and the deployment's `Config` supplies the command name, the probe and run deadlines, and the output cap; a per-call option overrides each of those.
 
 ## Configuration
 
-The service has no cordis.yml `Config` schema; both methods take per-call options.
+cordis.yml `Config` declares the ego-browser values a deployment varies; a per-call option overrides the same-named field.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `commandName` | `ego-browser` | CLI command name. |
+| `probeTimeoutMs` | `8000` | Connection-probe timeout in milliseconds. |
+| `defaultTimeoutMs` | `90000` | Default run timeout in milliseconds. |
+| `maxTimeoutMs` | `300000` | Hard cap for a per-run timeout. |
+| `maxOutputBytes` | `500000` | Soft cap in bytes for the merged output. |
+
+The remaining options are per-call only: they are test seams or values this service cannot know.
 
 | Method | Key | Default | Meaning |
 | --- | --- | --- | --- |
 | `createSearchProvider` | `search` | LRU-cached nuo `searchPatents` | Underlying search function injection. |
-| `createEgoSession` | `commandName` | `ego-browser` | CLI command name. |
-| `createEgoSession` | `defaultTimeoutMs` | `90000` | Default run timeout in milliseconds. |
-| `createEgoSession` | `maxTimeoutMs` | `300000` | Hard cap for per-run timeout. |
 | `createEgoSession` | `homeDir` | `os.homedir()` | Home directory locating `~/.local/bin`. |
 | `createEgoSession` | `pathEntries` | `[<home>/.local/bin]` | Extra PATH directories injected into the spawn env. |
-| `createEgoSession` | `maxOutputBytes` | `500000` | Soft cap in bytes for the merged output. |
+| `createEgoSession` | `platform` | `process.platform` | Platform override. |
+| `createEgoSession` | `env` | `process.env` | Environment override. |
 | `createEgoSession` | `runner` | subprocess-backed runner | Spawn runner injection for tests. |
 
 ## Model Experience

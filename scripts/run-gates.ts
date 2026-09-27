@@ -28,8 +28,6 @@ export type Mode =
   | 'ci-lint-contracts-ready'
   | 'ci-coverage'
   | 'ci-bench'
-  | 'ci-snapshot'
-  | 'ci-artifacts'
   | 'ci-consumers'
   | 'ci-windows-blocking'
   | 'ci-windows-complete'
@@ -142,8 +140,6 @@ function parseMode(raw: string | undefined): Mode {
     case 'ci-lint-contracts-ready':
     case 'ci-coverage':
     case 'ci-bench':
-    case 'ci-snapshot':
-    case 'ci-artifacts':
     case 'ci-consumers':
     case 'ci-windows-blocking':
     case 'ci-windows-complete':
@@ -156,7 +152,7 @@ function parseMode(raw: string | undefined): Mode {
       return raw
     default:
       throw new Error(
-        `run-gates: expected mode ci-primary | ci-linux-primary | ci-static | ci-lint-contracts-ready | ci-coverage | ci-bench | ci-snapshot | ci-artifacts | ci-consumers | ci-windows-blocking | ci-windows-complete | ci-windows-observational-ready | node-compat | check-all | hygiene | doc-sync | doc-quick, got ${JSON.stringify(raw)}.`,
+        `run-gates: expected mode ci-primary | ci-linux-primary | ci-static | ci-lint-contracts-ready | ci-coverage | ci-bench | ci-consumers | ci-windows-blocking | ci-windows-complete | ci-windows-observational-ready | node-compat | check-all | hygiene | doc-sync | doc-quick, got ${JSON.stringify(raw)}.`,
       )
   }
 }
@@ -283,10 +279,6 @@ export function gatesForMode(selected: Mode): Gate[] {
       return coverageGates()
     case 'ci-bench':
       return [pnpmScript('bench', 'test:bench', { label: 'performance benchmarks' })]
-    case 'ci-snapshot':
-      return [ciBuildGate(), snapshotGate()]
-    case 'ci-artifacts':
-      return ciArtifactGates()
     case 'ci-consumers':
       return ciConsumerGates()
     case 'ci-windows-blocking':
@@ -493,19 +485,6 @@ function ciStaticGates(options: { ownsBuild: boolean }): Gate[] {
       docsBuildScript: 'docs:build:mpa',
     }),
     pnpmScript('module-graph', 'verify-module-graph', { label: 'module graph' }),
-  ]
-}
-
-function ciArtifactGates(): Gate[] {
-  return [
-    ciBuildGate(),
-    pnpmScript('publint', 'publint', { needs: ['build'] }),
-    pnpmScript('node-next-types', 'verify-node-next-types', {
-      label: 'node-next types',
-      needs: ['build'],
-    }),
-    builtPackageInvariantsGate(['build']),
-    builtBinSmokeGate(),
   ]
 }
 
@@ -841,6 +820,8 @@ function docSyncLeafGates(options: {
     }),
     pnpmScript('package-readme-limitations', 'verify-package-readme-limitations', { label: 'package README limitations', quick: true }),
     pnpmScript('agent-preset-config', 'verify-agent-preset-config', { label: 'agent preset config', quick: true }),
+    pnpmScript('preset-tool-refs', 'verify-preset-tool-refs', { label: 'preset tool references', quick: true }),
+    pnpmScript('preset-divergence', 'verify-preset-divergence', { label: 'preset divergence baseline', quick: true }),
     pnpmScript('patent-team-roster', 'verify-patent-team-roster', { label: 'patent team roster', quick: true }),
   ]
 }

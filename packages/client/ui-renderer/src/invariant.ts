@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-client-ui-renderer/invariant
  */
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- invariant companion template shares the same structure across packages. */
 /* oxlint-disable typescript/no-redundant-type-constituents --
  * `keyof SlotMap & string` is the declaration-merge key pattern: SlotMap is
  * empty in this compilation unit but consumers merge concrete keys into it. */

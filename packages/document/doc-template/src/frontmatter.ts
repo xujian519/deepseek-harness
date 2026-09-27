@@ -5,7 +5,10 @@
  * A template asset is a file boundary, so a field the model depends on is
  * validated here and a defect fails the load. The upstream loader silently
  * dropped an unknown format name; this rewrite rejects it, because a dropped
- * format removes a render target the asset asked for.
+ * format removes a render target the asset asked for. The upstream composition
+ * and history fields (`extends`, `shared_vars`, `changelog`) are not carried:
+ * nothing composes or projects templates, so an asset carrying them parses with
+ * those keys ignored.
  * @module @deepseek-ai/dsh-doc-template/frontmatter
  */
 
@@ -18,7 +21,6 @@ import {
   VAR_TYPES,
   type DocTemplate,
   type OutputFormat,
-  type TemplateChange,
   type VarDefinition,
   type VarType,
 } from './types.ts'
@@ -104,19 +106,6 @@ function readFlag(value: unknown, label: string): boolean {
 }
 
 /**
- * Read one optional list of non-blank strings; an absent field is empty.
- * @param value - the raw value.
- * @param label - field path for the error message.
- * @returns the texts in asset order.
- * @throws DocTemplateError when the value is present and not a list of non-blank strings.
- */
-function readTextList(value: unknown, label: string): readonly string[] {
-  if (value === undefined || value === null) return []
-  if (!Array.isArray(value)) throw new DocTemplateError('asset-invalid', `模板元数据 ${label} 必须是字符串数组。`)
-  return value.map(entry => requireText(entry, label))
-}
-
-/**
  * Read the declared output formats. A template that declares none, or declares
  * an empty list, supports the fallback format only.
  * @param value - the raw `formats` value.
@@ -184,28 +173,6 @@ function parseVars(value: unknown, filePath: string): readonly VarDefinition[] {
 }
 
 /**
- * Read the change history.
- * @param value - the raw `changelog` value.
- * @param filePath - template path for error messages.
- * @returns the entries in asset order.
- * @throws DocTemplateError when an entry is missing a field.
- */
-function parseChangelog(value: unknown, filePath: string): readonly TemplateChange[] {
-  const label = `${filePath}: changelog`
-  if (value === undefined || value === null) return []
-  if (!Array.isArray(value)) throw new DocTemplateError('asset-invalid', `${label} 必须是数组。`)
-  return value.map((entry, index) => {
-    const entryLabel = `${label}[${String(index)}]`
-    if (!isRecord(entry)) throw new DocTemplateError('asset-invalid', `${entryLabel} 必须是对象。`)
-    return {
-      version: requireText(entry['version'], `${entryLabel}.version`),
-      date: requireText(entry['date'], `${entryLabel}.date`),
-      description: requireText(entry['description'], `${entryLabel}.description`),
-    }
-  })
-}
-
-/**
  * Parse one template asset. Newlines are normalized first, so a CRLF checkout
  * parses identically to an LF one, as upstream.
  * @param source - the asset text.
@@ -232,9 +199,6 @@ export function parseTemplate(source: string, filePath: string): DocTemplate {
     useWhen: readText(raw['use_when'], `${filePath}: use_when`),
     supportedFormats: parseFormats(raw['formats'], filePath),
     varSchema: createVarSchema(parseVars(raw['vars'], filePath)),
-    changelog: parseChangelog(raw['changelog'], filePath),
-    sharedVars: readTextList(raw['shared_vars'], `${filePath}: shared_vars`),
-    extends: readTextList(raw['extends'], `${filePath}: extends`),
     filePath,
     body: body.trim(),
   }

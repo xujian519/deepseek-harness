@@ -2,7 +2,7 @@
 // 声明的格式有渲染器、声明的变量名是 {{snake_case}} 且真的出现在正文里。
 
 import { describe, expect, it } from 'vitest'
-import { findStyleByName, loadStyles, stylesDirectory } from '@deepseek-ai/dsh-doc-style'
+import { findStyleByName, loadStyles, stylesDirectory, DISCLAIMER_CATEGORY_KEYS } from '@deepseek-ai/dsh-doc-style'
 import { templatesDirectory } from '../src/asset-location.ts'
 import { loadTemplateDirectory } from '../src/loader.ts'
 import { createRendererRegistry } from '../src/renderer-registry.ts'
@@ -52,6 +52,18 @@ describe('shipped template assets', () => {
     expect(categoriesOf('patent-report').every(name => TEMPLATES.find(template => template.name === name)?.styleName === 'patent-standard')).toBe(true)
   })
 
+  it('maps every styled template category to a disclaimer its style declares', () => {
+    // A category absent from the map falls back to the domain disclaimer, so
+    // every shipped category needs its own entry naming a declared disclaimer.
+    for (const template of TEMPLATES) {
+      if (template.styleName === '') continue
+      const style = findStyleByName(STYLES, template.styleName)
+      const key = DISCLAIMER_CATEGORY_KEYS[template.category]
+      expect(key, `${template.name} (${template.category})`).toBeDefined()
+      expect(style?.sections.disclaimers.get(key ?? ''), template.name).toBeDefined()
+    }
+  })
+
   it('declares only formats a renderer produces', () => {
     for (const template of TEMPLATES) {
       expect(template.supportedFormats.length).toBeGreaterThan(0)
@@ -75,14 +87,6 @@ describe('shipped template assets', () => {
         expect(definition.name).toMatch(/^[a-z][a-z0-9_]*$/u)
         expect(template.body).toContain(`{{${definition.name}}}`)
       }
-    }
-  })
-
-  it('keeps the upstream shared-variable and changelog sections empty for this batch', () => {
-    for (const template of TEMPLATES) {
-      expect(template.sharedVars).toEqual([])
-      expect(template.extends).toEqual([])
-      expect(template.changelog).toEqual([])
     }
   })
 })

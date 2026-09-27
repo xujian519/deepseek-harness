@@ -33,7 +33,8 @@ description: 专利作业工作目录与文档组织约定：一个案子一个�
 
 | 依赖 | 用途 | 检查方式 |
 |---|---|---|
-| cnlaw 服务（`:8100` 检索 / `:8001` 图谱与案件链 + Neo4j 7687） | 法条/审查指南/判例核验、创造性四步证据包、案件决策链 | MCP 工具 `mcp__cnlaw__*` 能调用即就绪；不可用时退回 `patent_case_search` / `patent_kg_query` 并说明 |
+| cnlaw 法律底座（端点与启用状态以系统提示的 cnlaw 声明段为准） | 法条/审查指南/判例核验、创造性四步证据包、案件决策链 | 声明段给出端点即就绪（`mcp__cnlaw__*` 优先）；声明为未启用或端点不可达时退回 `patent_case_search` / `patent_kg_query` 并说明 |
+| 用户级检索技能（`~/.agents/skills/` 下的 cnipr-search-download / cnipa-query / google-patents-search） | CN 全文与法律状态、官方法律状态、外国/全球检索通道 | 在 `~/.agents/skills/` 下可见即就绪；缺失时按 patent-prior-art-search 的随包通道退档（`patent_search` / `patent_metadata` / `web_search`）并在检索报告写明 |
 | ego-browser（ego lite，PATH 上） | CNIPR/CNIPA/Google Patents 检索与登录态复用 | `pnpm` 之外的 CLI 探测；缺失时 `patent_pdf_download` 自动改走页面解析 + HTTP 下载 |
 | FreeCAD 1.1+（本机 `/Applications/FreeCAD.app`，工具按绝对路径探测，无需进 PATH） | 三维模型结构线稿 `generate_structure_figure` | 仅三维模型的案子需要；无三维模型时可忽略 |
 | RDKit 与化学识别引擎 | 化学结构/名称 → SMILES | **本构建未接入该引擎**（RDKit 只是缺失件之一），化学结构的案子一律人工复核，不要依赖 `recognize_chemical_structure` 出 SMILES |

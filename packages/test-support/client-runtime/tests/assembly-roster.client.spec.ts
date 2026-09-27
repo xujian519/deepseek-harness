@@ -25,7 +25,10 @@ describe('graphFromRoster', () => {
 
   it('parses through the production validator to plugin rows that mirror the roster, refusing duplicates and an empty roster', () => {
     const manifest = parseBootManifest(graphFromRoster(ROWS))
-    expect(manifest.plugins).toEqual(ROWS.map(row => ({ id: row.name, inject: [...row.inject], immediately: row.immediately })))
+    // A synthesized roster declares no profile package, so every row is required.
+    expect(manifest.plugins).toEqual(ROWS.map(row => ({
+      id: row.name, inject: [...row.inject], immediately: row.immediately, required: true,
+    })))
     expect(manifest.modules.map(row => row.initialUrl)).toEqual(['plugins/local.js', 'plugins/local.js', 'plugins/local.js'])
     const row = ROWS[1]!
     expect(() => parseBootManifest(graphFromRoster([row, row]))).toThrow('duplicate graph entry "@x/a"')

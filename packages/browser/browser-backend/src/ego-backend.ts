@@ -45,7 +45,7 @@ export type EgoBackendOptions = {
   runConnectionProbe?: () => EgoConnectionProbe
 }
 
-/* jscpd:ignore-start — platform command resolution stays per-domain: patent-data
+/* jscpd:ignore-start -- platform command resolution stays per-domain: patent-data
    carries its own copy of these two helpers. */
 /** File names a command may resolve to on the platform. */
 function commandNames(command: string, platform: NodeJS.Platform): string[] {

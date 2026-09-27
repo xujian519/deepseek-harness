@@ -1,5 +1,5 @@
 ---
-description: "Function plugin checking law citations against the law index shipped with the package: article and guideline-section reference parsing, a per-law index recording each entry's source and verification date, decisions that never report an unverified article as checked, and the law_verify tool."
+description: "Function plugin checking law citations against the law index shipped with the package: article and guideline-section reference parsing, a per-law index recording each entry's source and verification date, decisions that never report an unverified article as checked, the law_verify tool, and the model-visible declaration of this deployment's cnlaw legal base."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin checking law citations against the law index shipped with the package: article and guideline-section reference parsing, a per-law index recording each entry's source and verification date, decisions that never report an unverified article as checked, and the law_verify tool.
+Function plugin checking law citations against the law index shipped with the package: article and guideline-section reference parsing, a per-law index recording each entry's source and verification date, decisions that never report an unverified article as checked, the law_verify tool, and the model-visible declaration of this deployment's cnlaw legal base.
 
 ## Table of Contents
 
@@ -79,6 +79,9 @@ Schemastery configuration; `baselineDir` is optional, every policy field default
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | baselineDir | string | packaged assets | Directory holding the law-index YAML files. A missing, empty, or malformed directory fails the plugin load. |
+| cnlawEnabled | boolean | `true` | Whether this deployment runs the local cnlaw legal base. `false` declares no base, so the section names the fallback channels instead of an endpoint. |
+| cnlawSearchUrl | string | `http://127.0.0.1:8100` | Semantic-search endpoint of the cnlaw base, declared to the model. |
+| cnlawGraphUrl | string | `http://127.0.0.1:8001` | Graph/case endpoint of the cnlaw base, declared to the model. |
 | onMismatch | `block` \| `warn` \| `allow` | `block` | Treatment of a citation whose proposition a verified entry does not support. |
 | onOutOfRange | `block` \| `warn` \| `allow` | `block` | Treatment of a citation beyond a verified article ceiling. |
 | onNotIndexed | `block` \| `warn` \| `allow` | `warn` | Treatment of a citation the index does not hold. |
@@ -101,6 +104,20 @@ Fixed definition cost on every request while the tool is enabled; each result is
 
 Append-only; newly visible result prose follows the reusable request prefix and does not invalidate existing KV-cache entries.
 
+### cnlaw declaration section
+
+#### What the model sees
+
+One static section named `patent-law:cnlaw`, ordered with the other patent-domain sections, stating either the declared endpoints — `cnlawSearchUrl` for `/search`, `/search/decisions`, and `/search/judgments`; `cnlawGraphUrl` for the graph, case, and IPC routes — with the `mcp__cnlaw__*` tools named as the channel that supersedes them where a deployment mounts the bridge, or, with `cnlawEnabled=false`, that this deployment has no base and which channels to verify through instead. The persona and the patent skills address the base as this declaration, so no shipped text names a port. The section is registered only where a prompt registry is mounted; the tool works without one.
+
+#### Token effect
+
+Fixed definition cost per request while the plugin is mounted and a prompt registry is present; the text carries no per-turn data.
+
+#### KV Cache effect
+
+Static: the text is computed from Config at plugin load, so it is stable by definition and enters the stable-prefix cache without invalidating existing entries.
+
 ## Known Limitations and Deferred Work
 
 - **The transcribed text is a mechanical copy, not a review.** Each statute entry's `text` is a verbatim copy of the official revised text, so a `valid` verdict means the article exists and the citation's proposition matches the entry's topics — it does not mean a qualified person read the copy back. Re-check the entries a deployment relies on before treating them as reviewed.
@@ -113,6 +130,7 @@ Append-only; newly visible result prose follows the reusable request prefix and 
 - **The guideline index is section-path keyed.** A citation written in a form the normalizer does not reproduce (for example a section nested deeper than the captured tail) lands in `not-indexed` rather than being guessed at.
 - **The automatic gates keep their own tables.** The patent preset mounts this plugin, so the model runs law_verify first; the workflow quality gate's static topic table and `patent-rule`'s citation ceiling still decide on their own. The gate's article numbers now match this index for the two transcribed statutes, but it holds fewer articles and its `unknown` verdict passes a citation it has no row for — 第 69 条 and 第 70 条 among them, which this index reports as `not-indexed`. Delegating remains follow-up work, because the gate decides with a five-verdict vocabulary of its own.
 - **No package invariant is published.** Baseline correctness is a property of the content, and no runtime observation can falsify it independently; the mechanically checkable parts (references parsing, article and section existence, the article ceiling) are checks the gate runs, so they do not meet the invariant bar.
+- **The declaration states what the deployment declares, not what is reachable.** Neither endpoint is probed at load, so a declared but stopped base is discovered when a call fails; the persona's fallback discipline covers that case. A deployment that moves the base without updating `cnlawSearchUrl` / `cnlawGraphUrl` keeps declaring the old endpoint.
 
 ### Dev Note
 

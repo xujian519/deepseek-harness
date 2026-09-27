@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { AntiPattern, DocumentStyle, StyleSections } from '@deepseek-ai/dsh-doc-style'
+import { extractPlaceholders } from '@deepseek-ai/dsh-doc-template'
 import { checkDocumentText, DOCUMENT_CHECK_IDS } from '../src/checks.ts'
 
 /** A style whose sections default to empty, so a test declares only what it exercises. */
@@ -69,6 +70,12 @@ describe('checkDocumentText', () => {
     const findings = checkDocumentText(Array.from({ length: 7 }, () => '{{slot}}').join('\n\n'))
     expect(findings).toHaveLength(6)
     expect(findings[5]).toEqual({ check: 'placeholder', level: 'block', detail: '另有 2 处同类问题未逐条列出' })
+  })
+
+  it('applies a configured per-check cap instead of the default', () => {
+    const findings = checkDocumentText(Array.from({ length: 7 }, () => '{{slot}}').join('\n\n'), { maxFindingsPerCheck: 2 })
+    expect(findings).toHaveLength(3)
+    expect(findings[2]).toEqual({ check: 'placeholder', level: 'block', detail: '另有 5 处同类问题未逐条列出' })
   })
 
   it('warns about a fragment the document declares no anchor for', () => {
@@ -211,5 +218,17 @@ describe('checkDocumentText', () => {
     expect(checkDocumentText('- 无 "Lorem ipsum" 之类占位\n').filter(finding => finding.level === 'block')).toHaveLength(1)
     expect(checkDocumentText('- 客户名称：{{client_name}}\n').filter(finding => finding.level === 'block')).toHaveLength(1)
     expect(checkDocumentText('- 未填的 `` `{{x}}` `` 与 `{{y}}` 都要替换\n').filter(finding => finding.level === 'block')).toEqual([])
+  })
+
+  it('residual empty implies zero placeholder gate hits (cross-check)', () => {
+    const cases = [
+      '机构：示例代理所\n',
+      '编号：2024-001\n',
+      '标题：报告\n',
+    ]
+    for (const text of cases) {
+      expect(extractPlaceholders(text)).toEqual([])
+      expect(checkDocumentText(text).filter(f => f.check === 'placeholder')).toEqual([])
+    }
   })
 })

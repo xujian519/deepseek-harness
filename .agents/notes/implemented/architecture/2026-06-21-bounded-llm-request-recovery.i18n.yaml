@@ -12,8 +12,8 @@
   en: a15c7c13f167e5ac
   zh: 63bcc2ef60c2f344
 /agent-note-bounded-recovery-for-transient-llm-request-failures/decision/preserve-failure-facts-without-embedding-policy:
-  en: 943322e6cdbfa440
-  zh: 82288531f6194ed2
+  en: 912041ee62d0d62b
+  zh: d7f12393be53b771
 /agent-note-bounded-recovery-for-transient-llm-request-failures/decision/put-retry-policy-on-the-existing-failed-step-extension-point:
   en: ed4d295378d94a26
   zh: 1fee5ef4947bac8f

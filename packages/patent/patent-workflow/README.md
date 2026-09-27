@@ -21,7 +21,7 @@ Service Definition for the patent execution pipeline (`ctx.patentWorkflow`): the
 
 ## Service
 
-The `PatentWorkflow` service exposes the pipeline entry points and re-exports the pure pipeline API (workflow, workflow-dag, workflow-store, flexible-plan, flexible-plan-store, plantask, worker-contract, checker-verdict, approval, output-gate, quality-gate) from this package's root export. `CheckerVerdict` is the structured review-outcome schema for checker-tier workers (`pass`/`needs_revision`/`blocked` + per-issue severity); `parseCheckerVerdict` validates model JSON on that boundary.
+The `PatentWorkflow` service exposes the pipeline entry points and re-exports the pure pipeline API (workflow, workflow-dag, workflow-store, flexible-plan, flexible-plan-store, plantask, worker-contract, checker-verdict) from this package's root export. `CheckerVerdict` is the structured review-outcome schema for checker-tier workers (`pass`/`needs_revision`/`blocked` + per-issue severity); `parseCheckerVerdict` validates model JSON on that boundary.
 
 ### runWorkflow(manifest, ctx, executor?, options?, agent?)
 
@@ -64,7 +64,6 @@ Independent; the pipeline registers no prompt, tool schema, or result of its own
 
 ## Known Limitations and Deferred Work
 
-- **Rule engine injected at runtime (P4.1)** — the output gate's `ruleGate` seam accepts a dsh-patent-rule `RuleOutputGate` structurally but the engine is injected at runtime; there is no compile-time dependency on dsh-patent-rule, and a rule check that requires an engine fails loud when none is injected.
 - **Storage optional via `ctx.get('storage')`** — file products (workflow-run and flexible-plan stores) use the caller-provided `JsonFileStore` backends; the service does not wire the storage-domain seam, so ctx.storage integration is deferred.
 - **Approval fails closed without an answerer** — with no approval service mounted (or no answerer composed), `runPlantask` rejects the plan to replanning instead of auto-approving.
 

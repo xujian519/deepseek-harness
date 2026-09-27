@@ -10,7 +10,6 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SearchStrategy } from '@deepseek-ai/dsh-patent-core'
-import { ABSOLUTE_PHRASES } from '@deepseek-ai/dsh-patent-workflow'
 import { analyzeSlop } from '../internal/slop-engine.ts'
 
 /** Evaluation mode for the patent_eval tool. */
@@ -59,6 +58,13 @@ const REPORT_SECTIONS: Array<{ name: string; pattern: RegExp }> = [
 ]
 
 const PASS_LINE = 0.7
+
+/**
+ * Absolute phrasings the slop penalty counts. These are the terms `PAT-ABS-001`
+ * flags in the rule gate, so `patent-eval`'s score and the gate agree; a test
+ * reads the shipped rule asset and fails when the two lists drift.
+ */
+export const ABSOLUTE_PHRASES: readonly string[] = ['绝对', '一定', '百分百', '毫无疑问', '必然']
 
 const DESCRIPTION = '评估专利相关产出的质量（报告/检索/流程/引用/综合）。返回结构化评分和通过/失败判定。支持 5 种评估模式（report/retrieval/workflow/citations/comprehensive），在提交人工复核前使用可提前发现质量问题。'
 

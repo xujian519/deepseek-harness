@@ -61,17 +61,17 @@ This section explains how the boot kernel is built; observable behavior is cover
 
 ### Design concept
 
-The kernel owns exactly three things: the module system, the Cordis Loader, and the boot page. The Host owns the graph, batch preload, and loader facade, so `AppWebEntry` never knows the bootstrap package id or parses the wire format. The dynamic UI renderer receives the mount point only after every client entry activates.
+The kernel owns exactly three things: the module system, the Cordis Loader, and the boot page. The Host owns the graph, batch preload, and loader facade, so `AppWebEntry` never knows the bootstrap package id or parses the wire format. The dynamic UI renderer receives the mount point only after every required client entry activates.
 
 ### Two-stage boot
 
-`run()` calls the Host-installed `window.__ModuleLoader__.create({ boot, staticModules, ...seams })`; the facade returns the constructed module system and parsed manifest after adopting the parser-loaded bootstrap batch. The module stage prefetches the `immediately` tier through the one shared application-batch URL. The plugin stage mounts the Loader, assigns `loader.internal = modules`, creates every graph entry uniformly, awaits quiescence, then audits activation: any entry that failed import, stayed pending on a missing service, or landed in another non-active state throws one aggregated error naming every failing entry.
+`run()` calls the Host-installed `window.__ModuleLoader__.create({ boot, staticModules, ...seams })`; the facade returns the constructed module system and parsed manifest after adopting the parser-loaded bootstrap batch. The module stage prefetches the `immediately` tier through the one shared application-batch URL. The plugin stage mounts the Loader, assigns `loader.internal = modules`, creates every graph entry uniformly, awaits quiescence, then audits activation: an inactive required entry (failed import, pending on a missing service, or another non-active state) throws one aggregated error naming every inactive entry with its reason and activation error. A row the Host marks `required: false` — the active profile installed that package — only warns, because a plugin half the deployment does not own must not keep the application from starting.
 
 ### Boot page mechanics
 
 The boot page is plain DOM with local CSS whose fallback fonts and colors match the theme tokens that arrive during loading. `internal/status` events drive one spinner node and per-entry labels; hydration preserves the node and animation phase through the application commit, and `fail()` renders the thrown reason. React mounting, slot rendering, and assembly live in `ui-renderer`; `ui-layout` owns the assembled browser-title projection.
 
-The boot kernel delegates manifest entry creation to Client Modules so live graph synchronization owns the same entry identities after startup. The initial activation audit remains strict; later page-local failures appear in Settings → Plugins → Plugin list.
+The boot kernel delegates manifest entry creation to Client Modules so live graph synchronization owns the same entry identities after startup. The initial activation audit blocks startup only on required entries; inactive profile-installed entries and every later page-local failure appear in Settings → Plugins → Plugin list.
 
 ### Source map
 
@@ -79,7 +79,7 @@ The boot kernel delegates manifest entry creation to Client Modules so live grap
 |---|---|
 | [`src/index.ts`](src/index.ts) | Library entry: `AppWebEntry`, `getStaticModules`, platform tables |
 | [`src/boot.ts`](src/boot.ts) | `AppWebEntry`: module stage, boot page, immediate-tier prefetch, window drag-rect watcher install, then `bootClient` + `mountClient` |
-| [`src/boot-client.ts`](src/boot-client.ts) | `bootClient` / `assertEntriesActive`: Loader mount, one entry per manifest row, activation audit |
+| [`src/boot-client.ts`](src/boot-client.ts) | `bootClient` / `auditClientActivation`: Loader mount, one entry per manifest row, activation audit |
 | [`src/mount.ts`](src/mount.ts) | `mountClient`: renderer handoff through a `uiRenderer` dependency fiber |
 | [`src/boot-page.ts`](src/boot-page.ts) | Framework-free boot page: spinner, per-entry status, failure rendering |
 | [`src/platform.ts`](src/platform.ts) | `PLATFORM_MODULES` / `PRELOADED_CLIENT_EXTERNALS`: the implicit external baseline |
@@ -100,6 +100,7 @@ Read these when the boot contract is not enough: the module system it boots, the
 - [UI renderer](../ui-renderer/README.md) — receives the mount point and binds slot data to React.
 - [Client modules subsystem](../../../docs/subsystems/client-modules.md) — the web plugin table, boot graph wire, and bundle route.
 - [Client authoring rules](../AGENTS.md#shared-modules-and-the-module-graph) — the shared-module baseline and `dsh.client.external` semantics.
+- [Required and profile-installed client rows](../../../.agents/notes/implemented/bug-fix/2026-09-27-profile-installed-client-entry-tolerance.md) — why a failed row the active profile installed warns instead of blocking startup.
 - [Client group map](../README.md) — the browser half this package belongs to.
 
 -----
@@ -120,7 +121,7 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define what the boot kernel does not support. They are current package constraints, not a task backlog.
 
-- **The application waits for the full roster** — one failed entry keeps the framework-free boot page visible with a per-entry report; partial UI availability is not supported.
+- **The application waits for the full required roster** — an inactive required entry keeps the framework-free boot page visible with a per-entry report. An inactive row the active profile installed does not block startup; the running application reports it in Settings → Plugins.
 
 <a id="dev-note"></a>
 ### Dev Note

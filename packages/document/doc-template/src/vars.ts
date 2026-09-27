@@ -18,8 +18,11 @@ import {
   type VarSchema as VarSchemaContract,
 } from './types.ts'
 
-/** Placeholder pattern: a variable name of word characters between double braces. */
+/** Placeholder pattern for substitution: a variable name of word characters between double braces. */
 const PLACEHOLDER_PATTERN = /\{\{\w+\}\}/gu
+
+/** Placeholder pattern for extraction: any non-empty content between double braces, matching the quality gate. */
+const EXTRACTION_PATTERN = /\{\{[^{}\n]{1,80}\}\}/gu
 
 /**
  * The constraints of one template's variables, indexed for lookup.
@@ -149,7 +152,7 @@ function typeIssue(definition: VarDefinition, value: string): VarIssue | undefin
 export function extractPlaceholders(body: string): readonly string[] {
   const names: string[] = []
   const seen = new Set<string>()
-  for (const match of body.match(PLACEHOLDER_PATTERN) ?? []) {
+  for (const match of body.match(EXTRACTION_PATTERN) ?? []) {
     const name = match.slice(2, -2)
     if (seen.has(name)) continue
     seen.add(name)

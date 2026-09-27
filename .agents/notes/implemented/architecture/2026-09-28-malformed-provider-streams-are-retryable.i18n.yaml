@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-28-malformed-provider-streams-are-retryable.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-28-malformed-provider-streams-are-retryable.md
+/agent-note-malformed-provider-streams-are-retryable:
+  en: 23b8b515b3ec3e1b
+  zh: b23f6d273bfcef0b
+/agent-note-malformed-provider-streams-are-retryable/problem:
+  en: e4a1005ee5860699
+  zh: 6f3c4f1445c3f700
+/agent-note-malformed-provider-streams-are-retryable/decision:
+  en: 1be9f6695a9ba223
+  zh: d475cb968d01b49e
+/agent-note-malformed-provider-streams-are-retryable/alternatives-considered:
+  en: f8550ffbd645bdda
+  zh: da46d23a5231f07d
+/agent-note-malformed-provider-streams-are-retryable/consequences:
+  en: b64675993624fad2
+  zh: fcfa3d29ed4f9bbd
+/agent-note-malformed-provider-streams-are-retryable/testing:
+  en: b2582ab7f8d3be33
+  zh: e880a4530c3bbe3a

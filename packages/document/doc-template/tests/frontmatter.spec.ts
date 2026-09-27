@@ -66,14 +66,6 @@ describe('parseTemplate', () => {
         '    required: false',
         '    default: "0"',
         '    description: 编号',
-        'changelog:',
-        '  - version: "1.0.0"',
-        '    date: 2026-01-01',
-        '    description: 初版',
-        'shared_vars:',
-        '  - firm_name',
-        'extends:',
-        '  - base',
         '',
       ].join('\n'), '  <p>{{firm_name}}</p>  '),
       '/tmp/search-report.md',
@@ -92,9 +84,6 @@ describe('parseTemplate', () => {
       { name: 'firm_name', type: 'string', required: true, description: '机构名称' },
       { name: 'doc_no', type: 'number', required: false, default: '0', description: '编号' },
     ])
-    expect(template.changelog).toEqual([{ version: '1.0.0', date: '2026-01-01', description: '初版' }])
-    expect(template.sharedVars).toEqual(['firm_name'])
-    expect(template.extends).toEqual(['base'])
     expect(template.filePath).toBe('/tmp/search-report.md')
     expect(template.body).toBe('<p>{{firm_name}}</p>')
   })
@@ -112,9 +101,6 @@ describe('parseTemplate', () => {
       styleName: '',
       useWhen: '',
       supportedFormats: ['markdown'],
-      changelog: [],
-      sharedVars: [],
-      extends: [],
       filePath: 'm.md',
       body: '正文 {{a}}',
     })
@@ -164,20 +150,5 @@ describe('parseTemplate', () => {
     expect(rejects(asset('name: a\nvars:\n  - name: v\n    description: 3\n')).message).toContain('vars[0].description 必须是字符串')
     const declared = parseTemplate(asset('name: a\nvars:\n  - name: v\n    default: ""\n'), 'a.md').varSchema.definitions[0]
     expect(declared).toEqual({ name: 'v', type: 'string', required: false, default: '', description: '' })
-  })
-
-  it('validates the change history', () => {
-    expect(rejects(asset('name: a\nchangelog: x\n')).message).toContain('changelog 必须是数组')
-    expect(rejects(asset('name: a\nchangelog:\n  - x\n')).message).toContain('changelog[0] 必须是对象')
-    expect(rejects(asset('name: a\nchangelog:\n  - date: d\n    description: c\n')).message).toContain('changelog[0].version 必须是非空字符串')
-    expect(rejects(asset('name: a\nchangelog:\n  - version: v\n    description: c\n')).message).toContain('changelog[0].date 必须是非空字符串')
-    expect(rejects(asset('name: a\nchangelog:\n  - version: v\n    date: d\n')).message).toContain('changelog[0].description 必须是非空字符串')
-  })
-
-  it('validates the shared-variable and extension lists', () => {
-    expect(rejects(asset('name: a\nshared_vars: x\n')).message).toContain('shared_vars 必须是字符串数组')
-    expect(rejects(asset('name: a\nextends: x\n')).message).toContain('extends 必须是字符串数组')
-    expect(rejects(asset('name: a\nshared_vars:\n  - ""\n')).message).toContain('shared_vars 必须是非空字符串')
-    expect(parseTemplate(asset('name: a\nextends:\n  - base\n'), 'a.md').extends).toEqual(['base'])
   })
 })

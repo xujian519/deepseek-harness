@@ -1,8 +1,7 @@
 /**
  * Type declarations for the patent workflow package: the durable patent/*
- * session events, the minimal agent/approval seams the plantask runner
- * consumes, the rule-output-gate seam the output gate consumes pre-P4.1, and
- * the message vocabulary the output gate inspects.
+ * session events and the minimal agent/approval seams the plantask runner
+ * consumes.
  * @module @deepseek-ai/dsh-patent-workflow/types
  */
 
@@ -141,33 +140,4 @@ export interface PlantaskRunResult {
   toRun: string[]
   approvalOutcome?: PatentApprovalOutcome
   feedback?: string
-}
-
-/**
- * The rule-engine output-gate seam. Its single home is the protocol tier in
- * dsh-patent-core; this package re-exports it so workflow consumers keep a
- * stable import. The dsh-patent-rule RuleOutputGate (P4.1) implements it; the
- * workflow package holds no compile-time dependency on dsh-patent-rule, so the
- * engine is injected at runtime.
- */
-export type { RuleOutputGate, RuleOutputGateResult } from '@deepseek-ai/dsh-patent-core'
-
-/** A text content block the output gate reads and rewrites. */
-export interface GateTextBlock {
-  type: 'text'
-  text: string
-}
-
-/** A non-text content block the output gate passes through untouched. */
-export interface GateNonTextBlock {
-  type: 'thinking' | 'image' | 'tool_call' | 'tool_result'
-}
-
-/** One message content block as the output gate sees it. */
-export type GateContentBlock = GateTextBlock | GateNonTextBlock
-
-/** One message the output gate inspects (assistant text messages are the gate's subject). */
-export interface GateMessage {
-  role: string
-  content: GateContentBlock[]
 }

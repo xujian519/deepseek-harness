@@ -9,7 +9,7 @@ import type { ClientCordisInspectProviderRegistration } from './inspect-registry
 import { CLIENT_SLOT_API } from './slot-catalog.ts'
 import type { ClientSlotEntry } from './slot-catalog.ts'
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- provider schema constants parallel the host-runner catalog structure. */
 const EMPTY_INPUT = { type: 'object', properties: {}, additionalProperties: false } as const
 const ANY_OUTPUT = { description: 'JSON data owned by this inspect provider.' } as const
 const SERVICE_INPUT = exactInput('service', 'Exact Service key. Omit it for the compact Service and method-signature directory.')
@@ -131,7 +131,7 @@ export function clientInspectProviders(ctx: Context): ClientCordisInspectProvide
   ]
 }
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- registration helper parallels the host-runner provider assembly. */
 function registration(
   id: string,
   description: string,

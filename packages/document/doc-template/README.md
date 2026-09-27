@@ -27,9 +27,9 @@ English | [中文](README.zh.md)
 <a id="template-assets"></a>
 ## Template assets
 
-Seventeen templates ship under `assets/templates/<category>/`, in five categories: `patent-report` (5), `specification` (4), `claims` (3), `oa-response` (3), and `disclosure` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch.
+Seventeen templates ship under `assets/templates/patent/`, in five categories: `patent-report` (5), `specification` (4), `claims` (3), `oa-response` (3), and `disclosure` (2). All of them are Chinese and declare `language: zh-CN`; the legal category of the upstream project is not part of this batch.
 
-Front-matter fields, all read from the upstream template contract:
+Front-matter fields, read from the upstream template contract:
 
 | Field | Meaning |
 | --- | --- |
@@ -44,11 +44,8 @@ Front-matter fields, all read from the upstream template contract:
 | `use_when` | When the template should be used. |
 | `formats` | Supported render formats; absent means Markdown only. |
 | `vars` | Variable definitions, each with `name`, `type`, `required`, `default`, and `description`. |
-| `changelog` | Change history, each entry with `version`, `date`, and `description`. |
-| `shared_vars` | Variables shared with the templates this one is composed with. |
-| `extends` | Template names this template extends. |
 
-A variable's `type` is one of `string`, `multiline`, `number`, or `bool`; an absent type is a single-line string. `language` is the only field this batch added to the upstream assets, and `formats` was written out explicitly where the upstream asset relied on the implicit Markdown-only default.
+A variable's `type` is one of `string`, `multiline`, `number`, or `bool`; an absent type is a single-line string. `language` is the only field this batch added to the upstream assets, and `formats` was written out explicitly where the upstream asset relied on the implicit Markdown-only default. The upstream composition and history fields (`extends`, `shared_vars`, `changelog`) are not carried: nothing composes or projects templates (see the Dev Note).
 
 <a id="list_doc_templates-tool"></a>
 ## list_doc_templates tool
@@ -155,12 +152,11 @@ Append-only; the listing follows the reusable request prefix and does not invali
 - **The injected guide is not per template** — one agent reads one guide, chosen at load; a deployment that composes templates across styles gets the guide of the configured style and the disclaimer of each template's own, which the render path resolves separately.
 - **An empty `styleGuide` leaves the gate unannounced** — [`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.md) refuses a word its style marks `block` whether or not the model was shown the guide, so a deployment that enables the checks and injects no guide can refuse a registration the model had no way to predict. Set `styleGuide` to the style the gate uses.
 - **The shipped templates are Chinese only** — the assets self-describe with `language: zh-CN` and no bilingual twin ships, so a document in another language needs its own template asset.
-- **`mergeVarContext` has no consumer yet** — the merged variable space of several templates is available to a caller that composes them; no shipped tool composes templates. Its `sharedVars` and `allVars` follow first-appearance order, not a sorted one.
 - **`rendererRegistry` has no consumer yet** — the store hands out the registry a consumer would call to add a render format; every shipped format is registered at construction, so nothing reads it.
 - **DOCX bytes travel base64** — a `docx` result carries the package base64-encoded in its `content` field, which is roughly a third larger than the package; the tool text keeps the package out of the transcript.
 
 ### Dev Note
 
-The package is a rewrite of six files of the MIT-licensed Go project Mady: `domains/doctmpl/loader.go`, `vars.go`, `store.go`, `format.go`, `renderer_registry.go`, `renderer_html.go`, `renderer_markdown.go`, and `renderer_docx.go`, plus the twenty-two templates of `domains/doctmpl/templates/` and the twenty of `doc-templates/`. Several deliberate differences are recorded in the module JSDoc of the modules they touch: an unknown format name fails the load where upstream dropped it, a duplicate name inside one asset root fails the load where upstream kept the first, `DocIndex` is not ported because the structured listing supersedes its presentation string, and the DOCX renderer delegates to `@deepseek-ai/dsh-docx-kit` instead of carrying a second OOXML writer.
+The package is a rewrite of six files of the MIT-licensed Go project Mady: `domains/doctmpl/loader.go`, `vars.go`, `store.go`, `format.go`, `renderer_registry.go`, `renderer_html.go`, `renderer_markdown.go`, and `renderer_docx.go`, plus the twenty-two templates of `domains/doctmpl/templates/` and the twenty of `doc-templates/`. Several deliberate differences are recorded in the module JSDoc of the modules they touch: an unknown format name fails the load where upstream dropped it, a duplicate name inside one asset root fails the load where upstream kept the first, `DocIndex` is not ported because the structured listing supersedes its presentation string, the upstream `extends`, `shared_vars`, and `changelog` front-matter fields are not carried because nothing composes or projects templates, and the DOCX renderer delegates to `@deepseek-ai/dsh-docx-kit` instead of carrying a second OOXML writer.
 
 No companion is published because the package owns no durable state or event: both tools are pure functions over the assets loaded at plugin load, and a missing or invalid asset fails that load.

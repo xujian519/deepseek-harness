@@ -2,14 +2,14 @@
  * 宪法规则引擎 — 中文文本处理共享工具。
  *
  * 统一 `hasNegationContext`（否定语境检测）与 `parseCnNumber`（中文数字解析），
- * 供 RuleEngine / synonym-engine / patent quality-gate 复用，避免三处镜像实现漂移。
+ * 供 RuleEngine / synonym-engine 复用，避免镜像实现漂移。
  */
 
 // ---------------------------------------------------------------------------
 // hasNegationContext
 // ---------------------------------------------------------------------------
 
-/** 否定语境词（与 src/patent/quality-gate.ts 的 NEGATION_WORDS 保持同步镜像；不含单字"不/未/无"以免误放行）。 */
+/** 否定语境词（不含单字"不/未/无"以免误放行）。 */
 export const DEFAULT_NEGATION_WORDS: readonly string[] = [
   '防止',
   '避免',
@@ -151,7 +151,7 @@ export function parseCnNumber(raw: string): number | null {
 
 /**
  * 按 Unicode 码点截断（对齐 Go runeSlice 语义；码点而非 UTF-16 单元），
- * 超长时可选追加省略号。patent quality-gate 与 anti-slop 引擎共用。
+ * 超长时可选追加省略号。规则引擎与 anti-slop 引擎共用。
  * @param s - 待截断文本。
  * @param n - 最大码点数。
  * @param ellipsis - 超长时是否追加省略号。

@@ -32,4 +32,4 @@ PFE 三元组完整且逐项对应；特征已标号且类型明确；发明点�
 
 ## 人工确认
 
-发明点分级与检索方向先用 ask_user 与用户确认，再进入 patent-prior-art-search。
+发明点分级与检索方向先用 ask_user_question 与用户确认，再进入 patent-prior-art-search。

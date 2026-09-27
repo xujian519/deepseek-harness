@@ -197,7 +197,7 @@ export function apply(ctx: Context, config: Config): void {
         feedback: [{ type: 'text', text: '专利输出门禁拦截 ' + exec.name + '：命中强制规则 ' + hitSummary(gateResult) }],
       }
     }
-    // warn/log 原样放行（post-execute 无法改写已生成的结果文本）；
+    // warn/log 命中不改变结果文本：门禁只硬拦截 block、经审批放行 review；
     // warn 命中记日志，避免"计算后丢弃"的静默。
     if (gateResult.warnHits.length > 0) {
       ctx.logger.warn('patent-rule: ' + exec.name + ' 命中 warn 级规则 ' + gateResult.warnHits.join(', '))

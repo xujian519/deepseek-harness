@@ -484,7 +484,7 @@ function indexable(component: unknown): component is object {
  * @param error - original thrown value.
  * @returns its message and original string stack, when present.
  */
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- error detail extraction parallels the host-runner runtime helpers. */
 export function errorDetails(error: unknown): CordisErrorDetails {
   if (typeof error !== 'object' || error === null) return { message: String(error) }
   const message = 'message' in error && typeof error.message === 'string'

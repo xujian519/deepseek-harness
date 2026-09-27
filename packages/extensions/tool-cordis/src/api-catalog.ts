@@ -12,7 +12,7 @@
  * @module @deepseek-ai/dsh-tool-cordis/api-catalog
  */
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- generated API catalog; structure follows the source definitions. */
 /** One named parameter in a Service method or Event listener. */
 export interface ApiParameter {
   /** Parameter name from the exact signature. */
@@ -1705,7 +1705,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'createEgoSession(options?: EgoSessionOptions): EgoBrowserSession',
         description: 'Build an ego-browser session runner backed by the injected subprocess service.',
-        parameters: [{ name: 'options', description: 'session options; runner overrides the subprocess-backed default.' }],
+        parameters: [{ name: 'options', description: 'session options; each one overrides the same-named Config field, and a runner overrides the subprocess-backed default.' }],
         returns: 'the ego-browser session.',
       },
     ],
@@ -5750,7 +5750,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'EgoSessionOptions',
-    declaration: 'export interface EgoSessionOptions {\n    commandName?: string;\n    defaultTimeoutMs?: number;\n    maxTimeoutMs?: number;\n    homeDir?: string;\n    pathEntries?: string[];\n    maxOutputBytes?: number;\n    platform?: NodeJS.Platform;\n    env?: NodeJS.ProcessEnv;\n    runner?: EgoSpawnRunner;\n}',
+    declaration: 'export interface EgoSessionOptions {\n    commandName?: string;\n    probeTimeoutMs?: number;\n    defaultTimeoutMs?: number;\n    maxTimeoutMs?: number;\n    homeDir?: string;\n    pathEntries?: string[];\n    maxOutputBytes?: number;\n    platform?: NodeJS.Platform;\n    env?: NodeJS.ProcessEnv;\n    runner?: EgoSpawnRunner;\n}',
   },
   {
     name: 'EgoSpawnResult',
@@ -8994,7 +8994,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WebBootEntry',
-    declaration: 'export interface WebBootEntry {\n    id: string;\n    url: string;\n    rev: string;\n    inject?: string[];\n    immediately?: boolean;\n    external?: string[];\n}',
+    declaration: 'export interface WebBootEntry {\n    id: string;\n    url: string;\n    rev: string;\n    inject?: string[];\n    immediately?: boolean;\n    external?: string[];\n    required?: boolean;\n}',
   },
   {
     name: 'WebBootGraph',

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
-import LlmRuntime, { createUserMessage, ToolCallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, expandAssistantStream, resolveRetryPolicy  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, ToolCallId, EMPTY_RESPONSE_CODE, MALFORMED_RESPONSE_CODE, LlmAdapter, LlmError, expandAssistantStream, resolveRetryPolicy  } from '@deepseek-ai/dsh-llm'
 import type {
   AlwaysRetryPolicyConfig,
   BackoffConfig,
@@ -254,6 +254,39 @@ describe('provider-routed retry policy', () => {
       turn: event.data.turn,
       step: event.data.step,
     }))).toEqual([{ turn: 1, step: 1 }])
+    expect(agent.session.deriveMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'recovered' }],
+    })
+  })
+
+  it('retries a MALFORMED_RESPONSE stream error under the default retryable codes', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      // The shape dsh-llm-deepseek throws when a provider truncates a tool call
+      // mid-JSON: blocks arrived and were staged, then the attempt threw.
+      partialToolFailure(new LlmError('DeepSeek Messages stream: tool input is invalid JSON', MALFORMED_RESPONSE_CODE)),
+      textResponse('recovered'),
+    ])
+    // No retryableCodes override: one undecodable provider response must repeat
+    // the request rather than fail the turn and discard the steps before it.
+    ;({ ctx: context } = await harness(adapter))
+    const agent = await context.agentLoop.create(SessionId('retry-malformed-response'), { provider: 'mock', model: 'mock' })
+    const scheduled = waitForRetry(context, agent, 1)
+
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    const event = await scheduled
+    expect(event.data.failure).toEqual({
+      message: 'DeepSeek Messages stream: tool input is invalid JSON',
+      code: MALFORMED_RESPONSE_CODE,
+    })
+
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(500)
+    await idle
+
+    expect(adapter.requests).toHaveLength(2)
+    expect(agent.session.snapshotEvents().some(event => event.type === 'tool/call')).toBe(false)
     expect(agent.session.deriveMessages().at(-1)).toMatchObject({
       role: 'assistant',
       content: [{ type: 'text', text: 'recovered' }],

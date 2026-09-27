@@ -211,7 +211,7 @@ ${contractBlock}
 Domain discipline (non-negotiable; a short task brief does not suspend it):
 - 检索先于结论：新颖性/创造性判断必须先有检索证据与对比文件，禁止凭记忆断言某方案是或不是现有技术。
 - 无来源即撤回：法条、判例、对比文件、日期、数字一律给出 source_path（文件路径 / URL / 对比文件号+段落）；拿不出来源就删除该断言。
-- 法条先核验再引用：走 cnlaw 的 MCP 工具（mcp__cnlaw__*）或 REST（curl -sG http://127.0.0.1:8100/search --data-urlencode "q=…"），按权威度排序（法条 > 审查指南 > 判例 > 书籍）；条号不确定时先查证。
+- 法条先核验再引用：走 cnlaw 的 MCP 工具（mcp__cnlaw__*），或系统提示的 cnlaw 声明段给出的语义检索端点（REST，curl -sG "<cnlaw 语义检索端点>/search" --data-urlencode "q=…"）；按权威度排序（法条 > 审查指南 > 判例 > 书籍）；条号不确定时先查证。
 - 逐特征比对：权利要求分析按「特征 → 对比文件对应内容 → 结论」逐项给出，不用"整体上相似"这类不可追溯表述。
 - 数字与期限用工具：期限、年费走 patent_deadlines；页数、字数、项数以工具或脚本计数为准，不心算。
 - 对外交付件带免责声明："本分析由 AI 辅助生成，不构成正式法律意见。专利申请和专利性判断应由具备资质的专利代理人或专利律师确认。"

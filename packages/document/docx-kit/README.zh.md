@@ -27,7 +27,7 @@ kind: "package-reference"
 
 ### 何时使用
 
-本仓库目前没有消费方。它是作者 Go 项目 DOCX 渲染器与读取器的 TypeScript 重写；当某个消费方必须在不依赖 Office 库、也不起外部进程的前提下产出 DOCX 字节或读取 DOCX 文本时，就用它。
+[`@deepseek-ai/dsh-doc-template`](../doc-template/README.zh.md) 消费本包以渲染 DOCX，[`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.zh.md) 消费本包以提取 DOCX 文本。它是作者 Go 项目 DOCX 渲染器与读取器的 TypeScript 重写；当某个消费方必须在不依赖 Office 库、也不起外部进程的前提下产出 DOCX 字节或读取 DOCX 文本时，就用它。
 
 ### 入口
 
@@ -107,7 +107,7 @@ const { text, problems } = extractDocxText(bytes, { maxArchiveEntries: 10_000, m
 - **单元格内嵌套的表格只贡献文本** —— 其段落并入单元格文本，行与单元格分隔符不投影。
 - **页眉页脚按名称前缀选取** —— 任何 `word/header*.xml` 或 `word/footer*.xml` 部件都按归档顺序投影，包括 `word/headerStyles.xml` 这样的部件。
 - **只读取文本与标题层级** —— 样式、编号、脚注、批注、图片与删除文本（`w:delText`）都不投影。
-- **目前没有消费方** —— 文件路径、来源授权，以及渲染结果的模型可见呈现，都由消费方插件负责。
+- **消费方插件负责文件路径与授权** —— [`@deepseek-ai/dsh-doc-template`](../doc-template/README.zh.md) 传入字节上限并拥有输出路径；[`@deepseek-ai/dsh-document-deliver`](../document-deliver/README.zh.md) 传入读取预算并拥有提取的文本。
 
 <a id="dev-note"></a>
 ### 开发备注

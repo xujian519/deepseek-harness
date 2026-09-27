@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-prompt-cache/invariant
  */
 
-/* jscpd:ignore-start */
+/* jscpd:ignore-start -- invariant companion template shares the same structure across packages. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'

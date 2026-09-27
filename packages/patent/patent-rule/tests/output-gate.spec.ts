@@ -1,20 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { loadPatentFullRuleSet, RuleOutputGate, selectGateRules } from '@deepseek-ai/dsh-patent-rule'
 
-/** 构造 B 链规则门禁：keyword_blocklist 子集（排除 compliance PAT-* 与 structural）。 */
+/** 构造规则门禁：keyword_blocklist 子集（含 compliance PAT-*，不含 structural/citation）。 */
 function makeRuleGate(): RuleOutputGate {
   return new RuleOutputGate(selectGateRules(loadPatentFullRuleSet().ruleSet))
 }
 
 describe('RuleOutputGate', () => {
-  it('selectGateRules keeps only nuo keyword_blocklist rules (excluding PAT-* and structural)', () => {
+  it('selectGateRules keeps every keyword_blocklist rule, including compliance PAT-*', () => {
     const gateRules = selectGateRules(loadPatentFullRuleSet().ruleSet)
-    // 9 条 nuo 镜像 + 2 条并入禁令（CON-COMP-0103 模糊法条引用、EX-SRC-001 占位式对比文件指代）
-    expect(gateRules.rules.length).toBe(11)
+    // 11 条 nuo 镜像与并入禁令 + 3 条 compliance 关键词规则（PAT-RISK-001 / PAT-APPROVAL-001 / PAT-ABS-001）
+    expect(gateRules.rules.length).toBe(14)
     for (const r of gateRules.rules) {
       expect(r.check.type).toBe('keyword_blocklist')
-      expect(r.id.startsWith('PAT-')).toBe(false)
     }
+    expect(gateRules.rules.map(r => r.id).filter(id => id.startsWith('PAT-')).sort())
+      .toEqual(['PAT-ABS-001', 'PAT-APPROVAL-001', 'PAT-RISK-001'])
+  })
+
+  it('hits the compliance rules: approval keyword → needsApproval, absolute phrasing → warn', () => {
+    const gate = makeRuleGate()
+    const review = gate.process('以下是本次侵权判断的最终建议。')
+    expect(review.needsApproval).toBe(true)
+    expect(review.reviewHits).toContain('PAT-APPROVAL-001')
+    const warn = gate.process('该方案绝对可行。')
+    expect(warn.needsApproval).toBe(false)
+    expect(warn.warnHits).toContain('PAT-ABS-001')
   })
 
   it('block hit (placeholder patent number) → needsApproval + blockHits', () => {
