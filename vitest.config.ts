@@ -239,7 +239,7 @@ export default defineConfig({
         // --coverage --coverage.reporter=json-summary --coverage.exclude='packages/*/*/src/worker.ts'`
         // — the entries below are excluded from the gate, so the exclude override
         // is what instruments them. Statements and instrumented src files:
-        // patent-core 99.7/107, patent-tools 98.4/78, patent-workflow 99.9/20,
+        // patent-core 99.7/107, patent-tools 98.4/78, patent-workflow 99.9/17,
         // patent-teams 99.5/16, patent-deadline 96.9/9, writing-patterns 97.4/8.
         // TODO(cov): retire each entry as its package reaches the gate; the
         // per-package work order is in the 2026-09-21 patent-domain review

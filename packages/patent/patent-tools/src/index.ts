@@ -1,5 +1,5 @@
 /**
- * Function plugin registering the 29 model-facing patent tools ported from Sati:
+ * Function plugin registering the 30 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * office-action parsing, drafting, specification validation, evidence judgment,
  * rule check, figure analysis + generation, PDF download, chemical recognition,
