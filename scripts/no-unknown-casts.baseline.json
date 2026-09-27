@@ -2153,9 +2153,6 @@
   "packages/patent/patent-workflow/tests/model-call-log.spec.ts": {
     "4dd1f265ec710503bb27f057a582099a1e9d8b5db80fb45f148e32fd2afb5325": 1
   },
-  "packages/patent/patent-workflow/tests/output-gate.spec.ts": {
-    "b37057b3bb977ba661e8dfbdacefc13689a6edb6ed7a7a702c4cca87376060aa": 4
-  },
   "packages/patent/patent-workflow/tests/workflow.spec.ts": {
     "7fe58280287ff63d40e979e72329f975e11015a95e9a8eec207a5a78748d3c89": 1,
     "8f6902c099cfcd2b73fc590b52ac7fd940ab1557289a1886696500553580304f": 2,
