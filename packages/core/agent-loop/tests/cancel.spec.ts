@@ -121,7 +121,11 @@ describe('Agent.cancel()', () => {
     { kind: 'parent' },
     { kind: 'hook', reason: 'policy stopped this turn' },
     { kind: 'disposed' },
-  ])('records $kind cancellation without the stack a transport assigned to the abort reason', async (cause) => {
+  ])('records $kind cancellation without the stack a transport assigned to the abort reason', async (fixture) => {
+    // `assignTransportStack` mutates the cause the signal holds. Clone the
+    // shared `it.each` fixture so a repeat — race-stress runs every test ten
+    // times — starts from a cause without the previous run's own `stack`.
+    const cause: AgentCancelCause = { ...fixture }
     const expectedCause = { ...cause }
 
     const { endings, errors, requests } = await endingsAfterMutatingCancel(cause, assignTransportStack)
