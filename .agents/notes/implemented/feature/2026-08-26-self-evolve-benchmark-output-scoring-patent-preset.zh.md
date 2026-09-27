@@ -34,5 +34,6 @@ Status: implemented
 
 - fork 子代理继承专利 preset：evaluator、optimizer、applier 子代理带着专利工具与人设运行，approval 钉死 `'never'`（需审批操作在子代理中被拒），并带入计划模式纪律——executor prompt 显式退出计划语义，以便直接产出交付物。
 - 运行时闭包现在要求 python sdk-runtime 部署清单声明 `@deepseek-ai/dsh-self-evolve-benchmark`；目录生成器登记了新 service（`gen-cordis-catalog`、`gen-doc-graphs`、`gen-config-catalog`），并重新生成了 `docs/config-catalog`、`docs/capability-seams` 与 `docs/subsystems/self-evolve`。
+- 示例 benchmark 现在带有问题空间 DAG 与带门槛的回归门禁（`examples/patent-oas/problem-space.yaml`、`examples/patent-oas/gate.yaml`），由 `pnpm run verify-patent-oas-gold` 判定（[理由](../process/2026-09-26-patent-oas-problem-space-gate.zh.md)）。
 - 防污染护栏不变：`publicBenchmarkView`/`assertNoPrivateLeak` 继续把 rubric 词汇排除在 optimizer 上下文之外，快照仍排除 `.vault.toml`。
 - 验证：80 个单元测试、per-file 100% 覆盖率、`typecheck`、`lint`、`doc-sync`（28 个 gate）、`verify-cordis-config`、`verify-runtime-closure`（6 presets / 133 packages）、`verify-package-invariants` 全部通过。剩余 hygiene 红项是 master 上的既有债务（`constraints` 对无 manifest 的 `packages/self-evolve/evaluation` 目录的误报，以及 knip 对 `packages/bundle/im` 中 `@xmanrui/dsh-im` 与 `packages/memory/openviking` 中冗余 `@deepseek-ai/dsh-fs` devDependency 的报告）；`test:snapshot` 中 `examples/acp-agent` 的单一失败在 master 上同样复现（Node `ExperimentalWarning: SQLite` 泄漏到断言为空的 stderr，属环境 Node 版本产物，与本改动无关）。

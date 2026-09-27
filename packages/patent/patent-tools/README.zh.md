@@ -1,5 +1,5 @@
 ---
-description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 29 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
+description: "函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 30 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 29 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
+函数插件，将 Sati 专利域工具集原生移植到 DeepSeek Harness。它注册 30 个模型可见工具，覆盖检索、元数据、知识查询、权利要求对照表、通知书解析、TRIZ 矛盾分析、撰写、分析报告、证据判定、规则检查、附图生成以及工作流/计划状态机。每个工具返回可无损 JSON 序列化的规范值，并暴露纯 `output.render` 函数生成模型可见 prose（Sati 没有 render 拆分，这是新的 dsh 契约）。
 
 ## 目录
 
@@ -33,6 +33,7 @@ kind: "package-reference"
 | `patent_analysis_report` | 分析 | `@deepseek-ai/dsh-patent-core` analysis-report 聚合器 + 可选 ModelPort |
 | `claim_chart_build` | 撰写 | `@deepseek-ai/dsh-patent-core` claim-chart 原子 + ModelPort；`mode: infringement` 另给确定性结论（逐被控产品全面覆盖、等同矛盾；`risk` 给出抗辩与补救事实时给出风险等级） |
 | `parse_office_action` | 分析 | 确定性 `@deepseek-ai/dsh-patent-core` 通知书解析器（驳回类型、引用文献与相关性、涉及权项、审查员论点） |
+| `triz_contradiction_analysis` | 分析 | `@deepseek-ai/dsh-patent-core` TRIZ 引擎（矛盾组装 + 经 `@deepseek-ai/dsh-methodology` 的矛盾矩阵落格）+ ModelPort 负责识别；产出发明人侧的方案方向与交底书参数缺口 |
 | `draft_claims` | 撰写 | 确定性 |
 | `draft_specification` | 撰写 | 确定性 |
 | `validate_specification` | 质量 | 确定性 |
@@ -100,7 +101,7 @@ Schemastery 配置，所有字段可选。
 
 #### 模型所见
 
-29 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。
+30 个已注册工具定义（见上表），各含描述、参数 schema 与将规范结果渲染为 Markdown prose 的 `output.render`。精确描述与参数见生成的[`patent-tools` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-patent-tools)。
 
 #### Token 影响
 
@@ -125,6 +126,7 @@ Schemastery 配置，所有字段可选。
 - **知识笔记 / PDF 下载接线** — `knowledge_note_save` 将笔记写入 Config.noteDir 下的文件（knowledge.db 原生写 API 延后）；`patent_pdf_download` 在每次调用时对延迟绑定的 `ctx.get('patentData')` lookup 解析批量运行器（`createDownloadChannelRunner`）：服务在场走统一 ego 栈（经 `ctx.patentData.createEgoSession()`），服务缺席或浏览器不可用则退回抓取每页 CDN 链接的无浏览器通道，由工具自身的 fetch 兜底按带界重试/退避（超时、重试、Retry-After）下载。lookup 之所以按调用，是因为 `patent-data` 声明 `inject: ['subprocess']`，其激活晚于本包的 apply；见 [服务解析决策记录](../../../.agents/notes/implemented/bug-fix/2026-09-21-patent-pdf-download-resolves-service-per-call.zh.md)。browseros-neo、playwright 与 browser-use 参与探测但从不参与下载。
 - **移除语义召回** — `patent_case_search` 仅保留 FTS/LIKE；基于 embedding 的语义召回未移植（dsh 暂无向量基建）。
 - **证据规则资产** — `evaluate_evidence` 经 `@deepseek-ai/dsh-patent-rule` 的资产定位解析 `evidence-rules.yaml`；缺失时引擎降级为默认权重。
+- **TRIZ 分析属发明人侧且有意的窄** — `triz_contradiction_analysis` 一次只读一篇交底书：不构建问题依赖图、不度量幻觉率、不做跨文档合并。它给出的矛盾是工程参数之间的设计层取舍，因此绝不进入审查意见答复或无效论证——三步法第二步的技术问题表述仍归 `checkAtomic` 与创造性子图。证据无法在交底书原文定位的矛盾被丢弃并计数，而不是照报；矩阵中没有推荐原理的格报成空缺，而不是从相邻格补一个。
 
 ### 开发备注
 

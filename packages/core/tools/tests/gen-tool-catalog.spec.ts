@@ -41,7 +41,7 @@ describe('gen-tool-catalog collectToolCatalog', () => {
       'session_event_trace', 'session_search', 'session_trace', 'skill', 'spawn_teammate', 'stagehand_act', 'stagehand_extract', 'stagehand_navigate',
       'stagehand_observe', 'stagehand_screenshot', 'stagehand_tabs', 'str_replace_editor', 'subagent', 'team_task_create', 'team_task_get', 'team_task_list',
       'team_task_update', 'terminal_close', 'terminal_list', 'terminal_open', 'terminal_read', 'terminal_send', 'terminal_signal', 'todo_write',
-      'triz', 'update_goal', 'validate_specification', 'wait_agent', 'web_fetch', 'web_search', 'workbench_link_patent_case', 'workflow',
+      'triz', 'triz_contradiction_analysis', 'update_goal', 'validate_specification', 'wait_agent', 'web_fetch', 'web_search', 'workbench_link_patent_case', 'workflow',
       'write',
     ])
     // Every tool carries a JSON-Schema `parameters` object (what the model sees).

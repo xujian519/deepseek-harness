@@ -1,0 +1,141 @@
+# patent-oas 问题空间 DAG。
+#
+# 一份专利实务任务由若干「问题空间切面」组成:检索、区别特征认定、实际解决的技术问题、
+# 技术启示、结论与法条、撰写布局、侵权比对的逐特征与等同…… 这些切面之间存在先决关系
+# (检索先于区别特征、区别特征先于技术问题、逐特征比对先于等同分析),构成一张有向无环图。
+#
+# 本文件把该图与金标 case 绑定:每个 rubric 维度(权重由 rubric 自己给出)按 points 拆到
+# 一个或多个节点上。门禁据此把「case 分数」还原成「节点分数」,失败因此可归因到具体
+# 问题空间节点,而不是只报一个总分。
+#
+# 不变量(由 scripts/patent-oas-gate-core.ts 强制,违反即门禁失败):
+#   - 每个 case 的 rubric 维度都必须被映射,且映射权重之和等于该维度的满分;
+#   - 每个 case 的映射权重之和为 100(与 rubric 总分一致);
+#   - 被映射的节点必须在本文件声明;每个节点至少被一个维度映射(不存在无观测面的节点);
+#   - dependsOn 引用的节点必须存在,且全图无环。
+#
+# 不在这里登记的东西:没有观测面的前置概念(如「最接近的现有技术选取」)只以边出现,
+# 不立为节点——立了也无法打分,会制造「有节点无分数」的假覆盖。
+
+benchmarkId: patent-oas
+
+cases:
+  oa-answer:
+    label: 审查意见答复(OA 答复)
+    dimensions:
+      1: { nodes: { distinguishing-features: 30 } }
+      2: { nodes: { technical-problem: 20 } }
+      3: { nodes: { technical-teaching: 20 } }
+      4: { nodes: { conclusion-and-statute: 15 } }
+      5: { nodes: { prior-art-search: 8, deliverable-format: 7 } }
+  claim-drafting:
+    label: 权利要求撰写
+    dimensions:
+      1: { nodes: { claim-essential-features: 30 } }
+      2: { nodes: { claim-protection-scope: 20 } }
+      3: { nodes: { claim-dependent-layout: 20 } }
+      4: { nodes: { claim-reference-hierarchy: 15 } }
+      5: { nodes: { claim-form-and-support: 15 } }
+  infringement-comparison:
+    label: 侵权比对
+    dimensions:
+      1: { nodes: { infringement-all-elements: 35 } }
+      2: { nodes: { infringement-equivalents: 25 } }
+      3: { nodes: { infringement-conclusion: 20 } }
+      4: { nodes: { infringement-risk-rating: 10 } }
+      5: { nodes: { infringement-legal-basis: 10 } }
+  novelty-creative:
+    label: 新颖性与创造性
+    dimensions:
+      1: { nodes: { novelty-separate-comparison: 25 } }
+      2: { nodes: { distinguishing-features: 20 } }
+      3: { nodes: { technical-problem: 15 } }
+      4: { nodes: { technical-teaching: 20 } }
+      5: { nodes: { conclusion-and-statute: 20 } }
+
+nodes:
+  prior-art-search:
+    domain: search
+    label: 检索策略与现有技术依据
+    observable: 交付物给出可执行的检索策略(关键词/分类号/数据库),结论有现有技术支撑
+    dependsOn: []
+  deliverable-format:
+    domain: deliverable
+    label: 交付物格式与结构
+    observable: 交付物符合该任务要求的文体结构(意见陈述+结论/权利要求书/比对报告)
+    dependsOn: []
+  distinguishing-features:
+    domain: inventive-step
+    label: 区别技术特征认定
+    observable: 以最接近的现有技术为基准,逐项认定区别特征,不遗漏、不扩大
+    dependsOn: [prior-art-search]
+  novelty-separate-comparison:
+    domain: novelty
+    label: 新颖性单独对比
+    observable: 与每篇对比文件单独对比,坚持单独对比原则,不结合评述新颖性
+    dependsOn: [prior-art-search]
+  technical-problem:
+    domain: inventive-step
+    label: 实际解决的技术问题
+    observable: 技术问题由区别特征导出,不过于上位、不偏离区别特征
+    dependsOn: [distinguishing-features, novelty-separate-comparison]
+  technical-teaching:
+    domain: inventive-step
+    label: 技术启示与结合动机
+    observable: 逐项论证对比文件与公知常识是否给出技术启示,说明结合动机有无
+    dependsOn: [technical-problem]
+  conclusion-and-statute:
+    domain: inventive-step
+    label: 结论与法条依据
+    observable: 结论明确、与论证一致,正确引用专利法第二十二条第二款/第三款及三步法
+    dependsOn: [technical-teaching]
+  claim-essential-features:
+    domain: claim-drafting
+    label: 独立权利要求的必要技术特征
+    observable: 独权写全必要技术特征,不混入实施例非必要细节
+    dependsOn: []
+  claim-protection-scope:
+    domain: claim-drafting
+    label: 保护范围适中
+    observable: 用上位表达概括,不以实施例参数不当限缩
+    dependsOn: [claim-essential-features]
+  claim-dependent-layout:
+    domain: claim-drafting
+    label: 从属权利要求布局
+    observable: 创新点与各可选方案逐项落到从权,无遗漏
+    dependsOn: [claim-essential-features]
+  claim-reference-hierarchy:
+    domain: claim-drafting
+    label: 引用关系与层次
+    observable: 从权引用基础正确、无循环引用、层级合理
+    dependsOn: [claim-dependent-layout]
+  claim-form-and-support:
+    domain: claim-drafting
+    label: 形式与说明书支持
+    observable: 前序+特征+其特征在于格式规范,内容不超出交底书公开范围
+    dependsOn: [claim-essential-features]
+  infringement-all-elements:
+    domain: infringement
+    label: 逐特征比对完整性
+    observable: 权利要求每个技术特征单独列出并与被控产品特征对应,标注相同/对应但不同/缺失
+    dependsOn: []
+  infringement-equivalents:
+    domain: infringement
+    label: 等同原则运用
+    observable: 对未落入字面的特征按手段-功能-效果逐特征判断等同,不以整体方案替代
+    dependsOn: [infringement-all-elements]
+  infringement-conclusion:
+    domain: infringement
+    label: 侵权结论明确性
+    observable: 给出是否落入保护范围的明确结论,且与逐特征比对结果一致
+    dependsOn: [infringement-equivalents]
+  infringement-risk-rating:
+    domain: infringement
+    label: 风险定级
+    observable: 风险等级与比对结论匹配,并说明理由
+    dependsOn: [infringement-conclusion]
+  infringement-legal-basis:
+    domain: infringement
+    label: 侵权判定法律依据
+    observable: 正确引用全面覆盖原则与等同原则的法律依据(专利法及司法解释)
+    dependsOn: [infringement-conclusion]

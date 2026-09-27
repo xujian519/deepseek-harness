@@ -47,7 +47,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `validate_specification`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
@@ -5418,6 +5418,31 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
   },
   "required": [
     "query"
+  ]
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `triz_contradiction_analysis`
+
+交底书侧的技术矛盾分析与参数完备性检查（发明人侧用途）。从技术交底书识别「改善某工程参数的同时牺牲另一工程参数」的技术矛盾，落格到 TRIZ 39x39 经典矛盾矩阵取推荐发明原理，并列出交底书提到但未给出取值的工程参数（缺现状值／目标值／单位／测量口径）。两处用途：① 方案生成——按推荐原理给出可替代的手段方向；② 交底书补强——把缺口清单交发明人补充。识别由模型完成，编号合法性（1-39）、矩阵落格与证据定位由程序判定：evidence 必须在交底书原文中逐字定位，否则该条矛盾被丢弃并计入 dropped_for_evidence。本工具不产出审查语义的技术问题表述，也不构成法律结论；创造性三步法第二步的「实际解决的技术问题」必须相对区别特征确定且不含解决手段，不得由本工具的产物代填。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "技术交底书或技术方案原文（矛盾与缺口都从这段文本识别，证据需可在其中逐字定位）。"
+    },
+    "focus": {
+      "type": "string",
+      "description": "可选关注方向，收窄识别范围（如「节拍」「良率」「温差」）。"
+    }
+  },
+  "required": [
+    "text"
   ]
 }
 ```

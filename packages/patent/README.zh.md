@@ -21,7 +21,7 @@ patent 组按 `docs/sati-as-dsh-plugins-plan.md` 将 Sati 专利域原生移植�
 | [`patent-knowledge/`](patent-knowledge/README.zh.md) | knowledge.db 查询：判例 FTS、法规、wiki 卡片、知识图谱 + 安装命令。 | `patentKnowledge` |
 | [`patent-core/`](patent-core/README.zh.md) | 纯专利域库：ModelPort、atoms、checker、claim-chart、problem、evidence、reasoning、graph。 | — |
 | [`patent-workflow/`](patent-workflow/README.zh.md) | 执行管线：workflow/flexible-plan/plantask 状态机 + HITL 审批。 | `patentWorkflow` |
-| [`patent-tools/`](patent-tools/README.zh.md) | 模型可见专利工具集（检索/元数据/法律状态/判例/撰写/渲染/规则检查）。 | （注册于 `ctx.tools`） |
+| [`patent-tools/`](patent-tools/README.zh.md) | 模型可见专利工具集（检索/元数据/法律状态/判例/撰写/渲染/规则检查/TRIZ 分析）。 | （注册于 `ctx.tools`） |
 | [`patent-teams/`](patent-teams/README.zh.md) | 持久多智能体团队：队长领导成员、依赖感知任务、邮箱消息、共享任务调度器。 | `patentTeams` |
 | [`patent-rule/`](patent-rule/README.zh.md) | 规则引擎、合规资产、`tools/post-execute` 输出门禁。 | （策略插件） |
 | [`patent-document/`](patent-document/README.zh.md) | 专利文书渲染：模板、品牌注入、PDF。 | （注册于 `ctx.tools`） |

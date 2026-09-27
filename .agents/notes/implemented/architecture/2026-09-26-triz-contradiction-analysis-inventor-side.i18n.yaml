@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-26-triz-contradiction-analysis-inventor-side.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-26-triz-contradiction-analysis-inventor-side.md
+/agent-note-triz-contradiction-analysis-on-the-inventor-side:
+  en: cc7ea53892d2b011
+  zh: e76a85457e0ed01c
+/agent-note-triz-contradiction-analysis-on-the-inventor-side/problem:
+  en: 7c627fdaeabceb33
+  zh: 8dda8fe73e364eea
+/agent-note-triz-contradiction-analysis-on-the-inventor-side/decision:
+  en: ecd19b823076abf3
+  zh: defede32dd6b6e4d
+/agent-note-triz-contradiction-analysis-on-the-inventor-side/consequences:
+  en: 5fc280e036f4ebdf
+  zh: f2b0760d8ca95c8e
+/agent-note-triz-contradiction-analysis-on-the-inventor-side/alternatives-considered:
+  en: 104c6c22c673c3c1
+  zh: ef6b2c169d4f4c3d
+/agent-note-triz-contradiction-analysis-on-the-inventor-side/testing:
+  en: 71ba495488d7555e
+  zh: fa706870389c7158

@@ -11,7 +11,7 @@ Beyond the standard coding rows a patent workflow needs (shell, filesystem, jobs
 - `@deepseek-ai/dsh-patent-data` — the data seam (ctx.patentData: nuo search provider factory + the ego-browser session runner). patent_pdf_download runs its ego-browser download adapter through this service.
 - `@deepseek-ai/dsh-patent-knowledge` — the knowledge.db query service (ctx.patentKnowledge: caseLawSearch / legalSearch / wikiCards / kgSearch / kgGetNode / kgListByType / ipcClassify).
 - `@deepseek-ai/dsh-patent-workflow` — the execution-pipeline service (ctx.patentWorkflow: runWorkflow / runPlantask / approve / reject).
-- `@deepseek-ai/dsh-patent-tools` — 29 model-facing tools: search, metadata, legal status, case/wiki/kg queries, claim-chart, office-action parsing, drafting, analysis reports, evidence judgment, rule checking, figure generation, PDF download, knowledge notes, and the workflow/plan state machines.
+- `@deepseek-ai/dsh-patent-tools` — 30 model-facing tools: search, metadata, legal status, case/wiki/kg queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, PDF download, knowledge notes, and the workflow/plan state machines.
 - `@deepseek-ai/dsh-patent-teams` — the durable multi-agent team service (ctx.patentTeams) surfacing the eleven `patent_teams_*` tools; with `qualityGate: true` it runs the composite completion gate.
 - `@deepseek-ai/dsh-patent-rule` — the rule engine, the output gate on tools/post-execute, and the EVI-011 evidence guards.
 - `@deepseek-ai/dsh-patent-document` — render_patent_document.

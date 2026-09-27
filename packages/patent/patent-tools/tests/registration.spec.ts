@@ -27,6 +27,7 @@ const EXPECTED_TOOLS = [
   'claim_chart_build',
   'patent_workflow_run',
   'flexible_plan',
+  'triz_contradiction_analysis',
   'analyze_patent_figure',
   'evaluate_evidence',
   'patent_workflow',

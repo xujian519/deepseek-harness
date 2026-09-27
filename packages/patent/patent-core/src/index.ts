@@ -23,8 +23,16 @@ export type {
 export { collectPortText, createLlmModelPort } from './model-port.ts'
 export type { CreateLlmModelPortOptions } from './model-port.ts'
 
-// LLM JSON tolerant parsing.
-export { stripCodeFence, tryParseJson } from './llm-json.ts'
+// LLM JSON tolerant parsing + the shared JSON-value narrowing guards.
+export {
+  asJsonArray,
+  asJsonRecord,
+  readJsonNumber,
+  readJsonString,
+  readJsonStringArray,
+  stripCodeFence,
+  tryParseJson,
+} from './llm-json.ts'
 
 // Prompt-injection isolation for untrusted text spliced into LLM prompts.
 export { dataBlock } from './prompt-hygiene.ts'
@@ -77,6 +85,10 @@ export * from './checker/index.ts'
 
 // Atomic technical-problem checks (creative-analysis three-step step 2).
 export * from './problem/index.ts'
+
+// TRIZ contradiction analysis for the inventor side: disclosure gaps and
+// candidate solution directions. Never a three-step-step-2 problem statement.
+export * from './triz/index.ts'
 
 // Evidence closed-loop: receipt ledger, spans, binding, conflict, judgment engine.
 export * from './evidence/index.ts'

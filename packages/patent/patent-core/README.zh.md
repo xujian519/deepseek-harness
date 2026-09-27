@@ -1,5 +1,5 @@
 ---
-description: "纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：atoms `StageProvider`/`StageHandler` 词汇及其 14 个内置 handler、`PatentModelPort` LLM 适配器、双轨 checker 规则引擎、原子化技术问题四检验、证据闭环账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检（单一性、覆盖矩阵）、数值范围新颖性确定性核验、程序文书解析（审查意见通知书、无效/复审/外观设计理由）、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、加权风险分级）、Pregel 风格图引擎及其四个专利域子图（新颖性/创造性/充分公开/citation-check）、规则引擎协议类型与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。"
+description: "纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：atoms `StageProvider`/`StageHandler` 词汇及其 14 个内置 handler、`PatentModelPort` LLM 适配器、双轨 checker 规则引擎、技术问题四检验、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析（审查意见通知书、无效/复审/外观设计理由）、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议类型与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
+纯 TypeScript 库（无 `ctx` 依赖），承载自 Sati 移植的专利域引擎：`StageProvider`/`StageHandler` atoms 及其 14 个内置 handler、`PatentModelPort` 适配器、双轨 checker、技术问题四检验、TRIZ 矛盾分析、证据账本与判定引擎、推理原语、claim-chart 引擎、权利要求撰写自检、数值范围新颖性核验、程序文书解析、答复计划与复审准备段、侵权确定性内核（全面覆盖、等同一致性、风险分级）、Pregel 风格图引擎及其四个专利域子图、规则协议与文本工具、IPC 分类器与审查标准查表、以及持久化/路径助手。
 
 ## 目录
 
@@ -17,6 +17,7 @@ kind: "package-reference"
 - [ModelPort](#modelport)
 - [Checker（双轨确定性规则引擎）](#checker-dual-track-deterministic-rule-engine)
 - [Problem（原子化技术问题四检验）](#problem-atomic-technical-problem-checks)
+- [TRIZ 矛盾分析（发明人侧）](#triz-contradiction-analysis-inventor-side)
 - [Evidence（证据闭环账本 + 判定引擎）](#evidence-closed-loop-ledger--judgment-engine)
 - [Reasoning（事实黑板 + 三段论）](#reasoning-fact-blackboard--syllogism)
 - [Claim-chart 运行时](#claim-chart-runtime)
@@ -49,6 +50,13 @@ atoms 层定义工作流阶段词汇：`Atom`/`AtomRegistry`（声明式契约�
 ## Problem（原子化技术问题四检验）
 
 `checkAtomic` 对实际解决的技术问题执行四项确定性检验（不绑方案、单一因果、可测效果、手段可反推），`technicalProblemCheck` 将其接入 checker 的 `customCheck` 规则。
+
+<a id="triz-contradiction-analysis-inventor-side"></a>
+## TRIZ 矛盾分析（发明人侧）
+
+`extractTrizContradictions(port, text, { focus })` 用一次模型调用识别技术矛盾（改善某工程参数的同时牺牲另一工程参数）与交底书点名却未量化的工程参数（缺现状值／目标值／单位／测量口径）。`buildTrizAnalysis(extraction, sourceText)` 确定性组装结果：只接受 1-39 的整数参数编号，逐对落格到 `@deepseek-ai/dsh-methodology` 随包的 39x39 矛盾矩阵（对角格是物理矛盾，空格是转录缺口），参数与原理名称一律取随包资产而非模型输出，并**丢弃证据无法在交底书原文中逐字定位的矛盾**、计入丢弃数。
+
+产物属发明人侧：候选方案方向与交底书补强缺口清单。矛盾对不是三步法第二步的技术问题表述——后者必须相对区别特征确定且不含解决手段（`checkAtomic`），把矛盾填进该字段会直接违反该检验。
 
 <a id="evidence-closed-loop-ledger--judgment-engine"></a>
 ## Evidence（证据闭环账本 + 判定引擎）

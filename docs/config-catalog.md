@@ -2476,7 +2476,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-methodology`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/patent/methodology/src/index.ts:52`](../packages/patent/methodology/src/index.ts)
+- `source`: [`packages/patent/methodology/src/index.ts:53`](../packages/patent/methodology/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing TRIZ plugin configuration. */
@@ -2815,7 +2815,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-patent-tools`
 
 - `inject`: `tools`
-- `source`: [`packages/patent/patent-tools/src/index.ts:218`](../packages/patent/patent-tools/src/index.ts)
+- `source`: [`packages/patent/patent-tools/src/index.ts:221`](../packages/patent/patent-tools/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing patent-tools plugin configuration. */

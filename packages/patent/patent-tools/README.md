@@ -1,5 +1,5 @@
 ---
-description: "Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 29 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract)."
+description: "Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 30 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract)."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 29 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract).
+Function plugin porting the Sati patent-domain tool set into the DeepSeek Harness. It registers 30 model-facing tools across search, metadata, knowledge queries, claim-chart, office-action parsing, TRIZ contradiction analysis, drafting, analysis reports, evidence judgment, rule checking, figure generation, and the workflow/plan state machines. Each tool returns a losslessly JSON-serializable canonical value and exposes a pure `output.render` function that produces the model-facing prose (Sati has no render split; this is the new dsh contract).
 
 ## Table of Contents
 
@@ -32,6 +32,7 @@ Function plugin porting the Sati patent-domain tool set into the DeepSeek Harnes
 | `patent_analysis_report` | analysis | `@deepseek-ai/dsh-patent-core` analysis-report aggregator + optional ModelPort |
 | `claim_chart_build` | drafting | `@deepseek-ai/dsh-patent-core` claim-chart atom + ModelPort; `mode: infringement` adds a deterministic conclusion (per accused product all-elements coverage, equivalence contradictions, and a risk level once `risk` supplies the defense and remedy facts) |
 | `parse_office_action` | analysis | deterministic `@deepseek-ai/dsh-patent-core` office-action parser (rejection types, cited references with relevance, affected claims, examiner arguments) |
+| `triz_contradiction_analysis` | analysis | `@deepseek-ai/dsh-patent-core` TRIZ engine (contradiction assembly + contradiction-matrix lookup over `@deepseek-ai/dsh-methodology`) + ModelPort for recognition; the inventor-side pair of solution directions and disclosure parameter gaps |
 | `draft_claims` | drafting | deterministic |
 | `draft_specification` | drafting | deterministic |
 | `validate_specification` | quality | deterministic |
@@ -97,7 +98,7 @@ When `provider`/ `model` are unset the LLM-consuming tools register but fail lou
 
 #### What the model sees
 
-29 registered tool definitions (see the table above), each with a description, parameter schema, and an `output.render` that renders the canonical result as Markdown prose. Exact descriptions and parameters are in the generated [`patent-tools` schema](../../../docs/tool-catalog.md#deepseek-aidsh-patent-tools).
+30 registered tool definitions (see the table above), each with a description, parameter schema, and an `output.render` that renders the canonical result as Markdown prose. Exact descriptions and parameters are in the generated [`patent-tools` schema](../../../docs/tool-catalog.md#deepseek-aidsh-patent-tools).
 
 #### Token effect
 
@@ -121,6 +122,7 @@ Prefix-stable while the registered tool set and their descriptions are unchanged
 - **Knowledge note / PDF download wiring** — `knowledge_note_save` writes files under Config.noteDir (a native knowledge.db write API is deferred), and `patent_pdf_download` resolves its batch runner per call over a late-bound `ctx.get('patentData')` lookup (`createDownloadChannelRunner`): a present service drives the unified ego stack (via `ctx.patentData.createEgoSession()`), and an absent service or an unusable browser falls through to a browser-free scrape of each page's CDN link, which the tool's own fetch fallback downloads with bounded retry/backoff (timeout, retry, and Retry-After-aware wait). The lookup is per call because `patent-data` declares `inject: ['subprocess']` and therefore activates after this package's apply; see [the service-resolution Agent Note](../../../.agents/notes/implemented/bug-fix/2026-09-21-patent-pdf-download-resolves-service-per-call.md). browseros-neo, playwright, and browser-use participate in probing but never in downloads.
 - **Semantic recall removed** — `patent_case_search` keeps FTS/LIKE only; the embedding-based semantic recall path is not ported (dsh ships no vector infrastructure yet).
 - **Evidence rule assets** — `evaluate_evidence` resolves `evidence-rules.yaml` through `@deepseek-ai/dsh-patent-rule`'s asset location; without it the engine falls back to default weights.
+- **TRIZ analysis is inventor-side and narrow by design** — `triz_contradiction_analysis` reads one disclosure at a time: it builds no problem dependency graph, measures no hallucination rate, and merges nothing across documents. Its contradictions are design-level trade-offs between engineering parameters, so they never enter an office-action or invalidity argument — the three-step step-2 problem statement stays with `checkAtomic` and the inventiveness subgraph. A contradiction whose evidence does not locate in the disclosure text is dropped and counted instead of reported, and a matrix cell carrying no recommendation is reported as a gap rather than filled from a neighbouring cell.
 
 ### Dev Note
 

@@ -39,6 +39,7 @@ import { createPatentKgQueryTool } from './tool/patent-kg-query.ts'
 import { createPatentEvalTool } from './tool/patent-eval.ts'
 import { createPatentAnalysisReportTool } from './tool/patent-analysis-report.ts'
 import { createClaimChartBuildTool } from './tool/claim-chart-build.ts'
+import { createTrizContradictionAnalysisTool } from './tool/triz-contradiction-analysis.ts'
 import { createParseOfficeActionTool } from './tool/parse-office-action.ts'
 import { createDraftClaimsTool } from './tool/draft-claims.ts'
 import { createDraftSpecificationTool } from './tool/draft-specification.ts'
@@ -89,6 +90,8 @@ export { createPatentAnalysisReportTool } from './tool/patent-analysis-report.ts
 export type { PatentAnalysisReportInput, PatentAnalysisReportOutput, PatentAnalysisReportDeps } from './tool/patent-analysis-report.ts'
 export { createClaimChartBuildTool } from './tool/claim-chart-build.ts'
 export type { ClaimChartInput, ClaimChartOutput, ClaimChartTargetInput, ClaimChartBuildDeps } from './tool/claim-chart-build.ts'
+export { createTrizContradictionAnalysisTool, renderTrizContradictionAnalysis } from './tool/triz-contradiction-analysis.ts'
+export type { TrizContradictionAnalysisInput, TrizContradictionAnalysisDeps } from './tool/triz-contradiction-analysis.ts'
 export { createParseOfficeActionTool } from './tool/parse-office-action.ts'
 export type { ParseOfficeActionInput, ParseOfficeActionOutput } from './tool/parse-office-action.ts'
 export { createDraftClaimsTool, draftClaims, DOMAIN_KEYWORDS } from './tool/draft-claims.ts'
@@ -548,6 +551,7 @@ export function apply(ctx: Context, config: Config): void {
   // LLM-consuming tools.
   ctx.tools.register(createPatentAnalysisReportTool({ model }))
   ctx.tools.register(createClaimChartBuildTool({ model }))
+  ctx.tools.register(createTrizContradictionAnalysisTool({ model }))
   ctx.tools.register(createPatentWorkflowRunTool({ model }))
   ctx.tools.register(createFlexiblePlanTool({ model }))
   ctx.tools.register(createAnalyzePatentFigureTool({

@@ -11285,6 +11285,9 @@ importers:
 
   packages/patent/patent-core:
     dependencies:
+      '@deepseek-ai/dsh-methodology':
+        specifier: workspace:*
+        version: link:../methodology
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values
