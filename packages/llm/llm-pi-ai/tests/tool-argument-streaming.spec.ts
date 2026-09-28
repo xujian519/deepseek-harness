@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { AssistantMessageEvent, Model } from '@earendil-works/pi-ai'
 import { stream as streamCompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { stream as streamResponses } from '@earendil-works/pi-ai/api/openai-responses'
+import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { closeMockServers, mockServer } from './mock-server.ts'
 
 afterEach(closeMockServers)
@@ -35,7 +36,9 @@ async function collect(events: AsyncIterable<AssistantMessageEvent>): Promise<{ 
   return { partials, final }
 }
 
-const context = { messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] }
+// The API implementations dispatch on pi-ai's normalized transcript, which only
+// `normalizeContext` produces.
+const context = normalizeContext({ messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] })
 
 describe('streamed tool-call arguments (patched pi-ai)', () => {
   it('openai-completions parses arguments once, at the end of the call', async () => {

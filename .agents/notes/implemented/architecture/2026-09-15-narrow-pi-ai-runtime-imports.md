@@ -10,9 +10,9 @@ The base bundle mounts `dsh-llm-pi-ai` with no configured routes so the Models s
 
 ## Decision
 
-`dsh-llm-pi-ai` has no runtime import of pi-ai's aggregate entry point. Catalog and login metadata continue through `providers/all`; protocol implementations use their existing `api/*.lazy` entries; overflow detection uses `utils/overflow`. Package-local `models.ts` supplies the three model helpers the adapter needs. Its collection comes from pi-ai's public `builtinModels()` implementation and is cleared before route providers are installed. Its provider constructor implements the static single-protocol case this adapter supplies. Its reasoning-level selection reads pi-ai's public `Model` metadata in pi-ai's escalation order.
+`dsh-llm-pi-ai` has no runtime import of pi-ai's aggregate entry point. Catalog and login metadata continue through `providers/all`; protocol implementations use their existing `api/*.lazy` entries; overflow detection uses `utils/overflow`; the request-contract wrappers a catalog route [re-applies on a protocol override](2026-09-28-catalog-request-contract-wrappers.md) come from `providers/opencode-headers` and `providers/cloudflare-stream`. Package-local `models.ts` supplies the three model helpers the adapter needs. Its collection comes from pi-ai's public `builtinModels()` implementation and is cleared before route providers are installed. Its provider constructor implements the static single-protocol case this adapter supplies. Its reasoning-level selection reads pi-ai's public `Model` metadata in pi-ai's escalation order.
 
-Type-only imports from the aggregate entry point remain because TypeScript erases them. Import profiling of the built package resolves 153 pi-ai modules and no TypeBox modules or pi-ai aggregate entry.
+Type-only imports from the aggregate entry point remain because TypeScript erases them. Import profiling of the built package resolves 161 pi-ai modules and no TypeBox modules or pi-ai aggregate entry.
 
 ## Alternatives considered
 

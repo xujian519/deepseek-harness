@@ -48,7 +48,7 @@ const CALLED: [string, Record<string, unknown>, readonly string[]][] = [
   ['execa', execa, ['execa']],
   ['@deepseek-ai/pi-ai', piAi, [
     'createProvider', 'createModels', 'openAICompletionsApi', 'openAIResponsesApi', 'anthropicMessagesApi',
-    'isContextOverflow', 'getSupportedThinkingLevels',
+    'isContextOverflow', 'getSupportedThinkingLevels', 'cloudflareStreams', 'withOpenCodeSessionHeader',
   ]],
 ]
 
@@ -137,6 +137,13 @@ describe('replaced external packages', () => {
   it('answers the values callers read without invoking anything', () => {
     // The ripgrep binary path is read as data by its consumer.
     expect(typeof ripgrep.rgPath).toBe('string')
+    // The pi-ai collection is built and mutated during catalog reads; a route
+    // that resolved would already have failed on the refusing provider factory.
+    const models = piAi.builtinModels()
+    expect(() => { models.clearProviders() }).not.toThrow()
+    expect(() => { models.setProvider({ id: 'openai' }) }).not.toThrow()
+    expect(models.getModels('openai')).toEqual([])
+    expect(models.getModel('openai', 'gpt-4.1')).toBeUndefined()
   })
 })
 
