@@ -153,10 +153,16 @@ describe('buildSectionDiagram 剖面线裁剪', () => {
     expect(spec.body).toContain('<polygon points="4,8 8,12 8,4" stroke-width="0.5"/>')
   })
 
-  it('顶点共线的退化轮廓：重心退化为顶点平均位置且不画剖面线', () => {
+  it('顶点共线的退化轮廓：重心退化为顶点平均位置，引线自该点引出且不画剖面线', () => {
     const spec = buildSectionDiagram({ parts: [{ outline: [[0, 0], [5, 0], [10, 0]], label: '线材' }] })
-    expect(hatchLines(spec.body)).toEqual([])
-    expect(textElements(spec.body)).toEqual([{ x: 9, y: 8.7, anchor: 'middle', text: '线材' }])
+    // 数字落在轮廓右上角之外（包围盒右边与上边各加两倍字号），故不压在轮廓上。
+    expect(textElements(spec.body)).toEqual([{ x: 21, y: 6.625, anchor: 'middle', text: '线材' }])
+    // 零面积轮廓不打剖面线：唯一一条 0.25 线是自顶点平均位置 (5,0) 引出的标号引线，
+    // 止于「线材」占位框（宽 2×3.5=7，x 13.5–20.5）的边界。
+    const [leader] = lineElements(spec.body)
+    expect(leader).toMatchObject({ x1: 9, y1: 12.425, width: 0.25 })
+    expect(leader?.x2).toBeCloseTo(18.353, 2)
+    expect(leader?.y2).toBeCloseTo(7.045, 2)
   })
 })
 
@@ -178,7 +184,7 @@ describe('buildSectionDiagram 画布与图面词语', () => {
     expect(coordinates(spec.body).filter(value => value < 0)).toEqual([])
   })
 
-  it('外轮廓与零件轮廓同用粗实线，零件名与剖切字母写入图面并收集到 labels', () => {
+  it('外轮廓与零件轮廓同用粗实线，零件名写在轮廓右上角之外并收集到 labels', () => {
     const spec = buildSectionDiagram({
       outline: OUTLINE,
       parts: [
@@ -193,12 +199,15 @@ describe('buildSectionDiagram 画布与图面词语', () => {
     const texts = textElements(spec.body)
     // 两个零件名 + 剖切字母两端各一个；零件名先转义为 XML 文本。
     expect(texts.map(item => item.text)).toEqual(['底板', 'A&amp;B', 'A', 'A'])
+    // 零件名各在自轮廓包围盒右侧两倍字号（7 毫米）之外，剖切字母在位置线两端之外。
+    expect(texts.map(item => item.x)).toEqual([33.313, 53.313, 5.313, 51.313])
     // 文字最后绘制：剖面线不得妨碍附图标记线和主线条的识别。
     expect(spec.body.indexOf('<text ')).toBeGreaterThan(spec.body.lastIndexOf('<line '))
     // 黑白输出：文本元素自带黑填充无描边，片段内不出现其他颜色。
     expect(new Set(spec.body.match(/#[0-9a-fA-F]{3,6}/g) ?? [])).toEqual(new Set(['#000000']))
-    // 画布取外轮廓、零件、剖切符号与留白 (4) 的包围盒：位置线在轮廓上方 4 毫米，画布随之上扩。
-    expect({ widthMm: spec.widthMm, heightMm: spec.heightMm }).toEqual({ widthMm: 61, heightMm: 39.5 })
+    // 画布取外轮廓、零件、零件名（按内容宽度的占位框）、剖切符号与留白 (4) 的包围盒。
+    expect(spec.widthMm).toBeCloseTo(60.9875, 6)
+    expect(spec.heightMm).toBeCloseTo(37.425, 6)
   })
 
   it('外轮廓为空数组表示只画零件；空白零件名不写入图面', () => {
@@ -223,42 +232,42 @@ describe('buildSectionDiagram 剖切位置符号', () => {
   }[] = [
     {
       arrow: 'left',
-      positionLine: '<line x1="11.5" y1="7.5" x2="27.5" y2="7.5" stroke-width="0.5"/>',
-      polylines: ['11.5,6.5 9,7.5 11.5,8.5', '27.5,6.5 25,7.5 27.5,8.5'],
+      positionLine: '<line x1="10.625" y1="5.425" x2="26.625" y2="5.425" stroke-width="0.5"/>',
+      polylines: ['10.625,4.425 8.125,5.425 10.625,6.425', '26.625,4.425 24.125,5.425 26.625,6.425'],
       anchors: ['end', 'end'],
-      xs: [7.5, 23.5],
-      y: 8.7,
-      widthMm: 31.5,
-      heightMm: 21.5,
+      xs: [6.625, 22.625],
+      y: 6.625,
+      widthMm: 30.625,
+      heightMm: 19.425,
     },
     {
       arrow: 'right',
-      positionLine: '<line x1="4" y1="7.5" x2="20" y2="7.5" stroke-width="0.5"/>',
-      polylines: ['4,8.5 6.5,7.5 4,6.5', '20,8.5 22.5,7.5 20,6.5'],
+      positionLine: '<line x1="4" y1="5.425" x2="20" y2="5.425" stroke-width="0.5"/>',
+      polylines: ['4,6.425 6.5,5.425 4,4.425', '20,6.425 22.5,5.425 20,4.425'],
       anchors: ['start', 'start'],
       xs: [8, 24],
-      y: 8.7,
-      widthMm: 31.5,
-      heightMm: 21.5,
+      y: 6.625,
+      widthMm: 30.625,
+      heightMm: 19.425,
     },
     {
       arrow: 'up',
-      positionLine: '<line x1="7.5" y1="11.5" x2="23.5" y2="11.5" stroke-width="0.5"/>',
-      polylines: ['8.5,11.5 7.5,9 6.5,11.5', '24.5,11.5 23.5,9 22.5,11.5'],
+      positionLine: '<line x1="5.313" y1="9.425" x2="21.313" y2="9.425" stroke-width="0.5"/>',
+      polylines: ['6.313,9.425 5.313,6.925 4.313,9.425', '22.313,9.425 21.313,6.925 20.313,9.425'],
       anchors: ['middle', 'middle'],
-      xs: [7.5, 23.5],
-      y: 8.7,
-      widthMm: 31,
-      heightMm: 25.5,
+      xs: [5.313, 21.313],
+      y: 6.625,
+      widthMm: 26.625,
+      heightMm: 23.425,
     },
     {
       arrow: 'down',
-      positionLine: '<line x1="7.5" y1="4" x2="23.5" y2="4" stroke-width="0.5"/>',
-      polylines: ['6.5,4 7.5,6.5 8.5,4', '22.5,4 23.5,6.5 24.5,4'],
+      positionLine: '<line x1="5.313" y1="4" x2="21.313" y2="4" stroke-width="0.5"/>',
+      polylines: ['4.313,4 5.313,6.5 6.313,4', '20.313,4 21.313,6.5 22.313,4'],
       anchors: ['middle', 'middle'],
-      xs: [7.5, 23.5],
+      xs: [5.313, 21.313],
       y: 9.2,
-      widthMm: 31,
+      widthMm: 26.625,
       heightMm: 18,
     },
   ]
@@ -287,8 +296,8 @@ describe('buildSectionDiagram 剖切位置符号', () => {
       cuttingMarks: [{ id: 'B', from: [0, -2], to: [10, -2], arrow: 'left' }],
     })
     const [position] = lineElements(spec.body).filter(line => line.width === 0.5)
-    // 位置线 y=-2、两端外延到 x=-3 与 x=13；画布再左移 14.5、下移 9.5。
-    expect(position).toEqual({ x1: 11.5, y1: 7.5, x2: 27.5, y2: 7.5, width: 0.5 })
+    // 位置线 y=-2、两端外延到 x=-3 与 x=13；画布再左移 13.625、下移 5.425。
+    expect(position).toEqual({ x1: 10.625, y1: 5.425, x2: 26.625, y2: 5.425, width: 0.5 })
     expect(coordinates(spec.body).filter(value => value < 0)).toEqual([])
   })
 })
@@ -326,5 +335,99 @@ describe('buildSectionDiagram 校验', () => {
     expect(mark({ id: 'A', from: [0, 0], to: [1, Number.POSITIVE_INFINITY], arrow: 'up' })).toContain('剖切位置线终点坐标必须是有限数')
     expect(errorMessage(() => buildSectionDiagram({ parts: [{ outline: SQUARE }], paddingMm: -1 }))).toContain('画布留白必须是非负有限数：-1')
     expect(errorMessage(() => buildSectionDiagram({ parts: [{ outline: SQUARE }], paddingMm: Number.NaN }))).toContain('画布留白必须是非负有限数：NaN')
+  })
+})
+
+describe('buildSectionDiagram 引线标号、中心线、字号与非剖切轮廓', () => {
+  /** 0–10 毫米正方形，留白 0：引线与中心线的坐标断言基准。 */
+  const UNIT: readonly (readonly [number, number])[] = [[0, 0], [10, 0], [10, 10], [0, 10]]
+
+  it('labels 的引线止于数字占位框边，数字外框内没有线条', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, hatch: 'none' }],
+      labels: [{ text: '7', at: [14, 5], from: [10, 5] }],
+      paddingMm: 0,
+    })
+    expect(spec.labels).toEqual(['7'])
+    expect(textElements(spec.body)).toEqual([{ x: 14, y: 6.2, anchor: 'middle', text: '7' }])
+    const leader = lineElements(spec.body).filter(line => line.width === 0.25)
+    expect(leader).toHaveLength(1)
+    const [line] = leader as [{ x1: number; y1: number; x2: number; y2: number; width: number }]
+    expect(line.x1).toBe(10)
+    expect(line.y1).toBe(5)
+    // 数字占位框左边界 x=12.95（14 − 0.6×3.5/2）：引线止点不得越过它。
+    expect(line.x2).toBeCloseTo(12.95, 2)
+    expect(line.x2).toBeLessThanOrEqual(12.95)
+  })
+
+  it('labels 的落点与引线起点一并计入画布', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, hatch: 'none' }],
+      labels: [{ text: '3', at: [30, 20], from: [10, 10] }],
+      paddingMm: 0,
+    })
+    // 数字占位框按内容宽度估算（宽 0.6 字号）：右边界 30 + 1.05、下边界 20 + 1.62。
+    expect(spec.widthMm).toBeCloseTo(31.05, 6)
+    expect(spec.heightMm).toBeCloseTo(21.62, 6)
+  })
+
+  it('centerlines 画细点划线：长划—间隔—点—间隔循环，末段截断', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, hatch: 'none' }],
+      centerlines: [{ from: [0, 5], to: [25, 5] }],
+      paddingMm: 0,
+    })
+    const centerline = lineElements(spec.body).filter(line => line.width === 0.25)
+    expect(centerline.map(line => [line.x1, line.x2])).toEqual([
+      [0, 8], [10, 10.4], [12.4, 20.4], [22.4, 22.8], [24.8, 25],
+    ])
+    expect(centerline.every(line => line.y1 === 5 && line.y2 === 5)).toBe(true)
+    expect(spec.widthMm).toBe(25)
+    expect(spec.heightMm).toBe(10)
+  })
+
+  it('labelFontSizeMm 同时放大文字、基线补偿与轮廓外的标号间距', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, label: '甲', hatch: 'none' }],
+      labelFontSizeMm: 7,
+      paddingMm: 0,
+    })
+    // 字号 7：标号落点在包围盒右上角外 (10 + 2×7, 0 − 2×7) = (24, −14)；占位框按内容宽度
+    // （「甲」宽 7、基线以上 5.25、以下 0.84）计入，包围盒随之变为 (20.5,−16.85)–(27.5,10)，
+    // 整体平移 (0,16.85)；基线补偿按字号比例缩放 1.2 × 7/3.5 = 2.4 → −14 + 2.4 + 16.85 = 5.25。
+    expect(spec.body).toContain('<text x="24" y="5.25" font-size="7" text-anchor="middle" fill="#000000" stroke="none">甲</text>')
+    expect(spec.widthMm).toBeCloseTo(27.5, 6)
+    expect(spec.heightMm).toBeCloseTo(26.85, 6)
+  })
+
+  it('hatch 为 none 时只画轮廓，不打剖面线', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, hatch: 'none' }, { outline: [[20, 0], [30, 0], [30, 10], [20, 10]] }],
+      paddingMm: 0,
+    })
+    // 第二个零件按默认 45°/3mm 打线；第一个零件的区域（x<10）内没有剖面线。
+    const hatch = lineElements(spec.body).filter(line => line.width === 0.25)
+    expect(hatch.length).toBeGreaterThan(0)
+    expect(hatch.every(line => line.x1 >= 20 || line.x2 >= 20)).toBe(true)
+  })
+
+  it('参数非法时抛 invalid_input', () => {
+    const bad = (input: object) => errorMessage(() => buildSectionDiagram({ parts: [{ outline: UNIT }], ...input }))
+    expect(bad({ labels: [{ text: '  ', at: [20, 5] }] })).toContain('标号 #1 文本不能为空')
+    expect(bad({ labels: [{ text: '1', at: [Number.NaN, 5] }] })).toContain('标号 #1 落点坐标必须是有限数')
+    expect(bad({ labels: [{ text: '1', at: [20, 5], from: [Number.POSITIVE_INFINITY, 5] }] })).toContain('标号 #1 引线起点坐标必须是有限数')
+    expect(bad({ centerlines: [{ from: [3, 3], to: [3, 3] }] })).toContain('中心线两端点不能重合：(3, 3)')
+    expect(bad({ centerlines: [{ from: [Number.NaN, 3], to: [3, 3] }] })).toContain('中心线起点坐标必须是有限数')
+    expect(bad({ labelFontSizeMm: 0 })).toContain('图面字号必须是正有限数：0')
+    expect(bad({ labelFontSizeMm: Number.NaN })).toContain('图面字号必须是正有限数：NaN')
+  })
+
+  it('引线起点与数字落点重合时不画引线（不画反向残段）', () => {
+    const spec = buildSectionDiagram({
+      parts: [{ outline: UNIT, hatch: 'none' }],
+      labels: [{ text: '2', at: [10, 5], from: [10, 5] }],
+      paddingMm: 0,
+    })
+    expect(lineElements(spec.body)).toEqual([])
   })
 })

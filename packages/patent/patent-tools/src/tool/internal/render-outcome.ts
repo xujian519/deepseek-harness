@@ -1,10 +1,11 @@
 /**
- * 附图渲染失败的统一映射：把两个渲染器的失败结果按同一张表翻成专利工具错误。
+ * 附图渲染失败的统一映射：把渲染与导出步骤的失败结果按同一张表翻成专利工具错误。
  *
- * `generate_patent_figure`（Graphviz）与 `generate_structure_figure`（FreeCAD）
- * 的渲染结果同形，失败语义也必须是同一条：`not_installed` 是环境缺失（可修复的
- * 前置条件），`aborted` 是调用方取消，其余归 `tool_execution_failed`。两份各自
- * 维护的映射会先在这张表上漂移，再让同一类失败在两个工具里报出不同错误码。
+ * 外部步骤的结果同形（`generate_patent_figure` 的 Graphviz/矢量绘制、它的文字转路径、
+ * `generate_structure_figure` 的 FreeCAD 投影与文字转路径），失败语义也必须是同一条：
+ * `not_installed` 是环境缺失（可修复的前置条件），`aborted` 是调用方取消，其余归
+ * `tool_execution_failed`。每处各自维护的映射会先在这张表上漂移，再让同一类失败在
+ * 不同工具里报出不同错误码。
  *
  * `src/figure/` 只做渲染与失败归因（`describeRenderFailure` 返回原因短语），
  * 工具协议面（错误码与 `tool` 元数据）留在工具层，因此本模块位于 `tool/internal/`。
@@ -14,7 +15,7 @@
 
 import { PatentToolError } from '../../error.ts'
 
-/** 两个附图渲染工具的工具名（同时是错误 `details.tool` 与 `aborted` 文案的主语）。 */
+/** 附图工具名（`generate_patent_figure` 兼管 Graphviz 与直绘两条通路及其文字转路径）。 */
 export type FigureToolName = 'generate_patent_figure' | 'generate_structure_figure'
 
 /** 两类渲染结果共有的判定形态：成功，或按码分类的失败。 */

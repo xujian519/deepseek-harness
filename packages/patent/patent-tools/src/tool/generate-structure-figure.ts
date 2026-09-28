@@ -33,6 +33,7 @@ import {
   type StructureViewName,
 } from '../figure/freecad-structure-script.ts'
 import type { StructureRenderOutcome, StructureRenderSpec } from '../figure/freecad-renderer.ts'
+import type { OutlineTextPort } from '../figure/inkscape-renderer.ts'
 import { figureSentence } from '../figure/figure-description.ts'
 import { TARGET_OFFICES, officeProfile, sheetNumberText } from '../figure/office-profile.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
@@ -165,6 +166,11 @@ export type GenerateStructureFigureDeps = {
   defaultScale?: number
   /** 视图默认（Config.structureFigureViews）。 */
   defaultViews?: readonly StructureViewName[]
+  /**
+   * 可选文字转路径（Config.figureTextToPath 注入的 port）：把每个视图 SVG 的 `<text>`
+   * 换成轮廓路径。Config 未开启时缺省，视为不转换。
+   */
+  outlineText?: OutlineTextPort
 }
 
 /** 校验并归一件号锚定：point3d 必须是恰好三个有限数（schema DSL 不支持定长数组约束，模型可能送超长/非数字）。 */
@@ -464,6 +470,29 @@ async function applyStructureLayout(args: {
 
 
 /**
+ * 文字转路径：把每个视图 SVG 里的 `<text>` 换成轮廓路径（Config.figureTextToPath）。
+ *
+ * 放在落版之后：落版会改写坐标与画布，先转的路径还得再被改写一次；转完不再有步骤解析
+ * 文件（索引只记路径）。结构线稿只有 SVG 产物，故不需要按格式分支——图面文字的字体依赖
+ * 与 `generate_patent_figure` 的两条绘图通路同理。
+ * @param args - the run parameters, the rendered views, and the caller's cancel signal.
+ * @throws PatentToolError 转换失败时（not_installed → setup_required，其余 → tool_execution_failed）。
+ */
+async function outlineStructureViews(args: {
+  run: StructureRun
+  figures: readonly StructureFigureView[]
+  signal: AbortSignal
+}): Promise<void> {
+  const outline = args.run.deps.outlineText
+  if (outline === undefined) return
+  for (const figure of args.figures) {
+    for (const viewPath of figure.paths) {
+      assertRendered(await outline({ path: resolve(args.run.cwd, viewPath), signal: args.signal }), 'generate_structure_figure')
+    }
+  }
+}
+
+/**
  * Build the `generate_structure_figure` tool over the injected FreeCAD renderer.
  * @param deps - renderer + gate/outputDir/index/cwd/scale/views defaults.
  * @returns a registry-ready tool definition.
@@ -553,6 +582,7 @@ export function createGenerateStructureFigureTool(deps: GenerateStructureFigureD
         run.callouts.map(callout => callout.numeral),
       ))
       const layout = await applyStructureLayout({ run, figures, warnings })
+      await outlineStructureViews({ run, figures, signal: exec.signal })
       let indexed = false
       if ((run.input.persist_index ?? true) && deps.upsertIndex !== undefined) {
         indexed = true

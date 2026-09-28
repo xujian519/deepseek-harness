@@ -54,6 +54,11 @@ describe('vector-figure：矢量附图接缝', () => {
     expect(() => {
       assertVectorFigureSpec({ ...spec, body: 'x'.repeat(DEFAULT_VECTOR_BODY_MAX_BYTES + 1) })
     }).toThrow('过大')
+    // 上限按 UTF-8 字节计：码元数不超限、字节数超限时同样拒绝。
+    expect(() => {
+      const body = `<text>${'一'.repeat(DEFAULT_VECTOR_BODY_MAX_BYTES / 2)}</text>`
+      assertVectorFigureSpec({ ...spec, body })
+    }).toThrow('过大')
     expect(() => { assertVectorFigureSpec({ ...spec, labels: [1 as never] }) }).toThrow('图面词语必须是字符串')
     expect(() => { vectorFigureSvg({ ...spec, body: '' }) }).toThrow(VectorFigureError)
   })

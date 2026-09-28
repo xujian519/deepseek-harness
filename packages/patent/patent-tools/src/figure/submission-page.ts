@@ -16,17 +16,9 @@
  */
 
 import { assertSafeSvg, DEFAULT_SVG_MAX_BYTES, SvgAnnotateError } from './svg-annotate.ts'
+import { resolveSvgViewport } from './svg-viewport.ts'
 import { escapeXmlAttribute } from './vector-figure.ts'
 import type { OfficeProfile, TargetOffice } from './office-profile.ts'
-
-/** 像素/英寸（未声明单位的 SVG 长度按 CSS 像素处理）。 */
-const PX_PER_INCH = 96
-
-/** 毫米/英寸。 */
-const MM_PER_INCH = 25.4
-
-/** 点/英寸（pt 长度单位）。 */
-const PT_PER_INCH = 72
 
 /** 落版放大的上限，避免极小的图形被放大到失真的尺寸。 */
 const MAX_PAGE_SCALE = 4
@@ -34,17 +26,17 @@ const MAX_PAGE_SCALE = 4
 /** 数字与字母高度相对字号的折算比（大写字母高度约为字号的 0.7）。 */
 const CHAR_HEIGHT_RATIO = 0.7
 
-/** 落版页输入的图形尺寸（毫米）与用户单位映射。 */
+/** 落版页输入的图形尺寸（毫米）与用户单位映射（按 svg-viewport 解析的视口）。 */
 type SvgGeometry = {
-  /** 图形声明宽（毫米）。 */
+  /** 图形所占视口宽（毫米）：根元素未声明时按 viewBox 的 96 dpi 用户单位换算。 */
   widthMm: number
-  /** 图形声明高（毫米）。 */
+  /** 图形所占视口高（毫米）：根元素未声明时按 viewBox 的 96 dpi 用户单位换算。 */
   heightMm: number
-  /** viewBox 原点 X（用户单位）。 */
+  /** 视口左上角对应的用户单位 X（viewBox 原点减对齐偏移）。 */
   viewBoxX: number
-  /** viewBox 原点 Y（用户单位）。 */
+  /** 视口左上角对应的用户单位 Y（viewBox 原点减对齐偏移）。 */
   viewBoxY: number
-  /** 用户单位 → 毫米的换算比（纵向，与横向一致时同一值）。 */
+  /** 用户单位 → 毫米的换算比（纵向；等比映射时与横向同一值）。 */
   userUnitToMmY: number
   /** 用户单位 → 毫米的换算比（横向）。 */
   userUnitToMmX: number
@@ -123,43 +115,6 @@ export type SubmissionPageResult = {
 }
 
 /**
- * 解析 SVG 长度值为毫米（支持 mm/cm/in/pt/px 与无单位，无单位按 CSS 像素）。
- * @param raw - 长度属性原文。
- * @returns 毫米值；无法解析时 undefined。
- */
-export function parseLengthMm(raw: string): number | undefined {
-  const match = /^\s*(-?\d+(?:\.\d+)?)\s*([a-z%]*)\s*$/i.exec(raw)
-  if (match === null) return undefined
-  const value = Number(match[1])
-  switch ((match[2] ?? '').toLowerCase()) {
-    case '':
-    case 'px':
-      return (value / PX_PER_INCH) * MM_PER_INCH
-    case 'mm':
-      return value
-    case 'cm':
-      return value * 10
-    case 'in':
-      return value * MM_PER_INCH
-    case 'pt':
-      return (value / PT_PER_INCH) * MM_PER_INCH
-    default:
-      return undefined
-  }
-}
-
-/**
- * 读取根元素的指定属性值。
- * @param openTag - 根元素的起始标签文本。
- * @param name - 属性名。
- * @returns 属性值；缺省时 undefined。
- */
-function attribute(openTag: string, name: string): string | undefined {
-  const pattern = new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, 'i')
-  return pattern.exec(openTag)?.[1]
-}
-
-/**
  * 解析图形 SVG 的物理尺寸、viewBox 与内部内容。
  * @param svgText - 图形 SVG 文本。
  * @returns 尺寸与内部内容。
@@ -172,39 +127,23 @@ export function parseDrawingSvg(svgText: string): { geometry: SvgGeometry; warni
   if (openTag === undefined || closeIndex < 0) {
     throw new SvgAnnotateError('invalid_svg', '非 SVG 文档：缺少 <svg> 根元素')
   }
-  const warnings: string[] = []
-  const viewBox = /viewBox\s*=\s*"([^"]*)"/i.exec(openTag)?.[1]
-  const viewBoxParts = viewBox === undefined ? [] : viewBox.trim().split(/[\s,]+/).map(Number)
-  const hasViewBox = viewBoxParts.length === 4 && viewBoxParts.every(Number.isFinite)
-  const rawWidth = attribute(openTag, 'width')
-  const rawHeight = attribute(openTag, 'height')
-  const declaredWidth = rawWidth === undefined ? undefined : parseLengthMm(rawWidth)
-  const declaredHeight = rawHeight === undefined ? undefined : parseLengthMm(rawHeight)
-
-  let widthMm = declaredWidth
-  let heightMm = declaredHeight
-  if (widthMm === undefined && hasViewBox) {
-    widthMm = ((viewBoxParts[2] as number) / PX_PER_INCH) * MM_PER_INCH
-  }
-  if (heightMm === undefined && hasViewBox) {
-    heightMm = ((viewBoxParts[3] as number) / PX_PER_INCH) * MM_PER_INCH
-  }
-  if (widthMm === undefined || heightMm === undefined) {
+  const viewport = resolveSvgViewport(openTag)
+  const { widthMm, heightMm, viewportWidthMm, viewportHeightMm } = viewport
+  if (viewportWidthMm === undefined || viewportHeightMm === undefined) {
     throw new SvgAnnotateError('invalid_svg', 'SVG 缺少可解析的 width/height 或 viewBox')
   }
-  if (declaredWidth === undefined || declaredHeight === undefined) {
-    warnings.push('图形未同时声明 width/height，缺失的一边按 viewBox 的 96 dpi 用户单位换算')
-  }
-  const userUnitToMmX = hasViewBox ? widthMm / (viewBoxParts[2] as number) : MM_PER_INCH / PX_PER_INCH
-  const userUnitToMmY = hasViewBox ? heightMm / (viewBoxParts[3] as number) : MM_PER_INCH / PX_PER_INCH
+  const warnings = widthMm === undefined || heightMm === undefined
+    ? ['图形未同时声明 width/height，缺失的一边按 viewBox 的 96 dpi 用户单位换算']
+    : []
+  if (viewport.note !== undefined) warnings.push(viewport.note)
   return {
     geometry: {
-      widthMm,
-      heightMm,
-      viewBoxX: hasViewBox ? (viewBoxParts[0] as number) : 0,
-      viewBoxY: hasViewBox ? (viewBoxParts[1] as number) : 0,
-      userUnitToMmX,
-      userUnitToMmY,
+      widthMm: viewportWidthMm,
+      heightMm: viewportHeightMm,
+      viewBoxX: viewport.originX,
+      viewBoxY: viewport.originY,
+      userUnitToMmX: viewport.scaleX,
+      userUnitToMmY: viewport.scaleY,
       inner: svgText.slice(svgText.indexOf(openTag) + openTag.length, closeIndex),
     },
     warnings,

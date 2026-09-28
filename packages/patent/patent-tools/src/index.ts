@@ -1,5 +1,5 @@
 /**
- * Function plugin registering the 30 model-facing patent tools ported from Sati:
+ * Function plugin registering the 31 model-facing patent tools ported from Sati:
  * search, metadata, legal status, case/wiki/kg knowledge queries, claim-chart,
  * office-action parsing, drafting, specification validation, evidence judgment,
  * rule check, figure analysis + generation, PDF download, chemical recognition,
@@ -27,6 +27,8 @@ import { figureIndexStore, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/i
 import { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
 import { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS } from './figure/graphviz-renderer.ts'
+import { DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS, outlineSvgText } from './figure/inkscape-renderer.ts'
+import type { OutlineTextPort } from './figure/inkscape-renderer.ts'
 import { pickRenderer } from './figure/render-selector.ts'
 import type { FigureRendererMode } from './figure/render-selector.ts'
 import { PatentToolError } from './error.ts'
@@ -54,6 +56,7 @@ import type { GenerateStructureFigureDeps } from './tool/generate-structure-figu
 import { STRUCTURE_VIEWS, type StructureViewName } from './figure/freecad-structure-script.ts'
 import { DEFAULT_FREECAD_RENDER_TIMEOUT_MS, renderStructureViews } from './figure/freecad-renderer.ts'
 import { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
+import { createVerifyPatentFigureTool } from './tool/verify-patent-figure.ts'
 import { createPatentPdfDownloadTool, type RunEgo } from './tool/patent-pdf-download.ts'
 import { createDownloadChannelRunner } from './tool/patent-pdf-download-channel.ts'
 import { createRecognizeChemicalStructureTool } from './tool/recognize-chemical-structure.ts'
@@ -150,10 +153,16 @@ export type {
   GeneratePatentFigurePanelOutput,
 } from './tool/figure-input.ts'
 export { createAddPatentFigureReferencesTool } from './tool/add-patent-figure-references.ts'
+export { createVerifyPatentFigureTool } from './tool/verify-patent-figure.ts'
+export type { VerifyPatentFigureInput, VerifyPatentFigureOutput, VerifyPatentFigureDeps } from './tool/verify-patent-figure.ts'
+export { checkFigureRendering } from './figure/render-check.ts'
+export type { RenderCheckFinding, RenderCheckKind, RenderCheckReport } from './figure/render-check.ts'
 export type { AddPatentFigureReferencesInput, AddPatentFigureReferencesOutput, AddPatentFigureReferencesDeps } from './tool/add-patent-figure-references.ts'
 export { figureIndexStore, FIGURE_INDEX_VERSION, DEFAULT_FIGURE_INDEX_RELATIVE_PATH } from './figure/index-store.ts'
 export type { FigureIndexEntry, LoadFigureIndexResult } from './figure/index-store.ts'
 export { findDot, probeGraphviz, renderWithGraphviz, sanitizeDotFilename, graphvizInstallMessage, DOT_CANDIDATES } from './figure/graphviz-renderer.ts'
+export { findInkscape, outlineSvgText, inkscapeInstallMessage, INKSCAPE_CANDIDATES, DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS } from './figure/inkscape-renderer.ts'
+export type { InkscapeOutlineOutcome, InkscapeOutlineSpec } from './figure/inkscape-renderer.ts'
 export { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 export type { FigureAnalysisEngine, FigureAnalysisRequest } from './figure/analysis-engine.ts'
 export type {
@@ -251,6 +260,12 @@ export interface Config {
   figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
+  /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，两个附图生成工具、仅 SVG 生效）。 */
+  figureTextToPath?: boolean
+  /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用（两个附图生成工具共用同一端口）。 */
+  inkscapeExecutable?: string
+  /** Inkscape 单次文字转路径超时（毫秒）；默认 30000。仅 figureTextToPath 使用。 */
+  inkscapeRenderTimeoutMs?: number
   /** 个人工作台 API 基址覆盖；缺省在 web 组合内自动取本进程 webServer 端口。 */
   workbenchBaseUrl?: string
   /** 案件根目录（相对或绝对路径，其下每案一个 <案号>/ 目录）；默认 <cwd>/patent-workspace。 */
@@ -295,6 +310,9 @@ export const Config: z<Config> = z.object({
   figureDpi: z.number(),
   figureMargin: z.number(),
   figureOutputDir: z.string(),
+  figureTextToPath: z.boolean(),
+  inkscapeExecutable: z.string(),
+  inkscapeRenderTimeoutMs: z.number().step(1).min(1).default(DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS),
   workbenchBaseUrl: z.string(),
   workbenchCaseRoot: z.string(),
   dotFont: z.string(),
@@ -310,10 +328,15 @@ export const Config: z<Config> = z.object({
  * @param config - 插件配置。
  * @returns dot 与 freecadcmd 的单次渲染超时（毫秒）。
  */
-function resolveRenderBudgets(config: Config): { graphvizRenderTimeoutMs: number; freecadRenderTimeoutMs: number } {
+function resolveRenderBudgets(config: Config): {
+  graphvizRenderTimeoutMs: number
+  freecadRenderTimeoutMs: number
+  inkscapeRenderTimeoutMs: number
+} {
   return {
     graphvizRenderTimeoutMs: config.graphvizRenderTimeoutMs ?? DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS,
     freecadRenderTimeoutMs: config.freecadRenderTimeoutMs ?? DEFAULT_FREECAD_RENDER_TIMEOUT_MS,
+    inkscapeRenderTimeoutMs: config.inkscapeRenderTimeoutMs ?? DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS,
   }
 }
 
@@ -472,7 +495,7 @@ export function createDownloadRunnerResolver(options: DownloadRunnerResolverOpti
 }
 
 /**
- * Register the 30 patent tools.
+ * Register the 31 patent tools.
  * @param ctx - registrant context carrying the tool registry and optional services.
  * @param config - validated {@link Config}.
  */
@@ -587,8 +610,20 @@ export function apply(ctx: Context, config: Config): void {
     ...(config.graphvizExecutable === undefined ? {} : { graphvizExecutable: config.graphvizExecutable }),
     graphvizRenderTimeoutMs: renderBudgets.graphvizRenderTimeoutMs,
   })
+  // 文字转路径（Config.figureTextToPath）是可选的导出加固：开启时注入端口，关闭时
+  // 完全不接线。缺 subprocess 或 Inkscape 时 fail loud（setup_required），不静默
+  // 交出仍有字体依赖的图。
+  const outlineText: OutlineTextPort | undefined = config.figureTextToPath === true
+    ? spec => (subprocess === undefined
+      ? Promise.resolve({ ok: false as const, code: 'not_installed' as const, error: '文字转路径需要 subprocess 服务（宿主未挂载 @deepseek-ai/dsh-subprocess）。' })
+      : outlineSvgText(subprocess, spec, {
+        ...(config.inkscapeExecutable === undefined ? {} : { executable: config.inkscapeExecutable }),
+        renderTimeoutMs: renderBudgets.inkscapeRenderTimeoutMs,
+      }))
+    : undefined
   ctx.tools.register(createGeneratePatentFigureTool({
     render: renderDot,
+    ...(outlineText === undefined ? {} : { outlineText }),
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),
     loadIndex: async () => (await figureIndexStore.load(figureIndexFile)).entries,
@@ -599,6 +634,10 @@ export function apply(ctx: Context, config: Config): void {
     ...(config.figureMargin === undefined ? {} : { marginCm: config.figureMargin }),
   }))
   ctx.tools.register(createAddPatentFigureReferencesTool({}))
+  // 渲染复核:量测已生成的 SVG 附图(标号是否被线条贯穿、点划线是否被实线覆盖、相邻
+  // 零件剖面线是否可区分、内容是否越出画布)。生成后的自动复核在生成工具内部完成,
+  // 本工具供已交付/外部生成的 SVG 做交付前自检。
+  ctx.tools.register(createVerifyPatentFigureTool({}))
 
   // Structure line-art figure: an independent tool parallel to generate_patent_figure,
   // projecting STEP/IGES/BREP models through the host FreeCAD (TechDraw) via
@@ -621,6 +660,7 @@ export function apply(ctx: Context, config: Config): void {
   const structureViews = config.structureFigureViews
   ctx.tools.register(createGenerateStructureFigureTool({
     render: structureRender,
+    ...(outlineText === undefined ? {} : { outlineText }),
     ...(config.structureFigureEnabled === undefined ? {} : { enabled: config.structureFigureEnabled }),
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),

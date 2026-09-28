@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-28-inkscape-text-to-path-figure-export.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-28-inkscape-text-to-path-figure-export.md
+/agent-note-font-independent-figure-export-through-an-optional-inkscape-step:
+  en: 7897c9dc67ffbebf
+  zh: fa90055ed66cbb42
+/agent-note-font-independent-figure-export-through-an-optional-inkscape-step/problem:
+  en: b0f027aa1370f406
+  zh: 773463d19b9911ee
+/agent-note-font-independent-figure-export-through-an-optional-inkscape-step/decision:
+  en: 2f15a078c904f292
+  zh: 2d01b558f1aeed34
+/agent-note-font-independent-figure-export-through-an-optional-inkscape-step/alternatives-considered:
+  en: 5fb88a734386568a
+  zh: 38e7c4d156bed306
+/agent-note-font-independent-figure-export-through-an-optional-inkscape-step/consequences:
+  en: 6b611439b21baa2b
+  zh: 6ded6af8aca3a5cc
+/agent-note-font-independent-figure-export-through-an-optional-inkscape-step/verification:
+  en: d190fd541e87fe61
+  zh: 3123be460d22e071

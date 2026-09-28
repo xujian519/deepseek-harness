@@ -18,9 +18,9 @@
  * @module @deepseek-ai/dsh-patent-tools/tool/generate-patent-figure
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, validateArgs } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { PatentToolError } from '../error.ts'
 import { DIAGRAM_TEMPLATE_NAMES, DOT_ENGINES, DOT_FORMATS, DotBuildError, assignNumerals, resolvePageBundle } from '../figure/dot-builder.ts'
@@ -30,10 +30,13 @@ import { sanitizeDotFilename } from '../figure/graphviz-renderer.ts'
 import { TARGET_OFFICES } from '../figure/office-profile.ts'
 import { buildVectorFigure, isVectorFigureType } from '../figure/vector-figure-build.ts'
 import { VectorFigureError, vectorFigureSvg } from '../figure/vector-figure.ts'
+import { checkFigureRendering } from '../figure/render-check.ts'
+import { SvgAnnotateError } from '../figure/svg-annotate.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
 import { FIGURE_TYPE_NAMES, FIGURE_TYPES } from './analyze-patent-figure.ts'
 import { collectComponents, collectFigureWording, inferFigureType, presentStructuralFields, readNumerals, resolveFamilySeeds, toFigureType, vectorTitle } from './figure-input.ts'
 import type { DotFigureType, GeneratePatentFigureDeps, GeneratePatentFigureInput, GeneratePatentFigureOutput, GeneratePatentFigurePanelInput, NormalizedFigureInput, StructuralFigureInput } from './figure-input.ts'
+import type { SectionFigureJson } from '../figure/vector-figure-build.ts'
 import { buildOutput, indexAnalysis, renderGenerateFigureResult, upsertFigureIndex } from './figure-output.ts'
 import { annotateRenderedSvg, buildFigureDot } from './figure-render-plan.ts'
 import { applySubmissionPage, buildLayout, resolveSubmission } from './figure-submission.ts'
@@ -69,7 +72,9 @@ const DESCRIPTION = [
   '',
   '落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。仅 SVG 输出支持落版；fit_to_page=false 时只核算尺寸、不改写画布。',
   '',
-  '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
+  '引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。',
+  '',
+  '剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）。',
   '',
   '图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。',
   '',
@@ -116,6 +121,63 @@ type SingleFigureRun = {
   fontName: string
   numeralsForBuilder: Record<string, string>
   leaderLinesActive: boolean
+}
+
+/** 文件形式已解析的单图输入：`sections` 恒为对象（字符串形式在归一前读入）。 */
+type ResolvedFigureInput = Omit<GeneratePatentFigureInput, 'sections'> & { sections?: SectionFigureJson }
+
+/**
+ * 校验 `sections` 的 JSON 值形状（文件形式的边界校验）：必须是 JSON 对象。
+ * @param value - 解析后的 JSON 值。
+ * @param source - 报错用的文件路径。
+ * @throws PatentToolError 值不是 JSON 对象时。
+ */
+function assertSectionsValue(value: unknown, source: string): asserts value is SectionFigureJson {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new PatentToolError('invalid_tool_input', `sections 文件内容不是 JSON 对象：${source}`, { tool: 'generate_patent_figure' })
+  }
+}
+
+/**
+ * 解析 `sections` 的文件形式：字符串时按 cwd 读 JSON 文件，并用与内联对象同一套
+ * 参数校验（`validateArgs` + 同一 schema）核一遍 —— 两条路径的接受范围与报错一致。
+ * @param input - the model-supplied input.
+ * @param cwd - 相对路径基准。
+ * @returns 输入本身，或 `sections` 已换成文件内容的那份输入。
+ * @throws PatentToolError 文件缺失（file_not_found）、非 JSON 或不符合剖视图输入时。
+ */
+async function resolveSectionsFile(
+  input: GeneratePatentFigureInput,
+  cwd: string,
+): Promise<ResolvedFigureInput> {
+  const { sections, ...rest } = input
+  if (typeof sections !== 'string') return sections === undefined ? rest : { ...rest, sections }
+  let raw: string
+  try {
+    raw = await readFile(resolve(cwd, sections), 'utf8')
+  } catch {
+    throw new PatentToolError('file_not_found', `sections 文件不存在或不可读：${sections}`, { tool: 'generate_patent_figure' })
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    throw new PatentToolError(
+      'invalid_tool_input',
+      `sections 文件不是合法 JSON：${sections}（${error instanceof Error ? error.message : String(error)}）`,
+      { tool: 'generate_patent_figure' },
+    )
+  }
+  assertSectionsValue(parsed, sections)
+  const violations = validateArgs({ sections: SECTION_INPUT_SCHEMA }, { sections: parsed })
+  if (violations.length > 0) {
+    throw new PatentToolError(
+      'invalid_tool_input',
+      `sections 文件内容不符合剖视图输入：${violations.slice(0, 3).join('；')}`,
+      { tool: 'generate_patent_figure' },
+    )
+  }
+  return { ...rest, sections: parsed }
 }
 
 /**
@@ -182,15 +244,16 @@ async function generatePanels(
  * @returns the single-figure output.
  */
 async function generateSingleFigure(
-  input: GeneratePatentFigureInput,
+  input: ResolvedFigureInput,
   context: FigureContext,
 ): Promise<GeneratePatentFigureOutput> {
   const { deps, cwd, format } = context
   const normalized = normalizeSingleFigure(input)
   const figureNumber = normalized.figure_number ?? 1
+  const vector = isVectorFigureType(normalized.figure_type)
   // 引线标号默认按图型：框图/层级图开、流程图关；仅 SVG 生效。
   const leaderLines = normalized.leader_lines ?? (normalized.figure_type === 'block_diagram' || normalized.figure_type === 'component_hierarchy')
-  const leaderLinesActive = leaderLines && format === 'svg'
+  const leaderLinesActive = leaderLines && format === 'svg' && !vector
   const components = collectComponents(normalized)
   const fontName = (deps.resolveFont ?? ((): string => 'Helvetica'))(components.map(c => c.label))
 
@@ -233,7 +296,9 @@ async function generateSingleFigure(
     numeralBy,
   })
   if (leaderLines && !leaderLinesActive) {
-    result.warnings.push(`引线标号仅支持 SVG 矢量输出；本次 ${format} 保持内嵌标号`)
+    result.warnings.push(vector
+      ? `引线标号（leader_lines）对直绘图型（${normalized.figure_type}）不生效：本图型的标号由输入决定——剖视图用 sections.labels 给出标号落点与引线起点`
+      : `引线标号仅支持 SVG 矢量输出；本次 ${format} 保持内嵌标号`)
   } else if (leaderLinesActive) {
     await annotateRenderedSvg(rendered.path, result.numeralMap, result.warnings)
   }
@@ -250,6 +315,8 @@ async function generateSingleFigure(
     style: context.style,
     output: result,
   })
+  if (vector) await checkRenderedFigure({ path: rendered.path, warnings: result.warnings })
+  await outlineFigureText({ deps, path: rendered.path, format, signal: context.signal, warnings: result.warnings })
   let indexed = false
   if ((normalized.persist_index ?? true) && deps.upsertIndex !== undefined) {
     indexed = await upsertFigureIndex({
@@ -269,9 +336,11 @@ async function generateSingleFigure(
  * @param input - the model-supplied input.
  * @returns the input with every structural field present.
  */
-function normalizeSingleFigure(input: GeneratePatentFigureInput): NormalizedFigureInput {
+function normalizeSingleFigure(input: ResolvedFigureInput): NormalizedFigureInput {
+  const { sections, ...rest } = input
   return {
-    ...input,
+    ...rest,
+    ...(sections === undefined ? {} : { sections }),
     figure_type: input.figure_type ?? inferFigureType(input),
     steps: input.steps ?? [],
     states: input.states ?? [],
@@ -439,6 +508,7 @@ async function renderPanel(
     style: run.context.style,
     output,
   })
+  await outlineFigureText({ deps, path: outcome.path, format, signal: run.context.signal, warnings: output.warnings })
   return { suffix: panel.suffix, output }
 }
 
@@ -469,8 +539,9 @@ async function renderSingleFigure(
       throw error
     }
     const path = join(run.outputDir, `${sanitizeDotFilename(filename)}.svg`)
-    await writeFile(path, vectorFigureSvg(build.spec, vectorTitle(normalized.invention_name, toFigureType(normalized.figure_type))), 'utf8')
-    return { path, vectorLabels: build.spec.labels, vectorWarnings: build.warnings }
+    const svg = vectorFigureSvg(build.spec, vectorTitle(normalized.invention_name, toFigureType(normalized.figure_type)))
+    await writeFile(path, svg, 'utf8')
+    return { path, vectorLabels: build.spec.labels, vectorWarnings: [...build.warnings] }
   }
   const dotInput: StructuralFigureInput & { figure_type: DotFigureType } = { ...normalized, figure_type: normalized.figure_type }
   let dot: string
@@ -563,6 +634,7 @@ async function mergePanelOutputs(args: {
   /* v8 ignore start -- panels is validated non-empty above, so the first panel always exists */
   return {
     path: panelOutputs[0]?.output.path ?? '',
+    absolutePath: panelOutputs[0]?.output.absolutePath ?? '',
     format,
     engine,
     figureNumber,
@@ -576,6 +648,7 @@ async function mergePanelOutputs(args: {
     panels: panelOutputs.map(po => ({
       suffix: po.suffix,
       path: po.output.path,
+      absolutePath: po.output.absolutePath,
       figureType: po.output.figureType,
       ...(po.output.layout === undefined ? {} : { layout: po.output.layout }),
     })),
@@ -604,6 +677,60 @@ async function layoutSubmissionPage(args: {
 }
 
 /**
+ * 渲染复核：量测交付文件，把发现折成警告（只对直绘图型）。
+ *
+ * 放在落版之后、文字转路径之前：落版会改写坐标与画布，复核要量的是最终交付物；转路径
+ * 之后图面已无 `<text>`，贯穿判定无从做起。只查得出「画出来才看得见」的问题（标号被
+ * 线条贯穿、点划线被实线覆盖、相邻零件剖面线取向过近、内容越出画布），与输入检查互补。
+ * 体量上限已由 vectorFigureSvg 按 DEFAULT_VECTOR_BODY_MAX_BYTES 卡住，复核不再按同一上限
+ * 二次拦截（复核含未量测说明，超限被拒会把它整段吞掉）；调用方给的外观视图片段仍可能带上
+ * 复核本身拒绝的结构，那时记一条跳过说明，不吞掉已生成的图。
+ * @param args - the delivered path and the warning sink.
+ */
+async function checkRenderedFigure(args: { path: string; warnings: string[] }): Promise<void> {
+  let svg: string
+  try {
+    svg = await readFile(args.path, 'utf8')
+  } catch (error) {
+    args.warnings.push(`渲染复核被跳过：读取 ${args.path} 失败（${error instanceof Error ? error.message : String(error)}）`)
+    return
+  }
+  try {
+    args.warnings.push(...checkFigureRendering(svg, { maxBytes: Buffer.byteLength(svg, 'utf8') }).findings
+      .map(finding => `渲染复核：${finding.message}`))
+  } catch (error) {
+    /* v8 ignore next -- 复核只抛 SvgAnnotateError；其余异常原样上抛（不变量漂移） */
+    if (!(error instanceof SvgAnnotateError)) throw error
+    args.warnings.push(`渲染复核被跳过：${error.message}`)
+  }
+}
+
+/**
+ * 文字转路径：把已落版文件里的 `<text>` 换成轮廓路径（Config.figureTextToPath）。
+ *
+ * 放在落版之后：落版会改写坐标与画布，先转的路径还得再被改写一次；转完不再有
+ * 步骤解析文件（索引只记路径）。只对 SVG 生效——png/pdf 由渲染器按 Config.dotFont
+ * 出字，那时给出「本参数不生效」的警告而不是静默忽略。
+ * @param args - the deps, the finished path, the output format, the caller's cancel signal, and the warning sink.
+ */
+async function outlineFigureText(args: {
+  deps: GeneratePatentFigureDeps
+  path: string
+  format: DotFormat
+  signal: AbortSignal
+  warnings: string[]
+}): Promise<void> {
+  const outline = args.deps.outlineText
+  if (outline === undefined) return
+  if (args.format !== 'svg') {
+    args.warnings.push(`文字转路径（Config.figureTextToPath）仅对 SVG 输出生效；本次 ${args.format} 仍由渲染器按 Config.dotFont 出字`)
+    return
+  }
+  const outcome = await outline({ path: args.path, signal: args.signal })
+  assertRendered(outcome, 'generate_patent_figure')
+}
+
+/**
  * Build the `generate_patent_figure` tool over injected renderer.
  * @param deps - renderer + optional output dir / index upsert / cwd / font resolver.
  * @returns a registry-ready tool definition.
@@ -623,7 +750,10 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
       transitions: { type: 'array', items: TRANSITION_SCHEMA, description: '状态转移（state_diagram；端点必须存在于 states）' },
       circuit: { ...CIRCUIT_INPUT_SCHEMA, description: '电路图输入（figure_type=circuit 时必填）：元件按网格行列放置，连线正交走线，T 形结点画实心连接点' },
       plot: { ...PLOT_INPUT_SCHEMA, description: '曲线图/坐标图输入（figure_type=plot 时必填）：坐标轴 + 刻度 + 单位 + 多条序列（用标记形状区分，不用颜色）' },
-      sections: { ...SECTION_INPUT_SCHEMA, description: '剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 剖切位置符号' },
+      sections: {
+        oneOf: [SECTION_INPUT_SCHEMA, { type: 'string' }],
+        description: '剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联',
+      },
       sequence: { ...SEQUENCE_INPUT_SCHEMA, description: '时序图输入（figure_type=sequence_diagram 时必填）：参与者生命线 + 消息箭线' },
       appearance_views: { ...APPEARANCE_INPUT_SCHEMA, description: '外观设计视图排布输入（figure_type=appearance_view 时必填）：把调用方提供的六面视图片段按第一角投影排布并统一比例、逐视图标注视图名称' },
       blocks: { type: 'array', items: BLOCK_SCHEMA, description: '框图块（figure_type=block_diagram 时必填）' },
@@ -677,6 +807,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
         additionalProperties: false,
         properties: {
           path: { type: 'string', required: true },
+          absolutePath: { type: 'string', required: true },
           format: { type: 'string', required: true, enum: DOT_FORMATS },
           engine: { type: 'string', required: true, enum: DOT_ENGINES },
           figureNumber: { type: 'integer', required: true },
@@ -710,6 +841,7 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
               properties: {
                 suffix: { type: 'string', required: true },
                 path: { type: 'string', required: true },
+                absolutePath: { type: 'string', required: true },
                 figureType: { type: 'string', required: true, enum: FIGURE_TYPES },
                 layout: { ...LAYOUT_SCHEMA, description: '面板落版与合规核算结果（给定 target_office 时）' },
               },
@@ -721,8 +853,9 @@ export function createGeneratePatentFigureTool(deps: GeneratePatentFigureDeps): 
     },
     async execute(args, exec) {
       // schema 校验后的模型 JSON 边界；深层结构（层次树递归）由 build 函数校验。
-      const input = args as unknown as GeneratePatentFigureInput
+      const rawInput = args as unknown as GeneratePatentFigureInput
       const cwd = deps.cwd ?? process.cwd()
+      const input = await resolveSectionsFile(rawInput, cwd)
       const format = input.format ?? 'svg'
       const engine = input.engine ?? 'dot'
       const style = input.style === 'semantic' ? 'semantic' : 'grayscale'

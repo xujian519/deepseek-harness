@@ -9,7 +9,7 @@
  * @module @deepseek-ai/dsh-patent-tools/tool/add-patent-figure-references
  */
 
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { basename, isAbsolute, relative, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -17,6 +17,7 @@ import { PatentToolError } from '../error.ts'
 import { SvgAnnotateError, annotateSvg } from '../figure/svg-annotate.ts'
 import { annotateSvgWithLeaderLines } from '../figure/leader-line.ts'
 import { figureWordingWarnings } from '../figure/wording-rules.ts'
+import { SVG_PATH_PARAM, SVG_PATH_RESULT_FIELDS, readSvgInput } from './internal/svg-input.ts'
 import type { SvgAnnotateReference } from '../figure/svg-annotate.ts'
 
 /** 依赖注入。cwd 为路径基准，默认 process.cwd()。 */
@@ -40,6 +41,8 @@ export type AddPatentFigureReferencesInput = {
 export type AddPatentFigureReferencesOutput = {
   /** 标注后的 SVG 路径（工作区相对）。 */
   path: string
+  /** 标注后的 SVG 绝对路径（输出落在输入文件旁，可能不在工作区内）。 */
+  absolutePath: string
   /** 参考数。 */
   numReferences: number
   /** 未命中任何文本元素的参考 label（原文顺序）。 */
@@ -66,7 +69,7 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
     name: 'add_patent_figure_references',
     description: DESCRIPTION,
     parameters: {
-      svg_path: { type: 'string', required: true, description: 'SVG 图片路径（工作区相对或绝对路径）' },
+      svg_path: SVG_PATH_PARAM,
       references: {
         type: 'array',
         required: true,
@@ -88,7 +91,7 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
         type: 'object',
         additionalProperties: false,
         properties: {
-          path: { type: 'string', required: true },
+          ...SVG_PATH_RESULT_FIELDS,
           numReferences: { type: 'integer', required: true },
           warnings: { type: 'array', required: true, items: { type: 'string' } },
         },
@@ -96,19 +99,13 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
       render: (_args, value) => [
         {
           type: 'text',
-          text: [`已生成标注 SVG：${value.path}`, `参考标号：${value.numReferences}`, ...(value.warnings.length > 0 ? ['', '## 未命中', ...value.warnings.map(w => `- ${w}`)] : [])].join('\n'),
+          text: [`已生成标注 SVG：${value.path}`, `绝对路径：${value.absolutePath}`, `参考标号：${value.numReferences}`, ...(value.warnings.length > 0 ? ['', '## 未命中', ...value.warnings.map(w => `- ${w}`)] : [])].join('\n'),
         },
       ],
     },
     async execute(args) {
       const cwd = deps.cwd ?? process.cwd()
-      const absPath = resolve(cwd, args.svg_path)
-      let svg: string
-      try {
-        svg = await readFile(absPath, 'utf8')
-      } catch {
-        throw new PatentToolError('file_not_found', `SVG 文件不存在：${args.svg_path}`, { tool: 'add_patent_figure_references' })
-      }
+      const { absolutePath: absPath, svg } = await readSvgInput(args.svg_path, cwd, 'add_patent_figure_references')
       let result
       try {
         result = args.leader_lines === true
@@ -131,7 +128,7 @@ export function createAddPatentFigureReferencesTool(deps: AddPatentFigureReferen
         ...result.warnings,
         ...figureWordingWarnings([], args.references.map(reference => reference.numeral)),
       ]
-      return { path: relative(cwd, outPath), numReferences: args.references.length, warnings }
+      return { path: relative(cwd, outPath), absolutePath: outPath, numReferences: args.references.length, warnings }
     },
   })
 }

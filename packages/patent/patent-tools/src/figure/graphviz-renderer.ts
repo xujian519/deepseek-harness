@@ -13,13 +13,15 @@
 
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { delimiter, join } from 'node:path'
+import { join } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type { DotEngine, DotFormat } from './dot-builder.ts'
 import {
-  SPAWN_GRACE_MS,
   describeRenderFailure,
+  describeRenderThrow,
+  findExecutable,
   renderStderr,
+  spawnRenderProcess,
   spawnVersionProbe,
   startRenderDeadline,
   stdinStdio,
@@ -84,22 +86,12 @@ export function graphvizInstallMessage(executable: string | undefined): string {
  * @returns dot 可执行文件绝对路径，或 undefined。
  */
 export function findDot(override?: string): string | undefined {
-  if (override !== undefined && override !== '') {
-    return existsSync(override) ? override : undefined
-  }
-  const env = process.env.DSH_GRAPHVIZ_DOT
-  if (env !== undefined && env !== '' && existsSync(env)) return env
-  for (const candidate of DOT_CANDIDATES) {
-    if (existsSync(candidate)) return candidate
-  }
-  for (const name of ['dot', 'dot.exe']) {
-    for (const segment of (process.env.PATH ?? '').split(delimiter)) {
-      if (segment === '') continue
-      const candidate = join(segment, name)
-      if (existsSync(candidate)) return candidate
-    }
-  }
-  return undefined
+  return findExecutable({
+    ...(override === undefined ? {} : { override }),
+    envVar: 'DSH_GRAPHVIZ_DOT',
+    candidates: DOT_CANDIDATES,
+    names: ['dot', 'dot.exe'],
+  })
 }
 
 /** 探测结果。 */
@@ -236,15 +228,12 @@ export async function renderWithGraphviz(
   const outputPath = join(spec.outputDir, `${filename}.${spec.format}`)
   const deadline = startRenderDeadline(options.renderTimeoutMs, spec.signal)
   try {
-    const handle = subprocess.spawn({
-      // graphviz >= 15 rejects a trailing '-' as an unknown option; stdin input needs no file argument.
+    // graphviz >= 15 rejects a trailing '-' as an unknown option; stdin input needs no file argument.
+    const { handle, outcome } = await spawnRenderProcess(subprocess, deadline, {
       argv: [executable, `-T${spec.format}`, `-K${spec.engine}`, '-o', outputPath],
       cwd: spec.outputDir,
       stdio: stdinStdio(spec.dot),
-      graceMs: SPAWN_GRACE_MS,
-      signal: deadline.signal,
     })
-    const outcome = await handle.done
     if (outcome.exitCode !== 0) {
       const cause = describeRenderFailure(outcome, deadline.timedOut(), spec.signal)
       return { ok: false, code: spec.signal?.aborted === true ? 'aborted' : 'render_failed', error: `Graphviz 渲染失败（${cause}）：${renderStderr(handle) || '无 stderr 输出'}` }
@@ -258,8 +247,7 @@ export async function renderWithGraphviz(
     }
     return { ok: true, path: outputPath }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { ok: false, code: spec.signal?.aborted === true ? 'aborted' : 'render_failed', error: `Graphviz 渲染调用失败：${message}` }
+    return { ok: false, ...describeRenderThrow('Graphviz 渲染', error, spec.signal) }
   } finally {
     deadline.dispose()
   }

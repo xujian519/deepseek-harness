@@ -51,7 +51,7 @@
                 ## 工具与技能
                 - 检索：现有技术检索优先走可复用例程 `patent-prior-art-search` 技能。随包通道：本地工具 `patent_search`/`patent_metadata`（本地 nuo 引擎）、文献用 `web_search`、原文 PDF 用 `patent_pdf_download`。部署的 `~/.agents/skills/` 另行提供 `cnipr-search-download`（search.cnipr.com / CNIPR，全文 PDF 直链必须 `http://` 前缀）、`cnipa-query`（官方法律状态，CNIPA PSS）、`google-patents-search`（外国/全球）时叠加使用：这三个不在本仓库内，缺席时按上述随包通道检索并在报告里写明，不得声称用过未安装的通道；法条/审查指南/判例核验先跑 `law_verify` 定引用形式与索引收录，再走 cnlaw 的 MCP 工具（见下）。通道纪律：同一关键事实至少在两个独立通道互证；某通道失败（如 `patent_search` 返回 HTTP 503）时先退避重试一次，再按 检索通道顺序 切换到下一通道，并在检索报告里写明每个事实用的通道、失败与覆盖范围。
                 - 专利原文 PDF：一律用 `patent_pdf_download`（断点续传、失败逐篇报告、ego 通道不可用时自动改走页面解析 + HTTP 下载），不要用 `curl` 直链 + `pdftotext` 手工下载：工具会记录落盘路径与 MANIFEST，便于复查与续传。
-                - 附图：由制图员角色（`illustrator`）主责。生成走 `generate_patent_figure`（图型/面板/标号一次定稿），三维模型（STEP/IGES/BREP）的结构线稿走 `generate_structure_figure`（需本机 FreeCAD）；说明书标号回填必须走 `add_patent_figure_references`，已生成附图的检索走 `search_patent_figure`，图面自检走 `analyze_patent_figure`，图文双向一致性走 `validate_specification`——禁止自建 `_fig_check.py` 之类脚本代替工具自检（脚本结果不进索引、不可复查）。附图标记表是标记的唯一权威源（细则第二十一条第二款）。
+                - 附图：由制图员角色（`illustrator`）主责。生成走 `generate_patent_figure`（图型/面板/标号一次定稿），三维模型（STEP/IGES/BREP）的结构线稿走 `generate_structure_figure`（需本机 FreeCAD）；说明书标号回填必须走 `add_patent_figure_references`，已生成附图的检索走 `search_patent_figure`，图面自检走 `analyze_patent_figure`，交付前的图面复核走 `verify_patent_figure`（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越界——这些缺陷只在画面上看得见，属性表看不出来），图文双向一致性走 `validate_specification`——禁止自建 `_fig_check.py` 之类脚本代替工具自检（脚本结果不进索引、不可复查）。附图标记表是标记的唯一权威源（细则第二十一条第二款）。
                 - 法条/审查指南/判例核验（权威法律底座，本地，MCP 优先）：第一步用 `law_verify` 核引用形式与索引收录（判定与后续动作见纪律 3），第二步用 `cnlaw_inventive_step`——一次取得「D1 / 区别特征 / 实际解决的技术问题 / 有无技术启示」的四步证据包，每步带 source_path 与法条/指南引用，创造性论证直接以它为骨架，不再手工逐条拼装。语义检索走 REST 兜底（MCP 未覆盖）：curl -sG "<cnlaw 语义检索端点>/search" --data-urlencode "q=…" --data-urlencode "k=5" 返回 {full_name, number, text, status, domain, category, tier, source_path}；IPC 浏览用 <cnlaw 图谱端点>/api/cnlaw/ipc/sections 与 .../tree?parent=<IPC 代码>（如 H01M）——端点一律取系统提示的 cnlaw 声明段，不要假设端口。每处法条断言必须带 full_name（+条号）与 source_path；命中为空的检索不得下任何结论。检索/引用次序：先法条法规(tier=1) → 再审查指南(tier=2) → 再判例(复审无效决定 /search/decisions、判决 /search/judgments，判例=tier 3) → 最后书籍(tier=4)。
                 - 判例按理由定向检索：MCP 走 `cnlaw_graph_ground` 按法条取精确集合（见下）；理由/结论/类型定向用 REST——curl -sG "<cnlaw 语义检索端点>/search/decisions" --data-urlencode "q=区别技术特征 显而易见" --data-urlencode "ground=第22条第3款" --data-urlencode "ipc=B05C" --data-urlencode "result=维持专利权有效" --data-urlencode "case_type=无效" --data-urlencode "k=5"；判决用 /search/judgments（ground/result/case_type）。ground=法条片断（如 第22条第3款 / 第26条第4款）、ipc=分类前缀（仅决定）、result=结论、case_type=类型（复审/无效/民事/行政）。判例引用格式：<决定号/案号> + <结论> + <法律依据> + <IPC> + <决定要点(若有)> + <source_path>，来源标注 cnlaw。
                 - 图谱定向检索（精确集合，Neo4j 支撑）：按引用关系精确导航，比语义 top-k 更全更准。优先用 MCP，REST 兜底——
@@ -273,12 +273,16 @@
               - id: patent-tools
                 name: '@deepseek-ai/dsh-patent-tools'
                 config:
-                  # analyze_patent_figure sends the drawing to this route, so it must
-                  # declare image input (the gate denies text-only routes). Falls back
-                  # to provider/model when unset.
+                  # analyze_patent_figure sends the drawing to this route, so the route's
+                  # catalog entry MUST declare image input: the gate reads declared
+                  # modalities only, and a model the catalog does not carry (or carries
+                  # without "image") is treated as text-only. `deepseek-flash` is the
+                  # shipped deepseek-official entry that declares [text, image]; naming
+                  # an uncatalogued id here leaves every figure-analysis call denied.
+                  # Falls back to provider/model when unset.
                   imageModel:
                     provider: deepseek-official
-                    model: deepseek-v4-flash-vision-exp
+                    model: deepseek-flash
                   # generate_structure_figure is gated off by default; opening it needs a
                   # host FreeCAD 1.1+ discoverable as freecadcmd (auto-probe covers the
                   # standard install paths).

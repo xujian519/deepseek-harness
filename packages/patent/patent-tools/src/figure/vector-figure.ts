@@ -78,7 +78,8 @@ export function assertVectorFigureSpec(spec: VectorFigureSpec): void {
   if (spec.body.trim() === '') {
     throw new VectorFigureError('empty_input', '图形片段为空')
   }
-  if (spec.body.length > DEFAULT_VECTOR_BODY_MAX_BYTES) {
+  // 与 svg-annotate 的输入上限同一口径：按 UTF-8 字节计（中文字符三字节）。
+  if (Buffer.byteLength(spec.body, 'utf8') > DEFAULT_VECTOR_BODY_MAX_BYTES) {
     throw new VectorFigureError('too_large', `图形片段过大（>${DEFAULT_VECTOR_BODY_MAX_BYTES} 字节）`)
   }
   for (const label of spec.labels) {

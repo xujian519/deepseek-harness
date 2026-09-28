@@ -81,7 +81,9 @@ export function assertSafeSvg(svgText: string, maxBytes: number): void {
   if (lower.includes('<!entity') || lower.includes('<![cdata[')) {
     throw new SvgAnnotateError('unsafe_svg', 'SVG 包含 ENTITY/CDATA 等不安全结构，拒绝处理')
   }
-  if (svgText.length > maxBytes) {
+  // 上限按 UTF-8 字节计（与文案一致）：中文附图的码元数远小于字节数，按 length 比较会
+  // 放过三倍体量的输入。
+  if (Buffer.byteLength(svgText, 'utf8') > maxBytes) {
     throw new SvgAnnotateError('too_large', `SVG 过大（>${maxBytes} 字节），拒绝处理`)
   }
   if (!/<svg[\s>]/i.test(svgText) || !/<\/svg>/i.test(svgText)) {

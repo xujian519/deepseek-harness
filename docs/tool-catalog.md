@@ -47,7 +47,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-methodology` | `triz` | `ctx.tools`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | triz lists the 40 inventive principles and the 39 engineering parameters with no arguments, and reads one 39x39 contradiction-matrix cell given an improving/worsening parameter pair; registerSection (default true) only toggles the always-on tool:triz prompt section. |
 | `@deepseek-ai/dsh-tool-literature` | `paper_download`, `paper_list_sources`, `paper_search` | `ctx.tools` | `tool/call`, `tool/result` | - | paper_list_sources and paper_search are stateless queries over four keyless public sources (arXiv, OpenAlex, Semantic Scholar, Crossref); connector enablement is config and only narrows which `db` ids are valid. |
 | `@deepseek-ai/dsh-document-deliver` | `document_deliver` | `ctx.tools`, `ctx.fs` | `tool/call`, `tool/result` | - | document_deliver records the delivered files (path + format), the P0/P1 quality-gate state, and the brief reference in the session log; it fails loud on a missing file and writes no file itself. It also reads each delivered file and reports its own deterministic findings (residual placeholders, undeclared anchors, empty sections, style forbidden words, declared length budget) on the tool result, and refuses the registration on a blocking finding. The delivery studio folds the logged call and that result metadata into its deliverable list, gate badges, and machine-check badge. |
-| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
+| `@deepseek-ai/dsh-patent-tools` | `add_patent_figure_references`, `analyze_patent_figure`, `claim_chart_build`, `draft_claims`, `draft_specification`, `evaluate_evidence`, `flexible_plan`, `generate_patent_figure`, `generate_structure_figure`, `knowledge_note_save`, `parse_office_action`, `patent_analysis_report`, `patent_case_search`, `patent_eval`, `patent_kg_query`, `patent_legal_status`, `patent_metadata`, `patent_pdf_download`, `patent_plan_task`, `patent_search`, `patent_wiki_search`, `patent_worker_validate`, `patent_workflow`, `patent_workflow_run`, `recognize_chemical_structure`, `rule_check`, `search_patent_figure`, `triz_contradiction_analysis`, `validate_specification`, `verify_patent_figure`, `workbench_link_patent_case` | `ctx.tools` | `tool/call`, `tool/result` | - | The Sati patent domain tool set: search/metadata/legal-status/case/wiki/kg knowledge queries, claim-chart, office-action parsing, drafting, specification validation, evidence judgment, rule check, figure analysis, PDF download, chemical recognition, knowledge notes, and the workflow/plan state machines. render_patent_document is owned by @deepseek-ai/dsh-patent-document. |
 | `@deepseek-ai/dsh-patent-document` | `render_patent_document` | `ctx.tools`, `ctx.subprocess` | `tool/call`, `tool/result` | - | render_patent_document renders patent deliverables (claims/specification/search report/OA response/invalidation opinion) from packaged HTML templates, with optional headless-Chrome PDF via ctx.subprocess. |
 | `@deepseek-ai/dsh-patent-deadline` | `patent_deadlines` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_deadlines reports the statutory and designated deadlines of one Chinese patent case, applying the period and delivery rules of 专利法实施细则 and rolling an end date off a holiday to the next working day; notice-driven periods come back as pending entries naming the missing delivery record. |
 | `@deepseek-ai/dsh-patent-fees` | `patent_fees` | `ctx.tools` | `tool/call`, `tool/result` | - | patent_fees prices the official fees of one Chinese patent case against the fee index shipped in the package: the items the case owes at the steps the caller names, how many units of each (per case, per claim or page beyond the free base, per priority claim, per patent year, per month), the annual-fee tier of each year, the surcharge on a late annual fee, and the fee reduction the case qualifies for. Each line states whether its amount is verified, and the total is withheld while any applicable line is not, so a deployment that has not transcribed the official fee standard gets the item checklist and an explicit refusal rather than a figure. |
@@ -3533,7 +3533,9 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
 
 落版：给定 target_office（cnipa/pct/uspto）时，按该法域的 A4 幅面与页边距把图形落版为固定幅面附图页——图号按法域写法（图1 / Fig. 1 / FIG. 1）画在图形正下方（附图两幅以上才编号，单幅不编号），页码按法域写法（中国「2」、PCT/USPTO「2/3」）画在版心底部；同时返回落版缩放比、落版尺寸与字高（含缩小至三分之二后的字高）并核算合规项。仅 SVG 输出支持落版；fit_to_page=false 时只核算尺寸、不改写画布。
 
-引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
+引线标号：框图/层级图 SVG 默认以「数字+引线指向部件」标注（leader_lines 可关闭），流程图默认保留步骤内嵌 NNN. 前缀；非 SVG 格式不支持引线，返回警告并保持内嵌标号；直绘图型（电路/曲线/剖视/时序/外观）的标号由输入决定，对它们传 leader_lines 会返回「不生效」警告——剖视图用 sections.labels 给出标号落点与引线起点。引线与标号随图面一起落在画布内，并避开图内已绘的边线与箭头；无引线空间时退化为内嵌标号。
+
+剖视图要素：sections 直接给出零件轮廓与剖面线，并可给 labels（数字在轮廓外、引线自零件引出且止于数字外框）、centerlines（细点划线，不要用细长多边形伪造）、label_font_size_mm（图面字号）与 hatch: "none"（该轮廓不是被剖切实体，只画轮廓）。sections 也可传 JSON 文件路径。生成后按渲染复核量测图面（标号是否被线条贯穿、点划线是否被实线覆盖、相邻零件剖面线是否可区分、内容是否越出画布）。
 
 图面用语检查：生成后按《专利法实施细则》第二十一条与《专利审查指南》第一部分第一章 4.3 检查图面词语与标号——非必需注释（注释前缀/正文引用/尺寸标注/句末标点）、非中文词语（缩写与数字符号除外）、非阿拉伯数字标号各出一条警告；只提示，不改写输入。
 
@@ -3849,116 +3851,199 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
       ]
     },
     "sections": {
-      "type": "object",
-      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 剖切位置符号",
-      "additionalProperties": false,
-      "properties": {
-        "outline": {
-          "type": "array",
-          "description": "外轮廓顶点对数组（[[x,y],…]）",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number"
-            }
-          }
-        },
-        "parts": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "label": {
-                "type": "string"
-              },
-              "outline": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outline": {
+              "type": "array",
+              "description": "外轮廓顶点对数组（[[x,y],…]）",
+              "items": {
                 "type": "array",
-                "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）",
                 "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
+                  "type": "number"
                 }
-              },
-              "hatch": {
+              }
+            },
+            "parts": {
+              "type": "array",
+              "description": "被剖切零件轮廓（同一零件的多个轮廓各给一段）",
+              "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
-                  "angle_deg": {
-                    "type": "number",
-                    "description": "剖面线倾角（度），默认 45"
-                  },
-                  "spacing_mm": {
-                    "type": "number",
-                    "description": "剖面线间距（毫米），默认 3"
-                  },
-                  "direction": {
+                  "label": {
                     "type": "string",
-                    "description": "相邻零件取相反方向或不同间距以区分",
-                    "enum": [
-                      "forward",
-                      "backward"
-                    ]
+                    "description": "零件名（数字落在轮廓包围盒右上角之外，自轮廓重心引细实线相连；同一零件由多个轮廓拼成时不要用本字段，用 labels 指定唯一标号落点）"
+                  },
+                  "outline": {
+                    "type": "array",
+                    "description": "零件闭合轮廓（[[x,y],…]，至少 3 点）",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "hatch": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "angle_deg": {
+                            "type": "number",
+                            "description": "剖面线倾角（度），默认 45"
+                          },
+                          "spacing_mm": {
+                            "type": "number",
+                            "description": "剖面线间距（毫米），默认 3"
+                          },
+                          "direction": {
+                            "type": "string",
+                            "description": "相邻零件取相反方向或不同间距以区分",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "none"
+                        ]
+                      }
+                    ],
+                    "description": "剖面线参数；\"none\" 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。缺省按 45°/3mm 打剖面线"
                   }
-                }
-              }
-            },
-            "required": [
-              "outline"
-            ]
-          }
-        },
-        "cutting_marks": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "剖切标记字母（如 A）"
-              },
-              "from": {
-                "type": "array",
-                "items": {
-                  "type": "number"
-                }
-              },
-              "to": {
-                "type": "array",
-                "items": {
-                  "type": "number"
-                }
-              },
-              "arrow": {
-                "type": "string",
-                "description": "投射方向",
-                "enum": [
-                  "left",
-                  "right",
-                  "up",
-                  "down"
+                },
+                "required": [
+                  "outline"
                 ]
               }
             },
-            "required": [
-              "id",
-              "from",
-              "to",
-              "arrow"
-            ]
-          }
+            "labels": {
+              "type": "array",
+              "description": "引线标号：数字置于零件轮廓之外并以引线相连（一个零件由多个轮廓拼成时用本字段，避免每个轮廓各画一处标号）",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "标号文本（阿拉伯数字）"
+                  },
+                  "at": {
+                    "type": "array",
+                    "description": "数字视觉中心落点（毫米），应在零件轮廓之外",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "from": {
+                    "type": "array",
+                    "description": "引线起点：零件上的指称点（毫米）；给出时自该点画细实线到数字外框，数字不被线条贯穿",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "text",
+                  "at",
+                  "from"
+                ]
+              }
+            },
+            "centerlines": {
+              "type": "array",
+              "description": "中心线（细点划线）：轴类零件的轴线；不要用细长多边形伪造",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              }
+            },
+            "cutting_marks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "剖切标记字母（如 A）"
+                  },
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "arrow": {
+                    "type": "string",
+                    "description": "投射方向",
+                    "enum": [
+                      "left",
+                      "right",
+                      "up",
+                      "down"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "from",
+                  "to",
+                  "arrow"
+                ]
+              }
+            },
+            "label_font_size_mm": {
+              "type": "number",
+              "description": "图面字号（毫米），默认 3.5；附图标记与剖切字母同用"
+            },
+            "padding_mm": {
+              "type": "number",
+              "description": "画布留白（毫米），默认 4"
+            }
+          },
+          "required": [
+            "parts"
+          ]
         },
-        "padding_mm": {
-          "type": "number",
-          "description": "画布留白（毫米），默认 4"
+        {
+          "type": "string"
         }
-      },
-      "required": [
-        "parts"
-      ]
+      ],
+      "description": "剖视图输入（figure_type=cross_section 时必填）：零件轮廓 + 45° 剖面线（相邻件方向相反或间距不等）+ 引线标号 + 中心线 + 剖切位置符号；也可传指向含该对象的 JSON 文件的路径（工作区相对或绝对），大块坐标放文件里就不必每次重渲染都内联"
     },
     "sequence": {
       "type": "object",
@@ -5598,6 +5683,31 @@ Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-
       }
     }
   }
+}
+```
+
+Source: [`packages/patent/patent-tools/src/index.ts`](../packages/patent/patent-tools/src/index.ts)
+
+### `verify_patent_figure`
+
+复核已生成的 SVG 说明书附图：量测线宽、线段取向、文字元素，并报告只在渲染结果上才看得见的问题——图面文字（标号、元件名、连线说明）被线条贯穿、中心线（点划线）被同位置的实线覆盖、相邻零件剖面线取向过近、内容越出画布。
+
+量测在矢量源上进行（线段位置、线宽与字号即渲染输入），不需要栅格化器：根元素的画布尺寸、viewBox 与 preserveAspectRatio 先解析成用户单位到毫米的映射，元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 <g> 继承的 text-anchor 与行内 style），故落版页、拼版页与 px 级用户单位的导出文件同一口径量测。不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现：没有它时才等于逐类量测过。
+
+与 generate_patent_figure 的返回值配合使用：生成后按本工具复核，把 findings 当作必须处理的图面缺陷。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "svg_path": {
+      "type": "string",
+      "description": "SVG 图片路径（工作区相对或绝对路径）"
+    }
+  },
+  "required": [
+    "svg_path"
+  ]
 }
 ```
 

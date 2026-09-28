@@ -12,7 +12,7 @@ Status: implemented
 
 共用样板移入两个模块，每个渲染器与工具只保留各自不同的部分：
 
-- `figure/subprocess-render.ts` 负责收集流的 stdio 配置、版本探测（`spawnVersionProbe`，返回退出事实与合并后的 stdout/stderr 文本）、渲染截止期（`startRenderDeadline`：内部超时与调用方取消终止同一信号，`dispose()` 一并清理）、stderr 摘录（`renderStderr`）与失败原因措辞（`describeRenderFailure`）。`SPAWN_GRACE_MS` 是两个渲染器传给 spawn 的唯一宽限期。
+- `figure/subprocess-render.ts` 负责收集流的 stdio 配置、可执行文件探测（`findExecutable`：覆盖值 → 环境变量 → 平台候选路径 → `PATH`）、期限内 spawn（`spawnRenderProcess`：套用唯一的宽限期 `SPAWN_GRACE_MS` 并等待退出）、版本探测（`spawnVersionProbe`，返回退出事实与合并后的 stdout/stderr 文本）、渲染截止期（`startRenderDeadline`：内部超时与调用方取消终止同一信号，`dispose()` 一并清理）、stderr 摘录（`renderStderr`）与失败措辞——进程跑完的用 `describeRenderFailure`，入口抛异常的用 `describeRenderThrow`；只用 spawn 的依赖类型（`SubprocessSpawner`）也在此处，测试替身因此无需断言到 `unknown`。
 - `tool/internal/figure-schemas.ts` 负责 `FIGURE_COMPONENT_KINDS`、`NUMERAL_MAP_SCHEMA` 与 `COMPONENT_SCHEMA`。`analyze_patent_figure` 转发导出它此前的组件类型词汇表，因此其导出面不变；`generate_patent_figure` 与 `generate_structure_figure` 导入两个 schema。
 
 真正不同的部分仍留在各自文件内：候选可执行文件清单、安装引导、argv 与 cwd、FreeCAD 的 `HOME`/`XDG_*` 隔离环境与其 `manifest.json` 存在性判定、Graphviz 的产物文件校验与 DOT stdin 映射。
@@ -27,9 +27,11 @@ Status: implemented
 
 ## 后果
 
-对探测、截止期或失败措辞的修改，现在对两个渲染器只需改一处；对组件或标号映射 schema 的修改，对三个附图工具也只需改一处。
+对探测、截止期或失败措辞的修改，现在对所经本模块的每个渲染器只需改一处；对组件或标号映射 schema 的修改，对三个附图工具也只需改一处。
 
 共用渲染模块同时固定了渲染失败的措辞，因此需要不同原因顺序的渲染器必须显式说明，而不是在副本里各自分叉。
+
+Inkscape 文字转路径渲染器是本模块的第三个调用方，见[字体无关导出笔记](../architecture/2026-09-28-inkscape-text-to-path-figure-export.zh.md)。
 
 ## 验证
 

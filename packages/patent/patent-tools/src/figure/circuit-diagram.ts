@@ -10,9 +10,15 @@
  * 与 dot-builder 的分工：Graphviz 的「节点 + 边」模型画不出电气符号，电路图走
  * {@link VectorFigureSpec} 的直绘通路。坐标为毫米，元件画在网格单元中心，符号
  * 尺寸随单元格缩放；元件 id 只用于连线寻址，不落图面。
+ *
+ * 元件名与连线说明的落位（{@link placeLabel}）逐条试候选位置、取第一个不压走线、
+ * 符号与已落文字的：这两种文字都是调用方给的词，长度不受控，固定落位必然在某个
+ * 走向上被走线穿过。
  * @module @deepseek-ai/dsh-patent-tools/figure/circuit-diagram
  */
 
+import { GLYPH_ASCENT_RATIO, GLYPH_DESCENT_RATIO, boxCrossedBySegment, glyphBox } from './glyph-box.ts'
+import type { GlyphBox, GlyphTextAnchor } from './glyph-box.ts'
 import { VectorFigureError, fmt } from './vector-figure.ts'
 import type { VectorFigureSpec } from './vector-figure.ts'
 
@@ -53,7 +59,7 @@ export type CircuitConnection = {
   from: string
   /** 终点元件 id。 */
   to: string
-  /** 可选连线说明（简短词），写在走线中点旁。 */
+  /** 可选连线说明（简短词），沿走线择空落位（先主干、后各段，四向取空处）。 */
   label?: string
 }
 
@@ -99,8 +105,14 @@ const JUNCTION_RADIUS_MM = 0.5
 /** 图面文字字号（毫米）。 */
 const LABEL_FONT_SIZE_MM = 3
 
-/** 图面文字与符号、走线的最小间距（毫米）。 */
+/** 图面文字与符号方框、走线的最小间距（毫米）。 */
 const LABEL_GAP_MM = 1.2
+
+/** 走线线段（两端点，毫米）：文字落位时的障碍。 */
+type WireSegment = readonly [readonly [number, number], readonly [number, number]]
+
+/** 文字候选落位：基线锚点与水平对齐。 */
+type LabelSlot = { readonly at: Point; readonly anchor: GlyphTextAnchor }
 
 /** 元件端口所在边。 */
 type PinSide = 'left' | 'right' | 'top' | 'bottom'
@@ -128,12 +140,17 @@ type ComponentGeometry = {
   orientation: SymbolOrientation
 }
 
+/** 符号的外接半尺寸（毫米）：绘制范围可能超出半宽与半高。 */
+type SymbolExtent = { readonly halfX: number; readonly halfY: number }
+
 /** 已放置元件：输入元件、几何、端口与图面文字。 */
 type PlacedComponent = {
   /** 对应的输入元件。 */
   component: CircuitComponent
   /** 画布几何。 */
   geometry: ComponentGeometry
+  /** 符号的外接半尺寸（文字落位与避让按它计算）。 */
+  extent: SymbolExtent
   /** 端口（至少一个，供路由选取）。 */
   pins: readonly [Pin, ...Pin[]]
   /** 图面文字（label 为空时不下笔）。 */
@@ -168,7 +185,7 @@ function polyline(points: readonly Point[]): string {
  * 输出图面文字；文本必须自带黑色填充并取消描边，否则继承外壳的
  * `fill="none"` 而在图面上不可见。
  */
-function textElement(x: number, y: number, content: string, anchor: 'middle' | 'start'): string {
+function textElement(x: number, y: number, content: string, anchor: GlyphTextAnchor): string {
   return `<text x="${fmt(x)}" y="${fmt(y)}" font-size="${LABEL_FONT_SIZE_MM}" text-anchor="${anchor}" fill="#000000" stroke="none">${escapeText(content)}</text>`
 }
 
@@ -425,22 +442,157 @@ function compactPoints(points: readonly Point[]): Point[] {
   return compact
 }
 
-/** 折线点的算术平均：作为连线说明的落点基准。 */
-function averagePoint(points: readonly Point[]): Point {
-  let sumX = 0
-  let sumY = 0
-  for (const point of points) {
-    sumX += point.x
-    sumY += point.y
+/** 走线的一段：两端点与长度（连线说明按段长排队落位）。 */
+type WireLine = { readonly from: Point; readonly to: Point; readonly span: number }
+
+/** 折线的各段，按长度降序（并列保持折线顺序）：连线说明首选落在走线主干上。 */
+function wireLines(points: readonly Point[]): WireLine[] {
+  const lines: WireLine[] = []
+  for (let index = 0; index + 1 < points.length; index += 1) {
+    const from = points[index] as Point
+    const to = points[index + 1] as Point
+    lines.push({ from, to, span: Math.hypot(to.x - from.x, to.y - from.y) })
   }
-  return { x: sumX / points.length, y: sumY / points.length }
+  return lines.sort((left, right) => right.span - left.span)
 }
 
-/** 连线说明落点：竖向走线写在右侧左对齐，其余写在走线上方居中。 */
-function connectionLabelPoint(start: Point, end: Point, middle: Point): { x: number; y: number; anchor: 'middle' | 'start' } {
-  return start.x === end.x
-    ? { x: middle.x + LABEL_GAP_MM, y: middle.y + LABEL_FONT_SIZE_MM / 3, anchor: 'start' }
-    : { x: middle.x, y: middle.y - LABEL_GAP_MM, anchor: 'middle' }
+/** 走线段转成障碍判定用的端点对。 */
+function wireSegment(line: WireLine): WireSegment {
+  return [[line.from.x, line.from.y], [line.to.x, line.to.y]]
+}
+
+/** 两个文字占位框是否相交（贴边不算）。 */
+function boxesOverlap(a: GlyphBox, b: GlyphBox): boolean {
+  return a.minX < b.maxX && b.minX < a.maxX && a.minY < b.maxY && b.minY < a.maxY
+}
+
+/** 画法不随轴向旋转的符号：接地与晶体管的端口固定，图形也照固定方向绘制。 */
+const AXIS_FIXED_SYMBOLS: ReadonlySet<CircuitSymbolKind> = new Set<CircuitSymbolKind>(['ground', 'npn_transistor'])
+
+/**
+ * 符号的外接半尺寸（毫米）：纵向元件是横向画法整体绕中心旋转 90° 的结果，长边因此落到
+ * y（比端口所在的半高高出半宽减半高），横向与固定朝向的符号为半宽 × 半高。
+ * @param kind - 符号种类。
+ * @param orientation - 符号轴向。
+ * @param hw - 符号半宽（毫米）。
+ * @param hh - 符号半高（毫米）。
+ * @returns 外接半尺寸。
+ */
+function symbolExtent(kind: CircuitSymbolKind, orientation: SymbolOrientation, hw: number, hh: number): SymbolExtent {
+  return orientation === 'vertical' && !AXIS_FIXED_SYMBOLS.has(kind) ? { halfX: hh, halfY: hw } : { halfX: hw, halfY: hh }
+}
+
+/** 符号外接框：文字落位时首选避开的对象（符号框按外接矩形算，四角通常是空的）。 */
+function symbolBox(geometry: ComponentGeometry, extent: SymbolExtent): GlyphBox {
+  return {
+    minX: geometry.cx - extent.halfX,
+    minY: geometry.cy - extent.halfY,
+    maxX: geometry.cx + extent.halfX,
+    maxY: geometry.cy + extent.halfY,
+  }
+}
+
+/**
+ * 一段走线四向的候选落位：竖直段先取左右、水平段先取上下。
+ *
+ * 竖直段的说明写在右侧（写在正上／正下会被同向的走线穿过），水平段的说明写在线的
+ * 上方或下方（写在左右两侧会被走线的拐角穿过）。
+ * @param line - 走线段。
+ * @param fontSizeMm - 字号（毫米）。
+ * @returns 四个候选落位。
+ */
+function lineSlots(line: WireLine, fontSizeMm: number): readonly [LabelSlot, LabelSlot, LabelSlot, LabelSlot] {
+  const at = { x: (line.from.x + line.to.x) / 2, y: (line.from.y + line.to.y) / 2 }
+  const ascent = fontSizeMm * GLYPH_ASCENT_RATIO
+  const middleY = at.y + (ascent - fontSizeMm * GLYPH_DESCENT_RATIO) / 2
+  const right: LabelSlot = { at: { x: at.x + LABEL_GAP_MM, y: middleY }, anchor: 'start' }
+  const left: LabelSlot = { at: { x: at.x - LABEL_GAP_MM, y: middleY }, anchor: 'end' }
+  const above: LabelSlot = { at: { x: at.x, y: at.y - LABEL_GAP_MM }, anchor: 'middle' }
+  const below: LabelSlot = { at: { x: at.x, y: at.y + LABEL_GAP_MM + ascent }, anchor: 'middle' }
+  return Math.abs(line.to.y - line.from.y) > Math.abs(line.to.x - line.from.x)
+    ? [right, left, above, below]
+    : [above, below, right, left]
+}
+
+/**
+ * 连线说明的候选落位：沿走线各段的中点取四个方向的落点，长段在前。
+ *
+ * 只取一段会把文字逼进 U 形走线的内圈 —— 四向落点都被同一段走线穿过；沿走线换一段
+ * 落位即可让开。
+ * @param lines - 走线各段（长段在前）。
+ * @param fontSizeMm - 字号（毫米）。
+ * @returns 候选落位。
+ */
+function connectionSlots(lines: readonly WireLine[], fontSizeMm: number): readonly [LabelSlot, ...LabelSlot[]] {
+  const slots: LabelSlot[] = []
+  for (const line of lines) slots.push(...lineSlots(line, fontSizeMm))
+  // 端口的引出段长于零，折线至少有两点，故段列表非空。
+  return slots as [LabelSlot, ...LabelSlot[]]
+}
+
+/**
+ * 元件名四周的八个候选落位：元件名原先是符号正上方居中，那里正是上端口走线（竖向
+ * 引出段）经过的地方，名字因此被走线贯穿；上左／上右／右中／左中／下方各留一个候选
+ * 供让位。
+ * @param geometry - 元件几何。
+ * @param extent - 符号外接半尺寸（毫米）。
+ * @param fontSizeMm - 字号（毫米）。
+ * @returns 候选落位（上中、上左、上右、右中、左中、下中、下左、下右）。
+ */
+function componentSlots(
+  geometry: ComponentGeometry,
+  extent: SymbolExtent,
+  fontSizeMm: number,
+): readonly [LabelSlot, ...LabelSlot[]] {
+  const { cx, cy } = geometry
+  const { halfX, halfY } = extent
+  const rowX = halfX + LABEL_GAP_MM
+  const rowY = halfY + LABEL_GAP_MM
+  const ascent = fontSizeMm * GLYPH_ASCENT_RATIO
+  const middleY = cy + (ascent - fontSizeMm * GLYPH_DESCENT_RATIO) / 2
+  return [
+    { at: { x: cx, y: cy - rowY }, anchor: 'middle' },
+    { at: { x: cx - halfX, y: cy - rowY }, anchor: 'start' },
+    { at: { x: cx + halfX, y: cy - rowY }, anchor: 'end' },
+    { at: { x: cx + rowX, y: middleY }, anchor: 'start' },
+    { at: { x: cx - rowX, y: middleY }, anchor: 'end' },
+    { at: { x: cx, y: cy + rowY + ascent }, anchor: 'middle' },
+    { at: { x: cx - halfX, y: cy + rowY + ascent }, anchor: 'start' },
+    { at: { x: cx + halfX, y: cy + rowY + ascent }, anchor: 'end' },
+  ]
+}
+
+/**
+ * 文字落位：逐条试候选位置，取第一个满足硬约束者 —— 不被走线穿过、不与已落位文字外框
+ * 相交、完全落在画布内。元件符号外接框是软约束：首选同时避开符号的候选，一个也没有时
+ * 退让给首个只满足硬约束的候选（符号框按外接矩形算，四角通常是空的，压框不等于压图）。
+ * 连软约束都无法满足时退回首选候选，此时文字与图面的关系由渲染复核报出。
+ * @param content - 文字内容（决定占位框宽度）。
+ * @param slots - 候选落位（首选在前）。
+ * @param obstacles - 走线线段、元件符号外框与已落位文字外框。
+ * @param canvas - 画布尺寸（毫米）。
+ * @returns 落位锚点与水平对齐。
+ */
+function placeLabel(
+  content: string,
+  slots: readonly [LabelSlot, ...LabelSlot[]],
+  obstacles: {
+    readonly wires: readonly WireSegment[]
+    readonly squares: readonly GlyphBox[]
+    readonly boxes: readonly GlyphBox[]
+  },
+  canvas: { readonly widthMm: number; readonly heightMm: number },
+): LabelSlot {
+  let clearOfLines: LabelSlot | undefined
+  for (const slot of slots) {
+    const box = glyphBox(content, [slot.at.x, slot.at.y], LABEL_FONT_SIZE_MM, slot.anchor)
+    if (box.minX < 0 || box.minY < 0 || box.maxX > canvas.widthMm || box.maxY > canvas.heightMm) continue
+    if (obstacles.wires.some(segment => boxCrossedBySegment(box, segment[0], segment[1]))) continue
+    if (obstacles.boxes.some(other => boxesOverlap(box, other))) continue
+    if (!obstacles.squares.some(square => boxesOverlap(box, square))) return slot
+    clearOfLines ??= slot
+  }
+  return clearOfLines ?? slots[0]
 }
 
 /** 记录一个接线端点，用于 T 形结点计数。 */
@@ -528,32 +680,59 @@ export function buildCircuitDiagram(input: CircuitDiagramInput): VectorFigureSpe
       hh,
       orientation,
     }
-    placed.set(component.id, { component, geometry, pins: SYMBOL_PINS[component.kind](geometry), label: component.label })
+    placed.set(component.id, {
+      component,
+      geometry,
+      extent: symbolExtent(component.kind, orientation, hw, hh),
+      pins: SYMBOL_PINS[component.kind](geometry),
+      label: component.label,
+    })
   }
 
+  const canvas = {
+    widthMm: (maxCol + 1) * cellWidthMm + CANVAS_MARGIN_MM * 2,
+    heightMm: (maxRow + 1) * cellHeightMm + CANVAS_MARGIN_MM * 2,
+  }
   const body: string[] = []
   const labels: string[] = []
   const endpoints = new Map<string, EndpointCount>()
+  const wires: WireSegment[] = []
+  const textBoxes: GlyphBox[] = []
+  const routes: { readonly label: string | undefined; readonly lines: readonly WireLine[] }[] = []
   for (const connection of connections) {
     const from = requirePlaced(placed, connection.from)
     const to = requirePlaced(placed, connection.to)
     const start = pickPin(from.pins, to.geometry.cx, to.geometry.cy)
     const end = pickPin(to.pins, from.geometry.cx, from.geometry.cy)
     const points = routePoints(start, end, Math.min(hw, hh))
+    const lines = wireLines(points)
     countEndpoint(endpoints, start)
     countEndpoint(endpoints, end)
     body.push(polyline(points))
-    if (connection.label !== undefined && connection.label !== '') {
-      const anchor = connectionLabelPoint(start, end, averagePoint(points))
-      body.push(textElement(anchor.x, anchor.y, connection.label, anchor.anchor))
-      labels.push(connection.label)
-    }
+    wires.push(...lines.map(wireSegment))
+    routes.push({ label: connection.label, lines })
   }
 
-  for (const { component, geometry, label } of placed.values()) {
+  const obstacles = {
+    wires,
+    squares: [...placed.values()].map(entry => symbolBox(entry.geometry, entry.extent)),
+    boxes: textBoxes,
+  }
+  // 全部走线落笔后再放文字：走线不避让文字，故文字的候选位置要对全部走线成立。
+  for (const route of routes) {
+    if (route.label === undefined || route.label === '') continue
+    const slot = placeLabel(route.label, connectionSlots(route.lines, LABEL_FONT_SIZE_MM), obstacles, canvas)
+    body.push(textElement(slot.at.x, slot.at.y, route.label, slot.anchor))
+    textBoxes.push(glyphBox(route.label, [slot.at.x, slot.at.y], LABEL_FONT_SIZE_MM, slot.anchor))
+    labels.push(route.label)
+  }
+
+  for (const { component, geometry, extent, label } of placed.values()) {
     body.push(SYMBOL_DRAWERS[component.kind](geometry))
     if (label !== undefined && label !== '') {
-      body.push(textElement(geometry.cx, geometry.cy - geometry.hh - LABEL_GAP_MM, label, 'middle'))
+      const slot = placeLabel(label, componentSlots(geometry, extent, LABEL_FONT_SIZE_MM), obstacles, canvas)
+      body.push(textElement(slot.at.x, slot.at.y, label, slot.anchor))
+      textBoxes.push(glyphBox(label, [slot.at.x, slot.at.y], LABEL_FONT_SIZE_MM, slot.anchor))
       labels.push(label)
     }
   }
@@ -563,8 +742,7 @@ export function buildCircuitDiagram(input: CircuitDiagramInput): VectorFigureSpe
   }
 
   return {
-    widthMm: (maxCol + 1) * cellWidthMm + CANVAS_MARGIN_MM * 2,
-    heightMm: (maxRow + 1) * cellHeightMm + CANVAS_MARGIN_MM * 2,
+    ...canvas,
     body: body.join('\n'),
     labels,
   }

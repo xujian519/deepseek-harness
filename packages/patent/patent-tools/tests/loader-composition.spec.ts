@@ -129,6 +129,39 @@ describe('patent-tools real Loader composition', () => {
     }
   })
 
+  it('figureTextToPath 接到生成工具：Inkscape 路径无效时 fail loud（不静默留文字）', async () => {
+    const notes = join(await mkdtemp(join(tmpdir(), 'dsh-patent-tools-notes-')), '99-知识库')
+    const figures = join(notes, 'figures')
+    try {
+      const ctx = await boot(notes, [
+        '    figureTextToPath: true',
+        // 指向不存在的路径：与机器上是否装了 Inkscape 无关，结果确定。
+        '    inkscapeExecutable: "/nonexistent/inkscape-probe"',
+        '    figureOutputDir: ' + JSON.stringify(figures),
+        '    figureIndexFile: ' + JSON.stringify(join(notes, 'figures-index.json')),
+      ])
+      const result = await ctx.tools.execute({
+        signal: new AbortController().signal,
+        callId: ToolCallId('loader-outline-1'),
+        name: 'generate_patent_figure',
+        arguments: {
+          figure_type: 'circuit',
+          circuit: { components: [{ id: 'r1', kind: 'resistor', label: 'R1', col: 0, row: 0 }], connections: [] },
+          filename: 'outline-probe',
+          persist_index: false,
+        },
+      })
+      // 配置开了就绝不能交出仍是 <text> 的图：缺 Inkscape 时 fail loud 并给出安装引导
+      // （错误码 setup_required 的映射由 figure-generate-tool.spec 断言）。
+      expect(result.isError).toBe(true)
+      const text = JSON.stringify(result)
+      expect(text).toContain('未找到 Inkscape 可执行文件')
+      expect(text).toContain('Config.inkscapeExecutable')
+    } finally {
+      await rm(notes, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
   it('registers patent_pdf_download live (not an unwired stub)', async () => {
     const notes = join(await mkdtemp(join(tmpdir(), 'dsh-patent-tools-notes-')), '99-知识库')
     try {

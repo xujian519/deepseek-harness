@@ -67,7 +67,17 @@ export type SectionFigureJson = {
   parts: readonly {
     label?: string
     outline: readonly (readonly [number, number])[]
-    hatch?: { angle_deg?: number; spacing_mm?: number; direction?: 'forward' | 'backward' }
+    /** `'none'` 表示该轮廓不是被剖切实体（轴线、引出线、非剖切件），只画轮廓。 */
+    hatch?: { angle_deg?: number; spacing_mm?: number; direction?: 'forward' | 'backward' } | 'none'
+  }[]
+  labels?: readonly {
+    text: string
+    at: readonly [number, number]
+    from?: readonly [number, number]
+  }[]
+  centerlines?: readonly {
+    from: readonly [number, number]
+    to: readonly [number, number]
   }[]
   cutting_marks?: readonly {
     id: string
@@ -75,6 +85,7 @@ export type SectionFigureJson = {
     to: readonly [number, number]
     arrow: 'left' | 'right' | 'up' | 'down'
   }[]
+  label_font_size_mm?: number
   padding_mm?: number
 }
 
@@ -121,6 +132,49 @@ function required<T>(value: T | undefined, figureType: VectorFigureType, field: 
     throw new VectorFigureError('empty_input', `${figureType} 需要 ${field} 输入`)
   }
   return value
+}
+
+/** 零件序号列表（1 起，与调用方的 parts 顺序一致）。 */
+function partNumbers(indexes: readonly number[]): string {
+  return indexes.map(index => `#${index + 1}`).join('、')
+}
+
+/**
+ * 剖视图输入的图面检查：把「静默套用默认剖面线」与「同一零件名被多个轮廓重复承载」
+ * 变成模型可见的提示 —— 二者都是图面上看不出来的输入错误。
+ *
+ * 不检查「多件剖面线取向相同」：镜像成对的上下两半、同一零件的多段轮廓都必须取向
+ * 相同，输入里没有「哪些轮廓属于同一零件」的信息，据此报警会把正确图面判成缺陷。
+ * 相邻零件取向是否可区分由渲染复核（`figure/render-check`）量测后判定。
+ * @param section - 剖视图输入。
+ * @returns 提示列表（无问题时为空数组）。
+ */
+function sectionWarnings(section: SectionFigureJson): string[] {
+  const warnings: string[] = []
+  const unhatched = section.parts
+    .map((part, index) => ({ part, index }))
+    .filter(({ part }) => part.hatch === undefined)
+  if (unhatched.length > 0) {
+    warnings.push(
+      `零件 ${partNumbers(unhatched.map(entry => entry.index))} 未指定剖面线，已按默认 45°/3 毫米打剖面线；`
+      + '若该轮廓不是被剖切的实体（轴线、引出线、非剖切件），请写 hatch: "none"；'
+      + '若它们不是同一零件，相邻零件必须用相反方向或不同间距的剖面线（GB/T 4457.5）',
+    )
+  }
+  const byLabel = new Map<string, number[]>()
+  section.parts.forEach((part, index) => {
+    const label = part.label?.trim() ?? ''
+    if (label === '') return
+    byLabel.set(label, [...(byLabel.get(label) ?? []), index])
+  })
+  for (const [label, indexes] of byLabel) {
+    if (indexes.length < 2) continue
+    warnings.push(
+      `零件名「${label}」出现在 ${String(indexes.length)} 个轮廓上（${partNumbers(indexes)}）：`
+      + '本字段按轮廓各画一处标号（数字在轮廓右上角之外）；同一零件的多个轮廓请改用 labels 指定唯一落点',
+    )
+  }
+  return warnings
 }
 
 /**
@@ -172,19 +226,24 @@ export function buildVectorFigure(figureType: VectorFigureType, input: VectorFig
             outline: part.outline,
             ...(part.hatch === undefined
               ? {}
-              : {
-                hatch: {
-                  ...(part.hatch.angle_deg === undefined ? {} : { angleDeg: part.hatch.angle_deg }),
-                  ...(part.hatch.spacing_mm === undefined ? {} : { spacingMm: part.hatch.spacing_mm }),
-                  ...(part.hatch.direction === undefined ? {} : { direction: part.hatch.direction }),
-                },
-              }),
+              : part.hatch === 'none'
+                ? { hatch: 'none' as const }
+                : {
+                  hatch: {
+                    ...(part.hatch.angle_deg === undefined ? {} : { angleDeg: part.hatch.angle_deg }),
+                    ...(part.hatch.spacing_mm === undefined ? {} : { spacingMm: part.hatch.spacing_mm }),
+                    ...(part.hatch.direction === undefined ? {} : { direction: part.hatch.direction }),
+                  },
+                }),
           })),
           ...(sections.outline === undefined ? {} : { outline: sections.outline }),
+          ...(sections.labels === undefined ? {} : { labels: sections.labels }),
+          ...(sections.centerlines === undefined ? {} : { centerlines: sections.centerlines }),
           ...(sections.cutting_marks === undefined ? {} : { cuttingMarks: sections.cutting_marks }),
+          ...(sections.label_font_size_mm === undefined ? {} : { labelFontSizeMm: sections.label_font_size_mm }),
           ...(sections.padding_mm === undefined ? {} : { paddingMm: sections.padding_mm }),
         }),
-        warnings: [],
+        warnings: sectionWarnings(sections),
       }
     }
     case 'sequence_diagram': {
