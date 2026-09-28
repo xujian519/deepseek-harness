@@ -7,8 +7,23 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import LocalSubprocessRuntime from '../src/index.ts'
 
+/**
+ * A freshly forked interactive shell draws its first prompt only after its
+ * startup files run. The race-stress job runs this file beside several
+ * subprocess-spawning suites, where a contended runner pushes that startup
+ * past Vitest's 1000 ms `expect.poll` default and the wait then fails on empty
+ * output instead of waiting for the prompt.
+ */
+const startupPromptTimeoutMs = 8_000
+
+/**
+ * One repeat budget: startup may consume the prompt budget before the case's
+ * own assertions, and teardown pays the same contention.
+ */
+const shellTimeoutMs = 20_000
+
 const cleanups: Array<() => Promise<void>> = []
-afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup() })
+afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup() }, shellTimeoutMs)
 
 async function shell(path: string, rc = '', envFile = '') {
   const home = await mkdtemp(join(tmpdir(), 'dsh-shell-activity-test-'))
@@ -23,11 +38,11 @@ async function shell(path: string, rc = '', envFile = '') {
   cleanups.push(() => handle.terminate())
   let output = ''
   handle.output.on('data', (data: Buffer) => { output += data.toString('utf8') })
-  await expect.poll(() => output).toContain('READY>')
+  await expect.poll(() => output, { timeout: startupPromptTimeoutMs }).toContain('READY>')
   return { handle, home, output: () => output, activity: async () => (await handle.inspectActivity()).state }
 }
 
-describe.skipIf(process.platform === 'win32' || !existsSync('/bin/zsh'))('Zsh terminal activity', () => {
+describe.skipIf(process.platform === 'win32' || !existsSync('/bin/zsh'))('Zsh terminal activity', { timeout: shellTimeoutMs }, () => {
   it('keeps silent foreground work, builtin loops, read, and background jobs busy until a new prompt is idle', async () => {
     const h = await shell('/bin/zsh')
     await expect.poll(h.activity).toBe('idle')
@@ -92,7 +107,7 @@ describe.skipIf(process.platform === 'win32' || !existsSync('/bin/zsh'))('Zsh te
   })
 })
 
-describe.skipIf(process.platform === 'win32' || !existsSync('/bin/bash'))('Bash terminal activity', () => {
+describe.skipIf(process.platform === 'win32' || !existsSync('/bin/bash'))('Bash terminal activity', { timeout: shellTimeoutMs }, () => {
   it('preserves scalar prompt hooks and uses unknown on shells without PS0', async () => {
     const h = await shell('bash', "PROMPT_COMMAND='printf HOOK; # user comment'\nset -C")
     expect(h.output()).toContain('HOOK')
