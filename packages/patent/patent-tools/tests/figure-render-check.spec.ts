@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { checkFigureRendering } from '../src/figure/render-check.ts'
+import { buildSectionDiagram } from '../src/figure/section-diagram.ts'
 import { SvgAnnotateError } from '../src/figure/svg-annotate.ts'
+import { vectorFigureSvg } from '../src/figure/vector-figure.ts'
 
 /**
  * 构造一张最小矢量附图：`body` 里的元素放入与工具同形的十号描边组，
@@ -105,6 +107,147 @@ describe('checkFigureRendering 量测', () => {
       '<text x="80" y="9.2" font-size="3.5" text-anchor="middle" fill="#000000" stroke="none">3</text>',
     ].join('\n')))
     expect(report.findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 与直绘图型同源', () => {
+  it('工具自己画的剖视图（标号外置 + 引线）无发现', () => {
+    // 引线止点由 leaderEnd 解在占位框边界上，坐标只保留三位小数；复核侧必须用同一
+    // 口径量测，否则工具自己画的引线会被报成「贯穿文字」（这里止点落在边界内侧
+    // 1.8e-15 毫米处，按「与边相交」判定就会误报）。
+    const spec = buildSectionDiagram({
+      parts: [{ outline: [[0, 0], [5, 0], [5, 3.1], [0, 3.1]], label: '1', hatch: 'none' }],
+      paddingMm: 0.7,
+    })
+    expect(checkFigureRendering(vectorFigureSvg(spec, '剖视图')).findings).toEqual([])
+  })
+
+  it('多字标号按内容宽度计入画布：标号不被裁切', () => {
+    // 标号是画布右边界的最外元素；按字号正方形估算会画窄，标号右半被裁掉。
+    const spec = buildSectionDiagram({
+      parts: [{ outline: [[0, 0], [40, 0], [40, 25], [0, 25]], label: '上盖板组件' }],
+    })
+    expect(checkFigureRendering(vectorFigureSvg(spec, '剖视图')).findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 视口换算', () => {
+  it('viewBox 用 px 级用户单位时按 viewBox 换算毫米：满页图形不算越界', () => {
+    const page = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 744.09 1052.36">
+  <rect x="0" y="0" width="744.09" height="1052.36" stroke="#000000" stroke-width="0.5"/>
+</svg>`
+    const report = checkFigureRendering(page)
+    expect(report.findings).toEqual([])
+    expect(report.widthMm).toBe(210)
+    expect(report.heightMm).toBe(297)
+    // 线宽按 viewBox 换算到毫米：0.5 用户单位 = 0.141 毫米，而不是 0.5「毫米」。
+    expect(report.strokeWidthMm[0]?.widthMm).toBeCloseTo(0.141, 3)
+  })
+
+  it('嵌套 <svg> 的内层视口不当画布：整段记为未量测，不按内层尺寸误报越界', () => {
+    const nested = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="40mm" viewBox="0 0 120 40">
+  <text x="4" y="14" font-size="3.5" fill="#000000" stroke="none">A</text>
+  <svg x="50" y="5" width="30" height="30"><rect x="0" y="0" width="60" height="60" stroke-width="0.5"/></svg>
+</svg>`
+    const report = checkFigureRendering(nested)
+    expect(report.widthMm).toBe(120)
+    expect(report.heightMm).toBe(40)
+    expect(report.textCount).toBe(1)
+    // 内层矩形的几何整段不量测：线宽分布里没有它。
+    expect(report.strokeWidthMm).toEqual([])
+    expect(report.findings.map(finding => finding.check)).toEqual(['not-measured'])
+    expect(report.findings[0]?.message).toContain('嵌套')
+  })
+
+  it('preserveAspectRatio="none" 的拉伸与 slice 裁剪各记一条近似说明', () => {
+    const stretched = `<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 100" preserveAspectRatio="none">
+  <rect x="0" y="0" width="100" height="100" stroke-width="0.5"/>
+</svg>`
+    expect(checkFigureRendering(stretched).findings[0]?.message).toContain('none')
+    expect(checkFigureRendering(stretched.replace(' preserveAspectRatio="none"', ''))).toMatchObject({})
+  })
+})
+
+describe('checkFigureRendering 点划线（虚线元素）', () => {
+  it('stroke-dasharray 画出的点划线同样按虚线段量测：被同位置实线覆盖时报出', () => {
+    const dashed = svg([
+      '<polygon points="0,20 40,20 40,25 0,25" stroke-width="0.5"/>',
+      '<polygon points="0,20 40,20 40,15 0,15" stroke-width="0.5"/>',
+      '<line x1="2" y1="20" x2="38" y2="20" stroke-width="0.25" stroke-dasharray="8 2 0.4 2"/>',
+    ].join('\n'))
+    const report = checkFigureRendering(dashed)
+    expect(report.findings.map(finding => finding.check)).toEqual(['centerline-covered'])
+    expect(report.findings[0]?.message).toContain('连续墨迹')
+  })
+
+  it('点划线自身间隔小于 1 毫米但无实线覆盖时不报（不把自身间隔当实线）', () => {
+    const fine = svg('<line x1="2" y1="20" x2="38" y2="20" stroke-width="0.25" stroke-dasharray="7 0.6 0.4 0.6"/>')
+    expect(checkFigureRendering(fine).findings).toEqual([])
+  })
+
+  it('虚线元素的虚线段计入签名，长划长度不超过上界：单独一条点划线不报', () => {
+    const dashed = svg('<line x1="2" y1="20" x2="38" y2="20" stroke-width="0.25" stroke-dasharray="8 2 0.4 2"/>')
+    expect(checkFigureRendering(dashed).findings).toEqual([])
+  })
+})
+
+describe('checkFigureRendering 字号与对齐的继承', () => {
+  it('未声明 font-size 的文字按 CSS 初值估框：贯穿仍报出（框不再退化为一点）', () => {
+    // 整幅下移 2 毫米：按 16 用户单位估框后，占位框仍落在画布内。
+    const report = checkFigureRendering(svg([
+      '<polygon points="10,12 50,12 50,32 10,32" stroke-width="0.5"/>',
+      '<line x1="30" y1="22" x2="80" y2="12" stroke-width="0.25"/>',
+      '<text x="80" y="13.2" text-anchor="middle" fill="#000000" stroke="none">3</text>',
+    ].join('\n')))
+    expect(report.textCount).toBe(1)
+    expect(report.findings.map(finding => finding.check)).toEqual(['text-crossed-by-line'])
+  })
+
+  it('<g> 上的 text-anchor 与行内 style 的字号参与换算', () => {
+    const grouped = svg([
+      '<g text-anchor="middle"><polygon points="10,10 50,10 50,30 10,30" stroke-width="0.5"/>',
+      '<line x1="30" y1="20" x2="78.2" y2="9.16" stroke-width="0.25"/>',
+      '<text x="80" y="9.2" font-size="3.5" fill="#000000" stroke="none">3</text></g>',
+    ].join('\n'))
+    expect(checkFigureRendering(grouped).findings).toEqual([])
+    // style 的 7 号字：占位框 y∈[4.75,10.84]，y=3.5 的线在框外；若按 16 号初值算框会误报。
+    const styled = svg([
+      '<text x="10" y="10" style="font-size:7;text-anchor:middle" fill="#000000" stroke="none">接地</text>',
+      '<line x1="0" y1="3.5" x2="20" y2="3.5" stroke-width="0.25"/>',
+    ].join('\n'))
+    expect(checkFigureRendering(styled).findings).toEqual([])
+    expect(checkFigureRendering(styled.replace('font-size:7;', ''))).toMatchObject({})
+  }, 20_000)
+})
+
+describe('checkFigureRendering 未量测结构', () => {
+  it('样式表、tspan 偏移、端头标记、基线属性、百分比长度各记一条', () => {
+    const cases: readonly (readonly [string, string])[] = [
+      ['<style>.n{fill:none}</style>', '样式表'],
+      ['<defs><style>.n{stroke-width:1}</style></defs>', '样式表'],
+      ['<text x="4" y="10" font-size="3.5"><tspan x="4" dy="4">A</tspan></text>', 'tspan'],
+      ['<line x1="0" y1="0" x2="5" y2="5" stroke-width="0.25" marker-end="url(#a)"/>', 'marker'],
+      ['<text x="4" y="10" font-size="3.5" dominant-baseline="middle">A</text>', 'dominant-baseline'],
+      ['<rect x="0" y="0" width="50%" height="10" stroke-width="0.5"/>', '百分比'],
+    ]
+    for (const [element, expected] of cases) {
+      const report = checkFigureRendering(svg(element))
+      expect([element, report.findings.some(finding => finding.message.includes(expected))]).toEqual([element, true])
+    }
+  })
+
+  it('display: none 的子树按不渲染跳过：不算墨迹，也不报未量测', () => {
+    const hidden = svg([
+      '<rect x="200" y="0" width="50" height="50" stroke-width="0.5" display="none"/>',
+      '<rect x="0" y="0" width="10" height="10" stroke-width="0.5" style="display:none"/>',
+      '<rect x="0" y="0" width="10" height="10" stroke-width="0.5"/>',
+    ].join('\n'))
+    const report = checkFigureRendering(hidden)
+    expect(report.findings).toEqual([])
+    expect(report.strokeWidthMm).toEqual([{ widthMm: 0.5, count: 1 }])
   })
 })
 

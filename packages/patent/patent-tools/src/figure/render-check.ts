@@ -17,25 +17,31 @@
  * - **内容越出画布**：线段、轮廓或标号落在根元素声明的画布之外，越界部分不会被
  *   渲染出来（后处理放大字号或落版改写画布时最易发生）。
  *
- * 量测范围：根元素自带的画布尺寸；`line`/`polyline`/`polygon`/`rect`/`circle`/
- * `ellipse`/`path`（M/L/H/V/Z，含相对形式）的几何；`text` 的内容、字号与对齐。
- * 元素按嵌套逐层继承 `transform`（translate/scale/rotate/matrix）与
- * `stroke-width`/`stroke`/`font-size`，故落版页与拼版页的缩放、纵排文字都能换算到
- * 根坐标系量测。`defs`/`clipPath`/`marker` 等定义容器的子元素不在图面上渲染，整段
- * 跳过。
+ * 量测范围：根元素的画布尺寸与 `viewBox`/`preserveAspectRatio`（`svg-viewport` 解析成
+ * 用户单位 → 毫米的映射，故 px 级用户单位的导出文件与落版页同一口径）；`line`/`polyline`/
+ * `polygon`/`rect`/`circle`/`ellipse`/`path`（M/L/H/V/Z，含相对形式）的几何；`text` 的内容、
+ * 字号与 `text-anchor`（含自 `<g>` 继承与行内 `style`；未声明字号按 CSS 初值 16 用户单位）；
+ * 线段的取向与线宽；`stroke-dasharray` 只用于点划线判定（按虚线段展开）。元素按嵌套逐层
+ * 继承 `transform`（translate/scale/rotate/matrix）与线宽/描边/字号，故落版页与拼版页的
+ * 缩放、纵排文字都能换算到根坐标系量测。`defs`/`clipPath`/`marker` 等定义容器的子元素与
+ * `display: none` 的子树不在图面上渲染，整段跳过。
  *
- * 不在量测范围内的每一类各产生一条 `not-measured` 发现：CSS 类样式（`<style>`）、
- * `<use>`/`<image>` 引用、无法解析的 `transform` 或路径 `d`、以及按端点弦近似的
- * 曲线段。**报告里没有 `not-measured` 时，「未发现问题」才等于逐类量测过。**
+ * 不在量测范围内的结构各记一条 `not-measured` 发现（同一原因只记一条）：CSS 类样式
+ * （`<style>`，含 `<defs>` 内的样式表）、`<use>`/`<image>` 引用、嵌套 `<svg>` 的内层视口、
+ * 端头标记（`marker-*`）、`<tspan>` 的 x/y/dx/dy 偏移、`dominant-baseline`/
+ * `alignment-baseline`、相对视口的百分比长度、无法解析的 `transform`/路径 `d`/`viewBox`，
+ * 以及按端点弦近似的曲线段；视口两轴缩放不等或 `slice` 裁剪时另记一条近似说明。
+ * **报告里没有 `not-measured` 时，「未发现问题」才等于逐类量测过。**
  *
  * 输入安全检查复用 svg-annotate 的 assertSafeSvg（拒绝实体/CDATA、超限体量与
  * 非 SVG 根元素）；本模块只读文本，不解析实体也不执行内容。
  * @module @deepseek-ai/dsh-patent-tools/figure/render-check
  */
 
-import { GLYPH_BOX_TOLERANCE_MM, glyphBox } from './glyph-box.ts'
+import { glyphBox, quadCrossedBySegment } from './glyph-box.ts'
 import type { GlyphTextAnchor } from './glyph-box.ts'
 import { DEFAULT_SVG_MAX_BYTES, assertSafeSvg } from './svg-annotate.ts'
+import { MM_PER_USER_UNIT, parseLengthMm, resolveSvgViewport } from './svg-viewport.ts'
 
 /** 复核发现的问题类别（稳定标识，供调用方分类）。 */
 export type RenderCheckKind =
@@ -44,6 +50,18 @@ export type RenderCheckKind =
   | 'hatch-orientation-collision'
   | 'ink-outside-canvas'
   | 'not-measured'
+
+/** 图面墨迹的包围盒（毫米，根坐标系）。 */
+export type InkBounds = {
+  /** 最小 X。 */
+  readonly minX: number
+  /** 最小 Y。 */
+  readonly minY: number
+  /** 最大 X。 */
+  readonly maxX: number
+  /** 最大 Y。 */
+  readonly maxY: number
+}
 
 /** 一条复核发现。 */
 export type RenderCheckFinding = {
@@ -82,6 +100,12 @@ const DASH_DOT_MIN_DOTS = 3
 const DASH_DOT_MIN_DASHES = 2
 /** 点划线签名下限：整行跨度不得小于此值（毫米），排除零件轮廓的零碎短边。 */
 const DASH_DOT_MIN_SPAN_MM = 20
+/**
+ * 点划线长划的长度上界（毫米）：标准中心线的长划约 8 毫米（本包 `dashDotSegments`
+ * 即 8 毫米）。同一行合并后若出现更长的连续墨迹，说明该行另有压在点划线上的实线
+ * ——这是「点划线被实线覆盖」的判据，而不是把点划线自己的间隔当成实线。
+ */
+const DASH_DOT_MAX_DASH_MM = 10
 /** 行内可见间隙下限（毫米）：整行合并后无此宽度的空隙即视为「间隔不可见」。 */
 const VISIBLE_GAP_MM = 1
 /** 同一直线上的坐标容差（毫米）。 */
@@ -96,6 +120,12 @@ const MIRROR_TOLERANCE_MM = 0.01
 const HATCH_MIN_LINES = 3
 /** SVG 未声明 `stroke-width` 时的初值（用户单位）。 */
 const DEFAULT_STROKE_WIDTH = 1
+/**
+ * SVG 未声明 `font-size` 时的初值（用户单位，即 CSS 的 `medium` = 16 px）。
+ * 本机 Inkscape 1.4.4 对缺省字号实测约 12 用户单位，取 16（规范初值）偏保守：
+ * 估出的占位框更大，漏报少、误报多，而漏报的代价是交付了读不出的图。
+ */
+const DEFAULT_FONT_SIZE_USER = 16
 /** 圆与椭圆的折线近似边数：内接多边形的最大径向误差约 0.9%，足以量测描边与包围盒。 */
 const CIRCLE_GON_SEGMENTS = 24
 /** 定义容器：其子元素只被引用而不直接渲染，整段跳过（`<use>` 引用单独报未量测）。 */
@@ -123,6 +153,8 @@ type Shape = {
   readonly strokeWidthMm: number
   /** 是否描边：`stroke: none` 的填充图元不计入线宽分布，但其几何仍参与贯穿与越界判定。 */
   readonly stroked: boolean
+  /** `stroke-dasharray` 的虚线段长（毫米，已按累计缩放换算）；实线元素为 undefined。 */
+  readonly dashPatternMm?: readonly number[]
 }
 
 /** 一个文字元素：内容与文字占位框四角（根坐标系）。 */
@@ -133,8 +165,11 @@ type Frame = {
   readonly matrix: Matrix
   readonly strokeWidthMm: number
   readonly stroked: boolean
-  readonly fontSizeMm: number
-  /** 位于不直接渲染的定义容器内：子树整体跳过。 */
+  /** 字号（用户单位；绘制时按帧矩阵换算到毫米）。 */
+  readonly fontSizeUser: number
+  /** `text-anchor`（自祖先继承，取值经白名单校验）。 */
+  readonly textAnchor: GlyphTextAnchor
+  /** 位于不直接渲染的定义容器内、或 `display: none`：子树整体跳过。 */
   readonly skip: boolean
 }
 
@@ -162,18 +197,114 @@ const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0]
 /** 匹配任意元素起止标签：组 1 = `/` 关闭标记，组 2 = 元素名，组 3 = 属性原文，组 4 = `/` 自闭合。 */
 const TAG_PATTERN = /<(\/?)([A-Za-z][\w:.-]*)((?:"[^"]*"|[^>])*?)(\/?)>/g
 
+/** 端头标记（`marker-start/mid/end`）：端头画出的箭头墨迹不在量测范围。 */
+const MARKER_PATTERN = /\bmarker-(?:start|mid|end)\s*=/
+
+/** `<tspan>` 的位置或位移（`x`/`y`/`dx`/`dy`）：逐行偏移不在量测范围。 */
+const TSPAN_OFFSET_PATTERN = /\b(?:x|y|dx|dy)\s*=/
+
+/** 文字基线属性：基线位置不在量测范围。 */
+const BASELINE_PATTERN = /\b(?:dominant|alignment)-baseline\s*=/
+
+/** 相对视口的百分比长度：矢量源上无法解析成绝对长度。 */
+const PERCENT_LENGTH_PATTERN = /\b(?:x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|width|height|stroke-width|stroke-dasharray|font-size)\s*=\s*"[^"]*%/
+
 /** 读取标签属性（第一个匹配的 `name="…"`）。 */
 function attr(tag: string, name: string): string | undefined {
   const match = new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(tag)
   return match?.[1]
 }
 
-/** 读取数值属性。 */
-function num(tag: string, name: string): number | undefined {
-  const raw = attr(tag, name)
-  if (raw === undefined) return undefined
+/**
+ * 读取行内 `style` 里的声明值（`style="fill:none;stroke-width:0.5"`）。
+ * 行内样式优先于表现属性（CSS 层叠），故取值一律经本函数再回落属性。
+ * @param tag - 标签原文。
+ * @param property - CSS 属性名（不区分大小写）。
+ * @returns 声明值；未声明时 undefined。
+ */
+function styleValue(tag: string, property: string): string | undefined {
+  const style = attr(tag, 'style')
+  if (style === undefined) return undefined
+  for (const declaration of style.split(';')) {
+    const colon = declaration.indexOf(':')
+    if (colon < 0) continue
+    if (declaration.slice(0, colon).trim().toLowerCase() === property) return declaration.slice(colon + 1).trim()
+  }
+  return undefined
+}
+
+/** 读取表现属性或行内 `style` 声明（样式优先）。 */
+function styled(tag: string, name: string): string | undefined {
+  return styleValue(tag, name) ?? attr(tag, name)
+}
+
+/** 解析长度（或数值）属性值：百分比与非法文本返回 undefined。 */
+function numValue(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.includes('%')) return undefined
   const value = Number.parseFloat(raw)
   return Number.isFinite(value) ? value : undefined
+}
+
+/** 读取数值属性（行内 `style` 优先）。 */
+function num(tag: string, name: string): number | undefined {
+  return numValue(styled(tag, name))
+}
+
+/**
+ * `font-size` 取值 → 用户单位长度。
+ *
+ * 无单位与 `px` 即用户单位（SVG 1.1 起 1 px = 1 用户单位）；`em` 与 `%` 相对父级字号；
+ * `mm`/`cm`/`in`/`pt`/`pc` 按 CSS 的 96 dpi 折算成用户单位（本机 Inkscape 1.4.4 实测：
+ * 1:1 毫米文档里 `font-size="3.5mm"` 与 `font-size="13.23px"` 量出同一字高，两者都是
+ * 13.23 用户单位）；`ex`/`ch`/`rem` 与视口单位需要字体度量或视口尺寸，无法在矢量源上解析。
+ * @param raw - `font-size` 属性原文。
+ * @param parentUser - 父级字号（用户单位），供 `em`/`%` 解析。
+ * @returns 字号（用户单位）；无法解析时 undefined（调用方按父级字号估算并记未量测）。
+ */
+function fontSizeUser(raw: string, parentUser: number): number | undefined {
+  const match = /^\s*(-?\d+(?:\.\d+)?)\s*([a-z%]*)\s*$/i.exec(raw)
+  if (match === null) return undefined
+  const value = Number(match[1])
+  if (!Number.isFinite(value) || value <= 0) return undefined
+  switch ((match[2] ?? '').toLowerCase()) {
+    case '':
+    case 'px':
+      return value
+    case 'em':
+      return value * parentUser
+    case '%':
+      return (value / 100) * parentUser
+    default: {
+      const mm = parseLengthMm(raw)
+      return mm === undefined ? undefined : mm / MM_PER_USER_UNIT
+    }
+  }
+}
+
+/** `text-anchor` 取值 → 对齐方式；白名单之外的取值按未声明处理（沿用父级）。 */
+function textAnchorValue(raw: string | undefined): GlyphTextAnchor | undefined {
+  switch (raw) {
+    case 'start':
+    case 'middle':
+    case 'end':
+      return raw
+    default:
+      return undefined
+  }
+}
+
+/**
+ * `stroke-dasharray` 取值 → 虚线段长（用户单位）。
+ * @param raw - 属性原文。
+ * @returns 段长序列；未声明、`none`、取值非法或全为 0（等于实线）时 undefined。
+ */
+function dashPatternUser(raw: string | undefined): readonly number[] | undefined {
+  if (raw === undefined || raw.trim().toLowerCase() === 'none') return undefined
+  const parts = raw.trim().split(/[\s,]+/).map(Number)
+  if (parts.length === 0 || parts.some(value => !Number.isFinite(value) || value < 0)) return undefined
+  if (parts.every(value => value === 0)) return undefined
+  // 奇数个取值按 SVG 规则重复一遍：8 2 0.4 等价于 8 2 0.4 8 2 0.4。
+  return parts.length % 2 === 1 ? [...parts, ...parts] : parts
 }
 
 /** 矩阵复合：先 `inner` 后 `outer`。 */
@@ -440,22 +571,36 @@ function geometryOf(name: string, tag: string, note: (reason: string) => void): 
 }
 
 /**
- * 子元素的帧：变换与样式属性覆盖父帧；不可识别的 `transform` 返回 undefined。
+ * 子元素的帧：变换与继承来的样式属性覆盖父帧（行内 `style` 优先于表现属性）；
+ * 不可识别的 `transform` 返回 undefined（该子树整体未量测）。
  * @param parent - 父元素的帧。
  * @param name - 元素名（小写）。
  * @param tag - 标签原文。
+ * @param note - 记录未量测原因的收集器。
  * @returns 该元素的帧；变换不可识别时 undefined。
  */
-function childFrame(parent: Frame, name: string, tag: string): Frame | undefined {
-  const transform = parseTransform(attr(tag, 'transform'))
+function childFrame(parent: Frame, name: string, tag: string, note: (reason: string) => void): Frame | undefined {
+  const transform = parseTransform(styled(tag, 'transform'))
   if (transform === undefined) return undefined
-  const stroke = attr(tag, 'stroke')
+  const stroke = styled(tag, 'stroke')
+  const rawFontSize = styled(tag, 'font-size')
+  let fontSize = parent.fontSizeUser
+  if (rawFontSize !== undefined) {
+    const resolved = fontSizeUser(rawFontSize, parent.fontSizeUser)
+    if (resolved === undefined) {
+      note('`font-size` 用了需要字体度量或视口的单位（ex/ch/rem/视口单位等），该文字按父级字号估算')
+    } else {
+      fontSize = resolved
+    }
+  }
   return {
     matrix: multiply(parent.matrix, transform),
-    strokeWidthMm: num(tag, 'stroke-width') ?? parent.strokeWidthMm,
+    strokeWidthMm: numValue(styled(tag, 'stroke-width')) ?? parent.strokeWidthMm,
     stroked: stroke === undefined ? parent.stroked : stroke !== 'none',
-    fontSizeMm: num(tag, 'font-size') ?? parent.fontSizeMm,
-    skip: parent.skip || DEFINITION_CONTAINERS.has(name),
+    fontSizeUser: fontSize,
+    textAnchor: textAnchorValue(styled(tag, 'text-anchor')) ?? parent.textAnchor,
+    // `display: none` 的子树不渲染：既不算墨迹，也不再逐元素记为未量测。
+    skip: parent.skip || styled(tag, 'display') === 'none' || DEFINITION_CONTAINERS.has(name),
   }
 }
 
@@ -467,8 +612,12 @@ function childFrame(parent: Frame, name: string, tag: string): Frame | undefined
  * @returns 文字记录。
  */
 function textEntry(content: string, tag: string, frame: Frame): ScannedText {
-  const anchor = (attr(tag, 'text-anchor') ?? 'start') as GlyphTextAnchor
-  const box = glyphBox(content, [num(tag, 'x') ?? 0, num(tag, 'y') ?? 0], frame.fontSizeMm, anchor)
+  const box = glyphBox(
+    content,
+    [num(tag, 'x') ?? 0, num(tag, 'y') ?? 0],
+    frame.fontSizeUser,
+    frame.textAnchor,
+  )
   return {
     content,
     corners: [
@@ -482,11 +631,32 @@ function textEntry(content: string, tag: string, frame: Frame): ScannedText {
 
 /**
  * 遍历 SVG：按文档序把每个元素变换到根坐标系，收集描边图形与文字，并记录未量测的原因。
+ *
+ * 根元素的视口（画布尺寸、viewBox、preserveAspectRatio）由 svg-viewport 解析后作为根帧
+ * 的矩阵，故此后所有坐标与长度都是毫米：落版页、拼版页、px 级用户单位的导出文件都换算
+ * 到同一口径。
  * @param svg - 完整 SVG 文本。
  * @returns 画布尺寸、图形、文字与未量测原因。
  */
 function scanSvg(svg: string): Scan {
-  const root: Frame = { matrix: IDENTITY, strokeWidthMm: DEFAULT_STROKE_WIDTH, stroked: false, fontSizeMm: 0, skip: false }
+  // 注释里的 `<line …>` 不是图元：先整段去掉，避免把注释当成元素量测。
+  const source = svg.replace(/<!--[\s\S]*?-->/g, '')
+  const viewport = resolveSvgViewport(/<svg\b[^>]*>/i.exec(source)?.[0] ?? '')
+  const root: Frame = {
+    matrix: [
+      viewport.scaleX,
+      0,
+      0,
+      viewport.scaleY,
+      -viewport.originX * viewport.scaleX,
+      -viewport.originY * viewport.scaleY,
+    ],
+    strokeWidthMm: DEFAULT_STROKE_WIDTH,
+    stroked: false,
+    fontSizeUser: DEFAULT_FONT_SIZE_USER,
+    textAnchor: 'start',
+    skip: false,
+  }
   const stack: Frame[] = [root]
   const shapes: Shape[] = []
   const texts: ScannedText[] = []
@@ -494,16 +664,16 @@ function scanSvg(svg: string): Scan {
   const note = (reason: string): void => {
     if (!unmeasured.includes(reason)) unmeasured.push(reason)
   }
-  let widthMm: number | undefined
-  let heightMm: number | undefined
+  if (viewport.note !== undefined) note(viewport.note)
+  let rootSvgSeen = false
   let pending: { readonly contentStart: number; readonly tag: string; readonly frame: Frame } | undefined
 
-  for (const match of svg.matchAll(TAG_PATTERN)) {
+  for (const match of source.matchAll(TAG_PATTERN)) {
     const name = (match[2] ?? '').toLowerCase()
     const tag = match[0]
     if ((match[1] ?? '') === '/') {
       if (name === 'text' && pending !== undefined) {
-        const content = svg.slice(pending.contentStart, match.index).replace(/<[^>]*>/g, '').trim()
+        const content = source.slice(pending.contentStart, match.index).replace(/<[^>]*>/g, '').trim()
         if (content !== '') texts.push(textEntry(content, pending.tag, pending.frame))
         pending = undefined
       }
@@ -512,44 +682,62 @@ function scanSvg(svg: string): Scan {
     }
     const parent = stack[stack.length - 1] as Frame
     const selfClosing = (match[4] ?? '') === '/'
-    const frame = childFrame(parent, name, tag)
-    if (frame === undefined) {
+    const own = childFrame(parent, name, tag, note)
+    if (own === undefined) {
       note('含 `translate`/`scale`/`rotate`/`matrix` 之外的变换（或参数非法），相关图元的几何未量测')
       if (!selfClosing) stack.push({ ...parent, skip: true })
       continue
     }
+    // 嵌套 `<svg>` 另有内层视口、viewBox 与裁剪，本模块按未量测处理并跳过其子树：
+    // 把内层元素按外层画布量测会得出错的越界结论。
+    const nestedViewport = name === 'svg' && rootSvgSeen
+    if (nestedViewport) note('文档含嵌套 `<svg>`（内层视口与裁剪），其子元素未量测')
+    const frame = nestedViewport ? { ...own, skip: true } : own
     if (!selfClosing) stack.push(frame)
-    if (frame.skip) continue
-    if (name === 'svg') {
-      widthMm = num(tag, 'width')
-      heightMm = num(tag, 'height')
+    if (name === 'style') {
+      note('文档含 `<style>` 样式表，CSS 类规则决定的外观（线宽、描边、字号）未量测')
       continue
     }
+    if (frame.skip) continue
+    if (name === 'svg') {
+      rootSvgSeen = true
+      continue
+    }
+    // 不在量测范围的结构逐类记账：报告里没有 not-measured 才等于逐类量测过。
+    if (MARKER_PATTERN.test(tag)) note('`marker-start/mid/end` 端头（箭头）的墨迹未量测')
+    if (name === 'tspan' && TSPAN_OFFSET_PATTERN.test(tag)) note('`<tspan>` 的 x/y/dx/dy 偏移未量测，多行文字的实际位置可能与占位框不同')
+    if (BASELINE_PATTERN.test(tag)) note('`dominant-baseline`/`alignment-baseline` 未量测，文字基线可能与占位框不同')
+    if (PERCENT_LENGTH_PATTERN.test(tag)) note('长度属性用了相对视口的百分比（如 width="50%"），未量测')
     if (name === 'text') {
       if (!selfClosing) pending = { contentStart: match.index + tag.length, tag, frame }
       continue
     }
     if (name === 'g') continue
-    if (name === 'style') {
-      note('文档含 `<style>` 样式表，CSS 类规则决定的外观（线宽、描边）未量测')
-      continue
-    }
     if (name === 'use' || name === 'image') {
       note(`\`<${name}>\` 引用的内容未展开，其几何未量测`)
       continue
     }
     const geometry = geometryOf(name, tag, note)
     if (geometry.kind === 'none') continue
+    const scale = scaleOf(frame.matrix)
+    const dashPattern = dashPatternUser(styled(tag, 'stroke-dasharray'))
     shapes.push({
       subpaths: geometry.subpaths.map(subpath => ({
         points: subpath.points.map(point => mapPoint(frame.matrix, point)),
         closed: subpath.closed,
       })),
-      strokeWidthMm: frame.strokeWidthMm * scaleOf(frame.matrix),
+      strokeWidthMm: frame.strokeWidthMm * scale,
       stroked: frame.stroked,
+      ...(dashPattern === undefined ? {} : { dashPatternMm: dashPattern.map(value => value * scale) }),
     })
   }
-  return { widthMm, heightMm, shapes, texts, unmeasured }
+  return {
+    widthMm: viewport.widthMm,
+    heightMm: viewport.heightMm,
+    shapes,
+    texts,
+    unmeasured,
+  }
 }
 
 /** 子路径的线段：相邻顶点各一段，闭合子路径另加收口边。 */
@@ -599,53 +787,23 @@ function insidePolygon(point: Point, points: Poly): boolean {
   return inside
 }
 
-/** 两条线段是否真正相交（不含共线重叠，共线情形由端点包含判定覆盖）。 */
-function segmentsCross(a: Segment, b: Segment): boolean {
-  const side = (p: Point, q: Point, r: Point): number =>
-    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
-  const d1 = side([a.x1, a.y1], [a.x2, a.y2], [b.x1, b.y1])
-  const d2 = side([a.x1, a.y1], [a.x2, a.y2], [b.x2, b.y2])
-  const d3 = side([b.x1, b.y1], [b.x2, b.y2], [a.x1, a.y1])
-  const d4 = side([b.x1, b.y1], [b.x2, b.y2], [a.x2, a.y2])
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
-}
-
 /**
- * 点是否落在文字占位框内部（离每条边至少 {@link GLYPH_BOX_TOLERANCE_MM}，按边长换算成
- * 参数容差，故旋转或缩放后的框同样成立）。
- * @param point - 待判点（根坐标系）。
- * @param quad - 文字占位框四角。
- * @returns 落在框内时 true。
- */
-function insideQuad(point: Point, quad: Quad): boolean {
-  const origin = quad[0]
-  const e1: Point = [quad[1][0] - origin[0], quad[1][1] - origin[1]]
-  const e2: Point = [quad[3][0] - origin[0], quad[3][1] - origin[1]]
-  const determinant = e1[0] * e2[1] - e1[1] * e2[0]
-  if (determinant === 0) return false
-  const dx = point[0] - origin[0]
-  const dy = point[1] - origin[1]
-  const alpha = (dx * e2[1] - dy * e2[0]) / determinant
-  const beta = (e1[0] * dy - e1[1] * dx) / determinant
-  const marginAlpha = GLYPH_BOX_TOLERANCE_MM / Math.hypot(e1[0], e1[1])
-  const marginBeta = GLYPH_BOX_TOLERANCE_MM / Math.hypot(e2[0], e2[1])
-  return alpha > marginAlpha && alpha < 1 - marginAlpha && beta > marginBeta && beta < 1 - marginBeta
-}
-
-/**
- * 线段是否穿过文字占位框：端点真正落在框内，或线段与框的边真正相交（贴边、共线不算）。
+ * 线段是否穿过文字占位框：与绘图侧（引线避让、标号落位）共用同一判定
+ * （{@link quadCrossedBySegment}），容差同为 glyph-box 的占位框容差。
  * @param segment - 待判线段（根坐标系）。
  * @param quad - 文字占位框四角。
  * @returns 穿过时 true。
  */
 function crossesQuad(segment: Segment, quad: Quad): boolean {
-  if (insideQuad([segment.x1, segment.y1], quad) || insideQuad([segment.x2, segment.y2], quad)) return true
-  for (let index = 0; index < 4; index += 1) {
-    const from = quad[index] as Point
-    const to = quad[(index + 1) % 4] as Point
-    if (segmentsCross(segment, { x1: from[0], y1: from[1], x2: to[0], y2: to[1] })) return true
-  }
-  return false
+  return quadCrossedBySegment(
+    {
+      origin: quad[0],
+      edgeWidth: [quad[1][0] - quad[0][0], quad[1][1] - quad[0][1]],
+      edgeHeight: [quad[3][0] - quad[0][0], quad[3][1] - quad[0][1]],
+    },
+    [segment.x1, segment.y1],
+    [segment.x2, segment.y2],
+  )
 }
 
 /**
@@ -744,15 +902,53 @@ function mergeRanges(ranges: readonly (readonly [number, number])[]): [number, n
 }
 
 /**
+ * 把一个线段按虚线段长切成「画」出的片段（间隔不产出线段）。
+ *
+ * 相位自线段起点起算：SVG 的虚线段沿子路径连续推进、由 `stroke-dashoffset` 起相，本模块
+ * 对每段各自起算作近似——片段只用于点划线签名与覆盖判定，不用于坐标断言。
+ * @param segment - 线段（毫米）。
+ * @param patternMm - 虚线段长（毫米，画/空交替）。
+ * @returns 画出的片段。
+ */
+function dashSegments(segment: Segment, patternMm: readonly number[]): Segment[] {
+  const dx = segment.x2 - segment.x1
+  const dy = segment.y2 - segment.y1
+  const total = Math.hypot(dx, dy)
+  if (total === 0) return []
+  const unit: Point = [dx / total, dy / total]
+  const at = (distance: number): Point => [segment.x1 + unit[0] * distance, segment.y1 + unit[1] * distance]
+  const pieces: Segment[] = []
+  let cursor = 0
+  let index = 0
+  while (cursor < total) {
+    const end = Math.min(cursor + (patternMm[index % patternMm.length] as number), total)
+    if (index % 2 === 0 && end > cursor) {
+      const from = at(cursor)
+      const to = at(end)
+      pieces.push({ x1: from[0], y1: from[1], x2: to[0], y2: to[1] })
+    }
+    cursor = end
+    index += 1
+  }
+  return pieces
+}
+
+/**
  * 点划线被实线覆盖：同一行（或列）既有点划签名（≥{@link DASH_DOT_MIN_DOTS} 个「点」与
  * ≥{@link DASH_DOT_MIN_DASHES} 个「长划」，整行跨度 ≥{@link DASH_DOT_MIN_SPAN_MM}），
- * 整行合并后又没有 {@link VISIBLE_GAP_MM} 宽的可见空隙。
- * @param segments - 全部线段（含轮廓边：压住点划线的实线常常正是多边形边）。
+ * 合并后没有 {@link VISIBLE_GAP_MM} 宽的可见空隙，且其中有一段长于
+ * {@link DASH_DOT_MAX_DASH_MM} 的连续墨迹——点划线自己的长划不会那么长，故只可能来自
+ * 压在同一位置的实线（上下两半剖的公共边正是如此）。
+ *
+ * 只按「间隔不可见」判定会把点划线自身间隔很小的图也报成实线覆盖，故必须有那段超长连续
+ * 墨迹作依据；`stroke-dasharray` 画出的点划线已按虚线段展开（{@link dashSegments}），
+ * 否则整条虚线只是一条长线段，签名与覆盖都看不出来。
+ * @param pieces - 全部线段量测片段（虚线元素已展开成虚线段）。
  * @returns 发现的问题。
  */
-function coveredCenterlines(segments: readonly Segment[]): RenderCheckFinding[] {
+function coveredCenterlines(pieces: readonly Segment[]): RenderCheckFinding[] {
   const findings: RenderCheckFinding[] = []
-  for (const group of intervalsByAxis(segments)) {
+  for (const group of intervalsByAxis(pieces)) {
     const lengths = group.segments.map(length)
     const dots = lengths.filter(value => value <= DOT_MAX_LENGTH_MM).length
     const dashes = lengths.filter(value => value >= DASH_MIN_LENGTH_MM).length
@@ -767,9 +963,13 @@ function coveredCenterlines(segments: readonly Segment[]): RenderCheckFinding[] 
     // 合并后只剩一段 = 整行没有可见空隙：点与长划被实线连成一条线。
     const largestGap = gaps.length === 0 ? 0 : Math.max(...gaps)
     if (largestGap >= VISIBLE_GAP_MM) continue
+    const longestRun = Math.max(...merged.map(range => range[1] - range[0]))
+    if (longestRun < DASH_DOT_MAX_DASH_MM) continue
     findings.push({
       check: 'centerline-covered',
-      message: `图面 ${group.axis === 'x' ? `y=${String(group.line)}` : `x=${String(group.line)}`} 处的点划线被同位置的实线覆盖（整行无可见间隔）：该行另有压在同一位置的实线边（例如上下两半剖的公共边），请改为一条闭合轮廓并只画中心线`,
+      message: `图面 ${group.axis === 'x' ? `y=${String(group.line)}` : `x=${String(group.line)}`} 处的点划线被同位置的实线覆盖`
+        + `（该行有一段 ${String(Math.round(longestRun * 10) / 10)} 毫米的连续墨迹、间隔不可见）：`
+        + '该行另有压在同一位置的实线边（例如上下两半剖的公共边），请改为一条闭合轮廓并只画中心线',
     })
   }
   return findings
@@ -824,6 +1024,19 @@ function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]
 }
 
 /**
+ * 图面墨迹的包围盒：全部子路径顶点与文字占位框四角的并集。
+ * @param scan - 遍历结果。
+ * @returns 墨迹包围盒；没有可量测图元时 undefined。
+ */
+function inkBounds(scan: Scan): InkBounds | undefined {
+  const points: Point[] = [
+    ...scan.shapes.flatMap(shape => shape.subpaths.flatMap(subpath => subpath.points)),
+    ...scan.texts.flatMap(text => [...text.corners]),
+  ]
+  return points.length === 0 ? undefined : bounds(points)
+}
+
+/**
  * 墨迹越出画布：全部子路径顶点与文字占位框四角中，有落在 [0, 画布] 之外的（容差
  * {@link AXIS_TOLERANCE_MM}）。根元素未声明两个尺寸时不做此判定。
  * @param scan - 遍历结果。
@@ -832,18 +1045,29 @@ function hatchCollisions(outlines: readonly Poly[], segments: readonly Segment[]
 function inkOutsideCanvas(scan: Scan): RenderCheckFinding | undefined {
   const { widthMm, heightMm } = scan
   if (widthMm === undefined || heightMm === undefined) return undefined
-  const points: Point[] = [
-    ...scan.shapes.flatMap(shape => shape.subpaths.flatMap(subpath => subpath.points)),
-    ...scan.texts.flatMap(text => [...text.corners]),
-  ]
-  if (points.length === 0) return undefined
-  const ink = bounds(points)
+  const ink = inkBounds(scan)
+  if (ink === undefined) return undefined
   if (ink.minX >= -AXIS_TOLERANCE_MM && ink.minY >= -AXIS_TOLERANCE_MM
     && ink.maxX <= widthMm + AXIS_TOLERANCE_MM && ink.maxY <= heightMm + AXIS_TOLERANCE_MM) return undefined
   return {
     check: 'ink-outside-canvas',
     message: `图面内容越出画布 ${String(widthMm)}×${String(heightMm)}：墨迹范围 (${String(ink.minX)}, ${String(ink.minY)})-(${String(ink.maxX)}, ${String(ink.maxY)})；越界部分不会渲染出来`,
   }
+}
+
+/**
+ * 量测一张 SVG 的墨迹包围盒（毫米，根坐标系）：全部子路径顶点与文字占位框的并集。
+ *
+ * 供「转换/改写后几何是否走样」的护栏使用（文字转轮廓路径后墨迹必须仍落在原范围内）；
+ * 与 {@link checkFigureRendering} 共用同一遍历，故两处口径一致。
+ * @param svg - 完整 SVG 文本。
+ * @param options - 安全校验上限（字节）；缺省沿用 {@link DEFAULT_SVG_MAX_BYTES}。
+ * @returns 墨迹包围盒；没有可量测图元时 undefined。
+ * @throws SvgAnnotateError 输入未通过 {@link assertSafeSvg} 时。
+ */
+export function measureInkBounds(svg: string, options: { maxBytes?: number } = {}): InkBounds | undefined {
+  assertSafeSvg(svg, options.maxBytes ?? DEFAULT_SVG_MAX_BYTES)
+  return inkBounds(scanSvg(svg))
 }
 
 /**
@@ -863,12 +1087,19 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
   const outlines: Poly[] = []
   const openSegments: Segment[] = []
   const drawn: Segment[] = []
+  // 点划线判定用的片段：虚线元素按虚线段展开，其余按整段——`stroke-dasharray` 画出的
+  // 中心线不展开就只是一条长线段，点划签名与「被实线覆盖」都看不出来。
+  const pieces: Segment[] = []
   for (const shape of scan.shapes) {
     for (const subpath of shape.subpaths) {
       const segments = subpathSegments(subpath)
       drawn.push(...segments)
       if (subpath.closed) outlines.push(subpath.points)
       else openSegments.push(...segments)
+      for (const segment of segments) {
+        if (shape.dashPatternMm === undefined) pieces.push(segment)
+        else pieces.push(...dashSegments(segment, shape.dashPatternMm))
+      }
     }
   }
 
@@ -876,7 +1107,7 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
   if (scan.unmeasured.length > 0) {
     findings.push({
       check: 'not-measured',
-      message: `未量测：${scan.unmeasured.join('；')}。这些范围内的图面缺陷不会出现在本报告里`,
+      message: `以下事实未量测或只作近似：${scan.unmeasured.join('；')}。这些范围内的缺陷不会出现在本报告里，近似项为估计值`,
     })
   }
   for (const text of scan.texts) {
@@ -887,7 +1118,7 @@ export function checkFigureRendering(svg: string, options: { maxBytes?: number }
       })
     }
   }
-  findings.push(...coveredCenterlines(drawn))
+  findings.push(...coveredCenterlines(pieces))
   const ink = inkOutsideCanvas(scan)
   if (ink !== undefined) findings.push(ink)
   findings.push(...hatchCollisions(outlines, openSegments))

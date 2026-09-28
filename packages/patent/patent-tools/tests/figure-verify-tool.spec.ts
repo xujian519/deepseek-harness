@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -86,6 +86,12 @@ describe('verify_patent_figure', () => {
       const missing = await ctx.tools.execute({ signal, callId: ToolCallId('vf3'), name: 'verify_patent_figure', arguments: { svg_path: 'nope.svg' } })
       expect(missing.isError).toBe(true)
       expect(text(missing)).toContain('SVG 文件不存在：nope.svg')
+
+      // 目录当路径：读得出「存在」但读不出文本，报 invalid_tool_input 而不是 file_not_found。
+      mkdirSync(join(dir, 'adir'))
+      const asDirectory = await ctx.tools.execute({ signal, callId: ToolCallId('vf3b'), name: 'verify_patent_figure', arguments: { svg_path: 'adir' } })
+      expect(asDirectory.isError).toBe(true)
+      expect(text(asDirectory)).toContain('SVG 文件不可读：adir')
 
       writeFileSync(join(dir, 'unsafe.svg'), '<!ENTITY x "y"><svg></svg>')
       const unsafe = await ctx.tools.execute({ signal, callId: ToolCallId('vf4'), name: 'verify_patent_figure', arguments: { svg_path: 'unsafe.svg' } })

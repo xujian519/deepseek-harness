@@ -2893,9 +2893,9 @@ export interface Config {
   figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
-  /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，仅 SVG 生效）。 */
+  /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，两个附图生成工具、仅 SVG 生效）。 */
   figureTextToPath?: boolean
-  /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用。 */
+  /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用（两个附图生成工具共用同一端口）。 */
   inkscapeExecutable?: string
   /** Inkscape 单次文字转路径超时（毫秒）；默认 30000。仅 figureTextToPath 使用。 */
   inkscapeRenderTimeoutMs?: number

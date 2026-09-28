@@ -315,6 +315,7 @@ async function generateSingleFigure(
     style: context.style,
     output: result,
   })
+  if (vector) await checkRenderedFigure({ path: rendered.path, warnings: result.warnings })
   await outlineFigureText({ deps, path: rendered.path, format, signal: context.signal, warnings: result.warnings })
   let indexed = false
   if ((normalized.persist_index ?? true) && deps.upsertIndex !== undefined) {
@@ -540,21 +541,7 @@ async function renderSingleFigure(
     const path = join(run.outputDir, `${sanitizeDotFilename(filename)}.svg`)
     const svg = vectorFigureSvg(build.spec, vectorTitle(normalized.invention_name, toFigureType(normalized.figure_type)))
     await writeFile(path, svg, 'utf8')
-    // 渲染复核：只查得出「画出来才看得见」的问题（标号被线条贯穿、点划线被实线覆盖、
-    // 相邻零件剖面线取向过近、内容越出画布），与输入检查互补。体量上限已由
-    // vectorFigureSvg 按 DEFAULT_VECTOR_BODY_MAX_BYTES 卡住，复核不再按同一上限二次拦截
-    // （复核含未量测说明，超限被拒会把它整段吞掉）；调用方给的外观视图片段仍可能带上
-    // 复核本身拒绝的结构，那时记一条跳过说明，不吞掉已生成的图。
-    let findings: string[]
-    try {
-      findings = checkFigureRendering(svg, { maxBytes: svg.length }).findings
-        .map(finding => `渲染复核：${finding.message}`)
-    } catch (error) {
-      /* v8 ignore next -- 复核只抛 SvgAnnotateError；其余异常原样上抛（不变量漂移） */
-      if (!(error instanceof SvgAnnotateError)) throw error
-      findings = [`渲染复核被跳过：${error.message}`]
-    }
-    return { path, vectorLabels: build.spec.labels, vectorWarnings: [...build.warnings, ...findings] }
+    return { path, vectorLabels: build.spec.labels, vectorWarnings: [...build.warnings] }
   }
   const dotInput: StructuralFigureInput & { figure_type: DotFigureType } = { ...normalized, figure_type: normalized.figure_type }
   let dot: string
@@ -686,6 +673,35 @@ async function layoutSubmissionPage(args: {
   const applied = await applySubmissionPage(args.outcomePath, plan, args.format, args.output.warnings)
   if (applied !== undefined) {
     args.output.layout = buildLayout(plan, applied, args.style, args.input.figure_count ?? 1, args.output.warnings)
+  }
+}
+
+/**
+ * 渲染复核：量测交付文件，把发现折成警告（只对直绘图型）。
+ *
+ * 放在落版之后、文字转路径之前：落版会改写坐标与画布，复核要量的是最终交付物；转路径
+ * 之后图面已无 `<text>`，贯穿判定无从做起。只查得出「画出来才看得见」的问题（标号被
+ * 线条贯穿、点划线被实线覆盖、相邻零件剖面线取向过近、内容越出画布），与输入检查互补。
+ * 体量上限已由 vectorFigureSvg 按 DEFAULT_VECTOR_BODY_MAX_BYTES 卡住，复核不再按同一上限
+ * 二次拦截（复核含未量测说明，超限被拒会把它整段吞掉）；调用方给的外观视图片段仍可能带上
+ * 复核本身拒绝的结构，那时记一条跳过说明，不吞掉已生成的图。
+ * @param args - the delivered path and the warning sink.
+ */
+async function checkRenderedFigure(args: { path: string; warnings: string[] }): Promise<void> {
+  let svg: string
+  try {
+    svg = await readFile(args.path, 'utf8')
+  } catch (error) {
+    args.warnings.push(`渲染复核被跳过：读取 ${args.path} 失败（${error instanceof Error ? error.message : String(error)}）`)
+    return
+  }
+  try {
+    args.warnings.push(...checkFigureRendering(svg, { maxBytes: Buffer.byteLength(svg, 'utf8') }).findings
+      .map(finding => `渲染复核：${finding.message}`))
+  } catch (error) {
+    /* v8 ignore next -- 复核只抛 SvgAnnotateError；其余异常原样上抛（不变量漂移） */
+    if (!(error instanceof SvgAnnotateError)) throw error
+    args.warnings.push(`渲染复核被跳过：${error.message}`)
   }
 }
 

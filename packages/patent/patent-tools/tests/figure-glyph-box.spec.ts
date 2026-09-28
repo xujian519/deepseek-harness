@@ -6,8 +6,10 @@ import {
   GLYPH_WIDTH_RATIO,
   UPPER_WIDTH_RATIO,
   boxCrossedBySegment,
+  boxQuad,
   glyphBox,
   leaderEnd,
+  quadCrossedBySegment,
   textWidthMm,
 } from '../src/figure/glyph-box.ts'
 
@@ -75,6 +77,33 @@ describe('boxCrossedBySegment', () => {
     expect(boxCrossedBySegment(box, [0, 0], [10, 0])).toBe(false)
     expect(boxCrossedBySegment(box, [-5, -5], [15, -5])).toBe(false)
     expect(boxCrossedBySegment(box, [20, 20], [30, 30])).toBe(false)
+  })
+})
+
+describe('quadCrossedBySegment', () => {
+  const quad = boxQuad({ minX: 0, minY: 0, maxX: 10, maxY: 6 })
+
+  it('端点落在边界上不算穿过：引线止点解在框边上，坐标只保留三位小数', () => {
+    expect(quadCrossedBySegment(quad, [-5, 3], [0, 3])).toBe(false)
+    // 止点落在边界内侧 1e-12 毫米（浮点噪声）同样不算。
+    expect(quadCrossedBySegment(quad, [-5, 3], [1e-12, 3])).toBe(false)
+  })
+
+  it('进入深度不超过容差不算穿过，超过才算', () => {
+    expect(quadCrossedBySegment(quad, [-5, 3], [0.005, 3])).toBe(false)
+    expect(quadCrossedBySegment(quad, [-5, 3], [0.02, 3])).toBe(true)
+  })
+
+  it('仿射矩形（旋转后的占位框）按同一判定量测：穿过与沿边线两种情形', () => {
+    // 顶点 (17,9)、宽向量 (0,2)、高向量 (−6,0)：即 x∈[11,17]、y∈[9,11] 的 6×2 矩形。
+    const rotated = { origin: [17, 9] as const, edgeWidth: [0, 2] as const, edgeHeight: [-6, 0] as const }
+    expect(quadCrossedBySegment(rotated, [15, 10], [25, 10])).toBe(true)
+    expect(quadCrossedBySegment(rotated, [15, 9], [25, 9])).toBe(false)
+  })
+
+  it('退化矩形（字号为零等）不判穿过', () => {
+    expect(quadCrossedBySegment({ origin: [0, 0], edgeWidth: [0, 0], edgeHeight: [0, 0] }, [-5, 0], [5, 0])).toBe(false)
+    expect(quadCrossedBySegment(boxQuad({ minX: 0, minY: 0, maxX: 10, maxY: 0 }), [-5, 0], [5, 0])).toBe(false)
   })
 })
 

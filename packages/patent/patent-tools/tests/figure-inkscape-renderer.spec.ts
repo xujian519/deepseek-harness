@@ -31,6 +31,19 @@ const mockFs = vi.hoisted(() => ({
   existing: new Set<string>(),
 }))
 
+// 原子写可被单次置为失败：用于验证「写回失败不留下半个文件」这条路径（不靠文件权限，
+// 以管理员身份或 Windows 上同样可复现）。
+const mockAtomic = vi.hoisted(() => ({ fail: false }))
+
+vi.mock('@deepseek-ai/dsh-atomic-write', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@deepseek-ai/dsh-atomic-write')>()
+  return {
+    ...actual,
+    writeFileAtomic: (file: string, data: string, options: { mode: number }) =>
+      mockAtomic.fail ? Promise.reject(new Error('EACCES')) : actual.writeFileAtomic(file, data, options),
+  }
+})
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
   return {
@@ -107,6 +120,7 @@ function outputPathOf(spec: SubprocessSpawnSpec): string {
 const dirs: string[] = []
 afterEach(() => {
   mockFs.existing.clear()
+  mockAtomic.fail = false
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -205,6 +219,74 @@ describe('outlineSvgText', () => {
     const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
     expect(outcome.ok ? '' : outcome.error).toContain('SVG 校验失败')
+  })
+
+  it('产物几何走样时报 render_failed，原文件不改写', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    const before = readFileSync(path, 'utf8')
+    const { runtime } = fakeSubprocess((spec) => {
+      // 产物把图形整体挪到画布外：几何护栏必须拦下（否则会静默替换掉一张好图）。
+      writeFileSync(outputPathOf(spec), OUTLINED.replace('<line x1="1" y1="1" x2="5" y2="5" stroke-width="0.25"/>', '<line x1="90" y1="90" x2="95" y2="95" stroke-width="0.25"/>'), 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('几何走样')
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('产物里没有可量测图形时报 render_failed', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    const before = readFileSync(path, 'utf8')
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), '<svg xmlns="http://www.w3.org/2000/svg" width="30mm" height="20mm" viewBox="0 0 30 20"></svg>', 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('没有可量测的图形')
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('写回失败时报 render_failed，原文件保持原样', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    const before = readFileSync(path, 'utf8')
+    mockAtomic.fail = true
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), OUTLINED, 'utf8')
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    const outcome = await outlineSvgText(runtime, { path }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('EACCES')
+    expect(readFileSync(path, 'utf8')).toBe(before)
+  })
+
+  it('待转换文件读不到时报 render_failed，不启动子进程', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const { runtime, calls } = fakeSubprocess(() => handleWith({ exitCode: 0, signal: null }))
+    const outcome = await outlineSvgText(runtime, { path: join(tmpdir(), 'dsh-outline-missing.svg') }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(outcome.ok ? '' : outcome.error).toContain('读取待转换的 SVG 失败')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('子进程退出后、写回前被取消：不改写文件并报 aborted', async () => {
+    mockFs.existing.add('/opt/homebrew/bin/inkscape')
+    const path = figureFile()
+    const before = readFileSync(path, 'utf8')
+    const controller = new AbortController()
+    const { runtime } = fakeSubprocess((spec) => {
+      writeFileSync(outputPathOf(spec), OUTLINED, 'utf8')
+      controller.abort()
+      return handleWith({ exitCode: 0, signal: null })
+    })
+    const outcome = await outlineSvgText(runtime, { path, signal: controller.signal }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
+    expect(outcome).toMatchObject({ ok: false, code: 'aborted' })
+    expect(readFileSync(path, 'utf8')).toBe(before)
   })
 
   it('退出码非零时报 render_failed 并带上 stderr', async () => {

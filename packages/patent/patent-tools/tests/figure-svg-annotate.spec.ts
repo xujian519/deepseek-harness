@@ -61,6 +61,8 @@ describe('annotateSvg', () => {
     expect(() => annotateSvg('<!ENTITY x "y"><svg></svg>', [])).toThrow(/不安全/)
     expect(() => annotateSvg('<svg><![CDATA[x]]></svg>', [])).toThrow(/不安全/)
     expect(() => annotateSvg('<svg>' + 'x'.repeat(DEFAULT_SVG_MAX_BYTES + 1) + '</svg>', [])).toThrow(/过大/)
+    // 上限按 UTF-8 字节计：3000 个汉字只有 3000 码元、却是 9000 字节。
+    expect(() => annotateSvg(`<svg>${'一'.repeat(3000)}</svg>`, [], 6000)).toThrow(/过大/)
     expect(() => annotateSvg('<html></html>', [])).toThrow(/非 SVG/)
   })
 

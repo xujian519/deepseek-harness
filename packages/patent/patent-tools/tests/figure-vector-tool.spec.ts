@@ -442,6 +442,58 @@ describe('generate_patent_figure：剖视图的引线标号、中心线、字号
     }
   })
 
+  it('给定 target_office 时复核量测的是落版后的附图页：页面级检查不误报', async () => {
+    const { dir, outDir, run } = await setup()
+    try {
+      const result = await run({
+        figure_type: 'cross_section',
+        target_office: 'cnipa',
+        sections: {
+          parts: [{ outline: [[0, 0], [60, 0], [60, 24], [0, 24]], label: '1', hatch: { angle_deg: 45, spacing_mm: 3, direction: 'forward' } }],
+          labels: [{ text: '2', at: [72, 32], from: [60, 12] }],
+          centerlines: [{ from: [-6, 12], to: [66, 12] }],
+        },
+      }, 's12')
+      const payload = result.value as { warnings: string[] }
+      // 图形与图号都落在 210×297 页内：复核（在落版之后量测交付文件）不得报出越界或贯穿。
+      expect(payload.warnings.filter(warning => warning.startsWith('渲染复核：'))).toEqual([])
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).toContain('width="210mm"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('复核在文字转路径之前量测：转路径后仍保留贯穿提示', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-sec-'))
+    const outDir = join(dir, 'figs')
+    const tracker = trackingRenderer()
+    // 模拟 Config.figureTextToPath 的产物：图面已无 <text>（等价于文字转成了轮廓）。
+    const tool = createGeneratePatentFigureTool({
+      render: tracker.render,
+      outputDir: outDir,
+      cwd: dir,
+      outlineText: (spec) => {
+        writeFileSync(spec.path, readFileSync(spec.path, 'utf8').replace(/<text[^>]*>[^<]*<\/text>/g, ''), 'utf8')
+        return Promise.resolve({ ok: true })
+      },
+    })
+    const ctx = await ctxWith(tool)
+    try {
+      const result = await execute(ctx, 'generate_patent_figure', {
+        figure_type: 'cross_section',
+        sections: {
+          parts: [{ outline: [[0, 0], [40, 0], [40, 20], [0, 20]], hatch: { angle_deg: 45, spacing_mm: 4, direction: 'forward' } }],
+          labels: [{ text: '1', at: [20, 10], from: [20, 10] }],
+        },
+      }, 's11') as RunResult
+      const payload = result.value as { warnings: string[] }
+      expect(payload.warnings.join('\n')).toContain('渲染复核：图面文字「1」被线条贯穿')
+      expect(readFileSync(join(outDir, 'fig1.svg'), 'utf8')).not.toContain('<text')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('渲染复核的发现随警告返回：文字被线条贯穿时给出提示', async () => {
     const { dir, run } = await setup()
     try {

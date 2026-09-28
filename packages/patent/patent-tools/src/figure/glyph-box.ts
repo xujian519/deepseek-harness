@@ -5,7 +5,10 @@
  * 两侧对「字占多大」的判断必须一致，否则一侧按较松的框躲避、另一侧按较紧的框判定，
  * 会把正确的图报成缺陷。框以基线锚点定位：上方 {@link GLYPH_ASCENT_RATIO} 倍字号、
  * 下方 {@link GLYPH_DESCENT_RATIO} 倍字号；宽度逐码点累加，全角字符按
- * {@link FULL_WIDTH_RATIO}、其余按 {@link GLYPH_WIDTH_RATIO}。
+ * {@link FULL_WIDTH_RATIO}、其余按 {@link GLYPH_WIDTH_RATIO}。判定同样共用：线段须在
+ * 框内进入至少 {@link GLYPH_BOX_TOLERANCE_MM} 才算穿过（{@link boxCrossedBySegment}
+ * 与 {@link quadCrossedBySegment} 是同一判定的轴对齐形式与仿射形式），贴边、沿边共线、
+ * 只在角上掠过都不算。
  * @module @deepseek-ai/dsh-patent-tools/figure/glyph-box
  */
 
@@ -106,33 +109,96 @@ export function glyphBox(
   }
 }
 
-/** 点是否落在占位框内部（离每条边至少 {@link GLYPH_BOX_TOLERANCE_MM}）。 */
-function boxContains(box: GlyphBox, point: readonly [number, number]): boolean {
-  return point[0] > box.minX + GLYPH_BOX_TOLERANCE_MM && point[0] < box.maxX - GLYPH_BOX_TOLERANCE_MM
-    && point[1] > box.minY + GLYPH_BOX_TOLERANCE_MM && point[1] < box.maxY - GLYPH_BOX_TOLERANCE_MM
-}
-
-/** 两线段是否真正相交（不含共线重叠；共线情形由端点包含判定覆盖）。 */
-function segmentsCross(
-  from1: readonly [number, number],
-  to1: readonly [number, number],
-  from2: readonly [number, number],
-  to2: readonly [number, number],
-): boolean {
-  const side = (from: readonly [number, number], to: readonly [number, number], point: readonly [number, number]): number =>
-    (to[0] - from[0]) * (point[1] - from[1]) - (to[1] - from[1]) * (point[0] - from[0])
-  const d1 = side(from1, to1, from2)
-  const d2 = side(from1, to1, to2)
-  const d3 = side(from2, to2, from1)
-  const d4 = side(from2, to2, to1)
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+/**
+ * 仿射矩形：`origin` 顶点与两条边向量（占位框本身，或占位框经变换后的像）。
+ */
+export type GlyphQuad = {
+  /** 顶点（占位框左上角或其在图面上的像）。 */
+  readonly origin: readonly [number, number]
+  /** 宽度方向的边向量（自 `origin` 指向同一条边的另一端）。 */
+  readonly edgeWidth: readonly [number, number]
+  /** 高度方向的边向量（自 `origin` 指向下一条边的起端）。 */
+  readonly edgeHeight: readonly [number, number]
 }
 
 /**
- * 线段是否穿过占位框：端点真正落在框内，或线段与框的边真正相交（贴边、共线不算）。
+ * 占位框 → 仿射矩形。
+ * @param box - 占位框。
+ * @returns 该框的仿射矩形。
+ */
+export function boxQuad(box: GlyphBox): GlyphQuad {
+  return {
+    origin: [box.minX, box.minY],
+    edgeWidth: [box.maxX - box.minX, 0],
+    edgeHeight: [0, box.maxY - box.minY],
+  }
+}
+
+/**
+ * 把参数区间收窄到 `value0 + t·(value1 - value0)` 落在 `(low, high)` 内的部分。
+ * @param range - 当前可行区间。
+ * @param value0 - `t=0` 处的取值。
+ * @param value1 - `t=1` 处的取值。
+ * @param low - 取值下界（开区间）。
+ * @param high - 取值上界（开区间）。
+ * @returns 收窄后的区间；无解时 undefined。
+ */
+function clipInterval(
+  range: readonly [number, number],
+  value0: number,
+  value1: number,
+  low: number,
+  high: number,
+): [number, number] | undefined {
+  if (value0 === value1) return value0 > low && value0 < high ? [range[0], range[1]] : undefined
+  const atLow = (low - value0) / (value1 - value0)
+  const atHigh = (high - value0) / (value1 - value0)
+  const lower = Math.max(range[0], Math.min(atLow, atHigh))
+  const upper = Math.min(range[1], Math.max(atLow, atHigh))
+  return lower < upper ? [lower, upper] : undefined
+}
+
+/**
+ * 线段是否穿过仿射矩形：线段上有一段落在矩形内部，且离每条边至少
+ * {@link GLYPH_BOX_TOLERANCE_MM}。
  *
- * 绘图侧据此避让文字、复核侧据此判定「文字被线条贯穿」（复核侧按四角判定，
- * 变换后的框同样成立），两侧判定必须一致。
+ * 判据是「进入多深」而不是「是否与边相交」：引线止点由 {@link leaderEnd} 解在占位框
+ * 边界上，而坐标只保留三位小数，止点会落在边界内侧 1e-15 毫米量级处——按相交判定，
+ * 工具自己画的引线会被报成「贯穿文字」。沿边共线、只在角上掠过同样不算。绘图侧
+ * （引线避让、标号落位）与复核侧（判图面缺陷）共用本判定，两侧口径因此完全一致。
+ * @param quad - 仿射矩形。
+ * @param from - 线段起点。
+ * @param to - 线段终点。
+ * @returns 穿过时 true。
+ */
+export function quadCrossedBySegment(
+  quad: GlyphQuad,
+  from: readonly [number, number],
+  to: readonly [number, number],
+): boolean {
+  const { origin, edgeWidth: width, edgeHeight: height } = quad
+  const determinant = width[0] * height[1] - width[1] * height[0]
+  // 退化矩形（边向量共线或为零，如字号为零的文字）没有内部，不判穿过。
+  if (determinant === 0) return false
+  const coordinate = (point: readonly [number, number]): readonly [number, number] => [
+    ((point[0] - origin[0]) * height[1] - (point[1] - origin[1]) * height[0]) / determinant,
+    (width[0] * (point[1] - origin[1]) - width[1] * (point[0] - origin[0])) / determinant,
+  ]
+  const [alphaFrom, betaFrom] = coordinate(from)
+  const [alphaTo, betaTo] = coordinate(to)
+  const marginAlpha = GLYPH_BOX_TOLERANCE_MM / Math.hypot(width[0], width[1])
+  const marginBeta = GLYPH_BOX_TOLERANCE_MM / Math.hypot(height[0], height[1])
+  let range: readonly [number, number] = [0, 1]
+  for (const [value0, value1, margin] of [[alphaFrom, alphaTo, marginAlpha], [betaFrom, betaTo, marginBeta]] as const) {
+    const clipped = clipInterval(range, value0, value1, margin, 1 - margin)
+    if (clipped === undefined) return false
+    range = clipped
+  }
+  return true
+}
+
+/**
+ * 线段是否穿过占位框：{@link quadCrossedBySegment} 的轴对齐形式。
  * @param box - 占位框。
  * @param from - 线段起点。
  * @param to - 线段终点。
@@ -143,19 +209,7 @@ export function boxCrossedBySegment(
   from: readonly [number, number],
   to: readonly [number, number],
 ): boolean {
-  if (boxContains(box, from) || boxContains(box, to)) return true
-  const corners: readonly (readonly [number, number])[] = [
-    [box.minX, box.minY],
-    [box.maxX, box.minY],
-    [box.maxX, box.maxY],
-    [box.minX, box.maxY],
-  ]
-  for (let index = 0; index < 4; index += 1) {
-    const edgeFrom = corners[index] as readonly [number, number]
-    const edgeTo = corners[(index + 1) % 4] as readonly [number, number]
-    if (segmentsCross(from, to, edgeFrom, edgeTo)) return true
-  }
-  return false
+  return quadCrossedBySegment(boxQuad(box), from, to)
 }
 
 /**

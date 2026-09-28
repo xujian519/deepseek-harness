@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -108,14 +108,12 @@ describe.skipIf(!hasInkscape)('Inkscape 文字转路径（真实子进程）', (
     expect(after.findings.filter(finding => finding.check !== 'not-measured')).toEqual([])
   })
 
-  it('输出路径不可写时报 render_failed，不改写原文件', async () => {
+  it('输入路径不存在时报 render_failed：不生成文件，也不动其他图形', async () => {
     const { path, svg } = circuitSvgFile()
-    const outcome = await outlineSvgText(
-      realSubprocess(),
-      { path: join(import.meta.dirname, 'no-such-dir', 'fig1.svg') },
-      { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS },
-    )
+    const missing = join(import.meta.dirname, 'no-such-dir', 'fig1.svg')
+    const outcome = await outlineSvgText(realSubprocess(), { path: missing }, { renderTimeoutMs: TEST_RENDER_TIMEOUT_MS })
     expect(outcome).toMatchObject({ ok: false, code: 'render_failed' })
+    expect(existsSync(missing)).toBe(false)
     expect(readFileSync(path, 'utf8')).toBe(svg)
   })
 })

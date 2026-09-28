@@ -104,7 +104,6 @@ async function patentRows(): Promise<PresetRow[]> {
   return flattenRows(plugins)
 }
 
-
 /** The shipped `deepseek-official` model catalog source (the adapter's default list). */
 const DEEPSEEK_CATALOG = join(REPO_ROOT, 'packages/llm/llm-deepseek/src/models.ts')
 

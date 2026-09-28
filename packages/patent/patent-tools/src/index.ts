@@ -28,6 +28,7 @@ import { createTwoStepAnalysisEngine } from './figure/analysis-engine.ts'
 import { resolveImageInputModalities } from './figure/image-capability.ts'
 import { DEFAULT_GRAPHVIZ_RENDER_TIMEOUT_MS } from './figure/graphviz-renderer.ts'
 import { DEFAULT_INKSCAPE_RENDER_TIMEOUT_MS, outlineSvgText } from './figure/inkscape-renderer.ts'
+import type { OutlineTextPort } from './figure/inkscape-renderer.ts'
 import { pickRenderer } from './figure/render-selector.ts'
 import type { FigureRendererMode } from './figure/render-selector.ts'
 import { PatentToolError } from './error.ts'
@@ -50,7 +51,6 @@ import { createRuleCheckTool } from './tool/rule-check.ts'
 import { createAnalyzePatentFigureTool } from './tool/analyze-patent-figure.ts'
 import { createSearchPatentFigureTool } from './tool/search-patent-figure.ts'
 import { createGeneratePatentFigureTool } from './tool/generate-patent-figure.ts'
-import type { GeneratePatentFigureDeps } from './tool/figure-input.ts'
 import { createGenerateStructureFigureTool } from './tool/generate-structure-figure.ts'
 import type { GenerateStructureFigureDeps } from './tool/generate-structure-figure.ts'
 import { STRUCTURE_VIEWS, type StructureViewName } from './figure/freecad-structure-script.ts'
@@ -260,9 +260,9 @@ export interface Config {
   figureMargin?: number
   /** 附图输出目录（相对或绝对路径）；默认 <cwd>/patent/figures/。 */
   figureOutputDir?: string
-  /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，仅 SVG 生效）。 */
+  /** 附图导出时把图面文字转成轮廓路径；默认 false。开启后 SVG 不再依赖阅读器字体（需要 Inkscape，两个附图生成工具、仅 SVG 生效）。 */
   figureTextToPath?: boolean
-  /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用。 */
+  /** Inkscape 可执行路径覆盖；默认自动探测（候选路径 + PATH）。仅 figureTextToPath 使用（两个附图生成工具共用同一端口）。 */
   inkscapeExecutable?: string
   /** Inkscape 单次文字转路径超时（毫秒）；默认 30000。仅 figureTextToPath 使用。 */
   inkscapeRenderTimeoutMs?: number
@@ -613,7 +613,7 @@ export function apply(ctx: Context, config: Config): void {
   // 文字转路径（Config.figureTextToPath）是可选的导出加固：开启时注入端口，关闭时
   // 完全不接线。缺 subprocess 或 Inkscape 时 fail loud（setup_required），不静默
   // 交出仍有字体依赖的图。
-  const outlineText: GeneratePatentFigureDeps['outlineText'] = config.figureTextToPath === true
+  const outlineText: OutlineTextPort | undefined = config.figureTextToPath === true
     ? spec => (subprocess === undefined
       ? Promise.resolve({ ok: false as const, code: 'not_installed' as const, error: '文字转路径需要 subprocess 服务（宿主未挂载 @deepseek-ai/dsh-subprocess）。' })
       : outlineSvgText(subprocess, spec, {
@@ -660,6 +660,7 @@ export function apply(ctx: Context, config: Config): void {
   const structureViews = config.structureFigureViews
   ctx.tools.register(createGenerateStructureFigureTool({
     render: structureRender,
+    ...(outlineText === undefined ? {} : { outlineText }),
     ...(config.structureFigureEnabled === undefined ? {} : { enabled: config.structureFigureEnabled }),
     outputDir: resolveFigureOutputDir(config),
     upsertIndex: entry => figureIndexStore.upsert(figureIndexFile, entry),

@@ -20,7 +20,7 @@
  * @module @deepseek-ai/dsh-patent-tools/figure/section-diagram
  */
 
-import { leaderEnd } from './glyph-box.ts'
+import { glyphBox, leaderEnd } from './glyph-box.ts'
 import { escapeXmlAttribute, fmt, VectorFigureError, type VectorFigureSpec } from './vector-figure.ts'
 
 /** 剖面线参数：45° 细实线；相邻零件方向相反或间距不等以区分（GB/T 4457.5 实践）。 */
@@ -407,16 +407,19 @@ function baselineDrop(fontSizeMm: number): number {
 }
 
 /**
- * 文字的估算占位框（以视觉中心为中心、边长 2 倍字号的正方形），用于画布包围盒。
- * @param center - 文字视觉中心。
+ * 文字的占位框（画布包围盒用）：与引线止点、渲染复核共用 {@link glyphBox} 的同一
+ * 模型——按内容宽度与基线定位。按字号正方形估算会把多字标号算窄，标号右半落在画布
+ * 之外、被裁掉。
+ * @param text - 文字内容。
+ * @param at - 文字视觉中心落点。
+ * @param anchor - 水平对齐方式。
  * @param fontSizeMm - 字号（毫米）。
- * @returns 方框的两个对角顶点。
+ * @returns 占位框的两个对角顶点。
  */
-function textBox(center: Point, fontSizeMm: number): Point[] {
-  return [
-    [center[0] - fontSizeMm, center[1] - fontSizeMm],
-    [center[0] + fontSizeMm, center[1] + fontSizeMm],
-  ]
+function textExtent(text: string, at: Point, anchor: TextAnchor, fontSizeMm: number): Point[] {
+  const baseline: Point = [at[0], at[1] + baselineDrop(fontSizeMm)]
+  const box = glyphBox(text, baseline, fontSizeMm, anchor)
+  return [[box.minX, box.minY], [box.maxX, box.maxY]]
 }
 
 /**
@@ -648,7 +651,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
       const leader = labelLeader(labelText, polygonCentroid(part.outline), at, fontSizeMm)
       if (leader !== undefined) leaders.push(leader)
       texts.push({ text: labelText, at, anchor: 'middle', fontSizeMm })
-      extents.push(...textBox(at, fontSizeMm))
+      extents.push(...textExtent(labelText, at, 'middle', fontSizeMm))
       labels.push(labelText)
     }
   })
@@ -674,7 +677,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
       }
     }
     texts.push({ text, at: label.at, anchor: 'middle', fontSizeMm })
-    extents.push(...textBox(label.at, fontSizeMm))
+    extents.push(...textExtent(text, label.at, 'middle', fontSizeMm))
     labels.push(text)
   }
 
@@ -686,7 +689,7 @@ export function buildSectionDiagram(input: SectionDiagramInput): VectorFigureSpe
     extents.push(geometry.positionLine.from, geometry.positionLine.to, ...geometry.arrowHeads.flat())
     for (const at of geometry.labelAnchors) {
       texts.push({ text: mark.id.trim(), at, anchor: geometry.labelAnchor, fontSizeMm })
-      extents.push(...textBox(at, fontSizeMm))
+      extents.push(...textExtent(mark.id.trim(), at, geometry.labelAnchor, fontSizeMm))
     }
     labels.push(mark.id.trim())
   }

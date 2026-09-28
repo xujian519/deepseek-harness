@@ -43,8 +43,8 @@ kind: "package-reference"
 | `search_patent_figure` | 检索 | 附图索引关键词检索（索引由 `analyze_patent_figure` 写入，见 Config.figureIndexFile） |
 | `generate_patent_figure` | 撰写 | 附图生成：Graphviz DOT 通路（流程图/状态图/框图/层级图/模板/原始 DOT）+ SVG 直绘通路（电路图/曲线图/剖视图/时序图/外观设计视图排布）；SVG 默认内置 `@viz-js/viz` WASM，png/pdf 与 `figureRenderer: 'cli'` 走 `dot` CLI（Config.graphvizExecutable / figureOutputDir / dotFont）；可选导出时文字转路径，使 SVG 不带字体依赖（Config.figureTextToPath，需要 Inkscape）；提交规格 page/dpi/margin/orientation；框图/层级图 SVG 默认引线标号（直绘图型收到该参数时明确回报「不生效」，不再静默忽略）；剖视图可给引线标号（`sections.labels`）、中心线（`sections.centerlines`）、图面字号（`label_font_size_mm`），非剖切轮廓用 `hatch: "none"`，`sections` 亦可传 JSON 文件路径；`panels` 多面板输出与 `figure_family` 跨图标号续接；`target_office` 按法域落版为固定幅面附图页并核算尺寸；返回图形绝对路径；返回图面用语检查警告、输入层剖面线警告与渲染复核发现；结果写入附图索引（Config.figureIndexFile） |
 | `add_patent_figure_references` | 撰写 | SVG 标号后处理：内嵌模式按 `<text>`/`<tspan>` 文本匹配追加 `(标号)`；`leader_lines: true` 在部件轮廓外侧绘制引线并放置独立标号；返回标注文件的绝对路径 |
-| `verify_patent_figure` | 质量 | 对已生成的 SVG 源做渲染复核量测（不需要栅格化器）：线宽与线段取向分布、文字元素，以及只在画面上才看得见的缺陷——图面文字（标号、元件名、连线说明）被引线或轮廓贯穿、细点划线中心线被同位置的实线边覆盖、相邻零件剖面线取向近到无法区分、内容越出画布。元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号，故落版页与拼版页的图同样可量测；不在量测范围内的每一类（CSS 类样式、`<use>`/`<image>`、无法解析的变换或路径、按端点弦近似的曲线段）各出一条「未量测」发现而不是略过 |
-| `generate_structure_figure` | 撰写 | FreeCAD TechDraw 结构线稿：经宿主 `freecadcmd` 子进程把 STEP/IGES/BREP 模型投影为黑白多视图 SVG（`iso`/`front`/`rear`/`top`/`bottom`/`left`/`right`，Config.freecadExecutable）；件号锚定到真实 3D 顶点的投影；默认关闭（Config.structureFigureEnabled）且 CAD 隔离；支持单模型文件或目录批量（目录批量与 `callouts` 互斥：件号 3D 锚点仅对单个模型有效）；`target_office` 按法域落版每个视图 SVG；结果写入附图索引（`figureType: 'structure'`） |
+| `verify_patent_figure` | 质量 | 对已生成的 SVG 源做渲染复核量测（不需要栅格化器）：线宽与线段取向分布、文字元素，以及只在画面上才看得见的缺陷——图面文字（标号、元件名、连线说明）被引线或轮廓贯穿、细点划线中心线被同位置的实线边覆盖、相邻零件剖面线取向近到无法区分、内容越出画布。元素按嵌套逐层继承变换（translate/scale/rotate/matrix）与线宽、描边、字号（含自 `<g>` 继承的 `text-anchor` 与行内 `style`），根元素的画布尺寸与 viewBox/preserveAspectRatio 先解析成毫米，故落版页、拼版页与 px 级用户单位的导出文件同一口径；不在量测范围内的结构（CSS 类样式、`<use>`/`<image>`、嵌套 `<svg>` 内层视口、marker 端头、`<tspan>` 位移、dominant-baseline、百分比长度、无法解析的变换/路径/viewBox、按端点弦近似的曲线段）各出一条「未量测」发现而不是略过 |
+| `generate_structure_figure` | 撰写 | FreeCAD TechDraw 结构线稿：经宿主 `freecadcmd` 子进程把 STEP/IGES/BREP 模型投影为黑白多视图 SVG（`iso`/`front`/`rear`/`top`/`bottom`/`left`/`right`，Config.freecadExecutable）；件号锚定到真实 3D 顶点的投影；默认关闭（Config.structureFigureEnabled）且 CAD 隔离；支持单模型文件或目录批量（目录批量与 `callouts` 互斥：件号 3D 锚点仅对单个模型有效）；`target_office` 按法域落版每个视图 SVG；结果写入附图索引（`figureType: 'structure'`）；可选导出时文字转路径（Config.figureTextToPath，同 generate_patent_figure） |
 | `patent_pdf_download` | 文档 | browser-backend 冷决策：ego-browser 下载拦截（统一 ego 栈） |
 | `recognize_chemical_structure` | 分析 | 可选（rdkit 未随包）；索引写入已接线（Config.chemistryIndexFile） |
 | `flexible_plan` | 工作流 | `@deepseek-ai/dsh-patent-workflow` flexible-plan |
@@ -76,7 +76,7 @@ Schemastery 配置，所有字段可选。
 | `graphvizExecutable` | string | 自动探测 | `dot` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_GRAPHVIZ_DOT` → 平台候选路径 → `PATH`。 |
 | `graphvizRenderTimeoutMs` | number | `60000` | CLI `dot` 单次渲染的超时；WASM 引擎为同步渲染，不受它约束。 |
 | `figureOutputDir` | string | `<cwd>/patent/figures` | `generate_patent_figure` 的输出目录（绝对或相对 cwd）。 |
-| `figureTextToPath` | boolean | `false` | 导出时把图面文字转成轮廓路径，SVG 因此不依赖阅读器字体；需要 Inkscape，仅对 SVG 输出生效（其它格式仍由渲染器出字）。 |
+| `figureTextToPath` | boolean | `false` | 导出时把图面文字转成轮廓路径，SVG 因此不依赖阅读器字体；需要 Inkscape，两个附图生成工具都适用，仅对 SVG 输出生效（其它格式仍由渲染器出字）。产物仍含 `<text>`、未通过 SVG 安全校验、或墨迹越出原图范围时拒绝替换，原图保持原样。 |
 | `inkscapeExecutable` | string | 自动探测 | 文字转路径所用的 `inkscape` 可执行路径覆盖；探测顺序：覆盖值 → `DSH_INKSCAPE` → 平台候选路径 → `PATH`。 |
 | `inkscapeRenderTimeoutMs` | number | `30000` | 单次文字转路径的超时（毫秒）。 |
 | `workbenchBaseUrl` | string | 进程内 webServer 端口 | `workbench_link_patent_case` 的工作台 API 基址；显式配置优先，web 组合内自动取 `http://127.0.0.1:<webServer 端口>`；不可用（非 web profile）时工具在执行期以 `setup_required` 失败。 |

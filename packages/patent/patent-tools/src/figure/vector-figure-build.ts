@@ -171,7 +171,7 @@ function sectionWarnings(section: SectionFigureJson): string[] {
     if (indexes.length < 2) continue
     warnings.push(
       `零件名「${label}」出现在 ${String(indexes.length)} 个轮廓上（${partNumbers(indexes)}）：`
-      + '本字段按轮廓各画一处标号（数字在轮廓右侧之外）；同一零件的多个轮廓请改用 labels 指定唯一落点',
+      + '本字段按轮廓各画一处标号（数字在轮廓右上角之外）；同一零件的多个轮廓请改用 labels 指定唯一落点',
     )
   }
   return warnings

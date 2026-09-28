@@ -24,7 +24,7 @@ import type {
 } from '../figure/dot-builder.ts'
 import type { GraphvizRenderOutcome, GraphvizRenderSpec } from '../figure/graphviz-renderer.ts'
 import type { FigureIndexEntry } from '../figure/index-store.ts'
-import type { InkscapeOutlineOutcome, InkscapeOutlineSpec } from '../figure/inkscape-renderer.ts'
+import type { OutlineTextPort } from '../figure/inkscape-renderer.ts'
 import type { TargetOffice } from '../figure/office-profile.ts'
 import type { SubmissionLayout } from '../figure/submission-page.ts'
 import type {
@@ -76,7 +76,7 @@ export type GeneratePatentFigureDeps = {
    * 图面文字换成轮廓路径，导出文件不再依赖阅读器字体。宿主仅在
    * Config.figureTextToPath 开启时注入，缺省视为不转换。
    */
-  outlineText?: (spec: InkscapeOutlineSpec) => Promise<InkscapeOutlineOutcome>
+  outlineText?: OutlineTextPort
   /** 输出目录（绝对路径），默认 <cwd>/patent/figures。 */
   outputDir?: string
   /** 可选 upsert 进附图索引（写入失败静默降级）。 */

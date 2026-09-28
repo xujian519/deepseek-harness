@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
@@ -129,6 +129,65 @@ describe('generate_structure_figure 落版', () => {
       expect(result.value.layout?.pageScale).toBeGreaterThan(0)
       const written = readFileSync(join(outDir, 'fig3', 'fig3_iso.svg'), 'utf8')
       expect(written).toContain('width="210mm" height="297mm"')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('generate_structure_figure 文字转路径', () => {
+  it('注入端口时逐视图转换：路径是视图文件的绝对路径，顺序与输出一致', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    const outlined: string[] = []
+    try {
+      const tool = createGenerateStructureFigureTool({
+        render: okRenderer().render,
+        enabled: true,
+        outputDir: outDir,
+        cwd: dir,
+        outlineText: (spec) => {
+          outlined.push(spec.path)
+          return Promise.resolve({ ok: true })
+        },
+      })
+      const ctx = await ctxWith(tool)
+      const result = await execute(ctx, 'generate_structure_figure', { model_path: model, views: ['iso', 'front'] }, 's-outline') as {
+        isError: boolean
+        value: { paths: string[] }
+      }
+      expect(result.isError).toBe(false)
+      expect(outlined.every(path => isAbsolute(path))).toBe(true)
+      expect(outlined.map(path => relative(dir, path))).toEqual(result.value.paths)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('转换失败按失败码映射：not_installed → setup_required，其余 → tool_execution_failed', async () => {
+    const dir = tempDir()
+    const outDir = join(dir, 'figs')
+    const model = writeModel(dir, 'bracket.step')
+    try {
+      const missing = createGenerateStructureFigureTool({
+        render: okRenderer().render,
+        enabled: true,
+        outputDir: outDir,
+        cwd: dir,
+        outlineText: () => Promise.resolve({ ok: false, code: 'not_installed', error: '未找到 Inkscape。' }),
+      })
+      await expect(missing.execute({ model_path: model, views: ['iso'] }, exec))
+        .rejects.toMatchObject({ code: 'setup_required' })
+      const failed = createGenerateStructureFigureTool({
+        render: okRenderer().render,
+        enabled: true,
+        outputDir: outDir,
+        cwd: dir,
+        outlineText: () => Promise.resolve({ ok: false, code: 'render_failed', error: 'Inkscape 文字转路径失败' }),
+      })
+      await expect(failed.execute({ model_path: model, views: ['iso'] }, exec))
+        .rejects.toMatchObject({ code: 'tool_execution_failed' })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
